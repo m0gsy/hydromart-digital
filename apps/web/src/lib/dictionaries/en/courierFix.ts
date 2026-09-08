@@ -67,6 +67,8 @@ export const courierFix = {
     gps: 'GPS location',
     proof: 'Proof',
     proofDone: 'Photo & signature',
+    // CA-4-38: proof still in the phone's queue is not proof the server holds.
+    proofQueued: 'Saved on this phone, waiting for signal',
     retention: 'Proof is kept for 12 months then auto-deleted per PDP-law retention policy.',
     next: 'Next task',
     backToList: 'Back to list',
@@ -93,6 +95,8 @@ export const courierFix = {
     contactHeading: 'Contact attempts',
     call: 'Call again',
     chat: 'Chat',
+    // CA-4-36: kedua tombol kini benar-benar menelepon / membuka WhatsApp.
+    noPhone: 'No customer number is stored on this delivery.',
     methodCall: 'Call',
     methodChat: 'WhatsApp chat',
     outcomeLogged: 'Logged',

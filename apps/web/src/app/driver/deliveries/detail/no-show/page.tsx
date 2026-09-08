@@ -10,7 +10,7 @@ import { Button, Card, FormError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
-import type { NoShowStatus } from '@/lib/types';
+import type { Delivery, NoShowStatus } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 /*
@@ -57,6 +57,8 @@ function NoShow() {
   const [log, setLog] = useState<{ method: Method; at: number }[]>([]);
   const [elapsed, setElapsed] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** CA-4-36: the customer's own number, read from the delivery. Null = nothing to dial. */
+  const [phone, setPhone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /*
@@ -72,9 +74,28 @@ function NoShow() {
    * The gate itself comes back from the server; the per-attempt list is only on this
    * phone, because the server keeps a count and not a list.
    */
+  /*
+   * CA-4-36. The two buttons below only ever POSTed an attempt: nothing dialled, nothing
+   * opened WhatsApp. So a tap recorded "the courier tried to reach the customer" when no
+   * such thing had happened — and the no-show gate, which will not let a courier declare a
+   * no-show until enough attempts exist, counted every one of them. That is the gate being
+   * satisfied by taps rather than by calls.
+   *
+   * The number is on the delivery, and this screen never read it. `/driver/deliveries/detail`
+   * already does exactly this: a `tel:` link when `recipientPhone` is there, inert-but-visible
+   * when it is not.
+   */
   useEffect(() => {
     if (!id) return;
     let live = true;
+    api
+      .get<Delivery>(endpoints.deliveries.driver.get(id), true)
+      .then((d) => {
+        if (live) setPhone(d.recipientPhone ?? null);
+      })
+      .catch(() => {
+        /* No number means the buttons stay inert; the gate is unaffected either way. */
+      });
     api
       .get<NoShowStatus>(endpoints.deliveries.driver.contactAttempts(id), true)
       .then((s) => {
@@ -123,6 +144,19 @@ function NoShow() {
     Boolean(status?.canMarkNoShow) ||
     (elapsed && minAttempts !== null && (status?.attempts ?? 0) >= minAttempts);
 
+  /**
+   * CA-4-36. The attempt is recorded as a SIDE EFFECT of a real contact, not instead of one.
+   * `wa.me` wants a bare international number; the 08xx → 62xx step is the one
+   * `dashboard/crm/page.tsx` already uses.
+   */
+  const contactHref = (method: Method): string | null => {
+    if (!phone) return null;
+    if (method === 'CALL') return `tel:${phone.replace(/\s/g, '')}`;
+    let n = phone.replace(/\D/g, '');
+    if (n.startsWith('0')) n = `62${n.slice(1)}`;
+    return `https://wa.me/${n}`;
+  };
+
   const attempt = async (method: Method) => {
     setBusy(true);
     setError(null);
@@ -168,14 +202,14 @@ function NoShow() {
 
       <Card className="flex flex-col items-center gap-2 p-6 text-center">
         <WarningCircle size={40} weight="fill" className="text-amber-500" />
-        <div className="text-sm text-[color:var(--muted)]">{t('driver.noShow.body')}</div>
+        <div className="text-sm text-[color:var(--text-muted)]">{t('driver.noShow.body')}</div>
         <div className="mt-1 text-3xl font-extrabold tabular-nums">
           <Remaining eligibleAt={status?.eligibleAt ?? null} />
         </div>
         <div className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
           {t('courierFix.noShow.remainingLabel')}
         </div>
-        <div className="text-[11px] text-[color:var(--muted)]">
+        <div className="text-[11px] text-[color:var(--text-muted)]">
           {minAttempts === null
       ? t('driver.noShow.attempts', { n: status?.attempts ?? 0 })
       : t('courierFix.noShow.attemptsOf', {
@@ -187,7 +221,7 @@ function NoShow() {
 
       {log.length > 0 && (
         <Card className="p-0">
-          <div className="px-4 pb-1 pt-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+          <div className="px-4 pb-1 pt-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
             {t('courierFix.noShow.contactHeading')}
           </div>
           {log.map((entry, i) => (
@@ -197,7 +231,7 @@ function NoShow() {
               </span>
               <div className="flex-1 text-[12.5px] font-bold">
                 {entry.method === 'CALL' ? t('courierFix.noShow.methodCall') : t('courierFix.noShow.methodChat')}
-                <span className="tabular-nums text-[color:var(--muted)]"> · {CLOCK.format(entry.at)}</span>
+                <span className="tabular-nums text-[color:var(--text-muted)]"> · {CLOCK.format(entry.at)}</span>
               </div>
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700">
                 <CheckCircle size={15} weight="fill" />
@@ -211,24 +245,37 @@ function NoShow() {
       <FormError message={error} />
 
       <div className="flex gap-2.5">
-        <button
-          type="button"
-          onClick={() => attempt('CALL')}
-          disabled={busy}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
-        >
-          <Phone size={17} weight="fill" />
-          {t('courierFix.noShow.call')}
-        </button>
-        <button
-          type="button"
-          onClick={() => attempt('WHATSAPP')}
-          disabled={busy}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-brand-600 py-2.5 text-sm font-extrabold text-brand-700 disabled:opacity-50"
-        >
-          <ChatCircleText size={17} weight="fill" />
-          {t('courierFix.noShow.chat')}
-        </button>
+        {(['CALL', 'WHATSAPP'] as const).map((method) => {
+          const href = contactHref(method);
+          const Icon = method === 'CALL' ? Phone : ChatCircleText;
+          const label = t(method === 'CALL' ? 'courierFix.noShow.call' : 'courierFix.noShow.chat');
+          const style =
+            'flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] py-2.5 text-sm font-extrabold';
+          // No number on this delivery: inert and visibly so, rather than a button that
+          // records a contact attempt nobody could have made. Same treatment as the Telepon
+          // button on /driver/deliveries/detail.
+          return href ? (
+            <a
+              key={method}
+              href={href}
+              onClick={() => void attempt(method)}
+              className={`${style} border-brand-600 text-brand-700 ${busy ? 'pointer-events-none opacity-50' : ''}`}
+            >
+              <Icon size={17} weight="fill" />
+              {label}
+            </a>
+          ) : (
+            <span
+              key={method}
+              aria-disabled="true"
+              title={t('courierFix.noShow.noPhone')}
+              className={`${style} border-[color:var(--border)] text-[color:var(--text-muted)]`}
+            >
+              <Icon size={17} weight="fill" />
+              {label}
+            </span>
+          );
+        })}
       </div>
 
       <div className="flex items-center gap-2 rounded-2xl bg-brand-50 px-3.5 py-3">
@@ -240,7 +287,7 @@ function NoShow() {
         {t('driver.noShow.markNoShow')}
       </Button>
 
-      <p className="text-center text-xs text-[color:var(--muted)]">
+      <p className="text-center text-xs text-[color:var(--text-muted)]">
         {t('courierFix.noShow.customerArrived')}{' '}
         <Link href={`/driver/deliveries/detail?id=${id}`} className="inline-flex min-h-11 items-center font-extrabold text-brand-700">
           {t('courierFix.noShow.continueHandover')}

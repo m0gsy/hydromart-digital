@@ -7,6 +7,8 @@ import { MapPinLine, WarningCircle } from '@phosphor-icons/react';
 import { Button } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAsync } from '@/lib/use-async';
+import type { DriverSettings } from '@/lib/types';
 
 /** Great-circle distance in km between two lat/lng points (haversine). */
 export function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
@@ -20,14 +22,21 @@ export function haversineKm(aLat: number, aLng: number, bLat: number, bLng: numb
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-// ponytail: crude ETA — straight-line distance ÷ a fixed city-scooter speed. Real routing
-// (traffic, turn-by-turn) needs a Maps Directions key; tune AVG_SPEED_KMH once we have
-// field data on actual courier pace.
-const AVG_SPEED_KMH = 22;
-
-/** Rough minutes-to-destination from straight-line distance. `null` if we have no fix yet. */
-export function etaMinutes(distanceKm: number): number {
-  return Math.max(1, Math.round((distanceKm / AVG_SPEED_KMH) * 60));
+/*
+ * CA-4-39. This used to divide by a hardcoded 22 km/h while the ETA the CUSTOMER is shown
+ * comes from `DELIVERY_URBAN_SPEED_KMPH` — default 18, and tunable per depot. Two speeds
+ * for one journey: the courier's screen and the customer's screen disagreed by about a
+ * fifth, and a depot that tuned its own number moved only one of them.
+ *
+ * The speed is now given, not assumed. `/deliveries/api/v1/driver/settings` already exists
+ * and already answers `urbanSpeedKmph` for the courier's own depot — it was built for
+ * exactly this in CA-4-29/CA-4-37, and the route screen already reads it.
+ *
+ * Still a straight line divided by an average: real routing needs a Directions key. What
+ * changed is WHOSE average.
+ */
+export function etaMinutes(distanceKm: number, speedKmph: number): number {
+  return Math.max(1, Math.round((distanceKm / speedKmph) * 60));
 }
 
 const PING_INTERVAL_MS = 15_000;
@@ -54,6 +63,11 @@ interface Props {
  */
 export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }: Props) {
   const { t } = useT();
+  // CA-4-39: the depot's own speed, not a constant in this file.
+  const settings = useAsync<DriverSettings>(
+    () => api.getCached(endpoints.deliveries.driver.settings, true),
+    [],
+  );
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [geoError, setGeoError] = useState(false);
   const lastPingAt = useRef<number | null>(null);
@@ -101,7 +115,10 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
     return () => navigator.geolocation.clearWatch(watchId);
   }, [deliveryId, destinationLat, destinationLng]);
 
-  const eta = distanceKm === null ? null : etaMinutes(distanceKm);
+  // No speed yet means no ETA yet: "locating" is honest, a number computed from a guessed
+  // speed is not.
+  const speed = settings.data?.urbanSpeedKmph ?? null;
+  const eta = distanceKm === null || speed === null ? null : etaMinutes(distanceKm, speed);
 
   return (
     <div className="space-y-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
@@ -114,11 +131,11 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
         <div className="flex items-center gap-2 text-sm">
           <MapPinLine size={18} weight="fill" className="text-brand-700" />
           {eta === null ? (
-            <span className="text-[color:var(--muted)]">{t('hrFix.liveNav.locating')}</span>
+            <span className="text-[color:var(--text-muted)]">{t('hrFix.liveNav.locating')}</span>
           ) : (
             <span className="font-bold">
               Perkiraan tiba <span className="tabular-nums">{eta} mnt</span>
-              <span className="ml-1 font-normal text-[color:var(--muted)]">
+              <span className="ml-1 font-normal text-[color:var(--text-muted)]">
                 · {distanceKm!.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km
               </span>
             </span>

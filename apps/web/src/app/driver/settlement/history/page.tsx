@@ -64,7 +64,7 @@ function History() {
             return (
               <Card key={s.id} className="p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-[13px] tabular-nums text-[color:var(--muted)]">
+                  <div className="text-[13px] tabular-nums text-[color:var(--text-muted)]">
                     {WHEN.format(new Date(s.createdAt))}
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${badge.cls}`}>
@@ -72,11 +72,11 @@ function History() {
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="text-[color:var(--muted)]">{t('hrFix.settlementHistory.youHandedOver')}</span>
+                  <span className="text-[color:var(--text-muted)]">{t('hrFix.settlementHistory.youHandedOver')}</span>
                   <Money amount={s.depositedAmount} className="font-bold" />
                 </div>
                 <div className="mt-1 flex items-center justify-between text-sm">
-                  <span className="text-[color:var(--muted)]">{t('hrFix.settlementHistory.totalDue')}</span>
+                  <span className="text-[color:var(--text-muted)]">{t('hrFix.settlementHistory.totalDue')}</span>
                   <Money amount={s.expectedAmount} className="font-bold" />
                 </div>
                 {s.variance !== 0 && (

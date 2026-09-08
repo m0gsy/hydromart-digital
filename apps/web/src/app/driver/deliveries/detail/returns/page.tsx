@@ -94,7 +94,7 @@ function Returns() {
         </button>
         <div className="flex-1">
           <div className="text-sm font-extrabold">{t('driver.returns.title')}</div>
-          <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
+          <div className="text-[11px] tabular-nums text-[color:var(--text-muted)]">{delivery.orderNumber}</div>
         </div>
       </header>
 
@@ -102,7 +102,7 @@ function Returns() {
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-amber-500" />
           <div className="text-base font-extrabold">{t('driver.returns.queuedTitle')}</div>
-          <div className="text-sm text-[color:var(--muted)]">{t('driver.returns.queuedBody')}</div>
+          <div className="text-sm text-[color:var(--text-muted)]">{t('driver.returns.queuedBody')}</div>
           <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/detail?id=${id}`)}>
             {t('driver.returns.backToDetail')}
           </Button>
@@ -120,7 +120,7 @@ function Returns() {
           <div className="text-base font-extrabold">
             {t(done.alreadyRecorded ? 'driver.returns.alreadyTitle' : 'driver.returns.doneTitle')}
           </div>
-          <div className="text-sm text-[color:var(--muted)]">
+          <div className="text-sm text-[color:var(--text-muted)]">
             {done.alreadyRecorded
               ? t('driver.returns.alreadyBody')
               : t('driver.returns.doneBody', {
@@ -134,7 +134,7 @@ function Returns() {
           </Button>
         </Card>
       ) : !delivery.depotId ? (
-        <Card className="p-5 text-sm text-[color:var(--muted)]">
+        <Card className="p-5 text-sm text-[color:var(--text-muted)]">
           {t('driver.returns.noDepot')}
         </Card>
       ) : (
@@ -179,7 +179,7 @@ function Returns() {
               </div>
             </Field>
             {condition === 'DAMAGED' && (
-              <p className="text-[11px] text-[color:var(--muted)]">{t('driver.returns.damagedNote')}</p>
+              <p className="text-[11px] text-[color:var(--text-muted)]">{t('driver.returns.damagedNote')}</p>
             )}
           </Card>
 

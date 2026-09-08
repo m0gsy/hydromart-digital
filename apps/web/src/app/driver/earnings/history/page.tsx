@@ -103,7 +103,7 @@ function History() {
               <div key={entry.id} className="flex items-start justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <div className="text-[13.5px] font-bold">{entry.description}</div>
-                  <div className="mt-0.5 text-[12px] text-[color:var(--muted)]">
+                  <div className="mt-0.5 text-[12px] text-[color:var(--text-muted)]">
                     {t(TYPE_LABEL[entry.type])} · {WHEN.format(new Date(entry.occurredAt))}
                   </div>
                 </div>
@@ -132,7 +132,7 @@ function History() {
               >
                 {t('hrFix.earningsHistory.prev')}
               </Button>
-              <span className="text-[12px] tabular-nums text-[color:var(--muted)]">
+              <span className="text-[12px] tabular-nums text-[color:var(--text-muted)]">
                 {t('hrFix.earningsHistory.pageOf', { page, total: totalPages })}
               </span>
               <Button

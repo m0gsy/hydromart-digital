@@ -16,7 +16,7 @@ import type { Shift, ShiftStatus } from '@/lib/types';
 const OPTIONS: { value: Exclude<ShiftStatus, 'ENDED'>; labelKey: string; hintKey: string; icon: typeof Broadcast; tone: string }[] = [
   { value: 'ONLINE', labelKey: 'onlineLabel', hintKey: 'onlineHint', icon: Broadcast, tone: 'text-green-700' },
   { value: 'BREAK', labelKey: 'breakLabel', hintKey: 'breakHint', icon: Coffee, tone: 'text-amber-700' },
-  { value: 'OFFLINE', labelKey: 'offlineLabel', hintKey: 'offlineHint', icon: Moon, tone: 'text-[color:var(--muted)]' },
+  { value: 'OFFLINE', labelKey: 'offlineLabel', hintKey: 'offlineHint', icon: Moon, tone: 'text-[color:var(--text-muted)]' },
 ];
 
 function fmt(seconds: number): string {
@@ -109,7 +109,7 @@ function ShiftStatusScreen() {
               </span>
               <span className="flex-1">
                 <span className="block text-sm font-extrabold">{t(`driver.shiftStatus.options.${labelKey}`)}</span>
-                <span className="block text-xs text-[color:var(--muted)]">{t(`driver.shiftStatus.options.${hintKey}`)}</span>
+                <span className="block text-xs text-[color:var(--text-muted)]">{t(`driver.shiftStatus.options.${hintKey}`)}</span>
               </span>
               <span className={`size-5 rounded-full border-2 ${active ? 'border-brand-500 bg-brand-500' : 'border-[color:var(--border)]'}`} />
             </button>
@@ -127,7 +127,7 @@ function ShiftStatusScreen() {
       </button>
 
       <FormError message={error} />
-      <p className="text-xs leading-relaxed text-[color:var(--muted)]">
+      <p className="text-xs leading-relaxed text-[color:var(--text-muted)]">
         {t('driver.shiftStatus.info')}
       </p>
     </div>

@@ -95,7 +95,7 @@ function Detail() {
         </button>
         <div className="flex-1">
           <div className="text-sm font-extrabold">{t('hrFix.deliveryDetail.title')}</div>
-          <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
+          <div className="text-[11px] tabular-nums text-[color:var(--text-muted)]">{delivery.orderNumber}</div>
         </div>
         <Badge tone={DELIVERY_STATUS_TONE[delivery.status]}>{t(DELIVERY_STATUS_LABEL[delivery.status])}</Badge>
       </header>
@@ -141,7 +141,7 @@ function Detail() {
             </ExternalLink>
           ) : (
             // ponytail: recipientPhone absent on this (legacy) delivery — kept inert-but-visible.
-            <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold text-[color:var(--muted)]">
+            <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold text-[color:var(--text-muted)]">
               <Phone size={16} weight="fill" />
               Telepon
             </span>
@@ -153,7 +153,7 @@ function Detail() {
       {(delivery.items?.length || (delivery.codAmount != null && delivery.codAmount > 0)) && (
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.orderDetail')}</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">{t('hrFix.deliveryDetail.orderDetail')}</div>
             {delivery.codAmount != null && delivery.codAmount > 0 && (
               <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-extrabold text-amber-800">
                 <Coins size={13} weight="fill" />
@@ -166,7 +166,7 @@ function Detail() {
               {delivery.items.map((it, i) => (
                 <li key={i} className="flex justify-between text-sm">
                   <span className="font-medium">{it.name}</span>
-                  <span className="tabular-nums text-[color:var(--muted)]">×{it.qty}</span>
+                  <span className="tabular-nums text-[color:var(--text-muted)]">×{it.qty}</span>
                 </li>
               ))}
             </ul>
@@ -175,7 +175,7 @@ function Detail() {
       )}
 
       <Card className="p-4">
-        <div className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.statusHistory')}</div>
+        <div className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">{t('hrFix.deliveryDetail.statusHistory')}</div>
         <ol className="flex flex-col gap-0">
           {STEPS.map((step, i) => {
             const done = i <= reached;
@@ -189,8 +189,8 @@ function Detail() {
                   {i < STEPS.length - 1 && <span className={`w-0.5 flex-1 ${done ? 'bg-green-600' : 'bg-[color:var(--border)]'}`} style={{ minHeight: 20 }} />}
                 </div>
                 <div className="pb-3">
-                  <div className={`text-sm font-bold ${done ? '' : 'text-[color:var(--muted)]'}`}>{t(step.label)}</div>
-                  {at && <div className="text-[11px] text-[color:var(--muted)]">{TIME.format(new Date(at))}</div>}
+                  <div className={`text-sm font-bold ${done ? '' : 'text-[color:var(--text-muted)]'}`}>{t(step.label)}</div>
+                  {at && <div className="text-[11px] text-[color:var(--text-muted)]">{TIME.format(new Date(at))}</div>}
                 </div>
               </li>
             );
@@ -263,7 +263,7 @@ function Detail() {
                     <Coins size={18} weight="fill" />
                     {t('hrFix.deliveryDetail.takeCashDue', { amount: IDR.format(delivery.codAmount) })}
                   </Button>
-                  <p className="text-center text-[12px] font-semibold text-[color:var(--muted)]">
+                  <p className="text-center text-[12px] font-semibold text-[color:var(--text-muted)]">
                     {t('hrFix.deliveryDetail.codBlocksFinish')}
                   </p>
                 </>
@@ -299,7 +299,7 @@ function Detail() {
       {(delivery.status === 'ASSIGNED' ||
         delivery.status === 'PICKED_UP' ||
         delivery.status === 'ON_DELIVERY') && (
-        <div className="flex gap-2 pt-1 text-xs font-bold text-[color:var(--muted)]">
+        <div className="flex gap-2 pt-1 text-xs font-bold text-[color:var(--text-muted)]">
           {delivery.status === 'ON_DELIVERY' && (
             <button type="button" onClick={() => router.push(`/driver/deliveries/detail/no-show?id=${id}`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
               {t('hrFix.deliveryDetail.noShow')}
@@ -319,7 +319,7 @@ function Detail() {
             <div>
               <div className="font-bold">{t('hrFix.deliveryDetail.rescheduled')}</div>
               {delivery.rescheduledFor && (
-                <div className="text-[color:var(--muted)]">
+                <div className="text-[color:var(--text-muted)]">
                   {new Date(delivery.rescheduledFor).toLocaleString('id-ID')}
                   {delivery.rescheduleSlot ? ` · ${delivery.rescheduleSlot}` : ''}
                 </div>
@@ -345,7 +345,7 @@ function Detail() {
           />
           <dl className="grid grid-cols-2 gap-2 text-[11px]">
             <div>
-              <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">{t('hrFix.deliveryDetail.time')}</dt>
+              <dt className="font-bold uppercase tracking-wide text-[color:var(--text-muted)]">{t('hrFix.deliveryDetail.time')}</dt>
               <dd className="tabular-nums">{STAMP.format(new Date(delivery.proof.capturedAt))}</dd>
             </div>
             {/*
@@ -356,7 +356,7 @@ function Detail() {
             */}
             {delivery.proof.sealIntact !== null && (
               <div>
-                <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">
+                <dt className="font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
                   {t('hrFix.pod.sealLabel')}
                 </dt>
                 <dd className={delivery.proof.sealIntact ? '' : 'font-bold text-red-600'}>
@@ -365,7 +365,7 @@ function Detail() {
               </div>
             )}
             <div>
-              <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">GPS</dt>
+              <dt className="font-bold uppercase tracking-wide text-[color:var(--text-muted)]">GPS</dt>
               <dd>
                 <ExternalLink
                   href={`https://maps.google.com/?q=${delivery.proof.latitude},${delivery.proof.longitude}`}
@@ -376,7 +376,7 @@ function Detail() {
               </dd>
             </div>
           </dl>
-          <p className="text-[11px] leading-relaxed text-[color:var(--muted)]">{t('hrFix.deliveryDetail.podRetention')}</p>
+          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">{t('hrFix.deliveryDetail.podRetention')}</p>
         </Card>
       )}
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Check, CheckCircle, MapPin, ShieldCheck } from '@phosphor-icons/react';
+import { ArrowRight, Check, CheckCircle, ClockCountdown, MapPin, ShieldCheck } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -53,7 +53,7 @@ function Success() {
             </span>
           </span>
           <h1 className="mt-4 text-xl font-extrabold tracking-tight">{t('courierFix.podSuccess.title')}</h1>
-          <div className="mt-1 text-[13px] tabular-nums text-[color:var(--muted)]">
+          <div className="mt-1 text-[13px] tabular-nums text-[color:var(--text-muted)]">
             {delivery?.orderNumber ?? ''}
           </div>
           {/* CA-4-17: queued IS done for the courier — the handover happened — but saying
@@ -84,18 +84,31 @@ function Success() {
                 {proof.latitude.toFixed(4)} · {proof.longitude.toFixed(4)}
               </ExternalLink>
             ) : (
-              <span className="text-[color:var(--muted)]">—</span>
+              <span className="text-[color:var(--text-muted)]">—</span>
             )}
           </Row>
+          {/*
+            CA-4-38. CA-4-17 added the queued banner at the top of this screen, but this row
+            kept its green tick either way — so a proof that is still sitting in the offline
+            queue on the courier's phone was reported as "Foto & tanda tangan", confirmed.
+            The banner said one thing and the row said another, on the same screen.
+          */}
           <Row label={t('courierFix.podSuccess.proof')} last>
-            <span className="inline-flex items-center gap-1 font-bold text-green-700">
-              <CheckCircle size={15} weight="fill" />
-              {t('courierFix.podSuccess.proofDone')}
-            </span>
+            {queued ? (
+              <span className="inline-flex items-center gap-1 font-bold text-[color:var(--warning)]">
+                <ClockCountdown size={15} weight="fill" />
+                {t('courierFix.podSuccess.proofQueued')}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 font-bold text-green-700">
+                <CheckCircle size={15} weight="fill" />
+                {t('courierFix.podSuccess.proofDone')}
+              </span>
+            )}
           </Row>
         </Card>
 
-        <p className="mt-3.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-[color:var(--muted)]">
+        <p className="mt-3.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
           <ShieldCheck size={15} className="mt-px shrink-0" />
           {t('courierFix.podSuccess.retention')}
         </p>
@@ -113,7 +126,7 @@ function Success() {
         <button
           type="button"
           onClick={() => router.replace('/driver')}
-          className="min-h-11 w-full text-center text-[13px] font-bold text-[color:var(--muted)]"
+          className="min-h-11 w-full text-center text-[13px] font-bold text-[color:var(--text-muted)]"
         >
           {t('courierFix.podSuccess.backToList')}
         </button>
@@ -125,7 +138,7 @@ function Success() {
 function Row({ label, children, last }: { label: string; children: React.ReactNode; last?: boolean }) {
   return (
     <div className={`flex items-center justify-between px-4 py-3 text-[13px] ${last ? '' : 'border-b border-[color:var(--border)]'}`}>
-      <span className="text-[color:var(--muted)]">{label}</span>
+      <span className="text-[color:var(--text-muted)]">{label}</span>
       {children}
     </div>
   );

@@ -36,7 +36,7 @@ export function DepotMap({ depots, onSelect }: { depots: DepotAdmin[]; onSelect:
           className="absolute inset-0"
           style={{
             backgroundImage:
-              'linear-gradient(var(--border-app) 1px, transparent 1px), linear-gradient(90deg, var(--border-app) 1px, transparent 1px)',
+              'linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)',
             backgroundSize: '10% 10%',
             opacity: 0.4,
           }}

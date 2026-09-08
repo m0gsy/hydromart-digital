@@ -157,7 +157,7 @@ function Expenses() {
             onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
             className="block w-full text-sm"
           />
-          <p className="mt-1 text-[11px] text-[color:var(--muted)]">
+          <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
             {receipt ? t('hrFix.expenses.receiptPicked') : t('hrFix.expenses.receiptHint')}
           </p>
         </Field>
@@ -165,7 +165,7 @@ function Expenses() {
         <Button loading={busy} disabled={want <= 0 || desc.trim() === ''} className="w-full" onClick={submit}>
           {t('hrFix.expenses.submitClaim')}
         </Button>
-        <p className="text-center text-[11px] text-[color:var(--muted)]">
+        <p className="text-center text-[11px] text-[color:var(--text-muted)]">
           {/* CA-4-21: "small claims" said nothing about what small means, so a courier
               could not tell why one claim cleared instantly and the next waited on a
               manager. The figure is a per-depot setting, read from the server. */}
@@ -190,8 +190,8 @@ function Expenses() {
             <Card key={c.id} className="flex items-center justify-between p-3.5">
               <div className="min-w-0">
                 <div className="truncate text-sm font-bold">{t(CATEGORY_LABEL[c.category])}</div>
-                <div className="truncate text-[12px] text-[color:var(--muted)]">{c.description}</div>
-                <div className="text-[11px] tabular-nums text-[color:var(--muted)]">
+                <div className="truncate text-[12px] text-[color:var(--text-muted)]">{c.description}</div>
+                <div className="text-[11px] tabular-nums text-[color:var(--text-muted)]">
                   {WHEN.format(new Date(c.createdAt))} · <span className={STATUS[c.status].tone}>{t(STATUS[c.status].label)}</span>
                 </div>
                 {/*

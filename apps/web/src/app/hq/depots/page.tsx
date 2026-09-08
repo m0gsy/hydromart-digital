@@ -31,7 +31,14 @@ export default function HqDepotsPage() {
   useEffect(() => {
     if (!new URLSearchParams(window.location.search).get('onboard')) return;
     setCreating(true);
-    const stashed = sessionStorage.getItem(PREFILL_KEY);
+    // CA-4-52 (sibling): `getItem` moved INSIDE the try. Storage that is blocked outright
+    // throws on the READ, and only the parse was guarded.
+    let stashed: string | null = null;
+    try {
+      stashed = sessionStorage.getItem(PREFILL_KEY);
+    } catch {
+      /* storage unavailable — the form just opens blank */
+    }
     if (stashed) {
       try {
         setPrefill(JSON.parse(stashed) as Partial<DepotFormValues>);

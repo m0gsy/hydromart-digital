@@ -73,7 +73,7 @@ function Announcements({ depotId }: { depotId: string }) {
                   {!b.read && <span className="size-2 rounded-full bg-brand-600" aria-label={t('hrFix.driverAnnouncements.unreadAria')} />}
                 </div>
                 <p className="mt-1.5 whitespace-pre-line text-[13px] text-black/70">{b.body}</p>
-                <div className="mt-2 text-[11px] tabular-nums text-[color:var(--muted)]">
+                <div className="mt-2 text-[11px] tabular-nums text-[color:var(--text-muted)]">
                   {WHEN.format(new Date(b.createdAt))}
                 </div>
               </div>
