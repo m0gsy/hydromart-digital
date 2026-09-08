@@ -56,7 +56,7 @@ function nikCell(raw: string, t: Translate): string {
 export default function ImportEmployeesPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const { depots, error: depotsError, reload: reloadDepots } = useDepot();
+  const { depots } = useDepot();
   const [upsert, setUpsert] = useState(false);
   const departments = useAsync<Department[]>(
     () => api.get<Department[]>(endpoints.hr.departments(), true),
@@ -159,15 +159,6 @@ export default function ImportEmployeesPage() {
    * CA-1-30, third of the same shape: a bulk WRITE page with no gate of its own. The
    * single-employee form and this one create the same records; one of them being reachable
    * by URL and the other not would be an arbitrary line.
-   */
-  /*
-   * CA-1-71 — the depot column is built FROM the depot list, and an unread list said
-   * nothing.
-   *
-   * `depots[0]?.code` becomes the example, `depots.map` becomes the allowed values, and
-   * the code-to-id lookup runs against it. When the read fails all three quietly become
-   * empty, so every row's depot is rejected as unknown — and the screen blames the
-   * spreadsheet for a list it never managed to load.
    */
   if (!canManageHr(customer?.role)) {
     return <AccessDeniedHq role={customer?.role} />;
