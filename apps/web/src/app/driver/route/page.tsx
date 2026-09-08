@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
-import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
+import type { Delivery, DeliveryStatus, DriverSettings, Page } from '@/lib/types';
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
 const IDR = new Intl.NumberFormat('id-ID', {
@@ -18,11 +18,6 @@ const IDR = new Intl.NumberFormat('id-ID', {
   currency: 'IDR',
   maximumFractionDigits: 0,
 });
-
-/** The depot every stop on this route belongs to — a courier works one at a time. */
-function depotIdOf(page: Page<Delivery> | null): string | null {
-  return page?.items?.find((d) => ACTIVE.includes(d.status))?.depotId ?? null;
-}
 
 /** Straight-line distance (km) between two lat/lng points (haversine). */
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
@@ -60,9 +55,18 @@ function RouteView() {
    * courier works one), so the first stop names it. Undefined while loading; the summary
    * waits rather than showing a number from a default nobody chose.
    */
-  const settings = useAsync<{ effective: Record<string, number | string> }>(
-    () => api.get(endpoints.deliverySettings.schema(depotIdOf(list.data)), true),
-    [depotIdOf(list.data)],
+  /*
+   * CA-4-29 — this read `settings/schema`, which is gated on `settingsRead`: MANAGER,
+   * HEAD_OFFICE, DIREKTUR, FINANCE, SUPER_ADMIN. A courier is none of them, so the call
+   * 403'd on every load of this screen and `estMin` below was null every time — the ETA
+   * summary this screen is built around had never once appeared for the person it is for.
+   *
+   * The courier route answers the same numbers for the courier's OWN depot, off their
+   * token, so the depot no longer has to be guessed from the first stop either.
+   */
+  const settings = useAsync<DriverSettings>(
+    () => api.get(endpoints.deliveries.driver.settings, true),
+    [],
   );
 
   if (list.loading)
@@ -115,8 +119,8 @@ function RouteView() {
   // ponytail: straight-line distance at a flat average speed — no traffic, no road network.
   // The same simplification delivery-service makes for a single delivery, and the same
   // knobs, so calibrating one calibrates both.
-  const speedKmph = Number(settings.data?.effective?.urbanSpeedKmph);
-  const stopMinutes = Number(settings.data?.effective?.routeStopMinutes);
+  const speedKmph = Number(settings.data?.urbanSpeedKmph);
+  const stopMinutes = Number(settings.data?.routeStopMinutes);
   const estMin =
     Number.isFinite(speedKmph) && speedKmph > 0 && Number.isFinite(stopMinutes)
       ? Math.round((totalKm / speedKmph) * 60 + stops.length * stopMinutes)

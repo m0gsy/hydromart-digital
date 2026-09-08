@@ -92,6 +92,7 @@ export const courierFix = {
     queued: '{n} pesanan menunggu di antrian depot untuk shiftmu.',
   },
   noShow: {
+    attemptsOf: '{n} dari {min} percobaan kontak tercatat',
     remainingLabel: 'Sisa waktu tunggu',
     contactHeading: 'Upaya kontak',
     call: 'Telepon lagi',

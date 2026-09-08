@@ -21,7 +21,13 @@ import {
   isActive,
   orderStatusFor,
 } from '../../domain/delivery-status';
-import { ContactMethod, NoShowPolicy, canMarkNoShow, noShowEligibleAt } from '../../domain/no-show';
+import {
+  ContactMethod,
+  ContactState,
+  NoShowPolicy,
+  canMarkNoShow,
+  noShowEligibleAt,
+} from '../../domain/no-show';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import { Page, buildPage } from '../pagination';
 import {
@@ -102,6 +108,14 @@ export interface NoShowStatus {
   attempts: number;
   eligibleAt: Date | null;
   canMarkNoShow: boolean;
+  /*
+   * CA-4-37: the gate the COURIER is being held to, said out loud.
+   *
+   * `noShowMinContactAttempts` is a per-depot setting, and the screen hard-coded 2 against
+   * it — so a depot that raised the bar to three got a button that unlocked one attempt
+   * early, and the server then refused the very action the screen had just enabled.
+   */
+  minAttempts: number;
 }
 
 /**
@@ -514,11 +528,32 @@ export class DeliveryService {
       throw new DeliveryNotActiveError();
     }
     const state = await this.deliveries.recordContactAttempt(id, driverId, method, note ?? null);
-    const policy = this.noShowPolicy(delivery.depotId);
+    return this.noShowStatus(state, delivery.depotId, now);
+  }
+
+  /**
+   * CA-4-30 — the no-show screen's state, readable rather than only writable.
+   *
+   * The gate lives entirely on the server, but the only route that reported it was the
+   * POST that ADDS an attempt. So a courier whose app was killed — a phone that swapped
+   * apps while they were knocking, a battery saver, a crash — came back to a screen that
+   * said "0 percobaan" and a 05:00 countdown, over a delivery that already had two
+   * attempts and a running clock. The only way to see the truth was to make another
+   * attempt, which is exactly what the gate exists to stop them faking.
+   */
+  async contactStatus(driverId: string, id: string, now: Date = new Date()): Promise<NoShowStatus> {
+    const delivery = await this.ownedByDriver(driverId, id);
+    const state = await this.deliveries.contactState(id);
+    return this.noShowStatus(state, delivery.depotId, now);
+  }
+
+  private noShowStatus(state: ContactState, depotId: string | null, now: Date): NoShowStatus {
+    const policy = this.noShowPolicy(depotId);
     return {
       attempts: state.attempts,
       eligibleAt: noShowEligibleAt(state, policy),
       canMarkNoShow: canMarkNoShow(state, policy, now),
+      minAttempts: policy.minAttempts,
     };
   }
 

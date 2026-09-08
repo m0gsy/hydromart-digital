@@ -231,6 +231,8 @@ export class NoShowStatusResponseDto {
   eligibleAt!: string | null;
   @ApiProperty({ type: Boolean })
   canMarkNoShow!: boolean;
+  @ApiProperty({ type: Number })
+  minAttempts!: number;
 }
 
 /** Mirrors `CourierPerformance` exactly — generated for audit D-6, no field added or removed. */
@@ -436,4 +438,16 @@ export class ExpectedSettlementResponseDto {
   shiftId!: string;
   @ApiProperty({ type: Number })
   expectedIdr!: number;
+}
+
+/** CA-4-29/CA-4-37: the four tuned numbers the courier app renders, and nothing else. */
+export class DriverSettingsResponseDto {
+  @ApiProperty({ type: Number })
+  urbanSpeedKmph!: number;
+  @ApiProperty({ type: Number })
+  routeStopMinutes!: number;
+  @ApiProperty({ type: Number })
+  noShowMinContactAttempts!: number;
+  @ApiProperty({ type: Number })
+  noShowMinWaitSeconds!: number;
 }

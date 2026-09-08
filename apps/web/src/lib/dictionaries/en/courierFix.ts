@@ -88,6 +88,7 @@ export const courierFix = {
     queued: '{n} orders waiting in the depot queue for your shift.',
   },
   noShow: {
+    attemptsOf: '{n} of {min} contact attempts recorded',
     remainingLabel: 'Wait time left',
     contactHeading: 'Contact attempts',
     call: 'Call again',

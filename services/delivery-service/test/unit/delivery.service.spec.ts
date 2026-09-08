@@ -79,6 +79,8 @@ describe('DeliveryService', () => {
   let storage: { put: jest.Mock; remove: jest.Mock; signedUrl: jest.Mock };
   /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
   let makeStorageless: () => DeliveryService;
+  /** Same wiring, one tunable moved — for the gates that are per-depot settings. */
+  let makeWithAttempts: (minAttempts: number) => DeliveryService;
   let makeWithNotifier: (notifier: unknown) => DeliveryService;
   let events: { publish: jest.Mock };
   let payments: FakeOrderPayment;
@@ -103,6 +105,19 @@ describe('DeliveryService', () => {
     };
     makeStorageless = () =>
       new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots, payments);
+    makeWithAttempts = (minAttempts) =>
+      new DeliveryService(
+        repo,
+        orders,
+        payout,
+        shifts,
+        buildTestConfig({
+          DELIVERY_URBAN_SPEED_KMPH: '30',
+          NO_SHOW_MIN_CONTACT_ATTEMPTS: String(minAttempts),
+        }),
+        depots,
+        payments,
+      );
     // Same wiring as `service`, plus a customer-notification double — built here because
     // `config` and `depots` are locals of this setup.
     makeWithNotifier = (notifier) =>
@@ -834,6 +849,56 @@ describe('DeliveryService', () => {
     expect(failed.status).toBe(DeliveryStatus.FAILED);
     expect(failed.failureReason).toContain('no-show');
     expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'CANCELLED']);
+  });
+
+  /*
+   * CA-4-30 — the gate, readable without touching it.
+   *
+   * The POST that records an attempt was the ONLY route that reported the state, so a
+   * courier whose app restarted mid-wait came back to "0 percobaan" and a fresh countdown
+   * over a delivery that already had attempts on it. Seeing the truth again required
+   * recording an attempt they had not made — the exact thing the gate exists to prevent.
+   */
+  it('reads the no-show gate without recording an attempt (CA-4-30)', async () => {
+    const d = await assign();
+
+    const before = await service.contactStatus(driver, d.id);
+    expect(before.attempts).toBe(0);
+    expect(before.eligibleAt).toBeNull();
+    expect(before.canMarkNoShow).toBe(false);
+
+    await service.recordContactAttempt(driver, d.id, ContactMethod.CALL);
+    const after = await service.contactStatus(driver, d.id);
+    expect(after.attempts).toBe(1);
+    expect(after.eligibleAt).not.toBeNull();
+
+    // Reading it again must not move the count — that is the whole point of the route.
+    expect((await service.contactStatus(driver, d.id)).attempts).toBe(1);
+  });
+
+  /*
+   * CA-4-37 — the threshold the courier is held to, said out loud. The screen hard-coded 2
+   * against a per-depot setting, so a depot that asked for three got a button that unlocked
+   * early and a server that then refused what the button had just offered.
+   */
+  it('reports the depot threshold alongside the count (CA-4-37)', async () => {
+    // Three, not the default two, precisely because the screen used to say `>= 2` — a
+    // threshold that matches the default proves nothing about where the number came from.
+    const strict = makeWithAttempts(3);
+    const d = await assign();
+    const status = await strict.recordContactAttempt(driver, d.id, ContactMethod.CALL);
+    expect(status.minAttempts).toBe(3);
+    expect((await strict.contactStatus(driver, d.id)).minAttempts).toBe(3);
+    // And the gate itself moves with it: two attempts is no longer enough.
+    await strict.recordContactAttempt(driver, d.id, ContactMethod.WHATSAPP);
+    const two = await strict.contactStatus(driver, d.id, new Date(Date.now() + 3_600_000));
+    expect(two.attempts).toBe(2);
+    expect(two.canMarkNoShow).toBe(false);
+  });
+
+  it('refuses to report a gate that belongs to another courier', async () => {
+    const d = await assign();
+    await expect(service.contactStatus(randomUUID(), d.id)).rejects.toBeDefined();
   });
 
   it('reschedules a delivery and hands the order back to dispatch (3c)', async () => {
