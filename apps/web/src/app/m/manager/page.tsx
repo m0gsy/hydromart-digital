@@ -94,9 +94,22 @@ export default function ManagerHomePage() {
     () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: true }), true) : Promise.resolve([])),
     [scopedId],
   );
+  /*
+   * CA-4-51 — the "Kurir aktif" tile counted DELIVERIES, so one courier carrying four
+   * orders read as four couriers, and the number sat under one depot's name while the
+   * request asked for the whole network.
+   *
+   * Distinct `driverId` is the count the tile claims, and the depot goes in the request:
+   * a depot-locked manager was already forced to their own depot by the route, but an HQ
+   * account or a manager over several depots was not, and that is who saw the network
+   * number captioned as one depot's.
+   */
   const onDelivery = useAsync<Page<Delivery>>(
-    () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
-    [],
+    () =>
+      scopedId
+        ? api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 200, depotId: scopedId }), true)
+        : Promise.resolve(null as unknown as Page<Delivery>),
+    [scopedId],
   );
 
   const depotName =
@@ -105,7 +118,9 @@ export default function ManagerHomePage() {
     t('hrFix.managerHome.yourDepot');
   const pending = counts.data?.total ?? 0;
   const stockCritical = lowStock.data?.length ?? null;
-  const activeCouriers = onDelivery.data?.items.length ?? null;
+  const activeCouriers = onDelivery.data
+    ? new Set(onDelivery.data.items.map((d) => d.driverId)).size
+    : null;
 
   return (
     <div className="space-y-4 px-4 py-6">

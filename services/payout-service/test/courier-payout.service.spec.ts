@@ -394,6 +394,42 @@ describe('CourierPayoutService', () => {
     expect(summary.recentEntries).toHaveLength(2);
   });
 
+  /*
+   * CA-4-22 — "Bulan ini" on the earnings screen counted EARNING only, while the balance
+   * printed beside it on the same card is the signed sum of every entry. A courier who had
+   * hit a ladder rung saw two numbers that could not both be right, and the one captioned
+   * as the month's work was the smaller.
+   */
+  it('summary counts ladder incentives in this-month earnings, like the balance does', async () => {
+    // Seeded directly rather than through `recordDeliveryEarning`: "this month" is the
+    // month the courier is living in, so both entries have to be dated now, not on the
+    // fixed peak/off-peak instants the rate tests above pin.
+    const now = new Date();
+    await ledger.create({
+      courierId: COURIER,
+      depotId: null,
+      type: 'EARNING',
+      amount: 6000,
+      sourceRef: 'delivery:d7',
+      occurredAt: now,
+      description: 'Pengantaran',
+    });
+    await ledger.create({
+      courierId: COURIER,
+      depotId: null,
+      type: 'INCENTIVE',
+      amount: 25000,
+      sourceRef: 'ladder:this-month',
+      occurredAt: now,
+      description: 'Bonus 20 pengantaran',
+    });
+    const summary = await service.summary(COURIER);
+    expect(summary.availableBalance).toBe(31000);
+    expect(summary.monthEarnings).toBe(31000);
+    // The bonus is money, not a delivery: the delivery count must not move with it.
+    expect(summary.monthDeliveries).toBe(1);
+  });
+
   describe('recordCashVariance', () => {
     const variance = (settlementId: string, amount: number) => ({
       courierId: COURIER,

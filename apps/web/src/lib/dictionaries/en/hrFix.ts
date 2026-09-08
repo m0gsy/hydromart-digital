@@ -1454,6 +1454,8 @@ export const hrFix = {
     emptyBody: 'Your payslips will appear here.',
   },
   managerPricing: {
+    inactiveProduct: 'Product no longer active',
+    toggleLabel: 'Turn the price rule for {product} on or off',
     enableTitle: 'Switch this price rule on?',
     disableTitle: 'Switch this price rule off?',
     enableConfirm: 'The {rule} rule starts pricing this depot from the next order onward.',

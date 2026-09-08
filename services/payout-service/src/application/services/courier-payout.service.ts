@@ -237,17 +237,28 @@ export class CourierPayoutService {
     // rule and that depot pays them, so the screen must count where the payer counts.
     // Undefined (not null) is the courier-wide tally the ladder falls back to.
     const scope = depotId ?? undefined;
-    const [availableBalance, monthEarnings, monthDeliveries, recent, recentWithdrawals] =
+    const [availableBalance, earned, incentives, monthDeliveries, recent, recentWithdrawals] =
       await Promise.all([
         this.ledger.balanceFor(courierId),
         this.ledger.sumByType(courierId, 'EARNING', monthStart),
+        /*
+         * CA-4-22: the ladder bonus is money the courier was paid, and "Bulan ini" left it
+         * out.
+         *
+         * `availableBalance` on the SAME card is the signed sum of every entry, INCENTIVE
+         * included, so the two numbers disagreed by exactly the bonuses — and the one that
+         * looked like an explanation of the other was the smaller one. Both credit types,
+         * which is already how `earningsByDepot` and the network P&L define courier pay.
+         */
+        this.ledger.sumByType(courierId, 'INCENTIVE', monthStart),
+        // Deliveries stay EARNING-only: an incentive rung is a bonus, not a delivery.
         this.ledger.countByType(courierId, 'EARNING', monthStart, scope),
         this.ledger.listForCourier(courierId, 1, 8),
         this.withdrawals.listForCourier(courierId, 5),
       ]);
     return {
       availableBalance,
-      monthEarnings,
+      monthEarnings: earned + incentives,
       monthDeliveries,
       recentEntries: recent.items,
       recentWithdrawals,

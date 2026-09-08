@@ -1471,6 +1471,8 @@ export const hrFix = {
     emptyBody: 'Slip gaji kamu akan muncul di sini.',
   },
   managerPricing: {
+    inactiveProduct: 'Produk sudah tidak aktif',
+    toggleLabel: 'Hidupkan atau matikan aturan harga untuk {product}',
     enableTitle: 'Aktifkan aturan harga?',
     disableTitle: 'Matikan aturan harga?',
     enableConfirm:
