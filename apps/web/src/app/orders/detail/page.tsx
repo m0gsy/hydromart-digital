@@ -518,12 +518,16 @@ function OrderDetailInner({ id }: { id: string }) {
             depot && (
               <div className={`${PANEL} flex flex-col gap-3 p-[22px]`}>
                 <h2 className="text-base font-extrabold">
-                  {payment.method === 'QRIS' ? 'Bayar via QRIS' : 'Bayar via transfer'}
+                  {payment.method === 'QRIS'
+                    ? t('order.detail.qrisTitle')
+                    : t('order.detail.transferTitle')}
                 </h2>
                 {payment.method === 'TRANSFER' &&
                   (depot.paymentBankAccountNumber ? (
                     <div className="flex flex-col gap-1 rounded-2xl border border-app p-4 text-sm">
-                      <p className="text-muted">{depot.paymentBankName ?? 'Bank'}</p>
+                      <p className="text-muted">
+                        {depot.paymentBankName ?? t('order.detail.bankFallback')}
+                      </p>
                       <div className="flex items-center gap-2">
                         <p className="font-mono text-lg font-bold tracking-wide">
                           {depot.paymentBankAccountNumber}
@@ -535,7 +539,11 @@ function OrderDetailInner({ id }: { id: string }) {
                         />
                       </div>
                       {depot.paymentBankAccountHolder && (
-                        <p className="text-muted">a.n. {depot.paymentBankAccountHolder}</p>
+                        <p className="text-muted">
+                          {t('order.detail.accountHolder', {
+                            name: depot.paymentBankAccountHolder,
+                          })}
+                        </p>
                       )}
                       <p className="mt-1 font-bold">
                         {t('order.detail.nominal')}: <Money amount={order.total} />

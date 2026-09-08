@@ -126,7 +126,21 @@ describe('tokenBucket', () => {
     const refused = call(mw);
     // One token at half a token per second is two seconds away.
     expect(refused.headers['Retry-After']).toBe('2');
-    expect(refused.body).toEqual({ statusCode: 429, message: 'Too many requests' });
+    /*
+     * CA-3-36. `code` is the field the web client translates on (`errors.byCode.*`), and
+     * this body had none — so an Indonesian screen printed the English literal below, most
+     * often on the OTP screen where the limiter bites hardest. Every Nest service already
+     * maps HTTP 429 to this same code in `all-exceptions.filter.ts`; the gateway is raw
+     * express middleware that never passes through that filter, so it was the one gap.
+     *
+     * Still `toEqual`, not `toMatchObject`: the exact shape is the contract, and a field
+     * appearing here by accident is worth failing over.
+     */
+    expect(refused.body).toEqual({
+      statusCode: 429,
+      code: 'RATE_LIMITED',
+      message: 'Too many requests',
+    });
   });
 
   it('reports the ceiling and what is left, so a client can pace itself', () => {
@@ -141,16 +155,23 @@ describe('tokenBucket', () => {
     expect(first.headers['RateLimit-Remaining']).toBe('4');
   });
 
-  it('carries its own message when given one, for the tier that guards a bill', () => {
+  it('carries its own message AND code when given them, for the tier that guards a bill', () => {
     const mw = tokenBucket({
       capacity: 1,
       refillPerSecond: 0.01,
       keyGenerator: () => 'k',
       message: 'Too many verification requests',
+      code: 'RATE_LIMITED_OTP',
       now: () => 0,
     });
     call(mw);
-    expect(call(mw).body).toEqual({ statusCode: 429, message: 'Too many verification requests' });
+    // CA-3-36: the OTP tier keeps its own code as well as its own sentence, so the screen
+    // that hits this limiter hardest says "verification" rather than the general line.
+    expect(call(mw).body).toEqual({
+      statusCode: 429,
+      code: 'RATE_LIMITED_OTP',
+      message: 'Too many verification requests',
+    });
   });
 
   it('skips what it is told to skip, without spending a token', () => {

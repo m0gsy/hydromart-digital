@@ -14,7 +14,7 @@ import {
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, Chip, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, Chip, ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
@@ -263,12 +263,11 @@ function DetailBody({ id }: { id: string }) {
                     Hubungi
                   </Button>
                 )}
-                <Link href="/dashboard/orders" className="flex-1">
-                  <Button className="w-full">
+                {/* CA-3-70: was <Link><Button> — a control inside a control. */}
+                <LinkButton href="/dashboard/orders" className="w-full flex-1">
                     <ShoppingCart size={16} className="mr-1" />
-                    {t('dashA.customerDetail.createOrder')}
-                  </Button>
-                </Link>
+                  {t('dashA.customerDetail.createOrder')}
+                </LinkButton>
               </div>
             </>
           );

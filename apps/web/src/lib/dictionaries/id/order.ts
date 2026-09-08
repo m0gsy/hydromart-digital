@@ -128,6 +128,16 @@ export const order = {
     copy: 'Salin',
     copied: 'Disalin',
     nominal: 'Nominal',
+    /*
+     * CA-3-69. Panel gerbang di bawahnya sudah memakai `vaTitle`/`ewalletTitle` dalam
+     * bentuk ternary yang sama; panel bayar-langsung-ke-depot 60 baris di atasnya menulis
+     * kalimatnya sendiri. Gerbang i18n tidak melihatnya karena bentuk ternary itulah salah
+     * satu titik butanya (CA-2-47).
+     */
+    qrisTitle: 'Bayar via QRIS',
+    transferTitle: 'Bayar via transfer',
+    bankFallback: 'Bank',
+    accountHolder: 'a.n. {name}',
     vaTitle: 'Virtual account',
     ewalletTitle: 'E-wallet',
     proofTitle: 'Bukti bayar',

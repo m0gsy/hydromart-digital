@@ -28,6 +28,12 @@ export interface TokenBucketOptions {
   keyGenerator: (req: Request) => string;
   skip?: (req: Request) => boolean;
   message?: string;
+  /**
+   * CA-3-36: the machine-readable half of `message`. The web client translates on `code`
+   * (`errors.byCode.*`) and ignores `message` once it recognises one, so a tier that chose
+   * a more specific sentence needs its own code or the reader gets the generic one back.
+   */
+  code?: string;
   /** Injected in tests; production uses the clock. */
   now?: () => number;
 }
@@ -56,7 +62,7 @@ export interface TokenBucketMiddleware {
 }
 
 export function tokenBucket(options: TokenBucketOptions): TokenBucketMiddleware {
-  const { capacity, refillPerSecond, keyGenerator, skip, message } = options;
+  const { capacity, refillPerSecond, keyGenerator, skip, message, code } = options;
   const now = options.now ?? Date.now;
   const buckets = new Map<string, Bucket>();
   const fullAfterMs = (capacity / refillPerSecond) * 1000;
@@ -99,7 +105,14 @@ export function tokenBucket(options: TokenBucketOptions): TokenBucketMiddleware 
       res.setHeader('Retry-After', String(waitSeconds));
       res.setHeader('RateLimit-Limit', String(capacity));
       res.setHeader('RateLimit-Remaining', '0');
-      res.status(429).json({ statusCode: 429, message: message ?? 'Too many requests' });
+      // CA-3-36: `code` is what the web client translates on (`errors.byCode.*`); without
+      // it the browser printed this English literal on an Indonesian screen. One code covers
+      // the gateway AND every Nest service, so a single dictionary entry answers both.
+      res.status(429).json({
+        statusCode: 429,
+        code: code ?? 'RATE_LIMITED',
+        message: message ?? 'Too many requests',
+      });
       return;
     }
 

@@ -237,7 +237,14 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
         const res = await postOtp(ip, path);
         expect(res.status).not.toBe(429);
       }
-      await postOtp(ip, path).expect(429);
+      const refused = await postOtp(ip, path).expect(429);
+      /*
+       * CA-3-36. The unit spec proves `tokenBucket` forwards a `code`; this proves the OTP
+       * tier in `gateway.setup.ts` actually passes one. Without it the browser fell through
+       * to the English `message`, and this is the screen where the limiter bites hardest —
+       * so it is the screen where an untranslated sentence was most likely to be read.
+       */
+      expect(refused.body).toMatchObject({ code: 'RATE_LIMITED_OTP' });
     },
   );
 

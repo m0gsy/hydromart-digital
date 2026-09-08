@@ -13,6 +13,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LinkButton,
   LoadError,
   Money,
   Skeleton,
@@ -350,12 +351,11 @@ function Body() {
               {t('opsFix.poDraft.open')}
             </Button>
           )}
-          <Link href="/dashboard/forecast">
-            <Button variant="secondary">
+          {/* CA-3-70: was <Link><Button> — a control inside a control. */}
+          <LinkButton href="/dashboard/forecast" variant="secondary">
               <Sparkle size={16} weight="fill" className="mr-1.5" />
-              {t('opsFix.poDraft.fromForecast')}
-            </Button>
-          </Link>
+            {t('opsFix.poDraft.fromForecast')}
+          </LinkButton>
         </div>
       </div>
 
