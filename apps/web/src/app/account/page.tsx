@@ -226,7 +226,7 @@ function PaymentsBody() {
           a sheet gives the hardware back button two things to close at once. */}
       {adding ? (
         <form onSubmit={add} className="flex flex-col gap-4 rounded-2xl border border-app p-4">
-          <Field label={t('account.payments.type')} htmlFor="pm-type">
+          <Field label={t('account.payments.type')}>
             <div className="flex flex-wrap gap-2">
               {PAY_TYPES.map((ty) => {
                 const Icon = PAY_ICON[ty];

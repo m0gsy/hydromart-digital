@@ -65,16 +65,31 @@ function TealCard({ promo }: { promo: Promotion }) {
   );
 }
 
-function AmberCard({ promo }: { promo: Promotion }) {
+/** Exported for CA-3-61's test: the carousel picks a card variant, the test needs this one. */
+export function AmberCard({ promo }: { promo: Promotion }) {
   const { t } = useT();
   return (
-    <div className="flex h-full flex-col justify-between gap-5 rounded-[22px] bg-amber-50 p-7 shadow-card">
+    /*
+     * CA-3-61 — in dark mode this card was amber text on an amber card.
+     *
+     * The background is a literal `bg-amber-50` with no dark variant, so it stayed a pale
+     * cream block; the title and subtitle switched to `var(--warning)`, which in dark mode
+     * is #e0b64a. Pale amber on pale cream: the title of a promotion, and the line that
+     * explains it, both effectively invisible on the home screen.
+     *
+     * Both halves move together now. `--warning-bg` is the token that already pairs with
+     * `--warning` in each theme, so the card is cream in light and a translucent amber in
+     * dark, and the text stays readable on whichever it is.
+     */
+    <div className="flex h-full flex-col justify-between gap-5 rounded-[22px] bg-[color:var(--warning-bg)] p-7 shadow-card">
       <div>
         <h3 className="text-[22px] font-extrabold tracking-tight text-[#3e2a02] dark:text-[color:var(--warning)]">
           {promo.title}
         </h3>
         {promo.subtitle && (
-          <p className="mt-1.5 text-sm text-[#8a6a1f] dark:text-[color:var(--warning)]">{promo.subtitle}</p>
+          <p className="mt-1.5 text-sm text-[#8a6a1f] dark:text-[color:var(--warning)]">
+            {promo.subtitle}
+          </p>
         )}
       </div>
       <div className="flex items-center gap-3">

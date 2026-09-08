@@ -89,6 +89,17 @@ export function LinkButton({
  * still wins, and anything else (a fragment, several children, a child that already has an
  * id) is left exactly as it was — this must not start renaming controls that already work.
  */
+/** Elements a `<label htmlFor>` can actually name. Anything else needs a labelled group. */
+const LABELLABLE_TAGS = new Set([
+  'input',
+  'select',
+  'textarea',
+  'button',
+  'meter',
+  'output',
+  'progress',
+]);
+
 export function Field({
   label,
   htmlFor,
@@ -103,18 +114,53 @@ export function Field({
   children: ReactNode;
 }) {
   const generatedId = useId();
+  const labelId = `${generatedId}-label`;
   const only = Children.count(children) === 1 ? Children.only(children) : null;
+  /*
+   * A plain `<div>` has no id either, so "no id yet" was not enough to decide that giving
+   * it one would make the label work: `htmlFor` only names a labellable element. A native
+   * tag outside that set gets the group treatment below instead; a COMPONENT is assumed to
+   * forward to a control, which is what every `<Input>`/`<select>` caller here does.
+   */
+  const labellable =
+    isValidElement(only) &&
+    (typeof only.type !== 'string' || LABELLABLE_TAGS.has(only.type as string));
   const adoptable =
-    !htmlFor && isValidElement<{ id?: string }>(only) && only.props.id === undefined;
+    !htmlFor &&
+    labellable &&
+    isValidElement<{ id?: string }>(only) &&
+    only.props.id === undefined;
   const fieldId = htmlFor ?? (adoptable ? generatedId : undefined);
-  const control =
-    adoptable && isValidElement<{ id?: string }>(only)
-      ? cloneElement(only, { id: generatedId })
+
+  /*
+   * CA-3-65 — a `<label htmlFor>` pointing at an id that does not exist names NOTHING.
+   *
+   * Four call sites passed one, and in every case the thing being labelled was not a form
+   * control at all but a row of buttons: payment type, expense category, subscription
+   * quantity, delivery frequency. A screen reader announced the group as unnamed, so the
+   * only way to know what those buttons were choosing was to see them.
+   *
+   * `htmlFor` cannot label a `<div>`, so the fix is not a better id — it is
+   * `aria-labelledby` on a labelled GROUP. Handled here rather than at each call site so
+   * the next Field wrapping a button row is named without anybody remembering to.
+   *
+   * `role` is only set when the child has none: a caller that has already said
+   * `role="radiogroup"` means it, and a `group` on top would be wrong.
+   */
+  const labelledGroup =
+    !fieldId && !labellable && isValidElement<{ 'aria-labelledby'?: string; role?: string }>(only);
+  const control = adoptable
+    ? cloneElement(only as React.ReactElement<{ id?: string }>, { id: generatedId })
+    : labelledGroup
+      ? cloneElement(only as React.ReactElement<{ 'aria-labelledby'?: string; role?: string }>, {
+          'aria-labelledby': labelId,
+          role: (only as React.ReactElement<{ role?: string }>).props.role ?? 'group',
+        })
       : children;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={fieldId} className="text-sm font-medium">
+      <label id={labelId} htmlFor={fieldId} className="text-sm font-medium">
         {label}
       </label>
       {control}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CaretDown, Check, Crosshair, MapPin } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
@@ -22,6 +22,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
   const { location, setLocation } = useLocation();
   const { t } = useT();
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -75,8 +76,42 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
     setOpen(false);
   }
 
+  /*
+   * CA-3-66 — the panel opened and had no way to close.
+   *
+   * Tapping outside it did nothing; the Android back button left the PAGE instead, because
+   * the panel is not a route and nothing was listening. So on a phone the only exits were
+   * choosing a city — a choice the shopper may not have wanted to make — or tapping the
+   * trigger again, which is a 2mm target hidden behind the panel it opened.
+   *
+   * Three exits now, all of which mean "no": outside, Escape, and back. Back pushes a
+   * history entry while the panel is open so the gesture pops THAT rather than navigating
+   * away from the screen the shopper is on.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const onPopState = () => setOpen(false);
+
+    window.history.pushState({ hydromartLocationPicker: true }, '');
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}

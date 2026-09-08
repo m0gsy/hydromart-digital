@@ -112,7 +112,7 @@ function Expenses() {
       </header>
 
       <Card className="space-y-3 p-4">
-        <Field label={t('hrFix.expenses.kind')} htmlFor="category">
+        <Field label={t('hrFix.expenses.kind')}>
           <div className="grid grid-cols-2 gap-2">
             {CATEGORIES.map((c) => (
               <button
