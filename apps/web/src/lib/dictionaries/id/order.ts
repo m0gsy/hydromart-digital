@@ -17,6 +17,8 @@ export const order = {
     subtotal: 'Subtotal',
     removedLines: '{names} tidak lagi dijual dan sudah dikeluarkan dari keranjang.',
     removedUnknown: 'Satu barang',
+    resellerDiscount: 'Harga agen',
+    resellerAtCheckout: 'Dihitung saat pesan',
     memberDiscount: 'Diskon member ({pct}%)',
     estTotal: 'Estimasi total',
     shippingNote: 'Ongkir dihitung saat checkout, setelah depot ditentukan.',

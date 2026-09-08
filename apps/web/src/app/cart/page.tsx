@@ -73,10 +73,27 @@ function CartInner() {
 
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
   const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
-  const rate = account?.discountRate ?? 0;
+  /*
+   * CA-3-09: an agen is not billed the membership discount, and never was.
+   *
+   * `order.service.ts` prices a reseller EITHER by percent or by the SOP's flat rupiah per
+   * galon, INSTEAD of membership and voucher — the branches are exclusive. This screen
+   * showed the member percentage anyway, and hid the agen figure the server had already
+   * computed and sent (`cart.reseller`, A4). So the one customer whose bill is governed by
+   * a different rule was quoted the rule that does not apply to them.
+   */
+  const resellerApplies = data?.reseller?.applies === true;
+  const rate = resellerApplies ? 0 : (account?.discountRate ?? 0);
   // A7: floored here and rounded everywhere else, so this screen quoted Rp1 less than
   // the bill on ordinary baskets. One formula now, shared with checkout and the server.
-  const discount = memberDiscount(subtotal, rate);
+  const memberOff = memberDiscount(subtotal, rate);
+  /*
+   * `reseller.discount` is null when these are catalogue prices, and null is not zero: it
+   * means "no honest number exists yet", which is exactly what the A4 comment on the type
+   * says. Shown as such rather than as a confident Rp 0.
+   */
+  const resellerOff = resellerApplies ? data!.reseller!.discount : null;
+  const discount = resellerApplies ? (resellerOff ?? 0) : memberOff;
   const total = subtotal - discount;
 
   async function setQuantity(productId: string, quantity: number) {
@@ -215,6 +232,21 @@ function CartInner() {
           <span className="font-bold text-[color:var(--success)]">
             −<Money amount={discount} />
           </span>
+        </div>
+      )}
+      {/* CA-3-09: the agen's own line, from the server that bills it. */}
+      {resellerApplies && (
+        <div className="flex justify-between text-[14px]">
+          <span className="text-muted">{t('order.cart.resellerDiscount')}</span>
+          {resellerOff === null ? (
+            <span className="text-[13px] font-medium text-muted">
+              {t('order.cart.resellerAtCheckout')}
+            </span>
+          ) : (
+            <span className="font-bold text-[color:var(--success)]">
+              −<Money amount={resellerOff} />
+            </span>
+          )}
         </div>
       )}
       <div className="flex justify-between border-t border-[color:var(--border-soft)] pt-3.5 text-[16px] font-extrabold">

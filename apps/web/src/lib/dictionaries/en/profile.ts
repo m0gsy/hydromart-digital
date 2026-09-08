@@ -30,11 +30,13 @@ export const profile: typeof base = {
       copied: 'Copied',
       use: 'Use',
       status: {
-        AVAILABLE: 'Active',
-        USED: 'Used',
+        AVAILABLE: 'Ready to use',
+        USED: 'Already used',
         EXPIRED: 'Expired',
-        UPCOMING: 'Soon',
-        SOLD_OUT: 'Sold out',
+        // CA-3-42: "Soon" reads as a promise; this has to read as a refusal, because the
+        // voucher is offered on the same screen and cannot be spent yet.
+        UPCOMING: 'Not valid yet',
+        SOLD_OUT: 'Fully claimed',
       },
     },
     catalog: {

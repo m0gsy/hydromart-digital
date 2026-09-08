@@ -42,6 +42,13 @@ const VOUCHER = {
   minSpend: 50000,
   description: 'Diskon 10%',
   validUntil: '2026-12-31T00:00:00.000Z',
+  /*
+   * CA-3-42: the wire always carries a status (`MyVoucher.status` is not optional), and
+   * this fixture used to omit it. That mattered: with the status absent the screen fell
+   * through to "usable", which is exactly the reading CA-3-42 exists to remove — an
+   * unknown state must never render as a spendable voucher.
+   */
+  status: 'AVAILABLE',
 };
 
 beforeEach(() => {
