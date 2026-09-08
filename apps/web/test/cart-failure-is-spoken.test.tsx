@@ -93,7 +93,7 @@ describe('CA-3-34 a cart write that fails says so', () => {
     await waitFor(() => expect(toast).toHaveBeenCalled());
     // The server's own reason, not the generic line — it is the useful half.
     expect(spoken()).toContain('Stok tinggal 2');
-    expect(toast.mock.calls[0][1]).toBe('error');
+    expect(toast.mock.calls[0]?.[1]).toBe('error');
     // And the rollback that was already correct still happens.
     await waitFor(() => expect(screen.getByText('2')).toBeTruthy());
   });
