@@ -138,6 +138,31 @@ describe('AccountService', () => {
     expect(updated).toMatchObject({ fullName: 'Budi S', email: 'budi@x.com' });
   });
 
+  /*
+   * CA-3-49 — an email that could never be REMOVED.
+   *
+   * The web form sent `email: undefined` for an emptied box, `JSON.stringify` dropped the
+   * key, and a PATCH without the field leaves the column alone: the customer watched the
+   * box go empty and the old address stayed on the account. The server side has always
+   * supported clearing — this pins it, so the entity's `if (email !== undefined)` branch
+   * cannot be "tidied" away.
+   */
+  it('clears the email when null is sent, rather than leaving the old one', async () => {
+    const customer = makeCustomer({ fullName: 'Budi', email: 'budi@x.com' });
+    customers.seed(customer);
+
+    const updated = await service.updateProfile(customer.id, { email: null });
+    expect(updated.email).toBeNull();
+  });
+
+  it('still leaves it alone when the field is absent — the two are not the same', async () => {
+    const customer = makeCustomer({ fullName: 'Budi', email: 'budi@x.com' });
+    customers.seed(customer);
+
+    const updated = await service.updateProfile(customer.id, { fullName: 'Budi S' });
+    expect(updated.email).toBe('budi@x.com');
+  });
+
   it('rejects an email already used by another account', async () => {
     const taken = makeCustomer({ email: 'taken@x.com' });
     const me = makeCustomer({ email: 'me@x.com' });
