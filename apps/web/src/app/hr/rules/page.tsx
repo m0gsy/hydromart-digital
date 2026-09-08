@@ -168,7 +168,15 @@ function RulesBody() {
       rewardValue: String(r.rewardValue),
     });
     // The form sits below the list; on a phone the row and the form are never both visible.
-    document.getElementById('bonus-rule-form')?.scrollIntoView({ behavior: 'smooth' });
+    /*
+     * `?.scrollIntoView?.(` — the SECOND `?.` matters. jsdom does not implement
+     * `scrollIntoView` at all, so on a machine where this element exists the call is a
+     * TypeError, not a no-op. It reddened `main` after passing on my laptop, where the
+     * form happened not to be mounted when this ran and the first `?.` short-circuited.
+     * Nothing about the behaviour a courier or an HR officer sees depends on it, so the
+     * call being absent is fine; the throw was not.
+     */
+    document.getElementById('bonus-rule-form')?.scrollIntoView?.({ behavior: 'smooth' });
   }
 
   const depotName = (id: string | null) =>
