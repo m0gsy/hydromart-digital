@@ -22,6 +22,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import {
   BONUS_METRIC_LABEL,
+  BONUS_TYPE_LABEL,
   BONUS_TYPES,
   COMPARE_OP_LABEL,
   REWARD_KIND_LABEL,
@@ -205,7 +206,8 @@ function RulesBody() {
                   <Badge tone={r.active ? 'success' : 'neutral'}>
                     {r.active ? t('hrFix.rules.active') : t('hrFix.rules.inactive')}
                   </Badge>
-                  <Badge tone="brand">{r.bonusType}</Badge>
+                  {/* CA-1-59: the saved rule's own type, in words. */}
+                  <Badge tone="brand">{t(BONUS_TYPE_LABEL[r.bonusType])}</Badge>
                 </div>
                 <p className="text-sm text-muted">
                   {t(BONUS_METRIC_LABEL[r.metric])} {COMPARE_OP_LABEL[r.op]}{' '}
@@ -252,9 +254,11 @@ function RulesBody() {
                 onChange={(e) => set('bonusType', e.target.value as BonusType)}
                 className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
               >
-                {BONUS_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {/* CA-1-59: same shadowed `t` as /hr/adjustments — renamed so the
+                    translator is reachable. */}
+                {BONUS_TYPES.map((bt) => (
+                  <option key={bt} value={bt}>
+                    {t(BONUS_TYPE_LABEL[bt])}
                   </option>
                 ))}
               </select>

@@ -68,6 +68,7 @@ vi.mock('@/lib/depot-context', () => ({
 
 import AdjustmentsPage from '@/app/hr/adjustments/page';
 import EmployeeDetailPage from '@/app/hr/employees/detail/page';
+import RulesPage from '@/app/hr/rules/page';
 
 const EMPLOYEE = {
   id: 'e1',
@@ -112,12 +113,73 @@ describe('CA-1-59 bonus and deduction types are words', () => {
     render(<AdjustmentsPage />);
     await userEvent.click(screen.getByText('pilih-karyawan'));
     await userEvent.click(screen.getByText('hrFix.adjustments.load'));
+    // Two matches now, and that is the fix: the list row AND the picker option.
     await waitFor(() =>
-      expect(screen.getByText(/hrFix\.map\.bonusType\.ATTENDANCE/)).toBeTruthy(),
+      expect(screen.getAllByText(/hrFix\.map\.bonusType\.ATTENDANCE/).length).toBeGreaterThan(1),
     );
-    expect(screen.getByText(/hrFix\.map\.deductionType\.CASH_ADVANCE/)).toBeTruthy();
-    // The database values that used to be on screen.
-    expect(screen.queryByText(/^CASH_ADVANCE/)).toBeNull();
+
+    /*
+     * The negative assertion this test used to carry was `queryByText(/^CASH_ADVANCE/)`,
+     * and it could not fail: `kind` defaults to 'bonus', so the deduction options are
+     * never mounted on the default tab. It asserted the absence of the one enum the
+     * screen cannot show, and stayed green while the picker above it listed
+     * "ATTENDANCE / PERFORMANCE / SALES / DEPOT / MANUAL" in bare English.
+     *
+     * The role mocked here is HR, which holds `hrAdmin`, so the add form IS rendered —
+     * the bare options really were on screen for the whole life of that assertion.
+     */
+    expect(screen.queryByText('ATTENDANCE')).toBeNull();
+    expect(screen.queryByText('PERFORMANCE')).toBeNull();
+  });
+
+  it('names the deduction picker too, on the tab that actually mounts it', async () => {
+    get.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes('/deductions'))
+        return Promise.resolve([
+          { id: 'd1', employeeId: 'e1', type: 'CASH_ADVANCE', amount: 50000, note: null, createdAt: '2026-09-01T00:00:00.000Z' },
+        ]);
+      return Promise.resolve([]);
+    });
+    render(<AdjustmentsPage />);
+    // The kind select only exists once a load has happened — the add form is gated on it.
+    await userEvent.click(screen.getByText('pilih-karyawan'));
+    await userEvent.click(screen.getByText('hrFix.adjustments.load'));
+    await waitFor(() => expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0));
+
+    // Then the deduction tab, which the old assertion never opened.
+    await userEvent.selectOptions(screen.getAllByRole('combobox')[0]!, 'deduction');
+    await waitFor(() =>
+      expect(screen.getAllByText(/hrFix\.map\.deductionType\./).length).toBeGreaterThan(0),
+    );
+    expect(screen.queryByText('CASH_ADVANCE')).toBeNull();
+    expect(screen.queryByText('ABSENCE')).toBeNull();
+  });
+
+  it('names the bonus type on a saved rule, and in the rule picker', async () => {
+    get.mockImplementation((url: string) =>
+      String(url).includes('bonus-rules')
+        ? Promise.resolve([
+            {
+              id: 'r1',
+              depotId: null,
+              bonusType: 'PERFORMANCE',
+              name: 'Rajin',
+              metric: 'ATTENDANCE_RATE',
+              op: 'GTE',
+              threshold: 95,
+              rewardKind: 'FIXED',
+              rewardValue: 100000,
+              active: true,
+            },
+          ])
+        : Promise.resolve({ items: [] }),
+    );
+    render(<RulesPage />);
+    await waitFor(() => expect(screen.getByText('Rajin')).toBeTruthy());
+    // The badge on the saved rule, and every option in the picker below it.
+    expect(screen.queryByText('PERFORMANCE')).toBeNull();
+    expect(screen.getAllByText(/hrFix\.map\.bonusType\.PERFORMANCE/).length).toBeGreaterThan(0);
   });
 });
 

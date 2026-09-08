@@ -346,6 +346,7 @@ export const hrFix = {
     activate: 'Activate',
   },
   adjustments: {
+    type: 'Type',
     kindLabel: 'Type',
     importDeductions: 'Import deductions',
     title: 'Bonuses & deductions',
