@@ -835,6 +835,63 @@ export class InventoryService {
   }
 
   /**
+   * CA-2-57: the gallon ledgers, wired to the physical GALON line.
+   *
+   * Two ledgers already recorded every empty that left and every empty that came back, and
+   * neither ever touched stock. So the depot's gallon count only ever moved when somebody
+   * typed it, and "galon beredar" (a deposit ledger) and "galon di depot" (a physical count)
+   * drifted apart quietly, forever, with an opname the only way to find out.
+   *
+   * `delta` is signed: negative when empties go out with a delivery, positive when they come
+   * back. Returns `null` when the depot has no GALON line at all, and otherwise the SHORTFALL
+   * — how much of a negative delta the line could not cover.
+   *
+   * Two deliberate choices, both because the LEDGER is the fact here and the physical count
+   * is the thing that was never maintained:
+   *
+   *  - The delta is CLAMPED rather than allowed to hit the SQL floor
+   *    (`inventory.prisma.repository.ts` throws NegativeStockError below zero). A gallon
+   *    that physically left the depot left it; refusing to book the movement because the
+   *    count was already wrong would lose the one record that says so.
+   *  - The shortfall is RETURNED, not swallowed. The caller queues it for a manager. A
+   *    swallowed failure here is stock held in fact and not in book, which is the same
+   *    class of silence this row is about.
+   *
+   * `orderId` makes the write idempotent through the existing `@@unique([itemId, orderId])`:
+   * the completion fan-out is at-least-once, and the PRODUK SALE row for the same order
+   * lives on a different `itemId`, so there is no collision with it.
+   */
+  async moveRawLine(
+    depotId: string,
+    itemType: InventoryItemType,
+    delta: number,
+    actorId: string,
+    reason: string,
+    orderId?: string,
+  ): Promise<{ shortfall: number } | null> {
+    const line = await this.inventory.findLine(depotId, itemType, null);
+    if (!line) return null;
+    if (orderId && (await this.inventory.hasMovementForOrder(line.id, orderId))) {
+      return { shortfall: 0 };
+    }
+    const applied = delta < 0 ? -Math.min(-delta, line.quantity) : delta;
+    const shortfall = delta < 0 ? -delta + applied : 0;
+    if (applied !== 0) {
+      await this.inventory.applyMovement(line.id, {
+        itemId: line.id,
+        type: StockMovementType.ADJUSTMENT,
+        delta: applied,
+        quantityBefore: line.quantity,
+        quantityAfter: line.quantity + applied,
+        reason,
+        actorId,
+        ...(orderId ? { orderId } : {}),
+      });
+    }
+    return { shortfall };
+  }
+
+  /**
    * Depot wastage from the movement ledger: every negative-delta ADJUSTMENT in the window,
    * grouped by line. qty is the real lost quantity; lossIdr values it at the line's sellPrice
    * (ponytail: raw lines like Galon/Air carry no price → qty only, no rupiah — give them a

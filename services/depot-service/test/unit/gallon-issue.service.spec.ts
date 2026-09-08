@@ -2,7 +2,17 @@ import { DepotConfigService } from '../../src/config/depot-config.service';
 import { GallonIssueService } from '../../src/application/services/gallon-issue.service';
 import { OwnershipType } from '../../src/domain/inventory';
 import { DepotNotFoundError } from '../../src/domain/errors';
-import { InMemoryDepotRepository, InMemoryGallonIssueRepository } from '../support/fakes';
+import { ApprovalService } from '../../src/application/services/approval.service';
+import { InventoryService } from '../../src/application/services/inventory.service';
+import {
+  FakeLowStockAlert,
+  FakeProductCatalog,
+  FakeUntrackedSaleAlert,
+  InMemoryApprovalRepository,
+  InMemoryDepotRepository,
+  InMemoryGallonIssueRepository,
+  InMemoryInventoryRepository,
+} from '../support/fakes';
 
 const DEPOT = {
   code: 'JKT-01',
@@ -30,11 +40,28 @@ describe('GallonIssueService', () => {
   let issues: InMemoryGallonIssueRepository;
   let service: GallonIssueService;
   let depotId: string;
+  // CA-2-57: the ledger now moves the physical GALON line, so the spec carries a real
+  // inventory and a real approval queue rather than stubs — the shortfall path IS an
+  // approval, and a stub would let it pass unmeasured.
+  let invRepo: InMemoryInventoryRepository;
+  let approvalRepo: InMemoryApprovalRepository;
 
   beforeEach(async () => {
     depots = new InMemoryDepotRepository();
     issues = new InMemoryGallonIssueRepository();
-    service = new GallonIssueService(issues, depots, configStub);
+    invRepo = new InMemoryInventoryRepository();
+    approvalRepo = new InMemoryApprovalRepository();
+    const approvals = new ApprovalService(approvalRepo, depots, configStub);
+    const inventory = new InventoryService(
+      invRepo,
+      depots,
+      new FakeLowStockAlert(),
+      new FakeUntrackedSaleAlert(),
+      new FakeProductCatalog(),
+      approvals,
+      configStub,
+    );
+    service = new GallonIssueService(issues, depots, configStub, inventory, approvals);
     depotId = (await depots.create(DEPOT)).id;
   });
 
