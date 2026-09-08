@@ -55,6 +55,7 @@ export const opsFix = {
       'Depot ini belum mengisi rekening bank. Isi di Pengaturan depot (menu Depot → pilih depot ini → Pembayaran); butuh peran MANAGER atau SUPER_ADMIN.',
   },
   meter: {
+    noGallonsYet: 'belum ada galon terkirim hari ini',
     deliveredHint: '{n} galon terkirim · {amount}',
     perGallonHint: 'dihitung dari omzet per galon hari ini',
   },

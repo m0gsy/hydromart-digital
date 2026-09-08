@@ -50,7 +50,7 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
     } catch {
       // `toast()` defaults to tone 'success' — a failure that says nothing about its tone
       // renders GREEN with a tick, which is the one thing a failed write must not look like.
-      notify('Gagal menghentikan pinjaman', 'error');
+      notify(t('hrFix.loans.stopFailed'), 'error');
     }
   }
 

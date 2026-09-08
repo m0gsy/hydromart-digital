@@ -12,7 +12,7 @@ import { api, ApiError, getBlob } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
-import { PAYROLL_STATUS_LABEL, type Payroll, type PayrollStatus } from '@/lib/hr';
+import { PAYROLL_STATUS_LABEL, fmtDate, type Payroll, type PayrollStatus } from '@/lib/hr';
 import { canRunPayroll } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
@@ -118,7 +118,12 @@ export default function PayrollDetailPage() {
         </table>
       </Card>
 
-      <div className="grid grid-cols-3 gap-3 text-sm">
+      {/*
+        * CA-1-56 — `grid-cols-3` at every width. Three money cards side by side on a 360pt
+        * phone leave about 100pt each, and "Rp 4.250.000" does not fit in 100pt: the
+        * figures wrapped mid-number or clipped. Two columns on a phone, three from `sm:`.
+        */}
+      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <Card className="p-3">
           <p className="text-muted">Gross</p>
           <Money amount={Number(p.gross)} className="font-bold" />
@@ -132,6 +137,30 @@ export default function PayrollDetailPage() {
           <Money amount={Number(p.totalDeduction)} className="font-bold" />
         </Card>
       </div>
+
+      {/*
+        * CA-1-69 — `approvedAt` and `paidAt` are on the record and were rendered nowhere.
+        *
+        * The status badge says PAID; it does not say WHEN, or by whose approval it got
+        * there. On the one screen where somebody answers "has this month been paid yet",
+        * the two dates that answer it were in the response and off the page.
+        */}
+      {(p.approvedAt || p.paidAt) && (
+        <Card className="grid gap-2 p-4 text-sm sm:grid-cols-2">
+          {p.approvedAt && (
+            <div>
+              <p className="text-muted">{t('hrFix.payrollDetail.approvedAt')}</p>
+              <p className="font-semibold tabular-nums">{fmtDate(p.approvedAt)}</p>
+            </div>
+          )}
+          {p.paidAt && (
+            <div>
+              <p className="text-muted">{t('hrFix.payrollDetail.paidAt')}</p>
+              <p className="font-semibold tabular-nums">{fmtDate(p.paidAt)}</p>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/*
         CA-1-42: what is about to be locked, said out loud.

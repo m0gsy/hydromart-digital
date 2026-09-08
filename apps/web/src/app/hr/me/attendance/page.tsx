@@ -51,7 +51,7 @@ export default function MyAttendancePage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
-      <SectionHeader title="Absensi Saya" />
+      <SectionHeader title={t('hrFix.myAttendance.title')} />
       {list.loading && list.rows.length === 0 && (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -73,7 +73,22 @@ export default function MyAttendancePage() {
               <span className="text-muted">
                 {fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}
               </span>
-              <Badge tone={TONE[a.status]}>{t(ATTENDANCE_STATUS_LABEL[a.status])}</Badge>
+              {/*
+                * CA-1-68 — the employee's own late minutes.
+                *
+                * `lateMinutes` is on every row and the HR-facing attendance screen has
+                * shown it since it was built. The employee's own copy of the same list did
+                * not, so the one person the number is about — and whose pay a late-arrival
+                * deduction comes out of — was the only one who could not see it.
+                */}
+              <span className="flex items-center gap-2">
+                {a.lateMinutes > 0 && (
+                  <span className="tabular-nums text-[color:var(--danger)]">
+                    +{a.lateMinutes}m
+                  </span>
+                )}
+                <Badge tone={TONE[a.status]}>{t(ATTENDANCE_STATUS_LABEL[a.status])}</Badge>
+              </span>
             </div>
           ))}
         </Card>
