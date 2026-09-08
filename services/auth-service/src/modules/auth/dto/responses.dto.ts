@@ -118,6 +118,13 @@ export class SessionResponseDto {
   @ApiProperty({ description: 'Long-lived opaque refresh token (rotated on use).' })
   refreshToken!: string;
 
+  @ApiProperty({
+    description:
+      'CA-3-57: rotation family of this session. Stable across refresh, so the client can ' +
+      'mark its own row in the devices list.',
+  })
+  familyId!: string;
+
   @ApiProperty({ type: PublicCustomerDto })
   customer!: PublicCustomerDto;
 
@@ -127,6 +134,7 @@ export class SessionResponseDto {
       accessToken: result.accessToken,
       expiresIn: result.expiresIn,
       refreshToken: result.refreshToken,
+      familyId: result.familyId,
       customer: PublicCustomerDto.withCapabilities(result.customer),
     };
   }
@@ -135,6 +143,9 @@ export class SessionResponseDto {
 export class SessionInfoDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
+
+  @ApiProperty({ description: 'CA-3-57: rotation family, so a client can spot its own row.' })
+  familyId!: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;

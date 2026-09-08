@@ -15,7 +15,7 @@ export const deleteAccount = {
 
   stepsHeading: 'Cara mengajukan penghapusan',
   steps: [
-    'Lewat aplikasi: buka Akun → Data & privasi → Hapus akun, lalu konfirmasi. Permintaanmu masuk ke antrean dan diputuskan tim kantor pusat.',
+    'Lewat aplikasi: buka Akun & pengaturan → Data pribadi saya → Minta hapus akun, lalu konfirmasi. Permintaanmu masuk ke antrean dan diputuskan tim kantor pusat.',
     'Tanpa aplikasi: kirim email ke privacy@hydromart-digital.com dari alamat email yang terdaftar, atau sebutkan nomor telepon akunmu. Kami akan memverifikasi identitasmu sebelum memproses.',
     // CA-3-55: halaman ini menjanjikan 30 hari kerja sementara aplikasi menjanjikan DAN
     // mengukur 3x24 jam (`lib/pdp-sla.ts` = 72 jam; antrean /hq/pdp menandai baris yang
@@ -57,7 +57,7 @@ export const deleteAccount = {
     },
     {
       heading: 'Mengunduh data sebelum menghapus',
-      body: 'Penghapusan tidak dapat dibatalkan. Kalau kamu ingin menyimpan salinan datamu, ajukan permintaan ekspor lebih dulu lewat Akun → Data & privasi → Unduh data. Kamu akan menerima berkas JSON berisi data akun, profil, alamat, dan riwayat persetujuanmu.',
+      body: 'Penghapusan tidak dapat dibatalkan. Kalau kamu ingin menyimpan salinan datamu, ajukan permintaan ekspor lebih dulu lewat Akun & pengaturan → Data pribadi saya → Minta salinan data. Kamu akan menerima berkas JSON berisi data akun, profil, alamat, dan riwayat persetujuanmu.',
     },
     {
       heading: 'Kontak',

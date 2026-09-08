@@ -11,7 +11,7 @@ export const deleteAccount: typeof base = {
 
   stepsHeading: 'How to request deletion',
   steps: [
-    'In the app: open Account → Data & privacy → Delete account, then confirm. Your request enters a queue and is decided by the head-office team.',
+    'In the app: open Account & settings → My personal data → Request account deletion, then confirm. Your request enters a queue and is decided by the head-office team.',
     'Without the app: email privacy@hydromart-digital.com from your registered email address, or quote the phone number on your account. We verify your identity before acting.',
     'You will be notified once the request has been processed. Requests are completed within 3x24 hours of verification.',
   ],
@@ -47,7 +47,7 @@ export const deleteAccount: typeof base = {
     },
     {
       heading: 'Download your data first',
-      body: 'Deletion cannot be undone. If you want to keep a copy of your data, request an export first via Account → Data & privacy → Download data. You will receive a JSON file containing your account, profile, addresses, and consent history.',
+      body: 'Deletion cannot be undone. If you want to keep a copy of your data, request an export first via Account & settings → My personal data → Request a data copy. You will receive a JSON file containing your account, profile, addresses, and consent history.',
     },
     {
       heading: 'Contact',

@@ -35,6 +35,29 @@ export function markNotificationsSeen(at: string = new Date().toISOString()): vo
   }
 }
 
+/**
+ * CA-3-56 — forget what THIS account had read.
+ *
+ * The marker is a single timestamp in localStorage, keyed by nothing: it belongs to the
+ * device, not the person. So on a shared phone — a depot's spare handset, a family
+ * handing one over — the next account signed in and found an inbox whose every row was
+ * already older than the previous person's last visit. Their notifications existed and
+ * the badge said nothing. Cleared at sign-out, which is the one moment "whose inbox this
+ * is" changes.
+ *
+ * Not keyed BY account on purpose: that would leave one stale timestamp per person who
+ * ever signed in on the device, which is a small pile of somebody-else's-activity for a
+ * badge that the inbox itself resets on first render anyway.
+ */
+export function forgetNotificationsSeen(): void {
+  try {
+    localStorage.removeItem(LAST_SEEN_KEY);
+    window.dispatchEvent(new Event(SEEN_EVENT));
+  } catch {
+    // Same as `markNotificationsSeen`: storage disabled costs the badge, not the inbox.
+  }
+}
+
 const SEEN_EVENT = 'hydromart:notifications-seen';
 
 /**

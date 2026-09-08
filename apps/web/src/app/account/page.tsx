@@ -63,6 +63,7 @@ import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
 import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
+import { currentSessionFamily } from '@/lib/session-device';
 import type {
   Customer,
   ConsentPending,
@@ -886,6 +887,19 @@ function DevicesBody() {
   }
 
   const sessions = data ?? [];
+  /*
+   * CA-3-57 — which of these is the phone in your hand.
+   *
+   * Nothing marked it, so the dangerous row and the harmless one looked identical: same
+   * shape, same "Keluarkan" button. The person most likely to open this screen thinks
+   * their account has been taken and is deciding which row to revoke — and revoking their
+   * own signs THEM out while leaving the intruder signed in.
+   *
+   * Matched on the rotation family, which survives the fifteen-minute refresh that changes
+   * every row id. Null (older gateway, storage disabled, a session that predates this)
+   * marks nothing rather than marking the wrong one.
+   */
+  const myFamily = currentSessionFamily();
 
   return (
     <div>
@@ -898,24 +912,34 @@ function DevicesBody() {
         <p className="py-4 text-sm text-muted">{t('account.devices.empty')}</p>
       ) : (
         <div className="divide-y divide-[color:var(--border-soft)]">
-          {sessions.map((row) => (
-            <ListRow
-              key={row.id}
-              title={row.userAgent?.trim() || t('account.devices.unknownDevice')}
-              subtitle={`${t('account.devices.since', {
-                date: formatDateTime(row.createdAt),
-              })} · ${row.ipAddress ?? '—'}`}
-              trailing={
-                <Button
-                  variant="ghost"
-                  disabled={pending !== null}
-                  onClick={() => void revoke(row.id)}
-                >
-                  {t('account.devices.revoke')}
-                </Button>
-              }
-            />
-          ))}
+          {sessions.map((row) => {
+            const isThisDevice = myFamily != null && row.familyId === myFamily;
+            return (
+              <ListRow
+                key={row.id}
+                title={
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {row.userAgent?.trim() || t('account.devices.unknownDevice')}
+                    {isThisDevice && <Chip tone="tint">{t('account.devices.thisDevice')}</Chip>}
+                  </span>
+                }
+                subtitle={`${t('account.devices.since', {
+                  date: formatDateTime(row.createdAt),
+                })} · ${row.ipAddress ?? '—'}`}
+                trailing={
+                  <Button
+                    variant="ghost"
+                    disabled={pending !== null}
+                    onClick={() => void revoke(row.id)}
+                  >
+                    {isThisDevice
+                      ? t('account.devices.revokeThis')
+                      : t('account.devices.revoke')}
+                  </Button>
+                }
+              />
+            );
+          })}
         </div>
       )}
 

@@ -15,6 +15,20 @@ import { RequestContext, SessionResult, toPublicCustomer } from '../results';
 /** Public view of an active device session (FR-010). */
 export interface SessionInfo {
   id: string;
+  /*
+   * CA-3-57: the rotation family, so a client can recognise its OWN row.
+   *
+   * The devices list had no marker for "this is the phone you are holding", so the
+   * dangerous entry and the harmless one looked identical — and the person most likely to
+   * open this screen is somebody who thinks their account has been taken, deciding which
+   * row to revoke. Revoking the wrong one signs them out and leaves the intruder in.
+   *
+   * The family id rather than the row id: a refresh ROTATES the row, so `id` changes under
+   * the client every fifteen minutes while `familyId` stays put for the life of the device
+   * session. It is issued to the client with its own tokens and identifies nothing but
+   * itself.
+   */
+  familyId: string;
   createdAt: Date;
   expiresAt: Date;
   ipAddress: string | null;
@@ -143,6 +157,7 @@ export class SessionService {
     const records = await this.refreshTokens.listActiveForCustomer(customerId, this.clock.now());
     return records.map((record) => ({
       id: record.id,
+      familyId: record.familyId,
       createdAt: record.createdAt,
       expiresAt: record.expiresAt,
       ipAddress: record.ipAddress,
@@ -195,6 +210,7 @@ export class SessionService {
       accessToken: access.token,
       expiresIn: access.expiresIn,
       refreshToken: rawRefreshToken,
+      familyId,
       customer: toPublicCustomer(customer),
     };
   }
