@@ -7,8 +7,6 @@ import { MapPinLine, WarningCircle } from '@phosphor-icons/react';
 import { Button } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { useAsync } from '@/lib/use-async';
-import type { DriverSettings } from '@/lib/types';
 
 /** Great-circle distance in km between two lat/lng points (haversine). */
 export function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
@@ -28,9 +26,15 @@ export function haversineKm(aLat: number, aLng: number, bLat: number, bLng: numb
  * for one journey: the courier's screen and the customer's screen disagreed by about a
  * fifth, and a depot that tuned its own number moved only one of them.
  *
- * The speed is now given, not assumed. `/deliveries/api/v1/driver/settings` already exists
- * and already answers `urbanSpeedKmph` for the courier's own depot — it was built for
- * exactly this in CA-4-29/CA-4-37, and the route screen already reads it.
+ * The speed is now given, not assumed. The courier settings route already answers
+ * `urbanSpeedKmph` for the courier's own depot — built for exactly this in CA-4-29/CA-4-37.
+ *
+ * The READ belongs to the caller, not to this component: `build-mobile.mjs` prunes routes
+ * per binary, and this file also ships in the OPS binary, which does not serve that route.
+ * A component that fetches decides which binaries may contain it; a component that takes a
+ * prop does not. (The route name is deliberately not written out anywhere in this file:
+ * build-mobile.mjs scans quoted path literals, and a backticked path in a COMMENT reads
+ * as one — the check flagged this comment after the fetch itself was already gone.)
  *
  * Still a straight line divided by an average: real routing needs a Directions key. What
  * changed is WHOSE average.
@@ -51,6 +55,8 @@ export function shouldPing(lastPingAt: number | null, now: number): boolean {
 
 interface Props {
   deliveryId: string;
+  /** CA-4-39: the depot's own average speed. `null` until it lands — no ETA until then. */
+  speedKmph: number | null;
   destinationLat: number;
   destinationLng: number;
   onArrive: () => void;
@@ -61,13 +67,15 @@ interface Props {
  * GPS, pings the server position every ~15s (overwrites, no history — server contract),
  * shows a rough ETA, and offers "Sampai tujuan" to advance to proof-of-delivery.
  */
-export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }: Props) {
+export function LiveNav({
+  deliveryId,
+  destinationLat,
+  destinationLng,
+  speedKmph,
+  onArrive,
+}: Props) {
   const { t } = useT();
   // CA-4-39: the depot's own speed, not a constant in this file.
-  const settings = useAsync<DriverSettings>(
-    () => api.getCached(endpoints.deliveries.driver.settings, true),
-    [],
-  );
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [geoError, setGeoError] = useState(false);
   const lastPingAt = useRef<number | null>(null);
@@ -117,8 +125,8 @@ export function LiveNav({ deliveryId, destinationLat, destinationLng, onArrive }
 
   // No speed yet means no ETA yet: "locating" is honest, a number computed from a guessed
   // speed is not.
-  const speed = settings.data?.urbanSpeedKmph ?? null;
-  const eta = distanceKm === null || speed === null ? null : etaMinutes(distanceKm, speed);
+  const eta =
+    distanceKm === null || speedKmph == null ? null : etaMinutes(distanceKm, speedKmph);
 
   return (
     <div className="space-y-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4">

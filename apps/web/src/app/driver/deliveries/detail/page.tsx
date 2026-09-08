@@ -15,7 +15,7 @@ import { Badge, Button, Card, ErrorState, FormError, Skeleton } from '@/componen
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
-import type { Delivery, DeliveryStatus } from '@/lib/types';
+import type { Delivery, DeliveryStatus, DriverSettings } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -47,6 +47,15 @@ function Detail() {
    * delivery itself. One read, one moment, no 403 to swallow — and `codDue` is simply its
    * inverse for an order that carries a COD at all.
    */
+  /*
+   * CA-4-39: the depot's own average speed for the ETA strip below. Read HERE rather than
+   * inside `LiveNav` because that component also ships in the ops binary, which does not
+   * serve this route — `build-mobile.mjs` prunes per binary and fails the build for it.
+   */
+  const settings = useAsync<DriverSettings>(
+    () => api.getCached(endpoints.deliveries.driver.settings, true),
+    [],
+  );
   const d = useAsync<{ delivery: Delivery; codDue: boolean }>(async () => {
     const delivery = await api.get<Delivery>(endpoints.deliveries.driver.get(id), true);
     return { delivery, codDue: Boolean(delivery.codAmount) && !delivery.cashHeld };
@@ -240,6 +249,7 @@ function Detail() {
                 deliveryId={id}
                 destinationLat={delivery.destinationLat}
                 destinationLng={delivery.destinationLng}
+                speedKmph={settings.data?.urbanSpeedKmph ?? null}
                 onArrive={() => setCapturing(true)}
               />
             ) : (
