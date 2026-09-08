@@ -796,6 +796,8 @@ export const hrFix = {
   expenses: {
     receipt: 'Receipt photo',
     receiptHint: 'Required for automatic approval. Without one the claim waits for the depot.',
+    autoApprove: 'Claims up to {amount} are approved automatically; above that a manager decides.',
+    autoApproveUnknown: 'Small claims are approved automatically; the rest wait for a manager.',
     receiptPicked: 'Receipt ready to upload.',
     submitClaim: 'Submit claim',
     emptyBody2: 'Expense claims you submit will appear here.',

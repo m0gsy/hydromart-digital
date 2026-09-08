@@ -11,6 +11,7 @@ import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { formatIDR } from '@/lib/format';
 import { compressImage } from '@/lib/image';
 import type { ExpenseCategory, ExpenseClaim, ExpenseClaimStatus, Page } from '@/lib/types';
 
@@ -42,6 +43,14 @@ function Expenses() {
     () => api.get(endpoints.courierPayout.expenses, true),
     [],
   );
+  // CA-4-21: dashed until it lands. A promise with a made-up number in it is the bug this
+  // row is about, and `getCached` because a threshold changes when someone edits a setting,
+  // not while a courier fills in a form.
+  const limit =
+    useAsync<{ autoApproveMaxIdr: number }>(
+      () => api.getCached(endpoints.courierPayout.expenseLimit, true),
+      [],
+    ).data?.autoApproveMaxIdr ?? null;
 
   const [category, setCategory] = useState<ExpenseCategory>('FUEL');
   const [amount, setAmount] = useState('');
@@ -157,7 +166,12 @@ function Expenses() {
           {t('hrFix.expenses.submitClaim')}
         </Button>
         <p className="text-center text-[11px] text-[color:var(--muted)]">
-          Klaim kecil disetujui otomatis; sisanya menunggu persetujuan depot.
+          {/* CA-4-21: "small claims" said nothing about what small means, so a courier
+              could not tell why one claim cleared instantly and the next waited on a
+              manager. The figure is a per-depot setting, read from the server. */}
+          {limit === null
+            ? t('hrFix.expenses.autoApproveUnknown')
+            : t('hrFix.expenses.autoApprove', { amount: formatIDR(limit) })}
         </p>
       </Card>
 

@@ -1,5 +1,6 @@
 import { CourierPayoutController } from '../../src/modules/courier-payout.controller';
 import { CourierPayoutService } from '../../src/application/services/courier-payout.service';
+import { PayoutConfigService } from '../../src/config/payout-config.service';
 import { ExpenseClaimService } from '../../src/application/services/expense-claim.service';
 import { AuthenticatedUser } from '@hydromart/platform';
 import {
@@ -25,9 +26,14 @@ describe('CourierPayoutController', () => {
     submit: jest.fn().mockResolvedValue({ id: 'x1' }),
     listForCourier: jest.fn().mockResolvedValue({ items: [] }),
   };
+  // CA-4-21: the courier is told the actual auto-approve figure for their own depot.
+  const config = {
+    expenseAutoApproveMaxIdr: jest.fn().mockReturnValue(50_000),
+  };
   const controller = new CourierPayoutController(
     payout as unknown as CourierPayoutService,
     expenses as unknown as ExpenseClaimService,
+    config as unknown as PayoutConfigService,
   );
   const user = { sub: 'courier-1' } as AuthenticatedUser;
   afterEach(() => jest.clearAllMocks());
@@ -198,5 +204,18 @@ describe('CourierPayoutController', () => {
       amount: 3000,
     });
     expect(res).toEqual({ recorded: false });
+  });
+
+  // CA-4-21: "small claims are approved automatically" said nothing about what small
+  // means, so a courier could not tell why one claim cleared and the next waited.
+  it('answers the auto-approve ceiling for the caller own depot', () => {
+    const scoped = { sub: 'courier-1', depotId: 'dep-1' } as AuthenticatedUser;
+    expect(controller.expenseLimit(scoped)).toEqual({ autoApproveMaxIdr: 50_000 });
+    expect(config.expenseAutoApproveMaxIdr).toHaveBeenCalledWith('dep-1');
+  });
+
+  it('falls back to the network figure for a courier with no depot', () => {
+    controller.expenseLimit(user);
+    expect(config.expenseAutoApproveMaxIdr).toHaveBeenLastCalledWith(null);
   });
 });

@@ -810,6 +810,8 @@ export const hrFix = {
   expenses: {
     receipt: 'Foto struk',
     receiptHint: 'Wajib untuk persetujuan otomatis. Tanpa struk, klaim menunggu persetujuan depot.',
+    autoApprove: 'Klaim sampai {amount} disetujui otomatis; di atasnya menunggu persetujuan manajer.',
+    autoApproveUnknown: 'Klaim kecil disetujui otomatis; sisanya menunggu persetujuan manajer.',
     receiptPicked: 'Struk siap diunggah.',
     submitClaim: 'Kirim klaim',
     emptyBody2: 'Klaim pengeluaran yang kamu kirim akan muncul di sini.',

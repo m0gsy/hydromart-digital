@@ -22,6 +22,7 @@ import {
   CourierEarningsSummary,
   CourierPayoutService,
 } from '../application/services/courier-payout.service';
+import { PayoutConfigService } from '../config/payout-config.service';
 import { ExpenseClaimService } from '../application/services/expense-claim.service';
 import {
   CourierEarningRuleRecord,
@@ -44,6 +45,7 @@ import {
   CourierEarningsResponseDto,
   CourierWithdrawalResponseDto,
   ExpenseClaimResponseDto,
+  ExpenseLimitResponseDto,
   PagedCourierLedgerEntryResponseDto,
   PagedExpenseClaimResponseDto,
   RecordEarning2ResponseDto,
@@ -59,6 +61,7 @@ export class CourierPayoutController {
   constructor(
     private readonly payout: CourierPayoutService,
     private readonly expenses: ExpenseClaimService,
+    private readonly config: PayoutConfigService,
   ) {}
 
   @ApiOkResponse({ type: CourierEarningsResponseDto })
@@ -127,6 +130,22 @@ export class CourierPayoutController {
       },
       user,
     );
+  }
+
+  /**
+   * CA-4-21, owner decision 2026-09-04: the courier is told the actual figure.
+   *
+   * The screen has always said "small claims are approved automatically" without ever
+   * saying what small means, so a courier could not tell why one claim cleared instantly
+   * and the next waited on a manager. The threshold is a per-depot setting, so the screen
+   * cannot hardcode it — and the settings schema is `@Can('depotAdmin')`, which a courier
+   * does not hold. This is the one number, for the caller's own depot.
+   */
+  @ApiOkResponse({ type: ExpenseLimitResponseDto })
+  @Get('expense-limit')
+  @ApiOperation({ summary: 'The auto-approve ceiling for the calling courier’s depot' })
+  expenseLimit(@CurrentUser() user: AuthenticatedUser): { autoApproveMaxIdr: number } {
+    return { autoApproveMaxIdr: this.config.expenseAutoApproveMaxIdr(user.depotId ?? null) };
   }
 
   @ApiOkResponse({ type: PagedExpenseClaimResponseDto })

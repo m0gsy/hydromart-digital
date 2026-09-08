@@ -2,6 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 
 import {
   CustomerNotFoundError,
+  DataExportApprovalExpiredError,
+  DataExportNotApprovedError,
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
   DuplicateDataSubjectRequestError,
@@ -355,13 +357,77 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     expect(queue.find((r) => r.customerId !== CUSTOMER)?.customerName).toBeNull();
   });
 
-  it('exports on demand for the customer without a queue entry', async () => {
+  /*
+   * CA-3-54. The approval queue existed and worked; this one route walked around it, and
+   * the only thing that ever gated it was a browser screen — a cookie and curl skipped
+   * that. Head office decides, `processedBy` says who, and (owner decision 2026-09-04)
+   * the decision is good for seven days.
+   */
+  const approveExport = async (processedAt: Date) => {
+    const request = await service.request(CUSTOMER, 'EXPORT', null);
+    await service.approve(request.id, STAFF);
+    const row = requests.rows.find((r) => r.id === request.id)!;
+    row.processedAt = processedAt;
+    return row;
+  };
+
+  it('refuses the export until head office has approved one', async () => {
+    await expect(service.exportFor(CUSTOMER)).rejects.toBeInstanceOf(DataExportNotApprovedError);
+    expect(customers.findById).not.toHaveBeenCalled();
+  });
+
+  it('exports once an approval exists, and records who approved it', async () => {
+    const row = await approveExport(new Date());
     const payload = await service.exportFor(CUSTOMER);
+
     expect(payload.account).toMatchObject({ id: CUSTOMER });
-    expect(customers.findById).toHaveBeenCalledWith(CUSTOMER);
+    expect(row.processedBy).toBe(STAFF);
+  });
+
+  /*
+   * The payload is rebuilt at DOWNLOAD time, so an approval that never expires is a
+   * permanent door onto today's data — not onto the data head office actually looked at.
+   */
+  it('refuses an approval older than seven days', async () => {
+    await approveExport(new Date(Date.now() - 8 * 24 * 60 * 60 * 1000));
+    await expect(service.exportFor(CUSTOMER)).rejects.toBeInstanceOf(
+      DataExportApprovalExpiredError,
+    );
+  });
+
+  it('still allows one approved six days ago', async () => {
+    await approveExport(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    await expect(service.exportFor(CUSTOMER)).resolves.toBeDefined();
+  });
+
+  // An approval nobody can date cannot be shown to be inside its window, so it is refused.
+  /*
+   * A customer who asked twice has two COMPLETED rows, and the window must be measured
+   * against the NEWEST decision — otherwise an old approval would expire a fresh one.
+   */
+  it('measures the window against the newest approval, whichever order they arrive in', async () => {
+    const old = await approveExport(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    // A second request needs the first to be closed, which `approve` already did.
+    const fresh = await approveExport(new Date());
+    expect(old.processedAt!.getTime()).toBeLessThan(fresh.processedAt!.getTime());
+
+    await expect(service.exportFor(CUSTOMER)).resolves.toBeDefined();
+
+    // And the other way round: newest first in the list must give the same answer.
+    requests.rows.reverse();
+    await expect(service.exportFor(CUSTOMER)).resolves.toBeDefined();
+  });
+
+  it('refuses a COMPLETED row that carries no decision time', async () => {
+    const row = await approveExport(new Date());
+    row.processedAt = null;
+    await expect(service.exportFor(CUSTOMER)).rejects.toBeInstanceOf(
+      DataExportApprovalExpiredError,
+    );
   });
 
   it('an export for an unknown account yields an empty account block, not a crash', async () => {
+    await approveExport(new Date());
     customers.findById.mockResolvedValueOnce(null);
     expect((await service.exportFor(CUSTOMER)).account).toEqual({});
   });
