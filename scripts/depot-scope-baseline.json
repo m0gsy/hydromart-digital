@@ -1,5 +1,5 @@
 {
-  "count": 63,
+  "count": 64,
   "routes": [
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
@@ -23,6 +23,7 @@
     "services/delivery-service/src/modules/driver-delivery.controller.ts Post :id/contact-attempts @Can(-)",
     "services/delivery-service/src/modules/driver-delivery.controller.ts Post :id/location @Can(-)",
     "services/delivery-service/src/modules/driver-settlement.controller.ts Get :id @Can(courierDeposit)",
+    "services/delivery-service/src/modules/driver-settlement.controller.ts Get expected/:shiftId @Can(courierDeposit)",
     "services/delivery-service/src/modules/driver-shift.controller.ts Patch :id/status @Can(-)",
     "services/delivery-service/src/modules/driver-shift.controller.ts Post :id/check-out @Can(-)",
     "services/hr-service/src/modules/announcement.controller.ts Post :id/read @Can(-)",

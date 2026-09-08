@@ -9,6 +9,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatIDR } from '@/lib/format';
 import { useAsync } from '@/lib/use-async';
 import type { CashSettlement, Shift } from '@/lib/types';
 
@@ -33,6 +34,24 @@ function Settlement() {
     return { shift };
   }, []);
 
+  /*
+   * CA-4-16: the expected total, read the moment a settleable shift is known.
+   *
+   * Its own request rather than a field on the shift: the server computes it from
+   * payment-service and fails CLOSED there, so a failure here must render as "cannot be
+   * read" — never as a comforting zero next to a box asking for cash.
+   */
+  const shiftId = load.data?.shift?.id ?? null;
+  const expected = useAsync<{ shiftId: string; expectedIdr: number } | null>(
+    () =>
+      shiftId
+        ? api.get<{ shiftId: string; expectedIdr: number }>(
+            endpoints.deliveries.settlement.expected(shiftId),
+            true,
+          )
+        : Promise.resolve(null),
+    [shiftId],
+  );
   const [cash, setCash] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,10 +131,38 @@ function Settlement() {
                 onChange={(e) => setCash(e.target.value.replace(/[^0-9]/g, ''))}
               />
             </Field>
+            {/* CA-4-16: what the deposit is measured against, before the cash changes
+                hands. Any shortfall is debited from the courier's pay, so this is the one
+                number they most need — and it was the one the screen never showed. */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-bold">{t('hrFix.settlement.expectedLabel')}</span>
+              {expected.loading ? (
+                <span className="text-[color:var(--muted)]">…</span>
+              ) : expected.data ? (
+                <Money amount={expected.data.expectedIdr} className="text-lg font-extrabold" />
+              ) : (
+                // Fails closed on the server too: a payment-service outage refuses rather
+                // than showing a smaller, comforting number. Say so instead of showing 0.
+                <span className="text-[13px] text-[color:var(--warning)]">
+                  {t('hrFix.settlement.expectedUnavailable')}
+                </span>
+              )}
+            </div>
             <div className="flex items-center justify-between text-sm">
               <span className="font-bold">{t('hrFix.settlement.willSettle')}</span>
               <Money amount={deposited} className="text-xl font-extrabold text-brand-700" />
             </div>
+            {expected.data && deposited !== expected.data.expectedIdr && (
+              <p className="text-[12px] font-medium text-[color:var(--warning)]">
+                {deposited < expected.data.expectedIdr
+                  ? t('hrFix.settlement.shortWarning', {
+                      amount: formatIDR(expected.data.expectedIdr - deposited),
+                    })
+                  : t('hrFix.settlement.overWarning', {
+                      amount: formatIDR(deposited - expected.data.expectedIdr),
+                    })}
+              </p>
+            )}
           </Card>
 
           <FormError message={error} />

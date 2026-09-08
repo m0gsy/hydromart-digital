@@ -80,6 +80,8 @@ export const driver = {
     error: 'Could not reschedule. Try again.',
   },
   returns: {
+    alreadyTitle: 'Already recorded',
+    alreadyBody: 'A return for this order was already recorded. The figures below are that FIRST return, not the one you just submitted. Hand any extra empties in at the depot so they can be recorded separately.',
     title: 'Return empty gallons',
     loadError: 'Failed to load',
     doneTitle: 'Return recorded',

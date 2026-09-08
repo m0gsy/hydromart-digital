@@ -127,7 +127,7 @@ export const GROUPS: RailGroup[] = [
         show: canViewFranchise,
       },
       { href: '/dashboard', labelKey: 'operations', icon: ChartLineUp, show: canViewDashboard },
-      { href: '/dashboard/search', labelKey: 'search', icon: MagnifyingGlass, show: isStaff },
+      { href: '/dashboard/search', labelKey: 'search', icon: MagnifyingGlass, show: (role) => can('depotDirectory', role) },
       // The way back out. Console routes carry no shop nav, so without this an HQ account
       // that stepped into the depot console had no link home either — the same missing
       // door as the /dashboard entry in the HQ rail, in the other direction.
@@ -146,7 +146,7 @@ export const GROUPS: RailGroup[] = [
   {
     headKey: 'daily',
     items: [
-      { href: '/dashboard/orders', labelKey: 'orders', icon: ClipboardText, show: isStaff },
+      { href: '/dashboard/orders', labelKey: 'orders', icon: ClipboardText, show: (role) => can('orderQueue', role) },
       {
         href: '/dashboard/walk-in',
         labelKey: 'walkIn',
@@ -254,6 +254,9 @@ export const GROUPS: RailGroup[] = [
       // Self-service absen. Lives here rather than in a console of its own because the
       // supervision ranks land on this rail and had no way at all to reach /hr/me.
       { href: '/hr/me', labelKey: 'selfService', icon: CalendarCheck, show: canPunchAttendance },
+      // CA-6-02: `isStaff` STAYS on these three, and that is the finding, not an oversight.
+      // Reading the roster is open to any depot staff — knowing when you work is not a
+      // privilege, and `canManageRoster` already gates the writing half.
       { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: isStaff },
       {
         href: '/dashboard/targets',
@@ -373,7 +376,7 @@ export const GROUPS: RailGroup[] = [
         icon: HandCoins,
         show: canViewDepotFinance,
       },
-      { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: isStaff },
+      { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: (role) => can('orderReportsDepot', role) },
       {
         href: '/dashboard/monthly-review',
         labelKey: 'monthlyReview',
@@ -400,6 +403,8 @@ export const GROUPS: RailGroup[] = [
   {
     headKey: 'reference',
     items: [
+      // Shows the caller their OWN effective capabilities. Gating that on a capability would
+      // be a screen you need permission to be told what you have permission for.
       { href: '/dashboard/roles', labelKey: 'roles', icon: ShieldCheck, show: isStaff },
       { href: '/dashboard/audit', labelKey: 'audit', icon: Scroll, show: canViewAudit },
       {

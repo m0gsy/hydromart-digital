@@ -11,21 +11,35 @@ import {
   RewardRepository,
   UpdateRewardItemData,
 } from '../../application/ports/reward.repository';
-import { InsufficientPointsError } from '../../domain/errors';
+import { InsufficientPointsError, RewardOutOfStockError } from '../../domain/errors';
 import { PointsTxnType as PrismaTxnType } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
 /**
- * Turns the redeem debit's "no row matched" into the customer's answer (H-2).
+ * Turns the redeem transaction's "no row matched" into the customer's answer.
  *
- * On that transaction P2025 only ever means the `pointsBalance >= cost` predicate failed —
- * someone spent the points first. Left raw it would be a 500 on an ordinary race.
+ * H-2 put a conditional predicate on the points debit; CA-3-43 put one on the stock
+ * decrement. Both raise P2025, and Prisma does not say WHICH update found no row — so the
+ * loser's reason is read back rather than guessed. Getting it wrong is not cosmetic: told
+ * "not enough points" when the last item simply went, a customer checks a balance that is
+ * fine and files a complaint about a bug that is not there.
+ *
+ * Only on the losing path, so the happy path pays nothing for it.
  */
-function rejectSpentPoints(error: unknown): never {
-  if ((error as { code?: string })?.code === 'P2025') {
-    throw new InsufficientPointsError();
-  }
-  throw error;
+async function rejectRedeemRace(
+  prisma: PrismaService,
+  rewardItemId: string,
+  error: unknown,
+): Promise<never> {
+  if ((error as { code?: string })?.code !== 'P2025') throw error;
+  const item = await prisma.rewardItem.findUnique({
+    where: { id: rewardItemId },
+    select: { stock: true },
+  });
+  // `stock` is nullable — null means unlimited, and an unlimited reward has no stock
+  // predicate to fail, so the only thing that can have failed is the points one.
+  if (item && item.stock !== null && item.stock < 1) throw new RewardOutOfStockError();
+  throw new InsufficientPointsError();
 }
 
 @Injectable()
@@ -98,14 +112,19 @@ export class RewardPrismaRepository implements RewardRepository {
         }),
         ...(m.decrementStock
           ? [
+              // CA-3-43: conditional and relative, exactly like the points debit above,
+              // and for exactly the same reason. The service's stock check is a read two
+              // concurrent redemptions can both pass; this WHERE is the one they cannot.
+              // Without it the last item was redeemed twice and `stock` went to -1 — two
+              // customers holding a voucher for one thing.
               this.prisma.rewardItem.update({
-                where: { id: m.rewardItemId },
+                where: { id: m.rewardItemId, stock: { gte: 1 } },
                 data: { stock: { decrement: 1 } },
               }),
             ]
           : []),
       ])
-      .catch(rejectSpentPoints)
+      .catch((error: unknown) => rejectRedeemRace(this.prisma, m.rewardItemId, error))
       .catch(async (error: unknown) => {
         /*
          * The idempotency key doing what an idempotency key is for.

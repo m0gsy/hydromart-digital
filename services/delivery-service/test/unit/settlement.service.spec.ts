@@ -135,6 +135,58 @@ describe('SettlementService', () => {
     return d.orderId;
   };
 
+  /*
+   * CA-4-16 — the courier sees the total before the cash changes hands.
+   *
+   * The number the deposit is measured against was computed inside `submit` and nowhere
+   * else, so the one screen where it decides whether money comes out of the courier's pay
+   * never showed it. Same computation, same fail-closed rule.
+   */
+  describe('expectedForShift (CA-4-16)', () => {
+    it('answers the same total submit would have measured against', async () => {
+      const shift = endShift();
+      await deliverCodOrder(150000);
+      cash.result = { total: 0, count: 0, byOrder: [] };
+
+      const preview = await service.expectedForShift(driver, shift.id, AUTH);
+
+      expect(preview).toEqual({ shiftId: shift.id, expectedIdr: 150000 });
+      // And submitting now agrees with what the courier was shown.
+      const settlement = await service.submit(driver, shift.id, 150000, AUTH);
+      expect(settlement.expectedAmount).toBe(150000);
+      expect(settlement.variance).toBe(0);
+    });
+
+    it('writes nothing — a preview is a read', async () => {
+      const shift = endShift();
+      await deliverCodOrder(150000);
+      cash.result = { total: 0, count: 0, byOrder: [] };
+
+      await service.expectedForShift(driver, shift.id, AUTH);
+
+      expect(settlementRepo.rows).toHaveLength(0);
+    });
+
+    // Fails CLOSED, like submit: a payment-service outage refuses rather than showing a
+    // smaller, comforting number next to a box asking for cash.
+    it('refuses rather than understating when the cash read fails', async () => {
+      const shift = endShift();
+      await deliverCodOrder(150000);
+      cash.throwOnRead = true;
+
+      await expect(service.expectedForShift(driver, shift.id, AUTH)).rejects.toBeInstanceOf(
+        SettlementSyncError,
+      );
+    });
+
+    it("refuses another courier's shift, and a shift that has not ended", async () => {
+      const shift = endShift();
+      await expect(
+        service.expectedForShift('someone-else', shift.id, AUTH),
+      ).rejects.toBeInstanceOf(ShiftNotFoundError);
+    });
+  });
+
   describe('submit', () => {
     // C1, the leak itself: proof of delivery does not touch the payment, so a courier who
     // collects the cash and skips "Terima uang" used to settle against an expected of zero.

@@ -352,6 +352,16 @@ export class GallonReturnResponseDto {
   actorId!: string;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+  /**
+   * CA-4-31: true when this handover was already booked and nothing new was recorded.
+   *
+   * The idempotency key is the ORDER — right for the offline queue replaying one handover,
+   * wrong for a genuine second one. It used to be indistinguishable from a fresh success,
+   * so the courier's screen printed the FIRST return's quantity and refund as if they had
+   * just happened.
+   */
+  @ApiProperty({ type: Boolean })
+  alreadyRecorded!: boolean;
 }
 
 /** Mirrors `FranchiseApplicationRecord` exactly — generated for audit D-6, no field added or removed. */

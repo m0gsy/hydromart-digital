@@ -87,6 +87,8 @@ export const driver = {
     error: 'Gagal menjadwalkan ulang. Coba lagi.',
   },
   returns: {
+    alreadyTitle: 'Sudah tercatat sebelumnya',
+    alreadyBody: 'Pengembalian untuk pesanan ini sudah dicatat. Angka di bawah adalah pengembalian yang PERTAMA, bukan yang barusan. Kalau ada galon tambahan, serahkan di depot supaya bisa dicatat terpisah.',
     title: 'Retur galon kosong',
     loadError: 'Gagal memuat',
     doneTitle: 'Retur tercatat',

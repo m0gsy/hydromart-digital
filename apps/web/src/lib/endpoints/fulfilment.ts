@@ -86,6 +86,10 @@ cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
   // the expected total is snapshotted server-side from payment-service.
   settlement: {
     history: '/deliveries/api/v1/driver/settlement',
+    // CA-4-16: the total the deposit will be measured against, BEFORE the courier hands
+    // the cash over. Any shortfall is debited from their pay, so they get to see it first.
+    expected: (shiftId: string) =>
+      `/deliveries/api/v1/driver/settlement/expected/${encodeURIComponent(shiftId)}`,
     /*
      * There is one now. The history row shows a status and two totals; what it cannot show
      * is WHY — the note a cashier wrote when they disputed it, who verified it and when,

@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { LoyaltyPrismaRepository } from '../../src/infrastructure/prisma/loyalty.prisma.repository';
 import { RewardPrismaRepository } from '../../src/infrastructure/prisma/reward.prisma.repository';
-import { InsufficientPointsError, InvalidAdjustmentError } from '../../src/domain/errors';
+import {
+  InsufficientPointsError,
+  InvalidAdjustmentError,
+  RewardOutOfStockError,
+} from '../../src/domain/errors';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 
@@ -530,8 +534,11 @@ describe('RewardPrismaRepository', () => {
       where: { id: 'acc-1', pointsBalance: { gte: 500 } },
       data: { pointsBalance: { decrement: 500 } },
     });
+    // CA-3-43: conditional and relative, exactly like the points debit above. Without the
+    // floor, two concurrent redemptions of the LAST item both succeed and stock goes to -1
+    // — two customers holding a voucher for one thing.
     expect(rewardItem.update).toHaveBeenCalledWith({
-      where: { id: 'ri-1' },
+      where: { id: 'ri-1', stock: { gte: 1 } },
       data: { stock: { decrement: 1 } },
     });
   });
@@ -662,6 +669,57 @@ describe('RewardPrismaRepository', () => {
   // customer's answer, and it must not read as a server fault.
   it('reports a lost balance floor as insufficient points, not a 500', async () => {
     $transaction.mockRejectedValueOnce(Object.assign(new Error('no row'), { code: 'P2025' }));
+    rewardItem.findUnique.mockResolvedValueOnce({ stock: 4 });
+    await expect(
+      repo.redeem({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        idempotencyKey: 'key-1',
+        depotId: 'depot-1',
+        pointsSpent: 500,
+        reason: 'Redeemed Free Galon',
+        decrementStock: false,
+      }),
+    ).rejects.toBeInstanceOf(InsufficientPointsError);
+  });
+
+  /*
+   * CA-3-43. Both guards raise P2025 and Prisma does not say which one lost, so the reason
+   * is read back rather than guessed.
+   *
+   * Getting it wrong is not cosmetic: told "not enough points" when the last item simply
+   * went, a customer checks a balance that is fine and files a complaint about a bug that
+   * is not there.
+   */
+  it('reports a lost stock floor as out of stock, not as insufficient points', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('no row'), { code: 'P2025' }));
+    rewardItem.findUnique.mockResolvedValueOnce({ stock: 0 });
+
+    await expect(
+      repo.redeem({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        idempotencyKey: 'key-1',
+        depotId: 'depot-1',
+        pointsSpent: 500,
+        reason: 'Redeemed Free Galon',
+        decrementStock: true,
+      }),
+    ).rejects.toBeInstanceOf(RewardOutOfStockError);
+    expect(rewardItem.findUnique).toHaveBeenCalledWith({
+      where: { id: 'ri-1' },
+      select: { stock: true },
+    });
+  });
+
+  // `stock` null means UNLIMITED, and an unlimited reward has no stock predicate to fail —
+  // so the only thing that can have lost is the points floor.
+  it('reads a null stock as unlimited, so the race was about points', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('no row'), { code: 'P2025' }));
+    rewardItem.findUnique.mockResolvedValueOnce({ stock: null });
+
     await expect(
       repo.redeem({
         accountId: 'acc-1',

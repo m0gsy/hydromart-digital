@@ -19,6 +19,13 @@ interface GallonReturnResult {
   quantity: number;
   condition: 'GOOD' | 'DAMAGED';
   depositRefunded: number;
+  /**
+   * CA-4-31: true when this order's return was ALREADY booked and nothing new was
+   * recorded. The server is idempotent on the order — right for the offline queue
+   * replaying one handover, wrong for a genuine second one — and this screen used to print
+   * the FIRST return's quantity and refund as a fresh success either way.
+   */
+  alreadyRecorded?: boolean;
 }
 
 function Returns() {
@@ -102,13 +109,24 @@ function Returns() {
         </Card>
       ) : done ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
-          <CheckCircle size={44} weight="fill" className="text-green-600" />
-          <div className="text-base font-extrabold">{t('driver.returns.doneTitle')}</div>
+          {/* CA-4-31: a replay is not a success. The numbers below belong to the return
+              that was already booked for this order, and saying "tercatat" over them let a
+              courier walk away believing empties were recorded that were not. */}
+          <CheckCircle
+            size={44}
+            weight="fill"
+            className={done.alreadyRecorded ? 'text-[color:var(--warning)]' : 'text-green-600'}
+          />
+          <div className="text-base font-extrabold">
+            {t(done.alreadyRecorded ? 'driver.returns.alreadyTitle' : 'driver.returns.doneTitle')}
+          </div>
           <div className="text-sm text-[color:var(--muted)]">
-            {t('driver.returns.doneBody', {
-              n: done.quantity,
-              condition: t(done.condition === 'GOOD' ? 'driver.returns.conditionGood' : 'driver.returns.conditionDamaged'),
-            })}
+            {done.alreadyRecorded
+              ? t('driver.returns.alreadyBody')
+              : t('driver.returns.doneBody', {
+                  n: done.quantity,
+                  condition: t(done.condition === 'GOOD' ? 'driver.returns.conditionGood' : 'driver.returns.conditionDamaged'),
+                })}
           </div>
           <Money amount={done.depositRefunded} className="text-2xl font-extrabold text-brand-700" />
           <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/detail?id=${id}`)}>

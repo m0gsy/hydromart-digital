@@ -26,7 +26,7 @@ export class DriverGallonReturnController {
   record(
     @Body() dto: CreateCourierReturnDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<GallonReturnRecord> {
+  ): Promise<GallonReturnRecord & { alreadyRecorded: boolean }> {
     return this.returns.recordFromCourier(
       dto.depotId,
       {

@@ -100,6 +100,76 @@ export class SettlementService {
    * CA-4-03: and it is every delivery the courier CLOSED in the window, not only the ones
    * that ended DELIVERED. See `owedFor` for why the two are not worth the same.
    */
+  /**
+   * What this shift's deposit will be measured against. Fails CLOSED — an unreachable
+   * payment-service must never understate the expected.
+   *
+   * CA-4-16 split this out of `submit`. The number was computed at the moment the courier
+   * pressed the button and nowhere else, so the one screen where it decides whether money
+   * comes out of their pay never showed it.
+   */
+  private async expectedFor(
+    driverId: string,
+    shift: { id: string; depotId: string | null; checkInAt: Date; checkOutAt: Date },
+    authorization: string,
+  ): Promise<{ expectedAmount: number; orderIds: string[] }> {
+    const closed = await this.deliveries.codBearingInWindow(
+      driverId,
+      shift.checkInAt,
+      shift.checkOutAt,
+    );
+    const orderIds = closed.map((d) => d.orderId);
+    try {
+      const collected = await this.cash.sumCollected(orderIds, authorization);
+      const paid = new Map(collected.byOrder.map((r) => [r.orderId, r.amountIdr]));
+      return {
+        expectedAmount: Math.round(
+          this.config.settlementExpectFromCod(shift.depotId)
+            ? closed.reduce((sum, d) => sum + this.owedFor(d, paid.get(d.orderId) ?? 0), 0)
+            : collected.total,
+        ),
+        orderIds,
+      };
+    } catch (error) {
+      this.logger.error(
+        `cash-collected read failed for shift ${shift.id}: ${(error as Error).message}`,
+      );
+      throw new SettlementSyncError();
+    }
+  }
+
+  /**
+   * CA-4-16 — the total the courier is about to be measured against, BEFORE they hand the
+   * cash over.
+   *
+   * The deposit screen asked for an amount and showed only what the courier had typed. The
+   * number it is checked against was computed at submit time and never displayed, and any
+   * shortfall is debited from their pay — so the one figure that decides whether money
+   * comes out of their wages was the one figure they could not see.
+   *
+   * Same computation as `submit`, same fail-closed rule: a payment-service outage refuses
+   * rather than showing a smaller, comforting number.
+   */
+  async expectedForShift(
+    driverId: string,
+    shiftId: string,
+    authorization: string,
+  ): Promise<{ shiftId: string; expectedIdr: number }> {
+    const shift = await this.shifts.findById(shiftId);
+    if (!shift || shift.driverId !== driverId) {
+      throw new ShiftNotFoundError();
+    }
+    if (shift.status !== ShiftStatus.ENDED || !shift.checkOutAt) {
+      throw new ShiftNotEndedError();
+    }
+    const { expectedAmount } = await this.expectedFor(
+      driverId,
+      { ...shift, checkOutAt: shift.checkOutAt },
+      authorization,
+    );
+    return { shiftId, expectedIdr: expectedAmount };
+  }
+
   async submit(
     driverId: string,
     shiftId: string,
@@ -117,27 +187,11 @@ export class SettlementService {
       throw new SettlementAlreadyExistsError();
     }
 
-    const closed = await this.deliveries.codBearingInWindow(
+    const { expectedAmount, orderIds } = await this.expectedFor(
       driverId,
-      shift.checkInAt,
-      shift.checkOutAt,
+      { ...shift, checkOutAt: shift.checkOutAt },
+      authorization,
     );
-    const orderIds = closed.map((d) => d.orderId);
-
-    let expectedAmount: number;
-    try {
-      const collected = await this.cash.sumCollected(orderIds, authorization);
-      const paid = new Map(collected.byOrder.map((r) => [r.orderId, r.amountIdr]));
-      expectedAmount = this.config.settlementExpectFromCod(shift.depotId)
-        ? closed.reduce((sum, d) => sum + this.owedFor(d, paid.get(d.orderId) ?? 0), 0)
-        : Math.round(collected.total);
-      expectedAmount = Math.round(expectedAmount);
-    } catch (error) {
-      this.logger.error(
-        `cash-collected read failed for shift ${shiftId}: ${(error as Error).message}`,
-      );
-      throw new SettlementSyncError();
-    }
 
     const deposited = Math.round(depositedAmount);
     const settlement = await this.settlements.create({
