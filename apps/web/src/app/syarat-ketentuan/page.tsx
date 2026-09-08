@@ -16,7 +16,10 @@ export default function TermsPage() {
 
   return (
     <div className="mx-auto max-w-[640px]">
-      <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">{title}</h1>
+      {/* CA-3-51: hidden below `sm:` because the app bar now carries this title there —
+          the rule `screen-chrome.ts:24-27` states, and the idiom /help and /notifications
+          use. Rendering both is how /kebijakan-privasi ended up saying its name twice. */}
+      <h1 className="hidden text-[22px] font-extrabold tracking-[-0.02em] sm:block">{title}</h1>
       <TermsBody />
     </div>
   );

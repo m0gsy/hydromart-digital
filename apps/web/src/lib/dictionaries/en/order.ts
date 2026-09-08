@@ -195,6 +195,8 @@ export const order: typeof base = {
     addFailed: 'Could not add',
     cancelled: 'Order cancelled',
     itemsAdded: 'Items added to cart',
+    updateFailed: 'Could not update your cart',
+    removeFailed: 'Could not remove that item',
   },
   payMethod: {
     cash: 'Cash on delivery',

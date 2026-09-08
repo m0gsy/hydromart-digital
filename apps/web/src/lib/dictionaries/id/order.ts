@@ -194,6 +194,8 @@ export const order = {
     addFailed: 'Gagal menambahkan',
     cancelled: 'Pesanan dibatalkan',
     itemsAdded: 'Item ditambahkan ke keranjang',
+    updateFailed: 'Gagal memperbarui keranjang',
+    removeFailed: 'Gagal menghapus dari keranjang',
   },
   payMethod: {
     cash: 'Bayar di tempat (COD)',

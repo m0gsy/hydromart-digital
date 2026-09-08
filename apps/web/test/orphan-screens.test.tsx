@@ -33,6 +33,7 @@ import { LocaleProvider } from '@/lib/locale-context';
 import { screenChrome } from '@/lib/screen-chrome';
 import { PromoCarousel } from '@/components/promo-carousel';
 import AccountPage from '@/app/account/page';
+import { Footer } from '@/components/footer';
 
 const PROMO = (id: string) => ({
   id,
@@ -98,6 +99,32 @@ describe('H3 — /waralaba is reachable on a phone', () => {
 });
 
 /**
+ * CA-3-51. The terms page shipped with exactly one link in the whole app, and it lived
+ * inside `{acceptance.data?.mustAccept && (` — so it appeared for a reader already being
+ * made to agree to a new version, and for nobody else. Everyone else had no route to it:
+ * not from /account, not from the footer (hidden below `sm:` anyway), not from search.
+ *
+ * `check-route-parity.mjs` counted it reachable, because a conditional href is still an
+ * href in a grep. That is why this asserts the link RENDERS, not that the string exists.
+ */
+describe('CA-3-51 — the terms page is reachable without being asked to agree', () => {
+  it('is offered from /account beside the privacy policy', async () => {
+    render(<AccountPage />, { wrapper: LocaleProvider });
+
+    // `mustAccept` is false here — the default fixture returns [] for every read — so this
+    // is the ordinary reader who could not get there before.
+    const links = await screen.findAllByRole('link', { name: /syarat|terms/i });
+    expect(links.some((l) => l.getAttribute('href') === '/syarat-ketentuan')).toBe(true);
+  });
+
+  it('is offered from the desktop footer, which was orphaned too', () => {
+    render(<Footer />, { wrapper: LocaleProvider });
+    const links = screen.getAllByRole('link', { name: /syarat|terms/i });
+    expect(links.some((l) => l.getAttribute('href') === '/syarat-ketentuan')).toBe(true);
+  });
+});
+
+/**
  * H4. Both are the pages a Play reviewer opens, and both were `bare` chrome — no app bar,
  * no back chevron, no tab bar. On a phone that is a dead end: the only way out is the OS
  * back gesture, and a deep link straight into one has nothing behind it at all.
@@ -106,11 +133,17 @@ describe('H3 — /waralaba is reachable on a phone', () => {
  * on purpose. A legal page is a pushed screen and always was.
  */
 describe('H4 — the legal pages are not dead ends', () => {
-  it.each(['/hapus-akun', '/kebijakan-privasi'])('%s carries an app bar with a title', (path) => {
-    const chrome = screenChrome(path);
-    expect(chrome.kind).toBe('pushed');
-    expect(chrome.titleKey).toBeTruthy();
-  });
+  // CA-3-51: three, not two. `/syarat-ketentuan` was missing from this list AND from the
+  // hand-typed ROUTES in screen-chrome.test.ts, which is why a legal page could ship with no
+  // chrome and no link to it and pass both gates that exist to catch exactly that.
+  it.each(['/hapus-akun', '/kebijakan-privasi', '/syarat-ketentuan'])(
+    '%s carries an app bar with a title',
+    (path) => {
+      const chrome = screenChrome(path);
+      expect(chrome.kind).toBe('pushed');
+      expect(chrome.titleKey).toBeTruthy();
+    },
+  );
 
   it('still leaves the auth screens bare', () => {
     for (const path of ['/login', '/register', '/verify']) {
