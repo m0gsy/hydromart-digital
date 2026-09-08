@@ -444,6 +444,14 @@ jobs:
       - name: No delivery form asks for a province again
         run: node scripts/check-address-fields.mjs
 
+      # A rebase committed unresolved put `<<<<<<<` into two dictionaries and two
+      # components on main, and nothing named it. Runs early and takes under a second.
+      - name: Conflict markers
+        run: node scripts/check-conflict-markers.mjs
+
+      - name: Conflict-marker gate self-check
+        run: bash scripts/check-conflict-markers.test.sh
+
       - name: Money literal gate self-check
         run: bash scripts/check-money-literals.test.sh
 

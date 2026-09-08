@@ -109,18 +109,14 @@ function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
 interface Props {
   deliveryId: string;
   orderNumber: string;
-<<<<<<< HEAD
   /** CA-4-17: true when the proof went to the offline queue rather than to the server. */
   onDone: (queued: boolean) => void;
-=======
-  onDone: () => void;
   /**
    * CA-4-34: the way out. This form had none — no cancel, no back — so the only exit was
    * the system back button, which left the page and took the photo, the typed recipient
    * name and the drawn signature with it, silently.
    */
   onCancel: () => void;
->>>>>>> daf54a67 (fix(kurir,manajer): jalan keluar, alasan, dan satu label yang hilang (CA-4-25, CA-4-34, CA-4-41, CA-4-45))
 }
 
 /**
@@ -242,7 +238,10 @@ export function PodCapture({ deliveryId, orderNumber, onDone, onCancel }: Props)
     const canvas = canvasRef.current;
     return !!canvas && !isCanvasBlank(canvas);
   };
-  const dirty = !!photo || recipientName.trim() !== '' || note.trim() !== '' || sealOk;
+  // `sealOk` is tri-state since the seal question gained an "unanswered" value: null is
+  // nothing to lose, false ("segel rusak") is an answer somebody gave.
+  const dirty =
+    !!photo || recipientName.trim() !== '' || note.trim() !== '' || sealOk !== null;
 
   const confirmDiscard = useCallback(async () => {
     if (!dirty && !signed()) {
