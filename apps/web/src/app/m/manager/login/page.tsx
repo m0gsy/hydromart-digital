@@ -39,7 +39,7 @@ export default function ManagerLoginPage() {
       if (challenge.deliveryPending) params.set('pending', '1');
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mengirim kode. Coba lagi.');
+      setError(err instanceof ApiError ? err.message : t('mgrFix.login.sendFailed'));
       setLoading(false);
     }
   }

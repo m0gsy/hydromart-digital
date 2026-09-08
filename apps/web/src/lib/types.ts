@@ -1476,9 +1476,22 @@ export interface CashSettlement {
   updatedAt: string;
 }
 
-// Courier earnings ledger (payout-service, design 2c/6b).
+/*
+ * Courier earnings ledger (payout-service, design 2c/6b).
+ *
+ * CA-4-25: `INCENTIVE` was missing here while payout-service has always written it — it is
+ * the ladder bonus, the single credit a courier is most likely to go looking for. The
+ * `Record<CourierLedgerEntryType, string>` label map on the history screen therefore had no
+ * entry for it, so a bonus row rendered with its type label blank: money in the ledger with
+ * nothing saying what it was for.
+ */
 export type CourierLedgerEntryType =
-  'EARNING' | 'DEDUCTION' | 'CASH_VARIANCE' | 'WITHDRAWAL' | 'ADJUSTMENT';
+  | 'EARNING'
+  | 'INCENTIVE'
+  | 'DEDUCTION'
+  | 'CASH_VARIANCE'
+  | 'WITHDRAWAL'
+  | 'ADJUSTMENT';
 
 export interface CourierLedgerEntry {
   id: string;

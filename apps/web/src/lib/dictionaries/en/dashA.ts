@@ -39,6 +39,7 @@ export const dashA = {
     gateBody: 'The approval queue is available to depot managers and super admins.',
   },
   approvalDetail: {
+    raiserNote: 'Note from the requester',
     submittedByLabel: 'Submitted by',
     decidedByLabel: 'Decided by',
     type: {

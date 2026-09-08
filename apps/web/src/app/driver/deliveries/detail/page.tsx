@@ -202,7 +202,7 @@ function Detail() {
 
       {delivery.status === 'ASSIGNED' && (
         <Button loading={busy} className="w-full" onClick={() => act(() => api.patch(endpoints.deliveries.driver.pickup(id), undefined, true))}>
-          Konfirmasi barang diambil
+          {t('hrFix.deliveryDetail.confirmPickup')}
         </Button>
       )}
       {delivery.status === 'PICKED_UP' && (
@@ -213,11 +213,15 @@ function Detail() {
       )}
       {delivery.status === 'ON_DELIVERY' &&
         (capturing ? (
+<<<<<<< HEAD
           <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={(queued) =>
               router.replace(
                 `/driver/deliveries/detail/success?id=${id}${queued ? '&queued=1' : ''}`,
               )
             } />
+=======
+          <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onCancel={() => setCapturing(false)} onDone={() => router.replace(`/driver/deliveries/detail/success?id=${id}`)} />
+>>>>>>> daf54a67 (fix(kurir,manajer): jalan keluar, alasan, dan satu label yang hilang (CA-4-25, CA-4-34, CA-4-41, CA-4-45))
         ) : (
           <div className="space-y-2">
             {/*

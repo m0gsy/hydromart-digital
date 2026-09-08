@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
-import { Badge, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, CenterState, ErrorState, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -32,6 +32,17 @@ export default function ApprovalDetailPage() {
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
   const [busy, setBusy] = useState<'APPROVE' | 'REJECT' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * CA-4-41 — `DecideApprovalDto` has always accepted a `note`, and the desktop screen has
+   * always sent one and required it on a rejection. This screen sent `{ decision }` alone.
+   *
+   * So a manager deciding from a phone — which is where a depot manager actually is —
+   * refused a courier's cash shortfall or a customer's deposit refund with no reason
+   * attached to it. The person on the other end got "Ditolak" and nothing else, and
+   * `decisionNote`, which this same screen renders once an item is decided, was always
+   * empty for anything decided here.
+   */
+  const [note, setNote] = useState('');
 
   const decide = async (decision: 'APPROVE' | 'REJECT') => {
     /*
@@ -42,6 +53,12 @@ export default function ApprovalDetailPage() {
      * no way back to the item.
      */
     const approve = decision === 'APPROVE';
+    // Same rule as the desktop screen: a rejection has to say why. An approval need not —
+    // the amount and the rule that let it through are already on the record.
+    if (!approve && note.trim() === '') {
+      setError(t('mgrFix.approvalDecide.rejectReasonRequired'));
+      return;
+    }
     const ok = await confirm({
       title: approve ? t('mgrFix.approvalDecide.approveTitle') : t('mgrFix.approvalDecide.rejectTitle'),
       message: t(
@@ -58,7 +75,11 @@ export default function ApprovalDetailPage() {
     setBusy(decision);
     setError(null);
     try {
-      await api.patch(endpoints.approvals.decide(id), { decision }, true);
+      await api.patch(
+        endpoints.approvals.decide(id),
+        { decision, note: note.trim() || undefined },
+        true,
+      );
       router.push('/m/manager/approvals');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.approvalDetailExtra.actionFailed'));
@@ -184,6 +205,42 @@ export default function ApprovalDetailPage() {
             </span>
           </RowLine>
         </div>
+
+        {/*
+          * CA-4-41 — what the person who RAISED this said about it.
+          *
+          * Every raiser writes an explanation into `payload.note` — "hasil opname di bawah
+          * jumlah yang sudah dipesan pelanggan", and so on — and no screen has ever shown
+          * it. A manager was approving or refusing money with the numbers in front of them
+          * and none of the sentence that explains them.
+          */}
+        {typeof p.note === 'string' && p.note.trim() !== '' && (
+          <div className="rounded-2xl border border-app bg-[color:var(--surface)] p-4">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
+              {t('mgrFix.approvalDecide.raiserNote')}
+            </div>
+            <p className="mt-1 text-sm">{p.note}</p>
+          </div>
+        )}
+
+        {pending && (
+          <div className="rounded-2xl border border-app bg-[color:var(--surface)] p-4">
+            <label
+              htmlFor="m-decide-note"
+              className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]"
+            >
+              {t('mgrFix.approvalDecide.noteLabel')}
+            </label>
+            <Input
+              id="m-decide-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={t('mgrFix.approvalDecide.notePlaceholder')}
+              maxLength={1000}
+              className="mt-1.5"
+            />
+          </div>
+        )}
 
         {a.decisionNote && (
           <div className="rounded-2xl border border-app bg-[color:var(--surface)] p-4">

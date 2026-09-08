@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { useConfirm } from '@/components/confirm';
+import { useDiscardGuard } from '@/lib/use-discard-guard';
 import { useT } from '@/lib/locale-context';
 import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
@@ -106,8 +109,18 @@ function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
 interface Props {
   deliveryId: string;
   orderNumber: string;
+<<<<<<< HEAD
   /** CA-4-17: true when the proof went to the offline queue rather than to the server. */
   onDone: (queued: boolean) => void;
+=======
+  onDone: () => void;
+  /**
+   * CA-4-34: the way out. This form had none — no cancel, no back — so the only exit was
+   * the system back button, which left the page and took the photo, the typed recipient
+   * name and the drawn signature with it, silently.
+   */
+  onCancel: () => void;
+>>>>>>> daf54a67 (fix(kurir,manajer): jalan keluar, alasan, dan satu label yang hilang (CA-4-25, CA-4-34, CA-4-41, CA-4-45))
 }
 
 /**
@@ -115,7 +128,7 @@ interface Props {
  * signature (canvas). On submit it uploads both to the storage endpoint (two
  * calls) and completes the delivery with the returned URLs + GPS position.
  */
-export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
+export function PodCapture({ deliveryId, orderNumber, onDone, onCancel }: Props) {
   const { t } = useT();
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -137,6 +150,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     return () => {
@@ -216,9 +230,55 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
     }
   }, [photo, sealOk, recipientName, note, deliveryId, orderNumber, onDone, t]);
 
+  /*
+   * CA-4-34 — "dirty" is anything the courier cannot get back by tapping again.
+   *
+   * The signature lives on a canvas rather than in state, so it is read directly; a blank
+   * canvas is not work. The seal checkbox and the note are one tap and a short line, but
+   * they are included because the guard's whole job is to make the discard a decision
+   * rather than an accident.
+   */
+  const signed = () => {
+    const canvas = canvasRef.current;
+    return !!canvas && !isCanvasBlank(canvas);
+  };
+  const dirty = !!photo || recipientName.trim() !== '' || note.trim() !== '' || sealOk;
+
+  const confirmDiscard = useCallback(async () => {
+    if (!dirty && !signed()) {
+      onCancel();
+      return;
+    }
+    /*
+     * The app's own dialog, not `window.confirm`. Android's WebChromeClient returns from
+     * `confirm()` without showing anything unless the host implements `onJsConfirm`, so in
+     * the APK it would answer false and the courier would be trapped in a form with no exit
+     * — the very defect this fixes. `test/no-native-dialogs.test.ts` is what keeps it out.
+     */
+    const ok = await confirm({
+      title: t('hrFix.pod.discardTitle'),
+      message: t('hrFix.pod.discardConfirm'),
+      tone: 'danger',
+    });
+    if (ok) onCancel();
+  }, [confirm, dirty, onCancel, t]);
+
+  useDiscardGuard(dirty, confirmDiscard);
+
   return (
     <Card className="space-y-4 p-5">
-      <h3 className="font-semibold">{t('hrFix.pod.heading', { order: orderNumber })}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-semibold">{t('hrFix.pod.heading', { order: orderNumber })}</h3>
+        {/* The exit control this form never had. The back gesture is caught too — see
+            `useDiscardGuard` — but a visible way out is the one a courier can find. */}
+        <button
+          type="button"
+          onClick={confirmDiscard}
+          className="min-h-11 shrink-0 text-[13px] font-bold text-[color:var(--muted)]"
+        >
+          {t('hrFix.pod.cancel')}
+        </button>
+      </div>
 
       <div className="space-y-2">
         <span className="text-sm font-medium">{t('hrFix.pod.photo')}</span>
