@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
-import { ArrowLeft, Gift, Copy, UsersThree, SealCheck, Coin } from '@phosphor-icons/react';
+import { ArrowLeft, CheckCircle, Gift, Copy, UsersThree, SealCheck, Coin } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { ErrorState, Skeleton } from '@/components/ui';
@@ -23,9 +24,27 @@ function ReferralInner() {
   // bug this row is about.
   const rules = useReferralRules().data;
 
-  const copy = (code: string) => {
-    void navigator.clipboard?.writeText(code);
-  };
+  /*
+   * CA-3-47. Two faults in one line. `void navigator.clipboard?.writeText(code)` said
+   * nothing on success, so a tap that worked and a tap that did nothing looked identical —
+   * and the `?.` swallowed the one case that actually happens (a blocked or absent
+   * clipboard on an insecure origin or an old WebView) without a word.
+   *
+   * This is the shape /vouchers and /rewards already use. The `?.` is dropped on purpose:
+   * inside the try/catch a missing `navigator.clipboard` throws and lands in the same
+   * branch, so the two failure modes stop diverging.
+   */
+  const [copied, setCopied] = useState(false);
+
+  async function copy(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — the code is on screen, same fallback as /vouchers */
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
@@ -57,11 +76,11 @@ function ReferralInner() {
               </code>
               <button
                 type="button"
-                onClick={() => copy(data.code.code)}
+                onClick={() => void copy(data.code.code)}
                 className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white transition-colors hover:bg-brand-700"
-                aria-label={t('hrFix.referral.copyAria')}
+                aria-label={copied ? t('profile.rewards.wallet.copied') : t('hrFix.referral.copyAria')}
               >
-                <Copy size={20} weight="bold" />
+                {copied ? <CheckCircle size={20} weight="fill" /> : <Copy size={20} weight="bold" />}
               </button>
             </div>
             <p className="mt-3 text-[13px] leading-relaxed text-muted">

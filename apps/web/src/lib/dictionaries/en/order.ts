@@ -129,6 +129,11 @@ export const order: typeof base = {
     copy: 'Copy',
     copied: 'Copied',
     nominal: 'Amount',
+    // CA-3-69: see id/order.ts — the direct-to-depot panel wrote its own sentences.
+    qrisTitle: 'Pay with QRIS',
+    transferTitle: 'Pay by transfer',
+    bankFallback: 'Bank',
+    accountHolder: 'a/n {name}',
     vaTitle: 'Virtual account',
     ewalletTitle: 'E-wallet',
     proofTitle: 'Payment proof',

@@ -23,6 +23,16 @@ export const errors = {
     AUTH_ACCOUNT_PENDING_VERIFICATION:
       'Nomor ini sudah terdaftar tapi belum diverifikasi. Kami kirim ulang kodenya.',
     AUTH_ACCOUNT_NOT_ACTIVE: 'Akun ini tidak aktif. Hubungi dukungan Hydromart.',
+    /*
+     * CA-3-36. Satu entri untuk dua sumber. Setiap layanan Nest sudah memetakan HTTP 429 ke
+     * kode ini lewat `all-exceptions.filter.ts`; gerbangnya adalah middleware express mentah
+     * yang melewati filter itu, jadi 429-nya keluar tanpa kode dan pembaca berbahasa
+     * Indonesia melihat literal Inggris "Too many requests" — paling sering di layar OTP,
+     * karena di sanalah pembatasnya paling ketat.
+     */
+    RATE_LIMITED: 'Terlalu banyak permintaan. Tunggu sebentar, lalu coba lagi.',
+    RATE_LIMITED_OTP:
+      'Terlalu banyak permintaan kode. Tunggu sebentar, lalu minta kode lagi.',
     // The server already answers this one in Indonesian; it is listed so the English
     // dictionary has somewhere to put its own sentence, not to translate anything.
     ORDER_CATALOG_UNAVAILABLE: 'Katalog produk sedang sibuk. Tunggu sebentar, lalu coba lagi.',

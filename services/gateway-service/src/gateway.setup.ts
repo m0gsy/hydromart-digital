@@ -223,6 +223,9 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
       keyGenerator: (req) => `otp:${req.ip}`,
       skip: (req) => !OTP_ISSUING.test(req.path),
       message: 'Too many verification requests',
+      // CA-3-36: its own code, so the OTP screen keeps the specific sentence this tier
+      // deliberately chose rather than falling back to the general one.
+      code: 'RATE_LIMITED_OTP',
     }),
   );
 

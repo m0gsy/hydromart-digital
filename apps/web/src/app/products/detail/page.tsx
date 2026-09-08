@@ -499,7 +499,7 @@ function FbtCard({ item, product }: { item: Recommendation; product?: Product })
         onClick={add}
         disabled={adding}
         aria-label={t('shop.card.addAria', { name })}
-        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition-colors hover:bg-brand-600 hover:text-on-brand disabled:opacity-50"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition-colors hover:bg-brand-600 hover:text-on-brand disabled:opacity-50"
       >
         {added ? <Check size={16} weight="bold" /> : <Plus size={16} weight="bold" />}
       </button>

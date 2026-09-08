@@ -161,10 +161,16 @@ function RegisterForm() {
           </div>
         </div>
 
-        {/* Full name — active teal border. */}
+        {/* CA-3-39: full name is `@IsOptional()` server-side, and so is email — but this
+            field carried `border-2 border-brand-600`, which is exactly what /login puts on
+            the one field it marks `required`. Two optional fields, two different borders,
+            one of them the house signal for "required". Both now read as optional, and the
+            `nameHint`/`emailHint` strings that have existed in both locales all along are
+            finally on screen instead of sitting unused in the dictionary. */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="fullName" className="text-[12.5px] font-bold">
-            {t('auth.register.nameLabel')}
+            {t('auth.register.nameLabel')}{' '}
+            <span className="font-medium text-muted">({t('auth.register.nameHint')})</span>
           </label>
           <input
             id="fullName"
@@ -172,14 +178,15 @@ function RegisterForm() {
             onChange={set('fullName')}
             placeholder="Budi Santoso"
             style={{ height: 52 }}
-            className="rounded-[14px] border-2 border-brand-600 bg-[color:var(--surface-elevated)] px-3.5 text-[15px] outline-none placeholder:text-[color:var(--text-muted)]"
+            className="rounded-[14px] border-[1.5px] border-app bg-[color:var(--surface-elevated)] px-3.5 text-[15px] outline-none placeholder:text-[color:var(--text-muted)]"
           />
         </div>
 
         {/* Email (optional) — neutral border. */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-[12.5px] font-bold">
-            {t('auth.register.emailLabel')}
+            {t('auth.register.emailLabel')}{' '}
+            <span className="font-medium text-muted">({t('auth.register.emailHint')})</span>
           </label>
           <input
             id="email"

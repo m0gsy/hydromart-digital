@@ -7,7 +7,7 @@ import { MagnifyingGlass, Drop } from '@phosphor-icons/react';
 
 import { ProductCard } from '@/components/product-card';
 import { ProductRecRail } from '@/components/product-rec-rail';
-import { Button, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
+import { Button, CenterState, ErrorState, Input, LinkButton, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/locale-context';
 import { useLocation } from '@/lib/location-context';
@@ -325,11 +325,17 @@ function EmptyState({ query, category }: { query: string; category: string | nul
   );
 }
 
+/*
+ * CA-3-70. This wrapped a <Button> inside a <Link> — an <a> containing a <button>. Two tab
+ * stops for one action, a control nested inside a control, and a screen reader announcing a
+ * link that contains a button. `LinkButton` (components/ui.tsx) has always been the version
+ * that renders ONE element styled as a button, and two other screens had the same shape.
+ */
 function LinkButtonHome({ label, href = '/products' }: { label: string; href?: string }) {
   return (
-    <Link href={href}>
-      <Button variant="secondary">{label}</Button>
-    </Link>
+    <LinkButton href={href} variant="secondary">
+      {label}
+    </LinkButton>
   );
 }
 
