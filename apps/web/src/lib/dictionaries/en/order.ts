@@ -101,6 +101,7 @@ export const order: typeof base = {
     itemCountOther: '{n} items',
   },
   detail: {
+    qrisAlt: 'QRIS code for {depot}',
     payDirect: 'The payment goes straight to {depot}.',
     placedMeta: 'Placed {date} · {n} item · Total',
     items: 'Items',

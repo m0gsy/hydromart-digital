@@ -251,7 +251,22 @@ const PATTERNS = [
   // JSX props that render.
   {
     kind: 'prop',
-    re: /(?:label|title|placeholder|aria-label|heading|hint|emptyText|alt)\s*=\s*(?:"([^"]{3,})"|'([^']{3,})'|\{'([^']{3,})'\}|\{"([^"]{3,})"\})/g,
+    re: /(?:label|title|placeholder|aria-label|heading|hint|emptyText|alt|message|subtitle|body|caption|description|tooltip|confirmLabel|cancelLabel|actionLabel)\s*=\s*(?:"([^"]{3,})"|'([^']{3,})'|\{'([^']{3,})'\}|\{"([^"]{3,})"\})/g,
+  },
+  /*
+   * CA-1-49 — the props whose VALUE is a template literal.
+   *
+   * `prop` above only ever matched a quoted string, so the single commonest shape of
+   * rendered copy — a sentence with a value in it — was invisible to it:
+   * `subtitle={`Pencapaian ${month}`}`, `title={`Depot ${name}`}`. Every screen that names
+   * a thing writes one, and the scanner reported the whole app clean above them.
+   *
+   * `[^`]` bounds the match to one literal; `${...}` inside it is left alone, because what
+   * is being tested is the Indonesian words AROUND the interpolation, not the expression.
+   */
+  {
+    kind: 'propTemplate',
+    re: /(?:label|title|placeholder|aria-label|heading|hint|emptyText|alt|message|subtitle|body|caption|description|tooltip)\s*=\s*\{`([^`]{3,})`\}/g,
   },
   // THE ONE THAT WAS MISSING: object-literal properties. Every console nav is a module
   // -level array of `{ href, label }`, which no earlier pattern here could see.

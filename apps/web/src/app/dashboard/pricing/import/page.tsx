@@ -43,7 +43,7 @@ function ImportPricesBody() {
   return (
     <CsvImport
       title="hrFix.importsPricing.title"
-      description="Setiap baris menjadi usulan override harga dan tetap menunggu persetujuan HQ — tidak langsung berlaku."
+      description="hrFix.imports.desc.pricing"
       columns={COLUMNS}
       endpoint={endpoints.priceOverrides.import(selectedId)}
       templateName="harga-depot"
