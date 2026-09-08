@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { AuthenticatedUser, alertServerError, assertDepotAccess } from '@hydromart/platform';
 
@@ -576,6 +576,22 @@ export class DeliveryService {
       return delivery;
     }
     this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
+    /*
+     * CA-4-33: a new delivery time in the PAST is not a reschedule.
+     *
+     * The date was taken as typed and written straight onto the delivery, and the customer
+     * is told about it — so a mis-typed year told somebody their water was coming last
+     * March. Nothing downstream could catch it either: dispatch reads `rescheduledFor` to
+     * decide what to assign next, and a date already gone sorts to the front of that queue.
+     *
+     * The floor is NOW rather than "today", so a courier agreeing "in an hour" still works
+     * and only a genuinely elapsed time is refused. Guarded here, in the one method every
+     * caller routes through, rather than in the DTO — a `min` on the input is a courtesy,
+     * not the rule (the offline queue replays a body nothing re-validates in the browser).
+     */
+    if (input.rescheduledFor.getTime() < Date.now()) {
+      throw new BadRequestException('Waktu antar ulang tidak boleh sudah lewat');
+    }
     await this.settleHeldCash(delivery, driverId, input.cashReturned ?? false, 'dijadwalkan ulang');
     const updated = await this.deliveries.applyStatus(
       id,

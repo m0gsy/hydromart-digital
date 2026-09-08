@@ -308,7 +308,13 @@ describe('Delivery HTTP flows (e2e)', () => {
     const out = await request(server())
       .patch(`/api/v1/driver/deliveries/${id}/reschedule`)
       .set(auth(courierToken))
-      .send({ rescheduledFor: '2026-08-01T09:00:00.000Z', slot: 'Pagi (09:00–12:00)' })
+      // CA-4-33 refuses a time already gone, so this has to BE in the future — a fixed
+      // calendar date in a test outlives the day somebody wrote it and starts failing on
+      // its own. Relative to now, it never does.
+      .send({
+        rescheduledFor: new Date(Date.now() + 86_400_000).toISOString(),
+        slot: 'Pagi (09:00–12:00)',
+      })
       .expect(200);
     expect(out.body.status).toBe('RESCHEDULED');
   });

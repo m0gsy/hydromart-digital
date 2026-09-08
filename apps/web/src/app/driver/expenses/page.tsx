@@ -194,6 +194,18 @@ function Expenses() {
                 <div className="text-[11px] tabular-nums text-[color:var(--muted)]">
                   {WHEN.format(new Date(c.createdAt))} · <span className={STATUS[c.status].tone}>{t(STATUS[c.status].label)}</span>
                 </div>
+                {/*
+                  CA-4-24: the reason was already on the wire and never drawn.
+                  `reviewNote` is required when a claim is rejected — the reviewer had to
+                  type it — and the courier was told only "Ditolak". They could not tell a
+                  missing receipt from a category that is not claimable, so the only way to
+                  find out was to file it again and be refused again.
+                */}
+                {c.status === 'REJECTED' && c.reviewNote && (
+                  <div className="mt-1 text-[11.5px] leading-snug text-[color:var(--danger)]">
+                    {t('hrFix.expenses.rejectedReason', { reason: c.reviewNote })}
+                  </div>
+                )}
               </div>
               <Money amount={c.amount} className="shrink-0 text-sm font-extrabold" />
             </Card>

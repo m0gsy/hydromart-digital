@@ -800,6 +800,7 @@ export const hrFix = {
     withdrawFailed: 'Could not withdraw. Try again.',
   },
   expenses: {
+    rejectedReason: 'Reason: {reason}',
     receipt: 'Receipt photo',
     receiptHint: 'Required for automatic approval. Without one the claim waits for the depot.',
     autoApprove: 'Claims up to {amount} are approved automatically; above that a manager decides.',
@@ -900,6 +901,8 @@ export const hrFix = {
     bankHolder: 'Account holder',
   },
   pod: {
+    sealQuestion: 'Gallon seal condition',
+    sealBroken: 'Seal broken',
     sealIntact: 'Gallon seal intact and not leaking',
     sealLabel: 'Seal',
     sealYes: 'Intact at handover',
@@ -915,7 +918,7 @@ export const hrFix = {
     noteHint: 'e.g. Handed straight to the customer',
     readFailed: 'Could not read the image',
     photoFirst: 'Take the proof-of-delivery photo first.',
-    sealFirst: 'Confirm the gallon seal check first.',
+    sealFirst: 'Choose the gallon seal condition first.',
     nameRequired: "Enter the recipient's name.",
     finishFailed: 'Could not complete the delivery.',
     replacePhoto: 'Replace photo',
