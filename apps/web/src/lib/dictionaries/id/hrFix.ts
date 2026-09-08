@@ -190,6 +190,8 @@ export const hrFix = {
   },
   assets: {
     valueLabel: 'Nilai',
+    movedTo: ' · ke {name}',
+    movedCondition: ' · kondisi: {condition}',
     movedFrom: ' · dari {name}',
     editDetail2: 'Ubah Detail',
     kind2: 'Jenis',
@@ -421,6 +423,7 @@ export const hrFix = {
     percent: 'Persen (%)',
   },
   home: {
+    payrollPeriod: 'Payroll {period}',
     attendanceToday: 'Absensi Hari Ini ({date})',
     title: 'HR Dashboard',
     empty: 'Belum ada data.',
@@ -440,6 +443,11 @@ export const hrFix = {
     noEmployees: 'Belum ada karyawan',
   },
   settings: {
+    scopeLabel: 'Cakupan',
+    scopeOptionGlobal: 'Default jaringan',
+    scopeOptionDepot: 'Depot tertentu',
+    formatLabel: 'format',
+    effectiveLabel: 'efektif',
     pickDepot: 'Pilih depot…',
     scopeDepot: 'depot ini',
     scopeGlobal: 'seluruh jaringan',
@@ -579,6 +587,8 @@ export const hrFix = {
     failed: 'Gagal memproses',
   },
   performance: {
+    computeScore: 'Hitung skor',
+    saveFailed: 'Gagal menyimpan',
     rowDays: '{present}/{working} hari, {late}× terlambat',
     measured:
       'Terukur: absensi {attendance} · disiplin {discipline} · penjualan {sales} · akhir {final}. Komponen yang tidak terukur tidak ikut dihitung.',

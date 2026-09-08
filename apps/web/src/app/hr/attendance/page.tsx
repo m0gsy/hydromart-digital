@@ -292,7 +292,15 @@ function AttendanceInner() {
         <Card className="divide-y divide-[color:var(--border)]">
           {list.rows.map((a) => (
             <div key={a.id} className="p-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
+            {/*
+              * CA-1-57 — five items on one un-wrapping row. On a phone the status select
+              * at the end was pushed off the edge, so the control that CORRECTS a day's
+              * attendance was unreachable on the device HR actually carries.
+              *
+              * `gap-y-1` rather than the row's `gap-3`: a wrapped second line separated by
+              * 12px reads as a second record.
+              */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <span className="min-w-0 flex-1 truncate font-semibold">
                 {a.employeeName ?? t('hrFix.attendance.unnamed')}
               </span>

@@ -60,8 +60,13 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   // is not — this account is nearly always a CUSTOMER. Runtime-safe via the `??`, but the
   // cast defeated the `Record`'s exhaustiveness, which is the only thing making that lookup
   // trustworthy. A plain lookup with a fallback says the same thing and stays honest.
+  /*
+   * CA-1-84 — the map holds dictionary KEYS, so returning one raw printed the key itself
+   * into the takeover warning: "hq.roles.STAFF_DEPOT akan…". `translate` answers '' for a
+   * missing key, so `|| role` keeps today's behaviour for a role the map does not carry.
+   */
   const roleLabel = (role: string): string =>
-    (HR_ROLE_LABEL as Record<string, string | undefined>)[role] ?? role;
+    t((HR_ROLE_LABEL as Record<string, string | undefined>)[role] ?? '') || role;
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     // A corrected number is a different person: the confirmation has to be asked again.

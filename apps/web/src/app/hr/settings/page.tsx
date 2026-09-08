@@ -97,14 +97,16 @@ export default function HrSettingsPage() {
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
         <label className="text-sm">
-          Cakupan
+          {t('hrFix.settings.scopeLabel')}
           <select
             value={scope}
             onChange={(e) => setScope(e.target.value as 'GLOBAL' | 'DEPOT')}
             className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
           >
-            <option value="GLOBAL">GLOBAL</option>
-            <option value="DEPOT">DEPOT</option>
+            {/* CA-1-86: the two options said GLOBAL and DEPOT — database values on the
+                screen that decides whether a number binds one depot or the whole network. */}
+            <option value="GLOBAL">{t('hrFix.settings.scopeOptionGlobal')}</option>
+            <option value="DEPOT">{t('hrFix.settings.scopeOptionDepot')}</option>
           </select>
         </label>
         {/* G-1: was `placeholder={t('hrFix.settings.depotIdHint')}`, next to a depot list this app already holds. */}
@@ -127,9 +129,14 @@ export default function HrSettingsPage() {
                 <p className="font-medium">{d.label ?? d.key}</p>
                 {/* The format, not only the value: "10000,15000,20000" is unguessable from an
                     empty box, and the server rejects anything else outright. */}
-                {d.unit && <p className="text-xs text-muted">format: {d.unit}</p>}
+                {d.unit && (
+                  <p className="text-xs text-muted">
+                    {t('hrFix.settings.formatLabel')}: {d.unit}
+                  </p>
+                )}
                 <p className="text-xs text-muted">
-                  efektif: {String(data.effective[d.key] ?? '') || t('hrFix.settings.notFilled')}
+                  {t('hrFix.settings.effectiveLabel')}:{' '}
+                  {String(data.effective[d.key] ?? '') || t('hrFix.settings.notFilled')}
                 </p>
               </div>
               <div className="flex items-center gap-2">

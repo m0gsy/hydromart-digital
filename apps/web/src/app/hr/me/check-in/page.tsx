@@ -105,10 +105,17 @@ export default function MeCheckInPage() {
 
       <OfflineQueueBanner />
 
-      <div className="flex gap-2">
+      {/*
+        * CA-1-77 — which of these is selected was said in colour alone. A screen reader
+        * announced two identical buttons, so an employee using one could not tell whether
+        * they were about to punch IN or OUT — on the screen that files the record their
+        * pay is computed from. `aria-pressed` is what makes a toggle a toggle.
+        */}
+      <div className="flex gap-2" role="group" aria-label={t('hrFix.checkIn.title')}>
         <Button
           variant={mode === 'in' ? 'primary' : 'secondary'}
           className="flex-1"
+          aria-pressed={mode === 'in'}
           onClick={() => setMode('in')}
         >
           {t('hrFix.checkIn.checkIn')}
@@ -116,6 +123,7 @@ export default function MeCheckInPage() {
         <Button
           variant={mode === 'out' ? 'primary' : 'secondary'}
           className="flex-1"
+          aria-pressed={mode === 'out'}
           onClick={() => setMode('out')}
         >
           {t('hrFix.checkIn.checkOut')}

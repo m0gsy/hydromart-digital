@@ -178,6 +178,8 @@ export const hrFix = {
   },
   assets: {
     valueLabel: 'Value',
+    movedTo: ' · to {name}',
+    movedCondition: ' · condition: {condition}',
     movedFrom: ' · from {name}',
     editDetail2: 'Edit details',
     kind2: 'Type',
@@ -408,6 +410,7 @@ export const hrFix = {
     percent: 'Percent (%)',
   },
   home: {
+    payrollPeriod: 'Payroll {period}',
     attendanceToday: 'Attendance today ({date})',
     title: 'HR dashboard',
     empty: 'No data yet.',
@@ -427,6 +430,11 @@ export const hrFix = {
     noEmployees: 'No employees yet',
   },
   settings: {
+    scopeLabel: 'Scope',
+    scopeOptionGlobal: 'Network default',
+    scopeOptionDepot: 'Specific depot',
+    formatLabel: 'format',
+    effectiveLabel: 'effective',
     pickDepot: 'Choose a depot…',
     scopeDepot: 'this depot',
     scopeGlobal: 'the whole network',
@@ -566,6 +574,8 @@ export const hrFix = {
     failed: 'Could not process it',
   },
   performance: {
+    computeScore: 'Compute score',
+    saveFailed: 'Could not save',
     rowDays: '{present}/{working} days, {late}× late',
     measured:
       'Measured: attendance {attendance} · discipline {discipline} · sales {sales} · final {final}. Components that could not be measured are left out of the total.',

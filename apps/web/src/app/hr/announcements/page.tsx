@@ -131,6 +131,12 @@ function ReadStats({ id }: { id: string }) {
     [id],
   );
   if (detail.loading) return <Skeleton className="h-8" />;
+  /*
+   * CA-1-73 — a failed read returned `null`, so the "sudah dibaca" panel was simply not
+   * there. On a screen whose whole question is whether an announcement reached people, a
+   * missing number and a number of zero look identical, and neither says the read failed.
+   */
+  if (detail.error) return <LoadError onRetry={detail.reload} className="p-3" />;
   if (!detail.data) return null;
   return (
     <p className="rounded-lg border border-app p-3 text-sm">

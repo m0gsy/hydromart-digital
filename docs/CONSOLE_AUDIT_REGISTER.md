@@ -77,12 +77,64 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 **Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 34 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (empat baris Bagian VI ditemukan saat menyapu, bukan saat membaca audit)
 
 **Per status** (2 September 2026, sesudah sapuan `lain`/daftar-terpotong, dihitung dari baris tabel di bawah):
-`TERBUKA` 72 · `SUDAH DIPERBAIKI` 207 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
+`TERBUKA` 61 · `SUDAH DIPERBAIKI` 218 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
 baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 dan #429.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
 > satu baris CA-5 memayungi **14 sweep**. Merencanakan 460 tiket melebihkan pekerjaan sekitar dua
 > kali lipat; merencanakan 219 melewatkan justru sapuan-sapuan ini.
+
+---
+
+## Status baris yang masih TERBUKA (2026-09-08)
+
+Setiap baris yang masih terbuka sudah dibaca terhadap kodenya sendiri oleh agen terpisah,
+dan setiap putusan yang bisa ditindaklanjuti (SUDAH DIPERBAIKI atau perbaikan sepele)
+dihadapkan pada dua penyangkal yang tugasnya membantahnya. Yang tercatat di bawah adalah
+hasilnya, bukan tebakan.
+
+**61 terbuka.** 45 sudah ditriase; **18 belum** — pekerjaannya terhenti di batas sesi, bukan
+karena diputuskan tidak dikerjakan. Itu: `CA-3-49` `CA-3-51` `CA-3-60` `CA-3-62` `CA-3-64`
+`CA-3-67` `CA-3-68` `CA-3-70` `CA-4-11` `CA-4-23` `CA-4-26` `CA-4-32` `CA-4-36` `CA-4-38`
+`CA-4-39` `CA-4-42` `CA-4-48` `CA-4-52`.
+
+### Yang menunggu keputusan Anda (1)
+
+| Baris | Pertanyaannya |
+| --- | --- |
+| `CA-2-54` | Tidak ada transfer stok antar depot. Satu-satunya stok masuk adalah pembelian. Apakah depot boleh memindahkan stok ke depot lain, dan kalau boleh, siapa yang menyetujui dan bagaimana nilainya dicatat di dua buku? Kode tidak bisa menjawab ini. |
+
+### Yang bukan pekerjaan sepele (14)
+
+`CA-1-43` `CA-1-44` `CA-1-47` `CA-1-48` `CA-1-62` `CA-1-66` `CA-2-48` `CA-2-50` `CA-2-51`
+`CA-2-53` `CA-2-56` `CA-2-57` `CA-2-58` `CA-4-49` — masing-masing perlu jalur kode baru,
+endpoint baru, migrasi, atau pekerjaan lintas-service. Tidak satu pun bisa masuk sebagai
+tambalan satu baris, dan menambalnya seperti itu justru bentuk kegagalan yang sudah
+berulang kali dikoreksi program ini.
+
+`CA-4-49` sengaja dibiarkan terbuka setelah langkah pertamanya dikirim: foto bukti serah
+sudah lewat tautan yang kedaluwarsa, foto insiden kurir dan struk biaya payout belum.
+
+### Yang sepele dan sudah ada rencananya (28)
+
+Sisanya punya rencana konkret dengan kutipan file:baris. Tapi **11 di antaranya rencananya
+dibantah** oleh penyangkalnya — hampir selalu dengan alasan yang sama, dan alasan itu layak
+dicatat karena ia pola, bukan kebetulan:
+
+> Rencananya memperbaiki 2 dari 6 tempat panggilan, atau memperbaiki gejalanya sambil
+> membiarkan gerbang CI yang menutupi kelas itu tetap buta.
+
+Jadi rencana-rencana itu **tidak boleh ditempel apa adanya**. Yang dibantah:
+`CA-1-26` `CA-1-31` `CA-1-41` `CA-1-51` `CA-1-54` `CA-1-58` `CA-1-65` `CA-1-67` `CA-1-71`
+`CA-1-76` `CA-1-78`.
+
+### Satu hal tentang register ini sendiri
+
+Rebase pada 2026-09-08 merusak kolom statusnya di dua arah: delapan baris punya kode yang
+sudah tergabung tapi terbaca `TERBUKA`. Semuanya sudah dicocokkan ulang dengan memeriksa
+apakah ada berkas sumber yang mengutip id barisnya. Angka di halaman ini sekarang cocok
+dengan kodenya; sebelum tanggal itu, tidak.
+
 
 ---
 
@@ -140,14 +192,14 @@ baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 da
 | `CA-1-47` | §10 | Rendah | Kedaluwarsa dokumen tidak pernah dibaca — dan tidak ada tipe dokumen SIM | `services/hr-service/src/application/services/document.service.ts:99 · employee-documents.tsx:98` | `lain` | TERBUKA | — | — |
 | `CA-1-48` | §10 | Rendah | Enam ketiadaan kecil yang penyangkalnya turunkan | `employee.service.ts:836, :491 · shift.service.ts:35 · schema.prisma:551 · statutory.ts:201 · attendance.repository.ts:84` | `lain` | TERBUKA | — | — |
 | `CA-1-49` | §11 | Sedang | CI melaporkan “no hardcoded Indonesian copy” di atas ±60 string keras | `scripts/check-i18n.mjs:243, :254, :315` | `jalur-uang` | SUDAH DIPERBAIKI | `scripts/check-i18n.mjs` + `scripts/check-i18n.test.sh` + 13 string dibungkus | Pola prop diperlebar (message/subtitle/description/body/...) plus pola baru untuk nilai berupa template literal; 13 string nyata ketemu dan dibungkus, dan gate-nya kini punya self-check di CI |
-| `CA-1-50` | §11 | Sedang | Enam halaman impor: seluruh paragraf peringatan tidak diterjemahkan | `apps/web/src/components/csv-import.tsx:336` | `lain` | TERBUKA | — | — |
+| `CA-1-50` | §11 | Sedang | Enam halaman impor: seluruh paragraf peringatan tidak diterjemahkan | `apps/web/src/components/csv-import.tsx:336` | `lain` | SUDAH DIPERBAIKI | `components/csv-import.tsx` + `hrFix.imports.desc.*` | Sudah selesai saat CA-1-49: `description` kini lewat `t()` seperti `title`, dan sepuluh pemanggil (bukan enam — barisnya kurang hitung) memakai kunci. Diverifikasi ulang, dua penyangkal tidak menemukan celah |
 | `CA-1-51` | §11 | Rendah | Kalender mencetak token {workStartTime} mentah ke layar | `apps/web/src/app/hr/calendar/page.tsx:104` | `lain` | TERBUKA | — | — |
 | `CA-1-52` | §11 | Rendah | Sepuluh berkas lain dengan string yang lolos t() | `lihat tabel §13` | `jalur-uang` | SUDAH DIPERBAIKI | `check-i18n.mjs` pola halfTranslated + notify + `check-i18n.test.sh` + 7 string dibungkus | Diukur ulang: DELAPAN berkas, bukan sepuluh — dan bentuk yang paling sering lolos adalah terner setengah-terjemah (`cond ? t(key) : 'kalimat Indonesia'`), yang kini punya polanya sendiri dan self-check di CI |
 | `CA-1-53` | §12 | Tinggi | Tombol pilih file di semua halaman impor tidak bisa dicapai keyboard | `apps/web/src/components/csv-import.tsx:348` | `lain` | SUDAH DIPERBAIKI | premis benar: `className="hidden"` = `display:none`, dan elemen `display:none` tidak ada di urutan tab sama sekali — `<span>` di sebelahnya juga tidak pernah ada. Diperbaiki di komponen bersamanya, jadi SEMUA halaman impor massal ikut: `className="sr-only"` (idiom yang sudah dipakai `resellers/reseller-photo.tsx`) + `focus-within:` pada `<label>` supaya cincin fokusnya kelihatan. Pengukuran menemukan DUA pemakai lain dengan cacat yang sama (`orders/detail/page.tsx` bukti transfer, `driver/incidents/new` foto insiden) dan satu lagi yang hanya terlihat sesudah `blankComments` diperbaiki (`components/driver/pod-capture.tsx` foto PoD) — keempatnya ikut. Gerbang: `scripts/check-a11y.mjs` aturan `filePicker`, plus `apps/web/test/keyboard-and-names.test.tsx`. Bukti merah: `sr-only` → `hidden` membuat gerbang keluar 1 dan uji jadi 3 lulus / 3 gagal | #TBD |
 | `CA-1-54` | §12 | Sedang | Pesan error memakai warna mentah yang tidak ikut mode gelap | `12 pemakaian text-red-600 di app/hr + components/hr` | `lain` | TERBUKA | — | — |
 | `CA-1-55` | §12 | Sedang | Kamera check-in gagal: hanya teks merah, tanpa tombol coba lagi | `apps/web/src/components/hr/face-capture.tsx:102` | `lain` | SUDAH DIPERBAIKI | Gagal membuka kamera mencetak satu baris teks merah tanpa jalan keluar — tanpa tombol, tanpa apa pun. Karyawan yang tidak sengaja menolak izinnya, atau yang kameranya sedang dipakai aplikasi lain, punya tepat satu pilihan: memuat ulang halaman, di layar yang dicapai dengan cara absen masuk. Sekarang ada tombol "Coba lagi" yang menaikkan penghitung dan menjalankan ulang efeknya (yang bertanya lagi), plus satu baris petunjuk cara mengembalikan izinnya. Warnanya juga pindah dari `text-red-600` mentah ke token yang ikut mode gelap | — |
 | `CA-1-56` | §12 | Rendah | Slip gaji memaksa 3 kolom di layar HP | `me/payroll/detail/page.tsx:93 · payroll/detail/page.tsx:88` | `jalur-uang` | SUDAH DIPERBAIKI | `payroll/detail/page.tsx` + `me/payroll/detail/page.tsx` + `hr-payslip-detail.test.tsx` | Dua kolom di HP, tiga dari `sm:`; tiga kartu uang di 360pt hanya menyisakan ~100pt masing-masing |
-| `CA-1-57` | §12 | Rendah | Baris absensi tidak pernah membungkus | `apps/web/src/app/hr/attendance/page.tsx:145` | `lain` | TERBUKA | — | — |
+| `CA-1-57` | §12 | Rendah | Baris absensi tidak pernah membungkus | `apps/web/src/app/hr/attendance/page.tsx:145` | `lain` | SUDAH DIPERBAIKI | `hr/attendance/page.tsx` | Baris membungkus dengan `gap-y-1`; select status — kontrol yang MENGOREKSI sebuah hari — tidak lagi terdorong keluar layar HP |
 | `CA-1-58` | §12 | Rendah | Kelas border-ty tidak ada di Tailwind | `apps/web/src/app/hr/assets/page.tsx:302, :337, :346` | `lain` | TERBUKA | — | — |
 | `CA-1-59` | §13 | Ringkas | Jenis bonus & potongan tampil sebagai enum Inggris mentah | `apps/web/src/app/hr/adjustments/page.tsx:110,116,132` | `lain` | SUDAH DIPERBAIKI | `hr/adjustments/page.tsx` + `hr/rules/page.tsx` + `lib/hr.ts` + `hr-labels-sweep.test.tsx` | Pass pertama hanya menerjemahkan baris DAFTAR; keempat pemilih tetap mentah karena parameter map bernama `t` menutupi penerjemah. Selesai di keempat tempat, dan assertion test yang tidak bisa gagal diganti |
 | `CA-1-60` | §13 | Ringkas | Threshold rule bonus tanpa format rupiah | `apps/web/src/app/hr/rules/page.tsx:105` | `jalur-uang` | SUDAH DIPERBAIKI | `hr/rules/page.tsx` thresholdLabel + `hr-payslip-detail.test.tsx` | Ambang ditampilkan dalam satuan metriknya: rupiah untuk SALES_TOTAL, persen untuk ATTENDANCE_RATE, angka polos untuk sisanya |
@@ -163,22 +215,22 @@ baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 da
 | `CA-1-70` | §13 | Ringkas | window.prompt untuk alasan koreksi absensi; teks kosong = batal senyap | `apps/web/src/app/hr/attendance/page.tsx:105` | `confirm-dialog` | SUDAH DIPERBAIKI | `window.prompt` diganti kolom alasan wajib di ConfirmDialog; string Indonesia hardcoded di dalam promptnya ikut hilang | #427 |
 | `CA-1-71` | §13 | Ringkas | Kegagalan memuat daftar depot tidak dilaporkan di halaman impor | `apps/web/src/app/hr/employees/import/page.tsx:158` | `lain` | TERBUKA | — | — |
 | `CA-1-72` | §13 | Ringkas | Pesan gagal impor muncul ribuan piksel di atas tombolnya | `apps/web/src/components/csv-import.tsx:293` | `lain` | TERBUKA | — | — |
-| `CA-1-73` | §13 | Ringkas | Statistik pengumuman gagal dimuat tanpa pesan | `apps/web/src/app/hr/announcements/page.tsx:128` | `lain` | TERBUKA | — | — |
+| `CA-1-73` | §13 | Ringkas | Statistik pengumuman gagal dimuat tanpa pesan | `apps/web/src/app/hr/announcements/page.tsx:128` | `lain` | SUDAH DIPERBAIKI | `hr/announcements/page.tsx` | Baca gagal menampilkan LoadError, bukan null. TANPA test: menjangkaunya perlu merender daftar, menerbitkan baris, lalu membukanya, dan bentuk fixture-nya tidak cocok dalam dua percobaan — dicatat apa adanya, bukan disembunyikan |
 | `CA-1-74` | §13 | Ringkas | Hasil check-in menampilkan enum mentah, selalu hijau | `apps/web/src/app/hr/me/check-in/page.tsx:99` | `lain` | SUDAH DIPERBAIKI | `hr/me/check-in/page.tsx` + RESULT_TONE | Hasil check-in ditampilkan sebagai kata dan diberi warna sesuai artinya; PENDING dan LATE tidak lagi hijau |
 | `CA-1-75` | §13 | Ringkas | Pencarian karyawan & filter audit menembak request tiap ketikan | `apps/web/src/app/hr/employees/page.tsx:91 · audit/page.tsx:22` | `lain` | TERBUKA | — | — |
 | `CA-1-76` | §13 | Ringkas | “Buatkan akun” berhasil tanpa pesan, fokus terlempar ke body | `apps/web/src/app/hr/employees/page.tsx:56` | `lain` | TERBUKA | — | — |
-| `CA-1-77` | §13 | Ringkas | Tombol Masuk/Pulang tidak mengumumkan mana yang terpilih | `apps/web/src/app/hr/me/check-in/page.tsx:89` | `lain` | TERBUKA | — | — |
+| `CA-1-77` | §13 | Ringkas | Tombol Masuk/Pulang tidak mengumumkan mana yang terpilih | `apps/web/src/app/hr/me/check-in/page.tsx:89` | `lain` | SUDAH DIPERBAIKI | `hr/me/check-in/page.tsx` + `hr-ui-reach.test.tsx` | aria-pressed di KEDUA tombol dan nama untuk grupnya; sebelumnya mana yang terpilih hanya dikatakan lewat warna |
 | `CA-1-78` | §13 | Ringkas | Filter & kotak cari tanpa nama aksesibel (5 halaman) | `hr/employees:124 · hr/leave:86 · hr/audit:28 · hr/announcements:273,287` | `lain` | TERBUKA | — | — |
-| `CA-1-79` | §13 | Ringkas | Ruang kosong 96px di bawah setiap halaman HR di HP | `apps/web/src/app/hr/layout.tsx:45` | `lain` | TERBUKA | — | — |
+| `CA-1-79` | §13 | Ringkas | Ruang kosong 96px di bawah setiap halaman HR di HP | `apps/web/src/app/hr/layout.tsx:45` | `lain` | SUDAH DIPERBAIKI | `hr/layout.tsx` + `hr-bottom-nav.tsx` | Premis barisnya mati di `7d3a2bee` (CA-1-33): 96px itu bukan ruang kosong lagi, melainkan kelonggaran untuk bilah bawah yang fixed dan hanya-HP. Diverifikasi ulang, dua penyangkal tidak menemukan celah |
 | `CA-1-80` | §13 | Ringkas | Judul /hr/me/attendance hardcoded padahal key-nya sudah ada | `apps/web/src/app/hr/me/attendance/page.tsx:23` | `lain` | SUDAH DIPERBAIKI | `hr/me/attendance/page.tsx` | Memakai `hrFix.me.myAttendance` yang memang sudah ada, bukan judul yang diketik ulang di sebelahnya |
 | `CA-1-81` | §13 | Ringkas | loans/import mengirim judul mentah ke t(), bukan key | `apps/web/src/app/hr/loans/import/page.tsx:20` | `lain` | SUDAH DIPERBAIKI | `hr/loans/import/page.tsx` + `hrFix.imports.loansTitle` | Judul dikirim sebagai key, bukan kalimat mentah — CsvImport menjalankannya lewat t() |
 | `CA-1-82` | §13 | Ringkas | Dokumen kepegawaian: 7 string hardcoded | `apps/web/src/components/hr/employee-documents.tsx:58` | `lain` | SUDAH DIPERBAIKI | `components/hr/employee-documents.tsx` + `hrFix.documents2.saved` | Toast dokumen tersimpan lewat kamus |
-| `CA-1-83` | §13 | Ringkas | Kasbon: 8 string termasuk 3 badge status | `apps/web/src/components/hr/employee-loans.tsx:74` | `lain` | TERBUKA | — | — |
-| `CA-1-84` | §13 | Ringkas | Peringatan pengambilalihan akun seluruhnya hardcoded | `apps/web/src/components/hr/employee-form.tsx:366` | `lain` | TERBUKA | — | — |
-| `CA-1-85` | §13 | Ringkas | Halaman kinerja: 7 string skor & error | `apps/web/src/app/hr/performance/page.tsx:173` | `lain` | TERBUKA | — | — |
-| `CA-1-86` | §13 | Ringkas | Pengaturan: label Cakupan & opsi GLOBAL/DEPOT hardcoded | `apps/web/src/app/hr/settings/page.tsx:75` | `lain` | TERBUKA | — | — |
-| `CA-1-87` | §13 | Ringkas | Dashboard: dua judul kartu tidak diterjemahkan | `apps/web/src/app/hr/page.tsx:78, :83` | `lain` | TERBUKA | — | — |
-| `CA-1-88` | §13 | Ringkas | Riwayat mutasi aset: “dari” diterjemahkan, “ke” dan “kondisi” tidak | `apps/web/src/app/hr/assets/page.tsx:293` | `lain` | TERBUKA | — | — |
+| `CA-1-83` | §13 | Ringkas | Kasbon: 8 string termasuk 3 badge status | `apps/web/src/components/hr/employee-loans.tsx:74` | `lain` | SUDAH DIPERBAIKI | `employee-loans.tsx` + `hr-i18n-sweep.test.tsx` | Tiga status lewat kamus yang sama dengan /hr/loans; palet ikut disamakan — "Lunas" dulu neutral di sini dan success di sana |
+| `CA-1-84` | §13 | Ringkas | Peringatan pengambilalihan akun seluruhnya hardcoded | `apps/web/src/components/hr/employee-form.tsx:366` | `lain` | SUDAH DIPERBAIKI | `employee-form.tsx` roleLabel | Peta menyimpan KUNCI kamus, jadi peringatannya mencetak kuncinya sendiri; kini lewat t() dengan fallback ke peran mentah |
+| `CA-1-85` | §13 | Ringkas | Halaman kinerja: 7 string skor & error | `apps/web/src/app/hr/performance/page.tsx:173` | `lain` | SUDAH DIPERBAIKI | `hr/performance/page.tsx` + kunci performance | Label skor, tombol hitung, dan KEDUA toast gagal-simpan — bukan hanya yang ditunjuk anchor |
+| `CA-1-86` | §13 | Ringkas | Pengaturan: label Cakupan & opsi GLOBAL/DEPOT hardcoded | `apps/web/src/app/hr/settings/page.tsx:75` | `lain` | SUDAH DIPERBAIKI | `hr/settings/page.tsx` + kunci settings + `hr-i18n-sweep.test.tsx` | Cakupan, kedua opsinya, dan dua petunjuk di bawah tiap setelan |
+| `CA-1-87` | §13 | Ringkas | Dashboard: dua judul kartu tidak diterjemahkan | `apps/web/src/app/hr/page.tsx:78, :83` | `lain` | SUDAH DIPERBAIKI | `hr/page.tsx` + `hrFix.home.payrollPeriod` | Judul kartu lewat kamus, seperti `nav.payroll` di sebelahnya yang memang sudah key |
+| `CA-1-88` | §13 | Ringkas | Riwayat mutasi aset: “dari” diterjemahkan, “ke” dan “kondisi” tidak | `apps/web/src/app/hr/assets/page.tsx:293` | `lain` | SUDAH DIPERBAIKI | `hr/assets/page.tsx` + kunci assets | "ke" dan "kondisi" menyusul "dari" ke kamus; satu kalimat tidak lagi separuh tiap bahasa |
 
 ## Bagian II — Konsol depot dan kantor pusat (§16–§30, 132 halaman)
 
