@@ -148,6 +148,14 @@ export interface Payroll {
   totalDeduction: string;
   net: string;
   presentDays: number;
+  /**
+   * CA-1-42: days in this period HR has still not decided, read live when the slip opens.
+   *
+   * Present on the detail read only. It does NOT block approval — the owner's decision
+   * (2026-09-04) is to pay on time and correct next month — it makes what is about to be
+   * locked visible to whoever locks it.
+   */
+  pendingDays?: number;
   approvedAt: string | null;
   paidAt: string | null;
   createdAt: string;

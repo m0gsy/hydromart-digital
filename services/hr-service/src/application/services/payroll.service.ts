@@ -539,7 +539,24 @@ export class PayrollService {
     // PG-01: `load` already reads the owning employee for the depot check and used to throw
     // the answer away, leaving a slip that named nobody.
     const employee = await this.employees.getById(user, payroll.employeeId);
-    return { ...payroll, employeeName: employee.fullName ?? null };
+    /*
+     * CA-1-42 — how many of this period's days HR has still not decided.
+     *
+     * Owner decision 2026-09-04: pay on time and correct next month. So this does NOT block
+     * approval; it makes the thing that is about to be locked visible to whoever locks it.
+     *
+     * The days matter differently for the two salary types, which is why the number is
+     * worth showing rather than assuming: a PENDING day escapes the absence deduction for a
+     * MONTHLY employee, and is simply NOT PAID for a DAILY one (`basePay` counts presentDays,
+     * and PENDING is neither PRESENT nor LATE).
+     *
+     * Read LIVE rather than stored: it answers "how many are undecided right now", which is
+     * the question at the moment of approval, and it falls to zero on its own as HR works
+     * through them.
+     */
+    const { from, to } = this.monthRange(payroll.periodMonth);
+    const { pendingDays } = await this.attendance.summary(payroll.employeeId, from, to);
+    return { ...payroll, employeeName: employee.fullName ?? null, pendingDays };
   }
 
   /**

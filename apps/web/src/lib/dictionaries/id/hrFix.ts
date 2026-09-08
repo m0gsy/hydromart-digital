@@ -1629,6 +1629,8 @@ export const hrFix = {
     empty: 'Belum ada absensi',
   },
   payrollDetail: {
+    pendingWarning: 'Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui).',
+    approveConfirmPending: 'Setujui pembayaran {net}? Masih ada {n} hari kehadiran yang belum diputuskan; selisihnya harus dicatat di periode berikutnya.',
     failed: 'Gagal',
     downloadFailed: 'Gagal unduh',
     netPay: 'Gaji Bersih (Net)',

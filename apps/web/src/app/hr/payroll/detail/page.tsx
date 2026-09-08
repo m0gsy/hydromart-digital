@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { WarningCircle } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
@@ -132,6 +133,24 @@ export default function PayrollDetailPage() {
         </Card>
       </div>
 
+      {/*
+        CA-1-42: what is about to be locked, said out loud.
+        Owner decision 2026-09-04 is pay-on-time-and-correct-next-month, so this warns
+        rather than blocks — a whole depot's wages must not wait on one attendance queue.
+        The direction of the error is worth stating: a PENDING day escapes the absence
+        deduction for a monthly employee and is simply not paid for a daily one.
+      */}
+      {p.status === 'DRAFT' && (p.pendingDays ?? 0) > 0 && (
+        <Card className="flex items-start gap-2.5 border-[color:var(--warning)] p-4">
+          <WarningCircle
+            size={18}
+            weight="fill"
+            className="mt-0.5 flex-shrink-0 text-[color:var(--warning)]"
+          />
+          <p className="text-sm">{t('hrFix.payrollDetail.pendingWarning', { n: p.pendingDays ?? 0 })}</p>
+        </Card>
+      )}
+
       {canRun && (
         <div className="flex gap-3">
           {p.status === 'DRAFT' && (
@@ -140,7 +159,12 @@ export default function PayrollDetailPage() {
                 act(
                   endpoints.hr.approvePayroll(id),
                   t('hrFix.payrollDetail.approved'),
-                  t('hrFix.payrollDetail.approveConfirm', { net: formatIDR(Number(p.net)) }),
+                  (p.pendingDays ?? 0) > 0
+                    ? t('hrFix.payrollDetail.approveConfirmPending', {
+                        net: formatIDR(Number(p.net)),
+                        n: p.pendingDays ?? 0,
+                      })
+                    : t('hrFix.payrollDetail.approveConfirm', { net: formatIDR(Number(p.net)) }),
                   t('hrFix.payrollDetail.approve'),
                 )
               }
