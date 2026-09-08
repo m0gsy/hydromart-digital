@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 
 import { useConfirm } from '@/components/confirm';
@@ -106,10 +107,21 @@ export default function DepartmentsPage() {
             )}
             {departments.data.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="min-w-0 truncate">
+                {/*
+                  CA-1-37. This screen could create, deactivate and DELETE a department and
+                  offered no way to see who was in one — so "hapus" was a decision taken
+                  without the one fact that decides it.
+
+                  `/hr/employees` has read `?departmentId=` since CA-1-35; the door existed
+                  and nothing pointed at it.
+                */}
+                <Link
+                  href={`/hr/employees?departmentId=${encodeURIComponent(d.id)}`}
+                  className="min-w-0 truncate hover:text-brand-700 hover:underline"
+                >
                   <b>{d.code}</b> · {d.name} · {depotName(d.depotId)}
-                  {d.active ? '' : ' (nonaktif)'}
-                </span>
+                  {d.active ? '' : ` (${t('hrFix.departments.inactive')})`}
+                </Link>
                 {isAdmin && (
                   <span className="flex shrink-0 gap-1">
                     <Button variant="ghost" onClick={() => toggle(d)}>

@@ -48,9 +48,44 @@ interface TargetDraft {
   value: string;
 }
 
+/**
+ * CA-1-67: "Depot" alone is not an audience; "Depot: JKT-01" is. The history printed only
+ * the DIMENSION, so a reader could not tell which depot or which department a notice had
+ * reached — on the screen whose whole job is saying who was told what.
+ *
+ * Falls back to the raw value when the directory has not answered: an unresolved id still
+ * says WHICH one, where the dimension alone said nothing at all. POSITION carries its own
+ * text and needs no lookup; EMPLOYEE ids are not loaded here and fall back by design.
+ */
+function targetLabel(
+  tg: { dimension: AnnouncementDimension; value: string | null },
+  t: (k: string) => string,
+  depots: { id: string; code: string }[],
+  departments: Department[],
+): string {
+  const dim = t(ANNOUNCEMENT_DIMENSION_LABEL[tg.dimension]);
+  if (!tg.value) return dim;
+  const named =
+    tg.dimension === 'DEPOT'
+      ? depots.find((d) => d.id === tg.value)?.code
+      : tg.dimension === 'DEPARTMENT'
+        ? departments.find((d) => d.id === tg.value)?.name
+        : tg.dimension === 'POSITION'
+          ? tg.value
+          : undefined;
+  return `${dim}: ${named ?? tg.value}`;
+}
+
 export default function AnnouncementsPage() {
   const { t } = useT();
   const { customer } = useAuth();
+  // CA-1-67: the two directories the history needs to name a target. `getCached` is the
+  // same call the composer below makes, so this costs no extra round trip.
+  const { depots } = useDepot();
+  const pageDepartments = useAsync<Department[]>(
+    () => api.getCached<Department[]>(endpoints.hr.departments(), true),
+    [],
+  );
   const { toast } = useToast();
   const isAdmin = canManageHr(customer?.role);
 
@@ -98,11 +133,20 @@ export default function AnnouncementsPage() {
                     <p className="whitespace-pre-line text-sm text-muted">{a.body}</p>
                     <p className="text-xs text-muted">
                       {a.publishedAt
-                        ? `Terkirim ${fmtDate(a.publishedAt)} ke ${a.audienceSize} orang`
+                        ? t('hrFix.announcements.sentTo', {
+                            at: fmtDate(a.publishedAt),
+                            n: a.audienceSize,
+                          })
                         : t('hrFix.announcements.scheduledNotSent', { at: fmtDate(a.scheduledAt) })}
                       {' · '}
+                      {/*
+                        CA-1-67: this printed the DIMENSION and never the value — "Depot,
+                        Departemen", with no way to tell which depot or which department a
+                        notice had gone to. `optionsFor` already resolves an id to a name
+                        for the composer above; the history simply never asked it.
+                      */}
                       {a.targets
-                        .map((tg) => t(ANNOUNCEMENT_DIMENSION_LABEL[tg.dimension]))
+                        .map((tg) => targetLabel(tg, t, depots, pageDepartments.data ?? []))
                         .join(', ')}
                     </p>
                   </div>

@@ -451,6 +451,7 @@ export const hrFix = {
     saveFailed: 'Could not save',
   },
   departments: {
+    inactive: 'inactive',
     deleteConfirm:
       'Delete the department {name}? The server refuses while any employee still points at it.',
     emptyBody2: 'No departments yet — employees show as “Not set”.',
@@ -577,6 +578,12 @@ export const hrFix = {
     failed: 'Could not process it',
   },
   performance: {
+    attendanceScore: 'Attendance score',
+    attendanceShort: 'Att',
+    disciplineScore: 'Discipline score',
+    disciplineShort: 'Disc',
+    salesScore: 'Sales score',
+    salesShort: 'Sales',
     computeScore: 'Compute score',
     saveFailed: 'Could not save',
     rowDays: '{present}/{working} days, {late}× late',
@@ -1033,6 +1040,7 @@ export const hrFix = {
   },
   announcements: {
     scheduledNotSent: 'Scheduled {at} — not sent yet',
+    sentTo: 'Sent {at} to {n} people',
     mergedTargets: 'Targets are merged. Someone in two targets still receives one message.',
     delete2: 'Delete',
     addTarget: 'Add target',

@@ -131,11 +131,31 @@ function PerformanceInner() {
               <p className="p-4 text-sm text-muted">{t('hrFix.performance.empty')}</p>
             ) : (
               rows.map((r) => (
-                <div key={r.id} className="flex items-center justify-between p-3 text-sm">
+                <div key={r.id} className="flex items-center justify-between gap-3 p-3 text-sm">
                   <span className="font-medium tabular-nums">{r.periodMonth}</span>
                   <span className="text-lg font-extrabold tabular-nums">{r.score}</span>
-                  <span className="text-muted">{r.note ?? r.managerNote ?? '—'}</span>
-                  <span className="text-xs text-muted">{fmtDate(r.createdAt)}</span>
+                  {/*
+                    CA-1-65: the row showed one number and hid the three it is made of, so a
+                    review could not be questioned — only accepted. And the distinction the
+                    type itself documents was invisible: `null` means the component had
+                    NOTHING TO MEASURE that period, which is not the same as scoring zero.
+                    An em dash says "not measured"; a 0 would say "measured, and bad".
+                  */}
+                  <span className="flex shrink-0 gap-2 text-xs tabular-nums text-muted">
+                    <span title={t('hrFix.performance.attendanceScore')}>
+                      {t('hrFix.performance.attendanceShort')} {r.attendanceScore ?? '—'}
+                    </span>
+                    <span title={t('hrFix.performance.disciplineScore')}>
+                      {t('hrFix.performance.disciplineShort')} {r.disciplineScore ?? '—'}
+                    </span>
+                    <span title={t('hrFix.performance.salesScore')}>
+                      {t('hrFix.performance.salesShort')} {r.salesScore ?? '—'}
+                    </span>
+                  </span>
+                  <span className="min-w-0 truncate text-muted">
+                    {r.note ?? r.managerNote ?? '—'}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted">{fmtDate(r.createdAt)}</span>
                 </div>
               ))
             )}
