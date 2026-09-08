@@ -139,16 +139,39 @@ export default function HrSettingsPage() {
                   {String(data.effective[d.key] ?? '') || t('hrFix.settings.notFilled')}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 {/* CONTROLLED, and keyed to the scope: an uncontrolled box kept the previous
                     scope's number on screen after the switch, which is half of how a GLOBAL
                     value came to be written as a DEPOT override. */}
-                <Input
-                  value={drafts[d.key] ?? String(data.effective[d.key] ?? '')}
-                  placeholder={d.unit ?? ''}
-                  onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
-                  className="w-32"
-                />
+                {/*
+                  CA-1-41: a `w-32` box for a 4.2 KB regulation table is a value nobody can
+                  read, check or paste into. `long` comes from the DEF, not from a hardcoded
+                  list of key names here — the server already knows which of its settings is
+                  a document.
+
+                  `aria-label` is not decoration: `scripts/check-a11y.mjs` RULE 4 fails a
+                  bare <textarea>, and rightly — the label above is a <p>, not a <label>, so
+                  without this the control has no accessible name at all.
+                */}
+                {d.long ? (
+                  <textarea
+                    aria-label={d.label ?? d.key}
+                    value={drafts[d.key] ?? String(data.effective[d.key] ?? '')}
+                    placeholder={d.unit ?? ''}
+                    onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
+                    rows={6}
+                    spellCheck={false}
+                    className="min-h-[7rem] w-full flex-1 rounded-[10px] border border-app bg-[color:var(--surface-elevated)] p-2 font-mono text-[12px] outline-none"
+                  />
+                ) : (
+                  <Input
+                    aria-label={d.label ?? d.key}
+                    value={drafts[d.key] ?? String(data.effective[d.key] ?? '')}
+                    placeholder={d.unit ?? ''}
+                    onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
+                    className="w-32"
+                  />
+                )}
                 <Button variant="secondary" onClick={() => save(d.key)}>
                   {t('hrFix.settings.save')}
                 </Button>
