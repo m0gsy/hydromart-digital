@@ -942,14 +942,11 @@ export const hrFix = {
     bankHolder: 'Account holder',
   },
   pod: {
-<<<<<<< HEAD
     sealQuestion: 'Gallon seal condition',
     sealBroken: 'Seal broken',
-=======
     discardTitle: 'Discard this proof of delivery?',
     cancel: 'Cancel',
     discardConfirm: 'Discard this proof of delivery? The photo, recipient name and signature you have filled in will be lost.',
->>>>>>> daf54a67 (fix(kurir,manajer): jalan keluar, alasan, dan satu label yang hilang (CA-4-25, CA-4-34, CA-4-41, CA-4-45))
     sealIntact: 'Gallon seal intact and not leaking',
     sealLabel: 'Seal',
     sealYes: 'Intact at handover',

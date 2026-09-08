@@ -957,14 +957,11 @@ export const hrFix = {
     bankHolder: 'Atas nama',
   },
   pod: {
-<<<<<<< HEAD
     sealQuestion: 'Kondisi segel galon',
     sealBroken: 'Segel rusak',
-=======
     discardTitle: 'Batalkan bukti serah?',
     cancel: 'Batal',
     discardConfirm: 'Batalkan bukti serah ini? Foto, nama penerima, dan tanda tangan yang sudah diisi akan hilang.',
->>>>>>> daf54a67 (fix(kurir,manajer): jalan keluar, alasan, dan satu label yang hilang (CA-4-25, CA-4-34, CA-4-41, CA-4-45))
     sealIntact: 'Segel galon utuh & tidak bocor',
     // K2.8b: dibaca saat menyelidiki keluhan, bukan saat mengantar.
     sealLabel: 'Segel',
