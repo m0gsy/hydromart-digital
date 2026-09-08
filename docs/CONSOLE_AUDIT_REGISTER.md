@@ -77,7 +77,7 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 **Per kelas akar:** `lain` 126 · `jalur-uang` 83 · `gerbang-kapabilitas` 34 · `pdp-registry` 13 · `depot-scope-by-id` 12 · `confirm-dialog` 11 · `sweep-tanpa-penonton` 3 · `proyeksi-publik` 2 (empat baris Bagian VI ditemukan saat menyapu, bukan saat membaca audit)
 
 **Per status** (2 September 2026, sesudah sapuan `lain`/daftar-terpotong, dihitung dari baris tabel di bawah):
-`TERBUKA` 85 · `SUDAH DIPERBAIKI` 194 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
+`TERBUKA` 79 · `SUDAH DIPERBAIKI` 200 · `DUPLIKAT` 3 · `DITOLAK` 2 · `KEPUTUSAN` 0 — kedua
 baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 dan #429.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
@@ -153,8 +153,8 @@ baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 da
 | `CA-1-60` | §13 | Ringkas | Threshold rule bonus tanpa format rupiah | `apps/web/src/app/hr/rules/page.tsx:105` | `jalur-uang` | SUDAH DIPERBAIKI | `hr/rules/page.tsx` thresholdLabel + `hr-payslip-detail.test.tsx` | Ambang ditampilkan dalam satuan metriknya: rupiah untuk SALES_TOTAL, persen untuk ATTENDANCE_RATE, angka polos untuk sisanya |
 | `CA-1-61` | §13 | Ringkas | Total Karyawan di dashboard ikut menghitung yang resign | `apps/web/src/app/hr/page.tsx:66 · analytics.service.ts:85` | `lain` | TERBUKA | — | — |
 | `CA-1-62` | §13 | Ringkas | Ekspor direktori 11 kolom, template impor 27 kolom | `services/hr-service/src/application/services/analytics.service.ts:162` | `lain` | TERBUKA | — | — |
-| `CA-1-63` | §13 | Ringkas | Detail karyawan tidak menampilkan role, depot, tanggal keluar | `apps/web/src/app/hr/employees/detail/page.tsx:141` | `lain` | TERBUKA | — | — |
-| `CA-1-64` | §13 | Ringkas | Riwayat karyawan menampilkan nama kolom database mentah | `apps/web/src/app/hr/employees/detail/page.tsx:212` | `lain` | TERBUKA | — | — |
+| `CA-1-63` | §13 | Ringkas | Detail karyawan tidak menampilkan role, depot, tanggal keluar | `apps/web/src/app/hr/employees/detail/page.tsx:141` | `lain` | SUDAH DIPERBAIKI | `hr/employees/detail/page.tsx` + `hr-labels-sweep.test.tsx` | Jabatan login, depot, dan tanggal keluar ditampilkan; depotnya dibaca dari daftar yang sudah dipegang konsol, tanpa fetch kedua |
+| `CA-1-64` | §13 | Ringkas | Riwayat karyawan menampilkan nama kolom database mentah | `apps/web/src/app/hr/employees/detail/page.tsx:212` | `lain` | SUDAH DIPERBAIKI | `lib/hr.ts` historyLabel + `hr/employees/detail/page.tsx` + `hr-labels-sweep.test.tsx` | Riwayat menyebut nama field dalam bahasa manusia; field baru yang belum dipetakan tampil apa adanya, bukan mengosongkan barisnya |
 | `CA-1-65` | §13 | Ringkas | Riwayat kinerja hanya skor akhir; periode tak terukur jadi 0 | `apps/web/src/app/hr/performance/page.tsx:136` | `lain` | TERBUKA | — | — |
 | `CA-1-66` | §13 | Ringkas | Foto selfie & skor face-match tidak pernah ditampilkan | `apps/web/src/app/hr/attendance/page.tsx:59` | `lain` | TERBUKA | — | — |
 | `CA-1-67` | §13 | Ringkas | Riwayat pengumuman menyebut dimensi target tanpa nilainya | `apps/web/src/app/hr/announcements/page.tsx:101` | `lain` | TERBUKA | — | — |
@@ -164,15 +164,15 @@ baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 da
 | `CA-1-71` | §13 | Ringkas | Kegagalan memuat daftar depot tidak dilaporkan di halaman impor | `apps/web/src/app/hr/employees/import/page.tsx:158` | `lain` | TERBUKA | — | — |
 | `CA-1-72` | §13 | Ringkas | Pesan gagal impor muncul ribuan piksel di atas tombolnya | `apps/web/src/components/csv-import.tsx:293` | `lain` | TERBUKA | — | — |
 | `CA-1-73` | §13 | Ringkas | Statistik pengumuman gagal dimuat tanpa pesan | `apps/web/src/app/hr/announcements/page.tsx:128` | `lain` | TERBUKA | — | — |
-| `CA-1-74` | §13 | Ringkas | Hasil check-in menampilkan enum mentah, selalu hijau | `apps/web/src/app/hr/me/check-in/page.tsx:99` | `lain` | TERBUKA | — | — |
+| `CA-1-74` | §13 | Ringkas | Hasil check-in menampilkan enum mentah, selalu hijau | `apps/web/src/app/hr/me/check-in/page.tsx:99` | `lain` | SUDAH DIPERBAIKI | `hr/me/check-in/page.tsx` + RESULT_TONE | Hasil check-in ditampilkan sebagai kata dan diberi warna sesuai artinya; PENDING dan LATE tidak lagi hijau |
 | `CA-1-75` | §13 | Ringkas | Pencarian karyawan & filter audit menembak request tiap ketikan | `apps/web/src/app/hr/employees/page.tsx:91 · audit/page.tsx:22` | `lain` | TERBUKA | — | — |
 | `CA-1-76` | §13 | Ringkas | “Buatkan akun” berhasil tanpa pesan, fokus terlempar ke body | `apps/web/src/app/hr/employees/page.tsx:56` | `lain` | TERBUKA | — | — |
 | `CA-1-77` | §13 | Ringkas | Tombol Masuk/Pulang tidak mengumumkan mana yang terpilih | `apps/web/src/app/hr/me/check-in/page.tsx:89` | `lain` | TERBUKA | — | — |
 | `CA-1-78` | §13 | Ringkas | Filter & kotak cari tanpa nama aksesibel (5 halaman) | `hr/employees:124 · hr/leave:86 · hr/audit:28 · hr/announcements:273,287` | `lain` | TERBUKA | — | — |
 | `CA-1-79` | §13 | Ringkas | Ruang kosong 96px di bawah setiap halaman HR di HP | `apps/web/src/app/hr/layout.tsx:45` | `lain` | TERBUKA | — | — |
-| `CA-1-80` | §13 | Ringkas | Judul /hr/me/attendance hardcoded padahal key-nya sudah ada | `apps/web/src/app/hr/me/attendance/page.tsx:23` | `lain` | TERBUKA | — | — |
-| `CA-1-81` | §13 | Ringkas | loans/import mengirim judul mentah ke t(), bukan key | `apps/web/src/app/hr/loans/import/page.tsx:20` | `lain` | TERBUKA | — | — |
-| `CA-1-82` | §13 | Ringkas | Dokumen kepegawaian: 7 string hardcoded | `apps/web/src/components/hr/employee-documents.tsx:58` | `lain` | TERBUKA | — | — |
+| `CA-1-80` | §13 | Ringkas | Judul /hr/me/attendance hardcoded padahal key-nya sudah ada | `apps/web/src/app/hr/me/attendance/page.tsx:23` | `lain` | SUDAH DIPERBAIKI | `hr/me/attendance/page.tsx` | Memakai `hrFix.me.myAttendance` yang memang sudah ada, bukan judul yang diketik ulang di sebelahnya |
+| `CA-1-81` | §13 | Ringkas | loans/import mengirim judul mentah ke t(), bukan key | `apps/web/src/app/hr/loans/import/page.tsx:20` | `lain` | SUDAH DIPERBAIKI | `hr/loans/import/page.tsx` + `hrFix.imports.loansTitle` | Judul dikirim sebagai key, bukan kalimat mentah — CsvImport menjalankannya lewat t() |
+| `CA-1-82` | §13 | Ringkas | Dokumen kepegawaian: 7 string hardcoded | `apps/web/src/components/hr/employee-documents.tsx:58` | `lain` | SUDAH DIPERBAIKI | `components/hr/employee-documents.tsx` + `hrFix.documents2.saved` | Toast dokumen tersimpan lewat kamus |
 | `CA-1-83` | §13 | Ringkas | Kasbon: 8 string termasuk 3 badge status | `apps/web/src/components/hr/employee-loans.tsx:74` | `lain` | TERBUKA | — | — |
 | `CA-1-84` | §13 | Ringkas | Peringatan pengambilalihan akun seluruhnya hardcoded | `apps/web/src/components/hr/employee-form.tsx:366` | `lain` | TERBUKA | — | — |
 | `CA-1-85` | §13 | Ringkas | Halaman kinerja: 7 string skor & error | `apps/web/src/app/hr/performance/page.tsx:173` | `lain` | TERBUKA | — | — |

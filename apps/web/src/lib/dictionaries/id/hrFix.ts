@@ -19,6 +19,34 @@ export const hrFix = {
     employee: 'Karyawan',
   },
   map: {
+    historyChange: {
+      HIRED: 'Direkrut',
+      ACCOUNT_LINKED: 'Akun login ditautkan',
+      employmentStatus: 'Status kepegawaian',
+      position: 'Jabatan',
+      role: 'Peran login',
+      status: 'Status',
+      exitDate: 'Tanggal keluar',
+      salaryType: 'Jenis gaji',
+      dailyRate: 'Upah harian',
+      monthlyRate: 'Gaji bulanan',
+      depotId: 'Depot',
+    },
+    salaryType: { DAILY: 'Harian', MONTHLY: 'Bulanan' },
+    bonusType: {
+      ATTENDANCE: 'Kehadiran',
+      PERFORMANCE: 'Kinerja',
+      SALES: 'Penjualan',
+      DEPOT: 'Depot',
+      MANUAL: 'Manual',
+    },
+    deductionType: {
+      LATE: 'Terlambat',
+      ABSENCE: 'Mangkir',
+      MANUAL: 'Manual',
+      CASH_ADVANCE: 'Kasbon',
+      OTHER: 'Lainnya',
+    },
     gender: { MALE: 'Laki-laki', FEMALE: 'Perempuan' },
     ptkp: {
       TK0: 'TK/0 — lajang',
@@ -581,6 +609,11 @@ export const hrFix = {
     saved: 'Penilaian disimpan',
   },
   employeeDetail: {
+    framesReady: '{n} foto siap',
+    resetFrames: 'Reset',
+    role: 'Jabatan (login)',
+    depot: 'Depot',
+    exitDate: 'Tanggal keluar',
     viewPayroll: 'Lihat Payroll →',
     viewAttendance: 'Riwayat Absensi →',
     enrolHint: 'Ambil 1–3 foto wajah yang jelas untuk verifikasi absensi.',
@@ -1570,6 +1603,7 @@ export const hrFix = {
     hint: 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
   },
   imports: {
+    loansTitle: 'Import Kasbon Berjalan',
     // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
     desc: {
       customers:
@@ -1835,6 +1869,7 @@ export const hrFix = {
     none: 'Tidak ada aset perusahaan yang dipegang.',
   },
   documents2: {
+    saved: 'Dokumen tersimpan',
     pickFile: 'Pilih file dulu.',
     uploadFailed: 'Gagal mengunggah dokumen.',
   },
