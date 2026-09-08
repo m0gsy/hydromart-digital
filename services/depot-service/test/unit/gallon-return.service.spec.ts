@@ -15,7 +15,15 @@ import {
   CreateApprovalInput,
 } from '../../src/application/services/approval.service';
 import { ApprovalType } from '../../src/domain/approval';
-import { InMemoryDepotRepository, InMemoryGallonIssueRepository } from '../support/fakes';
+import { InventoryService } from '../../src/application/services/inventory.service';
+import {
+  FakeLowStockAlert,
+  FakeProductCatalog,
+  FakeUntrackedSaleAlert,
+  InMemoryDepotRepository,
+  InMemoryGallonIssueRepository,
+  InMemoryInventoryRepository,
+} from '../support/fakes';
 
 const GALLON_DEPOSIT_IDR = 20000;
 const configStub = { gallonDepositIdr: () => GALLON_DEPOSIT_IDR } as DepotConfigService;
@@ -154,18 +162,36 @@ describe('GallonReturnService', () => {
   let approvals: SpyApprovalService;
   let service: GallonReturnService;
   let depotId: string;
+  // CA-2-57: a return now raises the depot's physical GALON line, so the spec carries a
+  // real inventory rather than a stub — the count is the thing under test.
+  let invRepo: InMemoryInventoryRepository;
+  let makeInventory: () => InventoryService;
 
   beforeEach(async () => {
     depots = new InMemoryDepotRepository();
     returns = new InMemoryGallonReturnRepository();
     issues = new InMemoryGallonIssueRepository();
     approvals = new SpyApprovalService();
+    invRepo = new InMemoryInventoryRepository();
+    makeInventory = () =>
+      new InventoryService(
+        invRepo,
+        depots,
+        new FakeLowStockAlert(),
+        new FakeUntrackedSaleAlert(),
+        new FakeProductCatalog(),
+        new (class {
+          create = async (): Promise<unknown> => ({});
+        })() as never,
+        configStub,
+      );
     service = new GallonReturnService(
       returns,
       issues,
       depots,
       configStub,
       approvals as unknown as ApprovalService,
+      makeInventory(),
     );
     depotId = (await depots.create(DEPOT)).id;
     // Returns are now capped by what the depot has outstanding, so every test needs a
@@ -240,6 +266,7 @@ describe('GallonReturnService', () => {
       depots,
       configStub,
       approvals as unknown as ApprovalService,
+      makeInventory(),
     );
   };
 
@@ -314,6 +341,7 @@ describe('GallonReturnService', () => {
           depots,
           configStub,
           approvals as unknown as ApprovalService,
+          makeInventory(),
         ),
       };
     };

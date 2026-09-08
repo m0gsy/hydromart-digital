@@ -1,7 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { ApprovalType } from '../../domain/approval';
+import { InventoryItemType } from '../../domain/inventory';
 import { DepotConfigService } from '../../config/depot-config.service';
 import { DepotNotFoundError } from '../../domain/errors';
+import { ApprovalService } from './approval.service';
+import { InventoryService } from './inventory.service';
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
 import {
@@ -52,7 +56,58 @@ export class GallonIssueService {
     @Inject(DEPOT_TOKENS.GallonIssueRepository) private readonly issues: GallonIssueRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly config: DepotConfigService,
+    // CA-2-57: the ledger below now moves the physical GALON line too. No DI cycle —
+    // InventoryService injects ApprovalService, not the other way and not this service.
+    private readonly inventory: InventoryService,
+    private readonly approvals: ApprovalService,
   ) {}
+
+  private readonly logger = new Logger(GallonIssueService.name);
+
+  /**
+   * CA-2-57: an issue is empties LEAVING the depot, so the physical line goes down.
+   *
+   * Two things can go wrong and neither may be silent. If the depot has no GALON line the
+   * ledger row still stands and there is nothing to move — logged, because a depot handing
+   * out gallons with no gallon line is a setup fault somebody has to fix. If the line cannot
+   * cover the issue, the gallons still left the building: the movement is clamped to what
+   * the count had and the remainder goes to a manager as a GALLON_VARIANCE, the same
+   * treatment an over-return already gets.
+   */
+  private async moveStockOut(
+    depotId: string,
+    record: GallonIssueRecord,
+    actorId: string,
+    orderId?: string,
+  ): Promise<void> {
+    const moved = await this.inventory.moveRawLine(
+      depotId,
+      InventoryItemType.GALON,
+      -record.quantity,
+      actorId,
+      `Galon keluar (deposit) ${record.id}`,
+      orderId,
+    );
+    if (!moved) {
+      this.logger.warn(
+        `depot ${depotId} has no GALON inventory line; issue ${record.id} booked in the ledger only`,
+      );
+      return;
+    }
+    if (moved.shortfall > 0) {
+      await this.approvals.create(
+        {
+          depotId,
+          type: ApprovalType.GALLON_VARIANCE,
+          title: `Stok galon fisik tidak menutupi galon keluar (${moved.shortfall} galon)`,
+          subjectRef: record.id,
+          amountIdr: this.config.gallonDepositIdr(depotId) * moved.shortfall,
+          payload: { shortfallGallons: moved.shortfall, issueId: record.id },
+        },
+        actorId,
+      );
+    }
+  }
 
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
@@ -66,7 +121,7 @@ export class GallonIssueService {
     actorId: string,
   ): Promise<GallonIssueRecord> {
     await this.requireDepot(depotId);
-    return this.issues.create({
+    const record = await this.issues.create({
       depotId,
       customerId: input.customerId ?? null,
       quantity: input.quantity,
@@ -74,6 +129,8 @@ export class GallonIssueService {
       note: input.note ?? null,
       actorId,
     });
+    await this.moveStockOut(depotId, record, actorId);
+    return record;
   }
 
   /**
@@ -88,7 +145,7 @@ export class GallonIssueService {
     actorId: string,
   ): Promise<GallonIssueRecord> {
     await this.requireDepot(depotId);
-    return this.issues.createFromOrder({
+    const record = await this.issues.createFromOrder({
       depotId,
       orderId: input.orderId,
       customerId: input.customerId ?? null,
@@ -97,6 +154,10 @@ export class GallonIssueService {
       note: null,
       actorId,
     });
+    // The order id rides along: this fan-out is at-least-once, and without it a retried
+    // completion would deduct the same empties twice.
+    await this.moveStockOut(depotId, record, actorId, input.orderId);
+    return record;
   }
 
   async list(depotId: string, page: number, limit: number): Promise<Page<GallonIssueRecord>> {

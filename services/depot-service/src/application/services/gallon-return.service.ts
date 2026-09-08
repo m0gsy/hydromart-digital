@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ApprovalType } from '../../domain/approval';
 import { GallonCondition } from '../../domain/gallon-return';
+import { InventoryItemType } from '../../domain/inventory';
 import { DepotNotFoundError, GallonOverReturnError } from '../../domain/errors';
 import { DepotConfigService } from '../../config/depot-config.service';
 import { buildPage, Page } from '../pagination';
@@ -14,6 +15,7 @@ import {
 } from '../ports/gallon-return.repository';
 import { DEPOT_TOKENS } from '../tokens';
 import { ApprovalService } from './approval.service';
+import { InventoryService } from './inventory.service';
 
 export interface RecordReturnInput {
   customerId?: string | null;
@@ -48,7 +50,47 @@ export class GallonReturnService {
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly config: DepotConfigService,
     private readonly approvals: ApprovalService,
+    // CA-2-57: a return is empties coming BACK, so the physical GALON line goes up.
+    private readonly inventory: InventoryService,
   ) {}
+
+  private readonly logger = new Logger(GallonReturnService.name);
+
+  /**
+   * CA-2-57. GOOD only, and that is a decision worth stating rather than leaving in the
+   * shape of an `if`.
+   *
+   * The GALON line counts bottles the depot can put back into service. A DAMAGED empty is
+   * physically on the premises and is not one of those — booking it would inflate the count
+   * with bottles nobody can fill, which is the same class of untruth this row is about.
+   * A damaged return already goes to a manager as its own approval (`queueDamagedRefund`),
+   * and that is where a broken bottle's fate belongs.
+   *
+   * No shortfall is possible on the way in, so unlike the issue side there is nothing to
+   * queue — only the missing-line case, which is logged for the same reason.
+   */
+  private async moveStockIn(
+    depotId: string,
+    record: GallonReturnRecord,
+    condition: GallonCondition,
+    actorId: string,
+    orderId?: string,
+  ): Promise<void> {
+    if (condition !== GallonCondition.GOOD) return;
+    const moved = await this.inventory.moveRawLine(
+      depotId,
+      InventoryItemType.GALON,
+      record.quantity,
+      actorId,
+      `Galon kembali (retur) ${record.id}`,
+      orderId,
+    );
+    if (!moved) {
+      this.logger.warn(
+        `depot ${depotId} has no GALON inventory line; return ${record.id} booked in the ledger only`,
+      );
+    }
+  }
 
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
@@ -232,6 +274,7 @@ export class GallonReturnService {
       note: input.note ?? null,
       actorId,
     });
+    await this.moveStockIn(depotId, record, condition, actorId);
     if (excessGallons > 0) {
       await this.queueVariance(depotId, excessGallons, record.id, actorId);
     }
@@ -313,6 +356,9 @@ export class GallonReturnService {
      * about what happened is not. The flag is what the screen reads.
      */
     if (!created) return { ...record, alreadyRecorded: true };
+    // Only on a genuinely new record: `created === false` is the offline queue replaying one
+    // handover, and stock must not move twice for empties that came back once.
+    await this.moveStockIn(depotId, record, condition, courierId, input.orderId);
     if (excessGallons > 0) {
       await this.queueVariance(depotId, excessGallons, record.id, courierId);
     }
