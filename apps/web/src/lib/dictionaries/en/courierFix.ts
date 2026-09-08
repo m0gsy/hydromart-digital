@@ -60,6 +60,7 @@ export const courierFix = {
     loadError: 'Failed to load goal. Try again.',
   },
   podSuccess: {
+    queued: 'Saved on this phone and sent automatically once there is signal. The handover is done — do not repeat it.',
     title: 'Delivery complete',
     recipient: 'Recipient',
     time: 'Time',

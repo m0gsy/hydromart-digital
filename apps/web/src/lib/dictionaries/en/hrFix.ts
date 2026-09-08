@@ -1777,6 +1777,8 @@ export const hrFix = {
     expiresOpt: 'Valid until (optional)',
   },
   faceCapture2: {
+    retry: 'Try again',
+    retryHint: 'If camera access was denied, re-enable it in your browser settings, then press Try again.',
     cameraDenied: 'The camera is unavailable. Allow camera access, then reload.',
   },
   nav: {

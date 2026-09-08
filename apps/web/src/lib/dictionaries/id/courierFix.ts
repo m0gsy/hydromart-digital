@@ -64,6 +64,7 @@ export const courierFix = {
     loadError: 'Gagal memuat target. Coba lagi.',
   },
   podSuccess: {
+    queued: 'Tersimpan di HP dan akan dikirim otomatis begitu ada sinyal. Serah-terimanya sudah selesai — jangan diulang.',
     title: 'Pengantaran selesai',
     recipient: 'Penerima',
     time: 'Waktu',

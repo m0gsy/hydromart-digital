@@ -1796,6 +1796,8 @@ export const hrFix = {
     expiresOpt: 'Berlaku sampai (opsional)',
   },
   faceCapture2: {
+    retry: 'Coba lagi',
+    retryHint: 'Kalau izin kamera pernah ditolak, aktifkan lagi lewat setelan peramban, lalu tekan Coba lagi.',
     cameraDenied: 'Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.',
   },
   nav: {
