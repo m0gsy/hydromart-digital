@@ -359,6 +359,7 @@ export const hrFix = {
     activate: 'Aktifkan',
   },
   adjustments: {
+    type: 'Tipe',
     kindLabel: 'Jenis',
     importDeductions: 'Import Potongan',
     title: 'Bonus & Potongan',

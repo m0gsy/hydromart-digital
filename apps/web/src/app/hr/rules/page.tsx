@@ -22,6 +22,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import {
   BONUS_METRIC_LABEL,
+  BONUS_TYPE_LABEL,
   BONUS_TYPES,
   COMPARE_OP_LABEL,
   REWARD_KIND_LABEL,
@@ -168,7 +169,15 @@ function RulesBody() {
       rewardValue: String(r.rewardValue),
     });
     // The form sits below the list; on a phone the row and the form are never both visible.
-    document.getElementById('bonus-rule-form')?.scrollIntoView({ behavior: 'smooth' });
+    /*
+     * `?.scrollIntoView?.(` — the SECOND `?.` matters. jsdom does not implement
+     * `scrollIntoView` at all, so on a machine where this element exists the call is a
+     * TypeError, not a no-op. It reddened `main` after passing on my laptop, where the
+     * form happened not to be mounted when this ran and the first `?.` short-circuited.
+     * Nothing about the behaviour a courier or an HR officer sees depends on it, so the
+     * call being absent is fine; the throw was not.
+     */
+    document.getElementById('bonus-rule-form')?.scrollIntoView?.({ behavior: 'smooth' });
   }
 
   const depotName = (id: string | null) =>
@@ -197,7 +206,8 @@ function RulesBody() {
                   <Badge tone={r.active ? 'success' : 'neutral'}>
                     {r.active ? t('hrFix.rules.active') : t('hrFix.rules.inactive')}
                   </Badge>
-                  <Badge tone="brand">{r.bonusType}</Badge>
+                  {/* CA-1-59: the saved rule's own type, in words. */}
+                  <Badge tone="brand">{t(BONUS_TYPE_LABEL[r.bonusType])}</Badge>
                 </div>
                 <p className="text-sm text-muted">
                   {t(BONUS_METRIC_LABEL[r.metric])} {COMPARE_OP_LABEL[r.op]}{' '}
@@ -244,9 +254,11 @@ function RulesBody() {
                 onChange={(e) => set('bonusType', e.target.value as BonusType)}
                 className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
               >
-                {BONUS_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {/* CA-1-59: same shadowed `t` as /hr/adjustments — renamed so the
+                    translator is reachable. */}
+                {BONUS_TYPES.map((bt) => (
+                  <option key={bt} value={bt}>
+                    {t(BONUS_TYPE_LABEL[bt])}
                   </option>
                 ))}
               </select>

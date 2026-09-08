@@ -91,6 +91,14 @@ export default function AdjustmentsPage() {
   }
 
   const types = kind === 'bonus' ? BONUS_TYPES : DEDUCTION_TYPES;
+  // `Record<string, string>` would index to `string | undefined` under
+  // noUncheckedIndexedAccess; the two maps are exhaustive over their own unions, so the
+  // lookup is done through a helper that falls back to the raw value rather than crashing
+  // on a type the server adds before the web does.
+  const typeLabel = (ty: string): string =>
+    (kind === 'bonus' ? BONUS_TYPE_LABEL : DEDUCTION_TYPE_LABEL)[
+      ty as keyof typeof BONUS_TYPE_LABEL & keyof typeof DEDUCTION_TYPE_LABEL
+    ] ?? ty;
 
   /*
    * CA-1-09 — undo a typo.
@@ -229,15 +237,22 @@ export default function AdjustmentsPage() {
                   </select>
                 </label>
                 <label className="text-sm">
-                  Tipe
+                  {t('hrFix.adjustments.type')}
                   <select
                     value={type}
                     onChange={(e) => setType(e.target.value)}
                     className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
                   >
-                    {types.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
+                    {/*
+                      * CA-1-59, the half the first pass missed. The list rows below were
+                      * translated; this picker was not, and the reason is a shadow: the
+                      * map parameter was named `t`, hiding the translator from `useT()`.
+                      * The metric select on the sibling screen is translated and differs
+                      * in nothing else, which is what made the shadow easy to miss.
+                      */}
+                    {types.map((ty) => (
+                      <option key={ty} value={ty}>
+                        {t(typeLabel(ty))}
                       </option>
                     ))}
                   </select>
