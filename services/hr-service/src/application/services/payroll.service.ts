@@ -632,8 +632,9 @@ export class PayrollService {
       page: number;
       pageSize: number;
     },
-  ) {
-    return this.repo.list({
+  ): Promise<{ rows: Payroll[]; total: number; page: number; pageSize: number }> {
+    // CA-1-26: four fields, because `/hr/payroll` reads four. See `LeaveService.listSelf`.
+    const { rows, total } = await this.repo.list({
       periodMonth: query.periodMonth,
       employeeId: query.employeeId,
       status: query.status,
@@ -641,20 +642,23 @@ export class PayrollService {
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
+    return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 
   /** The caller's OWN payroll history (self-service PWA). Scoped by the linked employee. */
   async listSelf(
     user: AuthenticatedUser,
     query: { periodMonth?: string; page: number; pageSize: number },
-  ) {
+  ): Promise<{ rows: Payroll[]; total: number; page: number; pageSize: number }> {
     const employee = await this.employees.getSelf(user);
-    return this.repo.list({
+    // CA-1-26: "Slip Gaji Saya" reads `HrPage<Payroll>` too.
+    const { rows, total } = await this.repo.list({
       employeeId: employee.id,
       periodMonth: query.periodMonth,
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
+    return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 
   private async load(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {

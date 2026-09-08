@@ -200,11 +200,16 @@ export class ReportsController {
   @Get('announcements')
   @Can('hrView')
   @ApiOperation({ summary: 'Announcement reach & read-rate export (CSV, xlsx or pdf)' })
-  async announcements(@Query() q: RangeReportQueryDto, @Res() res: Response) {
+  async announcements(
+    @Query() q: RangeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
     await this.deliver(
       res,
       `announcements-${q.from}_${q.to}`,
-      await this.analytics.announcementReport(q),
+      // CA-1-31: the only export that had no caller, so it was the only one that leaked.
+      await this.analytics.announcementReport(user, q),
       q.format,
       'Laporan Pengumuman',
       `${q.from} s/d ${q.to}`,

@@ -30,9 +30,15 @@ export class PayrollReportQueryDto {
   @IsOptional() @IsIn(FORMATS) format?: string;
 }
 
-/** Announcements are network-wide by nature, so this one carries no depot filter. */
+/*
+ * CA-1-31. This used to read "Announcements are network-wide by nature, so this one carries
+ * no depot filter" — and the console's depot picker sent `depotId` anyway, so under
+ * `forbidNonWhitelisted` the export 400'd whenever a depot was chosen. Announcements are not
+ * network-wide by nature: CA-1-29 already scoped the list they come from.
+ */
 export class RangeReportQueryDto {
   @IsDateString() from!: string;
   @IsDateString() to!: string;
+  @IsOptional() @IsUUID() depotId?: string;
   @IsOptional() @IsIn(FORMATS) format?: string;
 }

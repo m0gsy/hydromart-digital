@@ -270,10 +270,28 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     );
   }
 
-  announcementsForReport(from: Date, to: Date): Promise<AnnouncementWithStats[]> {
+  announcementsForReport(
+    from: Date,
+    to: Date,
+    depotIds?: readonly string[],
+  ): Promise<AnnouncementWithStats[]> {
+    // CA-1-31: the third spelling of the rule in `announcement.prisma.repository.ts:47-56`
+    // and `AnnouncementService.getById` — COMPANY reaches everyone, DEPOT reaches the named
+    // depots. An export that ignored it handed a one-depot supervisor the whole network's
+    // reach and read-rate, which is the same leak CA-1-29 closed on the list.
     return this.allPages(({ take, cursor }) =>
       this.prisma.announcement.findMany({
-        where: { publishedAt: { gte: from, lte: to } },
+        where: {
+          publishedAt: { gte: from, lte: to },
+          ...(depotIds
+            ? {
+                OR: [
+                  { targets: { some: { dimension: 'COMPANY' } } },
+                  { targets: { some: { dimension: 'DEPOT', value: { in: [...depotIds] } } } },
+                ],
+              }
+            : {}),
+        },
         include: { targets: true, _count: { select: { reads: true } } },
         orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
         take,

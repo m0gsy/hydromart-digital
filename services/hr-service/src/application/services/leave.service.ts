@@ -106,13 +106,23 @@ export class LeaveService {
     return request;
   }
 
-  async listSelf(user: AuthenticatedUser, page = 1, pageSize = 20) {
+  // CA-1-26: the repository answers `{ rows, total }`, and every HR console screen reads
+  // `HrPage<T>` — four fields. The two the repository does not know are the two the CALLER
+  // chose, so they are added here rather than pushed down into a repository that has no
+  // business knowing what a page is. Same shape the attendance and employee lists already
+  // return; this endpoint was one of five that quietly answered two fields of four.
+  async listSelf(
+    user: AuthenticatedUser,
+    page = 1,
+    pageSize = 20,
+  ): Promise<{ rows: LeaveRequest[]; total: number; page: number; pageSize: number }> {
     const employee = await this.employees.getSelf(user);
-    return this.repo.list({
+    const { rows, total } = await this.repo.list({
       employeeId: employee.id,
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
+    return { rows, total, page, pageSize };
   }
 
   async myBalance(user: AuthenticatedUser, year?: number): Promise<LeaveBalance> {
@@ -160,18 +170,21 @@ export class LeaveService {
 
   // ── approver side ───────────────────────────────────────────────────
 
+  // CA-1-26: see `listSelf`. Here the defaults are resolved in the method, so the page the
+  // caller actually got is a fact only this method holds — the screen was casting it in.
   async listForApproval(
     user: AuthenticatedUser,
     query: { depotId?: string; status?: LeaveStatus; page?: number; pageSize?: number } = {},
-  ) {
+  ): Promise<{ rows: LeaveRequest[]; total: number; page: number; pageSize: number }> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
-    return this.repo.list({
+    const { rows, total } = await this.repo.list({
       depotIds: depotScopeIds(user, query.depotId),
       status: query.status,
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
+    return { rows, total, page, pageSize };
   }
 
   async decideManager(

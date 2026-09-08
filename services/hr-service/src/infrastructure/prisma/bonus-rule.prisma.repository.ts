@@ -28,10 +28,14 @@ export class BonusRulePrismaRepository implements BonusRuleRepository {
     });
   }
 
-  list(depotId?: string | null): Promise<BonusRule[]> {
-    return this.prisma.bonusRule.findMany({
-      where: depotId === undefined ? {} : { depotId },
-      orderBy: { createdAt: 'desc' },
-    });
+  list(scope?: string | null | readonly string[]): Promise<BonusRule[]> {
+    // The array arm mirrors `listActiveForDepot` above: a depot's own rules and the global
+    // defaults both apply to it, so both belong in a depot-scoped listing (CA-1-31).
+    const where = Array.isArray(scope)
+      ? { OR: [{ depotId: { in: [...scope] } }, { depotId: null }] }
+      : scope === undefined
+        ? {}
+        : { depotId: scope as string | null };
+    return this.prisma.bonusRule.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 }

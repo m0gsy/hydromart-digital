@@ -40,11 +40,14 @@ class FakeRepo implements BonusRuleRepository {
   async listActiveForDepot(): Promise<BonusRule[]> {
     return this.rows;
   }
-  async list(depotId?: string | null): Promise<BonusRule[]> {
-    if (depotId === undefined) return this.rows;
-    return this.rows.filter(
-      (r) => (r as unknown as { depotId: string | null }).depotId === depotId,
-    );
+  async list(scope?: string | null | readonly string[]): Promise<BonusRule[]> {
+    if (scope === undefined) return this.rows;
+    const depotOf = (r: BonusRule) => (r as unknown as { depotId: string | null }).depotId;
+    // Mirrors the Prisma arm: a depot list also carries the global (null-depot) defaults.
+    if (Array.isArray(scope)) {
+      return this.rows.filter((r) => depotOf(r) === null || scope.includes(depotOf(r) as string));
+    }
+    return this.rows.filter((r) => depotOf(r) === scope);
   }
 }
 
@@ -155,8 +158,35 @@ describe('BonusRuleService.list', () => {
     const { svc } = make();
     await svc.create(hr, { ...valid, depotId: DEPOT_A });
     await svc.create(hr, valid);
-    expect(await svc.list()).toHaveLength(2);
-    expect(await svc.list(DEPOT_A)).toHaveLength(1);
-    expect(await svc.list(null)).toHaveLength(1);
+    // HR sits above depots, so the unfiltered listing is still the whole network.
+    expect(await svc.list(hr)).toHaveLength(2);
+    expect(await svc.list(hr, DEPOT_A)).toHaveLength(1);
+    expect(await svc.list(hr, null)).toHaveLength(1);
+  });
+
+  /*
+   * CA-1-31. The listing took no caller at all, so `GET /bonus-rules` with no query handed
+   * every depot's bonus rules to anyone with `hrView` — which reaches a MANAGER pinned to
+   * one depot. These are the rules that mint bonuses onto payslips.
+   */
+  it('shows a depot-pinned caller their own rules and the global ones, not another depot’s', async () => {
+    const { svc } = make();
+    await svc.create(hr, { ...valid, depotId: DEPOT_A });
+    await svc.create(hr, { ...valid, depotId: DEPOT_B });
+    await svc.create(hr, valid); // global
+
+    const seen = await svc.list(manager(DEPOT_A));
+    expect(seen).toHaveLength(2);
+    const depots = seen.map((r) => (r as unknown as { depotId: string | null }).depotId);
+    expect(depots).toContain(DEPOT_A);
+    // The global rule pays out at DEPOT_A too, so hiding it would hide half their own answer.
+    expect(depots).toContain(null);
+    expect(depots).not.toContain(DEPOT_B);
+  });
+
+  it('refuses a depot the caller does not run rather than answering it', async () => {
+    const { svc } = make();
+    await svc.create(hr, { ...valid, depotId: DEPOT_B });
+    await expect(svc.list(manager(DEPOT_A), DEPOT_B)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

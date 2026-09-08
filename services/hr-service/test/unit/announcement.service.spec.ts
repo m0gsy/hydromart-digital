@@ -321,8 +321,8 @@ describe('AnnouncementService (C1)', () => {
     const { svc } = make();
     const out = await svc.create(hr, { ...DRAFT, targets: [{ dimension: 'COMPANY' }] });
     await svc.markRead(hr, out.id);
-    expect(await svc.getById(out.id)).toMatchObject({ audienceSize: 3, readCount: 1 });
-    await expect(svc.getById('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    expect(await svc.getById(hr, out.id)).toMatchObject({ audienceSize: 3, readCount: 1 });
+    await expect(svc.getById(hr, 'ghost')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   /*
@@ -371,6 +371,68 @@ describe('AnnouncementService (C1)', () => {
 
     // HR sits above depots, so HR still sees the whole network — that is their job.
     expect((await svc.list(hr)).rows).toHaveLength(3);
+  });
+
+  /*
+   * CA-1-31. CA-1-29 above scoped the LIST. One line away in the same controller, `getById`
+   * took no caller at all — so every notice CA-1-29 hid was still one id away, drafts
+   * included. The console links straight to it from the list, and an id is a uuid in a URL.
+   *
+   * These four cases are the list's two rules, asked through the id instead.
+   */
+  it('refuses a draft to a reader who cannot write one, through the id too', async () => {
+    const { svc } = make();
+    const draft = await svc.create(hr, {
+      title: 'draft',
+      body: 'x',
+      targets: [{ dimension: 'COMPANY' }],
+      scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    const spv: AuthenticatedUser = {
+      sub: 'spv-1',
+      role: 'SUPERVISOR' as never,
+      phone: null,
+      depotId: 'd1',
+    };
+    // 404, not 403: for an unsent notice the caller is not allowed to learn it exists.
+    await expect(svc.getById(spv, draft.id)).rejects.toBeInstanceOf(NotFoundException);
+    // The writer still opens their own draft.
+    expect(await svc.getById(hr, draft.id)).toMatchObject({ title: 'draft' });
+  });
+
+  it("refuses another depot's notice through the id", async () => {
+    const { svc } = make();
+    const mine = await svc.create(hr, {
+      title: 'for-d1',
+      body: 'x',
+      targets: [{ dimension: 'DEPOT', value: 'd1' }],
+    });
+    const theirs = await svc.create(hr, {
+      title: 'for-d2',
+      body: 'x',
+      targets: [{ dimension: 'DEPOT', value: 'd2' }],
+    });
+    const everyone = await svc.create(hr, {
+      title: 'everyone',
+      body: 'x',
+      targets: [{ dimension: 'COMPANY' }],
+    });
+    const spv: AuthenticatedUser = {
+      sub: 'spv-1',
+      role: 'SUPERVISOR' as never,
+      phone: null,
+      depotId: 'd1',
+    };
+
+    expect(await svc.getById(spv, mine.id)).toMatchObject({ title: 'for-d1' });
+    // A company-wide notice reaches every depot, so it survives here exactly as in the list.
+    expect(await svc.getById(spv, everyone.id)).toMatchObject({ title: 'everyone' });
+    await expect(svc.getById(spv, theirs.id)).rejects.toBeInstanceOf(NotFoundException);
+
+    // HR sits above depots and still reads all three — that is their job.
+    for (const a of [mine, theirs, everyone]) {
+      expect(await svc.getById(hr, a.id)).toBeTruthy();
+    }
   });
 
   it('pages the console list', async () => {

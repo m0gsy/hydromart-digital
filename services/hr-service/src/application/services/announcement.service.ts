@@ -128,8 +128,35 @@ export class AnnouncementService {
     });
   }
 
-  async getById(id: string): Promise<AnnouncementWithTargets & AnnouncementStats> {
+  /*
+   * CA-1-31. `list` above got both narrowings in CA-1-29 and this route, one line away in the
+   * same controller, got neither — so the leak CA-1-29 closed stayed open through the id.
+   * It leaked strictly more than the list ever did: no `publishedOnly`, so a supervisor
+   * reading `/hr/announcements/<id>` saw HQ's UNSENT drafts.
+   *
+   * By-id rows carry no depot for `DepotScopeGuard` to read (see its note at :44-45), so the
+   * rule is enforced here, exactly as `EmployeeService.getById` does it.
+   *
+   * The two conditions mirror the SQL in `announcement.prisma.repository.ts:47-56` term for
+   * term — COMPANY reaches everyone, DEPOT reaches the named depots — because two spellings
+   * of one rule is how these drifted apart in the first place. A row the list would not show
+   * is 404 here rather than 403: for a draft the caller is not allowed to know it exists.
+   */
+  async getById(
+    user: AuthenticatedUser,
+    id: string,
+  ): Promise<AnnouncementWithTargets & AnnouncementStats> {
     const announcement = await this.get(id);
+    const hidden = !announcement.publishedAt && !can('hrAdmin', user.role);
+    const depotIds = depotScopeIds(user);
+    const reaches =
+      !depotIds ||
+      announcement.targets.some(
+        (t) =>
+          t.dimension === 'COMPANY' ||
+          (t.dimension === 'DEPOT' && !!t.value && depotIds.includes(t.value)),
+      );
+    if (hidden || !reaches) throw new NotFoundException('Pengumuman tidak ditemukan');
     return { ...announcement, ...(await this.stats(announcement)) };
   }
 
