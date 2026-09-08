@@ -426,4 +426,24 @@ describe('ProfileController · internal notification preferences', () => {
     await c.internalNotificationPrefs('c2');
     expect(notifications.get).toHaveBeenCalledWith('c2');
   });
+
+  /*
+   * CA-3-48 — the write half. The account screen had two switches for one decision: the
+   * one under "Preferensi notifikasi" writes `categories.marketing`, which crm reads before
+   * every promotional send, and the one under "Persetujuan" writes a ledger nothing
+   * consults. auth-service pushes the ledger decision here so the two agree.
+   */
+  it('sets only the marketing category, leaving every other preference alone', async () => {
+    notifications.update.mockResolvedValue({ customerId: 'c1' });
+    await c.internalSetMarketing({ customerId: 'c1', allowed: false });
+    expect(notifications.update).toHaveBeenCalledWith('c1', {
+      categories: { marketing: false },
+    });
+  });
+
+  it('can put the opt-in back', async () => {
+    notifications.update.mockResolvedValue({ customerId: 'c1' });
+    await c.internalSetMarketing({ customerId: 'c1', allowed: true });
+    expect(notifications.update).toHaveBeenCalledWith('c1', { categories: { marketing: true } });
+  });
 });

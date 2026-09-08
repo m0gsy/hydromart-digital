@@ -8,6 +8,7 @@ import {
 } from '../../domain/errors/auth.errors';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
+import { Customer } from '../../domain/customer/customer.entity';
 import { CustomerRepository } from '../ports/customer.repository';
 import { AUTH_TOKENS } from '../tokens';
 import { OtpChallengeResult, RequestContext } from '../results';
@@ -54,14 +55,35 @@ export class RegistrationService {
       }
     }
 
-    const customer =
-      existing ??
-      (await this.customers.create({
+    const fullName = command.fullName?.trim() || null;
+
+    /*
+     * CA-3-38 — a second attempt on a still-pending number threw away what was typed.
+     *
+     * The row already exists (status PENDING_VERIFICATION), so `existing` was reused
+     * as-is and the new `fullName` and `email` were dropped on the floor. The path this
+     * matters on is the ordinary one: somebody mistypes their name or their email, never
+     * gets the code, and fills the form in again correctly. They were then verified under
+     * the wrong details, with nothing on screen to say the correction had been ignored —
+     * and the email in particular is a login identifier.
+     *
+     * Only what the caller actually supplied is written. A second attempt that leaves the
+     * optional email blank must not erase the address given on the first one; that is a
+     * deletion nobody asked for, and `updateProfile` treats `undefined` and `null`
+     * differently for exactly this reason.
+     */
+    let customer: Customer;
+    if (existing) {
+      existing.updateProfile(fullName ?? undefined, email ?? undefined);
+      customer = await this.customers.save(existing);
+    } else {
+      customer = await this.customers.create({
         phone,
         email,
-        fullName: command.fullName?.trim() || null,
+        fullName,
         role: Role.CUSTOMER,
-      }));
+      });
+    }
 
     // UU PDP tahap 2: the signup checkbox becomes a ledger row. Only for a NEW account —
     // re-issuing an OTP to a pending signup must not stack duplicate consent rows.

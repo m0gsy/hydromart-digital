@@ -255,7 +255,18 @@ export default function ResellersPage() {
         </Card>
       )}
 
-      {depotId && <RegisterResellerForm depotId={depotId} onDone={registry.reload} />}
+      {/*
+       * CA-3-44 — the registration form was shown to everyone who could READ this screen.
+       *
+       * `resellerView` includes SUPERVISOR and HR; `resellerAdmin`, which
+       * `POST /resellers` requires, does not. So both roles got a full form — phone,
+       * target, discount, flat price, join date — that ended in a 403 after they had
+       * typed all of it, and the only clue was a generic failure message. The Import
+       * button beside it was already gated on the same capability; this was the gap.
+       */}
+      {depotId && canManageResellers(customer?.role) && (
+        <RegisterResellerForm depotId={depotId} onDone={registry.reload} />
+      )}
 
       {registry.loading && depotId && <Skeleton className="h-64" />}
       {registry.error && <ErrorState message={registry.error} onRetry={registry.reload} />}

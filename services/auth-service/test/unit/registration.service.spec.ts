@@ -76,6 +76,49 @@ describe('RegistrationService', () => {
     expect(delivery.sent).toHaveLength(2);
   });
 
+  /*
+   * CA-3-38 — the ordinary path: somebody mistypes their name or email, never gets the
+   * code, and fills the form in again correctly. The pending row was reused as-is, so they
+   * were verified under the wrong details — and the email is a login identifier.
+   */
+  it('keeps the corrected name and email on a second attempt at a pending number', async () => {
+    await service.register({
+      phone: '081234567890',
+      fullName: 'Budi Santso',
+      email: 'budi@exmaple.com',
+      context: ctx,
+    });
+    clock.advance(61);
+    await service.register({
+      phone: '081234567890',
+      fullName: 'Budi Santoso',
+      email: 'budi@example.com',
+      context: ctx,
+    });
+
+    const rows = [...customers.rows.values()].filter((c) => c.phone === '+6281234567890');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.fullName).toBe('Budi Santoso');
+    expect(rows[0]?.email).toBe('budi@example.com');
+  });
+
+  it('does not erase details a later attempt simply left blank', async () => {
+    // Email is optional on the form. Somebody who gave it once and then re-submitted
+    // without it has not asked for it to be deleted.
+    await service.register({
+      phone: '081234567890',
+      fullName: 'Budi Santoso',
+      email: 'budi@example.com',
+      context: ctx,
+    });
+    clock.advance(61);
+    await service.register({ phone: '081234567890', context: ctx });
+
+    const rows = [...customers.rows.values()].filter((c) => c.phone === '+6281234567890');
+    expect(rows[0]?.fullName).toBe('Budi Santoso');
+    expect(rows[0]?.email).toBe('budi@example.com');
+  });
+
   it('rejects registration for an already-active phone (BR-001)', async () => {
     customers.seed(makeCustomer({ phone: '+6281234567890', status: CustomerStatus.ACTIVE }));
     await expect(service.register({ phone: '081234567890', context: ctx })).rejects.toBeInstanceOf(

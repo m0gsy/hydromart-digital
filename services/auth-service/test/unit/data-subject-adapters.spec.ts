@@ -269,6 +269,33 @@ describe('CustomerDataHttpAdapter', () => {
       'ECONNREFUSED',
     );
   });
+
+  /*
+   * CA-3-48 — the MARKETING decision reaching the switch that actually stops mail.
+   *
+   * Two things worth pinning. The URL hangs off /api/v1 directly, NOT under `customers/`
+   * like the two PDP routes above, because the preference it writes belongs to the profile
+   * controller — get that wrong and the call 404s, which this adapter turns into a
+   * ServiceUnavailable and the consent write then refuses, so a wrong path here would break
+   * every marketing toggle. And it raises like the rest of this adapter: a withdrawal
+   * reported as recorded but never applied is worse than one that visibly failed.
+   */
+  it('patches the marketing preference at the profile route, not under customers/', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+    await new CustomerDataHttpAdapter(configured).setMarketingAllowed('cust-1', false);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://customer/api/v1/profile/internal/marketing');
+    expect(init.method).toBe('PATCH');
+    expect(init.body).toBe(JSON.stringify({ customerId: 'cust-1', allowed: false }));
+    expect((init.headers as Record<string, string>)['x-internal-key']).toBe('k');
+  });
+
+  it('raises rather than reporting an opt-out it could not deliver', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    await expect(
+      new CustomerDataHttpAdapter(configured).setMarketingAllowed('cust-1', false),
+    ).rejects.toThrow('503');
+  });
 });
 
 describe('ConsentPrismaRepository', () => {

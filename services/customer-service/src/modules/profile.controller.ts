@@ -28,6 +28,7 @@ import {
   BirthdaySweepResultDto,
   DirectoryQueryDto,
   DirectoryRecipientDto,
+  InternalSetMarketingDto,
   ProfileResponseDto,
   UpdateNotificationsDto,
   UpdateProfileDto,
@@ -157,6 +158,38 @@ export class ProfileController {
     @Query('customerId', ParseUUIDPipe) customerId: string,
   ): Promise<NotificationPreferenceRecord> {
     return this.notifications.get(customerId);
+  }
+
+  /**
+   * CA-3-48 — the write half, so that withdrawing MARKETING consent actually stops mail.
+   *
+   * The account screen had two switches for one decision and they did not agree. The one
+   * under "Preferensi notifikasi" writes `categories.marketing` here, which crm-service
+   * reads before every promotional send and which the audience query joins on — so it
+   * works. The one under "Persetujuan" writes auth-service's consent ledger, which is the
+   * legal record and which NOTHING consults before sending. A customer who withdrew consent
+   * on the panel headed "Persetujuan" kept receiving promotions, and the screen gave them
+   * no way to know which of the two switches was the real one.
+   *
+   * auth-service pushes the decision here when the ledger row is written, rather than
+   * crm-service reading the ledger per recipient: this way the durable gate — the audience
+   * query, which has no failure mode — honours it too.
+   *
+   * Deliberately narrow: one category, one boolean. This is not a general internal profile
+   * write, and it must not become one.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Patch('profile/internal/marketing')
+  @ApiOperation({
+    summary: 'Set one customer’s marketing opt-out from the consent ledger (internal)',
+  })
+  @ApiOkResponse({ type: NotificationPreferenceResponseDto })
+  async internalSetMarketing(
+    @Body() dto: InternalSetMarketingDto,
+  ): Promise<NotificationPreferenceRecord> {
+    return this.notifications.update(dto.customerId, { categories: { marketing: dto.allowed } });
   }
 
   /**

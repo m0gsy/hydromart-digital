@@ -131,3 +131,19 @@ export class ProfileResponseDto {
   @ApiProperty({ nullable: true, example: '1990-05-17', description: 'DOB as YYYY-MM-DD.' })
   birthdate!: string | null;
 }
+
+/**
+ * CA-3-48 — the payload auth-service pushes when a MARKETING consent row is written.
+ *
+ * Deliberately narrow: one customer, one boolean. This is not a general internal profile
+ * write, and it must not grow into one.
+ */
+export class InternalSetMarketingDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ description: 'False withdraws the promotional opt-in.' })
+  @IsBoolean()
+  allowed!: boolean;
+}
