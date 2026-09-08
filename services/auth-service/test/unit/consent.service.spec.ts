@@ -84,6 +84,66 @@ describe('ConsentService', () => {
     });
   });
 
+  /*
+   * CA-3-48 — the switch that RECORDS the decision and the switch that ACTS on it were two
+   * different switches, and only one of them was labelled "Persetujuan".
+   *
+   * Nothing in the send path reads this ledger. What it reads is `categories.marketing` in
+   * customer-service — crm checks it before every promotional message and the audience
+   * query joins on it — so a customer who withdrew marketing consent here carried on
+   * receiving promotions, with no way to tell that the identical-looking toggle two panels
+   * up was the real one.
+   */
+  describe('CA-3-48 a MARKETING decision reaches the switch that stops mail', () => {
+    it('pushes the withdrawal to customer-service before recording it', async () => {
+      const customerData = {
+        export: jest.fn(),
+        anonymise: jest.fn(),
+        setMarketingAllowed: jest.fn().mockResolvedValue(undefined),
+      };
+      const svc = new ConsentService(repo, undefined, customerData);
+      await svc.set(CUSTOMER, 'MARKETING', false);
+
+      expect(customerData.setMarketingAllowed).toHaveBeenCalledWith(CUSTOMER, false);
+      expect(repo.rows.at(-1)).toMatchObject({ purpose: 'MARKETING', granted: false });
+    });
+
+    it('pushes a re-grant too, so the two switches cannot drift apart', async () => {
+      const customerData = {
+        export: jest.fn(),
+        anonymise: jest.fn(),
+        setMarketingAllowed: jest.fn().mockResolvedValue(undefined),
+      };
+      const svc = new ConsentService(repo, undefined, customerData);
+      await svc.set(CUSTOMER, 'MARKETING', true);
+      expect(customerData.setMarketingAllowed).toHaveBeenCalledWith(CUSTOMER, true);
+    });
+
+    it('records nothing when the push fails, so the screen cannot claim a withdrawal that did not happen', async () => {
+      const customerData = {
+        export: jest.fn(),
+        anonymise: jest.fn(),
+        setMarketingAllowed: jest.fn().mockRejectedValue(new Error('customer-service down')),
+      };
+      const svc = new ConsentService(repo, undefined, customerData);
+      await expect(svc.set(CUSTOMER, 'MARKETING', false)).rejects.toThrow(/down/);
+      // A withdrawal reported as recorded but never applied is the worse outcome: the
+      // customer walks away believing they opted out.
+      expect(repo.rows).toHaveLength(0);
+    });
+
+    it('leaves the mandatory purposes alone — they never reach the marketing switch', async () => {
+      const customerData = {
+        export: jest.fn(),
+        anonymise: jest.fn(),
+        setMarketingAllowed: jest.fn(),
+      };
+      const svc = new ConsentService(repo, undefined, customerData);
+      await svc.set(CUSTOMER, 'TERMS', true);
+      expect(customerData.setMarketingAllowed).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses to withdraw a mandatory purpose and says deletion is the real request', async () => {
     await service.recordRegistrationConsent(CUSTOMER);
 

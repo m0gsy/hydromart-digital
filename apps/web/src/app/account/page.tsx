@@ -964,6 +964,22 @@ const SHEETS = [
   Body: () => React.ReactNode;
 }[];
 
+/*
+ * CA-3-50 — three of those five rows are CUSTOMER-only on the server, and a staff or
+ * courier account was offered all five.
+ *
+ * `profile/notifications` (Preferensi) is `@Roles(Role.CUSTOMER)` by deliberate design:
+ * the table holds one audience, and staff pushes ignore a customer's own mutes, so a
+ * preference row keyed by a staff account would be a row nothing reads. Data pribadi and
+ * Persetujuan are the PDP routes, scoped to the data subject in the same way. So an
+ * operator who opened /account got three rows that could only ever open onto an error —
+ * and no explanation, because a 403 renders as a load failure.
+ *
+ * The same treatment K1.3 already gave the shopping links: the row is not offered rather
+ * than offered and denied. Payments and Devices stay — both answer for any account.
+ */
+const CUSTOMER_ONLY_SHEETS: readonly SheetKey[] = ['prefs', 'privacyData', 'consents'];
+
 /* ---------- Profile card ---------- */
 function ProfileCard({ customer, subtitle }: { customer: Customer; subtitle: string }) {
   const { t } = useT();
@@ -1176,7 +1192,7 @@ export default function AccountPage() {
           </div>
 
           <div className={GROUP}>
-            {SHEETS.map(({ key, titleKey, icon: Icon }) => (
+            {SHEETS.filter(({ key }) => !showOps || !CUSTOMER_ONLY_SHEETS.includes(key)).map(({ key, titleKey, icon: Icon }) => (
               <ListRow
                 key={key}
                 title={t(titleKey)}

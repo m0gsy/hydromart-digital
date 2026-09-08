@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
 import { ConsentNotWithdrawableError } from '../../domain/errors/auth.errors';
 import {
@@ -10,6 +10,7 @@ import {
   isWithdrawable,
 } from '../../domain/data-subject/consent';
 import { ConsentLagPage, ConsentLagReader, ConsentRepository } from '../ports/consent.repository';
+import { CustomerDataPort } from '../ports/customer-data.port';
 import { AUTH_TOKENS } from '../tokens';
 
 /**
@@ -87,6 +88,14 @@ export class ConsentService {
      * powers, and only this parameter carries the second one.
      */
     @Inject(AUTH_TOKENS.ConsentRepository) private readonly fleet?: ConsentLagReader,
+    /*
+     * CA-3-48: where a MARKETING decision has to land to actually stop mail. Optional so
+     * every existing test that builds this service with a ledger alone keeps compiling —
+     * `set` simply records, as it did, when nothing is bound.
+     */
+    @Optional()
+    @Inject(AUTH_TOKENS.CustomerDataPort)
+    private readonly customerData?: CustomerDataPort,
   ) {}
 
   /** Registration: the signup checkbox becomes real rows instead of a remembered click. */
@@ -165,6 +174,24 @@ export class ConsentService {
   ): Promise<ConsentRecord> {
     if (!granted && !isWithdrawable(purpose)) {
       throw new ConsentNotWithdrawableError(purpose);
+    }
+    /*
+     * CA-3-48 — the switch that records the decision, and the switch that acts on it, were
+     * two different switches, and only one of them was labelled "Persetujuan".
+     *
+     * Nothing in the send path reads this ledger. What it reads is `categories.marketing`
+     * in customer-service: crm-service checks it before every promotional message and the
+     * audience query joins on it. So a customer who withdrew marketing consent here kept
+     * receiving promotions, and had no way to tell that the identical-looking toggle two
+     * panels up was the one that worked.
+     *
+     * Pushed BEFORE the ledger row is written, and deliberately allowed to throw. A
+     * withdrawal that did not take effect must not be reported as recorded — the customer
+     * would walk away believing they had opted out. The screen shows the error and the
+     * toggle springs back, which is the truth.
+     */
+    if (purpose === 'MARKETING' && this.customerData) {
+      await this.customerData.setMarketingAllowed(customerId, granted);
     }
     return this.consents.record({
       customerId,

@@ -20,15 +20,26 @@ export class CustomerDataHttpAdapter implements CustomerDataPort {
   constructor(private readonly config: AuthConfigService) {}
 
   async export(customerId: string): Promise<Record<string, unknown>> {
-    const response = await this.call(`internal/pdp-export?customerId=${customerId}`, 'GET');
+    const response = await this.call(`customers/internal/pdp-export?customerId=${customerId}`, 'GET');
     return (await response.json()) as Record<string, unknown>;
   }
 
   async anonymise(customerId: string): Promise<void> {
-    await this.call('internal/pdp-anonymise', 'POST', { customerId });
+    await this.call('customers/internal/pdp-anonymise', 'POST', { customerId });
   }
 
-  private async call(path: string, method: 'GET' | 'POST', body?: unknown): Promise<Response> {
+  async setMarketingAllowed(customerId: string, allowed: boolean): Promise<void> {
+    // `profile/`, not `customers/`: the preference this writes belongs to the profile
+    // controller. Every path here is spelled out in full so the service-to-service contract
+    // checker can read it — a path built by a ternary is one it cannot follow.
+    await this.call('profile/internal/marketing', 'PATCH', { customerId, allowed });
+  }
+
+  private async call(
+    path: string,
+    method: 'GET' | 'POST' | 'PATCH',
+    body?: unknown,
+  ): Promise<Response> {
     const { customerUrl, internalKey } = this.config.customerData;
     if (!customerUrl || !internalKey) {
       throw new ServiceUnavailableException(
@@ -40,7 +51,7 @@ export class CustomerDataHttpAdapter implements CustomerDataPort {
     const timeout = setTimeout(() => controller.abort(), CustomerDataHttpAdapter.TIMEOUT_MS);
     let response: Response;
     try {
-      response = await fetch(`${customerUrl}/api/v1/customers/${path}`, {
+      response = await fetch(`${customerUrl}/api/v1/${path}`, {
         method,
         headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
         body: body === undefined ? undefined : JSON.stringify(body),

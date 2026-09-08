@@ -85,6 +85,37 @@ describe('/account menu by who is looking', () => {
     expect(links).toContain('/help');
   });
 
+  /*
+   * CA-3-50 — the sheets, which K1.3 did not reach.
+   *
+   * Preferensi, Data pribadi and Persetujuan are all CUSTOMER-only on the server:
+   * `profile/notifications` is `@Roles(Role.CUSTOMER)` because the table holds one audience
+   * by design, and the two PDP sheets are scoped to the data subject. An operator who
+   * opened /account was offered all three, and each opened onto a load error with no
+   * explanation — a 403 renders as a failure, not as "this is not yours".
+   */
+  it('a staff account is not offered the three sheets that can only 403', async () => {
+    auth.customer = { id: 's-3', role: 'STAFF_DEPOT', fullName: 'Andi', phone: '0812' };
+    render(<AccountPage />, { wrapper: LocaleProvider });
+    await waitFor(() => expect(screen.getByText('Andi')).toBeTruthy());
+    const labels = Array.from(document.querySelectorAll('button, a')).map((el) => el.textContent);
+    for (const customerOnly of ['Preferensi', 'Data pribadi', 'Persetujuan']) {
+      expect(labels.some((l) => l?.includes(customerOnly))).toBe(false);
+    }
+    // The two that answer for any account stay.
+    expect(labels.some((l) => l?.includes('Perangkat'))).toBe(true);
+  });
+
+  it('a customer still gets all five sheets', async () => {
+    auth.customer = { id: 'c-2', role: 'CUSTOMER', fullName: 'Rina', phone: '0811' };
+    render(<AccountPage />, { wrapper: LocaleProvider });
+    await waitFor(() => expect(screen.getByText('Rina')).toBeTruthy());
+    const labels = Array.from(document.querySelectorAll('button, a')).map((el) => el.textContent);
+    for (const sheet of ['Preferensi', 'Data pribadi', 'Persetujuan', 'Perangkat']) {
+      expect(labels.some((l) => l?.includes(sheet))).toBe(true);
+    }
+  });
+
   it('the loyalty read is not even made for a staff account', async () => {
     auth.customer = { id: 's-2', role: 'DRIVER', fullName: 'Budi', phone: '0813' };
     render(<AccountPage />, { wrapper: LocaleProvider });
