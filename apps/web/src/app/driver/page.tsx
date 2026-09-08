@@ -211,6 +211,9 @@ function DriverConsole() {
                 <PodCapture
                   deliveryId={d.id}
                   orderNumber={d.orderNumber}
+                  // CA-4-34: the home card opens the same form inline, so it needs the
+                  // same way out — otherwise back still discards a captured handover.
+                  onCancel={() => setCapturing(null)}
                   onDone={() => {
                     setCapturing(null);
                     list.reload();

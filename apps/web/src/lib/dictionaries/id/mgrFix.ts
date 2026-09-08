@@ -4,6 +4,10 @@
 // mirrors this exact shape. NO `as const` (coordinator registers the fragment).
 export const mgrFix = {
   approvalDecide: {
+    rejectReasonRequired: 'Tulis alasan penolakan dulu',
+    raiserNote: 'Keterangan pengaju',
+    noteLabel: 'Catatan keputusan',
+    notePlaceholder: 'Wajib kalau menolak',
     approveTitle: 'Setujui pengajuan ini?',
     rejectTitle: 'Tolak pengajuan ini?',
     thisItem: 'pengajuan ini',
@@ -148,6 +152,7 @@ export const mgrFix = {
     },
   },
   login: {
+    sendFailed: 'Gagal mengirim kode. Coba lagi.',
     sendOtp: 'Kirim kode OTP',
     subtitle: 'Konsol Manajer Depot',
     staffOnly: 'Hanya untuk staf Hydromart.',

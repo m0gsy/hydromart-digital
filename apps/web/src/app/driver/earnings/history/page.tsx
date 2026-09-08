@@ -37,6 +37,9 @@ const WHEN = new Intl.DateTimeFormat('id-ID', {
 // settlement-history screen already uses).
 const TYPE_LABEL: Record<CourierLedgerEntryType, string> = {
   EARNING: 'hrFix.earningsHistory.typeEarning',
+  // CA-4-25: the ladder bonus. payout-service has always written this type and the web
+  // union did not carry it, so the row arrived with a blank label.
+  INCENTIVE: 'hrFix.earningsHistory.typeIncentive',
   DEDUCTION: 'hrFix.earningsHistory.typeDeduction',
   CASH_VARIANCE: 'hrFix.earningsHistory.typeCashVariance',
   WITHDRAWAL: 'hrFix.earningsHistory.typeWithdrawal',

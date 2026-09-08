@@ -1,6 +1,10 @@
 // English mirror of id/mgrFix.ts — SAME shape, NO `as const`. See the id file for context.
 export const mgrFix = {
   approvalDecide: {
+    rejectReasonRequired: 'Write a reason for the rejection first',
+    raiserNote: 'Note from the requester',
+    noteLabel: 'Decision note',
+    notePlaceholder: 'Required when rejecting',
     approveTitle: 'Approve this request?',
     rejectTitle: 'Reject this request?',
     thisItem: 'this request',
@@ -143,6 +147,7 @@ export const mgrFix = {
     },
   },
   login: {
+    sendFailed: 'Could not send the code. Try again.',
     sendOtp: 'Send OTP code',
     subtitle: 'Depot manager console',
     staffOnly: 'Hydromart staff only.',

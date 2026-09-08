@@ -40,6 +40,7 @@ export const dashA = {
     gateBody: 'Antrean approval tersedia untuk manajer depot dan super admin.',
   },
   approvalDetail: {
+    raiserNote: 'Keterangan pengaju',
     submittedByLabel: 'Diajukan oleh',
     decidedByLabel: 'Diputuskan oleh',
     type: {

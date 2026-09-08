@@ -190,6 +190,7 @@ function Detail({ id }: { id: string }) {
   }
 
   const a = detail.data;
+  const payload = a.payload ?? {};
   const pending = a.status === 'PENDING' || a.status === 'HELD';
 
   return (
@@ -256,6 +257,21 @@ function Detail({ id }: { id: string }) {
           />
         </RowLine>
       </Card>
+
+      {/*
+        * CA-4-41 — the sentence the raiser wrote, on the desktop screen too.
+        *
+        * Every raiser puts an explanation in `payload.note` and neither approval screen has
+        * ever rendered it, so both audiences decided money from the numbers alone.
+        */}
+      {typeof payload.note === 'string' && payload.note.trim() !== '' && (
+        <Card className="p-4">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
+            {t('dashA.approvalDetail.raiserNote')}
+          </div>
+          <p className="mt-1 text-sm">{payload.note}</p>
+        </Card>
+      )}
 
       {a.decisionNote && (
         <Card className="p-4">
