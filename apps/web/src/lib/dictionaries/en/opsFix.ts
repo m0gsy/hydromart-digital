@@ -13,6 +13,7 @@ export const opsFix = {
       'The old formats (.xls / .ods) cannot be read. Open the file, then "Save As" → Excel Workbook (.xlsx).',
     downloadFailedRows: 'Download failed rows',
     downloadProblemRows: 'Download problem rows',
+    failed: 'Import failed, try again.',
     pickFile: 'Choose file',
     downloadTemplate: 'Download Excel template',
     upsertHint:

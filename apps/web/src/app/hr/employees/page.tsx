@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useToast } from '@/components/toast';
 import { useT } from '@/lib/locale-context';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   Badge,
@@ -29,6 +30,7 @@ import {
 import { canManageHr } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { useDebounce } from '@/lib/use-debounce';
 import { useQueryState } from '@/lib/use-query-param';
 import { usePagedList } from '@/lib/use-paged-list';
 
@@ -57,14 +59,30 @@ const STATUS_TONE: Record<EmployeeStatus, 'success' | 'neutral' | 'danger'> = {
  */
 function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated: () => void }) {
   const { t } = useT();
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
 
   async function run() {
     setBusy(true);
     setError(null);
     try {
       await api.post(endpoints.hr.createEmployeeAccount(employee.id), {}, true);
+      /*
+       * CA-1-76. Two things were missing on the ONLY path that worked.
+       *
+       * Nothing was said: the reload removes this button (the employee now has a login), so
+       * a success looked exactly like a button that quietly disappeared. Failure had a
+       * message and success had none.
+       *
+       * And focus fell to <body>. This button is the element being removed, so a keyboard
+       * or screen-reader user was thrown to the top of the document by succeeding. Focus
+       * moves to the row's own link first, which is where the employee they just acted on
+       * still is.
+       */
+      toast(t('hrFix.employees.accountCreated', { name: employee.fullName }));
+      btn.current?.closest('[data-employee-row]')?.querySelector('a')?.focus();
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hrFix.employees.accountFailed'));
@@ -76,6 +94,7 @@ function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated:
   return (
     <div className="flex flex-col items-end gap-1">
       <button
+        ref={btn}
         type="button"
         disabled={busy}
         onClick={() => void run()}
@@ -102,6 +121,15 @@ export default function EmployeesPage() {
    * shareable, which a colleague asking "which ones do you mean?" can use.
    */
   const [search, setSearch] = useQueryState('q');
+  /*
+   * CA-1-75. `search` feeds the list's dependency array directly, so every keystroke fired
+   * an authenticated, paged, depot-scoped query — "Budi" was four. `useDebounce` already
+   * exists for exactly this and `employee-select.tsx` beside it already uses it.
+   *
+   * The debounce sits on the value the LIST reads, not on the URL: the box stays instant
+   * and the query string still updates as you type, so a copied URL is what is on screen.
+   */
+  const debouncedSearch = useDebounce(search);
   const [statusParam, setStatus] = useQueryState('status');
   const status = statusParam as EmployeeStatus | '';
   const [departmentId, setDepartmentId] = useQueryState('departmentId');
@@ -111,7 +139,7 @@ export default function EmployeesPage() {
       api
         .get<HrPage<Employee>>(
           endpoints.hr.employees({
-            search: search || undefined,
+            search: debouncedSearch || undefined,
             status: status || undefined,
             departmentId: departmentId || undefined,
             page,
@@ -120,7 +148,7 @@ export default function EmployeesPage() {
           true,
         )
         .then((p) => ({ items: p.rows, total: p.total })),
-    [search, status, departmentId],
+    [debouncedSearch, status, departmentId],
   );
   const reload = list.reload;
   // K-9: reference data — getCached, like every other department/depot read on main.
@@ -139,7 +167,7 @@ export default function EmployeesPage() {
           canManageHr(customer?.role) ? (
             <div className="flex gap-2">
               <LinkButton href="/hr/employees/import" variant="secondary">
-                Import Excel
+                {t('hrFix.employees.importExcel')}
               </LinkButton>
               <LinkButton href="/hr/employees/new">{t('hrFix.employees.add')}</LinkButton>
             </div>
@@ -148,7 +176,11 @@ export default function EmployeesPage() {
       />
 
       <div className="flex flex-wrap gap-3">
+        {/* CA-1-78: a placeholder is not a name — it vanishes as soon as anything is typed,
+            and a screen reader then announces an unlabelled "edit text". The selects beside
+            this one already carry `aria-label`; the search box was the exception. */}
         <Input
+          aria-label={t('hrFix.employees.searchHint')}
           placeholder={t('hrFix.employees.searchHint')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -197,7 +229,9 @@ export default function EmployeesPage() {
       {list.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {list.rows.map((e) => (
-            <div key={e.id} className="flex items-center justify-between gap-3 p-4">
+            // CA-1-76: the anchor `CreateAccount` hands focus back to after it removes
+            // its own button.
+            <div key={e.id} data-employee-row className="flex items-center justify-between gap-3 p-4">
               <Link
                 href={`/hr/employees/detail?id=${e.id}`}
                 className="min-w-0 flex-1 hover:opacity-80"

@@ -555,6 +555,8 @@ export const hrFix = {
     allDepartments: 'All departments',
     empty: 'No employees.',
     accountFailed: 'Could not create the account.',
+    accountCreated: 'Account created for {name}',
+    importExcel: 'Import Excel',
     departmentUnreadable: 'Departments could not be read',
   },
   leave: {
@@ -565,6 +567,7 @@ export const hrFix = {
     title: 'Leave requests',
     subtitle: "Stage 1 the manager, stage 2 HR. HR's approval writes the attendance as leave.",
     noteHint: 'Note (required when rejecting)',
+    noteFor: 'Note for {name}',
     allStatuses: 'All statuses',
     empty: 'No requests.',
     approve: 'Approve',
@@ -1654,6 +1657,7 @@ export const hrFix = {
   audit: {
     title: 'Audit log',
     filterHint: 'Filter by entity (employees, payroll, …)',
+    entries: '{n} entries',
     actor: 'By',
     actorSystem: 'system',
     empty: 'No entries yet.',

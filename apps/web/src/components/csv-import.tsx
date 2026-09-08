@@ -216,6 +216,14 @@ export function CsvImport({
   const { t } = useT();
   const [rows, setRows] = useState<PreparedRow[] | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  /*
+   * CA-1-72. One state used to carry two different failures at two different moments: a
+   * file that could not be read (belongs beside the file input) and an import the server
+   * refused (belongs beside the button that sent it). Both rendered at the top, and with a
+   * few hundred rows previewed in between, the second one landed thousands of pixels above
+   * the button the person had just pressed — off screen, on a failure they caused.
+   */
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ImportResponse | null>(null);
 
@@ -285,10 +293,13 @@ export function CsvImport({
     setSubmitting(true);
     try {
       const payload = { ...body, rows: valid.map((r) => r.payload) };
+      setSubmitError(null);
       setResult(await api.post<ImportResponse>(endpoint, payload, true));
       onDone?.();
     } catch (err) {
-      setFileError(err instanceof ApiError ? err.message : 'Import gagal, coba lagi.');
+      // CA-2-47 shape: `setFileError('…')` was a hardcoded Indonesian literal the i18n gate
+      // does not look inside.
+      setSubmitError(err instanceof ApiError ? err.message : t('opsFix.import.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -426,6 +437,12 @@ export function CsvImport({
               </tbody>
             </table>
           </div>
+
+          {submitError && (
+            <p className="text-[13px] font-medium text-[color:var(--danger)]" role="alert">
+              {submitError}
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-2.5">
             <Button onClick={submit} loading={submitting} disabled={valid.length === 0}>
