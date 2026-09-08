@@ -213,7 +213,11 @@ function Detail() {
       )}
       {delivery.status === 'ON_DELIVERY' &&
         (capturing ? (
-          <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={() => router.replace(`/driver/deliveries/detail/success?id=${id}`)} />
+          <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={(queued) =>
+              router.replace(
+                `/driver/deliveries/detail/success?id=${id}${queued ? '&queued=1' : ''}`,
+              )
+            } />
         ) : (
           <div className="space-y-2">
             {/*

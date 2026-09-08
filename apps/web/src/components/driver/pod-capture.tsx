@@ -106,7 +106,8 @@ function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
 interface Props {
   deliveryId: string;
   orderNumber: string;
-  onDone: () => void;
+  /** CA-4-17: true when the proof went to the offline queue rather than to the server. */
+  onDone: (queued: boolean) => void;
 }
 
 /**
@@ -170,7 +171,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
       // Queued counts as done for the courier: the handover happened, and holding them on
       // this screen until signal returns would strand them at the customer's gate. The
       // driver shell shows the pending item until it reaches the server.
-      await runOrQueue({
+      const outcome = await runOrQueue({
         kind: 'pod',
         payload: {
           deliveryId,
@@ -189,7 +190,15 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           note: note.trim() || undefined,
         },
       });
-      onDone();
+      /*
+       * CA-4-17: the success screen has to know this was QUEUED.
+       *
+       * It reads the delivery back to draw the proof — which, offline, is exactly the
+       * request that cannot succeed. So a handover that queued correctly sent the courier
+       * to a screen headed "Selesai" that rendered an error, on the one path where being
+       * offline is the expected case rather than a fault.
+       */
+      onDone(outcome.outcome === 'queued');
     } catch (e) {
       // J1: `e.message` on a GeoError is its reason token — this screen showed the courier
       // the bare word "timeout" at the one moment they are standing at a customer's door.

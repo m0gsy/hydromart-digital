@@ -25,8 +25,20 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  /*
+   * CA-1-55: a retry counter, and the whole reason this component needs one.
+   *
+   * Opening the camera failed and the screen printed one line of red text with no way
+   * forward — no button, nothing. An employee who denied the permission by accident, or
+   * whose camera was held by another app, had exactly one option: reload the page, on a
+   * screen reached by clocking in. Bumping this re-runs the effect, which asks again.
+   */
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    setError(null);
+    setReady(false);
     // Prefer the front camera, but fall back to any camera — some devices (and headless
     // fake devices) reject the facingMode constraint outright.
     (navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' }, audio: false }) ??
@@ -52,7 +64,7 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
     // when the language toggles would stop and restart the stream mid-capture. The message
     // is only read at failure time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   /** Downscaled grayscale samples of the current frame, for motion/sharpness math. */
   const graySample = useCallback((video: HTMLVideoElement): Uint8ClampedArray => {
@@ -99,7 +111,20 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
     setBusy(false);
   }, [graySample, onCapture]);
 
-  if (error) return <p className="text-sm text-red-600" role="alert">{error}</p>;
+  if (error) {
+    return (
+      <div className="space-y-2.5 text-center">
+        {/* `text-red-600` is a raw colour that does not follow the theme; the token does. */}
+        <p className="text-sm text-[color:var(--danger)]" role="alert">
+          {error}
+        </p>
+        <Button type="button" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+          {t('hrFix.faceCapture2.retry')}
+        </Button>
+        <p className="text-xs text-muted">{t('hrFix.faceCapture2.retryHint')}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

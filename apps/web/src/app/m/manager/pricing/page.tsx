@@ -100,7 +100,7 @@ function RuleRow({ rule, depotId }: { rule: PricingRule; depotId: string }) {
 export default function ManagerPricingPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const { scopedId, ready, depots } = useDepot();
+  const { scopedId, ready, depots, error: depotsError, reload: reloadDepots } = useDepot();
   const depotId = scopedId ?? customer?.assignedDepotId ?? '';
 
   const rules = useAsync<PricingRule[]>(
@@ -117,7 +117,16 @@ export default function ManagerPricingPage() {
         </p>
       </header>
 
-      {ready && depots.length === 0 && !depotId ? (
+      {/*
+        CA-4-10: "belum ada depot" is an answer, and a failed load is not one.
+        `depots.length === 0` is true both when the manager really has no depot AND when
+        the depot list could not be read at all — so an outage told a manager their depot
+        did not exist, on the screen that sets prices. The two are told apart now, and the
+        failure gets a retry rather than a shrug.
+      */}
+      {depotsError ? (
+        <ErrorState message={depotsError} onRetry={reloadDepots} />
+      ) : ready && depots.length === 0 && !depotId ? (
         <CenterState icon={<Tag size={32} />} title={t('hrFix.managerPricing.noDepot')}>
           {t('hrFix.managerPricing.noDepots2')}
         </CenterState>

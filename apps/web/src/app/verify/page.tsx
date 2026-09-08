@@ -86,6 +86,8 @@ function VerifyForm() {
   const expired = lifetime === 0;
 
   const counting = cooldown > 0 && !expired;
+  // CA-3-37: true only while a resend request is actually in flight.
+  const [resending, setResending] = useState(false);
   useEffect(() => {
     if (lifetime === null || lifetime <= 0) return;
     const id = setInterval(() => setLifetime((s) => (s === null ? null : Math.max(0, s - 1))), 1000);
@@ -129,7 +131,11 @@ function VerifyForm() {
   }
 
   async function resend() {
-    if (counting) return;
+    // CA-3-37: `counting` alone does not cover the request that is ALREADY IN FLIGHT —
+    // the cooldown is only set once the answer comes back, so two taps a second apart
+    // both passed and sent two codes, and the second one invalidated the first.
+    if (counting || resending) return;
+    setResending(true);
     setError(null);
     setResent(null);
     try {
@@ -151,6 +157,17 @@ function VerifyForm() {
       setLifetime(challenge.expiresInSeconds || null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.verify.resendError'));
+      /*
+       * CA-3-37: and it locks again on FAILURE, which it never did.
+       *
+       * The cooldown was set only on the happy path, so a failed resend left the button
+       * live and hammerable — against a server that has the cooldown anyway, so every one
+       * of those taps was refused. The floor is the same default the first send uses; a
+       * server that answers with its own number replaces it on the next success.
+       */
+      setCooldown(RESEND_SECONDS);
+    } finally {
+      setResending(false);
     }
   }
 
@@ -254,10 +271,14 @@ function VerifyForm() {
         <button
           type="button"
           onClick={resend}
-          disabled={counting}
+          disabled={counting || resending}
           className="font-bold text-brand-700 transition-colors hover:text-brand-800 disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
         >
-          {counting ? t('auth.verify.resendIn', { n: cooldown }) : t('auth.verify.resend')}
+          {resending
+            ? t('auth.verify.resending')
+            : counting
+              ? t('auth.verify.resendIn', { n: cooldown })
+              : t('auth.verify.resend')}
         </button>
       </div>
     </div>

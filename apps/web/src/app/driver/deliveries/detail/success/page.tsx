@@ -21,14 +21,26 @@ function Success() {
   const router = useRouter();
   const { t } = useT();
   const id = useQueryParam('id');
-  const d = useAsync<Delivery>(() => api.get(endpoints.deliveries.driver.get(id), true), [id]);
+  /*
+   * CA-4-17: a queued handover is a SUCCESS that cannot be read back.
+   *
+   * This screen fetches the delivery to draw the proof — which, offline, is exactly the
+   * request that cannot succeed. So a proof that queued correctly landed on a screen
+   * headed "Selesai" that rendered an error, on the one path where being offline is the
+   * expected case rather than a fault.
+   */
+  const queued = useQueryParam('queued') === '1';
+  const d = useAsync<Delivery | null>(
+    () => (queued ? Promise.resolve(null) : api.get(endpoints.deliveries.driver.get(id), true)),
+    [id, queued],
+  );
   const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
 
-  if (d.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
-  if (d.error || !d.data) return <div className="p-5"><ErrorState message={d.error ?? t('courierFix.podSuccess.title')} onRetry={d.reload} /></div>;
+  if (!queued && d.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
+  if (!queued && (d.error || !d.data)) return <div className="p-5"><ErrorState message={d.error ?? t('courierFix.podSuccess.title')} onRetry={d.reload} /></div>;
 
   const delivery = d.data;
-  const proof = delivery.proof;
+  const proof = delivery?.proof;
   const next = (list.data?.items ?? []).find((x) => x.id !== id && ACTIVE.includes(x.status));
 
   return (
@@ -41,7 +53,16 @@ function Success() {
             </span>
           </span>
           <h1 className="mt-4 text-xl font-extrabold tracking-tight">{t('courierFix.podSuccess.title')}</h1>
-          <div className="mt-1 text-[13px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
+          <div className="mt-1 text-[13px] tabular-nums text-[color:var(--muted)]">
+            {delivery?.orderNumber ?? ''}
+          </div>
+          {/* CA-4-17: queued IS done for the courier — the handover happened — but saying
+              only "Selesai" would claim the server has it. It says which one this is. */}
+          {queued && (
+            <p className="mt-2 max-w-xs text-[12.5px] leading-relaxed text-[color:var(--warning)]">
+              {t('courierFix.podSuccess.queued')}
+            </p>
+          )}
         </div>
 
         <Card className="mt-6 p-0">
@@ -50,7 +71,7 @@ function Success() {
           </Row>
           <Row label={t('courierFix.podSuccess.time')}>
             <span className="font-bold tabular-nums">
-              {STAMP.format(new Date(proof?.capturedAt ?? delivery.deliveredAt ?? Date.now()))}
+              {STAMP.format(new Date(proof?.capturedAt ?? delivery?.deliveredAt ?? Date.now()))}
             </span>
           </Row>
           <Row label={t('courierFix.podSuccess.gps')}>
