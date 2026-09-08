@@ -167,5 +167,10 @@ describe('hq/access matrix saves as one transaction', () => {
     expect(path).toBe('/auth/api/v1/access/matrix');
     expect(Array.isArray((body as { changes: unknown[] }).changes)).toBe(true);
     expect(del).not.toHaveBeenCalled();
-  });
+    // 45s, not the file's default 20s: `RbacMatrix` renders every capability against every
+    // role, so `findAllByRole` walks a grid of hundreds of buttons and each `user.click`
+    // re-renders it. It fits inside 20s alone and stops fitting once the suite is running
+    // 213 files beside it — a timeout that says nothing about the matrix and everything
+    // about how many workers are awake. The assertions below are the test; the clock is not.
+  }, 45_000);
 });

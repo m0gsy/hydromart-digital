@@ -27,6 +27,10 @@ vi.mock('@/lib/member', () => ({
   memberPrice: (n: number, r: number) => Math.round(n * (1 - r)),
 }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'p-hero' }));
+// CA-3-34: the FbtCard rendered here now speaks when an add fails, and `useToast` throws
+// outside its provider — so this file has to name it like every other test that renders a
+// screen with a toast in it.
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/products/detail',
