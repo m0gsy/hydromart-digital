@@ -14,6 +14,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '@/lib/push';
+import { NOTIF_PREF_KEY, publishNotifPrefs } from '@/lib/notif-prefs';
 import { type Theme, useTheme } from '@/lib/theme-context';
 
 /*
@@ -29,7 +30,7 @@ import { type Theme, useTheme } from '@/lib/theme-context';
  * notification settings). Until then this stores what it can actually keep — this device —
  * and the screen states it rather than implying an account-wide setting.
  */
-const PREF_KEY = 'hydromart_driver_notif_prefs';
+const PREF_KEY = NOTIF_PREF_KEY;
 const NOTIF: { id: string; icon: Icon; def: boolean }[] = [
   { id: 'tasks', icon: Package, def: true },
   { id: 'customer', icon: ChatCircleText, def: true },
@@ -71,13 +72,22 @@ function Settings() {
 
   useEffect(() => {
     const raw = localStorage.getItem(PREF_KEY);
-    if (raw) setPrefs((p) => ({ ...p, ...(JSON.parse(raw) as Record<string, boolean>) }));
+    const stored = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    const merged = { ...Object.fromEntries(NOTIF.map((n) => [n.id, n.def])), ...stored };
+    setPrefs(merged);
+    /*
+     * CA-4-50: republish on mount, not only on change. A courier who set these before the
+     * service worker could read them — or on a phone that has since evicted the Cache —
+     * would otherwise keep the switches they can see and none of the effect.
+     */
+    void publishNotifPrefs(merged);
   }, []);
 
   const set = (id: string, on: boolean) => {
     const next = { ...prefs, [id]: on };
     setPrefs(next);
     localStorage.setItem(PREF_KEY, JSON.stringify(next));
+    void publishNotifPrefs(next);
   };
 
   return (

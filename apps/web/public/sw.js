@@ -1,6 +1,86 @@
 /* Hydromart Web Push service worker (design 7b transport).
    Renders push payloads sent by crm-service and focuses/opens the app on click. */
 
+/*
+ * CA-4-50 — the courier's notification switches were write-only.
+ *
+ * `/driver/settings` stored them in `localStorage`, which THIS file cannot read: a service
+ * worker has no window. Nothing else read them either, so every switch on that screen was
+ * decoration — "Jangan ganggu" included. `lib/notif-prefs.ts` now mirrors them into the
+ * Cache API, and this is the one place that decides whether a notification appears, so
+ * this is where they have to be honoured.
+ *
+ * Two rules, both deliberately conservative, because the failure that matters here is a
+ * DROPPED delivery task, not a notification too many:
+ *
+ *  - The push payload carries no category, only `url`, so the category is read off the URL
+ *    prefix. A URL that matches nothing is UNKNOWN and always shows. Guessing wrong in the
+ *    other direction would silence a real assignment.
+ *  - "Jangan ganggu" (22.00-05.00 on the courier's own device clock, which is the shift
+ *    boundary the screen names) silences everything EXCEPT tasks. The switch means "outside
+ *    my shift"; a delivery handed to them at night is exactly the thing they must still be
+ *    told about.
+ *
+ * When the payload eventually carries a real category, classify on that and delete the
+ * prefix table — the heuristic is here only because the wire has no room for the truth yet.
+ */
+const PREF_CACHE = 'hydromart-notif-prefs';
+const PREF_URL = '/__notif-prefs';
+
+const DND_FROM_HOUR = 22;
+const DND_TO_HOUR = 5;
+
+const CATEGORY_PREFIXES = [
+  ['tasks', ['/driver/deliveries', '/driver/tasks']],
+  ['payout', ['/driver/earnings', '/driver/settlement', '/driver/payout']],
+  ['customer', ['/driver/chat', '/chat']],
+  ['promo', ['/promo', '/rewards']],
+];
+
+function categoryOf(url) {
+  for (const [id, prefixes] of CATEGORY_PREFIXES) {
+    if (prefixes.some((p) => url.startsWith(p))) return id;
+  }
+  return null;
+}
+
+/*
+ * `{}` and `null` mean different things and the difference decides whether a courier hears
+ * their phone.
+ *
+ * `{}` is a cache MISS: the courier has not opened the settings screen yet, or the phone
+ * evicted the entry. The switches still have the defaults that screen renders — "Jangan
+ * ganggu" among them, ON — so an empty set means "the defaults apply", not "no rules".
+ *
+ * `null` is a cache ERROR: storage blocked, quota gone. We know nothing, so we silence
+ * nothing.
+ */
+async function readPrefs() {
+  try {
+    const cache = await caches.open(PREF_CACHE);
+    const hit = await cache.match(PREF_URL);
+    return hit ? await hit.json() : {};
+  } catch (e) {
+    return null;
+  }
+}
+
+function inQuietHours(now) {
+  const h = now.getHours();
+  return h >= DND_FROM_HOUR || h < DND_TO_HOUR;
+}
+
+/** True when the courier has asked not to see this one. Unknown category => always show. */
+async function isMuted(url) {
+  const category = categoryOf(url);
+  if (category === null) return false;
+  const prefs = await readPrefs();
+  if (prefs === null) return false;
+  if (prefs[category] === false) return true;
+  if (category === 'tasks') return false;
+  return prefs.dnd !== false && inQuietHours(new Date());
+}
+
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -9,12 +89,16 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' };
   }
   const title = data.title || 'Hydromart';
+  const url = data.url || '/';
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || '',
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      data: { url: data.url || '/' },
+    isMuted(url).then((muted) => {
+      if (muted) return undefined;
+      return self.registration.showNotification(title, {
+        body: data.body || '',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        data: { url },
+      });
     }),
   );
 });

@@ -10,9 +10,21 @@
 export const fulfilment = {
 // Delivery live tracking (delivery-service). Staff read; driver app posts position.
 deliveries: {
-  list: (q: { status?: string; statuses?: readonly string[]; page?: number; limit?: number } = {}) => {
+  list: (
+    q: {
+      status?: string;
+      statuses?: readonly string[];
+      page?: number;
+      limit?: number;
+      depotId?: string;
+    } = {},
+  ) => {
     const p = new URLSearchParams();
     if (q.status) p.set('status', q.status);
+    // The route already forces a depot-locked operator/manager to their own depot; this is
+    // for the accounts that are NOT locked (HQ, a manager over several depots) so a screen
+    // printed under one depot's name can ask for that depot rather than the network.
+    if (q.depotId) p.set('depotId', q.depotId);
     // Comma-separated, matching the service's `statuses` param: "still in flight" is three
     // statuses, and asking for one of them hid the other two from the board that acts on them.
     if (q.statuses?.length) p.set('statuses', q.statuses.join(','));
