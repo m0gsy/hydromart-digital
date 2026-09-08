@@ -1272,6 +1272,26 @@ describe('AnalyticsPrismaRepository', () => {
     });
   });
 
+  it('announcementsForReport narrows to a depot-scoped caller', async () => {
+    const p = makePrisma();
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).announcementsForReport(from, to, ['d1']);
+    // CA-1-31: COMPANY reaches everyone so it must survive; DEPOT reaches only the named
+    // depots. Term for term the same rule as the console list and the by-id read.
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: {
+        publishedAt: { gte: from, lte: to },
+        OR: [
+          { targets: { some: { dimension: 'COMPANY' } } },
+          { targets: { some: { dimension: 'DEPOT', value: { in: ['d1'] } } } },
+        ],
+      },
+      include: { targets: true, _count: { select: { reads: true } } },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      take: 500,
+    });
+  });
+
   it('walks an export past the first page with a cursor', async () => {
     const p = makePrisma();
     const page = Array.from({ length: 500 }, (_, i) => ({ id: `e-${i}` }));
@@ -1696,6 +1716,14 @@ describe('BonusRulePrismaRepository', () => {
     await repo.list('d1');
     expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({
       where: { depotId: 'd1' },
+      orderBy: { createdAt: 'desc' },
+    });
+    // CA-1-31: an array is a depot-scoped caller. Their own depots AND the global defaults,
+    // because a global rule pays out at every depot — the same merge `listActiveForDepot`
+    // does one method up.
+    await repo.list(['d1', 'd2']);
+    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({
+      where: { OR: [{ depotId: { in: ['d1', 'd2'] } }, { depotId: null }] },
       orderBy: { createdAt: 'desc' },
     });
   });

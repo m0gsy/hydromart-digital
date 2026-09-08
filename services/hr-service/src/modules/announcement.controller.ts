@@ -39,8 +39,12 @@ export class AnnouncementController {
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'One announcement with its targets and read statistics' })
-  getById(@Param('id', ParseUUIDPipe) id: string): Promise<AnnouncementWithTargets & AnnouncementStats> {
-    return this.announcements.getById(id);
+  getById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AnnouncementWithTargets & AnnouncementStats> {
+    // CA-1-31: same two rules as `list` above — this route had neither.
+    return this.announcements.getById(user, id);
   }
 
   @ApiOkResponse({ type: AnnouncementWithTargetsResponseDto })

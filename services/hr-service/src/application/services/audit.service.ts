@@ -19,19 +19,23 @@ export class AuditService {
   }
 
   // hrAdmin-only endpoint (guarded at the controller); no depot scope — audit is HQ-wide.
-  list(query: {
+  // CA-1-26: `/hr/audit` reads `HrPage<AuditLog>` — four fields — and this answered two.
+  // The declared return type said so out loud and still nobody noticed, because the client
+  // asserts the shape with a cast rather than being handed it.
+  async list(query: {
     entity?: string;
     entityId?: string;
     actorId?: string;
     page: number;
     pageSize: number;
-  }): Promise<{ rows: AuditLog[]; total: number }> {
-    return this.repo.list({
+  }): Promise<{ rows: AuditLog[]; total: number; page: number; pageSize: number }> {
+    const { rows, total } = await this.repo.list({
       entity: query.entity,
       entityId: query.entityId,
       actorId: query.actorId,
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
+    return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 }

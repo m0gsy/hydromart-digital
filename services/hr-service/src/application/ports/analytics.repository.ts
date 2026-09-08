@@ -97,5 +97,10 @@ export interface AnalyticsRepository {
   performanceForReport(periodMonth: string, depotIds?: readonly string[]): Promise<ReviewWithEmployee[]>;
   assetsForReport(depotIds?: readonly string[]): Promise<AssetWithHolder[]>;
   /** Published announcements in the window, with the read count already aggregated. */
-  announcementsForReport(from: Date, to: Date): Promise<AnnouncementWithStats[]>;
+  /** `depotIds` undefined = whole network (HQ); an array narrows to COMPANY-wide + those depots. */
+  announcementsForReport(
+    from: Date,
+    to: Date,
+    depotIds?: readonly string[],
+  ): Promise<AnnouncementWithStats[]>;
 }

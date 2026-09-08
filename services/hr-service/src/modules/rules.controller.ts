@@ -28,9 +28,10 @@ export class BonusRuleController {
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List auto-bonus rules (depotId=global for network-wide)' })
-  list(@Query() q: ListBonusRuleDto): Promise<BonusRule[]> {
+  list(@Query() q: ListBonusRuleDto, @CurrentUser() user: AuthenticatedUser): Promise<BonusRule[]> {
     const depotId = q.depotId === undefined ? undefined : q.depotId === 'global' ? null : q.depotId;
-    return this.rules.list(depotId);
+    // CA-1-31: who is asking decides which depots' rules come back.
+    return this.rules.list(user, depotId);
   }
 
   @ApiOkResponse({ type: BonusRuleResponseDto })

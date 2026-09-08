@@ -390,8 +390,25 @@ export class AnalyticsService {
     };
   }
 
-  async announcementReport(query: { from: string; to: string }): Promise<ReportData> {
-    const rows = await this.repo.announcementsForReport(new Date(query.from), new Date(query.to));
+  /*
+   * CA-1-31. This took no caller, and its DTO carried no depot — so the console's depot
+   * picker sent one, `forbidNonWhitelisted` rejected it, and the export 400'd for anybody
+   * who had scoped the page to a depot. Widening the DTO alone would have swapped a broken
+   * export for a leaking one: without the scope below, a supervisor pinned to one depot
+   * downloads the whole network's announcement reach.
+   *
+   * The DTO used to say "Announcements are network-wide by nature". They are not: CA-1-29
+   * settled that for the list, and this is the same data one route over.
+   */
+  async announcementReport(
+    user: AuthenticatedUser,
+    query: { from: string; to: string; depotId?: string },
+  ): Promise<ReportData> {
+    const rows = await this.repo.announcementsForReport(
+      new Date(query.from),
+      new Date(query.to),
+      depotScopeIds(user, query.depotId),
+    );
     return {
       headers: [
         'publishedAt',

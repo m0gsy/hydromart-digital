@@ -353,8 +353,9 @@ describe('HolidayController / ShiftController', () => {
     expect(svc.list).toHaveBeenCalledWith(user, 2, 5);
     hrSide.list({} as never, user);
     expect(svc.list).toHaveBeenLastCalledWith(user, undefined, undefined);
-    hrSide.getById('an1');
-    expect(svc.getById).toHaveBeenCalledWith('an1');
+    // CA-1-31: and so does the by-id read, which had no caller at all.
+    hrSide.getById('an1', user);
+    expect(svc.getById).toHaveBeenCalledWith(user, 'an1');
     const dto = { title: 't', body: 'b', targets: [{ dimension: 'COMPANY' }] } as never;
     hrSide.create(dto, user);
     expect(svc.create).toHaveBeenCalledWith(user, dto);
@@ -677,12 +678,13 @@ describe('BonusRuleController / LoanController', () => {
   const lc = new LoanController(loans as never);
 
   it('bonus-rule list maps the depotId sentinel', () => {
-    rc.list({ depotId: 'global' } as never);
-    expect(rules.list).toHaveBeenLastCalledWith(null);
-    rc.list({ depotId: 'd1' } as never);
-    expect(rules.list).toHaveBeenLastCalledWith('d1');
-    rc.list({} as never);
-    expect(rules.list).toHaveBeenLastCalledWith(undefined);
+    // CA-1-31: the caller rides along with the sentinel — the listing used to take neither.
+    rc.list({ depotId: 'global' } as never, user);
+    expect(rules.list).toHaveBeenLastCalledWith(user, null);
+    rc.list({ depotId: 'd1' } as never, user);
+    expect(rules.list).toHaveBeenLastCalledWith(user, 'd1');
+    rc.list({} as never, user);
+    expect(rules.list).toHaveBeenLastCalledWith(user, undefined);
   });
   it('bonus-rule create + update delegate', () => {
     const dto = { name: 'r' } as never;

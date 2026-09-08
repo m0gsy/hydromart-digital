@@ -21,6 +21,11 @@ export interface BonusRuleRepository {
   findById(id: string): Promise<BonusRule | null>;
   /** Active rules that apply to a depot: its own overrides + the global (null-depot) defaults. */
   listActiveForDepot(depotId: string | null): Promise<BonusRule[]>;
-  /** Admin listing: all rules for a depot scope (null = global), or every rule when undefined. */
-  list(depotId?: string | null): Promise<BonusRule[]>;
+  /**
+   * Admin listing. `undefined` = every rule; `null` = the global (network-wide) rules only;
+   * a uuid = that depot's rules; an array = those depots' rules PLUS the global defaults,
+   * because a global rule pays out at every depot and a supervisor must see what pays their
+   * staff (CA-1-31).
+   */
+  list(scope?: string | null | readonly string[]): Promise<BonusRule[]>;
 }

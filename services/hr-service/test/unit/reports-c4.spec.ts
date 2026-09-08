@@ -211,7 +211,7 @@ describe('C4 report builders', () => {
 
   it('announcements state the read rate, and blank it rather than dividing by zero', async () => {
     const { svc } = build();
-    const out = await svc.announcementReport(range);
+    const out = await svc.announcementReport(hq, range);
     expect(out.rows[0]).toEqual([
       '2026-07-01T03:00:00.000Z',
       'Libur',
@@ -233,12 +233,21 @@ describe('C4 report builders', () => {
     expect(seen.performance[1]).toEqual(['d-locked']);
     await svc.assetReport(manager);
     expect(seen.assets[0]).toEqual(['d-locked']);
+    // CA-1-31: "every C4 report" used to mean four of five. The announcement export was the
+    // one with no caller to lock, so it was the one a manager could pull the network from.
+    await svc.announcementReport(manager, range);
+    expect(seen.announcements[2]).toEqual(['d-locked']);
   });
 
-  it('passes the whole window to the announcement fetcher — it has no depot scope', async () => {
+  /*
+   * CA-1-31. This test used to be titled "it has no depot scope" and asserted a two-argument
+   * call — a written assertion of the leak. HQ still gets the whole network, and that is what
+   * the third argument being undefined means; a depot-pinned caller now gets their own.
+   */
+  it('passes the whole window to the announcement fetcher, unscoped only for HQ', async () => {
     const { svc, seen } = build();
-    await svc.announcementReport(range);
-    expect(seen.announcements).toEqual([new Date('2026-07-01'), new Date('2026-07-31')]);
+    await svc.announcementReport(hq, range);
+    expect(seen.announcements).toEqual([new Date('2026-07-01'), new Date('2026-07-31'), undefined]);
   });
 });
 
@@ -306,7 +315,7 @@ describe('ReportsController C4 delivery', () => {
     );
 
     const annRes = fakeRes();
-    await c.announcements({ ...range } as never, annRes);
+    await c.announcements({ ...range } as never, hq, annRes);
     expect(analytics.announcementReport).toHaveBeenCalled();
     expect(annRes.headers['Content-Disposition']).toContain('announcements-');
   });

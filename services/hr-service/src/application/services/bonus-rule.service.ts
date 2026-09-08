@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { BonusRule, BonusType } from '../../../prisma/generated/client';
 import { BonusMetric, CompareOp, RewardKind } from '../../domain/bonus-rules';
@@ -76,8 +76,26 @@ export class BonusRuleService {
     return this.repo.update(id, patch);
   }
 
-  list(depotId?: string | null): Promise<BonusRule[]> {
-    return this.repo.list(depotId);
+  /*
+   * CA-1-31. This took no caller, so `GET /bonus-rules` with no query handed EVERY depot's
+   * bonus rules to anyone with `hrView` — a set that reaches SUPERVISOR and
+   * ASSISTANT_SUPERVISOR, each pinned to one depot. Bonus rules are money rules: they are
+   * what mints a bonus onto a payslip, so another depot's are another depot's business.
+   *
+   * `depotScopeIds` returns undefined for anyone above depots, which is how HQ keeps the
+   * whole-network view, and throws for a depot outside the caller's set — so asking for
+   * someone else's by id is refused rather than quietly answered.
+   */
+  // `async` on purpose: `depotScopeIds` THROWS for a depot outside the caller's set, and a
+  // method typed as returning a promise must reject rather than throw past its own signature
+  // (same reason as `PayrollService.list`).
+  async list(user: AuthenticatedUser, depotId?: string | null): Promise<BonusRule[]> {
+    if (depotId !== undefined) {
+      // `null` is the 'global' bucket — network-wide rules belong to no depot to check.
+      if (depotId !== null) depotScopeIds(user, depotId);
+      return this.repo.list(depotId);
+    }
+    return this.repo.list(depotScopeIds(user));
   }
 
   private validate(input: BonusRuleInput, partial = false): void {
