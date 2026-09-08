@@ -159,6 +159,36 @@ describe('ShiftService', () => {
       expect(resumed.breakSecondsRemaining).toBeLessThanOrEqual(3000);
     });
 
+    /*
+     * CA-4-23. `breakSecondsUsed` is the BANKED total and only moves when a break ENDS, so
+     * the number on the courier's screen sat at the full remaining quota for the whole
+     * break and then jumped the moment they came back. The one time the figure is read is
+     * the one time it was stale.
+     */
+    it('counts a running break down while it is running', async () => {
+      const shift = await checkIn();
+      await service.setStatus(driver, shift.id, ShiftStatus.BREAK);
+      // Ten minutes into the hour this depot allows, still on break: nothing banked yet.
+      repo.rows[0].breakStartedAt = new Date(Date.now() - 600_000);
+
+      const during = await service.current(driver);
+      expect(during?.breakSecondsUsed).toBe(0);
+      // 3600 − 600. The old read answered the full 3600, because it asked only the bank.
+      expect(during?.breakSecondsRemaining).toBeLessThanOrEqual(3000);
+      expect(during?.breakSecondsRemaining).toBeGreaterThan(2900);
+    });
+
+    it('floors a running break at zero rather than going negative past quota', async () => {
+      const shift = await checkIn();
+      await service.setStatus(driver, shift.id, ShiftStatus.BREAK);
+      repo.rows[0].breakStartedAt = new Date(Date.now() - 7_200_000); // two hours, quota one
+
+      const during = await service.current(driver);
+      expect(during?.breakSecondsRemaining).toBe(0);
+      // Still on break, still nothing banked — going over is recorded, never refused.
+      expect(during?.status).toBe(ShiftStatus.BREAK);
+    });
+
     it('lets a courier resume past quota rather than stranding them on break', async () => {
       const shift = await checkIn();
       await service.setStatus(driver, shift.id, ShiftStatus.BREAK);

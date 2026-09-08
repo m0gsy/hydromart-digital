@@ -1865,6 +1865,7 @@ export const hrFix = {
     resetFailed: 'Gagal reset',
   },
   approvalDetailExtra: {
+    submittedAt: 'Diajukan',
     opnameVariance: 'Selisih opname',
     depositRefund: 'Refund deposit galon',
     codShortfall: 'Kurang setoran (COD)',
@@ -1985,5 +1986,6 @@ export const hrFix = {
     pnl: 'Laporan L/R',
     purchaseOrders: 'Pesanan pembelian',
     manageTeam: 'Kelola tim',
+    openOnDesktop: 'Buka di desktop',
   },
 };

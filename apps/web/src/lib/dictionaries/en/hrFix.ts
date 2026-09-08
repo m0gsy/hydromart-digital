@@ -1846,6 +1846,7 @@ export const hrFix = {
     resetFailed: 'Reset failed',
   },
   approvalDetailExtra: {
+    submittedAt: 'Submitted',
     opnameVariance: 'Stocktake variance',
     depositRefund: 'Gallon deposit refund',
     codShortfall: 'COD settlement shortfall',
@@ -1966,5 +1967,6 @@ export const hrFix = {
     pnl: 'P&L report',
     purchaseOrders: 'Purchase orders',
     manageTeam: 'Manage the team',
+    openOnDesktop: 'Open on desktop',
   },
 };

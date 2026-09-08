@@ -11,8 +11,9 @@ import { Badge, CenterState, ErrorState, Input, Money, Skeleton } from '@/compon
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
-import type { Approval, ApprovalType } from '@/lib/types';
+import type { Approval, ApprovalType, Customer } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
+import { formatDateTime } from '@/lib/format';
 
 // Dictionary KEYS — module scope, so t() runs at the call site.
 const KIND_LABEL: Record<ApprovalType, string> = {
@@ -24,13 +25,16 @@ const KIND_LABEL: Record<ApprovalType, string> = {
 
 const num = (v: unknown) => Number(v ?? 0);
 
+/** Same fallback the desktop approval screen uses when the directory cannot answer. */
+const shortId = (id: string) => id.slice(0, 8);
+
 export default function ApprovalDetailPage() {
   const { t } = useT();
   const { confirm } = useConfirm();
   const router = useRouter();
   const id = useQueryParam('id');
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
-  const [busy, setBusy] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [busy, setBusy] = useState<'APPROVE' | 'REJECT' | 'HOLD' | null>(null);
   const [error, setError] = useState<string | null>(null);
   /*
    * CA-4-41 — `DecideApprovalDto` has always accepted a `note`, and the desktop screen has
@@ -43,8 +47,30 @@ export default function ApprovalDetailPage() {
    * empty for anything decided here.
    */
   const [note, setNote] = useState('');
+  // CA-4-42: the one account this screen has to name. Cached, and never fatal — a decision
+  // screen must render whether or not the staff directory answers.
+  const submittedBy = detail.data?.submittedBy;
+  const names = useAsync<Customer[]>(
+    async () => {
+      if (!submittedBy) return [];
+      try {
+        return await api.getCached<Customer[]>(endpoints.auth.customersByIds([submittedBy]), true);
+      } catch {
+        return [];
+      }
+    },
+    [submittedBy],
+  );
 
-  const decide = async (decision: 'APPROVE' | 'REJECT') => {
+  /*
+   * CA-4-42. The server has accepted three decisions since the first migration —
+   * `ApprovalDecision = 'APPROVE' | 'REJECT' | 'HOLD'` — and the desktop screen offers all
+   * three. This one offered two, so a manager holding the phone could only decide NOW or
+   * refuse: "I need to ask somebody" was not on the screen, and HELD is precisely the state
+   * for that. The list already treats HELD as still-pending, so the state was reachable and
+   * unreachable at the same time.
+   */
+  const decide = async (decision: 'APPROVE' | 'REJECT' | 'HOLD') => {
     /*
      * CA-4-44 — "Tolak" and "Setujui" sit side by side, same width, in a sticky footer at
      * the bottom of a phone screen, and neither asked anything. What they decide is a cash
@@ -53,13 +79,18 @@ export default function ApprovalDetailPage() {
      * no way back to the item.
      */
     const approve = decision === 'APPROVE';
-    // Same rule as the desktop screen: a rejection has to say why. An approval need not —
-    // the amount and the rule that let it through are already on the record.
-    if (!approve && note.trim() === '') {
+    // Same rule as the desktop screen: a REJECTION has to say why. An approval need not —
+    // the amount and the rule that let it through are already on the record. A hold is not
+    // a refusal and does not move money, so it is not held to the rejection's rule either.
+    if (decision === 'REJECT' && note.trim() === '') {
       setError(t('mgrFix.approvalDecide.rejectReasonRequired'));
       return;
     }
-    const ok = await confirm({
+    // CA-4-42: a hold parks the item and moves nothing, so it does not need the
+    // are-you-sure the two money decisions do.
+    const ok =
+      decision === 'HOLD' ||
+      (await confirm({
       title: approve ? t('mgrFix.approvalDecide.approveTitle') : t('mgrFix.approvalDecide.rejectTitle'),
       message: t(
         approve ? 'mgrFix.approvalDecide.approveConfirm' : 'mgrFix.approvalDecide.rejectConfirm',
@@ -70,7 +101,7 @@ export default function ApprovalDetailPage() {
         },
       ),
       tone: approve ? 'primary' : 'danger',
-    });
+      }));
     if (!ok) return;
     setBusy(decision);
     setError(null);
@@ -114,6 +145,23 @@ export default function ApprovalDetailPage() {
   }
 
   const a = detail.data;
+  const who = (uid: string | null | undefined): string => {
+    if (!uid) return '—';
+    /*
+     * `Array.isArray`, not `?? []`. This screen decides money, and its rule — stated on the
+     * desktop twin — is that it renders whether or not the staff directory answers. A
+     * `catch` covers a directory that THROWS; it does not cover one that resolves to
+     * something that is not a list, and `.find` on that takes the whole screen down.
+     *
+     * (Deliberately unlike the cart's add-on lookup, where the same guard would have hidden
+     * a real shape drift. Here the screen's own promise is that a bad answer costs a NAME,
+     * never the decision.)
+     */
+    const rows = Array.isArray(names.data) ? names.data : [];
+    const found = rows.find((c) => c.id === uid);
+    // An unresolved id is still an answer; an empty row is not (same rule as the desktop).
+    return found ? found.fullName || found.phone : shortId(uid);
+  };
   const p = a.payload ?? {};
   const pending = a.status === 'PENDING' || a.status === 'HELD';
   const isOpname = a.type === 'OPNAME_VARIANCE';
@@ -121,6 +169,11 @@ export default function ApprovalDetailPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      {/*
+        CA-4-42: when it was submitted, and by whom. CA-2-66 put both on the desktop screen
+        and this one kept neither — a manager deciding money on a phone could see the amount
+        and the rule, and not who was asking or how long it had been waiting.
+      */}
       <header className="flex items-center gap-3 px-4 py-4">
         <button
           type="button"
@@ -140,6 +193,15 @@ export default function ApprovalDetailPage() {
       </header>
 
       <div className="flex-1 space-y-3 px-4 pb-6">
+        <div className="rounded-2xl border border-app bg-[color:var(--surface)] px-4 py-1">
+          <RowLine label={t('dashA.approvalDetail.submittedByLabel')}>
+            <span className="font-semibold">{who(a.submittedBy)}</span>
+          </RowLine>
+          <RowLine label={t('hrFix.approvalDetailExtra.submittedAt')} divider>
+            <span className="tabular-nums">{formatDateTime(a.createdAt)}</span>
+          </RowLine>
+        </div>
+
         {isOpname ? (
           <div className="grid grid-cols-3 divide-x divide-[color:var(--border)] rounded-2xl border border-app bg-[color:var(--surface)]">
             <TriStat label={t('hrFix.approvalDetail.system')} value={num(p.system).toLocaleString('id-ID')} />
@@ -269,6 +331,16 @@ export default function ApprovalDetailPage() {
             {busy === 'REJECT'
               ? t('hrFix.approvalDetail.deciding')
               : t('hrFix.approvalDetail.reject')}
+          </button>
+          {/* CA-4-42: the third decision the server has always accepted. Ghost weight on
+              purpose — it is the one that moves nothing. */}
+          <button
+            type="button"
+            onClick={() => decide('HOLD')}
+            disabled={busy !== null}
+            className="flex-1 rounded-xl border border-app py-3 text-sm font-extrabold text-[color:var(--text-muted)] disabled:opacity-60"
+          >
+            {busy === 'HOLD' ? t('hrFix.approvalDetail.deciding') : t('dashA.approvalDetail.hold')}
           </button>
           <button
             type="button"

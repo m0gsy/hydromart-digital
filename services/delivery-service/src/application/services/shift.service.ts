@@ -258,11 +258,21 @@ export class ShiftService {
     }
   }
 
-  private view(shift: ShiftRecord): ShiftView {
+  /*
+   * CA-4-23. `breakSecondsUsed` is the BANKED total — it only moves when a break ends. So
+   * while a courier was actually on their break, the number on their screen sat at the full
+   * remaining quota and did not tick down; it jumped, all at once, the moment they came
+   * back. The one time the figure is being read is the one time it was stale.
+   *
+   * `breakSecondsElapsed` already exists and this service already uses it when banking a
+   * running break (`bankRunningBreak`, and `closeStale` through it). The read side simply
+   * never asked. Adding the running seconds here keeps one definition of "used" for both.
+   */
+  private view(shift: ShiftRecord, now: Date = new Date()): ShiftView {
     return {
       ...shift,
       breakSecondsRemaining: breakSecondsRemaining(
-        shift.breakSecondsUsed,
+        shift.breakSecondsUsed + breakSecondsElapsed(shift.breakStartedAt, now),
         this.config.shiftBreakQuotaMinutes(shift.depotId),
       ),
       acceptsAssignments: acceptsAssignments(shift.status),
