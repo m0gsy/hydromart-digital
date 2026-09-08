@@ -56,6 +56,7 @@ export const en: Dictionary = {
       },
     },
     devices: {
+      revokeThis: 'Sign out here',
       title: 'Devices & sessions',
       body: 'Every device that can still sign in to your account. Sign one out, or all of them at once if your phone is lost.',
       thisDevice: 'This device',

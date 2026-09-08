@@ -5,6 +5,9 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import { endpoints } from './endpoints';
 import { unsubscribeFromPush } from './push';
+import { forgetNotificationsSeen } from './unread';
+import { setLocation } from './location-store';
+import { forgetSessionFamily, rememberSessionFamily } from './session-device';
 import { getSession, setSession, subscribe } from './session-store';
 import { clearTokens, getRefreshToken, hasTokens, unlockTokens } from './token-store';
 import type { Customer, Session } from './types';
@@ -66,7 +69,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       customer: session?.customer ?? null,
       ready,
-      signIn: (s) => setSession(s),
+      signIn: (s) => {
+        // CA-3-57: remember which rotation family this device is, so the devices list can
+        // mark the row the person is actually holding.
+        rememberSessionFamily(s.familyId);
+        setSession(s);
+      },
       signOut: () => {
         // Gateway reads the refresh cookie and clears both session cookies; body-less.
         // Native has no cookie to be read, so it hands the refresh token over — without
@@ -84,6 +92,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // now belonged to somebody else. Fire-and-forget — a failed release must never stop
         // somebody signing out, and the server-side row is replaced on the next subscribe.
         void unsubscribeFromPush().catch(() => {});
+        /*
+         * CA-3-56 / CA-3-59 — two things that belong to the PERSON and were stored against
+         * the DEVICE, and so survived them leaving.
+         *
+         * The notifications "last seen" timestamp: the next account signed in on the same
+         * handset found every row already older than the previous person's last visit —
+         * their notifications existed and the badge said nothing.
+         *
+         * The delivery location: a lat/lng and a place name, kept in localStorage so it
+         * survives reloads. It also survived sign-out, so the next person to open the app
+         * on that phone was shown, and would have ordered to, where the last one lives.
+         * It is a location, and it stayed behind on a device its owner had walked away
+         * from.
+         */
+        forgetNotificationsSeen();
+        forgetSessionFamily();
+        setLocation(null);
         // Safe on this line: the request above has already been issued with its bearer
         // attached — `api` builds headers before it awaits anything.
         clearTokens();

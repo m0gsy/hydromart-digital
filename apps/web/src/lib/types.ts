@@ -64,6 +64,8 @@ export interface DepotTeamReport {
  */
 export interface DeviceSession {
   id: string;
+  /** CA-3-57: rotation family — compare against `currentSessionFamily()`. */
+  familyId?: string;
   createdAt: string;
   expiresAt: string;
   ipAddress: string | null;
@@ -82,6 +84,12 @@ export interface ConsentHistoryEntry {
 
 export interface Session {
   customer: Customer;
+  /**
+   * CA-3-57: the rotation family this session belongs to, so the devices list can mark the
+   * caller's own row. Optional — an older gateway build answers without it, and the list
+   * then marks nothing rather than marking the wrong row.
+   */
+  familyId?: string;
 }
 
 export interface OtpChallenge {

@@ -46,6 +46,11 @@ export interface SessionResult {
   /** Access-token lifetime in seconds. */
   expiresIn: number;
   refreshToken: string;
+  /**
+   * CA-3-57: the rotation family this session belongs to, so the client can recognise its
+   * own row in the devices list. Stable across refresh rotations, unlike the row id.
+   */
+  familyId: string;
   customer: PublicCustomer;
 }
 

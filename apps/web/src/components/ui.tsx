@@ -660,7 +660,10 @@ export function ListRow({
   tone = 'default',
 }: {
   icon?: ReactNode;
-  title: string;
+  // CA-3-57: a node, not a string — a row sometimes has to carry a badge next to its name
+  // (the devices list marks which session is the one you are holding). A string is still a
+  // ReactNode, so every existing caller is unaffected.
+  title: ReactNode;
   subtitle?: string;
   trailing?: ReactNode;
   href?: string;

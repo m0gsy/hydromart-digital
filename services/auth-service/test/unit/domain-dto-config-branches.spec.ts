@@ -262,12 +262,16 @@ describe('SessionInfoDto.from', () => {
     const now = new Date();
     const dto = SessionInfoDto.from({
       id: 's1',
+      familyId: 'fam-1',
       createdAt: now,
       expiresAt: now,
       ipAddress: '1.1.1.1',
       userAgent: 'jest',
     });
     expect(dto).toMatchObject({ id: 's1', ipAddress: '1.1.1.1', userAgent: 'jest' });
+    // CA-3-57: the family id has to reach the client, or the devices list still cannot
+    // tell the phone in somebody's hand from the one they came here to revoke.
+    expect(dto.familyId).toBe('fam-1');
   });
 });
 

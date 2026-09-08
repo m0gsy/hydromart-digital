@@ -57,6 +57,7 @@ export const id = {
       },
     },
     devices: {
+      revokeThis: 'Keluar dari sini',
       title: 'Perangkat & sesi',
       body: 'Setiap perangkat yang masih bisa masuk ke akunmu. Keluarkan satu, atau semuanya sekaligus kalau ponselmu hilang.',
       thisDevice: 'Perangkat ini',
