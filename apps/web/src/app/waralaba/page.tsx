@@ -98,7 +98,17 @@ export default function FranchiseApplicationPage() {
       return setError(copy.needLocation);
     }
     if (!consent) return setError(copy.needConsent);
+    /*
+     * CA-3-46 — an EMPTY money box parsed to 0 and passed every check below.
+     *
+     * `Number('')` is 0, and 0 is finite and not negative, so a franchise application
+     * submitted with both money fields blank reached head office reading "Rp 0 modal,
+     * Rp 0 proyeksi" — an applicant who filled nothing in is indistinguishable from one
+     * claiming zero. Same emptiness test the lat/lng guard above already uses.
+     */
     if (
+      !form.investmentAmount.trim() ||
+      !form.projectedMonthlyRevenue.trim() ||
       !Number.isFinite(investmentAmount) ||
       investmentAmount < 0 ||
       !Number.isFinite(projectedMonthlyRevenue) ||

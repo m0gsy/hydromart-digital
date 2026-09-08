@@ -86,7 +86,11 @@ export interface AddressPayload {
   postalCode?: string;
   latitude?: number;
   longitude?: number;
-  notes?: string;
+  /**
+   * CA-3-52: `null` clears it. `undefined` would omit the key and leave the stored
+   * landmark in place, which is how a patokan somebody deleted kept reaching the courier.
+   */
+  notes?: string | null;
 }
 
 /**
@@ -125,8 +129,16 @@ export function toAddressPayload(
   }
 
   const value: AddressPayload = { ...text };
+  /*
+   * CA-3-52 — clearing the landmark never deleted it.
+   *
+   * `if (notes)` omitted the key entirely when the box was emptied, and a PATCH without
+   * the field leaves the column alone. So a customer who removed a wrong or outdated
+   * patokan saw it disappear from the form and the courier kept being sent to it. Sent
+   * as `null` now, which is what the write-back at checkout already does.
+   */
   const notes = form.notes.trim();
-  if (notes) value.notes = notes;
+  value.notes = notes || null;
 
   // The pin is REQUIRED: depot routing is by distance, so an address without one cannot
   // be matched to any depot. It used to save fine and then fail at checkout, which reads

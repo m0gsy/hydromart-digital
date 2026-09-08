@@ -1482,6 +1482,20 @@ function CheckoutInner() {
         ) : (
           <p className="text-xs text-muted">{t('order.checkout.deliveryNote')}</p>
         )}
+        {/*
+          * CA-3-14 — the express fee was in the total and on no line of its own.
+          *
+          * `displayedTotal` adds it, so a shopper who chose express saw the total rise by
+          * an amount the breakdown above it did not account for. Every other component of
+          * that number has a row; this one was the exception, and it is the one the
+          * shopper opted into a moment earlier.
+          */}
+        {expressFee > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted">{t('customerFix.slot.expressNow')}</span>
+            <Money amount={expressFee} className="font-bold" />
+          </div>
+        )}
       </div>
 
       <div className="flex justify-between border-t border-app pt-3.5 text-[17px] font-extrabold">
