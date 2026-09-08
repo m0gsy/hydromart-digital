@@ -9,9 +9,21 @@ export class UpdateAccountDto {
   @MaxLength(120)
   fullName?: string;
 
-  @ApiPropertyOptional({ description: 'Email address.', example: 'budi@example.com' })
+  /**
+   * CA-3-49: `null` REMOVES the address; absent leaves it alone.
+   *
+   * The runtime has always accepted both — `@IsOptional()` skips `@IsEmail()` for null,
+   * `updateProfile` treats undefined as "no opinion", and the column is nullable. The
+   * declared type said `string`, which is the thing that invites someone to "tighten" the
+   * contract and rebuild the wall this row exists to remove.
+   */
+  @ApiPropertyOptional({
+    description: 'Email address. Send null to remove it; omit to leave it unchanged.',
+    example: 'budi@example.com',
+    nullable: true,
+  })
   @IsOptional()
   @IsEmail()
   @MaxLength(160)
-  email?: string;
+  email?: string | null;
 }

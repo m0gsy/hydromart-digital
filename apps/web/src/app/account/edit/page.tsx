@@ -89,7 +89,21 @@ function EditProfileInner() {
     try {
       const updated = await api.patch<Customer>(
         endpoints.auth.updateProfile,
-        { fullName: name.trim(), email: email.trim() || undefined },
+        /*
+         * CA-3-49 — `undefined` here meant the email could never be REMOVED.
+         *
+         * `api.patch` serialises with `JSON.stringify`, which drops an `undefined` value
+         * entirely, and a PATCH without a field leaves the stored column untouched. So a
+         * customer who cleared the box watched it go empty and the old address stayed on
+         * the account forever. Exactly the defect CA-3-52 fixed for the address landmark,
+         * and the birthdate line ten rows below already sends `|| null` for this reason.
+         *
+         * auth-service has supported clearing since it was written: `updateProfile` treats
+         * `undefined` as "leave alone" and an explicit value — `null` included — as the new
+         * one, and the column is nullable. An account with no email is a state the product
+         * already sells; email is optional at sign-up.
+         */
+        { fullName: name.trim(), email: email.trim() || null },
         true,
       );
       /*

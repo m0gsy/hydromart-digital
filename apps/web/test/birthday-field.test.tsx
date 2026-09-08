@@ -108,4 +108,31 @@ describe('H16 — the birthday nobody could ever tell us', () => {
     const call = patch.mock.calls.find((c) => String(c[0]).includes('/profile'));
     expect(call?.[1]).toMatchObject({ birthdate: null });
   });
+
+  /*
+   * CA-3-49 — the field EIGHT LINES ABOVE the birthdate one, on the same screen, saved by
+   * the same button, had the opposite treatment.
+   *
+   * The birthdate sent `|| null` and cleared correctly. The email sent `|| undefined`, and
+   * `JSON.stringify` drops an undefined value, so a PATCH went out with no `email` key at
+   * all and auth-service left the stored address untouched. A customer who cleared the box
+   * watched it go empty and the old email stayed on the account.
+   *
+   * This test file already rendered the page and already asserted the clearing behaviour —
+   * but its `find` filters for the '/profile' call, so the auth call carrying the email was
+   * never looked at. That filter is why the bug survived a test written for exactly it.
+   */
+  it('clears the EMAIL to null too — absent is not the same as removed', async () => {
+    get.mockResolvedValue({ customerId: 'c-1', favoriteDepotId: null, birthdate: null });
+    renderPage();
+    const email = await screen.findByLabelText(/email/i);
+    await userEvent.clear(email);
+    await userEvent.click(screen.getByRole('button', { name: /simpan|save/i }));
+
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    // The AUTH call, not the profile one — a different endpoint on the same save.
+    const authCall = patch.mock.calls.find((c) => !String(c[0]).includes('/profile'));
+    expect(authCall).toBeTruthy();
+    expect(authCall?.[1]).toHaveProperty('email', null);
+  });
 });

@@ -89,6 +89,14 @@ describe('toAddressPayload', () => {
         city: 'Bandung',
         latitude: -6.9147,
         longitude: 107.6098,
+        /*
+         * CA-3-52: `notes` is now ALWAYS present, `null` when the box is empty. Absent and
+         * null are not the same thing to a PATCH — absent leaves the stored landmark in
+         * place, which is how a patokan somebody deleted kept reaching the courier. The
+         * exact-shape assertion is kept: the point of this test is that nothing phantom
+         * rides along, and a deliberate null is not phantom.
+         */
+        notes: null,
       },
     });
   });
