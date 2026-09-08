@@ -50,8 +50,6 @@ export const hrFix = {
     },
     employeeStatus: { ACTIVE: 'Active', INACTIVE: 'Inactive', RESIGNED: 'Resigned' },
     attendance: {
-    trailShow: 'Show correction history',
-    trailEmpty: 'Never corrected.',
       PRESENT: 'Present',
       LATE: 'Late',
       ABSENT: 'Absent',
@@ -472,6 +470,8 @@ export const hrFix = {
     enrollFace: 'Enrol or update your face',
   },
   attendance: {
+    trailShow: 'Show correction history',
+    trailEmpty: 'Never corrected.',
     pendingTitle: 'Attendance awaiting approval ({count})',
     pendingReason:
       'Submitted long after the clock-in time, so the hour came from the device, or captured outside every depot they are responsible for. Not counted as present yet.',
