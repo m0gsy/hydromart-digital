@@ -549,7 +549,7 @@ function OrderDetailInner({ id }: { id: string }) {
                     <div className="flex flex-col items-center gap-2 rounded-2xl border border-app p-4">
                       <RemoteImage
                         src={mediaUrl(depot.paymentQrisImageUrl)}
-                        alt={`QRIS ${depot.name}`}
+                        alt={t('order.detail.qrisAlt', { depot: depot.name })}
                         width={224}
                         height={224}
                         className="h-56 w-56 rounded-xl object-contain"

@@ -34,7 +34,7 @@ function ImportCustomersBody() {
   return (
     <CsvImport
       title="hrFix.imports.customers"
-      description="Nomor yang diimpor didaftarkan lebih dulu. Pelanggan tetap mendaftar sendiri lewat OTP dengan nomor yang sama — akunnya langsung terhubung ke data ini. Isi alamat berarti kota wajib diisi; provinsi opsional."
+      description="hrFix.imports.desc.customers"
       columns={COLUMNS}
       endpoint={endpoints.depotCrm.import}
       templateName="pelanggan"

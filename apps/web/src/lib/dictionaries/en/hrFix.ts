@@ -343,6 +343,12 @@ export const hrFix = {
     saveFailed: 'Could not save',
   },
   rules: {
+    edit: 'Edit',
+    editRule: 'Edit rule: {name}',
+    saveChanges: 'Save changes',
+    cancelEdit: 'Cancel',
+    updated: 'Rule updated',
+    loadFailed: 'Could not load the rules',
     pctOfBase: '{pct}% of base pay',
     title: 'Automatic bonus rules',
     subtitle: 'Bonuses are worked out automatically when payroll is generated',
@@ -587,6 +593,7 @@ export const hrFix = {
     contractEnd: 'Contract end',
   },
   resellers: {
+    denied: 'Access denied',
     perGallon: 'Rp{amount}/gallon',
     atThisDepot: '{n} at this depot',
     addReseller2: 'Add reseller',
@@ -1041,6 +1048,18 @@ export const hrFix = {
     deductsQuota: ' (uses quota)',
   },
   payroll: {
+    statusLabel: 'Status',
+    statusAll: 'All statuses',
+    needDepot: 'Choose a depot first',
+    batchDepot: 'Depot',
+    batchPickDepot: 'Choose a depot',
+    batchGenerate: 'Generate for one depot',
+    batchHint: 'Writes a DRAFT for every active employee of that depot. Approving and paying stay manual, one person at a time.',
+    batchDone: '{n} drafts written',
+    batchFailed: 'Batch failed',
+    batchGenerated: '{n} drafts written',
+    batchFailedCount: '{n} employees got no draft',
+    batchNoFailures: 'Everybody has a draft.',
     periodPresentCreated: '{period} · {days} days present · created {at}',
     // PG-01 — the employee record was anonymised by retention; there is no name left.
     unnamedEmployee: 'Unnamed employee (record anonymised)',
@@ -1520,6 +1539,29 @@ export const hrFix = {
     hint: 'Move your head slightly or blink while the photo is taken.',
   },
   imports: {
+    // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
+    desc: {
+      customers:
+        'Imported numbers are registered first. Customers still sign up themselves by OTP with the same number — their account links straight to this record. If you fill in an address, the city is required; the province is optional.',
+      inventory:
+        'Upload an Excel or CSV file to create many stock lines at once. PRODUCT rows must carry sku (the catalogue code) or productId; raw stock rows must leave both blank. The name and unit of a PRODUCT row come from the catalogue, whatever the label column says.',
+      pricing:
+        'Every row becomes a proposed price override and still waits on HQ approval — none of it takes effect immediately.',
+      staff:
+        'Upload an Excel or CSV file to create many staff accounts at once. They sign in by OTP with the number written here, and every row also opens an employee record in HR. A number that already has an account is not duplicated — its role is updated. The depot column is required for Courier and Depot Head; fill dailyRate for daily pay, monthlyRate for monthly.',
+      adjustments:
+        'Upload wage deductions for one period. Every row is added as written — two MANUAL deductions of the same amount in one month can both be legitimate, so nothing is merged automatically.',
+      allowances:
+        'Upload fixed allowances (transport, meals, position) for many employees at once. Every row is added — uploading the same file twice produces duplicate allowances.',
+      assets:
+        'Registers company assets in bulk, including ones an employee already holds. The holder must be at the same depot as the asset; otherwise the asset is still registered but not yet handed over.',
+      employees:
+        'Upload an Excel or CSV file to add many employees at once. Every new row also gets a login account (OTP) per the role column, and is linked straight to the depot written there.',
+      leaveBalances:
+        'Carries leave quota and leave already taken over from the old system. Without it, switching systems mid-year makes everybody look like they have a full quota again. A year that already has a balance is overwritten.',
+      loans:
+        'For carrying an outstanding advance over from the old system. Put the REMAINING unpaid amount as at startPeriod in the principal column, not the original loan — payroll counts forward from that figure, so the original would be deducted twice.',
+    },
     gateTitle: 'Bulk import is not available for this role',
     gateBody: 'A bulk import changes many rows at once, so it needs the same permission as changing them one by one. Ask your supervisor if you need it.',
     resellers: 'Import resellers / agents',

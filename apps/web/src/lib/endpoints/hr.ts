@@ -153,6 +153,9 @@ export const hr = {
     payrollMeById: (id: string) => `/payroll/api/v1/payroll/me/${id}`,
     payrollMeSlip: (id: string) => `/payroll/api/v1/payroll/me/${id}/slip`,
     generatePayroll: '/payroll/api/v1/payroll/generate',
+    // CA-1-20: one depot, one period, DRAFTs for the whole active roster — plus the
+    // per-employee failure list. Built with that report and called by nothing until now.
+    generateBatchPayroll: '/payroll/api/v1/payroll/generate-batch',
     approvePayroll: (id: string) => `/payroll/api/v1/payroll/${id}/approve`,
     payPayroll: (id: string) => `/payroll/api/v1/payroll/${id}/pay`,
     bonuses: (employeeId: string, periodMonth: string) =>

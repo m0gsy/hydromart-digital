@@ -19,6 +19,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -29,6 +30,7 @@ import {
   type Payroll,
   type PayrollStatus,
 } from '@/lib/hr';
+import type { GenerateBatchResult } from '@/lib/types';
 import { canRunPayroll } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
 
@@ -48,11 +50,22 @@ const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
 function PayrollInner() {
   const { t } = useT();
   const { customer } = useAuth();
+  const { depots } = useDepot();
   const { toast } = useToast();
   const prefillEmployee = useSearchParams().get('employeeId') ?? '';
   const [period, setPeriod] = useState(currentPeriod());
   const [employeeId, setEmployeeId] = useState(prefillEmployee);
+  /*
+   * CA-1-25 — `GET /payroll` has always accepted `status`, and `endpoints.hr.payroll`
+   * has always built it. There was no control, so on the screen where HR approves and pays
+   * a period, "show me only the drafts I still have to approve" was unaskable: the answer
+   * was a hundred rows of every status, in one list, at the end of a month.
+   */
+  const [status, setStatus] = useState<'' | PayrollStatus>('');
   const [busy, setBusy] = useState(false);
+  const [batchDepotId, setBatchDepotId] = useState('');
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchResult, setBatchResult] = useState<GenerateBatchResult | null>(null);
 
   const list = usePagedList<Payroll>(
     (page) =>
@@ -61,13 +74,14 @@ function PayrollInner() {
           endpoints.hr.payroll({
             periodMonth: period,
             employeeId: employeeId || undefined,
+            status: status || undefined,
             page,
             pageSize: PAGE_SIZE,
           }),
           true,
         )
         .then((p) => ({ items: p.rows, total: p.total })),
-    [period, employeeId],
+    [period, employeeId, status],
   );
   const { error, loading, reload } = list;
 
@@ -85,6 +99,43 @@ function PayrollInner() {
       toast(e instanceof ApiError ? e.message : t('hrFix.payroll.generateFailed'), 'error');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /*
+   * CA-1-20 — `POST /payroll/generate-batch` was built with a per-employee failure report,
+   * documented as a real response shape so a client could render it, and called by nobody.
+   *
+   * The screen offered one button: generate for ONE employee, chosen from a dropdown. So
+   * preparing a depot's month meant picking every name in turn, and the thing that made the
+   * batch worth having — the list of who did NOT get a draft — existed only in a route no
+   * screen issued. A batch that quietly skips someone is worse than no batch: nobody
+   * notices a missing payslip until payday.
+   */
+  async function generateBatch() {
+    if (!batchDepotId) {
+      toast(t('hrFix.payroll.needDepot'), 'error');
+      return;
+    }
+    setBatchBusy(true);
+    setBatchResult(null);
+    try {
+      const result = await api.post<GenerateBatchResult>(
+        endpoints.hr.generateBatchPayroll,
+        { depotId: batchDepotId, periodMonth: period },
+        true,
+      );
+      setBatchResult(result);
+      // No toast on a partial run: the failures below are the thing to read, and a green
+      // toast over them would say the opposite of what the panel says.
+      if (result.failed.length === 0) {
+        toast(t('hrFix.payroll.batchDone', { n: result.generated }));
+      }
+      reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hrFix.payroll.batchFailed'), 'error');
+    } finally {
+      setBatchBusy(false);
     }
   }
 
@@ -108,12 +159,79 @@ function PayrollInner() {
           placeholder={t('hrFix.payroll.allEmployees')}
           className="w-64"
         />
+        <label className="text-sm">
+          {t('hrFix.payroll.statusLabel')}
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as '' | PayrollStatus)}
+            className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
+          >
+            <option value="">{t('hrFix.payroll.statusAll')}</option>
+            {(['DRAFT', 'APPROVED', 'PAID'] as const).map((sName) => (
+              <option key={sName} value={sName}>
+                {t(PAYROLL_STATUS_LABEL[sName])}
+              </option>
+            ))}
+          </select>
+        </label>
         {canRunPayroll(customer?.role) && (
           <Button onClick={generate} loading={busy}>
             {t('hrFix.payroll.generate')}
           </Button>
         )}
       </Card>
+
+      {canRunPayroll(customer?.role) && (
+        <Card className="space-y-3 p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              {t('hrFix.payroll.batchDepot')}
+              <select
+                value={batchDepotId}
+                onChange={(e) => setBatchDepotId(e.target.value)}
+                className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
+              >
+                <option value="">{t('hrFix.payroll.batchPickDepot')}</option>
+                {depots.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button variant="secondary" onClick={generateBatch} loading={batchBusy}>
+              {t('hrFix.payroll.batchGenerate')}
+            </Button>
+          </div>
+          <p className="text-xs text-muted">{t('hrFix.payroll.batchHint')}</p>
+
+          {batchResult && (
+            <div className="rounded-lg border border-app p-3 text-sm">
+              <p className="font-semibold">
+                {t('hrFix.payroll.batchGenerated', { n: batchResult.generated })}
+              </p>
+              {batchResult.failed.length > 0 ? (
+                <>
+                  {/* The half of the response that makes the batch worth running: a draft
+                      nobody wrote is invisible until payday, so it is named here. */}
+                  <p className="mt-1.5 font-semibold text-[color:var(--danger)]">
+                    {t('hrFix.payroll.batchFailedCount', { n: batchResult.failed.length })}
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {batchResult.failed.map((f) => (
+                      <li key={f.employeeId} className="text-xs text-muted">
+                        <span className="font-semibold">{f.name}</span> — {f.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-muted">{t('hrFix.payroll.batchNoFailures')}</p>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {loading && list.rows.length === 0 && (
         <div className="space-y-2">

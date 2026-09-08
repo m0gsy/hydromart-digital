@@ -60,6 +60,16 @@ function RulesBody() {
   const admin = canManageHr(customer?.role);
   const { toast: notify } = useToast();
   const [form, setForm] = useState(EMPTY);
+  /*
+   * CA-1-22 — `PATCH /bonus-rules/:id` accepts all eight fields; this screen only ever
+   * sent `active`. So a rule with the wrong threshold, the wrong metric or a typo in its
+   * name could not be corrected: the only route out was to deactivate it and create a
+   * second one, which leaves two rules with almost the same name in a list that decides
+   * money, and no record that one replaced the other.
+   *
+   * The same form does both. `editing` holds the id being changed, or null for a new rule.
+   */
+  const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -84,23 +94,32 @@ function RulesBody() {
     if (!(threshold >= 0)) return setErr(t('hrFix.rules.thresholdInvalid'));
     if (!(rewardValue >= 0)) return setErr(t('hrFix.rules.rewardInvalid'));
     setSaving(true);
+    const body = {
+      bonusType: form.bonusType,
+      name: form.name.trim(),
+      metric: form.metric,
+      op: form.op,
+      threshold,
+      rewardKind: form.rewardKind,
+      rewardValue,
+    };
     try {
-      await api.post(
-        endpoints.hr.createBonusRule,
-        {
-          ...(form.depotId ? { depotId: form.depotId } : {}),
-          bonusType: form.bonusType,
-          name: form.name.trim(),
-          metric: form.metric,
-          op: form.op,
-          threshold,
-          rewardKind: form.rewardKind,
-          rewardValue,
-        },
-        true,
-      );
-      notify(t('hrFix.rules.added'));
+      if (editing) {
+        // `depotId` is deliberately not in the patch: which depot a rule belongs to is
+        // what makes it a different rule, and moving one silently would re-target money
+        // already reasoned about. Deactivate and create for that.
+        await api.patch(endpoints.hr.updateBonusRule(editing), body, true);
+        notify(t('hrFix.rules.updated'));
+      } else {
+        await api.post(
+          endpoints.hr.createBonusRule,
+          { ...(form.depotId ? { depotId: form.depotId } : {}), ...body },
+          true,
+        );
+        notify(t('hrFix.rules.added'));
+      }
       setForm(EMPTY);
+      setEditing(null);
       rules.reload();
     } catch (e2) {
       setErr(e2 instanceof ApiError ? e2.message : t('hrFix.rules.saveFailed'));
@@ -120,6 +139,23 @@ function RulesBody() {
     }
   }
 
+  function startEdit(r: BonusRule) {
+    setEditing(r.id);
+    setErr(null);
+    setForm({
+      depotId: r.depotId ?? '',
+      bonusType: r.bonusType,
+      name: r.name,
+      metric: r.metric,
+      op: r.op,
+      threshold: String(r.threshold),
+      rewardKind: r.rewardKind,
+      rewardValue: String(r.rewardValue),
+    });
+    // The form sits below the list; on a phone the row and the form are never both visible.
+    document.getElementById('bonus-rule-form')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
   const depotName = (id: string | null) =>
     id
       ? (depots.data?.items.find((d) => d.id === id)?.name ?? t('hrFix.rules.depot'))
@@ -132,7 +168,7 @@ function RulesBody() {
       {rules.loading ? (
         <Skeleton className="h-40" />
       ) : rules.error ? (
-        <ErrorState message="Gagal memuat rule" onRetry={rules.reload} />
+        <ErrorState message={t('hrFix.rules.loadFailed')} onRetry={rules.reload} />
       ) : (
         <Card className="divide-y divide-[color:var(--border)]">
           {(rules.data ?? []).length === 0 && (
@@ -159,9 +195,14 @@ function RulesBody() {
                 </p>
               </div>
               {admin && (
-                <Button variant="secondary" onClick={() => toggle(r)}>
-                  {r.active ? t('hrFix.rules.deactivate') : t('hrFix.rules.activate')}
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <Button variant="secondary" onClick={() => startEdit(r)}>
+                    {t('hrFix.rules.edit')}
+                  </Button>
+                  <Button variant="secondary" onClick={() => toggle(r)}>
+                    {r.active ? t('hrFix.rules.deactivate') : t('hrFix.rules.activate')}
+                  </Button>
+                </div>
               )}
             </div>
           ))}
@@ -169,9 +210,11 @@ function RulesBody() {
       )}
 
       {admin && (
-        <form onSubmit={submit}>
+        <form onSubmit={submit} id="bonus-rule-form">
           <Card className="grid gap-4 p-5 sm:grid-cols-2">
-            <h2 className="col-span-full text-sm font-semibold">{t('hrFix.rules.addRule')}</h2>
+            <h2 className="col-span-full text-sm font-semibold">
+              {editing ? t('hrFix.rules.editRule', { name: form.name }) : t('hrFix.rules.addRule')}
+            </h2>
             <Field label={t('hrFix.rules.ruleName')}>
               <Input
                 value={form.name}
@@ -269,14 +312,30 @@ function RulesBody() {
               {depots.error && <LoadError onRetry={depots.reload} />}
             </Field>
             {err && (
-              <p className="col-span-full text-sm font-medium text-red-600" role="alert">
+              <p
+                className="col-span-full text-sm font-medium text-[color:var(--danger)]"
+                role="alert"
+              >
                 {err}
               </p>
             )}
-            <div className="col-span-full">
+            <div className="col-span-full flex gap-2">
               <Button type="submit" loading={saving}>
-                {t('hrFix.rules.addRule')}
+                {editing ? t('hrFix.rules.saveChanges') : t('hrFix.rules.addRule')}
               </Button>
+              {editing && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setEditing(null);
+                    setForm(EMPTY);
+                    setErr(null);
+                  }}
+                >
+                  {t('hrFix.rules.cancelEdit')}
+                </Button>
+              )}
             </div>
           </Card>
         </form>

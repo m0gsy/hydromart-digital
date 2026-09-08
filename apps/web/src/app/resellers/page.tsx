@@ -207,7 +207,7 @@ export default function ResellersPage() {
   if (!canView) {
     return (
       <div className="mx-auto max-w-4xl">
-        <ErrorState message="Akses ditolak" />
+        <ErrorState message={t('hrFix.resellers.denied')} />
       </div>
     );
   }

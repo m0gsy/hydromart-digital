@@ -43,7 +43,7 @@ function ImportInventoryBody() {
   return (
     <CsvImport
       title="hrFix.importsInventory.title"
-      description="Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi sku (kode produk di katalog) atau productId; baris stok mentah harus mengosongkan keduanya. Nama dan satuan baris PRODUK diambil dari katalog, apa pun yang ditulis di kolom label."
+      description="hrFix.imports.desc.inventory"
       columns={COLUMNS}
       endpoint={endpoints.inventory.import(selectedId)}
       templateName="stok"

@@ -331,7 +331,10 @@ export function CsvImport({
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-[22px] font-extrabold tracking-tight">{t(title)}</h1>
-        {description && <p className="mt-1 text-[13.5px] text-muted">{description}</p>}
+        {/* CA-1-49: through `t()`, exactly like `title` above it. Ten import screens passed
+            a raw Indonesian paragraph here and the i18n scanner could not see any of them —
+            it only ever read quoted props from a shorter list of names. */}
+        {description && <p className="mt-1 text-[13.5px] text-muted">{t(description)}</p>}
       </div>
 
       <Card className="flex flex-col gap-3 p-5">

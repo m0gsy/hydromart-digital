@@ -2860,3 +2860,20 @@ export interface CounterQuote {
   /** C11: the ongkir already inside totalIdr, 0 for a pick-up. Its own line at the till. */
   shippingIdr: number;
 }
+
+/**
+ * CA-1-20 — the answer `POST /payroll/generate-batch` has always given, finally rendered.
+ *
+ * `failed` is the half that matters: a batch that quietly skipped somebody is worse than no
+ * batch at all, because a missing payslip is invisible until payday.
+ */
+export interface GenerateBatchFailure {
+  employeeId: string;
+  name: string;
+  reason: string;
+}
+
+export interface GenerateBatchResult {
+  generated: number;
+  failed: GenerateBatchFailure[];
+}

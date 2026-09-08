@@ -356,6 +356,12 @@ export const hrFix = {
     saveFailed: 'Gagal menyimpan',
   },
   rules: {
+    edit: 'Ubah',
+    editRule: 'Ubah rule: {name}',
+    saveChanges: 'Simpan perubahan',
+    cancelEdit: 'Batal',
+    updated: 'Rule diperbarui',
+    loadFailed: 'Gagal memuat rule',
     pctOfBase: '{pct}% gaji pokok',
     title: 'Rule Bonus Otomatis',
     subtitle: 'Bonus dihitung otomatis saat payroll dibuat',
@@ -600,6 +606,7 @@ export const hrFix = {
     contractEnd: 'Akhir kontrak',
   },
   resellers: {
+    denied: 'Akses ditolak',
     perGallon: 'Rp{amount}/galon',
     // J12: disebut hanya kalau berbeda dari total — angka yang sama dua kali tidak memberi tahu apa pun.
     atThisDepot: '{n} di depot ini',
@@ -1057,6 +1064,18 @@ export const hrFix = {
     deductsQuota: ' (potong kuota)',
   },
   payroll: {
+    statusLabel: 'Status',
+    statusAll: 'Semua status',
+    needDepot: 'Pilih depot dulu',
+    batchDepot: 'Depot',
+    batchPickDepot: 'Pilih depot',
+    batchGenerate: 'Buat sedepot',
+    batchHint: 'Menulis DRAFT untuk setiap karyawan aktif di depot itu. Menyetujui dan membayar tetap manual, satu per satu.',
+    batchDone: '{n} draf ditulis',
+    batchFailed: 'Pembuatan sedepot gagal',
+    batchGenerated: '{n} draf ditulis',
+    batchFailedCount: '{n} karyawan tidak mendapat draf',
+    batchNoFailures: 'Semua karyawan sudah punya draf.',
     periodPresentCreated: '{period} · {days} hari hadir · dibuat {at}',
     // PG-01: karyawannya sudah dianonimkan retensi — namanya memang tidak ada lagi.
     unnamedEmployee: 'Karyawan tanpa nama (data sudah dianonimkan)',
@@ -1538,6 +1557,29 @@ export const hrFix = {
     hint: 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
   },
   imports: {
+    // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
+    desc: {
+      customers:
+        'Nomor yang diimpor didaftarkan lebih dulu. Pelanggan tetap mendaftar sendiri lewat OTP dengan nomor yang sama — akunnya langsung terhubung ke data ini. Isi alamat berarti kota wajib diisi; provinsi opsional.',
+      inventory:
+        'Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi sku (kode produk di katalog) atau productId; baris stok mentah harus mengosongkan keduanya. Nama dan satuan baris PRODUK diambil dari katalog, apa pun yang ditulis di kolom label.',
+      pricing:
+        'Setiap baris menjadi usulan override harga dan tetap menunggu persetujuan HQ — tidak langsung berlaku.',
+      staff:
+        'Unggah Excel atau CSV untuk membuat banyak akun staf sekaligus. Mereka masuk lewat OTP dengan nomor yang ditulis, dan setiap baris juga membuka kartu karyawan di HR. Nomor yang sudah punya akun tidak digandakan — perannya diperbarui. Kolom depot wajib diisi untuk peran Kurir dan Kepala Depot; isi dailyRate untuk gaji harian, monthlyRate untuk bulanan.',
+      adjustments:
+        'Unggah potongan gaji untuk satu periode. Setiap baris ditambahkan apa adanya — dua potongan MANUAL bernilai sama dalam satu bulan memang bisa sah, jadi tidak ada yang digabung otomatis.',
+      allowances:
+        'Unggah tunjangan tetap (transport, makan, jabatan) untuk banyak karyawan sekaligus. Setiap baris ditambahkan — mengunggah file yang sama dua kali menghasilkan tunjangan ganda.',
+      assets:
+        'Mendaftarkan aset perusahaan sekaligus, termasuk yang sudah dipegang karyawan. Penerima harus berada di depot yang sama dengan asetnya; jika tidak, asetnya tetap terdaftar tapi belum diserahkan.',
+      employees:
+        'Unggah Excel atau CSV untuk menambah banyak karyawan sekaligus. Setiap baris baru juga dibuatkan akun login (OTP) sesuai kolom role, dan langsung tertaut ke depot yang ditulis.',
+      leaveBalances:
+        'Memindahkan kuota cuti dan cuti yang sudah terpakai dari sistem lama. Tanpa ini, pindah sistem di tengah tahun membuat semua orang seolah punya kuota penuh lagi. Tahun yang sudah punya saldo akan ditimpa.',
+      loans:
+        'Untuk memindahkan kasbon yang masih berjalan dari sistem lama. Isi kolom principal dengan SISA yang belum dibayar per startPeriod, bukan nilai pinjaman awal — payroll menghitung maju dari angka itu, jadi nilai awal akan terpotong dua kali.',
+    },
     gateTitle: 'Impor massal tidak tersedia untuk peran ini',
     gateBody: 'Impor massal mengubah data banyak baris sekaligus, jadi izinnya sama dengan mengubahnya satu per satu. Minta ke atasan Anda kalau memang perlu.',
     resellers: 'Import Reseller / Agen',

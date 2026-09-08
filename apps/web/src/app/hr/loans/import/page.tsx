@@ -18,7 +18,7 @@ export default function ImportLoansPage() {
     <div className="mx-auto max-w-5xl">
       <CsvImport
         title="Import Kasbon Berjalan"
-        description="Untuk memindahkan kasbon yang masih berjalan dari sistem lama. Isi kolom principal dengan SISA yang belum dibayar per startPeriod, bukan nilai pinjaman awal — payroll menghitung maju dari angka itu, jadi nilai awal akan terpotong dua kali."
+        description="hrFix.imports.desc.loans"
         columns={COLUMNS}
         endpoint={endpoints.hr.importLoans}
         templateName="kasbon"

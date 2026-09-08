@@ -100,6 +100,7 @@ export const order = {
     itemCountOther: '{n} item',
   },
   detail: {
+    qrisAlt: 'Kode QRIS {depot}',
     payDirect: 'Pembayaran masuk langsung ke {depot}.',
     placedMeta: 'Dipesan {date} · {n} item · Total',
     items: 'Item',
