@@ -75,7 +75,7 @@ function ShiftGoal() {
         </button>
         <div>
           <div className="text-sm font-extrabold">{t('courierFix.shiftGoal.title')}</div>
-          <div className="text-[11px] text-[color:var(--muted)]">{t('courierFix.shiftGoal.subtitle')}</div>
+          <div className="text-[11px] text-[color:var(--text-muted)]">{t('courierFix.shiftGoal.subtitle')}</div>
         </div>
       </header>
 
@@ -99,7 +99,7 @@ function ShiftGoal() {
       <div className="flex gap-2.5">
         <Card className="flex-1 p-3.5">
           <div className="text-xl font-extrabold tabular-nums">{delivered}</div>
-          <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
+          <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
             {deliveryTarget > 0
               ? t('courierFix.shiftGoal.deliveriesLabel', { target: deliveryTarget })
               : t('courierFix.shiftGoal.deliveriesNoTarget')}
@@ -107,7 +107,7 @@ function ShiftGoal() {
         </Card>
         <Card className="flex-1 p-3.5">
           <div className="text-xl font-extrabold tabular-nums">{remaining}</div>
-          <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
+          <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
             {t('courierFix.shiftGoal.remainingShift')}
           </div>
         </Card>
@@ -119,12 +119,12 @@ function ShiftGoal() {
 
       {tiers.length > 0 && (
         <div className="px-1 pt-2">
-          <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+          <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
             {t('courierFix.shiftGoal.tiersHeading')}
           </div>
           {/* Says the window out loud: the rungs are monthly and the card above is weekly,
               and nothing on this screen used to distinguish them. */}
-          <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+          <div className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
             {t('courierFix.shiftGoal.tiersWindow', { n: monthDelivered })}
           </div>
         </div>
@@ -144,14 +144,14 @@ function ShiftGoal() {
             >
               <span
                 className={`flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-extrabold tabular-nums ${
-                  achieved ? 'bg-green-100 text-green-700' : isTarget ? 'bg-brand-50 text-brand-700' : 'bg-black/5 text-[color:var(--muted)]'
+                  achieved ? 'bg-green-100 text-green-700' : isTarget ? 'bg-brand-50 text-brand-700' : 'bg-black/5 text-[color:var(--text-muted)]'
                 }`}
               >
                 {achieved ? <Check size={17} weight="bold" /> : isTarget ? tier.deliveries : <LockSimple size={16} weight="fill" />}
               </span>
               <div className="flex-1">
                 <div className="text-[13px] font-extrabold">{t('courierFix.shiftGoal.tierUnit', { n: tier.deliveries })}</div>
-                <div className={`text-[11.5px] ${achieved ? 'text-green-700' : isTarget ? 'text-brand-700' : 'text-[color:var(--muted)]'}`}>
+                <div className={`text-[11.5px] ${achieved ? 'text-green-700' : isTarget ? 'text-brand-700' : 'text-[color:var(--text-muted)]'}`}>
                   {achieved
                     ? t('courierFix.shiftGoal.tierAchieved', { amount })
                     : isTarget

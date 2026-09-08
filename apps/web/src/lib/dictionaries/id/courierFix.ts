@@ -71,6 +71,8 @@ export const courierFix = {
     gps: 'Lokasi GPS',
     proof: 'Bukti',
     proofDone: 'Foto & tanda tangan',
+    // CA-4-38: bukti yang masih di antrean HP belum jadi bukti yang dipegang server.
+    proofQueued: 'Tersimpan di HP, menunggu sinyal',
     retention: 'Bukti disimpan 12 bulan lalu dihapus otomatis sesuai kebijakan retensi UU PDP.',
     next: 'Tugas berikutnya',
     backToList: 'Kembali ke daftar',
@@ -97,6 +99,8 @@ export const courierFix = {
     contactHeading: 'Upaya kontak',
     call: 'Telepon lagi',
     chat: 'Chat',
+    // CA-4-36: kedua tombol kini benar-benar menelepon / membuka WhatsApp.
+    noPhone: 'Nomor pelanggan tidak tersimpan di pengantaran ini.',
     methodCall: 'Telepon',
     methodChat: 'Chat WhatsApp',
     outcomeLogged: 'Tercatat',

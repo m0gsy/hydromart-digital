@@ -72,12 +72,12 @@ function History() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-extrabold tabular-nums">{d.orderNumber}</div>
-                  <div className="truncate text-[11px] text-[color:var(--muted)]">
+                  <div className="truncate text-[11px] text-[color:var(--text-muted)]">
                     {ok ? d.destinationAddress : (d.failureReason ?? t('hrFix.driverHistory.failed'))} · {when ? TIME.format(new Date(when)) : ''}
                   </div>
                 </div>
                 {!ok && <span className="text-[11px] font-extrabold text-red-600">{t('hrFix.driverHistory.failed')}</span>}
-                <CaretRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+                <CaretRight size={14} className="shrink-0 text-[color:var(--text-muted)]" />
               </Link>
             );
           })}

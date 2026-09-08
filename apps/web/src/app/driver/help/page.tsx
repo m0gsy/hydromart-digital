@@ -83,12 +83,12 @@ function Help() {
       </header>
 
       <label className="flex h-12 items-center gap-2 rounded-[14px] border border-[color:var(--border)] bg-white px-4">
-        <MagnifyingGlass size={17} className="text-[color:var(--muted)]" />
+        <MagnifyingGlass size={17} className="text-[color:var(--text-muted)]" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('driver.help.searchPlaceholder')}
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-[color:var(--muted)]"
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-[color:var(--text-muted)]"
         />
       </label>
 
@@ -104,12 +104,12 @@ function Help() {
         })}
       </div>
 
-      <div className="px-1 pt-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+      <div className="px-1 pt-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
         {t('driver.help.faqHeading')}
       </div>
       <Card className="divide-y divide-[color:var(--border)] p-0">
         {filtered.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-[color:var(--muted)]">
+          <div className="px-4 py-6 text-center text-sm text-[color:var(--text-muted)]">
             {t('driver.help.noResults', { query })}
           </div>
         ) : (
@@ -129,11 +129,11 @@ function Help() {
                   {isOpen ? (
                     <Minus size={15} weight="bold" className="text-brand-700" />
                   ) : (
-                    <Plus size={15} className="text-[color:var(--muted)]" />
+                    <Plus size={15} className="text-[color:var(--text-muted)]" />
                   )}
                 </div>
                 {isOpen && (
-                  <p className="mt-2 text-[12.5px] leading-relaxed text-[color:var(--muted)]">{row.a}</p>
+                  <p className="mt-2 text-[12.5px] leading-relaxed text-[color:var(--text-muted)]">{row.a}</p>
                 )}
               </button>
             );

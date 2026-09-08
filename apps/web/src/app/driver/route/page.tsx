@@ -145,7 +145,7 @@ function RouteView() {
        * (haversine over the stops' own destinationLat/Lng, at the depot's configured speed).
        */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-[color:var(--muted)] tabular-nums">
+        <span className="text-xs font-bold text-[color:var(--text-muted)] tabular-nums">
           {t('courierFix.route.summary', {
             stops: stops.length,
             km: totalKm.toLocaleString('id-ID', { maximumFractionDigits: 1 }),
@@ -166,9 +166,21 @@ function RouteView() {
           return (
             <li key={d.id} className="flex gap-3">
               <div className="flex flex-col items-center">
+                {/*
+                  CA-4-32. `--fg` is defined NOWHERE — this line is its only appearance in
+                  the whole app, so the fill resolved to nothing and the white number sat on
+                  the page ground. Invisible in LIGHT mode too, not only dark, which is worse
+                  than the row reported.
+
+                  `--text` on `--surface` is the pair that inverts with the theme, so the
+                  number stays readable in both. The next stop keeps the teal fill, and
+                  `--color-on-brand` is what the palette pairs with it.
+                */}
                 <span
-                  className={`flex size-6 items-center justify-center rounded-full text-[12px] font-extrabold text-white ${
-                    isNext ? 'bg-brand-600' : 'bg-[color:var(--fg)]'
+                  className={`flex size-6 items-center justify-center rounded-full text-[12px] font-extrabold ${
+                    isNext
+                      ? 'bg-brand-600 text-[color:var(--color-on-brand)]'
+                      : 'bg-[color:var(--text)] text-[color:var(--surface)]'
                   }`}
                 >
                   {i + 1}
@@ -182,7 +194,9 @@ function RouteView() {
               </div>
               <Link
                 href={`/driver/deliveries/detail?id=${d.id}`}
-                className={`mb-3 flex-1 rounded-2xl bg-white p-3.5 ${
+                // CA-4-32: `bg-white` is a fixed colour on a themed page — the card stayed
+                // white while everything around it went dark.
+                className={`mb-3 flex-1 rounded-2xl bg-[color:var(--surface)] p-3.5 ${
                   isNext ? 'border-2 border-brand-600' : 'border border-[color:var(--border)]'
                 }`}
               >
@@ -194,7 +208,7 @@ function RouteView() {
                     </span>
                   )}
                 </div>
-                <div className="mt-1 text-xs leading-snug text-[color:var(--muted)]">
+                <div className="mt-1 text-xs leading-snug text-[color:var(--text-muted)]">
                   {d.destinationAddress}
                   {leg != null &&
                     ` · ${leg.toLocaleString('id-ID', { maximumFractionDigits: 1 })} km`}

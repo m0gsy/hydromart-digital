@@ -71,8 +71,22 @@ function Settings() {
   };
 
   useEffect(() => {
-    const raw = localStorage.getItem(PREF_KEY);
-    const stored = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    /*
+     * CA-4-52. A bare `JSON.parse` in a passive effect: one corrupt value in localStorage —
+     * a half-written write, a schema that moved, a user poking devtools — and the whole
+     * settings screen threw on mount rather than falling back to defaults.
+     *
+     * `getItem` is inside the try as well, because storage that is blocked entirely (a
+     * private window, a WebView with site data off) throws on the READ. Two ways to fail,
+     * one landing.
+     */
+    let stored: Record<string, boolean> = {};
+    try {
+      const raw = localStorage.getItem(PREF_KEY);
+      if (raw) stored = JSON.parse(raw) as Record<string, boolean>;
+    } catch {
+      /* unreadable or corrupt — the defaults below are the answer, not a crash */
+    }
     const merged = { ...Object.fromEntries(NOTIF.map((n) => [n.id, n.def])), ...stored };
     setPrefs(merged);
     /*
@@ -103,11 +117,11 @@ function Settings() {
         <div className="flex-1 text-sm font-extrabold">{t('driver.settings.title')}</div>
       </header>
 
-      <div className="px-1 pt-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+      <div className="px-1 pt-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
         {t('driver.settings.notifSection')}
       </div>
       {/* K5.1: says what these switches can actually keep — this device, not the account. */}
-      <p className="px-1 text-[11px] text-[color:var(--muted)]">{t('driver.settings.notifScope')}</p>
+      <p className="px-1 text-[11px] text-[color:var(--text-muted)]">{t('driver.settings.notifScope')}</p>
       {pushSupported() && (
         <Card className="p-0">
           <div className="flex items-center gap-3 px-4 py-3.5">
@@ -116,7 +130,7 @@ function Settings() {
             </span>
             <div className="flex-1">
               <div className="text-sm font-bold">{t('driver.settings.pushLabel')}</div>
-              <div className="text-[11px] text-[color:var(--muted)]">
+              <div className="text-[11px] text-[color:var(--text-muted)]">
                 {pushState === 'denied'
                   ? t('driver.settings.pushDenied')
                   : t('driver.settings.pushHint')}
@@ -142,7 +156,7 @@ function Settings() {
               </span>
               <div className="flex-1">
                 <div className="text-sm font-bold">{label}</div>
-                <div className="text-[11px] text-[color:var(--muted)]">{t(`driver.settings.notif.${n.id}Sub`)}</div>
+                <div className="text-[11px] text-[color:var(--text-muted)]">{t(`driver.settings.notif.${n.id}Sub`)}</div>
               </div>
               <Toggle on={prefs[n.id] ?? n.def} onChange={(v) => set(n.id, v)} label={label} />
             </div>
@@ -150,7 +164,7 @@ function Settings() {
         })}
       </Card>
 
-      <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+      <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
         {t('driver.settings.displaySection')}
       </div>
       <Card className="p-2">
@@ -165,7 +179,7 @@ function Settings() {
                 onClick={() => setTheme(th.value)}
                 aria-pressed={active}
                 className={`flex flex-col items-center gap-1.5 rounded-xl py-3 text-xs font-bold ${
-                  active ? 'bg-brand-600 text-on-brand' : 'bg-[color:var(--surface-soft)] text-[color:var(--muted)]'
+                  active ? 'bg-brand-600 text-on-brand' : 'bg-[color:var(--surface-soft)] text-[color:var(--text-muted)]'
                 }`}
               >
                 <TIcon size={20} weight="fill" />
@@ -176,7 +190,7 @@ function Settings() {
         </div>
       </Card>
 
-      <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
+      <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
         {t('driver.settings.langSection')}
       </div>
       <Card className="divide-y divide-[color:var(--border)] p-0">
@@ -216,7 +230,7 @@ function LangRow({
       <span className="text-[22px]">{flag}</span>
       <div className="flex-1">
         <div className={`text-sm ${active ? 'font-extrabold' : 'font-semibold'}`}>{name}</div>
-        <div className="text-[11px] text-[color:var(--muted)]">{sub}</div>
+        <div className="text-[11px] text-[color:var(--text-muted)]">{sub}</div>
       </div>
       <span
         className={`flex size-5 items-center justify-center rounded-full border-2 ${active ? 'border-brand-600 bg-brand-600' : 'border-[color:var(--border)]'}`}

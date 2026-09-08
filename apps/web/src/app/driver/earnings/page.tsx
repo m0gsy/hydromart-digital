@@ -95,7 +95,7 @@ function Earnings() {
           <Target size={18} weight="fill" />
         </span>
         <span className="flex-1 text-sm font-bold">{t('hrFix.earnings.shiftTarget')}</span>
-        <CaretRight size={16} className="text-[color:var(--muted)]" />
+        <CaretRight size={16} className="text-[color:var(--text-muted)]" />
       </Link>
 
       {/*
@@ -112,7 +112,7 @@ function Earnings() {
           <Wallet size={18} weight="fill" />
         </span>
         <span className="flex-1 text-sm font-bold">{t('hrFix.earnings.settleCash')}</span>
-        <CaretRight size={16} className="text-[color:var(--muted)]" />
+        <CaretRight size={16} className="text-[color:var(--text-muted)]" />
       </Link>
 
       {withdrawing ? (
@@ -210,7 +210,7 @@ function LedgerRow({ entry }: { entry: CourierLedgerEntry }) {
     <Card className="flex items-center justify-between p-3.5">
       <div className="min-w-0">
         <div className="truncate text-sm font-bold">{entry.description}</div>
-        <div className="text-[11px] tabular-nums text-[color:var(--muted)]">
+        <div className="text-[11px] tabular-nums text-[color:var(--text-muted)]">
           {WHEN.format(new Date(entry.occurredAt))}
         </div>
       </div>
@@ -230,7 +230,7 @@ function WithdrawalRow({ withdrawal: w }: { withdrawal: CourierWithdrawal }) {
     <Card className="flex items-center justify-between p-3.5">
       <div className="min-w-0">
         <div className="truncate text-sm font-bold">{w.bankAccountRef}</div>
-        <div className="text-[11px] tabular-nums text-[color:var(--muted)]">
+        <div className="text-[11px] tabular-nums text-[color:var(--text-muted)]">
           {WHEN.format(new Date(w.createdAt))} · <span className={tone}>{t(STATUS_LABEL[w.status])}</span>
         </div>
       </div>

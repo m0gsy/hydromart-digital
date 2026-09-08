@@ -83,7 +83,7 @@ function Pay() {
         </button>
         <div className="flex-1">
           <div className="text-sm font-extrabold">{t('driver.pay.title')}</div>
-          <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
+          <div className="text-[11px] tabular-nums text-[color:var(--text-muted)]">{delivery.orderNumber}</div>
         </div>
       </header>
 
@@ -91,7 +91,7 @@ function Pay() {
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-amber-500" />
           <div className="text-base font-extrabold">{t('driver.pay.queuedTitle')}</div>
-          <div className="text-sm text-[color:var(--muted)]">{t('driver.pay.queuedBody')}</div>
+          <div className="text-sm text-[color:var(--text-muted)]">{t('driver.pay.queuedBody')}</div>
           <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/detail?id=${id}`)}>
             {t('driver.pay.doneNext')}
           </Button>
@@ -100,14 +100,14 @@ function Pay() {
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-green-600" />
           <div className="text-base font-extrabold">{t('driver.pay.doneTitle')}</div>
-          <div className="text-sm text-[color:var(--muted)]">{t('driver.pay.doneChangeLabel')}</div>
+          <div className="text-sm text-[color:var(--text-muted)]">{t('driver.pay.doneChangeLabel')}</div>
           <Money amount={done.changeGiven ?? 0} className="text-2xl font-extrabold" />
           <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/detail?id=${id}`)}>
             {t('driver.pay.doneNext')}
           </Button>
         </Card>
       ) : !cod ? (
-        <Card className="p-5 text-sm text-[color:var(--muted)]">
+        <Card className="p-5 text-sm text-[color:var(--text-muted)]">
           {t('driver.pay.noCod')}
         </Card>
       ) : (

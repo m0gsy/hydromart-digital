@@ -142,20 +142,22 @@ function Body({ p }: { p: CourierPerformance }) {
         <Stat
           value={String(p.delivered)}
           label={t('hrFix.driverPerf.completed')}
-          delta={deltaText(deliveredDelta, '%')}
+          delta={deliveredDelta}
+          deltaUnit="%"
         />
         <Stat
           value={p.rating === null ? '—' : p.rating.toLocaleString('id-ID')}
           label={t('hrFix.driverPerf.rating')}
           icon={<Star size={16} weight="fill" className="text-amber-500" />}
-          delta={ratingDelta === null ? null : deltaText(ratingDelta, '')}
+          delta={ratingDelta}
+          deltaUnit=""
         />
       </div>
 
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-extrabold">{t('hrFix.driverPerf.perDay')}</span>
-          <span className="text-[11px] text-[color:var(--muted)]">
+          <span className="text-[11px] text-[color:var(--text-muted)]">
             rata-rata {avgDay.toLocaleString('id-ID')}
           </span>
         </div>
@@ -166,7 +168,7 @@ function Body({ p }: { p: CourierPerformance }) {
                 className={`w-full rounded ${n === maxDay && n > 0 ? 'bg-brand-600' : 'bg-brand-100'}`}
                 style={{ height: `${Math.round((n / maxDay) * 72) + 4}px` }}
               />
-              <span className="text-[10px] font-bold text-[color:var(--muted)]">
+              <span className="text-[10px] font-bold text-[color:var(--text-muted)]">
                 {DAY_LABELS[i]}
               </span>
             </div>
@@ -197,7 +199,7 @@ function Body({ p }: { p: CourierPerformance }) {
               Tercapai
             </span>
           ) : (
-            <span className="text-xs font-bold text-[color:var(--muted)]">
+            <span className="text-xs font-bold text-[color:var(--text-muted)]">
               {p.delivered}/{p.target}
             </span>
           )}
@@ -216,11 +218,14 @@ function Stat({
   value,
   label,
   delta,
+  deltaUnit = '',
   icon,
 }: {
   value: string;
   label: string;
-  delta: string | null;
+  /** The raw change, so the sign is still available to choose a colour with (CA-4-26). */
+  delta: number | null;
+  deltaUnit?: string;
   icon?: React.ReactNode;
 }) {
   return (
@@ -229,10 +234,24 @@ function Stat({
         {icon}
         <span className="text-xl font-extrabold tabular-nums">{value}</span>
       </div>
-      <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--muted)]">
+      <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
         {label}
       </div>
-      {delta && <div className="mt-0.5 text-[11px] font-bold text-green-600">{delta}</div>}
+      {/*
+        CA-4-26: `text-green-600` was unconditional, so "↓ 3%" — fewer deliveries than last
+        period — was rendered in the colour that means improvement. The tone lives here now
+        rather than at the two call sites, and `Stat` takes the NUMBER: the sign cannot be
+        recovered from a string that has already been formatted to "↓ 3%".
+      */}
+      {delta !== null && delta !== 0 && (
+        <div
+          className={`mt-0.5 text-[11px] font-bold ${
+            delta > 0 ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]'
+          }`}
+        >
+          {deltaText(delta, deltaUnit)}
+        </div>
+      )}
     </Card>
   );
 }

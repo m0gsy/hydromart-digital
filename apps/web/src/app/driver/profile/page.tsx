@@ -75,7 +75,7 @@ function Profile() {
               {t('driver.profile.active')}
             </span>
           </div>
-          <div className="mt-2 text-[11px] tabular-nums text-[color:var(--muted)]">{customer?.phone}</div>
+          <div className="mt-2 text-[11px] tabular-nums text-[color:var(--text-muted)]">{customer?.phone}</div>
         </div>
       </Card>
 
@@ -86,7 +86,7 @@ function Profile() {
               <Truck size={19} weight="fill" />
             </span>
             <span className="flex-1 text-sm font-medium">{t('driver.profile.vehicle.label')}</span>
-            <span className="text-sm text-[color:var(--muted)]">{vehicleText(customer, t)}</span>
+            <span className="text-sm text-[color:var(--text-muted)]">{vehicleText(customer, t)}</span>
           </div>
         )}
         {customer?.assignedDepotId && (
@@ -108,11 +108,11 @@ function Profile() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">{t('driver.profile.depotPlacement')}</span>
-                <span className="ml-auto truncate text-sm text-[color:var(--muted)]">
+                <span className="ml-auto truncate text-sm text-[color:var(--text-muted)]">
                   {depotName ?? '—'}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted)]">
+              <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
                 {t('driver.profile.depotPlacementHint')}
               </p>
             </div>
@@ -175,7 +175,7 @@ function Profile() {
         <SignOut size={17} />
         {t('driver.profile.logout')}
       </button>
-      <p className="text-center text-[11px] text-[color:var(--muted)]">{t('driver.profile.version')}</p>
+      <p className="text-center text-[11px] text-[color:var(--text-muted)]">{t('driver.profile.version')}</p>
     </div>
   );
 }
@@ -185,7 +185,7 @@ function Row({ icon, label, onClick }: { icon: React.ReactNode; label: string; o
     <button type="button" onClick={onClick} disabled={!onClick} className="flex w-full items-center gap-3 p-4 text-left disabled:cursor-default">
       <span className="flex size-8 items-center justify-center rounded-xl bg-black/5 text-brand-700">{icon}</span>
       <span className="flex-1 text-sm font-medium">{label}</span>
-      <CaretRight size={15} className="text-[color:var(--muted)]" />
+      <CaretRight size={15} className="text-[color:var(--text-muted)]" />
     </button>
   );
 }

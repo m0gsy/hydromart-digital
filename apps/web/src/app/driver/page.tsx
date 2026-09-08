@@ -77,7 +77,7 @@ function DriverConsole() {
         <div>
           <h1 className="text-xl font-extrabold tracking-tight">{t('driver.home.title')}</h1>
           {depotId && (
-            <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-[color:var(--muted)]">
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-[color:var(--text-muted)]">
               <Storefront size={12} weight="fill" className="text-brand-700" />
               {t('driver.home.assignedDepot')}
             </span>
@@ -125,7 +125,7 @@ function DriverConsole() {
         >
           <Megaphone size={16} weight="fill" className="text-brand-700" />
           {t('driver.home.depotAnnouncements')}
-          <span className="ml-auto text-xs font-normal text-[color:var(--muted)]">{t('driver.home.view')}</span>
+          <span className="ml-auto text-xs font-normal text-[color:var(--text-muted)]">{t('driver.home.view')}</span>
         </Link>
       )}
 
@@ -139,7 +139,7 @@ function DriverConsole() {
         >
           <Path size={16} weight="fill" className="text-brand-700" />
           {t('courierFix.route.title')}
-          <span className="ml-auto text-xs font-normal text-[color:var(--muted)]">
+          <span className="ml-auto text-xs font-normal text-[color:var(--text-muted)]">
             {t('driver.home.view')}
           </span>
         </Link>
@@ -164,7 +164,7 @@ function DriverConsole() {
               </Link>
               <Badge tone={DELIVERY_STATUS_TONE[d.status]}>{t(DELIVERY_STATUS_LABEL[d.status])}</Badge>
             </div>
-            <p className="flex items-start gap-1.5 text-sm text-[color:var(--muted)]">
+            <p className="flex items-start gap-1.5 text-sm text-[color:var(--text-muted)]">
               <MapPin size={16} className="mt-0.5 shrink-0" />
               {d.destinationAddress}
             </p>
@@ -236,7 +236,7 @@ function StatChip({ value, label }: { value: string; label: string }) {
   return (
     <Card className="flex-1 p-3">
       <div className="text-lg font-extrabold tabular-nums">{value}</div>
-      <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--muted)]">{label}</div>
+      <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">{label}</div>
     </Card>
   );
 }

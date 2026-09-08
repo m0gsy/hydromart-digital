@@ -100,9 +100,9 @@ function Settlement() {
         <SettlementReceipt settlement={done} onDone={() => router.replace('/driver/settlement/history')} />
       ) : !shift ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
-          <Wallet size={40} className="text-[color:var(--muted)]" />
+          <Wallet size={40} className="text-[color:var(--text-muted)]" />
           <div className="text-base font-extrabold">{t('hrFix.settlement.nothingToSettle')}</div>
-          <p className="text-sm text-[color:var(--muted)]">
+          <p className="text-sm text-[color:var(--text-muted)]">
             {t('hrFix.settlement.checkOutFirst')}
           </p>
           <Button variant="ghost" className="mt-2" onClick={() => router.push('/driver/settlement/history')}>
@@ -113,7 +113,7 @@ function Settlement() {
         <>
           <Card className="p-4">
             <div className="text-sm font-bold">{t('hrFix.settlement.shiftDone')}</div>
-            <div className="mt-0.5 text-[13px] text-[color:var(--muted)]">
+            <div className="mt-0.5 text-[13px] text-[color:var(--text-muted)]">
               Check-out {shift.checkOutAt ? WHEN.format(new Date(shift.checkOutAt)) : '—'}
             </div>
             <p className="mt-2 text-[12px] text-black/60">
@@ -137,7 +137,7 @@ function Settlement() {
             <div className="flex items-center justify-between text-sm">
               <span className="font-bold">{t('hrFix.settlement.expectedLabel')}</span>
               {expected.loading ? (
-                <span className="text-[color:var(--muted)]">…</span>
+                <span className="text-[color:var(--text-muted)]">…</span>
               ) : expected.data ? (
                 <Money amount={expected.data.expectedIdr} className="text-lg font-extrabold" />
               ) : (
@@ -170,7 +170,7 @@ function Settlement() {
           <Button loading={busy} disabled={cash === ''} className="w-full" onClick={submit}>
             {t('hrFix.settlement.handToCashier')}
           </Button>
-          <p className="text-center text-[11px] text-[color:var(--muted)]">
+          <p className="text-center text-[11px] text-[color:var(--text-muted)]">
             {t('hrFix.settlement.cashierMatchHint')}
           </p>
         </>
@@ -196,15 +196,15 @@ function SettlementReceipt({
       <div className="flex flex-col items-center gap-1 text-center">
         <CheckCircle size={40} weight="fill" className="text-green-600" />
         <div className="text-base font-extrabold">{t('hrFix.settlement.recorded')}</div>
-        <div className="text-xs text-[color:var(--muted)]">{t('hrFix.settlement.awaitingCashier')}</div>
+        <div className="text-xs text-[color:var(--text-muted)]">{t('hrFix.settlement.awaitingCashier')}</div>
       </div>
       <div className="space-y-1.5 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-[color:var(--muted)]">{t('hrFix.settlement.codTotal')}</span>
+          <span className="text-[color:var(--text-muted)]">{t('hrFix.settlement.codTotal')}</span>
           <Money amount={settlement.expectedAmount} className="font-bold" />
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[color:var(--muted)]">{t('hrFix.settlement.youHandedOver')}</span>
+          <span className="text-[color:var(--text-muted)]">{t('hrFix.settlement.youHandedOver')}</span>
           <Money amount={settlement.depositedAmount} className="font-bold" />
         </div>
         <div className="flex items-center justify-between border-t border-[color:var(--border)] pt-1.5">

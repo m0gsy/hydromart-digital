@@ -59,9 +59,20 @@ const status = (over: Partial<Record<string, unknown>> = {}) => ({
   ...over,
 });
 
+/*
+ * CA-4-36: the screen now also reads the DELIVERY, for the customer's number — the two
+ * contact controls open `tel:`/`wa.me` for real instead of only recording an attempt. So
+ * the GET mock has to answer per URL; a blanket `status()` left the buttons inert, which
+ * is the correct behaviour for a delivery with no number and the wrong fixture for these
+ * tests.
+ */
+const DELIVERY = { id: 'd-1', orderNumber: 'HYD-1', recipientPhone: '081234567890' };
+
 beforeEach(() => {
   localStorage.clear();
-  get.mockResolvedValue(status());
+  get.mockImplementation(async (url: string) =>
+    String(url).includes('contact-attempts') ? status() : DELIVERY,
+  );
   post.mockResolvedValue(status({ attempts: 1 }));
   patch.mockResolvedValue({});
 });
@@ -70,8 +81,12 @@ afterEach(() => vi.clearAllMocks());
 describe('CA-4-28 the Chat button', () => {
   it('sends the method delivery-service actually accepts', async () => {
     render(<NoShowPage />);
-    await waitFor(() => expect(get).toHaveBeenCalled());
-    await userEvent.click(screen.getByText('courierFix.noShow.chat').closest('button')!);
+    // The control is an <a> now (CA-4-36): tapping it opens WhatsApp AND records the
+    // attempt, rather than only recording one.
+    await waitFor(() =>
+      expect(screen.getByText('courierFix.noShow.chat').closest('a')).toBeTruthy(),
+    );
+    await userEvent.click(screen.getByText('courierFix.noShow.chat').closest('a')!);
     await waitFor(() => expect(post).toHaveBeenCalled());
     const body = post.mock.calls[0]?.[1];
     expect(body).toEqual({ method: 'WHATSAPP' });

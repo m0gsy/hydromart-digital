@@ -74,7 +74,7 @@ function SignaturePad({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElem
       <button
         type="button"
         onClick={clear}
-        className="inline-flex items-center gap-1 text-sm text-[color:var(--muted)] hover:text-brand-600"
+        className="inline-flex items-center gap-1 text-sm text-[color:var(--text-muted)] hover:text-brand-600"
       >
         <Eraser size={16} />
         {t('hrFix.pod.clearSignature')}
@@ -273,7 +273,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone, onCancel }: Props)
         <button
           type="button"
           onClick={confirmDiscard}
-          className="min-h-11 shrink-0 text-[13px] font-bold text-[color:var(--muted)]"
+          className="min-h-11 shrink-0 text-[13px] font-bold text-[color:var(--text-muted)]"
         >
           {t('hrFix.pod.cancel')}
         </button>
@@ -284,7 +284,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone, onCancel }: Props)
         {/* `sr-only`, not `hidden`: display:none takes the input out of the tab order, and
             the label around it is not focusable, so proof-of-delivery could only be
             photographed by tapping. Same defect, same fix as components/csv-import.tsx. */}
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-6 text-sm text-[color:var(--muted)] hover:border-brand-500 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-6 text-sm text-[color:var(--text-muted)] hover:border-brand-500 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
           <Camera size={20} />
           {photo ? t('hrFix.pod.replacePhoto') : t('hrFix.pod.takePhoto')}
           <input
@@ -346,13 +346,13 @@ export function PodCapture({ deliveryId, orderNumber, onDone, onCancel }: Props)
       <div className="space-y-2">
         <span className="flex items-center gap-1 text-sm font-medium">
           <PencilLine size={16} /> Tanda tangan penerima
-          <span className="text-xs font-normal text-[color:var(--muted)]">
+          <span className="text-xs font-normal text-[color:var(--text-muted)]">
             {t('hrFix.pod.optional')}
           </span>
         </span>
         {/* UU PDP notice: the delivery photo is always stored; the signature is optional
             and, when given, consents to being stored too. */}
-        <p className="text-xs leading-relaxed text-[color:var(--muted)]">
+        <p className="text-xs leading-relaxed text-[color:var(--text-muted)]">
           Foto bukti antar disimpan sesuai Kebijakan Privasi. Tanda tangan bersifat opsional; dengan
           menandatangani, penerima menyetujui tanda tangan disimpan sesuai{' '}
           <PrivacyLink className="underline hover:text-brand-600">Kebijakan Privasi</PrivacyLink>.

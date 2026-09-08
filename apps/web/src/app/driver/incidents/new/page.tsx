@@ -153,7 +153,7 @@ function NewIncident() {
           {/* `sr-only`, not `hidden`: display:none takes the input out of the tab order,
               and the label around it is not focusable, so this picker could only ever be
               opened with a tap. Same defect, same fix as components/csv-import.tsx. */}
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-5 text-sm font-bold text-[color:var(--muted)] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-5 text-sm font-bold text-[color:var(--text-muted)] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
             <Camera size={19} />
             {photo ? t('driver.incidentNew.changePhoto') : t('driver.incidentNew.takePhoto')}
             <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="sr-only" />

@@ -120,9 +120,9 @@ function CheckIn() {
   return (
     <div className="flex flex-1 flex-col px-5 py-6">
       <div>
-        <p className="text-xs font-bold text-[color:var(--muted)]">{t('driver.checkIn.welcome')}</p>
+        <p className="text-xs font-bold text-[color:var(--text-muted)]">{t('driver.checkIn.welcome')}</p>
         <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight">{customer?.fullName ?? t('driver.checkIn.fallbackName')}</h1>
-        <p className="mt-1.5 text-sm text-[color:var(--muted)]">{t('driver.checkIn.intro')}</p>
+        <p className="mt-1.5 text-sm text-[color:var(--text-muted)]">{t('driver.checkIn.intro')}</p>
       </div>
 
       {/* A courier already on shift is redirected away by `current.data`. If that read
@@ -181,7 +181,7 @@ function CheckIn() {
           <Fingerprint size={20} weight="fill" />
           {t('driver.checkIn.submit')}
         </Button>
-        <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-[color:var(--muted)]">
+        <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-[color:var(--text-muted)]">
           <CheckCircle size={14} weight="fill" className="text-brand-600" />
           {t('driver.checkIn.locationNote')}
         </p>
@@ -210,7 +210,7 @@ function ChecklistRow({
       </span>
       <div className="flex-1">
         <div className="text-sm font-bold">{title}</div>
-        <div className="text-xs text-[color:var(--muted)]">{subtitle}</div>
+        <div className="text-xs text-[color:var(--text-muted)]">{subtitle}</div>
       </div>
       {ok ? (
         <CheckCircle size={20} weight="fill" className="text-brand-600" />
