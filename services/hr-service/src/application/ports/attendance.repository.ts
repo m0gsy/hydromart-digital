@@ -87,11 +87,31 @@ export interface ManualAttendanceInput {
   checkOutAt?: Date | null;
 }
 
+/**
+ * CA-1-24: one recorded correction, for reading back.
+ *
+ * `recordAdjustment` has written these since the correction path existed, and nothing has
+ * ever been able to read them — no repository method, no route, no screen. So the trail
+ * that exists precisely to settle "why does this payslip say that" could only be reached
+ * by opening the database.
+ */
+export interface AttendanceAdjustmentRecord {
+  id: string;
+  attendanceId: string;
+  reason: string;
+  before: unknown;
+  after: unknown;
+  approvedBy: string | null;
+  createdAt: Date;
+}
+
 export interface AttendanceRepository {
   findByEmployeeAndDate(employeeId: string, workDate: Date): Promise<Attendance | null>;
   findById(id: string): Promise<Attendance | null>;
   /** Create-or-update the (employee, workDate) row from an HR manual entry/correction. */
   upsertManual(input: ManualAttendanceInput): Promise<Attendance>;
+  /** CA-1-24: the corrections filed against one attendance row, newest first. */
+  listAdjustments(attendanceId: string): Promise<AttendanceAdjustmentRecord[]>;
   /** Append an audit row for a manual attendance change (before/after snapshots). */
   recordAdjustment(data: {
     attendanceId: string;

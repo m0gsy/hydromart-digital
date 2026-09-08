@@ -109,6 +109,8 @@ function build(opts: {
     findById: async () => null,
     upsertManual: async () => ({}) as never,
     patchStatus: async () => ({}) as never,
+    // CA-1-24: the correction trail is readable now; payroll never asks for it.
+    listAdjustments: async () => [],
     recordAdjustment: async () => undefined,
     summary: async () =>
       opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 },

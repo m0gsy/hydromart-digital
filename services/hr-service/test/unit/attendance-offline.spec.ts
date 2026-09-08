@@ -42,6 +42,10 @@ function punchAt(capturedAt?: Date): FacePunch {
 }
 
 class FakeAtt implements AttendanceRepository {
+  // CA-1-24: the correction trail is readable now; this fake holds none.
+  async listAdjustments(): Promise<never[]> {
+    return [];
+  }
   row: Attendance | null = null;
   created?: CreateAttendanceInput;
   patched?: CheckOutPatch;

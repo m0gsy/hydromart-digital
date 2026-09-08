@@ -125,6 +125,23 @@ export interface Attendance {
   employeeName?: string | null;
 }
 
+/**
+ * CA-1-24: one recorded attendance correction.
+ *
+ * `before`/`after` are the row snapshots the correction path has been writing all along —
+ * the whole point of keeping them is that somebody can compare them later, which until now
+ * nobody could.
+ */
+export interface AttendanceAdjustment {
+  id: string;
+  attendanceId: string;
+  reason: string;
+  before: unknown;
+  after: unknown;
+  approvedBy: string | null;
+  createdAt: string;
+}
+
 export interface PayrollItem {
   id: string;
   kind: PayrollItemKind;

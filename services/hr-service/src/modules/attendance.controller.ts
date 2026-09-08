@@ -13,7 +13,12 @@ import {
 } from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
 import { Attendance } from '../../prisma/generated/client';
-import { AttendanceResponseDto, ListSelf3ResponseDto } from './dto/responses.generated.dto';
+import {
+  AttendanceAdjustmentResponseDto,
+  AttendanceResponseDto,
+  ListSelf3ResponseDto,
+} from './dto/responses.generated.dto';
+import { AttendanceAdjustmentRecord } from '../application/ports/attendance.repository';
 
 @ApiTags('HR Attendance')
 @ApiBearerAuth()
@@ -58,6 +63,23 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Manual attendance entry (LEAVE/HOLIDAY/ABSENT) for a day' })
   createManual(@Body() dto: ManualAttendanceDto, @CurrentUser() user: AuthenticatedUser): Promise<Attendance> {
     return this.attendance.createManual(user, dto);
+  }
+
+  /**
+   * CA-1-24: the corrections filed against one attendance row, newest first.
+   *
+   * `hrAdmin`, the same capability that may MAKE a correction — reading who changed
+   * somebody's attendance and why is no less sensitive than making the change.
+   */
+  @ApiOkResponse({ type: AttendanceAdjustmentResponseDto, isArray: true })
+  @Get(':id/adjustments')
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Corrections filed against one attendance row (audited trail)' })
+  adjustments(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AttendanceAdjustmentRecord[]> {
+    return this.attendance.listAdjustments(user, id);
   }
 
   @ApiOkResponse({ type: AttendanceResponseDto })

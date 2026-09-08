@@ -50,6 +50,8 @@ export const hrFix = {
     },
     employeeStatus: { ACTIVE: 'Active', INACTIVE: 'Inactive', RESIGNED: 'Resigned' },
     attendance: {
+    trailShow: 'Show correction history',
+    trailEmpty: 'Never corrected.',
       PRESENT: 'Present',
       LATE: 'Late',
       ABSENT: 'Absent',

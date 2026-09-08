@@ -46,6 +46,24 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     });
   }
 
+  async listAdjustments(attendanceId: string) {
+    // Newest first: the question this answers is "what was changed, and why", and the last
+    // change is the one that explains the row as it stands now.
+    const rows = await this.prisma.attendanceAdjustment.findMany({
+      where: { attendanceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      attendanceId: r.attendanceId,
+      reason: r.reason,
+      before: r.before,
+      after: r.after,
+      approvedBy: r.approvedBy,
+      createdAt: r.createdAt,
+    }));
+  }
+
   async recordAdjustment(data: {
     attendanceId: string;
     reason: string;

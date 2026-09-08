@@ -61,6 +61,8 @@ export const hrFix = {
     },
     employeeStatus: { ACTIVE: 'Aktif', INACTIVE: 'Nonaktif', RESIGNED: 'Resign' },
     attendance: {
+    trailShow: 'Lihat riwayat koreksi',
+    trailEmpty: 'Belum pernah dikoreksi.',
       PRESENT: 'Hadir',
       LATE: 'Terlambat',
       ABSENT: 'Absen',

@@ -25,11 +25,13 @@ import {
   fmtDate,
   fmtTime,
   type Attendance,
+  type AttendanceAdjustment,
   type AttendanceStatus,
   type HrPage,
 } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
+import { useAsync } from '@/lib/use-async';
 
 /*
  * CA-1-18. Both lists on this screen printed the server's true `total` in their own heading
@@ -289,7 +291,8 @@ function AttendanceInner() {
       {list.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {list.rows.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+            <div key={a.id} className="p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 flex-1 truncate font-semibold">
                 {a.employeeName ?? t('hrFix.attendance.unnamed')}
               </span>
@@ -317,6 +320,13 @@ function AttendanceInner() {
                 <Badge tone={TONE[a.status]}>{t(ATTENDANCE_STATUS_LABEL[a.status])}</Badge>
               )}
             </div>
+            {/* CA-1-24: the corrections filed against this row. Written since the
+                correction path existed and readable from nowhere — so the trail that
+                exists to answer "why does this payslip say that" could only be reached by
+                opening the database. Only for HR, and only on demand: a row nobody has
+                questioned does not need its history fetched. */}
+            {isAdmin && <AdjustmentTrail attendanceId={a.id} />}
+            </div>
           ))}
         </Card>
       )}
@@ -329,6 +339,74 @@ function AttendanceInner() {
       />
     </div>
   );
+}
+
+/**
+ * CA-1-24 — the corrections filed against one attendance row.
+ *
+ * Collapsed and unfetched until asked. A page of thirty rows must not fire thirty audit
+ * reads for a question nobody has asked yet, and the trail is only interesting about the
+ * one row somebody is disputing.
+ */
+function AdjustmentTrail({ attendanceId }: { attendanceId: string }) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const trail = useAsync<AttendanceAdjustment[]>(
+    () =>
+      open
+        ? api.get(endpoints.hr.attendanceAdjustments(attendanceId), true)
+        : Promise.resolve([]),
+    [attendanceId, open],
+  );
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-1.5 text-[11.5px] font-bold text-brand-700 hover:underline"
+      >
+        {t('hrFix.attendance.trailShow')}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-app p-2.5">
+      {trail.loading ? (
+        <Skeleton className="h-10 w-full" />
+      ) : trail.error ? (
+        <ErrorState message={trail.error} onRetry={trail.reload} />
+      ) : (trail.data ?? []).length === 0 ? (
+        <p className="text-[11.5px] text-muted">{t('hrFix.attendance.trailEmpty')}</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {(trail.data ?? []).map((row) => (
+            <li key={row.id} className="text-[11.5px] leading-snug">
+              <span className="font-bold">{fmtDate(row.createdAt)}</span>
+              {' · '}
+              <span>{row.reason}</span>
+              {/* The before/after snapshots are the reason these rows are kept: a status
+                  that changed is the fact somebody is disputing. */}
+              {statusOf(row.before) && statusOf(row.after) && (
+                <span className="text-muted">
+                  {' — '}
+                  {statusOf(row.before)} → {statusOf(row.after)}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** The snapshots are stored as JSON, so the status is read defensively, not cast. */
+function statusOf(snapshot: unknown): string | null {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const status = (snapshot as { status?: unknown }).status;
+  return typeof status === 'string' ? status : null;
 }
 
 export default function AttendancePage() {

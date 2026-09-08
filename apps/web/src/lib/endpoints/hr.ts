@@ -87,6 +87,9 @@ export const hr = {
     checkOut: '/attendance/api/v1/attendance/check-out',
     attendanceManual: '/attendance/api/v1/attendance/manual',
     attendanceAdjust: (id: string) => `/attendance/api/v1/attendance/${id}/adjust`,
+    // CA-1-24: the corrections filed against one row. Written since the correction path
+    // existed and readable from nowhere until now.
+    attendanceAdjustments: (id: string) => `/attendance/api/v1/attendance/${id}/adjustments`,
     attendanceDecide: (id: string) => `/attendance/api/v1/attendance/${id}/decide`,
     attendanceMe: (q: { from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
