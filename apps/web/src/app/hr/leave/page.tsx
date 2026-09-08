@@ -159,7 +159,11 @@ export default function LeaveQueuePage() {
                 )}
                 {actionable && (
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* CA-1-78: one of these per pending request, so the name has to say
+                        WHICH request — a dozen fields all called "Catatan" is the same as a
+                        dozen unnamed ones. */}
                     <Input
+                      aria-label={t('hrFix.leave.noteFor', { name: r.employeeName ?? r.employeeId })}
                       value={note[r.id] ?? ''}
                       onChange={(e) => setNote((n) => ({ ...n, [r.id]: e.target.value }))}
                       placeholder={t('hrFix.leave.noteHint')}

@@ -15,6 +15,7 @@ import {
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { auditChanges, fmtDate, fmtTime, type AuditLog, type HrPage } from '@/lib/hr';
+import { useDebounce } from '@/lib/use-debounce';
 import { usePagedList } from '@/lib/use-paged-list';
 
 /*
@@ -35,16 +36,18 @@ const ACTION_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> 
 export default function AuditPage() {
   const { t } = useT();
   const [entity, setEntity] = useState('');
+  // CA-1-75: one authenticated 100-row page per keystroke, on the audit trail of all things.
+  const debouncedEntity = useDebounce(entity);
 
   const list = usePagedList<AuditLog>(
     (page) =>
       api
         .get<HrPage<AuditLog>>(
-          endpoints.hr.audit({ entity: entity || undefined, page, pageSize: PAGE_SIZE }),
+          endpoints.hr.audit({ entity: debouncedEntity || undefined, page, pageSize: PAGE_SIZE }),
           true,
         )
         .then((p) => ({ items: p.rows, total: p.total })),
-    [entity],
+    [debouncedEntity],
   );
   const { error, loading, reload } = list;
 
@@ -52,9 +55,14 @@ export default function AuditPage() {
     <div className="mx-auto max-w-4xl space-y-5">
       <SectionHeader
         title={t('hrFix.audit.title')}
-        subtitle={list.rows.length > 0 ? `${list.total} entri` : undefined}
+        subtitle={
+          list.rows.length > 0 ? t('hrFix.audit.entries', { n: list.total }) : undefined
+        }
       />
+      {/* CA-1-78: a placeholder is not a name — it disappears the moment anything is
+          typed, and a screen reader announces "edit text" with nothing else. */}
       <Input
+        aria-label={t('hrFix.audit.filterHint')}
         placeholder={t('hrFix.audit.filterHint')}
         value={entity}
         onChange={(e) => setEntity(e.target.value)}

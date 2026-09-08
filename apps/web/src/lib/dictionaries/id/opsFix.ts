@@ -12,6 +12,8 @@ export const opsFix = {
       'Format lama (.xls / .ods) tidak bisa dibaca. Buka filenya, lalu "Save As" → Excel Workbook (.xlsx).',
     downloadFailedRows: 'Unduh baris gagal',
     downloadProblemRows: 'Unduh baris bermasalah',
+    // CA-1-72: dulu literal Indonesia di dalam setFileError() — titik buta gerbang i18n.
+    failed: 'Impor gagal, coba lagi.',
     pickFile: 'Pilih file',
     downloadTemplate: 'Unduh template Excel',
     upsertHint:

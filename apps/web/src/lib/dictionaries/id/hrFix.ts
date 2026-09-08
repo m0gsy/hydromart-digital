@@ -568,6 +568,8 @@ export const hrFix = {
     allDepartments: 'Semua departemen',
     empty: 'Tidak ada karyawan.',
     accountFailed: 'Gagal membuat akun.',
+    accountCreated: 'Akun untuk {name} dibuat',
+    importExcel: 'Import Excel',
     departmentUnreadable: 'Departemen tidak terbaca',
   },
   leave: {
@@ -578,6 +580,7 @@ export const hrFix = {
     title: 'Pengajuan Cuti',
     subtitle: 'Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti.',
     noteHint: 'Catatan (wajib bila menolak)',
+    noteFor: 'Catatan untuk {name}',
     allStatuses: 'Semua status',
     empty: 'Tidak ada pengajuan.',
     approve: 'Setujui',
@@ -1673,6 +1676,7 @@ export const hrFix = {
   audit: {
     title: 'Log Audit',
     filterHint: 'Filter entity (employees, payroll, …)',
+    entries: '{n} entri',
     actor: 'Oleh',
     actorSystem: 'sistem',
     empty: 'Belum ada log.',

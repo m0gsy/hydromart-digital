@@ -8,7 +8,7 @@ import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/comp
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { fmtDate, type Holiday, type Shift } from '@/lib/hr';
+import { fmtDate, type Holiday, type SettingsSchema, type Shift } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
@@ -22,6 +22,11 @@ export default function CalendarPage() {
   const shifts = useAsync<Shift[]>(() => api.get<Shift[]>(endpoints.hr.shifts(), true), []);
 
   const [hDate, setHDate] = useState('');
+  // CA-1-51: the default the sentence below names. Read, not assumed — it is per depot.
+  const settings = useAsync<SettingsSchema>(
+    () => api.getCached(endpoints.hr.settingsSchema(), true),
+    [],
+  );
   const [hName, setHName] = useState('');
   const [sName, setSName] = useState('');
   const [sStart, setSStart] = useState('08:00');
@@ -158,7 +163,17 @@ export default function CalendarPage() {
         {shifts.data && (
           <ul className="divide-y divide-[color:var(--border)]">
             {shifts.data.length === 0 && (
-              <li className="py-2 text-sm text-muted">{t('hrFix.calendar.noShift')}</li>
+              <li className="py-2 text-sm text-muted">
+                {/*
+                  CA-1-51. The sentence carries a `{workStartTime}` placeholder and was
+                  called with no values, so the screen printed the token itself. It is not
+                  decoration: the line tells HR which hours a depot without shifts actually
+                  runs on, and that number is a per-depot setting somebody can change.
+                */}
+                {t('hrFix.calendar.noShift', {
+                  workStartTime: String(settings.data?.effective.workStartTime ?? '—'),
+                })}
+              </li>
             )}
             {shifts.data.map((s) => (
               <li key={s.id} className="flex items-center justify-between py-2 text-sm">
