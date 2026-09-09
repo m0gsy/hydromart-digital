@@ -224,7 +224,8 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       employeeCode: r.employee.employeeCode,
       fullName: r.employee.fullName,
       type: r.type,
-      // @db.Date, so Prisma reads it back as UTC midnight and the slice IS the local date.
+      // tz-ok: `expiresAt` is @db.Date, which Prisma reads back as UTC midnight — the slice
+      // IS the local date. Cutting it in the business zone would move it a day backwards.
       expiresAt: (r.expiresAt as Date).toISOString().slice(0, 10),
     }));
   }
@@ -258,7 +259,8 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       employeeCode: r.employeeCode,
       fullName: r.fullName,
       employmentStatus: r.employmentStatus,
-      // @db.Date: Prisma reads it back as UTC midnight, so the slice IS the local date.
+      // tz-ok: `contractEndDate` is @db.Date — UTC midnight on read, so the slice already
+      // IS the local date, exactly as `isoDate` treats joinDate in the reports beside this.
       contractEndDate: (r.contractEndDate as Date).toISOString().slice(0, 10),
     }));
   }
