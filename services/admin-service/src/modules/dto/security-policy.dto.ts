@@ -1,9 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsISO8601,
   IsInt,
+  IsOptional,
   IsString,
   Max,
   MaxLength,
@@ -40,6 +42,15 @@ export class SaveSecurityPolicyDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   ipAllowlist!: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'The `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+    format: 'date-time',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
 }
 
 /* ---------- Responses ---------- */

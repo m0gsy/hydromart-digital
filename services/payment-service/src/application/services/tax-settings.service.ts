@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import {
   TaxSettingsInput,
@@ -61,8 +62,13 @@ export class TaxSettingsService {
    */
   async update(
     input: Omit<TaxSettingsInput, 'taxRounding'> & { taxRounding?: TaxRounding },
+    seenUpdatedAt?: string,
   ): Promise<TaxSettingsRecord> {
     const stored = await this.repo.get();
+    // CA-2-53: two finance admins on /hq/tax at once used to produce whichever of them
+    // saved last, with the other's rate gone and neither of them told. The stored row's
+    // own timestamp is the version; a caller who saw an older one is refused (409).
+    assertFresh(stored?.updatedAt ?? null, seenUpdatedAt);
     return this.repo.upsert({
       ...input,
       taxRounding: input.taxRounding ?? stored?.taxRounding ?? DEFAULT_TAX_ROUNDING,

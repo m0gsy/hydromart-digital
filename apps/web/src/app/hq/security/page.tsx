@@ -72,6 +72,8 @@ export default function HqSecurityPage() {
           idleTimeoutMinutes: policy.idleTimeoutMinutes,
           require2fa: policy.require2fa,
           ipAllowlist,
+          // CA-2-53: the version this edit started from — see the tax screen.
+          seenUpdatedAt: policy.updatedAt,
         },
         true,
       );
@@ -79,6 +81,13 @@ export default function HqSecurityPage() {
       setAllowlistText(saved.ipAllowlist.join('\n'));
       toast(t('hq.security.saved'), 'success');
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'STALE_WRITE') {
+        setDraft(null);
+        query.reload();
+        setAllowlistText(null);
+        toast(t('hq.common.staleWrite'), 'error');
+        return;
+      }
       toast(err instanceof ApiError ? err.message : t('hq.security.saveError'), 'error');
     } finally {
       setBusy(false);

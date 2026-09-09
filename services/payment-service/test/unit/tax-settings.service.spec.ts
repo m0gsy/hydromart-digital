@@ -84,11 +84,12 @@ describe('TaxSettingsService', () => {
   it('keeps a stored rounding method when a later save omits it', async () => {
     const repo = new InMemoryTaxSettingsRepository();
     const service = new TaxSettingsService(repo);
-    await service.update({ ...sample, taxRounding: TaxRounding.HALF_EVEN });
+    const first = await service.update({ ...sample, taxRounding: TaxRounding.HALF_EVEN });
 
     const withoutRounding = { ...sample, companyName: 'PT Uji Baru' };
     delete (withoutRounding as { taxRounding?: TaxRounding }).taxRounding;
-    const saved = await service.update(withoutRounding);
+    // CA-2-53: a second save now has to say which version it started from.
+    const saved = await service.update(withoutRounding, first.updatedAt!.toISOString());
 
     expect(saved.taxRounding).toBe(TaxRounding.HALF_EVEN);
     expect(saved.companyName).toBe('PT Uji Baru');
@@ -97,10 +98,52 @@ describe('TaxSettingsService', () => {
   it('still lets a client change the method on purpose', async () => {
     const repo = new InMemoryTaxSettingsRepository();
     const service = new TaxSettingsService(repo);
-    await service.update({ ...sample, taxRounding: TaxRounding.HALF_EVEN });
+    const first = await service.update({ ...sample, taxRounding: TaxRounding.HALF_EVEN });
 
-    const saved = await service.update({ ...sample, taxRounding: TaxRounding.HALF_UP });
+    const saved = await service.update(
+      { ...sample, taxRounding: TaxRounding.HALF_UP },
+      first.updatedAt!.toISOString(),
+    );
 
     expect(saved.taxRounding).toBe(TaxRounding.HALF_UP);
+  });
+
+  /*
+   * CA-2-53. Two finance admins hold /hq/tax open; the second save used to erase the
+   * first's rate with neither of them told — on the row that decides what is printed on a
+   * customer's invoice.
+   */
+  it('refuses a save built on a copy that is already out of date', async () => {
+    const repo = new InMemoryTaxSettingsRepository();
+    const service = new TaxSettingsService(repo);
+    const first = await service.update(sample);
+    await expect(
+      service.update(
+        { ...sample, ppnPercent: 0 },
+        new Date(first.updatedAt!.getTime() - 1000).toISOString(),
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+    expect((await service.get()).ppnPercent).toBe(12);
+  });
+
+  it('accepts a save from someone looking at the current row', async () => {
+    const repo = new InMemoryTaxSettingsRepository();
+    const service = new TaxSettingsService(repo);
+    const first = await service.update(sample);
+    const second = await service.update(
+      { ...sample, ppnPercent: 0 },
+      first.updatedAt!.toISOString(),
+    );
+    expect(second.ppnPercent).toBe(0);
+  });
+
+  it('refuses a save that says nothing about what it saw, once a row exists', async () => {
+    // Fails closed. The first save, on an empty table, is allowed through — there is
+    // nothing to lose, and the settings page has to be savable before it has been saved.
+    const service = new TaxSettingsService(new InMemoryTaxSettingsRepository());
+    await service.update(sample);
+    await expect(service.update({ ...sample, ppnPercent: 5 })).rejects.toMatchObject({
+      code: 'STALE_WRITE',
+    });
   });
 });

@@ -43,12 +43,24 @@ export default function HqTaxPage() {
           companyName: current.companyName,
           npwp: current.npwp,
           address: current.address,
+          // CA-2-53: the version this edit started from. The server refuses the write
+          // (409) if the stored row has moved since, instead of overwriting whoever
+          // saved in between.
+          seenUpdatedAt: current.updatedAt,
         },
         true,
       );
       setForm(saved);
       toast(t('hq.tax.saved'), 'success');
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'STALE_WRITE') {
+        // Drop the draft: keeping it would let the next save overwrite the other
+        // admin's change with the same stale values that were just refused.
+        setForm(null);
+        loaded.reload();
+        toast(t('hq.common.staleWrite'), 'error');
+        return;
+      }
       toast(err instanceof ApiError ? err.message : t('hq.tax.saveError'), 'error');
     } finally {
       setBusy(false);
