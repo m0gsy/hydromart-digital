@@ -433,6 +433,27 @@ export class OrderController {
     return this.orders.assignDepot(id, dto.depotId, authorization);
   }
 
+  /**
+   * CA-2-56: move an order that was routed to the wrong depot.
+   *
+   * Separate route from the assignment above, and deliberately: filling a blank and moving
+   * a live order are different acts with different risks, and one of them touches two
+   * depots' stock. `orderQueue` is the same capability, because it is the same people —
+   * the ones watching the queue are the ones who see the mistake.
+   */
+  @ApiOkResponse({ type: OrderResponseDto })
+  @Patch('manage/:id/depot/move')
+  @Can('orderQueue')
+  @ApiOperation({ summary: 'Staff: move an order to another depot (re-reserves, then releases)' })
+  rerouteDepot(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignDepotDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization?: string,
+  ): Promise<OrderRecord> {
+    return this.orders.rerouteDepot(user, id, dto.depotId, authorization);
+  }
+
   @ApiOkResponse({ type: OrderResponseDto })
   @Get('manage/:id')
   @Can('orderQueue')

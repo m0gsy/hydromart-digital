@@ -18,6 +18,8 @@ import {
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
   OrderAlreadyRoutedError,
+  OrderNotReroutableError,
+  OrderNotRoutedError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -2096,6 +2098,120 @@ describe('OrderService', () => {
         await expect(service.assignDepot(id, homeDepot.id)).rejects.toBeInstanceOf(
           OrderAlreadyRoutedError,
         );
+      });
+
+      /*
+       * CA-2-56 — an order routed to the wrong depot was stuck there for good.
+       *
+       * `assignDepot` refuses anything already routed and nothing else could change a
+       * depot, so the operator's only outs were to cancel the order or to let the wrong
+       * depot deliver it. The second is what actually happened.
+       */
+      describe('CA-2-56 moving a misrouted order', () => {
+        const otherDepot = { ...homeDepot, id: 'depot-other' };
+        // Head office: no depot of its own, so it may move an order between any two.
+        const staff = { sub: 'hq-1', role: 'SUPER_ADMIN', phone: null, depotId: null } as never;
+        // A depot-locked operator, for the scope check below.
+        const otherDepotStaff = {
+          sub: 'op-1',
+          role: 'KEPALA_DEPOT',
+          phone: null,
+          depotId: otherDepot.id,
+        } as never;
+
+        const routed = async () => {
+          const id = await unroute();
+          await service.assignDepot(id, homeDepot.id, 'Bearer tok');
+          depots.depots = [homeDepot, otherDepot];
+          inventory.reserveCalls.length = 0;
+          inventory.releaseCalls.length = 0;
+          return id;
+        };
+
+        it('holds stock at the new depot BEFORE letting go of the old one', async () => {
+          const id = await routed();
+
+          const moved = await service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok');
+
+          expect(moved.depotId).toBe(otherDepot.id);
+          expect(inventory.reserveCalls).toHaveLength(1);
+          expect(inventory.reserveCalls[0]).toMatchObject({ depotId: otherDepot.id, orderId: id });
+          expect(inventory.releaseCalls).toHaveLength(1);
+          expect(inventory.releaseCalls[0]).toMatchObject({ depotId: homeDepot.id, orderId: id });
+        });
+
+        // Reserve fails CLOSED, so a shortfall refuses the move while somebody is still on
+        // the screen — and the old depot's hold is untouched, because it was never released.
+        it('leaves the order where it was when the new depot cannot cover it', async () => {
+          const id = await routed();
+          inventory.reserveError = new Error('Insufficient stock at the fulfilling depot');
+
+          await expect(service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok')).rejects.toThrow(
+            'Insufficient stock',
+          );
+
+          expect(inventory.releaseCalls).toHaveLength(0);
+          expect((await service.getForCustomer(customer, id)).depotId).toBe(homeDepot.id);
+        });
+
+        it('refuses once a courier is attached to the order', async () => {
+          const id = await routed();
+          await service.updateStatus(id, OrderStatus.CONFIRMED, 'staff-1');
+          await service.updateStatus(id, OrderStatus.PREPARING, 'staff-1');
+          await service.updateStatus(id, OrderStatus.DRIVER_ASSIGNED, 'staff-1');
+
+          await expect(service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok')).rejects.toBeInstanceOf(
+            OrderNotReroutableError,
+          );
+          expect(inventory.reserveCalls).toHaveLength(0);
+        });
+
+        it('refuses an unknown depot, and an order that has no depot to move', async () => {
+          const id = await routed();
+          await expect(service.rerouteDepot(staff, id, randomUUID())).rejects.toBeInstanceOf(
+            DepotUnavailableError,
+          );
+          const unrouted = await unroute();
+          await expect(service.rerouteDepot(staff, unrouted, otherDepot.id)).rejects.toBeInstanceOf(
+            OrderNotRoutedError,
+          );
+        });
+
+        it('404s an order that does not exist, and fails closed while the directory is down', async () => {
+          await expect(service.rerouteDepot(staff, randomUUID(), otherDepot.id)).rejects.toBeInstanceOf(
+            OrderNotFoundError,
+          );
+          const id = await routed();
+          depots.unreachable = true;
+          // Moving an order into a depot nobody can confirm is active would hand it to one
+          // that may no longer be trading — the same reason the first routing fails closed.
+          await expect(service.rerouteDepot(staff, id, otherDepot.id)).rejects.toBeInstanceOf(
+            DepotUnavailableError,
+          );
+          depots.unreachable = false;
+        });
+
+        /*
+         * The scope is the depot the order is LEAVING — the one whose promise is being
+         * withdrawn and whose hold is about to be released. Without it a depot-locked
+         * operator could move another depot's order away from it.
+         */
+        it("refuses an operator who does not hold the order's current depot", async () => {
+          const id = await routed();
+          await expect(
+            service.rerouteDepot(otherDepotStaff, id, otherDepot.id, 'Bearer tok'),
+          ).rejects.toThrow();
+          expect(inventory.reserveCalls).toHaveLength(0);
+          expect(inventory.releaseCalls).toHaveLength(0);
+        });
+
+        it('is a no-op when the order is already at that depot — no stock moves', async () => {
+          const id = await routed();
+          const same = await service.rerouteDepot(staff, id, homeDepot.id, 'Bearer tok');
+          expect(same.depotId).toBe(homeDepot.id);
+          expect(inventory.reserveCalls).toHaveLength(0);
+          expect(inventory.releaseCalls).toHaveLength(0);
+        });
       });
 
       // Fail closed while the directory is down: routing an order into a depot nobody can

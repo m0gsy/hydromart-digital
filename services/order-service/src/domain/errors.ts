@@ -141,6 +141,34 @@ export class OrderAlreadyRoutedError extends DomainError {
   }
 }
 
+/** CA-2-56: nothing to move — this order has no depot yet, so it is an assignment. */
+export class OrderNotRoutedError extends DomainError {
+  readonly code = 'ORDER_NOT_ROUTED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pesanan ini belum punya depot — tetapkan depotnya, bukan pindahkan.');
+  }
+}
+
+/**
+ * CA-2-56: an order can only be MOVED while nothing has physically left a depot.
+ *
+ * From PICKED_UP onward the goods are on a courier's bike, dispatched from the old depot;
+ * changing the order's depot then would not re-route anything, it would only make the
+ * record disagree with where the water actually is. DRIVER_ASSIGNED is refused for the
+ * same reason one step earlier: delivery-service already holds an assignment at the old
+ * depot, and a silent move would leave a courier attached to another depot's order.
+ */
+export class OrderNotReroutableError extends DomainError {
+  readonly code = 'ORDER_NOT_REROUTABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(status: string) {
+    super(
+      `Pesanan berstatus ${status} tidak bisa dipindah depot. Batalkan penugasan kurirnya dulu, atau batalkan pesanannya.`,
+    );
+  }
+}
+
 /** The depot the caller picked is unknown or not active. */
 export class DepotUnavailableError extends DomainError {
   readonly code = 'ORDER_DEPOT_UNAVAILABLE';
