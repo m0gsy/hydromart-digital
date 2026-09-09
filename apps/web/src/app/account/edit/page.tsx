@@ -200,10 +200,13 @@ function EditProfileInner() {
           />
         </Field>
         {/*
-          K1.4. Outside the profile form on purpose: this is not a field that gets saved
-          with the others. It is its own two-step flow that ends by signing the person out,
-          and putting it inside a form whose submit button says "Simpan" would mean one
-          button doing two very different things to an account.
+          K1.4. Changing the login number is its own two-step flow that ends by signing the
+          person out — it is not a field "Simpan" saves.
+
+          CA-3-67: this comment used to claim the block sat OUTSIDE the form. It never did;
+          it is right here, inside the <form> above. Every button in it is `type="button"`,
+          so what actually broke was implicit submission — Enter in the number field saved
+          the profile instead of sending the code. The block handles Enter itself now.
         */}
         <ChangePhone currentPhone={customer.phone} />
         <Field label={t('account.profileCard.birthdate')} htmlFor="edit-birthdate" hint={t('account.profileCard.birthdateHint')}>

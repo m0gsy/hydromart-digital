@@ -19,6 +19,7 @@ import { useConfirm } from '@/components/confirm';
 import { Sheet } from '@/components/overlay';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RemoteImage } from '@/components/remote-image';
+import { useRecommendationProducts } from '@/lib/product-photos';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { ErrorState, LinkButton, Money, Skeleton, StickyActionBar } from '@/components/ui';
@@ -56,6 +57,16 @@ function CartInner() {
   const recs = useAsync<Recommendation[]>(() =>
     api.get(endpoints.recommendations.trending({ limit: 4 })),
   );
+  /*
+   * CA-3-62. The cart's own LINES were fixed; the add-on strip underneath them still drew a
+   * grey droplet for every card. Four identical tiles above four different products, on the
+   * screen where somebody checks what they are about to buy.
+   *
+   * `useRecommendationProducts` exists for exactly this and the product page's own
+   * "Sering dibeli bersama" already uses it — recommendation-service answers ids and names,
+   * never photos, so the catalogue has to be asked in one batched call.
+   */
+  const addOnProducts = useRecommendationProducts(recs.data);
 
   // Local, authoritative view of the lines — seeded from the fetch, then mutated
   // optimistically so qty/remove don't reload the whole list (kills the flicker).
@@ -345,6 +356,7 @@ function CartInner() {
                     src={line.imageUrl}
                     alt={line.productName}
                     className="h-full w-full object-cover"
+                    fallback={<Drop size={30} weight="thin" className="text-brand-300" />}
                   />
                 ) : (
                   <Drop size={30} weight="thin" className="text-brand-300" />
@@ -422,9 +434,18 @@ function CartInner() {
                   >
                     <Link
                       href={`/products/detail?id=${rec.productId}`}
-                      className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-[color:var(--surface-soft)]"
+                      className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[color:var(--surface-soft)]"
                     >
-                      <Drop size={22} weight="thin" className="text-brand-300" />
+                      {addOnProducts.get(rec.productId)?.imageUrl ? (
+                        <RemoteImage
+                          src={addOnProducts.get(rec.productId)!.imageUrl!}
+                          alt={rec.name}
+                          className="h-full w-full object-cover"
+                          fallback={<Drop size={22} weight="thin" className="text-brand-300" />}
+                        />
+                      ) : (
+                        <Drop size={22} weight="thin" className="text-brand-300" />
+                      )}
                     </Link>
                     <Link
                       href={`/products/detail?id=${rec.productId}`}

@@ -226,6 +226,8 @@ export default function ProductDetailPage() {
                   alt={product.name}
                   priority
                   className="h-full w-full object-cover"
+                  // CA-3-63: and this one is the LCP element.
+                  fallback={<Drop size={96} weight="thin" className="text-brand-300" />}
                 />
               ) : (
                 <Drop size={96} weight="thin" className="text-brand-300" />
@@ -246,7 +248,12 @@ export default function ProductDetailPage() {
                         : 'border-transparent hover:border-brand-300'
                     }`}
                   >
-                    <RemoteImage src={url} alt="" className="h-full w-full object-cover" />
+                    <RemoteImage
+                      src={url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      fallback={<Drop size={20} weight="thin" className="text-brand-300" />}
+                    />
                   </button>
                 ))}
               </div>

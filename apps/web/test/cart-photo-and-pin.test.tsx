@@ -73,7 +73,9 @@ afterEach(() => vi.clearAllMocks());
 
 describe('the basket shows what the shop showed', () => {
   it('draws each line its own photo', async () => {
-    get.mockResolvedValue({
+    // CA-3-62: `/products/batch` answers the add-on strip; only the cart read is scripted
+    // here, so the catalogue call gets an empty list rather than a cart object.
+    const cart = {
       items: [
         line(),
         line({
@@ -86,7 +88,8 @@ describe('the basket shows what the shop showed', () => {
       depotId: null,
       pricingBasis: 'CATALOG',
       reseller: null,
-    });
+    };
+    get.mockImplementation(async (u: string) => (/\/products|\/recommendations/.test(String(u)) ? [] : cart));
     renderCart();
 
     // Two products, two different pictures — not one placeholder twice.
@@ -99,13 +102,16 @@ describe('the basket shows what the shop showed', () => {
   });
 
   it('still falls back to the droplet for a product with no photo', async () => {
-    get.mockResolvedValue({
+    // CA-3-62: `/products/batch` answers the add-on strip; only the cart read is scripted
+    // here, so the catalogue call gets an empty list rather than a cart object.
+    const cart = {
       items: [line({ imageUrl: null })],
       subtotal: 45000,
       depotId: null,
       pricingBasis: 'CATALOG',
       reseller: null,
-    });
+    };
+    get.mockImplementation(async (u: string) => (/\/products|\/recommendations/.test(String(u)) ? [] : cart));
     renderCart();
 
     await screen.findByText('Galon Baru + Air 19L');
