@@ -417,10 +417,25 @@ for (const file of walk(ROOT)) {
       if (lines.slice(Math.max(0, line - 5), line).some((l) => /i18n-ok/.test(l))) map.delete(s);
     }
   }
-  // A string that is only ever an argument to t() is already translated.
+  /*
+   * A string that is only ever an argument to t() is already translated.
+   *
+   * CA-2-49: this used to read "the recorded line mentions `t(` and does not contain the
+   * string itself". Both halves are wrong on a MIXED line. A JSX text node's recorded line
+   * is where the match STARTS — the tag above it — so a translated `title=` prop on that
+   * tag suppressed the untranslated sentence in its children, which is exactly the shape
+   * this gate exists to catch:
+   *
+   *     <CenterState title={t('hrFix.expenseClaims.empty')}>
+   *       Belum ada klaim {status.toLowerCase()}.      <- discarded, and real
+   *
+   * Ask the precise question instead: does this string appear anywhere OTHER than inside a
+   * `t(...)` call? If it does, it is copy on screen, whatever else its line says.
+   */
   for (const s of [...hits.keys()]) {
-    if (lines[hits.get(s) - 1]?.includes(`t('`) && !lines[hits.get(s) - 1].includes(s))
-      hits.delete(s);
+    const quoted = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const bare = new RegExp(`(?<!t\\(\\s*['"\`])${quoted}`);
+    if (!bare.test(src)) hits.delete(s);
   }
 
   const file_ = relative(ROOT, file).replace(/\\/g, '/');

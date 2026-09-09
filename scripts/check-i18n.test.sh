@@ -30,6 +30,12 @@ export function ZzI18nGateFixture({ depot, count }: { depot: string; count: numb
       <Badge>{count > 0 ? t('zz.key') : 'Belum ada pesanan hari ini'}</Badge>
       <Badge>{count > 0 ? 'Sudah dibayar lunas' : t('zz.other')}</Badge>
       <Picker includeEmpty="Pilih depot dulu" />
+      {/* CA-2-49: a MIXED tag — a translated prop above an untranslated sentence. The
+          sentence's recorded line is the tag it starts on, so "the line mentions t(" read
+          the whole node as already translated and threw the finding away. */}
+      <CenterState title={t('zz.empty')}>
+        Belum ada klaim {count} hari ini.
+      </CenterState>
     </div>
   );
 }
@@ -41,7 +47,7 @@ if node scripts/check-i18n.mjs >"$OUT" 2>&1; then
   exit 1
 fi
 
-for expected in 'usulan harga' 'Gagal memuat data karyawan' 'Pencapaian bulan'                 'Belum ada pesanan hari ini' 'Sudah dibayar lunas' 'Pilih depot dulu'; do
+for expected in 'usulan harga' 'Gagal memuat data karyawan' 'Pencapaian bulan'                 'Belum ada pesanan hari ini' 'Sudah dibayar lunas' 'Pilih depot dulu'                 'Belum ada klaim'; do
   grep -q "$expected" "$OUT" || {
     echo "FAIL: the gate did not report \"$expected\""
     cat "$OUT"

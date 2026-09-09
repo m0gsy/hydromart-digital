@@ -22,6 +22,16 @@ const STATUS_TONE: Record<ExpenseClaimStatus, 'brand' | 'success' | 'danger'> = 
   APPROVED: 'success',
   REJECTED: 'danger',
 };
+/*
+ * CA-2-49: the three statuses on this screen were the enum itself — in the picker, on each
+ * badge, and lowercased into the empty state ("Belum ada klaim pending."). The gate never
+ * saw that last one because the translated `title=` prop on the same tag suppressed it.
+ */
+const STATUS_LABEL: Record<ExpenseClaimStatus, string> = {
+  PENDING: 'hrFix.expenseClaims.statusPending',
+  APPROVED: 'hrFix.expenseClaims.statusApproved',
+  REJECTED: 'hrFix.expenseClaims.statusRejected',
+};
 // Dictionary KEYS — module scope, so t() runs at the call site.
 const CATEGORY_LABELS: Record<string, string> = {
   FUEL: 'hrFix.expenseClaims.fuel',
@@ -61,7 +71,7 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
             {c.description} · {DATE.format(new Date(c.createdAt))}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge>
+        <Badge tone={STATUS_TONE[c.status]}>{t(STATUS_LABEL[c.status])}</Badge>
       </div>
 
       {c.receiptUrl && (
@@ -117,7 +127,7 @@ function Body() {
 
       <div className="flex items-center gap-2">
         <label htmlFor="c-filter" className="text-sm font-medium text-muted">
-          Status
+          {t('hrFix.expenseClaims.statusLabel')}
         </label>
         <select
           id="c-filter"
@@ -127,7 +137,7 @@ function Body() {
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {t(STATUS_LABEL[s])}
             </option>
           ))}
         </select>
@@ -139,7 +149,7 @@ function Body() {
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.items.length === 0 ? (
         <CenterState title={t('hrFix.expenseClaims.empty')} icon={<Receipt size={40} weight="fill" />}>
-          Belum ada klaim {status.toLowerCase()}.
+          {t('hrFix.expenseClaims.emptyFor', { status: t(STATUS_LABEL[status]) })}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
