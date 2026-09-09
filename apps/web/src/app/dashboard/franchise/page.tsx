@@ -76,7 +76,7 @@ function FranchiseBody() {
       </div>
 
       {unavailable.length > 0 && (
-        <p className="text-sm text-amber-700" role="status">
+        <p className="text-sm text-[color:var(--warning)]" role="status">
           {t('dashboard.franchise.partial', { which: unavailable.join(', ') })}
         </p>
       )}
@@ -144,7 +144,7 @@ function FranchiseBody() {
                   <span className="mt-0.5 flex items-center gap-3 text-xs text-muted">
                     <span>{t('dashboard.franchise.ordersCount', { n: d.orderCount })}</span>
                     {d.lowStockCount > 0 && (
-                      <span className="inline-flex items-center gap-1 text-amber-700">
+                      <span className="inline-flex items-center gap-1 text-[color:var(--warning)]">
                         <Warning size={13} weight="fill" />
                         {t('dashboard.franchise.low', { n: d.lowStockCount })}
                       </span>

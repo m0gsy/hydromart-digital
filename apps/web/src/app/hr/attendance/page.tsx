@@ -110,7 +110,7 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
   if (list.rows.length === 0) return null;
 
   return (
-    <Card className="divide-y divide-[color:var(--border)] border-amber-300">
+    <Card className="divide-y divide-[color:var(--border)] border-[color:var(--warning)]">
       <div className="p-3 text-sm font-bold">
         {t('hrFix.attendance.pendingTitle', { count: list.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>

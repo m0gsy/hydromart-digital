@@ -121,7 +121,7 @@ export function CashierShiftBar({
             </div>
             <div className="flex justify-between font-bold">
               <dt>{t('hrFix.cashierShift.difference')}</dt>
-              <dd className={(settled.variance ?? 0) < 0 ? 'text-red-600' : undefined}>
+              <dd className={(settled.variance ?? 0) < 0 ? 'text-[color:var(--danger)]' : undefined}>
                 <Money amount={settled.variance ?? 0} />
               </dd>
             </div>

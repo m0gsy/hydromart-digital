@@ -40,7 +40,7 @@ function Stars({ value, size = 14 }: { value: number; size?: number }) {
           key={i}
           size={size}
           weight="fill"
-          className={i <= value ? 'text-amber-500' : 'text-[color:var(--surface-soft)]'}
+          className={i <= value ? 'text-[color:var(--warning)]' : 'text-[color:var(--surface-soft)]'}
         />
       ))}
     </div>

@@ -379,6 +379,14 @@ jobs:
       - name: Keyboard and screen-reader debt
         run: node scripts/check-a11y.mjs
 
+      # CA-2-51: a fixed colour needs a fixed ground. Ratchets down, never up — the debt
+      # is too large for one pass and the gate is what stops it growing while it shrinks.
+      - name: Fixed colours sit only on fixed grounds
+        run: node scripts/check-theme-tokens.mjs
+
+      - name: Theme-token gate can go red
+        run: bash scripts/check-theme-tokens.test.sh
+
       # C4: the two ways this repo kept cutting time in the wrong zone — a UTC period key
       # from toISOString().slice, and a bare date_trunc in raw SQL. Both shipped more than
       # once; a reasoned `// tz-ok:` is the only way past.

@@ -159,7 +159,7 @@ export default function AdjustmentsPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             <Card className="p-4">
-              <h3 className="mb-2 font-bold text-green-700">{t('hrFix.adjustments.bonus')}</h3>
+              <h3 className="mb-2 font-bold text-[color:var(--success)]">{t('hrFix.adjustments.bonus')}</h3>
               {bonuses.length === 0 ? (
                 <p className="text-sm text-muted">—</p>
               ) : (
@@ -177,7 +177,7 @@ export default function AdjustmentsPage() {
                           type="button"
                           onClick={() => void removeAdjustment(b, 'bonus')}
                           disabled={busy}
-                          className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
+                          className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-[color:var(--danger)]"
                         >
                           {t('hrFix.adjustments.remove')}
                         </button>
@@ -188,7 +188,7 @@ export default function AdjustmentsPage() {
               )}
             </Card>
             <Card className="p-4">
-              <h3 className="mb-2 font-bold text-red-700">{t('hrFix.adjustments.deduction')}</h3>
+              <h3 className="mb-2 font-bold text-[color:var(--danger)]">{t('hrFix.adjustments.deduction')}</h3>
               {deductions.length === 0 ? (
                 <p className="text-sm text-muted">—</p>
               ) : (
@@ -206,7 +206,7 @@ export default function AdjustmentsPage() {
                           type="button"
                           onClick={() => void removeAdjustment(d, 'deduction')}
                           disabled={busy}
-                          className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-red-700"
+                          className="ml-2 rounded-lg border border-app px-2 py-1 text-xs font-bold text-[color:var(--danger)]"
                         >
                           {t('hrFix.adjustments.remove')}
                         </button>

@@ -189,7 +189,7 @@ function ForecastBody() {
                         <td className="px-4 py-3 text-right font-semibold tabular-nums">
                           {r.predictedTotal.toLocaleString('id-ID')}
                         </td>
-                        <td className={`px-4 py-3 text-right tabular-nums ${dts != null && dts <= 3 ? 'font-semibold text-amber-700' : ''}`}>
+                        <td className={`px-4 py-3 text-right tabular-nums ${dts != null && dts <= 3 ? 'font-semibold text-[color:var(--warning)]' : ''}`}>
                           {dts == null
                             ? t('dashboard.forecast.daysToStockoutNa')
                             : t('dashboard.forecast.daysToStockoutValue', { n: dts })}

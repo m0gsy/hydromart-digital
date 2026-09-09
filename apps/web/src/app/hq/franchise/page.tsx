@@ -118,7 +118,7 @@ export default function HqFranchisePage() {
                     {d.ownerId ? (
                       (ownerName.get(d.ownerId) ?? t('hq.franchise.ownerUnknown'))
                     ) : (
-                      <span className="font-medium text-red-600">{t('hq.franchise.noOwner')}</span>
+                      <span className="font-medium text-[color:var(--danger)]">{t('hq.franchise.noOwner')}</span>
                     )}
                   </p>
                   <p className="mt-0.5 text-xs text-muted">

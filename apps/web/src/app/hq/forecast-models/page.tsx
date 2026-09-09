@@ -128,7 +128,7 @@ export default function ForecastModelsPage() {
       </Card>
 
       {scope === 'GLOBAL' && !superAdmin && (
-        <p className="text-sm text-amber-600">{t('hq.forecastModels.globalOnly')}</p>
+        <p className="text-sm text-[color:var(--warning)]">{t('hq.forecastModels.globalOnly')}</p>
       )}
 
       {loading && <Skeleton className="h-40" />}

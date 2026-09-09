@@ -101,8 +101,8 @@ function CrmBody() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <SegmentStat label={t('dashA.crm.baru')} value={data.counts.baru} hint={t('dashA.crm.baruHint')} tone="text-brand-600" />
-            <SegmentStat label={t('dashA.crm.aktif')} value={data.counts.aktif} hint={t('dashA.crm.aktifHint')} tone="text-green-600" />
-            <SegmentStat label={t('dashA.crm.inactive')} value={data.counts.inactive} hint={t('dashA.crm.inactiveHint')} tone="text-amber-600" />
+            <SegmentStat label={t('dashA.crm.aktif')} value={data.counts.aktif} hint={t('dashA.crm.aktifHint')} tone="text-[color:var(--success)]" />
+            <SegmentStat label={t('dashA.crm.inactive')} value={data.counts.inactive} hint={t('dashA.crm.inactiveHint')} tone="text-[color:var(--warning)]" />
             <SegmentStat label={t('dashA.crm.total')} value={data.counts.total} hint="" tone="" />
             <Card className="flex flex-col gap-1 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('dashA.crm.repeatRate')}</p>

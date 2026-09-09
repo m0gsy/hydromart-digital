@@ -46,11 +46,11 @@ export function CampaignReport({ campaignId, onClose }: { campaignId: string; on
             </div>
             <div className="rounded-2xl border border-app p-2.5">
               <dt className="text-xs text-muted">{t('hrFix.campaignReport.sent')}</dt>
-              <dd className="text-lg font-bold tabular-nums text-emerald-700">{detail.data.sentCount}</dd>
+              <dd className="text-lg font-bold tabular-nums text-[color:var(--success)]">{detail.data.sentCount}</dd>
             </div>
             <div className="rounded-2xl border border-app p-2.5">
               <dt className="text-xs text-muted">{t('hrFix.campaignReport.failed')}</dt>
-              <dd className={`text-lg font-bold tabular-nums ${detail.data.failedCount > 0 ? 'text-red-600' : ''}`}>
+              <dd className={`text-lg font-bold tabular-nums ${detail.data.failedCount > 0 ? 'text-[color:var(--danger)]' : ''}`}>
                 {detail.data.failedCount}
               </dd>
             </div>

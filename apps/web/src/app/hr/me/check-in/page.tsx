@@ -45,7 +45,7 @@ function getPosition(messages: {
 
 /** CA-1-74: LATE and PENDING are not successes, and were painted as one. */
 const RESULT_TONE: Partial<Record<AttendanceStatus, string>> = {
-  PRESENT: 'text-green-700',
+  PRESENT: 'text-[color:var(--success)]',
   LATE: 'text-[color:var(--warning)]',
   PENDING: 'text-[color:var(--warning)]',
   ABSENT: 'text-[color:var(--danger)]',
@@ -145,7 +145,7 @@ export default function MeCheckInPage() {
             * device clock could not be trusted counts as nothing until HR decides, and it
             * looked exactly like a successful check-in.
             */}
-          <p className={`font-bold ${RESULT_TONE[result.status] ?? 'text-green-700'}`}>
+          <p className={`font-bold ${RESULT_TONE[result.status] ?? 'text-[color:var(--success)]'}`}>
             {t(ATTENDANCE_STATUS_LABEL[result.status])}
           </p>
           <p className="text-sm text-muted">

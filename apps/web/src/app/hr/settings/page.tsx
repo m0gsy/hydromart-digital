@@ -116,7 +116,7 @@ export default function HrSettingsPage() {
       </Card>
 
       {scope === 'GLOBAL' && !superAdmin && (
-        <p className="text-sm text-amber-600">{t('hrFix.settings.globalOnly')}</p>
+        <p className="text-sm text-[color:var(--warning)]">{t('hrFix.settings.globalOnly')}</p>
       )}
 
       {loading && <Skeleton className="h-64" />}

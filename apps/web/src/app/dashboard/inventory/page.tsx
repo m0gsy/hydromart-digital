@@ -66,7 +66,7 @@ function MovementLog({ item }: { item: InventoryItem }) {
             <p className="text-xs text-muted">{formatDateTime(m.createdAt)}</p>
           </div>
           <div className="shrink-0 text-right tabular-nums">
-            <span className={`font-semibold ${m.delta < 0 ? 'text-[color:var(--danger)]' : 'text-emerald-700'}`}>
+            <span className={`font-semibold ${m.delta < 0 ? 'text-[color:var(--danger)]' : 'text-[color:var(--success)]'}`}>
               {m.delta > 0 ? `+${m.delta}` : m.delta}
             </span>
             <p className="text-xs text-muted">
@@ -620,7 +620,7 @@ function DepotMovementLedger({ depotId }: { depotId: string }) {
                   </p>
                 </div>
                 <div className="shrink-0 text-right tabular-nums">
-                  <span className={`text-sm font-semibold ${m.delta < 0 ? 'text-[color:var(--danger)]' : 'text-emerald-700'}`}>
+                  <span className={`text-sm font-semibold ${m.delta < 0 ? 'text-[color:var(--danger)]' : 'text-[color:var(--success)]'}`}>
                     {m.delta > 0 ? `+${m.delta}` : m.delta}
                   </span>
                   <p className="text-xs text-muted">
@@ -734,7 +734,7 @@ function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClo
                   />
                   <span
                     className={`text-right text-sm font-semibold tabular-nums ${
-                      variance == null || variance === 0 ? 'text-muted' : variance < 0 ? 'text-[color:var(--danger)]' : 'text-emerald-700'
+                      variance == null || variance === 0 ? 'text-muted' : variance < 0 ? 'text-[color:var(--danger)]' : 'text-[color:var(--success)]'
                     }`}
                   >
                     {variance == null ? '—' : variance > 0 ? `+${variance}` : variance}

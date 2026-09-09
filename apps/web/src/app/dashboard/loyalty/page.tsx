@@ -27,7 +27,7 @@ type TierCard = {
 function tierIcon(kind: TierCard['icon']) {
   if (kind === 'gold') return <Crown size={22} weight="fill" className="text-brand-600" />;
   return (
-    <Medal size={22} weight="fill" className={kind === 'silver' ? 'text-[color:var(--text-muted)]' : 'text-amber-700'} />
+    <Medal size={22} weight="fill" className={kind === 'silver' ? 'text-[color:var(--text-muted)]' : 'text-[color:var(--warning)]'} />
   );
 }
 

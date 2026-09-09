@@ -214,7 +214,7 @@ export default function HqOverviewPage() {
       </div>
 
       {unavailable.length > 0 && (
-        <p className="text-sm text-amber-700" role="status">
+        <p className="text-sm text-[color:var(--warning)]" role="status">
           {t('hq.common.unavailableSome', { sources: unavailable.join(', ') })}
         </p>
       )}
@@ -278,7 +278,7 @@ export default function HqOverviewPage() {
           {/* Needs attention */}
           <Card className="flex flex-col gap-3 p-5">
             <h2 className="flex items-center gap-2 font-semibold">
-              <Warning size={18} weight="fill" className="text-amber-500" />
+              <Warning size={18} weight="fill" className="text-[color:var(--warning)]" />
               {t('hq.overview.attention.title')}
             </h2>
             {lowSla.length === 0 && unavailable.length === 0 ? (
