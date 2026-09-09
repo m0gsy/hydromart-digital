@@ -464,6 +464,7 @@ export const hrFix = {
     saveFailed: 'Gagal menyimpan',
   },
   departments: {
+    inactive: 'nonaktif',
     deleteConfirm:
       'Hapus departemen {name}? Karyawan yang masih menunjuk ke departemen ini membuat penghapusan ditolak server.',
     emptyBody2: 'Belum ada departemen — karyawan tampil “Belum diatur”.',
@@ -590,6 +591,12 @@ export const hrFix = {
     failed: 'Gagal memproses',
   },
   performance: {
+    attendanceScore: 'Skor kehadiran',
+    attendanceShort: 'Hadir',
+    disciplineScore: 'Skor kedisiplinan',
+    disciplineShort: 'Disiplin',
+    salesScore: 'Skor penjualan',
+    salesShort: 'Jual',
     computeScore: 'Hitung skor',
     saveFailed: 'Gagal menyimpan',
     rowDays: '{present}/{working} hari, {late}× terlambat',
@@ -1049,6 +1056,7 @@ export const hrFix = {
   },
   announcements: {
     scheduledNotSent: 'Dijadwalkan {at} — belum terkirim',
+    sentTo: 'Terkirim {at} ke {n} orang',
     mergedTargets:
       'Beberapa target digabung. Orang yang masuk di dua target tetap menerima satu pesan.',
     delete2: 'Hapus',
