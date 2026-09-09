@@ -212,6 +212,32 @@ export class InsufficientStockError extends DomainError {
   }
 }
 
+/** CA-2-54: the transfer exists, but not in a state this act applies to. */
+export class TransferNotPendingError extends DomainError {
+  readonly code = 'TRANSFER_NOT_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Transfer ini sudah diterima atau dibatalkan.');
+  }
+}
+
+/** CA-2-54: a depot cannot send stock to itself. */
+export class TransferSameDepotError extends DomainError {
+  readonly code = 'TRANSFER_SAME_DEPOT';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Depot asal dan tujuan sama.');
+  }
+}
+
+export class TransferNotFoundError extends DomainError {
+  readonly code = 'TRANSFER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Transfer tidak ditemukan.');
+  }
+}
+
 export class PricingRuleNotFoundError extends DomainError {
   readonly code = 'PRICING_RULE_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

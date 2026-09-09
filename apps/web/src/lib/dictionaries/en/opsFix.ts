@@ -135,6 +135,7 @@ export const opsFix = {
   view: {
     stock: 'Stock',
     movements: 'Movements',
+    transfers: 'Transfers',
   },
   movementType: {
     RECEIPT: 'Received',

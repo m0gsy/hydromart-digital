@@ -1690,6 +1690,31 @@ export interface GallonIssueSummary {
 }
 
 // Mirrors depot-service ItemView: the stock record plus derived available/low-stock.
+/**
+ * CA-2-54: stock in transit between two depots. SENT means the sender's book is already
+ * short of it and the receiver's has not gained it yet — that gap is the whole point of
+ * showing these at all.
+ */
+export type StockTransferStatus = 'SENT' | 'RECEIVED' | 'CANCELLED';
+
+export interface StockTransfer {
+  id: string;
+  reference: string;
+  fromDepotId: string;
+  toDepotId: string;
+  productId: string;
+  label: string;
+  unit: string;
+  quantity: number;
+  status: StockTransferStatus;
+  note: string | null;
+  sentBy: string;
+  sentAt: string;
+  receivedBy: string | null;
+  receivedAt: string | null;
+  cancelReason: string | null;
+}
+
 export interface InventoryItem {
   id: string;
   depotId: string;

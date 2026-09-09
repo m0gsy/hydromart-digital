@@ -1,4 +1,6 @@
 export const DEPOT_TOKENS = {
+  // CA-2-54: stock moving between two depots, in two steps.
+  StockTransferRepository: Symbol('StockTransferRepository'),
   DepotRepository: Symbol('DepotRepository'),
   AccountNames: Symbol('AccountNameResolver'),
   InventoryRepository: Symbol('InventoryRepository'),

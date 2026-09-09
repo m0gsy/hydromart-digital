@@ -49,6 +49,10 @@ import { OperationalReportService } from '../application/services/operational-re
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
+// CA-2-54: stock moving between two depots, in two steps.
+import { StockTransferPrismaRepository } from '../infrastructure/prisma/stock-transfer.prisma.repository';
+import { StockTransferService } from '../application/services/stock-transfer.service';
+import { StockTransferController } from './stock-transfer.controller';
 import { PricingRulePrismaRepository } from '../infrastructure/prisma/pricing-rule.prisma.repository';
 import { GallonReturnPrismaRepository } from '../infrastructure/prisma/gallon-return.prisma.repository';
 import { GallonIssuePrismaRepository } from '../infrastructure/prisma/gallon-issue.prisma.repository';
@@ -121,6 +125,7 @@ const providers: Provider[] = [
   SettingsService,
   DepotService,
   InventoryService,
+  StockTransferService,
   PricingService,
   GallonReturnService,
   GallonIssueService,
@@ -158,6 +163,7 @@ const providers: Provider[] = [
       }),
   },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
+  { provide: DEPOT_TOKENS.StockTransferRepository, useClass: StockTransferPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
   { provide: DEPOT_TOKENS.GallonReturnRepository, useClass: GallonReturnPrismaRepository },
   { provide: DEPOT_TOKENS.GallonIssueRepository, useClass: GallonIssuePrismaRepository },
@@ -213,6 +219,7 @@ const providers: Provider[] = [
     DepotController,
     HierarchyController,
     DepotInventoryController,
+    StockTransferController,
     InventoryController,
     PricingController,
     GallonReturnController,

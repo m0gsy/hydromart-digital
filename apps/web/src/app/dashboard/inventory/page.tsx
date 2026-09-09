@@ -5,6 +5,7 @@ import { ClipboardText, Lock, Package, Plus, Warning } from '@phosphor-icons/rea
 
 import { RequireAuth } from '@/components/require-auth';
 import {
+  Badge,
   Button,
   Card,
   CenterState,
@@ -25,6 +26,7 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
+import { useToast } from '@/components/toast';
 import { useAsync } from '@/lib/use-async';
 import type {
   DepotStockMovement,
@@ -35,6 +37,7 @@ import type {
   StockMovement,
   StockMovementType,
   StockReservation,
+  StockTransfer,
 } from '@/lib/types';
 import { NewLineForm } from './new-line-form';
 
@@ -774,6 +777,229 @@ function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClo
   );
 }
 
+/**
+ * CA-2-54 — stock moving between two depots.
+ *
+ * The only way stock could enter a depot was a purchase order to a supplier. A depot with
+ * four spare gallons and one two streets away that had run out could do nothing on the
+ * system: the transfer everyone already does on a motorbike had no record at all, so it
+ * showed up as a shortfall in one book and an unexplained surplus in the other.
+ *
+ * Two lists, because a transfer has two halves and each depot only acts on one. What is
+ * coming in is a thing to COUNT; what went out is a thing to chase, or to take back.
+ */
+function StockTransfers({
+  depotId,
+  lines,
+  onChanged,
+  canWrite,
+}: {
+  depotId: string;
+  lines: InventoryItem[];
+  onChanged: () => void;
+  canWrite: boolean;
+}) {
+  const { t } = useT();
+  const { depots } = useDepot();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [toDepot, setToDepot] = useState('');
+  const [productId, setProductId] = useState('');
+  const [qty, setQty] = useState('');
+
+  const incoming = useAsync<StockTransfer[]>(
+    () => api.get(endpoints.inventory.transfers({ depotId, direction: 'in', status: 'SENT' }), true),
+    [depotId],
+  );
+  const outgoing = useAsync<StockTransfer[]>(
+    () => api.get(endpoints.inventory.transfers({ depotId, direction: 'out' }), true),
+    [depotId],
+  );
+  const reload = () => {
+    incoming.reload();
+    outgoing.reload();
+    onChanged();
+  };
+
+  async function act(kind: 'send' | 'receive' | 'cancel', id?: string) {
+    setBusy(id ?? 'send');
+    try {
+      if (kind === 'send') {
+        await api.post(
+          endpoints.inventory.sendTransfer,
+          { fromDepotId: depotId, toDepotId: toDepot, productId, quantity: Number(qty) },
+          true,
+        );
+        setOpen(false);
+        setToDepot('');
+        setProductId('');
+        setQty('');
+      } else if (kind === 'receive') {
+        await api.post(endpoints.inventory.receiveTransfer(id ?? ''), {}, true);
+      } else {
+        await api.post(
+          endpoints.inventory.cancelTransfer(id ?? ''),
+          { reason: t('dashboard.inventory.transferReturned') },
+          true,
+        );
+      }
+      reload();
+    } catch (e) {
+      // The server's own sentence carries the useful half: which product is short, and by
+      // how much. A generic failure would send the operator back to guess.
+      toast(e instanceof ApiError ? e.message : t('common.error'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const others = depots.filter((d) => d.id !== depotId);
+  const sendable = lines.filter((l) => l.itemType === 'PRODUK' && l.productId);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold">{t('dashboard.inventory.transfersIn')}</h3>
+          {canWrite && !open && others.length > 0 && (
+            <Button variant="secondary" onClick={() => setOpen(true)}>
+              {t('dashboard.inventory.transferSend')}
+            </Button>
+          )}
+        </div>
+        {incoming.loading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : incoming.error ? (
+          <ErrorState message={incoming.error} onRetry={incoming.reload} />
+        ) : (incoming.data ?? []).length === 0 ? (
+          <p className="text-sm text-muted">{t('dashboard.inventory.transfersInEmpty')}</p>
+        ) : (
+          <ul className="divide-y divide-[color:var(--border)]">
+            {(incoming.data ?? []).map((tr) => (
+              <li key={tr.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {tr.label} · {tr.quantity} {tr.unit}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {tr.reference} · {formatDateTime(tr.sentAt)}
+                  </p>
+                </div>
+                {canWrite && (
+                  <Button onClick={() => void act('receive', tr.id)} loading={busy === tr.id}>
+                    {t('dashboard.inventory.transferReceive')}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {open && (
+        <Card className="flex flex-col gap-3 p-4">
+          <h3 className="font-bold">{t('dashboard.inventory.transferSend')}</h3>
+          <label className="text-sm font-medium">
+            {t('dashboard.inventory.transferTo')}
+            <select
+              value={toDepot}
+              onChange={(e) => setToDepot(e.target.value)}
+              className="surface-elevated mt-1 w-full rounded-lg border border-app px-3 py-2.5 text-sm"
+            >
+              <option value="">{t('dashboard.inventory.transferPickDepot')}</option>
+              {others.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.code} — {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium">
+            {t('dashboard.inventory.transferProduct')}
+            <select
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              className="surface-elevated mt-1 w-full rounded-lg border border-app px-3 py-2.5 text-sm"
+            >
+              <option value="">{t('dashboard.inventory.transferPickProduct')}</option>
+              {sendable.map((l) => (
+                <option key={l.id} value={l.productId ?? ''}>
+                  {l.label} ({l.quantity - l.reserved} {l.unit})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium">
+            {t('dashboard.inventory.transferQty')}
+            <Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
+          </label>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => void act('send')}
+              loading={busy === 'send'}
+              disabled={!toDepot || !productId || !qty}
+            >
+              {t('dashboard.inventory.transferSend')}
+            </Button>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              {t('dashboard.inventory.transferCancelForm')}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <Card className="flex flex-col gap-3 p-4">
+        <h3 className="font-bold">{t('dashboard.inventory.transfersOut')}</h3>
+        {outgoing.loading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : outgoing.error ? (
+          <ErrorState message={outgoing.error} onRetry={outgoing.reload} />
+        ) : (outgoing.data ?? []).length === 0 ? (
+          <p className="text-sm text-muted">{t('dashboard.inventory.transfersOutEmpty')}</p>
+        ) : (
+          <ul className="divide-y divide-[color:var(--border)]">
+            {(outgoing.data ?? []).map((tr) => (
+              <li key={tr.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {tr.label} · {tr.quantity} {tr.unit}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {tr.reference} · {formatDateTime(tr.sentAt)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    tone={
+                      tr.status === 'RECEIVED'
+                        ? 'success'
+                        : tr.status === 'CANCELLED'
+                          ? 'neutral'
+                          : 'warning'
+                    }
+                  >
+                    {t(`dashboard.inventory.transferStatus.${tr.status}`)}
+                  </Badge>
+                  {canWrite && tr.status === 'SENT' && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => void act('cancel', tr.id)}
+                      loading={busy === tr.id}
+                    >
+                      {t('dashboard.inventory.transferTakeBack')}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function InventoryBody() {
   const { t } = useT();
   const { customer } = useAuth();
@@ -783,7 +1009,7 @@ function InventoryBody() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [entry, setEntry] = useState<Entry>({ mode: 'none', receipt: false });
-  const [view, setView] = useState<'stock' | 'movements'>('stock');
+  const [view, setView] = useState<'stock' | 'movements' | 'transfers'>('stock');
   const [opnameOpen, setOpnameOpen] = useState(false);
   const [picker, setPicker] = useState(false);
   // `undefined` = form closed; a string (possibly empty) = open, optionally pre-picked.
@@ -896,7 +1122,9 @@ function InventoryBody() {
             </>
           )}
           <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
-            {(['stock', 'movements'] as const).map((v) => (
+            {/* CA-2-54: a third view, because stock that is on a motorbike between two
+                depots is neither a line on the shelf nor a movement that has finished. */}
+            {(['stock', 'movements', 'transfers'] as const).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -905,7 +1133,11 @@ function InventoryBody() {
                   view === v ? 'bg-brand-600 text-on-brand' : 'surface-elevated hover:bg-brand-50'
                 }`}
               >
-                {v === 'stock' ? t('opsFix.view.stock') : t('opsFix.view.movements')}
+                {v === 'stock'
+                  ? t('opsFix.view.stock')
+                  : v === 'movements'
+                    ? t('opsFix.view.movements')
+                    : t('opsFix.view.transfers')}
               </button>
             ))}
           </div>
@@ -1000,6 +1232,19 @@ function InventoryBody() {
         <Skeleton className="h-64 w-full" />
       ) : lines.error ? (
         <ErrorState message={lines.error} onRetry={lines.reload} />
+      ) : view === 'transfers' ? (
+        scopedId ? (
+          <StockTransfers
+            depotId={scopedId}
+            lines={lines.data ?? []}
+            onChanged={lines.reload}
+            canWrite={canWrite}
+          />
+        ) : (
+          <CenterState title={t('dashboard.inventory.noDepots')} icon={<Package size={40} weight="fill" />}>
+            {t('dashboard.inventory.noDepotsBody')}
+          </CenterState>
+        )
       ) : // The ledger is depot-wide, so it must not hang off the stock filters: filtering
       // down to a type with no lines used to hide a depot's entire movement history.
       view === 'movements' ? (

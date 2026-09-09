@@ -1350,3 +1350,37 @@ export class DepotGovernanceResponseDto {
   @ApiProperty({ type: Number })
   daysClosed!: number;
 }
+
+/** Mirrors `StockTransferRecord` exactly — CA-2-54, no field added or removed. */
+export class StockTransferResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String, example: 'TRF-260909-0001' })
+  reference!: string;
+  @ApiProperty({ type: String })
+  fromDepotId!: string;
+  @ApiProperty({ type: String })
+  toDepotId!: string;
+  @ApiProperty({ type: String })
+  productId!: string;
+  @ApiProperty({ type: String })
+  label!: string;
+  @ApiProperty({ type: String })
+  unit!: string;
+  @ApiProperty({ type: Number })
+  quantity!: number;
+  @ApiProperty({ enum: ['SENT', 'RECEIVED', 'CANCELLED'] })
+  status!: string;
+  @ApiProperty({ type: String, nullable: true })
+  note!: string | null;
+  @ApiProperty({ type: String })
+  sentBy!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  sentAt!: Date;
+  @ApiProperty({ type: String, nullable: true })
+  receivedBy!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  receivedAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true })
+  cancelReason!: string | null;
+}
