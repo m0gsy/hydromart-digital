@@ -65,7 +65,7 @@ function EditProfileInner() {
     e.target.value = ''; // allow re-picking the same file
     if (!file || !session) return;
     if (file.size > MAX_AVATAR_BYTES) {
-      setError(locale === 'en' ? 'Photo exceeds 5MB.' : 'Foto melebihi 5MB.');
+      setError(t('account.profileCard.photoTooBig'));
       return;
     }
     setUploading(true);

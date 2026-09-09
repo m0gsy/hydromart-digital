@@ -211,6 +211,7 @@ export const hrFix = {
     holderUnknown: 'Pemegang tidak dikenal',
     holderLeft: '{name} (sudah keluar)',
     register: 'Daftarkan Aset',
+    registerSubmit: 'Daftarkan',
     pickDepot: 'Pilih depot',
     assetName: 'Nama aset',
     brand: 'Merek',
@@ -243,6 +244,7 @@ export const hrFix = {
     assignmentHint:
       'Penugasan bersifat tambah — penugasan lama tetap tersimpan sebagai riwayat. Karyawan tanpa penugasan tetap dinilai terhadap shift depot seperti sebelumnya.',
     createRotation2: 'Buat Rotasi',
+    assign: 'Tugaskan',
     title: 'Shift & Rotasi',
     subtitle:
       'Jadwal kerja per karyawan. Absensi menilai terlambat terhadap shift karyawan, bukan shift depot.',
@@ -691,6 +693,7 @@ export const hrFix = {
   },
   resellers: {
     denied: 'Akses ditolak',
+    achievements: 'Pencapaian {month}',
     perGallon: 'Rp{amount}/galon',
     // J12: disebut hanya kalau berbeda dari total — angka yang sama dua kali tidak memberi tahu apa pun.
     atThisDepot: '{n} di depot ini',
@@ -968,6 +971,7 @@ export const hrFix = {
     pickDepot2: 'Pilih depot yang kamu kelola untuk melihat ringkasan hari ini.',
     today: 'Ringkasan hari ini',
     needsAssigning: 'Perlu ditugaskan',
+    assign: 'Tugaskan',
     allAboveThreshold: 'Semua item di atas ambang.',
     settlementsPending: 'Setoran menunggu',
     ordersIn: 'Pesanan masuk',
@@ -1529,6 +1533,7 @@ export const hrFix = {
   },
   deliveryDetail: {
     call: 'Telepon',
+    receivedBy: 'Diterima {name}',
     confirmPickup: 'Konfirmasi barang diambil',
     failedReason: 'Gagal: {reason}',
     podRetention:
@@ -1604,6 +1609,8 @@ export const hrFix = {
   },
   documents: {
     view2: 'Lihat',
+    supersededTag: 'v{version} (diganti)',
+    versionTag: 'v{version}',
     title: 'Dokumen',
     empty: 'Belum ada dokumen.',
     docType: 'Jenis dokumen',

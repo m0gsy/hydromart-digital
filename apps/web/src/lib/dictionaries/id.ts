@@ -138,6 +138,7 @@ export const id = {
       phone: 'Nomor HP',
       email: 'Email',
       emailOptional: '(opsional)',
+      photoTooBig: 'Foto melebihi 5MB.',
       // H16: the first screen in the app that has ever asked for a date of birth.
       birthdate: 'Tanggal lahir',
       birthdateHint: 'Opsional. Dipakai untuk hadiah ulang tahun; bisa dikosongkan kapan saja.',

@@ -376,7 +376,7 @@ function Assignments({
               </Field>
               <div className="col-span-full">
                 <Button onClick={assign} loading={saving}>
-                  Tugaskan
+                  {t('hrFix.shift.assign')}
                 </Button>
               </div>
             </div>

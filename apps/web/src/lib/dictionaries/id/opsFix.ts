@@ -7,6 +7,8 @@ export const opsFix = {
   },
   import: {
     accepts: 'Terima .xlsx dan .csv. Maksimal {max} baris. Kolom wajib:',
+    rowsReady: '{count} baris siap',
+    rowsBad: '{count} baris bermasalah',
     unreadableFile: 'File tidak bisa dibaca. Pastikan tidak rusak atau terkunci password.',
     legacyFormat:
       'Format lama (.xls / .ods) tidak bisa dibaca. Buka filenya, lalu "Save As" → Excel Workbook (.xlsx).',

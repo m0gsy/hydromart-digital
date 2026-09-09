@@ -162,6 +162,7 @@ export const dashA = {
   },
   customerDetail: {
     resellerDocNote: 'Uploaded during reseller sign-up.',
+    resellerDocTitle: 'Reseller sign-up photo',
     referralTitle: 'Referrals',
     referralCode: 'Code',
     referralInvited: 'Invited',

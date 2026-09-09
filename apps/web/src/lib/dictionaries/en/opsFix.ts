@@ -7,6 +7,8 @@ export const opsFix = {
   },
   import: {
     accepts: 'Accepts .xlsx and .csv. At most {max} rows. Required columns:',
+    rowsReady: '{count} rows ready',
+    rowsBad: '{count} rows with problems',
     unreadableFile:
       'The file could not be read. Check that it is not corrupt or password-protected.',
     legacyFormat:

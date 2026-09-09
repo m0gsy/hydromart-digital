@@ -179,7 +179,31 @@ const ID_WORDS = [
   'coba',
   'periksa',
 ];
-const ID_RE = new RegExp(`(^|[^a-zA-Z])(${ID_WORDS.join('|')})([^a-zA-Z]|$)`, 'i');
+/*
+ * CA-2-48. The list holds ROOTS, and Indonesian almost never says a root bare: "tugas"
+ * becomes "ditugaskan", "hadir" becomes "kehadiran", "jadwal" becomes "terjadwal". A gate
+ * that only matched the root read every one of those as English and passed the screen.
+ *
+ * Measured against this app's own dictionaries, which are the only honest corpus here —
+ * every string under `dictionaries/id` is Indonesian by definition, every string under
+ * `dictionaries/en` is not:
+ *
+ *   roots only   6.512 id: 66,0% dikenali    6.494 en: 649 kena (10,0%)
+ *   with affixes 6.512 id: 70,7% dikenali    6.494 en: 649 kena (10,0%)
+ *
+ * 196 more Indonesian strings recognised and NOT ONE new English one — the affixes are
+ * Indonesian shapes, so they cannot make an English word look Indonesian. The 10% that
+ * both rules hit is the genuinely ambiguous overlap ("per", "total", "data"), and it was
+ * there before.
+ *
+ * What the remaining 29% is, so nobody reads 70,7% as "nearly done": short domain nouns
+ * the list simply does not carry — "Nomor telepon", "Kendaraan", "Bukti", "Penerima".
+ * That is a different claim from this row's, and widening into it means weighing each
+ * noun against its English collision one at a time.
+ */
+const PRE = '(?:di|me|mem|men|meng|meny|ter|ber|pem|pen|peng|peny|pe|per|se|ke)?';
+const SUF = '(?:kan|an|nya|i)?';
+const ID_RE = new RegExp(`(^|[^a-zA-Z])${PRE}(${ID_WORDS.join('|')})${SUF}([^a-zA-Z]|$)`, 'i');
 
 /** Plainly not UI copy. */
 function isCode(s) {
@@ -193,6 +217,14 @@ function isCode(s) {
   if (/^(?:image|video|audio|text|application|font|model|multipart)\/[a-z0-9.+-]+$/.test(s))
     return true;
   if (/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9_]+)+$/.test(s)) return true; // dictionary key
+  /*
+   * A declaration, whatever language its identifier is written in. The affix rule above
+   * made this necessary the moment it landed: `function Harian(` is "hari" + "-an", and
+   * this app names its components in Indonesian, so two report tabs were reported as
+   * untranslated copy. No UI string in this app begins with a JavaScript keyword.
+   */
+  if (/^(?:function|const|let|var|class|interface|type|enum|export|import|return|async)\s/.test(s))
+    return true;
   return false;
 }
 
@@ -399,7 +431,16 @@ for (const file of walk(ROOT)) {
       let s = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
       // A template literal is judged on the prose between its holes, not on the
       // expressions inside them — `${formatDateTime(at)}` is code, "berikutnya" is copy.
-      if (kind === 'template') s = stripHoles(s);
+      if (kind === 'template') {
+        s = stripHoles(s);
+        /*
+         * A backtick INSIDE a template match means the match ran past the literal's own
+         * end and swallowed the code between two of them — `${v} (diganti)` : `v${v}`
+         * arrived as "(diganti)` : `v$". The copy in it is real and is fixed at its
+         * source; what cannot stay is a finding whose text is not a string anyone wrote.
+         */
+        if (s.includes('`')) continue;
+      }
       // A wrapped JSX text node carries the indentation Prettier gave it. Collapse it, or
       // the same string reads differently depending on how deep in the tree it sits — and
       // the baseline could never match it twice running.

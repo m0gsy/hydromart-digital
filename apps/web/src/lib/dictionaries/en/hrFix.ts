@@ -198,6 +198,7 @@ export const hrFix = {
     holderUnknown: 'Holder not found',
     holderLeft: '{name} (has left)',
     register: 'Register asset',
+    registerSubmit: 'Register',
     pickDepot: 'Select a depot',
     assetName: 'Asset name',
     brand: 'Brand',
@@ -230,6 +231,7 @@ export const hrFix = {
     assignmentHint:
       'Assignments are additive — earlier ones stay on file as history. Employees with no assignment are still judged against the depot shift, as before.',
     createRotation2: 'Create rotation',
+    assign: 'Assign',
     title: 'Shifts & rotations',
     subtitle:
       "Working hours per employee. Attendance judges lateness against the employee's shift, not the depot's.",
@@ -678,6 +680,7 @@ export const hrFix = {
   },
   resellers: {
     denied: 'Access denied',
+    achievements: 'Achievements {month}',
     perGallon: 'Rp{amount}/gallon',
     atThisDepot: '{n} at this depot',
     addReseller2: 'Add reseller',
@@ -953,6 +956,7 @@ export const hrFix = {
     pickDepot2: "Pick a depot you run to see today's summary.",
     today: 'Today at a glance',
     needsAssigning: 'Needs assigning',
+    assign: 'Assign',
     allAboveThreshold: 'Every item is above its threshold.',
     settlementsPending: 'Settlements waiting',
     ordersIn: 'Orders received',
@@ -1512,6 +1516,7 @@ export const hrFix = {
   },
   deliveryDetail: {
     call: 'Call',
+    receivedBy: 'Received by {name}',
     confirmPickup: 'Confirm goods collected',
     failedReason: 'Failed: {reason}',
     podRetention:
@@ -1586,6 +1591,8 @@ export const hrFix = {
   },
   documents: {
     view2: 'View',
+    supersededTag: 'v{version} (superseded)',
+    versionTag: 'v{version}',
     title: 'Documents',
     empty: 'No documents yet.',
     docType: 'Document type',

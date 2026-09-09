@@ -346,7 +346,7 @@ function Detail() {
         <Card className="space-y-3 p-4">
           <div className="flex items-center gap-2 text-sm font-bold text-green-700">
             <SealCheck size={18} weight="fill" />
-            Diterima {delivery.proof.recipientName}
+            {t('hrFix.deliveryDetail.receivedBy', { name: delivery.proof.recipientName })}
           </div>
           <RemoteImage
             src={proofLinks.data?.photoUrl}
