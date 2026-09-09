@@ -104,7 +104,7 @@ export function SweepCard() {
                       <div className="mt-1 max-w-md text-[11px] text-muted">{s.dormantReason}</div>
                     )}
                     {s.verdict === 'FAILING' && s.detail && (
-                      <div className="mt-1 max-w-md break-words font-mono text-[11px] text-red-700">
+                      <div className="mt-1 max-w-md break-words font-mono text-[11px] text-[color:var(--danger)]">
                         {s.detail}
                       </div>
                     )}
@@ -112,7 +112,7 @@ export function SweepCard() {
                   <td className="px-3 py-2.5">
                     <Badge tone={VERDICT_TONE[s.verdict]}>{t(`hq.sweeps.${s.verdict}`)}</Badge>
                     {s.consecutiveFailures > 1 && (
-                      <div className="mt-1 text-[11px] tabular-nums text-red-700">
+                      <div className="mt-1 text-[11px] tabular-nums text-[color:var(--danger)]">
                         {t('hq.sweeps.consecutive', { n: s.consecutiveFailures })}
                       </div>
                     )}

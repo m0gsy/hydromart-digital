@@ -52,7 +52,7 @@ export default function MeEnrollPage() {
           </div>
         )}
       </Card>
-      {done && <Card className="p-4 text-center text-green-700">{t('hrFix.enroll.done')}</Card>}
+      {done && <Card className="p-4 text-center text-[color:var(--success)]">{t('hrFix.enroll.done')}</Card>}
     </div>
   );
 }

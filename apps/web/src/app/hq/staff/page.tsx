@@ -192,7 +192,7 @@ export default function HqStaffPage() {
                   {linked && !linked.has(s.id) && s.role !== 'FRANCHISE_OWNER' && (
                     <a
                       href={`/hr/employees/new?fullName=${encodeURIComponent(s.fullName ?? '')}&phone=${encodeURIComponent(s.phone)}${hrManaged(s.role) ? `&role=${s.role}` : ''}${s.assignedDepotId ? `&depotId=${s.assignedDepotId}` : ''}`}
-                      className="text-xs font-bold text-amber-700 underline"
+                      className="text-xs font-bold text-[color:var(--warning)] underline"
                     >
                       {t('hq.staff.noEmployeeRecord')}
                     </a>
@@ -384,7 +384,7 @@ function DeleteStaff({ staff, onDeleted }: { staff: Customer; onDeleted: () => v
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <p className="text-[11px] font-semibold text-red-700">
+      <p className="text-[11px] font-semibold text-[color:var(--danger)]">
         {t('hq.staff.deleteConfirm', { name: label })}
       </p>
       <div className="flex gap-1">

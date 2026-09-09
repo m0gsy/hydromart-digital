@@ -73,14 +73,14 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
           credit ? 'bg-[color:var(--success-bg)]' : 'bg-[color:var(--danger-bg)]'
         }`}
       >
-        <Icon size={18} weight="fill" className={credit ? 'text-green-700' : 'text-red-600'} />
+        <Icon size={18} weight="fill" className={credit ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]'} />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{entry.description}</p>
         <p className="text-xs text-muted">{date}</p>
       </div>
       <span
-        className={`shrink-0 text-sm font-bold tabular-nums ${credit ? 'text-green-700' : 'text-red-600'}`}
+        className={`shrink-0 text-sm font-bold tabular-nums ${credit ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]'}`}
       >
         {credit ? '+ ' : '− '}
         {formatIDR(Math.abs(entry.amount))}
@@ -164,7 +164,7 @@ function BalanceCard({
     return (
       <Card className="flex flex-col items-center gap-3 p-7 text-center">
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--success-bg)]">
-          <CheckCircle size={40} weight="fill" className="text-green-700" />
+          <CheckCircle size={40} weight="fill" className="text-[color:var(--success)]" />
         </span>
         <h2 className="text-xl font-extrabold tracking-tight">
           {t('dashB.payout.withdrawalProcessed')}
@@ -180,7 +180,7 @@ function BalanceCard({
           </div>
           <div className="flex items-center justify-between py-0.5">
             <span className="text-muted">{t('dashB.payout.status')}</span>
-            <span className="font-semibold text-green-700">{t('dashB.payout.processed')}</span>
+            <span className="font-semibold text-[color:var(--success)]">{t('dashB.payout.processed')}</span>
           </div>
         </div>
       </Card>

@@ -79,7 +79,7 @@ export function DepotDetail({ depot, onClose }: { depot: DepotAdmin; onClose: ()
               </div>
               <div className="rounded-2xl border border-app p-3 text-center">
                 <dt className="text-xs text-muted">{t('hrFix.depotDetail.lowStock')}</dt>
-                <dd className={`text-lg font-bold tabular-nums ${lowCount > 0 ? 'text-amber-700' : ''}`}>
+                <dd className={`text-lg font-bold tabular-nums ${lowCount > 0 ? 'text-[color:var(--warning)]' : ''}`}>
                   {lowCount}
                 </dd>
               </div>

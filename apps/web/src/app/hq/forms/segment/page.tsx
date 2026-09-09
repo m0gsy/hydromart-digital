@@ -186,7 +186,7 @@ export default function HqSegmentFormPage() {
         </div>
 
         {resolved.tierUsed && (
-          <p className="text-xs text-amber-700">{t('hq.forms.segment.tierUnsupported')}</p>
+          <p className="text-xs text-[color:var(--warning)]">{t('hq.forms.segment.tierUnsupported')}</p>
         )}
       </Card>
 

@@ -218,7 +218,7 @@ function CloseBooks({ depotId, date }: { depotId: string; date: string }) {
       {/* Money that arrived after the book was shut. Never hidden: the cash exists whether
           or not the day was closed. */}
       {closed && (state.data?.lateEntries ?? 0) > 0 && (
-        <p className="text-[11px] font-semibold text-amber-700">
+        <p className="text-[11px] font-semibold text-[color:var(--warning)]">
           {t('opsFix.reports.lateEntries', {
             n: state.data!.lateEntries,
             amount: formatIDR(state.data!.lateAmountIdr),

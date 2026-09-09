@@ -169,7 +169,7 @@ export function DepotHoursEditor({
             <div className="flex flex-col gap-2">
               {holidays.map((h, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-xl border border-app p-2">
-                  <CalendarX size={18} weight="fill" className="shrink-0 text-amber-600" />
+                  <CalendarX size={18} weight="fill" className="shrink-0 text-[color:var(--warning)]" />
                   <Input
                     type="date"
                     value={h.date}
@@ -186,7 +186,7 @@ export function DepotHoursEditor({
                     type="button"
                     onClick={() => removeHoliday(i)}
                     aria-label={t('hrFix.depotHours.deleteAria')}
-                    className="shrink-0 rounded-lg p-1.5 text-red-600 hover:bg-[color:var(--danger-bg)]"
+                    className="shrink-0 rounded-lg p-1.5 text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
                   >
                     <Trash size={16} />
                   </button>

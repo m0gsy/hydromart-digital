@@ -119,7 +119,7 @@ function LowStockWidget() {
             {items.slice(0, 5).map((it) => (
               <li key={it.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
                 <span className="truncate">{it.label}</span>
-                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-amber-700">
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-[color:var(--warning)]">
                   <Warning size={13} weight="fill" />
                   {t('dashboard.landing.lowStock.belowMin', { qty: it.available, unit: it.unit, min: it.minimumStock })}
                 </span>
@@ -326,7 +326,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
       </div>
 
       {(sources.order === 'unavailable' || sources.delivery === 'unavailable') && (
-        <p className="text-sm text-amber-700" role="status">
+        <p className="text-sm text-[color:var(--warning)]" role="status">
           {t('dashboard.landing.partial', { which: partialWhich })}
         </p>
       )}

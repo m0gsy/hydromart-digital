@@ -634,8 +634,8 @@ function WalkIn({ depotId }: { depotId: string }) {
       {unpaid && (
         <Card className="space-y-3 border-red-300 bg-red-50 p-4">
           <div>
-            <p className="font-semibold text-red-700">{t('hrFix.walkIn.unpaidTitle')}</p>
-            <p className="text-sm text-red-700">
+            <p className="font-semibold text-[color:var(--danger)]">{t('hrFix.walkIn.unpaidTitle')}</p>
+            <p className="text-sm text-[color:var(--danger)]">
               {t('hrFix.walkIn.unpaidBody', { order: unpaid.order.orderNumber })}
             </p>
           </div>
@@ -1085,7 +1085,7 @@ function WalkIn({ depotId }: { depotId: string }) {
               <span className="text-muted">
                 {short ? t('opsFix.walkIn.stillShort') : t('opsFix.walkIn.change')}
               </span>
-              <span className={short ? 'font-bold text-red-600' : 'font-bold'}>
+              <span className={short ? 'font-bold text-[color:var(--danger)]' : 'font-bold'}>
                 {/*
                   Was `Math.max(0, change)`: a short payment printed "Rp 0" in red and
                   never said how much more to ask for — the one number the cashier is

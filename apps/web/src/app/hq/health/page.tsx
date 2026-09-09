@@ -95,7 +95,7 @@ function OutboxCard() {
             <div className="text-xs text-muted">{t('hq.outbox.pending')}</div>
             <div
               className={`text-2xl font-bold tabular-nums ${
-                pending > 0 ? 'text-amber-600' : ''
+                pending > 0 ? 'text-[color:var(--warning)]' : ''
               }`}
             >
               {pending}
@@ -103,7 +103,7 @@ function OutboxCard() {
           </div>
           <div className="rounded-xl border border-app p-4">
             <div className="text-xs text-muted">{t('hq.outbox.dead')}</div>
-            <div className={`text-2xl font-bold tabular-nums ${dead > 0 ? 'text-red-600' : ''}`}>
+            <div className={`text-2xl font-bold tabular-nums ${dead > 0 ? 'text-[color:var(--danger)]' : ''}`}>
               {dead}
             </div>
           </div>

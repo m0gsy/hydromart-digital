@@ -209,8 +209,8 @@ function CreateWebhookSheet({
       <div className="flex flex-col gap-4">
         {secret && (
           <div className="rounded-xl border border-app bg-amber-50 p-3.5">
-            <p className="text-sm font-bold text-amber-900">{t('hq.webhooks.secretTitle')}</p>
-            <p className="mt-1 text-xs text-amber-800">{t('hq.webhooks.secretBody')}</p>
+            <p className="text-sm font-bold text-[color:var(--warning)]">{t('hq.webhooks.secretTitle')}</p>
+            <p className="mt-1 text-xs text-[color:var(--warning)]">{t('hq.webhooks.secretBody')}</p>
             <code className="mt-2 block break-all rounded-lg bg-white px-2.5 py-2 font-mono text-xs">
               {secret}
             </code>

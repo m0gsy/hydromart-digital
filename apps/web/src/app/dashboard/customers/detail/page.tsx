@@ -119,7 +119,7 @@ function DetailBody({ id }: { id: string }) {
                   {profile.gallonsOnLoan == null ? (
                     <span className="text-[color:var(--text-muted)]">{t('hrFix.customerDetail.notLinked')}</span>
                   ) : (
-                    <span className={profile.gallonsOnLoan >= 3 ? 'text-red-600' : ''}>
+                    <span className={profile.gallonsOnLoan >= 3 ? 'text-[color:var(--danger)]' : ''}>
                       {profile.gallonsOnLoan}
                     </span>
                   )}
@@ -148,7 +148,7 @@ function DetailBody({ id }: { id: string }) {
               {/* Manager churn-risk panel (12b) — only when the forecast aggregate is present. */}
               {isManager && profile.churnRisk && (
                 <Card className="flex items-center gap-3 p-4">
-                  <Warning size={22} weight="fill" className="text-amber-600" />
+                  <Warning size={22} weight="fill" className="text-[color:var(--warning)]" />
                   <div>
                     <p className="text-sm font-semibold">{t('dashA.customerDetail.churnTitle')}</p>
                     <p className="text-xs text-[color:var(--text-muted)]">
@@ -182,7 +182,7 @@ function DetailBody({ id }: { id: string }) {
                           </div>
                           <span
                             className={`font-semibold tabular-nums ${
-                              e.type === 'ISSUE' ? 'text-emerald-700' : 'text-red-600'
+                              e.type === 'ISSUE' ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]'
                             }`}
                           >
                             {e.type === 'ISSUE' ? '+' : '−'}

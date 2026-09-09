@@ -161,7 +161,7 @@ function TeamPerformanceBody() {
                       <p className="flex items-center justify-end gap-0.5 text-sm font-bold tabular-nums">
                         {courier.rating === null ? '—' : courier.rating.toFixed(1)}
                         {courier.rating !== null && (
-                          <Star size={12} weight="fill" className="text-amber-500" />
+                          <Star size={12} weight="fill" className="text-[color:var(--warning)]" />
                         )}
                       </p>
                     </div>
@@ -194,7 +194,7 @@ function TeamPerformanceBody() {
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted">{t('mgrFix.teamPerf.depositVariance')}</span>
                         <span
-                          className={`font-bold tabular-nums ${operator.varianceIdr > 0 ? 'text-amber-700' : 'text-[color:var(--success)]'}`}
+                          className={`font-bold tabular-nums ${operator.varianceIdr > 0 ? 'text-[color:var(--warning)]' : 'text-[color:var(--success)]'}`}
                         >
                           {formatIDR(operator.varianceIdr)}
                         </span>

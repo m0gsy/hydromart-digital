@@ -177,7 +177,7 @@ function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdm
           {error}
         </p>
       )}
-      {saved && <p className="text-sm font-medium text-emerald-700">{t('dashB.payments.bankSaved')}</p>}
+      {saved && <p className="text-sm font-medium text-[color:var(--success)]">{t('dashB.payments.bankSaved')}</p>}
       <div className="flex justify-end">
         <Button onClick={save} loading={busy}>
           {t('dashB.payments.saveBank')}

@@ -112,7 +112,7 @@ export default function HqOrderDetailPage() {
               {o.discount > 0 && (
                 <div className="flex justify-between">
                   <dt className="text-muted">{t('hq.orderDetail.discount')}</dt>
-                  <dd className="text-emerald-700">−<Money amount={o.discount} /></dd>
+                  <dd className="text-[color:var(--success)]">−<Money amount={o.discount} /></dd>
                 </div>
               )}
               <div className="flex justify-between font-semibold">

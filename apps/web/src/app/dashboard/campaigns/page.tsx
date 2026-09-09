@@ -231,11 +231,11 @@ function CampaignCard({
         </div>
         <div>
           <dt className="text-xs text-muted">{t('dashboard.campaigns.sent')}</dt>
-          <dd className="font-semibold tabular-nums text-green-700">{campaign.sentCount}</dd>
+          <dd className="font-semibold tabular-nums text-[color:var(--success)]">{campaign.sentCount}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted">{t('dashboard.campaigns.failed')}</dt>
-          <dd className={`font-semibold tabular-nums ${campaign.failedCount > 0 ? 'text-red-600' : ''}`}>
+          <dd className={`font-semibold tabular-nums ${campaign.failedCount > 0 ? 'text-[color:var(--danger)]' : ''}`}>
             {campaign.failedCount}
           </dd>
         </div>

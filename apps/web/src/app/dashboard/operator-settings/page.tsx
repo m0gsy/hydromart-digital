@@ -114,7 +114,7 @@ function OperatorSettingsBody() {
       <button
         type="button"
         onClick={signOut}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 p-3.5 text-sm font-extrabold text-red-600"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[color:var(--danger)] p-3.5 text-sm font-extrabold text-[color:var(--danger)]"
       >
         <SignOut size={17} />
         {t('dashB.operatorSettings.signOut')}

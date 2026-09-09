@@ -348,7 +348,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
               </select>
             </Field>
             {form.status === 'RESIGNED' && !form.exitDate.trim() && (
-              <p className="text-xs text-amber-700">{t('hrFix.employeeForm.resignedHint')}</p>
+              <p className="text-xs text-[color:var(--warning)]">{t('hrFix.employeeForm.resignedHint')}</p>
             )}
           </>
         )}
@@ -367,11 +367,11 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           promotes the one that is there. Whose it is has to be read before that happens. */}
       {confirmOwner && (
         <Card className="border-amber-300 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900" role="alert">
+          <p className="text-sm font-semibold text-[color:var(--warning)]" role="alert">
             {t('hrFix.employeeForm.phoneTaken', { phone: form.phone })}{' '}
             {confirmOwner.fullName || t('hrFix.employeeForm.noName')} ({roleLabel(confirmOwner.role)}).
           </p>
-          <p className="mt-1 text-sm text-amber-900">
+          <p className="mt-1 text-sm text-[color:var(--warning)]">
             {t('hrFix.employeeForm.phoneTakenSave')}{' '}
             {form.role ? t(HR_ROLE_LABEL[form.role]) : t('hrFix.employeeForm.chosenRole')}
             {t('hrFix.employeeForm.phoneTakenTail')}

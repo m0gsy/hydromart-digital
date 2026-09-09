@@ -56,12 +56,12 @@ function Stat({
     >
       <p
         className={`text-[11px] font-bold uppercase tracking-wide ${
-          tone === 'amber' ? 'text-amber-700' : 'text-[color:var(--text-muted)]'
+          tone === 'amber' ? 'text-[color:var(--warning)]' : 'text-[color:var(--text-muted)]'
         }`}
       >
         {label}
       </p>
-      <p className={`text-2xl font-extrabold tabular-nums ${tone === 'amber' ? 'text-amber-700' : ''}`}>
+      <p className={`text-2xl font-extrabold tabular-nums ${tone === 'amber' ? 'text-[color:var(--warning)]' : ''}`}>
         {value}
       </p>
       {hint && <p className="text-[11px] font-medium text-[color:var(--text-muted)]">{hint}</p>}
@@ -171,18 +171,18 @@ function RingkasanBody({ depotId }: { depotId: string }) {
         <div className="flex flex-col gap-4">
           <Card elevated={false} className="flex flex-col gap-2 border-red-200 bg-red-50 p-4">
             <div className="flex items-center gap-2">
-              <Warning size={18} weight="fill" className="text-red-600" />
-              <span className="text-[13.5px] font-bold text-red-800">
+              <Warning size={18} weight="fill" className="text-[color:var(--danger)]" />
+              <span className="text-[13.5px] font-bold text-[color:var(--danger)]">
                 {t('hrFix.operatorSummary.lowStockCount', { count: data.lowStock.length })}
               </span>
             </div>
             {data.lowStock.length === 0 ? (
-              <p className="text-xs text-red-800/80">{t('hrFix.operatorSummary.allAboveThreshold')}</p>
+              <p className="text-xs text-[color:var(--danger)]/80">{t('hrFix.operatorSummary.allAboveThreshold')}</p>
             ) : (
               data.lowStock.slice(0, 3).map((it) => (
                 <div key={it.id} className="flex items-center justify-between text-[12.5px]">
                   <span className="font-semibold">{it.label}</span>
-                  <span className="font-bold tabular-nums text-red-600">
+                  <span className="font-bold tabular-nums text-[color:var(--danger)]">
                     {it.available} / min {it.minimumStock}
                   </span>
                 </div>

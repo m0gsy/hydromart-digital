@@ -219,7 +219,7 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi label={t('opsFix.promoAnalytics.used')}>
           {data.totalUses}
-          <span className="mt-1 block text-[11px] font-bold text-emerald-700">{t('opsFix.promoAnalytics.thisWeek', { n: data.usesLast7Days })}</span>
+          <span className="mt-1 block text-[11px] font-bold text-[color:var(--success)]">{t('opsFix.promoAnalytics.thisWeek', { n: data.usesLast7Days })}</span>
         </Kpi>
         <Kpi label={t('opsFix.promoAnalytics.savingsGiven')}><Money amount={data.totalSavingsIdr} /></Kpi>
         <Kpi label={t('opsFix.promoAnalytics.ordersAffected')}>{data.affectedOrderCount}</Kpi>
@@ -260,16 +260,16 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
             <p className="mb-3 text-sm font-bold">{t('opsFix.promoAnalytics.terms')}</p>
             <ul className="flex flex-col gap-2 text-xs">
               {promo.subtitle && (
-                <li className="flex items-center gap-2"><CheckCircle size={15} weight="fill" className="text-emerald-600" />{promo.subtitle}</li>
+                <li className="flex items-center gap-2"><CheckCircle size={15} weight="fill" className="text-[color:var(--success)]" />{promo.subtitle}</li>
               )}
               {promo.endsAt && (
                 <li className="flex items-center gap-2">
-                  <CheckCircle size={15} weight="fill" className="text-emerald-600" />
+                  <CheckCircle size={15} weight="fill" className="text-[color:var(--success)]" />
                   s.d. {new Date(promo.endsAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                 </li>
               )}
               {promo.voucherCode && (
-                <li className="flex items-center gap-2"><CheckCircle size={15} weight="fill" className="text-emerald-600" />Kode {promo.voucherCode}</li>
+                <li className="flex items-center gap-2"><CheckCircle size={15} weight="fill" className="text-[color:var(--success)]" />Kode {promo.voucherCode}</li>
               )}
             </ul>
           </Card>

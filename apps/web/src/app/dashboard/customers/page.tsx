@@ -59,7 +59,7 @@ function GallonCell({ gallons, deposit }: { gallons: number | null; deposit: num
   }
   if (!gallons) return <span className="text-[color:var(--text-muted)]">—</span>;
   return (
-    <span className={gallons >= HIGH_LOAN ? 'font-semibold text-red-600' : ''}>
+    <span className={gallons >= HIGH_LOAN ? 'font-semibold text-[color:var(--danger)]' : ''}>
       {gallons}
       {deposit != null && ` · ${formatIDR(deposit)}`}
     </span>

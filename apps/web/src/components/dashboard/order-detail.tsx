@@ -312,7 +312,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
       {drivers.loading ? (
         <p className="text-sm text-muted">{t('hrFix.orderDetail.loadingCouriers')}</p>
       ) : drivers.error ? (
-        <p className="text-sm font-medium text-red-600">{drivers.error}</p>
+        <p className="text-sm font-medium text-[color:var(--danger)]">{drivers.error}</p>
       ) : !drivers.data || drivers.data.length === 0 ? (
         <p className="text-sm text-muted">{t('hrFix.orderDetail.noCouriers')}</p>
       ) : (
@@ -457,7 +457,7 @@ export function OrderDetail({
             {order.discount > 0 && (
               <div className="flex justify-between">
                 <dt className="text-muted">{t('hrFix.orderDetail.discount')}</dt>
-                <dd className="tabular-nums text-emerald-700">
+                <dd className="tabular-nums text-[color:var(--success)]">
                   −<Money amount={order.discount} />
                 </dd>
               </div>
@@ -478,8 +478,8 @@ export function OrderDetail({
           // payment-by-order endpoint (payment reads are customer-scoped today).
           // Surface the cancellation + the refund rule honestly instead of faking it.
           <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/40 dark:bg-red-950/20">
-            <p className="font-semibold text-red-700">{t('hrFix.orderDetail.cancelled')}</p>
-            <p className="text-red-700/80">{t('hrFix.orderDetail.onlineRefundHint')}</p>
+            <p className="font-semibold text-[color:var(--danger)]">{t('hrFix.orderDetail.cancelled')}</p>
+            <p className="text-[color:var(--danger)]/80">{t('hrFix.orderDetail.onlineRefundHint')}</p>
           </div>
         )}
 

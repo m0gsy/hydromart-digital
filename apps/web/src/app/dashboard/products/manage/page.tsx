@@ -176,7 +176,7 @@ function ProductForm({
               </Button>
               <Button
                 variant="ghost"
-                className="text-red-600"
+                className="text-[color:var(--danger)]"
                 onClick={() => removeImageAt(i)}
                 aria-label={t('dashC.productsManage.remove')}
               >
@@ -278,7 +278,7 @@ function ProductItem({
           {t('dashC.productsManage.edit')}
         </Button>
         {product.active && (
-          <Button variant="ghost" className="text-red-600" onClick={deactivate} loading={busy}>
+          <Button variant="ghost" className="text-[color:var(--danger)]" onClick={deactivate} loading={busy}>
             {t('dashC.productsManage.deactivate')}
           </Button>
         )}

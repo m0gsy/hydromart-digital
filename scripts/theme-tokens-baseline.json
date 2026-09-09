@@ -1,0 +1,31 @@
+{
+  "count": 60,
+  "files": [
+    "apps/web/src/app/cart/page.tsx",
+    "apps/web/src/app/driver/deliveries/detail/no-show/page.tsx",
+    "apps/web/src/app/driver/deliveries/detail/page.tsx",
+    "apps/web/src/app/driver/deliveries/detail/pay/page.tsx",
+    "apps/web/src/app/driver/deliveries/detail/returns/page.tsx",
+    "apps/web/src/app/driver/deliveries/detail/success/page.tsx",
+    "apps/web/src/app/driver/earnings/history/page.tsx",
+    "apps/web/src/app/driver/earnings/page.tsx",
+    "apps/web/src/app/driver/expenses/page.tsx",
+    "apps/web/src/app/driver/goal/page.tsx",
+    "apps/web/src/app/driver/help/page.tsx",
+    "apps/web/src/app/driver/history/page.tsx",
+    "apps/web/src/app/driver/page.tsx",
+    "apps/web/src/app/driver/performance/page.tsx",
+    "apps/web/src/app/driver/profile/page.tsx",
+    "apps/web/src/app/driver/settlement/history/page.tsx",
+    "apps/web/src/app/driver/settlement/page.tsx",
+    "apps/web/src/app/driver/shift/check-in/page.tsx",
+    "apps/web/src/app/driver/shift/status/page.tsx",
+    "apps/web/src/app/m/manager/account/page.tsx",
+    "apps/web/src/app/m/manager/approvals/detail/page.tsx",
+    "apps/web/src/components/driver/cash-returned-ask.tsx",
+    "apps/web/src/components/driver/live-nav.tsx",
+    "apps/web/src/components/driver/settlement-detail.tsx",
+    "apps/web/src/components/loyalty-highlight.tsx",
+    "apps/web/src/components/offline-queue-banner.tsx"
+  ]
+}
