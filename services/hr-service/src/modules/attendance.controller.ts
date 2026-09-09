@@ -1,4 +1,18 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
@@ -80,6 +94,36 @@ export class AttendanceController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AttendanceAdjustmentRecord[]> {
     return this.attendance.listAdjustments(user, id);
+  }
+
+  /**
+   * CA-1-66: the selfie the punch was accepted on.
+   *
+   * `hrView`, like every other read of somebody's attendance, and never cached — the same
+   * rule the document route follows, for the same reason: a face frame is personal data
+   * under UU 27/2022 and must not survive in a proxy or a WebView cache.
+   */
+  @ApiOkResponse({
+    description: 'The stored check-in/check-out frame.',
+    content: { 'image/jpeg': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Get(':id/photo/:which')
+  @Can('hrView')
+  @Header('Cache-Control', 'no-store, private')
+  @ApiOperation({ summary: 'The face frame captured with a punch (authenticated; never cached)' })
+  async photo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('which') which: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    if (which !== 'in' && which !== 'out') {
+      throw new BadRequestException('Foto absensi hanya "in" atau "out"');
+    }
+    const { body, contentType } = await this.attendance.photo(user, id, which);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="absensi-${which}"`);
+    return new StreamableFile(body);
   }
 
   @ApiOkResponse({ type: AttendanceResponseDto })

@@ -111,6 +111,13 @@ function handlerAt(lines, line) {
   let started = false;
   for (; i < lines.length && i < line + 130; i++) {
     body += lines[i] + '\n';
+    /*
+     * A PARAMETER decorator counts no braces either. `@Res({ passthrough: true })` opens and
+     * closes one on its own line, so a handler that streams a file ended at its own parameter
+     * list: the body stopped before the service call, and the route read as unguarded no
+     * matter what that service asserted.
+     */
+    if (/^\s*@/.test(lines[i])) continue;
     for (const ch of lines[i]) {
       if (ch === '{') { depth++; started = true; } else if (ch === '}') depth--;
     }

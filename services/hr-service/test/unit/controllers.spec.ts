@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ServiceUnavailableException,
+  StreamableFile,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 import type { Response } from 'express';
@@ -149,8 +150,32 @@ describe('AttendanceController', () => {
     'createManual',
     'adjust',
     'decide',
+    'photo',
   ]);
   const c = new AttendanceController(att as never);
+
+  /*
+   * CA-1-66: the frame a punch was accepted on. `which` comes off the path as a bare
+   * string, so the two words the service understands are checked here rather than trusted.
+   */
+  it('photo streams the frame with its own content type, and never caches it', async () => {
+    att.photo.mockResolvedValue({ body: Buffer.from('jpeg'), contentType: 'image/webp' });
+    const res = fakeRes();
+    const out = await c.photo('a1', 'in', user, res);
+    expect(att.photo.mock.calls[0].slice(0, 3)).toEqual([user, 'a1', 'in']);
+    expect(res.headers['Content-Type']).toBe('image/webp');
+    expect(res.headers['Content-Disposition']).toContain('absensi-in');
+    expect(out).toBeInstanceOf(StreamableFile);
+  });
+
+  it('photo refuses a path segment that is neither in nor out', async () => {
+    att.photo.mockClear();
+    const res = fakeRes();
+    await expect(c.photo('a1', 'sideways', user, res)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(att.photo).not.toHaveBeenCalled();
+  });
 
   it('check-in decodes the frame and forwards a punch', () => {
     const dto = { image: b64, lat: 1, lng: 2 } as never;
