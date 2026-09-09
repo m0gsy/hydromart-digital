@@ -39,6 +39,17 @@ export class CreateIncidentDto {
   @IsString()
   @MaxLength(60)
   orderRef?: string;
+
+  @ApiPropertyOptional({
+    example: '081234567890',
+    description:
+      "CA-2-58: the complainant's number. On a CUSTOMER_CONFLICT it is also what lets the complaint be mirrored into head office's queue — without it there is nothing to call back on.",
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(5)
+  @MaxLength(30)
+  customerPhone?: string;
 }
 
 export class ListIncidentQueryDto {

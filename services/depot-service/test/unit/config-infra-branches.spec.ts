@@ -41,6 +41,9 @@ describe('DepotConfigService', () => {
     expect(svc.alertPhone).toBe('');
     expect(svc.internalServiceKey).toBe('');
     expect(svc.paymentServiceUrl).toBe('');
+    // CA-2-58: blank = a depot complaint is not mirrored to head office, and the incident
+    // says so on its own row rather than pretending it was forwarded.
+    expect(svc.adminServiceUrl).toBe('');
     // H-29: blank = no audit trail in this environment, and a trailing slash is stripped
     // so the route is not built with a double slash.
     expect(svc.authServiceUrl).toBe('');

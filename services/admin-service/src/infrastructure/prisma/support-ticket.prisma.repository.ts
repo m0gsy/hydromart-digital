@@ -32,6 +32,7 @@ interface SupportTicketRow {
   customerRef: string;
   customerPhone: string;
   orderRef: string | null;
+  depotRef: string | null;
   customerId: string | null;
   priority: string;
   status: string;
@@ -63,6 +64,7 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     const where = {
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.priority ? { priority: filter.priority } : {}),
+      ...(filter.depotRef ? { depotRef: filter.depotRef } : {}),
     };
     const rows = await this.prisma.supportTicket.findMany({
       where,
@@ -92,6 +94,7 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
         customerRef: data.customerRef,
         customerPhone: data.customerPhone,
         orderRef: data.orderRef ?? null,
+        depotRef: data.depotRef ?? null,
         customerId: data.customerId ?? null,
         ...(data.priority ? { priority: data.priority } : {}),
         messages: { create: { authorType: TicketAuthorType.CUSTOMER, body: data.body } },

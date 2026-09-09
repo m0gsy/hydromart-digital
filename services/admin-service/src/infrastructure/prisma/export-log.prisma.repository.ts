@@ -26,12 +26,18 @@ interface ExportLogRow {
 export class ExportLogPrismaRepository implements ExportLogRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private toRecord(row: ExportLogRow & { hasFile?: boolean }): ExportLogRecord {
+  /**
+   * `hasFile` is required, not defaulted. Both callers derive it from the stored file name
+   * and always pass it; a `?? false` here was a fallback nothing could reach, and an
+   * unreachable default on THIS field is the wrong one to have — it would quietly turn a
+   * downloadable export into one the screen offers no download for.
+   */
+  private toRecord(row: ExportLogRow & { hasFile: boolean }): ExportLogRecord {
     return {
       ...row,
       format: row.format as ExportFormat,
       status: row.status as ExportStatus,
-      hasFile: row.hasFile ?? false,
+      hasFile: row.hasFile,
     };
   }
 

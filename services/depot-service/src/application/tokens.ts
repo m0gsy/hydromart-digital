@@ -5,6 +5,8 @@ export const DEPOT_TOKENS = {
   AccountNames: Symbol('AccountNameResolver'),
   InventoryRepository: Symbol('InventoryRepository'),
   LowStockAlert: Symbol('LowStockAlert'),
+  /** CA-2-58: head office's complaint queue. */
+  HqComplaint: Symbol('HqComplaint'),
   UntrackedSaleAlert: Symbol('UntrackedSaleAlert'),
   ProductCatalog: Symbol('ProductCatalog'),
   PricingRuleRepository: Symbol('PricingRuleRepository'),

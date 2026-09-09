@@ -5,6 +5,7 @@ import { UntrackedSaleAlert } from '../../src/application/ports/untracked-sale-a
 import { UntrackedSaleAlertHttpAdapter } from '../../src/infrastructure/http/untracked-sale-alert.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../../src/infrastructure/http/order-subscription.http.adapter';
+import { HqComplaintHttpAdapter } from '../../src/infrastructure/http/hq-complaint.http.adapter';
 
 // Exercises the REAL HTTP adapter code (skip branches, URL/header/body building, res.ok
 // branch, fail-open catch) against a mocked global.fetch — the unit the e2e's Fake* stand-in
@@ -243,6 +244,17 @@ describe('an outbound call that hangs is aborted and still settles', () => {
     ],
     ['product-catalog.find', () => new ProductCatalogHttpAdapter(makeConfig()).find('p1')],
     ['product-catalog.findBySku', () => new ProductCatalogHttpAdapter(makeConfig()).findBySku('X')],
+    [
+      'hq-complaint.open',
+      () =>
+        new HqComplaintHttpAdapter(makeConfig({ adminServiceUrl: 'http://admin:3016' })).open({
+          depotId: 'd1',
+          customerRef: '081234567890',
+          customerPhone: '081234567890',
+          subject: 'Galon bocor',
+          body: 'Galon bocor saat diterima.',
+        }),
+    ],
   ];
 
   it.each(cases)('%s', async (_name, run) => {
@@ -332,5 +344,87 @@ describe('OrderSubscriptionHttpAdapter', () => {
       new OrderSubscriptionHttpAdapter(cfg({ internalServiceKey: '' })).create(input),
     ).rejects.toThrow(/belum dikonfigurasi/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * CA-2-58 — the mirror that carries a depot's customer complaint to head office.
+ *
+ * Fails SOFT and returns null, which the caller stores: a complaint that did not travel is
+ * shown as not travelled. Refusing to save the depot's own record because admin-service was
+ * down would throw away the copy that is certainly wanted.
+ */
+describe('HqComplaintHttpAdapter', () => {
+  const complaint = {
+    depotId: 'd1',
+    customerRef: '081234567890',
+    customerPhone: '081234567890',
+    subject: 'Galon bocor',
+    body: 'Galon bocor saat diterima.',
+    orderRef: 'HM-260909-001',
+  };
+
+  it('posts to the internal route with the shared key and returns the ticket id', async () => {
+    fetchMock.mockResolvedValue(jsonRes(201, { id: 'tkt-9' }));
+    const adapter = new HqComplaintHttpAdapter(
+      makeConfig({ adminServiceUrl: 'http://admin:3016' }),
+    );
+    expect(await adapter.open(complaint)).toBe('tkt-9');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://admin:3016/api/v1/tickets/internal/from-depot');
+    expect((init.headers as Record<string, string>)['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      depotRef: 'd1',
+      customerPhone: '081234567890',
+      subject: 'Galon bocor',
+    });
+  });
+
+  it('does nothing when head office is not configured', async () => {
+    const adapter = new HqComplaintHttpAdapter(makeConfig({ adminServiceUrl: '' }));
+    expect(await adapter.open(complaint)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does nothing without the internal key', async () => {
+    const adapter = new HqComplaintHttpAdapter(
+      makeConfig({ adminServiceUrl: 'http://admin:3016', internalServiceKey: '' }),
+    );
+    expect(await adapter.open(complaint)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null when head office refuses, rather than throwing', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    const adapter = new HqComplaintHttpAdapter(
+      makeConfig({ adminServiceUrl: 'http://admin:3016' }),
+    );
+    expect(await adapter.open(complaint)).toBeNull();
+  });
+
+  it('returns null when the call itself fails', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    const adapter = new HqComplaintHttpAdapter(
+      makeConfig({ adminServiceUrl: 'http://admin:3016' }),
+    );
+    expect(await adapter.open(complaint)).toBeNull();
+  });
+
+  it('returns null when the answer carries no id', async () => {
+    // A 200 with a body we cannot read a ticket out of is not a mirror that happened.
+    fetchMock.mockResolvedValue(jsonRes(200, {}));
+    const adapter = new HqComplaintHttpAdapter(
+      makeConfig({ adminServiceUrl: 'http://admin:3016' }),
+    );
+    expect(await adapter.open(complaint)).toBeNull();
+  });
+
+  it('omits the order reference when there is none', async () => {
+    fetchMock.mockResolvedValue(jsonRes(201, { id: 'tkt-10' }));
+    const adapter = new HqComplaintHttpAdapter(
+      makeConfig({ adminServiceUrl: 'http://admin:3016' }),
+    );
+    await adapter.open({ ...complaint, orderRef: null });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).orderRef).toBeUndefined();
   });
 });

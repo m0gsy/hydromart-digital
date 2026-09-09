@@ -19,6 +19,8 @@ interface IncidentRow {
   reportedBy: string;
   courierName: string | null;
   orderRef: string | null;
+  customerPhone: string | null;
+  hqTicketRef: string | null;
   resolutionNote: string | null;
   resolvedBy: string | null;
   resolvedAt: Date | null;

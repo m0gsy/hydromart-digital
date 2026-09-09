@@ -1651,6 +1651,8 @@ export const hq = {
   },
   tickets: {
     detailError: 'Gagal membuka tiket ini.',
+    depotFilter: 'Saring per depot',
+    allDepots: 'Semua depot',
     detailCustomer: 'Pelanggan',
     detailOrder: 'Pesanan',
     detailOpened: 'Dibuka',

@@ -66,4 +66,17 @@ describe('AccountSuspensionHttpAdapter (CA-2-05)', () => {
     ).rejects.toThrow(/not configured/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it('names the direction it refused, so the log is not ambiguous', async () => {
+    // "Cannot suspend" and "cannot reinstate" are different incidents: one leaves an
+    // account reachable that should not be, the other leaves a customer locked out.
+    global.fetch = jest.fn() as never;
+    await expect(
+      new AccountSuspensionHttpAdapter(config({ authServiceUrl: '' } as never)).setActive(
+        'cust-1',
+        true,
+      ),
+    ).rejects.toThrow(/not configured/);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

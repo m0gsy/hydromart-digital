@@ -187,6 +187,7 @@ describe('depot-scoped guards and by-id getters', () => {
     const incidents = new IncidentService(
       { findById: async () => ({ id: 'in-1' }), update } as never,
       found,
+      { open: async () => null },
     );
     await incidents.updateStatus('in-1', IncidentStatus.IN_PROGRESS);
     expect(update).toHaveBeenCalledWith('in-1', {

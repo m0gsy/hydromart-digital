@@ -150,6 +150,17 @@ function IncidentCard({ incident, onChanged }: { incident: DepotIncident; onChan
               <Badge tone={SEVERITY_BADGE[incident.severity]}>{t(`dashB.incidents.severity.${incident.severity}`)}</Badge>
             )}
             {incident.status === 'IN_PROGRESS' && <Chip tone="amber">{t('dashB.incidents.inProgress')}</Chip>}
+            {/*
+              * CA-2-58: whether this complaint reached head office at all. Before this, a
+              * complaint recorded here reached nobody outside the depot — and looked
+              * exactly the same either way, which is the half worth showing.
+              */}
+            {incident.type === 'CUSTOMER_CONFLICT' &&
+              (incident.hqTicketRef ? (
+                <Chip tone="success">{t('dashB.incidents.forwarded')}</Chip>
+              ) : (
+                <Chip tone="outline">{t('dashB.incidents.notForwarded')}</Chip>
+              ))}
           </div>
           <p className="mt-1 text-xs text-[color:var(--text-muted)]">
             {t(`dashB.incidents.type.${incident.type}`)} · {meta.join(' · ')}
@@ -202,6 +213,9 @@ function ReportForm({ depotId, onDone }: { depotId: string; onDone: () => void }
   const [description, setDescription] = useState('');
   const [courierName, setCourierName] = useState('');
   const [orderRef, setOrderRef] = useState('');
+  // CA-2-58: on a customer complaint this is also what carries it to head office —
+  // a ticket nobody can call back on is a row, not a complaint.
+  const [customerPhone, setCustomerPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,6 +239,7 @@ function ReportForm({ depotId, onDone }: { depotId: string; onDone: () => void }
           description: description.trim() || undefined,
           courierName: courierName.trim() || undefined,
           orderRef: orderRef.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined,
         },
         true,
       );
@@ -283,6 +298,24 @@ function ReportForm({ depotId, onDone }: { depotId: string; onDone: () => void }
             placeholder={t('dashB.incidents.orderRefPlaceholder')}
           />
         </Field>
+        {/*
+          * CA-2-58: only on a complaint, because only a complaint travels. Asking for a
+          * number when a courier has fallen off a motorbike would be noise.
+          */}
+        {type === 'CUSTOMER_CONFLICT' && (
+          <Field
+            label={t('dashB.incidents.customerPhoneLabel')}
+            htmlFor="i-phone"
+            hint={t('dashB.incidents.customerPhoneHint')}
+          >
+            <Input
+              id="i-phone"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder={t('dashB.incidents.customerPhonePlaceholder')}
+            />
+          </Field>
+        )}
       </div>
       <Field label={t('dashB.incidents.titleLabel')} htmlFor="i-title">
         <Input

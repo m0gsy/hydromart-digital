@@ -573,6 +573,7 @@ describe('SupportTicketsController', () => {
     assign: jest.fn(),
     resolve: jest.fn(),
     erasePerson: jest.fn(),
+    create: jest.fn(),
   };
   const controller = new SupportTicketsController(tickets as unknown as SupportTicketService);
   const withMessage = makeSupportTicket({
@@ -611,8 +612,62 @@ describe('SupportTicketsController', () => {
     expect(tickets.list).toHaveBeenCalledWith({
       status: TicketStatus.OPEN,
       priority: TicketPriority.HIGH,
+      depotRef: undefined,
     });
     expect(out[0].messages[0].body).toBe('on it');
+  });
+
+  /*
+   * CA-2-58. Head office could not ask "what are the complaints against Depot Cibubur",
+   * because a ticket had no way to name a depot at all.
+   */
+  it('list forwards the depot filter, so complaints can be read per depot', async () => {
+    tickets.list.mockResolvedValue([withMessage]);
+    await controller.list({ depotRef: 'depot-1' });
+    expect(tickets.list).toHaveBeenCalledWith({
+      status: undefined,
+      priority: undefined,
+      depotRef: 'depot-1',
+    });
+  });
+
+  /*
+   * The depot's end of the same complaint: mirrored from an incident the operator already
+   * recorded, so it arrives naming its depot and never without one.
+   */
+  it('mirrors a depot complaint into the queue, stamped with the depot', async () => {
+    tickets.create.mockResolvedValue(makeSupportTicket({ depotRef: 'depot-1' }));
+    const out = await controller.createFromDepot({
+      subject: 'Galon bocor',
+      customerRef: 'Ibu Rina',
+      customerPhone: '081234567890',
+      depotRef: 'depot-1',
+      orderRef: 'HM-260909-001',
+      body: 'Galon bocor saat diterima.',
+    });
+    expect(tickets.create).toHaveBeenCalledWith({
+      subject: 'Galon bocor',
+      customerRef: 'Ibu Rina',
+      customerPhone: '081234567890',
+      depotRef: 'depot-1',
+      orderRef: 'HM-260909-001',
+      body: 'Galon bocor saat diterima.',
+    });
+    expect(out.depotRef).toBe('depot-1');
+  });
+
+  it('mirrors one with no order behind it, which is most complaints', async () => {
+    tickets.create.mockResolvedValue(makeSupportTicket({ depotRef: 'depot-1' }));
+    await controller.createFromDepot({
+      subject: 'Antre lama',
+      customerRef: 'Bapak Andi',
+      customerPhone: '081234567890',
+      depotRef: 'depot-1',
+      body: 'Menunggu 40 menit di depot.',
+    });
+    expect(tickets.create).toHaveBeenCalledWith(
+      expect.objectContaining({ orderRef: null, depotRef: 'depot-1' }),
+    );
   });
 
   it('get/reply/assign/resolve delegate', async () => {

@@ -373,6 +373,7 @@ export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): Supp
     customerRef: 'Ibu Rina',
     customerPhone: '0812-0000-0001',
     orderRef: 'ORD-0231',
+    depotRef: null,
     customerId: null,
     priority: TicketPriority.MEDIUM,
     status: TicketStatus.OPEN,
@@ -420,6 +421,7 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
       customerRef: data.customerRef,
       customerPhone: data.customerPhone,
       orderRef: data.orderRef ?? null,
+      depotRef: data.depotRef ?? null,
       customerId: data.customerId ?? null,
       priority: data.priority ?? TicketPriority.MEDIUM,
       status: TicketStatus.OPEN,
@@ -443,6 +445,7 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
     let items = [...this.rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     if (filter.status) items = items.filter((r) => r.status === filter.status);
     if (filter.priority) items = items.filter((r) => r.priority === filter.priority);
+    if (filter.depotRef) items = items.filter((r) => r.depotRef === filter.depotRef);
     return items.map((r) => ({ ...r, messages: [...r.messages] }));
   }
 

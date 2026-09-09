@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { Incident, IncidentSeverity, IncidentStatus, IncidentType } from '../../domain/incident';
+import { HqComplaintPort } from '../ports/hq-complaint.port';
 import { DepotNotFoundError, IncidentNotFoundError } from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
 import { IncidentRepository } from '../ports/incident.repository';
@@ -14,6 +15,8 @@ export interface RecordIncidentInput {
   description?: string | null;
   courierName?: string | null;
   orderRef?: string | null;
+  /** CA-2-58: the complainant's number, when the operator took one. */
+  customerPhone?: string | null;
 }
 
 export interface ListIncidentFilters {
@@ -30,6 +33,7 @@ export class IncidentService {
   constructor(
     @Inject(DEPOT_TOKENS.IncidentRepository) private readonly incidents: IncidentRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    @Inject(DEPOT_TOKENS.HqComplaint) private readonly hq: HqComplaintPort,
   ) {}
 
   private async requireDepot(depotId: string): Promise<void> {
@@ -44,9 +48,25 @@ export class IncidentService {
     return found;
   }
 
+  /**
+   * CA-2-58 — a customer complaint recorded here also reaches head office.
+   *
+   * It used to reach nobody. Head office keeps its own complaint queue; this inbox keeps
+   * `CUSTOMER_CONFLICT` rows; nothing linked them, so a complaint taken at the counter was
+   * invisible upstairs and the customer's follow-up depended on whoever was standing there.
+   *
+   * Only a COMPLAINT is mirrored, and only when the operator took a number: a ticket head
+   * office cannot call back on is a row, not a complaint. Everything else — a courier's
+   * fall, a broken motorbike — is depot operations and belongs here alone.
+   *
+   * The mirror runs AFTER the incident is saved and cannot undo it. Head office being
+   * unreachable must not throw away the depot's own record; what it does instead is leave
+   * `hqTicketRef` null, which the screen shows as "not forwarded" rather than pretending.
+   */
   async record(input: RecordIncidentInput, reportedBy: string): Promise<Incident> {
     await this.requireDepot(input.depotId);
-    return this.incidents.create({
+    const phone = input.customerPhone?.trim() || null;
+    const incident = await this.incidents.create({
       depotId: input.depotId,
       type: input.type,
       severity: input.severity,
@@ -55,7 +75,23 @@ export class IncidentService {
       reportedBy,
       courierName: input.courierName ?? null,
       orderRef: input.orderRef ?? null,
+      customerPhone: phone,
     });
+    if (input.type !== IncidentType.CUSTOMER_CONFLICT || !phone) return incident;
+
+    const ticketId = await this.hq.open({
+      depotId: incident.depotId,
+      // The number IS the reference. The incident form asks the operator for one field,
+      // not two, and a phone number names the complainant unambiguously — where a typed
+      // name at a counter very often does not.
+      customerRef: phone,
+      customerPhone: phone,
+      subject: incident.title,
+      body: incident.description ?? incident.title,
+      orderRef: incident.orderRef,
+    });
+    if (!ticketId) return incident;
+    return this.incidents.update(incident.id, { hqTicketRef: ticketId });
   }
 
   async list(depotId: string, filters: ListIncidentFilters = {}): Promise<Incident[]> {

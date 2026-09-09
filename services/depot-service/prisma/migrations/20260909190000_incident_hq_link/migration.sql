@@ -1,0 +1,22 @@
+-- RERUNNABLE: both statements are ADD COLUMN IF NOT EXISTS, so a retry after a deploy that
+-- died mid-migrate is a no-op rather than a hand-resolved failure.
+--
+-- CA-2-58: a customer complaint lived in two systems that never saw each other.
+--
+-- Head office records complaints as support tickets. A depot records the same complaint as
+-- a CUSTOMER_CONFLICT row here. Nothing linked them — this table could not even hold a
+-- phone number — so a complaint taken at the depot counter never reached head office, and
+-- the customer's follow-up depended on whoever happened to be standing there.
+--
+-- `customerPhone` is what makes a mirror possible at all: a ticket head office cannot call
+-- back on is a row, not a complaint. It stays optional, because an operator recording that
+-- a customer shouted at a courier will not always ask for a number, and refusing the
+-- record for want of one is how an incident stops existing.
+--
+-- `hqTicketRef` is the link, and null is a real answer: not mirrored — no number taken, or
+-- head office unreachable at the time. The screen shows that state instead of leaving a
+-- complaint that silently never travelled.
+--
+-- Both nullable, so old rows and the previous image are unaffected during the rebuild.
+ALTER TABLE "incidents" ADD COLUMN IF NOT EXISTS "customerPhone" TEXT;
+ALTER TABLE "incidents" ADD COLUMN IF NOT EXISTS "hqTicketRef" TEXT;

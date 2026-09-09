@@ -328,6 +328,13 @@ describe('FraudFlagPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('answers null for a flag id that is not there', async () => {
+    // The caller decides what a missing flag means (404, or a no-op sweep). Returning a
+    // half-built record here would decide it for them.
+    model.findUnique.mockResolvedValue(null);
+    expect(await repo.findById('nope')).toBeNull();
+  });
+
   it('list filters and orders by score-then-newest', async () => {
     model.findMany.mockResolvedValue([row()]);
     const recs = await repo.list({ level: FraudLevel.HIGH, status: FraudStatus.OPEN });
@@ -400,6 +407,14 @@ describe('IncidentPrismaRepository', () => {
   });
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('answers null when the incident is deleted mid-patch', async () => {
+    // Two reads bracket the write: one to check it exists, one to return the result. A row
+    // that vanishes in between is not an error and not a half-written record — it is gone,
+    // and saying so lets the caller answer 404 instead of inventing an incident.
+    incident.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(null);
+    expect(await repo.patch('inc-1', { status: IncidentStatus.RESOLVED })).toBeNull();
+  });
 
   it('list filters by status, orders newest-first and includes updates', async () => {
     incident.findMany.mockResolvedValue([row()]);
