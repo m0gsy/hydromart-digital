@@ -2071,6 +2071,29 @@ describe('EmployeePrismaRepository', () => {
       });
     });
 
+    /*
+     * CA-1-48: an EDIT asks about the fields it is changing, and never about the row it is
+     * editing — re-saving a form without touching the phone must not refuse itself.
+     */
+    it('excludes the row being edited', async () => {
+      const { p, repo } = repoWith(null);
+
+      await repo.findConflicting({ nik: '3201', excludeId: 'e-1' });
+
+      expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ nik: '3201' }], NOT: { id: 'e-1' } },
+        select: { employeeCode: true, nik: true, phone: true },
+      });
+    });
+
+    it('asks nothing at all when an edit changes none of the three', async () => {
+      const { p, repo } = repoWith(null);
+
+      await expect(repo.findConflicting({ excludeId: 'e-1' })).resolves.toBeNull();
+
+      expect(m(p, 'employee').findFirst).not.toHaveBeenCalled();
+    });
+
     it('names the most specific collision it can', async () => {
       const both = { employeeCode: 'HR-1', nik: '3201', phone: '+628123' };
       await expect(

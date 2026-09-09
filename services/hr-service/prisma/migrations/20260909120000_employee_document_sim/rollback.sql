@@ -1,0 +1,25 @@
+-- Undoes 20260909120000_employee_document_sim (CA-1-47).
+--
+-- CANNOT be undone in place, and saying so is the whole point of this file: PostgreSQL has
+-- no `ALTER TYPE ... DROP VALUE`. Removing 'SIM' means rebuilding the enum, which fails
+-- outright while any row still uses it — and those rows are real filed documents, so
+-- destroying them to make an enum shorter would be the worse outcome by far.
+--
+-- Leaving the value in place is harmless: an enum member nothing writes is inert, and the
+-- console only offers it because `DOCUMENT_TYPES` lists it. Reverting the code is enough to
+-- stop new SIM rows appearing.
+--
+-- If the value genuinely must go — say the column is being replaced — the honest sequence
+-- is: move every SIM row to another type first, then rebuild the type. Run it knowingly,
+-- not as a rollback step at 3am:
+--
+--   UPDATE "employee_documents" SET "type" = 'OTHER' WHERE "type" = 'SIM';
+--   ALTER TYPE "EmployeeDocumentType" RENAME TO "EmployeeDocumentType_old";
+--   CREATE TYPE "EmployeeDocumentType" AS ENUM ('KTP','KK','CONTRACT','NPWP','CERTIFICATE','OTHER');
+--   ALTER TABLE "employee_documents"
+--     ALTER COLUMN "type" TYPE "EmployeeDocumentType"
+--     USING ("type"::text::"EmployeeDocumentType");
+--   DROP TYPE "EmployeeDocumentType_old";
+--
+-- This file deliberately does nothing on its own.
+SELECT 1;

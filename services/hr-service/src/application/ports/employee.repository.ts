@@ -68,7 +68,12 @@ export interface EmployeeRepository {
   findConflicting(keys: {
     employeeCode?: string;
     nik?: string;
-    phone: string;
+    phone?: string;
+    /**
+     * CA-1-48: the row being edited is not its own conflict. Without it, an update that
+     * merely re-saves the same phone would refuse itself.
+     */
+    excludeId?: string;
   }): Promise<'employeeCode' | 'nik' | 'phone' | null>;
   /**
    * Both halves of the invite lookup in one round-trip (K-4): the row already linked to

@@ -481,6 +481,28 @@ export class EmployeeService {
    * Which key collided still decides the message, because "sudah dipakai" with no field
    * named is a row somebody has to bisect by hand.
    */
+  /** CA-1-48: the create-time identity check, applied to the fields an edit changes. */
+  private async assertNobodyElseHasOnUpdate(
+    id: string,
+    input: { phone?: string; nik?: string; employeeCode?: string },
+    current: { phone: string; nik: string | null; employeeCode: string },
+  ): Promise<void> {
+    const phone = input.phone && input.phone !== current.phone ? input.phone : undefined;
+    const nik = input.nik?.trim() && input.nik.trim() !== current.nik ? input.nik.trim() : undefined;
+    const employeeCode =
+      input.employeeCode && input.employeeCode.trim().toUpperCase() !== current.employeeCode
+        ? input.employeeCode.trim().toUpperCase()
+        : undefined;
+    if (!phone && !nik && !employeeCode) return;
+
+    const conflict = await this.repo.findConflicting({ employeeCode, nik, phone, excludeId: id });
+    if (conflict === 'employeeCode') throw new BadRequestException('Kode karyawan sudah dipakai');
+    if (conflict === 'nik') throw new BadRequestException('NIK sudah dipakai karyawan lain');
+    if (conflict === 'phone') {
+      throw new BadRequestException('Nomor telepon ini sudah dipakai karyawan lain');
+    }
+  }
+
   private async assertNobodyElseHas(input: CreateEmployeeInput): Promise<void> {
     const conflict = await this.repo.findConflicting({
       employeeCode: input.employeeCode?.trim().toUpperCase(),
@@ -718,6 +740,19 @@ export class EmployeeService {
       input.joinDate ?? current.joinDate.toISOString(),
       input.exitDate === undefined ? (current.exitDate?.toISOString() ?? null) : input.exitDate,
     );
+    /*
+     * CA-1-48 — the identity checks ran on CREATE only.
+     *
+     * "+ Tambah" refuses a phone, a NIK or a staff code that somebody else already holds,
+     * and names which one. An EDIT wrote all three straight through. So two employees could
+     * end up sharing a phone number — the number staff sync pushes to the login and the one
+     * every notification goes to — and a NIK collision came back as a bare 500 from the
+     * unique index instead of the sentence that says which field to fix.
+     *
+     * Only the fields actually being changed are asked about, and never against the row
+     * being edited: re-saving a form without touching the phone must not refuse itself.
+     */
+    await this.assertNobodyElseHasOnUpdate(id, input, current);
     // Re-check on a depot move too: the employee's current department may belong to the depot
     // they are leaving.
     await this.assertDepartmentFits(
