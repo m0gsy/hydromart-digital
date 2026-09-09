@@ -221,7 +221,7 @@ export default function ResellersPage() {
     <div className="mx-auto max-w-5xl space-y-5">
       <SectionHeader
         title={t('hrFix.resellers.title')}
-        subtitle={`Pencapaian ${month}`}
+        subtitle={t('hrFix.resellers.achievements', { month })}
         action={
           canManageResellers(customer?.role) ? (
             <LinkButton href="/dashboard/resellers/import" variant="secondary">

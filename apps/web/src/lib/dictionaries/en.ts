@@ -137,6 +137,7 @@ export const en: Dictionary = {
       phone: 'Phone number',
       email: 'Email',
       emailOptional: '(optional)',
+      photoTooBig: 'Photo exceeds 5MB.',
       // H16: the first screen in the app that has ever asked for a date of birth.
       birthdate: 'Date of birth',
       birthdateHint: 'Optional. Used for the birthday reward; you can clear it at any time.',

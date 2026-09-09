@@ -131,13 +131,15 @@ function DetailBody({ id }: { id: string }) {
                 <Card className="flex items-center gap-3 p-4">
                   <RemoteImage
                     src={mediaUrl(reseller.data.photoUrl)}
-                    alt="Foto pendaftaran agen"
+                    alt={t('dashA.customerDetail.resellerDocTitle')}
                     width={64}
                     height={64}
                     className="h-16 w-16 rounded-xl object-cover"
                   />
                   <div>
-                    <p className="text-sm font-semibold">Foto pendaftaran agen</p>
+                    <p className="text-sm font-semibold">
+                      {t('dashA.customerDetail.resellerDocTitle')}
+                    </p>
                     <p className="text-xs text-[color:var(--text-muted)]">
                       {t('dashA.customerDetail.resellerDocNote')}
                     </p>

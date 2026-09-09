@@ -111,7 +111,11 @@ function RingkasanBody({ depotId }: { depotId: string }) {
       {/* Headline counters */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t('hrFix.operatorSummary.ordersIn')} value={data.orders.length} />
-        <Stat label="Perlu ditugaskan" value={data.needAssign.length} tone="amber" />
+        <Stat
+          label={t('hrFix.operatorSummary.needsAssigning')}
+          value={data.needAssign.length}
+          tone="amber"
+        />
         <Stat
           label={t('hrFix.operatorSummary.activeCouriers')}
           value={
@@ -159,7 +163,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
                     href="/dashboard/orders"
                     className="shrink-0 rounded-[9px] bg-brand-600 px-3 py-2 text-xs font-bold text-on-brand"
                   >
-                    Tugaskan
+                    {t('hrFix.operatorSummary.assign')}
                   </Link>
                 </li>
               ))}

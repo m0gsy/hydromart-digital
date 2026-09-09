@@ -69,6 +69,61 @@ for noise in 'Draft' 'max-w-' 'zz-meter' 'zzNested'; do
 done
 echo 'ok: props and template literals are read, presentation is left alone'
 
+# --- CA-2-48: the roots the list carries, wearing their affixes ---------------
+# Indonesian almost never says a root bare. Every string below is built from a word the
+# list ALREADY holds — "tugas", "hadir", "jadwal", "daftar" — and none of them was visible
+# to the gate before the affixes went in.
+cat > "$FIXTURE" <<'TSX'
+export function ZzI18nAffixFixture({ n }: { n: number }) {
+  return (
+    <div>
+      <Button>Tugaskan</Button>
+      <Stat label="Perlu ditugaskan" value={n} />
+      <Badge>Terjadwal ulang</Badge>
+      <Chip label="Kehadiran hari ini" />
+      <Button>Daftarkan</Button>
+    </div>
+  );
+}
+TSX
+
+if node scripts/check-i18n.mjs >"$OUT" 2>&1; then
+  echo 'FAIL: the gate passed five affixed Indonesian words built from roots it carries'
+  cat "$OUT"
+  exit 1
+fi
+
+for expected in 'Tugaskan' 'Perlu ditugaskan' 'Terjadwal ulang' 'Kehadiran hari ini' 'Daftarkan'; do
+  grep -q "$expected" "$OUT" || {
+    echo "FAIL: the gate did not report \"$expected\""
+    cat "$OUT"
+    exit 1
+  }
+done
+echo 'ok: an affixed root is still the root'
+
+# --- CA-2-48: what the affix rule must NOT turn into a finding ----------------
+# The affixes made two shapes reachable that are not copy at all. Both were real
+# findings the first time the widened rule ran over this repo.
+cat > "$FIXTURE" <<'TSX'
+// `Harian` is "hari" + "-an", and this app names its components in Indonesian.
+function Harian({ depotId }: { depotId: string }) {
+  return <Report depotId={depotId} />;
+}
+export function ZzI18nAffixNoise({ v }: { v: number }) {
+  // Two template literals side by side: a match that runs past the first one's end
+  // swallows the code between them and reports a "string" nobody wrote.
+  return <Badge>{v > 1 ? `v${v} ${t('zz.superseded')}` : `v${v}`}</Badge>;
+}
+TSX
+
+if ! node scripts/check-i18n.mjs >"$OUT" 2>&1; then
+  echo 'FAIL: the gate reported a declaration or a straddled template as copy'
+  cat "$OUT"
+  exit 1
+fi
+echo 'ok: an Indonesian identifier is code, and a match across two literals is not a string'
+
 cleanup
 if ! node scripts/check-i18n.mjs >"$OUT" 2>&1; then
   echo 'FAIL: the unmodified tree does not pass its own i18n gate'

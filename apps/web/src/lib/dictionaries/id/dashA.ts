@@ -163,6 +163,7 @@ export const dashA = {
   },
   customerDetail: {
     resellerDocNote: 'Diunggah saat pendaftaran reseller.',
+    resellerDocTitle: 'Foto pendaftaran agen',
     referralTitle: 'Referral',
     referralCode: 'Kode',
     referralInvited: 'Diundang',

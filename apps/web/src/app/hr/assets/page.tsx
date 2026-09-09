@@ -555,7 +555,7 @@ function NewAsset({ onCreated }: { onCreated: () => void }) {
         </Field>
         <div className="col-span-full">
           <Button type="submit" loading={saving}>
-            Daftarkan
+            {t('hrFix.assets.registerSubmit')}
           </Button>
         </div>
       </form>

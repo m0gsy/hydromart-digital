@@ -393,8 +393,10 @@ export function CsvImport({
       {rows && !result && (
         <Card className="flex flex-col gap-3 p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="success">{valid.length} baris siap</Badge>
-            {invalid.length > 0 && <Badge tone="danger">{invalid.length} baris bermasalah</Badge>}
+            <Badge tone="success">{t('opsFix.import.rowsReady', { count: valid.length })}</Badge>
+            {invalid.length > 0 && (
+              <Badge tone="danger">{t('opsFix.import.rowsBad', { count: invalid.length })}</Badge>
+            )}
           </div>
 
           <div className="overflow-x-auto">

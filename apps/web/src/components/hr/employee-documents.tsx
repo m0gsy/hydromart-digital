@@ -105,7 +105,9 @@ export function EmployeeDocuments({
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{t(DOCUMENT_TYPE_LABEL[d.type])}</span>
                   <Badge tone={d.supersededById ? 'neutral' : 'success'}>
-                    {d.supersededById ? `v${d.version} (diganti)` : `v${d.version}`}
+                    {d.supersededById
+                      ? t('hrFix.documents.supersededTag', { version: d.version })
+                      : t('hrFix.documents.versionTag', { version: d.version })}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted">
