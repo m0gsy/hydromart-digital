@@ -462,11 +462,8 @@ export const hrFix = {
     saveFailed: 'Could not save',
   },
   departments: {
-<<<<<<< HEAD
     inactive: 'inactive',
-=======
     codeLabel: 'Code',
->>>>>>> 077a81787 (fix(i18n): empat belas kalimat Indonesia yang tidak pernah dilihat gerbangnya (CA-2-46, CA-2-47 basi; CA-2-48 diukur))
     deleteConfirm:
       'Delete the department {name}? The server refuses while any employee still points at it.',
     emptyBody2: 'No departments yet — employees show as “Not set”.',

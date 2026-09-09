@@ -475,11 +475,8 @@ export const hrFix = {
     saveFailed: 'Gagal menyimpan',
   },
   departments: {
-<<<<<<< HEAD
     inactive: 'nonaktif',
-=======
     codeLabel: 'Kode',
->>>>>>> 077a81787 (fix(i18n): empat belas kalimat Indonesia yang tidak pernah dilihat gerbangnya (CA-2-46, CA-2-47 basi; CA-2-48 diukur))
     deleteConfirm:
       'Hapus departemen {name}? Karyawan yang masih menunjuk ke departemen ini membuat penghapusan ditolak server.',
     emptyBody2: 'Belum ada departemen — karyawan tampil “Belum diatur”.',
