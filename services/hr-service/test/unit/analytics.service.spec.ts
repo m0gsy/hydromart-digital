@@ -42,6 +42,8 @@ function build(over: Partial<AnalyticsRepository> = {}) {
     }),
     payrollByStatus: async () => [{ key: 'DRAFT', count: 2 }],
     employeesForReport: async () => [],
+    departmentCodesByIds: async () => new Map<string, string>(),
+    shiftNamesByIds: async () => new Map<string, string>(),
     attendanceForReport: async () => [],
     payrollForReport: async () => [],
     lateForReport: async () => [],
@@ -102,11 +104,14 @@ describe('AnalyticsService CSV exports', () => {
   it('emits an employee CSV with a header + one row per employee', async () => {
     const rows = [
       {
+        id: 'e-1',
         employeeCode: 'HR-0001',
         fullName: 'A',
         phone: '08',
         email: null,
         position: 'Kasir',
+        departmentId: 'dep-1',
+        role: 'STAFF_DEPOT',
         employmentStatus: 'PERMANENT',
         salaryType: 'DAILY',
         dailyRate: { toNumber: () => 50000 },
@@ -115,11 +120,19 @@ describe('AnalyticsService CSV exports', () => {
         joinDate: new Date('2026-01-15T00:00:00Z'),
       },
     ] as unknown as Employee[];
-    const { svc } = build({ employeesForReport: async () => rows });
+    const { svc } = build({
+      employeesForReport: async () => rows,
+      departmentCodesByIds: async () => new Map([['dep-1', 'OPS']]),
+    });
     const csv = await svc.csv(await svc.employeeReport(hq));
     const lines = csv.split('\r\n');
     expect(lines[0]).toContain('employeeCode');
-    expect(lines[1]).toBe('HR-0001,A,08,,Kasir,PERMANENT,DAILY,50000,0,ACTIVE,2026-01-15');
+    // CA-1-62: every column the row does not carry still holds its place, so the file an HR
+    // officer edits keeps the shape the importer reads back.
+    expect(lines[1]).toBe(
+      'HR-0001,A,08,,Kasir,OPS,STAFF_DEPOT,PERMANENT,DAILY,50000,0,ACTIVE,2026-01-15' +
+        ','.repeat(16),
+    );
   });
 
   it('emits an attendance CSV joining the employee code + name', async () => {

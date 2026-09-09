@@ -181,6 +181,28 @@ export class AnalyticsService {
   async employeeReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
     const depotIds = depotScopeIds(user, depotIdParam);
     const rows = await this.repo.employeesForReport(depotIds);
+    /*
+     * CA-1-62. This answered 11 of the import template's 29 columns. An HR officer who
+     * exported the directory, edited it in Excel and imported it back lost the other 18 —
+     * NIK, NPWP, both BPJS numbers, the bank account, PTKP status, the contract dates, the
+     * emergency contact. That is an employee's entire payroll and tax identity, and the
+     * screen offered the round trip as if it were lossless.
+     *
+     * The two labels a human reads — department code and shift name — are resolved rather
+     * than joined: `departmentId` and `shiftId` are plain uuid columns with no Prisma
+     * relation. `supervisorCode` needs no query at all; the supervisor is another row in
+     * this same result set.
+     *
+     * `depotCode` is the ONE template column still missing, and deliberately: depot codes
+     * live in depot-service, and a report must not gain a new way to fail. The export is
+     * depot-scoped, so the value is constant and known to whoever ran it. Recorded on the
+     * row rather than papered over.
+     */
+    const [departmentCodes, shiftNames] = await Promise.all([
+      this.repo.departmentCodesByIds(rows.map((e) => e.departmentId).filter((v): v is string => !!v)),
+      this.repo.shiftNamesByIds(rows.map((e) => e.shiftId).filter((v): v is string => !!v)),
+    ]);
+    const codeById = new Map(rows.map((e) => [e.id, e.employeeCode]));
     return {
       headers: [
         'employeeCode',
@@ -188,12 +210,30 @@ export class AnalyticsService {
         'phone',
         'email',
         'position',
+        'departmentCode',
+        'role',
         'employmentStatus',
         'salaryType',
         'dailyRate',
         'monthlyRate',
         'status',
         'joinDate',
+        'contractEndDate',
+        'exitDate',
+        'supervisorCode',
+        'shiftName',
+        'nik',
+        'birthDate',
+        'gender',
+        'address',
+        'ptkpStatus',
+        'npwp',
+        'bpjsKes',
+        'bpjsTk',
+        'bankName',
+        'bankAccount',
+        'emergencyName',
+        'emergencyPhone',
       ],
       rows: rows.map((e) => [
         e.employeeCode,
@@ -201,12 +241,30 @@ export class AnalyticsService {
         e.phone,
         e.email,
         e.position,
+        (e.departmentId && departmentCodes.get(e.departmentId)) ?? '',
+        e.role,
         e.employmentStatus,
         e.salaryType,
         dec(e.dailyRate),
         dec(e.monthlyRate),
         e.status,
         isoDate(e.joinDate),
+        isoDate(e.contractEndDate),
+        isoDate(e.exitDate),
+        (e.supervisorId && codeById.get(e.supervisorId)) ?? '',
+        (e.shiftId && shiftNames.get(e.shiftId)) ?? '',
+        e.nik ?? '',
+        isoDate(e.birthDate),
+        e.gender ?? '',
+        e.address ?? '',
+        e.ptkpStatus ?? '',
+        e.npwp ?? '',
+        e.bpjsKes ?? '',
+        e.bpjsTk ?? '',
+        e.bankName ?? '',
+        e.bankAccount ?? '',
+        e.emergencyName ?? '',
+        e.emergencyPhone ?? '',
       ]),
     };
   }

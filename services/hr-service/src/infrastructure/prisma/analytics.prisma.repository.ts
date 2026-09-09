@@ -193,6 +193,28 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     );
   }
 
+  // CA-1-62: two id->label lookups for the directory export. Empty in, empty out — no
+  // query at all when a page of employees happens to carry none.
+  async departmentCodesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.prisma.department.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, code: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.code]));
+  }
+
+  async shiftNamesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.prisma.shift.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, name: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.name]));
+  }
+
   attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]> {
     return this.allPages(({ take, cursor }) =>
       this.prisma.attendance.findMany({

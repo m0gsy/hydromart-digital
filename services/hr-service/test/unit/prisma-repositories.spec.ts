@@ -964,6 +964,49 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
 
 // ── AnalyticsPrismaRepository ──────────────────────────────────────────
 describe('AnalyticsPrismaRepository', () => {
+  /*
+   * CA-1-62. Both lookups exist so the directory export can print the code a human typed
+   * instead of the uuid the column stores. Neither has a Prisma relation to ride on.
+   */
+  it('departmentCodesByIds asks once for the distinct ids and returns an id->code map', async () => {
+    const p = makePrisma();
+    m(p, 'department').findMany.mockResolvedValue([
+      { id: 'd1', code: 'OPS' },
+      { id: 'd2', code: 'FIN' },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.departmentCodesByIds(['d1', 'd2', 'd1'])).resolves.toEqual(
+      new Map([
+        ['d1', 'OPS'],
+        ['d2', 'FIN'],
+      ]),
+    );
+    expect(m(p, 'department').findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['d1', 'd2'] } },
+      select: { id: true, code: true },
+    });
+  });
+
+  it('shiftNamesByIds returns an id->name map', async () => {
+    const p = makePrisma();
+    m(p, 'shift').findMany.mockResolvedValue([{ id: 's1', name: 'Pagi' }]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.shiftNamesByIds(['s1'])).resolves.toEqual(new Map([['s1', 'Pagi']]));
+    expect(m(p, 'shift').findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['s1'] } },
+      select: { id: true, name: true },
+    });
+  });
+
+  it('neither lookup queries at all when a page of employees carries no ids', async () => {
+    const p = makePrisma();
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.departmentCodesByIds([])).resolves.toEqual(new Map());
+    await expect(repo.shiftNamesByIds([])).resolves.toEqual(new Map());
+    expect(m(p, 'department').findMany).not.toHaveBeenCalled();
+    expect(m(p, 'shift').findMany).not.toHaveBeenCalled();
+  });
+
   it('headcountByStatus maps groupBy rows', async () => {
     const p = makePrisma();
     m(p, 'employee').groupBy.mockResolvedValue([{ status: 'ACTIVE', _count: { _all: 5 } }]);

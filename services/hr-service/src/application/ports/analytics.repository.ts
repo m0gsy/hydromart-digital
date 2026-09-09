@@ -86,6 +86,14 @@ export interface AnalyticsRepository {
 
   // --- report row fetchers ---
   employeesForReport(depotIds?: readonly string[]): Promise<Employee[]>;
+  /**
+   * CA-1-62: the directory export answered 11 of the import template's 29 columns, so a
+   * round trip — export, edit in Excel, re-import — could not carry an employee's payroll
+   * identity back. `departmentId`/`shiftId` are plain uuid columns with no Prisma relation,
+   * so the codes a human reads are resolved here rather than joined.
+   */
+  departmentCodesByIds(ids: readonly string[]): Promise<Map<string, string>>;
+  shiftNamesByIds(ids: readonly string[]): Promise<Map<string, string>>;
   attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]>;
   payrollForReport(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollWithEmployee[]>;
 
