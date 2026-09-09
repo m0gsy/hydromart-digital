@@ -14,6 +14,7 @@ import {
 import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { canManageStaff, canViewFranchise, canViewInventory } from '@/lib/roles';
 import { useT } from '@/lib/locale-context';
 
 function initials(name: string | null): string {
@@ -21,11 +22,39 @@ function initials(name: string | null): string {
   return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 }
 
-// "Buka di desktop" — deep links into the full ops console (desktop-only tools).
+/*
+ * "Buka di desktop" — deep links into the full ops console (desktop-only tools).
+ *
+ * CA-4-11. All three were offered to everyone who could open this screen, and two of them
+ * lead a MANAGER — the role this whole surface is built for — to a rejection page:
+ *
+ *   /dashboard/franchise  `franchise`     FRANCHISE_OWNER only
+ *   /dashboard/inventory  `inventoryRead` includes MANAGER — the one that worked
+ *   /dashboard/staff      `staffAdmin`    HEAD_OFFICE and SUPER_ADMIN only
+ *
+ * `show` is the same predicate the ops rail uses for the same route, so the two surfaces
+ * cannot disagree about who may open what. A shortcut that cannot be opened is not a
+ * shortcut; it is a door with somebody else's lock on it.
+ */
 const DESKTOP_LINKS = [
-  { href: '/dashboard/franchise', icon: ChartLineUp, label: 'hrFix.mgrAccount.pnl' },
-  { href: '/dashboard/inventory', icon: ShoppingBag, label: 'hrFix.mgrAccount.purchaseOrders' },
-  { href: '/dashboard/staff', icon: UsersThree, label: 'hrFix.mgrAccount.manageTeam' },
+  {
+    href: '/dashboard/franchise',
+    icon: ChartLineUp,
+    label: 'hrFix.mgrAccount.pnl',
+    show: canViewFranchise,
+  },
+  {
+    href: '/dashboard/inventory',
+    icon: ShoppingBag,
+    label: 'hrFix.mgrAccount.purchaseOrders',
+    show: canViewInventory,
+  },
+  {
+    href: '/dashboard/staff',
+    icon: UsersThree,
+    label: 'hrFix.mgrAccount.manageTeam',
+    show: canManageStaff,
+  },
 ] as const;
 
 export default function ManagerAccountPage() {
@@ -34,6 +63,9 @@ export default function ManagerAccountPage() {
   const { customer, signOut } = useAuth();
   const { selected, depots } = useDepot();
   const { locale, setLocale } = useT();
+
+  // CA-4-11: only the shortcuts this role can actually open.
+  const desktopLinks = DESKTOP_LINKS.filter((l) => l.show(customer?.role));
 
   const depotName =
     selected?.name ?? depots.find((d) => d.id === customer?.assignedDepotId)?.name ?? t('mgrFix.mMgr.yourDepot');
@@ -61,12 +93,15 @@ export default function ManagerAccountPage() {
         </div>
       </Card>
 
+      {/* CA-4-11: and when a role can open none of them, the heading goes too — an empty
+          "Buka di desktop" card is a promise with nothing behind it. */}
+      {desktopLinks.length > 0 && (
       <div>
         <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-          Buka di desktop
+          {t('hrFix.mgrAccount.openOnDesktop')}
         </p>
         <Card className="divide-y divide-[color:var(--border)] p-0">
-          {DESKTOP_LINKS.map(({ href, icon: Icon, label }) => (
+          {desktopLinks.map(({ href, icon: Icon, label }) => (
             <button
               key={href}
               type="button"
@@ -82,6 +117,7 @@ export default function ManagerAccountPage() {
           ))}
         </Card>
       </div>
+      )}
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
         <div className="flex items-center gap-3 p-4">

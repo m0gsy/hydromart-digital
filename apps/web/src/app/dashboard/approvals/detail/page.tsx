@@ -151,7 +151,10 @@ function Detail({ id }: { id: string }) {
   };
   const namesQ = useAsync<Customer[]>(loadNames, [ids.join(',')]);
   const who = (id: string) => {
-    const found = (namesQ.data ?? []).find((c) => c.id === id);
+    // CA-4-42 (sibling): `?? []` covers a directory read that THREW — the catch above
+    // already does that — but not one that resolved to something which is not a list, and
+    // `.find` on that blanks a screen whose stated rule is that it renders either way.
+    const found = (Array.isArray(namesQ.data) ? namesQ.data : []).find((c) => c.id === id);
     return found ? found.fullName || found.phone : shortId(id);
   };
   const [busy, setBusy] = useState<'APPROVE' | 'REJECT' | 'HOLD' | null>(null);
