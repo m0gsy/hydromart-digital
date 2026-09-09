@@ -213,6 +213,40 @@ describe('CA-2-54 the depot console can move stock between depots', () => {
     expect(screen.getAllByRole('button', { name: 'common.retry' }).length).toBeGreaterThan(0);
   });
 
+  it('shows how a finished transfer ended, not just that it existed', async () => {
+    serve({
+      outgoing: [
+        { ...OUTGOING[0]!, id: 'trf-3', reference: 'TRF-260909-0003', status: 'RECEIVED' },
+        { ...OUTGOING[0]!, id: 'trf-4', reference: 'TRF-260909-0004', status: 'CANCELLED' },
+      ],
+    });
+    await openTransfers();
+
+    await waitFor(() =>
+      expect(screen.getByText('dashboard.inventory.transferStatus.RECEIVED')).toBeTruthy(),
+    );
+    expect(screen.getByText('dashboard.inventory.transferStatus.CANCELLED')).toBeTruthy();
+    // Neither can be taken back: the stock has already settled on one side or the other.
+    expect(
+      screen.queryByRole('button', { name: 'dashboard.inventory.transferTakeBack' }),
+    ).toBeNull();
+  });
+
+  it('will not send until it knows where, what and how much', async () => {
+    await openTransfers();
+    await waitFor(() => expect(screen.getByText(/TRF-260909-0001/)).toBeTruthy());
+    await userEvent.click(screen.getByRole('button', { name: 'dashboard.inventory.transferSend' }));
+
+    const buttons = screen.getAllByRole('button', { name: 'dashboard.inventory.transferSend' });
+    // A half-filled form cannot deduct anybody's stock.
+    expect((buttons[buttons.length - 1] as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'dashboard.inventory.transferCancelForm' }),
+    );
+    expect(screen.queryByText('dashboard.inventory.transferTo')).toBeNull();
+  });
+
   it('says so plainly when nothing is moving either way', async () => {
     serve({ incoming: [], outgoing: [] });
     await openTransfers();
