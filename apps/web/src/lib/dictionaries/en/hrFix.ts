@@ -2015,7 +2015,6 @@ export const hrFix = {
     pnl: 'P&L report',
     purchaseOrders: 'Purchase orders',
     manageTeam: 'Manage the team',
-    openOnDesktop: 'Open on desktop',
   },
   biometric: {
     openSaved: 'Open saved session',

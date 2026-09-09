@@ -2034,7 +2034,6 @@ export const hrFix = {
     pnl: 'Laporan L/R',
     purchaseOrders: 'Pesanan pembelian',
     manageTeam: 'Kelola tim',
-    openOnDesktop: 'Buka di desktop',
   },
   biometric: {
     openSaved: 'Buka sesi tersimpan',
