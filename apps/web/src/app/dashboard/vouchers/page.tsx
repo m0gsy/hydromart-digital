@@ -404,7 +404,7 @@ function VouchersAdmin() {
                     </Button>
                     {v.active && (
                       <Button variant="danger" onClick={() => deactivate(v)}>
-                        Nonaktifkan
+                        {t('opsFix.vouchers.deactivate')}
                       </Button>
                     )}
                   </>

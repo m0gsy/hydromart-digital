@@ -42,6 +42,7 @@ export const opsFix = {
     noSalePrice: 'belum ada nilai jual pada item',
   },
   vouchers: {
+    deactivate: 'Nonaktifkan',
     landedInWallet: 'Voucher masuk ke dompet {who}.',
     aCustomer: 'pelanggan',
   },
@@ -750,5 +751,11 @@ export const opsFix = {
       'Kelima metrik dibaca dari sumbernya masing-masing: order dan pendapatan dari buku pesanan bulan ini, SLA dari delivery-service, wastage dari depot-service, laba bersih dari order-service (omzet − pembelian − gaji − beban). “—” berarti sumbernya tidak terbaca, bukan nol.',
     gate: 'Khusus Manajer depot',
     gateBody: 'Banding antar depot hanya untuk Manajer depot.',
+  },
+  cashierShift: {
+    openShift: 'Buka shift',
+  },
+  nav: {
+    more: 'Lainnya',
   },
 };

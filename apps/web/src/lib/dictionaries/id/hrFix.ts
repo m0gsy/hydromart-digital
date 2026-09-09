@@ -190,6 +190,7 @@ export const hrFix = {
     exitBeforeJoin: 'Tanggal keluar tidak boleh sebelum tanggal masuk.',
   },
   assets: {
+    recordMovement: 'Catat Pergerakan',
     valueLabel: 'Nilai',
     movedTo: ' · ke {name}',
     movedCondition: ' · kondisi: {condition}',
@@ -474,7 +475,11 @@ export const hrFix = {
     saveFailed: 'Gagal menyimpan',
   },
   departments: {
+<<<<<<< HEAD
     inactive: 'nonaktif',
+=======
+    codeLabel: 'Kode',
+>>>>>>> 077a81787 (fix(i18n): empat belas kalimat Indonesia yang tidak pernah dilihat gerbangnya (CA-2-46, CA-2-47 basi; CA-2-48 diukur))
     deleteConfirm:
       'Hapus departemen {name}? Karyawan yang masih menunjuk ke departemen ini membuat penghapusan ditolak server.',
     emptyBody2: 'Belum ada departemen — karyawan tampil “Belum diatur”.',
@@ -497,6 +502,7 @@ export const hrFix = {
     activate: 'Aktifkan',
   },
   reports: {
+    toLabel: 'Sampai',
     rangeHint:
       'Rentang tanggal dipakai absensi, keterlambatan, cuti, dan pengumuman. Periode dipakai payroll dan kinerja. PDF memotong laporan panjang dan menyebutkannya di halaman.',
     from2: 'Dari',
@@ -1525,6 +1531,7 @@ export const hrFix = {
     info: 'Info',
   },
   deliveryDetail: {
+    call: 'Telepon',
     confirmPickup: 'Konfirmasi barang diambil',
     failedReason: 'Gagal: {reason}',
     podRetention:
@@ -1705,6 +1712,7 @@ export const hrFix = {
     retry: 'Coba lagi',
   },
   favorites: {
+    browseProducts: 'Jelajahi produk',
     title: 'Favorit',
     empty: 'Belum ada produk favorit. Ketuk ikon hati di produk untuk menyimpannya.',
     accountAria: 'Akun',
@@ -2022,9 +2030,16 @@ export const hrFix = {
     settings: 'Pengaturan',
   },
   mgrAccount: {
+    openOnDesktop: 'Buka di desktop',
     pnl: 'Laporan L/R',
     purchaseOrders: 'Pesanan pembelian',
     manageTeam: 'Kelola tim',
     openOnDesktop: 'Buka di desktop',
+  },
+  biometric: {
+    openSaved: 'Buka sesi tersimpan',
+  },
+  nativeBridge: {
+    openPlayStore: 'Buka Play Store',
   },
 };

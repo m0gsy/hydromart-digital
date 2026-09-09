@@ -162,7 +162,7 @@ export default function ManagerAccountPage() {
         {t('mgrFix.mMgr.signOut')}
       </button>
       <p className="text-center text-[11px] text-[color:var(--text-muted)]">
-        Hydromart Manajer · v1.0.0
+        {t('mgrFix.mMgr.appVersion', { version: '1.0.0' })}
       </p>
     </div>
   );

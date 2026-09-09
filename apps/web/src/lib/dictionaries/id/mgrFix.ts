@@ -131,6 +131,7 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    appVersion: 'Hydromart Manajer · v{version}',
     pendingApproval: '{count} menunggu approval',
     depotManager: 'Manajer depot · {depot}',
     depotPicker: 'Depot yang ditampilkan',
@@ -156,5 +157,8 @@ export const mgrFix = {
     sendOtp: 'Kirim kode OTP',
     subtitle: 'Konsol Manajer Depot',
     staffOnly: 'Hanya untuk staf Hydromart.',
+  },
+  mMgrLogin: {
+    registeredPhone: 'Nomor HP terdaftar',
   },
 };

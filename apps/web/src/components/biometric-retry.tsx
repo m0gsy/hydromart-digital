@@ -60,7 +60,7 @@ export function BiometricRetry() {
         className="flex items-center justify-center gap-2"
       >
         <Fingerprint size={18} weight="fill" />
-        Buka sesi tersimpan
+        {t('hrFix.biometric.openSaved')}
       </Button>
       {failed && (
         <p role="alert" className="text-[12.5px] text-[color:var(--danger)]">

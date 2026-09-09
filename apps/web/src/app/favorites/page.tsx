@@ -84,7 +84,7 @@ function FavoritesInner() {
             href="/products"
             className="inline-flex h-11 items-center rounded-xl bg-brand-600 px-6 text-sm font-extrabold text-white transition-colors hover:bg-brand-700"
           >
-            Jelajahi produk
+            {t('hrFix.favorites.browseProducts')}
           </Link>
         </div>
       ) : (

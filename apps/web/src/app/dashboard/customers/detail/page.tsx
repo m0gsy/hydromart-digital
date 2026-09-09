@@ -139,7 +139,7 @@ function DetailBody({ id }: { id: string }) {
                   <div>
                     <p className="text-sm font-semibold">Foto pendaftaran agen</p>
                     <p className="text-xs text-[color:var(--text-muted)]">
-                      Diunggah saat pendaftaran reseller.
+                      {t('dashA.customerDetail.resellerDocNote')}
                     </p>
                   </div>
                 </Card>

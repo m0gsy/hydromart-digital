@@ -146,13 +146,13 @@ function Detail() {
               className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
             >
               <Phone size={16} weight="fill" className="text-brand-700" />
-              Telepon
+              {t('hrFix.deliveryDetail.call')}
             </ExternalLink>
           ) : (
             // ponytail: recipientPhone absent on this (legacy) delivery — kept inert-but-visible.
             <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold text-[color:var(--text-muted)]">
               <Phone size={16} weight="fill" />
-              Telepon
+              {t('hrFix.deliveryDetail.call')}
             </span>
           )}
         </div>

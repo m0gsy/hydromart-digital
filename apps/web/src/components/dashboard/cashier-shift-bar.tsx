@@ -152,7 +152,7 @@ export function CashierShiftBar({
           </Field>
           <Button onClick={() => void open()} disabled={busy}>
             <LockKeyOpen size={18} className="mr-1" />
-            Buka shift
+            {t('opsFix.cashierShift.openShift')}
           </Button>
         </div>
       ) : (

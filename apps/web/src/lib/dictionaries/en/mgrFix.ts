@@ -126,6 +126,7 @@ export const mgrFix = {
   },
   // manager-mobile home tiles + per-event notifications.
   mMgr: {
+    appVersion: 'Hydromart Manager · v{version}',
     pendingApproval: '{count} awaiting approval',
     depotManager: 'Depot manager · {depot}',
     depotPicker: 'Depot shown',
@@ -151,5 +152,8 @@ export const mgrFix = {
     sendOtp: 'Send OTP code',
     subtitle: 'Depot manager console',
     staffOnly: 'Hydromart staff only.',
+  },
+  mMgrLogin: {
+    registeredPhone: 'Registered phone number',
   },
 };

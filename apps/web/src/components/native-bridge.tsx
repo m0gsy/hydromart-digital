@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
 import { resolveDeepLink } from '@/lib/deep-link';
+import { translate } from '@/lib/locale-context';
 import { persistSafeAreaInsets } from '@/lib/safe-area-persist';
 import { isNativeShell, openExternal } from '@/lib/platform';
 
@@ -296,6 +297,14 @@ function handleBack(event?: { canGoBack?: boolean }, blocked = false): void {
  * would render as nothing and the user would see a blank app instead of a reason.
  */
 function BlockingScreen({ block }: { block: Block }) {
+  /*
+   * `translate`, not `useT`. This component is mounted OUTSIDE the providers on purpose
+   * (app/layout.tsx: "its WebView-too-old screen has to render even if everything below it
+   * is failing"), and `useT` throws outside `LocaleProvider` — so reaching for the hook here
+   * would crash the one screen whose whole job is to survive everything else crashing.
+   *
+   * `lib/api.ts` uses the same resolver for the same reason: it is not a component either.
+   */
   return (
     <div
       style={{
@@ -329,7 +338,7 @@ function BlockingScreen({ block }: { block: Block }) {
           fontWeight: 600,
         }}
       >
-        Buka Play Store
+        {translate('hrFix.nativeBridge.openPlayStore')}
       </button>
       {/*
         N6: this screen used to be a dead end with exactly one exit that assumes the update
