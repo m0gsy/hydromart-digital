@@ -56,7 +56,10 @@ function nikCell(raw: string, t: Translate): string {
 export default function ImportEmployeesPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  const { depots } = useDepot();
+  // CA-1-71: the depot list is validated against, exactly like departments and shifts —
+  // so its failure has to be reported the same way. `error`/`reload` have always been on
+  // the context; this page read only `depots`.
+  const { depots, error: depotsError, reload: reloadDepots } = useDepot();
   const [upsert, setUpsert] = useState(false);
   const departments = useAsync<Department[]>(
     () => api.get<Department[]>(endpoints.hr.departments(), true),
@@ -168,11 +171,12 @@ export default function ImportEmployeesPage() {
       {/* Department and shift columns are validated AGAINST these two lists, so an unread
           list rejects every row with "kode departemen tidak dikenal" — which reads as a bad
           spreadsheet, and the operator edits a file that was right all along. */}
-      {(departments.error || shifts.error) && (
+      {(departments.error || shifts.error || depotsError) && (
         <LoadError
           onRetry={() => {
             if (departments.error) departments.reload();
             if (shifts.error) shifts.reload();
+            if (depotsError) reloadDepots();
           }}
         />
       )}

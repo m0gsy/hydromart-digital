@@ -538,6 +538,7 @@ export const hrFix = {
     enrollFace: 'Daftar / Perbarui Wajah',
   },
   attendance: {
+    faceScoreLabel: 'Skor kecocokan wajah saat masuk',
     trailShow: 'Lihat riwayat koreksi',
     trailEmpty: 'Belum pernah dikoreksi.',
     pendingTitle: 'Absen menunggu persetujuan ({count})',

@@ -357,7 +357,7 @@ function AssetPanel({
         (editing ? (
           <form
             onSubmit={saveDetails}
-            className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2"
+            className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2"
           >
             <Field label={t('hrFix.assets.assetName')}>
               <Input
@@ -398,14 +398,14 @@ function AssetPanel({
             </div>
           </form>
         ) : moves.length === 0 ? (
-          <div className="space-y-2 border-ty border-app pt-3">
+          <div className="space-y-2 border-t border-app pt-3">
             <p className="text-sm text-muted">{t('hrFix.assets.writtenOff')}</p>
             <Button variant="secondary" onClick={startEdit}>
               {t('hrFix.assets.editDetail')}
             </Button>
           </div>
         ) : (
-          <form onSubmit={submit} className="grid gap-3 border-ty border-app pt-3 sm:grid-cols-2">
+          <form onSubmit={submit} className="grid gap-3 border-t border-app pt-3 sm:grid-cols-2">
             <Field label={t('hrFix.assets.movement')}>
               <select
                 value={kind}

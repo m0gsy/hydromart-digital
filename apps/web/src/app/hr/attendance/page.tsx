@@ -130,6 +130,30 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
           <span className="tabular-nums text-muted">
             {a.lateMinutes > 0 ? `+${a.lateMinutes}m` : t('hrFix.attendance.onTime')}
           </span>
+          {/*
+            CA-1-66. The face-match score is the ONE anti-fraud signal on this row, and it
+            was on the record and on no screen — so an HR officer approved or rejected a
+            punch without being told whether the selfie matched the employee at all.
+
+            Null is not zero: null means face matching was off or never ran, which is not
+            the same as a photo that scored badly. A percentage only appears when there is
+            one to state, and a low one is toned so it is noticed rather than read past.
+          */}
+          <span className="shrink-0 tabular-nums" title={t('hrFix.attendance.faceScoreLabel')}>
+            {a.checkInScore == null ? (
+              <span className="text-muted">—</span>
+            ) : (
+              <span
+                className={
+                  a.checkInScore < FACE_SCORE_SUSPECT
+                    ? 'font-bold text-[color:var(--danger)]'
+                    : 'text-muted'
+                }
+              >
+                {Math.round(a.checkInScore * 100)}%
+              </span>
+            )}
+          </span>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => decide(a, 'REJECT')}>
               {t('hrFix.attendance.reject')}
@@ -469,6 +493,13 @@ function statusOf(snapshot: unknown): string | null {
   const status = (snapshot as { status?: unknown }).status;
   return typeof status === 'string' ? status : null;
 }
+
+/**
+ * CA-1-66: below this, a face match is worth a second look rather than a nod. Deliberately
+ * a DISPLAY threshold, not a decision — the server owns whether a punch is accepted, and a
+ * number here that pretended to be the rule would drift from it silently.
+ */
+const FACE_SCORE_SUSPECT = 0.75;
 
 export default function AttendancePage() {
   return (
