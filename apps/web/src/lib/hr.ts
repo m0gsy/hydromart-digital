@@ -674,6 +674,11 @@ export interface SettingDef {
    * the CSV settings as a blank box nobody could guess the shape of.
    */
   unit?: string;
+  /**
+   * CA-1-41: this value is a document, not a figure — the console renders it a textarea.
+   * The server decides; a list of key names here would drift the first time one is added.
+   */
+  long?: boolean;
 }
 export interface SettingsSchema {
   defs: SettingDef[];

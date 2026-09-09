@@ -16,6 +16,13 @@ export interface SettingDef {
   pattern?: string;
   /** Global-only tunable: no per-depot override is offered (server rejects DEPOT scope). */
   global?: boolean;
+  /**
+   * CA-1-41: this value is a document, not a figure — a regulation table measured in
+   * kilobytes. Stated on the DEF rather than guessed from the key or sniffed from the unit
+   * string, so the console can render it a textarea and the DTO's length limit has
+   * something to point at other than a hardcoded list of key names.
+   */
+  long?: boolean;
 }
 
 // SalaryConfiguration business tunables. Env keys stay the boot-time fallback; values
@@ -263,6 +270,9 @@ export const SETTING_DEFS: SettingDef[] = [
     type: 'string',
     unit: 'JSON per kategori A/B/C',
     envDefault: '',
+    // 125 bands across three categories: 4.2 KB minified, 7.4 KB as it ships in
+    // `reference/pph21-ter-pmk-168-2023.json`.
+    long: true,
   },
   {
     key: 'lateFineManager',
