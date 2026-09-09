@@ -3,7 +3,10 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { CommissionController } from '../../src/modules/commission.controller';
-import { DriverIncidentController } from '../../src/modules/driver-incident.controller';
+import {
+  DriverIncidentController,
+  FieldIncidentController,
+} from '../../src/modules/driver-incident.controller';
 import { DriverPerformanceController } from '../../src/modules/driver-performance.controller';
 import { DriverDeliveryController } from '../../src/modules/driver-delivery.controller';
 import { DriverSettlementController } from '../../src/modules/driver-settlement.controller';
@@ -75,8 +78,10 @@ describe('DriverIncidentController', () => {
   const incidents = {
     report: jest.fn().mockResolvedValue(record),
     listForDriver: jest.fn().mockResolvedValue([record]),
+    listForDepot: jest.fn().mockResolvedValue([record]),
   };
   const controller = new DriverIncidentController(incidents as never);
+  const depotController = new FieldIncidentController(incidents as never);
 
   it('reports an incident and maps it to the DTO', async () => {
     const dto = {
@@ -87,6 +92,18 @@ describe('DriverIncidentController', () => {
     const out = await controller.report(user, dto as never);
     expect(incidents.report).toHaveBeenCalledWith(user.sub, dto);
     expect(out).toMatchObject({ id, category: IncidentCategory.ACCIDENT });
+  });
+
+  // CA-4-48: the depot's review list — the same records, read by whoever has to act.
+  it("lists a depot's field incidents, passing the depot the caller named", async () => {
+    const out = await depotController.list(user, { depotId: 'dep-9' } as never);
+    expect(incidents.listForDepot).toHaveBeenCalledWith(user, 'dep-9');
+    expect(out[0].id).toBe(id);
+  });
+
+  it('lets the caller omit the depot and be scoped by their own token', async () => {
+    await depotController.list(user, {} as never);
+    expect(incidents.listForDepot).toHaveBeenLastCalledWith(user, undefined);
   });
 
   it("lists the driver's own incidents mapped to DTOs", async () => {

@@ -38,7 +38,7 @@ import { DeliveryController } from './delivery.controller';
 import { DriverDeliveryController } from './driver-delivery.controller';
 import { DriverSettingsController } from './driver-settings.controller';
 import { DriverShiftController } from './driver-shift.controller';
-import { DriverIncidentController } from './driver-incident.controller';
+import { DriverIncidentController, FieldIncidentController } from './driver-incident.controller';
 import { DriverSettlementController } from './driver-settlement.controller';
 import { DriverPerformanceController } from './driver-performance.controller';
 import { ShiftController } from './shift.controller';
@@ -102,6 +102,7 @@ const providers: Provider[] = [
     DriverShiftController,
     DriverSettingsController,
     DriverIncidentController,
+    FieldIncidentController,
     DriverSettlementController,
     DriverPerformanceController,
     ShiftController,

@@ -557,6 +557,16 @@ export class InMemoryIncidentRepository implements IncidentRepository {
     this.rows.push(rec);
     return clone(rec);
   }
+  async listForDepot(
+    depotIds: readonly string[] | undefined,
+    limit: number,
+  ): Promise<IncidentRecord[]> {
+    return this.rows
+      .filter((r) => !depotIds || (r.depotId !== null && depotIds.includes(r.depotId)))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => clone(r));
+  }
   async listByDriver(driverId: string, limit: number): Promise<IncidentRecord[]> {
     return this.rows
       .filter((r) => r.driverId === driverId)

@@ -1,6 +1,18 @@
 // English — mirrors the shape of id/dashB.ts (source of truth for keys).
 export const dashB = {
   incidents: {
+    fieldTitle: 'Courier field reports',
+    fieldSubtitle: 'Reported by couriers from the road. HIGH severity already went to the ops feed; the rest are read here.',
+    fieldEmpty: 'No field reports from this depot’s couriers yet.',
+    courierUnknown: 'Unknown courier',
+    courierCategory: {
+      ACCIDENT: 'Accident',
+      VEHICLE_BREAKDOWN: 'Vehicle breakdown',
+      THEFT_OR_THREAT: 'Theft or threat',
+      CUSTOMER_DISPUTE: 'Customer dispute',
+      PRODUCT_DAMAGE: 'Damaged goods',
+      OTHER: 'Other',
+    },
     reportTitle: "Report an incident",
     titleLabel: "Title",
     titlePlaceholder: "One sentence",

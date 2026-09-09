@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, Role, Roles } from '@hydromart/platform';
 
 import { IncidentService } from '../application/services/incident.service';
-import { IncidentDto, ReportIncidentDto } from './dto/incident.dto';
+import { IncidentDto, ListDepotIncidentsDto, ReportIncidentDto } from './dto/incident.dto';
 
 /** Courier field incident reporting (design 4b). A courier only sees their own. */
 @ApiTags('Driver Incidents')
@@ -43,6 +43,34 @@ export class DriverIncidentController {
   @ApiOkResponse({ type: IncidentDto, isArray: true })
   async list(@CurrentUser() user: AuthenticatedUser): Promise<IncidentDto[]> {
     const records = await this.incidents.listForDriver(user.sub);
+    return records.map((r) => IncidentDto.from(r));
+  }
+}
+
+/**
+ * CA-4-48 — the depot's review list.
+ *
+ * `escalatesToOps` interrupts an operator for HIGH severity and leaves LOW and MEDIUM
+ * "logged for later review". Nothing could review them: the only other read on this table
+ * was a courier's own history, so the person who wrote the report was the only person who
+ * could read it. Same capability as the depot's operational incidents inbox — the readers
+ * are the same people, and this is the same kind of thing happening to the same depot.
+ */
+@ApiTags('Driver Incidents')
+@ApiBearerAuth()
+@Can('incidents')
+@Controller({ path: 'field-incidents', version: '1' })
+export class FieldIncidentController {
+  constructor(private readonly incidents: IncidentService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Field incidents reported by a depot’s couriers, newest first' })
+  @ApiOkResponse({ type: IncidentDto, isArray: true })
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListDepotIncidentsDto,
+  ): Promise<IncidentDto[]> {
+    const records = await this.incidents.listForDepot(user, query.depotId);
     return records.map((r) => IncidentDto.from(r));
   }
 }

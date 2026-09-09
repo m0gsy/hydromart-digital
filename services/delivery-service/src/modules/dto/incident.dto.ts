@@ -14,6 +14,14 @@ import {
 import { IncidentCategory, IncidentSeverity } from '../../domain/incident';
 import { IncidentRecord } from '../../application/ports/incident.repository';
 
+/** CA-4-48: the depot whose couriers' incidents to list. Omitted = the caller's own scope. */
+export class ListDepotIncidentsDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
 export class ReportIncidentDto {
   @ApiProperty({ enum: IncidentCategory })
   @IsEnum(IncidentCategory)
@@ -61,6 +69,12 @@ export class ReportIncidentDto {
 export class IncidentDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
+  /**
+   * CA-4-48: WHO reported it. The courier's own history left this out because they know
+   * who they are; the depot's review list is exactly the reader who does not.
+   */
+  @ApiProperty({ format: 'uuid' })
+  driverId!: string;
   @ApiProperty({ nullable: true, format: 'uuid' })
   deliveryId!: string | null;
   @ApiProperty({ enum: IncidentCategory })
@@ -77,6 +91,7 @@ export class IncidentDto {
   static from(record: IncidentRecord): IncidentDto {
     return {
       id: record.id,
+      driverId: record.driverId,
       deliveryId: record.deliveryId,
       category: record.category,
       severity: record.severity,

@@ -772,6 +772,32 @@ describe('IncidentPrismaRepository', () => {
     expect(rec.severity).toBe(IncidentSeverity.HIGH);
   });
 
+  /*
+   * CA-4-48: the depot's review list. A row whose depot is null was written before the
+   * report route learned to read the courier's own token — it belongs to no depot queue,
+   * and guessing one would be worse than leaving it to the network-wide read.
+   */
+  it('listForDepot filters to the named depots, newest first', async () => {
+    fieldIncident.findMany.mockResolvedValue([incidentRow]);
+    const rows = await repo.listForDepot(['dep-1', 'dep-2'], 100);
+    expect(rows).toHaveLength(1);
+    expect(fieldIncident.findMany).toHaveBeenCalledWith({
+      where: { depotId: { in: ['dep-1', 'dep-2'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  });
+
+  it('listForDepot without a scope reads every depot, including the depot-less rows', async () => {
+    fieldIncident.findMany.mockResolvedValue([incidentRow]);
+    await repo.listForDepot(undefined, 100);
+    expect(fieldIncident.findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  });
+
   it('listByDriver returns the newest first, capped at the limit', async () => {
     fieldIncident.findMany.mockResolvedValue([incidentRow]);
     const rows = await repo.listByDriver('drv-1', 20);

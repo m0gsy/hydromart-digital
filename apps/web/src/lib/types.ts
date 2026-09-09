@@ -1610,6 +1610,8 @@ export type CourierIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface FieldIncident {
   id: string;
+  /** CA-4-48: who reported it — the depot's review list needs the name behind this. */
+  driverId: string;
   deliveryId: string | null;
   category: CourierIncidentCategory;
   severity: CourierIncidentSeverity;
