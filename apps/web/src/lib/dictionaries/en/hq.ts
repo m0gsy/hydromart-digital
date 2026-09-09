@@ -849,6 +849,8 @@ export const hq = {
     emptyUnrouted: 'No orders without a depot.',
     assign: 'Assign depot',
     assignPlaceholder: 'Pick a depot…',
+    move: 'Move depot',
+    moveePlaceholder: 'Move to another depot…',
   },
   notifications: {
     title: 'Notifications',

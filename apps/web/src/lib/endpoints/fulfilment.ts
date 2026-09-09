@@ -99,6 +99,13 @@ cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
   incidents: {
     list: '/deliveries/api/v1/driver/incidents',
     create: '/deliveries/api/v1/driver/incidents',
+    /**
+     * CA-4-48: the depot's review list. HIGH severity interrupts an operator through the
+     * ops feed; LOW and MEDIUM were "logged for later review" with no reader but the
+     * courier who wrote them.
+     */
+    forDepot: (depotId?: string) =>
+      `/deliveries/api/v1/field-incidents${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
   },
   // Courier end-of-shift COD settlement (design 2d/9a). POST deposits a shift's cash;
   // the expected total is snapshotted server-side from payment-service.

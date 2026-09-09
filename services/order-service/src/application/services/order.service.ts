@@ -22,6 +22,8 @@ import {
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
   OrderAlreadyRoutedError,
+  OrderNotReroutableError,
+  OrderNotRoutedError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -206,6 +208,19 @@ export interface ListOrdersInput {
   /** C6: counter sales only, so the till can list its own recent sales. */
   isWalkIn?: boolean;
 }
+
+/**
+ * CA-2-56: the statuses in which moving an order still means something.
+ *
+ * From DRIVER_ASSIGNED onward a courier is attached to the order at the OLD depot, and from
+ * PICKED_UP the goods are physically on that courier's bike. Changing the depot then would
+ * not re-route anything — it would only make the record disagree with where the water is.
+ */
+const REROUTABLE_STATUSES: ReadonlySet<OrderStatus> = new Set([
+  OrderStatus.CREATED,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+]);
 
 @Injectable()
 export class OrderService {
@@ -1433,6 +1448,54 @@ export class OrderService {
       order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       authorization,
     );
+    return this.orders.assignDepot(orderId, depotId);
+  }
+
+  /**
+   * CA-2-56 — a misrouted order was stuck at the wrong depot for good.
+   *
+   * `assignDepot` refuses anything already routed, and nothing else could change a depot.
+   * So an order sent to the wrong one — by a mis-tap, or by a router that picked a depot
+   * that turned out to have no stock — could never be moved. The operator's only outs were
+   * to cancel it (losing the customer's order and any payment already taken) or to have the
+   * wrong depot deliver it, and the second is what actually happened.
+   *
+   * The order of the three steps is the whole safety argument:
+   *
+   *  1. Reserve at the NEW depot first, which fails CLOSED. A shortfall refuses the move
+   *     while the operator is still on the screen, and the order stays exactly where it was.
+   *  2. Only then release the old hold, which fails OPEN — the move has already been proven
+   *     possible, and a depot-service blip must not strand the order between two depots.
+   *     Opname reconciles a missed release; there is never a moment with NO hold.
+   *  3. Write the new depot last, so a failure at any earlier step leaves the record true.
+   */
+  async rerouteDepot(
+    user: AuthenticatedUser,
+    orderId: string,
+    depotId: string,
+    authorization = '',
+  ): Promise<OrderRecord> {
+    const order = await this.orders.findById(orderId);
+    if (!order) throw new OrderNotFoundError();
+    if (!order.depotId) throw new OrderNotRoutedError();
+    /*
+     * Scoped on the depot the order is LEAVING, which is the one whose promise is being
+     * withdrawn and whose stock is about to be released. `assignDepot` needs no such check
+     * because an unrouted order belongs to no depot at all — this one always does, and
+     * without this a depot-locked operator could move another depot's order away from it.
+     */
+    assertDepotAccess(user, order.depotId);
+    if (order.depotId === depotId) return order;
+    if (!REROUTABLE_STATUSES.has(order.status)) {
+      throw new OrderNotReroutableError(order.status);
+    }
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null) throw new DepotUnavailableError();
+    if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
+
+    const lines = order.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    await this.inventory.reserve(depotId, orderId, lines, authorization);
+    await this.inventory.release(order.depotId, orderId, lines, authorization);
     return this.orders.assignDepot(orderId, depotId);
   }
 

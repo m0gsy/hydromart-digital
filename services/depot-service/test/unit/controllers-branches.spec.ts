@@ -13,6 +13,7 @@ import {
   Role,
 } from '@hydromart/platform';
 
+import { StockTransferController } from '../../src/modules/stock-transfer.controller';
 import { ApprovalController } from '../../src/modules/approval.controller';
 import { CashbookController } from '../../src/modules/cashbook.controller';
 import { CashierShiftController } from '../../src/modules/cashier-shift.controller';
@@ -52,6 +53,41 @@ const DEPOT = '11111111-1111-4111-8111-111111111111';
 const ID = '22222222-2222-4222-8222-222222222222';
 const user = { sub: 'user-1', role: Role.SUPER_ADMIN, depotId: null } as AuthenticatedUser;
 const ISO = '2026-07-01T00:00:00.000Z';
+
+/**
+ * CA-2-54 — stock moving between two depots.
+ *
+ * Each route hands the CALLER to the service, not just an id: the scope for each act is a
+ * different depot — the sender for `send` and `cancel`, the receiver for `receive` — and
+ * only the service knows which, because only it has read the transfer.
+ */
+describe('StockTransferController', () => {
+  const svc = { list: jest.fn(), send: jest.fn(), receive: jest.fn(), cancel: jest.fn() };
+  const c = new StockTransferController(svc as never);
+  beforeEach(() => jest.clearAllMocks());
+
+  it('lists one direction of one depot', async () => {
+    await c.list({ depotId: DEPOT, direction: 'in', limit: 50 } as never, user);
+    expect(svc.list).toHaveBeenCalledWith(user, DEPOT, 'in', undefined, 50);
+  });
+
+  it('passes a status filter through when the queue is narrowed', async () => {
+    await c.list({ depotId: DEPOT, direction: 'out', status: 'SENT', limit: 10 } as never, user);
+    expect(svc.list).toHaveBeenCalledWith(user, DEPOT, 'out', 'SENT', 10);
+  });
+
+  it('sends, receives and cancels as the signed-in staff member', async () => {
+    const dto = { fromDepotId: DEPOT, toDepotId: 'depot-b', productId: 'p1', quantity: 5 };
+    await c.send(dto as never, user);
+    expect(svc.send).toHaveBeenCalledWith(user, 'user-1', dto);
+
+    await c.receive('trf-1', user);
+    expect(svc.receive).toHaveBeenCalledWith(user, 'user-1', 'trf-1');
+
+    await c.cancel('trf-1', { reason: 'Motor mogok' } as never, user);
+    expect(svc.cancel).toHaveBeenCalledWith(user, 'user-1', 'trf-1', 'Motor mogok');
+  });
+});
 
 describe('ApprovalController', () => {
   const svc = {

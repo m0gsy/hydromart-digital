@@ -39,6 +39,21 @@ export class IncidentPrismaRepository implements IncidentRepository {
     return this.toRecord(row);
   }
 
+  async listForDepot(
+    depotIds: readonly string[] | undefined,
+    limit: number,
+  ): Promise<IncidentRecord[]> {
+    const rows = await this.prisma.fieldIncident.findMany({
+      // A null depot is a row written before CA-4-46 taught the route to read the courier's
+      // own token. It belongs to no depot queue, and guessing which one would be worse than
+      // leaving it to the network-wide read.
+      where: depotIds ? { depotId: { in: [...depotIds] } } : {},
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async listByDriver(driverId: string, limit: number): Promise<IncidentRecord[]> {
     const rows = await this.prisma.fieldIncident.findMany({
       where: { driverId },

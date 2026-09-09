@@ -78,11 +78,16 @@ class FakeRepo implements EmployeeRepository {
   async findConflicting(keys: {
     employeeCode?: string;
     nik?: string;
-    phone: string;
+    phone?: string;
+    excludeId?: string;
   }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
-    if (keys.employeeCode && (await this.findByEmployeeCode(keys.employeeCode))) return 'employeeCode';
-    if (keys.nik && (await this.findByNik(keys.nik))) return 'nik';
-    return (await this.findByPhone(keys.phone)) ? 'phone' : null;
+    // CA-1-48: an edit asks only about what it changes, and never about itself.
+    const other = (row: Employee | null) => (row && row.id !== keys.excludeId ? row : null);
+    if (keys.employeeCode && other(await this.findByEmployeeCode(keys.employeeCode)))
+      return 'employeeCode';
+    if (keys.nik && other(await this.findByNik(keys.nik))) return 'nik';
+    if (keys.phone && other(await this.findByPhone(keys.phone))) return 'phone';
+    return null;
   }
   async findByAuthSubjectIdOrPhone(
     authSubjectId: string,
@@ -270,6 +275,82 @@ describe('EmployeeService (M1)', () => {
 
     expect(identity.calls).toEqual([]);
     expect(e.authSubjectId).toBe('11111111-1111-4111-8111-111111111111');
+  });
+
+  /*
+   * CA-1-48 — the identity checks ran on CREATE only.
+   *
+   * "+ Tambah" refuses a phone, a NIK or a staff code somebody else holds, and names which.
+   * An EDIT wrote all three straight through: two employees could end up sharing the phone
+   * number staff sync pushes to the login and every notification goes to, and a NIK
+   * collision came back as a bare 500 from the unique index rather than the sentence saying
+   * which field to fix.
+   */
+  describe('CA-1-48 an edit is held to the same identity rules as a create', () => {
+    const second = {
+      ...baseInput,
+      employeeCode: 'HR-0002',
+      phone: '081200000002',
+      nik: '3202222222222222',
+    };
+    const MY_NIK = '3201111111111111';
+
+    it("refuses a phone that already belongs to somebody else", async () => {
+      const { svc } = make();
+      const a = await svc.create(hr, baseInput);
+      await svc.create(hr, second);
+
+      await expect(svc.update(hr, a.id, { phone: second.phone })).rejects.toThrow(
+        /Nomor telepon ini sudah dipakai/,
+      );
+    });
+
+    it('refuses a NIK that already belongs to somebody else, by name', async () => {
+      const { svc } = make();
+      const a = await svc.create(hr, baseInput);
+      await svc.create(hr, second);
+
+      // Not a 500 from the unique index: the message says WHICH field.
+      await expect(svc.update(hr, a.id, { nik: second.nik })).rejects.toThrow(/NIK sudah dipakai/);
+    });
+
+    it('lets an employee keep their own phone and NIK', async () => {
+      const { svc } = make();
+      const a = await svc.create(hr, baseInput);
+
+      // Re-saving a form without touching either must not refuse itself.
+      await svc.update(hr, a.id, { nik: MY_NIK });
+      const out = await svc.update(hr, a.id, {
+        phone: baseInput.phone,
+        nik: MY_NIK,
+        position: 'Kurir Senior',
+      });
+      expect(out.position).toBe('Kurir Senior');
+    });
+
+    it('refuses a staff code that already belongs to somebody else', async () => {
+      const { svc } = make();
+      const a = await svc.create(hr, baseInput);
+      await svc.create(hr, second);
+
+      await expect(
+        svc.update(hr, a.id, { employeeCode: second.employeeCode.toLowerCase() }),
+      ).rejects.toThrow(/Kode karyawan sudah dipakai/);
+    });
+
+    it('asks nothing when an edit touches neither', async () => {
+      const { svc, repo } = make();
+      const a = await svc.create(hr, baseInput);
+      let asked = 0;
+      const inner = repo.findConflicting.bind(repo);
+      repo.findConflicting = async (keys) => {
+        asked += 1;
+        return inner(keys);
+      };
+
+      await svc.update(hr, a.id, { position: 'Kurir Senior' });
+      expect(asked).toBe(0);
+    });
   });
 
   // The gap this closes: a promotion used to change the title and leave the login on the

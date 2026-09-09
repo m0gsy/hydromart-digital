@@ -67,7 +67,32 @@ export class LeaveService {
   // ── employee side ───────────────────────────────────────────────────
 
   async submit(user: AuthenticatedUser, input: SubmitLeaveInput): Promise<LeaveRequest> {
-    const employee = await this.employees.getSelf(user);
+    return this.fileFor(await this.employees.getSelf(user), input);
+  }
+
+  /**
+   * CA-1-44 — HR files leave for somebody else.
+   *
+   * `submit` resolves the applicant with `getSelf`, so the only person who could ever apply
+   * was the applicant, from a logged-in session. That leaves out the ones who most need it:
+   * an employee record may exist with no auth account at all (`authSubjectId` is nullable),
+   * and a courier who phones in sick at 5am has no way to file anything. HR held the phone
+   * call and could not write it down, so those days were entered as ABSENT corrections and
+   * the leave ledger never saw them.
+   *
+   * It enters the SAME queue rather than being approved on the spot: who may approve leave
+   * is a decision this row is not entitled to change, and HR filing it is not HR approving
+   * it. The depot check is the employee's own, exactly as every other HR write here.
+   */
+  async submitFor(
+    user: AuthenticatedUser,
+    employeeId: string,
+    input: SubmitLeaveInput,
+  ): Promise<LeaveRequest> {
+    return this.fileFor(await this.employees.getById(user, employeeId), input);
+  }
+
+  private async fileFor(employee: Employee, input: SubmitLeaveInput): Promise<LeaveRequest> {
     const start = ISO_DAY(input.startDate);
     const end = ISO_DAY(input.endDate);
     if (end < start) throw new BadRequestException('Tanggal selesai sebelum tanggal mulai');

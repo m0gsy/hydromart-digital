@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import {
@@ -10,6 +10,7 @@ import { ExpenseCategory, ExpenseClaimStatus, isAutoApproved } from '../../domai
 import { PayoutConfigService } from '../../config/payout-config.service';
 import { CourierLedgerRepository } from '../ports/courier-ledger.repository';
 import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-claim.repository';
+import { PhotoLinkPort } from '../ports/photo-link.port';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
@@ -29,6 +30,7 @@ export class ExpenseClaimService {
     @Inject(PAYOUT_TOKENS.CourierLedgerRepository)
     private readonly ledger: CourierLedgerRepository,
     private readonly config: PayoutConfigService,
+    @Optional() @Inject(PAYOUT_TOKENS.PhotoLink) private readonly photos?: PhotoLinkPort,
   ) {}
 
   /**
@@ -146,9 +148,30 @@ export class ExpenseClaimService {
       assertDepotAccess(reviewer, depotId);
     }
     const scope = depotId ? [depotId] : (depotScopeIds(reviewer) ?? null);
-    return this.claims
-      .searchForDepot(scope, status, page, limit)
-      .then(({ items, total }) => buildPage(items, total, page, limit));
+    const { items, total } = await this.claims.searchForDepot(scope, status, page, limit);
+    return buildPage(await this.withReceiptLinks(items), total, page, limit);
+  }
+
+  /**
+   * CA-4-49, step 3 — the receipt a reviewer is approving money against.
+   *
+   * `receiptUrl` is delivery-service's stored object id, and that bucket is private, so the
+   * string opens nothing on its own. Each row gets a freshly minted expiring link instead.
+   *
+   * Fails SOFT, deliberately: a claim whose link could not be minted comes back with a null
+   * receipt and the screen says there is none to show. A reviewer's list must not refuse to
+   * load because a peer service is down — that would turn a missing picture into a stopped
+   * payout queue.
+   */
+  private async withReceiptLinks(items: ExpenseClaimRecord[]): Promise<ExpenseClaimRecord[]> {
+    if (!this.photos) return items;
+    return Promise.all(
+      items.map(async (claim) =>
+        claim.receiptUrl
+          ? { ...claim, receiptUrl: await this.photos!.signedUrl(claim.receiptUrl) }
+          : claim,
+      ),
+    );
   }
 
   /**

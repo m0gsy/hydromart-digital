@@ -13,6 +13,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -23,7 +24,13 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewIncidents } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { DepotIncident, DepotIncidentSeverity, DepotIncidentType } from '@/lib/types';
+import type {
+  Customer,
+  DepotIncident,
+  DepotIncidentSeverity,
+  DepotIncidentType,
+  FieldIncident,
+} from '@/lib/types';
 
 const TYPE_ICON: Record<DepotIncidentType, Icon> = {
   COURIER_FALL: FirstAidKit,
@@ -314,6 +321,79 @@ function ReportForm({ depotId, onDone }: { depotId: string; onDone: () => void }
   );
 }
 
+/**
+ * CA-4-48 — the incidents nobody could review.
+ *
+ * A courier's field report is stored by delivery-service, and `escalatesToOps` pushes HIGH
+ * severity to the ops feed. LOW and MEDIUM were, in the domain's own words, "logged for
+ * later review" — but the only other read on that table was the courier's own history, so
+ * the later review could be done by exactly one person: whoever wrote it. A breakdown, a
+ * customer dispute, a damaged load: recorded, and invisible to the depot that had to act.
+ *
+ * They belong beside the depot's own incident inbox rather than inside it: this is a
+ * different table with a different owner, and a courier's report has no resolve workflow.
+ * The names come from the dispatch roster the console already reads — a raw driver uuid on
+ * screen would be a second way of saying nothing.
+ */
+function CourierFieldIncidents({ depotId }: { depotId: string }) {
+  const { t } = useT();
+  const incidents = useAsync<FieldIncident[]>(
+    () => api.get<FieldIncident[]>(endpoints.deliveries.incidents.forDepot(depotId), true),
+    [depotId],
+  );
+  // The same roster dispatch uses. It is a name lookup, so its failure is not the list's:
+  // an incident with an unresolved courier still reads, it just says less.
+  const drivers = useAsync<Customer[]>(
+    () => api.get<Customer[]>(endpoints.auth.driversAt(depotId), true),
+    [depotId],
+  );
+  const nameOf = (driverId: string) =>
+    drivers.data?.find((d) => d.id === driverId)?.fullName ?? t('dashB.incidents.courierUnknown');
+
+  const rows = incidents.data ?? [];
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <h3 className="font-bold">{t('dashB.incidents.fieldTitle')}</h3>
+      <p className="text-sm text-muted">{t('dashB.incidents.fieldSubtitle')}</p>
+      {incidents.loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : incidents.error ? (
+        <ErrorState message={incidents.error} onRetry={incidents.reload} />
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted">{t('dashB.incidents.fieldEmpty')}</p>
+      ) : (
+        <ul className="divide-y divide-[color:var(--border)]">
+          {rows.map((i) => (
+            <li key={i.id} className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {t(`dashB.incidents.courierCategory.${i.category}`)} · {nameOf(i.driverId)}
+                </p>
+                <p className="text-sm text-muted">{i.description}</p>
+                <p className="text-xs text-muted">{formatDateTime(i.createdAt)}</p>
+                {/* CA-4-49: an expiring link the server minted for this read. The stored
+                    value is the object's id, and the bucket is private — a reviewer gets a
+                    fresh link, never one that keeps working. */}
+                {i.photoUrl && (
+                  <ExternalLink
+                    href={i.photoUrl}
+                    className="text-sm font-semibold text-brand-700 hover:underline"
+                  >
+                    {t('dashB.incidents.fieldPhoto')}
+                  </ExternalLink>
+                )}
+              </div>
+              <Badge tone={SEVERITY_BADGE[i.severity]}>
+                {t(`dashB.incidents.severity.${i.severity}`)}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function IncidentsBody() {
   const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
@@ -403,6 +483,8 @@ function IncidentsBody() {
           ))}
         </div>
       )}
+
+      {scopedId && <CourierFieldIncidents depotId={scopedId} />}
     </div>
   );
 }

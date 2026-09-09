@@ -73,14 +73,27 @@ export default function HqOrdersPage() {
   const depots = useAsync<Page<Depot>>(() => api.get(endpoints.depots.browse({ limit: 100 })));
   const items = list.rows;
 
-  async function assign(orderId: string, depotId: string) {
+  /*
+   * CA-2-56: the same picker serves both acts, and the row decides which.
+   *
+   * An order with no depot is an ASSIGNMENT — filling a blank. One that already has a depot
+   * is a MOVE, which releases the old depot's stock hold and takes a new one, so it goes to
+   * its own route. Before this there was no move at all: an order routed to the wrong depot
+   * stayed there, and the only ways out were to cancel it or let the wrong depot deliver.
+   */
+  async function route(order: Order, depotId: string) {
     if (!depotId) return;
-    setAssigning(orderId);
+    setAssigning(order.id);
     setAssignError(null);
     try {
-      await api.patch(endpoints.orders.assignDepot(orderId), { depotId }, true);
+      const url = order.depotId
+        ? endpoints.orders.moveDepot(order.id)
+        : endpoints.orders.assignDepot(order.id);
+      await api.patch(url, { depotId }, true);
       list.reload();
     } catch (e) {
+      // The server's own sentence is the useful one: a shortfall at the new depot, or a
+      // status too late to move, both say exactly what to do instead.
       setAssignError(e instanceof Error ? e.message : t('common.error'));
     } finally {
       setAssigning(null);
@@ -124,7 +137,7 @@ export default function HqOrdersPage() {
                 <th className="px-4 py-3 font-medium">{t('hq.orders.customer')}</th>
                 <th className="px-4 py-3 font-medium">{t('hq.orders.status')}</th>
                 <th className="px-4 py-3 text-right font-medium">{t('hq.orders.total')}</th>
-                {tray && <th className="px-4 py-3 font-medium">{t('hq.orders.assign')}</th>}
+                <th className="px-4 py-3 font-medium">{t('hq.orders.assign')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--border)]">
@@ -162,27 +175,27 @@ export default function HqOrdersPage() {
                   <td className="px-4 py-3 text-right">
                     <Money amount={o.total} className="font-medium" />
                   </td>
-                  {tray && (
-                    // Row click navigates, so the assign control stops the bubble itself.
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        aria-label={t('hq.orders.assign')}
-                        disabled={assigning === o.id}
-                        defaultValue=""
-                        onChange={(e) => assign(o.id, e.target.value)}
-                        className="rounded-lg border border-app bg-transparent px-2 py-1 text-xs"
-                      >
-                        <option value="">{t('hq.orders.assignPlaceholder')}</option>
-                        {(depots.data?.items ?? []).map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name} · {d.city}
-                          </option>
-                        ))}
-                      </select>
-                      {/* An empty picker looks like a network with no depot to assign to. */}
-                      {depots.error && <LoadError onRetry={depots.reload} />}
-                    </td>
-                  )}
+                  {/* Row click navigates, so the routing control stops the bubble itself. */}
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      aria-label={o.depotId ? t('hq.orders.move') : t('hq.orders.assign')}
+                      disabled={assigning === o.id}
+                      value={o.depotId ?? ''}
+                      onChange={(e) => route(o, e.target.value)}
+                      className="rounded-lg border border-app bg-transparent px-2 py-1 text-xs"
+                    >
+                      <option value="">
+                        {o.depotId ? t('hq.orders.moveePlaceholder') : t('hq.orders.assignPlaceholder')}
+                      </option>
+                      {(depots.data?.items ?? []).map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} · {d.city}
+                        </option>
+                      ))}
+                    </select>
+                    {/* An empty picker looks like a network with no depot to assign to. */}
+                    {depots.error && <LoadError onRetry={depots.reload} />}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -163,15 +163,20 @@ export class EmployeePrismaRepository implements EmployeeRepository {
   async findConflicting(keys: {
     employeeCode?: string;
     nik?: string;
-    phone: string;
+    phone?: string;
+    excludeId?: string;
   }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
-    const or: Prisma.EmployeeWhereInput[] = [{ phone: keys.phone }];
+    // CA-1-48: an edit asks about the fields it is CHANGING, so each key is optional now.
+    // Nothing to ask about is nothing to refuse.
+    const or: Prisma.EmployeeWhereInput[] = [];
+    if (keys.phone) or.push({ phone: keys.phone });
     if (keys.employeeCode) or.push({ employeeCode: keys.employeeCode });
     if (keys.nik) or.push({ nik: keys.nik });
+    if (or.length === 0) return null;
     // Only the three columns are selected — the caller wants a verdict, not a person, and
     // an employee row carries salary and NIK it has no business loading for a check.
     const hit = await this.prisma.employee.findFirst({
-      where: { OR: or },
+      where: keys.excludeId ? { OR: or, NOT: { id: keys.excludeId } } : { OR: or },
       select: { employeeCode: true, nik: true, phone: true },
     });
     if (!hit) return null;

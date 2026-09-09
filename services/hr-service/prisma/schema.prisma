@@ -176,6 +176,10 @@ enum EmployeeDocumentType {
   CONTRACT
   NPWP
   CERTIFICATE
+  /// CA-1-47: driving licence. Every courier needs one, it is the one document here that
+  /// legally expires, and without a type of its own it was filed as OTHER — indistinguishable
+  /// from a scanned diploma, so an expiry nobody could search for.
+  SIM
   OTHER
 }
 

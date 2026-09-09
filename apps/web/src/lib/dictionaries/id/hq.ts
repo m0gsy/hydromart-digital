@@ -853,6 +853,8 @@ export const hq = {
     emptyUnrouted: 'Tidak ada pesanan tanpa depot.',
     assign: 'Tugaskan depot',
     assignPlaceholder: 'Pilih depot…',
+    move: 'Pindahkan depot',
+    moveePlaceholder: 'Pindahkan ke depot lain…',
   },
   notifications: {
     title: 'Notifikasi',

@@ -3,7 +3,10 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { CommissionController } from '../../src/modules/commission.controller';
-import { DriverIncidentController } from '../../src/modules/driver-incident.controller';
+import {
+  DriverIncidentController,
+  FieldIncidentController,
+} from '../../src/modules/driver-incident.controller';
 import { DriverPerformanceController } from '../../src/modules/driver-performance.controller';
 import { DriverDeliveryController } from '../../src/modules/driver-delivery.controller';
 import { DriverSettlementController } from '../../src/modules/driver-settlement.controller';
@@ -75,8 +78,13 @@ describe('DriverIncidentController', () => {
   const incidents = {
     report: jest.fn().mockResolvedValue(record),
     listForDriver: jest.fn().mockResolvedValue([record]),
+    listForDepot: jest.fn().mockResolvedValue([record]),
+    // CA-4-49: the bucket is private, so what reaches a screen is an expiring link minted
+    // per read — never the stored key string.
+    signedPhotoUrl: jest.fn().mockResolvedValue('https://cdn.example.com/pod/x.jpg?sig=abc'),
   };
   const controller = new DriverIncidentController(incidents as never);
+  const depotController = new FieldIncidentController(incidents as never);
 
   it('reports an incident and maps it to the DTO', async () => {
     const dto = {
@@ -87,6 +95,20 @@ describe('DriverIncidentController', () => {
     const out = await controller.report(user, dto as never);
     expect(incidents.report).toHaveBeenCalledWith(user.sub, dto);
     expect(out).toMatchObject({ id, category: IncidentCategory.ACCIDENT });
+    // CA-4-49: whatever the row stores, the DTO carries the signed link.
+    expect(out.photoUrl).toBe('https://cdn.example.com/pod/x.jpg?sig=abc');
+  });
+
+  // CA-4-48: the depot's review list — the same records, read by whoever has to act.
+  it("lists a depot's field incidents, passing the depot the caller named", async () => {
+    const out = await depotController.list(user, { depotId: 'dep-9' } as never);
+    expect(incidents.listForDepot).toHaveBeenCalledWith(user, 'dep-9');
+    expect(out[0].id).toBe(id);
+  });
+
+  it('lets the caller omit the depot and be scoped by their own token', async () => {
+    await depotController.list(user, {} as never);
+    expect(incidents.listForDepot).toHaveBeenLastCalledWith(user, undefined);
   });
 
   it("lists the driver's own incidents mapped to DTOs", async () => {
@@ -144,6 +166,31 @@ describe('RetentionController', () => {
     );
     // `deleted` is what the purge engine reads; `purged` keeps the original shape.
     expect(out).toEqual({ purged: 3, deleted: 3 });
+  });
+
+  /*
+   * CA-4-49, step 3 — a link for a photo this service stores and payout-service must show.
+   *
+   * The receipt is in THIS bucket and only this service holds its credentials; the bucket
+   * is private, so the URL payout-service stores opens nothing. It signs nothing it does
+   * not own: the service refuses a URL whose key is not a `pod/` object, and that refusal
+   * travels as a null rather than an error.
+   */
+  it('signs a stored photo url for a peer service, and passes a refusal through as null', async () => {
+    const deliveries = {
+      signedPhotoUrl: jest
+        .fn()
+        .mockResolvedValueOnce('https://signed/pod/a.jpg?ttl=900')
+        .mockResolvedValueOnce(null),
+    };
+    const controller = new RetentionController(deliveries as never);
+
+    await expect(
+      controller.photoLink({ url: 'https://cdn.example.com/pod/a.jpg' } as never),
+    ).resolves.toEqual({ url: 'https://signed/pod/a.jpg?ttl=900' });
+    await expect(
+      controller.photoLink({ url: 'https://elsewhere.example/x.jpg' } as never),
+    ).resolves.toEqual({ url: null });
   });
 
   /*

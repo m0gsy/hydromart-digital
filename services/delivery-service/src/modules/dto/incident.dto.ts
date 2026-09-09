@@ -14,6 +14,14 @@ import {
 import { IncidentCategory, IncidentSeverity } from '../../domain/incident';
 import { IncidentRecord } from '../../application/ports/incident.repository';
 
+/** CA-4-48: the depot whose couriers' incidents to list. Omitted = the caller's own scope. */
+export class ListDepotIncidentsDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
 export class ReportIncidentDto {
   @ApiProperty({ enum: IncidentCategory })
   @IsEnum(IncidentCategory)
@@ -61,6 +69,12 @@ export class ReportIncidentDto {
 export class IncidentDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
+  /**
+   * CA-4-48: WHO reported it. The courier's own history left this out because they know
+   * who they are; the depot's review list is exactly the reader who does not.
+   */
+  @ApiProperty({ format: 'uuid' })
+  driverId!: string;
   @ApiProperty({ nullable: true, format: 'uuid' })
   deliveryId!: string | null;
   @ApiProperty({ enum: IncidentCategory })
@@ -69,19 +83,26 @@ export class IncidentDto {
   severity!: IncidentSeverity;
   @ApiProperty()
   description!: string;
+  /**
+   * CA-4-49: an EXPIRING link, minted per read, or null when there is nothing to show.
+   * Never the stored `${STORAGE_PUBLIC_BASE_URL}/<key>` string — the bucket is private, so
+   * that string opens nothing, and on any deployment where it still does it opens for
+   * everybody, forever.
+   */
   @ApiProperty({ nullable: true })
   photoUrl!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
-  static from(record: IncidentRecord): IncidentDto {
+  static from(record: IncidentRecord, photoUrl: string | null = null): IncidentDto {
     return {
       id: record.id,
+      driverId: record.driverId,
       deliveryId: record.deliveryId,
       category: record.category,
       severity: record.severity,
       description: record.description,
-      photoUrl: record.photoUrl,
+      photoUrl,
       createdAt: record.createdAt,
     };
   }

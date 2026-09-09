@@ -35,6 +35,10 @@ enum StockMovementType {
   ADJUSTMENT
   OPNAME
   SALE
+  /// CA-2-54: stock leaving this depot for another one. Written when the sender dispatches.
+  TRANSFER_OUT
+  /// CA-2-54: stock arriving from another depot. Written when the receiver confirms it.
+  TRANSFER_IN
 }
 
 /// Lifecycle of a per-order stock hold (reserve at checkout -> release on cancel / consume on completion).
@@ -96,6 +100,10 @@ model Depot {
   incidents              Incident[]
   suppliers              Supplier[]
   purchaseOrders         PurchaseOrder[]
+  // CA-2-54: two sides of the same table, so a depot can list what it sent and what is
+  // still on its way in.
+  transfersSent          StockTransfer[] @relation("TransfersSent")
+  transfersReceived      StockTransfer[] @relation("TransfersReceived")
   approvals              Approval[]
   shiftAssignments       ShiftAssignment[]
   depotTargets           DepotTarget[]
@@ -475,6 +483,59 @@ model Supplier {
 /// { itemType, label, quantity, unitCostIdr }. Receiving a SENT PO posts a RECEIPT stock
 /// movement per line into the depot's inventory. supplierName is a denormalized snapshot
 /// so list/detail render without a supplier join.
+/// CA-2-54: where a transfer is between leaving one depot and arriving at another.
+enum StockTransferStatus {
+  /// Dispatched: the sender's stock is already gone, the receiver's has not arrived.
+  SENT
+  /// The receiver confirmed the count. Both books are settled.
+  RECEIVED
+  /// Never arrived and was returned to the sender. Its stock is back where it started.
+  CANCELLED
+}
+
+/// CA-2-54 — stock moving between two depots.
+///
+/// The only way stock could enter a depot was a purchase order to a supplier. A depot with
+/// four spare gallons and one two streets away that had run out could do nothing about it:
+/// the transfer that everyone does in practice, on a motorbike, had no record at all, so it
+/// showed up as a shortfall in one book and an unexplained surplus in the other.
+///
+/// Two steps, not one, because a transfer is not instantaneous: the goods spend real time on
+/// a bike. SENT deducts the sender immediately (they no longer have it) and RECEIVED credits
+/// the receiver only when somebody there has counted it. What is in between is visible as
+/// exactly that — in transit — instead of being invisible in both books at once.
+model StockTransfer {
+  id             String              @id @default(uuid()) @db.Uuid
+  /// Human-facing reference, unique network-wide, e.g. "TRF-260909-0001".
+  reference      String              @unique
+  fromDepotId    String              @db.Uuid
+  fromDepot      Depot               @relation("TransfersSent", fields: [fromDepotId], references: [id], onDelete: Restrict)
+  toDepotId      String              @db.Uuid
+  toDepot        Depot               @relation("TransfersReceived", fields: [toDepotId], references: [id], onDelete: Restrict)
+  /// The catalog product moved. A transfer carries ONE product; two products are two
+  /// transfers, because they are counted, loaded and received separately.
+  productId      String              @db.Uuid
+  /// Copied from the sending line so the record still reads after a product is renamed.
+  label          String
+  unit           String
+  quantity       Int
+  status         StockTransferStatus @default(SENT)
+  note           String?
+  sentBy         String              @db.Uuid
+  sentAt         DateTime            @default(now())
+  /// Who confirmed the count at the far end, and when. Null until it lands.
+  receivedBy     String?             @db.Uuid
+  receivedAt     DateTime?
+  /// Why it came back, when it did.
+  cancelReason   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([toDepotId, status, sentAt])
+  @@index([fromDepotId, status, sentAt])
+  @@map("stock_transfers")
+}
+
 model PurchaseOrder {
   id           String    @id @default(uuid()) @db.Uuid
   depotId      String    @db.Uuid

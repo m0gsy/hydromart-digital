@@ -18,6 +18,10 @@ export enum StockMovementType {
   RECEIPT = 'RECEIPT',
   ADJUSTMENT = 'ADJUSTMENT',
   OPNAME = 'OPNAME',
+  /** CA-2-54: stock leaving for another depot, written when the sender dispatches. */
+  TRANSFER_OUT = 'TRANSFER_OUT',
+  /** CA-2-54: stock arriving from another depot, written when the receiver counts it. */
+  TRANSFER_IN = 'TRANSFER_IN',
   SALE = 'SALE',
 }
 

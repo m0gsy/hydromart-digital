@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
+import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
 import {
   Badge,
@@ -25,6 +26,7 @@ import {
   type HrPage,
   type LeaveRequest,
   type LeaveStatus,
+  type LeaveType,
 } from '@/lib/hr';
 import { can, canManageHr } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
@@ -44,6 +46,115 @@ const TONE: Record<LeaveStatus, 'success' | 'neutral' | 'danger' | 'brand'> = {
  * Approval queue. Stage 1 is the depot manager, stage 2 is HR — the row itself says which
  * decision it is waiting for, so one screen serves both.
  */
+/**
+ * CA-1-44 — HR could not file leave for anybody but itself.
+ *
+ * The only way in was `POST /leave`, which resolves the applicant from the session, so an
+ * application could only ever come from the person taking the leave. That excludes the two
+ * groups who need it most: staff whose employee record has no login at all, and the courier
+ * who phones in sick at 5am. HR took that call and had nowhere to write it down, so the day
+ * was entered as an ABSENT correction and the leave ledger never saw it.
+ *
+ * It joins the ordinary queue. Filing is not approving, and who may approve is not a
+ * decision this form is entitled to change.
+ */
+function FileForEmployee({ onFiled }: { onFiled: () => void }) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [employeeId, setEmployeeId] = useState('');
+  const [type, setType] = useState<LeaveType>('SICK');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function file(e: React.FormEvent) {
+    e.preventDefault();
+    if (!employeeId || !startDate || !endDate || !reason.trim()) {
+      toast(t('hrFix.leave.fileFillAll'), 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(
+        endpoints.hr.leaveOnBehalf,
+        { employeeId, type, startDate, endDate, reason: reason.trim() },
+        true,
+      );
+      toast(t('hrFix.leave.filed'));
+      setEmployeeId('');
+      setStartDate('');
+      setEndDate('');
+      setReason('');
+      setOpen(false);
+      onFiled();
+    } catch (e2) {
+      // The server's own sentence is the useful one: an overlapping request, or a quota
+      // that will not stretch, is a fact the person filing has to hear exactly.
+      toast(e2 instanceof ApiError ? e2.message : t('hrFix.leave.fileFailed'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        {t('hrFix.leave.fileForEmployee')}
+      </Button>
+    );
+  }
+  return (
+    <Card className="space-y-3 p-4">
+      <h3 className="font-bold">{t('hrFix.leave.fileForEmployee')}</h3>
+      <form onSubmit={file} className="grid gap-3 sm:grid-cols-2">
+        <EmployeeSelect
+          value={employeeId}
+          onChange={setEmployeeId}
+          label={t('hrFix.leave.fileEmployee')}
+          className="sm:col-span-2"
+        />
+        <label className="text-sm font-medium">
+          {t('hrFix.leave.fileType')}
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as LeaveType)}
+            className="surface-elevated mt-1 w-full rounded-lg border border-app px-3 py-2.5 text-sm"
+          >
+            {(Object.keys(LEAVE_TYPE_LABEL) as LeaveType[]).map((ty) => (
+              <option key={ty} value={ty}>
+                {t(LEAVE_TYPE_LABEL[ty])}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div />
+        <label className="text-sm font-medium">
+          {t('hrFix.leave.fileStart')}
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </label>
+        <label className="text-sm font-medium">
+          {t('hrFix.leave.fileEnd')}
+          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+        <label className="text-sm font-medium sm:col-span-2">
+          {t('hrFix.leave.fileReason')}
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </label>
+        <div className="flex gap-2 sm:col-span-2">
+          <Button type="submit" loading={busy}>
+            {t('hrFix.leave.fileSubmit')}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            {t('hrFix.leave.fileCancel')}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 export default function LeaveQueuePage() {
   const { t } = useT();
   const { customer } = useAuth();
@@ -107,6 +218,8 @@ export default function LeaveQueuePage() {
           ) : undefined
         }
       />
+
+      {isHr && <FileForEmployee onFiled={() => queue.reload()} />}
 
       <div className="flex flex-wrap gap-3">
         <select

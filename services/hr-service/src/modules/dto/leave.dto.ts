@@ -26,6 +26,15 @@ export class SubmitLeaveDto {
   @IsOptional() @IsString() @MaxLength(500) attachmentUrl?: string;
 }
 
+/**
+ * CA-1-44: the same application, filed by HR for somebody else. Separate class rather than
+ * an optional field on `SubmitLeaveDto`, so the self-service route can never be handed an
+ * `employeeId` and quietly file for another person.
+ */
+export class SubmitLeaveForDto extends SubmitLeaveDto {
+  @IsUUID() employeeId!: string;
+}
+
 export class DecideLeaveDto {
   @IsBoolean() approve!: boolean;
   /** Required when rejecting — the employee reads it. */

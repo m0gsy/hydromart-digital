@@ -18,7 +18,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, getBlob } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   ATTENDANCE_STATUS_LABEL,
@@ -29,6 +29,7 @@ import {
   type AttendanceStatus,
   type HrPage,
 } from '@/lib/hr';
+import { downloadBlob } from '@/lib/csv';
 import { canManageHr } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
 import { useAsync } from '@/lib/use-async';
@@ -115,7 +116,8 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
       </div>
       {list.rows.map((a) => (
-        <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+        <div key={a.id} className="p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
           {/* CA-1-01: whose day this is. Approving an attendance row without it is a
               decision taken about a person nobody named. */}
           <span className="min-w-0 flex-1 truncate font-semibold">
@@ -134,6 +136,9 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
             </Button>
             <Button onClick={() => decide(a, 'APPROVE')}>{t('hrFix.attendance.approve')}</Button>
           </div>
+          </div>
+          {/* The evidence the decision is about, on the screen that takes it. */}
+          <PunchProof attendance={a} />
         </div>
       ))}
       <ListFooter
@@ -144,6 +149,53 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
         loading={loading}
       />
     </Card>
+  );
+}
+
+/**
+ * CA-1-66 — the face check-in nobody could look at.
+ *
+ * Every face punch stores a frame and a match score, and neither ever reached a screen. HR
+ * approving a pending punch, or correcting a day, decided on evidence it was not shown: the
+ * selfie sat in the bucket and the score sat in a column. A low-but-passing match is exactly
+ * the row worth a human look, and it was indistinguishable from a perfect one.
+ *
+ * The frame comes through the API with the session attached, never as a bucket URL.
+ */
+function PunchProof({ attendance }: { attendance: Attendance }) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const shots: { which: 'in' | 'out'; score: number | null; at: string | null }[] = [
+    { which: 'in', score: attendance.checkInScore, at: attendance.checkInAt },
+    { which: 'out', score: attendance.checkOutScore, at: attendance.checkOutAt },
+  ];
+  const shown = shots.filter((s) => s.score !== null);
+  if (shown.length === 0) return null;
+
+  async function open(which: 'in' | 'out') {
+    try {
+      const blob = await getBlob(endpoints.hr.attendancePhoto(attendance.id, which));
+      downloadBlob(`absensi-${attendance.workDate}-${which}`, blob);
+    } catch (e) {
+      // A manual entry, or a row written against an older bucket, has no frame to show.
+      toast(e instanceof ApiError ? e.message : t('hrFix.attendance.photoFailed'), 'error');
+    }
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+      {shown.map((s) => (
+        <button
+          key={s.which}
+          type="button"
+          onClick={() => void open(s.which)}
+          className="rounded-lg border border-app px-2 py-1 font-medium hover:underline"
+        >
+          {s.which === 'in' ? t('hrFix.attendance.photoIn') : t('hrFix.attendance.photoOut')} ·{' '}
+          {t('hrFix.attendance.matchScore', { score: Math.round((s.score ?? 0) * 100) })}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -333,6 +385,7 @@ function AttendanceInner() {
                 exists to answer "why does this payslip say that" could only be reached by
                 opening the database. Only for HR, and only on demand: a row nobody has
                 questioned does not need its history fetched. */}
+            <PunchProof attendance={a} />
             {isAdmin && <AdjustmentTrail attendanceId={a.id} />}
             </div>
           ))}

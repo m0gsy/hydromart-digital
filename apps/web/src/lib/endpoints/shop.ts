@@ -142,6 +142,12 @@ export const shop = {
     manageGet: (id: string) => `/orders/api/v1/orders/manage/${id}`,
     // PATCH { depotId } — fills in the depot of an order that has none.
     assignDepot: (id: string) => `/orders/api/v1/orders/manage/${id}/depot`,
+    /**
+     * CA-2-56: MOVE an order already routed to the wrong depot. Its own route because it is
+     * its own act — it releases one depot's stock hold and takes another's, and it refuses
+     * once a courier is attached.
+     */
+    moveDepot: (id: string) => `/orders/api/v1/orders/manage/${id}/depot/move`,
   },
 
   // Recurring galon subscriptions (order-service, spec 7b).

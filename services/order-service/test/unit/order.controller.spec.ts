@@ -40,6 +40,7 @@ function makeService(): Mocked {
     listAll: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     getAny: jest.fn().mockResolvedValue({ id: 'o1', depotId: 'd1', total: 42000 }),
     assignDepot: jest.fn().mockResolvedValue({ id: 'order-1', depotId: 'depot-a' }),
+    rerouteDepot: jest.fn().mockResolvedValue({ id: 'order-1', depotId: 'depot-b' }),
     listCompletedPage: jest.fn(),
     sumDepotSales: jest.fn().mockResolvedValue(150000),
     depotCustomerAggregates: jest.fn(),
@@ -328,6 +329,14 @@ describe('OrderController', () => {
     await expect(
       controller.listManaged(manager, { unrouted: true, limit: 10 } as never),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // CA-2-56: a separate route from the assignment — filling a blank and moving a live order
+  // are different acts, and one of them touches two depots' stock.
+  it('rerouteDepot: hands the order, the NEW depot and the bearer to the service', async () => {
+    await controller.rerouteDepot('order-1', { depotId: 'depot-b' }, admin, 'Bearer tok');
+    // The caller travels too: the move is scoped to the depot the order is LEAVING.
+    expect(service.rerouteDepot).toHaveBeenCalledWith(admin, 'order-1', 'depot-b', 'Bearer tok');
   });
 
   it('assignDepot: hands the order, depot and bearer to the service', async () => {

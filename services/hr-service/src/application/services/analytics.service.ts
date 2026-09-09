@@ -7,6 +7,8 @@ import { CsvCell, toCsv } from '../../domain/csv';
 import {
   ANALYTICS_REPOSITORY,
   AnalyticsRepository,
+  EndingEmployment,
+  ExpiringDocument,
   GroupCount,
 } from '../ports/analytics.repository';
 
@@ -14,6 +16,9 @@ export interface ReportData {
   headers: string[];
   rows: CsvCell[][];
 }
+
+/** CA-1-47: how far ahead the dashboard warns about a document that stops being valid. */
+export const DOCUMENT_EXPIRY_WARNING_DAYS = 30;
 
 const dec = (d: Prisma.Decimal | null): number => (d ? d.toNumber() : 0);
 // tz-ok: only ever applied to @db.Date columns (joinDate, workDate, effectiveDate…), which
@@ -37,6 +42,18 @@ export interface HrDashboard {
     };
     byStatus: GroupCount[];
   };
+  /**
+   * CA-1-47: documents that have expired, or expire within 30 days. Rides on the payload
+   * the dashboard already fetches — nothing new to fail, and the one screen HR opens every
+   * morning is where a lapsed licence has to appear if it is to be seen at all.
+   */
+  documentsExpiring: ExpiringDocument[];
+  /**
+   * CA-1-43: fixed-term contracts and probations that have run out, or run out within 30
+   * days. Same payload and same window as the documents above — an HR officer plans a
+   * renewal and a document reissue in the same sitting.
+   */
+  employmentsEnding: EndingEmployment[];
 }
 
 /** Compact per-depot HR summary for the owner franchise dashboard (Fase 5). */
@@ -71,14 +88,28 @@ export class AnalyticsService {
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
 
-    const [byStatus, byEmploymentStatus, attendanceToday, payrollTotals, payrollByStatus] =
-      await Promise.all([
-        this.repo.headcountByStatus(depotIds),
-        this.repo.headcountByEmploymentStatus(depotIds),
-        this.repo.attendanceByStatus(workDateUtc, depotIds),
-        this.repo.payrollTotals(periodMonth, depotIds),
-        this.repo.payrollByStatus(periodMonth, depotIds),
-      ]);
+    // CA-1-47 and CA-1-43: 30 days is a renewal window, not a deadline — a SIM or a contract takes
+    // longer than a week to replace, and anything already past its date is included.
+    const expiryCutoff = new Date(workDateUtc);
+    expiryCutoff.setUTCDate(expiryCutoff.getUTCDate() + DOCUMENT_EXPIRY_WARNING_DAYS);
+
+    const [
+      byStatus,
+      byEmploymentStatus,
+      attendanceToday,
+      payrollTotals,
+      payrollByStatus,
+      documentsExpiring,
+      employmentsEnding,
+    ] = await Promise.all([
+      this.repo.headcountByStatus(depotIds),
+      this.repo.headcountByEmploymentStatus(depotIds),
+      this.repo.attendanceByStatus(workDateUtc, depotIds),
+      this.repo.payrollTotals(periodMonth, depotIds),
+      this.repo.payrollByStatus(periodMonth, depotIds),
+      this.repo.expiringDocuments(expiryCutoff, depotIds),
+      this.repo.endingEmployments(expiryCutoff, depotIds),
+    ]);
 
     return {
       depotId: depotIds && depotIds.length === 1 ? depotIds[0] : null,
@@ -106,6 +137,8 @@ export class AnalyticsService {
       },
       attendanceToday,
       payroll: { totals: payrollTotals, byStatus: payrollByStatus },
+      documentsExpiring,
+      employmentsEnding,
     };
   }
 
@@ -181,6 +214,28 @@ export class AnalyticsService {
   async employeeReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
     const depotIds = depotScopeIds(user, depotIdParam);
     const rows = await this.repo.employeesForReport(depotIds);
+    /*
+     * CA-1-62. This answered 11 of the import template's 29 columns. An HR officer who
+     * exported the directory, edited it in Excel and imported it back lost the other 18 —
+     * NIK, NPWP, both BPJS numbers, the bank account, PTKP status, the contract dates, the
+     * emergency contact. That is an employee's entire payroll and tax identity, and the
+     * screen offered the round trip as if it were lossless.
+     *
+     * The two labels a human reads — department code and shift name — are resolved rather
+     * than joined: `departmentId` and `shiftId` are plain uuid columns with no Prisma
+     * relation. `supervisorCode` needs no query at all; the supervisor is another row in
+     * this same result set.
+     *
+     * `depotCode` is the ONE template column still missing, and deliberately: depot codes
+     * live in depot-service, and a report must not gain a new way to fail. The export is
+     * depot-scoped, so the value is constant and known to whoever ran it. Recorded on the
+     * row rather than papered over.
+     */
+    const [departmentCodes, shiftNames] = await Promise.all([
+      this.repo.departmentCodesByIds(rows.map((e) => e.departmentId).filter((v): v is string => !!v)),
+      this.repo.shiftNamesByIds(rows.map((e) => e.shiftId).filter((v): v is string => !!v)),
+    ]);
+    const codeById = new Map(rows.map((e) => [e.id, e.employeeCode]));
     return {
       headers: [
         'employeeCode',
@@ -188,12 +243,30 @@ export class AnalyticsService {
         'phone',
         'email',
         'position',
+        'departmentCode',
+        'role',
         'employmentStatus',
         'salaryType',
         'dailyRate',
         'monthlyRate',
         'status',
         'joinDate',
+        'contractEndDate',
+        'exitDate',
+        'supervisorCode',
+        'shiftName',
+        'nik',
+        'birthDate',
+        'gender',
+        'address',
+        'ptkpStatus',
+        'npwp',
+        'bpjsKes',
+        'bpjsTk',
+        'bankName',
+        'bankAccount',
+        'emergencyName',
+        'emergencyPhone',
       ],
       rows: rows.map((e) => [
         e.employeeCode,
@@ -201,12 +274,30 @@ export class AnalyticsService {
         e.phone,
         e.email,
         e.position,
+        (e.departmentId && departmentCodes.get(e.departmentId)) ?? '',
+        e.role,
         e.employmentStatus,
         e.salaryType,
         dec(e.dailyRate),
         dec(e.monthlyRate),
         e.status,
         isoDate(e.joinDate),
+        isoDate(e.contractEndDate),
+        isoDate(e.exitDate),
+        (e.supervisorId && codeById.get(e.supervisorId)) ?? '',
+        (e.shiftId && shiftNames.get(e.shiftId)) ?? '',
+        e.nik ?? '',
+        isoDate(e.birthDate),
+        e.gender ?? '',
+        e.address ?? '',
+        e.ptkpStatus ?? '',
+        e.npwp ?? '',
+        e.bpjsKes ?? '',
+        e.bpjsTk ?? '',
+        e.bankName ?? '',
+        e.bankAccount ?? '',
+        e.emergencyName ?? '',
+        e.emergencyPhone ?? '',
       ]),
     };
   }

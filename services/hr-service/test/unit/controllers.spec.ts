@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ServiceUnavailableException,
+  StreamableFile,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 import type { Response } from 'express';
@@ -149,8 +150,32 @@ describe('AttendanceController', () => {
     'createManual',
     'adjust',
     'decide',
+    'photo',
   ]);
   const c = new AttendanceController(att as never);
+
+  /*
+   * CA-1-66: the frame a punch was accepted on. `which` comes off the path as a bare
+   * string, so the two words the service understands are checked here rather than trusted.
+   */
+  it('photo streams the frame with its own content type, and never caches it', async () => {
+    att.photo.mockResolvedValue({ body: Buffer.from('jpeg'), contentType: 'image/webp' });
+    const res = fakeRes();
+    const out = await c.photo('a1', 'in', user, res);
+    expect(att.photo.mock.calls[0].slice(0, 3)).toEqual([user, 'a1', 'in']);
+    expect(res.headers['Content-Type']).toBe('image/webp');
+    expect(res.headers['Content-Disposition']).toContain('absensi-in');
+    expect(out).toBeInstanceOf(StreamableFile);
+  });
+
+  it('photo refuses a path segment that is neither in nor out', async () => {
+    att.photo.mockClear();
+    const res = fakeRes();
+    await expect(c.photo('a1', 'sideways', user, res)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(att.photo).not.toHaveBeenCalled();
+  });
 
   it('check-in decodes the frame and forwards a punch', () => {
     const dto = { image: b64, lat: 1, lng: 2 } as never;
@@ -258,6 +283,7 @@ describe('HolidayController / ShiftController', () => {
       'decideManager',
       'decideHr',
       'importBalances',
+      'submitFor',
     ]);
     const self = new SelfLeaveController(leave as never);
     const queue = new LeaveController(leave as never);
@@ -279,6 +305,12 @@ describe('HolidayController / ShiftController', () => {
     expect(leave.decideManager).toHaveBeenCalledWith(user, 'lv1', true, undefined);
     queue.hr('lv1', { approve: false, note: 'kurang bukti' } as never, user);
     expect(leave.decideHr).toHaveBeenCalledWith(user, 'lv1', false, 'kurang bukti');
+
+    // CA-1-44: the employeeId travels as a field of the body, and the rest of the body IS
+    // the application — so the service is handed both, not a reshaped copy of one.
+    const onBehalf = { employeeId: 'e9', type: 'SICK', startDate: '2026-07-06' } as never;
+    queue.onBehalf(onBehalf, user);
+    expect(leave.submitFor).toHaveBeenCalledWith(user, 'e9', onBehalf);
 
     const rows = [{ employeeCode: 'HR-0001', year: 2026, quotaDays: 12 }] as never;
     queue.importBalances({ rows } as never, user);

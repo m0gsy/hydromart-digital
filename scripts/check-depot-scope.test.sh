@@ -133,6 +133,36 @@ else
   bad "a service-guarded route was reported — the handler-body reader regressed (rc=$RC): $OUT"
 fi
 
+# --- case 3b: a streaming handler, guarded in the service (CA-1-66) ----------
+# `@Res({ passthrough: true })` opens and closes a brace on its own line, so the body reader
+# ended on the PARAMETER LIST — before the service call — and every file-streaming route
+# read as unguarded no matter what it asserted.
+write_controller <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ApiOkResponse({ description: 'The bytes' })
+  @Can('thingWrite')
+  @Get(':id/file')
+  @Header('Cache-Control', 'no-store, private')
+  @ApiOperation({ summary: 'Download a thing' })
+  async file(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const row = await this.things.guardedInService(id, user);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    return new StreamableFile(row.body);
+  }
+}
+TS
+OUT="$(run)"; RC=$?
+if [ "$RC" = "0" ]; then
+  ok "a streaming handler guarded in its service counts"
+else
+  bad "a file route with @Res was reported despite its service assertion (rc=$RC): $OUT"
+fi
+
 # --- case 4: the parameter is named `:depotId` -------------------------------
 write_controller <<'TS'
 @Controller({ path: 'things', version: '1' })

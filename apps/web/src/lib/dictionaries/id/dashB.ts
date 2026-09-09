@@ -3,6 +3,19 @@
 // Consumed via useT() — mirrors en/dashB.ts (same key shape).
 export const dashB = {
   incidents: {
+    fieldTitle: 'Laporan insiden kurir',
+    fieldSubtitle: 'Dilaporkan kurir dari jalan. Yang HIGH sudah masuk feed ops; sisanya dibaca di sini.',
+    fieldEmpty: 'Belum ada laporan insiden dari kurir depot ini.',
+    courierUnknown: 'Kurir tidak dikenal',
+    fieldPhoto: 'Lihat foto',
+    courierCategory: {
+      ACCIDENT: 'Kecelakaan',
+      VEHICLE_BREAKDOWN: 'Kendaraan mogok',
+      THEFT_OR_THREAT: 'Pencurian / ancaman',
+      CUSTOMER_DISPUTE: 'Selisih dengan pelanggan',
+      PRODUCT_DAMAGE: 'Barang rusak',
+      OTHER: 'Lainnya',
+    },
     reportTitle: "Laporkan insiden",
     titleLabel: "Judul",
     titlePlaceholder: "Ringkas dalam satu kalimat",

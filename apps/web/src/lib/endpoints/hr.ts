@@ -91,6 +91,12 @@ export const hr = {
     // existed and readable from nowhere until now.
     attendanceAdjustments: (id: string) => `/attendance/api/v1/attendance/${id}/adjustments`,
     attendanceDecide: (id: string) => `/attendance/api/v1/attendance/${id}/decide`,
+    /**
+     * CA-1-66: the selfie a punch was accepted on. Behind the session for the same reason
+     * the document route is — a face frame is personal data, not a public object URL.
+     */
+    attendancePhoto: (id: string, which: 'in' | 'out') =>
+      `/attendance/api/v1/attendance/${encodeURIComponent(id)}/photo/${which}`,
     attendanceMe: (q: { from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);
@@ -264,6 +270,11 @@ export const hr = {
       const qs = p.toString();
       return `/leave/api/v1/leave${qs ? `?${qs}` : ''}`;
     },
+    /**
+     * CA-1-44: HR files an application for somebody who cannot file one — a courier who
+     * phoned in sick, or staff whose record has no login at all. It enters the same queue.
+     */
+    leaveOnBehalf: '/leave/api/v1/leave/on-behalf',
     leaveManagerDecision: (id: string) => `/leave/api/v1/leave/${id}/manager-decision`,
     leaveHrDecision: (id: string) => `/leave/api/v1/leave/${id}/hr-decision`,
     employeeDocuments: (employeeId: string) =>

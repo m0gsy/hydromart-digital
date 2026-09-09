@@ -208,6 +208,31 @@ const SKIP_FILE = /\.(test|spec)\.tsx?$/;
  */
 const SKIP_PATH = new Set(['app/global-error.tsx']);
 
+/**
+ * Blank out a template literal's `${…}` holes, braces and all.
+ *
+ * CA-1-23 found the flat version's limit: `\$\{[^{}]*\}` cannot match a hole that itself
+ * contains braces, so `${t('key', { depot: code })}` survived stripping and the whole
+ * expression — a `t()` call — was reported as untranslated copy. Counting depth costs three
+ * lines and gets every nesting right.
+ */
+function stripHoles(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '$' && s[i + 1] === '{') {
+      let depth = 1;
+      i += 2;
+      for (; i < s.length && depth > 0; i++) {
+        if (s[i] === '{') depth++;
+        else if (s[i] === '}') depth--;
+      }
+      i--;
+      out += ' ';
+    } else out += s[i];
+  }
+  return out.trim();
+}
+
 /** Replace comment bodies with spaces, keeping every newline and every offset. */
 function blankComments(src) {
   return src
@@ -374,7 +399,7 @@ for (const file of walk(ROOT)) {
       let s = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
       // A template literal is judged on the prose between its holes, not on the
       // expressions inside them — `${formatDateTime(at)}` is code, "berikutnya" is copy.
-      if (kind === 'template') s = s.replace(/\$\{[^{}]*\}/g, ' ').trim();
+      if (kind === 'template') s = stripHoles(s);
       // A wrapped JSX text node carries the indentation Prettier gave it. Collapse it, or
       // the same string reads differently depending on how deep in the tree it sits — and
       // the baseline could never match it twice running.
@@ -417,10 +442,25 @@ for (const file of walk(ROOT)) {
       if (lines.slice(Math.max(0, line - 5), line).some((l) => /i18n-ok/.test(l))) map.delete(s);
     }
   }
-  // A string that is only ever an argument to t() is already translated.
+  /*
+   * A string that is only ever an argument to t() is already translated.
+   *
+   * CA-2-49: this used to read "the recorded line mentions `t(` and does not contain the
+   * string itself". Both halves are wrong on a MIXED line. A JSX text node's recorded line
+   * is where the match STARTS — the tag above it — so a translated `title=` prop on that
+   * tag suppressed the untranslated sentence in its children, which is exactly the shape
+   * this gate exists to catch:
+   *
+   *     <CenterState title={t('hrFix.expenseClaims.empty')}>
+   *       Belum ada klaim {status.toLowerCase()}.      <- discarded, and real
+   *
+   * Ask the precise question instead: does this string appear anywhere OTHER than inside a
+   * `t(...)` call? If it does, it is copy on screen, whatever else its line says.
+   */
   for (const s of [...hits.keys()]) {
-    if (lines[hits.get(s) - 1]?.includes(`t('`) && !lines[hits.get(s) - 1].includes(s))
-      hits.delete(s);
+    const quoted = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const bare = new RegExp(`(?<!t\\(\\s*['"\`])${quoted}`);
+    if (!bare.test(src)) hits.delete(s);
   }
 
   const file_ = relative(ROOT, file).replace(/\\/g, '/');

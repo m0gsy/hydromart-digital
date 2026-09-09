@@ -41,7 +41,11 @@ function build(over: Partial<AnalyticsRepository> = {}) {
       count: 2,
     }),
     payrollByStatus: async () => [{ key: 'DRAFT', count: 2 }],
+    expiringDocuments: async () => [],
+    endingEmployments: async () => [],
     employeesForReport: async () => [],
+    departmentCodesByIds: async () => new Map<string, string>(),
+    shiftNamesByIds: async () => new Map<string, string>(),
     attendanceForReport: async () => [],
     payrollForReport: async () => [],
     lateForReport: async () => [],
@@ -90,6 +94,70 @@ describe('AnalyticsService.dashboard', () => {
     expect(calls[0].depotId).toBe('d-locked');
   });
 
+  /*
+   * CA-1-47 — the expiry date nobody read. It rides on the dashboard payload rather than a
+   * route of its own: the screen HR opens every morning is the only place a lapsed licence
+   * gets seen, and a card there costs no new way for the page to fail.
+   */
+  it('asks for documents expiring within thirty days of today, and passes the depot scope', async () => {
+    let asked: { cutoff?: Date; depotIds?: readonly string[] } = {};
+    const row = {
+      employeeId: 'e-1',
+      employeeCode: 'HR-0001',
+      fullName: 'Budi',
+      type: 'SIM',
+      expiresAt: '2026-07-02',
+    };
+    const { svc } = build({
+      expiringDocuments: async (cutoff, depotIds) => {
+        asked = { cutoff, depotIds };
+        return [row];
+      },
+    });
+    const d = await svc.dashboard(manager, {});
+
+    expect(d.documentsExpiring).toEqual([row]);
+    expect(asked.depotIds).toEqual(['d-locked']);
+    const days = Math.round(
+      (asked.cutoff!.getTime() - Date.parse(`${d.workDate}T00:00:00.000Z`)) / 86_400_000,
+    );
+    expect(days).toBe(30);
+  });
+
+  /*
+   * CA-1-43 — `contractEndDate` was written on every fixed-term hire and read by nothing.
+   * Deliberately not a status (nobody is expired automatically), which left the date with
+   * no reader at all: a contract that ran out last month looks exactly like one with two
+   * years left, on every screen there is.
+   */
+  it('asks for the employments ending in the same window as the documents', async () => {
+    let asked: Date | undefined;
+    const row = {
+      employeeId: 'e-1',
+      employeeCode: 'HR-0001',
+      fullName: 'Budi',
+      employmentStatus: 'PROBATION',
+      contractEndDate: '2026-07-02',
+    };
+    let docCutoff: Date | undefined;
+    const { svc } = build({
+      expiringDocuments: async (cutoff) => {
+        docCutoff = cutoff;
+        return [];
+      },
+      endingEmployments: async (cutoff, depotIds) => {
+        asked = cutoff;
+        expect(depotIds).toEqual(['d-locked']);
+        return [row];
+      },
+    });
+    const d = await svc.dashboard(manager, {});
+
+    expect(d.employmentsEnding).toEqual([row]);
+    // One window, not two: HR plans a renewal and a document reissue in the same sitting.
+    expect(asked?.getTime()).toBe(docCutoff?.getTime());
+  });
+
   it('rejects a depot-locked role requesting another depot', async () => {
     const { svc } = build();
     await expect(svc.dashboard(manager, { depotId: 'someone-else' })).rejects.toThrow(
@@ -102,11 +170,14 @@ describe('AnalyticsService CSV exports', () => {
   it('emits an employee CSV with a header + one row per employee', async () => {
     const rows = [
       {
+        id: 'e-1',
         employeeCode: 'HR-0001',
         fullName: 'A',
         phone: '08',
         email: null,
         position: 'Kasir',
+        departmentId: 'dep-1',
+        role: 'STAFF_DEPOT',
         employmentStatus: 'PERMANENT',
         salaryType: 'DAILY',
         dailyRate: { toNumber: () => 50000 },
@@ -115,11 +186,19 @@ describe('AnalyticsService CSV exports', () => {
         joinDate: new Date('2026-01-15T00:00:00Z'),
       },
     ] as unknown as Employee[];
-    const { svc } = build({ employeesForReport: async () => rows });
+    const { svc } = build({
+      employeesForReport: async () => rows,
+      departmentCodesByIds: async () => new Map([['dep-1', 'OPS']]),
+    });
     const csv = await svc.csv(await svc.employeeReport(hq));
     const lines = csv.split('\r\n');
     expect(lines[0]).toContain('employeeCode');
-    expect(lines[1]).toBe('HR-0001,A,08,,Kasir,PERMANENT,DAILY,50000,0,ACTIVE,2026-01-15');
+    // CA-1-62: every column the row does not carry still holds its place, so the file an HR
+    // officer edits keeps the shape the importer reads back.
+    expect(lines[1]).toBe(
+      'HR-0001,A,08,,Kasir,OPS,STAFF_DEPOT,PERMANENT,DAILY,50000,0,ACTIVE,2026-01-15' +
+        ','.repeat(16),
+    );
   });
 
   it('emits an attendance CSV joining the employee code + name', async () => {

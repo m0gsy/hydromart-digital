@@ -107,6 +107,20 @@ inventory: {
   movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
   // DELETE — only an empty line that never sold anything; the API refuses the rest.
   remove: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
+  /**
+   * CA-2-54: stock moving between two depots, in two steps. `send` deducts here now;
+   * `receive` credits the far end only when somebody there has counted it.
+   */
+  transfers: (q: { depotId: string; direction: 'in' | 'out'; status?: string }) => {
+    const p = new URLSearchParams({ depotId: q.depotId, direction: q.direction });
+    if (q.status) p.set('status', q.status);
+    return `/depots/api/v1/stock-transfers?${p}`;
+  },
+  sendTransfer: '/depots/api/v1/stock-transfers',
+  receiveTransfer: (id: string) =>
+    `/depots/api/v1/stock-transfers/${encodeURIComponent(id)}/receive`,
+  cancelTransfer: (id: string) =>
+    `/depots/api/v1/stock-transfers/${encodeURIComponent(id)}/cancel`,
   // The orders behind the "dipesan" column (ACTIVE holds, newest first).
   reservations: (itemId: string) => `/depots/api/v1/inventory/${itemId}/reservations`,
   depotMovements: (

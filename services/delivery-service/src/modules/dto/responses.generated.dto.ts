@@ -371,6 +371,12 @@ export class PagedDeliveryResponseDto {
   totalPages!: number;
 }
 
+/** CA-4-49: a time-limited link, or null when there is nothing this deployment can sign. */
+export class PhotoLinkResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  url!: string | null;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class PurgeExpired2ResponseDto {
   @ApiProperty({ type: Number })

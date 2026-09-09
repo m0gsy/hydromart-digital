@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
 
 import { PayoutConfigService } from '../config/payout-config.service';
+import { PhotoLinkHttpAdapter } from '../infrastructure/http/photo-link.http.adapter';
 import { PAYOUT_TOKENS } from '../application/tokens';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { PayoutService } from '../application/services/payout.service';
@@ -51,6 +52,8 @@ const providers: Provider[] = [
     useClass: CourierWithdrawalPrismaRepository,
   },
   { provide: PAYOUT_TOKENS.ExpenseClaimRepository, useClass: ExpenseClaimPrismaRepository },
+  // CA-4-49: delivery-service owns the bucket a receipt lives in; this asks it for a link.
+  { provide: PAYOUT_TOKENS.PhotoLink, useClass: PhotoLinkHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

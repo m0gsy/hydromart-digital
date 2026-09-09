@@ -337,6 +337,49 @@ export class AttendanceService {
     return this.repo.listAdjustments(id);
   }
 
+  /**
+   * CA-1-66 — the selfie the punch was accepted on, and never shown to anybody.
+   *
+   * Every face check-in stores a frame and a match score. HR approving or correcting a
+   * day's attendance saw neither: it decided on a punch it could not look at, while the
+   * photo sat in the bucket. The score is now on the row it belongs to, and the frame comes
+   * back through here.
+   *
+   * The bytes leave through the service for the same reason documents do (SEC-01) — behind
+   * `hrView` and the employee's depot check — and the key is derived from the stored URL
+   * rather than fetched from it: a row whose URL points anywhere but this deployment's own
+   * bucket is a 404, never a request the server makes on a caller's behalf.
+   */
+  async photo(
+    user: AuthenticatedUser,
+    id: string,
+    which: 'in' | 'out',
+  ): Promise<{ body: Buffer; contentType: string }> {
+    const row = await this.repo.findById(id);
+    if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
+    const employee = await this.employees.findById(row.employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    assertDepotAccess(user, employee.depotId);
+
+    const key = this.storageKeyOf(which === 'in' ? row.checkInPhotoUrl : row.checkOutPhotoUrl);
+    if (!key || !this.storage) throw new NotFoundException('Foto absensi tidak tersedia');
+    const object = await this.storage.getObject(key);
+    return { body: object.body, contentType: object.contentType ?? 'image/jpeg' };
+  }
+
+  /**
+   * The object key inside a stored photo URL, or null when the URL is not one this
+   * deployment wrote. Manual entries have no photo at all, and rows written against an
+   * older bucket keep a URL this service can no longer read — both are "no photo", which is
+   * the honest answer, rather than an outbound fetch to whatever the column happens to say.
+   */
+  private storageKeyOf(url: string | null): string | null {
+    const base = this.config.storagePublicBaseUrl;
+    if (!url || !base || !url.startsWith(`${base}/`)) return null;
+    const key = url.slice(base.length + 1);
+    return key.startsWith('hr/') && !key.includes('..') ? key : null;
+  }
+
   async adjust(
     user: AuthenticatedUser,
     id: string,

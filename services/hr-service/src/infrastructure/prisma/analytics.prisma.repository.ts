@@ -6,6 +6,8 @@ import {
   AnalyticsRepository,
   AnnouncementWithStats,
   DepotSummaryFacts,
+  EndingEmployment,
+  ExpiringDocument,
   AssetWithHolder,
   AttendanceWithEmployee,
   GroupCount,
@@ -191,6 +193,98 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
         ...fromCursor(cursor),
       }),
     );
+  }
+
+  /*
+   * CA-1-47. `supersededById: null` because a replaced KTP's old expiry is history, not a
+   * warning, and RESIGNED is excluded because a leaver's lapsed licence is nobody's problem.
+   * Bounded at 20: this rides on the dashboard, and a dashboard card is a prompt to act,
+   * not a register.
+   */
+  async expiringDocuments(
+    cutoff: Date,
+    depotIds?: readonly string[],
+  ): Promise<ExpiringDocument[]> {
+    const rows = await this.prisma.employeeDocument.findMany({
+      where: {
+        supersededById: null,
+        expiresAt: { not: null, lte: cutoff },
+        employee: { depotId: depotWhere(depotIds), status: { not: 'RESIGNED' } },
+      },
+      select: {
+        type: true,
+        expiresAt: true,
+        employee: { select: { id: true, employeeCode: true, fullName: true } },
+      },
+      orderBy: { expiresAt: 'asc' },
+      take: 20,
+    });
+    return rows.map((r) => ({
+      employeeId: r.employee.id,
+      employeeCode: r.employee.employeeCode,
+      fullName: r.employee.fullName,
+      type: r.type,
+      // tz-ok: `expiresAt` is @db.Date, which Prisma reads back as UTC midnight — the slice
+      // IS the local date. Cutting it in the business zone would move it a day backwards.
+      expiresAt: (r.expiresAt as Date).toISOString().slice(0, 10),
+    }));
+  }
+
+  /*
+   * CA-1-43. Same shape as the expiring-documents read, and the same two exclusions: a
+   * leaver's contract end is not a warning, and the list is a prompt to act, not a register.
+   */
+  async endingEmployments(
+    cutoff: Date,
+    depotIds?: readonly string[],
+  ): Promise<EndingEmployment[]> {
+    const rows = await this.prisma.employee.findMany({
+      where: {
+        contractEndDate: { not: null, lte: cutoff },
+        status: { not: 'RESIGNED' },
+        depotId: depotWhere(depotIds),
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        fullName: true,
+        employmentStatus: true,
+        contractEndDate: true,
+      },
+      orderBy: { contractEndDate: 'asc' },
+      take: 20,
+    });
+    return rows.map((r) => ({
+      employeeId: r.id,
+      employeeCode: r.employeeCode,
+      fullName: r.fullName,
+      employmentStatus: r.employmentStatus,
+      // tz-ok: `contractEndDate` is @db.Date — UTC midnight on read, so the slice already
+      // IS the local date, exactly as `isoDate` treats joinDate in the reports beside this.
+      contractEndDate: (r.contractEndDate as Date).toISOString().slice(0, 10),
+    }));
+  }
+
+  // CA-1-62: two id->label lookups for the directory export. Empty in, empty out — no
+  // query at all when a page of employees happens to carry none.
+  async departmentCodesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.prisma.department.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, code: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.code]));
+  }
+
+  async shiftNamesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.prisma.shift.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, name: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.name]));
   }
 
   attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]> {

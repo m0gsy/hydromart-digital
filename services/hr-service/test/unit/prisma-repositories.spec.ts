@@ -964,6 +964,115 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
 
 // ── AnalyticsPrismaRepository ──────────────────────────────────────────
 describe('AnalyticsPrismaRepository', () => {
+  /*
+   * CA-1-43. Same two exclusions as the documents read: a leaver's contract end is not a
+   * warning, and the list is a prompt to act rather than a register.
+   */
+  it('endingEmployments asks only for unfinished contracts of staff who are still here', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-08-01T00:00:00.000Z');
+    m(p, 'employee').findMany.mockResolvedValue([
+      {
+        id: 'e-1',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        employmentStatus: 'PROBATION',
+        contractEndDate: new Date('2026-07-02T00:00:00.000Z'),
+      },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.endingEmployments(cutoff, ['d1'])).resolves.toEqual([
+      {
+        employeeId: 'e-1',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        employmentStatus: 'PROBATION',
+        contractEndDate: '2026-07-02',
+      },
+    ]);
+    const where = m(p, 'employee').findMany.mock.calls[0][0].where;
+    expect(where.contractEndDate).toEqual({ not: null, lte: cutoff });
+    expect(where.status).toEqual({ not: 'RESIGNED' });
+    expect(where.depotId).toEqual({ in: ['d1'] });
+  });
+
+  /*
+   * CA-1-47. A replaced document's old expiry is history, not a warning, and a leaver's
+   * lapsed licence is nobody's problem — so both are filtered out at the query, where the
+   * caller cannot forget them.
+   */
+  it('expiringDocuments asks only for current documents of staff who are still here', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-08-01T00:00:00.000Z');
+    m(p, 'employeeDocument').findMany.mockResolvedValue([
+      {
+        type: 'SIM',
+        expiresAt: new Date('2026-07-02T00:00:00.000Z'),
+        employee: { id: 'e-1', employeeCode: 'HR-0001', fullName: 'Budi' },
+      },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.expiringDocuments(cutoff, ['d1'])).resolves.toEqual([
+      {
+        employeeId: 'e-1',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        type: 'SIM',
+        expiresAt: '2026-07-02',
+      },
+    ]);
+    const where = m(p, 'employeeDocument').findMany.mock.calls[0][0].where;
+    expect(where.supersededById).toBeNull();
+    expect(where.expiresAt).toEqual({ not: null, lte: cutoff });
+    expect(where.employee).toEqual({
+      depotId: { in: ['d1'] },
+      status: { not: 'RESIGNED' },
+    });
+  });
+
+  /*
+   * CA-1-62. Both lookups exist so the directory export can print the code a human typed
+   * instead of the uuid the column stores. Neither has a Prisma relation to ride on.
+   */
+  it('departmentCodesByIds asks once for the distinct ids and returns an id->code map', async () => {
+    const p = makePrisma();
+    m(p, 'department').findMany.mockResolvedValue([
+      { id: 'd1', code: 'OPS' },
+      { id: 'd2', code: 'FIN' },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.departmentCodesByIds(['d1', 'd2', 'd1'])).resolves.toEqual(
+      new Map([
+        ['d1', 'OPS'],
+        ['d2', 'FIN'],
+      ]),
+    );
+    expect(m(p, 'department').findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['d1', 'd2'] } },
+      select: { id: true, code: true },
+    });
+  });
+
+  it('shiftNamesByIds returns an id->name map', async () => {
+    const p = makePrisma();
+    m(p, 'shift').findMany.mockResolvedValue([{ id: 's1', name: 'Pagi' }]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.shiftNamesByIds(['s1'])).resolves.toEqual(new Map([['s1', 'Pagi']]));
+    expect(m(p, 'shift').findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['s1'] } },
+      select: { id: true, name: true },
+    });
+  });
+
+  it('neither lookup queries at all when a page of employees carries no ids', async () => {
+    const p = makePrisma();
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.departmentCodesByIds([])).resolves.toEqual(new Map());
+    await expect(repo.shiftNamesByIds([])).resolves.toEqual(new Map());
+    expect(m(p, 'department').findMany).not.toHaveBeenCalled();
+    expect(m(p, 'shift').findMany).not.toHaveBeenCalled();
+  });
+
   it('headcountByStatus maps groupBy rows', async () => {
     const p = makePrisma();
     m(p, 'employee').groupBy.mockResolvedValue([{ status: 'ACTIVE', _count: { _all: 5 } }]);
@@ -1960,6 +2069,29 @@ describe('EmployeePrismaRepository', () => {
         where: { OR: [{ phone: '+628123' }, { employeeCode: 'HR-1' }, { nik: '3201' }] },
         select: { employeeCode: true, nik: true, phone: true },
       });
+    });
+
+    /*
+     * CA-1-48: an EDIT asks about the fields it is changing, and never about the row it is
+     * editing — re-saving a form without touching the phone must not refuse itself.
+     */
+    it('excludes the row being edited', async () => {
+      const { p, repo } = repoWith(null);
+
+      await repo.findConflicting({ nik: '3201', excludeId: 'e-1' });
+
+      expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ nik: '3201' }], NOT: { id: 'e-1' } },
+        select: { employeeCode: true, nik: true, phone: true },
+      });
+    });
+
+    it('asks nothing at all when an edit changes none of the three', async () => {
+      const { p, repo } = repoWith(null);
+
+      await expect(repo.findConflicting({ excludeId: 'e-1' })).resolves.toBeNull();
+
+      expect(m(p, 'employee').findFirst).not.toHaveBeenCalled();
     });
 
     it('names the most specific collision it can', async () => {

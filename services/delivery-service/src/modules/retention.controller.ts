@@ -4,8 +4,12 @@ import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { DeliveryService } from '../application/services/delivery.service';
-import { PdpAnonymiseDto, PurgeProofsDto } from './dto/retention.dto';
-import { PdpErasedResponseDto, PurgeExpired2ResponseDto } from './dto/responses.generated.dto';
+import { PdpAnonymiseDto, PhotoLinkDto, PurgeProofsDto } from './dto/retention.dto';
+import {
+  PdpErasedResponseDto,
+  PhotoLinkResponseDto,
+  PurgeExpired2ResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * UU PDP retention sweep, driven by admin-service's purge engine.
@@ -54,5 +58,33 @@ export class RetentionController {
   @ApiOperation({ summary: 'Scrub one person from deliveries + proofs (internal, UU PDP)' })
   pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
     return this.deliveries.erasePerson(dto.customerId, dto.phone ?? null);
+  }
+
+  /**
+   * CA-4-49, step 3 — a signed link for a photo this service stores and another service
+   * has to show.
+   *
+   * payout-service holds the URL of a courier's expense receipt, but the receipt lives in
+   * THIS bucket, and only this service has its credentials. Since the bucket became private
+   * that URL opens nothing, so the reviewer approving money sees a dead image where the
+   * proof should be.
+   *
+   * Internal-key only, and it signs nothing it does not own: the key must derive to a
+   * `pod/` object, exactly as the PoD and incident paths require. A caller cannot use it to
+   * mint a link for an arbitrary address.
+   */
+  @ApiOkResponse({ type: PhotoLinkResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('photo-link')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'A time-limited link for one stored photo (internal)',
+    description:
+      'For a peer service that holds the stored URL but not the bucket credentials. Answers null when the URL is not one this deployment wrote.',
+  })
+  async photoLink(@Body() dto: PhotoLinkDto): Promise<{ url: string | null }> {
+    return { url: await this.deliveries.signedPhotoUrl(dto.url) };
   }
 }
