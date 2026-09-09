@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { Employee, LeaveBalance, LeaveRequest, LeaveStatus } from '../../prisma/generated/client';
 import {
@@ -142,6 +142,15 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; j
       if (user.sub !== 'auth-emp') throw new NotFoundException('Akun ini belum tertaut');
       return opts.joinDate ? ({ ...EMPLOYEE, joinDate: opts.joinDate } as Employee) : EMPLOYEE;
     },
+    /*
+     * CA-1-44: the same lookup every other HR write uses — 404 for a stranger, and the
+     * caller held to that employee's depot.
+     */
+    getById: async (user: AuthenticatedUser, id: string) => {
+      if (id !== EMPLOYEE.id) throw new NotFoundException('Karyawan tidak ditemukan');
+      assertDepotAccess(user, EMPLOYEE.depotId);
+      return EMPLOYEE;
+    },
     findByIdInternal: async (id: string) =>
       id === EMPLOYEE.id ? EMPLOYEE : id === SUPERVISOR.id ? SUPERVISOR : null,
     // The reporting line resolves by ACCOUNT now, through depot-service's supervision
@@ -187,6 +196,57 @@ async function approvedRequest(ctx: ReturnType<typeof make>, apply = APPLY) {
   await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
   return ctx.svc.decideHr(hr, req.id, true);
 }
+
+describe('CA-1-44 LeaveService.submitFor — HR files for somebody else', () => {
+  /*
+   * `submit` resolved the applicant with `getSelf`, so an application could only ever come
+   * from the person taking the leave. That leaves out staff whose record has no login at
+   * all, and the courier who phones in sick at 5am: HR took the call and had nowhere to
+   * write it down, so the day was entered as an ABSENT correction and the leave ledger
+   * never saw it.
+   */
+  it('records the application against the employee, not against the HR officer', async () => {
+    const { svc, repo } = make();
+    const req = await svc.submitFor(hr, EMPLOYEE.id, APPLY);
+
+    expect(req).toMatchObject({
+      employeeId: EMPLOYEE.id,
+      depotId: DEPOT_A,
+      workingDays: 5,
+      status: 'PENDING_MANAGER',
+    });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('files into the ordinary queue — filing is not approving', async () => {
+    const { svc, attendanceWrites } = make();
+    const req = await svc.submitFor(hr, EMPLOYEE.id, APPLY);
+    expect(req.status).toBe('PENDING_MANAGER');
+    // Approval is what writes the LEAVE attendance rows. Filing writes none: those days are
+    // not yet leave, and an HR officer filing a form has not decided anything.
+    expect(attendanceWrites).toEqual([]);
+  });
+
+  it('applies every rule the self-service path applies', async () => {
+    const { svc } = make();
+    await svc.submitFor(hr, EMPLOYEE.id, APPLY);
+    // The overlap check reads the EMPLOYEE's other requests, whoever typed them.
+    await expect(svc.submitFor(hr, EMPLOYEE.id, APPLY)).rejects.toThrow(ConflictException);
+    await expect(
+      svc.submitFor(hr, EMPLOYEE.id, { ...APPLY, startDate: '2026-07-10', endDate: '2026-07-06' }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('holds the filer to that employee’s depot', async () => {
+    const { svc } = make();
+    await expect(svc.submitFor(manager(DEPOT_B), EMPLOYEE.id, APPLY)).rejects.toThrow();
+  });
+
+  it('404s an employee who does not exist', async () => {
+    const { svc } = make();
+    await expect(svc.submitFor(hr, 'nobody', APPLY)).rejects.toThrow(NotFoundException);
+  });
+});
 
 describe('LeaveService.submit', () => {
   it('freezes the working days and starts at the manager stage', async () => {

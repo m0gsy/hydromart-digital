@@ -270,6 +270,11 @@ export const hr = {
       const qs = p.toString();
       return `/leave/api/v1/leave${qs ? `?${qs}` : ''}`;
     },
+    /**
+     * CA-1-44: HR files an application for somebody who cannot file one — a courier who
+     * phoned in sick, or staff whose record has no login at all. It enters the same queue.
+     */
+    leaveOnBehalf: '/leave/api/v1/leave/on-behalf',
     leaveManagerDecision: (id: string) => `/leave/api/v1/leave/${id}/manager-decision`,
     leaveHrDecision: (id: string) => `/leave/api/v1/leave/${id}/hr-decision`,
     employeeDocuments: (employeeId: string) =>

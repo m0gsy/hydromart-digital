@@ -283,6 +283,7 @@ describe('HolidayController / ShiftController', () => {
       'decideManager',
       'decideHr',
       'importBalances',
+      'submitFor',
     ]);
     const self = new SelfLeaveController(leave as never);
     const queue = new LeaveController(leave as never);
@@ -304,6 +305,12 @@ describe('HolidayController / ShiftController', () => {
     expect(leave.decideManager).toHaveBeenCalledWith(user, 'lv1', true, undefined);
     queue.hr('lv1', { approve: false, note: 'kurang bukti' } as never, user);
     expect(leave.decideHr).toHaveBeenCalledWith(user, 'lv1', false, 'kurang bukti');
+
+    // CA-1-44: the employeeId travels as a field of the body, and the rest of the body IS
+    // the application — so the service is handed both, not a reshaped copy of one.
+    const onBehalf = { employeeId: 'e9', type: 'SICK', startDate: '2026-07-06' } as never;
+    queue.onBehalf(onBehalf, user);
+    expect(leave.submitFor).toHaveBeenCalledWith(user, 'e9', onBehalf);
 
     const rows = [{ employeeCode: 'HR-0001', year: 2026, quotaDays: 12 }] as never;
     queue.importBalances({ rows } as never, user);

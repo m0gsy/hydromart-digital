@@ -10,6 +10,7 @@ import {
   LeaveBalanceQueryDto,
   ListLeaveDto,
   SubmitLeaveDto,
+  SubmitLeaveForDto,
 } from './dto/leave.dto';
 import { LeaveBalance, LeaveRequest } from '../../prisma/generated/client';
 import { ImportResponseDto, LeaveBalanceResponseDto, LeaveRequestResponseDto } from './dto/responses.generated.dto';
@@ -73,6 +74,23 @@ export class LeaveController {
   })
   importBalances(@Body() dto: ImportLeaveBalancesDto, @CurrentUser() user: AuthenticatedUser): Promise<ImportSummary> {
     return this.leave.importBalances(user, dto.rows);
+  }
+
+  /**
+   * CA-1-44: HR files an application for an employee who cannot file one.
+   *
+   * `hrAdmin`, the capability that already creates and corrects employee records — and NOT
+   * `leaveApprove`: filing is not deciding, and the row enters the ordinary queue.
+   */
+  @ApiOkResponse({ type: LeaveRequestResponseDto })
+  @Post('on-behalf')
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'File a leave application for an employee (enters the normal queue)' })
+  onBehalf(
+    @Body() dto: SubmitLeaveForDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeaveRequest> {
+    return this.leave.submitFor(user, dto.employeeId, dto);
   }
 
   @ApiOkResponse({ type: LeaveRequestResponseDto })
