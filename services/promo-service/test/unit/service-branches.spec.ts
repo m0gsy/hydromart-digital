@@ -56,4 +56,14 @@ describe('PromotionService branch gaps', () => {
   it('remove throws for a missing promotion', async () => {
     await expect(service.remove('missing')).rejects.toBeInstanceOf(PromotionNotFoundError);
   });
+
+  /* CA-2-53 — the same shape on the promotion banner. */
+  it('refuses a promotion save built on a copy that is already out of date', async () => {
+    const created = await service.create(basePromotion());
+    await service.update(created.id, { title: 'Baru' }, created.updatedAt.toISOString());
+
+    await expect(
+      service.update(created.id, { title: 'Lebih baru' }, created.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
 });

@@ -27,8 +27,10 @@ class InMemoryHuddleRepository implements HuddleRepository {
       existing.agenda = data.agenda;
       existing.actionItems = data.actionItems;
       existing.recordedBy = data.recordedBy;
-      existing.updatedAt = now;
-      return existing;
+      // CA-2-53: a monotonic stamp and a COPY back — `new Date()` twice in the same
+      // millisecond, or a live reference, would both hide a stale save from this fake.
+      existing.updatedAt = new Date(existing.updatedAt.getTime() + 1000);
+      return { ...existing };
     }
     const row: HuddleNote = {
       id: randomUUID(),
@@ -43,7 +45,7 @@ class InMemoryHuddleRepository implements HuddleRepository {
       updatedAt: now,
     };
     this.rows.push(row);
-    return row;
+    return { ...row };
   }
 
   async findForWeek(depotId: string, weekStart: string): Promise<HuddleNote | null> {
@@ -158,5 +160,27 @@ describe('HuddleService', () => {
         RECORDER,
       ),
     ).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  /* CA-2-53 — a second manager rewriting the same week used to replace the first's notes. */
+  it('refuses a huddle rewrite built on a copy that is already out of date', async () => {
+    const first = await service.record(
+      { depotId, weekStart: '2026-08-04', agenda: [], actionItems: [] },
+      RECORDER,
+    );
+    const seen = first.updatedAt.toISOString();
+    await service.record(
+      { depotId, weekStart: '2026-08-04', agenda: [{ title: 'A', note: '' }], actionItems: [] },
+      RECORDER,
+      seen,
+    );
+
+    await expect(
+      service.record(
+        { depotId, weekStart: '2026-08-04', agenda: [{ title: 'B', note: '' }], actionItems: [] },
+        RECORDER,
+        seen,
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
   });
 });

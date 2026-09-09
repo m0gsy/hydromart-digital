@@ -158,4 +158,25 @@ describe('RetentionService', () => {
       expect(marketing.cutoff).toEqual(new Date('2026-04-29T00:00:00.000Z'));
     });
   });
+
+  /*
+   * CA-2-53. A retention window two admins edited at once used to end up as whichever of
+   * them saved last — on the row that decides how long personal data is kept.
+   */
+  it('refuses a policy save built on a copy that is already out of date', async () => {
+    const row = makeRetentionPolicy({ dataset: 'audit_logs', windowDays: 730 });
+    repo.rows = [row];
+    // Read the version BEFORE the first save: the fake hands back the live row, so holding
+    // a reference would let the "old" stamp move along with the store.
+    const seen = row.updatedAt.toISOString();
+    await service.updatePolicy(row.id, { windowLabel: '3 tahun', windowDays: 1095 }, seen);
+
+    await expect(
+      service.updatePolicy(
+        row.id,
+        { windowLabel: '4 tahun', windowDays: 1460 },
+        seen,
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
 });

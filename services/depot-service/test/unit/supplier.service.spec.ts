@@ -215,4 +215,17 @@ describe('SupplierService correcting and removing (CA-2-64)', () => {
     );
     await expect(service.remove('nope')).rejects.toBeInstanceOf(SupplierNotFoundError);
   });
+
+  /* CA-2-53 — two people editing the same supplier used to lose one of their corrections. */
+  it('refuses a supplier save built on a copy that is already out of date', async () => {
+    const { service, depotId } = await make();
+    const created = await service.create({ depotId, name: 'Tirta', code: 'SUP-9' });
+    const seen = created.updatedAt.toISOString();
+    await service.update(created.id, { name: 'Tirta Satu' }, seen);
+
+    await expect(service.update(created.id, { name: 'Tirta Dua' }, seen)).rejects.toMatchObject({
+      code: 'STALE_WRITE',
+      status: 409,
+    });
+  });
 });

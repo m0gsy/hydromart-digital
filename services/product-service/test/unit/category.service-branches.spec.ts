@@ -41,4 +41,14 @@ describe('CategoryService.update branches', () => {
       CategoryNotFoundError,
     );
   });
+
+  /* CA-2-53 — the same shape on a catalogue category. */
+  it('refuses a category save built on a copy that is already out of date', async () => {
+    const c = await service.create({ name: 'Air', slug: 'air', sortOrder: 0 });
+    await service.update(c.id, { name: 'Air Mineral' }, c.updatedAt.toISOString());
+
+    await expect(
+      service.update(c.id, { name: 'Air Baru' }, c.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
 });

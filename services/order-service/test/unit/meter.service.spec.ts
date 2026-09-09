@@ -499,4 +499,50 @@ describe('MeterService reads', () => {
     const { service } = build();
     expect(await service.history(DEPOT, '2026-07-01', '2026-07-31')).toEqual([]);
   });
+
+  /*
+   * CA-2-53. Two operators saving the same day used to produce whichever of them wrote
+   * last — on the readings a depot's production is reconciled against.
+   */
+  it('refuses a reading save built on a copy that is already out of date', async () => {
+    const { service, repo } = build();
+    repo.seed({ openingM3: 1000 });
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: 1002,
+      },
+      SEEDED_AT,
+    );
+
+    await expect(
+      service.save(
+        {
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-3',
+          authorization: '',
+          closingM3: 1009,
+        },
+        SEEDED_AT,
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  it('refuses a reading save that says nothing about what it saw', async () => {
+    const { service, repo } = build();
+    repo.seed({ openingM3: 1000 });
+    await expect(
+      service.save({
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: 1002,
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE' });
+  });
 });

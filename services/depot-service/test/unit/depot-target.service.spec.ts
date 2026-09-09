@@ -111,4 +111,15 @@ describe('DepotTargetService', () => {
       service.set(target({ depotId: '00000000-0000-0000-0000-000000000000' }), EDITOR),
     ).rejects.toBeInstanceOf(DepotNotFoundError);
   });
+
+  /* CA-2-53 — a second manager setting the same month used to replace the first's numbers. */
+  it('refuses a target rewrite built on a copy that is already out of date', async () => {
+    const first = await service.set(target(), EDITOR);
+    const seen = first.updatedAt.toISOString();
+    await service.set(target({ revenueTargetIdr: 50_000_000 }), OTHER, seen);
+
+    await expect(
+      service.set(target({ revenueTargetIdr: 10_000_000 }), OTHER, seen),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
 });

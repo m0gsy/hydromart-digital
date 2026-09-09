@@ -92,4 +92,24 @@ describe('ProductService.update branches', () => {
     const res = await service.browse({ search: '   ' }, true);
     expect(res.total).toBe(1);
   });
+
+  /*
+   * CA-2-53. The price on this row is what a customer is charged, and two people editing
+   * the product at once used to produce whichever of them saved last.
+   */
+  it('refuses a product save built on a copy that is already out of date', async () => {
+    const p = await service.create(base({ sku: 'STALE' }));
+    await service.update(p.id, { name: 'Sekali' }, p.updatedAt.toISOString());
+
+    await expect(
+      service.update(p.id, { name: 'Dua kali' }, p.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  it('refuses a product save that says nothing about what it saw', async () => {
+    const p = await service.create(base({ sku: 'NOSEEN' }));
+    await expect(service.update(p.id, { name: 'x' })).rejects.toMatchObject({
+      code: 'STALE_WRITE',
+    });
+  });
 });
