@@ -141,8 +141,10 @@ class Claims implements ExpenseClaimRepository {
   }
 
   async searchForDepot() {
-    return { items: [], total: 0 };
+    return { items: this.searchRows as ExpenseClaimRecord[], total: this.searchRows.length };
   }
+  /** CA-4-49: what a review list hands back, so the receipt link can be checked. */
+  searchRows: unknown[] = [];
 }
 
 // The receipt base is part of the auto-approve decision now: a claim auto-approves only
@@ -415,5 +417,57 @@ describe('CourierLedgerPrismaRepository edges', () => {
     const rule = await new CourierLedgerPrismaRepository(prisma).currentRule(null);
 
     expect(rule?.tiers).toEqual([]);
+  });
+
+  /*
+   * CA-4-49, step 3 — the receipt a reviewer approves money against.
+   *
+   * `receiptUrl` is delivery-service's stored object id, and that bucket is private, so the
+   * string opens nothing on its own. Steps 1 and 2 moved proof-of-delivery and incident
+   * photos onto expiring links and left this one behind: the money screen still showed a
+   * dead image.
+   */
+  describe('CA-4-49 the receipt link is minted per read', () => {
+    const claimRows = [
+      { id: 'c-1', receiptUrl: `${RECEIPT_BASE}/pod/a.jpg` },
+      { id: 'c-2', receiptUrl: null },
+    ];
+
+    const make = (photos?: { signedUrl: jest.Mock }) => {
+      const repo = new Claims();
+      repo.searchRows = claimRows;
+      return new ExpenseClaimService(repo, new Ledger(), config, photos);
+    };
+
+    it('replaces the stored id with a link, and leaves a claim without one alone', async () => {
+      const photos = { signedUrl: jest.fn(async () => 'https://signed/a.jpg?ttl=900') };
+      const svc = make(photos);
+
+      const page = await svc.searchForDepot(null, null, 1, 20);
+
+      expect(page.items.map((c) => (c as { receiptUrl: string | null }).receiptUrl)).toEqual([
+        'https://signed/a.jpg?ttl=900',
+        null,
+      ]);
+      // Only the row that carries one is asked about.
+      expect(photos.signedUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('still lists the claims when no link can be minted — a picture is not the payout', async () => {
+      const photos = { signedUrl: jest.fn(async () => null) };
+      const svc = make(photos);
+
+      const page = await svc.searchForDepot(null, null, 1, 20);
+
+      expect(page.items).toHaveLength(2);
+      expect((page.items[0] as { receiptUrl: string | null }).receiptUrl).toBeNull();
+    });
+
+    it('lists them unchanged when no link port is bound at all', async () => {
+      const page = await make().searchForDepot(null, null, 1, 20);
+      expect((page.items[0] as { receiptUrl: string | null }).receiptUrl).toBe(
+        `${RECEIPT_BASE}/pod/a.jpg`,
+      );
+    });
   });
 });

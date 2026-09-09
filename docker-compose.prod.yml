@@ -555,6 +555,10 @@ services:
       #
       # Blank = auto-approve OFF, which is what an unconfigured box gets.
       RECEIPT_STORAGE_BASE_URL: ${DELIVERY_STORAGE_PUBLIC_BASE_URL:-}
+      # CA-4-49: that bucket is PRIVATE, so the stored receipt URL opens nothing on its own.
+      # delivery-service holds the credentials, so it is asked to mint a short-lived link
+      # each time a reviewer opens the queue. Unset costs a picture, never a refusal.
+      DELIVERY_SERVICE_URL: http://delivery:3006
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3016/api/v1/health"]
       interval: 30s

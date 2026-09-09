@@ -64,6 +64,20 @@ export class PayoutConfigService {
     return this.config.get<string>('RECEIPT_STORAGE_BASE_URL', '').replace(/\/+$/, '');
   }
 
+  /**
+   * CA-4-49: where to ask for a readable link to a receipt. delivery-service owns the
+   * bucket; this service only holds the URL. Blank = no link is minted and the reviewer is
+   * told there is no receipt to show — never an error on the money screen.
+   */
+  get deliveryServiceUrl(): string {
+    return this.config.get<string>('DELIVERY_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+
+  /** The shared internal-service key, the same one every peer route is guarded with. */
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
+
   get businessTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }

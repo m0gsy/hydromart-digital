@@ -169,6 +169,31 @@ describe('RetentionController', () => {
   });
 
   /*
+   * CA-4-49, step 3 — a link for a photo this service stores and payout-service must show.
+   *
+   * The receipt is in THIS bucket and only this service holds its credentials; the bucket
+   * is private, so the URL payout-service stores opens nothing. It signs nothing it does
+   * not own: the service refuses a URL whose key is not a `pod/` object, and that refusal
+   * travels as a null rather than an error.
+   */
+  it('signs a stored photo url for a peer service, and passes a refusal through as null', async () => {
+    const deliveries = {
+      signedPhotoUrl: jest
+        .fn()
+        .mockResolvedValueOnce('https://signed/pod/a.jpg?ttl=900')
+        .mockResolvedValueOnce(null),
+    };
+    const controller = new RetentionController(deliveries as never);
+
+    await expect(
+      controller.photoLink({ url: 'https://cdn.example.com/pod/a.jpg' } as never),
+    ).resolves.toEqual({ url: 'https://signed/pod/a.jpg?ttl=900' });
+    await expect(
+      controller.photoLink({ url: 'https://elsewhere.example/x.jpg' } as never),
+    ).resolves.toEqual({ url: null });
+  });
+
+  /*
    * UU PDP item 13 — the same rows, on request rather than on a window.
    *
    * The purge above is a WINDOW: 365 days for proofs, and none at all for

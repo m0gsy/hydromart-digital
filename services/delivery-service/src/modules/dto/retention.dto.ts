@@ -26,3 +26,11 @@ export class PdpAnonymiseDto {
   @MaxLength(32)
   phone?: string | null;
 }
+
+/** CA-4-49: the stored photo URL a peer service holds and wants a readable link for. */
+export class PhotoLinkDto {
+  @ApiProperty({ example: 'https://cdn.example.com/pod/abc.jpg' })
+  @IsString()
+  @MaxLength(2048)
+  url!: string;
+}

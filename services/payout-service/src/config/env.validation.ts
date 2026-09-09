@@ -30,6 +30,13 @@ export const envValidationSchema = Joi.object({
   EXPENSE_AUTO_APPROVE_MAX_IDR: Joi.number().integer().min(0).default(50000),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
   // unset value does not degrade tenant isolation — it refuses every scoped request.
+  /*
+   * CA-4-49: where to ask for a readable link to a courier's expense receipt. The receipt
+   * lives in delivery-service's private bucket; this service holds only the URL. Optional
+   * even in production — an unset value costs a picture on a review screen, never a
+   * refusal, so it must not stop the service booting.
+   */
+  DELIVERY_SERVICE_URL: Joi.string().uri().allow('').default(''),
   DEPOT_SERVICE_URL: Joi.string()
     .uri()
     .allow('')

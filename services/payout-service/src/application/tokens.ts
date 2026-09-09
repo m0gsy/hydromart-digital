@@ -5,4 +5,5 @@ export const PAYOUT_TOKENS = {
   CourierLedgerRepository: Symbol('CourierLedgerRepository'),
   CourierWithdrawalRepository: Symbol('CourierWithdrawalRepository'),
   ExpenseClaimRepository: Symbol('ExpenseClaimRepository'),
+  PhotoLink: Symbol('PhotoLink'),
 } as const;
