@@ -51,7 +51,7 @@ export class BonusRuleController {
     @Body() dto: UpdateBonusRuleDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<BonusRule> {
-    return this.rules.update(user, id, dto);
+    return this.rules.update(user, id, dto, dto.seenUpdatedAt);
   }
 }
 

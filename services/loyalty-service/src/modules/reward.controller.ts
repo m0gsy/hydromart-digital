@@ -69,7 +69,7 @@ export class RewardController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRewardItemDto,
   ): Promise<RewardItemDto> {
-    return RewardItemDto.from(await this.rewards.updateItem(id, dto));
+    return RewardItemDto.from(await this.rewards.updateItem(id, dto, dto.seenUpdatedAt));
   }
 
   @ApiOkResponse({ type: RedeemResultDto })

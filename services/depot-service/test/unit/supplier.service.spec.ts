@@ -19,13 +19,19 @@ class InMemorySupplierRepository implements SupplierRepository {
   private seq = 0;
 
   async create(data: CreateSupplierData): Promise<Supplier> {
-    const row: Supplier = { id: `sup${++this.seq}`, createdAt: new Date(), ...data };
+    const row: Supplier = {
+      id: `sup${++this.seq}`,
+      createdAt: new Date(),
+      updatedAt: new Date(this.seq * 1000),
+      ...data,
+    };
     this.rows.push(row);
     return row;
   }
   async update(id: string, data: UpdateSupplierData): Promise<Supplier> {
     const r = this.rows.find((x) => x.id === id)!;
-    Object.assign(r, data);
+    // CA-2-53: the stored row moves on every write, the way @updatedAt does.
+    Object.assign(r, data, { updatedAt: new Date(++this.seq * 1000) });
     return { ...r };
   }
   async remove(id: string): Promise<void> {
@@ -151,10 +157,12 @@ describe('SupplierService correcting and removing (CA-2-64)', () => {
     const { service, repo, depotId } = await make();
     const created = await service.create({ depotId, name: 'Tirta Makmur', code: 'SUP-01' });
 
-    const updated = await service.update(created.id, {
-      name: 'Tirta Makmur Sejahtera',
-      contactPhone: '081234567890',
-    });
+    // CA-2-53: a second save has to say which version it started from.
+    const updated = await service.update(
+      created.id,
+      { name: 'Tirta Makmur Sejahtera', contactPhone: '081234567890' },
+      created.updatedAt.toISOString(),
+    );
 
     expect(updated.name).toBe('Tirta Makmur Sejahtera');
     expect(updated.contactPhone).toBe('081234567890');
@@ -167,11 +175,12 @@ describe('SupplierService correcting and removing (CA-2-64)', () => {
     await service.create({ depotId, name: 'A', code: 'SUP-01' });
     const b = await service.create({ depotId, name: 'B', code: 'SUP-02' });
 
-    await expect(service.update(b.id, { code: 'SUP-01' })).rejects.toBeInstanceOf(
+    const seen = b.updatedAt.toISOString();
+    await expect(service.update(b.id, { code: 'SUP-01' }, seen)).rejects.toBeInstanceOf(
       DuplicateSupplierCodeError,
     );
     // Its own code is not a clash with itself.
-    await expect(service.update(b.id, { code: 'SUP-02' })).resolves.toMatchObject({
+    await expect(service.update(b.id, { code: 'SUP-02' }, seen)).resolves.toMatchObject({
       code: 'SUP-02',
     });
   });

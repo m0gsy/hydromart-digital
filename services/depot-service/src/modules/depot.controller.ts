@@ -321,7 +321,7 @@ export class DepotController {
     @Param('depotId', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDepotDto,
   ): Promise<DepotRecord> {
-    return this.depots.update(id, dto);
+    return this.depots.update(id, dto, dto.seenUpdatedAt);
   }
 
   // AUTHZ-B1 — see `update` above. Writing another depot's QRIS is writing where its
@@ -369,7 +369,7 @@ export class DepotController {
         'Penyimpanan gambar sedang tidak tersedia. Coba lagi sebentar lagi.',
       );
     }
-    return this.depots.update(id, { paymentQrisImageUrl: url });
+    return this.depots.setQrisImage(id, url);
   }
 
   // AUTHZ-B1 — see `update` above.

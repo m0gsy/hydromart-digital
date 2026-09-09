@@ -11,6 +11,7 @@ import {
 import { CategoryRepository } from '../ports/category.repository';
 import { StockNotifierPort } from '../ports/stock-notifier.port';
 import { PRODUCT_TOKENS } from '../tokens';
+import { assertFresh } from '@hydromart/platform';
 
 export interface BrowseInput {
   page?: number;
@@ -71,11 +72,20 @@ export class ProductService {
     return this.products.create(data);
   }
 
-  async update(id: string, patch: UpdateProductData): Promise<ProductRecord> {
+  /**
+   * CA-2-53: refused when the caller's copy is older than the stored product — the price on
+   * this row is what a customer is charged.
+   */
+  async update(
+    id: string,
+    patch: UpdateProductData,
+    seenUpdatedAt?: string,
+  ): Promise<ProductRecord> {
     // Destructured, not held as a reference: the values are compared after the write, and
     // a repository that hands back the row it is about to mutate would make every
     // comparison see the new value and never notify.
-    const { name, unit, active } = await this.get(id, false);
+    const { name, unit, active, updatedAt } = await this.get(id, false);
+    assertFresh(updatedAt, seenUpdatedAt);
     if (patch.sku) {
       const owner = await this.products.findBySku(patch.sku);
       if (owner && owner.id !== id) {

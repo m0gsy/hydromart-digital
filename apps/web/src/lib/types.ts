@@ -146,6 +146,8 @@ export interface Category {
   slug: string;
   sortOrder: number;
   active: boolean;
+  /** CA-2-53: the version a form edits against. Absent on the public list. */
+  updatedAt?: string;
 }
 
 /** A marketing banner shown on the customer Home (public /vouchers/promotions). */
@@ -161,6 +163,8 @@ export interface Promotion {
   active: boolean;
   startsAt: string | null;
   endsAt: string | null;
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 export interface PromotionPayload {
@@ -498,6 +502,8 @@ export interface RewardItem {
    * and being able to see one is what makes restoring it possible.
    */
   active?: boolean;
+  /** CA-2-53: the version a form edits against. Absent on the customer catalogue. */
+  updatedAt?: string;
 }
 
 /** Result of redeeming points for a reward (loyalty /rewards/redeem). */
@@ -1281,6 +1287,8 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   contactPhone?: string | null;
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 // One franchise owner's payout standing (payout-service GET payout/hq/owner/:ownerId).
@@ -1771,6 +1779,8 @@ export interface Supplier {
   categories: string[];
   onTimeRate: number | null;
   createdAt: string;
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 export type PoStatus = 'DRAFT' | 'SENT' | 'RECEIVED';
@@ -1893,6 +1903,8 @@ export interface PricingRule {
   validUntil: string | null;
   priority: number;
   active: boolean;
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 export interface PricingRulePayload {
@@ -2666,6 +2678,8 @@ export interface MeterReading {
   closedAt: string | null;
   alertedAt: string | null;
   note: string | null;
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 /**

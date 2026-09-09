@@ -569,7 +569,7 @@ export class FakePricingRuleRepository implements PricingRuleRepository {
     const now = new Date('2026-01-01T00:00:00Z');
     const rule: PricingRuleRecord = { id: randomUUID(), createdAt: now, updatedAt: now, ...data };
     this.rows.push(rule);
-    return rule;
+    return { ...rule };
   }
   async findById(id: string): Promise<PricingRuleRecord | null> {
     return this.rows.find((r) => r.id === id) ?? null;
@@ -583,8 +583,12 @@ export class FakePricingRuleRepository implements PricingRuleRepository {
   async update(id: string, patch: UpdatePricingRuleData): Promise<PricingRuleRecord> {
     const row = this.rows.find((r) => r.id === id);
     if (!row) throw new Error('not found');
-    Object.assign(row, patch);
-    return row;
+    // CA-2-53: the stored row moves on every write, the way @updatedAt does. A fake that
+    // left the stamp still could not tell a stale save from a fresh one.
+    Object.assign(row, patch, { updatedAt: nextDate() });
+    // A copy, not the row: a caller holding the returned object must not see later writes
+    // through it, or the version it "saw" moves with the store and no stale save is possible.
+    return { ...row };
   }
   async delete(id: string): Promise<void> {
     this.rows = this.rows.filter((r) => r.id !== id);
@@ -642,13 +646,14 @@ export class InMemorySupplierRepository implements SupplierRepository {
   rows: Supplier[] = [];
 
   async create(data: CreateSupplierData): Promise<Supplier> {
-    const row: Supplier = { id: randomUUID(), ...data, createdAt: nextDate() };
+    const row: Supplier = { id: randomUUID(), ...data, createdAt: nextDate(), updatedAt: nextDate() };
     this.rows.push(row);
     return { ...row };
   }
   async update(id: string, data: UpdateSupplierData): Promise<Supplier> {
     const r = this.rows.find((x) => x.id === id)!;
-    Object.assign(r, data);
+    // CA-2-53: the stored row moves on every write, the way @updatedAt does.
+    Object.assign(r, data, { updatedAt: nextDate() });
     return { ...r };
   }
   async remove(id: string): Promise<void> {

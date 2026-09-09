@@ -210,7 +210,12 @@ describe('RewardService', () => {
         stock: null,
         active: true,
       });
-      const updated = await service.updateItem(created.id, { active: false });
+      // CA-2-53: a save says which version it started from.
+      const updated = await service.updateItem(
+        created.id,
+        { active: false },
+        created.updatedAt.toISOString(),
+      );
       expect(updated.active).toBe(false);
       expect(await service.listCatalog()).toHaveLength(0);
     });

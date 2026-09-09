@@ -281,6 +281,8 @@ function AssetPanel({
           brand: details.brand.trim(),
           serialNo: details.serialNo.trim(),
           note: details.note.trim(),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          seenUpdatedAt: asset.updatedAt,
         },
         true,
       );

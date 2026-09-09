@@ -70,7 +70,8 @@ describe('VoucherService branch gaps', () => {
 
   it('update patches an existing voucher and rejects a missing one', async () => {
     const v = await service.create(baseVoucher({ code: 'PATCH' }));
-    const updated = await service.update(v.id, { value: 25 });
+    // CA-2-53: a save says which version it started from.
+    const updated = await service.update(v.id, { value: 25 }, v.updatedAt.toISOString());
     expect(updated.value).toBe(25);
     await expect(service.update('missing', { value: 5 })).rejects.toBeInstanceOf(
       VoucherNotFoundError,

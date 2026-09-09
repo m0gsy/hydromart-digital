@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import { OwnershipType } from '../../domain/inventory';
 import {
@@ -80,8 +81,18 @@ export class DepotService {
     return this.depots.create(data);
   }
 
-  async update(id: string, patch: UpdateDepotData): Promise<DepotRecord> {
+  /**
+   * CA-2-53: refused when the caller's copy is older than the stored depot. The bank
+   * account on this record is where a depot's money is paid, and two people editing it
+   * used to produce whichever of them saved last.
+   */
+  async update(
+    id: string,
+    patch: UpdateDepotData,
+    seenUpdatedAt?: string,
+  ): Promise<DepotRecord> {
     const current = await this.get(id, false);
+    assertFresh(current.updatedAt, seenUpdatedAt);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
@@ -162,6 +173,19 @@ export class DepotService {
   /** Depots managed by a franchise owner (active and inactive — an owner manages their own). */
   async listMine(ownerId: string): Promise<DepotRecord[]> {
     return this.depots.findByOwner(ownerId);
+  }
+
+  /**
+   * CA-2-53: the QRIS image upload is not a form edit, so it carries no version.
+   *
+   * It replaces exactly one field with a file the caller just uploaded — there is no
+   * second admin's typing to erase, and refusing it for want of a stamp would break an
+   * upload that has always worked. A narrow method says that out loud instead of letting
+   * the guarded `update` be called with nothing to compare.
+   */
+  async setQrisImage(id: string, paymentQrisImageUrl: string): Promise<DepotRecord> {
+    await this.get(id, false);
+    return this.depots.update(id, { paymentQrisImageUrl });
   }
 
   /** Soft delete. */

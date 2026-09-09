@@ -24,10 +24,12 @@ describe('RetentionService', () => {
   it('updates a policy window', async () => {
     const row = makeRetentionPolicy({ dataset: 'audit_logs', windowDays: 730 });
     repo.rows = [row];
-    const updated = await service.updatePolicy(row.id, {
-      windowLabel: '3 tahun',
-      windowDays: 1095,
-    });
+    // CA-2-53: a save says which version it started from.
+    const updated = await service.updatePolicy(
+      row.id,
+      { windowLabel: '3 tahun', windowDays: 1095 },
+      row.updatedAt.toISOString(),
+    );
     expect(updated).toMatchObject({ windowLabel: '3 tahun', windowDays: 1095 });
   });
 
@@ -112,7 +114,11 @@ describe('RetentionService', () => {
     it('allows lengthening a financial window', async () => {
       const row = makeRetentionPolicy({ dataClass: DataClass.FINANCIAL, windowDays: 3650 });
       repo.rows = [row];
-      const out = await service.updatePolicy(row.id, { windowLabel: '20 tahun', windowDays: 7300 });
+      const out = await service.updatePolicy(
+        row.id,
+        { windowLabel: '20 tahun', windowDays: 7300 },
+        row.updatedAt.toISOString(),
+      );
       expect(out.windowDays).toBe(7300);
     });
 

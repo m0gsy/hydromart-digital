@@ -177,7 +177,13 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
     setBusy(true);
     setError(null);
     try {
-      if (depot) await api.patch(endpoints.depots.detail(depot.id), parsed.value, true);
+      if (depot)
+        await api.patch(
+          endpoints.depots.detail(depot.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...parsed.value, seenUpdatedAt: depot.updatedAt },
+          true,
+        );
       else await api.post(endpoints.depots.create, parsed.value, true);
       onDone();
     } catch (err) {

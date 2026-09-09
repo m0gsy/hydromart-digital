@@ -127,7 +127,12 @@ function VoucherEditor({
     setError(null);
     try {
       if (voucher) {
-        await api.patch(endpoints.vouchers.detail(voucher.id), toPayload(form, 'edit'), true);
+        await api.patch(
+          endpoints.vouchers.detail(voucher.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...toPayload(form, 'edit'), seenUpdatedAt: voucher.updatedAt },
+          true,
+        );
       } else {
         await api.post(endpoints.vouchers.create, toPayload(form, 'create'), true);
       }

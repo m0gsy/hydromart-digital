@@ -1,0 +1,13 @@
+-- RERUNNABLE: ADD COLUMN IF NOT EXISTS, so a retry after a deploy that died mid-migrate is
+-- a no-op rather than a hand-resolved failure.
+--
+-- CA-2-53: the supplier directory was the one depot form with no version to edit against.
+--
+-- Every other record a console form writes already carries `updatedAt`; this table only had
+-- `createdAt`, so the server had no way to tell an edit from an overwrite and two people on
+-- the supplier screen produced whichever of them saved last.
+--
+-- Defaulted to now() for existing rows, which is the honest reading: nobody knows when they
+-- were last touched, and the first save after this lands sets a real value. Prisma's
+-- @updatedAt maintains it from then on.
+ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

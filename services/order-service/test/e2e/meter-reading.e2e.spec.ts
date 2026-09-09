@@ -47,6 +47,7 @@ class InMemoryMeterReadings implements MeterReadingRepository {
       const created: MeterReading = {
         depotId: data.depotId,
         date: data.date,
+        updatedAt: new Date('2026-09-09T00:00:00.000Z'),
         openingM3: data.openingM3,
         closingM3: data.closingM3 ?? null,
         sourceOpeningM3: data.sourceOpeningM3 ?? null,

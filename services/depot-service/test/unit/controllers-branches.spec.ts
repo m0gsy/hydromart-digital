@@ -689,9 +689,11 @@ describe('HuddleController', () => {
       { depotId: DEPOT, weekStart: '2026-07-14', agenda: 'a', actionItems: [] } as never,
       user,
     );
+    // CA-2-53: the version travels beside the body; this call names none.
     expect(svc.record).toHaveBeenCalledWith(
       expect.objectContaining({ attendance: null }),
       'user-1',
+      undefined,
     );
     await c.upsert(
       {
@@ -706,6 +708,7 @@ describe('HuddleController', () => {
     expect(svc.record).toHaveBeenLastCalledWith(
       expect.objectContaining({ attendance: 5 }),
       'user-1',
+      undefined,
     );
   });
 });
@@ -933,7 +936,8 @@ describe('PricingController', () => {
   it('reads a date-only patch the same way on update', async () => {
     await c.update(ID, { validUntil: '2026-12-31' } as never, user);
 
-    const patch = svc.update.mock.calls.at(-1)!.at(-1) as { validUntil: Date };
+    // CA-2-53: the last argument is now the version, so the patch is the second one.
+    const patch = svc.update.mock.calls.at(-1)![1] as { validUntil: Date };
     expect(patch.validUntil.toISOString()).toBe('2026-12-31T16:59:59.999Z');
   });
 
@@ -941,7 +945,8 @@ describe('PricingController', () => {
     await c.list(DEPOT);
     expect(svc.list).toHaveBeenCalledWith(DEPOT);
     await c.update(ID, {} as never, user);
-    expect(svc.update).toHaveBeenCalledWith(ID, {});
+    // CA-2-53: the version travels beside the body; this call names none.
+    expect(svc.update).toHaveBeenCalledWith(ID, {}, undefined);
     await c.update(
       ID,
       {
@@ -961,11 +966,16 @@ describe('PricingController', () => {
     expect(svc.update).toHaveBeenLastCalledWith(
       ID,
       expect.objectContaining({ productId: 'p', validFrom: new Date(ISO), active: true }),
+      undefined,
     );
     // productId explicitly null exercises the `?? null` inside the defined branch;
     // validFrom set to null exercises toDate(undefined) → null
     await c.update(ID, { productId: null, validFrom: null } as never, user);
-    expect(svc.update).toHaveBeenLastCalledWith(ID, { productId: null, validFrom: null });
+    expect(svc.update).toHaveBeenLastCalledWith(
+      ID,
+      { productId: null, validFrom: null },
+      undefined,
+    );
     await c.remove(ID, user);
     expect(svc.remove).toHaveBeenCalledWith(ID);
   });
@@ -981,6 +991,7 @@ describe('DepotController', () => {
     get: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    setQrisImage: jest.fn(),
     deactivate: jest.fn(),
   };
   const storage = { put: jest.fn() };
@@ -1287,7 +1298,7 @@ describe('DepotController', () => {
 
   it('updates a depot', async () => {
     await c.update(ID, { active: false } as never);
-    expect(svc.update).toHaveBeenCalledWith(ID, { active: false });
+    expect(svc.update).toHaveBeenCalledWith(ID, { active: false }, undefined);
   });
 
   // The full record carries bank details and ownership: a franchise owner may open their own
@@ -1343,9 +1354,9 @@ describe('DepotController', () => {
         contentType: 'image/png',
         ext: 'png',
       });
-      expect(svc.update).toHaveBeenCalledWith(ID, {
-        paymentQrisImageUrl: 'https://cdn.example/qris/abc.png',
-      });
+      // CA-2-53: an image upload is not a form edit, so it has its own method and carries
+      // no version to compare.
+      expect(svc.setQrisImage).toHaveBeenCalledWith(ID, 'https://cdn.example/qris/abc.png');
     });
 
     // Unreachable object storage is infrastructure, not a bad request — and the depot must
@@ -1392,6 +1403,7 @@ describe('DepotTargetController', () => {
     expect(svc.set).toHaveBeenCalledWith(
       expect.objectContaining({ depotId: DEPOT, month: '2026-07' }),
       'user-1',
+      undefined,
     );
   });
 });
@@ -1543,7 +1555,7 @@ describe('SupplierController', () => {
   it('corrects and deletes, checking depot access from the record first', async () => {
     await c.update(ID, { name: 'Tirta Baru' } as never, user);
     expect(svc.get).toHaveBeenCalledWith(ID);
-    expect(svc.update).toHaveBeenCalledWith(ID, { name: 'Tirta Baru' });
+    expect(svc.update).toHaveBeenCalledWith(ID, { name: 'Tirta Baru' }, undefined);
 
     await c.remove(ID, user);
     expect(svc.remove).toHaveBeenCalledWith(ID);
@@ -1583,7 +1595,7 @@ describe('WholesaleTierController', () => {
       expect.objectContaining({ productId: 'p', maxQty: 10 }),
     );
     await c.update(ID, { priceIdr: 200 } as never, user);
-    expect(svc.update).toHaveBeenCalledWith(ID, { priceIdr: 200 });
+    expect(svc.update).toHaveBeenCalledWith(ID, { priceIdr: 200 }, undefined);
     const res = await c.remove(ID, user);
     expect(svc.remove).toHaveBeenCalledWith(ID);
     expect(res).toEqual({ deleted: true });

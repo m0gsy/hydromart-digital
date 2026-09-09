@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
+import { assertFresh, addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import { MeterReadingBackwardsError, MeterReadingNotOpenedError } from '../../domain/errors';
@@ -71,8 +71,17 @@ export class MeterService {
    * Validation runs against the merged row, not the patch, so an evening write is
    * still checked against the morning number it never sent.
    */
-  async save(input: SaveMeterReadingInput): Promise<MeterReconciliation> {
+  /**
+   * CA-2-53: an upsert on [depotId, date], so a second operator saving the same day used to
+   * replace the first one's readings. A caller editing a day that already has readings must
+   * say which version it read; the first save of a day has nothing to lose.
+   */
+  async save(
+    input: SaveMeterReadingInput,
+    seenUpdatedAt?: string,
+  ): Promise<MeterReconciliation> {
     const existing = await this.readings.findForDate(input.depotId, input.date);
+    assertFresh(existing?.updatedAt ?? null, seenUpdatedAt);
     const opening = input.openingM3 ?? existing?.openingM3 ?? null;
     if (opening === null) {
       throw new MeterReadingNotOpenedError();

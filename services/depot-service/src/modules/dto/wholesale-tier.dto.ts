@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsISO8601,
   IsInt,
   IsOptional,
   IsString,
@@ -47,6 +48,15 @@ export class CreateWholesaleTierDto {
 }
 
 export class UpdateWholesaleTierDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      "CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.",
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiPropertyOptional({ example: 'Grosir 20–49 galon' })
   @IsOptional()
   @IsString()

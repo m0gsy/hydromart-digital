@@ -7,6 +7,8 @@ export interface RewardItemRecord {
   active: boolean;
   /** Remaining redeemable stock; null = unlimited. */
   stock: number | null;
+  /** CA-2-53: the version a console form edits against. */
+  updatedAt: Date;
 }
 
 /** M14-03 redemption lifecycle. Mirrors the TEXT column; no Prisma enum to migrate. */

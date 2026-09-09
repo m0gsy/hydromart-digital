@@ -106,7 +106,7 @@ export class PricingController {
       patch.validUntil = toDate(dto.validUntil, 'end', this.config.businessTimeZone);
     if (dto.priority !== undefined) patch.priority = dto.priority;
     if (dto.active !== undefined) patch.active = dto.active;
-    return this.pricing.update(ruleId, patch);
+    return this.pricing.update(ruleId, patch, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: RemoveResponseDto })

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsISO8601,
   IsEnum,
   IsIn,
   IsInt,
@@ -22,6 +23,15 @@ import { PurgePlanEntry } from '../../application/services/retention.service';
 
 /** Update just a dataset's retention window (PUT). */
 export class UpdateRetentionDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiProperty({ example: '7 tahun (UU PDP)', description: 'Human-readable window label.' })
   @IsString()
   @IsNotEmpty()

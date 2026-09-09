@@ -208,6 +208,9 @@ export class InMemoryRewardRepository implements RewardRepository {
       imageUrl: null,
       active: true,
       stock: null,
+      // CA-2-53: the version a form edits against; a fake without it cannot tell a stale
+      // save from a fresh one.
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       ...item,
     };
     this.items.push(full);
@@ -228,14 +231,19 @@ export class InMemoryRewardRepository implements RewardRepository {
   }
 
   async createItem(data: CreateRewardItemData): Promise<RewardItemRecord> {
-    const item: RewardItemRecord = { id: randomUUID(), ...data };
+    const item: RewardItemRecord = {
+      id: randomUUID(),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      ...data,
+    };
     this.items.push(item);
     return { ...item };
   }
 
   async updateItem(id: string, data: UpdateRewardItemData): Promise<RewardItemRecord> {
     const i = this.items.find((x) => x.id === id)!;
-    Object.assign(i, data);
+    // CA-2-53: the stored row moves on every write, the way @updatedAt does.
+    Object.assign(i, data, { updatedAt: new Date(i.updatedAt.getTime() + 1000) });
     return { ...i };
   }
 

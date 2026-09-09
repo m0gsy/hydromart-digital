@@ -1,6 +1,7 @@
-import { OmitType } from '@nestjs/swagger';
+import { OmitType, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsISO8601,
   ArrayMaxSize,
   IsArray,
   IsBoolean,
@@ -39,6 +40,15 @@ export class CreateBonusRuleDto {
 }
 
 export class UpdateBonusRuleDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @IsOptional() @IsEnum(BonusType) bonusType?: BonusType;
   @IsOptional() @IsString() @MaxLength(120) name?: string;
   @IsOptional() @IsIn(METRICS) metric?: string;

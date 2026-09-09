@@ -45,11 +45,57 @@ function walk(dir, out = []) {
   return out;
 }
 
+
+/**
+ * A one-tap ACTION, not a form — and the difference is the whole rule.
+ *
+ * Last-write-wins only loses work when there is work to lose. "Approve", "resolve",
+ * "deactivate", "assign to this depot" each write one decision the server already guards by
+ * status, and two people tapping the same one produce the same row. A form carries a record
+ * somebody typed: name, price, hours, bank account. That is what a second save erases.
+ *
+ * Read off the payload, because that is what the shape actually is: an inline object with
+ * at most two properties (or an empty body) is a decision; anything else — a variable
+ * holding a built payload, a literal with three or more fields — is a record.
+ */
+function isAction(call) {
+  // A verb with no payload at all: `api.patch(url, undefined, true)` / `..., {}, true)`.
+  if (/,\s*(undefined|\{\s*\})\s*,/.test(call)) return true;
+  const m = call.match(/\{[\s\S]*\}/);
+  // No literal in sight means the payload was built elsewhere and handed in by name —
+  // `body`, `payload`, `parsed.value`. That is a record somebody typed, not a decision.
+  if (!m) return false;
+  // A spread means the same thing: assembled elsewhere.
+  if (/\.\.\./.test(m[0])) return false;
+  const keys = m[0].match(/[{,]\s*[a-zA-Z][a-zA-Z0-9]*\s*:/g) ?? [];
+  return keys.length <= 2;
+}
+
+/** The call's own text, read by counting parentheses rather than guessing a line window. */
+function callText(src, start) {
+  let depth = 0;
+  for (let i = src.indexOf('(', start); i < src.length; i++) {
+    if (src[i] === '(') depth++;
+    else if (src[i] === ')') {
+      depth--;
+      if (depth === 0) return src.slice(start, i + 1);
+    }
+  }
+  return src.slice(start, start + 600);
+}
+
 const sites = [];
 for (const file of walk(ROOT)) {
   const rel = file.slice(ROOT.length + 1);
   if (!AREAS.some((a) => rel.startsWith(a))) continue;
-  const src = code(readFileSync(file, 'utf8'));
+  const raw = readFileSync(file, 'utf8');
+  const src = code(raw);
+  /*
+   * The exemption marker is read from the RAW source, because `code()` strips comments —
+   * and a marker the scanner deletes before looking for it can never be found. That cost a
+   * run: the gate reported a site whose reason was written directly above it.
+   */
+  const rawLines = raw.split(/\r?\n/);
   const lines = src.split(/\r?\n/);
   for (const m of src.matchAll(/api\.(put|patch)\s*[<(]/g)) {
     const line = src.slice(0, m.index).split(/\r?\n/).length;
@@ -58,8 +104,22 @@ for (const file of walk(ROOT)) {
      * and no call in this app spans more than a dozen lines. Reading the real expression
      * would mean parsing TSX to find out whether one word is present.
      */
-    const body = lines.slice(line - 1, line + 14).join('\n');
-    if (body.includes('seenUpdatedAt')) continue;
+    const call = callText(src, m.index);
+    if (call.includes('seenUpdatedAt')) continue;
+    // An explicit, reasoned exemption, written where the call is.
+    // Eight lines of lookback: a reason worth writing rarely fits on one.
+    /*
+     * Line numbers come from the STRIPPED source, and stripping block comments collapses
+     * lines — so they cannot index the raw file. Anchor on the call's own text instead:
+     * find where this statement sits in the raw source and read upwards from there.
+     */
+    const anchorText = lines[line - 1].trim();
+    const rawAt = anchorText ? raw.indexOf(anchorText) : -1;
+    if (rawAt >= 0) {
+      const before = raw.slice(Math.max(0, rawAt - 900), rawAt);
+      if (/stale-write-ok:/.test(before)) continue;
+    }
+    if (isAction(call)) continue;
     sites.push({ file: `${ROOT}/${rel}`, line, text: lines[line - 1].trim().slice(0, 90) });
   }
 }

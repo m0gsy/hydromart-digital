@@ -104,7 +104,7 @@ describe('HuddleService', () => {
   });
 
   it('upsert overwrites agenda/action items for the same week (no duplicate row)', async () => {
-    await service.record(
+    const first = await service.record(
       {
         depotId,
         weekStart: '2026-07-14',
@@ -124,6 +124,8 @@ describe('HuddleService', () => {
         actionItems: [{ text: 'Tugas B', assignee: 'Sari', done: true }],
       },
       RECORDER,
+      // CA-2-53: rewriting the same week has to say which version it read.
+      first.updatedAt.toISOString(),
     );
 
     const all = await service.list(depotId);

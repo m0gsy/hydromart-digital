@@ -25,7 +25,11 @@ class InMemoryDepotTargetRepository implements DepotTargetRepository {
   async upsert(data: UpsertDepotTargetData): Promise<DepotTarget> {
     const existing = this.rows.find((x) => x.depotId === data.depotId && x.month === data.month);
     if (existing) {
-      Object.assign(existing, data, { updatedAt: new Date() });
+      // A monotonic stamp: two writes in the same millisecond must not look like one
+      // version, which is the only thing this fake exists to tell apart.
+      Object.assign(existing, data, {
+        updatedAt: new Date(existing.updatedAt.getTime() + 1000),
+      });
       return { ...existing };
     }
     const now = new Date();
@@ -88,9 +92,11 @@ describe('DepotTargetService', () => {
 
   it('upsert overwrites an existing month (same row, new values)', async () => {
     const first = await service.set(target(), EDITOR);
+    // CA-2-53: rewriting a month that already has a target says which version it read.
     const second = await service.set(
       target({ revenueTargetIdr: 60_000_000, ordersTarget: 1500 }),
       OTHER,
+      first.updatedAt.toISOString(),
     );
 
     expect(second.id).toBe(first.id); // same row, not a duplicate

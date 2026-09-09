@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsISO8601,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -101,6 +102,15 @@ export class CreateVoucherDto {
 }
 
 export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiPropertyOptional({ description: 'Enable or disable the voucher.' })
   @IsOptional()
   @IsBoolean()

@@ -102,7 +102,7 @@ export class ProductController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ): Promise<ProductRecord> {
-    return this.products.update(id, dto);
+    return this.products.update(id, dto, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: ProductResponseDto })

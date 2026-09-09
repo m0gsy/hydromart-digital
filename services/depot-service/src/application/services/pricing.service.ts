@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import { PricingAdjustType, PricingRuleRecord, resolveRule } from '../../domain/pricing-rule';
 import {
@@ -88,11 +89,21 @@ export class PricingService {
     return found;
   }
 
-  async update(id: string, patch: UpdatePricingRuleData): Promise<PricingRuleRecord> {
+  /**
+   * CA-2-53: refused when the caller's copy is older than the stored rule. Two people on
+   * the pricing screen at once used to produce whichever of them saved last — on the row
+   * that decides what a customer is charged.
+   */
+  async update(
+    id: string,
+    patch: UpdatePricingRuleData,
+    seenUpdatedAt?: string,
+  ): Promise<PricingRuleRecord> {
     const existing = await this.rules.findById(id);
     if (!existing) {
       throw new PricingRuleNotFoundError();
     }
+    assertFresh(existing.updatedAt, seenUpdatedAt);
     this.validateWindow({
       startMinute: patch.startMinute ?? existing.startMinute,
       endMinute: patch.endMinute ?? existing.endMinute,

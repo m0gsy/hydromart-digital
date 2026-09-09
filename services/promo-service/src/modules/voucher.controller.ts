@@ -225,7 +225,7 @@ export class VoucherController {
       perCustomerLimit: dto.perCustomerLimit,
       active: dto.active,
     };
-    return this.vouchers.update(id, patch);
+    return this.vouchers.update(id, patch, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: VoucherResponseDto })

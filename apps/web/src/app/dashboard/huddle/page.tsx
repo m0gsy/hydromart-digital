@@ -64,6 +64,9 @@ function HuddleBody() {
           attendance: patch.attendance !== undefined ? patch.attendance : (cur?.attendance ?? null),
           agenda: patch.agenda ?? cur?.agenda ?? [],
           actionItems: patch.actionItems ?? cur?.actionItems ?? [],
+          // CA-2-53: rewriting a week that already has notes has to say which version it
+          // read; a brand-new week has nothing to lose and sends none.
+          seenUpdatedAt: cur?.updatedAt,
         },
         true,
       );

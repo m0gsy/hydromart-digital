@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsISO8601,
   IsArray,
   IsBoolean,
   IsOptional,
@@ -46,6 +47,15 @@ export class HuddleActionItemDto {
 }
 
 export class UpsertHuddleNoteDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiProperty({ format: 'uuid', description: 'Depot the huddle was held at.' })
   @IsUUID()
   depotId!: string;

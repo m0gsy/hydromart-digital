@@ -41,7 +41,8 @@ describe('PromotionService branch gaps', () => {
 
   it('listAll returns every promotion incl. inactive', async () => {
     const created = await service.create(basePromotion());
-    await service.update(created.id, { active: false });
+    // CA-2-53: a save says which version it started from.
+    await service.update(created.id, { active: false }, created.updatedAt.toISOString());
     const all = await service.listAll();
     expect(all.map((p) => p.id)).toContain(created.id);
   });

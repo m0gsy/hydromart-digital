@@ -24,6 +24,7 @@ interface MeterReadingRow {
   closedAt: Date | null;
   alertedAt: Date | null;
   note: string | null;
+  updatedAt: Date;
 }
 
 /** 'YYYY-MM-DD' -> the UTC midnight Postgres stores for a DATE column. */
@@ -54,6 +55,7 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
       closedAt: row.closedAt,
       alertedAt: row.alertedAt,
       note: row.note,
+      updatedAt: row.updatedAt,
     };
   }
 

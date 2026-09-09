@@ -102,6 +102,8 @@ function TierForm({
             maxQty: max,
             priceIdr: price,
             productId: productId || null,
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+            seenUpdatedAt: tier.updatedAt,
           },
           true,
         );

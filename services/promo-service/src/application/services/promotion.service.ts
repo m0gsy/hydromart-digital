@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { addLocalDays, localDayKey, startOfLocalDay } from '@hydromart/platform';
+import { assertFresh, addLocalDays, localDayKey, startOfLocalDay } from '@hydromart/platform';
 
 import { PromotionNotFoundError } from '../../domain/errors';
 import {
@@ -54,8 +54,16 @@ export class PromotionService {
     return this.repo.create(input);
   }
 
-  async update(id: string, patch: UpdatePromotionData): Promise<PromotionRecord> {
-    await this.getById(id);
+  /**
+   * CA-2-53: refused when the caller's copy is older than the stored promotion — this row
+   * decides what a customer is charged.
+   */
+  async update(
+    id: string,
+    patch: UpdatePromotionData,
+    seenUpdatedAt?: string,
+  ): Promise<PromotionRecord> {
+    assertFresh((await this.getById(id)).updatedAt, seenUpdatedAt);
     return this.repo.update(id, patch);
   }
 

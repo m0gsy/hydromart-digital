@@ -64,7 +64,7 @@ export class AssetController {
     @Body() dto: UpdateAssetDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<EmployeeAsset> {
-    return this.assets.update(user, id, dto);
+    return this.assets.update(user, id, dto, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: EmployeeAssetResponseDto })

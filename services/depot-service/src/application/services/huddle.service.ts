@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import { HuddleActionItem, HuddleAgendaItem, HuddleNote } from '../../domain/huddle';
 import { DepotNotFoundError } from '../../domain/errors';
@@ -31,8 +32,19 @@ export class HuddleService {
     }
   }
 
-  async record(input: RecordHuddleInput, recordedBy: string): Promise<HuddleNote> {
+  /**
+   * CA-2-53: this is an upsert on [depotId, weekStart], so a second manager writing the
+   * same week used to replace the first one's notes entirely. A caller editing an
+   * existing note must say which version it read; a brand-new week has nothing to lose.
+   */
+  async record(
+    input: RecordHuddleInput,
+    recordedBy: string,
+    seenUpdatedAt?: string,
+  ): Promise<HuddleNote> {
     await this.requireDepot(input.depotId);
+    const existing = await this.huddles.findForWeek(input.depotId, input.weekStart);
+    assertFresh(existing?.updatedAt ?? null, seenUpdatedAt);
     return this.huddles.upsert({
       depotId: input.depotId,
       weekStart: input.weekStart,

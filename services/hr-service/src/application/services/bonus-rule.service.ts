@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import { assertFresh, AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { BonusRule, BonusType } from '../../../prisma/generated/client';
 import { BonusMetric, CompareOp, RewardKind } from '../../domain/bonus-rules';
@@ -55,15 +55,20 @@ export class BonusRuleService {
     });
   }
 
+  /** CA-2-53: refused when the caller's copy is older — this rule decides who is paid what. */
   async update(
     user: AuthenticatedUser,
     id: string,
     input: Partial<BonusRuleInput>,
+    seenUpdatedAt?: string,
   ): Promise<BonusRule> {
     const existing = await this.repo.findById(id);
     if (!existing) throw new NotFoundException('Rule bonus tidak ditemukan');
     if (existing.depotId) assertDepotAccess(user, existing.depotId);
+    // Validation first: "your input is malformed" is a more useful answer than "reload",
+    // and a malformed write is refused either way.
     this.validate({ ...existing, ...input } as BonusRuleInput, true);
+    assertFresh(existing.updatedAt, seenUpdatedAt);
     const patch: Partial<BonusRuleWrite> = {};
     if (input.bonusType !== undefined) patch.bonusType = input.bonusType as BonusType;
     if (input.name !== undefined) patch.name = input.name.trim();

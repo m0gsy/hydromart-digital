@@ -48,7 +48,7 @@ describe('ProductService', () => {
   it('resolves many products in one read', async () => {
     const a = await service.create(base({ sku: 'A' }));
     const b = await service.create(base({ sku: 'B', name: 'B' }));
-    await service.update(b.id, { active: false });
+    await service.update(b.id, { active: false }, b.updatedAt.toISOString());
 
     expect(await service.byIds([])).toEqual([]);
     const found = await service.byIds([a.id, b.id, '11111111-1111-1111-1111-111111111111']);
@@ -102,7 +102,7 @@ describe('ProductService', () => {
   describe('tells depot-service when a stock line would go stale', () => {
     it('pushes a rename with the new name', async () => {
       const p = await service.create(base({ name: 'Air Galon 19L' }));
-      await service.update(p.id, { name: 'Air Galon 19,2L' });
+      await service.update(p.id, { name: 'Air Galon 19,2L' }, p.updatedAt.toISOString());
       expect(notifier.changes).toEqual([
         { productId: p.id, name: 'Air Galon 19,2L', unit: p.unit, active: true },
       ]);
@@ -120,7 +120,7 @@ describe('ProductService', () => {
     // busy catalog session hammer depot-service for nothing.
     it('stays quiet for an edit no stock line mirrors', async () => {
       const p = await service.create(base());
-      await service.update(p.id, { basePrice: 25000, description: 'baru' });
+      await service.update(p.id, { basePrice: 25000, description: 'baru' }, p.updatedAt.toISOString());
       expect(notifier.changes).toHaveLength(0);
     });
 
@@ -128,7 +128,7 @@ describe('ProductService', () => {
     it('still returns the updated product when the push fails', async () => {
       const p = await service.create(base());
       notifier.throws = true;
-      await expect(service.update(p.id, { name: 'Nama Baru' })).resolves.toMatchObject({
+      await expect(service.update(p.id, { name: 'Nama Baru' }, p.updatedAt.toISOString())).resolves.toMatchObject({
         name: 'Nama Baru',
       });
       await expect(service.deactivate(p.id)).resolves.toMatchObject({ active: false });

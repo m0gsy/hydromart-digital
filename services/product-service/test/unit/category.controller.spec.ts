@@ -38,7 +38,8 @@ describe('CategoryController', () => {
   it('update delegates id and dto', async () => {
     const dto: UpdateCategoryDto = { name: 'New' };
     await controller.update('id-1', dto);
-    expect(service.update).toHaveBeenCalledWith('id-1', dto);
+    // CA-2-53: the version travels beside the body; this call names none.
+    expect(service.update).toHaveBeenCalledWith('id-1', dto, undefined);
   });
 
   it('remove delegates to deactivate', async () => {

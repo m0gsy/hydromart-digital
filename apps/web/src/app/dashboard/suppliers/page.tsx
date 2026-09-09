@@ -85,7 +85,12 @@ function SupplierForm({
           .filter(Boolean),
       };
       if (supplier) {
-        await api.patch(endpoints.procurement.suppliers.detail(supplier.id), body, true);
+        await api.patch(
+          endpoints.procurement.suppliers.detail(supplier.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...body, seenUpdatedAt: supplier.updatedAt },
+          true,
+        );
       } else {
         await api.post(endpoints.procurement.suppliers.create, { depotId, ...body }, true);
       }

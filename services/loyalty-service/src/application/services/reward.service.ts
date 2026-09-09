@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import { assertFresh, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import {
   InsufficientPointsError,
@@ -48,9 +48,20 @@ export class RewardService {
     return this.rewards.createItem(data);
   }
 
-  /** Edit price/stock/label, or retire the item with `active: false`. */
-  async updateItem(id: string, data: UpdateRewardItemData): Promise<RewardItemRecord> {
-    if (!(await this.rewards.findItem(id))) throw new RewardItemNotFoundError();
+  /**
+   * Edit price/stock/label, or retire the item with `active: false`.
+   *
+   * CA-2-53: refused when the caller's copy is older than the stored item — the points
+   * price on this row is what a customer pays.
+   */
+  async updateItem(
+    id: string,
+    data: UpdateRewardItemData,
+    seenUpdatedAt?: string,
+  ): Promise<RewardItemRecord> {
+    const existing = await this.rewards.findItem(id);
+    if (!existing) throw new RewardItemNotFoundError();
+    assertFresh(existing.updatedAt, seenUpdatedAt);
     return this.rewards.updateItem(id, data);
   }
 

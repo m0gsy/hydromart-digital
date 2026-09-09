@@ -10,6 +10,7 @@ function reading(over: Partial<MeterReading> = {}): MeterReading {
   return {
     depotId: 'd1',
     date: '2026-08-02',
+    updatedAt: new Date('2026-09-09T00:00:00.000Z'),
     openingM3: 1000,
     closingM3: 1002.6,
     sourceOpeningM3: null,

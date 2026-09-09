@@ -132,6 +132,15 @@ export class ReceivePurchaseOrderDto {
 
 /** CA-2-64: every field a depot may correct after the fact. `depotId` is not one of them. */
 export class UpdateSupplierDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiPropertyOptional({ example: 'Tirta Makmur' })
   @IsOptional()
   @IsString()
