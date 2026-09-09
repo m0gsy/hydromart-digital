@@ -46,6 +46,57 @@ const ALLOWLIST = {
   // build the OpenAPI doc — never attacker-supplied YAML. Fix exists but is
   // gated behind @nestjs/swagger's pin; deferred to the next dep refresh.
   'GHSA-pm4m-ph32-ghv5': 'js-yaml flow-collection DoS — swagger doc-gen from own decorators, no user YAML',
+
+  // ── 2026-09-09 advisory wave ──────────────────────────────────────────────
+  // These four appeared overnight from the registry, with no repo change: `main`
+  // itself went red on a commit whose CI had been green hours earlier. The two
+  // CRITICAL `next` ids in the same wave were NOT allowlisted — they are fixed,
+  // by 15.5.21 -> 15.5.25 in apps/web (a patch bump), which also drops `next`
+  // from critical to moderate. What is left here is what has no fix to take.
+
+  // adm-zip symlink-overwrite, the SECOND advisory on the path GHSA-xcpc above
+  // already documents: onnxruntime-node, the on-device ONNX face driver, which
+  // is not the production driver (FACE_VERIFIER_DRIVER=neo). An `overrides`
+  // entry for adm-zip@^0.6.0 was tried and REMOVED again: npm will not apply it,
+  // because onnxruntime-node pins the range itself.
+  'GHSA-vwc7-r8mq-g2x9': 'adm-zip symlink overwrite — onnxruntime (inactive onnx driver), not prod path',
+
+  // sharp libheif, the SECOND advisory on the path GHSA-f88m above already
+  // documents: next's OPTIONAL image-optimization engine. No images.remotePatterns
+  // is configured, so only local/bundled assets reach libvips/libheif; hr-service's
+  // own sharp is on 0.35.3.
+  'GHSA-rgj7-g3m4-5g8c': 'sharp libheif CVEs — next optional image-opt, local assets only',
+
+  // postcss, all four: the ROOT postcss is 8.5.25 (patched, via the override that
+  // has been here since 2026-08-05). The vulnerable copy is next/node_modules/postcss
+  // @8.4.31 — next BUNDLES its own, so the override cannot reach it. Every one of
+  // these needs attacker-controlled CSS: a `</style>` in stringify output, or a
+  // sourceMappingURL comment. This copy processes the app's OWN stylesheets at BUILD
+  // time in CI. No user CSS is compiled, at build time or at run time.
+  'GHSA-qx2v-qp2m-jg93': 'postcss </style> XSS — next-bundled build-time copy, our own CSS only',
+  'GHSA-6g55-p6wh-862q': 'postcss sourceMappingURL file read — next-bundled build-time copy, our own CSS only',
+  'GHSA-fxqj-rqcc-2cmp': 'postcss sourceMappingURL (incomplete fix) — next-bundled build-time copy, our own CSS only',
+  'GHSA-r28c-9q8g-f849': 'postcss source-map path traversal — next-bundled build-time copy, our own CSS only',
+
+  /*
+   * multer, all four — the one entry here that is NOT comfortable, recorded plainly.
+   *
+   * There is no fix to take: @nestjs/platform-express pins multer 2.2.0, and @12
+   * (a major bump) still pins 2.2.0. An `overrides` entry was tried and removed for
+   * the same reason as adm-zip's — npm will not apply it over a parent's pin.
+   *
+   * Reachability is real but narrow: the only multipart routes are authenticated and
+   * capability-gated (hr document upload = hrAdmin, PoD = the assigned courier), and
+   * the bodies are size-capped before multer sees them. Three of the four are DoS by
+   * a caller who already holds a staff token; the fourth is a file-size-limit bypass
+   * bounded by that same cap.
+   *
+   * REVISIT when platform-express moves off 2.2.0. This is a deferral, not a verdict.
+   */
+  'GHSA-wc9g-mqfw-jrwm': 'multer DoS via crafted field names — no upstream fix (platform-express@12 still pins 2.2.0); authenticated multipart only',
+  'GHSA-qfvm-cv95-jqjf': 'multer fd leak on aborted upload — no upstream fix; authenticated multipart only',
+  'GHSA-qvfw-j98x-7q72': 'multer fileFilter race size bypass — no upstream fix; body cap applies before multer',
+  'GHSA-535w-7cp7-47q4': 'multer oversized array index DoS — no upstream fix; authenticated multipart only',
 };
 
 function audit() {
