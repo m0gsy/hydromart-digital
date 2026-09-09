@@ -68,6 +68,8 @@ export default function HqSlaPolicyPage() {
           onTimeThresholdMinutes: policy.onTimeThresholdMinutes,
           healthyBandPct: policy.healthyBandPct,
           criticalBandPct: policy.criticalBandPct,
+          // CA-2-53: the version this edit started from — see the tax screen.
+          seenUpdatedAt: policy.updatedAt,
         },
         true,
       );
@@ -75,6 +77,14 @@ export default function HqSlaPolicyPage() {
       effective.reload();
       toast(t('hq.slaPolicy.saved'), 'success');
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'STALE_WRITE') {
+        // Drop the draft: keeping it would let the next save overwrite the other admin's
+        // change with the same stale values that were just refused.
+        setDraft(null);
+        query.reload();
+        toast(t('hq.common.staleWrite'), 'error');
+        return;
+      }
       const forbidden = err instanceof ApiError && err.status === 403;
       toast(
         forbidden

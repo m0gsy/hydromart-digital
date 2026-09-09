@@ -94,6 +94,9 @@ describe('/hq/security · the 2FA switch nothing enforced (W10c)', () => {
       idleTimeoutMinutes: 30,
       require2fa: true, // untouched server value, not a UI default
       ipAllowlist: ['103.21.0.0/16'],
+      // CA-2-53: the version this edit started from, so a second admin's save cannot be
+      // erased by this one without anybody being told.
+      seenUpdatedAt: '1970-01-01T00:00:00.000Z',
     });
   });
 

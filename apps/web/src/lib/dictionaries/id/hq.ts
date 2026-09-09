@@ -127,6 +127,8 @@ export const hq = {
     unavailableSome: 'Sebagian data gagal dimuat ({sources}). Menampilkan yang tersedia.',
     dash: '—',
     actionFailed: 'Aksi gagal. Coba lagi.',
+    staleWrite:
+      'Orang lain sudah mengubah data ini sejak Anda membukanya. Layar dimuat ulang — periksa lalu simpan lagi.',
     export: 'Ekspor',
     save: 'Simpan',
     cancel: 'Batal',

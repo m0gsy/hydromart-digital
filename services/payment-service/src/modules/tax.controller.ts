@@ -27,6 +27,6 @@ export class TaxController {
   @Can('taxSettings')
   @ApiOperation({ summary: 'Update the tax & invoice settings' })
   async update(@Body() dto: UpdateTaxSettingsDto): Promise<TaxSettingsDto> {
-    return TaxSettingsDto.from(await this.tax.update(dto));
+    return TaxSettingsDto.from(await this.tax.update(dto, dto.seenUpdatedAt));
   }
 }

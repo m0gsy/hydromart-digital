@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import {
   SaveSecurityPolicyData,
@@ -27,8 +28,18 @@ export class SecurityPolicyService {
     return existing ?? { ...DEFAULTS, updatedAt: new Date(0) };
   }
 
-  /** Replace the singleton policy (PUT). */
-  save(data: SaveSecurityPolicyData): Promise<SecurityPolicyRecord> {
+  /**
+   * Replace the singleton policy (PUT).
+   *
+   * CA-2-53: refused when the caller's copy is older than the stored row. Two admins on
+   * this page at once used to produce whichever of them saved last, with the other's
+   * change gone and neither of them told.
+   */
+  async save(
+    data: SaveSecurityPolicyData,
+    seenUpdatedAt?: string,
+  ): Promise<SecurityPolicyRecord> {
+    assertFresh((await this.repo.get())?.updatedAt ?? null, seenUpdatedAt);
     return this.repo.save(data);
   }
 }

@@ -527,9 +527,15 @@ describe('SecurityPolicyController', () => {
     policy.get.mockResolvedValue(record);
     policy.save.mockResolvedValue(record);
     expect((await controller.get()).idleTimeoutMinutes).toBe(30);
-    const dto = { idleTimeoutMinutes: 15, require2fa: false, ipAllowlist: [] };
+    // CA-2-53: the version the edit started from travels beside the body.
+    const dto = {
+      idleTimeoutMinutes: 15,
+      require2fa: false,
+      ipAllowlist: [],
+      seenUpdatedAt: now.toISOString(),
+    };
     await controller.save(dto);
-    expect(policy.save).toHaveBeenCalledWith(dto);
+    expect(policy.save).toHaveBeenCalledWith(dto, now.toISOString());
   });
 });
 
@@ -548,9 +554,14 @@ describe('SlaPolicyController', () => {
     policy.get.mockResolvedValue(record);
     policy.save.mockResolvedValue(record);
     expect((await controller.get()).onTimeThresholdMinutes).toBe(60);
-    const dto = { onTimeThresholdMinutes: 45, healthyBandPct: 95, criticalBandPct: 60 };
+    const dto = {
+      onTimeThresholdMinutes: 45,
+      healthyBandPct: 95,
+      criticalBandPct: 60,
+      seenUpdatedAt: now.toISOString(),
+    };
     await controller.save(dto);
-    expect(policy.save).toHaveBeenCalledWith(dto);
+    expect(policy.save).toHaveBeenCalledWith(dto, now.toISOString());
   });
 });
 

@@ -48,6 +48,6 @@ export class SecurityPolicyController {
   @Put()
   @ApiOperation({ summary: 'Replace the security policy' })
   async save(@Body() dto: SaveSecurityPolicyDto): Promise<SecurityPolicyDto> {
-    return SecurityPolicyDto.from(await this.policy.save(dto));
+    return SecurityPolicyDto.from(await this.policy.save(dto, dto.seenUpdatedAt));
   }
 }

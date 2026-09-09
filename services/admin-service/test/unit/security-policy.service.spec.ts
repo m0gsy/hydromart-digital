@@ -28,4 +28,47 @@ describe('SecurityPolicyService', () => {
       ipAllowlist: ['103.21.0.0/16'],
     });
   });
+
+  /*
+   * CA-2-53. Two HQ admins hold this page open; the second save used to erase the first's
+   * change with neither of them told — on the row that decides who can reach the console
+   * at all.
+   */
+  it('refuses a save built on a copy that is already out of date', async () => {
+    const first = await service.save({
+      idleTimeoutMinutes: 30,
+      require2fa: true,
+      ipAllowlist: [],
+    });
+    // The second admin loaded the page before that save landed, so their copy is older.
+    await expect(
+      service.save(
+        { idleTimeoutMinutes: 60, require2fa: false, ipAllowlist: [] },
+        new Date(first.updatedAt.getTime() - 1000).toISOString(),
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+    expect((await service.get()).idleTimeoutMinutes).toBe(30);
+  });
+
+  it('accepts a save from someone looking at the current row', async () => {
+    const first = await service.save({
+      idleTimeoutMinutes: 30,
+      require2fa: true,
+      ipAllowlist: [],
+    });
+    const second = await service.save(
+      { idleTimeoutMinutes: 45, require2fa: true, ipAllowlist: [] },
+      first.updatedAt.toISOString(),
+    );
+    expect(second.idleTimeoutMinutes).toBe(45);
+  });
+
+  it('refuses a save that says nothing about what it saw, once a row exists', async () => {
+    // Fails closed: a client that names no version is exactly the one that overwrites
+    // blindly, which is the behaviour this replaces.
+    await service.save({ idleTimeoutMinutes: 30, require2fa: true, ipAllowlist: [] });
+    await expect(
+      service.save({ idleTimeoutMinutes: 60, require2fa: true, ipAllowlist: [] }),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE' });
+  });
 });

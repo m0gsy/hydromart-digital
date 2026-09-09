@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -59,6 +60,15 @@ export class UpdateTaxSettingsDto {
   @IsString()
   @MaxLength(255)
   address!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+    format: 'date-time',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
 }
 
 export class TaxSettingsDto {

@@ -372,6 +372,13 @@ jobs:
       - name: No hardcoded Indonesian copy
         run: node scripts/check-i18n.mjs
 
+      # CA-2-53: every console form read a record, held it while somebody typed, and PUT
+      # the whole thing back with nothing saying which version it started from — so the
+      # second admin's save erased the first's, silently. This ratchets the remaining
+      # blind writes down; it cannot rise.
+      - name: Console writes that cannot tell an edit from an overwrite
+        run: node scripts/check-stale-writes.mjs
+
       # Console-audit CA-1-53 / CA-2-38 / the a11y half of CA-2-68. Three file pickers that
       # `display:none` had taken out of the tab order, two `<tr>` that only a mouse could
       # open, 36 failure messages with no live region and 14 unnamed form controls. None of
@@ -468,6 +475,11 @@ jobs:
       # only thing that can tell them apart.
       - name: i18n gate self-check
         run: bash scripts/check-i18n.test.sh
+
+      # A ratchet whose count never moves looks identical whether it is measuring
+      # something or nothing at all.
+      - name: Stale-write ratchet self-check
+        run: bash scripts/check-stale-writes.test.sh
 
       # The Lighthouse ratchet itself runs in the e2e job (it needs a served build). This is
       # the part that needs no browser: that its baseline still carries every metric it

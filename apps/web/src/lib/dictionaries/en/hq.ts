@@ -124,6 +124,8 @@ export const hq = {
     unavailableSome: 'Some data could not be loaded ({sources}). Showing what is available.',
     dash: '—',
     actionFailed: 'That action failed. Try again.',
+    staleWrite:
+      'Someone else changed this while you had it open. The screen has been reloaded — check it and save again.',
     export: 'Export',
     save: 'Save',
     cancel: 'Cancel',

@@ -29,6 +29,6 @@ export class SlaPolicyController {
   @Put()
   @ApiOperation({ summary: 'Replace the SLA policy' })
   async save(@Body() dto: SaveSlaPolicyDto): Promise<SlaPolicyDto> {
-    return SlaPolicyDto.from(await this.policy.save(dto));
+    return SlaPolicyDto.from(await this.policy.save(dto, dto.seenUpdatedAt));
   }
 }

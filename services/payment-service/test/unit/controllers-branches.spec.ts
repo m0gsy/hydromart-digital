@@ -409,10 +409,11 @@ describe('TaxController', () => {
   });
 
   it('update forwards the dto and maps the result', async () => {
-    const dto = { ppnPercent: 12 } as never;
+    // CA-2-53: the version the edit started from travels beside the body.
+    const dto = { ppnPercent: 12, seenUpdatedAt: '2026-09-09T10:00:00.000Z' } as never;
     svc.update.mockResolvedValue({ ...record, ppnPercent: 12 });
     const out = await controller.update(dto);
-    expect(svc.update).toHaveBeenCalledWith(dto);
+    expect(svc.update).toHaveBeenCalledWith(dto, '2026-09-09T10:00:00.000Z');
     expect(out.ppnPercent).toBe(12);
   });
 });

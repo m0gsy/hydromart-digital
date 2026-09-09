@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsISO8601, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 import { SlaPolicyRecord } from '../../application/ports/sla-policy.repository';
 
@@ -38,6 +38,15 @@ export class SaveSlaPolicyDto {
   @Min(0)
   @Max(100)
   criticalBandPct!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'The `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+    format: 'date-time',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
 }
 
 /* ---------- Responses ---------- */
