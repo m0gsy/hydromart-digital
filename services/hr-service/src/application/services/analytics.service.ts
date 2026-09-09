@@ -7,6 +7,7 @@ import { CsvCell, toCsv } from '../../domain/csv';
 import {
   ANALYTICS_REPOSITORY,
   AnalyticsRepository,
+  ExpiringDocument,
   GroupCount,
 } from '../ports/analytics.repository';
 
@@ -14,6 +15,9 @@ export interface ReportData {
   headers: string[];
   rows: CsvCell[][];
 }
+
+/** CA-1-47: how far ahead the dashboard warns about a document that stops being valid. */
+export const DOCUMENT_EXPIRY_WARNING_DAYS = 30;
 
 const dec = (d: Prisma.Decimal | null): number => (d ? d.toNumber() : 0);
 // tz-ok: only ever applied to @db.Date columns (joinDate, workDate, effectiveDate…), which
@@ -37,6 +41,12 @@ export interface HrDashboard {
     };
     byStatus: GroupCount[];
   };
+  /**
+   * CA-1-47: documents that have expired, or expire within 30 days. Rides on the payload
+   * the dashboard already fetches — nothing new to fail, and the one screen HR opens every
+   * morning is where a lapsed licence has to appear if it is to be seen at all.
+   */
+  documentsExpiring: ExpiringDocument[];
 }
 
 /** Compact per-depot HR summary for the owner franchise dashboard (Fase 5). */
@@ -71,14 +81,26 @@ export class AnalyticsService {
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
 
-    const [byStatus, byEmploymentStatus, attendanceToday, payrollTotals, payrollByStatus] =
-      await Promise.all([
-        this.repo.headcountByStatus(depotIds),
-        this.repo.headcountByEmploymentStatus(depotIds),
-        this.repo.attendanceByStatus(workDateUtc, depotIds),
-        this.repo.payrollTotals(periodMonth, depotIds),
-        this.repo.payrollByStatus(periodMonth, depotIds),
-      ]);
+    // CA-1-47: 30 days is a renewal window, not a deadline — a SIM or a contract takes
+    // longer than a week to replace, and anything already past its date is included.
+    const expiryCutoff = new Date(workDateUtc);
+    expiryCutoff.setUTCDate(expiryCutoff.getUTCDate() + DOCUMENT_EXPIRY_WARNING_DAYS);
+
+    const [
+      byStatus,
+      byEmploymentStatus,
+      attendanceToday,
+      payrollTotals,
+      payrollByStatus,
+      documentsExpiring,
+    ] = await Promise.all([
+      this.repo.headcountByStatus(depotIds),
+      this.repo.headcountByEmploymentStatus(depotIds),
+      this.repo.attendanceByStatus(workDateUtc, depotIds),
+      this.repo.payrollTotals(periodMonth, depotIds),
+      this.repo.payrollByStatus(periodMonth, depotIds),
+      this.repo.expiringDocuments(expiryCutoff, depotIds),
+    ]);
 
     return {
       depotId: depotIds && depotIds.length === 1 ? depotIds[0] : null,
@@ -106,6 +128,7 @@ export class AnalyticsService {
       },
       attendanceToday,
       payroll: { totals: payrollTotals, byStatus: payrollByStatus },
+      documentsExpiring,
     };
   }
 

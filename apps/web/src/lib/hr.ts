@@ -300,7 +300,14 @@ export function leaveDeductsQuota(type: LeaveType): boolean {
   return type === 'ANNUAL' || type === 'PERMISSION';
 }
 
-export type EmployeeDocumentType = 'KTP' | 'KK' | 'CONTRACT' | 'NPWP' | 'CERTIFICATE' | 'OTHER';
+export type EmployeeDocumentType =
+  | 'KTP'
+  | 'KK'
+  | 'CONTRACT'
+  | 'NPWP'
+  | 'CERTIFICATE'
+  | 'SIM'
+  | 'OTHER';
 
 export interface EmployeeDocument {
   id: string;
@@ -323,6 +330,9 @@ export const DOCUMENT_TYPES: EmployeeDocumentType[] = [
   'CONTRACT',
   'NPWP',
   'CERTIFICATE',
+  // CA-1-47: every courier carries one, and it is the document here most likely to lapse.
+  // Without a type of its own it was filed as OTHER, next to scanned diplomas.
+  'SIM',
   'OTHER',
 ];
 export const DOCUMENT_TYPE_LABEL: Record<EmployeeDocumentType, string> = {
@@ -331,6 +341,7 @@ export const DOCUMENT_TYPE_LABEL: Record<EmployeeDocumentType, string> = {
   CONTRACT: 'hrFix.map.docType.CONTRACT',
   NPWP: 'hrFix.map.docType.NPWP',
   CERTIFICATE: 'hrFix.map.docType.CERTIFICATE',
+  SIM: 'hrFix.map.docType.SIM',
   OTHER: 'hrFix.map.docType.OTHER',
 };
 
@@ -660,6 +671,18 @@ export interface HrDashboard {
     };
     byStatus: GroupCount[];
   };
+  /** CA-1-47: already expired, or expiring within 30 days. Soonest first, at most 20. */
+  documentsExpiring: ExpiringDocument[];
+}
+
+/** CA-1-47: one document about to stop being valid, named well enough to act on. */
+export interface ExpiringDocument {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  type: EmployeeDocumentType;
+  /** `YYYY-MM-DD`. Already past = expired. */
+  expiresAt: string;
 }
 
 export interface SettingDef {

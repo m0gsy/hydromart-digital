@@ -4,15 +4,17 @@ import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 import type { ReactNode } from 'react';
 
-import { Card, CenterState, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
+import { Badge, Card, CenterState, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   ATTENDANCE_STATUS_LABEL,
+  DOCUMENT_TYPE_LABEL,
   EMPLOYMENT_STATUS_LABEL,
   PAYROLL_STATUS_LABEL,
   currentPeriod,
   type AttendanceStatus,
+  type ExpiringDocument,
   type EmploymentStatus,
   type HrDashboard,
   type PayrollStatus,
@@ -48,6 +50,51 @@ function Groups({
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * CA-1-47 — an expiry date nobody ever read.
+ *
+ * HR typed `expiresAt` on upload and the employee's own page printed it back, and that was
+ * the whole life of the field: no query asked which documents were about to lapse, so
+ * finding out meant opening every employee one at a time. A courier's SIM expired the same
+ * way a contract did — silently, and only a policeman or an audit ever noticed.
+ */
+function ExpiringDocs({ rows, today }: { rows: ExpiringDocument[]; today: string }) {
+  const { t } = useT();
+  if (rows.length === 0) return null;
+  return (
+    <Card className="space-y-3 p-5">
+      <h3 className="font-bold">{t('hrFix.home.docsExpiring')}</h3>
+      <ul className="divide-y divide-[color:var(--border)]">
+        {rows.map((d) => {
+          // Both sides are YYYY-MM-DD from the server's own calendar, so this subtracts two
+          // local dates rather than two instants — no timezone to get wrong.
+          const days = Math.round(
+            (Date.parse(`${d.expiresAt}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
+          );
+          return (
+            <li key={`${d.employeeId}-${d.type}`} className="flex items-center justify-between gap-3 py-2">
+              <div className="min-w-0">
+                <Link
+                  href={`/hr/employees/detail?id=${d.employeeId}`}
+                  className="font-semibold hover:underline"
+                >
+                  {d.fullName}
+                </Link>
+                <p className="text-sm text-muted">
+                  {d.employeeCode} · {t(DOCUMENT_TYPE_LABEL[d.type])} · {d.expiresAt}
+                </p>
+              </div>
+              <Badge tone={days < 0 ? 'danger' : 'warning'}>
+                {days < 0 ? t('hrFix.home.docsExpired') : t('hrFix.home.docsDaysLeft', { days })}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 
@@ -88,6 +135,8 @@ export default function HrDashboardPage() {
               value={data.attendanceToday.find((g) => g.key === 'PRESENT')?.count ?? 0}
             />
           </div>
+
+          <ExpiringDocs rows={data.documentsExpiring} today={data.workDate} />
 
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">{t('hrFix.home.headcountMix')}</h3>

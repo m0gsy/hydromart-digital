@@ -965,6 +965,40 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
 // ── AnalyticsPrismaRepository ──────────────────────────────────────────
 describe('AnalyticsPrismaRepository', () => {
   /*
+   * CA-1-47. A replaced document's old expiry is history, not a warning, and a leaver's
+   * lapsed licence is nobody's problem — so both are filtered out at the query, where the
+   * caller cannot forget them.
+   */
+  it('expiringDocuments asks only for current documents of staff who are still here', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-08-01T00:00:00.000Z');
+    m(p, 'employeeDocument').findMany.mockResolvedValue([
+      {
+        type: 'SIM',
+        expiresAt: new Date('2026-07-02T00:00:00.000Z'),
+        employee: { id: 'e-1', employeeCode: 'HR-0001', fullName: 'Budi' },
+      },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.expiringDocuments(cutoff, ['d1'])).resolves.toEqual([
+      {
+        employeeId: 'e-1',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        type: 'SIM',
+        expiresAt: '2026-07-02',
+      },
+    ]);
+    const where = m(p, 'employeeDocument').findMany.mock.calls[0][0].where;
+    expect(where.supersededById).toBeNull();
+    expect(where.expiresAt).toEqual({ not: null, lte: cutoff });
+    expect(where.employee).toEqual({
+      depotId: { in: ['d1'] },
+      status: { not: 'RESIGNED' },
+    });
+  });
+
+  /*
    * CA-1-62. Both lookups exist so the directory export can print the code a human typed
    * instead of the uuid the column stores. Neither has a Prisma relation to ride on.
    */

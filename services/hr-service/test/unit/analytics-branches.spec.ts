@@ -20,6 +20,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
       count: 3,
     }),
     payrollByStatus: async () => [],
+    expiringDocuments: async () => [],
     employeesForReport: async () => [],
     departmentCodesByIds: async () => new Map<string, string>(),
     shiftNamesByIds: async () => new Map<string, string>(),

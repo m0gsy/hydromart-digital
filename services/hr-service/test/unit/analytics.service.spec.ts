@@ -41,6 +41,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
       count: 2,
     }),
     payrollByStatus: async () => [{ key: 'DRAFT', count: 2 }],
+    expiringDocuments: async () => [],
     employeesForReport: async () => [],
     departmentCodesByIds: async () => new Map<string, string>(),
     shiftNamesByIds: async () => new Map<string, string>(),
@@ -90,6 +91,36 @@ describe('AnalyticsService.dashboard', () => {
     const d = await svc.dashboard(manager, {});
     expect(d.depotId).toBe('d-locked');
     expect(calls[0].depotId).toBe('d-locked');
+  });
+
+  /*
+   * CA-1-47 — the expiry date nobody read. It rides on the dashboard payload rather than a
+   * route of its own: the screen HR opens every morning is the only place a lapsed licence
+   * gets seen, and a card there costs no new way for the page to fail.
+   */
+  it('asks for documents expiring within thirty days of today, and passes the depot scope', async () => {
+    let asked: { cutoff?: Date; depotIds?: readonly string[] } = {};
+    const row = {
+      employeeId: 'e-1',
+      employeeCode: 'HR-0001',
+      fullName: 'Budi',
+      type: 'SIM',
+      expiresAt: '2026-07-02',
+    };
+    const { svc } = build({
+      expiringDocuments: async (cutoff, depotIds) => {
+        asked = { cutoff, depotIds };
+        return [row];
+      },
+    });
+    const d = await svc.dashboard(manager, {});
+
+    expect(d.documentsExpiring).toEqual([row]);
+    expect(asked.depotIds).toEqual(['d-locked']);
+    const days = Math.round(
+      (asked.cutoff!.getTime() - Date.parse(`${d.workDate}T00:00:00.000Z`)) / 86_400_000,
+    );
+    expect(days).toBe(30);
   });
 
   it('rejects a depot-locked role requesting another depot', async () => {

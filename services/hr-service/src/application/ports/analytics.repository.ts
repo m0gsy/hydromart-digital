@@ -11,6 +11,23 @@ import {
 
 export const ANALYTICS_REPOSITORY = Symbol('ANALYTICS_REPOSITORY');
 
+/**
+ * CA-1-47: one document that is about to stop being valid, named well enough to act on.
+ *
+ * Nothing ever read `expiresAt`. HR typed the date on upload, the employee's own page
+ * printed it back, and that was the end of it — a courier whose SIM lapsed kept driving
+ * until a policeman noticed, because noticing was a per-employee errand nobody had a reason
+ * to run.
+ */
+export interface ExpiringDocument {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  type: string;
+  /** `YYYY-MM-DD`. Already past = expired, and those come first. */
+  expiresAt: string;
+}
+
 /** A grouped count, e.g. { key: 'ACTIVE', count: 42 }. */
 export interface GroupCount {
   key: string;
@@ -85,6 +102,12 @@ export interface AnalyticsRepository {
   payrollByStatus(periodMonth: string, depotIds?: readonly string[]): Promise<GroupCount[]>;
 
   // --- report row fetchers ---
+  /**
+   * Current (not superseded) documents that expire on or before `cutoff`, soonest first.
+   * Depot-scoped through the owning employee, and never returns anyone who has left.
+   */
+  expiringDocuments(cutoff: Date, depotIds?: readonly string[]): Promise<ExpiringDocument[]>;
+
   employeesForReport(depotIds?: readonly string[]): Promise<Employee[]>;
   /**
    * CA-1-62: the directory export answered 11 of the import template's 29 columns, so a

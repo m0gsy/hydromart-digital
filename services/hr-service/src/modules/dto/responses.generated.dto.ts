@@ -155,6 +155,20 @@ export class HrDashboardPayrollResponseDto {
   byStatus!: GroupCountResponseDto[];
 }
 
+/** Mirrors `ExpiringDocument` exactly — CA-1-47, no field added or removed. */
+export class ExpiringDocumentResponseDto {
+  @ApiProperty({ type: String })
+  employeeId!: string;
+  @ApiProperty({ type: String })
+  employeeCode!: string;
+  @ApiProperty({ type: String })
+  fullName!: string;
+  @ApiProperty({ type: String })
+  type!: string;
+  @ApiProperty({ type: String, description: 'YYYY-MM-DD; already past means expired.' })
+  expiresAt!: string;
+}
+
 /** Mirrors `HrDashboard` exactly — generated for audit D-6, no field added or removed. */
 export class HrDashboardResponseDto {
   @ApiProperty({ type: String, nullable: true })
@@ -169,6 +183,11 @@ export class HrDashboardResponseDto {
   attendanceToday!: GroupCountResponseDto[];
   @ApiProperty({ type: HrDashboardPayrollResponseDto })
   payroll!: HrDashboardPayrollResponseDto;
+  @ApiProperty({
+    type: [ExpiringDocumentResponseDto],
+    description: 'CA-1-47: documents already expired or expiring within 30 days.',
+  })
+  documentsExpiring!: ExpiringDocumentResponseDto[];
 }
 
 /** Mirrors `HrDepotSummary` exactly — generated for audit D-6, no field added or removed. */

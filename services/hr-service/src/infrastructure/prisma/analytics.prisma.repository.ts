@@ -6,6 +6,7 @@ import {
   AnalyticsRepository,
   AnnouncementWithStats,
   DepotSummaryFacts,
+  ExpiringDocument,
   AssetWithHolder,
   AttendanceWithEmployee,
   GroupCount,
@@ -191,6 +192,40 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
         ...fromCursor(cursor),
       }),
     );
+  }
+
+  /*
+   * CA-1-47. `supersededById: null` because a replaced KTP's old expiry is history, not a
+   * warning, and RESIGNED is excluded because a leaver's lapsed licence is nobody's problem.
+   * Bounded at 20: this rides on the dashboard, and a dashboard card is a prompt to act,
+   * not a register.
+   */
+  async expiringDocuments(
+    cutoff: Date,
+    depotIds?: readonly string[],
+  ): Promise<ExpiringDocument[]> {
+    const rows = await this.prisma.employeeDocument.findMany({
+      where: {
+        supersededById: null,
+        expiresAt: { not: null, lte: cutoff },
+        employee: { depotId: depotWhere(depotIds), status: { not: 'RESIGNED' } },
+      },
+      select: {
+        type: true,
+        expiresAt: true,
+        employee: { select: { id: true, employeeCode: true, fullName: true } },
+      },
+      orderBy: { expiresAt: 'asc' },
+      take: 20,
+    });
+    return rows.map((r) => ({
+      employeeId: r.employee.id,
+      employeeCode: r.employee.employeeCode,
+      fullName: r.employee.fullName,
+      type: r.type,
+      // @db.Date, so Prisma reads it back as UTC midnight and the slice IS the local date.
+      expiresAt: (r.expiresAt as Date).toISOString().slice(0, 10),
+    }));
   }
 
   // CA-1-62: two id->label lookups for the directory export. Empty in, empty out — no
