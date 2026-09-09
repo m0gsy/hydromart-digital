@@ -5,6 +5,7 @@ export const dashB = {
     fieldSubtitle: 'Reported by couriers from the road. HIGH severity already went to the ops feed; the rest are read here.',
     fieldEmpty: 'No field reports from this depot’s couriers yet.',
     courierUnknown: 'Unknown courier',
+    fieldPhoto: 'View photo',
     courierCategory: {
       ACCIDENT: 'Accident',
       VEHICLE_BREAKDOWN: 'Vehicle breakdown',

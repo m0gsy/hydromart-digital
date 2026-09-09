@@ -48,7 +48,9 @@ const FIELD = [
     category: 'VEHICLE_BREAKDOWN',
     severity: 'MEDIUM',
     description: 'Rantai motor putus di Jl. Kemang',
-    photoUrl: null,
+    // CA-4-49: what the server hands over is an expiring link it minted for this read,
+    // not the stored object key — the bucket is private.
+    photoUrl: 'https://cdn.example.com/pod/abc.jpg?X-Amz-Expires=900',
     createdAt: '2026-07-01T02:00:00.000Z',
   },
 ];
@@ -83,6 +85,14 @@ describe('CA-4-48 the depot reads its couriers’ field reports', () => {
     render(<IncidentsPage />);
     await waitFor(() => expect(screen.getByText(/Budi Santoso/)).toBeTruthy());
     expect(screen.queryByText(/drv-1/)).toBeNull();
+  });
+
+  it('links to the photo the server signed for this read', async () => {
+    render(<IncidentsPage />);
+    const link = await screen.findByRole('link', { name: 'dashB.incidents.fieldPhoto' });
+    expect(link.getAttribute('href')).toBe(
+      'https://cdn.example.com/pod/abc.jpg?X-Amz-Expires=900',
+    );
   });
 
   it('still reads when the roster cannot be fetched — the report is the point', async () => {

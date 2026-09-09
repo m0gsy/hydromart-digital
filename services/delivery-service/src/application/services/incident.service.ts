@@ -1,10 +1,12 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { escalatesToOps, IncidentCategory, IncidentSeverity } from '../../domain/incident';
 import { IncidentRecord, IncidentRepository } from '../ports/incident.repository';
 import { OpsNotifierPort } from '../ports/ops-notifier.port';
+import { StoragePort } from '../ports/storage.port';
 import { DELIVERY_TOKENS } from '../tokens';
+import { storageKeyFromUrl } from './delivery.service';
 
 export interface ReportIncidentData {
   deliveryId?: string;
@@ -20,6 +22,8 @@ export interface ReportIncidentData {
 @Injectable()
 export class IncidentService {
   private static readonly HISTORY_LIMIT = 30;
+  /** Same window the PoD photo link uses: long enough to look at, short enough to expire. */
+  private static readonly PHOTO_LINK_TTL_SECONDS = 15 * 60;
   /** CA-4-48: a review list, not an archive — the newest 100 for the depot. */
   private static readonly DEPOT_LIMIT = 100;
   private readonly logger = new Logger(IncidentService.name);
@@ -27,6 +31,7 @@ export class IncidentService {
   constructor(
     @Inject(DELIVERY_TOKENS.IncidentRepository) private readonly incidents: IncidentRepository,
     @Inject(DELIVERY_TOKENS.OpsNotifier) private readonly ops: OpsNotifierPort,
+    @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
   ) {}
 
   /** Records the incident, then (HIGH only) alerts ops. The alert is fire-and-log:
@@ -74,5 +79,26 @@ export class IncidentService {
   async listForDepot(user: AuthenticatedUser, depotId?: string): Promise<IncidentRecord[]> {
     const depotIds = depotScopeIds(user, depotId);
     return this.incidents.listForDepot(depotIds ?? undefined, IncidentService.DEPOT_LIMIT);
+  }
+
+  /**
+   * CA-4-49, the half the first pass left behind — an incident photo.
+   *
+   * The bucket was made private and the PoD photo and signature moved to expiring signed
+   * links. An incident's photo goes to the SAME bucket through the same upload endpoint,
+   * and kept being handed out as the stored `${STORAGE_PUBLIC_BASE_URL}/<key>` string —
+   * which since that change resolves to nothing at all. So the one picture of the accident,
+   * the broken vehicle or the damaged load was a dead image on every screen that showed it,
+   * and would have been an unauthenticated permanent link on any deployment whose bucket is
+   * still public.
+   *
+   * Null when there is nothing to sign — no photo, a URL with no derivable key, or no
+   * storage bound. The caller renders nothing rather than a broken frame.
+   */
+  async signedPhotoUrl(url: string | null): Promise<string | null> {
+    if (!url || !this.storage) return null;
+    const key = storageKeyFromUrl(url);
+    if (!key) return null;
+    return this.storage.signedUrl(key, IncidentService.PHOTO_LINK_TTL_SECONDS);
   }
 }

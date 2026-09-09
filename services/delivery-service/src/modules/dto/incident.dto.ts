@@ -83,12 +83,18 @@ export class IncidentDto {
   severity!: IncidentSeverity;
   @ApiProperty()
   description!: string;
+  /**
+   * CA-4-49: an EXPIRING link, minted per read, or null when there is nothing to show.
+   * Never the stored `${STORAGE_PUBLIC_BASE_URL}/<key>` string — the bucket is private, so
+   * that string opens nothing, and on any deployment where it still does it opens for
+   * everybody, forever.
+   */
   @ApiProperty({ nullable: true })
   photoUrl!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
-  static from(record: IncidentRecord): IncidentDto {
+  static from(record: IncidentRecord, photoUrl: string | null = null): IncidentDto {
     return {
       id: record.id,
       driverId: record.driverId,
@@ -96,7 +102,7 @@ export class IncidentDto {
       category: record.category,
       severity: record.severity,
       description: record.description,
-      photoUrl: record.photoUrl,
+      photoUrl,
       createdAt: record.createdAt,
     };
   }

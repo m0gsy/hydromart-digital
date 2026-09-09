@@ -79,6 +79,9 @@ describe('DriverIncidentController', () => {
     report: jest.fn().mockResolvedValue(record),
     listForDriver: jest.fn().mockResolvedValue([record]),
     listForDepot: jest.fn().mockResolvedValue([record]),
+    // CA-4-49: the bucket is private, so what reaches a screen is an expiring link minted
+    // per read — never the stored key string.
+    signedPhotoUrl: jest.fn().mockResolvedValue('https://cdn.example.com/pod/x.jpg?sig=abc'),
   };
   const controller = new DriverIncidentController(incidents as never);
   const depotController = new FieldIncidentController(incidents as never);
@@ -92,6 +95,8 @@ describe('DriverIncidentController', () => {
     const out = await controller.report(user, dto as never);
     expect(incidents.report).toHaveBeenCalledWith(user.sub, dto);
     expect(out).toMatchObject({ id, category: IncidentCategory.ACCIDENT });
+    // CA-4-49: whatever the row stores, the DTO carries the signed link.
+    expect(out.photoUrl).toBe('https://cdn.example.com/pod/x.jpg?sig=abc');
   });
 
   // CA-4-48: the depot's review list — the same records, read by whoever has to act.

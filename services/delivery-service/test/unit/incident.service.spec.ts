@@ -123,4 +123,40 @@ describe('IncidentService', () => {
       expect(await service.listForDepot(hq)).toHaveLength(1);
     });
   });
+
+  /*
+   * CA-4-49, the half the first pass left behind. The bucket was made private and the PoD
+   * photo and signature moved to expiring links; an incident's photo goes to the SAME
+   * bucket through the same upload endpoint and kept being handed out as the stored key
+   * string — which resolves to nothing now, and to everything forever on any deployment
+   * whose bucket is still public.
+   */
+  describe('CA-4-49 an incident photo is an expiring link, never the stored key', () => {
+    const storage = {
+      signedUrl: jest.fn(async (key: string, ttl: number) => `https://signed/${key}?ttl=${ttl}`),
+    };
+
+    beforeEach(() => {
+      storage.signedUrl.mockClear();
+      service = new IncidentService(repo, ops, storage as never);
+    });
+
+    it('signs the key derived from the stored URL, for fifteen minutes', async () => {
+      const link = await service.signedPhotoUrl('https://cdn.example.com/pod/abc.jpg');
+      expect(link).toBe('https://signed/pod/abc.jpg?ttl=900');
+      expect(storage.signedUrl).toHaveBeenCalledWith('pod/abc.jpg', 900);
+    });
+
+    it('answers null rather than a broken frame when there is nothing to sign', async () => {
+      expect(await service.signedPhotoUrl(null)).toBeNull();
+      // A hand-typed value from before the upload path existed carries no key.
+      expect(await service.signedPhotoUrl('https://example.com/some/photo.jpg')).toBeNull();
+      expect(storage.signedUrl).not.toHaveBeenCalled();
+    });
+
+    it('answers null when no storage is bound at all', async () => {
+      const noStorage = new IncidentService(repo, ops);
+      expect(await noStorage.signedPhotoUrl('https://cdn.example.com/pod/abc.jpg')).toBeNull();
+    });
+  });
 });

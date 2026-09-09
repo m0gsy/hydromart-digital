@@ -7,6 +7,7 @@ export const dashB = {
     fieldSubtitle: 'Dilaporkan kurir dari jalan. Yang HIGH sudah masuk feed ops; sisanya dibaca di sini.',
     fieldEmpty: 'Belum ada laporan insiden dari kurir depot ini.',
     courierUnknown: 'Kurir tidak dikenal',
+    fieldPhoto: 'Lihat foto',
     courierCategory: {
       ACCIDENT: 'Kecelakaan',
       VEHICLE_BREAKDOWN: 'Kendaraan mogok',

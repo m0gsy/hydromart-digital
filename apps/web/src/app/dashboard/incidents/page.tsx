@@ -13,6 +13,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -370,6 +371,17 @@ function CourierFieldIncidents({ depotId }: { depotId: string }) {
                 </p>
                 <p className="text-sm text-muted">{i.description}</p>
                 <p className="text-xs text-muted">{formatDateTime(i.createdAt)}</p>
+                {/* CA-4-49: an expiring link the server minted for this read. The stored
+                    value is the object's id, and the bucket is private — a reviewer gets a
+                    fresh link, never one that keeps working. */}
+                {i.photoUrl && (
+                  <ExternalLink
+                    href={i.photoUrl}
+                    className="text-sm font-semibold text-brand-700 hover:underline"
+                  >
+                    {t('dashB.incidents.fieldPhoto')}
+                  </ExternalLink>
+                )}
               </div>
               <Badge tone={SEVERITY_BADGE[i.severity]}>
                 {t(`dashB.incidents.severity.${i.severity}`)}
