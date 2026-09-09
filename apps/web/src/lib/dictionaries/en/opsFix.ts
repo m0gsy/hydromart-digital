@@ -43,6 +43,7 @@ export const opsFix = {
     noSalePrice: 'no sale price on these items',
   },
   vouchers: {
+    deactivate: 'Deactivate',
     landedInWallet: 'Voucher added to {who}’s wallet.',
     aCustomer: 'the customer',
   },
@@ -751,5 +752,11 @@ export const opsFix = {
       'All five metrics come from their own source: orders and revenue from this month’s order book, SLA from delivery-service, wastage from depot-service, net profit from order-service (revenue − purchases − payroll − expenses). A “—” means that source could not be read, not zero.',
     gate: 'Depot managers only',
     gateBody: 'Comparing depots is for depot managers only.',
+  },
+  cashierShift: {
+    openShift: 'Open shift',
+  },
+  nav: {
+    more: 'More',
   },
 };

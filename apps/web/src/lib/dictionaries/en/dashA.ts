@@ -161,6 +161,7 @@ export const dashA = {
     gateBody: 'The CRM dashboard is for depot and head-office staff only.',
   },
   customerDetail: {
+    resellerDocNote: 'Uploaded during reseller sign-up.',
     referralTitle: 'Referrals',
     referralCode: 'Code',
     referralInvited: 'Invited',

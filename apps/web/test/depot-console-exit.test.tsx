@@ -55,7 +55,10 @@ describe('depot console exit (CA-2-61)', () => {
     (r) => {
       role = r;
       const { unmount } = render(<OpsBottomNav />);
-      fireEvent.click(screen.getByRole('button', { name: /Lainnya/ }));
+      // The label went through the dictionary (CA-2-48 sweep), and this suite renders with
+      // `t` as identity — so the button is named by its KEY now. The affordance is what this
+      // test is about; the wording was never the assertion.
+      fireEvent.click(screen.getByRole('button', { name: /opsFix\.nav\.more|Lainnya/ }));
       expect(screen.getByRole('button', { name: /signOut/i })).toBeTruthy();
       unmount();
     },

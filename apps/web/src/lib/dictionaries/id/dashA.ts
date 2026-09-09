@@ -162,6 +162,7 @@ export const dashA = {
     gateBody: 'Dashboard CRM tersedia untuk staf depot dan kantor pusat.',
   },
   customerDetail: {
+    resellerDocNote: 'Diunggah saat pendaftaran reseller.',
     referralTitle: 'Referral',
     referralCode: 'Kode',
     referralInvited: 'Diundang',

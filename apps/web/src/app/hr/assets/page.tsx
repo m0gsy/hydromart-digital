@@ -447,7 +447,7 @@ function AssetPanel({
             </Field>
             <div className="col-span-full flex gap-2">
               <Button type="submit" loading={saving}>
-                Catat Pergerakan
+                {t('hrFix.assets.recordMovement')}
               </Button>
               <Button type="button" variant="secondary" onClick={startEdit} disabled={saving}>
                 {t('hrFix.assets.editDetail2')}

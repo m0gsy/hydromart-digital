@@ -140,7 +140,7 @@ function MoreSheetTab() {
         className="flex min-h-11 flex-col items-center justify-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]"
       >
         <DotsThreeOutline size={21} />
-        Lainnya
+        {t('opsFix.nav.more')}
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title={t('ops.more.title')}>

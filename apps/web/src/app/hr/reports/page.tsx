@@ -107,7 +107,7 @@ export default function ReportsPage() {
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="text-sm">
-            Sampai
+            {t('hrFix.reports.toLabel')}
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
           <label className="text-sm">

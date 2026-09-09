@@ -178,6 +178,7 @@ export const hrFix = {
     exitBeforeJoin: 'Exit date cannot be before the join date.',
   },
   assets: {
+    recordMovement: 'Record movement',
     valueLabel: 'Value',
     movedTo: ' · to {name}',
     movedCondition: ' · condition: {condition}',
@@ -462,6 +463,7 @@ export const hrFix = {
   },
   departments: {
     inactive: 'inactive',
+    codeLabel: 'Code',
     deleteConfirm:
       'Delete the department {name}? The server refuses while any employee still points at it.',
     emptyBody2: 'No departments yet — employees show as “Not set”.',
@@ -484,6 +486,7 @@ export const hrFix = {
     activate: 'Activate',
   },
   reports: {
+    toLabel: 'To',
     rangeHint:
       'The date range applies to attendance, lateness, leave and announcements. The period applies to payroll and performance. Long reports are truncated in the PDF, which says so on the page.',
     from2: 'From',
@@ -1508,6 +1511,7 @@ export const hrFix = {
     info: 'Info',
   },
   deliveryDetail: {
+    call: 'Call',
     confirmPickup: 'Confirm goods collected',
     failedReason: 'Failed: {reason}',
     podRetention:
@@ -1686,6 +1690,7 @@ export const hrFix = {
     retry: 'Try again',
   },
   favorites: {
+    browseProducts: 'Browse products',
     title: 'Favourites',
     empty: 'No favourites yet. Tap the heart on a product to save it.',
     accountAria: 'Account',
@@ -2003,9 +2008,15 @@ export const hrFix = {
     settings: 'Settings',
   },
   mgrAccount: {
+    openOnDesktop: 'Open on desktop',
     pnl: 'P&L report',
     purchaseOrders: 'Purchase orders',
     manageTeam: 'Manage the team',
-    openOnDesktop: 'Open on desktop',
+  },
+  biometric: {
+    openSaved: 'Open saved session',
+  },
+  nativeBridge: {
+    openPlayStore: 'Open Play Store',
   },
 };

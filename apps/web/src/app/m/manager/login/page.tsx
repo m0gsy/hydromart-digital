@@ -73,7 +73,7 @@ export default function ManagerLoginPage() {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="phone" className="text-[12.5px] font-bold">
-              Nomor HP terdaftar
+              {t('mgrFix.mMgrLogin.registeredPhone')}
             </label>
             <div
               className="flex items-center rounded-[14px] border-2 border-brand-600 bg-[color:var(--surface-elevated)]"

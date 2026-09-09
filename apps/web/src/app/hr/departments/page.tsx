@@ -142,7 +142,7 @@ export default function DepartmentsPage() {
         {isAdmin && (
           <div className="flex flex-wrap items-end gap-2 border-t border-app pt-3">
             <label className="text-sm">
-              Kode
+              {t('hrFix.departments.codeLabel')}
               <Input
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
