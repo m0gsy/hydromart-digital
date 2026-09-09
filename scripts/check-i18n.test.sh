@@ -24,6 +24,9 @@ export function ZzI18nGateFixture({ depot, count }: { depot: string; count: numb
       <ErrorState message="Gagal memuat data karyawan" />
       <Header subtitle={`Pencapaian bulan ${depot}`} />
       <Chip label="Draft" />
+      {/* CA-1-23: a hole with braces INSIDE it. The flat `${...}` stripper could not match
+          one, so a template that is nothing but a t() call read as untranslated prose. */}
+      <Note text={`${t('zzNested.key', { depot: depot })} hari`} />
       <Meter value={count} className="max-w-[1216px]" data-testid="zz-meter" />
       {/* CA-1-52: half-translated ternaries — one branch already t(), the other never
           wrapped. The commonest shape of copy somebody started translating and stopped. */}
@@ -57,7 +60,7 @@ done
 
 # A gate that fires on everything is as useless as one that never fires. None of these is
 # Indonesian copy: an English word, a Tailwind class, a test id.
-for noise in 'Draft' 'max-w-' 'zz-meter'; do
+for noise in 'Draft' 'max-w-' 'zz-meter' 'zzNested'; do
   if grep -q "$noise" "$OUT"; then
     echo "FAIL: the gate reported $noise, which is not Indonesian copy"
     cat "$OUT"

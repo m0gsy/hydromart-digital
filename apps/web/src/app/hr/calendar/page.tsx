@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { fmtDate, type Holiday, type SettingsSchema, type Shift } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
+import { useDepot } from '@/lib/depot-context';
 import { useAsync } from '@/lib/use-async';
 
 export default function CalendarPage() {
@@ -27,6 +28,24 @@ export default function CalendarPage() {
     () => api.getCached(endpoints.hr.settingsSchema(), true),
     [],
   );
+  /*
+   * CA-1-23 — a depot-specific holiday or shift could be READ but never WRITTEN.
+   *
+   * Both lists say which rows belong to one depot and which are network-wide, the API takes
+   * a `depotId` on both creates, and the service already limits a depot-scoped caller to
+   * their own. Only the console never offered the choice, so every holiday HR added was
+   * national and every shift was global — an Idul Fitri closure for one town, or a night
+   * shift that only the Bogor depot runs, could be seen but not made. Empty means
+   * network-wide, which is what the forms did before, so nothing changes by accident.
+   */
+  const { depots } = useDepot();
+  const [hDepot, setHDepot] = useState('');
+  const [sDepot, setSDepot] = useState('');
+  const depotLabel = (id: string | null) => {
+    if (!id) return null;
+    const depot = depots.find((d) => d.id === id);
+    return depot ? depot.code : t('hrFix.calendar.depot');
+  };
   const [hName, setHName] = useState('');
   const [sName, setSName] = useState('');
   const [sStart, setSStart] = useState('08:00');
@@ -40,7 +59,11 @@ export default function CalendarPage() {
     try {
       await api.post(
         endpoints.hr.createHoliday,
-        { date: new Date(hDate).toISOString(), name: hName },
+        {
+          date: new Date(hDate).toISOString(),
+          name: hName,
+          ...(hDepot ? { depotId: hDepot } : {}),
+        },
         true,
       );
       toast(t('hrFix.calendar.holidayAdded'));
@@ -68,7 +91,12 @@ export default function CalendarPage() {
     try {
       await api.post(
         endpoints.hr.createShift,
-        { name: sName, startTime: sStart, endTime: sEnd },
+        {
+          name: sName,
+          startTime: sStart,
+          endTime: sEnd,
+          ...(sDepot ? { depotId: sDepot } : {}),
+        },
         true,
       );
       toast(t('hrFix.calendar.shiftAdded'));
@@ -123,7 +151,7 @@ export default function CalendarPage() {
                 <span>
                   <b>{fmtDate(h.date)}</b> · {h.name}
                   {h.depotId
-                    ? ` ${t('hrFix.calendar.depotScope')}`
+                    ? ` ${t('hrFix.calendar.depotNamed', { depot: depotLabel(h.depotId) ?? '' })}`
                     : ` ${t('hrFix.calendar.nationalScope')}`}
                 </span>
                 {isAdmin && (
@@ -148,6 +176,21 @@ export default function CalendarPage() {
                 onChange={(e) => setHName(e.target.value)}
                 placeholder={t('hrFix.calendar.holidayHint')}
               />
+            </label>
+            <label className="text-sm">
+              {t('hrFix.calendar.scope')}
+              <select
+                value={hDepot}
+                onChange={(e) => setHDepot(e.target.value)}
+                className="surface-elevated mt-1 block w-full rounded-lg border border-app px-3 py-2.5 text-sm"
+              >
+                <option value="">{t('hrFix.calendar.scopeAll')}</option>
+                {depots.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} — {d.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <Button onClick={addHoliday}>{t('hrFix.calendar.add')}</Button>
           </div>
@@ -180,7 +223,9 @@ export default function CalendarPage() {
                 <span>
                   <b>{s.name}</b> · {s.startTime}–{s.endTime}
                   {s.active ? '' : ` (${t('hrFix.calendar.inactive')})`}
-                  {s.depotId ? ` · ${t('hrFix.calendar.depot')}` : ''}
+                  {s.depotId
+                    ? ` · ${t('hrFix.calendar.depotNamed', { depot: depotLabel(s.depotId) ?? '' })}`
+                    : ''}
                 </span>
                 {isAdmin && (
                   <span className="flex shrink-0 gap-1">
@@ -214,6 +259,21 @@ export default function CalendarPage() {
             <label className="text-sm">
               {t('hrFix.calendar.end')}
               <Input type="time" value={sEnd} onChange={(e) => setSEnd(e.target.value)} />
+            </label>
+            <label className="text-sm">
+              {t('hrFix.calendar.scope')}
+              <select
+                value={sDepot}
+                onChange={(e) => setSDepot(e.target.value)}
+                className="surface-elevated mt-1 block w-full rounded-lg border border-app px-3 py-2.5 text-sm"
+              >
+                <option value="">{t('hrFix.calendar.scopeAll')}</option>
+                {depots.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} — {d.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <Button onClick={addShift}>{t('hrFix.calendar.add')}</Button>
           </div>

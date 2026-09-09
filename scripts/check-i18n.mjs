@@ -208,6 +208,31 @@ const SKIP_FILE = /\.(test|spec)\.tsx?$/;
  */
 const SKIP_PATH = new Set(['app/global-error.tsx']);
 
+/**
+ * Blank out a template literal's `${…}` holes, braces and all.
+ *
+ * CA-1-23 found the flat version's limit: `\$\{[^{}]*\}` cannot match a hole that itself
+ * contains braces, so `${t('key', { depot: code })}` survived stripping and the whole
+ * expression — a `t()` call — was reported as untranslated copy. Counting depth costs three
+ * lines and gets every nesting right.
+ */
+function stripHoles(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '$' && s[i + 1] === '{') {
+      let depth = 1;
+      i += 2;
+      for (; i < s.length && depth > 0; i++) {
+        if (s[i] === '{') depth++;
+        else if (s[i] === '}') depth--;
+      }
+      i--;
+      out += ' ';
+    } else out += s[i];
+  }
+  return out.trim();
+}
+
 /** Replace comment bodies with spaces, keeping every newline and every offset. */
 function blankComments(src) {
   return src
@@ -374,7 +399,7 @@ for (const file of walk(ROOT)) {
       let s = (m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
       // A template literal is judged on the prose between its holes, not on the
       // expressions inside them — `${formatDateTime(at)}` is code, "berikutnya" is copy.
-      if (kind === 'template') s = s.replace(/\$\{[^{}]*\}/g, ' ').trim();
+      if (kind === 'template') s = stripHoles(s);
       // A wrapped JSX text node carries the indentation Prettier gave it. Collapse it, or
       // the same string reads differently depending on how deep in the tree it sits — and
       // the baseline could never match it twice running.
