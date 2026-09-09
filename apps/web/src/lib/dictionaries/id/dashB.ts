@@ -6,6 +6,12 @@ export const dashB = {
     fieldTitle: 'Laporan insiden kurir',
     fieldSubtitle: 'Dilaporkan kurir dari jalan. Yang HIGH sudah masuk feed ops; sisanya dibaca di sini.',
     fieldEmpty: 'Belum ada laporan insiden dari kurir depot ini.',
+    customerPhoneLabel: 'Nomor HP pelanggan',
+    customerPhonePlaceholder: '081234567890',
+    customerPhoneHint:
+      'Diisi kalau pelanggan mau dihubungi lagi. Dengan nomor ini keluhannya ikut masuk antrean pusat; tanpa nomor, keluhan hanya tercatat di depot.',
+    forwarded: 'Diteruskan ke pusat',
+    notForwarded: 'Tidak diteruskan',
     courierUnknown: 'Kurir tidak dikenal',
     fieldPhoto: 'Lihat foto',
     courierCategory: {

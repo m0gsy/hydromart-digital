@@ -73,6 +73,7 @@ import { HuddlePrismaRepository } from '../infrastructure/prisma/huddle.prisma.r
 import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.prisma.repository';
 import { OperationalReportPrismaRepository } from '../infrastructure/prisma/operational-report.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
+import { HqComplaintHttpAdapter } from '../infrastructure/http/hq-complaint.http.adapter';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
 import { UntrackedSaleAlertHttpAdapter } from '../infrastructure/http/untracked-sale-alert.http.adapter';
@@ -197,6 +198,7 @@ const providers: Provider[] = [
     useClass: OperationalReportPrismaRepository,
   },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
+  { provide: DEPOT_TOKENS.HqComplaint, useClass: HqComplaintHttpAdapter },
   { provide: DEPOT_TOKENS.UntrackedSaleAlert, useClass: UntrackedSaleAlertHttpAdapter },
   { provide: DEPOT_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },
   { provide: DEPOT_TOKENS.DepotCash, useClass: DepotCashHttpAdapter },

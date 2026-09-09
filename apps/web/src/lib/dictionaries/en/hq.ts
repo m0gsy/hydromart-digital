@@ -1640,6 +1640,8 @@ export const hq = {
   },
   tickets: {
     detailError: 'Could not open this ticket.',
+    depotFilter: 'Filter by depot',
+    allDepots: 'All depots',
     detailCustomer: 'Customer',
     detailOrder: 'Order',
     detailOpened: 'Opened',

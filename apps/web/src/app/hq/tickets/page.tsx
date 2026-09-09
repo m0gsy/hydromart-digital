@@ -11,6 +11,7 @@ import { agoLabel } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { getSession } from '@/lib/session-store';
+import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { SupportTicket, TicketPriority, TicketStatus } from '@/lib/types';
@@ -39,12 +40,29 @@ export default function HqTicketsPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>('all');
+  /*
+   * CA-2-58. A complaint used to be recorded in two systems that never saw each
+   * other: here, and as a CUSTOMER_CONFLICT incident in the depot's own inbox. A
+   * ticket could not even name a depot, so head office could not ask the one
+   * question this queue exists for — which depot is this about.
+   */
+  const [depotFilter, setDepotFilter] = useState('');
+  const { depots } = useDepot();
+  const depotName = (id: string | null) =>
+    id ? (depots.find((d) => d.id === id)?.name ?? id) : null;
   // Which ticket's thread is open. One at a time: a queue with every thread expanded is
   // a queue nobody can scan.
   const [openId, setOpenId] = useState<string | null>(null);
   const query = useAsync<SupportTicket[]>(
-    () => api.get(endpoints.admin.tickets.list({ status: filter === 'all' ? undefined : filter }), true),
-    [filter],
+    () =>
+      api.get(
+        endpoints.admin.tickets.list({
+          status: filter === 'all' ? undefined : filter,
+          depotRef: depotFilter || undefined,
+        }),
+        true,
+      ),
+    [filter, depotFilter],
   );
 
   const chips: Filter[] = ['all', 'OPEN', 'ASSIGNED', 'RESOLVED'];
@@ -90,6 +108,19 @@ export default function HqTicketsPage() {
             {label(f)}
           </button>
         ))}
+        <select
+          aria-label={t('hq.tickets.depotFilter')}
+          value={depotFilter}
+          onChange={(e) => setDepotFilter(e.target.value)}
+          className="surface-elevated min-h-11 rounded-full border border-app px-3.5 py-1.5 text-xs font-bold text-muted"
+        >
+          <option value="">{t('hq.tickets.allDepots')}</option>
+          {depots.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {query.loading ? (
@@ -110,11 +141,15 @@ export default function HqTicketsPage() {
                   <Badge tone={PRIORITY_TONE[tk.priority]}>{t(`hq.tickets.priority.${tk.priority}`)}</Badge>
                   <Badge tone={STATUS_TONE[tk.status]}>{t(`hq.tickets.status.${tk.status}`)}</Badge>
                 </div>
-                {tk.orderRef && (
-                  <Chip tone="outline">
-                    {t('hq.tickets.order')} {tk.orderRef}
-                  </Chip>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* CA-2-58: which depot this is about, when it is about one. */}
+                  {tk.depotRef && <Chip tone="tint">{depotName(tk.depotRef)}</Chip>}
+                  {tk.orderRef && (
+                    <Chip tone="outline">
+                      {t('hq.tickets.order')} {tk.orderRef}
+                    </Chip>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-muted">
                 {tk.customerRef} · {tk.customerPhone} ·{' '}

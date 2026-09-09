@@ -73,10 +73,12 @@ export const admin = {
     // Support tickets (15a) — HEAD_OFFICE + SUPER_ADMIN. List with message threads; reply /
     // assign / resolve mutate a ticket.
     tickets: {
-      list: (q: { status?: string; priority?: string } = {}) => {
+      list: (q: { status?: string; priority?: string; depotRef?: string } = {}) => {
         const p = new URLSearchParams();
         if (q.status) p.set('status', q.status);
         if (q.priority) p.set('priority', q.priority);
+        // CA-2-58: complaints about one depot.
+        if (q.depotRef) p.set('depotRef', q.depotRef);
         const qs = p.toString();
         return `/admin/api/v1/tickets${qs ? `?${qs}` : ''}`;
       },

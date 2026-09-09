@@ -1,0 +1,16 @@
+-- RERUNNABLE: ADD COLUMN IF NOT EXISTS, so a retry after a deploy that died mid-migrate is
+-- a no-op rather than a hand-resolved failure.
+--
+-- CA-2-58: a customer complaint lived in two systems that never saw each other.
+--
+-- Head office records complaints as `support_tickets`. A depot records the same complaint
+-- as a `CUSTOMER_CONFLICT` row in depot-service's incident inbox. Nothing linked them, and
+-- nothing could: a ticket had no way to name a depot at all. So head office could not tell
+-- which depot a complaint was against, could not count complaints per depot, and a depot
+-- could not see what had been said about it upstairs. The same customer, complaining once,
+-- became two records that never met.
+--
+-- Nullable, and null keeps the meaning the table has always had: a complaint about no
+-- depot in particular. Old code ignores the column, so the rebuild window during which
+-- some services still run the previous image is safe.
+ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "depotRef" TEXT;

@@ -23,6 +23,7 @@ class InMemoryIncidentRepository implements IncidentRepository {
     const row: Incident = {
       id: `inc${++this.seq}`,
       status: IncidentStatus.OPEN,
+      hqTicketRef: null,
       resolutionNote: null,
       resolvedBy: null,
       resolvedAt: null,
@@ -72,6 +73,7 @@ describe('IncidentService', () => {
   let incidents: InMemoryIncidentRepository;
   let service: IncidentService;
   let depotId: string;
+  let hq: { open: jest.Mock };
 
   const record = () =>
     service.record(
@@ -87,7 +89,8 @@ describe('IncidentService', () => {
   beforeEach(async () => {
     depots = new InMemoryDepotRepository();
     incidents = new InMemoryIncidentRepository();
-    service = new IncidentService(incidents, depots);
+    hq = { open: jest.fn().mockResolvedValue('tkt-1') };
+    service = new IncidentService(incidents, depots, hq);
     depotId = (await depots.create(DEPOT)).id;
   });
 
@@ -106,6 +109,115 @@ describe('IncidentService', () => {
     expect(inc.reportedBy).toBe('staff-1');
     expect(inc.description).toBeNull();
     expect(inc.courierName).toBeNull();
+  });
+
+  /*
+   * CA-2-58 — the complaint that used to reach nobody.
+   *
+   * Head office keeps its own complaint queue; this inbox keeps CUSTOMER_CONFLICT rows;
+   * nothing linked them. A complaint taken at the counter was invisible upstairs, and the
+   * customer's follow-up depended on whoever happened to be standing there.
+   */
+  it('mirrors a customer complaint into head office and keeps the link', async () => {
+    const inc = await service.record(
+      {
+        depotId,
+        type: IncidentType.CUSTOMER_CONFLICT,
+        severity: IncidentSeverity.MEDIUM,
+        title: 'Galon bocor saat diterima',
+        description: 'Pelanggan menolak galon ketiga.',
+        customerPhone: '081234567890',
+        orderRef: 'HM-260909-001',
+      },
+      'staff-1',
+    );
+    expect(hq.open).toHaveBeenCalledWith({
+      depotId,
+      customerRef: '081234567890',
+      customerPhone: '081234567890',
+      subject: 'Galon bocor saat diterima',
+      body: 'Pelanggan menolak galon ketiga.',
+      orderRef: 'HM-260909-001',
+    });
+    expect(inc.hqTicketRef).toBe('tkt-1');
+  });
+
+  it('does not mirror a complaint with no number to call back on', async () => {
+    // A ticket head office cannot answer is a row, not a complaint — and the incident is
+    // still recorded, because the depot's own copy is the one that is certainly wanted.
+    const inc = await service.record(
+      {
+        depotId,
+        type: IncidentType.CUSTOMER_CONFLICT,
+        severity: IncidentSeverity.LOW,
+        title: 'Pelanggan marah di konter',
+      },
+      'staff-1',
+    );
+    expect(hq.open).not.toHaveBeenCalled();
+    expect(inc.hqTicketRef).toBeNull();
+  });
+
+  it('leaves ops incidents alone — a courier fall is not a complaint', async () => {
+    await service.record(
+      {
+        depotId,
+        type: IncidentType.COURIER_FALL,
+        severity: IncidentSeverity.HIGH,
+        title: 'Kurir terjatuh',
+        customerPhone: '081234567890',
+      },
+      'staff-1',
+    );
+    expect(hq.open).not.toHaveBeenCalled();
+  });
+
+  it('keeps the complaint when head office is unreachable, and says it did not travel', async () => {
+    // Fails soft, but the softness is RECORDED: a null hqTicketRef is what the screen reads
+    // as "not forwarded". Throwing away a depot's own record because admin-service was down
+    // would lose the one copy that is certainly wanted.
+    hq.open.mockResolvedValue(null);
+    const inc = await service.record(
+      {
+        depotId,
+        type: IncidentType.CUSTOMER_CONFLICT,
+        severity: IncidentSeverity.MEDIUM,
+        title: 'Air keruh',
+        customerPhone: '081234567890',
+      },
+      'staff-1',
+    );
+    expect(inc.hqTicketRef).toBeNull();
+    expect(inc.title).toBe('Air keruh');
+  });
+
+  it('falls back to the title when the operator wrote no description', async () => {
+    await service.record(
+      {
+        depotId,
+        type: IncidentType.CUSTOMER_CONFLICT,
+        severity: IncidentSeverity.LOW,
+        title: 'Antre lama',
+        customerPhone: '081234567890',
+      },
+      'staff-1',
+    );
+    expect(hq.open).toHaveBeenCalledWith(expect.objectContaining({ body: 'Antre lama' }));
+  });
+
+  it('treats a blank number as no number', async () => {
+    const inc = await service.record(
+      {
+        depotId,
+        type: IncidentType.CUSTOMER_CONFLICT,
+        severity: IncidentSeverity.LOW,
+        title: 'Antre lama',
+        customerPhone: '   ',
+      },
+      'staff-1',
+    );
+    expect(hq.open).not.toHaveBeenCalled();
+    expect(inc.customerPhone).toBeNull();
   });
 
   it('lists a depot incidents and filters by status', async () => {

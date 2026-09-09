@@ -2163,6 +2163,8 @@ export interface SupportTicket {
   customerRef: string;
   customerPhone: string;
   orderRef: string | null;
+  /** CA-2-58: the depot this complaint is about, when it is about one. */
+  depotRef: string | null;
   priority: TicketPriority;
   status: TicketStatus;
   assigneeId: string | null;
@@ -2263,6 +2265,10 @@ export interface DepotIncident {
   reportedBy: string;
   courierName: string | null;
   orderRef: string | null;
+  /** CA-2-58: the complainant's number, when the operator took one. */
+  customerPhone: string | null;
+  /** CA-2-58: the HQ ticket this complaint was mirrored into, or null when it was not. */
+  hqTicketRef: string | null;
   resolutionNote: string | null;
   resolvedBy: string | null;
   resolvedAt: string | null;

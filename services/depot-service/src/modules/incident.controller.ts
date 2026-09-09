@@ -32,6 +32,7 @@ export class IncidentController {
         description: dto.description ?? null,
         courierName: dto.courierName ?? null,
         orderRef: dto.orderRef ?? null,
+        customerPhone: dto.customerPhone ?? null,
       },
       user.sub,
     );

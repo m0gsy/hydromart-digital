@@ -19,6 +19,14 @@ export class SupportTicketQueryDto {
   @IsOptional()
   @IsEnum(TicketPriority)
   priority?: TicketPriority;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'CA-2-58: only complaints about this depot.',
+  })
+  @IsOptional()
+  @IsUUID()
+  depotRef?: string;
 }
 
 /**
@@ -52,6 +60,14 @@ export class CreateTicketDto {
   @IsString()
   @MaxLength(64)
   orderRef?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'CA-2-58: the depot this complaint is about, when it is about one.',
+  })
+  @IsOptional()
+  @IsUUID()
+  depotRef?: string;
 
   @ApiPropertyOptional({ enum: TicketPriority })
   @IsOptional()
@@ -146,6 +162,8 @@ export class SupportTicketDto {
   customerPhone!: string;
   @ApiProperty({ nullable: true })
   orderRef!: string | null;
+  @ApiProperty({ nullable: true, description: 'The depot this complaint is about.' })
+  depotRef!: string | null;
   @ApiProperty({ enum: TicketPriority })
   priority!: TicketPriority;
   @ApiProperty({ enum: TicketStatus })
@@ -164,6 +182,7 @@ export class SupportTicketDto {
       customerRef: record.customerRef,
       customerPhone: record.customerPhone,
       orderRef: record.orderRef,
+      depotRef: record.depotRef,
       priority: record.priority,
       status: record.status,
       assigneeId: record.assigneeId,
@@ -171,6 +190,50 @@ export class SupportTicketDto {
       messages: record.messages.map(TicketMessageDto.from),
     };
   }
+}
+
+/**
+ * CA-2-58 — a depot's own complaint, arriving from depot-service.
+ *
+ * Separate from `CreateTicketDto` on purpose: this one is not typed by a person in the HQ
+ * console, it is mirrored from an incident a depot operator already recorded, so it names
+ * its depot and cannot be sent without one. Everything else it carries, the operator typed
+ * once — the ticket is the same complaint seen from head office, not a second complaint.
+ */
+export class CreateTicketFromDepotDto {
+  @ApiProperty({ example: 'Galon bocor saat diterima' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  subject!: string;
+
+  @ApiProperty({ example: 'Ibu Rina' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  customerRef!: string;
+
+  @ApiProperty({ example: '081234567890' })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(30)
+  customerPhone!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'The depot the complaint was recorded at.' })
+  @IsUUID()
+  depotRef!: string;
+
+  @ApiPropertyOptional({ example: 'HM-260816-001' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  orderRef?: string;
+
+  @ApiProperty({ description: 'The complaint itself — becomes the first message.' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(4000)
+  body!: string;
 }
 
 /**

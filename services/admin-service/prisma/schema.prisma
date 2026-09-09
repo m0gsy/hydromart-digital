@@ -293,6 +293,18 @@ model SupportTicket {
   customerRef String
   customerPhone String
   orderRef    String?
+  /// CA-2-58: the depot this complaint is about, when it is about one.
+  ///
+  /// A customer complaint used to be recorded in two places that never saw each other:
+  /// here, and as a `CUSTOMER_CONFLICT` row in depot-service's incident inbox. Nothing
+  /// linked them, and nothing could — a ticket had no way to name a depot at all, so
+  /// head office could not tell which depot a complaint was against and a depot could
+  /// not see what had been said about it upstairs.
+  ///
+  /// Nullable, and null keeps its old meaning: a complaint about no depot in particular.
+  /// No index: this is a complaint queue, a few hundred rows, and the note on
+  /// `customerId` below explains why one is not added here either.
+  depotRef    String?
   /// K1.5: the account that raised this, when one did.
   ///
   /// Null for a ticket staff opened at the counter — `customerRef` is free text precisely

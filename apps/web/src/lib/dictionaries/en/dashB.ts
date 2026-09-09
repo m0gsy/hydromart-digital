@@ -4,6 +4,12 @@ export const dashB = {
     fieldTitle: 'Courier field reports',
     fieldSubtitle: 'Reported by couriers from the road. HIGH severity already went to the ops feed; the rest are read here.',
     fieldEmpty: 'No field reports from this depot’s couriers yet.',
+    customerPhoneLabel: 'Customer phone',
+    customerPhonePlaceholder: '081234567890',
+    customerPhoneHint:
+      'Fill this in if the customer wants a follow-up. With a number the complaint also enters the head-office queue; without one it stays with the depot.',
+    forwarded: 'Sent to head office',
+    notForwarded: 'Not sent',
     courierUnknown: 'Unknown courier',
     fieldPhoto: 'View photo',
     courierCategory: {

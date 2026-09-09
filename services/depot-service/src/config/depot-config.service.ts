@@ -82,6 +82,14 @@ export class DepotConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /**
+   * CA-2-58: admin-service, where head office's complaint queue lives. A customer complaint
+   * recorded here is mirrored there so the two records finally meet. Blank = no mirror, and
+   * the incident says so on its own row rather than pretending it was forwarded.
+   */
+  get adminServiceUrl(): string {
+    return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** auth-service base URL — where the shared audit trail lives (H-29). */
   get authServiceUrl(): string {
     return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');

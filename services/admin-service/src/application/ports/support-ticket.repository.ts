@@ -14,6 +14,8 @@ export interface SupportTicketRecord {
   customerRef: string;
   customerPhone: string;
   orderRef: string | null;
+  /** CA-2-58: the depot this complaint is about, or null when it is about none. */
+  depotRef: string | null;
   /** K1.5: the account that raised it, or null for one staff typed at the counter. */
   customerId: string | null;
   priority: TicketPriority;
@@ -26,6 +28,8 @@ export interface SupportTicketRecord {
 export interface ListSupportTicketsFilter {
   status?: TicketStatus;
   priority?: TicketPriority;
+  /** CA-2-58: only complaints about this depot. */
+  depotRef?: string;
 }
 
 /**
@@ -41,6 +45,8 @@ export interface CreateSupportTicketData {
   customerRef: string;
   customerPhone: string;
   orderRef?: string | null;
+  /** CA-2-58: the depot this complaint is about, when it is about one. */
+  depotRef?: string | null;
   /**
    * K1.5: the account that raised this, when one did. Null for a ticket staff typed at the
    * counter — `customerRef` is free text precisely because that person often has no

@@ -19,6 +19,7 @@ import { PdpErasedResponseDto } from './dto/responses.generated.dto';
 import {
   AssignTicketDto,
   CreateTicketDto,
+  CreateTicketFromDepotDto,
   ReplyTicketDto,
   SupportTicketDto,
   PdpAnonymiseDto,
@@ -56,11 +57,47 @@ export class SupportTicketsController {
     return this.tickets.erasePerson(dto.customerId, dto.phone ?? null);
   }
 
+  /*
+   * CA-2-58 — the depot's end of the same complaint.
+   *
+   * `@Public()` + InternalAuthGuard, which OVERRIDES the class-level `@Can('hqBackOffice')`:
+   * the caller is depot-service mirroring an incident a depot operator recorded, not an HQ
+   * session. A depot operator has no `hqBackOffice` capability and should not need one to
+   * make head office aware of a complaint against their own depot.
+   *
+   * Before this, the two records could not meet: head office kept `support_tickets`, the
+   * depot kept a CUSTOMER_CONFLICT incident, and nothing linked them — so a complaint taken
+   * at the depot counter was invisible upstairs, and the customer's follow-up depended on
+   * whoever happened to be standing there.
+   */
+  @ApiOkResponse({ type: SupportTicketDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/from-depot')
+  @ApiOperation({ summary: 'Mirror a depot complaint into the HQ queue (internal, CA-2-58)' })
+  async createFromDepot(@Body() dto: CreateTicketFromDepotDto): Promise<SupportTicketDto> {
+    return SupportTicketDto.from(
+      await this.tickets.create({
+        subject: dto.subject,
+        customerRef: dto.customerRef,
+        customerPhone: dto.customerPhone,
+        depotRef: dto.depotRef,
+        orderRef: dto.orderRef ?? null,
+        body: dto.body,
+      }),
+    );
+  }
+
   @ApiOkResponse({ type: SupportTicketDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List support tickets (15a, newest first, filterable)' })
   async list(@Query() query: SupportTicketQueryDto): Promise<SupportTicketDto[]> {
-    const rows = await this.tickets.list({ status: query.status, priority: query.priority });
+    const rows = await this.tickets.list({
+      status: query.status,
+      priority: query.priority,
+      depotRef: query.depotRef,
+    });
     return rows.map(SupportTicketDto.from);
   }
 

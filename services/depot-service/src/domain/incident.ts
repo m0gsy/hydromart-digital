@@ -34,6 +34,10 @@ export interface Incident {
   reportedBy: string;
   courierName: string | null;
   orderRef: string | null;
+  /** CA-2-58: the complainant's number, when the operator took one. */
+  customerPhone: string | null;
+  /** CA-2-58: the HQ ticket this was mirrored into, or null when it was not. */
+  hqTicketRef: string | null;
   resolutionNote: string | null;
   resolvedBy: string | null;
   resolvedAt: Date | null;
