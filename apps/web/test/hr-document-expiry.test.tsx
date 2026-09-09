@@ -42,6 +42,22 @@ const BASE = {
     totals: { gross: 0, totalBonus: 0, totalDeduction: 0, net: 0, count: 0 },
     byStatus: [],
   },
+  employmentsEnding: [
+    {
+      employeeId: 'e-3',
+      employeeCode: 'HR-0003',
+      fullName: 'Rina Wijaya',
+      employmentStatus: 'PROBATION',
+      contractEndDate: '2026-06-25',
+    },
+    {
+      employeeId: 'e-4',
+      employeeCode: 'HR-0004',
+      fullName: 'Agus Salim',
+      employmentStatus: 'PERMANENT',
+      contractEndDate: '2026-07-21',
+    },
+  ],
   documentsExpiring: [
     {
       employeeId: 'e-1',
@@ -91,9 +107,31 @@ describe('CA-1-47 the HR dashboard says which documents are about to lapse', () 
     expect(link.getAttribute('href')).toBe('/hr/employees/detail?id=e-1');
   });
 
+  /*
+   * CA-1-43 — the same shape, for the other thing that runs out silently. A contract that
+   * ended last month looked exactly like one with two years left, because `contractEndDate`
+   * is deliberately not a status and so had no reader at all.
+   */
+  it('names the contract that has already run out, and the one that has not', async () => {
+    mount(BASE);
+    await waitFor(() => expect(screen.getByText('Rina Wijaya')).toBeTruthy());
+
+    expect(screen.getByText('hrFix.home.contractOver')).toBeTruthy();
+    // 2026-07-21 is twenty days after the server's own workDate.
+    expect(screen.getByText('hrFix.home.docsDaysLeft:20')).toBeTruthy();
+    expect(screen.getByText(/HR-0003/)).toBeTruthy();
+  });
+
+  it('leads to the employee whose contract it is', async () => {
+    mount(BASE);
+    const link = await screen.findByRole('link', { name: 'Rina Wijaya' });
+    expect(link.getAttribute('href')).toBe('/hr/employees/detail?id=e-3');
+  });
+
   it('says nothing at all when there is nothing to renew', async () => {
-    mount({ ...BASE, documentsExpiring: [] });
+    mount({ ...BASE, documentsExpiring: [], employmentsEnding: [] });
     await waitFor(() => expect(screen.getByText('hrFix.home.headcountMix')).toBeTruthy());
     expect(screen.queryByText('hrFix.home.docsExpiring')).toBeNull();
+    expect(screen.queryByText('hrFix.home.contractsEnding')).toBeNull();
   });
 });

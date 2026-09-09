@@ -436,6 +436,8 @@ export const hrFix = {
     docsExpired: 'Sudah lewat',
     docsDaysLeft: '{days} hari lagi',
     docsExpiringEmpty: 'Tidak ada dokumen yang perlu diperpanjang.',
+    contractsEnding: 'Kontrak & Masa Percobaan yang Berakhir (30 hari)',
+    contractOver: 'Sudah berakhir',
     gross: 'Gross',
     bonus: 'Bonus',
     deduction: 'Potongan',

@@ -14,6 +14,7 @@ import {
   PAYROLL_STATUS_LABEL,
   currentPeriod,
   type AttendanceStatus,
+  type EndingEmployment,
   type ExpiringDocument,
   type EmploymentStatus,
   type HrDashboard,
@@ -98,6 +99,55 @@ function ExpiringDocs({ rows, today }: { rows: ExpiringDocument[]; today: string
   );
 }
 
+/**
+ * CA-1-43 — a contract that has run out looks exactly like one with two years left.
+ *
+ * `contractEndDate` is written on every fixed-term hire and read by nothing. It is
+ * deliberately not a status — nobody is expired automatically — but that decision left the
+ * date with no reader at all, so the first anyone notices is a courier still driving on a
+ * contract that ended last month, or a probation nobody converted because nobody was told
+ * it was over.
+ */
+function EndingEmployments({ rows, today }: { rows: EndingEmployment[]; today: string }) {
+  const { t } = useT();
+  if (rows.length === 0) return null;
+  return (
+    <Card className="space-y-3 p-5">
+      <h3 className="font-bold">{t('hrFix.home.contractsEnding')}</h3>
+      <ul className="divide-y divide-[color:var(--border)]">
+        {rows.map((e) => {
+          const days = Math.round(
+            (Date.parse(`${e.contractEndDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) /
+              86_400_000,
+          );
+          return (
+            <li
+              key={e.employeeId}
+              className="flex items-center justify-between gap-3 py-2"
+            >
+              <div className="min-w-0">
+                <Link
+                  href={`/hr/employees/detail?id=${e.employeeId}`}
+                  className="font-semibold hover:underline"
+                >
+                  {e.fullName}
+                </Link>
+                <p className="text-sm text-muted">
+                  {e.employeeCode} · {t(EMPLOYMENT_STATUS_LABEL[e.employmentStatus])} ·{' '}
+                  {e.contractEndDate}
+                </p>
+              </div>
+              <Badge tone={days < 0 ? 'danger' : 'warning'}>
+                {days < 0 ? t('hrFix.home.contractOver') : t('hrFix.home.docsDaysLeft', { days })}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
 export default function HrDashboardPage() {
   const { t } = useT();
   const period = currentPeriod();
@@ -137,6 +187,8 @@ export default function HrDashboardPage() {
           </div>
 
           <ExpiringDocs rows={data.documentsExpiring} today={data.workDate} />
+
+          <EndingEmployments rows={data.employmentsEnding} today={data.workDate} />
 
           <Card className="space-y-3 p-5">
             <h3 className="font-bold">{t('hrFix.home.headcountMix')}</h3>

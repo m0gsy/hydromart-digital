@@ -6,6 +6,7 @@ import {
   AnalyticsRepository,
   AnnouncementWithStats,
   DepotSummaryFacts,
+  EndingEmployment,
   ExpiringDocument,
   AssetWithHolder,
   AttendanceWithEmployee,
@@ -225,6 +226,40 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       type: r.type,
       // @db.Date, so Prisma reads it back as UTC midnight and the slice IS the local date.
       expiresAt: (r.expiresAt as Date).toISOString().slice(0, 10),
+    }));
+  }
+
+  /*
+   * CA-1-43. Same shape as the expiring-documents read, and the same two exclusions: a
+   * leaver's contract end is not a warning, and the list is a prompt to act, not a register.
+   */
+  async endingEmployments(
+    cutoff: Date,
+    depotIds?: readonly string[],
+  ): Promise<EndingEmployment[]> {
+    const rows = await this.prisma.employee.findMany({
+      where: {
+        contractEndDate: { not: null, lte: cutoff },
+        status: { not: 'RESIGNED' },
+        depotId: depotWhere(depotIds),
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        fullName: true,
+        employmentStatus: true,
+        contractEndDate: true,
+      },
+      orderBy: { contractEndDate: 'asc' },
+      take: 20,
+    });
+    return rows.map((r) => ({
+      employeeId: r.id,
+      employeeCode: r.employeeCode,
+      fullName: r.fullName,
+      employmentStatus: r.employmentStatus,
+      // @db.Date: Prisma reads it back as UTC midnight, so the slice IS the local date.
+      contractEndDate: (r.contractEndDate as Date).toISOString().slice(0, 10),
     }));
   }
 

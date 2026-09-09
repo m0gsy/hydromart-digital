@@ -965,6 +965,38 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
 // ── AnalyticsPrismaRepository ──────────────────────────────────────────
 describe('AnalyticsPrismaRepository', () => {
   /*
+   * CA-1-43. Same two exclusions as the documents read: a leaver's contract end is not a
+   * warning, and the list is a prompt to act rather than a register.
+   */
+  it('endingEmployments asks only for unfinished contracts of staff who are still here', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-08-01T00:00:00.000Z');
+    m(p, 'employee').findMany.mockResolvedValue([
+      {
+        id: 'e-1',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        employmentStatus: 'PROBATION',
+        contractEndDate: new Date('2026-07-02T00:00:00.000Z'),
+      },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await expect(repo.endingEmployments(cutoff, ['d1'])).resolves.toEqual([
+      {
+        employeeId: 'e-1',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        employmentStatus: 'PROBATION',
+        contractEndDate: '2026-07-02',
+      },
+    ]);
+    const where = m(p, 'employee').findMany.mock.calls[0][0].where;
+    expect(where.contractEndDate).toEqual({ not: null, lte: cutoff });
+    expect(where.status).toEqual({ not: 'RESIGNED' });
+    expect(where.depotId).toEqual({ in: ['d1'] });
+  });
+
+  /*
    * CA-1-47. A replaced document's old expiry is history, not a warning, and a leaver's
    * lapsed licence is nobody's problem — so both are filtered out at the query, where the
    * caller cannot forget them.

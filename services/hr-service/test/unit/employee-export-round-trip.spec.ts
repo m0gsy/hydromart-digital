@@ -100,7 +100,7 @@ const STAFF = {
   position: 'Kurir',
   departmentId: 'dep-1',
   role: 'STAFF_DEPOT',
-  employmentStatus: 'CONTRACT_PKWT',
+  employmentStatus: 'PROBATION',
   salaryType: 'DAILY',
   dailyRate: { toNumber: () => 150_000 },
   monthlyRate: null,

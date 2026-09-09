@@ -42,6 +42,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
     }),
     payrollByStatus: async () => [{ key: 'DRAFT', count: 2 }],
     expiringDocuments: async () => [],
+    endingEmployments: async () => [],
     employeesForReport: async () => [],
     departmentCodesByIds: async () => new Map<string, string>(),
     shiftNamesByIds: async () => new Map<string, string>(),
@@ -121,6 +122,40 @@ describe('AnalyticsService.dashboard', () => {
       (asked.cutoff!.getTime() - Date.parse(`${d.workDate}T00:00:00.000Z`)) / 86_400_000,
     );
     expect(days).toBe(30);
+  });
+
+  /*
+   * CA-1-43 — `contractEndDate` was written on every fixed-term hire and read by nothing.
+   * Deliberately not a status (nobody is expired automatically), which left the date with
+   * no reader at all: a contract that ran out last month looks exactly like one with two
+   * years left, on every screen there is.
+   */
+  it('asks for the employments ending in the same window as the documents', async () => {
+    let asked: Date | undefined;
+    const row = {
+      employeeId: 'e-1',
+      employeeCode: 'HR-0001',
+      fullName: 'Budi',
+      employmentStatus: 'PROBATION',
+      contractEndDate: '2026-07-02',
+    };
+    let docCutoff: Date | undefined;
+    const { svc } = build({
+      expiringDocuments: async (cutoff) => {
+        docCutoff = cutoff;
+        return [];
+      },
+      endingEmployments: async (cutoff, depotIds) => {
+        asked = cutoff;
+        expect(depotIds).toEqual(['d-locked']);
+        return [row];
+      },
+    });
+    const d = await svc.dashboard(manager, {});
+
+    expect(d.employmentsEnding).toEqual([row]);
+    // One window, not two: HR plans a renewal and a document reissue in the same sitting.
+    expect(asked?.getTime()).toBe(docCutoff?.getTime());
   });
 
   it('rejects a depot-locked role requesting another depot', async () => {

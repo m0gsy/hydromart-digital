@@ -50,6 +50,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
     payrollTotals: async () => ({ gross: 0, totalBonus: 0, totalDeduction: 0, net: 0, count: 0 }),
     payrollByStatus: async () => [],
     expiringDocuments: async () => [],
+    endingEmployments: async () => [],
     employeesForReport: async () => [],
     departmentCodesByIds: async () => new Map<string, string>(),
     shiftNamesByIds: async () => new Map<string, string>(),

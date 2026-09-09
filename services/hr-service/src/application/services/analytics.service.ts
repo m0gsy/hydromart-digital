@@ -7,6 +7,7 @@ import { CsvCell, toCsv } from '../../domain/csv';
 import {
   ANALYTICS_REPOSITORY,
   AnalyticsRepository,
+  EndingEmployment,
   ExpiringDocument,
   GroupCount,
 } from '../ports/analytics.repository';
@@ -47,6 +48,12 @@ export interface HrDashboard {
    * morning is where a lapsed licence has to appear if it is to be seen at all.
    */
   documentsExpiring: ExpiringDocument[];
+  /**
+   * CA-1-43: fixed-term contracts and probations that have run out, or run out within 30
+   * days. Same payload and same window as the documents above — an HR officer plans a
+   * renewal and a document reissue in the same sitting.
+   */
+  employmentsEnding: EndingEmployment[];
 }
 
 /** Compact per-depot HR summary for the owner franchise dashboard (Fase 5). */
@@ -81,7 +88,7 @@ export class AnalyticsService {
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
 
-    // CA-1-47: 30 days is a renewal window, not a deadline — a SIM or a contract takes
+    // CA-1-47 and CA-1-43: 30 days is a renewal window, not a deadline — a SIM or a contract takes
     // longer than a week to replace, and anything already past its date is included.
     const expiryCutoff = new Date(workDateUtc);
     expiryCutoff.setUTCDate(expiryCutoff.getUTCDate() + DOCUMENT_EXPIRY_WARNING_DAYS);
@@ -93,6 +100,7 @@ export class AnalyticsService {
       payrollTotals,
       payrollByStatus,
       documentsExpiring,
+      employmentsEnding,
     ] = await Promise.all([
       this.repo.headcountByStatus(depotIds),
       this.repo.headcountByEmploymentStatus(depotIds),
@@ -100,6 +108,7 @@ export class AnalyticsService {
       this.repo.payrollTotals(periodMonth, depotIds),
       this.repo.payrollByStatus(periodMonth, depotIds),
       this.repo.expiringDocuments(expiryCutoff, depotIds),
+      this.repo.endingEmployments(expiryCutoff, depotIds),
     ]);
 
     return {
@@ -129,6 +138,7 @@ export class AnalyticsService {
       attendanceToday,
       payroll: { totals: payrollTotals, byStatus: payrollByStatus },
       documentsExpiring,
+      employmentsEnding,
     };
   }
 

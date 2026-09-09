@@ -423,6 +423,8 @@ export const hrFix = {
     docsExpired: 'Past due',
     docsDaysLeft: '{days} days left',
     docsExpiringEmpty: 'Nothing needs renewing.',
+    contractsEnding: 'Contracts & probations ending (30 days)',
+    contractOver: 'Already over',
     gross: 'Gross',
     bonus: 'Bonus',
     deduction: 'Deductions',

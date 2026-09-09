@@ -19,6 +19,23 @@ export const ANALYTICS_REPOSITORY = Symbol('ANALYTICS_REPOSITORY');
  * until a policeman noticed, because noticing was a per-employee errand nobody had a reason
  * to run.
  */
+/**
+ * CA-1-43: an employment that is about to run out.
+ *
+ * `contractEndDate` is written on every fixed-term hire and read by nothing. It is not a
+ * status — nobody is expired automatically, by design — so a contract that lapsed last week
+ * looks exactly like one with two years left, on every screen, and the first anyone notices
+ * is when a courier without a valid contract is still driving.
+ */
+export interface EndingEmployment {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  employmentStatus: string;
+  /** `YYYY-MM-DD`. Already past = the contract has run out. */
+  contractEndDate: string;
+}
+
 export interface ExpiringDocument {
   employeeId: string;
   employeeCode: string;
@@ -107,6 +124,12 @@ export interface AnalyticsRepository {
    * Depot-scoped through the owning employee, and never returns anyone who has left.
    */
   expiringDocuments(cutoff: Date, depotIds?: readonly string[]): Promise<ExpiringDocument[]>;
+
+  /**
+   * Employments whose `contractEndDate` falls on or before `cutoff`, soonest first.
+   * Depot-scoped, and never anyone who has already left.
+   */
+  endingEmployments(cutoff: Date, depotIds?: readonly string[]): Promise<EndingEmployment[]>;
 
   employeesForReport(depotIds?: readonly string[]): Promise<Employee[]>;
   /**

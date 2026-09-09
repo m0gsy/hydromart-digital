@@ -155,6 +155,20 @@ export class HrDashboardPayrollResponseDto {
   byStatus!: GroupCountResponseDto[];
 }
 
+/** Mirrors `EndingEmployment` exactly — CA-1-43, no field added or removed. */
+export class EndingEmploymentResponseDto {
+  @ApiProperty({ type: String })
+  employeeId!: string;
+  @ApiProperty({ type: String })
+  employeeCode!: string;
+  @ApiProperty({ type: String })
+  fullName!: string;
+  @ApiProperty({ type: String })
+  employmentStatus!: string;
+  @ApiProperty({ type: String, description: 'YYYY-MM-DD; already past means it has run out.' })
+  contractEndDate!: string;
+}
+
 /** Mirrors `ExpiringDocument` exactly — CA-1-47, no field added or removed. */
 export class ExpiringDocumentResponseDto {
   @ApiProperty({ type: String })
@@ -188,6 +202,11 @@ export class HrDashboardResponseDto {
     description: 'CA-1-47: documents already expired or expiring within 30 days.',
   })
   documentsExpiring!: ExpiringDocumentResponseDto[];
+  @ApiProperty({
+    type: [EndingEmploymentResponseDto],
+    description: 'CA-1-43: contracts and probations already over or ending within 30 days.',
+  })
+  employmentsEnding!: EndingEmploymentResponseDto[];
 }
 
 /** Mirrors `HrDepotSummary` exactly — generated for audit D-6, no field added or removed. */

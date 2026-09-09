@@ -673,6 +673,18 @@ export interface HrDashboard {
   };
   /** CA-1-47: already expired, or expiring within 30 days. Soonest first, at most 20. */
   documentsExpiring: ExpiringDocument[];
+  /** CA-1-43: contracts and probations already over, or ending within 30 days. */
+  employmentsEnding: EndingEmployment[];
+}
+
+/** CA-1-43: one employment about to run out, named well enough to renew. */
+export interface EndingEmployment {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  employmentStatus: EmploymentStatus;
+  /** `YYYY-MM-DD`. Already past = it has run out. */
+  contractEndDate: string;
 }
 
 /** CA-1-47: one document about to stop being valid, named well enough to act on. */
