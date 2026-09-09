@@ -195,6 +195,24 @@ describe('CA-2-54 the depot console can move stock between depots', () => {
     expect(String(toast.mock.calls[0]?.[0])).toContain('Insufficient stock');
   });
 
+  it('reports a queue that failed to load, instead of reading as empty', async () => {
+    get.mockReset().mockImplementation((raw: unknown) => {
+      const path = String(raw ?? '');
+      if (path.includes('direction=in')) return Promise.reject(new Error('gateway down'));
+      if (path.includes('direction=out')) return Promise.resolve(OUTGOING);
+      if (path.includes('/inventory')) return Promise.resolve([LINE]);
+      return Promise.resolve([]);
+    });
+    await openTransfers();
+
+    // "Nothing is coming" and "we could not ask" are different facts, and a depot that
+    // reads the first when the second is true stops watching for a delivery.
+    await waitFor(() => expect(screen.getByText('common.somethingWrong')).toBeTruthy());
+    expect(screen.queryByText('dashboard.inventory.transfersInEmpty')).toBeNull();
+    // And it offers the way out, rather than leaving the operator to reload the console.
+    expect(screen.getAllByRole('button', { name: 'common.retry' }).length).toBeGreaterThan(0);
+  });
+
   it('says so plainly when nothing is moving either way', async () => {
     serve({ incoming: [], outgoing: [] });
     await openTransfers();
