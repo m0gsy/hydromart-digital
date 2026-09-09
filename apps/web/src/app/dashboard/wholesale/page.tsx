@@ -202,7 +202,7 @@ function TierForm({
         />
       </Field>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -270,7 +270,7 @@ function TierRow({
       }`}
     >
       {error && (
-        <p className="order-last w-full text-sm font-medium text-red-600" role="alert">
+        <p className="order-last w-full text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

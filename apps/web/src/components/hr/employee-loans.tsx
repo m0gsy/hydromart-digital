@@ -107,7 +107,7 @@ export function EmployeeLoans({ employeeId, isAdmin }: { employeeId: string; isA
           <Field label={t('hrFix.loans.installment')}><Input type="number" value={installment} onChange={(e) => setInstallment(e.target.value)} /></Field>
           <Field label={t('hrFix.loans.startPeriod')}><Input type="month" value={startPeriod} onChange={(e) => setStartPeriod(e.target.value)} /></Field>
           <Field label={t('hrFix.loans.noteOpt')}><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
-          {err && <p className="col-span-full text-sm font-medium text-red-600" role="alert">{err}</p>}
+          {err && <p className="col-span-full text-sm font-medium text-[color:var(--danger)]" role="alert">{err}</p>}
           <div className="col-span-full"><Button type="submit" loading={saving}>{t('hrFix.loans.add')}</Button></div>
         </form>
       )}

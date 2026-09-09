@@ -76,7 +76,7 @@ function ItemCard({ item, onChanged }: { item: MaintenanceItem; onChanged: () =>
           {item.category} · {meta.join(' · ')}
         </p>
         {error && (
-          <p className="mt-1 text-xs font-medium text-red-600" role="alert">
+          <p className="mt-1 text-xs font-medium text-[color:var(--danger)]" role="alert">
             {error}
           </p>
         )}
@@ -153,7 +153,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
         </Field>
       </div>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

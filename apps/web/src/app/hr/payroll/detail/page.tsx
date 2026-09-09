@@ -99,7 +99,7 @@ export default function PayrollDetailPage() {
               <tr key={it.id}>
                 <td className="py-2">{it.label}</td>
                 <td
-                  className={`py-2 text-right tabular-nums ${it.kind === 'DEDUCTION' ? 'text-red-600' : ''}`}
+                  className={`py-2 text-right tabular-nums ${it.kind === 'DEDUCTION' ? 'text-[color:var(--danger)]' : ''}`}
                 >
                   {it.kind === 'DEDUCTION' ? '−' : ''}
                   <Money amount={Math.abs(Number(it.amount))} />

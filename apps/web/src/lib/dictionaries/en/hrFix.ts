@@ -1073,6 +1073,7 @@ export const hrFix = {
     noCustomers: 'No customers yet',
   },
   myLeave: {
+    rejectionReason: 'Reason for rejection: {note}',
     workingDays: '{days} working days',
     cancel: 'Cancel it',
     cancelConfirm:

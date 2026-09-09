@@ -246,7 +246,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
         <Input id="s-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.subs.notePlaceholder')} />
       </Field>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -307,7 +307,7 @@ function SubRow({ sub, onChanged }: { sub: DepotSubscription; onChanged: () => v
   return (
     <Card className="flex flex-wrap items-center gap-3 p-4">
       {error && (
-        <p className="order-last w-full text-sm font-medium text-red-600" role="alert">
+        <p className="order-last w-full text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

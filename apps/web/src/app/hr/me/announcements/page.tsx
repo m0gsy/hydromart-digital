@@ -51,7 +51,7 @@ export default function MyAnnouncementsPage() {
       {feed.loading && <Skeleton className="h-32" />}
       {feed.error && <ErrorState message={feed.error} onRetry={feed.reload} />}
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

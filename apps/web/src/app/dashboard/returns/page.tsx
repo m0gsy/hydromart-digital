@@ -136,7 +136,7 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
       </Field>
       <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.returns.notePlaceholder')} />
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
@@ -246,7 +246,7 @@ function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void 
       </div>
       <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.returns.notePlaceholder')} />
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}

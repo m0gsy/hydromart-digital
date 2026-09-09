@@ -228,7 +228,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
       )}
 
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
