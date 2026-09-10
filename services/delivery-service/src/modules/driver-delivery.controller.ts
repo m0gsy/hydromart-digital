@@ -22,6 +22,7 @@ import { ContactMethod } from '../domain/no-show';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
 import {
+  ClaimOrderDto,
   FailDeliveryDto,
   ListDeliveriesQueryDto,
   ProofOfDeliveryDto,
@@ -51,6 +52,25 @@ export class DriverDeliveryController {
     @Query() query: ListDeliveriesQueryDto,
   ): Promise<Page<DeliveryRecord>> {
     return this.deliveries.listForDriver(user.sub, query);
+  }
+
+  /**
+   * S1: take an order nobody has claimed.
+   *
+   * `orderId` in the BODY rather than the path — `check-depot-scope.mjs` enumerates by-id
+   * ROUTES, and a `:orderId` segment here would add a sixty-sixth unguarded one to a
+   * baseline of sixty-five for a route whose depot check lives in order-service, where the
+   * row is. Declared before `:id` either way, so it is not swallowed by that param route.
+   */
+  @ApiOkResponse({ type: DeliveryResponseDto })
+  @Post('claim')
+  @ApiOperation({ summary: 'Claim an unassigned order for yourself (S1)' })
+  claim(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ClaimOrderDto,
+    @Headers('authorization') authorization: string,
+  ): Promise<DeliveryRecord> {
+    return this.deliveries.claimByDriver(user.sub, dto.orderId, authorization);
   }
 
   @ApiOkResponse({ type: DeliveryResponseDto })

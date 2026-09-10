@@ -11,8 +11,15 @@ import { DeliveryConfigService } from '../../src/config/delivery-config.service'
  * try — it hard-coded the attempt threshold at 2 against a per-depot setting.
  *
  * Two things this pins, because both were the reason not to just widen `settingsRead`:
- * the response carries ONLY the four values the courier app renders, and the depot comes
- * off the token rather than a query parameter.
+ * the response carries ONLY the values the courier app renders — never the whole tunable
+ * schema, money among it — and the depot comes off the token rather than a query parameter.
+ *
+ * Now seven, not four. `maxActiveDeliveriesPerDriver` was the same defect as
+ * `noShowMinContactAttempts` and outlived its own fix: the server has had a per-depot cap
+ * all along, read on every assign, and the courier app hard-coded 1 — so a depot that
+ * raised the cap saw the app go on refusing a second delivery for a reason it could not
+ * show. The two self-claim numbers are here because the screen has to know whether the
+ * button exists at all, and how long the wait is before it does anything.
  */
 describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
   const config = {
@@ -20,6 +27,9 @@ describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
     routeStopMinutes: jest.fn().mockReturnValue(4),
     noShowMinContactAttempts: jest.fn().mockReturnValue(3),
     noShowMinWaitSeconds: jest.fn().mockReturnValue(300),
+    maxActiveDeliveriesPerDriver: jest.fn().mockReturnValue(2),
+    courierSelfClaimEnabled: jest.fn().mockReturnValue(1),
+    courierSelfClaimWaitMinutes: jest.fn().mockReturnValue(10),
   };
   const controller = new DriverSettingsController(config as unknown as DeliveryConfigService);
   afterEach(() => jest.clearAllMocks());
@@ -31,6 +41,9 @@ describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
       routeStopMinutes: 4,
       noShowMinContactAttempts: 3,
       noShowMinWaitSeconds: 300,
+      maxActiveDeliveriesPerDriver: 2,
+      courierSelfClaimEnabled: 1,
+      courierSelfClaimWaitMinutes: 10,
     });
     for (const fn of Object.values(config)) {
       expect(fn).toHaveBeenCalledWith('depot-7');
@@ -44,10 +57,14 @@ describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
     }
   });
 
-  it('returns nothing beyond the four values the courier app renders', () => {
+  it('returns nothing beyond the values the courier app renders', () => {
     // The reason this route exists rather than widening `settingsRead`: that schema carries
-    // every tunable this service has, money among them.
+    // every tunable this service has, money among them. This list may grow; it may not grow
+    // into anything the courier does not render.
     expect(Object.keys(controller.read({ sub: 'c1' } as AuthenticatedUser)).sort()).toEqual([
+      'courierSelfClaimEnabled',
+      'courierSelfClaimWaitMinutes',
+      'maxActiveDeliveriesPerDriver',
       'noShowMinContactAttempts',
       'noShowMinWaitSeconds',
       'routeStopMinutes',

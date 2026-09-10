@@ -34,6 +34,22 @@ export class DeliveryController {
     @Body() dto: AssignDeliveryDto,
     @Headers('authorization') authorization: string,
   ): Promise<DeliveryRecord> {
+    /*
+     * `depotId` arrives in the BODY, and nothing checked it. `tracking` includes
+     * KEPALA_DEPOT — a depot-locked role — so a depot head could name another depot's id
+     * and dispatch that depot's courier. `DepotScopeGuard` never saw it: the guard reads a
+     * parameter called `depotId`, and a body field is not a parameter.
+     *
+     * It has to be here rather than in the service: the handler passes `user.sub`, a bare
+     * string, so the service below has no caller to check.
+     *
+     * Guarded on PRESENCE, not `?? null`. The vector is naming ANOTHER depot's id; an
+     * absent one claims no depot at all, and both consoles send
+     * `order.depotId ?? undefined` — so an unconditional check would start 403-ing a
+     * depot-less order that dispatches fine today, which is a different change from the
+     * one this closes.
+     */
+    if (dto.depotId) assertDepotAccess(user, dto.depotId);
     return this.deliveries.assign(
       user.sub,
       {

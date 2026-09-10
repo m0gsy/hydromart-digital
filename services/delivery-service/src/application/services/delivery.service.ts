@@ -11,7 +11,11 @@ import {
   InvalidDeliveryTransitionError,
   NoShowNotEligibleError,
   NotAssignedDriverError,
+  OrderAlreadyClaimedError,
   OrderCoordinationError,
+  OrderNotClaimableError,
+  SelfClaimDisabledError,
+  SelfClaimTooSoonError,
   PaymentLookupUnavailableError,
 } from '../../domain/errors';
 import {
@@ -42,6 +46,7 @@ import { OrderAdvanceMeta, OrderCoordinationPort } from '../ports/order-coordina
 import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { DepotLocationPort } from '../ports/depot-location.port';
 import { OrderPaymentPort } from '../ports/order-payment.port';
+import { OrderLookupPort } from '../ports/order-lookup.port';
 import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
 import { ShiftService } from './shift.service';
@@ -162,6 +167,7 @@ export class DeliveryService {
     private readonly config: DeliveryConfigService,
     @Inject(DELIVERY_TOKENS.DepotLocation) private readonly depots: DepotLocationPort,
     @Inject(DELIVERY_TOKENS.OrderPayment) private readonly payments: OrderPaymentPort,
+    @Inject(DELIVERY_TOKENS.OrderLookup) private readonly orderLookup: OrderLookupPort,
     // Optional so an environment with storage disabled still boots; the retention sweep
     // then says out loud that the objects were left behind rather than pretending.
     @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
@@ -175,6 +181,77 @@ export class DeliveryService {
     @Inject(DELIVERY_TOKENS.CustomerNotification)
     private readonly customerNotifications?: CustomerNotificationPort,
   ) {}
+
+  /**
+   * S1 — a courier takes an unclaimed order themselves.
+   *
+   * Writes NOTHING of its own: every check below is a refusal, and the last line is
+   * `assign(...)`, so a self-claim and a dispatch produce the same row through the same
+   * code. A second write path here would be a second set of rules about shifts, caps, COD
+   * and order status, and the two would drift.
+   *
+   * The refusals, in the order a courier meets them:
+   *
+   *  - self-claim is OFF for the depot (0 by default, so every depot starts here);
+   *  - the order is not theirs to see — order-service answers 403 from the courier's own
+   *    token, and that is the depot gate, not a second copy of it here;
+   *  - the order has not sat long enough. This is the whole of the decision: without the
+   *    wait the fastest phone wins every order the instant it is confirmed, and a
+   *    dispatcher who was about to assign it loses the race. `statusChangedAt` is the clock
+   *    — `updatedAt` moves for a note edit or a payment write and would make an untouched
+   *    order look freshly claimed;
+   *  - somebody already has it. `findByOrder` returning ANY row refuses, which is stricter
+   *    than `assign` and deliberately so — see below.
+   *
+   * WHY ANY ROW. `assign` re-opens a RESCHEDULED delivery on purpose, because a dispatcher
+   * re-assigning one is making a decision about a promise already given to a customer. A
+   * courier claiming it is not: `rescheduledFor` is never cleared by anybody, so the claim
+   * would silently throw away a date somebody was told to expect. The same one line refuses
+   * a FAILED row for the same reason, and refuses re-attaching COD on top of money that has
+   * already been reversed — `assign` reads `codAmount` from the payment method alone and
+   * ignores the payment STATUS, which is right for a dispatcher and wrong here.
+   */
+  async claimByDriver(
+    driverId: string,
+    orderId: string,
+    authorization: string,
+  ): Promise<DeliveryRecord> {
+    const order = await this.orderLookup.findForClaim(orderId, authorization);
+    if (!order) throw new OrderNotClaimableError();
+    if (!this.config.courierSelfClaimEnabled(order.depotId)) {
+      throw new SelfClaimDisabledError();
+    }
+    if (order.status !== 'CONFIRMED') throw new OrderNotClaimableError();
+
+    const existing = await this.deliveries.findByOrder(orderId);
+    if (existing) throw new DeliveryAlreadyExistsError();
+
+    const waitMs = this.config.courierSelfClaimWaitMinutes(order.depotId) * 60_000;
+    if (Date.now() - order.statusChangedAt.getTime() < waitMs) {
+      throw new SelfClaimTooSoonError();
+    }
+
+    return this.assign(
+      driverId,
+      {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        driverId,
+        depotId: order.depotId ?? undefined,
+        destinationAddress: order.addressLine,
+        destinationLat: order.latitude ?? undefined,
+        destinationLng: order.longitude ?? undefined,
+        recipientPhone: order.phone,
+        customerId: order.customerId,
+        // A delivery carries what the courier hands over, not the catalogue row — the
+        // same two fields a dispatcher's console sends.
+        items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
+        notes: order.notes ?? undefined,
+        deliveryWindow: order.deliveryWindow ?? undefined,
+      },
+      authorization,
+    );
+  }
 
   /**
    * Assigns a driver to an order (staff). Enforces one delivery per order, that the
@@ -197,7 +274,7 @@ export class DeliveryService {
     }
     // Every delivery must fall inside exactly one shift, or the end-of-shift COD
     // settlement has orders it cannot account for. No shift, no assignment.
-    if (!(await this.shifts.isAvailable(input.driverId))) {
+    if (!(await this.shifts.assignableShift(input.driverId))) {
       throw new DriverNotOnShiftError();
     }
     const active = await this.deliveries.countActiveByDriver(input.driverId);
@@ -1030,6 +1107,16 @@ export class DeliveryService {
       this.logger.error(
         `Order sync to ${status} failed for order ${orderId}: ${(error as Error).message}`,
       );
+      /*
+       * A refused transition is not a failure to retry. Until this, every one of them came
+       * back as `OrderCoordinationError` — "Could not update the order for this delivery.
+       * Please try again.", in English, on an otherwise Indonesian screen — so the courier
+       * who lost a race by half a second was told to retry something that will never
+       * succeed. A dropped signal still raises the 422; only a refusal lands on the 409.
+       */
+      if ((error as { refused?: boolean }).refused) {
+        throw new OrderAlreadyClaimedError();
+      }
       throw new OrderCoordinationError();
     }
   }

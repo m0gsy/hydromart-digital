@@ -98,4 +98,32 @@ describe('DeliveryConfigService getters', () => {
     expect(cfg.slaMinutes('d1')).toBe(120);
     expect(cfg.courierWeeklyTarget('d1')).toBe(45);
   });
+
+  /*
+   * The tunables with no env var at all: their default lives in the code, so nothing in
+   * `.env` can move them and only a settings row can. S1's pair is born DEAD at 0 —
+   * shipping a new way to claim work switched on by default changes how a depot dispatches
+   * before anybody there has agreed to it.
+   */
+  it('defaults the code-only tunables, per depot and globally', () => {
+    const cfg = buildTestConfig();
+    expect(cfg.offlineMaxAgeHours()).toBe(12);
+    expect(cfg.offlineMaxAgeHours('d1')).toBe(12);
+    expect(cfg.courierSelfClaimEnabled()).toBe(0);
+    expect(cfg.courierSelfClaimEnabled('d1')).toBe(0);
+    expect(cfg.courierSelfClaimWaitMinutes()).toBe(10);
+    expect(cfg.courierSelfClaimWaitMinutes('d1')).toBe(10);
+  });
+
+  it('lets one depot turn self-claim on without turning it on everywhere', () => {
+    const cfg = buildTestConfig({}, [
+      { scope: 'DEPOT', depotId: 'd1', key: 'courierSelfClaimEnabled', value: '1' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'courierSelfClaimWaitMinutes', value: '30' },
+    ]);
+    expect(cfg.courierSelfClaimEnabled('d1')).toBe(1);
+    expect(cfg.courierSelfClaimWaitMinutes('d1')).toBe(30);
+    // …and every other depot, and the global fallback, are untouched.
+    expect(cfg.courierSelfClaimEnabled('d2')).toBe(0);
+    expect(cfg.courierSelfClaimEnabled()).toBe(0);
+  });
 });

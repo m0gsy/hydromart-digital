@@ -1,4 +1,14 @@
 export const driver = {
+  claim: {
+    title: 'Unclaimed orders',
+    subtitle: 'Orders that have waited more than {minutes} minutes with no courier yet.',
+    empty: 'Nothing is waiting.',
+    take: 'Take it',
+    taken: 'Order taken. Check your delivery list.',
+    waitedFor: 'Waiting {minutes} min',
+    tooSoon: 'Not yet. Wait {minutes} minutes from when the order was confirmed.',
+    failed: 'The order could not be taken.',
+  },
   home: {
     title: 'My deliveries',
     assignedDepot: 'On duty at depot',

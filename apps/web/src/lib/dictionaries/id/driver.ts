@@ -1,5 +1,15 @@
 // Driver (courier) app page bodies. Consumed via useT() — mirrors en/driver.ts.
 export const driver = {
+  claim: {
+    title: 'Pesanan belum diambil',
+    subtitle: 'Pesanan yang sudah menunggu lebih dari {minutes} menit dan belum ada kurirnya.',
+    empty: 'Tidak ada pesanan yang menunggu.',
+    take: 'Ambil',
+    taken: 'Pesanan diambil. Cek daftar pengantaran Anda.',
+    waitedFor: 'Menunggu {minutes} menit',
+    tooSoon: 'Belum bisa diambil. Tunggu {minutes} menit sejak pesanan dikonfirmasi.',
+    failed: 'Pesanan gagal diambil.',
+  },
   home: {
     title: 'Pengantaran saya',
     assignedDepot: 'Bertugas di depot',

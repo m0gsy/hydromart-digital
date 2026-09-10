@@ -54,6 +54,35 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 48,
     envDefault: 12,
   },
+  /*
+   * S1 — may a courier take an unclaimed order themselves, and how long must it have sat
+   * there first.
+   *
+   * Born DEAD (0). Shipping a new way to claim work switched on by default changes how a
+   * depot dispatches before anybody there has agreed to it, so a depot opts in.
+   *
+   * The wait is not a throttle, it is the whole of the decision: without it the fastest
+   * phone wins every order the instant it is confirmed, and the dispatcher who was about to
+   * assign it deliberately loses the race. With it, self-claim is what happens to an order
+   * NOBODY picked up.
+   */
+  {
+    key: 'courierSelfClaimEnabled',
+    label: 'Kurir boleh ambil pesanan sendiri',
+    type: 'int',
+    min: 0,
+    max: 1,
+    envDefault: 0,
+  },
+  {
+    key: 'courierSelfClaimWaitMinutes',
+    label: 'Jeda tunggu sebelum bisa diambil sendiri',
+    type: 'int',
+    unit: 'menit',
+    min: 1,
+    max: 240,
+    envDefault: 10,
+  },
   {
     key: 'maxActiveDeliveriesPerDriver',
     label: 'Maks pengiriman aktif / kurir',

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MapPin, Megaphone, Package, Path, Pause, Storefront, Warning } from '@phosphor-icons/react';
 
+import { ClaimableOrders } from '@/components/driver/claimable-orders';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { ONBOARDED_KEY } from './onboarding/constants';
 import { PodCapture } from '@/components/driver/pod-capture';
@@ -128,6 +129,10 @@ function DriverConsole() {
           <span className="ml-auto text-xs font-normal text-[color:var(--text-muted)]">{t('driver.home.view')}</span>
         </Link>
       )}
+
+      {/* S1: orders nobody has claimed. Renders nothing at all unless the depot turned
+          self-claim on — every depot starts with it off. */}
+      <ClaimableOrders depotId={depotId} onClaimed={list.reload} />
 
       {/* `/driver/route` had zero inbound references in the whole repo: the multi-stop
           route screen shipped in the Ops binary and no courier could open it. It belongs

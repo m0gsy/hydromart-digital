@@ -187,7 +187,17 @@ export class ShiftService {
    * Called by DeliveryService.assign — it is what makes the settlement window
    * airtight (every delivered order falls inside exactly one shift).
    */
-  async isAvailable(driverId: string): Promise<boolean> {
+  /*
+   * Renamed from `isAvailable` on purpose, and the rename is the point.
+   *
+   * Every delivery must fall inside exactly one shift, or the end-of-shift COD settlement
+   * has orders it cannot account for. A second way of handing a courier an order — the
+   * self-claim below — has to ask this same question, and a name as vague as "is available"
+   * is one somebody assumes has already been asked. `assignableShift` says what it decides,
+   * so a place that forgot to ask fails to compile rather than shipping a delivery outside
+   * every shift.
+   */
+  async assignableShift(driverId: string): Promise<boolean> {
     const shift = await this.shifts.findOpenByDriver(driverId);
     return shift != null && acceptsAssignments(shift.status);
   }

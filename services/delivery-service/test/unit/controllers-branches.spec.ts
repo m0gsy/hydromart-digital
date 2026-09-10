@@ -250,9 +250,20 @@ describe('DriverDeliveryController', () => {
     recordContactAttempt: jest.fn().mockResolvedValue({ canDeclareNoShow: false }),
     markNoShow: jest.fn().mockResolvedValue({ id }),
     reschedule: jest.fn().mockResolvedValue({ id }),
+    claimByDriver: jest.fn().mockResolvedValue({ id }),
   };
   const controller = new DriverDeliveryController(deliveries as never);
   const auth = 'Bearer t';
+
+  /*
+   * S1. The bearer is forwarded because it IS the depot gate: order-service answers
+   * `GET /orders/manage/:id` with `@Can('orderQueue')` + `assertDepotAccess` from the
+   * courier's own token, so a claim on another depot's order is refused there.
+   */
+  it('claims an order for the courier, forwarding their own bearer', () => {
+    void controller.claim(user, { orderId: id } as never, auth);
+    expect(deliveries.claimByDriver).toHaveBeenCalledWith(user.sub, id, auth);
+  });
 
   it('lists and gets the driver own deliveries', () => {
     void controller.list(user, { page: 1, limit: 20 } as never);

@@ -1,5 +1,5 @@
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { OrderCoordinationHttpAdapter } from '../../src/infrastructure/http/order-coordination.http.adapter';
 import { DepotLocationHttpAdapter } from '../../src/infrastructure/http/depot-location.http.adapter';
 import { CustomerNotificationHttpAdapter } from '../../src/infrastructure/http/customer-notification.http.adapter';
@@ -7,6 +7,7 @@ import { OpsNotifierHttpAdapter } from '../../src/infrastructure/http/ops-notifi
 import { EventPublisherHttpAdapter } from '../../src/infrastructure/http/event-publisher.http.adapter';
 import { CashCollectionHttpAdapter } from '../../src/infrastructure/http/cash-collection.http.adapter';
 import { OrderPaymentHttpAdapter } from '../../src/infrastructure/http/order-payment.http.adapter';
+import { OrderLookupHttpAdapter } from '../../src/infrastructure/http/order-lookup.http.adapter';
 import { CourierPayoutHttpAdapter } from '../../src/infrastructure/http/courier-payout.http.adapter';
 import { RatingHttpAdapter } from '../../src/infrastructure/http/rating.http.adapter';
 import type { OpsIncidentAlert } from '../../src/application/ports/ops-notifier.port';
@@ -453,6 +454,51 @@ describe('RatingHttpAdapter', () => {
   });
 });
 
+/*
+ * S1. The bearer this adapter carries IS the depot gate, so the test that matters most is
+ * the one asserting WHICH token goes out: `GET /orders/manage/:id` is `@Can('orderQueue')`
+ * followed by `assertDepotAccess`, and STAFF_DEPOT is in `orderQueue`. Sending the internal
+ * key instead would authenticate as the system principal, bypass both, and oblige this
+ * service to grow its own copy of a rule that already exists next door.
+ */
+describe('OrderLookupHttpAdapter (S1)', () => {
+  const COURIER = 'Bearer courier-token';
+  const adapter = () => new OrderLookupHttpAdapter(makeConfig());
+
+  it("carries the COURIER's bearer, never the internal key", async () => {
+    fetchMock.mockResolvedValue(res({ body: { id: 'o1', status: 'CONFIRMED' } }));
+    await adapter().findForClaim('o1', COURIER);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://order:3005/api/v1/orders/manage/o1');
+    expect(init.headers.authorization).toBe(COURIER);
+    expect(init.headers['x-internal-key']).toBeUndefined();
+  });
+
+  it('throws without authorization, before any fetch', async () => {
+    await expect(adapter().findForClaim('o1', '')).rejects.toThrow(/authorization/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Three answers, kept apart. A courier who reads "coba lagi" after being refused will
+   * keep trying: 403 is "not your depot", 404 is "no such order", anything else is a
+   * failure to report as one.
+   */
+  it('tells a refusal from an absence from a failure', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 403 }));
+    await expect(adapter().findForClaim('o1', COURIER)).rejects.toBeInstanceOf(ForbiddenException);
+
+    fetchMock.mockResolvedValue(res({ ok: false, status: 404 }));
+    await expect(adapter().findForClaim('o1', COURIER)).resolves.toBeNull();
+
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(adapter().findForClaim('o1', COURIER)).rejects.toThrow(/responded 500/);
+
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(adapter().findForClaim('o1', COURIER)).rejects.toThrow(/ECONNREFUSED/);
+  });
+});
+
 // Every adapter arms an AbortController so a hung owner cannot pin a courier's screen open.
 // The abort callback itself only runs when the timer fires, which no other spec waits for —
 // leaving the one line that enforces the timeout unexecuted.
@@ -501,6 +547,16 @@ describe('the 5s timeout actually aborts', () => {
           'dikembalikan',
           'drv-7',
         ),
+      ).rejects.toThrow(/aborted/),
+    );
+  });
+
+  // A hung order-service must not pin the claim button open either.
+  it('order lookup for a claim gives up and rethrows', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new OrderLookupHttpAdapter(makeConfig()).findForClaim('o1', 'Bearer t'),
       ).rejects.toThrow(/aborted/),
     );
   });
