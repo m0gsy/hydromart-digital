@@ -8,7 +8,7 @@ import {
   UpdateCategoryData,
 } from '../ports/category.repository';
 import { PRODUCT_TOKENS } from '../tokens';
-import { assertFresh } from '@hydromart/platform';
+import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
 
 /** Category catalog. Public list is active-only; admin sees all. Delete = soft (active:false). */
 @Injectable()
@@ -42,7 +42,8 @@ export class CategoryService {
     patch: UpdateCategoryData,
     seenUpdatedAt?: string,
   ): Promise<CategoryRecord> {
-    assertFresh((await this.getOrThrow(id)).updatedAt, seenUpdatedAt);
+    const current = await this.getOrThrow(id);
+    if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
     if (patch.slug) {
       const owner = await this.categories.findBySlug(patch.slug);
       if (owner && owner.id !== id) {

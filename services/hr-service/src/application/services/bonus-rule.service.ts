@@ -1,5 +1,11 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { assertFresh, AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import {
+  assertFresh,
+  isDecisionOnlyPatch,
+  AuthenticatedUser,
+  assertDepotAccess,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { BonusRule, BonusType } from '../../../prisma/generated/client';
 import { BonusMetric, CompareOp, RewardKind } from '../../domain/bonus-rules';
@@ -68,7 +74,7 @@ export class BonusRuleService {
     // Validation first: "your input is malformed" is a more useful answer than "reload",
     // and a malformed write is refused either way.
     this.validate({ ...existing, ...input } as BonusRuleInput, true);
-    assertFresh(existing.updatedAt, seenUpdatedAt);
+    if (!isDecisionOnlyPatch(input)) assertFresh(existing.updatedAt, seenUpdatedAt);
     const patch: Partial<BonusRuleWrite> = {};
     if (input.bonusType !== undefined) patch.bonusType = input.bonusType as BonusType;
     if (input.name !== undefined) patch.name = input.name.trim();

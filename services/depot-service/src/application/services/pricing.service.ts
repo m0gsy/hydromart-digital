@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { assertFresh } from '@hydromart/platform';
+import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
 
 import { PricingAdjustType, PricingRuleRecord, resolveRule } from '../../domain/pricing-rule';
 import {
@@ -103,7 +103,7 @@ export class PricingService {
     if (!existing) {
       throw new PricingRuleNotFoundError();
     }
-    assertFresh(existing.updatedAt, seenUpdatedAt);
+    if (!isDecisionOnlyPatch(patch)) assertFresh(existing.updatedAt, seenUpdatedAt);
     this.validateWindow({
       startMinute: patch.startMinute ?? existing.startMinute,
       endMinute: patch.endMinute ?? existing.endMinute,

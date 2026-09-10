@@ -1,4 +1,4 @@
-import { StaleWriteError, assertFresh } from './stale-write';
+import { StaleWriteError, assertFresh, isDecisionOnlyPatch } from './stale-write';
 
 const stored = new Date('2026-09-09T10:00:00.000Z');
 
@@ -41,5 +41,32 @@ describe('assertFresh', () => {
   it('compares the instant, not the text', () => {
     // The same moment written in another offset is the same version.
     expect(() => assertFresh(stored, '2026-09-09T17:00:00.000+07:00')).not.toThrow();
+  });
+});
+
+describe('isDecisionOnlyPatch', () => {
+  it('treats a lone active flag as the decision it is', () => {
+    expect(isDecisionOnlyPatch({ active: true })).toBe(true);
+    expect(isDecisionOnlyPatch({ active: false })).toBe(true);
+  });
+
+  it('ignores the undefined properties a class-transformer DTO always carries', () => {
+    // Without the filter this object has six keys and the predicate never holds — the
+    // exemption would be dead code and every reactivate button would 409 on.
+    expect(
+      isDecisionOnlyPatch({
+        active: true,
+        name: undefined,
+        deliveryFee: undefined,
+        seenUpdatedAt: undefined,
+      }),
+    ).toBe(true);
+  });
+
+  it('refuses anything carrying a second field somebody could lose', () => {
+    expect(isDecisionOnlyPatch({ active: true, name: 'Depot Baru' })).toBe(false);
+    expect(isDecisionOnlyPatch({ operatingHours: {}, holidays: [] })).toBe(false);
+    expect(isDecisionOnlyPatch({ paymentBankAccountNumber: '123' })).toBe(false);
+    expect(isDecisionOnlyPatch({})).toBe(false);
   });
 });

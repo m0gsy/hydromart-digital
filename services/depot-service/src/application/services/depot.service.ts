@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { assertFresh } from '@hydromart/platform';
+import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
 
 import { OwnershipType } from '../../domain/inventory';
 import {
@@ -86,13 +86,9 @@ export class DepotService {
    * account on this record is where a depot's money is paid, and two people editing it
    * used to produce whichever of them saved last.
    */
-  async update(
-    id: string,
-    patch: UpdateDepotData,
-    seenUpdatedAt?: string,
-  ): Promise<DepotRecord> {
+  async update(id: string, patch: UpdateDepotData, seenUpdatedAt?: string): Promise<DepotRecord> {
     const current = await this.get(id, false);
-    assertFresh(current.updatedAt, seenUpdatedAt);
+    if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
