@@ -81,30 +81,82 @@ Ditulis di sini supaya tidak hilang, sesuai §50 kekurangan 8:
 baris KEPUTUSAN (CA-1-17, CA-2-16) sudah dijawab pemilik dan ditutup, di #421 dan #429.
 
 > Sepuluh sel §28 memayungi **136 item** yang laporan sumber hitung tapi tidak pernah tiketkan;
-> satu baris CA-5 memayungi **14 sweep**. Merencanakan 460 tiket melebihkan pekerjaan sekitar dua
-> kali lipat; merencanakan 219 melewatkan justru sapuan-sapuan ini.
+> satu baris CA-5 memayungi sekumpulan sweep terjadwal. Merencanakan 460 tiket melebihkan
+> pekerjaan sekitar dua kali lipat; merencanakan 219 melewatkan justru sapuan-sapuan ini.
+
+### Sapuan verifikasi baris payung (2026-09-10)
+
+Sebelas baris SAPUAN — sepuluh sel §28 plus `CA-5-01` — semuanya bertanda SUDAH DIPERBAIKI,
+dan tidak ada yang pernah membuktikannya satu per satu. Ini hasilnya, dijalankan bukan
+diingat.
+
+**Gerbang.** Ketiga puluh tiga skrip `scripts/check-*.mjs` yang bisa berjalan tanpa
+infrastruktur hidup: **33 lulus, 0 gagal.** (Enam yang butuh jaringan atau stack hidup
+dikecualikan dan disebut: `check-lighthouse`, `check-sentry-reachable`, `check-assetlinks`,
+`check-deploy-sha`, `check-public-metrics`, `check-caddy-knobs`.)
+
+**Self-check gerbang.** Ketiga puluh tujuh `scripts/*.test.sh` — bukti bahwa tiap gerbang
+BISA merah: **36 lulus, 1 menolak berjalan.** Yang menolak adalah
+`check-config-drift.test.sh`, dan penolakannya benar: ia butuh Docker, dan ia mencetak
+*"a silent skip would read exactly like a pass"* alih-alih diam-diam lulus.
+
+**Angka yang bergerak, dan ini satu-satunya koreksi yang ditemukan sapuan ini.** `CA-5-01`
+menulis **14 sweep terjadwal**. Diukur hari ini, `check-sweep-observer.mjs` dan
+`check-scheduler-routes.mjs` sama-sama menjawab **17** — ketujuh belasnya diawasi dan
+menerima kunci internalnya. Perbaikannya utuh dan cakupannya penuh; yang basi hanyalah
+angka di judul barisnya, karena tiga sweep ditambahkan sesudah baris itu ditulis.
+
+**Klausul yang tidak dijaga gerbang mana pun, diperiksa langsung ke kodenya:**
+
+| Baris | Klausul | Terbukti |
+| --- | --- | --- |
+| `CA-2-60` | pintu rail /hq tanpa gerbang | `check-console-gates.mjs`: 62 item rail, 0 tak-cocok, **0 tanpa gerbang** (baseline 0) |
+| `CA-2-62` | `window.confirm`/`window.prompt` hilang | 6 kecocokan tersisa di `apps/web/src`, dan **keenamnya komentar**, bukan panggilan |
+| `CA-2-63` | rilis payout mencatat "Rilis HQ" sebagai tujuan | `payout.service.ts` mengambil tujuan dari pemanggil atau pencairan terakhir pemilik, dan **MENOLAK** (`UnknownPayoutDestinationError`) kalau tidak ada keduanya |
+| `CA-2-65` | voucher persentase menerima nilai di atas 100 | `voucher.dto.ts:261` `@Max(100)` |
+| `CA-2-65` | voucher HQ lahir tanpa kedaluwarsa | `hq/forms/voucher/page.tsx` punya kolom `validFrom`/`validUntil`; keduanya dulu di-hardcode `null` |
+| `CA-2-67` | jejak audit untuk rute yang mengubah data | `check-audit-coverage.mjs`: 73 rute mutasi, 30 dikecualikan, sisanya tercakup |
+| `CA-2-68` | teks Indonesia keras + kontrol tanpa nama | `check-i18n.mjs` dan `check-a11y.mjs` keduanya hijau |
+
+**Yang sapuan ini TIDAK buktikan, disebut apa adanya:** klausul-klausul yang hanya bisa
+dilihat mata di peramban yang sudah masuk — urutan tab di ponsel, keadaan memuat yang
+membedakan nol dari gagal, kontras warna. `console-a11y.test.tsx` mengukur paruh
+strukturalnya di jsdom dan mengatakan sendiri bahwa paruh geometrinya tidak terukur di sana.
+Itu tetap pekerjaan browser, dan tetap terhutang.
 
 ---
 
-## Status baris yang masih TERBUKA (2026-09-08)
+## Triase baris terbuka — CATATAN SEJARAH (2026-09-08), bukan keadaan sekarang
 
-Setiap baris yang masih terbuka sudah dibaca terhadap kodenya sendiri oleh agen terpisah,
-dan setiap putusan yang bisa ditindaklanjuti (SUDAH DIPERBAIKI atau perbaikan sepele)
-dihadapkan pada dua penyangkal yang tugasnya membantahnya. Yang tercatat di bawah adalah
-hasilnya, bukan tebakan.
+**NOL baris TERBUKA per 2026-09-10.** Dihitung dari tabel di bawah, bukan diingat:
+`node scripts/register-tally.mjs` menjawab `SUDAH DIPERBAIKI 279 · DUPLIKAT 3 ·
+DITOLAK 2 · KEPUTUSAN 0` dari 284 baris berstatus.
 
-**61 terbuka.** 45 sudah ditriase; **18 belum** — pekerjaannya terhenti di batas sesi, bukan
-karena diputuskan tidak dikerjakan. Itu: `CA-3-49` `CA-3-51` `CA-3-60` `CA-3-62` `CA-3-64`
-`CA-3-67` `CA-3-68` `CA-3-70` `CA-4-11` `CA-4-23` `CA-4-26` `CA-4-32` `CA-4-36` `CA-4-38`
-`CA-4-39` `CA-4-42` `CA-4-48` `CA-4-52`.
+Seluruh bagian ini adalah potret triase pada 8 September dan disimpan sebagai catatan
+sejarah, bukan sebagai daftar pekerjaan. Ia dibiarkan berdiri selama dua hari sesudah
+angkanya berhenti benar, dan itu adalah kegagalan yang justru dilarang aturan pertama
+dokumen ini: paragraf pembukanya menulis **"61 terbuka. 45 sudah ditriase; 18 belum"**
+lengkap dengan delapan belas ID, sementara tabel di halaman yang sama sudah lama tidak
+punya satu pun. Sebuah dokumen yang disebut satu-satunya sumber kebenaran tidak boleh
+membantah tabelnya sendiri — dan `register-tally.mjs --write` tidak menolongnya, karena
+skrip itu hanya menyegarkan baris "Per status" dan tidak pernah membaca paragraf ini.
 
-### Yang menunggu keputusan Anda (1)
+Kedelapan belas ID itu diperiksa satu per satu terhadap kolom statusnya hari ini:
+`CA-3-49` `CA-3-51` `CA-3-60` `CA-3-62` `CA-3-64` `CA-3-67` `CA-3-68` `CA-3-70` `CA-4-11`
+`CA-4-23` `CA-4-26` `CA-4-32` `CA-4-36` `CA-4-38` `CA-4-39` `CA-4-42` `CA-4-48` `CA-4-52`
+— **kedelapan belasnya SUDAH DIPERBAIKI.**
 
-| Baris | Pertanyaannya |
-| --- | --- |
-| `CA-2-54` | Tidak ada transfer stok antar depot. Satu-satunya stok masuk adalah pembelian. Apakah depot boleh memindahkan stok ke depot lain, dan kalau boleh, siapa yang menyetujui dan bagaimana nilainya dicatat di dua buku? Kode tidak bisa menjawab ini. |
+Yang berlaku di bawah ini hanyalah caranya, bukan angkanya: setiap baris dibaca terhadap
+kodenya sendiri oleh agen terpisah, dan setiap putusan yang bisa ditindaklanjuti dihadapkan
+pada dua penyangkal yang tugasnya membantahnya.
 
-### Yang bukan pekerjaan sepele (14)
+### Yang dulu menunggu keputusan Anda (0 tersisa)
+
+| Baris | Pertanyaannya | Jawabannya |
+| --- | --- | --- |
+| `CA-2-54` | Tidak ada transfer stok antar depot. Apakah depot boleh memindahkan stok ke depot lain, dan kalau boleh, siapa yang menyetujui dan bagaimana nilainya dicatat di dua buku? | **Dijawab dan dijalankan.** Dua langkah kirim/terima, SENT memotong pengirim seketika dan RECEIVED menambah penerima hanya setelah ada yang menghitungnya. Baris tabelnya kini SUDAH DIPERBAIKI — lihat `CA-2-54` di Bagian III. |
+
+### Yang bukan pekerjaan sepele (14 — semuanya kini tertutup)
 
 `CA-1-43` `CA-1-44` `CA-1-47` `CA-1-48` `CA-1-62` `CA-1-66` `CA-2-48` `CA-2-50` `CA-2-51`
 `CA-2-53` `CA-2-56` `CA-2-57` `CA-2-58` `CA-4-49` — masing-masing perlu jalur kode baru,
@@ -135,8 +187,13 @@ Jadi rencana-rencana itu **tidak boleh ditempel apa adanya**. Yang dibantah:
 
 Rebase pada 2026-09-08 merusak kolom statusnya di dua arah: delapan baris punya kode yang
 sudah tergabung tapi terbaca `TERBUKA`. Semuanya sudah dicocokkan ulang dengan memeriksa
-apakah ada berkas sumber yang mengutip id barisnya. Angka di halaman ini sekarang cocok
-dengan kodenya; sebelum tanggal itu, tidak.
+apakah ada berkas sumber yang mengutip id barisnya.
+
+Dan sekali lagi pada 2026-09-10, dengan pelajaran yang berbeda: yang rusak bukan kolom
+statusnya melainkan PROSA di atasnya. Kolomnya benar sepanjang waktu; paragraf pembukanya
+tidak, selama dua hari, dan tidak ada gerbang yang membaca prosa. Kalau baris "Per status"
+dan sebuah paragraf naratif menyebut angka yang berbeda, yang naratif itulah yang basi —
+`register-tally.mjs` hanya menyentuh yang pertama.
 
 
 ---
@@ -445,7 +502,7 @@ dengan kodenya; sebelum tanggal itu, tidak.
 
 | ID | Bagian | Tingkat | Judul | file:baris | Kelas akar | Status | Bukti re-cek | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `CA-5-01` | §50/k7 | SAPUAN | SAPUAN · 14 sweep terjadwal berjalan tanpa penonton di jalur uang dan PDP — subscriptions, retention, payments, loyalty, orders, deliveries, fraud-flags, webhooks, campaigns, announcements, customers, profile, reports, scheduled-reports. Tidak satu pun punya halaman, jadi audit yang digerakkan halaman tidak melihatnya; Kritis §31 kedua ADALAH salah satu sweep ini, ditemukan lewat gejalanya di aplikasi pelanggan. | `scripts/scheduler/crontab` | `sweep-tanpa-penonton` | SUDAH DIPERBAIKI | daftar job datang dari crontab (`sweep-schedule.ts`), bukan dari tabel — jadi sapuan yang BELUM PERNAH melapor tampil sebagai NEVER_RAN, bukan tidak tampil. `lastRunAt` dan `lastOkAt` dipisah. Kartu di /hq/health, gerbang cakupan `check-sweep-observer.mjs` menyala | #433 + #435 |
+| `CA-5-01` | §50/k7 | SAPUAN | SAPUAN · 17 sweep terjadwal berjalan tanpa penonton di jalur uang dan PDP — subscriptions, retention, payments, loyalty, orders, deliveries, fraud-flags, webhooks, campaigns, announcements, customers, profile, reports, scheduled-reports. Tidak satu pun punya halaman, jadi audit yang digerakkan halaman tidak melihatnya; Kritis §31 kedua ADALAH salah satu sweep ini, ditemukan lewat gejalanya di aplikasi pelanggan. | `scripts/scheduler/crontab` | `sweep-tanpa-penonton` | SUDAH DIPERBAIKI | daftar job datang dari crontab (`sweep-schedule.ts`), bukan dari tabel — jadi sapuan yang BELUM PERNAH melapor tampil sebagai NEVER_RAN, bukan tidak tampil. `lastRunAt` dan `lastOkAt` dipisah. Kartu di /hq/health, gerbang cakupan `check-sweep-observer.mjs` menyala **Diukur ulang 2026-09-10: 17 sweep, bukan 14** — tiga ditambahkan sesudah baris ini ditulis, dan `check-sweep-observer.mjs` mengawasi ketujuh belasnya (`check-scheduler-routes.mjs` menyetujui jumlah yang sama). | #433 + #435 |
 
 
 ## Bagian VI — Temuan sapuan (tidak ada di laporan sumber)
