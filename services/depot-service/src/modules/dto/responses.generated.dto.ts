@@ -230,6 +230,11 @@ export class InternalOwnerResponseDto {
   ownershipType!: string;
 }
 
+export class InternalAssistantResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  assistantSupervisorId!: string | null;
+}
+
 /** Mirrors `DepotRecord` exactly — generated for audit D-6, no field added or removed. */
 export class DepotResponseDto {
   @ApiProperty({ type: String })

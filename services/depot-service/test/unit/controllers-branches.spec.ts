@@ -1231,6 +1231,12 @@ describe('DepotController', () => {
     });
     svc.get.mockResolvedValueOnce({ ownerId: null, ownershipType: 'HKP' });
     expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null, ownershipType: 'HKP' });
+    // Who decides a kasbon raised at this depot. Null is an answer, not a failure: a depot
+    // with no assistant yet has nobody who may approve one, and hr-service refuses it.
+    svc.get.mockResolvedValueOnce({ assistantSupervisorId: 'asv-1' });
+    expect(await c.internalAssistant(DEPOT)).toEqual({ assistantSupervisorId: 'asv-1' });
+    svc.get.mockResolvedValueOnce({ assistantSupervisorId: null });
+    expect(await c.internalAssistant(DEPOT)).toEqual({ assistantSupervisorId: null });
     await c.manage({} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);

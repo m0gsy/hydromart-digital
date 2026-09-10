@@ -56,6 +56,7 @@ import {
   DepotResponseDto,
   InternalContactsResponseDto,
   InternalOwnedResponseDto,
+  InternalAssistantResponseDto,
   InternalOwnerResponseDto,
   NearbyDepotResponseDto,
   PagedDepotResponseDto,
@@ -133,6 +134,33 @@ export class DepotController {
     // ownershipType rides along so the caller can tell "company depot, nobody to credit"
     // from "franchise depot missing its owner" — the second one is a defect worth logging.
     return { ownerId: depot.ownerId, ownershipType: depot.ownershipType };
+  }
+
+  /*
+   * Service-to-service: hr-service asks who decides a kasbon raised at this depot.
+   *
+   * The assistant supervisor of the depot is that person, and the link lives here — it is
+   * the same column `/hq/hierarchy` writes and the same one `depotsForAssistant` reads to
+   * derive everyone's scope. hr-service has no copy of it and must not grow one:
+   * `Employee.supervisorId` stopped being written when this became the single place a
+   * reporting line is recorded, and a second copy is a second answer.
+   *
+   * Null is a real answer, not an error: a depot may genuinely have no assistant yet, and
+   * the caller decides what that means. For a kasbon it means the request is refused —
+   * there is nobody with the authority to approve it.
+   *
+   * Declared before `:id` so that param route does not swallow it.
+   */
+  @ApiOkResponse({ type: InternalAssistantResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/:id/assistant')
+  @ApiOperation({ summary: 'Assistant supervisor of one depot (internal service auth)' })
+  async internalAssistant(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ assistantSupervisorId: string | null }> {
+    const depot = await this.depots.get(id, false);
+    return { assistantSupervisorId: depot.assistantSupervisorId };
   }
 
   /**
