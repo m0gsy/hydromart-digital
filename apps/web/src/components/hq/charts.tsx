@@ -4,6 +4,15 @@
 // dashboard/page.tsx). Presentational + typed. All values are pre-computed by callers.
 
 /** Vertical bars for a monthly revenue trend. */
+/**
+ * The number was in `title=` and nowhere else — a hover tooltip. A phone has no hover, so on
+ * the surface this chart is mostly read on, the value was unreachable; a screen reader never
+ * had it at all. It is rendered now, and `title` is kept for the pointer that does hover.
+ *
+ * `Math.max(2, …)` keeps a zero month visible as a sliver rather than as nothing, which is
+ * right — but a 2px sliver on a dark card reads as an empty chart, so the value above it is
+ * what actually tells the reader the month was zero.
+ */
 export function BarTrend({
   data,
   className,
@@ -16,6 +25,9 @@ export function BarTrend({
     <div className={`flex items-end gap-1.5 ${className ?? ''}`} style={{ height: 120 }}>
       {data.map((d, i) => (
         <div key={`${d.label}-${i}`} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+          <span className="w-full truncate text-center text-[9px] tabular-nums text-muted">
+            {compactIdr(d.value)}
+          </span>
           <div className="flex w-full flex-1 items-end">
             <div
               className="w-full rounded-t bg-brand-600"
@@ -28,6 +40,15 @@ export function BarTrend({
       ))}
     </div>
   );
+}
+
+/** 263000 → "263rb", 1_400_000 → "1,4jt". A bar label has one line and no room for a total. */
+function compactIdr(value: number): string {
+  const n = Math.round(value);
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace('.', ',')}m`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace('.', ',')}jt`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}rb`;
+  return String(n);
 }
 
 /** Inline SVG line for a compact trend (1c). */
@@ -164,13 +185,18 @@ export function CohortGrid({
                 <td key={i}>
                   <span
                     title={`${Math.round(c * 100)}%`}
-                    className="block h-6 w-8 rounded"
+                    className="flex h-6 w-9 items-center justify-center rounded text-[10px] font-semibold tabular-nums"
                     style={{
                       background: `color-mix(in srgb, var(--brand-600, #0c97ac) ${Math.round(
                         Math.max(0, Math.min(1, c)) * 100,
                       )}%, var(--surface-muted))`,
+                      // Dark ink on a pale cell, light on a saturated one: the number has to
+                      // stay legible across the whole ramp, not only at one end of it.
+                      color: c >= 0.55 ? 'var(--surface)' : 'var(--text)',
                     }}
-                  />
+                  >
+                    {Math.round(c * 100)}
+                  </span>
                 </td>
               ))}
             </tr>

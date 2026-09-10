@@ -54,6 +54,34 @@ const STATUS_TONE: Record<AssetStatus, 'success' | 'warning' | 'neutral' | 'dang
   LOST: 'danger',
 };
 
+/**
+ * The whole roster, paged at the server's own cap.
+ *
+ * This asked for `pageSize: 200` in one read. `ListEmployeesDto` caps it at 100, so the
+ * request was a 400 EVERY time — the screen rendered "Gagal dimuat. Coba lagi" in red above
+ * an asset list that had loaded perfectly well, and the two together read as though the
+ * assets were what failed.
+ *
+ * The cost is the one this file's own comment already names: unread, an assigned asset
+ * "reads as held by nobody and there is no one to hand it to". Both were true in production.
+ *
+ * `hq/staff` hit the identical cap and was fixed for it (K-5/C-2); this caller was missed.
+ * Paged here for the same reason given there — 200 was never a ceiling anyone could defend,
+ * and employee 201 would have been invisible even if the cap had allowed it.
+ */
+async function readWholeRoster(): Promise<{ rows: Employee[] }> {
+  const PAGE = 100;
+  const rows: Employee[] = [];
+  for (let page = 1; ; page += 1) {
+    const p = await api.get<{ rows: Employee[]; total: number }>(
+      endpoints.hr.employees({ page, pageSize: PAGE }),
+      true,
+    );
+    rows.push(...p.rows);
+    if (p.rows.length < PAGE || rows.length >= p.total) return { rows };
+  }
+}
+
 export default function AssetsPage() {
   const { t } = useT();
   const { customer } = useAuth();
@@ -94,10 +122,7 @@ export default function AssetsPage() {
    * The whole roster now, because naming is a lookup over history. The recipient picker
    * still offers only people who are here — see where it filters.
    */
-  const employees = useAsync<{ rows: Employee[] }>(
-    () => api.get<{ rows: Employee[] }>(endpoints.hr.employees({ pageSize: 200 }), true),
-    [],
-  );
+  const employees = useAsync<{ rows: Employee[] }>(() => readWholeRoster(), []);
 
   const staff = employees.data?.rows ?? [];
   const holder = (id: string | null) => staff.find((e) => e.id === id) ?? null;
