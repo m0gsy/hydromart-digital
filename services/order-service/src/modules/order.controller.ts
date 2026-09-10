@@ -810,7 +810,10 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     // Close the by-id vector: a depot-locked operator/manager may only advance their own
-    // depot's order. No-op for STAFF_DEPOT/SUPER_ADMIN. Load first so the check precedes the mutation.
+    // depot's order. No-op for SUPER_ADMIN and the other unscoped roles — but NOT for
+    // STAFF_DEPOT, which the comment used to claim: `DEPOT_LOCKED_ROLES` is exactly
+    // { STAFF_DEPOT, KEPALA_DEPOT }, so a depot operator is the most scoped caller here,
+    // not an exempt one. Load first so the check precedes the mutation.
     const existing = await this.orders.getAny(id);
     assertDepotAccess(user, existing.depotId);
     // Forward the caller's token so order-service can award loyalty points on
