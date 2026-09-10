@@ -68,6 +68,9 @@ cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
     // call. `settings/schema` is gated on `settingsRead` and 403s for KURIR, which is why
     // the route ETA never appeared and the no-show screen hard-coded its threshold.
     settings: '/deliveries/api/v1/driver/settings',
+    // S1: take an unclaimed order. `orderId` in the body, not the path — see the route's
+    // own comment for why.
+    claim: '/deliveries/api/v1/driver/deliveries/claim',
     // GET reads the no-show gate; POST records an attempt (CA-4-30 — the POST used to be
     // the only way to learn the state, so a restarted app could only see it by faking one).
     contactAttempts: (id: string) =>

@@ -381,6 +381,14 @@ export interface Order extends DeliveryAddress {
   driverPhone: string | null;
   /** Customer-facing ETA ISO string (null until ON_DELIVERY), set by delivery-service. */
   estimatedArrivalAt: string | null;
+  /**
+   * When the order last changed STATUS — not when the row was last written.
+   *
+   * Optional here on purpose: the column has been written on every transition since the SLA
+   * sweep needed it, but only started reaching this read model one release ago, so a client
+   * that outlives a rollback must not crash on its absence.
+   */
+  statusChangedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -1445,6 +1453,15 @@ export interface DriverSettings {
   routeStopMinutes: number;
   noShowMinContactAttempts: number;
   noShowMinWaitSeconds: number;
+  /**
+   * CA-4-37: the app used to hard-code 1. The server has had a per-depot cap all along and
+   * read it on every assign, so a depot that raised the cap saw the app go on refusing a
+   * second delivery for a reason it could not show.
+   */
+  maxActiveDeliveriesPerDriver: number;
+  /** S1. 0 = self-claim off for this depot, which is how every depot starts. */
+  courierSelfClaimEnabled: number;
+  courierSelfClaimWaitMinutes: number;
 }
 
 // Courier shift (delivery-service). Front door of the driver app (design 3a/3b).
