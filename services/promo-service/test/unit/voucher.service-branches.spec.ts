@@ -70,7 +70,8 @@ describe('VoucherService branch gaps', () => {
 
   it('update patches an existing voucher and rejects a missing one', async () => {
     const v = await service.create(baseVoucher({ code: 'PATCH' }));
-    const updated = await service.update(v.id, { value: 25 });
+    // CA-2-53: a save says which version it started from.
+    const updated = await service.update(v.id, { value: 25 }, v.updatedAt.toISOString());
     expect(updated.value).toBe(25);
     await expect(service.update('missing', { value: 5 })).rejects.toBeInstanceOf(
       VoucherNotFoundError,
@@ -106,5 +107,25 @@ describe('VoucherService branch gaps', () => {
     expect(summary.totalUsed).toBe(12000);
     expect(summary.byVoucher[a.id]).toBe(5000);
     expect(summary.byVoucher[b.id]).toBe(7000);
+  });
+
+  /*
+   * CA-2-53. A discount two people edited at once used to end up as whichever of them saved
+   * last, with the other's change gone and neither told.
+   */
+  it('refuses a voucher save built on a copy that is already out of date', async () => {
+    const v = await service.create(baseVoucher({ code: 'STALE' }));
+    await service.update(v.id, { value: 25 }, v.updatedAt.toISOString());
+
+    await expect(
+      service.update(v.id, { value: 90 }, v.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  it('refuses a voucher save that says nothing about what it saw', async () => {
+    const v = await service.create(baseVoucher({ code: 'NOSEEN' }));
+    await expect(service.update(v.id, { value: 90 })).rejects.toMatchObject({
+      code: 'STALE_WRITE',
+    });
   });
 });

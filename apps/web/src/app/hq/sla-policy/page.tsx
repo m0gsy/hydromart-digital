@@ -57,6 +57,10 @@ export default function HqSlaPolicyPage() {
       // celebrate, and saving the bands anyway would leave the screen showing a threshold
       // that never took — exactly the split this change exists to close. Global settings
       // are SUPER_ADMIN-only (`settingsGlobal`), so a 403 here is a real answer to report.
+      // stale-write-ok: a settings STORE, keyed by (scope, key) — this writes one value, not
+      // a record. Two admins setting different keys do not collide, and two setting the same
+      // key are making the same decision. The record-shaped half of this screen, the SLA
+      // policy itself, is guarded below.
       await api.put(
         endpoints.deliverySettings.put,
         { scope: 'GLOBAL', key: 'slaMinutes', value: policy.onTimeThresholdMinutes },

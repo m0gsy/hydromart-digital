@@ -117,7 +117,13 @@ function MeterBody() {
     setSaving(true);
     setSaveError(null);
     try {
-      await api.put(endpoints.reports.meterSave(depot.id, TODAY), fields, true);
+      await api.put(
+        endpoints.reports.meterSave(depot.id, TODAY),
+        // CA-2-53: rewriting a day that already has readings says which version it read;
+        // the first save of a day has nothing to overwrite and sends none.
+        { ...fields, seenUpdatedAt: reading?.updatedAt },
+        true,
+      );
       setOpening('');
       setClosing('');
       setSourceOpening('');

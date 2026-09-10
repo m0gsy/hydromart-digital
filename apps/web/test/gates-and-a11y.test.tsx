@@ -216,6 +216,7 @@ describe('CA-3-61 the amber promo card is readable in dark mode', () => {
           active: true,
           startsAt: null,
           endsAt: null,
+          updatedAt: '2026-09-09T00:00:00.000Z',
         }}
       />,
     );

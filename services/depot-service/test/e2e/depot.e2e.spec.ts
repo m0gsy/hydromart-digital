@@ -380,13 +380,52 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // customer forbidden
     await request(server()).get('/api/v1/depots/manage').set(auth(customerToken)).expect(403);
 
-    // reactivate via PATCH
+    // CA-2-53: reactivate via PATCH, carrying NO version — and that is the assertion. A
+    // one-tap flip holds nobody's typing, so demanding a stamp for it only made the button
+    // 409 forever, which is how a deactivated depot became one no console could revive.
     await request(server())
       .patch(`/api/v1/depots/${depotId}`)
       .set(auth(mgrAt))
       .send({ active: true })
       .expect(200)
       .expect((r) => expect(r.body.active).toBe(true));
+  });
+
+  /*
+   * The other half of the same rule, and both halves are needed: with only the exemption
+   * test, deleting the freshness check entirely would still be green.
+   */
+  it('refuses a depot edit built on a copy somebody else already replaced', async () => {
+    const created = await request(server())
+      .post('/api/v1/depots')
+      .set(auth(managerToken))
+      .send({ ...depotBody, code: 'STALE-01', name: 'Depot Stale' })
+      .expect(201);
+    const id = created.body.id;
+    const mgrAt = signStaff(Role.MANAGER, id);
+
+    // Somebody else saves first, moving the stored version.
+    await request(server())
+      .patch(`/api/v1/depots/${id}`)
+      .set(auth(mgrAt))
+      .send({ deliveryFee: 7000, seenUpdatedAt: created.body.updatedAt })
+      .expect(200);
+
+    // Our copy is now old. The bank account on this record is where the depot is paid.
+    await request(server())
+      .patch(`/api/v1/depots/${id}`)
+      .set(auth(mgrAt))
+      .send({ paymentBankAccountNumber: '123', seenUpdatedAt: created.body.updatedAt })
+      .expect(409);
+
+    await request(server())
+      .get(`/api/v1/depots/manage/${id}`)
+      .set(auth(mgrAt))
+      .expect(200)
+      .expect((r) => {
+        expect(r.body.deliveryFee).toBe(7000);
+        expect(r.body.paymentBankAccountNumber).not.toBe('123');
+      });
   });
 
   /*
@@ -402,13 +441,14 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
    * KEPALA_DEPOT, and that record carries `paymentBankAccountNumber`.
    */
   it('refuses the by-id depot routes to a manager of another depot (AUTHZ-B1)', async () => {
-    const mine = (
+    const mineRow = (
       await request(server())
         .post('/api/v1/depots')
         .set(auth(managerToken))
         .send({ ...depotBody, code: 'SCOPE-A', name: 'Depot Scope A' })
         .expect(201)
-    ).body.id;
+    ).body;
+    const mine = mineRow.id;
     const theirs = (
       await request(server())
         .post('/api/v1/depots')
@@ -424,7 +464,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     await request(server())
       .patch(`/api/v1/depots/${mine}`)
       .set(auth(mgrAtMine))
-      .send({ deliveryFee: 6000 })
+      .send({ deliveryFee: 6000, seenUpdatedAt: mineRow.updatedAt })
       .expect(200);
     await request(server())
       .get(`/api/v1/depots/manage/${mine}`)

@@ -284,7 +284,12 @@ function EditWindowSheet({
     try {
       await api.put(
         endpoints.admin.retention.update(policy.id),
-        { windowLabel: label.trim(), windowDays: daysNum },
+        {
+          windowLabel: label.trim(),
+          windowDays: daysNum,
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          seenUpdatedAt: policy.updatedAt,
+        },
         true,
       );
       onSaved();

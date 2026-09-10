@@ -91,7 +91,12 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
     try {
       const payload = toPayload(form);
       if (promo) {
-        await api.patch(endpoints.promotions.detail(promo.id), payload, true);
+        await api.patch(
+          endpoints.promotions.detail(promo.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...payload, seenUpdatedAt: promo.updatedAt },
+          true,
+        );
       } else {
         // Create defaults to active; visibility is toggled via edit (backend
         // CreatePromotionDto has no `active` field, so sending it 400s).

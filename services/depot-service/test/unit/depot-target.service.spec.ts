@@ -25,7 +25,11 @@ class InMemoryDepotTargetRepository implements DepotTargetRepository {
   async upsert(data: UpsertDepotTargetData): Promise<DepotTarget> {
     const existing = this.rows.find((x) => x.depotId === data.depotId && x.month === data.month);
     if (existing) {
-      Object.assign(existing, data, { updatedAt: new Date() });
+      // A monotonic stamp: two writes in the same millisecond must not look like one
+      // version, which is the only thing this fake exists to tell apart.
+      Object.assign(existing, data, {
+        updatedAt: new Date(existing.updatedAt.getTime() + 1000),
+      });
       return { ...existing };
     }
     const now = new Date();
@@ -88,9 +92,11 @@ describe('DepotTargetService', () => {
 
   it('upsert overwrites an existing month (same row, new values)', async () => {
     const first = await service.set(target(), EDITOR);
+    // CA-2-53: rewriting a month that already has a target says which version it read.
     const second = await service.set(
       target({ revenueTargetIdr: 60_000_000, ordersTarget: 1500 }),
       OTHER,
+      first.updatedAt.toISOString(),
     );
 
     expect(second.id).toBe(first.id); // same row, not a duplicate
@@ -104,5 +110,16 @@ describe('DepotTargetService', () => {
     await expect(
       service.set(target({ depotId: '00000000-0000-0000-0000-000000000000' }), EDITOR),
     ).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  /* CA-2-53 — a second manager setting the same month used to replace the first's numbers. */
+  it('refuses a target rewrite built on a copy that is already out of date', async () => {
+    const first = await service.set(target(), EDITOR);
+    const seen = first.updatedAt.toISOString();
+    await service.set(target({ revenueTargetIdr: 50_000_000 }), OTHER, seen);
+
+    await expect(
+      service.set(target({ revenueTargetIdr: 10_000_000 }), OTHER, seen),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
   });
 });

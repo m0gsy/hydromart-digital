@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import { WholesaleTier } from '../../domain/wholesale-tier';
 import { DepotNotFoundError, WholesaleTierNotFoundError } from '../../domain/errors';
@@ -61,8 +62,13 @@ export class WholesaleTierService {
     return this.require(id);
   }
 
-  async update(id: string, patch: UpdateWholesaleTierData): Promise<WholesaleTier> {
-    await this.require(id);
+  /** CA-2-53: refused when the caller's copy is older than the stored tier. */
+  async update(
+    id: string,
+    patch: UpdateWholesaleTierData,
+    seenUpdatedAt?: string,
+  ): Promise<WholesaleTier> {
+    assertFresh((await this.require(id)).updatedAt, seenUpdatedAt);
     return this.tiers.update(id, patch);
   }
 

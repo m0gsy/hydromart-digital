@@ -89,7 +89,13 @@ function ProductForm({
       images: images.map((u) => u.trim()).filter(Boolean),
     };
     try {
-      if (initial) await api.patch(endpoints.products.update(initial.id), body, true);
+      if (initial)
+        await api.patch(
+          endpoints.products.update(initial.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...body, seenUpdatedAt: initial.updatedAt },
+          true,
+        );
       else await api.post(endpoints.products.create, body, true);
       onDone();
     } catch (err) {

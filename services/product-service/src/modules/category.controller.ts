@@ -63,7 +63,7 @@ export class CategoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCategoryDto,
   ): Promise<CategoryRecord> {
-    return this.categories.update(id, dto);
+    return this.categories.update(id, dto, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: CategoryResponseDto })

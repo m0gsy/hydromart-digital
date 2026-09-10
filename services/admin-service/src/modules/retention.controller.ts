@@ -125,7 +125,7 @@ export class RetentionController {
         windowLabel: dto.windowLabel,
         windowDays: dto.windowDays,
         dataClass: dto.dataClass,
-      }),
+      }, dto.seenUpdatedAt),
     );
   }
 }

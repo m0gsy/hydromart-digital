@@ -25,7 +25,7 @@ class InMemoryWholesaleTierRepository implements WholesaleTierRepository {
       ...data,
     };
     this.rows.push(row);
-    return row;
+    return { ...row };
   }
 
   async listForDepot(depotId: string): Promise<WholesaleTier[]> {
@@ -38,8 +38,11 @@ class InMemoryWholesaleTierRepository implements WholesaleTierRepository {
 
   async update(id: string, data: UpdateWholesaleTierData): Promise<WholesaleTier> {
     const row = this.rows.find((r) => r.id === id)!;
-    Object.assign(row, data, { updatedAt: new Date() });
-    return row;
+    // CA-2-53: a monotonic stamp, not `new Date()` — two writes in the same millisecond
+    // would look like the same version, which is the one thing this must not simulate.
+    Object.assign(row, data, { updatedAt: new Date(Date.parse(row.updatedAt as never) + 1000) });
+    // A copy: a caller holding the returned object must not see later writes through it.
+    return { ...row };
   }
 
   async delete(id: string): Promise<void> {
@@ -81,7 +84,11 @@ describe('WholesaleTierService', () => {
 
   it('updates mutates a tier', async () => {
     const tier = await seed();
-    const updated = await service.update(tier.id, { priceIdr: 15_000, active: false });
+    const updated = await service.update(
+      tier.id,
+      { priceIdr: 15_000, active: false },
+      tier.updatedAt.toISOString(),
+    );
     expect(updated.priceIdr).toBe(15_000);
     expect(updated.active).toBe(false);
     expect((await repo.findById(tier.id))!.priceIdr).toBe(15_000);
@@ -99,5 +106,15 @@ describe('WholesaleTierService', () => {
       WholesaleTierNotFoundError,
     );
     await expect(service.remove(UNKNOWN)).rejects.toBeInstanceOf(WholesaleTierNotFoundError);
+  });
+
+  /* CA-2-53 — the bulk price, same shape as the pricing rule above. */
+  it('refuses a save built on a copy of the tier that is already out of date', async () => {
+    const tier = await seed();
+    await service.update(tier.id, { priceIdr: 15_000 }, tier.updatedAt.toISOString());
+
+    await expect(
+      service.update(tier.id, { priceIdr: 9_000 }, tier.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
   });
 });

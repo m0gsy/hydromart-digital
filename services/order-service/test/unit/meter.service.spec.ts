@@ -24,6 +24,8 @@ class FakeMeterRepo implements MeterReadingRepository {
     const row: MeterReading = {
       depotId: DEPOT,
       date: DATE,
+      // CA-2-53: the version a form edits against.
+      updatedAt: new Date('2026-09-09T00:00:00.000Z'),
       openingM3: 1000,
       closingM3: null,
       sourceOpeningM3: null,
@@ -61,6 +63,9 @@ class FakeMeterRepo implements MeterReadingRepository {
       ...(data.sourceOpeningM3 !== undefined ? { sourceOpeningM3: data.sourceOpeningM3 } : {}),
       ...(data.sourceClosingM3 !== undefined ? { sourceClosingM3: data.sourceClosingM3 } : {}),
       ...(data.note !== undefined ? { note: data.note } : {}),
+      // CA-2-53: the stored row moves on every write, so a second save cannot reuse the
+      // version the first one read.
+      updatedAt: new Date(existing.updatedAt.getTime() + 1000),
     };
     this.rows.set(key, merged);
     return merged;
@@ -142,73 +147,85 @@ function build(
   };
 }
 
+/** CA-2-53: the version `repo.seed()` stamps its row with — what a second save must name. */
+const SEEDED_AT = '2026-09-09T00:00:00.000Z';
+
 describe('MeterService.save', () => {
   it('records the opening reading in the morning and reports the day as not comparable', async () => {
     const { service } = build();
-    const result = await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-1',
-      authorization: 'Bearer t',
-      openingM3: 1000,
-    });
-    expect(result.meterLiters).toBeNull();
-    expect(result.soldLiters).toBe(2430);
-  });
-
-  it('accepts a closing-only evening write against the morning row', async () => {
-    const { service, repo } = build();
-    repo.seed({ openingM3: 1000 });
-    const result = await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: 'Bearer t',
-      closingM3: 1002.6,
-    });
-    expect(result.meterLiters).toBe(2600);
-    expect(result.varianceLiters).toBe(170);
-  });
-
-  it('rejects a closing reading below the opening one', async () => {
-    const { service, repo } = build();
-    repo.seed({ openingM3: 1000 });
-    await expect(
-      service.save({
-        depotId: DEPOT,
-        date: DATE,
-        actorId: 'staff-2',
-        authorization: '',
-        closingM3: 999,
-      }),
-    ).rejects.toBeInstanceOf(MeterReadingBackwardsError);
-  });
-
-  it('rejects a raw-water pair that runs backwards', async () => {
-    const { service } = build();
-    await expect(
-      service.save({
+    const result = await service.save(
+        {
         depotId: DEPOT,
         date: DATE,
         actorId: 'staff-1',
-        authorization: '',
+        authorization: 'Bearer t',
         openingM3: 1000,
-        sourceOpeningM3: 500,
-        sourceClosingM3: 499,
-      }),
+      });
+      expect(result.meterLiters).toBeNull();
+      expect(result.soldLiters).toBe(2430);
+    });
+
+    it('accepts a closing-only evening write against the morning row', async () => {
+      const { service, repo } = build();
+      repo.seed({ openingM3: 1000 });
+      const result = await service.save({
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: 'Bearer t',
+        closingM3: 1002.6,
+      }, SEEDED_AT);
+      expect(result.meterLiters).toBe(2600);
+      expect(result.varianceLiters).toBe(170);
+    });
+
+    it('rejects a closing reading below the opening one', async () => {
+      const { service, repo } = build();
+      repo.seed({ openingM3: 1000 });
+      await expect(
+        service.save(
+          {
+            depotId: DEPOT,
+            date: DATE,
+            actorId: 'staff-2',
+            authorization: '',
+            closingM3: 999,
+          },
+          SEEDED_AT,
+        ),
+      ).rejects.toBeInstanceOf(MeterReadingBackwardsError);
+    });
+
+    it('rejects a raw-water pair that runs backwards', async () => {
+      const { service } = build();
+      await expect(
+        service.save({
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-1',
+          authorization: '',
+          openingM3: 1000,
+          sourceOpeningM3: 500,
+          sourceClosingM3: 499,
+        },
+        SEEDED_AT,
+      ),
     ).rejects.toBeInstanceOf(MeterReadingBackwardsError);
   });
 
   it('refuses a closing-only write for a day that was never opened', async () => {
     const { service } = build();
     await expect(
-      service.save({
-        depotId: DEPOT,
-        date: DATE,
-        actorId: 'staff-2',
-        authorization: '',
-        closingM3: 1002,
-      }),
+      service.save(
+        {
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-2',
+          authorization: '',
+          closingM3: 1002,
+        },
+        SEEDED_AT,
+      ),
     ).rejects.toBeInstanceOf(MeterReadingNotOpenedError);
   });
 
@@ -217,13 +234,16 @@ describe('MeterService.save', () => {
     repo.seed({ openingM3: 1000 });
     jest.spyOn(repo, 'upsertForDate').mockResolvedValueOnce(null);
     await expect(
-      service.save({
-        depotId: DEPOT,
-        date: DATE,
-        actorId: 'staff-2',
-        authorization: '',
-        closingM3: 1002,
-      }),
+      service.save(
+        {
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-2',
+          authorization: '',
+          closingM3: 1002,
+        },
+        SEEDED_AT,
+      ),
     ).rejects.toBeInstanceOf(MeterReadingNotOpenedError);
   });
 
@@ -232,13 +252,16 @@ describe('MeterService.save', () => {
     repo.seed({ openingM3: 1000, closingM3: 1005 });
     // Lowering only the opening must still be checked against the stored closing.
     await expect(
-      service.save({
-        depotId: DEPOT,
-        date: DATE,
-        actorId: 'staff-1',
-        authorization: '',
-        openingM3: 1006,
-      }),
+      service.save(
+        {
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-1',
+          authorization: '',
+          openingM3: 1006,
+        },
+        SEEDED_AT,
+      ),
     ).rejects.toBeInstanceOf(MeterReadingBackwardsError);
   });
 
@@ -287,7 +310,7 @@ describe('MeterService variance alert', () => {
       actorId: 'staff-2',
       authorization: 'Bearer t',
       closingM3: wideGap.closingM3,
-    });
+    }, SEEDED_AT);
     expect(notifications.calls).toHaveLength(1);
     expect(notifications.calls[0].event).toBe('METER_VARIANCE');
     expect(notifications.calls[0].vars.variance).toBe('7570');
@@ -303,14 +326,20 @@ describe('MeterService variance alert', () => {
       actorId: 'staff-2',
       authorization: '',
       closingM3: wideGap.closingM3,
-    });
-    await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: '',
-      closingM3: 1011,
-    });
+    }, SEEDED_AT);
+    // The operator re-reads the day before correcting the typo, so they hold the version
+    // their own first save produced.
+    const afterFirst = await repo.findForDate(DEPOT, DATE);
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: 1011,
+      },
+      afterFirst!.updatedAt.toISOString(),
+    );
     expect(notifications.calls).toHaveLength(1);
   });
 
@@ -323,7 +352,7 @@ describe('MeterService variance alert', () => {
       actorId: 'staff-2',
       authorization: '',
       closingM3: 1002.6, // 170 L gap, tolerance 200
-    });
+    }, SEEDED_AT);
     expect(notifications.calls).toHaveLength(0);
   });
 
@@ -336,7 +365,7 @@ describe('MeterService variance alert', () => {
       actorId: 'staff-2',
       authorization: '',
       closingM3: wideGap.closingM3,
-    });
+    }, SEEDED_AT);
     expect(notifications.calls).toHaveLength(0);
     expect(repo.alerted).toHaveLength(0);
   });
@@ -351,7 +380,7 @@ describe('MeterService variance alert', () => {
       actorId: 'staff-2',
       authorization: '',
       closingM3: wideGap.closingM3,
-    });
+    }, SEEDED_AT);
     expect(result.meterLiters).toBe(10000);
     // Not marked alerted, so a later save can retry the delivery.
     expect(repo.alerted).toHaveLength(0);
@@ -469,5 +498,51 @@ describe('MeterService reads', () => {
   it('returns nothing for a range with no readings', async () => {
     const { service } = build();
     expect(await service.history(DEPOT, '2026-07-01', '2026-07-31')).toEqual([]);
+  });
+
+  /*
+   * CA-2-53. Two operators saving the same day used to produce whichever of them wrote
+   * last — on the readings a depot's production is reconciled against.
+   */
+  it('refuses a reading save built on a copy that is already out of date', async () => {
+    const { service, repo } = build();
+    repo.seed({ openingM3: 1000 });
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: 1002,
+      },
+      SEEDED_AT,
+    );
+
+    await expect(
+      service.save(
+        {
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-3',
+          authorization: '',
+          closingM3: 1009,
+        },
+        SEEDED_AT,
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  it('refuses a reading save that says nothing about what it saw', async () => {
+    const { service, repo } = build();
+    repo.seed({ openingM3: 1000 });
+    await expect(
+      service.save({
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: 1002,
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE' });
   });
 });

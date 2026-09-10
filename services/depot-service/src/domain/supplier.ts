@@ -14,4 +14,6 @@ export interface Supplier {
   /** On-time delivery rate 0..1; null until enough POs have landed. */
   onTimeRate: number | null;
   createdAt: Date;
+  /** CA-2-53: the version a console form edits against. */
+  updatedAt: Date;
 }

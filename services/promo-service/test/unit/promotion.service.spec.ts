@@ -93,7 +93,8 @@ describe('PromotionService date-window filter', () => {
 
   it('excludes an inactive promotion even inside its window', async () => {
     const created = await service.create(base({ title: 'Hidden' }));
-    await service.update(created.id, { active: false });
+    // CA-2-53: a save says which version it started from.
+    await service.update(created.id, { active: false }, created.updatedAt.toISOString());
     const active = await service.listActive(new Date('2026-07-12T00:00:00.000Z'));
     expect(active.map((p) => p.title)).not.toContain('Hidden');
   });

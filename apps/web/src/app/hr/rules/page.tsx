@@ -124,7 +124,12 @@ function RulesBody() {
         // `depotId` is deliberately not in the patch: which depot a rule belongs to is
         // what makes it a different rule, and moving one silently would re-target money
         // already reasoned about. Deactivate and create for that.
-        await api.patch(endpoints.hr.updateBonusRule(editing), body, true);
+        await api.patch(
+          endpoints.hr.updateBonusRule(editing),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...body, seenUpdatedAt: (rules.data ?? []).find((r) => r.id === editing)?.updatedAt },
+          true,
+        );
         notify(t('hrFix.rules.updated'));
       } else {
         await api.post(

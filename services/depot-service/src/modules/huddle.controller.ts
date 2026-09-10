@@ -43,6 +43,7 @@ export class HuddleController {
         actionItems: dto.actionItems,
       },
       user.sub,
+      dto.seenUpdatedAt,
     );
   }
 }

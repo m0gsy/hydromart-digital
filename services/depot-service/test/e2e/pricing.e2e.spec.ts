@@ -136,13 +136,33 @@ describe('Pricing rules HTTP flows (e2e)', () => {
         expect(r.body[0].id).toBe(ruleId);
       });
 
-    // manager patches the rule
+    // manager patches the rule — CA-2-53: a number somebody typed, so it names the version
+    // it was typed over.
+    const patched = await request(server())
+      .patch(`/api/v1/depots/${depotId}/pricing/rules/${ruleId}`)
+      .set(auth(mgrAt))
+      .send({ value: -20, seenUpdatedAt: created.body.updatedAt })
+      .expect(200)
+      .expect((r) => expect(r.body.value).toBe(-20));
+
+    // The stale copy of the same rule is refused — this row decides what a customer pays.
     await request(server())
       .patch(`/api/v1/depots/${depotId}/pricing/rules/${ruleId}`)
       .set(auth(mgrAt))
-      .send({ value: -20 })
+      .send({ value: -90, seenUpdatedAt: created.body.updatedAt })
+      .expect(409);
+
+    // Switching the same rule off is one tap and carries no version at all.
+    await request(server())
+      .patch(`/api/v1/depots/${depotId}/pricing/rules/${ruleId}`)
+      .set(auth(mgrAt))
+      .send({ active: false })
       .expect(200)
-      .expect((r) => expect(r.body.value).toBe(-20));
+      .expect((r) => {
+        expect(r.body.active).toBe(false);
+        expect(r.body.value).toBe(-20); // the stale -90 never landed
+      });
+    expect(patched.body.updatedAt).toBeTruthy();
 
     // manager deletes the rule
     await request(server())

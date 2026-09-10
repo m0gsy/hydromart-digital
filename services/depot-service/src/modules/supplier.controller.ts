@@ -75,7 +75,7 @@ export class SupplierController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Supplier> {
     assertDepotAccess(user, (await this.suppliers.get(id)).depotId);
-    return this.suppliers.update(id, dto);
+    return this.suppliers.update(id, dto, dto.seenUpdatedAt);
   }
 
   /*

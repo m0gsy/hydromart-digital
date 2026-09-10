@@ -27,6 +27,8 @@ export interface MeterReading {
   closedAt: Date | null;
   alertedAt: Date | null;
   note: string | null;
+  /** CA-2-53: the version a console form edits against. */
+  updatedAt: Date;
 }
 
 /** The sales side of the comparison, summed from one day's order lines. */

@@ -94,7 +94,8 @@ describe('PromotionController', () => {
       active: false,
       startsAt: new Date('2026-03-01T00:00:00.000Z'),
       endsAt: undefined,
-    });
+      // CA-2-53: the version travels beside the body; this call names none.
+    }, undefined);
   });
 
   it('remove delegates with the id', async () => {

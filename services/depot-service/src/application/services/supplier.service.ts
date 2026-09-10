@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import { Supplier } from '../../domain/supplier';
 import {
@@ -79,8 +80,14 @@ export class SupplierService {
    * `depotId` is deliberately not editable. Moving a supplier between depots would move
    * its purchase orders' scope with it, and that is a transfer, not an edit.
    */
-  async update(id: string, input: UpdateSupplierInput): Promise<Supplier> {
+  /** CA-2-53: refused when the caller's copy is older than the stored supplier. */
+  async update(
+    id: string,
+    input: UpdateSupplierInput,
+    seenUpdatedAt?: string,
+  ): Promise<Supplier> {
     const supplier = await this.get(id);
+    assertFresh(supplier.updatedAt, seenUpdatedAt);
     if (input.code !== undefined && input.code !== supplier.code) {
       const clash = await this.suppliers.findByCode(supplier.depotId, input.code);
       if (clash && clash.id !== id) throw new DuplicateSupplierCodeError();

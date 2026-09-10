@@ -9,6 +9,15 @@ import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
  * the merged row rather than the patch.
  */
 export class SaveMeterReadingDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiPropertyOptional({ example: 1245.32, description: 'Opening dial reading in m³.' })
   @IsOptional()
   @Type(() => Number)

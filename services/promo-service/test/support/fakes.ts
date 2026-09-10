@@ -34,13 +34,15 @@ export class InMemoryPromotionRepository implements PromotionRepository {
     const now = nextDate();
     const row = { id: randomUUID(), active: true, createdAt: now, updatedAt: now, ...data };
     this.rows.push(row);
-    return row;
+    return { ...row };
   }
 
   async update(id: string, data: UpdatePromotionData): Promise<PromotionRecord> {
     const row = this.rows.find((candidate) => candidate.id === id)!;
-    Object.assign(row, data);
-    return row;
+    // CA-2-53: the stored row moves on every write, the way @updatedAt does — and a COPY
+    // goes back, so a caller holding the result does not see later writes through it.
+    Object.assign(row, data, { updatedAt: nextDate() });
+    return { ...row };
   }
 
   async delete(id: string): Promise<void> {

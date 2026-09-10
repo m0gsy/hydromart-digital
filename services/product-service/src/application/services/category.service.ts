@@ -8,6 +8,7 @@ import {
   UpdateCategoryData,
 } from '../ports/category.repository';
 import { PRODUCT_TOKENS } from '../tokens';
+import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
 
 /** Category catalog. Public list is active-only; admin sees all. Delete = soft (active:false). */
 @Injectable()
@@ -35,8 +36,14 @@ export class CategoryService {
     return this.categories.create(data);
   }
 
-  async update(id: string, patch: UpdateCategoryData): Promise<CategoryRecord> {
-    await this.getOrThrow(id);
+  /** CA-2-53: refused when the caller's copy is older than the stored category. */
+  async update(
+    id: string,
+    patch: UpdateCategoryData,
+    seenUpdatedAt?: string,
+  ): Promise<CategoryRecord> {
+    const current = await this.getOrThrow(id);
+    if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
     if (patch.slug) {
       const owner = await this.categories.findBySlug(patch.slug);
       if (owner && owner.id !== id) {

@@ -65,7 +65,11 @@ export function DepotHoursEditor({
     try {
       await api.patch(
         endpoints.depots.detail(depot.id),
-        { operatingHours: hours, holidays: holidays.filter((h) => h.date.trim() !== '') },
+        {
+          operatingHours: hours,
+          holidays: holidays.filter((h) => h.date.trim() !== ''),
+          seenUpdatedAt: depot.updatedAt,
+        },
         true,
       );
       onDone();
@@ -92,7 +96,10 @@ export function DepotHoursEditor({
           {DAYS.map((d) => {
             const dh = hours[d.key];
             return (
-              <div key={d.key} className="flex items-center gap-3 border-t border-app py-2.5 first:border-0">
+              <div
+                key={d.key}
+                className="flex items-center gap-3 border-t border-app py-2.5 first:border-0"
+              >
                 <span className="w-16 text-sm font-semibold">{t(d.label)}</span>
                 {dh ? (
                   <div className="flex flex-1 flex-col gap-1.5">
@@ -114,10 +121,12 @@ export function DepotHoursEditor({
                     {/* Istirahat: kosongkan salah satu untuk menonaktifkan. Jumat cukup
                         diisi jam mulai yang lebih awal — tidak ada kolom khusus. */}
                     <div className="flex items-center gap-2">
-                      <span className="w-14 shrink-0 text-xs text-muted">{t('hrFix.depotHours.break')}</span>
+                      <span className="w-14 shrink-0 text-xs text-muted">
+                        {t('hrFix.depotHours.break')}
+                      </span>
                       <Input
                         type="time"
-                        aria-label={`${t("hrFix.depotHours.breakStart")} ${t(d.label)}`}
+                        aria-label={`${t('hrFix.depotHours.breakStart')} ${t(d.label)}`}
                         value={dh.breakStart ?? ''}
                         onChange={(e) => setTime(d.key, 'breakStart', e.target.value)}
                         className="py-1.5"
@@ -125,7 +134,7 @@ export function DepotHoursEditor({
                       <span className="text-muted">–</span>
                       <Input
                         type="time"
-                        aria-label={`${t("hrFix.depotHours.breakEnd")} ${t(d.label)}`}
+                        aria-label={`${t('hrFix.depotHours.breakEnd')} ${t(d.label)}`}
                         value={dh.breakEnd ?? ''}
                         onChange={(e) => setTime(d.key, 'breakEnd', e.target.value)}
                         className="py-1.5"
@@ -169,7 +178,11 @@ export function DepotHoursEditor({
             <div className="flex flex-col gap-2">
               {holidays.map((h, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-xl border border-app p-2">
-                  <CalendarX size={18} weight="fill" className="shrink-0 text-[color:var(--warning)]" />
+                  <CalendarX
+                    size={18}
+                    weight="fill"
+                    className="shrink-0 text-[color:var(--warning)]"
+                  />
                   <Input
                     type="date"
                     value={h.date}

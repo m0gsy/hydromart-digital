@@ -25,14 +25,20 @@ class FakeRepo implements BonusRuleRepository {
   rows: BonusRule[] = [];
   private seq = 0;
   async create(data: BonusRuleWrite): Promise<BonusRule> {
-    const row = { id: `r-${++this.seq}`, ...data } as unknown as BonusRule;
+    // CA-2-53: the stamp a form edits against. A fake without it cannot tell a stale save
+    // from a fresh one, so the guard would look tested when it was not.
+    const row = {
+      id: `r-${++this.seq}`,
+      updatedAt: new Date(this.seq * 1000),
+      ...data,
+    } as unknown as BonusRule;
     this.rows.push(row);
-    return row;
+    return { ...row };
   }
   async update(id: string, data: Partial<BonusRuleWrite>): Promise<BonusRule> {
     const row = this.rows.find((r) => r.id === id)!;
-    Object.assign(row, data);
-    return row;
+    Object.assign(row, data, { updatedAt: new Date(++this.seq * 1000) });
+    return { ...row };
   }
   async findById(id: string): Promise<BonusRule | null> {
     return this.rows.find((r) => r.id === id) ?? null;
@@ -113,16 +119,22 @@ describe('BonusRuleService.update', () => {
   it('patches every provided field', async () => {
     const { svc } = make();
     const r = await svc.create(hr, valid);
-    const updated = await svc.update(hr, r.id, {
-      bonusType: 'PERFORMANCE',
-      name: '  Baru  ',
-      metric: 'PRESENT_DAYS',
-      op: 'LTE',
-      threshold: 5,
-      rewardKind: 'PERCENT',
-      rewardValue: 10,
-      active: false,
-    });
+    // CA-2-53: a save says which version it started from.
+    const updated = await svc.update(
+      hr,
+      r.id,
+      {
+        bonusType: 'PERFORMANCE',
+        name: '  Baru  ',
+        metric: 'PRESENT_DAYS',
+        op: 'LTE',
+        threshold: 5,
+        rewardKind: 'PERCENT',
+        rewardValue: 10,
+        active: false,
+      },
+      r.updatedAt.toISOString(),
+    );
     expect(updated).toMatchObject({
       bonusType: 'PERFORMANCE',
       name: 'Baru',
@@ -141,9 +153,9 @@ describe('BonusRuleService.update', () => {
     await expect(svc.update(manager(DEPOT_B), r.id, { threshold: 1 })).rejects.toThrow(
       ForbiddenException,
     );
-    await expect(svc.update(manager(DEPOT_A), r.id, { threshold: 1 })).resolves.toMatchObject({
-      threshold: 1,
-    });
+    await expect(
+      svc.update(manager(DEPOT_A), r.id, { threshold: 1 }, r.updatedAt.toISOString()),
+    ).resolves.toMatchObject({ threshold: 1 });
   });
 
   it('re-validates on partial update', async () => {
@@ -188,5 +200,46 @@ describe('BonusRuleService.list', () => {
     const { svc } = make();
     await svc.create(hr, { ...valid, depotId: DEPOT_B });
     await expect(svc.list(manager(DEPOT_A), DEPOT_B)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  /*
+   * CA-2-53. This rule decides who is paid what, and two people editing it used to produce
+   * whichever of them saved last, with the other's change gone and nobody told.
+   */
+  it('refuses a save built on a copy of the rule that is already out of date', async () => {
+    const { svc } = make();
+    const r = await svc.create(hr, valid);
+    await svc.update(hr, r.id, { threshold: 20 }, r.updatedAt.toISOString());
+
+    await expect(
+      svc.update(hr, r.id, { threshold: 5 }, r.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  it('refuses a rule save that says nothing about what it saw', async () => {
+    const { svc } = make();
+    const r = await svc.create(hr, valid);
+    await expect(svc.update(hr, r.id, { threshold: 5 })).rejects.toMatchObject({
+      code: 'STALE_WRITE',
+    });
+  });
+
+  /*
+   * And the exemption, which has to be tested alongside the refusals or removing it stays
+   * green. The switch in /hr/rules sends `{ active }` and nothing else: it flips one
+   * decision off a list row, and there is no second field for anyone to lose. Asking it for
+   * a version turned every toggle in that table into a permanent 409.
+   */
+  it('lets the rule be switched on or off without naming a version', async () => {
+    const { svc } = make();
+    const r = await svc.create(hr, valid);
+    await svc.update(hr, r.id, { threshold: 20 }, r.updatedAt.toISOString());
+
+    const off = await svc.update(hr, r.id, { active: false });
+    expect(off.active).toBe(false);
+    expect(off.threshold).toBe(20); // the toggle wrote nothing else
+
+    const on = await svc.update(hr, r.id, { active: true });
+    expect(on.active).toBe(true);
   });
 });

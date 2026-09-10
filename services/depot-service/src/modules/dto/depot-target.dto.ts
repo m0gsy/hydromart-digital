@@ -1,5 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsUUID, Matches, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsOptional,
+  IsISO8601, IsInt, IsUUID, Matches, Max, Min } from 'class-validator';
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -14,6 +16,15 @@ export class GetDepotTargetQueryDto {
 }
 
 export class UpsertDepotTargetDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiProperty({ format: 'uuid', description: 'Depot the target belongs to.' })
   @IsUUID()
   depotId!: string;

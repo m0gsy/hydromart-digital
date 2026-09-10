@@ -30,15 +30,18 @@ class FakeRepo implements AssetRepository {
       id: `as-${++this.seq}`,
       status: 'AVAILABLE' as AssetStatus,
       holderId: null,
+      // CA-2-53: the version a form edits against; a fake without it cannot tell a stale
+      // save from a fresh one.
+      updatedAt: new Date(this.seq * 1000),
       ...data,
     } as unknown as EmployeeAsset;
     this.rows.push(row);
-    return row;
+    return { ...row };
   }
   async update(id: string, data: Partial<AssetWrite>): Promise<EmployeeAsset> {
     const row = this.rows.find((r) => r.id === id)!;
-    Object.assign(row, data);
-    return row;
+    Object.assign(row, data, { updatedAt: new Date(++this.seq * 1000) });
+    return { ...row };
   }
   async findById(id: string): Promise<EmployeeAsset | null> {
     return this.rows.find((r) => r.id === id) ?? null;
@@ -166,17 +169,27 @@ describe('AssetService (B3)', () => {
     const { svc, repo } = make();
     const asset = await svc.create(hr, NEW_ASSET);
     await svc.move(hr, asset.id, { kind: 'ASSIGN', toEmployeeId: 'e1' });
-    const edited = await svc.update(hr, asset.id, {
-      name: 'Honda Beat 2024',
-      brand: 'Honda',
-      serialNo: 'SN-9',
-      value: 12_000_000,
-      note: 'plat B',
-    });
+    // CA-2-53: the move above rewrote the row, so the editor re-reads it before saving —
+    // which is exactly what the guard is for.
+    const current = await repo.findById(asset.id);
+    const edited = await svc.update(
+      hr,
+      asset.id,
+      {
+        name: 'Honda Beat 2024',
+        brand: 'Honda',
+        serialNo: 'SN-9',
+        value: 12_000_000,
+        note: 'plat B',
+      },
+      current!.updatedAt.toISOString(),
+    );
     expect(edited).toMatchObject({ name: 'Honda Beat 2024', status: 'ASSIGNED', holderId: 'e1' });
     expect(Number(edited.value)).toBe(12_000_000);
     // An empty patch is a no-op, not a wipe.
-    expect(await svc.update(hr, asset.id, {})).toMatchObject({ name: 'Honda Beat 2024' });
+    expect(
+      await svc.update(hr, asset.id, {}, edited.updatedAt.toISOString()),
+    ).toMatchObject({ name: 'Honda Beat 2024' });
     expect(repo.movements).toHaveLength(1);
   });
 
@@ -210,5 +223,19 @@ describe('AssetService (B3)', () => {
     });
     await svc.list(hr);
     expect(repo.lastFilter).toMatchObject({ skip: 0, take: 20, depotIds: undefined });
+  });
+
+  /*
+   * CA-2-53. Two people editing the same asset used to produce whichever of them saved
+   * last, with the other's correction gone and nobody told.
+   */
+  it('refuses an asset save built on a copy that is already out of date', async () => {
+    const { svc } = make();
+    const a = await svc.create(hr, NEW_ASSET);
+    await svc.update(hr, a.id, { name: 'Motor A' }, a.updatedAt.toISOString());
+
+    await expect(
+      svc.update(hr, a.id, { name: 'Motor B' }, a.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
   });
 });

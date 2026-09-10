@@ -22,6 +22,7 @@ import {
   VoucherRepository,
 } from '../ports/voucher.repository';
 import { PROMO_TOKENS } from '../tokens';
+import { assertFresh } from '@hydromart/platform';
 
 export interface QuoteResult {
   code: string;
@@ -109,9 +110,18 @@ export class VoucherService {
     return this.repo.create({ ...input, code });
   }
 
-  /** Patch an existing voucher (admin). */
-  async update(id: string, patch: UpdateVoucherData): Promise<VoucherRecord> {
-    await this.getById(id);
+  /**
+   * Patch an existing voucher (admin).
+   *
+   * CA-2-53: refused when the caller's copy is older than the stored voucher — a discount
+   * two people edited at once used to end up as whichever of them saved last.
+   */
+  async update(
+    id: string,
+    patch: UpdateVoucherData,
+    seenUpdatedAt?: string,
+  ): Promise<VoucherRecord> {
+    assertFresh((await this.getById(id)).updatedAt, seenUpdatedAt);
     return this.repo.update(id, patch);
   }
 

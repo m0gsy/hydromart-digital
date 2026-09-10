@@ -193,6 +193,7 @@ describe('RewardController (delegation)', () => {
     imageUrl: null,
     active: true,
     stock: 5,
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
   const rewards = {
     listCatalog: jest.fn(async () => [item]),
@@ -301,7 +302,8 @@ describe('RewardController (delegation)', () => {
 
   it('updateItem() forwards the patch and maps the result', async () => {
     const out = await ctrl.updateItem('ri-1', { active: false } as never);
-    expect(rewards.updateItem).toHaveBeenCalledWith('ri-1', { active: false });
+    // CA-2-53: the version travels beside the body; this call names none.
+    expect(rewards.updateItem).toHaveBeenCalledWith('ri-1', { active: false }, undefined);
     expect(out).toMatchObject({ id: 'ri-1', active: false });
   });
 
@@ -494,6 +496,7 @@ describe('response DTO mappers', () => {
       imageUrl: 'x',
       active: true,
       stock: null,
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     };
     expect(RewardItemDto.from(item)).toEqual({
       id: 'ri-1',

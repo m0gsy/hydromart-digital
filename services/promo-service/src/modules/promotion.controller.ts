@@ -99,7 +99,7 @@ export class PromotionController {
       active: dto.active,
       startsAt: toDate(dto.startsAt),
       endsAt: toDate(dto.endsAt),
-    });
+    }, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ description: 'No content.' })

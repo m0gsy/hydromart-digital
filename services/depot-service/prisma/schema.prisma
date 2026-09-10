@@ -486,6 +486,10 @@ model Supplier {
   /// On-time delivery rate 0..1; null until enough POs land (denormalized metric).
   onTimeRate   Float?
   createdAt    DateTime @default(now())
+  /// CA-2-53: the version a console form edits against. Two people on the supplier screen
+  /// used to produce whichever of them saved last, with no way for the server to tell an
+  /// edit from an overwrite.
+  updatedAt    DateTime @default(now()) @updatedAt
 
   @@unique([depotId, code])
   @@index([depotId])

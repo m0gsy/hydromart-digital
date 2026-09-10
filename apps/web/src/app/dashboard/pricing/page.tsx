@@ -129,7 +129,13 @@ function RuleEditor({
     setBusy(true);
     setError(null);
     try {
-      if (rule) await api.patch(endpoints.pricing.detail(depotId, rule.id), parsed.value, true);
+      if (rule)
+        await api.patch(
+          endpoints.pricing.detail(depotId, rule.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...parsed.value, seenUpdatedAt: rule.updatedAt },
+          true,
+        );
       else await api.post(endpoints.pricing.create(depotId), parsed.value, true);
       onDone();
     } catch (err) {

@@ -115,7 +115,13 @@ function TargetForm({
     setBusy(true);
     setError(null);
     try {
-      await api.put(endpoints.depotTargets.upsert, body, true);
+      await api.put(
+        endpoints.depotTargets.upsert,
+        // CA-2-53: rewriting a month that already has a target says which version it read;
+        // a month with none sends nothing, because there is nothing to overwrite.
+        { ...body, seenUpdatedAt: current?.updatedAt },
+        true,
+      );
       onDone();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('opsFix.targets.saveError'));

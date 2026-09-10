@@ -40,6 +40,7 @@ export class DepotTargetController {
         newCustomersTarget: dto.newCustomersTarget,
       },
       user.sub,
+      dto.seenUpdatedAt,
     );
   }
 }

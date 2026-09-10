@@ -84,9 +84,10 @@ describe('DepotService', () => {
   it('rejects updating a code to one already taken by another depot', async () => {
     await service.create(base({ code: 'A1' }));
     const b = await service.create(base({ code: 'B1' }));
-    await expect(service.update(b.id, { code: 'A1' })).rejects.toBeInstanceOf(
-      DuplicateDepotCodeError,
-    );
+    // CA-2-53: every save now says which version it started from.
+    await expect(
+      service.update(b.id, { code: 'A1' }, b.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(DuplicateDepotCodeError);
   });
 
   it('persists ownerId on create and update', async () => {
@@ -94,7 +95,7 @@ describe('DepotService', () => {
     expect(d.ownerId).toBe(OWNER);
 
     const next = '22222222-2222-4222-8222-222222222222';
-    const updated = await service.update(d.id, { ownerId: next });
+    const updated = await service.update(d.id, { ownerId: next }, d.updatedAt.toISOString());
     expect(updated.ownerId).toBe(next);
   });
 
@@ -109,28 +110,51 @@ describe('DepotService', () => {
   it('refuses to turn a depot into a franchise, or orphan one, through update', async () => {
     const central = await service.create(base({ code: 'HKP-1' }));
     await expect(
-      service.update(central.id, { ownershipType: OwnershipType.WARALABA }),
+      service.update(
+        central.id,
+        { ownershipType: OwnershipType.WARALABA },
+        central.updatedAt.toISOString(),
+      ),
     ).rejects.toBeInstanceOf(FranchiseOwnerRequiredError);
 
     const franchise = await service.create(
       base({ code: 'WLB-1', ownershipType: OwnershipType.WARALABA, ownerId: OWNER }),
     );
-    await expect(service.update(franchise.id, { ownerId: null })).rejects.toBeInstanceOf(
-      FranchiseOwnerRequiredError,
-    );
+    await expect(
+      service.update(franchise.id, { ownerId: null }, franchise.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(FranchiseOwnerRequiredError);
 
     // Naming the owner in the same patch is what makes the flip legal.
-    const flipped = await service.update(central.id, {
-      ownershipType: OwnershipType.WARALABA,
-      ownerId: OWNER,
-    });
+    const flipped = await service.update(
+      central.id,
+      { ownershipType: OwnershipType.WARALABA, ownerId: OWNER },
+      central.updatedAt.toISOString(),
+    );
     expect(flipped.ownerId).toBe(OWNER);
     // And a franchise depot handed back to head office may drop its owner in one patch.
-    const handedBack = await service.update(franchise.id, {
-      ownershipType: OwnershipType.HKP,
-      ownerId: null,
-    });
+    const handedBack = await service.update(
+      franchise.id,
+      { ownershipType: OwnershipType.HKP, ownerId: null },
+      franchise.updatedAt.toISOString(),
+    );
     expect(handedBack.ownerId).toBeNull();
+  });
+
+  /*
+   * CA-2-53: the QRIS upload is deliberately NOT the guarded `update`. It replaces one
+   * field with a file the caller just uploaded, so there is no second admin's typing to
+   * erase — and routing it through `update` would have demanded a version the upload form
+   * has no reason to hold, breaking a flow that has always worked.
+   */
+  it('replaces the QRIS image without being asked for a version', async () => {
+    const d = await service.create(base({}));
+    const withQris = await service.setQrisImage(d.id, 'https://cdn.example/qris/new.png');
+    expect(withQris.paymentQrisImageUrl).toBe('https://cdn.example/qris/new.png');
+    // …and nothing else on the row moved.
+    expect(withQris.name).toBe(d.name);
+    await expect(
+      service.setQrisImage('00000000-0000-4000-8000-000000000000', 'x'),
+    ).rejects.toThrow();
   });
 
   it('round-trips per-depot payment destination fields through create and read', async () => {
@@ -152,7 +176,11 @@ describe('DepotService', () => {
     expect(publicGet.paymentBankName).toBe('BCA');
     expect(publicGet.paymentQrisImageUrl).toBe('https://cdn.example/qris/jkt-01.png');
 
-    const updated = await service.update(d.id, { paymentBankName: 'Mandiri' });
+    const updated = await service.update(
+      d.id,
+      { paymentBankName: 'Mandiri' },
+      d.updatedAt.toISOString(),
+    );
     expect(updated.paymentBankName).toBe('Mandiri');
 
     // Unset fields default to null, not undefined.

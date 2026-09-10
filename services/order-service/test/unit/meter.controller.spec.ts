@@ -26,7 +26,8 @@ describe('MeterController', () => {
         actorId: 'staff-1',
         authorization: 'Bearer t',
         openingM3: 1000,
-      });
+        // CA-2-53: the version travels beside the body; this call names none.
+      }, undefined);
     });
 
     it('defaults a missing authorization header to empty rather than undefined', async () => {

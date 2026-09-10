@@ -234,7 +234,8 @@ describe('VoucherController', () => {
       usageLimit: undefined,
       perCustomerLimit: undefined,
       active: undefined,
-    });
+      // CA-2-53: the version travels beside the body; this call names none.
+    }, undefined);
   });
 
   it('deactivate delegates with the id', async () => {

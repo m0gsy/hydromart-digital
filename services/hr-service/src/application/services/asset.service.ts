@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
+import { assertFresh, AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
 
 import {
   AssetMovement,
@@ -161,9 +161,12 @@ export class AssetService {
     user: AuthenticatedUser,
     id: string,
     input: UpdateAssetInput,
+    seenUpdatedAt?: string,
   ): Promise<EmployeeAsset> {
     const asset = await this.get(id);
     assertDepotAccess(user, asset.depotId);
+    // CA-2-53: refused when the caller's copy is older than the stored asset.
+    assertFresh(asset.updatedAt, seenUpdatedAt);
     return this.repo.update(id, {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.brand !== undefined ? { brand: input.brand } : {}),

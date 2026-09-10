@@ -129,6 +129,9 @@ function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdm
           paymentBankName: bankName.trim() || null,
           paymentBankAccountNumber: accountNumber.trim() || null,
           paymentBankAccountHolder: accountHolder.trim() || null,
+          // CA-2-53: the version this edit started from. This is the account a depot's money
+          // is paid into, so a silent overwrite here is the expensive kind.
+          seenUpdatedAt: depot.updatedAt,
         },
         true,
       );

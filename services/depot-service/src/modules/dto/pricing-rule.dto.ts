@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsISO8601,
   IsInt,
   IsNumber,
   IsOptional,
@@ -63,6 +64,11 @@ export class CreatePricingRuleDto {
 }
 
 export class UpdatePricingRuleDto {
+  /** CA-2-53: the `updatedAt` this edit started from; the write is refused (409) if it moved. */
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @IsOptional()
   @IsUUID()
   productId?: string;

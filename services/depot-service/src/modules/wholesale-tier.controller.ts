@@ -60,7 +60,7 @@ export class WholesaleTierController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<WholesaleTier> {
     assertDepotAccess(user, (await this.tiers.get(id)).depotId);
-    return this.tiers.update(id, dto);
+    return this.tiers.update(id, dto, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: RemoveResponseDto })

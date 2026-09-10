@@ -10,6 +10,7 @@ import {
   UpdateRetentionData,
 } from '../ports/retention.repository';
 import { ADMIN_TOKENS } from '../tokens';
+import { assertFresh } from '@hydromart/platform';
 
 // Honest default when no backup engine has ever recorded a run (Design 19e). Never a
 // fabricated "success just now".
@@ -48,13 +49,20 @@ export class RetentionService {
    * retention below 10 years is refused outright — a form that forgets to disable the
    * field must not be able to make the company non-compliant.
    */
-  async updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord> {
+  async updatePolicy(
+    id: string,
+    data: UpdateRetentionData,
+    seenUpdatedAt?: string,
+  ): Promise<RetentionPolicyRecord> {
     const current = await this.repo.findPolicy(id);
     if (!current) throw new RetentionPolicyNotFoundError(id);
 
     const dataClass = data.dataClass ?? current.dataClass;
     const reason = rejectionReasonFor(dataClass, data.windowDays);
     if (reason) throw new RetentionPolicyInvalidError(reason);
+    // CA-2-53: refused when the caller's copy is older. Validation runs first — "your
+    // window is illegal" is a more useful answer than "reload".
+    assertFresh(current.updatedAt, seenUpdatedAt);
 
     const updated = await this.repo.updatePolicy(id, { ...data, dataClass });
     if (!updated) throw new RetentionPolicyNotFoundError(id);

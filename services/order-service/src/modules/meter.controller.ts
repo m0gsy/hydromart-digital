@@ -65,7 +65,7 @@ export class MeterController {
       actorId: user.sub,
       authorization: authorization ?? '',
       ...dto,
-    });
+    }, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: MeterReconciliationResponseDto })

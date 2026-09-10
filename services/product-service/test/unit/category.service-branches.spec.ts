@@ -13,32 +13,62 @@ describe('CategoryService.update branches', () => {
 
   it('updates without touching the slug (patch.slug falsy)', async () => {
     const c = await service.create({ name: 'Air', slug: 'air', sortOrder: 0 });
-    const updated = await service.update(c.id, { name: 'Air Mineral' });
+    const updated = await service.update(c.id, { name: 'Air Mineral' }, c.updatedAt.toISOString());
     expect(updated.name).toBe('Air Mineral');
     expect(updated.slug).toBe('air');
   });
 
   it('updates to a new, free slug', async () => {
     const c = await service.create({ name: 'Air', slug: 'air', sortOrder: 0 });
-    const updated = await service.update(c.id, { slug: 'air-baru' });
+    const updated = await service.update(c.id, { slug: 'air-baru' }, c.updatedAt.toISOString());
     expect(updated.slug).toBe('air-baru');
   });
 
   it('allows re-saving the same slug it already owns (owner.id === id)', async () => {
     const c = await service.create({ name: 'Air', slug: 'air', sortOrder: 0 });
-    const updated = await service.update(c.id, { slug: 'air', sortOrder: 5 });
+    const updated = await service.update(
+      c.id,
+      { slug: 'air', sortOrder: 5 },
+      c.updatedAt.toISOString(),
+    );
     expect(updated.sortOrder).toBe(5);
   });
 
   it('rejects a slug already owned by another category', async () => {
     const a = await service.create({ name: 'Air', slug: 'air', sortOrder: 0 });
     await service.create({ name: 'Gas', slug: 'gas', sortOrder: 1 });
-    await expect(service.update(a.id, { slug: 'gas' })).rejects.toBeInstanceOf(DuplicateSlugError);
+    await expect(
+      service.update(a.id, { slug: 'gas' }, a.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(DuplicateSlugError);
   });
 
   it('throws when updating an unknown category', async () => {
     await expect(service.update('missing', { name: 'x' })).rejects.toBeInstanceOf(
       CategoryNotFoundError,
     );
+  });
+
+  /* CA-2-53 — the same shape on a catalogue category. */
+  it('refuses a category save built on a copy that is already out of date', async () => {
+    const c = await service.create({ name: 'Air', slug: 'air', sortOrder: 0 });
+    await service.update(c.id, { name: 'Air Mineral' }, c.updatedAt.toISOString());
+
+    await expect(
+      service.update(c.id, { name: 'Air Baru' }, c.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  /*
+   * CA-2-53, the other half — and both halves are needed. With only the refusal above,
+   * deleting the exemption would still be green; with only this one, deleting the guard
+   * would be. The toggle in /hq/catalog sends `{ active: true }` and nothing else, so
+   * asking it for a version made an off category one nobody could switch back on.
+   */
+  it('lets a category be switched back on without naming a version', async () => {
+    const c = await service.create({ name: 'Galon', slug: 'galon', sortOrder: 0 });
+    await service.deactivate(c.id);
+
+    const back = await service.update(c.id, { active: true }, undefined);
+    expect(back.active).toBe(true);
   });
 });

@@ -465,10 +465,12 @@ describe('RetentionController', () => {
   it('update delegates the window change', async () => {
     retention.updatePolicy.mockResolvedValue(makeRetentionPolicy({ windowDays: 30 }));
     await controller.update('r-1', { windowLabel: '30 days', windowDays: 30 });
-    expect(retention.updatePolicy).toHaveBeenCalledWith('r-1', {
-      windowLabel: '30 days',
-      windowDays: 30,
-    });
+    // CA-2-53: the version travels beside the body; this call names none.
+    expect(retention.updatePolicy).toHaveBeenCalledWith(
+      'r-1',
+      { windowLabel: '30 days', windowDays: 30, dataClass: undefined },
+      undefined,
+    );
   });
 });
 

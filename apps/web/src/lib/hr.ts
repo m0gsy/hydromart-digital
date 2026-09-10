@@ -409,6 +409,8 @@ export interface BonusRule {
   rewardValue: string;
   active: boolean;
   createdAt: string;
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 export interface Loan {
@@ -454,6 +456,8 @@ export interface EmployeeAsset {
   holderId: string | null;
   note: string | null;
   createdAt: string;
+  /** CA-2-53: the version a form edits against. */
+  updatedAt: string;
 }
 
 export interface AssetMovement {

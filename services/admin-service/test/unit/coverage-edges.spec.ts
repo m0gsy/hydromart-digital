@@ -207,7 +207,7 @@ describe('RetentionService edges', () => {
         windowDays: 30,
         dataClass: DataClass.OPERATIONAL,
         purgeExempt: false,
-        updatedAt: new Date(),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       }),
       updatePolicy: jest.fn().mockResolvedValue(null),
       listPolicies: jest.fn(),
@@ -216,11 +216,12 @@ describe('RetentionService edges', () => {
     const svc = new RetentionService(repo as never);
 
     await expect(
-      svc.updatePolicy('p1', {
-        windowLabel: '60 hari',
-        windowDays: 60,
-        dataClass: DataClass.OPERATIONAL,
-      }),
+      svc.updatePolicy(
+        'p1',
+        { windowLabel: '60 hari', windowDays: 60, dataClass: DataClass.OPERATIONAL },
+        // CA-2-53: the version this edit read; the row it names vanishes under the write.
+        '2026-01-01T00:00:00.000Z',
+      ),
     ).rejects.toBeInstanceOf(RetentionPolicyNotFoundError);
   });
 

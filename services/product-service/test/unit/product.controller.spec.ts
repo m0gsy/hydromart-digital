@@ -97,7 +97,8 @@ describe('ProductController', () => {
   it('update delegates id and dto', async () => {
     const dto: UpdateProductDto = { name: 'New' };
     await controller.update('p1', dto);
-    expect(service.update).toHaveBeenCalledWith('p1', dto);
+    // CA-2-53: the version travels beside the body; this call names none.
+    expect(service.update).toHaveBeenCalledWith('p1', dto, undefined);
   });
 
   it('remove delegates to deactivate', async () => {

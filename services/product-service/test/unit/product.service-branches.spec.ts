@@ -38,46 +38,46 @@ describe('ProductService.update branches', () => {
 
   it('updates without touching sku or category', async () => {
     const p = await service.create(base());
-    const updated = await service.update(p.id, { name: 'Renamed' });
+    const updated = await service.update(p.id, { name: 'Renamed' }, p.updatedAt.toISOString());
     expect(updated.name).toBe('Renamed');
   });
 
   it('updates to a new, free sku', async () => {
     const p = await service.create(base({ sku: 'OLD' }));
-    const updated = await service.update(p.id, { sku: 'NEW' });
+    const updated = await service.update(p.id, { sku: 'NEW' }, p.updatedAt.toISOString());
     expect(updated.sku).toBe('NEW');
   });
 
   it('allows re-saving the same sku it already owns (owner.id === id)', async () => {
     const p = await service.create(base({ sku: 'KEEP' }));
-    const updated = await service.update(p.id, { sku: 'KEEP', name: 'Same SKU' });
+    const updated = await service.update(p.id, { sku: 'KEEP', name: 'Same SKU' }, p.updatedAt.toISOString());
     expect(updated.name).toBe('Same SKU');
   });
 
   it('rejects a sku already owned by another product', async () => {
     const a = await service.create(base({ sku: 'A' }));
     await service.create(base({ sku: 'B', name: 'other' }));
-    await expect(service.update(a.id, { sku: 'B' })).rejects.toBeInstanceOf(DuplicateSkuError);
+    await expect(service.update(a.id, { sku: 'B' }, a.updatedAt.toISOString())).rejects.toBeInstanceOf(DuplicateSkuError);
   });
 
   it('assigns a valid category on update', async () => {
     const cat = await categories.create({ name: 'Air', slug: 'air', sortOrder: 0 });
     const p = await service.create(base());
-    const updated = await service.update(p.id, { categoryId: cat.id });
+    const updated = await service.update(p.id, { categoryId: cat.id }, p.updatedAt.toISOString());
     expect(updated.categoryId).toBe(cat.id);
   });
 
   it('clears the category on update (categoryId null but defined)', async () => {
     const cat = await categories.create({ name: 'Air', slug: 'air', sortOrder: 0 });
     const p = await service.create(base({ categoryId: cat.id }));
-    const updated = await service.update(p.id, { categoryId: null });
+    const updated = await service.update(p.id, { categoryId: null }, p.updatedAt.toISOString());
     expect(updated.categoryId).toBeNull();
   });
 
   it('rejects updating to a missing category', async () => {
     const p = await service.create(base());
     await expect(
-      service.update(p.id, { categoryId: '11111111-1111-1111-1111-111111111111' }),
+      service.update(p.id, { categoryId: '11111111-1111-1111-1111-111111111111' }, p.updatedAt.toISOString()),
     ).rejects.toBeInstanceOf(CategoryNotFoundError);
   });
 
@@ -91,5 +91,25 @@ describe('ProductService.update branches', () => {
     await service.create(base({ sku: 'A1', name: 'Air' }));
     const res = await service.browse({ search: '   ' }, true);
     expect(res.total).toBe(1);
+  });
+
+  /*
+   * CA-2-53. The price on this row is what a customer is charged, and two people editing
+   * the product at once used to produce whichever of them saved last.
+   */
+  it('refuses a product save built on a copy that is already out of date', async () => {
+    const p = await service.create(base({ sku: 'STALE' }));
+    await service.update(p.id, { name: 'Sekali' }, p.updatedAt.toISOString());
+
+    await expect(
+      service.update(p.id, { name: 'Dua kali' }, p.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+  });
+
+  it('refuses a product save that says nothing about what it saw', async () => {
+    const p = await service.create(base({ sku: 'NOSEEN' }));
+    await expect(service.update(p.id, { name: 'x' })).rejects.toMatchObject({
+      code: 'STALE_WRITE',
+    });
   });
 });

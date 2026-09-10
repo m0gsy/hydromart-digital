@@ -39,11 +39,34 @@ export class StaleWriteError extends DomainError {
  * @param stored the `updatedAt` of the row as it is NOW, or null when there is no row
  * @param seen   the `updatedAt` the caller was shown, as an ISO string
  */
-export function assertFresh(stored: Date | null | undefined, seen: string | null | undefined): void {
+export function assertFresh(
+  stored: Date | null | undefined,
+  seen: string | null | undefined,
+): void {
   if (!stored) return;
   if (!seen) throw new StaleWriteError();
   const seenMs = Date.parse(seen);
   // An unparseable stamp is not a match, and treating it as one would make the guard
   // optional for anyone who sends junk.
   if (Number.isNaN(seenMs) || seenMs !== stored.getTime()) throw new StaleWriteError();
+}
+
+/**
+ * A one-tap activate/deactivate carries nobody's typing, so it is not asked for a version.
+ *
+ * The freshness guard exists to stop a form from writing back a whole record it read
+ * minutes ago. A toggle is not that: it reads a single boolean off a list row and flips it,
+ * and there is no second field for a concurrent editor to lose. Demanding a stamp for it
+ * only made the button 409 forever — which is how a deactivated depot became one nobody
+ * could reactivate from any console.
+ *
+ * The `undefined` filter is not decoration: a `class-transformer` DTO carries every
+ * optional property the class declares, unset ones as `undefined`. Without the filter the
+ * key count is the DTO's, never one, and this predicate would silently never hold.
+ */
+export function isDecisionOnlyPatch(patch: object): boolean {
+  const keys = Object.keys(patch).filter(
+    (k) => (patch as Record<string, unknown>)[k] !== undefined,
+  );
+  return keys.length === 1 && keys[0] === 'active';
 }

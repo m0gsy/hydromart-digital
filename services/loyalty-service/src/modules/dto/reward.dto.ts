@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import {
+  IsISO8601, IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 import {
   RedemptionStatus,
@@ -75,6 +76,15 @@ export class CreateRewardItemDto {
 
 /** Every field optional — the same route retires an item (`active: false`) or restocks it. */
 export class UpdateRewardItemDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

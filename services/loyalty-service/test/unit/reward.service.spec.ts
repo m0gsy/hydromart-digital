@@ -210,9 +210,34 @@ describe('RewardService', () => {
         stock: null,
         active: true,
       });
-      const updated = await service.updateItem(created.id, { active: false });
+      // CA-2-53: a save says which version it started from.
+      const updated = await service.updateItem(
+        created.id,
+        { active: false },
+        created.updatedAt.toISOString(),
+      );
       expect(updated.active).toBe(false);
       expect(await service.listCatalog()).toHaveLength(0);
+    });
+
+    /*
+     * CA-2-53. The points price on this row is what a customer pays, and two people
+     * editing the item at once used to produce whichever of them saved last.
+     */
+    it('refuses an item save built on a copy that is already out of date', async () => {
+      const created = await service.createItem({
+        name: 'Galon gratis',
+        unit: 'gratis 1 galon',
+        pointsCost: 500,
+        imageUrl: null,
+        stock: null,
+        active: true,
+      });
+      await service.updateItem(created.id, { pointsCost: 400 }, created.updatedAt.toISOString());
+
+      await expect(
+        service.updateItem(created.id, { pointsCost: 100 }, created.updatedAt.toISOString()),
+      ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
     });
 
     it('rejects an update to an item that does not exist', async () => {

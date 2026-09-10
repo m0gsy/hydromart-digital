@@ -24,10 +24,12 @@ describe('RetentionService', () => {
   it('updates a policy window', async () => {
     const row = makeRetentionPolicy({ dataset: 'audit_logs', windowDays: 730 });
     repo.rows = [row];
-    const updated = await service.updatePolicy(row.id, {
-      windowLabel: '3 tahun',
-      windowDays: 1095,
-    });
+    // CA-2-53: a save says which version it started from.
+    const updated = await service.updatePolicy(
+      row.id,
+      { windowLabel: '3 tahun', windowDays: 1095 },
+      row.updatedAt.toISOString(),
+    );
     expect(updated).toMatchObject({ windowLabel: '3 tahun', windowDays: 1095 });
   });
 
@@ -112,7 +114,11 @@ describe('RetentionService', () => {
     it('allows lengthening a financial window', async () => {
       const row = makeRetentionPolicy({ dataClass: DataClass.FINANCIAL, windowDays: 3650 });
       repo.rows = [row];
-      const out = await service.updatePolicy(row.id, { windowLabel: '20 tahun', windowDays: 7300 });
+      const out = await service.updatePolicy(
+        row.id,
+        { windowLabel: '20 tahun', windowDays: 7300 },
+        row.updatedAt.toISOString(),
+      );
       expect(out.windowDays).toBe(7300);
     });
 
@@ -151,5 +157,26 @@ describe('RetentionService', () => {
       expect(marketing.purgeExempt).toBe(false);
       expect(marketing.cutoff).toEqual(new Date('2026-04-29T00:00:00.000Z'));
     });
+  });
+
+  /*
+   * CA-2-53. A retention window two admins edited at once used to end up as whichever of
+   * them saved last — on the row that decides how long personal data is kept.
+   */
+  it('refuses a policy save built on a copy that is already out of date', async () => {
+    const row = makeRetentionPolicy({ dataset: 'audit_logs', windowDays: 730 });
+    repo.rows = [row];
+    // Read the version BEFORE the first save: the fake hands back the live row, so holding
+    // a reference would let the "old" stamp move along with the store.
+    const seen = row.updatedAt.toISOString();
+    await service.updatePolicy(row.id, { windowLabel: '3 tahun', windowDays: 1095 }, seen);
+
+    await expect(
+      service.updatePolicy(
+        row.id,
+        { windowLabel: '4 tahun', windowDays: 1460 },
+        seen,
+      ),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
   });
 });

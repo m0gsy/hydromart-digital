@@ -67,7 +67,14 @@ export function DepotForm({
     setBusy(true);
     setError(null);
     try {
-      if (depot) await api.patch(endpoints.depots.detail(depot.id), parsed.value, true);
+      // CA-2-53: the stamp goes on the edit only. `api.post` below makes a new depot,
+      // and a record that does not exist yet has no version to name.
+      if (depot)
+        await api.patch(
+          endpoints.depots.detail(depot.id),
+          { ...parsed.value, seenUpdatedAt: depot.updatedAt },
+          true,
+        );
       else await api.post(endpoints.depots.create, parsed.value, true);
       onDone();
     } catch (err) {
@@ -85,10 +92,20 @@ export function DepotForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t('hq.depots.form.code')} htmlFor="d-code">
-          <Input id="d-code" value={form.code} onChange={set('code')} placeholder={t('hrFix.hqDepotForm.codeHint')} />
+          <Input
+            id="d-code"
+            value={form.code}
+            onChange={set('code')}
+            placeholder={t('hrFix.hqDepotForm.codeHint')}
+          />
         </Field>
         <Field label={t('hq.depots.form.name')} htmlFor="d-name">
-          <Input id="d-name" value={form.name} onChange={set('name')} placeholder={t('hrFix.hqDepotForm.nameHint')} />
+          <Input
+            id="d-name"
+            value={form.name}
+            onChange={set('name')}
+            placeholder={t('hrFix.hqDepotForm.nameHint')}
+          />
         </Field>
       </div>
 
@@ -114,30 +131,83 @@ export function DepotForm({
       )}
 
       <Field label={t('hq.depots.form.address')} htmlFor="d-addr">
-        <Input id="d-addr" value={form.address} onChange={set('address')} placeholder={t('hrFix.hqDepotForm.addressHint')} />
+        <Input
+          id="d-addr"
+          value={form.address}
+          onChange={set('address')}
+          placeholder={t('hrFix.hqDepotForm.addressHint')}
+        />
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t('hq.depots.form.city')} htmlFor="d-city">
-          <Input id="d-city" value={form.city} onChange={set('city')} placeholder={t('hrFix.hqDepotForm.cityHint')} />
+          <Input
+            id="d-city"
+            value={form.city}
+            onChange={set('city')}
+            placeholder={t('hrFix.hqDepotForm.cityHint')}
+          />
         </Field>
         <Field label={t('hq.depots.form.province')} htmlFor="d-prov">
-          <Input id="d-prov" value={form.province} onChange={set('province')} placeholder={t('hrFix.hqDepotForm.provinceHint')} />
+          <Input
+            id="d-prov"
+            value={form.province}
+            onChange={set('province')}
+            placeholder={t('hrFix.hqDepotForm.provinceHint')}
+          />
         </Field>
         <Field label={t('hq.depots.form.lat')} htmlFor="d-lat">
-          <Input id="d-lat" inputMode="decimal" value={form.lat} onChange={set('lat')} placeholder="-6.1944" />
+          <Input
+            id="d-lat"
+            inputMode="decimal"
+            value={form.lat}
+            onChange={set('lat')}
+            placeholder="-6.1944"
+          />
         </Field>
         <Field label={t('hq.depots.form.lng')} htmlFor="d-lng">
-          <Input id="d-lng" inputMode="decimal" value={form.lng} onChange={set('lng')} placeholder="106.8412" />
+          <Input
+            id="d-lng"
+            inputMode="decimal"
+            value={form.lng}
+            onChange={set('lng')}
+            placeholder="106.8412"
+          />
         </Field>
-        <Field label={t('hq.depots.form.radius')} htmlFor="d-rad" hint={t('hq.depots.form.radiusHint')}>
-          <Input id="d-rad" inputMode="decimal" value={form.serviceRadiusKm} onChange={set('serviceRadiusKm')} placeholder="5" />
+        <Field
+          label={t('hq.depots.form.radius')}
+          htmlFor="d-rad"
+          hint={t('hq.depots.form.radiusHint')}
+        >
+          <Input
+            id="d-rad"
+            inputMode="decimal"
+            value={form.serviceRadiusKm}
+            onChange={set('serviceRadiusKm')}
+            placeholder="5"
+          />
         </Field>
         <Field label={t('hq.depots.form.fee')} htmlFor="d-fee">
-          <Input id="d-fee" inputMode="numeric" value={form.deliveryFee} onChange={set('deliveryFee')} placeholder="5000" />
+          <Input
+            id="d-fee"
+            inputMode="numeric"
+            value={form.deliveryFee}
+            onChange={set('deliveryFee')}
+            placeholder="5000"
+          />
         </Field>
-        <Field label={t('hq.depots.form.minOrder')} htmlFor="d-min" hint={t('hq.depots.form.minOrderHint')}>
-          <Input id="d-min" inputMode="numeric" value={form.minOrderAmount} onChange={set('minOrderAmount')} placeholder="20000" />
+        <Field
+          label={t('hq.depots.form.minOrder')}
+          htmlFor="d-min"
+          hint={t('hq.depots.form.minOrderHint')}
+        >
+          <Input
+            id="d-min"
+            inputMode="numeric"
+            value={form.minOrderAmount}
+            onChange={set('minOrderAmount')}
+            placeholder="20000"
+          />
         </Field>
       </div>
 
@@ -160,16 +230,41 @@ export function DepotForm({
         <p className="text-xs text-muted">{t('hq.depots.form.paymentHint')}</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('hq.depots.form.bankName')} htmlFor="d-bank">
-            <Input id="d-bank" value={form.paymentBankName} onChange={set('paymentBankName')} placeholder="BCA" />
+            <Input
+              id="d-bank"
+              value={form.paymentBankName}
+              onChange={set('paymentBankName')}
+              placeholder="BCA"
+            />
           </Field>
           <Field label={t('hq.depots.form.accountNumber')} htmlFor="d-acct">
-            <Input id="d-acct" inputMode="numeric" value={form.paymentBankAccountNumber} onChange={set('paymentBankAccountNumber')} placeholder="1234567890" />
+            <Input
+              id="d-acct"
+              inputMode="numeric"
+              value={form.paymentBankAccountNumber}
+              onChange={set('paymentBankAccountNumber')}
+              placeholder="1234567890"
+            />
           </Field>
           <Field label={t('hq.depots.form.accountHolder')} htmlFor="d-holder">
-            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder={t('hrFix.hqDepotForm.ownerHint')} />
+            <Input
+              id="d-holder"
+              value={form.paymentBankAccountHolder}
+              onChange={set('paymentBankAccountHolder')}
+              placeholder={t('hrFix.hqDepotForm.ownerHint')}
+            />
           </Field>
-          <Field label={t('hq.depots.form.qris')} htmlFor="d-qris" hint={t('hq.depots.form.qrisHint')}>
-            <Input id="d-qris" value={form.paymentQrisImageUrl} onChange={set('paymentQrisImageUrl')} placeholder="https://…/qris.png" />
+          <Field
+            label={t('hq.depots.form.qris')}
+            htmlFor="d-qris"
+            hint={t('hq.depots.form.qrisHint')}
+          >
+            <Input
+              id="d-qris"
+              value={form.paymentQrisImageUrl}
+              onChange={set('paymentQrisImageUrl')}
+              placeholder="https://…/qris.png"
+            />
           </Field>
         </div>
       </div>

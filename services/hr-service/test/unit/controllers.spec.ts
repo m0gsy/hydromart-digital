@@ -345,7 +345,8 @@ describe('HolidayController / ShiftController', () => {
     expect(assets.create).toHaveBeenCalledWith(user, dto);
     const ud = { name: 'Beat' } as never;
     ac.update('as1', ud, user);
-    expect(assets.update).toHaveBeenCalledWith(user, 'as1', ud);
+    // CA-2-53: the version travels beside the body; this call names none.
+    expect(assets.update).toHaveBeenCalledWith(user, 'as1', ud, undefined);
     const mv = { kind: 'ASSIGN', toEmployeeId: 'e1' } as never;
     ac.move('as1', mv, user);
     expect(assets.move).toHaveBeenCalledWith(user, 'as1', mv);
@@ -723,7 +724,7 @@ describe('BonusRuleController / LoanController', () => {
     rc.create(dto, user);
     expect(rules.create).toHaveBeenCalledWith(user, dto);
     rc.update('r1', dto, user);
-    expect(rules.update).toHaveBeenCalledWith(user, 'r1', dto);
+    expect(rules.update).toHaveBeenCalledWith(user, 'r1', dto, undefined);
   });
   it('loans delegate (asOfPeriod defaults to empty string)', () => {
     lc.list({ employeeId: 'e1' } as never, user);

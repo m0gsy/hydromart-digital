@@ -42,7 +42,12 @@ export default function HqLoyaltyPage() {
   async function patchItem(id: string, patch: Record<string, unknown>) {
     setBusy(id);
     try {
-      await api.patch(endpoints.rewards.updateItem(id), patch, true);
+      await api.patch(
+        endpoints.rewards.updateItem(id),
+        // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+        { ...patch, seenUpdatedAt: (rewards.data ?? []).find((r) => r.id === id)?.updatedAt },
+        true,
+      );
       toast(t('hq.loyalty.itemSaved'), 'success');
       rewards.reload();
     } catch (err) {

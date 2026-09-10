@@ -93,7 +93,12 @@ describe('PricingService CRUD', () => {
     const { service } = make();
     const created = await service.create('d1', baseInput);
     expect(await service.list('d1')).toHaveLength(1);
-    const updated = await service.update(created.id, { value: -20 });
+    // CA-2-53: a second save has to say which version it started from.
+    const updated = await service.update(
+      created.id,
+      { value: -20 },
+      created.updatedAt.toISOString(),
+    );
     expect(updated.value).toBe(-20);
     await service.remove(created.id);
     expect(await service.list('d1')).toHaveLength(0);
@@ -188,6 +193,29 @@ describe('PricingService.resolvePrices', () => {
       ];
       const out = await service.resolvePrices('d1', ['p9'], at, [12]);
       expect(out[0]?.tierPrice).toBe(5600);
+    });
+  });
+
+  /*
+   * CA-2-53. Two people on the pricing screen at once used to produce whichever of them
+   * saved last — on the row that decides what a customer is charged.
+   */
+  it('refuses a save built on a copy of the rule that is already out of date', async () => {
+    const { service } = make();
+    const created = await service.create('d1', baseInput);
+    const first = await service.update(created.id, { value: -10 }, created.updatedAt.toISOString());
+
+    await expect(
+      service.update(created.id, { value: -30 }, created.updatedAt.toISOString()),
+    ).rejects.toMatchObject({ code: 'STALE_WRITE', status: 409 });
+    expect((await service.get(created.id)).value).toBe(first.value);
+  });
+
+  it('refuses a rule save that says nothing about what it saw', async () => {
+    const { service } = make();
+    const created = await service.create('d1', baseInput);
+    await expect(service.update(created.id, { value: -30 })).rejects.toMatchObject({
+      code: 'STALE_WRITE',
     });
   });
 });

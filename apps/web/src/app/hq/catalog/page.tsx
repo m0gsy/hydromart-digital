@@ -102,7 +102,12 @@ function ProductEditor({
       };
       if (product) {
         payload.active = form.active;
-        await api.patch(endpoints.products.update(product.id), payload, true);
+        await api.patch(
+          endpoints.products.update(product.id),
+        // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...payload, seenUpdatedAt: product.updatedAt },
+          true,
+        );
       } else {
         await api.post(endpoints.products.create, payload, true);
       }
@@ -260,7 +265,15 @@ function CategoryManager({ onChange }: { onChange: () => void }) {
     try {
       const payload = { name: name.trim(), slug: effectiveSlug };
       if (editId) {
-        await api.patch(endpoints.products.category(editId), payload, true);
+        await api.patch(
+          endpoints.products.category(editId),
+        // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          {
+            ...payload,
+            seenUpdatedAt: (categories.data ?? []).find((c) => c.id === editId)?.updatedAt,
+          },
+          true,
+        );
       } else {
         await api.post(endpoints.products.categoryCreate, payload, true);
       }
