@@ -30,6 +30,11 @@ const OPS_PATHS = [
   '/driver/',
   '/dashboard/',
   '/hr/me/check-in/',
+  // Both kasbon screens: each is the landing spot of a push notification, and a pruned
+  // route redirects to '/' with no error — the notification would arrive and the person
+  // would never find the screen it was about.
+  '/hr/me/kasbon/',
+  '/hr/loans/requests/',
   '/dashboard/walk-in/',
   '/driver/deliveries/detail/?id=dlv_1',
   '/driver/deliveries/detail/pay/?id=dlv_1',

@@ -298,6 +298,7 @@ export const hq = {
       hrAdmin: 'Kelola karyawan & absensi',
       hrPayroll: 'Payroll',
       leaveApprove: 'Setujui cuti (tahap 1)',
+      kasbonApprove: 'Setujui kasbon (asisten SPV depotnya)',
       priceOverrideDecide: 'Putuskan usulan harga depot',
       franchiseApplications: 'Putuskan aplikasi waralaba',
       voucherRequestDecide: 'Putuskan permintaan voucher',

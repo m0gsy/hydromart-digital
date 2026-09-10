@@ -768,6 +768,42 @@ export class LeaveBalanceResponseDto {
 }
 
 /** Mirrors the Prisma model `LeaveRequest` (its scalar fields — audit D-6). */
+/** Mirrors `LoanRequest` exactly — no field added or removed. */
+export class LoanRequestResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  employeeId!: string;
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: String })
+  amount!: string;
+  @ApiProperty({ type: String })
+  reason!: string;
+  @ApiProperty({ enum: ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] })
+  status!: string;
+  @ApiProperty({ type: String, nullable: true })
+  decidedBy!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  decidedAt!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  decisionNote!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  loanId!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+}
+
+/** One page of the kasbon decision queue. */
+export class PagedLoanRequestResponseDto {
+  @ApiProperty({ type: [LoanRequestResponseDto] })
+  rows!: LoanRequestResponseDto[];
+  @ApiProperty({ type: Number })
+  total!: number;
+}
+
 export class LeaveRequestResponseDto {
   @ApiProperty({ type: String })
   id!: string;

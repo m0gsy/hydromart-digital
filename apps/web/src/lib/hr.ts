@@ -295,6 +295,35 @@ export const LEAVE_STATUS_LABEL: Record<LeaveStatus, string> = {
   REJECTED: 'hrFix.map.leaveStatus.REJECTED',
   CANCELLED: 'hrFix.map.leaveStatus.CANCELLED',
 };
+/** A kasbon somebody asked for, before the approval turns it into a `Loan`. */
+export type LoanRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export interface LoanRequest {
+  id: string;
+  employeeId: string;
+  depotId: string;
+  amount: string;
+  reason: string;
+  status: LoanRequestStatus;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  /** The Loan the approval created — the instalment terms live there, not here. */
+  loanId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface LoanRequestListView extends LoanRequest {
+  employeeName: string | null;
+  employeeCode: string | null;
+}
+/** Values are i18n KEYS, like LEAVE_STATUS_LABEL — never the copy itself. */
+export const KASBON_STATUS_LABEL: Record<LoanRequestStatus, string> = {
+  PENDING: 'hrFix.map.kasbonStatus.PENDING',
+  APPROVED: 'hrFix.map.kasbonStatus.APPROVED',
+  REJECTED: 'hrFix.map.kasbonStatus.REJECTED',
+  CANCELLED: 'hrFix.map.kasbonStatus.CANCELLED',
+};
+
 /** Only ANNUAL and PERMISSION consume the yearly quota (mirrors domain/leave.ts). */
 export function leaveDeductsQuota(type: LeaveType): boolean {
   return type === 'ANNUAL' || type === 'PERMISSION';

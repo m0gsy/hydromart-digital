@@ -57,10 +57,23 @@ const BUILT = join(WEB, 'mobile-out');
  * its shell. It returns early for that path and never renders the HR rail, so keeping it
  * costs a shell and gives away no console.
  */
+/*
+ * `loans` is the second exception, and it is here for a notification rather than a screen.
+ *
+ * A kasbon decision is pushed to the approver's phone, and the push carries
+ * `/hr/loans/requests` as its destination. A pruned route lands in
+ * `NEXT_PUBLIC_MOBILE_PRUNED`, `resolveDeepLink` sends it back to '/', and the tap ends on
+ * the home screen with no error at all: the feature looks like it works, the notification
+ * arrives, and the person never finds the screen. `hr/loans/import` rides along as a child
+ * — pruning some children of a kept folder adds a rule without adding any safety.
+ */
 const HR_CONSOLE_ONLY = () =>
   readdirSync(join(APP, 'hr'), { withFileTypes: true })
-    .filter((e) => (e.isDirectory() ? e.name !== 'me' : e.name === 'page.tsx'))
+    .filter((e) =>
+      e.isDirectory() ? e.name !== 'me' && e.name !== 'loans' : e.name === 'page.tsx',
+    )
     .map((e) => `hr/${e.name}`);
+
 
 const TARGETS = {
   // Customers get the shop and their account. Everything staff-facing goes — including
@@ -86,7 +99,17 @@ const SURFACES = {
     withholds: ['hq', 'hr', 'dashboard', 'driver', 'm', 'resellers'],
   },
   ops: {
-    serves: ['driver/deliveries/detail', 'dashboard/walk-in', 'hr/me/check-in', 'm/manager'],
+    // The two kasbon screens are asserted rather than assumed: they are the destinations
+    // of a push, and losing either one again would be silent — the tap would land on '/'.
+    // This is what makes today's decision survive somebody editing the prune list.
+    serves: [
+      'driver/deliveries/detail',
+      'dashboard/walk-in',
+      'hr/me/check-in',
+      'hr/me/kasbon',
+      'hr/loans/requests',
+      'm/manager',
+    ],
     withholds: ['hq', 'hr/payroll', 'hr/employees'],
   },
 };

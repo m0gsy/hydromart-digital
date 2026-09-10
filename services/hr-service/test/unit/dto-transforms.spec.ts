@@ -15,6 +15,11 @@ import {
   UpdateAssetDto,
 } from '../../src/modules/dto/asset.dto';
 import { ListAttendanceDto } from '../../src/modules/dto/attendance.dto';
+import {
+  DecideLoanRequestDto,
+  ListLoanRequestDto,
+  SubmitLoanRequestDto,
+} from '../../src/modules/dto/loan-request.dto';
 import { ListAuditDto } from '../../src/modules/dto/audit.dto';
 import {
   ImportEmployeeRowDto,
@@ -58,6 +63,54 @@ describe('paging query coercion', () => {
 
   it('reads a leave-balance year as an integer', () => {
     expect(plainToInstance(LeaveBalanceQueryDto, { year: '2026' }).year).toBe(2026);
+  });
+});
+
+/*
+ * Kasbon. The applicant's DTO carries TWO fields and no more (K3): the instalment and the
+ * month it starts are the approver's to set, and a field the applicant can fill is a field
+ * the applicant can argue about later. No `@Max` on the amount either — the ceiling on a
+ * kasbon is a business decision nobody has made, and a number invented in a validator would
+ * quietly become that decision.
+ */
+describe('kasbon DTOs', () => {
+  it('accepts an amount and a reason, and nothing else the applicant could set', async () => {
+    const dto = plainToInstance(SubmitLoanRequestDto, {
+      amount: 500000,
+      reason: 'Biaya sekolah anak',
+      installmentAmount: 100000,
+      startPeriod: '2026-10',
+    } as never);
+    expect(await validate(dto, { whitelist: true })).toEqual([]);
+    // The terms the applicant tried to set do not survive the transform at all — the class
+    // declares two properties, so two is what the service is handed.
+    expect(Object.keys(dto).sort()).toEqual(['amount', 'reason']);
+  });
+
+  it('refuses an amount that is not a whole positive number', async () => {
+    for (const amount of [0, -1, 1.5]) {
+      const dto = plainToInstance(SubmitLoanRequestDto, { amount, reason: 'x' } as never);
+      expect((await validate(dto)).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('refuses a start period that is not YYYY-MM', async () => {
+    for (const startPeriod of ['2026-13', '2026-1', 'Okt 2026', '2026']) {
+      const dto = plainToInstance(DecideLoanRequestDto, { approve: true, startPeriod } as never);
+      expect((await validate(dto)).length).toBeGreaterThan(0);
+    }
+    const ok = plainToInstance(DecideLoanRequestDto, {
+      approve: true,
+      startPeriod: '2026-10',
+      installmentAmount: 100000,
+      seenUpdatedAt: '2026-09-10T00:00:00.000Z',
+    } as never);
+    expect(await validate(ok)).toEqual([]);
+  });
+
+  it('reads the queue page numbers as integers', () => {
+    const q = plainToInstance(ListLoanRequestDto, { page: '2', pageSize: '50' } as never);
+    expect(q).toMatchObject({ page: 2, pageSize: 50 });
   });
 });
 

@@ -76,6 +76,20 @@ export const hr = {
       const qs = p.toString();
       return `/loans/api/v1/loans/all${qs ? `?${qs}` : ''}`;
     },
+    // Kasbon somebody raised for themselves. Own gateway segment — `loans` is the ledger
+    // of money already being deducted, and a request is not that yet.
+    myLoanRequests: '/loan-requests/api/v1/loan-requests/me',
+    submitLoanRequest: '/loan-requests/api/v1/loan-requests/me',
+    cancelLoanRequest: (id: string) => `/loan-requests/api/v1/loan-requests/me/${id}/cancel`,
+    loanRequestQueue: (q: { page?: number; pageSize?: number; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/loan-requests/api/v1/loan-requests${qs ? `?${qs}` : ''}`;
+    },
+    decideLoanRequest: (id: string) => `/loan-requests/api/v1/loan-requests/${id}/decide`,
     createLoan: '/loans/api/v1/loans',
     importLoans: '/loans/api/v1/loans/import',
     deactivateLoan: (id: string) => `/loans/api/v1/loans/${id}/deactivate`,

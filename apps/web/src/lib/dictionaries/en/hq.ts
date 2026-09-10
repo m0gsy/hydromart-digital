@@ -295,6 +295,7 @@ export const hq = {
       hrAdmin: 'Manage employees & attendance',
       hrPayroll: 'Payroll',
       leaveApprove: 'Approve leave (stage 1)',
+      kasbonApprove: 'Approve cash advance (the depot’s assistant SPV)',
       priceOverrideDecide: 'Decide a depot price proposal',
       franchiseApplications: 'Decide franchise applications',
       voucherRequestDecide: 'Decide voucher requests',
