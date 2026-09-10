@@ -12,6 +12,7 @@ import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
 import { SPLASH_NET_SCRIPT } from '@/lib/splash-net';
+import { WEBVIEW_GATE_SCRIPT } from '@/lib/webview-gate';
 import { ThemeProvider } from '@/lib/theme-context';
 
 /**
@@ -107,6 +108,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             a 404'd chunk, syntax an old WebView rejects — no component can hide it,
             including NativeBridge. This is markup, so it runs anyway. See lib/splash-net. */}
         <script dangerouslySetInnerHTML={{ __html: SPLASH_NET_SCRIPT }} />
+        {/* J4, net 2 of 2. `NativeBridge` refuses a WebView below Chrome 111 — but it is
+            part of the bundle, and a WebView old enough to matter cannot parse the bundle:
+            measured on Android 9 / WebView 69, it dies on `globalThis is not defined` and
+            the guard never runs. This is markup, so it runs anyway. See lib/webview-gate. */}
+        <script dangerouslySetInnerHTML={{ __html: WEBVIEW_GATE_SCRIPT }} />
       </head>
       <body className="min-h-[100dvh] overflow-x-hidden">
         {/* Outside the providers: its WebView-too-old screen has to render even if
