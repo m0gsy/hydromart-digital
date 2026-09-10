@@ -223,4 +223,23 @@ describe('BonusRuleService.list', () => {
       code: 'STALE_WRITE',
     });
   });
+
+  /*
+   * And the exemption, which has to be tested alongside the refusals or removing it stays
+   * green. The switch in /hr/rules sends `{ active }` and nothing else: it flips one
+   * decision off a list row, and there is no second field for anyone to lose. Asking it for
+   * a version turned every toggle in that table into a permanent 409.
+   */
+  it('lets the rule be switched on or off without naming a version', async () => {
+    const { svc } = make();
+    const r = await svc.create(hr, valid);
+    await svc.update(hr, r.id, { threshold: 20 }, r.updatedAt.toISOString());
+
+    const off = await svc.update(hr, r.id, { active: false });
+    expect(off.active).toBe(false);
+    expect(off.threshold).toBe(20); // the toggle wrote nothing else
+
+    const on = await svc.update(hr, r.id, { active: true });
+    expect(on.active).toBe(true);
+  });
 });

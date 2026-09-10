@@ -18,8 +18,13 @@ ok() { echo "  ok   $1"; }
 bad() { echo "  FAIL $1"; fails=$((fails + 1)); }
 
 FIXTURE=apps/web/src/app/hq/zz-stale-write-fixture/page.tsx
-mkdir -p "$(dirname "$FIXTURE")"
-trap 'rm -rf "$(dirname "$FIXTURE")"' EXIT
+# The second one is not a duplicate: `components/` was outside the scanned tree until
+# 2026-09-10, and the two forms living there — the HQ depot editor and the opening-hours
+# editor — were never looked at once. A gate that reads a fraction of the console reports a
+# clean number for the fraction.
+FIXTURE_CMP=apps/web/src/components/zz-stale-write-fixture.tsx
+mkdir -p "$(dirname "$FIXTURE")" "$(dirname "$FIXTURE_CMP")"
+trap 'rm -rf "$(dirname "$FIXTURE")" "$FIXTURE_CMP"' EXIT
 
 run() { node scripts/check-stale-writes.mjs 2>&1; }
 
@@ -139,7 +144,46 @@ else
   bad "a commented-out promise satisfied the gate (rc=$RC): $OUT"
 fi
 
+# --- case 7: a form under components/ is inside the console too ----------------
 rm -rf "$(dirname "$FIXTURE")"
+cat > "$FIXTURE_CMP" <<'TSX'
+export function ZzStaleWriteFixtureCmp() {
+  async function save() {
+    await api.patch(
+      endpoints.depots.detail(depot.id),
+      { name: name.trim(), address: address.trim(), deliveryFee: fee },
+      true,
+    );
+  }
+  return <button onClick={save}>Simpan</button>;
+}
+TSX
+OUT="$(run)"; RC=$?
+if [ "$RC" = "1" ] && echo "$OUT" | grep -q "zz-stale-write-fixture"; then
+  ok "a form outside app/ is still a form"
+else
+  bad "a components/ form was never scanned (rc=$RC): $OUT"
+fi
+
+# --- case 8: two fields is not evidence of a decision -------------------------
+# `{ operatingHours, holidays }` is a week of opening times and every holiday exception.
+# It passed as an action for one reason only: it happened to have two keys.
+cat > "$FIXTURE_CMP" <<'TSX'
+export function ZzStaleWriteFixtureCmp() {
+  async function save() {
+    await api.patch(endpoints.depots.detail(depot.id), { operatingHours: hours, holidays }, true);
+  }
+  return <button onClick={save}>Simpan</button>;
+}
+TSX
+OUT="$(run)"; RC=$?
+if [ "$RC" = "1" ] && echo "$OUT" | grep -q "zz-stale-write-fixture"; then
+  ok "a two-field record is not waved through for being short"
+else
+  bad "{ operatingHours, holidays } passed as a one-tap decision (rc=$RC): $OUT"
+fi
+
+rm -f "$FIXTURE_CMP"
 OUT="$(run)"; RC=$?
 if [ "$RC" = "0" ]; then
   ok "the unmodified tree passes its own gate"

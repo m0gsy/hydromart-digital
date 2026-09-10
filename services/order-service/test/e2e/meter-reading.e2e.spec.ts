@@ -64,6 +64,10 @@ class InMemoryMeterReadings implements MeterReadingRepository {
     }
     const merged: MeterReading = {
       ...existing,
+      // A stand-in that never moves its own `updatedAt` is a stand-in that cannot model the
+      // thing under test: every read hands back the same version, so a stale write and a
+      // fresh one are indistinguishable. Postgres moves it on write; so does this.
+      updatedAt: new Date(existing.updatedAt.getTime() + 1000),
       ...(data.openingM3 !== undefined ? { openingM3: data.openingM3 } : {}),
       ...(data.closingM3 !== undefined
         ? { closingM3: data.closingM3, closedBy: data.actorId, closedAt: new Date() }
@@ -71,11 +75,12 @@ class InMemoryMeterReadings implements MeterReadingRepository {
       ...(data.note !== undefined ? { note: data.note } : {}),
     };
     this.rows.set(key, merged);
-    return merged;
+    return { ...merged };
   }
 
   async findForDate(depotId: string, date: string): Promise<MeterReading | null> {
-    return this.rows.get(`${depotId}|${date}`) ?? null;
+    const row = this.rows.get(`${depotId}|${date}`);
+    return row ? { ...row } : null;
   }
 
   async listForRange(depotId: string, from: string, to: string): Promise<MeterReading[]> {
@@ -190,6 +195,14 @@ describe('Meter reading HTTP flows (e2e)', () => {
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
   const path = `/api/v1/reports/meter`;
 
+  /*
+   * CA-2-53. These five run in order against one day's row, which is exactly the shape the
+   * freshness guard exists for: the evening write must say which morning it read. Each one
+   * carries forward the `updatedAt` the previous response handed it — the same thing the
+   * console does, and the reason the console's write is not an overwrite.
+   */
+  let seenUpdatedAt: string;
+
   it('lets the operator on shift write the morning reading', async () => {
     const res = await request(server())
       .put(`${path}/${depotId}/${DATE}`)
@@ -198,17 +211,34 @@ describe('Meter reading HTTP flows (e2e)', () => {
       .expect(200);
     expect(res.body.meterLiters).toBeNull();
     expect(res.body.reading.openingM3).toBe(1000);
+    seenUpdatedAt = res.body.reading.updatedAt;
+    expect(seenUpdatedAt).toBeTruthy();
   });
 
   it('closes the same day through the same route and reports the variance', async () => {
     const res = await request(server())
       .put(`${path}/${depotId}/${DATE}`)
       .set(auth(staffToken))
-      .send({ closingM3: 1002.6 })
+      .send({ closingM3: 1002.6, seenUpdatedAt })
       .expect(200);
     expect(res.body.meterLiters).toBe(2600);
     expect(res.body.varianceLiters).toBe(2600); // no sales seeded
     expect(res.body.varianceIdr).toBeNull(); // nothing delivered to price it with
+    seenUpdatedAt = res.body.reading.updatedAt;
+  });
+
+  it('refuses a save built on the version somebody else already replaced', async () => {
+    await request(server())
+      .put(`${path}/${depotId}/${DATE}`)
+      .set(auth(staffToken))
+      .send({ closingM3: 1005, seenUpdatedAt: '2026-09-09T00:00:00.000Z' })
+      .expect(409);
+    // ...and the row is untouched: the refusal is the point, not a partial write.
+    await request(server())
+      .get(`${path}/${depotId}/${DATE}`)
+      .set(auth(managerToken))
+      .expect(200)
+      .expect((r) => expect(r.body.reading.closingM3).toBe(1002.6));
   });
 
   it('serves the reconciliation back on GET', async () => {
@@ -229,11 +259,28 @@ describe('Meter reading HTTP flows (e2e)', () => {
     expect(res.body[0]).toMatchObject({ day: DATE, meterLiters: 2600 });
   });
 
+  // Freshness is checked AFTER validation, so a caller holding the current version and a
+  // bad number is told which number is bad — not to reload a page that would not help.
   it('rejects a closing reading below the opening one', async () => {
     await request(server())
       .put(`${path}/${depotId}/${DATE}`)
       .set(auth(staffToken))
-      .send({ closingM3: 999 })
+      .send({ closingM3: 999, seenUpdatedAt })
+      .expect(422);
+  });
+
+  /*
+   * The order of the two checks, made visible. A caller who is BOTH out of date and
+   * carrying a bad number is told about the number: 422, not 409. Reloading would not make
+   * 999 a valid closing reading, and this is the order the rest of the repo already keeps
+   * (`bonus-rule.service.ts`, `retention.service.ts`). Swap the two lines back and this
+   * goes 409.
+   */
+  it('answers a stale caller with the bad number, not the stale version', async () => {
+    await request(server())
+      .put(`${path}/${depotId}/${DATE}`)
+      .set(auth(staffToken))
+      .send({ closingM3: 999, seenUpdatedAt: '2026-01-01T00:00:00.000Z' })
       .expect(422);
   });
 

@@ -24,10 +24,17 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ROOT = 'apps/web/src/app';
+const ROOT = 'apps/web/src';
 const BASELINE = 'scripts/stale-writes-baseline.json';
-/** The two consoles and the HR console — the screens staff share. */
-const AREAS = ['hq/', 'dashboard/', 'hr/'];
+/*
+ * Every staff-facing surface, and the last two were added because their absence is what
+ * this gate got wrong: it read `app/` only, so the depot edit form and the opening-hours
+ * editor — both under `components/` — were never looked at, and neither was the whole
+ * mobile console under `app/m/`. The gate reported a clean zero over a fraction of the
+ * console. Scope first, count second; a baseline measured over the wrong tree is not a
+ * smaller number, it is a different question.
+ */
+const AREAS = ['app/hq/', 'app/dashboard/', 'app/hr/', 'app/m/', 'components/'];
 
 /** Prose naming a call is not a call — every source scan in this repo has learnt this. */
 const code = (src) =>
@@ -45,7 +52,6 @@ function walk(dir, out = []) {
   return out;
 }
 
-
 /**
  * A one-tap ACTION, not a form — and the difference is the whole rule.
  *
@@ -54,9 +60,17 @@ function walk(dir, out = []) {
  * status, and two people tapping the same one produce the same row. A form carries a record
  * somebody typed: name, price, hours, bank account. That is what a second save erases.
  *
- * Read off the payload, because that is what the shape actually is: an inline object with
- * at most two properties (or an empty body) is a decision; anything else — a variable
- * holding a built payload, a literal with three or more fields — is a record.
+ * Read off the payload: an empty body, or a literal carrying exactly ONE field — the
+ * decision itself. `{ status: 'RESOLVED' }`, `{ enabled }`, `{ active: false }`.
+ *
+ * It used to allow two fields as well, and `{ operatingHours, holidays }` is two fields —
+ * a week of opening times and every holiday exception, waved through as a decision because
+ * of how few keys it happened to have. Two keys is not evidence of anything: the second
+ * field is the one a concurrent editor loses.
+ *
+ * The remaining hole is named rather than papered over: a single field can still be typed
+ * — `{ sellPrice: parsed }` is one key and is somebody's price. Counting keys cannot see
+ * that, and the honest fix is the server refusing the write, not a cleverer regex.
  */
 function isAction(call) {
   // A verb with no payload at all: `api.patch(url, undefined, true)` / `..., {}, true)`.
@@ -67,8 +81,13 @@ function isAction(call) {
   if (!m) return false;
   // A spread means the same thing: assembled elsewhere.
   if (/\.\.\./.test(m[0])) return false;
-  const keys = m[0].match(/[{,]\s*[a-zA-Z][a-zA-Z0-9]*\s*:/g) ?? [];
-  return keys.length <= 2;
+  // Both spellings of a property, because half this console writes `{ enabled }` and the
+  // other half `{ enabled: value }` — counting only the colon form scores the shorthand
+  // ones at zero keys, which is not "no payload", it is a payload the regex cannot see.
+  // The trailing delimiter is a lookahead, not a match: consuming the comma after `step`
+  // leaves `done` with no separator in front of it, and `{ step, done }` scores one key.
+  const keys = m[0].match(/[{,]\s*[a-zA-Z][a-zA-Z0-9]*\s*(?=[:,}])/g) ?? [];
+  return keys.length === 1;
 }
 
 /** The call's own text, read by counting parentheses rather than guessing a line window. */
