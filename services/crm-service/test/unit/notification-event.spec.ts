@@ -23,11 +23,28 @@ describe('HR events (A2)', () => {
     NotificationEvent.LEAVE_SUBMITTED,
     NotificationEvent.LEAVE_APPROVED,
     NotificationEvent.LEAVE_REJECTED,
+    // OPS_EVENTS has no type guard — a new HR event compiles fine and then lands in a
+    // customer's inbox instead of the ops feed. This list is the guard.
+    NotificationEvent.LOAN_REQUEST_SUBMITTED,
+    NotificationEvent.LOAN_REQUEST_APPROVED,
+    NotificationEvent.LOAN_REQUEST_REJECTED,
     NotificationEvent.HR_ANNOUNCEMENT,
   ];
 
   it('are staff-facing, so they sit in the ops feed', () => {
     for (const event of HR_EVENTS) expect(OPS_EVENTS).toContain(event);
+  });
+
+  it('renders a kasbon decision with every token filled, in both locales', () => {
+    for (const locale of ['id', 'en'] as const) {
+      const message = renderMessage(templateFor(NotificationEvent.LOAN_REQUEST_APPROVED, locale), {
+        name: 'Budi',
+        amount: '500000',
+      });
+      expect(message).toContain('Budi');
+      expect(message).toContain('500000');
+      expect(message).not.toMatch(/\{\{/);
+    }
   });
 
   it('renders a leave decision with every token filled', () => {
@@ -100,11 +117,15 @@ describe('B4/B6 — the two events the emitters were already sending or owed', (
  * message about no order in particular.
  */
 describe('K5.3 · the English table', () => {
-  const tokens = (template: string) => [...template.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
+  const tokens = (template: string) =>
+    [...template.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
 
-  it.each(Object.values(NotificationEvent))('%s carries the same tokens in both languages', (event) => {
-    expect(tokens(templateFor(event, 'en'))).toEqual(tokens(templateFor(event, 'id')));
-  });
+  it.each(Object.values(NotificationEvent))(
+    '%s carries the same tokens in both languages',
+    (event) => {
+      expect(tokens(templateFor(event, 'en'))).toEqual(tokens(templateFor(event, 'id')));
+    },
+  );
 
   it('is actually a different language, not a copy of the Indonesian one', () => {
     expect(templateFor(NotificationEvent.ORDER_RECEIVED, 'en')).not.toBe(
