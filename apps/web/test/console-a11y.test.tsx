@@ -152,7 +152,7 @@ beforeEach(() => {
 
 describe('CA-2-50 the console is measured, not assumed', () => {
   /*
-   * Eleven screens, one per family, rather than all 132: each one needs its own data shape
+   * Twelve screens, one per family, rather than all 132: each one needs its own data shape
    * mocked, and a screen mocked wrongly renders its failure state — which has no violations
    * either. Breadth bought by measuring nothing is the failure this row already describes.
    */
@@ -168,6 +168,9 @@ describe('CA-2-50 the console is measured, not assumed', () => {
     ['HR · absensi', () => import('@/app/hr/attendance/page')],
     ['HR · cuti', () => import('@/app/hr/leave/page')],
     ['HR · penyesuaian', () => import('@/app/hr/adjustments/page')],
+    // Twelfth: the kasbon queue. It costs one line because the default `respond` already
+    // answers the paged-list shape this screen destructures.
+    ['HR · antrean kasbon', () => import('@/app/hr/loans/requests/page')],
   ])('%s has no structural barrier a screen reader would hit', async (_name, load) => {
     const { default: Page } = await load();
     expect(await violationsOf(<Page />)).toEqual([]);

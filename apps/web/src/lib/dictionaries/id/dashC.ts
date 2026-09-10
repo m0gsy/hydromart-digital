@@ -198,6 +198,7 @@ export const dashC = {
       hrAdmin: 'HRIS (kelola karyawan)',
       hrPayroll: 'Payroll',
       leaveApprove: 'Setujui cuti',
+      kasbonApprove: 'Setujui kasbon',
       hrView: 'Laporan HR (lihat)',
       rewardHandover: 'Serah terima hadiah',
       pdpRequests: 'Permintaan data pribadi (UU PDP)',

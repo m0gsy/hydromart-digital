@@ -37,6 +37,10 @@ import { PayrollController } from '../../src/modules/payroll.controller';
 import { PerformanceController } from '../../src/modules/performance.controller';
 import { ReportsController } from '../../src/modules/reports.controller';
 import { BonusRuleController, LoanController } from '../../src/modules/rules.controller';
+import {
+  LoanRequestController,
+  SelfLoanRequestController,
+} from '../../src/modules/loan-request.controller';
 import { SettingsController } from '../../src/modules/settings.controller';
 import { toXlsx } from '../../src/domain/xlsx';
 
@@ -316,6 +320,40 @@ describe('HolidayController / ShiftController', () => {
     queue.importBalances({ rows } as never, user);
     expect(leave.importBalances).toHaveBeenCalledWith(user, rows);
   });
+  /*
+   * Kasbon: two controllers, and the split is the point. The self side takes no `@Can` at
+   * all — `check-route-authz.mjs` recognises it as self-scoped by `@CurrentUser()`, and
+   * every method resolves the employee from the token, so it can only ever reach that
+   * person's own rows. The decision side carries `kasbonApprove`.
+   */
+  it('kasbon controllers delegate, self and decision sides apart', () => {
+    const requests = svcMock(['listSelf', 'submit', 'cancel', 'listAll', 'decide']);
+    const self = new SelfLoanRequestController(requests as never);
+    const queue = new LoanRequestController(requests as never);
+
+    self.list(user);
+    expect(requests.listSelf).toHaveBeenCalledWith(user);
+    const apply = { amount: 500000, reason: 'sekolah' } as never;
+    self.submit(apply, user);
+    expect(requests.submit).toHaveBeenCalledWith(user, apply);
+    self.cancel('lr1', user);
+    expect(requests.cancel).toHaveBeenCalledWith(user, 'lr1');
+
+    const q = { status: 'PENDING', page: 1, pageSize: 20 } as never;
+    queue.list(q, user);
+    expect(requests.listAll).toHaveBeenCalledWith(user, q);
+    // The whole decision body travels as one: the terms are the approver's to set (K3),
+    // and `seenUpdatedAt` rides along so two approvers cannot both write.
+    const decision = {
+      approve: true,
+      installmentAmount: 100000,
+      startPeriod: '2026-10',
+      seenUpdatedAt: '2026-09-10T00:00:00.000Z',
+    } as never;
+    queue.decide('lr1', decision, user);
+    expect(requests.decide).toHaveBeenCalledWith(user, 'lr1', decision);
+  });
+
   it('documents delegate, including the internal retention purge', () => {
     const documents = svcMock(['list', 'get', 'upload', 'purgeRetentionEligible']);
     const dc = new DocumentController(documents as never);

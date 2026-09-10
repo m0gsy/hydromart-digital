@@ -45,6 +45,12 @@ export default function MePage() {
           <p className="mt-1 text-sm text-muted">{t('hrFix.me.myLeaveBody')}</p>
         </Card>
       </Link>
+      <Link href="/hr/me/kasbon">
+        <Card className="p-5 text-center transition-colors hover:bg-brand-50">
+          <p className="font-semibold">{t('hrFix.myKasbon.title')}</p>
+          <p className="mt-1 text-sm text-muted">{t('hrFix.myKasbon.subtitle')}</p>
+        </Card>
+      </Link>
       <Link href="/hr/me/announcements">
         <Card className="p-5 text-center transition-colors hover:bg-brand-50">
           <p className="font-semibold">{t('hrFix.me.announcements')}</p>

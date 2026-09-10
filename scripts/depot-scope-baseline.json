@@ -1,5 +1,5 @@
 {
-  "count": 65,
+  "count": 66,
   "routes": [
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
@@ -31,6 +31,7 @@
     "services/hr-service/src/modules/document.controller.ts Get :id @Can(hrView)",
     "services/hr-service/src/modules/document.controller.ts Get :id/file @Can(hrView)",
     "services/hr-service/src/modules/leave.controller.ts Patch :id/cancel @Can(-)",
+    "services/hr-service/src/modules/loan-request.controller.ts Patch :id/cancel @Can(-)",
     "services/hr-service/src/modules/payroll.controller.ts Get me/:id @Can(-)",
     "services/hr-service/src/modules/payroll.controller.ts Get me/:id/slip @Can(-)",
     "services/loyalty-service/src/modules/loyalty.controller.ts Get customers/:customerId @Can(loyaltyRead)",

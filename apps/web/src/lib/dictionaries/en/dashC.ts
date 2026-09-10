@@ -193,6 +193,7 @@ export const dashC = {
       hrAdmin: 'HRIS (manage employees)',
       hrPayroll: 'Payroll',
       leaveApprove: 'Approve leave',
+      kasbonApprove: 'Approve cash advance',
       hrView: 'HR reports (view)',
       rewardHandover: 'Reward hand-over',
       pdpRequests: 'Personal-data requests (UU PDP)',

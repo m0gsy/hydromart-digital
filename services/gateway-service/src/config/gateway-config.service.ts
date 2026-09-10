@@ -49,6 +49,10 @@ const SEGMENT_ENV: Record<string, string> = {
   // Kasbon + the bonus-rule engine. Both were reachable only inside the cluster until now —
   // the console has been calling them through the gateway all along.
   loans: 'HR_SERVICE_URL',
+  // Kasbon somebody raised for themselves. Its own segment rather than a path under
+  // `loans`, because `loans` is money payroll is already deducting and a request is not
+  // that yet — the two have different readers and different capabilities.
+  'loan-requests': 'HR_SERVICE_URL',
   'bonus-rules': 'HR_SERVICE_URL',
   performance: 'HR_SERVICE_URL',
   'hr-reports': 'HR_SERVICE_URL',

@@ -35,6 +35,10 @@ export type Role =
 // ASSISTANT_SUPERVISOR and SUPERVISOR see MANY depots but hold deliberately WEAKER
 // powers than MANAGER: oversight reads, no writes, no money, no approvals. Widening
 // them is a runtime matrix edit, not a redeploy — these are only the seeded defaults.
+//
+// ONE EXCEPTION, added knowingly: `kasbonApprove`. An ASSISTANT_SUPERVISOR decides the
+// kasbon raised at their own depots, which is both a money decision and an approval. The
+// reason is written where the capability is.
 export const CAPABILITIES = {
   // dashboard-service — executive dashboard.
   dashboard: [
@@ -316,6 +320,24 @@ export const CAPABILITIES = {
   // depot (DepotScopeGuard enforces that); HR holds it too so a depot without a manager is
   // not stuck, and stage 2 stays hrAdmin either way.
   leaveApprove: ['MANAGER', 'HR', 'SUPER_ADMIN'],
+  /*
+   * hr-service — decide a kasbon somebody raised for themselves (K1/K2).
+   *
+   * ASSISTANT_SUPERVISOR is here on purpose, and it is the FIRST money decision they hold:
+   * the header above says "oversight reads, no writes, no money, no approvals", and that
+   * sentence is now one exception out of date. The exception is deliberate — the assistant
+   * supervisor is the person who actually knows the depot's staff, and routing every
+   * kasbon through a manager who has never met them is how an approval queue becomes a
+   * rubber stamp.
+   *
+   * MANAGER holds it for the escalation in K2: a depot with no assistant recorded is in
+   * nobody's derived scope, so only a direct grant reaches it — and without MANAGER here
+   * that request could never be answered by anyone.
+   *
+   * `@Roles` cannot express this: `check-roles-policy.mjs` allows only four fixed single
+   * roles, so the controller carries `@Can('kasbonApprove')`.
+   */
+  kasbonApprove: ['ASSISTANT_SUPERVISOR', 'MANAGER', 'HR', 'SUPER_ADMIN'],
   // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
   // manager see their own depot (DepotScopeGuard keeps it to their depot).
   hrView: [
