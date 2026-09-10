@@ -66,6 +66,28 @@ export function destinationFor(
       return '/products';
     case NotificationEvent.CUSTOMER_REGISTERED:
       return '/';
+    /*
+     * The kasbon events, and they are the first HR events to name a screen rather than fall
+     * back to the inbox.
+     *
+     * They can, because unlike leave the two directions land on two screens that are not
+     * role-ambiguous: the decider's queue and the applicant's own request list. `/hr/me/*`
+     * is self-service and open to any signed-in employee; `/hr/loans/requests` is
+     * `kasbonApprove`, which is exactly the set of people this event is ever sent to.
+     *
+     * This is what makes the push worth sending at all. A notification that wakes a phone
+     * and then drops the person on a list of notifications has told them something is
+     * waiting without taking them to it.
+     *
+     * `/hr/loans/**` must survive the mobile route pruning for this to land — see
+     * `SURFACES.ops.serves` in apps/web/scripts/build-mobile.mjs, which fails the build if
+     * it ever stops being exported.
+     */
+    case NotificationEvent.LOAN_REQUEST_SUBMITTED:
+      return '/hr/loans/requests';
+    case NotificationEvent.LOAN_REQUEST_APPROVED:
+    case NotificationEvent.LOAN_REQUEST_REJECTED:
+      return '/hr/me/kasbon';
     default:
       return INBOX;
   }
