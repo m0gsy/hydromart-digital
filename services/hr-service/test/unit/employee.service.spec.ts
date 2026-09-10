@@ -180,6 +180,10 @@ function make() {
     async setSuperior(staff: string, superior: string) {
       supervision.links.push({ staff, superior });
     },
+    // Kasbon only; nothing in this suite asks a depot who its assistant is.
+    async assistantOfDepot() {
+      return null;
+    },
   };
   return {
     repo,

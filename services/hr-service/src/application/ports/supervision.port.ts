@@ -22,4 +22,15 @@ export interface SupervisionPort {
    * account) is reported on that row rather than dropped.
    */
   setSuperior(authSubjectId: string, superiorAuthSubjectId: string): Promise<void>;
+
+  /**
+   * auth-service account id of the depot's assistant supervisor, or null when the depot
+   * has none recorded yet.
+   *
+   * Throws, unlike `superiorOf`. This one decides who may approve money, and a lookup
+   * that failed is not the same answer as "nobody" — treating a blinked depot-service as
+   * "no assistant, so anyone with scope decides" would widen the approval right exactly
+   * when the system is least able to say who holds it. Money fails CLOSED.
+   */
+  assistantOfDepot(depotId: string): Promise<string | null>;
 }
