@@ -139,6 +139,7 @@ interface OrderRow {
   history?: HistoryRow[];
   // id-only: toRecord derives just the `reviewed` flag (INCLUDE selects id alone, DB-9).
   review: { id: string } | null;
+  statusChangedAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -255,6 +256,7 @@ export class OrderPrismaRepository implements OrderRepository {
         createdAt: h.createdAt,
       })),
       reviewed: row.review != null,
+      statusChangedAt: row.statusChangedAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

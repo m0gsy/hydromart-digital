@@ -86,6 +86,17 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   history: OrderStatusHistoryRecord[];
   /** Whether the customer has already rated this order (spec 7c). */
   reviewed: boolean;
+  /**
+   * When the order last changed STATUS — not when the row was last written.
+   *
+   * The column has existed since the SLA sweep needed it, is indexed CONCURRENTLY, and is
+   * written on every transition. It has never reached a read model, so nothing outside
+   * this service could tell "confirmed forty minutes ago and still unclaimed" from
+   * "confirmed just now": `updatedAt` moves for a note edit or a payment write, and
+   * `createdAt` never moves at all. A courier deciding whether an order has been waiting
+   * needs this one.
+   */
+  statusChangedAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -215,6 +215,10 @@ export class InMemoryOrderRepository implements OrderRepository {
       driverPhone: null,
       estimatedArrivalAt: null,
       reviewed: false,
+      // A fake that never moves this cannot model what it is for: `updatedAt` moves for a
+      // note edit or a payment write, so "waiting since" and "written since" are different
+      // clocks and only one of them answers a courier's question.
+      statusChangedAt: now,
       createdAt: now,
       updatedAt: now,
     };
@@ -390,6 +394,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     if (driverPhone != null) row.driverPhone = driverPhone;
     if (estimatedArrivalAt != null) row.estimatedArrivalAt = estimatedArrivalAt;
     row.updatedAt = nextDate();
+    row.statusChangedAt = row.updatedAt;
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return structuredClone(row);
   }
@@ -482,6 +487,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       throw new OrderAlreadyVoidedError();
     }
     row.status = OrderStatus.VOIDED;
+    row.statusChangedAt = at;
     row.history.push({ status: OrderStatus.VOIDED, changedBy, note: reason, createdAt: at });
     return { ...row };
   }

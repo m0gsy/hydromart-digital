@@ -354,8 +354,11 @@ describe('OrderPrismaRepository', () => {
       { status: 'CREATED', changedBy: null, note: null, createdAt: new Date('2026-01-01') },
     ],
     review: null,
+    // Deliberately NOT equal to createdAt/updatedAt: the point of the column is that it is
+    // a third clock, and a fixture where all three match cannot tell them apart.
+    statusChangedAt: new Date('2026-01-03'),
     createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-02'),
   });
 
   const createData: CreateOrderData = {
@@ -548,6 +551,15 @@ describe('OrderPrismaRepository', () => {
     order.findUnique.mockResolvedValue({ ...orderRow(), review: { id: 'rev-1' } });
     const out = await repo.findById('ord-1');
     expect(out?.reviewed).toBe(true);
+    /*
+     * The column has been written on every transition since the SLA sweep needed it, and
+     * has never once reached a read model. Nothing outside this service could tell
+     * "confirmed forty minutes ago and still unclaimed" from "confirmed just now":
+     * `updatedAt` moves for a note edit or a payment write, and `createdAt` never moves.
+     */
+    expect(out?.statusChangedAt).toEqual(new Date('2026-01-03'));
+    expect(out?.createdAt).toEqual(new Date('2026-01-01'));
+    expect(out?.updatedAt).toEqual(new Date('2026-01-02'));
     expect(order.findUnique).toHaveBeenCalledWith({
       where: { id: 'ord-1' },
       include: expect.any(Object),

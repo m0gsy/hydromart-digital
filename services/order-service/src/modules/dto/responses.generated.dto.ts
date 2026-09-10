@@ -650,6 +650,8 @@ export class OrderResponseDto {
   @ApiProperty({ type: Boolean })
   reviewed!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
+  statusChangedAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
