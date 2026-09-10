@@ -91,6 +91,9 @@ export enum NotificationEvent {
   LEAVE_SUBMITTED = 'LEAVE_SUBMITTED',
   LEAVE_APPROVED = 'LEAVE_APPROVED',
   LEAVE_REJECTED = 'LEAVE_REJECTED',
+  LOAN_REQUEST_SUBMITTED = 'LOAN_REQUEST_SUBMITTED',
+  LOAN_REQUEST_APPROVED = 'LOAN_REQUEST_APPROVED',
+  LOAN_REQUEST_REJECTED = 'LOAN_REQUEST_REJECTED',
   HR_ANNOUNCEMENT = 'HR_ANNOUNCEMENT',
   // Marketing broadcast (Module 12). The one event whose copy is NOT owned here: staff
   // author the whole message in the HQ broadcast console, so the template is a bare
@@ -172,6 +175,12 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}, cuti {{type}} tanggal {{from}} s/d {{to}} sudah DISETUJUI. Selamat beristirahat!',
   [NotificationEvent.LEAVE_REJECTED]:
     'Halo {{name}}, cuti {{type}} tanggal {{from}} s/d {{to}} DITOLAK. Alasan: {{reason}}. Silakan hubungi HR bila perlu.',
+  [NotificationEvent.LOAN_REQUEST_SUBMITTED]:
+    'Pengajuan kasbon dari {{name}} sebesar Rp{{amount}} menunggu keputusan Anda.',
+  [NotificationEvent.LOAN_REQUEST_APPROVED]:
+    'Halo {{name}}, kasbon Rp{{amount}} DISETUJUI. Cicilannya dipotong otomatis dari gaji — lihat rinciannya di menu Kasbon.',
+  [NotificationEvent.LOAN_REQUEST_REJECTED]:
+    'Halo {{name}}, kasbon Rp{{amount}} DITOLAK. Alasan: {{reason}}. Silakan hubungi atasan Anda bila perlu.',
   [NotificationEvent.HR_ANNOUNCEMENT]: '📢 {{title}}\n{{body}}',
   [NotificationEvent.BROADCAST]: '{{message}}',
 };
@@ -193,9 +202,15 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.LEAVE_SUBMITTED,
   NotificationEvent.LEAVE_APPROVED,
   NotificationEvent.LEAVE_REJECTED,
+  // Kasbon is HR too, and the recipient is an employee at both ends — the decider on the
+  // way in, the applicant on the way out. This list has NO type guard, unlike the two
+  // template tables: an event missing here compiles and then quietly lands in a CUSTOMER
+  // inbox instead of the ops feed.
+  NotificationEvent.LOAN_REQUEST_SUBMITTED,
+  NotificationEvent.LOAN_REQUEST_APPROVED,
+  NotificationEvent.LOAN_REQUEST_REJECTED,
   NotificationEvent.HR_ANNOUNCEMENT,
 ];
-
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
 // to a depot's own number: a depot run in English gets its alerts in English too.
@@ -252,6 +267,12 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}, your {{type}} leave from {{from}} to {{to}} has been APPROVED. Enjoy the break!',
   [NotificationEvent.LEAVE_REJECTED]:
     'Hi {{name}}, your {{type}} leave from {{from}} to {{to}} was DECLINED. Reason: {{reason}}. Please talk to HR if you need to.',
+  [NotificationEvent.LOAN_REQUEST_SUBMITTED]:
+    'A cash advance request from {{name}} for Rp{{amount}} is waiting for your decision.',
+  [NotificationEvent.LOAN_REQUEST_APPROVED]:
+    'Hi {{name}}, your Rp{{amount}} cash advance was APPROVED. Instalments come off your pay automatically — see the details under Kasbon.',
+  [NotificationEvent.LOAN_REQUEST_REJECTED]:
+    'Hi {{name}}, your Rp{{amount}} cash advance was DECLINED. Reason: {{reason}}. Please talk to your supervisor if you need to.',
   [NotificationEvent.HR_ANNOUNCEMENT]: '📢 {{title}}\n{{body}}',
   [NotificationEvent.BROADCAST]: '{{message}}',
 };

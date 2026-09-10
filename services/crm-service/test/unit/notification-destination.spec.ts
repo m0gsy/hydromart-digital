@@ -42,6 +42,22 @@ describe('destinationFor', () => {
     expect(destinationFor(NotificationEvent.STOCK_LOW, {})).toBe('/notifications');
     expect(destinationFor(NotificationEvent.HR_ANNOUNCEMENT)).toBe('/notifications');
   });
+
+  /*
+   * The kasbon events are the exception, and it is a deliberate one: unlike leave, the two
+   * directions land on two screens that are not role-ambiguous. Waking somebody's phone and
+   * then dropping them on a list of notifications tells them something is waiting without
+   * taking them to it.
+   */
+  it.each([
+    [NotificationEvent.LOAN_REQUEST_SUBMITTED, '/hr/loans/requests'],
+    [NotificationEvent.LOAN_REQUEST_APPROVED, '/hr/me/kasbon'],
+    [NotificationEvent.LOAN_REQUEST_REJECTED, '/hr/me/kasbon'],
+  ])('%s opens %s on the phone that was woken', (event, url) => {
+    expect(destinationFor(event, {})).toBe(url);
+    // …and the inbox row is tappable too, because the destination is not the inbox itself.
+    expect(storedDestinationFor(event, {})).toBe(url);
+  });
 });
 
 describe('NotificationService push destination', () => {
