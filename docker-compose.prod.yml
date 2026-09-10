@@ -365,6 +365,15 @@ services:
       DEPOT_SERVICE_PORT: 3007
       DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CRM_SERVICE_URL: http://crm:3012
+      # CA-2-58: head office's complaint queue lives in admin-service, and a depot complaint
+      # is mirrored there so the two records finally meet. This line was the one missing
+      # half of that fix in production — `delivery`, `dashboard` and `gateway` all carry the
+      # variable and `depot`, the service that actually raises the mirror, did not.
+      #
+      # `hq-complaint.http.adapter.ts` fails SOFT on a blank value, which is why nothing ever
+      # went red: the depot's own incident row simply said it had not been forwarded, and
+      # only somebody reading that row would ever know.
+      ADMIN_SERVICE_URL: http://admin:3017
       # Read when a PRODUK stock line is opened, to validate the product id and take the
       # catalog's own name for it. Unset here would silently fall back to localhost, which
       # in a container means every lookup fails and validation quietly stops happening.
