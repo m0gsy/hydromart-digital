@@ -36,10 +36,13 @@ import {
 } from '../infrastructure/prisma/adjustment.prisma.repository';
 import { BONUS_RULE_REPOSITORY } from '../application/ports/bonus-rule.repository';
 import { LOAN_REPOSITORY } from '../application/ports/loan.repository';
+import { LOAN_REQUEST_REPOSITORY } from '../application/ports/loan-request.repository';
 import { BonusRuleService } from '../application/services/bonus-rule.service';
 import { LoanService } from '../application/services/loan.service';
+import { LoanRequestService } from '../application/services/loan-request.service';
 import { BonusRulePrismaRepository } from '../infrastructure/prisma/bonus-rule.prisma.repository';
 import { LoanPrismaRepository } from '../infrastructure/prisma/loan.prisma.repository';
+import { LoanRequestPrismaRepository } from '../infrastructure/prisma/loan-request.prisma.repository';
 import { SALES_PORT } from '../application/ports/sales.port';
 import { OrderSalesHttpAdapter } from '../infrastructure/http/order-sales.http.adapter';
 import { IdentityHttpAdapter } from '../infrastructure/http/identity.http.adapter';
@@ -151,8 +154,10 @@ const providers: Provider[] = [
   AllowanceService,
   { provide: BONUS_RULE_REPOSITORY, useClass: BonusRulePrismaRepository },
   { provide: LOAN_REPOSITORY, useClass: LoanPrismaRepository },
+  { provide: LOAN_REQUEST_REPOSITORY, useClass: LoanRequestPrismaRepository },
   BonusRuleService,
   LoanService,
+  LoanRequestService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
   // Outbound HR notifications (leave decisions, announcements) via crm-service.
   { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },

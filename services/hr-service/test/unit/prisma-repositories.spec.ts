@@ -23,6 +23,7 @@ import { decryptVector, encryptVector } from '../../src/infrastructure/crypto/fa
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { HolidayPrismaRepository } from '../../src/infrastructure/prisma/holiday.prisma.repository';
 import { LoanPrismaRepository } from '../../src/infrastructure/prisma/loan.prisma.repository';
+import { LoanRequestPrismaRepository } from '../../src/infrastructure/prisma/loan-request.prisma.repository';
 import { PayrollPrismaRepository } from '../../src/infrastructure/prisma/payroll.prisma.repository';
 import { PerformancePrismaRepository } from '../../src/infrastructure/prisma/performance.prisma.repository';
 import { SettingsPrismaRepository } from '../../src/infrastructure/prisma/settings.prisma.repository';
@@ -76,6 +77,7 @@ const MODELS = [
   'faceEmbedding',
   'holiday',
   'loan',
+  'loanRequest',
   'payroll',
   'payrollItem',
   'performanceReview',
@@ -1125,7 +1127,11 @@ describe('AnalyticsPrismaRepository', () => {
       { employeeId: 'e2', status: 'ABSENT', _count: { _all: 3 } },
     ]);
     const repo = new AttendancePrismaRepository(asService(p));
-    const out = await repo.summaryMany(['e1', 'e2'], new Date('2026-07-01'), new Date('2026-07-31'));
+    const out = await repo.summaryMany(
+      ['e1', 'e2'],
+      new Date('2026-07-01'),
+      new Date('2026-07-31'),
+    );
 
     // Same arithmetic as summary(): presentDays counts PRESENT *and* LATE.
     expect(out.get('e1')).toEqual({ presentDays: 20, lateDays: 2, leaveDays: 1, pendingDays: 0 });
@@ -1291,7 +1297,11 @@ describe('AnalyticsPrismaRepository', () => {
     const repo = new AnalyticsPrismaRepository(asService(p));
     await repo.attendanceForReport(from, to, ['d1']);
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
-      where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: { not: 'PENDING' } },
+      where: {
+        workDate: { gte: from, lte: to },
+        depotId: { in: ['d1'] },
+        status: { not: 'PENDING' },
+      },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
       orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }, { id: 'asc' }],
       take: 500,
@@ -1404,7 +1414,9 @@ describe('AnalyticsPrismaRepository', () => {
   it('walks an export past the first page with a cursor', async () => {
     const p = makePrisma();
     const page = Array.from({ length: 500 }, (_, i) => ({ id: `e-${i}` }));
-    m(p, 'employee').findMany.mockResolvedValueOnce(page).mockResolvedValueOnce([{ id: 'e-500' }]);
+    m(p, 'employee')
+      .findMany.mockResolvedValueOnce(page)
+      .mockResolvedValueOnce([{ id: 'e-500' }]);
     const rows = await new AnalyticsPrismaRepository(asService(p)).employeesForReport(['d1']);
     expect(rows).toHaveLength(501);
     expect(m(p, 'employee').findMany).toHaveBeenLastCalledWith(
@@ -1925,7 +1937,9 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     const p = makePrisma();
     m(p, 'employee').findUnique.mockResolvedValue(null);
 
-    expect(await new EmployeePrismaRepository(p as never).anonymiseByAuthSubjectId('ghost')).toBe(0);
+    expect(await new EmployeePrismaRepository(p as never).anonymiseByAuthSubjectId('ghost')).toBe(
+      0,
+    );
     expect(p.$transaction).not.toHaveBeenCalled();
   });
 
@@ -2097,7 +2111,11 @@ describe('EmployeePrismaRepository', () => {
     it('names the most specific collision it can', async () => {
       const both = { employeeCode: 'HR-1', nik: '3201', phone: '+628123' };
       await expect(
-        repoWith(both).repo.findConflicting({ phone: '+628123', employeeCode: 'HR-1', nik: '3201' }),
+        repoWith(both).repo.findConflicting({
+          phone: '+628123',
+          employeeCode: 'HR-1',
+          nik: '3201',
+        }),
       ).resolves.toBe('employeeCode');
 
       await expect(
@@ -2385,11 +2403,12 @@ describe('LoanPrismaRepository', () => {
     m(p, 'loan').count.mockResolvedValue(1);
     const repo = new LoanPrismaRepository(asService(p));
 
-    await expect(repo.listAll({ depotIds: ['d1', 'd2'], activeOnly: true, skip: 5, take: 10 }))
-      .resolves.toEqual({
-        rows: [{ id: 'l1', employeeName: 'Budi', employeeCode: 'K001' }],
-        total: 1,
-      });
+    await expect(
+      repo.listAll({ depotIds: ['d1', 'd2'], activeOnly: true, skip: 5, take: 10 }),
+    ).resolves.toEqual({
+      rows: [{ id: 'l1', employeeName: 'Budi', employeeCode: 'K001' }],
+      total: 1,
+    });
     const where = { active: true, employee: { depotId: { in: ['d1', 'd2'] } } };
     expect(m(p, 'loan').findMany).toHaveBeenCalledWith({
       where,
@@ -2419,6 +2438,99 @@ describe('LoanPrismaRepository', () => {
       orderBy: { createdAt: 'desc' },
       skip: 0,
       take: 20,
+    });
+  });
+});
+
+// ── LoanRequestPrismaRepository ────────────────────────────────────────
+describe('LoanRequestPrismaRepository', () => {
+  const write = { employeeId: 'e1', depotId: 'd1', amount: 500000, reason: 'sekolah' };
+
+  it('create/findById/listByEmployee/decide passthrough', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'loanRequest').create.mockResolvedValue(out);
+    m(p, 'loanRequest').findUnique.mockResolvedValue(out);
+    m(p, 'loanRequest').findMany.mockResolvedValue([out]);
+    m(p, 'loanRequest').update.mockResolvedValue(out);
+    const repo = new LoanRequestPrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'loanRequest').create).toHaveBeenCalledWith({ data: write });
+
+    await expect(repo.findById('lr1')).resolves.toBe(out);
+    expect(m(p, 'loanRequest').findUnique).toHaveBeenCalledWith({ where: { id: 'lr1' } });
+
+    await expect(repo.listByEmployee('e1')).resolves.toEqual([out]);
+    expect(m(p, 'loanRequest').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // `decidedAt` is stamped here, not by the caller: one clock, one writer.
+    await expect(
+      repo.decide('lr1', {
+        status: 'APPROVED',
+        decidedBy: 'asv',
+        decisionNote: null,
+        loanId: 'l1',
+      }),
+    ).resolves.toBe(out);
+    const [[call]] = m(p, 'loanRequest').update.mock.calls;
+    expect(call.where).toEqual({ id: 'lr1' });
+    expect(call.data).toMatchObject({ status: 'APPROVED', decidedBy: 'asv', loanId: 'l1' });
+    expect(call.data.decidedAt).toBeInstanceOf(Date);
+  });
+
+  /*
+   * The depot is read off the REQUEST, not through the employee relation the way `loans`
+   * does it — an employee who moves depot must not drag an open request into a queue the
+   * new supervisor never saw. A loan follows the person; a request stays where it was
+   * raised.
+   */
+  it('scopes the queue by the depot on the row, and names the applicant', async () => {
+    const p = makePrisma();
+    m(p, 'loanRequest').findMany.mockResolvedValue([
+      { id: 'lr1', employee: { fullName: 'Budi', employeeCode: 'HR-0001' } },
+      { id: 'lr2', employee: null },
+    ]);
+    m(p, 'loanRequest').count.mockResolvedValue(2);
+    const repo = new LoanRequestPrismaRepository(asService(p));
+
+    await expect(
+      repo.listAll({ depotIds: ['d1'], status: 'PENDING', skip: 0, take: 20 }),
+    ).resolves.toEqual({
+      rows: [
+        { id: 'lr1', employeeName: 'Budi', employeeCode: 'HR-0001' },
+        // An anonymised employee has no row left to name — a null, not a crash.
+        { id: 'lr2', employeeName: null, employeeCode: null },
+      ],
+      total: 2,
+    });
+    const where = { status: 'PENDING', depotId: { in: ['d1'] } };
+    expect(m(p, 'loanRequest').findMany).toHaveBeenLastCalledWith({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+      include: { employee: { select: { fullName: true, employeeCode: true } } },
+    });
+    expect(m(p, 'loanRequest').count).toHaveBeenCalledWith({ where });
+  });
+
+  it('asks for everything when the reader sits above depots and filters nothing', async () => {
+    const p = makePrisma();
+    m(p, 'loanRequest').findMany.mockResolvedValue([]);
+    m(p, 'loanRequest').count.mockResolvedValue(0);
+    const repo = new LoanRequestPrismaRepository(asService(p));
+
+    await expect(repo.listAll({ skip: 0, take: 20 })).resolves.toEqual({ rows: [], total: 0 });
+    expect(m(p, 'loanRequest').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+      include: { employee: { select: { fullName: true, employeeCode: true } } },
     });
   });
 });

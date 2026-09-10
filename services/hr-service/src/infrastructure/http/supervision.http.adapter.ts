@@ -2,6 +2,7 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 
 import { httpSuperiorResolver } from '@hydromart/platform';
 
+import { HrConfigService } from '../../config/hr-config.service';
 import { SupervisionPort } from '../../application/ports/supervision.port';
 
 /**
@@ -20,6 +21,12 @@ export class SupervisionHttpAdapter implements SupervisionPort {
     internalKey: process.env.INTERNAL_SERVICE_KEY,
   });
 
+  // Injected, not read at field-initialisation time like the two lines above. Those are
+  // left alone deliberately — rewriting them is a behaviour change to a working path — but
+  // anything NEW reads its URL through the config service, which is the only form
+  // `check-endpoint-contracts` can resolve.
+  constructor(private readonly config: HrConfigService) {}
+
   async superiorOf(authSubjectId: string): Promise<string | null> {
     try {
       return await this.resolve(authSubjectId);
@@ -29,6 +36,39 @@ export class SupervisionHttpAdapter implements SupervisionPort {
       );
       return null;
     }
+  }
+
+  /**
+   * Who decides a kasbon raised at this depot.
+   *
+   * Throws where `superiorOf` swallows, and the difference is what is at stake: a missed
+   * notification is a missed notification, but a failed lookup treated as "no assistant"
+   * would hand the decision to anyone whose scope reaches the depot. 503 says "ask again",
+   * which is the honest answer when the service that knows is not answering.
+   */
+  async assistantOfDepot(depotId: string): Promise<string | null> {
+    const { url, internalKey } = this.config.depotService;
+    if (!url || !internalKey) {
+      throw new ServiceUnavailableException('DEPOT_SERVICE_URL/INTERNAL_SERVICE_KEY belum diset');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`${url.replace(/\/$/, '')}/api/v1/depots/internal/${depotId}/assistant`, {
+        headers: { 'x-internal-key': internalKey },
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (err) {
+      throw new ServiceUnavailableException(
+        `depot-service tidak terjangkau: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+    if (!res.ok) {
+      throw new ServiceUnavailableException(
+        `depot-service tidak bisa menyebut asisten supervisor depot (${res.status})`,
+      );
+    }
+    const body = (await res.json()) as { assistantSupervisorId?: string | null };
+    return body.assistantSupervisorId ?? null;
   }
 
   /**

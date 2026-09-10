@@ -292,6 +292,7 @@ model Employee {
   reviews          PerformanceReview[]
   payrolls         Payroll[]
   loans            Loan[]
+  loanRequests     LoanRequest[]
   assets           EmployeeAsset[]
   leaveRequests    LeaveRequest[]
   leaveBalances    LeaveBalance[]
@@ -831,6 +832,55 @@ model Loan {
 
   @@index([employeeId, active])
   @@map("loans")
+}
+
+/// Who decides a kasbon, and what they decided. PENDING until then.
+enum LoanRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// A kasbon somebody asked for. Deliberately NOT a `Loan` with a status column.
+///
+/// `Loan` has no nullable `startPeriod`, and the domain functions read it before their own
+/// guards — `installmentsElapsed` calls `periodIndex(loan.startPeriod).split('-')` at
+/// domain/loan.ts:34, `loanRemainingAfter` and `loanIsSettled` have no guard at all. One
+/// PENDING row with no start period would make `GET /loans/all` throw 500 for everybody.
+///
+/// So a request is its own row, and the approval is what creates the `Loan`. That is the
+/// shape `LeaveRequest` already uses for the same reason, and it keeps `Loan` meaning
+/// exactly one thing: money payroll is deducting. `listActiveByEmployee` — the single
+/// production caller behind payroll.service.ts:418 — needs no change at all.
+model LoanRequest {
+  id           String            @id @default(uuid()) @db.Uuid
+  employeeId   String            @db.Uuid
+  /// Copied from the employee at submit so the queue is depot-scoped without a join.
+  /// NOT NULL, and that is a decision: an employee with no depot has no assistant
+  /// supervisor to decide, so the submission is refused rather than filed nowhere.
+  depotId      String            @db.Uuid
+  amount       Decimal           @db.Decimal(14, 2)
+  reason       String
+  status       LoanRequestStatus @default(PENDING)
+  decidedBy    String?           @db.Uuid
+  decidedAt    DateTime?
+  /// Why it was refused. The applicant reads this, so a rejection never leaves it empty.
+  decisionNote String?
+  /// The Loan the approval created — the terms live there, set by the approver (K3).
+  loanId       String?           @db.Uuid
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Also a PARTIAL unique index on (employeeId) WHERE status = 'PENDING', added in the
+  // migration and invisible to Prisma, which cannot express a WHERE on an index — the same
+  // reason ServiceSetting carries two of them. One open request per person; the repository
+  // catches P2002 rather than reading first and racing.
+  @@index([employeeId, createdAt])
+  @@index([depotId, status])
+  @@map("loan_requests")
 }
 
 /// HR audit trail: who changed what. Written by an interceptor on every mutation.

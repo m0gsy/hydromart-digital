@@ -162,6 +162,8 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; j
     superiorOf: async (accountId: string) =>
       accountId === EMPLOYEE.authSubjectId ? SUPERVISOR.authSubjectId : null,
     setSuperior: async () => {},
+    // Kasbon only; leave never asks a depot who its assistant is.
+    assistantOfDepot: async () => null,
   };
   const config = {
     weeklyOffDays: () => opts.weeklyOff ?? '',

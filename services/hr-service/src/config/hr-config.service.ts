@@ -325,6 +325,21 @@ export class HrConfigService {
       internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
     };
   }
+  /**
+   * depot-service base URL + internal key, for the two reads that cross that boundary:
+   * who a person reports to, and who is the assistant supervisor of a depot.
+   *
+   * A getter, read when the method runs — NOT a field initialiser. `SupervisionHttpAdapter`
+   * has no constructor and reads `process.env` while its fields are built, and
+   * `check-endpoint-contracts` can only resolve `this.config.get(...)`; a URL assembled from
+   * a bare `process.env` is invisible to it.
+   */
+  get depotService(): { url: string; internalKey: string } {
+    return {
+      url: this.config.get<string>('DEPOT_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
   /** BiznetGio NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only. */
   get neoFr(): { endpoint: string; token: string; galleryId: string } {
     return {
