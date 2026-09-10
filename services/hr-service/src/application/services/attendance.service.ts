@@ -368,15 +368,34 @@ export class AttendanceService {
   }
 
   /**
-   * The object key inside a stored photo URL, or null when the URL is not one this
-   * deployment wrote. Manual entries have no photo at all, and rows written against an
-   * older bucket keep a URL this service can no longer read — both are "no photo", which is
-   * the honest answer, rather than an outbound fetch to whatever the column happens to say.
+   * The object key behind a stored attendance photo, or null when there is nothing this
+   * deployment can read.
+   *
+   * TWO SHAPES, and accepting only one of them is the defect this now closes. The column is
+   * called `checkInPhotoUrl`, but `upload-frame.ts` deliberately stores the KEY and says so:
+   * "the key, never the public URL. A face frame is biometric data… Reading a frame back
+   * needs an authenticated route which resolves the key — which nothing asks for today, so
+   * nothing exists." That route was built later and written for the OTHER shape, so it
+   * stripped a base prefix that was never there, resolved null, and answered "Foto absensi
+   * tidak tersedia" for EVERY photo ever taken — next to a badge reading "cocok 100%",
+   * because the score is stored on the same row and did resolve.
+   *
+   * Measured on production 2026-09-10: both stored values are bare keys
+   * (`hr/attendance/<uuid>.jpg`), zero are URLs.
+   *
+   * A full URL is still accepted, because a deployment that stored `stored.url` — the shape
+   * `S3StorageAdapter.put` also returns — must keep reading. Anything else is "no photo",
+   * which is the honest answer rather than an outbound fetch to whatever the column says.
+   *
+   * `hr/documents` never had this problem: it carries a separate `fileKey` column and reads
+   * from that. Attendance was never given one.
    */
-  private storageKeyOf(url: string | null): string | null {
+  private storageKeyOf(stored: string | null): string | null {
+    if (!stored) return null;
     const base = this.config.storagePublicBaseUrl;
-    if (!url || !base || !url.startsWith(`${base}/`)) return null;
-    const key = url.slice(base.length + 1);
+    const key = base && stored.startsWith(`${base}/`) ? stored.slice(base.length + 1) : stored;
+    // Absolute anything else is another deployment's bucket, and traversal is never a key.
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(key)) return null;
     return key.startsWith('hr/') && !key.includes('..') ? key : null;
   }
 

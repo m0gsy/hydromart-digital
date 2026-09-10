@@ -86,6 +86,40 @@ describe('CA-1-66 the frame a punch was accepted on', () => {
     expect(asked).toEqual(['hr/attendance/abc.jpg']);
   });
 
+  /*
+   * The shape the writer ACTUALLY stores, and the reason every photo was unreadable.
+   *
+   * `upload-frame.ts` returns the KEY on purpose ("the key, never the public URL — a face
+   * frame is biometric data"), so the column named `checkInPhotoUrl` holds
+   * `hr/attendance/<uuid>.jpg`. The reader was written for the other shape and stripped a
+   * base prefix that was never there. Every test above fed it a URL, so the suite agreed
+   * with the reader and neither of them agreed with the writer.
+   *
+   * Measured on production 2026-09-10: every stored value is a bare key, none is a URL.
+   */
+  it('reads the BARE KEY the writer actually stores', async () => {
+    const { svc, asked } = build(attendance({ checkInPhotoUrl: 'hr/attendance/abc.jpg' }));
+    const out = await svc.photo(hq, 'a1', 'in');
+    expect(out.body.toString()).toBe('jpegbytes');
+    expect(asked).toEqual(['hr/attendance/abc.jpg']);
+  });
+
+  it('reads a bare key even where no public base is configured', async () => {
+    const { svc, asked } = build(attendance({ checkInPhotoUrl: 'hr/attendance/abc.jpg' }), '');
+    await expect(svc.photo(hq, 'a1', 'in')).resolves.toMatchObject({ contentType: 'image/jpeg' });
+    expect(asked).toEqual(['hr/attendance/abc.jpg']);
+  });
+
+  it.each([
+    ['a bare key climbing out of its prefix', 'hr/../../etc/passwd'],
+    ['a bare key outside the hr/ prefix', 'private/keys.json'],
+    ['a bare key on another scheme', 'file:///etc/passwd'],
+  ])('still refuses %s', async (_label, key) => {
+    const { svc, asked } = build(attendance({ checkInPhotoUrl: key }));
+    await expect(svc.photo(hq, 'a1', 'in')).rejects.toBeInstanceOf(NotFoundException);
+    expect(asked).toEqual([]);
+  });
+
   it('refuses a row from another depot before it touches storage', async () => {
     const { svc, asked } = build(attendance());
     await expect(svc.photo(otherDepot, 'a1', 'in')).rejects.toThrow();

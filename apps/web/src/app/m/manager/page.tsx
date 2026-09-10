@@ -70,6 +70,22 @@ function StatTile({
   );
 }
 
+/** Every ON_DELIVERY row for one depot, paged at the cap both the DTO and the service impose. */
+async function readAllOnDelivery(depotId: string): Promise<Page<Delivery>> {
+  const LIMIT = 100;
+  const items: Delivery[] = [];
+  let total = 0;
+  for (let page = 1; ; page += 1) {
+    const p = await api.get<Page<Delivery>>(
+      endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: LIMIT, page, depotId }),
+      true,
+    );
+    items.push(...p.items);
+    total = p.total;
+    if (p.items.length < LIMIT || items.length >= total) return { ...p, items, total };
+  }
+}
+
 export default function ManagerHomePage() {
   const { t } = useT();
   const { customer } = useAuth();
@@ -104,10 +120,19 @@ export default function ManagerHomePage() {
    * account or a manager over several depots was not, and that is who saw the network
    * number captioned as one depot's.
    */
+  /*
+   * `limit: 200` was a 400 EVERY time, so this tile has never rendered a number: both the
+   * DTO (`@Max(100)`) and the service (`MAX_LIMIT = 100`) refuse anything above 100, and the
+   * screen turned the refusal into its own error row. Third instance of one defect — see
+   * `test/page-size-caps.test.ts`, which now refuses the shape repo-wide.
+   *
+   * Paged rather than clamped: clamping to 100 would ship a number that silently undercounts
+   * the depot with 101 deliveries in flight, which is exactly the depot whose count matters.
+   */
   const onDelivery = useAsync<Page<Delivery>>(
     () =>
       scopedId
-        ? api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 200, depotId: scopedId }), true)
+        ? readAllOnDelivery(scopedId)
         : Promise.resolve(null as unknown as Page<Delivery>),
     [scopedId],
   );
