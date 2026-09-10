@@ -33,10 +33,11 @@ name: Mobile release
 #   MOBILE_API_URL   https://<API_DOMAIN>  — see the guard below, this one is load-bearing
 #   MOBILE_WEB_HOST  <WEB_DOMAIN>          — the host the App Links intent-filter claims
 #   SENTRY_DSN_MOBILE  https://<key>@<org>.ingest.sentry.io/<project-id>
-#     Required by `bundle` only, and NOT YET CREATED — measured 2026-08-29, `gh variable list`
-#     returns MOBILE_API_URL, MOBILE_WEB_HOST and PUBLIC_API_URL and nothing else. So the next
-#     `mobile-v*` tag fails at "Required configuration is present" until someone adds it, and
-#     that is the point: `NEXT_PUBLIC_*` is inlined at build time, so an AAB built without it
+#     Required by `bundle` only. CREATED 30 August 2026 — this note used to say it was the
+#     one thing blocking the next `mobile-v*` tag, and that stopped being true the day it
+#     was added; re-measured 10 September 2026 with `gh variable list`, which now returns
+#     MOBILE_API_URL, MOBILE_WEB_HOST, PUBLIC_API_URL and this. The reason it is required at
+#     all is unchanged: `NEXT_PUBLIC_*` is inlined at build time, so an AAB built without it
 #     can never report an error from any device, ever. `testable` still builds without it and
 #     says so — an APK on a desk is not a publication.
 #
@@ -497,6 +498,16 @@ jobs:
           # which is the state every shipped build has been in.
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_MOBILE }}
           NEXT_PUBLIC_SENTRY_ENV: ${{ vars.SENTRY_ENVIRONMENT || 'production' }}
+          # The export never carried a version, so `sentry-init.tsx` reported every mobile
+          # event with `release: undefined` and the account screen printed the literal
+          # string `dev` to every user of every shipped binary. Both read
+          # NEXT_PUBLIC_APP_VERSION; nothing here ever set it.
+          #
+          # It matters most on the release right after a long gap: without it there is no
+          # way to tell a crash in the build just shipped from one in the build before,
+          # which is the single question a first crash report has to answer. The value is
+          # already computed above — the tag name minus `mobile-v`.
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.name }}
         run: |
           npm run build:mobile --workspace @hydromart/web -- customer
           npm run build:mobile --workspace @hydromart/web -- ops

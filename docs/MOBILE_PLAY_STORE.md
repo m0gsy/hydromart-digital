@@ -453,16 +453,13 @@ Tidak satu pun bisa diselesaikan dari repo ini.
 - [ ] Buat kedua aplikasi: `id.hydromart.app` dan `id.hydromart.ops`
 - [ ] Satu proyek Firebase, dua app Android, unduh **satu** `google-services.json`, jadikan
       secret `GOOGLE_SERVICES_JSON_BASE64`
-- [ ] Buat variable `SENTRY_DSN_MOBILE` (Settings → Secrets and variables → Actions →
-      **Variables**), isinya DSN proyek Sentry Anda:
-      `https://<key>@<org>.ingest.sentry.io/<project-id>`. **Ini satu-satunya hal yang
-      memblokir tag `mobile-v*` berikutnya** — diukur 2026-08-29, `gh variable list` hanya
-      mengembalikan `MOBILE_API_URL`, `MOBILE_WEB_HOST` dan `PUBLIC_API_URL`, jadi job
-      `bundle` berhenti di step "Required configuration is present" dan mencetak persis
-      nama serta tempat yang harus diisi. Blokirnya disengaja: `NEXT_PUBLIC_*` dibekukan ke
-      dalam ekspor saat build, jadi AAB tanpa DSN tidak akan pernah bisa melaporkan error
-      dari perangkat mana pun, selamanya. APK uji (Run workflow) tetap bisa dibangun
-      tanpanya dan akan berkata sendiri bahwa ia buta
+- [x] ~~Buat variable `SENTRY_DSN_MOBILE`~~ — **SUDAH ADA sejak 2026-08-30.** Baris ini
+      dulu berbunyi "ini satu-satunya hal yang memblokir tag `mobile-v*` berikutnya", dan
+      berhenti benar pada hari variabelnya dibuat; diukur ulang 2026-09-10 dengan
+      `gh variable list`, yang sekarang mengembalikan `MOBILE_API_URL`, `MOBILE_WEB_HOST`,
+      `PUBLIC_API_URL` dan `SENTRY_DSN_MOBILE`. Alasan ia wajib tidak berubah:
+      `NEXT_PUBLIC_*` dibekukan ke dalam ekspor saat build, jadi AAB tanpa DSN tidak akan
+      pernah bisa melaporkan error dari perangkat mana pun, selamanya
 - [ ] Isi Data Safety dari bagian 1 — dua form, satu per aplikasi, dan isinya berbeda
 - [ ] Content rating, target audience, kategori
 - [ ] URL hapus akun dari bagian 3
