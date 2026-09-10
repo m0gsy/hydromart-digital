@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { ForbiddenException } from '@nestjs/common';
+
 import { ConfigService } from '@nestjs/config';
 
 import { SettingRow, SettingsCache } from '@hydromart/platform';
@@ -24,6 +26,7 @@ import {
   SlaCandidate,
   SlaStats,
 } from '../../src/application/ports/delivery.repository';
+import { ClaimableOrder, OrderLookupPort } from '../../src/application/ports/order-lookup.port';
 import { ContactMethod, ContactState } from '../../src/domain/no-show';
 import {
   OrderAdvanceMeta,
@@ -488,12 +491,26 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   throwOnStatus: OrderFulfilmentStatus | null = null;
   calls: { orderId: string; status: OrderFulfilmentStatus; meta?: OrderAdvanceMeta }[] = [];
 
+  /**
+   * Throw exactly this on the next call, then clear.
+   *
+   * `throwOnAdvance` cannot express the distinction that matters now: a REFUSED transition
+   * carries `refused: true` and becomes a 409, a dropped connection does not and stays a
+   * 422. A double that can only fail one way cannot test two answers.
+   */
+  failNext: Error | null = null;
+
   async advanceStatus(
     orderId: string,
     status: OrderFulfilmentStatus,
     _authorization?: string,
     meta?: OrderAdvanceMeta,
   ): Promise<void> {
+    if (this.failNext) {
+      const error = this.failNext;
+      this.failNext = null;
+      throw error;
+    }
     if (this.throwOnAdvance || this.throwOnStatus === status) {
       throw new Error('order-service down');
     }
@@ -615,7 +632,10 @@ export class FakeDepotLocation implements DepotLocationPort {
   }
 }
 
-export function buildTestConfig(overrides: Record<string, string> = {}): DeliveryConfigService {
+export function buildTestConfig(
+  overrides: Record<string, string> = {},
+  settings: SettingRow[] = [],
+): DeliveryConfigService {
   const env: Record<string, string> = {
     NODE_ENV: 'test',
     DELIVERY_SERVICE_PORT: '3006',
@@ -645,12 +665,26 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
       return env[k];
     },
   };
-  // ponytail: empty-row cache — every business getter falls through to the env value
-  // above, matching today's (pre-settings-cache) behavior exactly.
-  return new DeliveryConfigService(
-    fake as unknown as ConfigService,
-    new SettingsCache({ loadAll: async () => [] }),
-  );
+  /*
+   * ponytail: empty-row cache by default — every business getter falls through to the env
+   * value above, matching today's (pre-settings-cache) behaviour exactly.
+   *
+   * `settings` is for the tunables that have NO env var at all, the self-claim pair among
+   * them: their default lives in the code, so the only way for a test to say "this depot
+   * turned it on" is to hand the cache the row a depot would have written.
+   */
+  const cache = new SettingsCache({ loadAll: async () => settings });
+  if (settings.length) {
+    /*
+     * Seeded by hand, and the cast is the honest way to do it: `refresh()` is async, every
+     * config getter is synchronous, and `buildTestConfig` is called synchronously in forty
+     * places — so `void cache.refresh()` leaves the first read racing a microtask and the
+     * row arrives after the assertion. Same source, same rows, so a later `ensureFresh()`
+     * loads exactly this.
+     */
+    (cache as unknown as { rows: SettingRow[] }).rows = settings;
+  }
+  return new DeliveryConfigService(fake as unknown as ConfigService, cache);
 }
 
 export class InMemorySettlementRepository implements SettlementRepository {
@@ -833,6 +867,47 @@ export class FakeCashCollection implements CashCollectionPort {
 }
 
 /** payment-service stand-in for the server-side COD decision. */
+/**
+ * The order a courier is reaching for, as order-service would answer it.
+ *
+ * `statusChangedAt` defaults to an hour ago, because the wait is what the self-claim is
+ * ABOUT: a fake that answers "just now" would make every claim too-soon, and one that
+ * answers "long ago" would never exercise the refusal. Tests set it when they mean to.
+ */
+export class FakeOrderLookup implements OrderLookupPort {
+  orders = new Map<string, ClaimableOrder>();
+  /** Set to have the lookup behave like order-service refusing another depot's order. */
+  forbid = false;
+  calls: string[] = [];
+
+  seed(order: Partial<ClaimableOrder> & { id: string }): ClaimableOrder {
+    const full: ClaimableOrder = {
+      orderNumber: `HM-${order.id}`,
+      depotId: 'depot-1',
+      status: 'CONFIRMED',
+      statusChangedAt: new Date(Date.now() - 60 * 60_000),
+      recipientName: 'Budi',
+      phone: '+62800',
+      addressLine: 'Jl. Air 1',
+      latitude: null,
+      longitude: null,
+      notes: null,
+      deliveryWindow: null,
+      customerId: 'cust-1',
+      items: [{ productName: 'Galon 19L', quantity: 2 }],
+      ...order,
+    };
+    this.orders.set(full.id, full);
+    return full;
+  }
+
+  async findForClaim(orderId: string): Promise<ClaimableOrder | null> {
+    this.calls.push(orderId);
+    if (this.forbid) throw new ForbiddenException('Pesanan ini bukan milik depot Anda.');
+    return this.orders.get(orderId) ?? null;
+  }
+}
+
 export class FakeOrderPayment implements OrderPaymentPort {
   /** orderId → the payment payment-service would return. Absent = no payment row. */
   payments = new Map<string, OrderPaymentSnapshot>();

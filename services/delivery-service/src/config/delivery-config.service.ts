@@ -82,6 +82,30 @@ export class DeliveryConfigService {
   offlineMaxAgeHours(depotId: string | null = null): number {
     return this.tunable('offlineMaxAgeHours', 12, depotId);
   }
+  /**
+   * S1 — may a courier take an unclaimed order themselves, and how long must it have sat
+   * there first.
+   *
+   * Born DEAD, deliberately: 0 means the endpoint refuses everybody until a depot turns it
+   * on. Shipping a new way to claim work switched on by default changes how a depot
+   * dispatches before anybody there has agreed to it.
+   *
+   * The wait is the whole of the decision. Without it the fastest phone wins every order
+   * the moment it is confirmed, and a dispatcher who was about to assign it deliberately
+   * loses the race — the queue stops being a queue. With it, self-claim is what happens to
+   * an order NOBODY picked up, which is the case it exists for.
+   *
+   * Literals rather than env vars, like `offlineMaxAgeHours` above: a per-depot tunable
+   * whose default nobody has ever wanted to set from the environment does not need a
+   * variable in twelve `.env` files to say so.
+   */
+  courierSelfClaimEnabled(depotId: string | null = null): number {
+    return this.tunable('courierSelfClaimEnabled', 0, depotId);
+  }
+  /** How long an order must have sat unclaimed before a courier may take it (S1). */
+  courierSelfClaimWaitMinutes(depotId: string | null = null): number {
+    return this.tunable('courierSelfClaimWaitMinutes', 10, depotId);
+  }
   shiftLengthHours(depotId: string | null = null): number {
     return this.tunable('shiftLengthHours', this.num('SHIFT_LENGTH_HOURS'), depotId);
   }

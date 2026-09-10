@@ -49,7 +49,19 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
         signal: controller.signal,
       });
       if (!res.ok) {
-        throw new Error(`order-service responded ${res.status}`);
+        /*
+         * A REFUSED transition and an unreachable service are two different facts, and the
+         * caller has to be able to tell them apart. order-service answers 409 when the
+         * order has already left the status this transition was built on — somebody else
+         * got there first — and 422 when the transition itself is not legal. Both mean
+         * "retrying will not help"; a timeout or a 500 means the opposite.
+         *
+         * Carried as a flag on the error rather than a delivery-domain error, because this
+         * adapter must not know what the service above it calls a lost race.
+         */
+        throw Object.assign(new Error(`order-service responded ${res.status}`), {
+          refused: res.status === 409 || res.status === 422,
+        });
       }
     } catch (error) {
       this.logger.error(`PATCH order ${orderId} → ${status} failed: ${(error as Error).message}`);

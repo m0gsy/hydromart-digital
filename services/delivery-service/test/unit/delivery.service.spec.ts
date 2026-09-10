@@ -40,6 +40,7 @@ import {
   FakeDepotLocation,
   FakeCourierPayout,
   FakeOrderCoordination,
+  FakeOrderLookup,
   FakeOrderPayment,
   InMemoryDeliveryRepository,
   InMemoryShiftRepository,
@@ -104,7 +105,16 @@ describe('DeliveryService', () => {
       signedUrl: jest.fn(async (key: string) => `https://signed/${key}?X-Amz-Expires=900`),
     };
     makeStorageless = () =>
-      new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots, payments);
+      new DeliveryService(
+        repo,
+        orders,
+        new FakeCourierPayout(),
+        shifts,
+        config,
+        depots,
+        payments,
+        new FakeOrderLookup(),
+      );
     makeWithAttempts = (minAttempts) =>
       new DeliveryService(
         repo,
@@ -117,6 +127,7 @@ describe('DeliveryService', () => {
         }),
         depots,
         payments,
+        new FakeOrderLookup(),
       );
     // Same wiring as `service`, plus a customer-notification double — built here because
     // `config` and `depots` are locals of this setup.
@@ -129,6 +140,7 @@ describe('DeliveryService', () => {
         config,
         depots,
         payments,
+        new FakeOrderLookup(),
         storage as never,
         events as never,
         notifier as never,
@@ -142,6 +154,7 @@ describe('DeliveryService', () => {
       config,
       depots,
       payments,
+      new FakeOrderLookup(),
       storage as never,
       events as never,
     );

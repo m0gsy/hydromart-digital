@@ -43,6 +43,9 @@ export class DriverSettingsController {
       routeStopMinutes: this.config.routeStopMinutes(depotId),
       noShowMinContactAttempts: this.config.noShowMinContactAttempts(depotId),
       noShowMinWaitSeconds: this.config.noShowMinWaitSeconds(depotId),
+      maxActiveDeliveriesPerDriver: this.config.maxActiveDeliveriesPerDriver(depotId),
+      courierSelfClaimEnabled: this.config.courierSelfClaimEnabled(depotId),
+      courierSelfClaimWaitMinutes: this.config.courierSelfClaimWaitMinutes(depotId),
     };
   }
 }

@@ -11,6 +11,7 @@ import {
   FakeCourierPayout,
   FakeDepotLocation,
   FakeOrderCoordination,
+  FakeOrderLookup,
   FakeOrderPayment,
   InMemoryDeliveryRepository,
   InMemoryShiftRepository,
@@ -63,6 +64,7 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
       config,
       depots,
       new FakeOrderPayment(),
+      new FakeOrderLookup(),
     );
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
     await shifts.checkIn(otherDriver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);

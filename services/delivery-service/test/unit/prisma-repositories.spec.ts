@@ -6,7 +6,7 @@ import { SettlementPrismaRepository } from '../../src/infrastructure/prisma/sett
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { StaleDeliveryStatusError } from '../../src/domain/errors';
-import { ShiftAlreadyOpenError } from '../../src/domain/errors';
+import { DeliveryAlreadyExistsError, ShiftAlreadyOpenError } from '../../src/domain/errors';
 import { ContactMethod } from '../../src/domain/no-show';
 import { IncidentCategory, IncidentSeverity } from '../../src/domain/incident';
 import { SettlementStatus } from '../../src/domain/settlement';
@@ -99,6 +99,24 @@ describe('DeliveryPrismaRepository', () => {
 
     await repo.create({ ...(base as object), items: [{ name: 'Galon', quantity: 2 }] } as never);
     expect(delivery.create.mock.calls[1][0].data.items).toEqual([{ name: 'Galon', quantity: 2 }]);
+  });
+
+  /*
+   * `orderId` is unique and always has been, and nothing caught the violation — so two
+   * dispatchers assigning the same order at the same moment produced a raw P2002 and a 500
+   * for the loser. The service's own read-then-write check cannot close that window; the
+   * index already does. This just names what the index said.
+   */
+  it('turns the one-delivery-per-order violation into DeliveryAlreadyExistsError', async () => {
+    delivery.create.mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }));
+    await expect(repo.create({ orderId: 'ord-9' } as never)).rejects.toBeInstanceOf(
+      DeliveryAlreadyExistsError,
+    );
+  });
+
+  it('rethrows any other database failure from create', async () => {
+    delivery.create.mockRejectedValueOnce(new Error('connection lost'));
+    await expect(repo.create({ orderId: 'ord-9' } as never)).rejects.toThrow('connection lost');
   });
 
   it('updateLocation leaves the ETA alone when the courier app sends none', async () => {

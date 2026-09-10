@@ -48,6 +48,18 @@ export class DeliveryItemDto {
   qty!: number;
 }
 
+/**
+ * S1: the order a courier is taking for themselves.
+ *
+ * The id is in the BODY, not the path, and that is deliberate: `check-depot-scope.mjs`
+ * enumerates by-id ROUTES, so a `:orderId` segment here would add a sixty-sixth unguarded
+ * one to a baseline of sixty-five — for a route whose depot check lives in order-service,
+ * where the row actually is.
+ */
+export class ClaimOrderDto {
+  @IsUUID() orderId!: string;
+}
+
 export class AssignDeliveryDto {
   @ApiProperty({ format: 'uuid', description: 'Order to deliver.' })
   @IsUUID()

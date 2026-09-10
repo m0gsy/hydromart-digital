@@ -22,7 +22,11 @@ import {
   SlaCandidate,
   SlaStats,
 } from '../../application/ports/delivery.repository';
-import { ReportRangeTooLargeError, StaleDeliveryStatusError } from '../../domain/errors';
+import {
+  DeliveryAlreadyExistsError,
+  ReportRangeTooLargeError,
+  StaleDeliveryStatusError,
+} from '../../domain/errors';
 
 /**
  * DB-2 bounds for the depot team report. The page is the middleware's own cap, so a normal
@@ -170,16 +174,32 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async create(data: CreateDeliveryData): Promise<DeliveryRecord> {
     const { items, ...rest } = data;
-    const row = await this.prisma.delivery.create({
-      data: {
-        ...rest,
-        // Prisma Json column: a JS null must be Prisma.JsonNull, not raw null.
-        items: items ? (items as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-        status: DeliveryStatus.ASSIGNED,
-        history: { create: { status: DeliveryStatus.ASSIGNED } },
-      },
-      include: INCLUDE,
-    });
+    let row;
+    try {
+      row = await this.prisma.delivery.create({
+        data: {
+          ...rest,
+          // Prisma Json column: a JS null must be Prisma.JsonNull, not raw null.
+          items: items ? (items as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+          status: DeliveryStatus.ASSIGNED,
+          history: { create: { status: DeliveryStatus.ASSIGNED } },
+        },
+        include: INCLUDE,
+      });
+    } catch (error) {
+      /*
+       * `orderId` is unique and always has been, and nothing caught the violation — so two
+       * dispatchers assigning the same order at the same moment produced a raw Prisma
+       * P2002 and a 500 for the loser. The service's own read-then-write check cannot close
+       * that window; the index already does. This just names what the index said.
+       *
+       * Not new behaviour for the self-claim: it is a 500 that exists in production today.
+       */
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new DeliveryAlreadyExistsError();
+      }
+      throw error;
+    }
     return this.toRecord(row);
   }
 

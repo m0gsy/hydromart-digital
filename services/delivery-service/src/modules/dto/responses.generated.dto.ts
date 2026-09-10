@@ -456,4 +456,17 @@ export class DriverSettingsResponseDto {
   noShowMinContactAttempts!: number;
   @ApiProperty({ type: Number })
   noShowMinWaitSeconds!: number;
+  /*
+   * CA-4-37: the courier app hard-coded 1 for this. The server has had a per-depot cap all
+   * along and the client never asked for it, so a depot that raised the cap saw the app go
+   * on refusing a second delivery — the setting existed, was read on every assign, and was
+   * invisible to the only screen that shows the courier why they were refused.
+   */
+  @ApiProperty({ type: Number })
+  maxActiveDeliveriesPerDriver!: number;
+  /** S1. 0 = self-claim off for this depot, which is how every depot starts. */
+  @ApiProperty({ type: Number })
+  courierSelfClaimEnabled!: number;
+  @ApiProperty({ type: Number })
+  courierSelfClaimWaitMinutes!: number;
 }

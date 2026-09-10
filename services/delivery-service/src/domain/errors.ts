@@ -77,6 +77,62 @@ export class OrderCoordinationError extends DomainError {
   }
 }
 
+/** S1: self-claim is off for this depot, which is where every depot starts. */
+export class SelfClaimDisabledError extends DomainError {
+  readonly code = 'DELIVERY_SELF_CLAIM_DISABLED';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Ambil pesanan sendiri belum diaktifkan di depot ini.');
+  }
+}
+
+/**
+ * S1: the order has not sat unclaimed long enough yet.
+ *
+ * The wait is the whole of the decision, not a throttle. Without it the fastest phone wins
+ * every order the instant it is confirmed, and a dispatcher who was about to assign it
+ * deliberately loses the race — the queue stops being a queue. With it, self-claim is what
+ * happens to an order NOBODY picked up.
+ */
+export class SelfClaimTooSoonError extends DomainError {
+  readonly code = 'DELIVERY_SELF_CLAIM_TOO_SOON';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pesanan ini baru masuk. Tunggu sebentar sebelum bisa diambil sendiri.');
+  }
+}
+
+/** S1: the order exists but is not in a state a courier may take. */
+export class OrderNotClaimableError extends DomainError {
+  readonly code = 'DELIVERY_ORDER_NOT_CLAIMABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pesanan ini tidak bisa diambil sendiri.');
+  }
+}
+
+/**
+ * Somebody else claimed this order first.
+ *
+ * A CONFLICT, not the 422 the order-sync failure next to it raises, and the difference is
+ * the whole reason this exists. `advanceOrder` swallowed every failure into
+ * `OrderCoordinationError` — "Please try again", in English, on a screen that is otherwise
+ * Indonesian. So the courier who lost a race by half a second was told to retry something
+ * that will never succeed, while the one whose signal dropped was told the same thing about
+ * something that would. Two different answers had one message.
+ *
+ * A network wobble still raises the 422. Only a REFUSED transition — which is what
+ * order-service returns once the order has left the status the claim was built on — lands
+ * here.
+ */
+export class OrderAlreadyClaimedError extends DomainError {
+  readonly code = 'DELIVERY_ORDER_ALREADY_CLAIMED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pesanan ini sudah diambil orang lain.');
+  }
+}
+
 /**
  * The order's payment could not be read, so whether the courier collects on delivery is
  * unknown. Refused rather than guessed — a dispatch with no COD amount hands the water over
