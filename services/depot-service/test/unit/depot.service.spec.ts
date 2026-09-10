@@ -140,6 +140,23 @@ describe('DepotService', () => {
     expect(handedBack.ownerId).toBeNull();
   });
 
+  /*
+   * CA-2-53: the QRIS upload is deliberately NOT the guarded `update`. It replaces one
+   * field with a file the caller just uploaded, so there is no second admin's typing to
+   * erase — and routing it through `update` would have demanded a version the upload form
+   * has no reason to hold, breaking a flow that has always worked.
+   */
+  it('replaces the QRIS image without being asked for a version', async () => {
+    const d = await service.create(base({}));
+    const withQris = await service.setQrisImage(d.id, 'https://cdn.example/qris/new.png');
+    expect(withQris.paymentQrisImageUrl).toBe('https://cdn.example/qris/new.png');
+    // …and nothing else on the row moved.
+    expect(withQris.name).toBe(d.name);
+    await expect(
+      service.setQrisImage('00000000-0000-4000-8000-000000000000', 'x'),
+    ).rejects.toThrow();
+  });
+
   it('round-trips per-depot payment destination fields through create and read', async () => {
     const d = await service.create(
       base({
