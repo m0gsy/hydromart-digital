@@ -119,7 +119,40 @@ export function toCsv(headers: string[], rows: CsvCell[][]): string {
  * four screens used to hand-roll their own object URL and so were invisible to any
  * change made here, including the native one below.
  */
-export function downloadBlob(filename: string, blob: Blob): void {
+/**
+ * Extensions for the types this app actually hands back, so a saved file opens.
+ *
+ * A name with no suffix is a file Windows and Android will not open: the attendance photo
+ * saved as `absensi-2026-08-18-in` and an employee document as `KTP-v1`, both real JPEGs
+ * and PDFs that looked like nothing at all. Every other caller already spells its own
+ * extension; these two could not, because the type is only known once the bytes arrive.
+ */
+const EXT_BY_TYPE: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/heic': '.heic',
+  'application/pdf': '.pdf',
+  'text/csv': '.csv',
+  'application/json': '.json',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+};
+
+/**
+ * `filename`, plus the extension its bytes say they need — and nothing when it already has
+ * one, or when the type is not one we can name. Guessing an extension is worse than leaving
+ * it off: a `.jpg` that is really a PDF opens to an error instead of to nothing.
+ */
+function withExtension(filename: string, blob: Blob): string {
+  if (/\.[a-z0-9]{2,5}$/i.test(filename)) return filename;
+  // `image/jpeg; charset=…` is a legal content type; the parameters are not part of it.
+  const ext = EXT_BY_TYPE[blob.type.split(';')[0]!.trim().toLowerCase()];
+  return ext ? `${filename}${ext}` : filename;
+}
+
+export function downloadBlob(rawName: string, blob: Blob): void {
+  const filename = withExtension(rawName, blob);
   // An Android WebView has no download manager listening for the synthetic click, so
   // the user would get no file and no error. F3 writes it out instead.
   if (saveFile(filename, blob)) return;
