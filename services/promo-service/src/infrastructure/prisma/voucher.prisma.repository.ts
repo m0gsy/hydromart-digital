@@ -181,7 +181,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
         SELECT to_char("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${timeZone}, 'YYYY-MM-DD') AS day,
                COUNT(*)::bigint AS uses
         FROM "voucher_redemptions"
-        WHERE "voucherId" = ${voucherId}::uuid AND "createdAt" >= ${from} AND "createdAt" < ${to}
+        WHERE "voucherId" = ${voucherId} AND "createdAt" >= ${from} AND "createdAt" < ${to}
         GROUP BY 1
         ORDER BY 1`),
       this.prisma.voucherRedemption.groupBy({
@@ -199,7 +199,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
       this.prisma.$queryRaw<{ orderId: string }[]>(Prisma.sql`
         SELECT "orderId"
         FROM "voucher_redemptions"
-        WHERE "voucherId" = ${voucherId}::uuid
+        WHERE "voucherId" = ${voucherId}
         GROUP BY "orderId"
         ORDER BY MIN("createdAt") ASC`),
     ]);
@@ -235,7 +235,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return this.prisma
       .$transaction(async (tx) => {
         const locked = await tx.$queryRaw<{ usedCount: number }[]>`
-        SELECT "usedCount" FROM "vouchers" WHERE "id" = ${input.voucherId}::uuid FOR UPDATE`;
+        SELECT "usedCount" FROM "vouchers" WHERE "id" = ${input.voucherId} FOR UPDATE`;
         if (locked.length === 0) throw new VoucherNotFoundError();
 
         const [customerRedemptions, burnedAgg] = await Promise.all([
@@ -304,7 +304,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
       const redemption = await tx.voucherRedemption.findUnique({ where: { orderId } });
       if (!redemption) return null;
 
-      await tx.$queryRaw`SELECT "usedCount" FROM "vouchers" WHERE "id" = ${redemption.voucherId}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT "usedCount" FROM "vouchers" WHERE "id" = ${redemption.voucherId} FOR UPDATE`;
       await tx.voucherRedemption.delete({ where: { orderId } });
       await tx.voucher.update({
         where: { id: redemption.voucherId },
