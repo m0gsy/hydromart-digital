@@ -53,6 +53,20 @@ export default function HqTicketsPage() {
   // Which ticket's thread is open. One at a time: a queue with every thread expanded is
   // a queue nobody can scan.
   const [openId, setOpenId] = useState<string | null>(null);
+  /*
+   * `rows` rather than `query.data` everywhere below, and the guard is the point.
+   *
+   * The screen read the payload as an array and never checked. `(query.data ?? []).length`
+   * on an object is `undefined`, which is not `=== 0`, so the empty branch is skipped and
+   * `.map` runs on something that has none — an uncaught TypeError that kills the WHOLE
+   * page, because there is no error boundary between here and the root. Reproduced in
+   * jsdom: `TypeError: (query.data ?? []).map is not a function`.
+   *
+   * The route itself is healthy — measured through the gateway with a real SUPER_ADMIN
+   * token on 2026-09-10: `GET /admin/api/v1/tickets` → `200 []`, and a create → `201`. So
+   * this is not what is failing today; it is what turns any future shape change, or any
+   * proxy that wraps a body, from a wrong list into a dead screen.
+   */
   const query = useAsync<SupportTicket[]>(
     () =>
       api.get(
@@ -64,6 +78,10 @@ export default function HqTicketsPage() {
       ),
     [filter, depotFilter],
   );
+
+  // An answer that is not a list is not an empty list — it is an answer nobody can render.
+  const rows = Array.isArray(query.data) ? query.data : [];
+  const malformed = query.data != null && !Array.isArray(query.data);
 
   const chips: Filter[] = ['all', 'OPEN', 'ASSIGNED', 'RESOLVED'];
   const label = (f: Filter) => (f === 'all' ? t('hq.tickets.all') : t(`hq.tickets.status.${f}`));
@@ -125,15 +143,15 @@ export default function HqTicketsPage() {
 
       {query.loading ? (
         <Skeleton className="h-96 w-full" />
-      ) : query.error ? (
+      ) : query.error || malformed ? (
         <ErrorState message={t('hq.tickets.loadError')} onRetry={query.reload} />
-      ) : (query.data ?? []).length === 0 ? (
+      ) : rows.length === 0 ? (
         <Card className="p-8">
           <p className="text-center text-sm text-muted">{t('hq.tickets.empty')}</p>
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {(query.data ?? []).map((tk) => (
+          {rows.map((tk) => (
             <Card key={tk.id} className="flex flex-col gap-3 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">

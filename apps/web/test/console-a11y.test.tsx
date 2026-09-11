@@ -152,7 +152,7 @@ beforeEach(() => {
 
 describe('CA-2-50 the console is measured, not assumed', () => {
   /*
-   * Twelve screens, one per family, rather than all 132: each one needs its own data shape
+   * Thirteen screens, one per family, rather than all 132: each one needs its own data shape
    * mocked, and a screen mocked wrongly renders its failure state — which has no violations
    * either. Breadth bought by measuring nothing is the failure this row already describes.
    */
@@ -171,6 +171,19 @@ describe('CA-2-50 the console is measured, not assumed', () => {
     // Twelfth: the kasbon queue. It costs one line because the default `respond` already
     // answers the paged-list shape this screen destructures.
     ['HR · antrean kasbon', () => import('@/app/hr/loans/requests/page')],
+    /*
+     * Thirteenth, and it earned its place by dying. `/hq/tickets` read its payload as an
+     * array and never checked: `(query.data ?? []).length` on an object is `undefined`, so
+     * the empty branch is skipped and `.map` runs on something that has none — an uncaught
+     * TypeError that takes the WHOLE page with it, because nothing between here and the
+     * root catches. This harness answers the paged `{rows,total}` shape by default, which
+     * is exactly the shape that killed it.
+     *
+     * The route is healthy — measured through the gateway with a real SUPER_ADMIN token:
+     * `GET /admin/api/v1/tickets` → `200 []`. What this pins is that a wrong shape stays a
+     * wrong LIST rather than becoming a dead screen.
+     */
+    ['HQ · tiket', () => import('@/app/hq/tickets/page')],
   ])('%s has no structural barrier a screen reader would hit', async (_name, load) => {
     const { default: Page } = await load();
     expect(await violationsOf(<Page />)).toEqual([]);

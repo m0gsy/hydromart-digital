@@ -26,6 +26,18 @@ export default function Error({
       <p className="text-sm text-muted">
         {t('hrFix.errorPage.body2')}
       </p>
+      {/*
+       * The reason, on the screen, not only in a console nobody on a phone can open.
+       * A report that can only say "the page errored" costs a whole diagnosis round; this
+       * line is what turns it into one that names the fault. Next keeps client render
+       * messages intact in production and swaps server ones for `digest`, so show both.
+       */}
+      {(error.message || error.digest) && (
+        <p className="max-w-full break-words font-mono text-[11px] leading-relaxed text-muted/80">
+          {error.message}
+          {error.digest ? ` (${error.digest})` : ''}
+        </p>
+      )}
       <div className="flex gap-3">
         <Button onClick={reset}>{t('hrFix.errorPage.retry')}</Button>
         <LinkButton href="/products" variant="secondary">
