@@ -1,4 +1,12 @@
-import { CAPABILITIES, STAFF_IMPORT_ROLES, canGrantRole, can, rolesFor, type Capability } from './index';
+import {
+  CAPABILITIES,
+  STAFF_IMPORT_ROLES,
+  canGrantRole,
+  can,
+  grantorsFor,
+  rolesFor,
+  type Capability,
+} from './index';
 
 /*
  * O7. Depositing a shift's COD cash was a hard `@Roles(STAFF_DEPOT)` in delivery-service,
@@ -216,6 +224,14 @@ describe('canGrantRole', () => {
   it('lets an unknown actor grant an unrestricted role', () => {
     expect(canGrantRole(undefined, 'STAFF_DEPOT')).toBe(true);
     expect(canGrantRole(undefined, 'SUPERVISOR')).toBe(true);
+  });
+
+  // The refusal has to say who MAY grant it, and say it from this map rather than a second
+  // sentence that can drift from the rule.
+  it('names the grantors of a role, restricted or not', () => {
+    expect(grantorsFor('MANAGER')).toEqual(['SUPER_ADMIN', 'HR']);
+    expect(grantorsFor('FINANCE')).toEqual(['SUPER_ADMIN']);
+    expect(grantorsFor('STAFF_DEPOT')).toEqual(['SUPER_ADMIN']);
   });
 });
 

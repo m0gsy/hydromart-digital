@@ -660,6 +660,16 @@ export function canGrantRole(actorRole: Role | string | undefined | null, target
 }
 
 /**
+ * Who may grant `targetRole` — the sentence a refusal needs, read from the map the rule
+ * itself uses so the two cannot drift. An unrestricted role answers SUPER_ADMIN, who may
+ * grant anything; that case is not reachable from a refusal, which is why it lives here
+ * rather than as a fallback at each call site.
+ */
+export function grantorsFor(targetRole: Role | string): readonly string[] {
+  return (RESTRICTED_GRANTS as Record<string, readonly string[] | undefined>)[targetRole] ?? ['SUPER_ADMIN'];
+}
+
+/**
  * Every role that can be on the payroll — the whole enum except `CUSTOMER`.
  *
  * Wider than either allowlist above and deliberately so: those two bound what may be

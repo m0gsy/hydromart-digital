@@ -1,4 +1,4 @@
-import { RESTRICTED_GRANTS } from '@hydromart/access';
+import { grantorsFor } from '@hydromart/access';
 
 import { DomainError } from './domain-error';
 
@@ -80,8 +80,7 @@ export class RoleEscalationError extends DomainError {
   readonly code = 'AUTH_ROLE_ESCALATION';
   readonly status = HTTP.FORBIDDEN;
   constructor(role: string) {
-    const grantors = (RESTRICTED_GRANTS as Record<string, readonly string[] | undefined>)[role] ?? ['SUPER_ADMIN'];
-    super(`Peran ${role} hanya boleh diberikan oleh ${grantors.join(' atau ')}.`);
+    super(`Peran ${role} hanya boleh diberikan oleh ${grantorsFor(role).join(' atau ')}.`);
   }
 }
 
