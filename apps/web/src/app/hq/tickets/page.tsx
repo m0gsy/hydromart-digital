@@ -144,7 +144,14 @@ export default function HqTicketsPage() {
       {query.loading ? (
         <Skeleton className="h-96 w-full" />
       ) : query.error || malformed ? (
-        <ErrorState message={t('hq.tickets.loadError')} onRetry={query.reload} />
+        /*
+         * The server's own words first. `useAsync` already holds a human message — the 403
+         * that names the missing capability, the 502 from a service that is down — and this
+         * screen threw it away for one generic line, so every different failure read as the
+         * same failure and a report could only ever say "it errored". The generic line stays
+         * as the fallback, because a malformed payload has no server message to show.
+         */
+        <ErrorState message={query.error ?? t('hq.tickets.loadError')} onRetry={query.reload} />
       ) : rows.length === 0 ? (
         <Card className="p-8">
           <p className="text-center text-sm text-muted">{t('hq.tickets.empty')}</p>

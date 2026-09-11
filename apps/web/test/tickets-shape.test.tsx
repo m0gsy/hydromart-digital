@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 /**
  * A list screen handed the wrong shape must stay a list screen.
@@ -18,10 +18,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 
-vi.mock('@/lib/api', () => ({
-  api: { get, getCached: get, post: vi.fn(), patch: vi.fn(), put: vi.fn(), del: vi.fn() },
-  ApiError: class extends Error {},
-}));
+// Spread the real module rather than replace it: `useAsync` decides whether a rejection
+// carries a server message with `e instanceof ApiError`, and a stand-in class fails that
+// check — the screen would then show its generic line and the test would pass for the
+// wrong reason. Only the two reads are swapped.
+vi.mock('@/lib/api', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
+  return { ...actual, api: { ...actual.api, get, getCached: get } };
+});
 vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k, locale: 'id' }) }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/session-store', () => ({ getSession: () => ({ accountId: 'u1' }) }));
@@ -29,9 +33,17 @@ vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [], scopedId: 'd-1', selectedId: 'd-1', ready: true }),
 }));
 
+import { ApiError } from '@/lib/api';
+
 import HqTicketsPage from '@/app/hq/tickets/page';
 
-beforeEach(() => get.mockReset());
+/*
+ * Deliberately no `beforeEach` reset on `get`. Clearing the mock discards the stored result
+ * of a call that returned a rejected promise, and the runner then reports that promise as an
+ * escaped failure even though the page caught it and rendered the message — a red test with
+ * a green screen behind it. Every test sets its own implementation, which replaces the last
+ * one, so there is nothing left for a reset to do.
+ */
 
 describe('/hq/tickets survives a payload that is not a list', () => {
   /*
@@ -62,6 +74,18 @@ describe('/hq/tickets survives a payload that is not a list', () => {
     ]);
     render(<HqTicketsPage />);
     await waitFor(() => expect(screen.getByText('Galon bocor')).toBeTruthy());
+  });
+
+  /*
+   * A failed read must say WHY. The screen used to answer every failure with one generic
+   * line, so a 403 naming a missing capability and a 502 from a service that is down were
+   * indistinguishable on screen — and a bug report could only say "it errored".
+   */
+  it('shows the message the server actually sent, not a generic one', async () => {
+    get.mockRejectedValue(new ApiError(403, 'Anda tidak punya akses ke tiket'));
+    render(<HqTicketsPage />);
+    await waitFor(() => expect(screen.getByText('Anda tidak punya akses ke tiket')).toBeTruthy());
+    expect(screen.queryByText('hq.tickets.loadError')).toBeNull();
   });
 
   it('renders the empty state for an empty list, not the error state', async () => {
