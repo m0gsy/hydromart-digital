@@ -29,13 +29,25 @@ vi.mock('@/lib/api', async () => {
 vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k, locale: 'id' }) }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/session-store', () => ({ getSession: () => ({ accountId: 'u1' }) }));
-vi.mock('@/lib/depot-context', () => ({
-  useDepot: () => ({ depots: [], scopedId: 'd-1', selectedId: 'd-1', ready: true }),
-}));
+/*
+ * NO `@/lib/depot-context` mock, and no `DepotProvider` around the page — deliberately.
+ * That is exactly how /hq renders it: the HQ layout is network-scoped and mounts no depot
+ * provider. The first version of this file mocked `useDepot`, and so passed while the real
+ * page threw "useDepot must be used within <DepotProvider>" on every single visit.
+ */
 
 import { ApiError } from '@/lib/api';
 
 import HqTicketsPage from '@/app/hq/tickets/page';
+
+const DEPOTS = { items: [{ id: 'd-1', name: 'Depot Dago', code: 'BDG-01' }], total: 1, page: 1, limit: 100 };
+
+/** Answer the depot read with a real page, and the ticket read with `tickets`. */
+function answer(tickets: () => Promise<unknown>): void {
+  get.mockImplementation((path: string) =>
+    path.startsWith('/admin/api/v1/tickets') ? tickets() : Promise.resolve(DEPOTS),
+  );
+}
 
 /*
  * Deliberately no `beforeEach` reset on `get`. Clearing the mock discards the stored result
@@ -56,24 +68,27 @@ describe('/hq/tickets survives a payload that is not a list', () => {
     ['bare object', { message: 'nope' }],
     ['a string', 'Service Unavailable'],
   ])('renders its own error state for %s, and does not throw', async (_label, payload) => {
-    get.mockResolvedValue(payload);
+    answer(() => Promise.resolve(payload));
     expect(() => render(<HqTicketsPage />)).not.toThrow();
     await waitFor(() => expect(screen.getByText('hq.tickets.loadError')).toBeTruthy());
   });
 
   it('still renders the list for the array the server actually sends', async () => {
-    get.mockResolvedValue([
+    answer(() => Promise.resolve([
       {
         id: 't-1',
         subject: 'Galon bocor',
         status: 'OPEN',
         priority: 'HIGH',
         createdAt: new Date().toISOString(),
+        depotRef: 'd-1',
         messages: [],
       },
-    ]);
+    ]));
     render(<HqTicketsPage />);
     await waitFor(() => expect(screen.getByText('Galon bocor')).toBeTruthy());
+    // The depot's NAME, which needs the network depot read to have worked without a provider.
+    await waitFor(() => expect(screen.getAllByText('Depot Dago').length).toBeGreaterThan(0));
   });
 
   /*
@@ -82,14 +97,14 @@ describe('/hq/tickets survives a payload that is not a list', () => {
    * indistinguishable on screen — and a bug report could only say "it errored".
    */
   it('shows the message the server actually sent, not a generic one', async () => {
-    get.mockRejectedValue(new ApiError(403, 'Anda tidak punya akses ke tiket'));
+    answer(() => Promise.reject(new ApiError(403, 'Anda tidak punya akses ke tiket')));
     render(<HqTicketsPage />);
     await waitFor(() => expect(screen.getByText('Anda tidak punya akses ke tiket')).toBeTruthy());
     expect(screen.queryByText('hq.tickets.loadError')).toBeNull();
   });
 
   it('renders the empty state for an empty list, not the error state', async () => {
-    get.mockResolvedValue([]);
+    answer(() => Promise.resolve([]));
     render(<HqTicketsPage />);
     await waitFor(() => expect(screen.getByText('hq.tickets.empty')).toBeTruthy());
     expect(screen.queryByText('hq.tickets.loadError')).toBeNull();
