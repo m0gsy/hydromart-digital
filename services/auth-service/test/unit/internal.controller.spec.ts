@@ -118,13 +118,18 @@ describe('InternalAccountController', () => {
       phone: '+628123450000',
       role: Role.SUPERVISOR as never,
       fullName: 'Rina',
+      grantedBy: Role.HR,
     });
 
+    // SEC-AUDIT CORE-1: the human behind the HR form is named, so the grant rule can tell HR
+    // (who may promote to MANAGER) from head office (who holds `hrAdmin` but may not).
     expect(account.inviteStaff).toHaveBeenCalledWith(
       '+628123450000',
       Role.SUPERVISOR,
       'Rina',
       undefined,
+      undefined,
+      Role.HR,
     );
     expect(result).toMatchObject({ id: 'cust-9', role: Role.SUPERVISOR });
   });

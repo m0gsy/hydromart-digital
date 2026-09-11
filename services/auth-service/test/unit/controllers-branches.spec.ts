@@ -450,6 +450,19 @@ describe('InternalAccountController.assignStaffRole', () => {
       role: Role.KEPALA_DEPOT,
       depotId: 'depot-1',
     } as never);
-    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.KEPALA_DEPOT, 'depot-1');
+    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.KEPALA_DEPOT, 'depot-1', undefined);
+  });
+
+  // SEC-AUDIT CORE-1: hr-service names the human behind a jabatan change, so the grant rule
+  // can refuse head office promoting itself to MANAGER through the HR module.
+  it('passes the actor hr-service names on to the grant rule', async () => {
+    const account = { setStaffRole: jest.fn().mockResolvedValue(publicCustomer()) };
+    const controller = new InternalAccountController(account as never, {} as never);
+    await controller.assignStaffRole({
+      customerId: 'cust-1',
+      role: Role.MANAGER,
+      grantedBy: Role.HR,
+    } as never);
+    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.MANAGER, undefined, Role.HR);
   });
 });

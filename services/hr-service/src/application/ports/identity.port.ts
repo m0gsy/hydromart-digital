@@ -25,6 +25,12 @@ export interface ProvisionManagedStaffInput {
   role: HrManagedRole;
   fullName?: string;
   depotId?: string;
+  /**
+   * SEC-AUDIT CORE-1. Role of the person making this change. `hrAdmin` is held by head office
+   * as well as HR and only HR may promote to MANAGER, so auth-service needs to know which of
+   * the two is asking. Omitted = an anonymous call, which may grant no restricted role.
+   */
+  grantedBy?: string;
 }
 
 /**
@@ -84,4 +90,10 @@ export interface AssignRoleInput {
   role: HrManagedRole;
   /** Omit to leave the account's depot alone; null clears it (staff above one depot). */
   depotId?: string | null;
+  /**
+   * SEC-AUDIT CORE-1. Role of the person making this change. `hrAdmin` is held by head office
+   * as well as HR and only HR may promote to MANAGER, so auth-service needs to know which of
+   * the two is asking. Omitted = an anonymous call, which may grant no restricted role.
+   */
+  grantedBy?: string;
 }
