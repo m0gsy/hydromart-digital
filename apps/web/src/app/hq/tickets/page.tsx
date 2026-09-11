@@ -11,10 +11,9 @@ import { agoLabel } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { getSession } from '@/lib/session-store';
-import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { SupportTicket, TicketPriority, TicketStatus } from '@/lib/types';
+import type { DepotAdmin, Page, SupportTicket, TicketPriority, TicketStatus } from '@/lib/types';
 
 // Design 15a — support tickets. Real admin-service track: HEAD_OFFICE + SUPER_ADMIN. List
 // with message threads; reply / assign / resolve mutate a ticket. `assigneeId` is the raw
@@ -47,7 +46,23 @@ export default function HqTicketsPage() {
    * question this queue exists for — which depot is this about.
    */
   const [depotFilter, setDepotFilter] = useState('');
-  const { depots } = useDepot();
+  /*
+   * The network's depots, read the way every other /hq screen reads them — NOT through
+   * `useDepot()`. HQ is network-scoped and its layout mounts no `DepotProvider` on purpose,
+   * so `useDepot()` here threw "useDepot must be used within <DepotProvider>" on every
+   * render and the whole page became the root error screen. That shipped with CA-2-58 and
+   * nothing caught it: every test of this page mocked `useDepot`, which is exactly the one
+   * call that could not work.
+   *
+   * A failed read costs the filter its names, never the queue: a ticket then shows its
+   * depot's raw id, and "all depots" still works.
+   */
+  // ponytail: first 100 depots, like broadcast/compare/commission; page it (readAllPages, as
+  // hq/hierarchy does) once the network outgrows one page.
+  const depotList = useAsync<Page<DepotAdmin>>(() =>
+    api.getCached(endpoints.depots.manage({ limit: 100 }), true),
+  );
+  const depots = depotList.data?.items ?? [];
   const depotName = (id: string | null) =>
     id ? (depots.find((d) => d.id === id)?.name ?? id) : null;
   // Which ticket's thread is open. One at a time: a queue with every thread expanded is

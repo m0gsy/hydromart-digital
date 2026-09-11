@@ -9,27 +9,35 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, toast } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), toast: vi.fn() }));
+const { get, getCached, post, toast } = vi.hoisted(() => ({
+  get: vi.fn(),
+  getCached: vi.fn(),
+  post: vi.fn(),
+  toast: vi.fn(),
+}));
 
 vi.mock('@/lib/api', () => ({
-  api: { get, post, put: vi.fn() },
+  api: { get, getCached, post, put: vi.fn() },
   ApiError: class extends Error {},
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k, locale: 'id' }) }));
-vi.mock('@/lib/depot-context', () => ({
-  useDepot: () => ({
-    depots: [
-      { id: 'd-1', code: 'JKT-01', name: 'Depot Cibubur' },
-      { id: 'd-2', code: 'JKT-02', name: 'Depot Kemang' },
-    ],
-    selected: null,
-    scopedId: null,
-    ready: true,
-    error: null,
-    reload: vi.fn(),
-  }),
-}));
+/*
+ * The depots come from the network read the page makes — `getCached(depots.manage)` —
+ * and NOT from a mocked `useDepot`. This file used to mock `useDepot`, and that mock is
+ * the reason it stayed green while the real page threw "useDepot must be used within
+ * <DepotProvider>" on every visit: /hq mounts no DepotProvider, so the one call the mock
+ * stood in for was the one call that could not work.
+ */
+const DEPOTS = {
+  items: [
+    { id: 'd-1', code: 'JKT-01', name: 'Depot Cibubur' },
+    { id: 'd-2', code: 'JKT-02', name: 'Depot Kemang' },
+  ],
+  total: 2,
+  page: 1,
+  limit: 100,
+};
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/hq/tickets',
@@ -65,6 +73,7 @@ beforeEach(() => {
   toast.mockReset();
   post.mockReset().mockResolvedValue({});
   get.mockReset().mockResolvedValue([ticket()]);
+  getCached.mockReset().mockResolvedValue(DEPOTS);
 });
 afterEach(() => vi.clearAllMocks());
 
