@@ -1,4 +1,12 @@
-import { CAPABILITIES, STAFF_IMPORT_ROLES, canGrantRole, can } from './index';
+import {
+  CAPABILITIES,
+  STAFF_IMPORT_ROLES,
+  canGrantRole,
+  can,
+  grantorsFor,
+  rolesFor,
+  type Capability,
+} from './index';
 
 /*
  * O7. Depositing a shift's COD cash was a hard `@Roles(STAFF_DEPOT)` in delivery-service,
@@ -158,16 +166,72 @@ describe('canGrantRole', () => {
     expect(canGrantRole('SUPER_ADMIN', 'DIREKTUR')).toBe(true);
   });
 
-  it('leaves every ordinary staff grant alone', () => {
-    expect(canGrantRole('HEAD_OFFICE', 'KEPALA_DEPOT')).toBe(true);
-    expect(canGrantRole('HEAD_OFFICE', 'FINANCE')).toBe(true);
+  /*
+   * SEC-AUDIT CORE-1 / XCUT-4. Head office holds `staffAdmin` but not `hqPayout`, `refundIssue`
+   * or `hrPayroll`, and inviting its own phone back as FINANCE handed it all three — the first
+   * link of a chain that ended in a payout to a bank reference it typed itself.
+   */
+  it('keeps the money and office roles away from head office', () => {
+    for (const target of ['FINANCE', 'HR', 'MARKETING', 'MANAGER'] as const) {
+      expect(canGrantRole('HEAD_OFFICE', target)).toBe(false);
+      expect(canGrantRole('SUPER_ADMIN', target)).toBe(true);
+    }
   });
 
-  // Fail closed: an internal call with no principal is not a superuser.
-  it('refuses an unknown actor', () => {
+  // A promotion up the supervision chain is ordinary HR work (see HR_MANAGED_ROLES).
+  it('lets HR promote to MANAGER and nothing above it', () => {
+    expect(canGrantRole('HR', 'MANAGER')).toBe(true);
+    expect(canGrantRole('HR', 'FINANCE')).toBe(false);
+    expect(canGrantRole('HR', 'HR')).toBe(false);
+    expect(canGrantRole('HR', 'DIREKTUR')).toBe(false);
+  });
+
+  it('leaves the ordinary depot grants alone', () => {
+    expect(canGrantRole('HEAD_OFFICE', 'KEPALA_DEPOT')).toBe(true);
+    expect(canGrantRole('HEAD_OFFICE', 'STAFF_DEPOT')).toBe(true);
+  });
+
+  /*
+   * The invariant behind the three cases above, derived from the matrix rather than listed:
+   * a role that holds a money capability head office lacks is a way to acquire it, so head
+   * office must not be able to grant it. A future matrix edit that hands such a capability to
+   * a grantable role fails here, not in the next audit.
+   */
+  it('lets head office grant no role that holds a money capability head office lacks', () => {
+    const money: Capability[] = ['hqPayout', 'commissionRuns', 'refundIssue', 'refundQueue', 'hrPayroll'];
+    for (const cap of money) {
+      if (can(cap, 'HEAD_OFFICE')) continue;
+      for (const role of rolesFor(cap)) {
+        if (role === 'SUPER_ADMIN') continue;
+        expect({ cap, role, grantable: canGrantRole('HEAD_OFFICE', role) }).toEqual({ cap, role, grantable: false });
+      }
+    }
+  });
+
+  /*
+   * SEC-AUDIT CORE-2. An unknown actor is an internal route, and those are bounded by their
+   * own allowlists (STAFF_IMPORT_ROLES, HR_MANAGED_ROLES) — so it may grant an unrestricted
+   * role, and never a restricted one. MANAGER is restricted now, which is why hr-service has
+   * to say who is asking.
+   */
+  it('lets an unknown actor grant no restricted role', () => {
     expect(canGrantRole(undefined, 'SUPER_ADMIN')).toBe(false);
     expect(canGrantRole(null, 'DIREKTUR')).toBe(false);
+    expect(canGrantRole(undefined, 'MANAGER')).toBe(false);
+    expect(canGrantRole(undefined, 'FINANCE')).toBe(false);
+  });
+
+  it('lets an unknown actor grant an unrestricted role', () => {
     expect(canGrantRole(undefined, 'STAFF_DEPOT')).toBe(true);
+    expect(canGrantRole(undefined, 'SUPERVISOR')).toBe(true);
+  });
+
+  // The refusal has to say who MAY grant it, and say it from this map rather than a second
+  // sentence that can drift from the rule.
+  it('names the grantors of a role, restricted or not', () => {
+    expect(grantorsFor('MANAGER')).toEqual(['SUPER_ADMIN', 'HR']);
+    expect(grantorsFor('FINANCE')).toEqual(['SUPER_ADMIN']);
+    expect(grantorsFor('STAFF_DEPOT')).toEqual(['SUPER_ADMIN']);
   });
 });
 
