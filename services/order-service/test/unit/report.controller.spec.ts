@@ -157,12 +157,34 @@ describe('ReportController', () => {
   });
 
   it('shippingByDepot / refundsByDepot / ratingByDepot: delegate with the parsed range', async () => {
-    await expect(controller.shippingByDepot({} as never)).resolves.toBe('shipping');
-    await expect(controller.refundsByDepot({} as never)).resolves.toBe('refunds');
-    await expect(controller.ratingByDepot({} as never)).resolves.toBe('rating');
-    expect(service.shippingByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined });
-    expect(service.refundsByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined });
-    expect(service.ratingByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined });
+    await expect(controller.shippingByDepot({} as never, headOffice())).resolves.toBe('shipping');
+    await expect(controller.refundsByDepot({} as never, headOffice())).resolves.toBe('refunds');
+    await expect(controller.ratingByDepot({} as never, headOffice())).resolves.toBe('rating');
+    // Head office is network-wide, so the scope it passes is "no filter" — unchanged.
+    expect(service.shippingByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
+    expect(service.refundsByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
+    expect(service.ratingByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
+  });
+
+  /*
+   * SEC-AUDIT ORD-1. `orderReports` admits MANAGER, a depot-scoped role, and these three
+   * carried no depot dimension at all — so a manager over one depot read every depot's
+   * shipping bill, refunds and ratings. Their siblings `sales`/`top-customers`/`top-depots`
+   * got `reportScope` for exactly this reason; these three were left behind.
+   */
+  it("scopes a manager's by-depot reports to the depots they are responsible for", async () => {
+    const mgr = manager(DEPOT_A, DEPOT_B);
+    await controller.shippingByDepot({} as never, mgr);
+    await controller.refundsByDepot({} as never, mgr);
+    await controller.ratingByDepot({} as never, mgr);
+    for (const call of [service.shippingByDepot, service.refundsByDepot, service.ratingByDepot]) {
+      expect(call).toHaveBeenCalledWith({ from: undefined, to: undefined }, [DEPOT_A, DEPOT_B]);
+    }
+  });
+
+  // A scoped account with no depots at all gets a refusal, not the network.
+  it('refuses a by-depot report for a manager responsible for nothing', () => {
+    expect(() => controller.shippingByDepot({} as never, manager())).toThrow();
   });
 
   it('depotRatings: forwards depotId and range', async () => {

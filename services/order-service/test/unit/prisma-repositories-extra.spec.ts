@@ -83,6 +83,37 @@ describe('OrderPrismaRepository report range filters (bounded-window branches)',
   const from = new Date('2026-01-01');
   const to = new Date('2026-02-01');
 
+  /*
+   * SEC-AUDIT ORD-1. Absent scope still means every depot — head office reads the network —
+   * so the filter has to prove BOTH shapes: the unscoped one that was always there, and the
+   * scoped one a MANAGER now arrives with.
+   */
+  it('scopes the by-depot reports to the depots the caller was given', async () => {
+    order.groupBy.mockClear();
+    await repo.shippingByDepot({}, ['depot-1', 'depot-2']);
+    await repo.refundsByDepot({}, ['depot-1']);
+    expect(order.groupBy.mock.calls[0][0].where.depotId).toEqual({ in: ['depot-1', 'depot-2'] });
+    expect(order.groupBy.mock.calls[1][0].where.depotId).toEqual({ in: ['depot-1'] });
+
+    order.groupBy.mockClear();
+    await repo.shippingByDepot({});
+    expect(order.groupBy.mock.calls[0][0].where.depotId).toEqual({ not: null });
+    // The mocks in this file are shared across cases, and the next one reads calls[0].
+    order.groupBy.mockClear();
+  });
+
+  // The rating report joins through orders in raw SQL, so its scope is a WHERE clause. The
+  // column is uuid and the ids are text: compared as text, never `${id}::uuid` (PRM-3).
+  it('scopes the rating report in SQL without casting the parameter to uuid', async () => {
+    $queryRaw.mockClear();
+    await repo.ratingByDepot({}, ['depot-1']);
+    const sql = $queryRaw.mock.calls[0][0];
+    expect(sql.sql).toContain('::text = ANY(');
+    expect(sql.sql).not.toContain('::uuid');
+    expect(sql.values).toContainEqual(['depot-1']);
+    $queryRaw.mockClear();
+  });
+
   it('applies gte+lt to reportWhere-backed reports', async () => {
     await repo.topCustomers({ from, to }, 5);
     await repo.topDepots({ from, to }, 5);

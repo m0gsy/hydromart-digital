@@ -639,6 +639,16 @@ export class OrderPrismaRepository implements OrderRepository {
    * VOIDED is excluded alongside CANCELLED: a voided counter sale was reversed at the till
    * and the money handed back, so counting it would report revenue the depot does not have.
    */
+  /**
+   * SEC-AUDIT ORD-1. The by-depot reports had no depot dimension at all, so a MANAGER —
+   * a depot-scoped role that holds `orderReports` — read every depot in the network. An
+   * absent scope still means "every depot", because head office and finance legitimately
+   * read the whole network; what changed is that a scoped caller now arrives with one.
+   */
+  private depotFilter(depotIds?: readonly string[]): Prisma.StringNullableFilter {
+    return depotIds ? { in: [...depotIds] } : { not: null };
+  }
+
   private reportWhere(range: ReportRange) {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
@@ -751,10 +761,10 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async shippingByDepot(range: ReportRange): Promise<DepotShipping[]> {
+  async shippingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotShipping[]> {
     const rows = await this.prisma.order.groupBy({
       by: ['depotId'],
-      where: { ...this.reportWhere(range), depotId: { not: null } },
+      where: { ...this.reportWhere(range), depotId: this.depotFilter(depotIds) },
       _sum: { deliveryFee: true },
     });
     return rows.map((r) => ({
@@ -763,7 +773,7 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async refundsByDepot(range: ReportRange): Promise<DepotRefund[]> {
+  async refundsByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRefund[]> {
     // Unlike the other by-depot reports, refunds must NOT exclude CANCELLED orders:
     // an online-paid order that gets cancelled is precisely what triggers a refund
     // (BR-refund). Window on the order's createdAt to match the sibling lines.
@@ -774,7 +784,7 @@ export class OrderPrismaRepository implements OrderRepository {
     const rows = await this.prisma.order.groupBy({
       by: ['depotId'],
       where: {
-        depotId: { not: null },
+        depotId: this.depotFilter(depotIds),
         refundedAmount: { not: null },
         ...(range.from || range.to ? { createdAt } : {}),
       },
@@ -810,10 +820,13 @@ export class OrderPrismaRepository implements OrderRepository {
     await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: amount } });
   }
 
-  async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {
+  async ratingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRating[]> {
     // OrderReview has no depotId, so join through the parent order. Range filters
     // the order's createdAt to match every other by-depot report's semantics.
     const conds: Prisma.Sql[] = [Prisma.sql`o."depotId" IS NOT NULL`];
+    // The column is uuid and the ids arrive as text: compare as text rather than casting
+    // the parameter to ::uuid, which is the mismatch PRM-3 was.
+    if (depotIds) conds.push(Prisma.sql`o."depotId"::text = ANY(${[...depotIds]})`);
     if (range.from) conds.push(Prisma.sql`o."createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`o."createdAt" < ${range.to}`);
     const where = Prisma.join(conds, ' AND ');
