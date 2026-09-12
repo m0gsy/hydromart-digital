@@ -1056,6 +1056,27 @@ describe('ShiftPrismaRepository', () => {
   };
   const prisma = { shift } as unknown as PrismaService;
   const repo = new ShiftPrismaRepository(prisma);
+
+  /*
+   * SEC-AUDIT DLV-3. `GET /shifts` without a depotId listed every depot's shifts — each row
+   * carrying a courier's check-in and check-out coordinates. The controller now fills the
+   * caller's own depots in; this is the filter that has to honour them.
+   */
+  it('filters on the caller depots when no single depot is named', async () => {
+    shift.findMany.mockResolvedValue([]);
+    await repo.search({ depotIds: ['depot-1', 'depot-2'] });
+    expect(shift.findMany.mock.calls.at(-1)?.[0].where.depotId).toEqual({
+      in: ['depot-1', 'depot-2'],
+    });
+
+    // One named depot still wins — the guard has already checked that one.
+    await repo.search({ depotId: 'depot-1', depotIds: ['depot-1', 'depot-2'] });
+    expect(shift.findMany.mock.calls.at(-1)?.[0].where.depotId).toBe('depot-1');
+
+    // A network-wide caller arrives with neither, and reads every depot as before.
+    await repo.search({});
+    expect(shift.findMany.mock.calls.at(-1)?.[0].where.depotId).toBeUndefined();
+  });
   const shiftRow = (over: Record<string, unknown> = {}) => ({
     id: 'shf-1',
     driverId: 'drv-1',

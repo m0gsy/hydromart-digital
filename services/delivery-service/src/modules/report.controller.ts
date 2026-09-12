@@ -2,9 +2,12 @@ import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
+  AuthenticatedUser,
   Can,
+  CurrentUser,
   InternalAuthGuard,
   Public,
+  reportScopeIds,
   addLocalMonths,
   startOfLocalMonth,
 } from '@hydromart/platform';
@@ -48,8 +51,10 @@ export class ReportController {
   @ApiOkResponse({ type: SlaReportResponseDto })
   @Get('sla')
   @ApiOperation({ summary: 'Delivery SLA: on-time vs breached deliveries and failures (M6)' })
-  sla(@Query() q: SlaReportQueryDto): Promise<SlaReport> {
-    return this.reports.sla(toRange(q), q.thresholdMinutes, q.depotIds);
+  sla(@Query() q: SlaReportQueryDto, @CurrentUser() user: AuthenticatedUser): Promise<SlaReport> {
+    // SEC-AUDIT DLV-2: dropping `depotIds` used to widen this to the whole network.
+    const scope = reportScopeIds(user, q.depotIds);
+    return this.reports.sla(toRange(q), q.thresholdMinutes, scope ? [...scope] : undefined);
   }
 
   /**
@@ -75,8 +80,12 @@ export class ReportController {
   @ApiOkResponse({ type: DepotSlaReportResponseDto })
   @Get('sla-by-depot')
   @ApiOperation({ summary: 'On-time SLA grouped per depot (HQ network roll-up)' })
-  slaByDepot(@Query() q: SlaReportQueryDto): Promise<DepotSlaReport> {
-    return this.reports.slaByDepot(toRange(q), q.thresholdMinutes);
+  slaByDepot(
+    @Query() q: SlaReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotSlaReport> {
+    // SEC-AUDIT DLV-1: this one had no depot dimension at all.
+    return this.reports.slaByDepot(toRange(q), q.thresholdMinutes, reportScopeIds(user, q.depotIds));
   }
 
   @Get('depot-team')
