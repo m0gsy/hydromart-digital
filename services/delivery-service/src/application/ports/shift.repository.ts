@@ -39,6 +39,8 @@ export interface ShiftStatusPatch {
 
 export interface ShiftQuery {
   depotId?: string;
+  /** The depots the caller may see: undefined = network-wide (SEC-AUDIT DLV-3). */
+  depotIds?: readonly string[];
   /** Shifts whose checkInAt falls on this UTC day. */
   from?: Date;
   to?: Date;

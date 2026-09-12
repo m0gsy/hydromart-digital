@@ -131,6 +131,27 @@ export function assertDepotOwnership(
  * every list call site silently narrow a supervisor to a single depot. Deleting it makes
  * each one a compile error instead.
  */
+/**
+ * The depot filter a REPORT should run with: what the caller asked for, or — when they asked
+ * for nothing — what they are responsible for (SEC-AUDIT XCUT-3).
+ *
+ * `DepotScopeGuard` only checks the depots a request NAMES. A depot-scoped caller who names
+ * none therefore passes it, and every handler that read an absent filter as "no filter"
+ * answered with the whole network: order reports, delivery SLA, courier shifts with their GPS,
+ * the redemption queue, the revenue forecast. Asking for depots stays checked by the guard;
+ * this is the other half.
+ *
+ * `undefined` means unfiltered, and only a network-wide role can reach it.
+ */
+export function reportScopeIds(
+  user: Pick<AuthenticatedUser, 'role' | 'depotId' | 'depotIds'> | undefined,
+  requested?: string | readonly string[] | null,
+): readonly string[] | undefined {
+  const raw = Array.isArray(requested) ? requested : String(requested ?? '').split(',');
+  const asked = raw.map((id) => String(id).trim()).filter((id) => id.length > 0);
+  return asked.length > 0 ? asked : depotScopeIds(user);
+}
+
 export function depotScopeIds(
   user: Pick<AuthenticatedUser, 'role' | 'depotId' | 'depotIds'> | undefined,
   requestedDepotId?: string | null,

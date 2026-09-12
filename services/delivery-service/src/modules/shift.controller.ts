@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, reportScopeIds } from '@hydromart/platform';
 
 import { ShiftService, ShiftView } from '../application/services/shift.service';
 import { ListShiftsQueryDto } from './dto/shift.dto';
@@ -18,8 +18,14 @@ export class ShiftController {
   @ApiOkResponse({ type: ShiftResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List courier shifts at a depot over a window' })
-  list(@Query() query: ListShiftsQueryDto): Promise<ShiftView[]> {
+  list(
+    @Query() query: ListShiftsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ShiftView[]> {
     return this.shifts.search({
+      // SEC-AUDIT DLV-3: without this an omitted depotId listed every depot's shifts —
+      // including each courier's check-in and check-out coordinates.
+      depotIds: reportScopeIds(user, query.depotId),
       depotId: query.depotId,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
