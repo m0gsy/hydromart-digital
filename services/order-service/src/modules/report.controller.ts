@@ -173,8 +173,9 @@ export class ReportController {
   @ApiOperation({ summary: 'Shipping (ongkir) billed per depot (reconciliation 22a)' })
   shippingByDepot(
     @Query() q: RangeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ReportRangeView & { items: DepotShipping[] }> {
-    return this.reports.shippingByDepot(toRange(q));
+    return this.reports.shippingByDepot(toRange(q), ReportController.reportScope(user));
   }
 
   @ApiOkResponse({ type: RefundsByDepotResponseDto })
@@ -182,8 +183,9 @@ export class ReportController {
   @ApiOperation({ summary: 'Refunds settled per depot (reconciliation 22a)' })
   refundsByDepot(
     @Query() q: RangeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ReportRangeView & { items: DepotRefund[] }> {
-    return this.reports.refundsByDepot(toRange(q));
+    return this.reports.refundsByDepot(toRange(q), ReportController.reportScope(user));
   }
 
   @ApiOkResponse({ type: RatingByDepotResponseDto })
@@ -191,8 +193,9 @@ export class ReportController {
   @ApiOperation({ summary: 'Average customer rating per depot (compare 14d)' })
   ratingByDepot(
     @Query() q: RangeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ReportRangeView & { items: DepotRating[] }> {
-    return this.reports.ratingByDepot(toRange(q));
+    return this.reports.ratingByDepot(toRange(q), ReportController.reportScope(user));
   }
 
   @ApiOkResponse({ type: DepotRatingsReportResponseDto })
