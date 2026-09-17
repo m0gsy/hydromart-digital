@@ -373,3 +373,33 @@ describe('createSessionRouter — logout', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * GW-4 (owner decision 2026-09-17): over TLS the session cookies carry browser-enforced
+ * prefixes, so a cookie set at a narrower Path cannot shadow them — and the reads look for
+ * the prefixed names, so a leftover `hm_at` from before the switch is simply not a session.
+ */
+describe('createSessionRouter — cookie prefixes over TLS', () => {
+  it('sets __Host-/__Secure- names and ignores an unprefixed impostor', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, SESSION));
+    const res = await request(makeApp(true))
+      .post('/auth/api/v1/auth/otp/verify')
+      .send({ otp: '000000' });
+
+    const cookies = (res.headers['set-cookie'] as unknown as string[]).join(String.fromCharCode(10));
+    expect(cookies).toContain('__Host-hm_at=AT-123');
+    expect(cookies).toContain('__Secure-hm_rt=RT-456');
+    expect(
+      cookies.split(String.fromCharCode(10)).some((c) => c.startsWith('hm_at=')),
+    ).toBe(false);
+
+    // A logout carrying only the OLD cookie names finds no session to revoke.
+    fetchMock.mockClear();
+    const out = await request(makeApp(true))
+      .post('/auth/api/v1/auth/logout')
+      .set('Cookie', `${AT_COOKIE}=AT-123; ${RT_COOKIE}=RT-456`);
+    expect(out.body).toEqual({ message: 'Signed out.', revoked: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+

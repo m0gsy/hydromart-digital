@@ -1,3 +1,4 @@
+import { atCookieName, rtCookieName } from '../../src/routing/session-bff';
 import {
   insecureTransportWarning,
   isOtpIssuingPath,
@@ -77,5 +78,24 @@ describe('insecureTransportWarning', () => {
     expect(insecureTransportWarning('production', undefined)).toMatch(/no TLS/);
     expect(insecureTransportWarning('production', 'hydromart-digital.com')).toBeNull();
     expect(insecureTransportWarning('development', '')).toBeNull();
+  });
+});
+
+/*
+ * GW-4 (owner decision 2026-09-17). `readCookie` takes the first cookie of a name, and a
+ * cookie set at a more specific Path is sent first — so anything that could write a cookie
+ * on this host could shadow the session. The prefixes are what the browser enforces:
+ * `__Host-` (no Domain, Path=/, Secure) for the access cookie, `__Secure-` for the refresh
+ * cookie, which keeps its narrower path and so cannot take `__Host-`.
+ */
+describe('session cookie names', () => {
+  it('prefixes both cookies once the transport is secure', () => {
+    expect(atCookieName(true)).toBe('__Host-hm_at');
+    expect(rtCookieName(true)).toBe('__Secure-hm_rt');
+  });
+
+  it('keeps the plain names where there is no TLS to make a prefix mean anything', () => {
+    expect(atCookieName(false)).toBe('hm_at');
+    expect(rtCookieName(false)).toBe('hm_rt');
   });
 });

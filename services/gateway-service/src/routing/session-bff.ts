@@ -12,6 +12,24 @@ export const AT_COOKIE = 'hm_at';
 export const RT_COOKIE = 'hm_rt';
 
 /**
+ * GW-4 (owner decision 2026-09-17) — cookie prefixes, wherever the transport can carry them.
+ *
+ * `readCookie` takes the FIRST cookie of a given name, and the browser sends a cookie set at
+ * a more specific Path before the real one — so anything able to write a cookie on this host
+ * could shadow the session with its own. The prefixes are the browser-enforced answer:
+ * `__Host-` refuses a Domain and demands Path=/ and Secure, so no narrower copy can exist;
+ * `__Secure-` demands Secure and is what the refresh cookie can take, because that one is
+ * deliberately scoped to the auth path and `__Host-` forbids a path at all.
+ *
+ * Both require HTTPS, so the plain names stay in the bare-IP HTTP deploy that has no TLS to
+ * make them meaningful. Sessions issued before the switch are not readable after it — one
+ * sign-in, once, the first time the platform is served over TLS.
+ */
+export const atCookieName = (secure: boolean): string => (secure ? `__Host-${AT_COOKIE}` : AT_COOKIE);
+export const rtCookieName = (secure: boolean): string =>
+  secure ? `__Secure-${RT_COOKIE}` : RT_COOKIE;
+
+/**
  * F2: a Capacitor WebView serves the app from `https://localhost` (Android) or
  * `capacitor://localhost` (iOS). Both are cross-site to the API host, so a
  * `sameSite: 'lax'` cookie is never sent from them — the cookie session simply does not
@@ -73,14 +91,14 @@ export function readCookie(req: Request, name: string): string | undefined {
 }
 
 function setSessionCookies(res: Response, s: UpstreamSession, secure: boolean): void {
-  res.cookie(AT_COOKIE, s.accessToken, {
+  res.cookie(atCookieName(secure), s.accessToken, {
     httpOnly: true,
     sameSite: 'lax',
     secure,
     path: AT_PATH,
     maxAge: s.expiresIn * 1000,
   });
-  res.cookie(RT_COOKIE, s.refreshToken, {
+  res.cookie(rtCookieName(secure), s.refreshToken, {
     httpOnly: true,
     sameSite: 'lax',
     secure,
@@ -90,8 +108,8 @@ function setSessionCookies(res: Response, s: UpstreamSession, secure: boolean): 
 }
 
 function clearSessionCookies(res: Response, secure: boolean): void {
-  res.clearCookie(AT_COOKIE, { path: AT_PATH, sameSite: 'lax', secure, httpOnly: true });
-  res.clearCookie(RT_COOKIE, { path: RT_PATH, sameSite: 'lax', secure, httpOnly: true });
+  res.clearCookie(atCookieName(secure), { path: AT_PATH, sameSite: 'lax', secure, httpOnly: true });
+  res.clearCookie(rtCookieName(secure), { path: RT_PATH, sameSite: 'lax', secure, httpOnly: true });
 }
 
 // Audit F-4: this router sits on the PUBLIC ingress and had neither a deadline nor a
@@ -184,7 +202,7 @@ export function createSessionRouter(
   // The native shell has neither, so it sends the token it holds in the body.
   r.post('/api/v1/auth/token/refresh', json(), async (req, res) => {
     const native = isNative(req);
-    const rt = native ? bodyRefreshToken(req.body) : readCookie(req, RT_COOKIE);
+    const rt = native ? bodyRefreshToken(req.body) : readCookie(req, rtCookieName(secure));
     if (!rt) return res.status(401).json({ statusCode: 401, message: 'No active session.' });
     let status: number;
     let data: unknown;
@@ -216,8 +234,8 @@ export function createSessionRouter(
   // valid for its full 30 days on a phone the user believes they signed out of.
   r.post('/api/v1/auth/logout', json(), async (req, res) => {
     const native = isNative(req);
-    const at = native ? bearerToken(req) : readCookie(req, AT_COOKIE);
-    const rt = native ? bodyRefreshToken(req.body) : readCookie(req, RT_COOKIE);
+    const at = native ? bearerToken(req) : readCookie(req, atCookieName(secure));
+    const rt = native ? bodyRefreshToken(req.body) : readCookie(req, rtCookieName(secure));
     // GW-2: said "Signed out." whether or not the session was revoked — with no refresh
     // token nothing was sent upstream at all. This device is always signed out (cookies
     // go either way); `revoked` says whether the SESSION is dead too, so a client can offer

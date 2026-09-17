@@ -7,7 +7,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { GatewayConfigService } from './config/gateway-config.service';
 import { resolveRoute } from './routing/route-table';
-import { AT_COOKIE, createSessionRouter, readCookie } from './routing/session-bff';
+import { atCookieName, createSessionRouter, readCookie } from './routing/session-bff';
 import { tokenBucket } from './rate-limit/token-bucket';
 
 // Kept in sync with @hydromart/platform's INTERNAL_KEY_HEADER. Inlined so the
@@ -58,8 +58,9 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * The `sub` is a user id, not a credential, so it is used as-is; the old hash existed to
  * keep a usable token out of the limiter's key set and there is no longer a token in it.
  */
-export function rateLimitKey(req: Request, secret = ''): string {
-  const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
+export function rateLimitKey(req: Request, secret = '', secure = false): string {
+  // GW-4: the session cookie is prefixed wherever TLS allows it, so read the name in use.
+  const credential = req.headers.authorization ?? readCookie(req, atCookieName(secure));
   if (credential && secret) {
     const sub = verifiedSubject(credential, secret);
     if (sub) return `u:${sub}`;
@@ -307,7 +308,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     tokenBucket({
       capacity: config.rateLimit.burstLimit,
       refillPerSecond: config.rateLimit.limit / config.rateLimit.ttlSeconds,
-      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret),
+      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret, config.isProduction),
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
     }),
   );
@@ -368,7 +369,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     // so the browser holds no readable token. An explicit Authorization header (none from
     // the SPA now) is left intact.
     if (!req.headers.authorization) {
-      const at = readCookie(req, AT_COOKIE);
+      const at = readCookie(req, atCookieName(config.isProduction));
       if (at) req.headers.authorization = `Bearer ${at}`;
     }
     const route = resolveRoute(req.path, upstreams);
