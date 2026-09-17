@@ -101,7 +101,7 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
  * cannot both read PROCESSING and both credit.
  */
 describe('WithdrawalPrismaRepository.settle', () => {
-  const withdrawal = { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() };
+  const withdrawal = { findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() };
   const ledgerEntry = { create: jest.fn() };
   const prisma = {
     withdrawal,
@@ -125,20 +125,29 @@ describe('WithdrawalPrismaRepository.settle', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('marks PAID inside the transaction and posts no ledger row', async () => {
-    withdrawal.findUnique.mockResolvedValue(processing);
-    withdrawal.update.mockResolvedValue({ ...processing, status: 'PAID' });
+    withdrawal.findUnique
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce({ ...processing, status: 'PAID' });
+    withdrawal.updateMany.mockResolvedValue({ count: 1 });
 
     const out = await repo.settle({ id: 'wd-1', status: 'PAID', reversal });
 
     expect(out).toMatchObject({ ok: true, withdrawal: { status: 'PAID' } });
+    // PYO-4: the PROCESSING guard is in the WHERE clause, not only in the read above.
+    expect(withdrawal.updateMany).toHaveBeenCalledWith({
+      where: { id: 'wd-1', status: 'PROCESSING' },
+      data: { status: 'PAID' },
+    });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     // PAID is not a money movement: the debit at request time was the money leaving.
     expect(ledgerEntry.create).not.toHaveBeenCalled();
   });
 
   it('re-credits the owner when the transfer FAILED, keyed for idempotency', async () => {
-    withdrawal.findUnique.mockResolvedValue(processing);
-    withdrawal.update.mockResolvedValue({ ...processing, status: 'FAILED' });
+    withdrawal.findUnique
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce({ ...processing, status: 'FAILED' });
+    withdrawal.updateMany.mockResolvedValue({ count: 1 });
 
     await repo.settle({ id: 'wd-1', status: 'FAILED', reversal });
 
@@ -159,8 +168,29 @@ describe('WithdrawalPrismaRepository.settle', () => {
       reason: 'NOT_PROCESSING',
       status: 'PAID',
     });
-    expect(withdrawal.update).not.toHaveBeenCalled();
+    expect(withdrawal.updateMany).not.toHaveBeenCalled();
     expect(ledgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  // PYO-4: both settles read PROCESSING; the second loses the guarded update and must
+  // neither re-credit nor report success.
+  it('loses a concurrent settle cleanly: no credit, and the winning status reported', async () => {
+    withdrawal.findUnique
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce({ ...processing, status: 'PAID' });
+    withdrawal.updateMany.mockResolvedValue({ count: 0 });
+
+    expect(await repo.settle({ id: 'wd-1', status: 'FAILED', reversal })).toEqual({
+      ok: false,
+      reason: 'NOT_PROCESSING',
+      status: 'PAID',
+    });
+    expect(ledgerEntry.create).not.toHaveBeenCalled();
+
+    withdrawal.findUnique.mockResolvedValueOnce(processing).mockResolvedValueOnce(null);
+    expect(await repo.settle({ id: 'wd-1', status: 'FAILED', reversal })).toMatchObject({
+      status: 'PROCESSING',
+    });
   });
 
   it('answers NOT_FOUND rather than throwing, so the caller can 404', async () => {
@@ -184,7 +214,7 @@ describe('WithdrawalPrismaRepository.settle', () => {
 });
 
 describe('CourierWithdrawalPrismaRepository.settle', () => {
-  const courierWithdrawal = { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() };
+  const courierWithdrawal = { findUnique: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() };
   const courierLedgerEntry = { create: jest.fn() };
   const prisma = {
     courierWithdrawal,
@@ -208,8 +238,10 @@ describe('CourierWithdrawalPrismaRepository.settle', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('marks PAID without touching the courier ledger', async () => {
-    courierWithdrawal.findUnique.mockResolvedValue(processing);
-    courierWithdrawal.update.mockResolvedValue({ ...processing, status: 'PAID' });
+    courierWithdrawal.findUnique
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce({ ...processing, status: 'PAID' });
+    courierWithdrawal.updateMany.mockResolvedValue({ count: 1 });
 
     expect(await repo.settle({ id: 'cwd-1', status: 'PAID', reversal })).toMatchObject({
       ok: true,
@@ -218,8 +250,10 @@ describe('CourierWithdrawalPrismaRepository.settle', () => {
   });
 
   it('re-credits the courier when the transfer FAILED', async () => {
-    courierWithdrawal.findUnique.mockResolvedValue(processing);
-    courierWithdrawal.update.mockResolvedValue({ ...processing, status: 'FAILED' });
+    courierWithdrawal.findUnique
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce({ ...processing, status: 'FAILED' });
+    courierWithdrawal.updateMany.mockResolvedValue({ count: 1 });
 
     await repo.settle({ id: 'cwd-1', status: 'FAILED', reversal });
 
@@ -244,6 +278,22 @@ describe('CourierWithdrawalPrismaRepository.settle', () => {
     expect(await repo.settle({ id: 'cwd-1', status: 'PAID', reversal })).toEqual({
       ok: false,
       reason: 'NOT_FOUND',
+    });
+    expect(courierLedgerEntry.create).not.toHaveBeenCalled();
+
+    // PYO-4: a lost race changes nothing.
+    courierWithdrawal.findUnique
+      .mockResolvedValueOnce(processing)
+      .mockResolvedValueOnce({ ...processing, status: 'PAID' });
+    courierWithdrawal.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.settle({ id: 'cwd-1', status: 'FAILED', reversal })).toEqual({
+      ok: false,
+      reason: 'NOT_PROCESSING',
+      status: 'PAID',
+    });
+    courierWithdrawal.findUnique.mockResolvedValueOnce(processing).mockResolvedValueOnce(null);
+    expect(await repo.settle({ id: 'cwd-1', status: 'FAILED', reversal })).toMatchObject({
+      status: 'PROCESSING',
     });
     expect(courierLedgerEntry.create).not.toHaveBeenCalled();
   });
@@ -697,6 +747,7 @@ describe('ExpenseClaimPrismaRepository', () => {
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
   };
@@ -760,15 +811,17 @@ describe('ExpenseClaimPrismaRepository', () => {
       ledgerEntryId: 'le-9',
       reviewedAt: new Date('2026-01-03'),
     };
-    model.update.mockResolvedValue(reviewed);
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(reviewed);
     const result = await repo.markReviewed('ec-1', {
       status: 'APPROVED' as never,
       reviewedBy: 'mgr-1',
       reviewNote: 'ok',
       ledgerEntryId: 'le-9',
     });
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'ec-1' },
+    // PYO-4: the pending guard is in the WHERE clause.
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ec-1', status: 'PENDING' },
       data: {
         status: 'APPROVED',
         reviewedBy: 'mgr-1',
@@ -777,20 +830,41 @@ describe('ExpenseClaimPrismaRepository', () => {
         reviewedAt: expect.any(Date),
       },
     });
-    expect(result.status).toBe('APPROVED');
-    expect(result.ledgerEntryId).toBe('le-9');
+    expect(result?.status).toBe('APPROVED');
+    expect(result?.ledgerEntryId).toBe('le-9');
   });
 
-  it('defaults ledgerEntryId to null when omitted (rejection path)', async () => {
-    model.update.mockResolvedValue({ ...row, status: 'REJECTED', reviewedBy: 'mgr-1' });
-    await repo.markReviewed('ec-1', {
-      status: 'REJECTED' as never,
-      reviewedBy: 'mgr-1',
-      reviewNote: 'no receipt',
-    });
-    expect(model.update).toHaveBeenCalledWith(
+  it('defaults ledgerEntryId to null when omitted, and answers null when no longer pending', async () => {
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repo.markReviewed('ec-1', {
+        status: 'REJECTED' as never,
+        reviewedBy: 'mgr-1',
+        reviewNote: 'no receipt',
+      }),
+    ).resolves.toBeNull();
+    expect(model.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ ledgerEntryId: null }) }),
     );
+  });
+
+  it('attaches the ledger entry, reopens only an uncredited approval, counts a receipt', async () => {
+    model.update.mockResolvedValue({ ...row, ledgerEntryId: 'le-1' });
+    await expect(repo.attachLedgerEntry('ec-1', 'le-1')).resolves.toMatchObject({
+      ledgerEntryId: 'le-1',
+    });
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'ec-1' }, data: { ledgerEntryId: 'le-1' } });
+
+    model.updateMany.mockResolvedValue({ count: 1 });
+    await repo.reopen('ec-1');
+    expect(model.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'ec-1', status: 'APPROVED', ledgerEntryId: null },
+      data: { status: 'PENDING', reviewedBy: null, reviewNote: null, reviewedAt: null },
+    });
+
+    model.count.mockResolvedValue(2);
+    await expect(repo.countByReceiptUrl('https://b/pod/x.jpg')).resolves.toBe(2);
+    expect(model.count).toHaveBeenLastCalledWith({ where: { receiptUrl: 'https://b/pod/x.jpg' } });
   });
 
   it('lists claims for a courier paginated with total', async () => {

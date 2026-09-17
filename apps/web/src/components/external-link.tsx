@@ -4,6 +4,8 @@ import type { AnchorHTMLAttributes } from 'react';
 
 import { openExternal } from '@/lib/platform';
 
+const SAFE_SCHEME = /^(https?:|tel:|mailto:|sms:|geo:|whatsapp:)/i;
+
 /**
  * An anchor that leaves the app: a map pin, `tel:`, a `wa.me` chat, an uploaded receipt.
  *
@@ -23,6 +25,10 @@ export function ExternalLink({
   ...rest
 }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
   const opensTab = /^https?:/i.test(href);
+  // WEBB-1: some of these hrefs are strings a user typed (an expense receipt URL). Only
+  // schemes a link out of the app legitimately uses become a link; anything else is shown
+  // as plain text rather than handed to the browser or the WebView to interpret.
+  if (!SAFE_SCHEME.test(href)) return <span className={rest.className}>{children}</span>;
 
   return (
     <a
