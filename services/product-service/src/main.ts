@@ -26,7 +26,13 @@ async function bootstrap(): Promise<void> {
   const uploadsRoot = isAbsolute(config.storageLocalDir)
     ? config.storageLocalDir
     : join(process.cwd(), config.storageLocalDir);
-  app.useStaticAssets(uploadsRoot, { prefix: '/uploads' });
+  // DLV-5/AUTH-1: `serve-static` runs before every guard, so whatever sits here is public to
+  // anyone with the URL. That is tolerable on a laptop and nowhere else — and in production
+  // a local-driver file lives on disposable container disk anyway. deploy.sh already alerts
+  // on STORAGE_DRIVER != s3; this makes sure the mistake cannot also publish the files.
+  if (!config.isProduction) {
+    app.useStaticAssets(uploadsRoot, { prefix: '/uploads' });
+  }
 
   app.enableCors({ origin: config.corsOrigins, credentials: true });
   app.setGlobalPrefix('api');
