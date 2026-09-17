@@ -343,8 +343,22 @@ describe('CampaignController', () => {
 
   it('gets one campaign', async () => {
     const campaigns = { get: jest.fn().mockResolvedValue(record()) };
-    const out = await new CampaignController(campaigns as never).get('camp-1');
+    const out = await new CampaignController(campaigns as never).get('camp-1', {
+      role: 'MARKETING',
+    } as never);
     expect(out.id).toBe('camp-1');
+    expect(out.recipients[0].name).toBe(record().recipients[0].name);
+  });
+
+  // CRM-4: a reader without the customer directory gets statuses, not people.
+  it('strips recipient names and numbers for a reader without the customer directory', async () => {
+    const campaigns = { get: jest.fn().mockResolvedValue(record()) };
+    const out = await new CampaignController(campaigns as never).get('camp-1', {
+      role: 'DIREKTUR',
+    } as never);
+    expect(out.recipients[0].name).toBeNull();
+    expect(out.recipients[0].phone).toMatch(/^•••\d{3}$/);
+    expect(out.recipients[0].status).toBe(record().recipients[0].status);
   });
 
   it('sends a campaign', async () => {
