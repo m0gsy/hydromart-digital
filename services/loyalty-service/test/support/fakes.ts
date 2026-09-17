@@ -313,13 +313,15 @@ export class InMemoryRewardRepository implements RewardRepository {
 
   async listRedemptionsByStatus(
     status: RedemptionStatus,
-    depotId?: string,
+    depotIds?: readonly string[],
   ): Promise<RewardRedemptionView[]> {
     return (
       this.redemptions
         // Mirrors the Prisma filter: a depot's own rows plus the legacy depot-less ones.
         .filter(
-          (r) => r.status === status && (!depotId || r.depotId === depotId || r.depotId === null),
+          (r) =>
+            r.status === status &&
+            (!depotIds || r.depotId === null || depotIds.includes(r.depotId)),
         )
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map((r) => this.toView(r))
@@ -373,9 +375,13 @@ export class InMemoryRewardRepository implements RewardRepository {
 }
 
 export class InMemoryCustomerDirectory implements CustomerDirectory {
-  constructor(public ids: string[] = []) {}
-  async customerIdsForDepot(): Promise<string[]> {
-    return [...this.ids];
+  /** `byDepot` answers per depot when given; otherwise every depot answers `ids`. */
+  constructor(
+    public ids: string[] = [],
+    public byDepot?: Record<string, string[]>,
+  ) {}
+  async customerIdsForDepot(depotId: string): Promise<string[]> {
+    return [...(this.byDepot ? (this.byDepot[depotId] ?? []) : this.ids)];
   }
 }
 

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { startOfLocalMonth } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
@@ -94,9 +94,38 @@ export class LoyaltyService {
     return { account, tier, discountRate: benefitFor(tier, benefits).discountRate };
   }
 
-  /** HQ broadcast reach: how many customers are enrolled in loyalty. */
-  async countMembers(): Promise<number> {
-    return this.repo.countAccounts();
+  /**
+   * HQ broadcast reach: how many customers are enrolled in loyalty.
+   *
+   * LOY-9: `depotIds` is a depot-scoped caller's set — a MANAGER was told the network's
+   * count. Undefined is the network (head office).
+   */
+  async countMembers(depotIds?: readonly string[]): Promise<number> {
+    if (!depotIds) return this.repo.countAccounts();
+    const ids = await this.customerIdsIn(depotIds);
+    if (ids.length === 0) return 0;
+    const tiers = await this.repo.countByTier(ids);
+    return Object.values(tiers).reduce((sum, n) => sum + n, 0);
+  }
+
+  /**
+   * LOY-4: a staff read of one customer's standing, refused when the customer belongs to
+   * none of the caller's depots. The directory fails open to [] — which here reads as
+   * "not yours", so an outage refuses rather than reveals.
+   */
+  async getAccountInScope(
+    customerId: string,
+    depotIds?: readonly string[],
+  ): Promise<LoyaltyAccountRecord> {
+    if (depotIds && !(await this.customerIdsIn(depotIds)).includes(customerId)) {
+      throw new ForbiddenException('Pelanggan ini bukan pelanggan depot Anda.');
+    }
+    return this.getAccount(customerId);
+  }
+
+  private async customerIdsIn(depotIds: readonly string[]): Promise<string[]> {
+    const lists = await Promise.all(depotIds.map((d) => this.customers.customerIdsForDepot(d)));
+    return [...new Set(lists.flat())];
   }
 
   /**

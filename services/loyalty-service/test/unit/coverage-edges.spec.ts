@@ -162,11 +162,11 @@ describe('prisma reads', () => {
     const prisma = { rewardRedemption: { findMany } } as unknown as PrismaService;
     const repo = new RewardPrismaRepository(prisma);
 
-    await repo.listRedemptionsByStatus('ACTIVE' as never, 'dep-1');
+    await repo.listRedemptionsByStatus('ACTIVE' as never, ['dep-1', 'dep-2']);
     await repo.listRedemptionsByStatus('ACTIVE' as never);
 
     expect(findMany.mock.calls[0][0].where).toMatchObject({
-      OR: [{ depotId: 'dep-1' }, { depotId: null }],
+      OR: [{ depotId: { in: ['dep-1', 'dep-2'] } }, { depotId: null }],
     });
     expect(findMany.mock.calls[1][0].where).toEqual({ status: 'ACTIVE' });
   });

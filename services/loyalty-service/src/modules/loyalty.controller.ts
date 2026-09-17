@@ -20,6 +20,7 @@ import {
   Public,
   Role,
   Roles,
+  depotScopeIds,
 } from '@hydromart/platform';
 
 import { LoyaltyService } from '../application/services/loyalty.service';
@@ -223,8 +224,8 @@ export class LoyaltyController {
   @Can('loyaltyRead')
   @Get('members/count')
   @ApiOperation({ summary: 'HQ broadcast reach: total enrolled loyalty members' })
-  async memberCount(): Promise<{ count: number }> {
-    return { count: await this.loyalty.countMembers() };
+  async memberCount(@CurrentUser() user: AuthenticatedUser): Promise<{ count: number }> {
+    return { count: await this.loyalty.countMembers(depotScopeIds(user)) };
   }
 
   @ApiOkResponse({ type: DepotLoyaltyResponseDto })
@@ -244,8 +245,11 @@ export class LoyaltyController {
   @Get('customers/:customerId')
   @ApiOperation({ summary: "Read a customer's loyalty account (staff)" })
   async byCustomer(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('customerId', ParseUUIDPipe) customerId: string,
   ): Promise<LoyaltyAccountDto> {
-    return LoyaltyAccountDto.from(await this.loyalty.getAccount(customerId));
+    return LoyaltyAccountDto.from(
+      await this.loyalty.getAccountInScope(customerId, depotScopeIds(user)),
+    );
   }
 }
