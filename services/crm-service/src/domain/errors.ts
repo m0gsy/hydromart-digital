@@ -70,3 +70,21 @@ export class RecipientOptedOutError extends DomainError {
     super('pelanggan ini berhenti menerima info promo — tidak ada yang dikirim');
   }
 }
+
+/** CRM-6: an endpoint that is not a known push service is never stored or called. */
+export class InvalidPushEndpointError extends DomainError {
+  readonly code = 'CRM_PUSH_ENDPOINT_INVALID';
+  readonly status = 400;
+  constructor() {
+    super('Endpoint push tidak dikenal.');
+  }
+}
+
+/** CRM-5: a device already registered to another account, re-registered without its keys. */
+export class PushEndpointTakenError extends DomainError {
+  readonly code = 'CRM_PUSH_ENDPOINT_TAKEN';
+  readonly status = 409;
+  constructor() {
+    super('Perangkat ini terdaftar untuk akun lain.');
+  }
+}

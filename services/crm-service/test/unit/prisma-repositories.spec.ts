@@ -450,6 +450,7 @@ describe('BroadcastPrismaRepository', () => {
 describe('PushSubscriptionPrismaRepository', () => {
   const webPushSubscription = {
     upsert: jest.fn(),
+    findUnique: jest.fn(),
     findMany: jest.fn(),
     deleteMany: jest.fn(),
   };
@@ -487,6 +488,15 @@ describe('PushSubscriptionPrismaRepository', () => {
       p256dh: 'key',
       auth: 'secret',
     });
+  });
+
+  it('findByEndpoint maps the row or answers null', async () => {
+    webPushSubscription.findUnique.mockResolvedValueOnce(subRow()).mockResolvedValueOnce(null);
+    expect((await repo.findByEndpoint('https://push.example/abc'))?.id).toBe('sub-1');
+    expect(webPushSubscription.findUnique).toHaveBeenCalledWith({
+      where: { endpoint: 'https://push.example/abc' },
+    });
+    expect(await repo.findByEndpoint('gone')).toBeNull();
   });
 
   it('listForCustomer maps every row', async () => {

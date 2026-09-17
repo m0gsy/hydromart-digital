@@ -20,6 +20,11 @@ export class PushSubscriptionPrismaRepository implements PushSubscriptionReposit
     return toRecord(row);
   }
 
+  async findByEndpoint(endpoint: string): Promise<WebPushSubscriptionRecord | null> {
+    const row = await this.prisma.webPushSubscription.findUnique({ where: { endpoint } });
+    return row ? toRecord(row) : null;
+  }
+
   async listForCustomer(customerId: string): Promise<WebPushSubscriptionRecord[]> {
     const rows = await this.prisma.webPushSubscription.findMany({ where: { customerId } });
     return rows.map(toRecord);
