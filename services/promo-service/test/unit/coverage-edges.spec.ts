@@ -156,7 +156,16 @@ describe('OrderValueHttpAdapter', () => {
       ok: true,
       json: async () => [{ orderId: 'o1', totalIdr: 50_000 }],
     });
-    expect(await adapter().findOrderValues(['o1'])).toEqual([{ orderId: 'o1', totalIdr: 50_000 }]);
+    expect(await adapter().findOrderValues(['o1'])).toEqual([
+      { orderId: 'o1', totalIdr: 50_000, depotId: null },
+    ]);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [{ orderId: 'o1', totalIdr: 50_000, depotId: 'd1' }],
+    });
+    expect(await adapter().findOrderValues(['o1'])).toEqual([
+      { orderId: 'o1', totalIdr: 50_000, depotId: 'd1' },
+    ]);
   });
 
   it.each([

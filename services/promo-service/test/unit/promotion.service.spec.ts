@@ -124,16 +124,16 @@ interface AnalyticsView {
 }
 
 interface AnalyticsService {
-  analytics(id: string, now?: Date): Promise<AnalyticsView>;
+  analytics(id: string, now?: Date, depotIds?: readonly string[]): Promise<AnalyticsView>;
 }
 
+type Value = { orderId: string; totalIdr: number; depotId: string | null };
+
 class FakeOrderValues {
-  values: { orderId: string; totalIdr: number }[] | null = [];
+  values: Value[] | null = [];
   calls: string[][] = [];
 
-  async findOrderValues(
-    orderIds: string[],
-  ): Promise<{ orderId: string; totalIdr: number }[] | null> {
+  async findOrderValues(orderIds: string[]): Promise<Value[] | null> {
     this.calls.push(orderIds);
     return this.values;
   }
@@ -250,6 +250,7 @@ describe('PromotionService analytics', () => {
     orderValues.values = redemptions.map(([, orderId], index) => ({
       orderId,
       totalIdr: (index + 1) * 10_000,
+      depotId: null,
     }));
     const orderedOrderIds = [...redemptions]
       .sort((a, b) => new Date(a[3]).getTime() - new Date(b[3]).getTime())
@@ -279,6 +280,54 @@ describe('PromotionService analytics', () => {
       { customerId: 'customer-c', uses: 1, savingsIdr: 600 },
     ]);
     expect(orderValues.calls).toEqual([orderedOrderIds]);
+  });
+
+  /*
+   * PRM-2: a depot-scoped caller sees the voucher's use at ITS depots only — the customer
+   * ids, order ids and order value of every other depot stay out of the answer.
+   */
+  it('computes the card over the caller depots only, and refuses when depots are unknown', async () => {
+    const voucher = await createVoucher();
+    const promotion = await createPromotion(voucher.code);
+    const rows = [
+      ['customer-a', 'order-1', 100, 'd1'],
+      ['customer-b', 'order-2', 200, 'd2'],
+      ['customer-c', 'order-3', 300, null],
+    ] as const;
+    vouchers.redemptions.push(
+      ...rows.map(([customerId, orderId, discountApplied], index) => ({
+        id: `redemption-${index}`,
+        voucherId: voucher.id,
+        voucherCode: voucher.code,
+        customerId,
+        orderId,
+        discountApplied,
+        createdAt: new Date(now.getTime() - index * 1000),
+      })),
+    );
+    orderValues.values = rows.map(([, orderId, , depotId]) => ({
+      orderId,
+      totalIdr: 50_000,
+      depotId,
+    }));
+
+    const mine = await service.analytics(promotion.id, now, ['d1']);
+    expect(mine).toMatchObject({
+      totalUses: 1,
+      totalSavingsIdr: 100,
+      affectedOrderIds: ['order-1'],
+      grossAffectedOrderValueIdr: 50_000,
+      orderValueSource: 'ok',
+    });
+    expect(mine.topCustomers.map((c) => c.customerId)).toEqual(['customer-a']);
+
+    expect((await service.analytics(promotion.id, now, ['d9'])).totalUses).toBe(0);
+    expect((await service.analytics(promotion.id, now)).totalUses).toBe(3);
+
+    orderValues.values = null;
+    await expect(service.analytics(promotion.id, now, ['d1'])).rejects.toThrow(
+      'analitik promo ditahan',
+    );
   });
 
   it('returns unavailable gross value when the order source fails open', async () => {

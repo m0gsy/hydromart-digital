@@ -30,10 +30,18 @@ describe('PromotionController', () => {
   it('analytics delegates and maps the response DTO', async () => {
     const result = await (
       controller as unknown as {
-        analytics(id: string): Promise<{ promotionId: string; totalUses: number }>;
+        analytics(
+          user: unknown,
+          id: string,
+        ): Promise<{ promotionId: string; totalUses: number }>;
       }
-    ).analytics('p1');
-    expect(promotions.analytics).toHaveBeenCalledWith('p1');
+    ).analytics({ sub: 'h', role: 'HEAD_OFFICE' }, 'p1');
+    expect(promotions.analytics).toHaveBeenCalledWith('p1', expect.any(Date), undefined);
+    // PRM-2: a kepala depot's analytics carry its depot.
+    await (
+      controller as unknown as { analytics(user: unknown, id: string): Promise<unknown> }
+    ).analytics({ sub: 'k', role: 'KEPALA_DEPOT', depotId: 'd1' }, 'p1');
+    expect(promotions.analytics).toHaveBeenLastCalledWith('p1', expect.any(Date), ['d1']);
     expect(result).toMatchObject({ promotionId: 'p1', totalUses: 0 });
   });
 
