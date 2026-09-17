@@ -1862,6 +1862,42 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     expect(m(p, 'employee').count).toHaveBeenCalledWith({ where: DEPARTED });
   });
 
+  // HR-1: the photo values the scrub is about to delete, read while the rows still exist.
+  it('collects profile, face and attendance photos — or faces only — per scope', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findMany.mockResolvedValue([
+      {
+        photoUrl: 'hr/photos/p.jpg',
+        faceEmbeddings: [{ sourcePhotoUrl: 'hr/faces/f.jpg' }, { sourcePhotoUrl: null }],
+        attendance: [{ checkInPhotoUrl: 'hr/attendance/i.jpg', checkOutPhotoUrl: null }],
+      },
+      { photoUrl: null, faceEmbeddings: [] },
+    ]);
+    const repo = new EmployeePrismaRepository(p as never);
+
+    expect(await repo.photoValuesFor({ authSubjectId: 'acc-1' })).toEqual([
+      'hr/faces/f.jpg',
+      'hr/photos/p.jpg',
+      'hr/attendance/i.jpg',
+    ]);
+    expect(m(p, 'employee').findMany).toHaveBeenLastCalledWith({
+      where: { authSubjectId: 'acc-1' },
+      select: {
+        photoUrl: true,
+        faceEmbeddings: { select: { sourcePhotoUrl: true } },
+        attendance: { select: { checkInPhotoUrl: true, checkOutPhotoUrl: true } },
+      },
+    });
+
+    expect(await repo.photoValuesFor({ departedBefore: CUTOFF, facesOnly: true })).toEqual([
+      'hr/faces/f.jpg',
+    ]);
+    expect(m(p, 'employee').findMany).toHaveBeenLastCalledWith({
+      where: DEPARTED,
+      select: { photoUrl: true, faceEmbeddings: { select: { sourcePhotoUrl: true } } },
+    });
+  });
+
   it('does nothing at all when no record is eligible', async () => {
     const p = makePrisma();
     m(p, 'employee').findMany.mockResolvedValue([]);

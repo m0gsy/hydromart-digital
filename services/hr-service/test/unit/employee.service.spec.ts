@@ -40,6 +40,13 @@ class FakeRepo implements EmployeeRepository {
   async purgeFaceEmbeddings(): Promise<number> {
     return this.facesPurged;
   }
+  /** HR-1: stored photo values the next scrub would delete, per scope, for assertions. */
+  photoValues: string[] = [];
+  photoScopes: unknown[] = [];
+  async photoValuesFor(scope: unknown): Promise<string[]> {
+    this.photoScopes.push(scope);
+    return this.photoValues;
+  }
 
   async countRetentionEligible(): Promise<number> {
     return this.retentionEligible;
@@ -1486,3 +1493,62 @@ describe('EmployeeService uniqueness and account plumbing', () => {
     await expect(svc.setActiveInternal('auth-nobody', false)).resolves.toEqual({ updated: false });
   });
 });
+
+/*
+ * HR-1. Every erasure and retention path deleted the ROWS — embeddings, attendance, the
+ * profile photo column — and left the images in the bucket. A face cannot be reissued.
+ */
+describe('EmployeeService photo objects (HR-1)', () => {
+  const storage = () => ({ remove: jest.fn().mockResolvedValue(undefined) });
+  const build = (repo: FakeRepo, store?: ReturnType<typeof storage>) =>
+    new EmployeeService(repo, {} as never, undefined, undefined, store as never);
+
+  it('deletes each distinct photo object after the scrub, both stored shapes', async () => {
+    const repo = new FakeRepo();
+    repo.photoValues = [
+      'hr/faces/a.jpg',
+      'https://nos.example/hydromart-hr/hr/attendance/b.jpg',
+      'hr/faces/a.jpg',
+      'https://elsewhere/avatar.png',
+      'hr/../etc/passwd',
+    ];
+    const store = storage();
+    const service = build(repo, store);
+
+    await expect(service.anonymiseByAccount('acc-1')).resolves.toEqual({ anonymised: 1 });
+    expect(repo.photoScopes).toEqual([{ authSubjectId: 'acc-1' }]);
+    expect(store.remove.mock.calls.map((c) => c[0])).toEqual([
+      'hr/faces/a.jpg',
+      'hr/attendance/b.jpg',
+    ]);
+
+    const cutoff = new Date('2026-01-01T00:00:00Z');
+    await service.retentionAnonymise(cutoff);
+    await service.purgeBiometrics(cutoff);
+    expect(repo.photoScopes.slice(1)).toEqual([
+      { departedBefore: cutoff },
+      { departedBefore: cutoff, facesOnly: true },
+    ]);
+  });
+
+  it('fails one person erasure on a refused delete, but keeps a retention sweep going', async () => {
+    const repo = new FakeRepo();
+    repo.photoValues = ['hr/faces/a.jpg', 'hr/faces/b.jpg'];
+    const store = storage();
+    store.remove.mockRejectedValueOnce(new Error('denied'));
+    const service = build(repo, store);
+    await expect(service.anonymiseByAccount('acc-1')).rejects.toThrow('belum bisa dihapus');
+    expect(store.remove).toHaveBeenCalledTimes(2);
+
+    store.remove.mockRejectedValueOnce(new Error('denied'));
+    repo.anonymised = 3;
+    await expect(service.retentionAnonymise(new Date())).resolves.toEqual({ deleted: 3 });
+  });
+
+  it('does nothing to storage when none is bound', async () => {
+    const repo = new FakeRepo();
+    repo.photoValues = ['hr/faces/a.jpg'];
+    await expect(build(repo).anonymiseByAccount('acc-1')).resolves.toEqual({ anonymised: 1 });
+  });
+});
+
