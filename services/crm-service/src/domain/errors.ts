@@ -51,10 +51,40 @@ export class SegmentUnavailableError extends DomainError {
  * contains an opted-out customer, because customer-service filters them out of the
  * directory query before the campaign is even created.
  */
+/**
+ * CRM-2: the marketing preference could not be read, so the promo is held. Not an opt-out —
+ * the recipient row says why, so staff can tell an outage from a customer's choice.
+ */
+export class MarketingPreferenceUnavailableError extends DomainError {
+  readonly code = 'CRM_MARKETING_PREFERENCE_UNAVAILABLE';
+  readonly status = 503;
+  constructor() {
+    super('preferensi promo pelanggan tidak bisa dibaca — pesan ditahan, tidak dikirim');
+  }
+}
+
 export class RecipientOptedOutError extends DomainError {
   readonly code = 'CRM_RECIPIENT_OPTED_OUT';
   readonly status = 422;
   constructor() {
     super('pelanggan ini berhenti menerima info promo — tidak ada yang dikirim');
+  }
+}
+
+/** CRM-6: an endpoint that is not a known push service is never stored or called. */
+export class InvalidPushEndpointError extends DomainError {
+  readonly code = 'CRM_PUSH_ENDPOINT_INVALID';
+  readonly status = 400;
+  constructor() {
+    super('Endpoint push tidak dikenal.');
+  }
+}
+
+/** CRM-5: a device already registered to another account, re-registered without its keys. */
+export class PushEndpointTakenError extends DomainError {
+  readonly code = 'CRM_PUSH_ENDPOINT_TAKEN';
+  readonly status = 409;
+  constructor() {
+    super('Perangkat ini terdaftar untuk akun lain.');
   }
 }
