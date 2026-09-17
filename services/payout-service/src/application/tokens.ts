@@ -6,4 +6,5 @@ export const PAYOUT_TOKENS = {
   CourierWithdrawalRepository: Symbol('CourierWithdrawalRepository'),
   ExpenseClaimRepository: Symbol('ExpenseClaimRepository'),
   PhotoLink: Symbol('PhotoLink'),
+  ReleaseRequestRepository: Symbol('ReleaseRequestRepository'),
 } as const;

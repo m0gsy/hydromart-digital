@@ -2005,6 +2005,22 @@ export interface PendingPayout {
   nextPayoutDate: string;
 }
 
+// PYO-2: an HQ release waiting for its second person. FINANCE raises it, a director or
+// super admin answers it, and the balance only moves on approval.
+export interface ReleaseRequest {
+  id: string;
+  franchiseOwnerId: string;
+  bankAccountRef: string | null;
+  amountAtRequest: number;
+  requestedBy: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  decidedBy: string | null;
+  decidedAt: string | null;
+  reason: string | null;
+  withdrawalId: string | null;
+  createdAt: string;
+}
+
 // HQ price-override approval queue (7a). depotName/productName/currentPrice are
 // denormalized snapshots captured at propose time so the queue renders fully.
 export type PriceAdjustType = 'PERCENT' | 'FIXED';

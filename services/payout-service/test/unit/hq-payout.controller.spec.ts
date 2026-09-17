@@ -19,9 +19,16 @@ describe('HqPayoutController', () => {
     listProcessingWithdrawals: jest.fn().mockResolvedValue([]),
     settleWithdrawal: jest.fn().mockResolvedValue({ id: 'cw1', status: 'PAID' }),
   };
+  const releases = {
+    request: jest.fn().mockResolvedValue({ id: 'req-1', status: 'PENDING' }),
+    listPending: jest.fn().mockResolvedValue([]),
+    approve: jest.fn().mockResolvedValue({ id: 'req-1', status: 'APPROVED' }),
+    reject: jest.fn().mockResolvedValue({ id: 'req-1', status: 'REJECTED' }),
+  };
   const controller = new HqPayoutController(
     payout as unknown as PayoutService,
     courierPayout as unknown as CourierPayoutService,
+    releases as never,
   );
   afterEach(() => jest.clearAllMocks());
 
@@ -35,17 +42,33 @@ describe('HqPayoutController', () => {
     expect(payout.availableForOwner).toHaveBeenCalledWith('owner-9');
   });
 
-  it('release passes the destination account through, and omits it when absent', async () => {
-    await controller.release({ franchiseOwnerId: 'owner-9' } as ReleasePayoutDto);
-    // CA-2-63: undefined means "use the account the owner was last paid to" — not the
-    // literal string this route used to record as the destination.
-    expect(payout.releaseForOwner).toHaveBeenCalledWith('owner-9', undefined);
+  /*
+   * PYO-2 (owner decision 2026-09-17): the release route asks; it no longer pays. The
+   * destination still travels with the request — undefined means "the account the owner was
+   * last paid to", not the literal string this route once recorded.
+   */
+  it('release only REQUESTS, carrying the destination and the requester', async () => {
+    await controller.release(user, { franchiseOwnerId: 'owner-9' } as ReleasePayoutDto);
+    expect(releases.request).toHaveBeenCalledWith('owner-9', undefined, 'finance-1');
+    expect(payout.releaseForOwner).not.toHaveBeenCalled();
 
-    await controller.release({
+    await controller.release(user, {
       franchiseOwnerId: 'owner-9',
       bankAccountRef: 'BCA ···· 4821',
     } as ReleasePayoutDto);
-    expect(payout.releaseForOwner).toHaveBeenLastCalledWith('owner-9', 'BCA ···· 4821');
+    expect(releases.request).toHaveBeenLastCalledWith('owner-9', 'BCA ···· 4821', 'finance-1');
+  });
+
+  it('lists, approves and rejects release requests with the deciding actor', async () => {
+    const approver = { sub: 'direktur-1' } as AuthenticatedUser;
+    await controller.releaseRequests();
+    expect(releases.listPending).toHaveBeenCalledWith();
+    await controller.approveRelease(approver, 'req-1');
+    expect(releases.approve).toHaveBeenCalledWith('req-1', 'direktur-1');
+    await controller.rejectRelease(approver, 'req-1', { reason: 'rekening salah' });
+    expect(releases.reject).toHaveBeenCalledWith('req-1', 'direktur-1', 'rekening salah');
+    await controller.rejectRelease(approver, 'req-1', {});
+    expect(releases.reject).toHaveBeenLastCalledWith('req-1', 'direktur-1', null);
   });
 
   /*

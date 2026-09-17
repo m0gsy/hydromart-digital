@@ -145,3 +145,28 @@ export class LedgerQueryDto {
   @Max(100)
   limit = 20;
 }
+
+/** PYO-2: an HQ release request and who has touched it. */
+export class ReleaseRequestResponseDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) franchiseOwnerId!: string;
+  @ApiProperty({ type: String, nullable: true }) bankAccountRef!: string | null;
+  @ApiProperty() amountAtRequest!: number;
+  @ApiProperty({ format: 'uuid' }) requestedBy!: string;
+  @ApiProperty({ enum: ['PENDING', 'APPROVED', 'REJECTED'] }) status!: string;
+  @ApiProperty({ type: String, nullable: true }) decidedBy!: string | null;
+  @ApiProperty({ type: Date, nullable: true }) decidedAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true }) reason!: string | null;
+  @ApiProperty({ type: String, nullable: true }) withdrawalId!: string | null;
+  @ApiProperty() createdAt!: Date;
+}
+
+/** PYO-2: why a release request was turned down (optional). */
+export class RejectReleaseDto {
+  @ApiPropertyOptional({ maxLength: 300 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+

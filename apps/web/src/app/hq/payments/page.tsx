@@ -9,7 +9,9 @@ import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
   CourierWithdrawal,
@@ -18,6 +20,7 @@ import type {
   Page,
   Payment,
   PendingPayout,
+  ReleaseRequest,
   UnsettledMethodBucket,
   Withdrawal,
 } from '@/lib/types';
@@ -101,6 +104,18 @@ export default function HqPaymentsPage() {
     api.get(endpoints.refunds.queue({ limit: 1 }), true),
   );
   const [releasing, setReleasing] = useState<string | null>(null);
+  const [deciding, setDeciding] = useState<string | null>(null);
+  /*
+   * PYO-2 (owner decision 2026-09-17): the button above asks for a release; somebody else
+   * answers it here. FINANCE sees the queue it filled and cannot approve its own rows —
+   * the server refuses that too, and this only keeps the buttons off a screen that cannot
+   * use them.
+   */
+  const { customer } = useAuth();
+  const mayApprove = can('hqPayoutApprove', customer?.role);
+  const requestsQ = useAsync<ReleaseRequest[]>(() =>
+    api.get(endpoints.payout.hqReleaseRequests, true),
+  );
   const [settling, setSettling] = useState<string | null>(null);
   // The queue `release` above has been filling with rows nothing could ever move on.
   const processingQ = useAsync<Withdrawal[]>(() => api.get(endpoints.payout.hqProcessing, true));
@@ -123,14 +138,47 @@ export default function HqPaymentsPage() {
     try {
       await api.post(endpoints.payout.release, { franchiseOwnerId: row.franchiseOwnerId }, true);
       toast(
-        t('hq.payments.release.released', { owner: ownerName(row.franchiseOwnerId) }),
+        t('hq.payments.release.requested', { owner: ownerName(row.franchiseOwnerId) }),
         'success',
       );
       queueQ.reload();
+      requestsQ.reload();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : String(err), 'error');
     } finally {
       setReleasing(null);
+    }
+  }
+
+  /** PYO-2: approve (money moves now) or reject (nothing moves) somebody else's request. */
+  async function decide(request: ReleaseRequest, approve: boolean) {
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: approve
+        ? t('hq.payments.release.confirmApprove')
+        : t('hq.payments.release.confirmReject'),
+      tone: approve ? 'primary' : 'danger',
+    });
+    if (!ok) return;
+    setDeciding(request.id);
+    try {
+      await api.post(
+        approve
+          ? endpoints.payout.hqApproveRelease(request.id)
+          : endpoints.payout.hqRejectRelease(request.id),
+        {},
+        true,
+      );
+      toast(
+        approve ? t('hq.payments.release.approved') : t('hq.payments.release.rejected'),
+        approve ? 'success' : 'info',
+      );
+      requestsQ.reload();
+      queueQ.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : String(err), 'error');
+    } finally {
+      setDeciding(null);
     }
   }
 
@@ -257,6 +305,59 @@ export default function HqPaymentsPage() {
                   >
                     {t('hq.payments.release.action')}
                   </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* PYO-2: the second pair of eyes. Requested here, approved by somebody else. */}
+        <Card className="flex min-w-0 flex-col p-5">
+          <h2 className="font-semibold">{t('hq.payments.release.queueTitle')}</h2>
+          <p className="mb-3 mt-1 text-xs text-muted">{t('hq.payments.release.queueHint')}</p>
+          {requestsQ.loading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : requestsQ.error ? (
+            <ErrorState message={requestsQ.error} onRetry={requestsQ.reload} />
+          ) : (requestsQ.data ?? []).length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted">
+              {t('hq.payments.release.queueEmpty')}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {(requestsQ.data ?? []).map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-app p-3"
+                >
+                  <span className="min-w-0">
+                    <span className="truncate font-medium">{ownerName(r.franchiseOwnerId)}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted">
+                      {t('hq.payments.release.requestedBy', { actor: ownerName(r.requestedBy) })}
+                    </span>
+                    <Money
+                      amount={r.amountAtRequest}
+                      className="mt-1 block text-sm font-semibold text-brand-700"
+                    />
+                  </span>
+                  {mayApprove && (
+                    <span className="flex shrink-0 gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => decide(r, true)}
+                        disabled={deciding === r.id}
+                      >
+                        {t('hq.payments.release.approve')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => decide(r, false)}
+                        disabled={deciding === r.id}
+                      >
+                        {t('hq.payments.release.reject')}
+                      </Button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

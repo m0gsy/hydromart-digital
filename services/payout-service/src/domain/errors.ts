@@ -24,6 +24,33 @@ export class InvalidWithdrawalAmountError extends DomainError {
  * either names the account or the owner has one on file from a previous cash-out; neither
  * is a reason to write "Rilis HQ" into the destination column and carry on.
  */
+/** PYO-2: an owner already has a release waiting for approval. */
+export class ReleaseAlreadyRequestedError extends DomainError {
+  readonly code = 'PAYOUT_RELEASE_ALREADY_REQUESTED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pencairan untuk pemilik ini sudah diajukan dan menunggu persetujuan.');
+  }
+}
+
+/** PYO-2: the release request is gone or already decided. */
+export class ReleaseRequestNotPendingError extends DomainError {
+  readonly code = 'PAYOUT_RELEASE_NOT_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pengajuan pencairan ini tidak ditemukan atau sudah diputuskan.');
+  }
+}
+
+/** PYO-2: maker and checker must be two different people. */
+export class ReleaseSelfApprovalError extends DomainError {
+  readonly code = 'PAYOUT_RELEASE_SELF_APPROVAL';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Pengaju pencairan tidak boleh menyetujui pengajuannya sendiri.');
+  }
+}
+
 export class UnknownPayoutDestinationError extends DomainError {
   readonly code = 'PAYOUT_UNKNOWN_DESTINATION';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
