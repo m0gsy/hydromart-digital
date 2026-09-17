@@ -1118,6 +1118,49 @@ describe('AnalyticsPrismaRepository', () => {
     });
   });
 
+  /*
+   * HR-4: the photo sweep reads the values first (so the objects can be deleted) and clears
+   * the columns after, both bounded per run — an unbounded UPDATE here would hold the table
+   * every attendance write needs.
+   */
+  it('reads attendance photo values before the cutoff, then clears those rows', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-06-19T00:00:00.000Z');
+    const where = {
+      workDate: { lt: cutoff },
+      OR: [{ checkInPhotoUrl: { not: null } }, { checkOutPhotoUrl: { not: null } }],
+    };
+    m(p, 'attendance').findMany.mockResolvedValueOnce([
+      { checkInPhotoUrl: 'hr/attendance/a.jpg', checkOutPhotoUrl: null },
+      { checkInPhotoUrl: null, checkOutPhotoUrl: 'hr/attendance/b.jpg' },
+    ]);
+    const repo = new AttendancePrismaRepository(asService(p));
+
+    await expect(repo.photosBefore(cutoff, 500)).resolves.toEqual([
+      'hr/attendance/a.jpg',
+      'hr/attendance/b.jpg',
+    ]);
+    expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({
+      where,
+      select: { checkInPhotoUrl: true, checkOutPhotoUrl: true },
+      take: 500,
+    });
+
+    m(p, 'attendance').findMany.mockResolvedValueOnce([{ id: 'a-1' }, { id: 'a-2' }]);
+    m(p, 'attendance').updateMany.mockResolvedValue({ count: 2 });
+    await expect(repo.clearPhotosBefore(cutoff, 500)).resolves.toBe(2);
+    expect(m(p, 'attendance').updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['a-1', 'a-2'] } },
+      data: { checkInPhotoUrl: null, checkOutPhotoUrl: null },
+    });
+
+    // Nothing old enough: no UPDATE at all.
+    m(p, 'attendance').updateMany.mockClear();
+    m(p, 'attendance').findMany.mockResolvedValueOnce([]);
+    await expect(repo.clearPhotosBefore(cutoff, 500)).resolves.toBe(0);
+    expect(m(p, 'attendance').updateMany).not.toHaveBeenCalled();
+  });
+
   it('summaryMany counts PRESENT/LATE/LEAVE per employee in one grouped query', async () => {
     const p = makePrisma();
     m(p, 'attendance').groupBy.mockResolvedValue([

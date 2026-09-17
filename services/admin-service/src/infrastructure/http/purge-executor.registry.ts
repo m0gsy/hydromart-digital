@@ -47,6 +47,20 @@ const REMOTE_DATASETS = [
     path: '/api/v1/employees/internal/retention-anonymise',
     mode: 'DELETE',
   },
+  /*
+   * HR-4, owner decision 2026-09-17: attendance selfies of staff who are still here.
+   *
+   * The only sweep that ever deleted one was the departed-employee scrub, so a face frame
+   * taken on a Tuesday was kept for as long as that person worked here. The punch, its
+   * hours and its match score stay — they are payroll evidence; the photo is the proof of
+   * a dispute nobody raised, and ninety days is well past the cycle it could be raised in.
+   */
+  {
+    dataset: 'hr_attendance_photos',
+    envKey: 'HR_SERVICE_URL',
+    path: '/api/v1/attendance/internal/retention-photos',
+    mode: 'DELETE',
+  },
   // Biometrics on their own, far shorter window (30d). A face cannot be reissued after a
   // leak, and its only purpose ends the day the employee does.
   {

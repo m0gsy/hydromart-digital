@@ -155,8 +155,18 @@ describe('AttendanceController', () => {
     'adjust',
     'decide',
     'photo',
+    'purgePhotosOlderThan',
   ]);
   const c = new AttendanceController(att as never);
+
+  // HR-4: admin-service drives the sweep and owns the window; this route owns the rows.
+  it('purges attendance photos at the cutoff admin-service passes', async () => {
+    att.purgePhotosOlderThan.mockResolvedValue({ purged: 12 });
+    await expect(c.purgePhotos({ cutoff: '2026-06-19T00:00:00.000Z' } as never)).resolves.toEqual({
+      purged: 12,
+    });
+    expect(att.purgePhotosOlderThan).toHaveBeenCalledWith(new Date('2026-06-19T00:00:00.000Z'));
+  });
 
   /*
    * CA-1-66: the frame a punch was accepted on. `which` comes off the path as a bare

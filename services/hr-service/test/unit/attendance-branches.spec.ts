@@ -34,6 +34,14 @@ const punch: FacePunch = {
 const AT = new Date('2026-07-24T01:10:00Z');
 
 class FakeAtt implements AttendanceRepository {
+  // HR-4: the retention sweep reads then clears; these fakes hold no photos.
+  async photosBefore(): Promise<string[]> {
+    return [];
+  }
+  async clearPhotosBefore(): Promise<number> {
+    return 0;
+  }
+
   // CA-1-24: the correction trail is readable now; this fake holds none.
   async listAdjustments(): Promise<never[]> {
     return [];
