@@ -142,37 +142,28 @@ else
   ok "the contract lists the two Zenziva keys that can actually be wrong, and not the one that cannot"
 fi
 
-# --- the Sentry probe reads the IMAGE, not a file nothing reads --------------------------
+# --- the Sentry probe reads the BUNDLE, and its advice follows the mode ---------------------
 #
-# It used to read SENTRY_DSN_WEB from the box's .env and advise "set it in .env and REBUILD".
-# Both halves were wrong: deploy.sh PULLS images and never builds one, and the image is built
-# by images.yml:148 from the GitHub repo VARIABLE `vars.SENTRY_DSN_WEB`. So the advice pointed
-# at a file where the value has no effect, on a machine that does no builds.
-if grep -qE 'exec -T web .*NEXT_PUBLIC_SENTRY_DSN' scripts/deploy.sh; then
-  ok "the Sentry probe reads the DSN baked into the running web image"
+# Its advice was wrong twice, in opposite directions, because each version hard-coded one
+# deployment mode. Both remedies must be present, chosen by `registry_mode`.
+if grep -qE 'exec -T web .*grep .*\[0-9a-f\]\{32\}@' scripts/deploy.sh; then
+  ok "the Sentry probe reads the DSN inlined into the running web bundle"
 else
-  bad "the Sentry probe still reads .env — this box pulls images, so that value affects nothing"
+  bad "the Sentry probe does not read the web bundle — NEXT_PUBLIC_SENTRY_DSN is ENV only in the Dockerfile builder stage, so printenv in the runtime image is always empty"
 fi
 
-# And it must name the RIGHT place. This assertion previously demanded the opposite, and the
-# opposite was wrong: `registry_mode()` (deploy-common.sh:37) is `[ -n "${IMAGE_PREFIX:-}" ]`,
-# IMAGE_PREFIX is empty on this deployment, so rebuild-stale.sh:75 runs `compose build` and
-# the build reads `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` (docker-compose.prod.yml:694)
-# out of the box's own .env. Every deploy that touches web prints `rebuilding: web`.
-#
-# The GitHub repo variable is real and also unset, but it feeds images.yml, whose images this
-# box never pulls. It becomes the fix on the day registry mode is switched on, and not before.
-if grep -qE 'Fix: set SENTRY_DSN_WEB in THIS .env' scripts/deploy.sh; then
-  ok "the Sentry probe points at the .env this box actually builds from"
+# The measurement that alarmed on a bundle that carried the DSN (2026-09-17). Must not return.
+if grep -qE 'exec -T web .*\$\{NEXT_PUBLIC_SENTRY_DSN' scripts/deploy.sh; then
+  bad "the Sentry probe reads the runtime environment again — it is empty in every image, so it always alarms"
 else
-  bad "the Sentry probe names the wrong remediation — this box BUILDS its images, so .env is where the DSN goes"
+  ok "the Sentry probe does not read the runtime environment"
 fi
 
-# The claim that made it wrong. It must not come back.
-if grep -qE 'this box pulls images' scripts/deploy.sh; then
-  bad "deploy.sh still claims this box pulls images — it builds them (rebuild-stale.sh:75, and every deploy prints 'rebuilding:')"
+if grep -qE 'Fix: set SENTRY_DSN_WEB in THIS .env' scripts/deploy.sh &&
+   grep -qE 'Fix: set the GitHub repo variable SENTRY_DSN_WEB' scripts/deploy.sh; then
+  ok "the Sentry probe names the remedy for both build mode (.env) and registry mode (repo variable)"
 else
-  ok "nothing claims this box pulls its images"
+  bad "the Sentry probe names only one remedy — the right place depends on registry_mode"
 fi
 
 # --- a depot with nowhere for money to land is REPORTED ----------------------------------

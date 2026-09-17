@@ -396,36 +396,29 @@ fi
 # SENTRY_DSN_WEB is present there — as `SENTRY_DSN_WEB=`, empty. A key that exists with no
 # value is exactly the shape that passes a presence check and ships a dead feature.
 #
-# Read from the RUNNING IMAGE. Measure the baked value, then say where to change it.
+# Where to change it depends on the mode (`registry_mode()`, scripts/lib/deploy-common.sh:37).
+# The advice here was wrong twice, in opposite directions, because it hard-coded one mode:
+#   build mode    — `compose build` reads `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` from
+#                   THIS .env.
+#   registry mode — images.yml builds web from the GitHub repo VARIABLE `vars.SENTRY_DSN_WEB`;
+#                   .env on this box has no effect on the bundle.
 #
-# The reading is right and the ADVICE here has now been wrong twice, in opposite directions,
-# so the mechanism is worth stating once and precisely.
-#
-# This box BUILDS its images. `registry_mode()` (scripts/lib/deploy-common.sh:37) is
-# `[ -n "${IMAGE_PREFIX:-}" ]`, IMAGE_PREFIX is empty here, so deploy.sh takes the local
-# branch: rebuild-stale.sh:75 runs `$COMPOSE build`, and every deploy that touches web prints
-# `rebuilding: web`. `docker compose build` reads
-# `NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}` (docker-compose.prod.yml:694) straight out of
-# THIS .env. So .env is exactly the right place, and the rebuild is what applies it.
-#
-# .github/workflows/images.yml:148 also builds a web image, from the repo VARIABLE
-# `vars.SENTRY_DSN_WEB` — and that variable does not exist. True, and irrelevant while
-# IMAGE_PREFIX is empty: those images go to GHCR and this box never pulls them. It becomes
-# the operative fix the day registry mode is switched on, and not before.
-#
-# Reading the container rather than .env is still the better MEASUREMENT: apps/web/
-# Dockerfile:29 does `ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN`, so this answers
-# "does the image that is RUNNING report errors" instead of "is there a string in a file" —
-# the difference between a value that was set and a value that was applied.
-if $COMPOSE exec -T web sh -c '[ -n "${NEXT_PUBLIC_SENTRY_DSN:-}" ]' >/dev/null 2>&1; then
-  log "web error reporting probe — the running web image has a Sentry DSN baked in"
+# And measure the BUNDLE, not the environment. The DSN is ENV only in the Dockerfile's
+# `builder` stage; the `runtime` stage never declares it, so `exec web printenv` is empty in
+# EVERY image and this probe alarmed on a web bundle that did carry the DSN (2026-09-17,
+# first registry-mode deploy). `next build` inlines it into the static chunks as
+# `https://<32-hex key>@host/…`, so that string being present is the value being applied.
+if $COMPOSE exec -T web sh -c 'grep -rqsE "https://[0-9a-f]{32}@" apps/web/.next/static/chunks' >/dev/null 2>&1; then
+  log "web error reporting probe — the running web bundle has a Sentry DSN baked in"
 else
-  log "!! the running web image has NEXT_PUBLIC_SENTRY_DSN EMPTY, so the Sentry SDK is never"
-  log "   loaded and every client-side crash on the site is invisible."
-  log "   Fix: set SENTRY_DSN_WEB in THIS .env, then deploy - this box builds its own images"
-  log "   (IMAGE_PREFIX is empty, so rebuild-stale runs compose build) and the build reads it"
-  log "   from here. A restart alone will not do it: it is a build arg, not a runtime one."
-  log "   The GitHub repo variable of the same name only matters in registry mode."
+  log "!! the running web bundle has no Sentry DSN, so the Sentry SDK is never loaded and"
+  log "   every client-side crash on the site is invisible. It is a build arg: a restart will not fix it."
+  if registry_mode; then
+    log "   Fix: set the GitHub repo variable SENTRY_DSN_WEB, re-run the Images workflow, then deploy"
+    log "   (registry mode — this box pulls web from GHCR; .env here does not reach the bundle)."
+  else
+    log "   Fix: set SENTRY_DSN_WEB in THIS .env, then deploy (build mode — compose build reads it here)."
+  fi
   alert "the running web image has no Sentry DSN — client-side crashes are invisible (audit N2)"
 fi
 
@@ -459,7 +452,7 @@ DISK_USED_PCT="$(df -Pk / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print $5}' |
 DB_TOTAL_KB=""
 DB_PRETTY="unreadable"
 if docker exec "$PG" true >/dev/null 2>&1; then
-  DB_SIZE="$(docker exec "$PG" psql -U hydromart -d postgres -tAc       "SELECT coalesce(sum(pg_database_size(datname)),0)/1024 || '|' || pg_size_pretty(coalesce(sum(pg_database_size(datname)),0)) || ' in ' || count(*) || ' db' FROM pg_database WHERE datname LIKE 'hydromart%'"       2>/dev/null | tr -d '\r\n' || true)"
+  DB_SIZE="$(docker exec "$PG" psql -U hydromart -d postgres -tAc       "SELECT (coalesce(sum(pg_database_size(datname)),0)/1024)::bigint || '|' || pg_size_pretty(coalesce(sum(pg_database_size(datname)),0)) || ' in ' || count(*) || ' db' FROM pg_database WHERE datname LIKE 'hydromart%'"       2>/dev/null | tr -d '\r\n' || true)"
   DB_TOTAL_KB="${DB_SIZE%%|*}"
   [ "$DB_SIZE" != "${DB_SIZE#*|}" ] && DB_PRETTY="${DB_SIZE#*|}"
 fi
