@@ -265,8 +265,11 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @Can('depotFinance')
   @ApiOperation({ summary: 'Payments recorded against a set of orders (depot reconciliation)' })
-  listForOrders(@Body() dto: PaymentsForOrdersDto): Promise<PaymentRecord[]> {
-    return this.payments.listForOrders(dto.orderIds);
+  listForOrders(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PaymentsForOrdersDto,
+  ): Promise<PaymentRecord[]> {
+    return this.payments.listForOrders(dto.orderIds, user);
   }
 
   /*
@@ -425,9 +428,10 @@ export class PaymentController {
     summary: 'PAID cash over a set of orders, total + per order (courier COD deposit)',
   })
   cashCollected(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: CashCollectedQueryDto,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
-    return this.payments.cashCollected(query.orderIds);
+    return this.payments.cashCollected(query.orderIds, user);
   }
 
   /*

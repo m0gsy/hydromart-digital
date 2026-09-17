@@ -98,10 +98,14 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     return this.getValues(orderIds, 'orderNumber');
   }
 
+  async getOrderDepots(orderIds: string[]): Promise<Map<string, string>> {
+    return this.getValues(orderIds, 'depotId');
+  }
+
   /** One field of `internal/values`, keyed by order id. Fails SOFT: the map just misses. */
   private async getValues(
     orderIds: string[],
-    field: 'orderNumber' | 'status',
+    field: 'orderNumber' | 'status' | 'depotId',
   ): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     const { orderServiceUrl, internalServiceKey } = this.config;

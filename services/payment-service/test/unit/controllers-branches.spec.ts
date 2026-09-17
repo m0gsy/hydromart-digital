@@ -117,8 +117,10 @@ describe('PaymentController', () => {
   });
 
   it('listForOrders forwards the id set from the body', async () => {
-    expect(await controller.listForOrders({ orderIds: ['o1', 'o2'] })).toBe('RESULT');
-    expect(svc.listForOrders).toHaveBeenCalledWith(['o1', 'o2']);
+    const who = { sub: 'k', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    expect(await controller.listForOrders(who, { orderIds: ['o1', 'o2'] })).toBe('RESULT');
+    // PAY-2: the caller travels with the ids, so the service can refuse another depot's.
+    expect(svc.listForOrders).toHaveBeenCalledWith(['o1', 'o2'], who);
   });
 
   // CA-2-59: internal key, not a user capability — the caller is dashboard-service and it
@@ -280,8 +282,9 @@ describe('PaymentController', () => {
   // Both routes now answer off the one per-order read: the GET is what delivery-service
   // settles against (C1), and it needs the split, not just the total.
   it('cashCollected forwards the order ids from the query', async () => {
-    await controller.cashCollected({ orderIds: ['o3', 'o4'] } as never);
-    expect(svc.cashCollected).toHaveBeenCalledWith(['o3', 'o4']);
+    const who = { sub: 'k', role: 'STAFF_DEPOT', depotId: 'd1' } as never;
+    await controller.cashCollected(who, { orderIds: ['o3', 'o4'] } as never);
+    expect(svc.cashCollected).toHaveBeenCalledWith(['o3', 'o4'], who);
   });
 
   it('listRefundQueue forwards the query', async () => {
