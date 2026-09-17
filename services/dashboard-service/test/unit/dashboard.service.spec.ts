@@ -264,6 +264,19 @@ describe('DashboardService', () => {
     expect(sources.crmSummaryManyCalls).toBe(1);
   });
 
+  // DSH-1: a scoped roll-up neither lists nor fetches a depot outside the scope.
+  it('network and networkPnl answer only for the depots in scope', async () => {
+    const sources = new InMemoryDashboardSources();
+    const lowStock = jest.spyOn(sources, 'lowStock');
+    const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+    const net = await service.network({}, 'Bearer t', ['depot-2']);
+    expect(net.depots.map((d) => d.depotId)).toEqual(['depot-2']);
+    expect(lowStock.mock.calls.map((c) => c[0])).toEqual(['depot-2']);
+    const pnl = await service.networkPnl('2026-07', 'Bearer t', ['depot-1']);
+    expect(pnl.depots.map((d) => d.depotId)).toEqual(['depot-1']);
+    expect((await service.network({}, 'Bearer t', [])).depots).toEqual([]);
+  });
+
   it('rolls up every depot with revenue, SLA and low-stock, null SLA when none in range', async () => {
     const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig(), noNames);
     const result = await service.network({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');

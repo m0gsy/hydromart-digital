@@ -74,8 +74,9 @@ export class DashboardController {
   networkPnl(
     @Query() query: NetworkPnlQueryDto,
     @Headers('authorization') token: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<NetworkPnl> {
-    return this.dashboard.networkPnl(query.month, token);
+    return this.dashboard.networkPnl(query.month, token, depotScopeIds(user));
   }
 
   @ApiOkResponse({ type: NetworkDashboardResponseDto })
@@ -84,8 +85,13 @@ export class DashboardController {
   network(
     @Query() query: ExecutiveQueryDto,
     @Headers('authorization') token: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<NetworkDashboard> {
-    return this.dashboard.network({ from: query.from, to: query.to }, token);
+    // DSH-1: same hole `executive` had — `dashboard` admits three depot-scoped roles and
+    // neither roll-up names a depot. Every source below is read with the internal key
+    // (DSH-2), so no downstream service can narrow it: this line is the only place the
+    // caller's scope is applied.
+    return this.dashboard.network({ from: query.from, to: query.to }, token, depotScopeIds(user));
   }
 
   // Method-level @Roles overrides the class-level roles (RolesGuard getAllAndOverride).
