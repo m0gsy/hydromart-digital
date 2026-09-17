@@ -170,12 +170,14 @@ export class RewardPrismaRepository implements RewardRepository {
 
   async listRedemptionsByStatus(
     status: RedemptionStatus,
-    depotId?: string,
+    depotIds?: readonly string[],
   ): Promise<RewardRedemptionView[]> {
     const rows = await this.prisma.rewardRedemption.findMany({
       // Legacy rows carry no depot; they belong to whoever the customer walks up to, so
       // they stay in every depot's queue rather than in none of them.
-      where: depotId ? { status, OR: [{ depotId }, { depotId: null }] } : { status },
+      where: depotIds
+        ? { status, OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] }
+        : { status },
       // Oldest first: the customer who has been waiting longest is served first.
       orderBy: { createdAt: 'asc' },
       include: { reward: { select: { name: true } } },

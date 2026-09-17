@@ -72,6 +72,7 @@ describe('LoyaltyController (delegation)', () => {
     reward: jest.fn(async () => account()),
     runExpiry: jest.fn(async () => ({ lotsExpired: 0, pointsExpired: 0 })),
     countMembers: jest.fn(async () => 42),
+    getAccountInScope: jest.fn(async () => account()),
     depotSummary: jest.fn(async () => ({ depotId: 'd1' })),
   };
   const ctrl = new LoyaltyController(loyalty as never);
@@ -168,8 +169,12 @@ describe('LoyaltyController (delegation)', () => {
     expect(loyalty.runExpiry).toHaveBeenCalled();
   });
 
-  it('memberCount() wraps the count', async () => {
-    expect(await ctrl.memberCount()).toEqual({ count: 42 });
+  it('memberCount() wraps the count, network-wide only for an unscoped caller', async () => {
+    expect(await ctrl.memberCount(user({ role: 'HEAD_OFFICE' }))).toEqual({ count: 42 });
+    expect(loyalty.countMembers).toHaveBeenLastCalledWith(undefined);
+    // LOY-9: a MANAGER is counted over its own depots.
+    await ctrl.memberCount(user({ role: 'MANAGER', depotIds: ['d1', 'd2'] }));
+    expect(loyalty.countMembers).toHaveBeenLastCalledWith(['d1', 'd2']);
   });
 
   it('depotSummary() forwards the depotId', () => {
@@ -178,9 +183,12 @@ describe('LoyaltyController (delegation)', () => {
   });
 
   it('byCustomer() reads a staff-scoped account', async () => {
-    const out = await ctrl.byCustomer('cust-9');
+    const out = await ctrl.byCustomer(user({ role: 'HEAD_OFFICE' }), 'cust-9');
     expect(out.customerId).toBe('cust-1');
-    expect(loyalty.getAccount).toHaveBeenCalledWith('cust-9');
+    expect(loyalty.getAccountInScope).toHaveBeenCalledWith('cust-9', undefined);
+    // LOY-4: a MANAGER's read carries its depots, so the service can refuse a stranger.
+    await ctrl.byCustomer(user({ role: 'MANAGER', depotId: 'd1' }), 'cust-9');
+    expect(loyalty.getAccountInScope).toHaveBeenLastCalledWith('cust-9', ['d1']);
   });
 });
 
@@ -348,13 +356,17 @@ describe('RewardController (delegation)', () => {
     ]);
   });
 
-  it('activeRedemptions() scopes to a depot when given, and network-wide when not', async () => {
-    await ctrl.activeRedemptions('depot-1');
-    expect(rewards.listAwaitingHandover).toHaveBeenCalledWith('depot-1');
+  it('activeRedemptions() scopes to a depot when given, and to the caller scope when not', async () => {
+    const hq = user({ role: 'HEAD_OFFICE' });
+    await ctrl.activeRedemptions(hq, 'depot-1');
+    expect(rewards.listAwaitingHandover).toHaveBeenCalledWith(['depot-1']);
     // An empty query string must mean "no filter", not "a depot named empty string".
-    await ctrl.activeRedemptions('');
+    await ctrl.activeRedemptions(hq, '');
     expect(rewards.listAwaitingHandover).toHaveBeenLastCalledWith(undefined);
-    const out = await ctrl.activeRedemptions();
+    // LOY-3: a kepala depot sending no depot gets its own queue, not the network's.
+    await ctrl.activeRedemptions(user({ role: 'KEPALA_DEPOT', depotId: 'depot-7' }));
+    expect(rewards.listAwaitingHandover).toHaveBeenLastCalledWith(['depot-7']);
+    const out = await ctrl.activeRedemptions(hq);
     expect(rewards.listAwaitingHandover).toHaveBeenLastCalledWith(undefined);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ id: 'rd-2', customerId: 'cust-9', status: 'ACTIVE' });
