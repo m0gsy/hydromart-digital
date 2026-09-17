@@ -94,6 +94,15 @@ export class PayoutConfigService {
    * default — never a depot's own number, or the ceiling would be whatever it is measured
    * against.
    */
+  /** PYO-5: the largest claim a MANAGER may approve alone (network-wide setting). */
+  get expenseManagerApproveMaxIdr(): number {
+    return this.tunable(
+      'expenseManagerApproveMaxIdr',
+      this.num('EXPENSE_MANAGER_APPROVE_MAX_IDR'),
+      null,
+    );
+  }
+
   expenseAutoApproveMaxIdr(depotId: string | null = null): number {
     const envValue = this.num('EXPENSE_AUTO_APPROVE_MAX_IDR');
     const network = this.tunable('expenseAutoApproveMaxIdr', envValue, null);

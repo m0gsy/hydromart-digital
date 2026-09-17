@@ -82,6 +82,15 @@ export class ExpenseClaimNotFoundError extends DomainError {
   }
 }
 
+/** PYO-5: a MANAGER approving a claim above the ceiling; FINANCE decides these. */
+export class ExpenseApprovalAboveLimitError extends DomainError {
+  readonly code = 'EXPENSE_APPROVAL_ABOVE_LIMIT';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor(limit: number) {
+    super(`Klaim di atas Rp${limit.toLocaleString('id-ID')} harus disetujui FINANCE.`);
+  }
+}
+
 export class ExpenseClaimNotPendingError extends DomainError {
   readonly code = 'EXPENSE_NOT_PENDING';
   readonly status = HTTP_STATUS.CONFLICT;

@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import {
+  ExpenseApprovalAboveLimitError,
   ExpenseClaimNotFoundError,
   ExpenseClaimNotPendingError,
   InvalidExpenseAmountError,
@@ -121,6 +122,12 @@ export class ExpenseClaimService {
     reviewer?: AuthenticatedUser,
   ): Promise<ExpenseClaimRecord> {
     const claim = await this.loadPending(id, reviewer);
+    // PYO-5: one depot manager approved any amount. Above the network ceiling the claim is
+    // FINANCE's (or a super admin's) to decide; rejecting stays open to the manager.
+    if (reviewer?.role === 'MANAGER') {
+      const limit = this.config.expenseManagerApproveMaxIdr;
+      if (claim.amount > limit) throw new ExpenseApprovalAboveLimitError(limit);
+    }
     return this.approveAndCredit(claim, reviewerId, note ?? null);
   }
 

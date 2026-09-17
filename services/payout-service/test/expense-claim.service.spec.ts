@@ -411,6 +411,37 @@ describe('ExpenseClaimService', () => {
     });
 
     /*
+     * PYO-5 (owner decision 2026-09-17). A manager approves up to the ceiling; above it the
+     * claim waits for FINANCE, who may approve any amount. Rejecting is open to the manager.
+     */
+    it('holds a manager to the approval ceiling, and lets finance past it', async () => {
+      const capped = new ExpenseClaimService(
+        claims,
+        ledger,
+        { ...config, expenseManagerApproveMaxIdr: 500_000 } as unknown as PayoutConfigService,
+        photos,
+      );
+      const manager = { sub: 'm-1', role: Role.MANAGER, depotId: 'depot-1' } as AuthenticatedUser;
+      const finance = { sub: 'f-1', role: Role.FINANCE, depotId: null } as AuthenticatedUser;
+
+      const big = await capped.submit(COURIER, input(750_000));
+      await expect(capped.approve(big.id, 'm-1', undefined, manager)).rejects.toThrow('FINANCE');
+      expect(ledger.entries).toHaveLength(0);
+      await expect(capped.approve(big.id, 'f-1', undefined, finance)).resolves.toMatchObject({
+        status: 'APPROVED',
+      });
+
+      const small = await capped.submit(COURIER, input(400_000));
+      await expect(capped.approve(small.id, 'm-1', undefined, manager)).resolves.toMatchObject({
+        status: 'APPROVED',
+      });
+      const rejected = await capped.submit(COURIER, input(900_000));
+      await expect(capped.reject(rejected.id, 'm-1', 'no', manager)).resolves.toMatchObject({
+        status: 'REJECTED',
+      });
+    });
+
+    /*
      * PYO-4. Two reviewers at once: the one who loses changes nothing and moves no money,
      * and a credit that fails puts the claim back so it can be decided again.
      */
