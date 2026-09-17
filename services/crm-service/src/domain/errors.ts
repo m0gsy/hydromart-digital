@@ -51,6 +51,18 @@ export class SegmentUnavailableError extends DomainError {
  * contains an opted-out customer, because customer-service filters them out of the
  * directory query before the campaign is even created.
  */
+/**
+ * CRM-2: the marketing preference could not be read, so the promo is held. Not an opt-out —
+ * the recipient row says why, so staff can tell an outage from a customer's choice.
+ */
+export class MarketingPreferenceUnavailableError extends DomainError {
+  readonly code = 'CRM_MARKETING_PREFERENCE_UNAVAILABLE';
+  readonly status = 503;
+  constructor() {
+    super('preferensi promo pelanggan tidak bisa dibaca — pesan ditahan, tidak dikirim');
+  }
+}
+
 export class RecipientOptedOutError extends DomainError {
   readonly code = 'CRM_RECIPIENT_OPTED_OUT';
   readonly status = 422;

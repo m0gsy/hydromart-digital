@@ -4,7 +4,7 @@ import { BroadcastDeliveryPort } from '../../application/ports/broadcast-deliver
 import { NotificationPreferencePort } from '../../application/ports/notification-preference.port';
 import { NotificationService } from '../../application/services/notification.service';
 import { CRM_TOKENS } from '../../application/tokens';
-import { RecipientOptedOutError } from '../../domain/errors';
+import { MarketingPreferenceUnavailableError, RecipientOptedOutError } from '../../domain/errors';
 import { NotificationEvent } from '../../domain/notification-event';
 
 /**
@@ -39,16 +39,16 @@ export class InboxBroadcastDelivery implements BroadcastDeliveryPort {
   }
 
   /**
-   * Fails OPEN, for the same reason as the port it calls: an outage must not quietly
-   * abandon a campaign, and the audience this message came from was already filtered by a
-   * query that cannot fail this way.
+   * CRM-2 — fails CLOSED. "The audience was already filtered" is not true of a pasted
+   * recipient list, which is the only reason this backstop exists. No port wired, or a
+   * preference that cannot be read, holds the message with a reason that is not "opted out".
    */
   private async allowed(customerId: string): Promise<boolean> {
-    if (!this.prefs) return true;
+    if (!this.prefs) throw new MarketingPreferenceUnavailableError();
     try {
       return await this.prefs.marketingAllowed(customerId);
     } catch {
-      return true;
+      throw new MarketingPreferenceUnavailableError();
     }
   }
 }
