@@ -17,10 +17,15 @@ describe('CommissionController', () => {
 
   it('apply maps effectiveDate to a Date and passes items through', async () => {
     const items = [{ depotId: 'd1', pct: 20 }];
-    await controller.apply({ effectiveDate: '2026-08-01', items } as unknown as ApplySchemeDto);
+    await controller.apply(
+      { effectiveDate: '2026-08-01', items } as unknown as ApplySchemeDto,
+      { sub: 'hq-1' } as never,
+    );
+    // PYO-6: the applying account travels with the scheme.
     expect(commission.apply).toHaveBeenCalledWith({
       effectiveDate: new Date('2026-08-01'),
       items,
+      appliedBy: 'hq-1',
     });
   });
 });

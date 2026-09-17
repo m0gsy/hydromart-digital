@@ -273,6 +273,7 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
         peakEndHour: data.peakEndHour,
         monthlyTarget: data.monthlyTarget,
         effectiveDate: data.effectiveDate,
+        createdBy: data.createdBy ?? null,
         tiers: { create: data.tiers.map((t) => ({ deliveries: t.deliveries, bonus: t.bonus })) },
       },
       include: { tiers: { orderBy: { deliveries: 'asc' } } },

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { CommissionService } from '../application/services/commission.service';
 import { CommissionSchemeRecord } from '../domain/commission';
@@ -37,10 +37,14 @@ export class CommissionController {
   @Post('schemes/apply')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Apply a new commission scheme (bulk per-depot %, effective date)' })
-  apply(@Body() dto: ApplySchemeDto): Promise<CommissionSchemeRecord[]> {
+  apply(
+    @Body() dto: ApplySchemeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommissionSchemeRecord[]> {
     return this.commission.apply({
       effectiveDate: new Date(dto.effectiveDate),
       items: dto.items,
+      appliedBy: user.sub,
     });
   }
 }

@@ -1297,6 +1297,7 @@ describe('CourierLedgerPrismaRepository', () => {
       monthlyTarget: 5000000,
       tiers: [{ deliveries: 25, bonus: 25000 }],
       effectiveDate: ruleRow.effectiveDate,
+      createdBy: 'hq-1',
     };
     const result = await repo.createRule(data as never);
     expect(ruleModel.create).toHaveBeenCalledWith({
@@ -1309,6 +1310,8 @@ describe('CourierLedgerPrismaRepository', () => {
         peakEndHour: 20,
         monthlyTarget: 5000000,
         effectiveDate: ruleRow.effectiveDate,
+        // PYO-6: the author is stored with the rule.
+        createdBy: 'hq-1',
         tiers: { create: [{ deliveries: 25, bonus: 25000 }] },
       },
       include: TIER_INCLUDE,

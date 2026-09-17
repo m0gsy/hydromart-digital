@@ -24,8 +24,9 @@ describe('EarningRuleController', () => {
       peakStartHour: 17,
       peakEndHour: 20,
       effectiveDate: '2026-08-01',
-    } as ApplyEarningRuleDto);
+    } as ApplyEarningRuleDto, { sub: 'hq-1' } as never);
     expect(payout.applyEarningRule).toHaveBeenCalledWith({
+      createdBy: 'hq-1',
       depotId: 'd1',
       baseFare: 5000,
       peakBonus: 2000,
@@ -46,7 +47,7 @@ describe('EarningRuleController', () => {
       peakStartHour: 17,
       peakEndHour: 20,
       effectiveDate: '2026-08-01',
-    } as ApplyEarningRuleDto);
+    } as ApplyEarningRuleDto, { sub: 'hq-1' } as never);
     expect(payout.applyEarningRule).toHaveBeenCalledWith(
       expect.objectContaining({ depotId: null }),
     );
