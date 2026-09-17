@@ -17,7 +17,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { Can } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { CourierPayoutService } from '../application/services/courier-payout.service';
 import { CourierEarningRuleRecord } from '../application/ports/courier-ledger.repository';
@@ -47,8 +47,12 @@ export class EarningRuleController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Apply a new effective-dated earning rule' })
-  apply(@Body() dto: ApplyEarningRuleDto): Promise<CourierEarningRuleRecord> {
+  apply(
+    @Body() dto: ApplyEarningRuleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CourierEarningRuleRecord> {
     return this.payout.applyEarningRule({
+      createdBy: user.sub,
       depotId: dto.depotId ?? null,
       baseFare: dto.baseFare,
       peakBonus: dto.peakBonus,

@@ -76,6 +76,8 @@ model CommissionScheme {
   /// Franchise payout percentage (0..100), e.g. 20.00.
   pct           Decimal  @db.Decimal(5, 2)
   effectiveDate DateTime
+  /// PYO-6: who applied it. Null on rows from before the column existed.
+  createdBy     String?  @db.Uuid
   createdAt     DateTime @default(now())
 
   // Current-scheme lookup reads the newest effectiveDate per depot.
@@ -103,6 +105,8 @@ model CourierEarningRule {
   /// Monthly earnings target shown to the courier (IDR); 0 = no target configured.
   monthlyTarget Decimal @db.Decimal(14, 2) @default(0)
   effectiveDate DateTime
+  /// PYO-6: who applied it. Null on rows from before the column existed.
+  createdBy     String? @db.Uuid
   createdAt     DateTime @default(now())
 
   tiers CourierIncentiveTier[]

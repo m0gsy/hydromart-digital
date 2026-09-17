@@ -78,4 +78,29 @@ describe('CA-4-49 PhotoLinkHttpAdapter', () => {
     await expect(adapter(env).signedUrl(STORED)).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  // PYO-1: auto-approval needs the receipt to EXIST, asked through the same signed link.
+  describe('exists', () => {
+    it('reads one byte through the signed link', async () => {
+      fetchMock
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'https://signed/a' }) })
+        .mockResolvedValueOnce({ ok: true });
+      await expect(adapter(configured).exists(STORED)).resolves.toBe(true);
+      const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+      expect(url).toBe('https://signed/a');
+      expect((init.headers as Record<string, string>).range).toBe('bytes=0-0');
+    });
+
+    it('is false when no link, a missing object, or an unreachable store', async () => {
+      await expect(adapter({}).exists(STORED)).resolves.toBe(false);
+      fetchMock
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'https://signed/a' }) })
+        .mockResolvedValueOnce({ ok: false, status: 404 });
+      await expect(adapter(configured).exists(STORED)).resolves.toBe(false);
+      fetchMock
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'https://signed/a' }) })
+        .mockRejectedValueOnce(new Error('ECONNRESET'));
+      await expect(adapter(configured).exists(STORED)).resolves.toBe(false);
+    });
+  });
 });

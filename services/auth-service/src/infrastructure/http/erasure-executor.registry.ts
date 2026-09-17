@@ -105,6 +105,18 @@ export const ERASURE_EXEMPTION_LIST: ErasureExemption[] = [
       'Diukur 2026-08-25: 813 baris memegang phone/recipientName/driverPhone.',
   },
   {
+    /*
+     * PYO-7: payout was outside the erasure path entirely — not erased, not exempted, not
+     * named. It holds a franchise owner's or courier's cash-outs and the bank destination
+     * typed for each. Those rows ARE the proof money was paid, so they stay; the decision is
+     * written here so a deletion report names it instead of omitting it.
+     */
+    dataset: 'payout.withdrawals',
+    reason:
+      'Pencairan saldo pemilik waralaba dan kurir beserta tujuan rekeningnya: kelas FINANCIAL, ' +
+      'retensi 10 tahun (bukti pembayaran, kewajiban perpajakan). Sama dengan order.orders.',
+  },
+  {
     dataset: 'auth.audit_logs',
     reason:
       'Jejak audit keamanan: siapa masuk, dari mana, kapan. Kelas OPERATIONAL, jendela ' +

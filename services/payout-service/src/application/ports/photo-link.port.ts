@@ -13,4 +13,6 @@
 export interface PhotoLinkPort {
   /** A time-limited link for the stored URL, or null when one cannot be minted. */
   signedUrl(storedUrl: string): Promise<string | null>;
+  /** PYO-1: whether the object behind the stored URL exists. False on any doubt. */
+  exists(storedUrl: string): Promise<boolean>;
 }

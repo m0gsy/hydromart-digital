@@ -106,8 +106,10 @@ class FakeClaims implements ExpenseClaimRepository {
   async findById(id: string): Promise<ExpenseClaimRecord | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord> {
+  async markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord | null> {
     const row = this.rows.find((r) => r.id === id)!;
+    // PYO-4: mirrors the Prisma WHERE status = 'PENDING' guard.
+    if (row.status !== 'PENDING') return null;
     Object.assign(row, {
       status: data.status,
       reviewedBy: data.reviewedBy,
@@ -116,6 +118,18 @@ class FakeClaims implements ExpenseClaimRepository {
       reviewedAt: new Date(),
     });
     return row;
+  }
+  async attachLedgerEntry(id: string, ledgerEntryId: string): Promise<ExpenseClaimRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    row.ledgerEntryId = ledgerEntryId;
+    return row;
+  }
+  async reopen(id: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === id)!;
+    if (row.status === 'APPROVED' && !row.ledgerEntryId) row.status = 'PENDING';
+  }
+  async countByReceiptUrl(receiptUrl: string): Promise<number> {
+    return this.rows.filter((r) => r.receiptUrl === receiptUrl).length;
   }
   async listForCourier(courierId: string) {
     const items = this.rows.filter((r) => r.courierId === courierId);
@@ -154,8 +168,14 @@ const config = {
 } as unknown as PayoutConfigService;
 
 // M20-15: a receipt is part of the happy path — auto-approve requires one, so the
-// default input carries one and the no-receipt cases pass null explicitly.
-const input = (amount: number, receiptUrl: string | null = `${RECEIPT_BASE}/uploads/r.jpg`) => ({
+// default input carries one and the no-receipt cases pass null explicitly. PYO-1: shaped
+// like a real upload and fresh on every call, because a receipt reused is not proof.
+let receiptSeq = 0;
+const uploaded = () =>
+  `${RECEIPT_BASE}/uploads/pod/00000000-0000-4000-8000-${String(++receiptSeq).padStart(12, '0')}.jpg`;
+/** PYO-1: storage answers "the object is there" unless a test says otherwise. */
+const photos = { signedUrl: jest.fn(async () => 'https://signed'), exists: jest.fn(async () => true) };
+const input = (amount: number, receiptUrl: string | null = uploaded()) => ({
   category: 'FUEL' as const,
   amount,
   description: 'Bensin',
@@ -171,7 +191,8 @@ describe('ExpenseClaimService', () => {
   beforeEach(() => {
     ledger = new FakeLedger();
     claims = new FakeClaims();
-    service = new ExpenseClaimService(claims, ledger, config);
+    photos.exists.mockResolvedValue(true);
+    service = new ExpenseClaimService(claims, ledger, config, photos);
   });
 
   it('rejects a non-positive amount', async () => {
@@ -363,8 +384,54 @@ describe('ExpenseClaimService', () => {
     });
 
     it('auto-approves a receipt this platform stored', async () => {
-      const claim = await service.submit(COURIER, input(25000, `${RECEIPT_BASE}/uploads/r.jpg`));
+      const receipt = uploaded();
+      const claim = await service.submit(COURIER, input(25000, receipt));
       expect(claim.status).toBe('APPROVED');
+      expect(photos.exists).toHaveBeenCalledWith(receipt);
+    });
+
+    /*
+     * PYO-1. The prefix was still a string a courier could type, and reuse: `${base}/x`
+     * credited the ledger with no human as often as it was sent.
+     */
+    it('does not auto-approve a typed path, a reused receipt, or one storage cannot find', async () => {
+      const typed = await service.submit(COURIER, input(25000, `${RECEIPT_BASE}/uploads/r.jpg`));
+      expect(typed.status).toBe('PENDING');
+
+      const receipt = uploaded();
+      expect((await service.submit(COURIER, input(25000, receipt))).status).toBe('APPROVED');
+      expect((await service.submit(COURIER, input(25000, receipt))).status).toBe('PENDING');
+
+      photos.exists.mockResolvedValueOnce(false);
+      expect((await service.submit(COURIER, input(25000))).status).toBe('PENDING');
+
+      const blind = new ExpenseClaimService(claims, ledger, config);
+      expect((await blind.submit(COURIER, input(25000))).status).toBe('PENDING');
+      expect(await ledger.balanceFor(COURIER)).toBe(25000);
+    });
+
+    /*
+     * PYO-4. Two reviewers at once: the one who loses changes nothing and moves no money,
+     * and a credit that fails puts the claim back so it can be decided again.
+     */
+    it('lets only one decision win, and reopens an approval whose credit failed', async () => {
+      const pending = await service.submit(COURIER, input(80000));
+      await service.reject(pending.id, REVIEWER, 'no');
+      await expect(
+        (service as unknown as { approveAndCredit: (c: unknown, r: string, n: null) => Promise<unknown> })
+          .approveAndCredit(pending, REVIEWER, null),
+      ).rejects.toBeInstanceOf(ExpenseClaimNotPendingError);
+      expect(ledger.entries).toHaveLength(0);
+      await expect(
+        claims.markReviewed(pending.id, { status: 'REJECTED', reviewedBy: 'x', reviewNote: null }),
+      ).resolves.toBeNull();
+
+      const second = await service.submit(COURIER, input(80000));
+      const boom = new Error('ledger down');
+      jest.spyOn(ledger, 'create').mockRejectedValueOnce(boom);
+      await expect(service.approve(second.id, REVIEWER)).rejects.toBe(boom);
+      expect((await claims.findById(second.id))?.status).toBe('PENDING');
+      await expect(service.approve(second.id, REVIEWER)).resolves.toMatchObject({ status: 'APPROVED' });
     });
 
     // An unconfigured deployment cannot tell a real receipt from a typed one, and the safe

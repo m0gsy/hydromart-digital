@@ -33,6 +33,8 @@ export interface CourierEarningRuleRecord extends CourierEarningRule {
 export interface CreateEarningRuleData extends CourierEarningRule {
   depotId: string | null;
   effectiveDate: Date;
+  /** PYO-6: the account that applied the rule. */
+  createdBy?: string | null;
 }
 
 /**
