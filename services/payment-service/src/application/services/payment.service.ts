@@ -328,6 +328,13 @@ export class PaymentService {
     return this.listAll({ orderId, limit: 20 });
   }
 
+  /** PAY-1: one payment for a staff caller, refused outside the caller's depots. */
+  async getForStaff(id: string, user: AuthenticatedUser): Promise<PaymentRecord> {
+    const payment = await this.getAny(id);
+    await this.assertOrderDepotAccess(user, payment.orderId, payment.depotId);
+    return payment;
+  }
+
   async getAny(id: string): Promise<PaymentRecord> {
     const payment = await this.payments.findById(id);
     if (!payment) {

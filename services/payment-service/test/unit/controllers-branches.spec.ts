@@ -42,10 +42,15 @@ describe('PaymentController', () => {
     handleWebhook: jest.fn(),
     availableMethods: jest.fn(),
     listForOrderAs: jest.fn(),
+    getForStaff: jest.fn(),
   };
   // K2.1b: the controller now owns a storage port. `put` resolves to a URL by default;
   // the tests that care about the failure arm override it.
-  const storage = { put: jest.fn() };
+  const storage = {
+    put: jest.fn(),
+    remove: jest.fn().mockResolvedValue(undefined),
+    signedUrl: jest.fn().mockResolvedValue('https://signed/payment-proof/a.png?X-Amz-Expires=900'),
+  };
   const controller = new PaymentController(
     svc as unknown as PaymentService,
     storage as unknown as StoragePort,
@@ -382,6 +387,50 @@ describe('PaymentController', () => {
       storage.put.mockResolvedValueOnce({ url: 'https://cdn/payment-proof/a.png', key: 'k' });
       await controller.uploadProof(user, id, { buffer: png } as never);
       expect(svc.attachProof).toHaveBeenCalledWith('cust-1', id, 'https://cdn/payment-proof/a.png');
+      // First receipt: nothing to clean up.
+      expect(storage.remove).not.toHaveBeenCalled();
+    });
+
+    // PAY-5: a replaced receipt is deleted, and a bucket refusing the delete does not
+    // turn the successful upload into an error.
+    it('deletes the receipt it replaces, and survives a refused delete', async () => {
+      svc.getForCustomer.mockResolvedValue({ proofUrl: 'https://cdn/payment-proof/old.png' });
+      storage.put.mockResolvedValue({ url: 'https://cdn/payment-proof/new.png', key: 'k' });
+      await controller.uploadProof(user, id, { buffer: png } as never);
+      expect(storage.remove).toHaveBeenCalledWith('payment-proof/old.png');
+
+      storage.remove.mockRejectedValueOnce(new Error('denied'));
+      await expect(controller.uploadProof(user, id, { buffer: png } as never)).resolves.toBe(
+        'RESULT',
+      );
+      // An unrecognisable old value is left alone rather than guessed at.
+      storage.remove.mockClear();
+      svc.getForCustomer.mockResolvedValue({ proofUrl: 'typed-by-hand' });
+      await controller.uploadProof(user, id, { buffer: png } as never);
+      expect(storage.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  // PAY-1: the receipt is read through a link that expires, after the depot check.
+  describe('proofLink', () => {
+    const staff = { sub: 'k', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const id = '00000000-0000-4000-8000-0000000000bb';
+
+    it('signs the stored key for 15 minutes', async () => {
+      svc.getForStaff.mockResolvedValue({ proofUrl: 'https://cdn/payment-proof/a.png' });
+      await expect(controller.proofLink(staff, id)).resolves.toEqual({
+        proofUrl: 'https://signed/payment-proof/a.png?X-Amz-Expires=900',
+      });
+      expect(svc.getForStaff).toHaveBeenCalledWith(id, staff);
+      expect(storage.signedUrl).toHaveBeenCalledWith('payment-proof/a.png', 900);
+    });
+
+    it('answers null when there is no receipt to sign', async () => {
+      svc.getForStaff.mockResolvedValue({ proofUrl: null });
+      await expect(controller.proofLink(staff, id)).resolves.toEqual({ proofUrl: null });
+      svc.getForStaff.mockResolvedValue({ proofUrl: 'no-key-here' });
+      await expect(controller.proofLink(staff, id)).resolves.toEqual({ proofUrl: null });
+      expect(storage.signedUrl).not.toHaveBeenCalled();
     });
   });
 });
