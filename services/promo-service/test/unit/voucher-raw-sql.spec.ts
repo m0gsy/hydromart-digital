@@ -90,13 +90,22 @@ describe('voucher raw SQL on the real schema (PRM-3)', () => {
       5,
       'Asia/Jakarta',
     );
+    // PRM-2: the depot-scoped variant adds an `orderId = ANY(...)` filter to both raw reads.
+    await repo.redemptionAnalytics(
+      VOUCHER_ID,
+      new Date('2026-08-01T00:00:00Z'),
+      new Date('2026-09-01T00:00:00Z'),
+      5,
+      'Asia/Jakarta',
+      [ORDER_ID, 'other-order'],
+    );
     results = runOnPostgres(captured);
   });
 
   it('sends the four raw statements this spec exists for', () => {
     // Redeem lock, release lock, daily uses, distinct orders. If the repository grows or
     // drops a raw statement, this count is where the spec finds out it must look again.
-    expect(captured).toHaveLength(4);
+    expect(captured).toHaveLength(6);
   });
 
   it('runs every one of them on the schema the migrations actually build', () => {
@@ -104,11 +113,14 @@ describe('voucher raw SQL on the real schema (PRM-3)', () => {
   });
 
   it('finds the voucher it locks, and the redemption it counts', () => {
-    const [redeemLock, releaseLock, daily, orders] = results as Extract<Result, { ok: true }>[];
+    const [redeemLock, releaseLock, daily, orders, scopedDaily, scopedOrders] =
+      results as Extract<Result, { ok: true }>[];
     expect(redeemLock.rows).toEqual([{ usedCount: 0 }]);
     expect(releaseLock.rows).toEqual([{ usedCount: 0 }]);
     // 03:00 UTC on 20 August is 10:00 WIB the same day — the two-hop zone read (C2) intact.
     expect(daily.rows).toEqual([{ day: '2026-08-20', uses: 1 }]);
     expect(orders.rows).toEqual([{ orderId: ORDER_ID }]);
+    expect(scopedDaily.rows).toEqual([{ day: '2026-08-20', uses: 1 }]);
+    expect(scopedOrders.rows).toEqual([{ orderId: ORDER_ID }]);
   });
 });
