@@ -32,6 +32,43 @@ enum WithdrawalStatus {
   FAILED
 }
 
+/// PYO-3: who this payout destination belongs to.
+enum PayoutSubjectType {
+  OWNER
+  COURIER
+}
+
+/// PYO-3: a destination has to be verified before money can go to it.
+enum BankAccountStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+/// PYO-3, owner decision 2026-09-17: the payout destination on file.
+///
+/// Every withdrawal used to carry a free-text `bankAccountRef` typed per request and never
+/// checked, and an HQ release silently reused whatever the latest one said. One account per
+/// person, registered once, verified by HQ, and re-registering sends it back for checking.
+model PayoutBankAccount {
+  id            String            @id @default(uuid()) @db.Uuid
+  /// auth account id of the franchise owner or courier.
+  subjectId     String            @unique @db.Uuid
+  subjectType   PayoutSubjectType
+  bankName      String
+  accountNumber String
+  accountHolder String
+  status        BankAccountStatus @default(PENDING)
+  verifiedBy    String?           @db.Uuid
+  verifiedAt    DateTime?
+  rejectedReason String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@map("payout_bank_accounts")
+}
+
 /// PYO-2: an HQ release waiting for its second person.
 enum ReleaseRequestStatus {
   PENDING

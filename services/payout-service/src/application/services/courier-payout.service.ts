@@ -20,6 +20,7 @@ import {
   CourierWithdrawalRecord,
   CourierWithdrawalRepository,
 } from '../ports/courier-withdrawal.repository';
+import { PayoutBankAccountService } from './bank-account.service';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 import { PayoutConfigService } from '../../config/payout-config.service';
@@ -66,6 +67,7 @@ export class CourierPayoutService {
     @Inject(PAYOUT_TOKENS.CourierWithdrawalRepository)
     private readonly withdrawals: CourierWithdrawalRepository,
     private readonly config: PayoutConfigService,
+    private readonly bankAccounts: PayoutBankAccountService,
   ) {}
 
   /**
@@ -270,12 +272,11 @@ export class CourierPayoutService {
    * debit as the franchise path: reject non-positive or over-balance, record the withdrawal,
    * then post a WITHDRAWAL debit so the balance drops immediately.
    */
-  async requestWithdrawal(
-    courierId: string,
-    amount: number,
-    bankAccountRef: string,
-  ): Promise<CourierWithdrawalRecord> {
+  async requestWithdrawal(courierId: string, amount: number): Promise<CourierWithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
+    // PYO-3: the destination is the courier's VERIFIED account on file. It used to be typed
+    // into the request — a different string every cash-out, checked by nobody.
+    const bankAccountRef = await this.bankAccounts.verifiedDestination(courierId);
 
     // B-8/B-10: balance check and both writes in one serialized step, and the debit now
     // carries a sourceRef. Previously the check ran on its own connection and the two

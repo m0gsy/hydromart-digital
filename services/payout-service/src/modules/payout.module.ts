@@ -10,6 +10,8 @@ import { PAYOUT_TOKENS } from '../application/tokens';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { PayoutService } from '../application/services/payout.service';
 import { HqReleaseService } from '../application/services/hq-release.service';
+import { PayoutBankAccountService } from '../application/services/bank-account.service';
+import { PayoutBankAccountPrismaRepository } from '../infrastructure/prisma/bank-account.prisma.repository';
 import { ReleaseRequestPrismaRepository } from '../infrastructure/prisma/release-request.prisma.repository';
 import { CommissionService } from '../application/services/commission.service';
 import { CourierPayoutService } from '../application/services/courier-payout.service';
@@ -24,6 +26,7 @@ import { CourierWithdrawalPrismaRepository } from '../infrastructure/prisma/cour
 import { ExpenseClaimPrismaRepository } from '../infrastructure/prisma/expense-claim.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { PayoutController } from './payout.controller';
+import { PayoutBankAccountController } from './bank-account.controller';
 import { HqPayoutController } from './hq-payout.controller';
 import { CommissionController } from './commission.controller';
 import { CourierPayoutController } from './courier-payout.controller';
@@ -42,7 +45,9 @@ const providers: Provider[] = [
   PayoutConfigService,
   PayoutService,
   HqReleaseService,
+  PayoutBankAccountService,
   { provide: PAYOUT_TOKENS.ReleaseRequestRepository, useClass: ReleaseRequestPrismaRepository },
+  { provide: PAYOUT_TOKENS.BankAccountRepository, useClass: PayoutBankAccountPrismaRepository },
   CommissionService,
   CourierPayoutService,
   ExpenseClaimService,
@@ -66,6 +71,7 @@ const providers: Provider[] = [
 @Module({
   imports: [JwtModule.register({})],
   controllers: [
+    PayoutBankAccountController,
     PayoutController,
     HqPayoutController,
     CommissionController,

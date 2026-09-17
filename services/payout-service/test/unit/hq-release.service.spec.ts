@@ -119,7 +119,9 @@ describe('HqReleaseService', () => {
     expect(releaseForOwner).not.toHaveBeenCalled();
 
     const approved = await service.approve(req.id, DIRECTOR);
-    expect(releaseForOwner).toHaveBeenCalledWith(OWNER, 'BCA ···· 4821');
+    // PYO-3: the release reads the owner's verified account; the request carries no
+    // destination of its own any more.
+    expect(releaseForOwner).toHaveBeenCalledWith(OWNER);
     expect(approved).toMatchObject({
       status: 'APPROVED',
       decidedBy: DIRECTOR,

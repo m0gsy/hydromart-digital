@@ -65,9 +65,7 @@ export class HqReleaseService {
     if (!approved) throw new ReleaseRequestNotPendingError();
     let withdrawalId: string;
     try {
-      withdrawalId = (
-        await this.payout.releaseForOwner(pending.franchiseOwnerId, pending.bankAccountRef ?? undefined)
-      ).id;
+      withdrawalId = (await this.payout.releaseForOwner(pending.franchiseOwnerId)).id;
     } catch (error) {
       // No money moved; put the request back so it can be decided again.
       await this.requests.reopen(id);

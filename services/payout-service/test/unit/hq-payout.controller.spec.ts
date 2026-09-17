@@ -19,6 +19,11 @@ describe('HqPayoutController', () => {
     listProcessingWithdrawals: jest.fn().mockResolvedValue([]),
     settleWithdrawal: jest.fn().mockResolvedValue({ id: 'cw1', status: 'PAID' }),
   };
+  // PYO-3: head office also checks payout destinations from this controller.
+  const bankAccounts = {
+    listByStatus: jest.fn().mockResolvedValue([]),
+    decide: jest.fn().mockResolvedValue({ id: 'acc-1', status: 'VERIFIED' }),
+  };
   const releases = {
     request: jest.fn().mockResolvedValue({ id: 'req-1', status: 'PENDING' }),
     listPending: jest.fn().mockResolvedValue([]),
@@ -29,6 +34,7 @@ describe('HqPayoutController', () => {
     payout as unknown as PayoutService,
     courierPayout as unknown as CourierPayoutService,
     releases as never,
+    bankAccounts as never,
   );
   afterEach(() => jest.clearAllMocks());
 
@@ -110,5 +116,17 @@ describe('HqPayoutController', () => {
       'finance-1',
       undefined,
     );
+  });
+
+  it('lists pending destinations, verifies one and rejects one with a reason', async () => {
+    const finance = { sub: 'finance-1' } as AuthenticatedUser;
+    await controller.pendingBankAccounts();
+    expect(bankAccounts.listByStatus).toHaveBeenCalledWith('PENDING');
+    await controller.verifyBankAccount(finance, 'acc-1');
+    expect(bankAccounts.decide).toHaveBeenCalledWith('acc-1', 'finance-1', true, null);
+    await controller.rejectBankAccount(finance, 'acc-1', { reason: 'nama tidak cocok' });
+    expect(bankAccounts.decide).toHaveBeenLastCalledWith('acc-1', 'finance-1', false, 'nama tidak cocok');
+    await controller.rejectBankAccount(finance, 'acc-1', {});
+    expect(bankAccounts.decide).toHaveBeenLastCalledWith('acc-1', 'finance-1', false, null);
   });
 });

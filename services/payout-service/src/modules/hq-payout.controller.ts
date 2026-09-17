@@ -16,9 +16,13 @@ import { CourierPayoutService } from '../application/services/courier-payout.ser
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
 import { PayoutService, PendingPayout } from '../application/services/payout.service';
 import { HqReleaseService } from '../application/services/hq-release.service';
+import { PayoutBankAccountService } from '../application/services/bank-account.service';
+import { PayoutBankAccountRecord } from '../application/ports/bank-account.repository';
 import { ReleaseRequestRecord } from '../application/ports/release-request.repository';
 import { WithdrawalRecord } from '../domain/ledger';
 import {
+  BankAccountResponseDto,
+  RejectBankAccountDto,
   ReleasePayoutDto,
   ReleaseRequestResponseDto,
   RejectReleaseDto,
@@ -44,7 +48,46 @@ export class HqPayoutController {
     private readonly payout: PayoutService,
     private readonly courierPayout: CourierPayoutService,
     private readonly releases: HqReleaseService,
+    private readonly bankAccounts: PayoutBankAccountService,
   ) {}
+
+  /*
+   * PYO-3 — head office checks a destination before anything is sent to it.
+   *
+   * Reading the queue is `hqPayoutRead` (head office watches it); deciding is `hqPayout`,
+   * the same split every money surface here makes. Verifying is not the release itself, so
+   * it deliberately does NOT need the second-approver capability.
+   */
+  @ApiOkResponse({ type: BankAccountResponseDto, isArray: true })
+  @Can('hqPayoutRead')
+  @Get('bank-accounts')
+  @ApiOperation({ summary: 'Payout destinations waiting to be checked, oldest first' })
+  pendingBankAccounts(): Promise<PayoutBankAccountRecord[]> {
+    return this.bankAccounts.listByStatus('PENDING');
+  }
+
+  @ApiOkResponse({ type: BankAccountResponseDto })
+  @Post('bank-accounts/:id/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm a payout destination; withdrawals may use it from now on' })
+  verifyBankAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PayoutBankAccountRecord> {
+    return this.bankAccounts.decide(id, user.sub, true, null);
+  }
+
+  @ApiOkResponse({ type: BankAccountResponseDto })
+  @Post('bank-accounts/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refuse a payout destination, with a reason the owner can act on' })
+  rejectBankAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectBankAccountDto,
+  ): Promise<PayoutBankAccountRecord> {
+    return this.bankAccounts.decide(id, user.sub, false, dto.reason ?? null);
+  }
 
   // Same read as `owner/:ownerId` below, for the whole network instead of one owner — so it
   // carries the same capability. Inheriting the class-level `hqPayout` (FINANCE) meant

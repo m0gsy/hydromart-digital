@@ -24,6 +24,27 @@ export class InvalidWithdrawalAmountError extends DomainError {
  * either names the account or the owner has one on file from a previous cash-out; neither
  * is a reason to write "Rilis HQ" into the destination column and carry on.
  */
+/** PYO-3: no verified destination on file, so there is nowhere this money may go. */
+export class PayoutDestinationNotVerifiedError extends DomainError {
+  readonly code = 'PAYOUT_DESTINATION_NOT_VERIFIED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Belum ada rekening tujuan yang terverifikasi. Daftarkan rekening dan tunggu verifikasi ' +
+        'kantor pusat sebelum menarik saldo.',
+    );
+  }
+}
+
+/** PYO-3: the account is not waiting to be checked (already verified, or gone). */
+export class BankAccountNotPendingError extends DomainError {
+  readonly code = 'PAYOUT_BANK_ACCOUNT_NOT_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Rekening ini tidak ditemukan atau sudah diputuskan.');
+  }
+}
+
 /** PYO-2: an owner already has a release waiting for approval. */
 export class ReleaseAlreadyRequestedError extends DomainError {
   readonly code = 'PAYOUT_RELEASE_ALREADY_REQUESTED';

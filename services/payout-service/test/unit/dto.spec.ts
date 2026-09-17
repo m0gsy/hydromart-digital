@@ -17,9 +17,9 @@ function invalidProps<T extends object>(cls: new () => T, payload: unknown): str
 }
 
 describe('RequestWithdrawalDto', () => {
-  const valid = { amount: 8420000, bankAccountRef: 'BCA ···· 4821' };
+  const valid = { amount: 8420000 };
 
-  it('accepts a positive amount and a bank ref', () => {
+  it('accepts a positive amount, and needs nothing else', () => {
     expect(invalidProps(RequestWithdrawalDto, valid)).toEqual([]);
   });
 
@@ -27,10 +27,13 @@ describe('RequestWithdrawalDto', () => {
     expect(invalidProps(RequestWithdrawalDto, { ...valid, amount })).toContain('amount');
   });
 
-  it('rejects an empty bank ref', () => {
-    expect(invalidProps(RequestWithdrawalDto, { ...valid, bankAccountRef: '' })).toContain(
-      'bankAccountRef',
-    );
+  /*
+   * PYO-3: the destination used to be typed here and checked by nobody. It is read from the
+   * verified account on file now, so a body that still sends one is refused outright by
+   * `forbidNonWhitelisted` — the property is not part of the shape any more.
+   */
+  it('no longer carries a bank ref at all', () => {
+    expect(Object.keys(new RequestWithdrawalDto())).not.toContain('bankAccountRef');
   });
 });
 

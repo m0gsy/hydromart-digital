@@ -19,6 +19,7 @@ import type {
   ExecutiveDashboard,
   Page,
   Payment,
+  PayoutBankAccount,
   PendingPayout,
   ReleaseRequest,
   UnsettledMethodBucket,
@@ -116,6 +117,12 @@ export default function HqPaymentsPage() {
   const requestsQ = useAsync<ReleaseRequest[]>(() =>
     api.get(endpoints.payout.hqReleaseRequests, true),
   );
+  // PYO-3: destinations waiting to be checked. Verifying is `hqPayout` (FINANCE), the same
+  // capability that requests a release — checking an account is not releasing money.
+  const accountsQ = useAsync<PayoutBankAccount[]>(() =>
+    api.get(endpoints.payout.hqBankAccounts, true),
+  );
+  const [checkingAccount, setCheckingAccount] = useState<string | null>(null);
   const [settling, setSettling] = useState<string | null>(null);
   // The queue `release` above has been filling with rows nothing could ever move on.
   const processingQ = useAsync<Withdrawal[]>(() => api.get(endpoints.payout.hqProcessing, true));
@@ -147,6 +154,37 @@ export default function HqPaymentsPage() {
       toast(err instanceof ApiError ? err.message : String(err), 'error');
     } finally {
       setReleasing(null);
+    }
+  }
+
+  /** PYO-3: confirm or refuse a payout destination before anything is sent to it. */
+  async function decideAccount(account: PayoutBankAccount, verify: boolean) {
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: verify
+        ? t('hq.payments.accounts.confirmVerify')
+        : t('hq.payments.accounts.confirmReject'),
+      tone: verify ? 'primary' : 'danger',
+    });
+    if (!ok) return;
+    setCheckingAccount(account.id);
+    try {
+      await api.post(
+        verify
+          ? endpoints.payout.hqVerifyBankAccount(account.id)
+          : endpoints.payout.hqRejectBankAccount(account.id),
+        {},
+        true,
+      );
+      toast(
+        verify ? t('hq.payments.accounts.verified') : t('hq.payments.accounts.rejected'),
+        verify ? 'success' : 'info',
+      );
+      accountsQ.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : String(err), 'error');
+    } finally {
+      setCheckingAccount(null);
     }
   }
 
@@ -305,6 +343,58 @@ export default function HqPaymentsPage() {
                   >
                     {t('hq.payments.release.action')}
                   </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* PYO-3: a destination is checked once, here, before any payout reaches it. */}
+        <Card className="flex min-w-0 flex-col p-5">
+          <h2 className="font-semibold">{t('hq.payments.accounts.title')}</h2>
+          <p className="mb-3 mt-1 text-xs text-muted">{t('hq.payments.accounts.hint')}</p>
+          {accountsQ.loading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : accountsQ.error ? (
+            <ErrorState message={accountsQ.error} onRetry={accountsQ.reload} />
+          ) : (accountsQ.data ?? []).length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted">
+              {t('hq.payments.accounts.empty')}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {(accountsQ.data ?? []).map((a) => (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-app p-3"
+                >
+                  <span className="min-w-0">
+                    <span className="truncate font-medium">
+                      {a.bankName} · {a.accountNumber}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-muted">
+                      {a.accountHolder} ·{' '}
+                      {a.subjectType === 'OWNER'
+                        ? t('hq.payments.accounts.owner')
+                        : t('hq.payments.accounts.courier')}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => decideAccount(a, true)}
+                      disabled={checkingAccount === a.id}
+                    >
+                      {t('hq.payments.accounts.verify')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => decideAccount(a, false)}
+                      disabled={checkingAccount === a.id}
+                    >
+                      {t('hq.payments.accounts.reject')}
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
