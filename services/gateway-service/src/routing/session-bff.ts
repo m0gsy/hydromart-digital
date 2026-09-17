@@ -218,20 +218,26 @@ export function createSessionRouter(
     const native = isNative(req);
     const at = native ? bearerToken(req) : readCookie(req, AT_COOKIE);
     const rt = native ? bodyRefreshToken(req.body) : readCookie(req, RT_COOKIE);
+    // GW-2: said "Signed out." whether or not the session was revoked — with no refresh
+    // token nothing was sent upstream at all. This device is always signed out (cookies
+    // go either way); `revoked` says whether the SESSION is dead too, so a client can offer
+    // "sign out of all devices" instead of believing it already happened.
+    let revoked = false;
     if (rt) {
       try {
-        await callAuth(
+        const { status } = await callAuth(
           authBase,
           '/api/v1/auth/logout',
           { token: at, body: { refreshToken: rt } },
           timeoutMs,
         );
+        revoked = status >= 200 && status < 300;
       } catch {
         /* best-effort revoke; cookies are cleared regardless so the client is signed out */
       }
     }
     clearSessionCookies(res, secure);
-    return res.status(200).json({ message: 'Signed out.' });
+    return res.status(200).json({ message: 'Signed out.', revoked });
   });
 
   return r;

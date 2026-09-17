@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { INestApplication } from '@nestjs/common';
-import type { Express, Request, RequestHandler } from 'express';
+import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
 import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
@@ -165,6 +165,68 @@ export function trustProxyHops(
   return 1;
 }
 
+/**
+ * GW-1 — whether a request issues an OTP, asked the way auth-service's ROUTER asks it.
+ *
+ * The tier matched `req.path` exactly, and Express routing does not: case-insensitive and
+ * non-strict by default, so `/auth/api/v1/auth/REGISTER` and `.../register/` reached the same
+ * handler while skipping this bucket — 20 paid SMS a minute became 600. Normalised the same
+ * way the router normalises, so the only paths that miss the tier are ones that also miss
+ * the handler.
+ */
+export function isOtpIssuingPath(path: string): boolean {
+  const normalised = path
+    .toLowerCase()
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/+$/, '');
+  return /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/.test(normalised);
+}
+
+const PRIVATE_V4 = [/^10\./, /^127\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./];
+
+/**
+ * GW-3 — `/metrics` answers the docker network and nobody else.
+ *
+ * Caddy 404s it for the internet (BI-2), but a bare-IP deploy has no Caddy: the gateway port
+ * is published straight out and the platform's traffic figures went with it. Prometheus
+ * scrapes over the private network, so the SOCKET peer is the test — never `req.ip`, which
+ * `trust proxy` would let a caller write for themselves.
+ */
+export function isPrivatePeer(address: string | undefined): boolean {
+  if (!address) return false;
+  const v4 = address.startsWith('::ffff:') ? address.slice(7) : address;
+  if (PRIVATE_V4.some((range) => range.test(v4))) return true;
+  const lower = address.toLowerCase();
+  return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd');
+}
+
+export function metricsForPrivateNetworkOnly(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (isPrivatePeer(req.socket.remoteAddress)) return next();
+  // 404, not 403, for the reason Caddy gives: a refusal that names the path confirms it.
+  res.status(404).json({ statusCode: 404, message: 'Not Found' });
+}
+
+/**
+ * GW-3 — a production gateway with no WEB_DOMAIN has no TLS in front of it: sessions,
+ * cookies and OTP codes cross the network in the clear. The bare-IP deploy is documented and
+ * stays allowed, but it is no longer silent — the boot log says what it costs.
+ */
+export function insecureTransportWarning(
+  nodeEnv: string,
+  webDomain: string | undefined,
+): string | null {
+  if (nodeEnv !== 'production' || (webDomain ?? '').trim() !== '') return null;
+  return (
+    'WEB_DOMAIN is empty: no TLS terminates in front of this gateway. Session cookies are ' +
+    'sent without Secure, and every login, OTP and token crosses the network in plain text. ' +
+    'Set WEB_DOMAIN and start with --profile tls before real users sign in.'
+  );
+}
+
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
 
@@ -215,13 +277,12 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
    * Keyed by address because these callers hold no credential yet, and deliberately strict:
    * a human registering needs three calls, so twenty is roughly seven honest attempts.
    */
-  const OTP_ISSUING = /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/;
   app.use(
     tokenBucket({
       capacity: config.rateLimit.otpLimit,
       refillPerSecond: config.rateLimit.otpLimit / config.rateLimit.ttlSeconds,
       keyGenerator: (req) => `otp:${req.ip}`,
-      skip: (req) => !OTP_ISSUING.test(req.path),
+      skip: (req) => !isOtpIssuingPath(req.path),
       message: 'Too many verification requests',
       // CA-3-36: its own code, so the OTP screen keeps the specific sentence this tier
       // deliberately chose rather than falling back to the general one.

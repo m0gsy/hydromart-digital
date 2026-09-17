@@ -343,7 +343,8 @@ describe('createSessionRouter — logout', () => {
     const res = await logout(makeApp(), `${AT_COOKIE}=AT-123; ${RT_COOKIE}=RT-456`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Signed out.' });
+    // GW-2: `revoked` is only true when auth-service actually revoked the session.
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: true });
     expect(fetchMock).toHaveBeenCalledWith(
       `${AUTH_BASE}/api/v1/auth/logout`,
       expect.objectContaining({ method: 'POST' }),
@@ -355,13 +356,20 @@ describe('createSessionRouter — logout', () => {
     const res = await logout(makeApp(), `${RT_COOKIE}=RT-456`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Signed out.' });
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: false });
+  });
+
+  it('reports revoked:false when auth-service refuses the revoke', async () => {
+    fetchMock.mockResolvedValue(jsonRes(401, { message: 'expired' }));
+    const res = await logout(makeApp(), `${RT_COOKIE}=RT-456`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: false });
   });
 
   it('skips the upstream call when there is no refresh token', async () => {
     const res = await logout(makeApp());
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Signed out.' });
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: false });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
