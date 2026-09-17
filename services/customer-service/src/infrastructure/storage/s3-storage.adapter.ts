@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
@@ -45,5 +51,21 @@ export class S3StorageAdapter implements StoragePort {
       { abortSignal: AbortSignal.timeout(S3StorageAdapter.TIMEOUT_MS) },
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
+  }
+
+  /** Pure local signing: the SDK builds the URL without calling the endpoint. */
+  signedUrl(key: string, ttlSeconds: number): Promise<string> {
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.config.s3.bucket, Key: key }),
+      { expiresIn: ttlSeconds },
+    );
+  }
+
+  /** S3 DELETE is already idempotent — deleting a missing key returns 204. */
+  async remove(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.config.s3.bucket, Key: key }), {
+      abortSignal: AbortSignal.timeout(S3StorageAdapter.TIMEOUT_MS),
+    });
   }
 }

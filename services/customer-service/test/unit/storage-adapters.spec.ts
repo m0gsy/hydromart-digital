@@ -2,13 +2,19 @@ const send = jest.fn().mockResolvedValue({});
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+}));
+const getSignedUrl = jest.fn().mockResolvedValue('https://signed/resellers/a.png');
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: (...a: unknown[]) => getSignedUrl(...a),
 }));
 
 import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { CustomerConfigService } from '../../src/config/customer-config.service';
 import { LocalDiskStorageAdapter } from '../../src/infrastructure/storage/local-disk-storage.adapter';
@@ -34,6 +40,12 @@ describe('LocalDiskStorageAdapter (agen photo)', () => {
     expect(result.key).toMatch(/^resellers\/[0-9a-f-]+\.png$/);
     expect(result.url).toBe(`http://localhost:3003/uploads/${result.key}`);
     expect(await readFile(join(root, result.key))).toEqual(body);
+
+    const adapter = new LocalDiskStorageAdapter(config);
+    await expect(adapter.signedUrl(result.key, 900)).resolves.toBe(result.url);
+    await adapter.remove(result.key);
+    await expect(readFile(join(root, result.key))).rejects.toThrow();
+    await expect(adapter.remove(result.key)).resolves.toBeUndefined();
   });
 });
 
@@ -69,5 +81,19 @@ describe('S3StorageAdapter (agen photo)', () => {
       Body: body,
       ContentType: 'image/webp',
     });
+  });
+
+  it('signs without sending, and deletes by key', async () => {
+    const adapter = new S3StorageAdapter(config);
+    await expect(adapter.signedUrl('resellers/a.png', 900)).resolves.toBe(
+      'https://signed/resellers/a.png',
+    );
+    expect(send).not.toHaveBeenCalled();
+    await adapter.remove('resellers/a.png');
+    expect(DeleteObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'hydromart-customers',
+      Key: 'resellers/a.png',
+    });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
