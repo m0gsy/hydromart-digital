@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Get,
   Inject,
   Logger,
   PayloadTooLargeException,
@@ -16,14 +17,16 @@ import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from
 import { SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { AccountService } from '../../application/services/account.service';
-import { StoragePort } from '../../application/ports/storage.port';
+import { StoragePort, avatarKeyFromUrl } from '../../application/ports/storage.port';
 import { AUTH_TOKENS } from '../../application/tokens';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
-import { PublicCustomerDto } from './dto/responses.dto';
+import { AvatarLinkResponseDto, PublicCustomerDto } from './dto/responses.dto';
 import { MulterExceptionFilter } from './multer-exception.filter';
 
 const MAX_BYTES = 5 * 1024 * 1024;
+/** AUTH-1: long enough to render the profile screen, short enough not to outlive it. */
+const AVATAR_LINK_TTL_SECONDS = 15 * 60;
 /**
  * Any authenticated account may set its own avatar. Auth is enforced by the global
  * JwtAuthGuard (no @Roles needed); the uploaded file is stored via the StoragePort
@@ -81,7 +84,36 @@ export class AvatarController {
         'Penyimpanan foto sedang tidak tersedia. Coba lagi sebentar lagi.',
       );
     }
+    const previous = (await this.account.getProfile(user.sub)).avatarUrl;
     const profile = await this.account.setAvatar(user.sub, url);
+    // AUTH-2: the photo it replaces has nothing pointing at it any more. A bucket refusing
+    // the delete is logged; the new avatar is already saved and that is what was asked.
+    const oldKey = previous !== url ? avatarKeyFromUrl(previous) : null;
+    if (oldKey) {
+      await this.storage
+        .remove(oldKey)
+        .catch((error: Error) =>
+          this.logger.error(`Old avatar ${oldKey} left behind: ${error.message}`),
+        );
+    }
     return PublicCustomerDto.from(profile);
+  }
+
+  /*
+   * AUTH-1 — the caller's own avatar as a link that expires.
+   *
+   * Same shape as delivery's `proof-links` (CA-4-49): a JSON route fetched through the
+   * app's authenticated client, because an `<img src>` redirect would lose the session
+   * cookie across origins. The signature authorises the object store, so the image request
+   * itself needs no credentials.
+   */
+  @Get('auth/me/avatar-link')
+  @ApiOperation({ summary: "Time-limited link to the authenticated account's avatar" })
+  @ApiOkResponse({ type: AvatarLinkResponseDto })
+  async avatarLink(@CurrentUser() user: AuthenticatedUser): Promise<AvatarLinkResponseDto> {
+    const key = avatarKeyFromUrl((await this.account.getProfile(user.sub)).avatarUrl);
+    return {
+      avatarUrl: key ? await this.storage.signedUrl(key, AVATAR_LINK_TTL_SECONDS) : null,
+    };
   }
 }
