@@ -8,6 +8,7 @@ import { CampaignPrismaRepository } from '../../src/infrastructure/prisma/campai
 import { NotificationPrismaRepository } from '../../src/infrastructure/prisma/notification.prisma.repository';
 import { BroadcastPrismaRepository } from '../../src/infrastructure/prisma/broadcast.prisma.repository';
 import { PushSubscriptionPrismaRepository } from '../../src/infrastructure/prisma/push.prisma.repository';
+import { PERSONAL_OPS_EVENTS } from '../../src/domain/notification-event';
 
 const recipientRow = () => ({
   id: 'rcpt-1',
@@ -304,7 +305,11 @@ describe('NotificationPrismaRepository', () => {
     ]);
     const rows = await repo.listOpsFeedFor(['stock.low', 'courier.incident'], 'staff-1', 5);
     expect(notification.findMany).toHaveBeenCalledWith({
-      where: { event: { in: ['stock.low', 'courier.incident'] } },
+      where: {
+        event: { in: ['stock.low', 'courier.incident'] },
+        // CRM-3: a personal HR row is visible to its recipient only.
+        AND: [{ OR: [{ event: { notIn: PERSONAL_OPS_EVENTS } }, { customerId: 'staff-1' }] }],
+      },
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: { opsReads: { where: { staffId: 'staff-1' }, select: { readAt: true } } },

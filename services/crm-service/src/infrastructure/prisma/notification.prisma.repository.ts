@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { PERSONAL_OPS_EVENTS } from '../../domain/notification-event';
+
 import { NotificationStatus } from '../../domain/notification-status';
 import {
   NotificationRecord,
@@ -102,9 +104,13 @@ export class NotificationPrismaRepository implements NotificationRepository {
     const rows = await this.prisma.notification.findMany({
       where: {
         event: { in: events },
-        // O6: this depot's rows, plus the ones that belong to no depot (every row written
-        // before the column existed, and the platform-wide ones).
-        ...(depotIds ? { OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] } : {}),
+        AND: [
+          // O6: this depot's rows, plus the ones that belong to no depot (every row written
+          // before the column existed, and the platform-wide ones).
+          ...(depotIds ? [{ OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] }] : []),
+          // CRM-3: somebody's leave or kasbon is theirs alone, whatever depot scope says.
+          { OR: [{ event: { notIn: PERSONAL_OPS_EVENTS } }, { customerId: staffId }] },
+        ],
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
