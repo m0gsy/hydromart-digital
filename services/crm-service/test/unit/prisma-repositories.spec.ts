@@ -174,14 +174,28 @@ describe('CampaignPrismaRepository', () => {
       .mockResolvedValueOnce([recipientRow()]);
     campaignRecipient.updateMany.mockResolvedValue({ count: 1 });
 
-    const claimed = await repo.claimRecipients('camp-1', 200);
-    expect(campaignRecipient.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['r-1', 'r-2'] }, status: 'PENDING' },
-      data: { status: 'SENDING' },
+    const now = new Date('2026-09-17T10:00:00.000Z');
+    const claimed = await repo.claimRecipients('camp-1', 200, now);
+    // CRM-9: pending rows, plus SENDING rows whose claim is stale or predates the column.
+    const claimable = [
+      { status: 'PENDING' },
+      { status: 'SENDING', claimedAt: null },
+      { status: 'SENDING', claimedAt: { lt: new Date('2026-09-17T09:50:00.000Z') } },
+    ];
+    expect(campaignRecipient.findMany).toHaveBeenNthCalledWith(1, {
+      where: { campaignId: 'camp-1', OR: claimable },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      select: { id: true },
     });
-    // Read back on SENDING, not on the id list: a row a concurrent tick took is excluded.
+    expect(campaignRecipient.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['r-1', 'r-2'] }, OR: claimable },
+      data: { status: 'SENDING', claimToken: expect.any(String), claimedAt: now },
+    });
+    // Read back on THIS claim's token: an overlapping sweep's SENDING rows are not ours.
+    const token = campaignRecipient.updateMany.mock.calls[0][0].data.claimToken;
     expect(campaignRecipient.findMany).toHaveBeenLastCalledWith({
-      where: { id: { in: ['r-1', 'r-2'] }, status: 'SENDING' },
+      where: { id: { in: ['r-1', 'r-2'] }, claimToken: token },
       orderBy: { createdAt: 'asc' },
     });
     expect(claimed).toHaveLength(1);
@@ -318,6 +332,21 @@ describe('NotificationPrismaRepository', () => {
     expect(rows[0].readAt).toEqual(readAt);
     expect(rows[1].readAt).toBeNull();
     expect(rows[0]).not.toHaveProperty('opsReads');
+
+    // O6 + CRM-3: a depot-scoped reader gets both filters.
+    notification.findMany.mockResolvedValue([]);
+    await repo.listOpsFeedFor(['stock.low'], 'staff-1', 5, ['d1']);
+    expect(notification.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          event: { in: ['stock.low'] },
+          AND: [
+            { OR: [{ depotId: { in: ['d1'] } }, { depotId: null }] },
+            { OR: [{ event: { notIn: PERSONAL_OPS_EVENTS } }, { customerId: 'staff-1' }] },
+          ],
+        },
+      }),
+    );
   });
 
   it('markOpsRead upserts within the ops event set and keeps the first timestamp', async () => {
@@ -527,11 +556,13 @@ describe('NotificationPrismaRepository.erasePerson', () => {
   const notification = { deleteMany: jest.fn() };
   const campaignRecipient = { deleteMany: jest.fn() };
   const webPushSubscription = { deleteMany: jest.fn() };
+  const savedSegment = { findMany: jest.fn(), update: jest.fn() };
   const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
   const prisma = {
     notification,
     campaignRecipient,
     webPushSubscription,
+    savedSegment,
     $transaction,
   } as unknown as PrismaService;
   const repo = new NotificationPrismaRepository(prisma);
@@ -541,6 +572,7 @@ describe('NotificationPrismaRepository.erasePerson', () => {
     notification.deleteMany.mockResolvedValue({ count: 3033 });
     campaignRecipient.deleteMany.mockResolvedValue({ count: 17 });
     webPushSubscription.deleteMany.mockResolvedValue({ count: 2 });
+    savedSegment.findMany.mockResolvedValue([]);
   });
 
   it('matches on id OR phone, in one transaction, and totals the rows', async () => {
@@ -549,14 +581,38 @@ describe('NotificationPrismaRepository.erasePerson', () => {
     expect($transaction).toHaveBeenCalledTimes(1);
     // OR, not AND: a campaign recipient who never registered has a phone and no id, and
     // that is exactly the row the audit counted.
+    // CRM-8: every stored spelling of the number is matched.
     expect(notification.deleteMany).toHaveBeenCalledWith({
-      where: { OR: [{ customerId: 'cust-1' }, { phone: '+628111' }] },
+      where: { OR: [{ customerId: 'cust-1' }, { phone: { in: expect.arrayContaining(['+628111']) } }] },
     });
     expect(campaignRecipient.deleteMany).toHaveBeenCalledWith({
-      where: { OR: [{ customerId: 'cust-1' }, { phone: '+628111' }] },
+      where: { OR: [{ customerId: 'cust-1' }, { phone: { in: expect.arrayContaining(['+628111']) } }] },
     });
     // A device endpoint belongs to one person and to nothing else.
     expect(webPushSubscription.deleteMany).toHaveBeenCalledWith({ where: { customerId: 'cust-1' } });
+  });
+
+  // CRM-8: the person leaves every saved segment that named them; the segment stays.
+  it('removes the customer id from saved segments that list it', async () => {
+    savedSegment.findMany.mockResolvedValue([
+      { id: 'seg-1', conditions: { tier: 'GOLD', customerIds: ['cust-1', 'cust-2'] } },
+    ]);
+    expect(await repo.erasePerson('cust-1', null)).toBe(3053);
+    expect(savedSegment.findMany).toHaveBeenCalledWith({
+      where: { conditions: { path: ['customerIds'], array_contains: ['cust-1'] } },
+    });
+    expect(savedSegment.update).toHaveBeenCalledWith({
+      where: { id: 'seg-1' },
+      data: { conditions: { tier: 'GOLD', customerIds: ['cust-2'] } },
+    });
+
+    // A malformed row with no list at all is left with an empty one, never an error.
+    savedSegment.findMany.mockResolvedValue([{ id: 'seg-2', conditions: { tier: 'GOLD' } }]);
+    await repo.erasePerson('cust-1', null);
+    expect(savedSegment.update).toHaveBeenLastCalledWith({
+      where: { id: 'seg-2' },
+      data: { conditions: { tier: 'GOLD', customerIds: [] } },
+    });
   });
 
   it('falls back to the id alone when no phone is known', async () => {
