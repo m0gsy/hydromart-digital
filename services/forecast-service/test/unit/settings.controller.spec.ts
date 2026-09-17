@@ -12,6 +12,8 @@ describe('forecast SettingsController', () => {
   const user = (role: string): AuthenticatedUser =>
     ({ sub: 'u-1', role, phone: '+620000000000' }) as AuthenticatedUser;
 
+  const ownership = { ownedDepotIds: jest.fn(async () => ['depot-own']) };
+
   const service = () =>
     ({
       schema: jest.fn().mockResolvedValue({ defs: [], effective: {} }),
@@ -21,7 +23,7 @@ describe('forecast SettingsController', () => {
 
   it('reads the schema for a depot, and for no depot at all', async () => {
     const svc = service();
-    const controller = new SettingsController(svc);
+    const controller = new SettingsController(svc, ownership);
     await controller.schema('depot-1');
     await controller.schema();
     expect(svc.schema).toHaveBeenNthCalledWith(1, 'depot-1');
@@ -30,9 +32,9 @@ describe('forecast SettingsController', () => {
 
   it('writes a DEPOT override and records who wrote it', async () => {
     const svc = service();
-    await new SettingsController(svc).put(
+    await new SettingsController(svc, ownership).put(
       { scope: 'DEPOT', depotId: 'depot-1', key: 'forecast.demandModel', value: 'moving-average' },
-      user('MANAGER'),
+      user('HEAD_OFFICE'),
     );
     expect(svc.put).toHaveBeenCalledWith({
       scope: 'DEPOT',
@@ -46,7 +48,7 @@ describe('forecast SettingsController', () => {
   it('refuses a GLOBAL write to a role without the capability — that one moves every depot', async () => {
     const svc = service();
     await expect(
-      new SettingsController(svc).put(
+      new SettingsController(svc, ownership).put(
         { scope: 'GLOBAL', key: 'forecast.demandModel', value: 'moving-average' },
         user('MANAGER'),
       ),
@@ -56,7 +58,7 @@ describe('forecast SettingsController', () => {
 
   it('allows a GLOBAL write to a role that holds it', async () => {
     const svc = service();
-    await new SettingsController(svc).put(
+    await new SettingsController(svc, ownership).put(
       { scope: 'GLOBAL', key: 'forecast.churnModel', value: 'recency-only' },
       user('SUPER_ADMIN'),
     );
@@ -65,9 +67,9 @@ describe('forecast SettingsController', () => {
 
   it('resets a DEPOT override back to the parent scope', async () => {
     const svc = service();
-    await new SettingsController(svc).reset(
+    await new SettingsController(svc, ownership).reset(
       { scope: 'DEPOT', depotId: 'depot-1', key: 'forecast.demandModel' },
-      user('MANAGER'),
+      user('HEAD_OFFICE'),
     );
     expect(svc.reset).toHaveBeenCalledWith('DEPOT', 'depot-1', 'forecast.demandModel', 'u-1');
   });
@@ -75,12 +77,30 @@ describe('forecast SettingsController', () => {
   it('applies the same capability check to a GLOBAL reset as to a GLOBAL write', async () => {
     const svc = service();
     await expect(
-      new SettingsController(svc).reset({ scope: 'GLOBAL', key: 'forecast.demandModel' }, user('MANAGER')),
+      new SettingsController(svc, ownership).reset({ scope: 'GLOBAL', key: 'forecast.demandModel' }, user('MANAGER')),
     ).rejects.toThrow();
-    await new SettingsController(svc).reset(
+    await new SettingsController(svc, ownership).reset(
       { scope: 'GLOBAL', key: 'forecast.demandModel' },
       user('SUPER_ADMIN'),
     );
     expect(svc.reset).toHaveBeenCalledWith('GLOBAL', null, 'forecast.demandModel', 'u-1');
+  });
+
+  // Owner decision 2026-09-17: HQ writes any depot, an owner only its own, depot staff none.
+  it('lets a franchise owner write only a depot they own, and refuses depot staff', async () => {
+    const svc = service();
+    const body = { scope: 'DEPOT' as const, key: 'forecast.demandModel', value: 'moving-average' };
+    await new SettingsController(svc, ownership).put({ ...body, depotId: 'depot-own' }, user('FRANCHISE_OWNER'));
+    expect(svc.put).toHaveBeenCalledTimes(1);
+    await expect(
+      new SettingsController(svc, ownership).put({ ...body, depotId: 'depot-other' }, user('FRANCHISE_OWNER')),
+    ).rejects.toThrow('kantor pusat');
+    await expect(
+      new SettingsController(svc, ownership).reset({ scope: 'DEPOT', key: 'forecast.demandModel' }, user('FRANCHISE_OWNER')),
+    ).rejects.toThrow('kantor pusat');
+    await expect(
+      new SettingsController(svc, ownership).put({ ...body, depotId: 'depot-own' }, user('MANAGER')),
+    ).rejects.toThrow('kantor pusat');
+    expect(svc.put).toHaveBeenCalledTimes(1);
   });
 });
