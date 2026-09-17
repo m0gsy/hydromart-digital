@@ -81,6 +81,19 @@ describe('DepotService', () => {
     expect(searched.items[0].code).toBe('A1');
   });
 
+  it('browses only the depots in scope, or only the owner’s', async () => {
+    const a = await service.create(base({ code: 'A1', ownershipType: OwnershipType.HKP }));
+    await service.create(
+      base({ code: 'B1', ownershipType: OwnershipType.WARALABA, ownerId: OWNER }),
+    );
+    const scoped = await service.browse({ depotIds: [a.id] }, false);
+    expect(scoped.items.map((d) => d.code)).toEqual(['A1']);
+    const owned = await service.browse({ ownerId: OWNER }, false);
+    expect(owned.items.map((d) => d.code)).toEqual(['B1']);
+    // An empty scope is nothing, never everything.
+    expect((await service.browse({ depotIds: [] }, false)).total).toBe(0);
+  });
+
   it('rejects updating a code to one already taken by another depot', async () => {
     await service.create(base({ code: 'A1' }));
     const b = await service.create(base({ code: 'B1' }));

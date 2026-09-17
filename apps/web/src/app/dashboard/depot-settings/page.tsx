@@ -12,7 +12,7 @@ import { canManageDepots } from '@/lib/roles';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
-import type { DepotAdmin, Page } from '@/lib/types';
+import type { DepotAdmin } from '@/lib/types';
 
 // Spec 5b — read-only depot config: service radius, operating hours, gallon deposit,
 // per-courier concurrency. Radius + hours are real (depot-service DepotAdmin).
@@ -46,14 +46,18 @@ function Row({ icon, label, hint, value }: { icon: React.ReactNode; label: strin
 function DepotSettingsBody() {
   const { t } = useT();
   const { scopedId, selected } = useDepot();
-  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true), []);
+  // WEBC-2: one record, the selected depot's — not the first hundred of the network to pick it out of.
+  const list = useAsync<DepotAdmin | null>(
+    () => (scopedId ? api.getCached<DepotAdmin>(endpoints.depots.manageDetail(scopedId), true) : Promise.resolve(null)),
+    [scopedId],
+  );
   const depotCfg = useAsync<SettingsSchema>(() => fetchSettingsSchema('/depots/api/v1', scopedId ?? null), [scopedId]);
   const deliveryCfg = useAsync<SettingsSchema>(
     () => fetchSettingsSchema('/deliveries/api/v1', scopedId ?? null),
     [scopedId],
   );
 
-  const depot = list.data?.items.find((d) => d.id === scopedId) ?? null;
+  const depot = list.data ?? null;
   const depotName = selected?.name ?? depot?.name ?? t('opsFix.common.depot');
   const hours = depot ? firstHours(depot) : null;
   const num = (s: SettingsSchema | null | undefined, key: string): number | null => {

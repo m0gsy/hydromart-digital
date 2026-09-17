@@ -21,6 +21,10 @@ export interface BrowseDepotsInput {
   limit?: number;
   ownershipType?: OwnershipType;
   search?: string;
+  /** Only these depots — a depot-scoped caller's set. Empty means none, not all. */
+  depotIds?: readonly string[];
+  /** Only depots this franchise owner owns. */
+  ownerId?: string;
 }
 
 export interface NearbyDepot extends DepotRecord {
@@ -58,6 +62,8 @@ export class DepotService {
       limit,
       ownershipType: input.ownershipType,
       search: input.search?.trim() || undefined,
+      depotIds: input.depotIds,
+      ownerId: input.ownerId,
       activeOnly,
     });
     return buildPage(items, total, page, limit);
