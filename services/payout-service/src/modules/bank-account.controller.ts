@@ -42,6 +42,6 @@ export class PayoutBankAccountController {
     @Body() dto: RegisterBankAccountDto,
   ): Promise<PayoutBankAccountRecord> {
     const subjectType = user.role === Role.FRANCHISE_OWNER ? 'OWNER' : 'COURIER';
-    return this.accounts.register(user.sub, subjectType, dto);
+    return this.accounts.register(user.sub, subjectType, dto, dto.seenUpdatedAt);
   }
 }

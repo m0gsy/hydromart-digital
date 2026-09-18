@@ -187,6 +187,16 @@ export class RegisterBankAccountDto {
   @MinLength(2)
   @MaxLength(120)
   accountHolder!: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'The `updatedAt` this edit started from. The write is refused (409) if the account has ' +
+      'moved since — two devices replacing the same destination must not overwrite silently.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
 }
 
 /** PYO-3: why HQ refused an account (optional). */

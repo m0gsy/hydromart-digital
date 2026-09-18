@@ -42,7 +42,14 @@ export function PayoutAccountCard({ onChange }: { onChange?: () => void }): Reac
     try {
       await api.put(
         endpoints.payout.bankAccount,
-        { bankName: bankName.trim(), accountNumber: accountNumber.trim(), accountHolder: accountHolder.trim() },
+        {
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
+          accountHolder: accountHolder.trim(),
+          // The version this form was shown: replacing an account somebody else changed in
+          // the meantime is refused rather than silently overwriting theirs.
+          ...(current ? { seenUpdatedAt: current.updatedAt } : {}),
+        },
         true,
       );
       toast(t('opsFix.payoutAccount.saved'), 'success');

@@ -15,6 +15,8 @@ import type {
  */
 class FakeAccounts implements PayoutBankAccountRepository {
   rows: PayoutBankAccountRecord[] = [];
+  /** Each write lands on a later stamp, so a stale `seenUpdatedAt` is really stale. */
+  private tick = 0;
 
   async upsert(data: RegisterBankAccountData): Promise<PayoutBankAccountRecord> {
     const fresh = {
@@ -23,7 +25,7 @@ class FakeAccounts implements PayoutBankAccountRepository {
       verifiedBy: null,
       verifiedAt: null,
       rejectedReason: null,
-      updatedAt: new Date(),
+      updatedAt: new Date(Date.now() + ++this.tick),
     };
     const existing = this.rows.find((r) => r.subjectId === data.subjectId);
     if (existing) {
@@ -103,10 +105,37 @@ describe('PayoutBankAccountService', () => {
   it('sends a replacement back for checking, losing the previous tick', async () => {
     const saved = await service.register(OWNER, 'OWNER', account);
     await service.decide(saved.id, FINANCE, true, null);
-    await service.register(OWNER, 'OWNER', { ...account, accountNumber: '9999 0000' });
+    const verified = (await service.mine(OWNER))!;
+    await service.register(
+      OWNER,
+      'OWNER',
+      { ...account, accountNumber: '9999 0000' },
+      verified.updatedAt.toISOString(),
+    );
 
     expect(await service.mine(OWNER)).toMatchObject({ status: 'PENDING', verifiedBy: null });
     await expect(service.verifiedDestination(OWNER)).rejects.toThrow(/terverifikasi/);
+  });
+
+  /*
+   * A destination is one row two devices can both be looking at. Replacing it against the
+   * version the form was shown makes a concurrent change a refusal instead of a silent
+   * overwrite — the same rule the console applies to every other edit.
+   */
+  it('refuses a replacement raised against a version that has moved', async () => {
+    const saved = await service.register(OWNER, 'OWNER', account);
+    const seen = saved.updatedAt.toISOString();
+    // Another device replaces it first, moving the row on.
+    await service.register(OWNER, 'OWNER', { ...account, accountNumber: '1111 2222' }, seen);
+
+    await expect(
+      service.register(OWNER, 'OWNER', { ...account, accountNumber: '3333 4444' }, seen),
+    ).rejects.toThrow(/sudah diubah/);
+    // And a replacement that names no version at all is refused too.
+    await expect(
+      service.register(OWNER, 'OWNER', { ...account, accountNumber: '5555 6666' }),
+    ).rejects.toThrow(/sudah diubah/);
+    expect((await service.mine(OWNER))?.accountNumber).toBe('11112222');
   });
 
   it('records a rejection with its reason, and refuses to decide twice', async () => {

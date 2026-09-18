@@ -122,9 +122,16 @@ describe('PayoutBankAccountController', () => {
     expect(accounts.mine).toHaveBeenCalledWith('owner-1');
 
     await controller.register({ sub: 'owner-1', role: 'FRANCHISE_OWNER' } as never, dto);
-    expect(accounts.register).toHaveBeenCalledWith('owner-1', 'OWNER', dto);
+    expect(accounts.register).toHaveBeenCalledWith('owner-1', 'OWNER', dto, undefined);
 
-    await controller.register({ sub: 'courier-1', role: 'DRIVER' } as never, dto);
-    expect(accounts.register).toHaveBeenLastCalledWith('courier-1', 'COURIER', dto);
+    // The version the form was shown travels with a replacement (stale-write guard).
+    const replacing = { ...dto, seenUpdatedAt: '2026-09-17T00:00:00.000Z' };
+    await controller.register({ sub: 'courier-1', role: 'DRIVER' } as never, replacing);
+    expect(accounts.register).toHaveBeenLastCalledWith(
+      'courier-1',
+      'COURIER',
+      replacing,
+      '2026-09-17T00:00:00.000Z',
+    );
   });
 });

@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { assertFresh } from '@hydromart/platform';
+
 import { maskAccount } from '../../domain/bank-account';
 import { BankAccountNotPendingError, PayoutDestinationNotVerifiedError } from '../../domain/errors';
 import {
@@ -28,11 +30,19 @@ export class PayoutBankAccountService {
     private readonly accounts: PayoutBankAccountRepository,
   ) {}
 
-  register(
+  /**
+   * Register or replace the account. `seenUpdatedAt` is the row the form was shown: a second
+   * device that replaced the destination in the meantime makes this a 409 rather than a
+   * silent overwrite of an account somebody else just changed.
+   */
+  async register(
     subjectId: string,
     subjectType: PayoutSubjectType,
     data: Omit<RegisterBankAccountData, 'subjectId' | 'subjectType'>,
+    seenUpdatedAt?: string,
   ): Promise<PayoutBankAccountRecord> {
+    const existing = await this.accounts.findBySubject(subjectId);
+    if (existing) assertFresh(existing.updatedAt, seenUpdatedAt);
     return this.accounts.upsert({
       subjectId,
       subjectType,
