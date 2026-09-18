@@ -228,8 +228,21 @@ export function insecureTransportWarning(
   );
 }
 
+/**
+ * GW-4: whether the session cookies may be Secure — and therefore prefixed.
+ *
+ * `isProduction` alone was the wrong question and the integration stack proved it: that
+ * stack runs NODE_ENV=production over plain HTTP, so Secure cookies are set and no browser
+ * would keep them. TLS is terminated by Caddy, and Caddy is in front exactly when WEB_DOMAIN
+ * names a host — the same signal `insecureTransportWarning` reads.
+ */
+export function cookiesAreSecure(nodeEnv: string, webDomain: string | undefined): boolean {
+  return nodeEnv === 'production' && (webDomain ?? '').trim() !== '';
+}
+
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
+  const secureCookies = cookiesAreSecure(config.nodeEnv, process.env.WEB_DOMAIN);
 
   // B-2: the limiter keys on `req.ip`. Behind Caddy every request arrives from
   // Caddy's address, so without this the socket peer IS the proxy and all traffic from
@@ -308,7 +321,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     tokenBucket({
       capacity: config.rateLimit.burstLimit,
       refillPerSecond: config.rateLimit.limit / config.rateLimit.ttlSeconds,
-      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret, config.isProduction),
+      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret, secureCookies),
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
     }),
   );
@@ -357,7 +370,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
 
   // SEC-4: BFF session lifecycle (login-verify/refresh/logout) — owns httpOnly cookies.
   // Mounted ahead of the proxy; non-session /auth/* paths fall through untouched.
-  instance.use('/auth', createSessionRouter(upstreams.auth, config.isProduction));
+  instance.use('/auth', createSessionRouter(upstreams.auth, secureCookies));
 
   instance.use((req, res, next) => {
     // Defense-in-depth: the internal service key authenticates trusted service-to-service
@@ -369,7 +382,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     // so the browser holds no readable token. An explicit Authorization header (none from
     // the SPA now) is left intact.
     if (!req.headers.authorization) {
-      const at = readCookie(req, atCookieName(config.isProduction));
+      const at = readCookie(req, atCookieName(secureCookies));
       if (at) req.headers.authorization = `Bearer ${at}`;
     }
     const route = resolveRoute(req.path, upstreams);

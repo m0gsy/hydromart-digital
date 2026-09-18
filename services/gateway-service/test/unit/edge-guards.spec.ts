@@ -1,5 +1,6 @@
 import { atCookieName, rtCookieName } from '../../src/routing/session-bff';
 import {
+  cookiesAreSecure,
   insecureTransportWarning,
   isOtpIssuingPath,
   isPrivatePeer,
@@ -97,5 +98,19 @@ describe('session cookie names', () => {
   it('keeps the plain names where there is no TLS to make a prefix mean anything', () => {
     expect(atCookieName(false)).toBe('hm_at');
     expect(rtCookieName(false)).toBe('hm_rt');
+  });
+});
+
+/*
+ * GW-4: Secure cookies (and so the prefixes) follow TLS, not NODE_ENV. The integration
+ * stack runs NODE_ENV=production over plain HTTP — Secure cookies there are cookies no
+ * browser keeps, which is exactly how that stack lost its session.
+ */
+describe('cookiesAreSecure', () => {
+  it('is true only when production also has a domain in front of it', () => {
+    expect(cookiesAreSecure('production', 'hydromart-digital.com')).toBe(true);
+    expect(cookiesAreSecure('production', '')).toBe(false);
+    expect(cookiesAreSecure('production', undefined)).toBe(false);
+    expect(cookiesAreSecure('development', 'hydromart-digital.com')).toBe(false);
   });
 });
