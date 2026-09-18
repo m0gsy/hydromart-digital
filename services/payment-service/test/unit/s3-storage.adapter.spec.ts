@@ -2,7 +2,12 @@ const send = jest.fn().mockResolvedValue({});
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
   DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+}));
+const getSignedUrl = jest.fn().mockResolvedValue('https://signed/payment-proof/a.png');
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: (...a: unknown[]) => getSignedUrl(...a),
 }));
 
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -53,6 +58,20 @@ describe('S3StorageAdapter', () => {
    * receipt in the bucket for anyone who still had its link. S3 DELETE is idempotent — a
    * missing key answers 204 — so erasure can be retried without a special case.
    */
+  // PAY-1: presigning is local; no request reaches the bucket.
+  it('signs a GET for one key without sending anything', async () => {
+    const adapter = new S3StorageAdapter(makeConfig());
+    await expect(adapter.signedUrl('payment-proof/a.png', 900)).resolves.toBe(
+      'https://signed/payment-proof/a.png',
+    );
+    expect(getSignedUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      { input: { Bucket: 'hydromart', Key: 'payment-proof/a.png' } },
+      { expiresIn: 900 },
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('deletes the object by key', async () => {
     const adapter = new S3StorageAdapter(makeConfig());
 

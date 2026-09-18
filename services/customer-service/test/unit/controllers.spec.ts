@@ -177,11 +177,15 @@ describe('InternalController', () => {
   const pdp = { exportFor: jest.fn(), anonymise: jest.fn() };
   const imports = { resolveByPhone: jest.fn() };
   const resellers = { pricingFor: jest.fn(), applyScheduled: jest.fn() };
+  const resellerRows = { findById: jest.fn().mockResolvedValue(null) };
+  const storage = { remove: jest.fn().mockResolvedValue(undefined) };
   const c = new InternalController(
     svc as never,
     imports as never,
     resellers as never,
     pdp as never,
+    resellerRows as never,
+    storage as never,
   );
 
   /*
@@ -271,6 +275,24 @@ describe('InternalController', () => {
     pdp.anonymise.mockResolvedValue(undefined);
     await c.pdpAnonymise({ customerId: 'c1' } as never);
     expect(pdp.anonymise).toHaveBeenCalledWith('c1');
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  /*
+   * CUS-1: the agen photo (often a KTP) is deleted from the bucket BEFORE the pointer is
+   * nulled — and a refused delete stops the erasure, so the retry still knows the key.
+   */
+  it('pdpAnonymise deletes the agen photo object first, and stops if it cannot', async () => {
+    pdp.anonymise.mockClear();
+    resellerRows.findById.mockResolvedValue({ photoUrl: 'https://b/x/resellers/ktp.jpg' });
+    await c.pdpAnonymise({ customerId: 'c1' } as never);
+    expect(storage.remove).toHaveBeenCalledWith('resellers/ktp.jpg');
+    expect(pdp.anonymise).toHaveBeenCalledWith('c1');
+
+    pdp.anonymise.mockClear();
+    storage.remove.mockRejectedValueOnce(new Error('denied'));
+    await expect(c.pdpAnonymise({ customerId: 'c1' } as never)).rejects.toThrow('denied');
+    expect(pdp.anonymise).not.toHaveBeenCalled();
   });
 });
 

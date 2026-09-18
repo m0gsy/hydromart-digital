@@ -7,7 +7,12 @@ export interface StoragePutInput {
 }
 
 export interface StoragePutResult {
-  /** Publicly renderable URL (usable directly in <img src>, no base to prepend). */
+  /**
+   * The object's stable identifier, `${STORAGE_PUBLIC_BASE_URL}/<key>`, absolute.
+   *
+   * XCUT-1/CUS-1: the photo is often a KTP. It is no longer a live public link — the bucket
+   * is private, and the consoles receive a signed link minted per response instead.
+   */
   url: string;
   /** Storage key, e.g. 'resellers/<uuid>.png'. */
   key: string;
@@ -21,4 +26,14 @@ export interface StoragePutResult {
  */
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
+  /** A time-limited GET link for one key. Pure local signing — no network call. */
+  signedUrl(key: string, ttlSeconds: number): Promise<string>;
+  /** CUS-1: delete one object. Idempotent — a key already gone is a success. */
+  remove(key: string): Promise<void>;
+}
+
+/** Both adapters build `<base>[/uploads]/resellers/<uuid>.<ext>`; the key starts there. */
+export function resellerPhotoKey(url: string | null | undefined): string | null {
+  const at = url ? url.indexOf('resellers/') : -1;
+  return at === -1 ? null : url!.slice(at);
 }

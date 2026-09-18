@@ -64,4 +64,10 @@ describe('LocalDiskStorageAdapter', () => {
 
     await expect(adapter.remove('payment-proof/never-existed.png')).resolves.toBeUndefined();
   });
+  it('hands back the dev link as the "signed" one', async () => {
+    const adapter = new LocalDiskStorageAdapter(makeConfig(dir));
+    await expect(adapter.signedUrl('payment-proof/a.png', 900)).resolves.toBe(
+      'http://localhost:3005/uploads/payment-proof/a.png',
+    );
+  });
 });
