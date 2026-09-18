@@ -55,7 +55,8 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: config.corsOrigins,
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    // AUTH-7: PUT is served (the access matrix), so a browser preflight must be allowed it.
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
   app.setGlobalPrefix('api');
