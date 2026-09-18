@@ -44,4 +44,24 @@ export class PhotoLinkHttpAdapter implements PhotoLinkPort {
       return null;
     }
   }
+
+  /**
+   * PYO-1 — one byte of the object, through the same signed link a reviewer would open.
+   * A missing object, a refused signature or an unreachable store all read as "not there",
+   * which only ever means a claim waits for a human.
+   */
+  async exists(storedUrl: string): Promise<boolean> {
+    const link = await this.signedUrl(storedUrl);
+    if (!link) return false;
+    try {
+      const res = await fetch(link, {
+        headers: { range: 'bytes=0-0' },
+        signal: AbortSignal.timeout(PhotoLinkHttpAdapter.TIMEOUT_MS),
+      });
+      return res.ok;
+    } catch (error) {
+      this.logger.warn(`Could not confirm a receipt exists: ${(error as Error).message}`);
+      return false;
+    }
+  }
 }

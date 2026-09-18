@@ -3,6 +3,7 @@ import { DataSubjectRequestPrismaRepository } from '../../src/infrastructure/pri
 import { CustomerDataHttpAdapter } from '../../src/infrastructure/http/customer-data.http.adapter';
 import { RemoteErasureExecutor } from '../../src/infrastructure/http/remote-erasure.executor';
 import { UnenforcedErasure } from '../../src/infrastructure/http/unenforced-erasure.executor';
+import { ERASURE_EXEMPTION_LIST } from '../../src/infrastructure/http/erasure-executor.registry';
 import {
   anonymisedIdentity,
   isDecidable,
@@ -461,5 +462,13 @@ describe('UnenforcedErasure', () => {
     expect(declared.configured).toBe(false);
     expect(declared.unenforcedReason).toBe('no customerId column');
     expect(await declared.erase()).toBeNull();
+  });
+});
+
+// PYO-7: payout data is named in the deletion report as a written FINANCIAL exemption.
+describe('erasure exemptions', () => {
+  it('names payout withdrawals as retained financial records', () => {
+    const payout = ERASURE_EXEMPTION_LIST.find((e) => e.dataset === 'payout.withdrawals');
+    expect(payout?.reason).toMatch(/FINANCIAL/);
   });
 });

@@ -123,10 +123,22 @@ export class WithdrawalPrismaRepository implements WithdrawalRepository {
         };
       }
 
-      const row = await tx.withdrawal.update({
-        where: { id: input.id },
+      // PYO-4: the status guard is in the WHERE clause. Under READ COMMITTED two settles
+      // could both read PROCESSING above and both write — PAID then FAILED pays out AND
+      // re-credits. Whoever loses the update changes nothing and is told the new status.
+      const moved = await tx.withdrawal.updateMany({
+        where: { id: input.id, status: 'PROCESSING' },
         data: { status: input.status },
       });
+      if (moved.count === 0) {
+        const now = await tx.withdrawal.findUnique({ where: { id: input.id } });
+        return {
+          ok: false as const,
+          reason: 'NOT_PROCESSING' as const,
+          status: (now?.status ?? current.status) as WithdrawalStatus,
+        };
+      }
+      const row = await tx.withdrawal.findUnique({ where: { id: input.id } });
 
       if (input.status === 'FAILED') {
         // The debit posted when the withdrawal was requested. A rejected transfer that only

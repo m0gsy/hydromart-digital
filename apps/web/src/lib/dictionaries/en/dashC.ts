@@ -206,6 +206,7 @@ export const dashC = {
       settlementRead: 'Payment reconciliation',
       hqPayout: 'Release franchise payouts',
       hqPayoutRead: 'Franchise payout queue (view)',
+      hqPayoutApprove: 'Approve a franchise payout request',
       earningRules: 'Courier earning rules',
       commissionRuns: 'Courier commission runs',
       commissionRead: 'View commission percentages',

@@ -100,7 +100,7 @@ export class CourierPayoutController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RequestWithdrawalDto,
   ): Promise<CourierWithdrawalRecord> {
-    return this.payout.requestWithdrawal(user.sub, dto.amount, dto.bankAccountRef);
+    return this.payout.requestWithdrawal(user.sub, dto.amount);
   }
 
   @ApiOkResponse({ type: CourierWithdrawalResponseDto, isArray: true })

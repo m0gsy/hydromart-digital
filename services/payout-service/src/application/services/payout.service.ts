@@ -5,7 +5,6 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
-  UnknownPayoutDestinationError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
 } from '../../domain/errors';
@@ -14,6 +13,7 @@ import { CommissionSchemeRepository } from '../ports/commission-scheme.repositor
 import { LedgerRepository } from '../ports/ledger.repository';
 import { WithdrawalRepository } from '../ports/withdrawal.repository';
 import { PayoutConfigService } from '../../config/payout-config.service';
+import { PayoutBankAccountService } from './bank-account.service';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
@@ -70,6 +70,7 @@ export class PayoutService {
     @Inject(PAYOUT_TOKENS.CommissionSchemeRepository)
     private readonly schemes: CommissionSchemeRepository,
     private readonly config: PayoutConfigService,
+    private readonly bankAccounts: PayoutBankAccountService,
   ) {}
 
   /**
@@ -252,19 +253,14 @@ export class PayoutService {
    * release is REFUSED rather than recorded against a placeholder: money leaves the balance
    * here, and a debit whose destination is unknown is the thing this row exists to prevent.
    */
-  async releaseForOwner(ownerId: string, bankAccountRef?: string): Promise<WithdrawalRecord> {
-    const destination = bankAccountRef?.trim() || (await this.lastKnownAccount(ownerId));
-    if (!destination) {
-      throw new UnknownPayoutDestinationError();
-    }
+  /*
+   * PYO-3 (owner decision 2026-09-17): the destination is the owner's VERIFIED account on
+   * file, never a string travelling with the request and never "whatever the last one said".
+   * `bankAccountRef` is gone from the caller's hands entirely.
+   */
+  async releaseForOwner(ownerId: string): Promise<WithdrawalRecord> {
     const balance = await this.ledger.balanceFor(ownerId);
-    return this.requestWithdrawal(ownerId, balance, destination);
-  }
-
-  /** The account this owner was last paid to, or null when they have never cashed out. */
-  private async lastKnownAccount(ownerId: string): Promise<string | null> {
-    const [latest] = await this.withdrawals.listForOwner(ownerId, 1);
-    return latest?.bankAccountRef?.trim() || null;
+    return this.requestWithdrawal(ownerId, balance);
   }
 
   async ledgerPage(
@@ -282,12 +278,10 @@ export class PayoutService {
     return buildPage(items, total, page, limit, nextCursor);
   }
 
-  async requestWithdrawal(
-    ownerId: string,
-    amount: number,
-    bankAccountRef: string,
-  ): Promise<WithdrawalRecord> {
+  async requestWithdrawal(ownerId: string, amount: number): Promise<WithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
+    // PYO-3: the destination comes from the verified account, not from the request body.
+    const bankAccountRef = await this.bankAccounts.verifiedDestination(ownerId);
 
     // B-8: the balance check and the two writes happen together, serialized per owner.
     // Reading the balance here and writing afterwards let two concurrent requests both

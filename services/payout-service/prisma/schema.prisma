@@ -32,6 +32,74 @@ enum WithdrawalStatus {
   FAILED
 }
 
+/// PYO-3: who this payout destination belongs to.
+enum PayoutSubjectType {
+  OWNER
+  COURIER
+}
+
+/// PYO-3: a destination has to be verified before money can go to it.
+enum BankAccountStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+/// PYO-3, owner decision 2026-09-17: the payout destination on file.
+///
+/// Every withdrawal used to carry a free-text `bankAccountRef` typed per request and never
+/// checked, and an HQ release silently reused whatever the latest one said. One account per
+/// person, registered once, verified by HQ, and re-registering sends it back for checking.
+model PayoutBankAccount {
+  id            String            @id @default(uuid()) @db.Uuid
+  /// auth account id of the franchise owner or courier.
+  subjectId     String            @unique @db.Uuid
+  subjectType   PayoutSubjectType
+  bankName      String
+  accountNumber String
+  accountHolder String
+  status        BankAccountStatus @default(PENDING)
+  verifiedBy    String?           @db.Uuid
+  verifiedAt    DateTime?
+  rejectedReason String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@map("payout_bank_accounts")
+}
+
+/// PYO-2: an HQ release waiting for its second person.
+enum ReleaseRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// PYO-2, maker-checker: FINANCE requests a franchise owner's release, a DIREKTUR or
+/// SUPER_ADMIN who is NOT the requester decides it. Money moves only on approval, and the
+/// withdrawal it created is linked here so either actor can be traced from the payout.
+model HqReleaseRequest {
+  id               String               @id @default(uuid()) @db.Uuid
+  franchiseOwnerId String               @db.Uuid
+  /// Destination named by the requester; null = the owner's last paid account.
+  bankAccountRef   String?
+  /// The balance when requested — what the approver was shown. The release pays the
+  /// balance at approval time, which can only have grown or been withdrawn by the owner.
+  amountAtRequest  Decimal              @db.Decimal(14, 2)
+  requestedBy      String               @db.Uuid
+  status           ReleaseRequestStatus @default(PENDING)
+  decidedBy        String?              @db.Uuid
+  decidedAt        DateTime?
+  reason           String?
+  withdrawalId     String?              @db.Uuid
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([status, createdAt])
+  @@map("hq_release_requests")
+}
+
 /// Courier cash-book entry kind. Credits (+): EARNING, INCENTIVE (monthly tier bonus).
 /// Debits (-): DEDUCTION (e.g.
 /// break overage), CASH_VARIANCE (COD shortfall charged, slice 13), WITHDRAWAL.
@@ -76,6 +144,8 @@ model CommissionScheme {
   /// Franchise payout percentage (0..100), e.g. 20.00.
   pct           Decimal  @db.Decimal(5, 2)
   effectiveDate DateTime
+  /// PYO-6: who applied it. Null on rows from before the column existed.
+  createdBy     String?  @db.Uuid
   createdAt     DateTime @default(now())
 
   // Current-scheme lookup reads the newest effectiveDate per depot.
@@ -103,6 +173,8 @@ model CourierEarningRule {
   /// Monthly earnings target shown to the courier (IDR); 0 = no target configured.
   monthlyTarget Decimal @db.Decimal(14, 2) @default(0)
   effectiveDate DateTime
+  /// PYO-6: who applied it. Null on rows from before the column existed.
+  createdBy     String? @db.Uuid
   createdAt     DateTime @default(now())
 
   tiers CourierIncentiveTier[]

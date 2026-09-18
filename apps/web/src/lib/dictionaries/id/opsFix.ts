@@ -1,6 +1,22 @@
 // Depot-operator design-fidelity fixes (batch AB). Private fragment consumed via t('opsFix.*').
 // NO `as const` — values must widen to string so the en/ mirror stays assignable.
 export const opsFix = {
+  payoutAccount: {
+    title: 'Rekening tujuan pencairan',
+    hint: 'Saldo hanya bisa dicairkan ke rekening yang sudah diverifikasi kantor pusat.',
+    bank: 'Nama bank',
+    number: 'Nomor rekening',
+    holder: 'Nama pemilik rekening',
+    save: 'Daftarkan rekening',
+    replace: 'Ganti rekening',
+    saved: 'Rekening dikirim untuk verifikasi',
+    pending: 'Menunggu verifikasi kantor pusat',
+    verified: 'Terverifikasi',
+    rejected: 'Ditolak: {reason}',
+    noReason: 'tanpa alasan',
+    none: 'Belum ada rekening terdaftar.',
+    needVerified: 'Daftarkan rekening dan tunggu verifikasi sebelum menarik saldo.',
+  },
   depotForm: {
     ownerRequired: 'Depot waralaba wajib punya pemilik.',
     whatsappFormat: 'Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.',

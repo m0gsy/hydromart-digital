@@ -211,6 +211,7 @@ export const dashC = {
       settlementRead: 'Rekonsiliasi pembayaran',
       hqPayout: 'Cairkan payout waralaba',
       hqPayoutRead: 'Antrean payout waralaba (lihat)',
+      hqPayoutApprove: 'Setujui pengajuan pencairan waralaba',
       earningRules: 'Aturan penghasilan kurir',
       commissionRuns: 'Periode komisi kurir',
       commissionRead: 'Lihat persentase komisi',

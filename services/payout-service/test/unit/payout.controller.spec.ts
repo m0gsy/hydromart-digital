@@ -31,12 +31,10 @@ describe('PayoutController', () => {
     expect(payout.ledgerPage).toHaveBeenCalledWith('owner-1', 3, 10);
   });
 
-  it('withdraw delegates sub + amount + bankAccountRef', async () => {
-    await controller.withdraw(user, {
-      amount: 8420000,
-      bankAccountRef: 'BCA ···· 4821',
-    } as RequestWithdrawalDto);
-    expect(payout.requestWithdrawal).toHaveBeenCalledWith('owner-1', 8420000, 'BCA ···· 4821');
+  // PYO-3: the owner's verified account decides where it goes; the body carries an amount.
+  it('withdraw delegates sub + amount only', async () => {
+    await controller.withdraw(user, { amount: 8420000 } as RequestWithdrawalDto);
+    expect(payout.requestWithdrawal).toHaveBeenCalledWith('owner-1', 8420000);
   });
 
   it('recordRevenue forwards every field of a full push', async () => {

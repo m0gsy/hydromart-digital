@@ -265,6 +265,10 @@ const event = (
   onTime,
 });
 
+/** PYO-3: the courier's verified payout destination, read instead of typed. */
+const verifiedAccounts = () =>
+  ({ verifiedDestination: async () => 'BRI ···· 7788' }) as never;
+
 describe('CourierPayoutService', () => {
   let ledger: FakeCourierLedger;
   let withdrawals: FakeCourierWithdrawals;
@@ -273,7 +277,7 @@ describe('CourierPayoutService', () => {
   beforeEach(() => {
     ledger = new FakeCourierLedger();
     withdrawals = new FakeCourierWithdrawals(ledger);
-    service = new CourierPayoutService(ledger, withdrawals, courierTestConfig());
+    service = new CourierPayoutService(ledger, withdrawals, courierTestConfig(), verifiedAccounts());
   });
 
   it('credits base + on-time + peak using the WIB hour of deliveredAt', async () => {
@@ -301,7 +305,7 @@ describe('CourierPayoutService', () => {
         description: 'seed',
         sourceRef: 'seed-1',
       });
-      return service.requestWithdrawal(COURIER, 120000, 'BCA ···· 4821');
+      return service.requestWithdrawal(COURIER, 120000);
     };
 
     it('marks a cleared transfer PAID without touching the balance again', async () => {
@@ -454,21 +458,21 @@ describe('CourierPayoutService', () => {
 
   describe('requestWithdrawal', () => {
     it('rejects a non-positive amount', async () => {
-      await expect(service.requestWithdrawal(COURIER, 0, 'BCA')).rejects.toBeInstanceOf(
+      await expect(service.requestWithdrawal(COURIER, 0)).rejects.toBeInstanceOf(
         InvalidWithdrawalAmountError,
       );
     });
 
     it('rejects when the amount exceeds available balance', async () => {
       await service.recordDeliveryEarning(event('d1', OFFPEAK_UTC, false)); // 5000 balance
-      await expect(service.requestWithdrawal(COURIER, 6000, 'BCA')).rejects.toBeInstanceOf(
+      await expect(service.requestWithdrawal(COURIER, 6000)).rejects.toBeInstanceOf(
         InsufficientBalanceError,
       );
     });
 
     it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
       await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
-      const w = await service.requestWithdrawal(COURIER, 8000, 'BCA ···· 4821');
+      const w = await service.requestWithdrawal(COURIER, 8000);
       expect(w.reference).toMatch(/^WD-\d{8}-\d{4,}$/);
       expect(withdrawals.created).toHaveLength(1);
       expect(await ledger.balanceFor(COURIER)).toBe(0);
@@ -487,7 +491,7 @@ describe('CourierPayoutService', () => {
 
     it('returns the withdrawal history for the courier', async () => {
       await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
-      await service.requestWithdrawal(COURIER, 8000, 'BCA');
+      await service.requestWithdrawal(COURIER, 8000);
       const history = await service.withdrawalHistory(COURIER);
       expect(history).toHaveLength(1);
       expect(history[0].amount).toBe(8000);

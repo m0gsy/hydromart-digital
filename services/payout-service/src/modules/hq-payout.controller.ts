@@ -15,8 +15,19 @@ import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 import { CourierPayoutService } from '../application/services/courier-payout.service';
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
 import { PayoutService, PendingPayout } from '../application/services/payout.service';
+import { HqReleaseService } from '../application/services/hq-release.service';
+import { PayoutBankAccountService } from '../application/services/bank-account.service';
+import { PayoutBankAccountRecord } from '../application/ports/bank-account.repository';
+import { ReleaseRequestRecord } from '../application/ports/release-request.repository';
 import { WithdrawalRecord } from '../domain/ledger';
-import { ReleasePayoutDto, SettleWithdrawalDto } from './dto/payout.dto';
+import {
+  BankAccountResponseDto,
+  RejectBankAccountDto,
+  ReleasePayoutDto,
+  ReleaseRequestResponseDto,
+  RejectReleaseDto,
+  SettleWithdrawalDto,
+} from './dto/payout.dto';
 import {
   CourierWithdrawalResponseDto,
   PendingPayoutResponseDto,
@@ -36,7 +47,47 @@ export class HqPayoutController {
   constructor(
     private readonly payout: PayoutService,
     private readonly courierPayout: CourierPayoutService,
+    private readonly releases: HqReleaseService,
+    private readonly bankAccounts: PayoutBankAccountService,
   ) {}
+
+  /*
+   * PYO-3 — head office checks a destination before anything is sent to it.
+   *
+   * Reading the queue is `hqPayoutRead` (head office watches it); deciding is `hqPayout`,
+   * the same split every money surface here makes. Verifying is not the release itself, so
+   * it deliberately does NOT need the second-approver capability.
+   */
+  @ApiOkResponse({ type: BankAccountResponseDto, isArray: true })
+  @Can('hqPayoutRead')
+  @Get('bank-accounts')
+  @ApiOperation({ summary: 'Payout destinations waiting to be checked, oldest first' })
+  pendingBankAccounts(): Promise<PayoutBankAccountRecord[]> {
+    return this.bankAccounts.listByStatus('PENDING');
+  }
+
+  @ApiOkResponse({ type: BankAccountResponseDto })
+  @Post('bank-accounts/:id/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm a payout destination; withdrawals may use it from now on' })
+  verifyBankAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PayoutBankAccountRecord> {
+    return this.bankAccounts.decide(id, user.sub, true, null);
+  }
+
+  @ApiOkResponse({ type: BankAccountResponseDto })
+  @Post('bank-accounts/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refuse a payout destination, with a reason the owner can act on' })
+  rejectBankAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectBankAccountDto,
+  ): Promise<PayoutBankAccountRecord> {
+    return this.bankAccounts.decide(id, user.sub, false, dto.reason ?? null);
+  }
 
   // Same read as `owner/:ownerId` below, for the whole network instead of one owner — so it
   // carries the same capability. Inheriting the class-level `hqPayout` (FINANCE) meant
@@ -61,12 +112,53 @@ export class HqPayoutController {
     return this.payout.availableForOwner(ownerId);
   }
 
-  @ApiOkResponse({ type: WithdrawalResponseDto })
+  /*
+   * PYO-2 (owner decision 2026-09-17): this no longer moves money. It REQUESTS the release;
+   * a DIREKTUR or SUPER_ADMIN who is not the requester approves it below, and the existing
+   * release path runs only then.
+   */
+  @ApiOkResponse({ type: ReleaseRequestResponseDto })
   @Post('release')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Release an owner's full available balance to their bank" })
-  release(@Body() dto: ReleasePayoutDto): Promise<WithdrawalRecord> {
-    return this.payout.releaseForOwner(dto.franchiseOwnerId, dto.bankAccountRef);
+  @ApiOperation({ summary: "Request the release of an owner's balance (needs a second approver)" })
+  release(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ReleasePayoutDto,
+  ): Promise<ReleaseRequestRecord> {
+    return this.releases.request(dto.franchiseOwnerId, dto.bankAccountRef, user.sub);
+  }
+
+  @ApiOkResponse({ type: ReleaseRequestResponseDto, isArray: true })
+  @Can('hqPayoutRead')
+  @Get('release-requests')
+  @ApiOperation({ summary: 'Release requests waiting for approval, oldest first' })
+  releaseRequests(): Promise<ReleaseRequestRecord[]> {
+    return this.releases.listPending();
+  }
+
+  @ApiOkResponse({ type: ReleaseRequestResponseDto })
+  @Can('hqPayoutApprove')
+  @Post('release-requests/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Approve a release someone else requested; the money moves now' })
+  approveRelease(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ReleaseRequestRecord> {
+    return this.releases.approve(id, user.sub);
+  }
+
+  @ApiOkResponse({ type: ReleaseRequestResponseDto })
+  @Can('hqPayoutApprove')
+  @Post('release-requests/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reject a release request; nothing moves' })
+  rejectRelease(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectReleaseDto,
+  ): Promise<ReleaseRequestRecord> {
+    return this.releases.reject(id, user.sub, dto.reason ?? null);
   }
 
   /*

@@ -5,6 +5,8 @@ export interface CreateCommissionSchemeData {
   ownerName: string | null;
   pct: number;
   effectiveDate: Date;
+  /** PYO-6: the account that applied the scheme. */
+  createdBy?: string | null;
 }
 
 export interface CommissionSchemeRepository {

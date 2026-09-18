@@ -66,7 +66,16 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # db|index name|CREATE INDEX CONCURRENTLY statement. One line per index; keep the index
 # name identical to the one the migration creates, or the migration will build a second
 # copy under Prisma's default name.
+# PYO-2/PYO-3 (2026-09-17): four indexes on two brand-new tables. On production they build
+# in an instant because the tables are empty — they are listed because the H-39 gate asks
+# every new index for a concurrent path, and a table that is empty today will not be at the
+# next migration. The PENDING predicate is dollar-quoted: this block is a single-quoted
+# shell string, and one apostrophe in it would end the table right there.
 INDEXES='
+payout|hq_release_requests_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_status_createdAt_idx" ON "hq_release_requests"("status", "createdAt")
+payout|hq_release_requests_one_pending_per_owner|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_one_pending_per_owner" ON "hq_release_requests"("franchiseOwnerId") WHERE "status"::text = $$PENDING$$
+payout|payout_bank_accounts_subjectId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "payout_bank_accounts_subjectId_key" ON "payout_bank_accounts"("subjectId")
+payout|payout_bank_accounts_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "payout_bank_accounts_status_createdAt_idx" ON "payout_bank_accounts"("status", "createdAt")
 delivery|deliveries_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "deliveries_customerId_createdAt_idx" ON "deliveries"("customerId", "createdAt" DESC)
 order|orders_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_customerId_createdAt_idx" ON "orders"("customerId", "createdAt")
 order|orders_subscriptionId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_subscriptionId_createdAt_idx" ON "orders"("subscriptionId", "createdAt")
