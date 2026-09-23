@@ -26,10 +26,15 @@ import type { RedemptionListItem } from '@/lib/types';
 function RedemptionQueue() {
   const { t } = useT();
   const { toast } = useToast();
-  const { scopedId } = useDepot();
+  const { scopedId, ready } = useDepot();
+  // WEBC-1: the first render has no depot yet, and a request without one asked for the
+  // whole network's queue. Wait for the switcher; the server now also cuts to the caller.
   const { data, error, loading, reload } = useAsync<RedemptionListItem[]>(
-    () => api.get(endpoints.rewards.activeRedemptions(scopedId ?? undefined), true),
-    [scopedId],
+    () =>
+      ready && scopedId
+        ? api.get(endpoints.rewards.activeRedemptions(scopedId), true)
+        : Promise.resolve([]),
+    [scopedId, ready],
   );
   const [pending, setPending] = useState<string | null>(null);
 

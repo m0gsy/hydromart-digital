@@ -1,7 +1,15 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  Public,
+  Role,
+  Roles,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { RewardService } from '../application/services/reward.service';
 import {
@@ -110,10 +118,16 @@ export class RewardController {
   @ApiOperation({
     summary: 'Redemptions still waiting to be handed over, oldest first (M14-03)',
     description:
-      'With ?depotId= the queue is that depot plus legacy rows that recorded no depot; without it, the whole network (head office).',
+      'With ?depotId= the queue is that depot plus legacy rows that recorded no depot; without it, the caller scope — the whole network only for head office.',
   })
-  async activeRedemptions(@Query('depotId') depotId?: string): Promise<RedemptionListItemDto[]> {
-    const rows = await this.rewards.listAwaitingHandover(depotId || undefined);
+  async activeRedemptions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('depotId') depotId?: string,
+  ): Promise<RedemptionListItemDto[]> {
+    // LOY-3: no `depotId` used to mean the whole network for anyone — including a kepala
+    // depot, whose console sent none. DepotScopeGuard vets a named depot; this fills in
+    // the caller's own set when none is named.
+    const rows = await this.rewards.listAwaitingHandover(depotId ? [depotId] : depotScopeIds(user));
     return rows.map((r) => RedemptionListItemDto.fromView(r));
   }
 

@@ -34,6 +34,27 @@ describe('LoyaltyService read/list helpers', () => {
     expect(await service.countMembers()).toBe(2);
   });
 
+  // LOY-9 + LOY-4: a depot-scoped caller sees its own depots' customers and nobody else.
+  it('counts and reads members only inside the given depots', async () => {
+    const scoped = new LoyaltyService(
+      repo,
+      buildTestConfig(),
+      new InMemoryCustomerDirectory([], { d1: ['c1'], d2: ['c1', 'c3'] }),
+    );
+    await scoped.getAccount('c1');
+    await scoped.getAccount('c2');
+    await scoped.getAccount('c3');
+    expect(await scoped.countMembers(['d1', 'd2'])).toBe(2);
+    expect(await scoped.countMembers(['d9'])).toBe(0);
+    await expect(scoped.getAccountInScope('c3', ['d2'])).resolves.toMatchObject({
+      customerId: 'c3',
+    });
+    await expect(scoped.getAccountInScope('c2', ['d1', 'd2'])).rejects.toThrow(
+      'bukan pelanggan depot Anda',
+    );
+    expect((await scoped.getAccountInScope('c2')).customerId).toBe('c2');
+  });
+
   it('listTransactions clamps page below 1 and limit above the max', async () => {
     await service.earnForOrder('c1', 'ord-1', 60000);
     const page = await service.listTransactions('c1', 0, 9999);

@@ -89,7 +89,7 @@ describe('RewardService', () => {
     const legacyRow = rewardRepo.redemptions.find((r) => r.id === legacy.redemption.id)!;
     legacyRow.depotId = null;
 
-    const queue = await service.listAwaitingHandover(DEPOT);
+    const queue = await service.listAwaitingHandover([DEPOT]);
 
     expect(queue.map((r) => r.id).sort()).toEqual(
       [mine.redemption.id, legacy.redemption.id].sort(),

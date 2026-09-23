@@ -119,8 +119,8 @@ export class RewardService {
    * Scoped to one depot when given — plus the legacy rows that never recorded one, which
    * any depot may serve because nobody knows where their owner will turn up.
    */
-  listAwaitingHandover(depotId?: string): Promise<RewardRedemptionView[]> {
-    return this.rewards.listRedemptionsByStatus('ACTIVE', depotId);
+  listAwaitingHandover(depotIds?: readonly string[]): Promise<RewardRedemptionView[]> {
+    return this.rewards.listRedemptionsByStatus('ACTIVE', depotIds);
   }
 
   /**
