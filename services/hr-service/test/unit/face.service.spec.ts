@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { FaceEmbedding } from '../../prisma/generated/client';
@@ -35,6 +35,11 @@ class FakeFaceRepo implements FaceEmbeddingRepository {
   async deactivateForEmployee(id: string): Promise<void> {
     this.deactivated.push(id);
   }
+  deleted: string[] = [];
+  async deleteForEmployee(id: string): Promise<string[]> {
+    this.deleted.push(id);
+    return ['hr/faces/a.jpg'];
+  }
 }
 
 const verifier = (vector: number[]): FaceVerifier => ({
@@ -43,12 +48,29 @@ const verifier = (vector: number[]): FaceVerifier => ({
 });
 
 const config = { faceDuplicateThreshold: 0.75, faceMatchThreshold: 0.62 } as HrConfigService;
-const employees = {
-  getById: async () => ({ id: 'e1', depotId: 'd1' }),
-} as unknown as EmployeeService;
+/** HR-3: the employee the enrolment resolves to, and the consent written against them. */
+function fakeEmployees(faceConsentAt: Date | null = null) {
+  const consents: { id: string; consent: unknown }[] = [];
+  const employee = { id: 'e1', depotId: 'd1', fullName: 'Budi', faceConsentAt };
+  return {
+    consents,
+    service: {
+      getById: async () => employee,
+      getSelf: async () => employee,
+      setFaceConsent: async (id: string, consent: unknown) => {
+        consents.push({ id, consent });
+      },
+    } as unknown as EmployeeService,
+  };
+}
 
-function make(v: number[], repo = new FakeFaceRepo()) {
-  return { repo, svc: new FaceService(verifier(v), repo, employees, config) };
+function make(v: number[], repo = new FakeFaceRepo(), consentAt: Date | null = new Date()) {
+  const employees = fakeEmployees(consentAt);
+  return {
+    repo,
+    employees,
+    svc: new FaceService(verifier(v), repo, employees.service, config),
+  };
 }
 
 describe('FaceService.enroll', () => {
@@ -80,5 +102,76 @@ describe('FaceService.enroll', () => {
   it('rejects an empty frame list', async () => {
     const { svc } = make([1, 0, 0]);
     await expect(svc.enroll(user, 'e1', [], null)).rejects.toThrow(BadRequestException);
+  });
+});
+
+/*
+ * HR-3. Enrolment took any frames it was sent: consent was never asked, never recorded and
+ * never checked, and biometrics are the one kind of personal data that cannot be reissued
+ * after a leak. "Never asked" has to be refused exactly like "refused".
+ */
+describe('FaceService biometric consent (HR-3)', () => {
+  it('refuses to enrol an employee who has never consented', async () => {
+    const { svc, repo } = make([1, 0, 0], new FakeFaceRepo(), null);
+    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(repo.created).toHaveLength(0);
+  });
+
+  it('records the consent sent with the request, then enrols', async () => {
+    const { svc, repo, employees } = make([1, 0, 0], new FakeFaceRepo(), null);
+    await svc.enroll(user, 'e1', [Buffer.from('a')], null, true);
+    expect(employees.consents).toEqual([{ id: 'e1', consent: { by: 's', source: 'HR_DESK' } }]);
+    expect(repo.created).toHaveLength(1);
+  });
+
+  it('marks a self-enrolment as the employee’s own consent', async () => {
+    const { svc, employees } = make([1, 0, 0], new FakeFaceRepo(), null);
+    await svc.enrollSelf(user, [Buffer.from('a')], true);
+    expect(employees.consents).toEqual([{ id: 'e1', consent: { by: 's', source: 'SELF' } }]);
+  });
+
+  it('does not ask again once a consent is on file', async () => {
+    const { svc, employees } = make([1, 0, 0]);
+    await svc.enrollSelf(user, [Buffer.from('a')]);
+    expect(employees.consents).toHaveLength(0);
+  });
+
+  it('withdrawal deletes every template, the stored frame, and the consent', async () => {
+    const storage = { remove: jest.fn().mockResolvedValue(undefined) };
+    const repo = new FakeFaceRepo();
+    const employees = fakeEmployees(new Date());
+    const svc = new FaceService(
+      verifier([1, 0, 0]),
+      repo,
+      employees.service,
+      config,
+      storage as never,
+    );
+    await expect(svc.withdrawConsent({ id: 'e1' })).resolves.toEqual({ deleted: 1 });
+    expect(repo.deleted).toEqual(['e1']);
+    expect(employees.consents).toEqual([{ id: 'e1', consent: null }]);
+    expect(storage.remove).toHaveBeenCalledWith('hr/faces/a.jpg');
+  });
+
+  it('still withdraws when the bucket refuses the delete', async () => {
+    const storage = { remove: jest.fn().mockRejectedValue(new Error('down')) };
+    const employees = fakeEmployees(new Date());
+    const svc = new FaceService(
+      verifier([1, 0, 0]),
+      new FakeFaceRepo(),
+      employees.service,
+      config,
+      storage as never,
+    );
+    await expect(svc.withdrawConsent({ id: 'e1' })).resolves.toEqual({ deleted: 1 });
+    expect(employees.consents).toEqual([{ id: 'e1', consent: null }]);
+  });
+
+  it('resolves the subject of a withdrawal: by id for HR, own record for self', async () => {
+    const { svc } = make([1, 0, 0]);
+    await expect(svc.employeeFor(user, 'e1')).resolves.toMatchObject({ id: 'e1' });
+    await expect(svc.employeeFor(user)).resolves.toMatchObject({ id: 'e1' });
   });
 });

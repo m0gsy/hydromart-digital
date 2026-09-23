@@ -48,22 +48,27 @@ export class AuditInterceptor implements NestInterceptor {
     );
   }
 
-  /** Drop heavy/sensitive keys (face frames, vectors, secrets) and cap the payload size. */
+  /**
+   * Drop heavy/sensitive keys (face frames, vectors, secrets), redact personal data, and cap
+   * the payload size.
+   *
+   * HR-2: this row said WHAT changed by storing the submitted value, so one POST of an
+   * employee form put the NIK, the home address, the birth date, the bank account and the
+   * salary into a table nothing ever deleted — and the departed-staff scrub rewrote the
+   * employee row while leaving every audit copy of it intact. An audit trail needs to name
+   * the field that moved and who moved it; it does not need the number itself. The key stays
+   * so the trail still reads "salary was changed", the value becomes `[redacted]`.
+   */
   private sanitize(body: unknown): Record<string, unknown> | null {
     if (!body || typeof body !== 'object') return null;
-    const DROP = new Set([
-      'image',
-      'images',
-      'vector',
-      'password',
-      'secret',
-      'photoUrl',
-      'sourcePhotoUrl',
-    ]);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
       if (DROP.has(k)) {
         out[k] = '[omitted]';
+        continue;
+      }
+      if (isPersonal(k)) {
+        out[k] = v === null || v === undefined ? v : '[redacted]';
         continue;
       }
       const s = typeof v === 'string' ? v : JSON.stringify(v);
@@ -91,3 +96,40 @@ export class AuditInterceptor implements NestInterceptor {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Bodies too heavy or too secret to keep at all — the key is kept, the value never was. */
+const DROP = new Set(['image', 'images', 'vector', 'password', 'secret', 'photoUrl', 'sourcePhotoUrl']);
+
+/**
+ * HR-2 — personal data whose VALUE has no place in an audit row: identity documents, contact
+ * details, home address, next-of-kin, bank destination and pay. Matched case-insensitively on
+ * the field name so `bankAccount`, `emergencyPhone` and `monthlyRate` are caught without
+ * listing every spelling, and so a new field named like one of these is redacted the day it
+ * is added rather than the day somebody notices.
+ */
+const PERSONAL = [
+  'nik',
+  'ktp',
+  'npwp',
+  'bpjs',
+  'phone',
+  'email',
+  'address',
+  'birthdate',
+  'dob',
+  'bank',
+  'account',
+  'salary',
+  'rate',
+  'wage',
+  'fullname',
+  'name',
+  'emergency',
+];
+
+export function isPersonal(key: string): boolean {
+  const k = key.toLowerCase();
+  // `name` alone would redact `departmentName` and `shiftName` too — which is harmless, they
+  // are not evidence of anything — but `bankName` is the one that matters.
+  return PERSONAL.some((p) => k.includes(p));
+}

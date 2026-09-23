@@ -86,6 +86,40 @@ describe('AuditInterceptor', () => {
     });
   });
 
+  /*
+   * HR-2. The row stored the submitted value, so one POST of the employee form put the NIK,
+   * the home address, the bank account and the salary into a table nothing ever deleted —
+   * and the departed-staff scrub rewrote the employee row while leaving these copies intact.
+   */
+  it('redacts personal values and keeps the field names', async () => {
+    const { interceptor, recorded } = build();
+    const { context, handler } = ctx('POST', '/api/v1/employees', null, {
+      fullName: 'Budi Santoso',
+      nik: '3174010101900001',
+      phone: '+628123456789',
+      address: 'Jl. Melati 7',
+      bankAccount: '1234567890',
+      monthlyRate: 5_000_000,
+      position: 'Operator',
+      depotId: 'd1',
+      email: null,
+    });
+    await firstValueFrom(interceptor.intercept(context, handler));
+    expect(recorded[0].after).toEqual({
+      fullName: '[redacted]',
+      nik: '[redacted]',
+      phone: '[redacted]',
+      address: '[redacted]',
+      bankAccount: '[redacted]',
+      monthlyRate: '[redacted]',
+      // What the trail is for: which field moved, on which row, by whom.
+      position: 'Operator',
+      depotId: 'd1',
+      // A field that was cleared reads as cleared, not as "[redacted]" hiding a value.
+      email: null,
+    });
+  });
+
   it('does not record read (GET) requests', async () => {
     const { interceptor, recorded } = build();
     const { context, handler } = ctx('GET', '/api/v1/employees');

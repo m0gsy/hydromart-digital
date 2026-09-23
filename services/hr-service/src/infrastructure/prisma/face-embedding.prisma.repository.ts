@@ -59,6 +59,15 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
     });
   }
 
+  async deleteForEmployee(employeeId: string): Promise<string[]> {
+    const rows = await this.prisma.faceEmbedding.findMany({
+      where: { employeeId },
+      select: { sourcePhotoUrl: true },
+    });
+    await this.prisma.faceEmbedding.deleteMany({ where: { employeeId } });
+    return rows.map((r) => r.sourcePhotoUrl).filter((v): v is string => !!v);
+  }
+
   async deactivateForEmployee(employeeId: string): Promise<void> {
     await this.prisma.faceEmbedding.updateMany({
       where: { employeeId, active: true },

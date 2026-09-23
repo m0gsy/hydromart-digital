@@ -54,6 +54,10 @@ class FakeEmployees implements EmployeeRepository {
   async list(): Promise<{ rows: Employee[]; total: number }> {
     return { rows: this.rows, total: this.rows.length };
   }
+  consents: { id: string; consent: unknown }[] = [];
+  async setFaceConsent(id: string, consent: unknown): Promise<void> {
+    this.consents.push({ id, consent });
+  }
   async findByAuthSubjectId(): Promise<Employee | null> {
     return null;
   }

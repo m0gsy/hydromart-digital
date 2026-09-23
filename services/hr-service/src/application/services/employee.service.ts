@@ -286,6 +286,17 @@ export class EmployeeService {
     return employee;
   }
 
+  /**
+   * HR-3: record or withdraw one employee's consent to face biometrics. No depot check here —
+   * every caller (FaceService) has already resolved the employee through `getById`/`getSelf`.
+   */
+  setFaceConsent(
+    employeeId: string,
+    consent: { by: string | null; source: 'SELF' | 'HR_DESK' } | null,
+  ): Promise<void> {
+    return this.repo.setFaceConsent(employeeId, consent);
+  }
+
   async getHistory(user: AuthenticatedUser, id: string): Promise<EmploymentHistory[]> {
     await this.getById(user, id); // 404 + depot check
     return this.repo.listHistory(id);

@@ -1817,6 +1817,18 @@ describe('AuditPrismaRepository', () => {
     });
     expect(m(p, 'auditLog').count).toHaveBeenCalledWith({ where });
   });
+
+  // HR-2: this trail is a second audit table in a second database, and the retention sweep
+  // had never been pointed at it, so it grew forever with departed staff's data in it.
+  it('deleteBefore removes rows older than the cutoff', async () => {
+    const p = makePrisma();
+    m(p, 'auditLog').deleteMany.mockResolvedValue({ count: 7 });
+    const repo = new AuditPrismaRepository(asService(p));
+    await expect(repo.deleteBefore(new Date('2026-01-01'))).resolves.toBe(7);
+    expect(m(p, 'auditLog').deleteMany).toHaveBeenCalledWith({
+      where: { at: { lt: new Date('2026-01-01') } },
+    });
+  });
 });
 
 // ── BonusRulePrismaRepository ──────────────────────────────────────────
@@ -1970,6 +1982,12 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     expect(m(p, 'loan').deleteMany).not.toHaveBeenCalled();
     // The employee row survives too — deleting it would orphan those money records.
     expect(m(p, 'employee').deleteMany).not.toHaveBeenCalled();
+    // HR-2: the trail kept a copy of everything the scrub rewrites. The rows stay (who did
+    // what, when); the payloads that held the NIK, the address and the salary do not.
+    expect(m(p, 'auditLog').updateMany).toHaveBeenCalledWith({
+      where: { entityId: { in: ['e1', 'e2'] } },
+      data: { before: Prisma.JsonNull, after: Prisma.JsonNull },
+    });
     expect(m(p, 'employee').updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['e1', 'e2'] } },
       data: {
@@ -1996,6 +2014,11 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({ where: ids });
     expect(m(p, 'performanceReview').deleteMany).toHaveBeenCalledWith({ where: ids });
     expect(m(p, 'payroll').deleteMany).not.toHaveBeenCalled();
+    // HR-2: the rows about this person, and the ones they filed themselves.
+    expect(m(p, 'auditLog').updateMany).toHaveBeenCalledWith({
+      where: { OR: [{ entityId: 'e9' }, { actorId: 'auth-9' }] },
+      data: { before: Prisma.JsonNull, after: Prisma.JsonNull },
+    });
     expect(m(p, 'employee').update).toHaveBeenCalledWith({
       where: { id: 'e9' },
       data: {
@@ -2344,6 +2367,19 @@ describe('FaceEmbeddingPrismaRepository', () => {
       where: { active: true, employeeId: { not: 'e1' } },
       select: { employeeId: true, vector: true, vectorEnc: true },
     });
+  });
+
+  // HR-3: withdrawal has to leave nothing behind — a deactivated row is still a face.
+  it('deleteForEmployee deletes every template and returns the stored frames', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([
+      { sourcePhotoUrl: 'hr/faces/a.jpg' },
+      { sourcePhotoUrl: null },
+    ]);
+    m(p, 'faceEmbedding').deleteMany.mockResolvedValue({ count: 2 });
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.deleteForEmployee('e1')).resolves.toEqual(['hr/faces/a.jpg']);
+    expect(m(p, 'faceEmbedding').deleteMany).toHaveBeenCalledWith({ where: { employeeId: 'e1' } });
   });
 
   it('deactivateForEmployee → updateMany active:false', async () => {

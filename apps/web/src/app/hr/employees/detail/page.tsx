@@ -71,12 +71,29 @@ export default function EmployeeDetailPage() {
 
   const [frames, setFrames] = useState<string[]>([]);
   const [enrolling, setEnrolling] = useState(false);
+  // HR-3: the HR admin records, in person, that this employee agreed. Unticked sends nothing.
+  const [faceConsent, setFaceConsent] = useState(false);
 
   async function enroll() {
     setEnrolling(true);
     try {
-      await api.post(endpoints.hr.enrollFace(id), { images: frames }, true);
+      await api.post(endpoints.hr.enrollFace(id), { images: frames, consent: true }, true);
       toast(t('hrFix.employeeDetailExtra.faceEnrolled'));
+      setFrames([]);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hrFix.employeeDetailExtra.faceFailed'), 'error');
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  async function deleteFace() {
+    if (!window.confirm(t('hrFix.employeeDetailExtra.faceDeleteConfirm'))) return;
+    setEnrolling(true);
+    try {
+      await api.del(endpoints.hr.faceData(id), true);
+      toast(t('hrFix.employeeDetailExtra.faceDeleted'));
+      setFaceConsent(false);
       setFrames([]);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('hrFix.employeeDetailExtra.faceFailed'), 'error');
@@ -227,6 +244,16 @@ export default function EmployeeDetailPage() {
             onCapture={(f) => setFrames((prev) => [...prev, f].slice(0, 3))}
             disabled={frames.length >= 3}
           />
+          {/* HR-3: biometrics need consent, recorded here by the admin sitting with them. */}
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={faceConsent}
+              onChange={(ev) => setFaceConsent(ev.target.checked)}
+            />
+            <span>{t('hrFix.employeeDetailExtra.faceConsent')}</span>
+          </label>
           {frames.length > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-sm">
@@ -236,12 +263,16 @@ export default function EmployeeDetailPage() {
                 <Button variant="secondary" onClick={() => setFrames([])}>
                   {t('hrFix.employeeDetail.resetFrames')}
                 </Button>
-                <Button onClick={enroll} loading={enrolling}>
+                <Button onClick={enroll} loading={enrolling} disabled={!faceConsent}>
                   {t('hrFix.employeeDetail.saveEnrol')}
                 </Button>
               </div>
             </div>
           )}
+          {/* HR-3: withdrawal on their behalf — templates and stored frames both go. */}
+          <Button variant="ghost" onClick={deleteFace} loading={enrolling}>
+            {t('hrFix.employeeDetailExtra.faceDelete')}
+          </Button>
         </Card>
       )}
 

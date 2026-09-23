@@ -1,4 +1,4 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
@@ -21,7 +21,14 @@ export class SelfFaceController {
   @Post('enroll')
   @ApiOperation({ summary: 'Enroll my own face frames (self)' })
   enroll(@Body() dto: EnrollFaceDto, @CurrentUser() user: AuthenticatedUser): Promise<FaceEmbedding> {
-    return this.face.enrollSelf(user, dto.images.map(decodeBase64Image));
+    return this.face.enrollSelf(user, dto.images.map(decodeBase64Image), dto.consent === true);
+  }
+
+  /** HR-3: withdraw my consent — templates and stored frames deleted, consent cleared. */
+  @Delete()
+  @ApiOperation({ summary: 'Withdraw my biometric consent and delete my face data' })
+  async withdraw(@CurrentUser() user: AuthenticatedUser): Promise<{ deleted: number }> {
+    return this.face.withdrawConsent(await this.face.employeeFor(user));
   }
 }
 
@@ -42,6 +49,17 @@ export class FaceController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<FaceEmbedding> {
     const images = dto.images.map(decodeBase64Image);
-    return this.face.enroll(user, id, images, dto.sourcePhotoUrl ?? null);
+    return this.face.enroll(user, id, images, dto.sourcePhotoUrl ?? null, dto.consent === true);
+  }
+
+  /** HR-3: withdrawal on the employee's behalf (they asked at the desk, or they left). */
+  @Delete()
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Delete this employee’s face data and clear their consent' })
+  async withdraw(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ deleted: number }> {
+    return this.face.withdrawConsent(await this.face.employeeFor(user, id));
   }
 }

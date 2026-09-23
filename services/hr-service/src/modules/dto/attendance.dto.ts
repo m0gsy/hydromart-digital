@@ -43,6 +43,15 @@ export class EnrollFaceDto {
   @IsString()
   @MaxLength(500)
   sourcePhotoUrl?: string;
+
+  /**
+   * HR-3: the employee agrees, now, to their face being processed as biometric data — ticked
+   * by the employee on their own device, or recorded by the HR admin sitting with them.
+   * Omitted means "not stated", and enrolment then needs a consent already on file.
+   */
+  @IsOptional()
+  @IsBoolean()
+  consent?: boolean;
 }
 
 export class FacePunchDto {

@@ -92,6 +92,7 @@ function make(geofence: { lat: number | null; lng: number | null; radiusM: numbe
     listActiveByEmployee: async () => [{ vector: [1, 0] } as FaceEmbedding],
     listActiveVectorsExcept: async () => [],
     deactivateForEmployee: async () => {},
+    deleteForEmployee: async () => [],
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),

@@ -63,6 +63,7 @@ function make(opts: {
     listActiveByEmployee: async () => [{ vector: [1, 0] } as FaceEmbedding],
     listActiveVectorsExcept: async () => [],
     deactivateForEmployee: async () => {},
+    deleteForEmployee: async () => [],
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
