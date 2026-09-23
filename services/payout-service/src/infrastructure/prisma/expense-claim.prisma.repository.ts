@@ -59,9 +59,12 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
     return row ? this.toClaim(row as unknown as ClaimRow) : null;
   }
 
-  async markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord> {
-    const row = await this.prisma.expenseClaim.update({
-      where: { id },
+  async markReviewed(
+    id: string,
+    data: ReviewExpenseClaimData,
+  ): Promise<ExpenseClaimRecord | null> {
+    const { count } = await this.prisma.expenseClaim.updateMany({
+      where: { id, status: 'PENDING' },
       data: {
         status: data.status,
         reviewedBy: data.reviewedBy,
@@ -70,7 +73,23 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
         reviewedAt: new Date(),
       },
     });
+    return count === 0 ? null : this.findById(id);
+  }
+
+  async attachLedgerEntry(id: string, ledgerEntryId: string): Promise<ExpenseClaimRecord> {
+    const row = await this.prisma.expenseClaim.update({ where: { id }, data: { ledgerEntryId } });
     return this.toClaim(row as unknown as ClaimRow);
+  }
+
+  async reopen(id: string): Promise<void> {
+    await this.prisma.expenseClaim.updateMany({
+      where: { id, status: 'APPROVED', ledgerEntryId: null },
+      data: { status: 'PENDING', reviewedBy: null, reviewNote: null, reviewedAt: null },
+    });
+  }
+
+  countByReceiptUrl(receiptUrl: string): Promise<number> {
+    return this.prisma.expenseClaim.count({ where: { receiptUrl } });
   }
 
   async listForCourier(

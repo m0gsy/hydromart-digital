@@ -41,7 +41,17 @@ export interface ReviewExpenseClaimData {
 export interface ExpenseClaimRepository {
   create(data: CreateExpenseClaimData): Promise<ExpenseClaimRecord>;
   findById(id: string): Promise<ExpenseClaimRecord | null>;
-  markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord>;
+  /**
+   * PYO-4: moves a claim out of PENDING only if it is STILL pending — null when another
+   * reviewer got there first. The guard lives in the WHERE clause, not in a read before it.
+   */
+  markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord | null>;
+  /** Records the ledger credit on an approved claim. */
+  attachLedgerEntry(id: string, ledgerEntryId: string): Promise<ExpenseClaimRecord>;
+  /** Puts an approval whose credit failed back to PENDING, so it can be decided again. */
+  reopen(id: string): Promise<void>;
+  /** PYO-1: how many claims already carry this receipt. */
+  countByReceiptUrl(receiptUrl: string): Promise<number>;
   listForCourier(
     courierId: string,
     page: number,

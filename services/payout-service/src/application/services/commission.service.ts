@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { InvalidCommissionSchemeError } from '../../domain/errors';
 import { CommissionSchemeRecord } from '../../domain/commission';
@@ -14,6 +14,8 @@ export interface ApplySchemeItem {
 export interface ApplySchemeInput {
   effectiveDate: Date;
   items: ApplySchemeItem[];
+  /** PYO-6: who is applying it. */
+  appliedBy?: string | null;
 }
 
 /**
@@ -24,6 +26,8 @@ export interface ApplySchemeInput {
  */
 @Injectable()
 export class CommissionService {
+  private readonly logger = new Logger(CommissionService.name);
+
   constructor(
     @Inject(PAYOUT_TOKENS.CommissionSchemeRepository)
     private readonly schemes: CommissionSchemeRepository,
@@ -38,13 +42,20 @@ export class CommissionService {
     for (const item of input.items) {
       if (!(item.pct >= 0 && item.pct <= 100)) throw new InvalidCommissionSchemeError();
     }
-    return this.schemes.createMany(
+    const created = await this.schemes.createMany(
       input.items.map((item) => ({
         depotId: item.depotId,
         ownerName: item.ownerName ?? null,
         pct: item.pct,
         effectiveDate: input.effectiveDate,
+        createdBy: input.appliedBy ?? null,
       })),
     );
+    // PYO-6: the cut every franchise owner is paid on changed; say who changed it.
+    this.logger.log(
+      `commission.scheme.applied by=${input.appliedBy ?? 'unknown'} effective=${input.effectiveDate.toISOString()} ` +
+        input.items.map((i) => `${i.depotId}=${i.pct}%`).join(','),
+    );
+    return created;
   }
 }

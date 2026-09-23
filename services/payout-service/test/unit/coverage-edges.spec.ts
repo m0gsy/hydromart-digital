@@ -112,8 +112,10 @@ class Claims implements ExpenseClaimRepository {
   async findById(id: string): Promise<ExpenseClaimRecord | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord> {
+  async markReviewed(id: string, data: ReviewExpenseClaimData): Promise<ExpenseClaimRecord | null> {
     const row = this.rows.find((r) => r.id === id)!;
+    // PYO-4: mirrors the Prisma WHERE status = 'PENDING' guard.
+    if (row.status !== 'PENDING') return null;
     Object.assign(row, {
       status: data.status,
       reviewedBy: data.reviewedBy,
@@ -122,6 +124,18 @@ class Claims implements ExpenseClaimRepository {
       reviewedAt: new Date(),
     });
     return row;
+  }
+  async attachLedgerEntry(id: string, ledgerEntryId: string): Promise<ExpenseClaimRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    row.ledgerEntryId = ledgerEntryId;
+    return row;
+  }
+  async reopen(id: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === id)!;
+    if (row.status === 'APPROVED' && !row.ledgerEntryId) row.status = 'PENDING';
+  }
+  async countByReceiptUrl(receiptUrl: string): Promise<number> {
+    return this.rows.filter((r) => r.receiptUrl === receiptUrl).length;
   }
   async listForCourier() {
     return { items: [], total: 0 };
@@ -163,7 +177,10 @@ describe('ExpenseClaimService edges', () => {
   beforeEach(() => {
     ledger = new Ledger();
     claims = new Claims();
-    service = new ExpenseClaimService(claims, ledger, config);
+    service = new ExpenseClaimService(claims, ledger, config, {
+      signedUrl: async () => null,
+      exists: async () => true,
+    });
   });
 
   it('files a claim with no depot as depotId null, not undefined', async () => {
@@ -171,7 +188,7 @@ describe('ExpenseClaimService edges', () => {
       category: 'FUEL',
       amount: 10_000,
       description: 'Bensin',
-      receiptUrl: `${RECEIPT_BASE}/uploads/r.jpg`,
+      receiptUrl: `${RECEIPT_BASE}/pod/00000000-0000-4000-8000-000000000001.jpg`,
     });
     expect(claim.depotId).toBeNull();
     expect(claim.status).toBe('APPROVED');
@@ -436,7 +453,12 @@ describe('CourierLedgerPrismaRepository edges', () => {
     const make = (photos?: { signedUrl: jest.Mock }) => {
       const repo = new Claims();
       repo.searchRows = claimRows;
-      return new ExpenseClaimService(repo, new Ledger(), config, photos);
+      return new ExpenseClaimService(
+        repo,
+        new Ledger(),
+        config,
+        photos && { ...photos, exists: async () => false },
+      );
     };
 
     it('replaces the stored id with a link, and leaves a claim without one alone', async () => {

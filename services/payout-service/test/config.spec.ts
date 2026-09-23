@@ -31,10 +31,13 @@ describe('PayoutConfigService', () => {
       RATE_LIMIT_TTL_SECONDS: '60',
       RATE_LIMIT_MAX: '100',
       EXPENSE_AUTO_APPROVE_MAX_IDR: '50000',
+      EXPENSE_MANAGER_APPROVE_MAX_IDR: '500000',
     });
     expect(cfg.port).toBe(3016);
     expect(cfg.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
     expect(cfg.expenseAutoApproveMaxIdr()).toBe(50000);
+    // PYO-5: the manager approval ceiling, env default until head office sets one.
+    expect(cfg.expenseManagerApproveMaxIdr).toBe(500000);
   });
 
   /*

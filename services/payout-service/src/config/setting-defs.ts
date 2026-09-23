@@ -17,6 +17,19 @@ export interface SettingDef {
 // envDefault must mirror this service's env.validation.ts defaults
 export const SETTING_DEFS: SettingDef[] = [
   {
+    // PYO-5, owner decision 2026-09-17: a depot MANAGER approves an expense claim up to this
+    // amount; anything larger waits for FINANCE or a super admin. GLOBAL only — a per-depot
+    // override would let the same manager raise their own ceiling.
+    key: 'expenseManagerApproveMaxIdr',
+    label: 'Batas persetujuan klaim biaya oleh manager',
+    type: 'money',
+    unit: 'Rp',
+    min: 0,
+    max: 100000000,
+    envDefault: 500000,
+    global: true,
+  },
+  {
     key: 'expenseAutoApproveMaxIdr',
     label: 'Batas auto-approve klaim biaya',
     type: 'money',

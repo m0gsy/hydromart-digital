@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import {
+  ExpenseApprovalAboveLimitError,
   ExpenseClaimNotFoundError,
   ExpenseClaimNotPendingError,
   InvalidExpenseAmountError,
@@ -66,7 +67,7 @@ export class ExpenseClaimService {
     const auto = isAutoApproved(
       input.amount,
       this.config.expenseAutoApproveMaxIdr(depotId),
-      this.receiptIsOurs(receiptUrl),
+      await this.receiptIsProven(receiptUrl),
     );
 
     const claim = await this.claims.create({
@@ -80,13 +81,37 @@ export class ExpenseClaimService {
     });
     if (!auto) return claim;
 
-    const entry = await this.creditLedger(claim);
-    return this.claims.markReviewed(claim.id, {
+    return this.approveAndCredit(claim, null, 'Disetujui otomatis (di bawah ambang)');
+  }
+
+  /**
+   * PYO-4 — decide first, then move money.
+   *
+   * Approval used to credit the ledger and THEN write APPROVED by id alone. Two reviewers
+   * acting at once could each pass `loadPending`; one approving and one rejecting left a
+   * credited claim that ended REJECTED. The status change now happens first and only if the
+   * claim is still pending; the loser is told so and moves nothing. A credit that then fails
+   * puts the claim back to PENDING rather than leaving it approved and unpaid.
+   */
+  private async approveAndCredit(
+    claim: ExpenseClaimRecord,
+    reviewedBy: string | null,
+    note: string | null,
+  ): Promise<ExpenseClaimRecord> {
+    const approved = await this.claims.markReviewed(claim.id, {
       status: 'APPROVED',
-      reviewedBy: null,
-      reviewNote: 'Disetujui otomatis (di bawah ambang)',
-      ledgerEntryId: entry.id,
+      reviewedBy,
+      reviewNote: note,
     });
+    if (!approved) throw new ExpenseClaimNotPendingError();
+    let entryId: string;
+    try {
+      entryId = (await this.creditLedger(claim)).id;
+    } catch (error) {
+      await this.claims.reopen(claim.id);
+      throw error;
+    }
+    return this.claims.attachLedgerEntry(claim.id, entryId);
   }
 
   /** Reviewer approves a pending claim: credit the courier ledger, then mark it approved. */
@@ -97,13 +122,13 @@ export class ExpenseClaimService {
     reviewer?: AuthenticatedUser,
   ): Promise<ExpenseClaimRecord> {
     const claim = await this.loadPending(id, reviewer);
-    const entry = await this.creditLedger(claim);
-    return this.claims.markReviewed(id, {
-      status: 'APPROVED',
-      reviewedBy: reviewerId,
-      reviewNote: note ?? null,
-      ledgerEntryId: entry.id,
-    });
+    // PYO-5: one depot manager approved any amount. Above the network ceiling the claim is
+    // FINANCE's (or a super admin's) to decide; rejecting stays open to the manager.
+    if (reviewer?.role === 'MANAGER') {
+      const limit = this.config.expenseManagerApproveMaxIdr;
+      if (claim.amount > limit) throw new ExpenseApprovalAboveLimitError(limit);
+    }
+    return this.approveAndCredit(claim, reviewerId, note ?? null);
   }
 
   /** Reviewer rejects a pending claim: no ledger movement. */
@@ -114,11 +139,13 @@ export class ExpenseClaimService {
     reviewer?: AuthenticatedUser,
   ): Promise<ExpenseClaimRecord> {
     await this.loadPending(id, reviewer);
-    return this.claims.markReviewed(id, {
+    const rejected = await this.claims.markReviewed(id, {
       status: 'REJECTED',
       reviewedBy: reviewerId,
       reviewNote: note ?? null,
     });
+    if (!rejected) throw new ExpenseClaimNotPendingError();
+    return rejected;
   }
 
   listForCourier(
@@ -190,12 +217,22 @@ export class ExpenseClaimService {
    * live cannot tell a real one from a typed one, and the safe reading of "I cannot tell" is
    * a claim that waits for a human.
    */
-  private receiptIsOurs(receiptUrl: string | null): boolean {
+  private async receiptIsProven(receiptUrl: string | null): Promise<boolean> {
     const base = this.config.receiptStorageBaseUrl;
-    if (!receiptUrl || !base) return false;
-    // Prefix plus a separator: `https://cdn/hydromart-pod` must not admit
-    // `https://cdn/hydromart-pod-evil/…`, which starts with it.
-    return receiptUrl.startsWith(`${base}/`);
+    if (!receiptUrl || !base || !receiptUrl.startsWith(`${base}/`)) return false;
+    /*
+     * PYO-1 — the prefix alone was still a string a courier could TYPE, and reuse without
+     * limit: `${base}/anything` credited the ledger with no human, as often as asked. Three
+     * more things now have to hold, and any doubt sends the claim to a reviewer:
+     *   1. the path is the shape an upload produces (`pod/<uuid>.<image ext>`),
+     *   2. no other claim already carries it (one receipt, one reimbursement),
+     *   3. the object is really there — asked of storage through delivery-service, which
+     *      holds the bucket. Unreachable or unconfigured reads as "not proven".
+     */
+    const rest = receiptUrl.slice(base.length + 1);
+    if (!/^(uploads\/)?pod\/[0-9a-f-]{36}\.(jpe?g|png|webp)$/i.test(rest)) return false;
+    if ((await this.claims.countByReceiptUrl(receiptUrl)) > 0) return false;
+    return (await this.photos?.exists(receiptUrl)) === true;
   }
 
   private async loadPending(id: string, reviewer?: AuthenticatedUser): Promise<ExpenseClaimRecord> {
