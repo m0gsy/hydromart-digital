@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -25,7 +26,13 @@ function ingestBody(overrides: Record<string, unknown> = {}) {
     total: 85000,
     items: [
       { productId: randomUUID(), productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon', quantity: 3 },
-      { productId: randomUUID(), productName: 'Aqua 600ml', sku: 'AQ06', unit: 'botol', quantity: 5 },
+      {
+        productId: randomUUID(),
+        productName: 'Aqua 600ml',
+        sku: 'AQ06',
+        unit: 'botol',
+        quantity: 5,
+      },
     ],
     ...overrides,
   };
@@ -106,14 +113,29 @@ describe('Forecast HTTP flows (e2e)', () => {
     // depotId must carry that depotId claim. Tests that hit a runtime depotId mint a bound token
     // via signStaff; the unbound managerToken is only for depot-agnostic routes (e.g. /sales).
     signStaff = (role, depotId) =>
-      jwt.sign({ sub: randomUUID(), role, phone: '+62', depotId: depotId ?? null }, { secret });
+      jwt.sign(
+        { sub: randomUUID(), role, phone: '+62', depotId: depotId ?? null },
+        { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+      );
     // A MANAGER covers a resolved SET of depots; with no hierarchy in this isolated stack the
     // guard falls back to the token depot, so the token must carry one (production always does).
     managerToken = signStaff(Role.MANAGER, randomUUID());
-    customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
-    superAdminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
-    marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
-    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: '+62' }, { secret });
+    customerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    superAdminToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    marketingToken = jwt.sign(
+      { sub: randomUUID(), role: Role.MARKETING, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    operatorToken = jwt.sign(
+      { sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -174,7 +196,10 @@ describe('Forecast HTTP flows (e2e)', () => {
       .query({ productId })
       .set(auth(customerToken))
       .expect(403);
-    await request(server()).get(`/api/v1/forecast/depot/${depotId}`).set(auth(customerToken)).expect(403);
+    await request(server())
+      .get(`/api/v1/forecast/depot/${depotId}`)
+      .set(auth(customerToken))
+      .expect(403);
   });
 
   it('rebuild is restricted to SUPER_ADMIN (403 customer) and pulls the order feed (200)', async () => {

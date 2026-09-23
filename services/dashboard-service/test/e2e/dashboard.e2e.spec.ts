@@ -1,4 +1,5 @@
 import { INestApplication, VersioningType } from '@nestjs/common';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -66,10 +67,16 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     managerToken = jwt.sign(
       { sub: 'm', role: Role.MANAGER, phone: '+62', depotId: DEPOT_A },
-      { secret },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
     );
-    customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
-    ownerToken = jwt.sign({ sub: 'o', role: Role.FRANCHISE_OWNER, phone: '+62' }, { secret });
+    customerToken = jwt.sign(
+      { sub: 'c', role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    ownerToken = jwt.sign(
+      { sub: 'o', role: Role.FRANCHISE_OWNER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -84,10 +91,7 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
   });
 
   it('forbids a customer (403 — head office / depot manager / super admin only)', async () => {
-    await request(server())
-      .get('/api/v1/dashboard/executive')
-      .set(auth(customerToken))
-      .expect(403);
+    await request(server()).get('/api/v1/dashboard/executive').set(auth(customerToken)).expect(403);
   });
 
   it('returns the executive dashboard for a depot manager (200)', async () => {
@@ -137,10 +141,7 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
   });
 
   it('forbids a depot manager on the franchise route (403 — franchise owner only)', async () => {
-    await request(server())
-      .get('/api/v1/dashboard/franchise')
-      .set(auth(managerToken))
-      .expect(403);
+    await request(server()).get('/api/v1/dashboard/franchise').set(auth(managerToken)).expect(403);
   });
 
   it('returns the franchise dashboard for a franchise owner (200)', async () => {

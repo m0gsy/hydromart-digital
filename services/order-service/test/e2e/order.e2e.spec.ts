@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -152,7 +153,10 @@ describe('Order HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    customerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
     /*
      * A MANAGER token carries a depot in production — auth-service always issues one —
      * and a depot-scoped role WITHOUT one is refused deliberately by depotScopeIds
@@ -162,9 +166,12 @@ describe('Order HTTP flows (e2e)', () => {
      */
     staffToken = jwt.sign(
       { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId: STAFF_DEPOT },
-      { secret },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
     );
-    adminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
+    adminToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -342,16 +349,16 @@ describe('Order HTTP flows (e2e)', () => {
       .set('x-internal-key', INTERNAL_KEY)
       .expect(200);
     expect(stranger.body).toEqual({ hasCompleted: false });
-  // The 30s budget every test in this workspace now gets lives in package.json's jest
-  // block, not here. It used to be this one argument on this one test — and the very next
-  // spec in the file, nine sequential round-trips with no override, went red the same way
-  // two days later on a PR that touched only web pages and an Android manifest. Patching
-  // the test the report named left every sibling on the 5s default.
-  //
-  // Why 30s and not "a nudge": these specs drive a whole Nest app over supertest, a dozen
-  // sequential HTTP round-trips per test. Jest's default 5s is a unit-test budget. Nothing
-  // in here waits on a clock, so the number bounds real work, and the job's own
-  // `timeout-minutes` is what still catches a genuine hang.
+    // The 30s budget every test in this workspace now gets lives in package.json's jest
+    // block, not here. It used to be this one argument on this one test — and the very next
+    // spec in the file, nine sequential round-trips with no override, went red the same way
+    // two days later on a PR that touched only web pages and an Android manifest. Patching
+    // the test the report named left every sibling on the 5s default.
+    //
+    // Why 30s and not "a nudge": these specs drive a whole Nest app over supertest, a dozen
+    // sequential HTTP round-trips per test. Jest's default 5s is a unit-test budget. Nothing
+    // in here waits on a clock, so the number bounds real work, and the job's own
+    // `timeout-minutes` is what still catches a genuine hang.
   });
 
   it('batch-reads existing order values with internal auth and validates 1-500 unique UUIDs', async () => {

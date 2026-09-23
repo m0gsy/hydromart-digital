@@ -1,4 +1,5 @@
 import { INestApplication, VersioningType } from '@nestjs/common';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -87,9 +88,15 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     // Depot managers are locked to their assignedDepotId by DepotScopeGuard — bind the token
     // to the depot under test for the `/depots/:depotId/...` routes.
     signStaff = (role, depotId) =>
-      jwt.sign({ sub: 's', role, phone: '+62', depotId: depotId ?? null }, { secret });
+      jwt.sign(
+        { sub: 's', role, phone: '+62', depotId: depotId ?? null },
+        { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+      );
     managerToken = signStaff(Role.MANAGER);
-    customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
+    customerToken = jwt.sign(
+      { sub: 'c', role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {

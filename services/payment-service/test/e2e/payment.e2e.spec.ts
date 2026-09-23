@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -73,10 +74,19 @@ describe('Payment HTTP flows (e2e)', () => {
     // from .env rather than the in-test load()), so the HMAC matches.
     webhookSecret = config.getOrThrow<string>('PAYMENT_WEBHOOK_SECRET');
     const jwt = app.get(JwtService);
-    customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
-    financeToken = jwt.sign({ sub: randomUUID(), role: Role.FINANCE, phone: '+62' }, { secret });
+    customerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    financeToken = jwt.sign(
+      { sub: randomUUID(), role: Role.FINANCE, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
     // A second customer, for the "not your payment" case below.
-    strangerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    strangerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {

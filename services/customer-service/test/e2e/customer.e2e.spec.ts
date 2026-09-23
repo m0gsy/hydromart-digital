@@ -1,4 +1,5 @@
 import { INestApplication, VersioningType } from '@nestjs/common';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -76,8 +77,14 @@ describe('Customer HTTP flows (e2e)', () => {
     // Sign with the secret the app actually resolves, so the guard verifies it.
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    token = jwt.sign({ sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' }, { secret });
-    adminToken = jwt.sign({ sub: 'admin-1', role: Role.SUPER_ADMIN }, { secret });
+    token = jwt.sign(
+      { sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    adminToken = jwt.sign(
+      { sub: 'admin-1', role: Role.SUPER_ADMIN },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
