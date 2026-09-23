@@ -324,7 +324,23 @@ export class DashboardService {
    * are null the moment any depot's is — a network total assembled from partial rows is a
    * number that looks authoritative and is not.
    */
-  async networkPnl(month: string, token: string): Promise<NetworkPnl> {
+  /**
+   * DSH-1: the depot list every network roll-up fans out over, cut to the caller's scope.
+   * Every source is read as the system principal, so the ids chosen here are the whole
+   * authorization boundary — rows for a depot outside it are never fetched, not just hidden.
+   */
+  private static inScope<T extends { id: string }>(
+    depots: T[] | null,
+    scope: readonly string[] | undefined,
+  ): T[] | null {
+    return depots && scope ? depots.filter((d) => scope.includes(d.id)) : depots;
+  }
+
+  async networkPnl(
+    month: string,
+    token: string,
+    depotIds?: readonly string[],
+  ): Promise<NetworkPnl> {
     // Same window arithmetic as `monthlyPnl` (H-16): `${month}-01T00:00Z` is 07:00 WIB, so
     // a UTC window starts and ends seven hours late and gets the first and last day of
     // every month partly wrong.
@@ -333,7 +349,7 @@ export class DashboardService {
     const toDate = addLocalMonths(fromDate, 1, tz);
     const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
 
-    const depots = await this.sources.allDepots(token);
+    const depots = DashboardService.inScope(await this.sources.allDepots(token), depotIds);
     const ids = (depots ?? []).map((d) => d.id);
 
     const [revenues, goods, hr, payout, refunds] = await Promise.all([
@@ -428,10 +444,15 @@ export class DashboardService {
     };
   }
 
-  async network(range: DateRange, token: string): Promise<NetworkDashboard> {
-    const [depots, topDepots, slaByDepot, ratingByDepot] = await Promise.all([
+  async network(
+    range: DateRange,
+    token: string,
+    depotIds?: readonly string[],
+  ): Promise<NetworkDashboard> {
+    const scope = depotIds ? [...depotIds] : undefined;
+    const [allDepots, topDepots, slaByDepot, ratingByDepot] = await Promise.all([
       this.sources.allDepots(token),
-      this.sources.topDepots(range, DashboardService.NETWORK_TOP_LIMIT, token),
+      this.sources.topDepots(range, DashboardService.NETWORK_TOP_LIMIT, token, scope),
       this.sources.slaByDepot(range, token),
       this.sources.ratingByDepot(range, token),
     ]);
@@ -456,6 +477,7 @@ export class DashboardService {
      * "Rp 0" with `sources.order` still reading 'ok', and that zero was then summed into
      * the network total. Below the limit, absence really does mean nothing sold.
      */
+    const depots = DashboardService.inScope(allDepots, scope);
     const reportFull = (topDepots?.items.length ?? 0) >= DashboardService.NETWORK_TOP_LIMIT;
     let missingFromReport = false;
     const slaByDepotId = new Map<string, number>();

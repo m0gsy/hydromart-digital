@@ -137,15 +137,24 @@ describe('DashboardController', () => {
 
   // CA-2-59: no depotId — the whole point is the network. A depot's own P&L is monthlyPnl.
   it('delegates networkPnl with the month + token', async () => {
-    await expect(controller.networkPnl({ month: '2026-07' }, 'Bearer t')).resolves.toBe(
-      'network-pnl',
-    );
-    expect(stub.networkPnl).toHaveBeenCalledWith('2026-07', 'Bearer t');
+    await expect(
+      controller.networkPnl({ month: '2026-07' }, 'Bearer t', headOffice),
+    ).resolves.toBe('network-pnl');
+    expect(stub.networkPnl).toHaveBeenCalledWith('2026-07', 'Bearer t', undefined);
+    // DSH-1: a manager's roll-up is its own depots.
+    await controller.networkPnl({ month: '2026-07' }, 'Bearer t', manager('d1', 'd2'));
+    expect(stub.networkPnl).toHaveBeenLastCalledWith('2026-07', 'Bearer t', ['d1', 'd2']);
   });
 
   it('delegates network with the parsed range + token', async () => {
-    await expect(controller.network({ from: 'a', to: 'b' }, 'Bearer t')).resolves.toBe('net');
-    expect(stub.network).toHaveBeenCalledWith({ from: 'a', to: 'b' }, 'Bearer t');
+    await expect(controller.network({ from: 'a', to: 'b' }, 'Bearer t', headOffice)).resolves.toBe(
+      'net',
+    );
+    expect(stub.network).toHaveBeenCalledWith({ from: 'a', to: 'b' }, 'Bearer t', undefined);
+    await controller.network({}, 'Bearer t', manager('d1'));
+    expect(stub.network).toHaveBeenLastCalledWith({ from: undefined, to: undefined }, 'Bearer t', [
+      'd1',
+    ]);
   });
 
   it('delegates franchise with the parsed range + token', async () => {
