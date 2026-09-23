@@ -17,6 +17,7 @@ export interface PushSubscriptionRepository {
   /** Register (or re-point) a device endpoint to a customer. Idempotent by endpoint. */
   upsert(data: SaveSubscriptionData): Promise<WebPushSubscriptionRecord>;
   listForCustomer(customerId: string): Promise<WebPushSubscriptionRecord[]>;
+  findByEndpoint(endpoint: string): Promise<WebPushSubscriptionRecord | null>;
   /**
    * Remove a device endpoint. `customerId` scopes the delete to its owner: the HTTP
    * unsubscribe route takes the endpoint from the query string, so without it anyone

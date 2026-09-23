@@ -92,8 +92,15 @@ export class NotificationController {
     return { marked: await this.notifications.markAllOpsRead(user.sub) };
   }
 
+  /*
+   * CRM-1: this took `orderFulfilment` — every depot's floor staff — and any event, BROADCAST
+   * included, to any phone or customer id. So a counter account could write free text into
+   * any customer's inbox and push it, with no depot and no marketing check. Nothing calls it
+   * with a user token: every service sends through `internal` below. What is left is the
+   * manual trigger the header comment always described, and only for a super admin.
+   */
   @ApiOkResponse({ type: NotificationDto })
-  @Can('orderFulfilment')
+  @Roles(Role.SUPER_ADMIN)
   @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send an event-triggered WhatsApp notification (FR-093/FR-094)' })

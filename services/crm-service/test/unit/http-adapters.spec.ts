@@ -282,9 +282,16 @@ describe('NotificationPreferenceHttpAdapter · marketingAllowed', () => {
     await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
   });
 
-  it('allows when the read fails', async () => {
+  // CRM-2: the marketing read REJECTS on any failure; push and locale still fail open.
+  it('rejects when the read fails, is refused, or is not configured', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(adapter().marketingAllowed('c1')).resolves.toBe(true);
+    await expect(adapter().marketingAllowed('c1')).rejects.toThrow(/could not be read/);
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(adapter().marketingAllowed('c1')).rejects.toThrow(/could not be read/);
+    await expect(
+      new NotificationPreferenceHttpAdapter(makeConfig({ internalServiceKey: '' })).marketingAllowed('c1'),
+    ).rejects.toThrow(/could not be read/);
+    await expect(adapter().pushAllowed('c1')).resolves.toBe(true);
   });
 
   it('does not confuse the push switch with the marketing one', async () => {
