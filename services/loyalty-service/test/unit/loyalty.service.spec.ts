@@ -75,6 +75,26 @@ describe('LoyaltyService.adjust — fence, ceiling, signature', () => {
  * `lifetimePoints` alone, so the void still counted towards GOLD. It also debited whoever
  * the caller's body named, and a retry debited twice.
  */
+/*
+ * LOY-10. The ledger was outside the UU PDP erasure fan-out entirely — nothing in the
+ * deletion path had ever heard of it — so every free-text note staff typed against a
+ * customer's points survived their erasure. The points stay: a balance is money owed.
+ */
+describe('LoyaltyService.anonymise', () => {
+  it('clears the notes on one customer’s ledger and leaves the points alone', async () => {
+    const repo = new InMemoryLoyaltyRepository();
+    const service = new LoyaltyService(repo, buildTestConfig(), new InMemoryCustomerDirectory());
+    await service.reward('cust-1', 100, 'ganti rugi antar telat ke Bu Sri, 0812');
+    await service.reward('cust-2', 50, 'someone else');
+
+    await expect(service.anonymise('cust-1')).resolves.toEqual({ erased: 1 });
+    expect(repo.txns.find((t) => t.customerId === 'cust-1')?.reason).toBeNull();
+    expect((await service.getAccount('cust-1')).pointsBalance).toBe(100);
+    // Nobody else's note is touched.
+    expect(repo.txns.find((t) => t.customerId === 'cust-2')?.reason).toBe('someone else');
+  });
+});
+
 describe('LoyaltyService.reverseEarnForOrder', () => {
   let repo: InMemoryLoyaltyRepository;
   let service: LoyaltyService;

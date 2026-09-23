@@ -196,6 +196,13 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     return { ...acc };
   }
 
+  /** LOY-10: the points stay; the free text beside them does not. */
+  async scrubReasons(customerId: string): Promise<number> {
+    const rows = this.txns.filter((t) => t.customerId === customerId && t.reason !== null);
+    for (const row of rows) row.reason = null;
+    return rows.length;
+  }
+
   async markLotExpired(lotId: string): Promise<void> {
     const lot = this.txns.find((t) => t.id === lotId);
     if (lot) lot.expired = true;

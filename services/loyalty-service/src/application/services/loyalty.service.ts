@@ -313,6 +313,20 @@ export class LoyaltyService {
   }
 
   /**
+   * LOY-10 — the loyalty ledger was outside the UU PDP erasure fan-out entirely.
+   *
+   * Nothing in the deletion path had ever heard of it, so a customer who asked to be
+   * forgotten kept every free-text note staff had typed against their points. The points
+   * stay (a balance is money owed, and the customer can see it in their own app); the
+   * sentences beside them go.
+   */
+  async anonymise(customerId: string): Promise<{ erased: number }> {
+    const erased = await this.repo.scrubReasons(customerId);
+    this.logger.log(`PDP: cleared the note on ${erased} ledger row(s)`);
+    return { erased };
+  }
+
+  /**
    * Re-reads the tier off the lifetime total the database actually holds, and writes it
    * only if it moved (H-2).
    *

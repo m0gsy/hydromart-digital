@@ -421,7 +421,8 @@ export class DataSubjectService {
       consents,
       notIncluded: [
         'Riwayat pesanan dan pembayaran (kelas retensi FINANCIAL, disimpan 10 tahun)',
-        'Catatan poin loyalty',
+        'Saldo dan catatan poin loyalty (kewajiban yang masih terutang; catatan bebasnya ' +
+          'dihapus saat penghapusan, dan saldonya terbaca sendiri di aplikasi pelanggan)',
       ],
     };
   }

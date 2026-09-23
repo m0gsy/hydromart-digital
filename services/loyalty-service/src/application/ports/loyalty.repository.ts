@@ -108,6 +108,16 @@ export interface LoyaltyRepository {
   /** LOY-8: close a lot with nothing left to take (its points were already spent). */
   markLotExpired(lotId: string): Promise<void>;
 
+  /**
+   * LOY-10: blank the free-text `reason` on one customer's ledger.
+   *
+   * The points themselves stay: a balance is a liability the business owes, and deleting
+   * it on request would erase what the customer is owed along with the record of it. What
+   * has no business surviving an erasure is the sentence a staff member typed next to it —
+   * "ganti rugi antar telat ke Bu Sri, 0812…" is personal data in a money record.
+   */
+  scrubReasons(customerId: string): Promise<number>;
+
   /** Total enrolled loyalty accounts (HQ broadcast reach for the loyalty audience). */
   countAccounts(): Promise<number>;
 

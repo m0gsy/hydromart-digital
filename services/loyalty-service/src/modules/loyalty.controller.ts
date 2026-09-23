@@ -33,6 +33,8 @@ import {
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
   LoyaltyRulesDto,
+  PdpAnonymiseDto,
+  PdpErasedResponseDto,
   PointsTransactionDto,
   ReverseEarnDto,
   RewardPointsDto,
@@ -199,6 +201,23 @@ export class LoyaltyController {
     return LoyaltyAccountDto.from(
       await this.loyalty.reverseEarnForOrder(dto.customerId, dto.orderId, dto.reason),
     );
+  }
+
+  /**
+   * LOY-10: the erasure fan-out auth-service drives. The points stay — a balance is money
+   * owed, and the customer sees it in their own app — but the sentence a staff member typed
+   * beside a correction ("ganti rugi antar telat ke Bu Sri, 0812…") is personal data in a
+   * money record, and nothing had ever deleted one.
+   */
+  @ApiOkResponse({ type: PdpErasedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear the free-text notes on one person’s points ledger (internal)' })
+  pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
+    return this.loyalty.anonymise(dto.customerId);
   }
 
   @ApiOkResponse({ type: ExpiryResponseDto })

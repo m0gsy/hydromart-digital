@@ -306,6 +306,14 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
     return this.toAccount(account);
   }
 
+  async scrubReasons(customerId: string): Promise<number> {
+    const { count } = await this.prisma.pointsTransaction.updateMany({
+      where: { customerId, reason: { not: null } },
+      data: { reason: null },
+    });
+    return count;
+  }
+
   async markLotExpired(lotId: string): Promise<void> {
     await this.prisma.pointsTransaction.updateMany({
       where: { id: lotId, expired: false },
