@@ -98,7 +98,19 @@ export const money = {
     withdrawals: '/payout/api/v1/payout/withdrawals',
     // HQ payout-release queue (6a, FINANCE/SUPER_ADMIN): pending owners + release action.
     hqQueue: '/payout/api/v1/payout/hq/pending',
+    /*
+     * PYO-3: the payout destination on file — one per person, owner or courier, verified by
+     * head office. The withdrawal routes no longer take an account at all.
+     */
+    bankAccount: '/payout/api/v1/payout/bank-account',
+    hqBankAccounts: '/payout/api/v1/payout/hq/bank-accounts',
+    hqVerifyBankAccount: (id: string) => `/payout/api/v1/payout/hq/bank-accounts/${id}/verify`,
+    hqRejectBankAccount: (id: string) => `/payout/api/v1/payout/hq/bank-accounts/${id}/reject`,
+    // PYO-2: this REQUESTS a release; a second person approves it below before money moves.
     release: '/payout/api/v1/payout/hq/release',
+    hqReleaseRequests: '/payout/api/v1/payout/hq/release-requests',
+    hqApproveRelease: (id: string) => `/payout/api/v1/payout/hq/release-requests/${id}/approve`,
+    hqRejectRelease: (id: string) => `/payout/api/v1/payout/hq/release-requests/${id}/reject`,
     // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
     hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
     /*

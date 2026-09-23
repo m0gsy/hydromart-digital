@@ -1,6 +1,22 @@
 // Depot-operator design-fidelity fixes (batch AB) — English mirror of id/opsFix.ts.
 // NO `as const` — values must widen to string so both locales share one key shape.
 export const opsFix = {
+  payoutAccount: {
+    title: 'Payout destination',
+    hint: 'A balance can only be paid to an account head office has verified.',
+    bank: 'Bank name',
+    number: 'Account number',
+    holder: 'Account holder',
+    save: 'Register account',
+    replace: 'Replace account',
+    saved: 'Account sent for verification',
+    pending: 'Waiting for head office to verify',
+    verified: 'Verified',
+    rejected: 'Rejected: {reason}',
+    noReason: 'no reason given',
+    none: 'No account registered yet.',
+    needVerified: 'Register an account and wait for verification before withdrawing.',
+  },
   depotForm: {
     ownerRequired: 'A franchise depot must have an owner.',
     whatsappFormat: 'The depot WhatsApp number must be 8–15 digits, optionally +-prefixed.',

@@ -120,6 +120,10 @@ describe('CAPABILITIES', () => {
     expect(can('hqPayoutRead', 'HEAD_OFFICE')).toBe(true);
     expect(can('hqPayoutRead', 'DIREKTUR')).toBe(true);
     expect(can('hqPayout', 'HEAD_OFFICE')).toBe(false);
+    // PYO-2: requesting and approving a release are different people's jobs.
+    expect(can('hqPayoutApprove', 'FINANCE')).toBe(false);
+    expect(can('hqPayoutApprove', 'HEAD_OFFICE')).toBe(false);
+    expect(can('hqPayoutApprove', 'DIREKTUR')).toBe(true);
     for (const w of CAPABILITIES.hqPayout) {
       expect(CAPABILITIES.hqPayoutRead).toContain(w);
     }

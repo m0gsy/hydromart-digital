@@ -72,7 +72,7 @@ export class PayoutController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RequestWithdrawalDto,
   ): Promise<WithdrawalRecord> {
-    return this.payout.requestWithdrawal(user.sub, dto.amount, dto.bankAccountRef);
+    return this.payout.requestWithdrawal(user.sub, dto.amount);
   }
 
   // System-triggered: order-service posts an order the moment it completes, authenticated

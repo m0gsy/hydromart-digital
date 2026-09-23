@@ -57,12 +57,11 @@ describe('CourierPayoutController', () => {
     expect(payout.ledgerPage).toHaveBeenCalledWith('courier-1', 2, 50);
   });
 
-  it('withdraw delegates sub + amount + bankAccountRef', async () => {
-    await controller.withdraw(user, {
-      amount: 5000,
-      bankAccountRef: 'BCA',
-    } as RequestWithdrawalDto);
-    expect(payout.requestWithdrawal).toHaveBeenCalledWith('courier-1', 5000, 'BCA');
+  // PYO-3: the destination is read from the courier's verified account, not sent with the
+  // request — there is nothing left for the caller to name.
+  it('withdraw delegates sub + amount only', async () => {
+    await controller.withdraw(user, { amount: 5000 } as RequestWithdrawalDto);
+    expect(payout.requestWithdrawal).toHaveBeenCalledWith('courier-1', 5000);
   });
 
   it('withdrawals delegates with user.sub', async () => {

@@ -384,8 +384,12 @@ export const CAPABILITIES = {
   // capability that does (`paymentSettle`) is untouched. FINANCE cannot open /hq at all,
   // so before this the two screens were readable by SUPER_ADMIN alone.
   settlementRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
-  // payout-service — release a franchise owner's balance to their bank.
+  // payout-service — REQUEST the release of a franchise owner's balance to their bank.
   hqPayout: ['FINANCE', 'SUPER_ADMIN'],
+  // payout-service — APPROVE (or reject) a release somebody else requested. PYO-2, owner
+  // decision 2026-09-17: maker-checker. FINANCE asks, a director or super admin answers,
+  // and never the same person; nothing leaves a balance until this is exercised.
+  hqPayoutApprove: ['DIREKTUR', 'SUPER_ADMIN'],
   // payout-service — courier earning rules. Was gated in the web console only; the
   // server had no matching guard at all, so this closes a real hole.
   earningRules: ['FINANCE', 'SUPER_ADMIN'],

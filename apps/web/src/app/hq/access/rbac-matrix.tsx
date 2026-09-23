@@ -141,6 +141,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'refundQueue',
       'settlementRead',
       'hqPayout',
+      'hqPayoutApprove',
       'hqPayoutRead',
       'commissionRuns',
       'earningRules',

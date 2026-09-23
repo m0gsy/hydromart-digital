@@ -24,16 +24,15 @@ import {
   Money,
   Skeleton,
 } from '@/components/ui';
+import { PayoutAccountCard, useVerifiedPayoutAccount } from '@/components/payout-account';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
-import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewPayout } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
-  DepotPaymentPanel,
   LedgerEntry,
   LedgerEntryType,
   PayoutSummary,
@@ -100,7 +99,6 @@ function BalanceCard({
   onWithdrawn: () => void;
 }) {
   const { t } = useT();
-  const { selected: depot } = useDepot();
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,21 +106,12 @@ function BalanceCard({
 
   const balance = summary.availableBalance;
 
-  /**
-   * Where the money is being asked to go, read from the depot's own payment settings.
-   *
-   * This card printed `BCA ···· 4821` as "rekening terdaftar" and POSTed that same literal as
-   * `bankAccountRef` — for every depot, franchise or company-owned, whatever they had actually
-   * configured. Every withdrawal in the ledger carried a destination nobody had entered. The
-   * depot's bank details are already on the record the switcher holds, so this asks it.
+  /*
+   * PYO-3 (owner decision 2026-09-17): the destination is the owner's own registered account,
+   * verified by head office — not the DEPOT's payment settings, which are where customers
+   * send money TO, and not a string travelling with the withdrawal.
    */
-  const bank = useAsync<DepotPaymentPanel | null>(
-    () => (depot ? api.get(endpoints.depots.paymentInfo(depot.id), true) : Promise.resolve(null)),
-    [depot?.id],
-  );
-  const account = bank.data?.paymentBankAccountNumber?.trim() ?? '';
-  const bankName = bank.data?.paymentBankName?.trim() ?? '';
-  const bankAccountRef = account ? `${bankName} ${account}`.trim() : '';
+  const payoutAccount = useVerifiedPayoutAccount();
 
   async function withdraw() {
     const value = Number(amount);
@@ -130,17 +119,13 @@ function BalanceCard({
       setError(t('dashB.payout.invalidAmount'));
       return;
     }
-    // Fail CLOSED: a withdrawal with no real destination is worse than a refused one. It used
-    // to send a hardcoded reference, so the request always "worked" and the money had nowhere
-    // recorded to go.
-    if (!bankAccountRef) {
+    // Fail CLOSED: a withdrawal with no verified destination is worse than a refused one.
+    if (!payoutAccount.verified) {
       // Was a hardcoded, untranslated string that named no screen: "atur dulu di Pengaturan
       // pembayaran". A refusal that does not say WHERE is a refusal the reader cannot act on,
       // and the setting lives behind a capability (`depotAdmin` = MANAGER / SUPER_ADMIN) that
       // a franchise owner reading this message may not even hold.
-      setError(
-        bank.error ? t('opsFix.payout.accountUnreadable') : t('opsFix.payout.noBankAccount'),
-      );
+      setError(t('opsFix.payoutAccount.needVerified'));
       return;
     }
     setBusy(true);
@@ -148,7 +133,7 @@ function BalanceCard({
     try {
       const w = await api.post<Withdrawal>(
         endpoints.payout.withdrawals,
-        { amount: Math.round(value), bankAccountRef },
+        { amount: Math.round(value) },
         true,
       );
       setDone(w);
@@ -197,13 +182,12 @@ function BalanceCard({
         <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
           <Bank size={18} weight="fill" className="text-[#8fe3ee]" />
           <div className="leading-tight">
-            {/* "Belum diatur" is an instruction to go and fill a form that is already
-                filled. An unread setting is a different sentence, and the refusal below
-                would otherwise blame the depot for an outage. */}
+            {/* PYO-3: the owner's own verified account. The card below is where it is
+                registered and where its verification status is read. */}
             <p className="text-xs font-extrabold">
-              {bank.error
-                ? 'Rekening tidak terbaca'
-                : bankAccountRef || t('opsFix.payout.noAccount')}
+              {payoutAccount.verified
+                ? t('opsFix.payoutAccount.verified')
+                : t('opsFix.payoutAccount.pending')}
             </p>
             <p className="text-[10.5px] text-white/70">{t('dashB.payout.registeredAccount')}</p>
           </div>
@@ -243,10 +227,12 @@ function BalanceCard({
           {error}
         </p>
       )}
-      <Button onClick={withdraw} loading={busy} disabled={balance <= 0}>
+      <Button onClick={withdraw} loading={busy} disabled={balance <= 0 || !payoutAccount.verified}>
         <ArrowLineDown size={17} weight="fill" />
         {t('dashB.payout.withdraw')}
       </Button>
+      {/* PYO-3: where the owner registers the account this balance is paid to. */}
+      <PayoutAccountCard onChange={payoutAccount.reload} />
     </Card>
   );
 }

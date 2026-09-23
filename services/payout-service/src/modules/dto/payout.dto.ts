@@ -3,12 +3,12 @@ import { Type } from 'class-transformer';
 import {
   IsISO8601,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
   IsUUID,
   Max,
+  Matches,
   MaxLength,
   Min,
   MinLength,
@@ -20,12 +20,11 @@ export class RequestWithdrawalDto {
   @IsInt()
   @IsPositive()
   amount!: number;
-
-  @ApiProperty({ example: 'BCA ···· 4821', description: 'Masked destination bank account.' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
-  bankAccountRef!: string;
+  /*
+   * PYO-3: the destination used to be typed here, per request, and never checked. It now
+   * comes from the verified account on file, so there is nothing for the caller to send —
+   * and `forbidNonWhitelisted` refuses a body that still tries.
+   */
 }
 
 /**
@@ -145,3 +144,83 @@ export class LedgerQueryDto {
   @Max(100)
   limit = 20;
 }
+
+/** PYO-2: an HQ release request and who has touched it. */
+export class ReleaseRequestResponseDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) franchiseOwnerId!: string;
+  @ApiProperty({ type: String, nullable: true }) bankAccountRef!: string | null;
+  @ApiProperty() amountAtRequest!: number;
+  @ApiProperty({ format: 'uuid' }) requestedBy!: string;
+  @ApiProperty({ enum: ['PENDING', 'APPROVED', 'REJECTED'] }) status!: string;
+  @ApiProperty({ type: String, nullable: true }) decidedBy!: string | null;
+  @ApiProperty({ type: Date, nullable: true }) decidedAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true }) reason!: string | null;
+  @ApiProperty({ type: String, nullable: true }) withdrawalId!: string | null;
+  @ApiProperty() createdAt!: Date;
+}
+
+/** PYO-2: why a release request was turned down (optional). */
+export class RejectReleaseDto {
+  @ApiPropertyOptional({ maxLength: 300 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
+/** PYO-3: the account a franchise owner or courier wants to be paid to. */
+export class RegisterBankAccountDto {
+  @ApiProperty({ example: 'BCA' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  bankName!: string;
+
+  @ApiProperty({ example: '1234567890', description: 'Digits only; spaces are stripped.' })
+  @IsString()
+  @Matches(/^[0-9 -]{6,30}$/, { message: 'accountNumber must be 6-30 digits' })
+  accountNumber!: string;
+
+  @ApiProperty({ example: 'Budi Santoso' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  accountHolder!: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'The `updatedAt` this edit started from. The write is refused (409) if the account has ' +
+      'moved since — two devices replacing the same destination must not overwrite silently.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+}
+
+/** PYO-3: why HQ refused an account (optional). */
+export class RejectBankAccountDto {
+  @ApiPropertyOptional({ maxLength: 300 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
+/** PYO-3: a registered payout destination. The number is returned only to HQ and its owner. */
+export class BankAccountResponseDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) subjectId!: string;
+  @ApiProperty({ enum: ['OWNER', 'COURIER'] }) subjectType!: string;
+  @ApiProperty() bankName!: string;
+  @ApiProperty() accountNumber!: string;
+  @ApiProperty() accountHolder!: string;
+  @ApiProperty({ enum: ['PENDING', 'VERIFIED', 'REJECTED'] }) status!: string;
+  @ApiProperty({ type: String, nullable: true }) verifiedBy!: string | null;
+  @ApiProperty({ type: Date, nullable: true }) verifiedAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true }) rejectedReason!: string | null;
+  @ApiProperty() createdAt!: Date;
+  @ApiProperty() updatedAt!: Date;
+}
+

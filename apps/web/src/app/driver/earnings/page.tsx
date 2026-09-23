@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp, Wallet } from '
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
+import { PayoutAccountCard, useVerifiedPayoutAccount } from '@/components/payout-account';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -37,7 +38,8 @@ function Earnings() {
 
   const [withdrawing, setWithdrawing] = useState(false);
   const [amount, setAmount] = useState('');
-  const [bank, setBank] = useState('');
+  // PYO-3: the destination is the account head office verified, not a string typed here.
+  const payoutAccount = useVerifiedPayoutAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,14 +56,9 @@ function Earnings() {
     setBusy(true);
     setError(null);
     try {
-      await api.post(
-        endpoints.courierPayout.withdraw,
-        { amount: want, bankAccountRef: bank.trim() },
-        true,
-      );
+      await api.post(endpoints.courierPayout.withdraw, { amount: want }, true);
       setWithdrawing(false);
       setAmount('');
-      setBank('');
       await load.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.earnings.withdrawFailed'));
@@ -127,15 +124,10 @@ function Earnings() {
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
             />
           </Field>
-          <Field label={t('hrFix.earnings.account')} htmlFor="bank">
-            <Input
-              id="bank"
-              placeholder={t('hrFix.earnings.accountHint')}
-              value={bank}
-              onChange={(e) => setBank(e.target.value)}
-              maxLength={120}
-            />
-          </Field>
+          <PayoutAccountCard onChange={payoutAccount.reload} />
+          {!payoutAccount.verified && !payoutAccount.loading && (
+            <p className="text-sm text-muted">{t('opsFix.payoutAccount.needVerified')}</p>
+          )}
           {overBalance && <p className="text-sm text-red-600">{t('hrFix.earnings.overBalance')}</p>}
           <FormError message={error} />
           <div className="flex gap-2">
@@ -144,7 +136,7 @@ function Earnings() {
             </Button>
             <Button
               loading={busy}
-              disabled={want <= 0 || overBalance || bank.trim() === ''}
+              disabled={want <= 0 || overBalance || !payoutAccount.verified}
               className="flex-1"
               onClick={submit}
             >
