@@ -63,6 +63,9 @@ model PointsTransaction {
   /// Order that produced an EARN entry (BR-013). One EARN per order (idempotent).
   orderId    String?
   reason     String?
+  /// LOY-2: the staff account behind a manual correction. Null for system entries (EARN,
+  /// EXPIRE, REWARD granted by another service) — those have a service, not a person.
+  createdBy  String?
   /// When an EARN lot expires (BR-014); null for non-EARN entries.
   expiresAt  DateTime?
   /// Set once an EARN lot has been swept into an EXPIRE entry.

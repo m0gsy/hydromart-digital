@@ -13,6 +13,132 @@ import {
   buildTestConfigWithSettings,
 } from '../support/fakes';
 
+/*
+ * LOY-1 + LOY-2. `adjust` took a customer id and any number at all from anybody holding
+ * `loyaltyAdjust`, and wrote no actor: a depot MANAGER could mint unlimited points onto any
+ * account in the network, traceable to nobody. Points buy gallons at the counter.
+ */
+describe('LoyaltyService.adjust — fence, ceiling, signature', () => {
+  const MANAGER = (depotIds: string[]) => ({ id: 'mgr-1', capped: true, depotIds });
+
+  function build(byDepot: Record<string, string[]>) {
+    const repo = new InMemoryLoyaltyRepository();
+    return {
+      repo,
+      service: new LoyaltyService(
+        repo,
+        buildTestConfig(),
+        new InMemoryCustomerDirectory([], byDepot),
+      ),
+    };
+  }
+
+  it('refuses a correction on a customer who belongs to another depot', async () => {
+    const { service, repo } = build({ 'depot-1': ['mine'] });
+    await expect(service.adjust('theirs', 100, 'goodwill', MANAGER(['depot-1']))).rejects.toThrow(
+      /bukan pelanggan depot Anda/,
+    );
+    expect(repo.txns).toHaveLength(0);
+  });
+
+  it('allows the same correction on the depot’s own customer, and signs it', async () => {
+    const { service, repo } = build({ 'depot-1': ['mine'] });
+    await service.adjust('mine', 100, 'goodwill', MANAGER(['depot-1']));
+    expect(repo.txns).toHaveLength(1);
+    expect(repo.txns[0]).toMatchObject({ points: 100 });
+  });
+
+  it('refuses a correction larger than the ceiling, in either direction', async () => {
+    const { service } = build({ 'depot-1': ['mine'] });
+    await service.reward('mine', 5000, 'seed');
+    for (const points of [1001, -1001]) {
+      await expect(service.adjust('mine', points, 'big', MANAGER(['depot-1']))).rejects.toThrow(
+        /maksimal 1000 poin/,
+      );
+    }
+    // Exactly the ceiling is allowed: a limit somebody cannot reach is a different limit.
+    await expect(service.adjust('mine', 1000, 'at the ceiling', MANAGER(['depot-1']))).resolves
+      .toBeDefined();
+  });
+
+  it('does not cap head office, which carries no depot list', async () => {
+    const { service } = build({ 'depot-1': ['mine'] });
+    await expect(
+      service.adjust('anyone', 50000, 'HQ correction', { id: 'hq-1', capped: false }),
+    ).resolves.toMatchObject({ pointsBalance: 50000 });
+  });
+});
+
+/*
+ * LOY-6 + LOY-7. Reversing a sale went through `adjust`, which refused outright once the
+ * customer had spent the points — leaving a voided sale's points in circulation — and left
+ * `lifetimePoints` alone, so the void still counted towards GOLD. It also debited whoever
+ * the caller's body named, and a retry debited twice.
+ */
+/*
+ * LOY-10. The ledger was outside the UU PDP erasure fan-out entirely — nothing in the
+ * deletion path had ever heard of it — so every free-text note staff typed against a
+ * customer's points survived their erasure. The points stay: a balance is money owed.
+ */
+describe('LoyaltyService.anonymise', () => {
+  it('clears the notes on one customer’s ledger and leaves the points alone', async () => {
+    const repo = new InMemoryLoyaltyRepository();
+    const service = new LoyaltyService(repo, buildTestConfig(), new InMemoryCustomerDirectory());
+    await service.reward('cust-1', 100, 'ganti rugi antar telat ke Bu Sri, 0812');
+    await service.reward('cust-2', 50, 'someone else');
+
+    await expect(service.anonymise('cust-1')).resolves.toEqual({ erased: 1 });
+    expect(repo.txns.find((t) => t.customerId === 'cust-1')?.reason).toBeNull();
+    expect((await service.getAccount('cust-1')).pointsBalance).toBe(100);
+    // Nobody else's note is touched.
+    expect(repo.txns.find((t) => t.customerId === 'cust-2')?.reason).toBe('someone else');
+  });
+});
+
+describe('LoyaltyService.reverseEarnForOrder', () => {
+  let repo: InMemoryLoyaltyRepository;
+  let service: LoyaltyService;
+
+  beforeEach(() => {
+    repo = new InMemoryLoyaltyRepository();
+    service = new LoyaltyService(repo, buildTestConfig(), new InMemoryCustomerDirectory());
+  });
+
+  it('takes back the points and the lifetime they earned', async () => {
+    const orderId = randomUUID();
+    await service.earnForOrder('cust-1', orderId, 60000);
+    const after = await service.reverseEarnForOrder('cust-1', orderId, 'sale voided');
+    expect(after.pointsBalance).toBe(0);
+    expect(after.lifetimePoints).toBe(0);
+  });
+
+  it('is a no-op the second time the same void arrives', async () => {
+    const orderId = randomUUID();
+    await service.earnForOrder('cust-1', orderId, 60000);
+    await service.reverseEarnForOrder('cust-1', orderId, 'sale voided');
+    const again = await service.reverseEarnForOrder('cust-1', orderId, 'sale voided');
+    expect(again.pointsBalance).toBe(0);
+    expect(repo.txns.filter((t) => t.orderId === orderId && t.points < 0)).toHaveLength(1);
+  });
+
+  it('still reverses when the points were already spent, flooring at zero', async () => {
+    const orderId = randomUUID();
+    await service.earnForOrder('cust-1', orderId, 60000);
+    await service.adjust('cust-1', -60, 'spent it', { id: 'hq-1', capped: false });
+    const after = await service.reverseEarnForOrder('cust-1', orderId, 'sale voided');
+    expect(after.pointsBalance).toBe(0);
+  });
+
+  it('debits whoever earned the points, not whoever the caller names', async () => {
+    const orderId = randomUUID();
+    await service.earnForOrder('earner', orderId, 60000);
+    await service.reward('victim', 500, 'unrelated');
+    await service.reverseEarnForOrder('victim', orderId, 'sale voided');
+    expect((await service.getAccount('victim')).pointsBalance).toBe(500);
+    expect((await service.getAccount('earner')).pointsBalance).toBe(0);
+  });
+});
+
 describe('LoyaltyService', () => {
   let repo: InMemoryLoyaltyRepository;
   let service: LoyaltyService;
@@ -40,7 +166,7 @@ describe('LoyaltyService', () => {
 
       await Promise.all([
         service.earnForOrder('cust-1', randomUUID(), 60000),
-        service.adjust('cust-1', -40, 'manual correction'),
+        service.adjust('cust-1', -40, 'manual correction', { id: 'hq-1', capped: false }),
       ]);
 
       // 100 + 60 - 40. A stale absolute would leave 160 or 60, depending on who wrote last.
@@ -66,8 +192,8 @@ describe('LoyaltyService', () => {
 
       // Both corrections were priced against this same balance; only one can be paid.
       const results = await Promise.allSettled([
-        service.adjust(account.customerId, -100, 'a'),
-        service.adjust(account.customerId, -100, 'b'),
+        service.adjust(account.customerId, -100, 'a', { id: 'hq-1', capped: false }),
+        service.adjust(account.customerId, -100, 'b', { id: 'hq-1', capped: false }),
       ]);
 
       expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
@@ -128,13 +254,13 @@ describe('LoyaltyService', () => {
 
   it('rejects an adjustment that would drive the balance negative', async () => {
     await service.earnForOrder('cust-1', randomUUID(), 60000); // balance 60
-    await expect(service.adjust('cust-1', -100, 'over-refund')).rejects.toBeInstanceOf(
+    await expect(service.adjust('cust-1', -100, 'over-refund', { id: 'hq-1', capped: false })).rejects.toBeInstanceOf(
       InvalidAdjustmentError,
     );
   });
 
   it('applies a positive adjustment to balance and lifetime', async () => {
-    const account = await service.adjust('cust-1', 250, 'goodwill');
+    const account = await service.adjust('cust-1', 250, 'goodwill', { id: 'hq-1', capped: false });
     expect(account.pointsBalance).toBe(250);
     expect(account.lifetimePoints).toBe(250);
   });

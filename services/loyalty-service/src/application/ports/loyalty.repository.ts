@@ -39,6 +39,19 @@ export interface AccountMutation {
   reason: string | null;
   /** Change to lifetimePoints — never negative, a spend does not un-earn a purchase. */
   lifetimeDelta: number;
+  /** LOY-2: the staff account behind a manual correction. Null for system entries. */
+  createdBy?: string | null;
+}
+
+/** LOY-6/LOY-7: undoing exactly what one order awarded, once. */
+export interface ReversalMutation {
+  accountId: string;
+  customerId: string;
+  /** The reversed order. Keys the row, so a retried void is a no-op, not a second debit. */
+  orderId: string;
+  /** Positive magnitude of the EARN being taken back. */
+  points: number;
+  reason: string | null;
 }
 
 export interface EarnMutation extends AccountMutation {
@@ -66,6 +79,13 @@ export interface LoyaltyRepository {
     mutation: AccountMutation & { type: PointsTxnType },
   ): Promise<LoyaltyAccountRecord>;
   /**
+   * LOY-6/LOY-7: take back an order's points once — balance floored at zero (points
+   * already spent are a debt the sale created, not a reason to refuse) and lifetime given
+   * back with them, so a voided sale stops counting towards a tier. Idempotent on the
+   * order: a repeat returns the account untouched.
+   */
+  recordReversal(mutation: ReversalMutation): Promise<LoyaltyAccountRecord>;
+  /**
    * Stores the tier the account's authoritative lifetime total earns (H-2). Written after
    * the increment rather than alongside it, because only then is the lifetime the one the
    * database actually holds — computing it beforehand promotes off a stale read.
@@ -80,7 +100,23 @@ export interface LoyaltyRepository {
 
   /** EARN lots that are past their expiry and not yet swept (BR-014). */
   findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]>;
-  recordExpiry(mutation: ExpiryMutation): Promise<void>;
+  /**
+   * LOY-8: expire one lot. Returns false when another sweep had already claimed it — the
+   * claim is conditional, so two overlapping runs cannot both debit the same lot.
+   */
+  recordExpiry(mutation: ExpiryMutation): Promise<boolean>;
+  /** LOY-8: close a lot with nothing left to take (its points were already spent). */
+  markLotExpired(lotId: string): Promise<void>;
+
+  /**
+   * LOY-10: blank the free-text `reason` on one customer's ledger.
+   *
+   * The points themselves stay: a balance is a liability the business owes, and deleting
+   * it on request would erase what the customer is owed along with the record of it. What
+   * has no business surviving an erasure is the sentence a staff member typed next to it —
+   * "ganti rugi antar telat ke Bu Sri, 0812…" is personal data in a money record.
+   */
+  scrubReasons(customerId: string): Promise<number>;
 
   /** Total enrolled loyalty accounts (HQ broadcast reach for the loyalty audience). */
   countAccounts(): Promise<number>;

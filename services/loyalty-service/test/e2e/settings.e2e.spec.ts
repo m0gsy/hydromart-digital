@@ -115,17 +115,32 @@ describe('Settings HTTP flows (e2e)', () => {
   });
 
   it('lets a depot manager set a DEPOT override for their own depot, then reads it back', async () => {
+    // LOY-5: the tier discount is the depot's own money at its own counter, so it stays
+    // the depot's decision. The earn rate is not (see the next case).
     await request(server())
       .put('/api/v1/settings')
       .set(auth(managerToken))
-      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'earnRateRupiah', value: '500' })
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'goldDiscountPct', value: '7' })
       .expect(204);
 
     const res = await request(server())
       .get(`/api/v1/settings/schema?depotId=${managerDepotId}`)
       .set(auth(managerToken))
       .expect(200);
-    expect(res.body.effective.earnRateRupiah).toBe(500);
+    expect(res.body.effective.goldDiscountPct).toBe(7);
+  });
+
+  /*
+   * LOY-5: a point is one currency across the network — earned at one depot, spent at
+   * another, counted towards a card that travels. A depot halving its own earn rate mints
+   * network money cheaply, and every other depot honours it.
+   */
+  it('refuses a depot manager the earn rate, even for their own depot', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'earnRateRupiah', value: '500' })
+      .expect(403);
   });
 
   it('lets SUPER_ADMIN set a DEPOT override, then reset it back to the parent scope', async () => {

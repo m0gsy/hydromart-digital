@@ -2,7 +2,7 @@ import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { startOfLocalMonth } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
-import { InvalidAdjustmentError } from '../../domain/errors';
+import { AdjustmentTooLargeError, InvalidAdjustmentError } from '../../domain/errors';
 import { MembershipTier, TierBenefit, benefitFor, tierFor } from '../../domain/membership';
 import { PointsTxnType, expiryFrom, pointsForOrder } from '../../domain/points';
 import { Page, buildPage } from '../pagination';
@@ -226,11 +226,58 @@ export class LoyaltyService {
     if (!earn || earn.points <= 0) {
       return this.getAccount(customerId);
     }
-    return this.adjust(customerId, -earn.points, reason);
+    /*
+     * LOY-7: the owner comes off the EARN row, never off the caller's body.
+     *
+     * The caller named both the order and the customer, and nothing checked that they
+     * matched — so a call naming somebody else's order debited whoever the body said. The
+     * ledger already records who earned those points; it is the only answer that can be
+     * wrong in only one way.
+     */
+    const owner = earn.customerId;
+    const account = await this.getAccount(owner);
+    /*
+     * LOY-6 + LOY-7: one reversal per order, and it undoes the whole of what the sale did.
+     *
+     * It used to go through `adjust`, which (a) refused outright when the customer had
+     * already spent the points — leaving the reversed sale's points in circulation forever
+     * — and (b) left `lifetimePoints` untouched, so a voided sale still counted towards
+     * GOLD. The repository keys the row on the order, so a retried void is a no-op rather
+     * than a second debit, and the balance floors at zero instead of refusing: points
+     * already spent are a debt the sale created, not a reason to keep minting.
+     */
+    const updated = await this.repo.recordReversal({
+      accountId: account.id,
+      customerId: owner,
+      orderId,
+      points: earn.points,
+      reason,
+    });
+    return this.retier(updated);
   }
 
-  async adjust(customerId: string, points: number, reason: string): Promise<LoyaltyAccountRecord> {
-    const account = await this.getAccount(customerId);
+  /**
+   * LOY-1 + LOY-2: a manual signed correction, fenced to the caller's depots, bounded, and
+   * signed by whoever made it.
+   *
+   * It used to take a customer id and any number at all from anybody holding
+   * `loyaltyAdjust` — so a depot MANAGER could mint unlimited points onto any account in
+   * the network, and the ledger recorded no actor to ask about it afterwards. Points buy
+   * gallons at the counter: this is a money write.
+   */
+  async adjust(
+    customerId: string,
+    points: number,
+    reason: string,
+    actor: { id: string; capped: boolean; depotIds?: readonly string[] },
+  ): Promise<LoyaltyAccountRecord> {
+    const account = await this.getAccountInScope(customerId, actor.depotIds);
+    if (actor.capped) {
+      const max = this.config.adjustMaxPoints(null);
+      if (Math.abs(points) > max) {
+        throw new AdjustmentTooLargeError(max);
+      }
+    }
     // A friendly rejection before the write; the database repeats the check under the
     // WHERE clause, which is what actually holds when two corrections land together.
     if (account.pointsBalance + points < 0) throw new InvalidAdjustmentError();
@@ -241,6 +288,7 @@ export class LoyaltyService {
       points,
       reason,
       lifetimeDelta: Math.max(0, points),
+      createdBy: actor.id,
     });
     return this.retier(updated);
   }
@@ -262,6 +310,20 @@ export class LoyaltyService {
       lifetimeDelta: points,
     });
     return this.retier(updated);
+  }
+
+  /**
+   * LOY-10 — the loyalty ledger was outside the UU PDP erasure fan-out entirely.
+   *
+   * Nothing in the deletion path had ever heard of it, so a customer who asked to be
+   * forgotten kept every free-text note staff had typed against their points. The points
+   * stay (a balance is money owed, and the customer can see it in their own app); the
+   * sentences beside them go.
+   */
+  async anonymise(customerId: string): Promise<{ erased: number }> {
+    const erased = await this.repo.scrubReasons(customerId);
+    this.logger.log(`PDP: cleared the note on ${erased} ledger row(s)`);
+    return { erased };
   }
 
   /**
@@ -289,20 +351,39 @@ export class LoyaltyService {
     }
     const lots = await this.repo.findExpirableLots(now, LoyaltyService.EXPIRY_BATCH);
     let pointsExpired = 0;
+    let lotsExpired = 0;
     for (const lot of lots) {
       const account = await this.repo.findAccount(lot.customerId);
       if (!account) continue;
-      await this.repo.recordExpiry({
+      /*
+       * LOY-8: a lot is expired at most once, and never for more than the account holds.
+       *
+       * The sweep marked the lot by id with no condition, so two runs overlapping — the
+       * scheduler and a hand-run, or a retry after a timeout — could both write an EXPIRE
+       * for the same lot and debit it twice. And a lot whose points the customer had
+       * already spent still expired at full size, taking points that belonged to a later
+       * lot with it. The claim is now conditional (the repository reports whether it won),
+       * and the debit is capped at the balance actually standing.
+       */
+      const points = Math.min(lot.points, account.pointsBalance);
+      if (points <= 0) {
+        // Nothing left to take. The lot is still closed, or the sweep would keep finding it.
+        await this.repo.markLotExpired(lot.id);
+        continue;
+      }
+      const claimed = await this.repo.recordExpiry({
         lotId: lot.id,
         accountId: account.id,
         customerId: lot.customerId,
-        points: lot.points,
+        points,
       });
-      pointsExpired += lot.points;
+      if (!claimed) continue;
+      pointsExpired += points;
+      lotsExpired += 1;
     }
-    if (lots.length > 0) {
-      this.logger.log(`Expired ${pointsExpired} points across ${lots.length} lots`);
+    if (lotsExpired > 0) {
+      this.logger.log(`Expired ${pointsExpired} points across ${lotsExpired} lots`);
     }
-    return { lotsExpired: lots.length, pointsExpired, disabled: false };
+    return { lotsExpired, pointsExpired, disabled: false };
   }
 }

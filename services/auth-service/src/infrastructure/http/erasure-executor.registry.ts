@@ -66,6 +66,17 @@ const REMOTE_DATASETS = [
     path: '/api/v1/subscriptions/internal/pdp-anonymise',
   },
   /*
+   * LOY-10: the points ledger was outside this fan-out entirely — not erased, not exempted,
+   * not named. The points themselves stay (a balance is money the business owes, and the
+   * customer reads it in their own app); what goes is the sentence staff typed next to a
+   * correction, which is where a name and a phone number end up inside a money record.
+   */
+  {
+    dataset: 'loyalty.points_ledger',
+    envKey: 'LOYALTY_SERVICE_URL',
+    path: '/api/v1/loyalty/internal/pdp-anonymise',
+  },
+  /*
    * admin.support_tickets.customerPhone (14) plus the free text in ticket_messages —
    * a complaint queue answered by phoning whoever is on the row.
    */

@@ -16,6 +16,22 @@ export class InvalidAdjustmentError extends DomainError {
   }
 }
 
+/**
+ * LOY-2: the correction is larger than the ceiling head office set for this depot.
+ *
+ * A refusal, not a silent clamp: somebody asking for 5.000 points wants 5.000 points, and
+ * quietly writing 1.000 would leave both the customer and the ledger wrong.
+ */
+export class AdjustmentTooLargeError extends DomainError {
+  readonly code = 'LOYALTY_ADJUSTMENT_TOO_LARGE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(max: number) {
+    super(
+      `Koreksi poin maksimal ${max} poin sekali jalan. Untuk jumlah di atas itu, minta head office.`,
+    );
+  }
+}
+
 export class RewardItemNotFoundError extends DomainError {
   readonly code = 'LOYALTY_REWARD_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

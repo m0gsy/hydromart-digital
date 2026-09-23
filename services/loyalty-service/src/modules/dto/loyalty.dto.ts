@@ -70,6 +70,19 @@ export class AdjustPointsDto {
   reason!: string;
 }
 
+/** LOY-10: the subject of an erasure, as auth-service's registry sends it. */
+export class PdpAnonymiseDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+}
+
+/** LOY-10: how many ledger rows lost their free-text note. */
+export class PdpErasedResponseDto {
+  @ApiProperty({ example: 12 })
+  erased!: number;
+}
+
 /** Reversing a sale: the order says how much to take back, so no amount is accepted. */
 export class ReverseEarnDto {
   @ApiProperty({ format: 'uuid' })

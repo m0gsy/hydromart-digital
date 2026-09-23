@@ -8,6 +8,7 @@ import {
   EarnMutation,
   ExpiryMutation,
   LoyaltyAccountRecord,
+  ReversalMutation,
   LoyaltyRepository,
   PointsTransactionRecord,
   zeroTierCounts,
@@ -15,6 +16,7 @@ import {
 import {
   MembershipTier as PrismaTier,
   PointsTxnType as PrismaTxnType,
+  Prisma,
 } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
@@ -208,6 +210,7 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
             type: PrismaTxnType[m.type],
             points: m.points,
             reason: m.reason,
+            createdBy: m.createdBy ?? null,
           },
         }),
         // The balance floor lives in the WHERE clause: a debit that the account cannot cover
@@ -262,12 +265,71 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
     return rows.map((r) => this.toTxn(r));
   }
 
-  async recordExpiry(m: ExpiryMutation): Promise<void> {
+  async recordReversal(m: ReversalMutation): Promise<LoyaltyAccountRecord> {
+    /*
+     * LOY-6/LOY-7. The ledger row carries the order and `@@unique([orderId, type])` is what
+     * makes the void idempotent: a retry collides instead of debiting twice. The balance
+     * uses GREATEST rather than the `gte` floor `recordAdjustment` uses — a customer who
+     * already spent the points still owes the reversal, and refusing would leave a voided
+     * sale's points in circulation forever. Lifetime comes back too (floored at zero), so
+     * the sale stops counting towards a tier it no longer supports.
+     */
+    try {
+      await this.prisma.$transaction([
+        this.prisma.pointsTransaction.create({
+          data: {
+            accountId: m.accountId,
+            customerId: m.customerId,
+            type: PrismaTxnType.ADJUST,
+            orderId: m.orderId,
+            points: -m.points,
+            reason: m.reason,
+          },
+        }),
+        this.prisma.$executeRaw`
+          UPDATE "loyalty_accounts"
+             SET "pointsBalance" = GREATEST(0, "pointsBalance" - ${m.points}),
+                 "lifetimePoints" = GREATEST(0, "lifetimePoints" - ${m.points}),
+                 "updatedAt" = NOW()
+           WHERE "id" = ${m.accountId}
+        `,
+      ]);
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
+        throw error;
+      }
+      // Already reversed. The account as it stands IS the answer the caller wanted.
+    }
+    const account = await this.prisma.loyaltyAccount.findUniqueOrThrow({
+      where: { id: m.accountId },
+    });
+    return this.toAccount(account);
+  }
+
+  async scrubReasons(customerId: string): Promise<number> {
+    const { count } = await this.prisma.pointsTransaction.updateMany({
+      where: { customerId, reason: { not: null } },
+      data: { reason: null },
+    });
+    return count;
+  }
+
+  async markLotExpired(lotId: string): Promise<void> {
+    await this.prisma.pointsTransaction.updateMany({
+      where: { id: lotId, expired: false },
+      data: { expired: true },
+    });
+  }
+
+  async recordExpiry(m: ExpiryMutation): Promise<boolean> {
+    // LOY-8: claim the lot first and only debit if this sweep won it. `update` by id
+    // succeeded unconditionally, so two overlapping sweeps both wrote an EXPIRE row.
+    const { count } = await this.prisma.pointsTransaction.updateMany({
+      where: { id: m.lotId, expired: false },
+      data: { expired: true },
+    });
+    if (count === 0) return false;
     await this.prisma.$transaction([
-      this.prisma.pointsTransaction.update({
-        where: { id: m.lotId },
-        data: { expired: true },
-      }),
       this.prisma.pointsTransaction.create({
         data: {
           accountId: m.accountId,
@@ -287,5 +349,6 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
          WHERE "id" = ${m.accountId}
       `,
     ]);
+    return true;
   }
 }

@@ -90,8 +90,11 @@ describe('LoyaltyService read/list helpers', () => {
       new InMemoryCustomerDirectory(),
     );
     const result = await sweeper.runExpiry(new Date());
-    expect(result.lotsExpired).toBe(1); // lot was found...
-    expect(result.pointsExpired).toBe(0); // ...but skipped (no account to debit)
+    // LOY-8: the count is what the sweep actually expired, not what it looked at. A lot
+    // with no account behind it is debited from nothing, and reporting it as expired is
+    // how a sweep that took no points reads as a sweep that worked.
+    expect(result.lotsExpired).toBe(0);
+    expect(result.pointsExpired).toBe(0);
   });
 });
 
@@ -137,5 +140,71 @@ describe('domain errors', () => {
 describe('membership.benefitFor fallback', () => {
   it('falls back to the REGULAR row for an unknown tier', () => {
     expect(benefitFor('BOGUS' as MembershipTier)).toBe(TIER_BENEFITS[0]);
+  });
+
+  /*
+   * LOY-8: the two ways a due lot takes nothing — its points were already spent, and
+   * another sweep claimed it first. Both used to debit anyway: the first for the full lot
+   * (eating a later lot's points), the second a second time for the same lot.
+   */
+  it('closes a lot whose points were already spent, without debiting', async () => {
+    const repo = new InMemoryLoyaltyRepository();
+    const account = await repo.createAccount('cust-1');
+    repo.txns.push({
+      id: 'spent-lot',
+      customerId: 'cust-1',
+      type: PointsTxnType.EARN,
+      points: 50,
+      orderId: null,
+      reason: 'spent',
+      expiresAt: new Date('2020-01-01'),
+      expired: false,
+      createdAt: new Date('2019-01-01'),
+    });
+    expect(account.pointsBalance).toBe(0); // the lot's points are long gone
+    const sweeper = new LoyaltyService(
+      repo,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '1' }),
+      new InMemoryCustomerDirectory(),
+    );
+    const result = await sweeper.runExpiry(new Date());
+    expect(result).toMatchObject({ lotsExpired: 0, pointsExpired: 0 });
+    // Closed all the same, or every later sweep would find it again forever.
+    expect(repo.txns.find((t) => t.id === 'spent-lot')?.expired).toBe(true);
+  });
+
+  it('counts nothing for a lot another sweep claimed first', async () => {
+    const repo = new InMemoryLoyaltyRepository();
+    await repo.createAccount('cust-1');
+    await repo.recordAdjustment({
+      type: PointsTxnType.REWARD,
+      accountId: (await repo.findAccount('cust-1'))!.id,
+      customerId: 'cust-1',
+      points: 100,
+      reason: 'seed',
+      lifetimeDelta: 100,
+    });
+    repo.txns.push({
+      id: 'raced-lot',
+      customerId: 'cust-1',
+      type: PointsTxnType.EARN,
+      points: 50,
+      orderId: null,
+      reason: 'raced',
+      expiresAt: new Date('2020-01-01'),
+      expired: false,
+      createdAt: new Date('2019-01-01'),
+    });
+    // The other sweep wins the claim between this one's read and its write.
+    jest.spyOn(repo, 'recordExpiry').mockResolvedValueOnce(false);
+    const sweeper = new LoyaltyService(
+      repo,
+      buildTestConfig({ LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: '1' }),
+      new InMemoryCustomerDirectory(),
+    );
+    await expect(sweeper.runExpiry(new Date())).resolves.toMatchObject({
+      lotsExpired: 0,
+      pointsExpired: 0,
+    });
   });
 });

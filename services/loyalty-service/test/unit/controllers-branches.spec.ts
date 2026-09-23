@@ -155,8 +155,16 @@ describe('LoyaltyController (delegation)', () => {
   });
 
   it('adjust() forwards the signed delta', async () => {
-    await ctrl.adjust({ customerId: 'c', points: -50, reason: 'fix' } as never);
-    expect(loyalty.adjust).toHaveBeenCalledWith('c', -50, 'fix');
+    await ctrl.adjust({ customerId: 'c', points: -50, reason: 'fix' } as never, {
+      sub: 'hq-1',
+      role: 'SUPER_ADMIN',
+    } as never);
+    // LOY-1/LOY-2: head office carries no depot list, so it is neither fenced nor capped.
+    expect(loyalty.adjust).toHaveBeenCalledWith('c', -50, 'fix', {
+      id: 'hq-1',
+      capped: false,
+      depotIds: undefined,
+    });
   });
 
   it('reward() forwards the grant', async () => {
@@ -449,16 +457,56 @@ describe('SettingsController (guards + delegation)', () => {
 
   it('put() lets a depot admin set a DEPOT override (depotId forwarded)', async () => {
     await ctrl.put(
-      { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1' } as never,
+      { scope: 'DEPOT', depotId: 'd1', key: 'goldDiscountPct', value: '5' } as never,
       user({ sub: 'u2', role: 'MANAGER' }),
     );
     expect(settings.put).toHaveBeenCalledWith({
       scope: 'DEPOT',
       depotId: 'd1',
-      key: 'earnRateRupiah',
-      value: '1',
+      key: 'goldDiscountPct',
+      value: '5',
       updatedBy: 'u2',
     });
+  });
+
+  /*
+   * LOY-5. A point is one currency across the network: earned at one depot, spent at
+   * another, counted towards a card that travels. Halving the earn rate at one depot is
+   * therefore not a local decision — it mints network money cheaply and every other depot
+   * honours it. The ceiling on hand-minting is here for a blunter reason: a ceiling its own
+   * subject can raise is not a ceiling.
+   */
+  it.each(['earnRateRupiah', 'pointExpiryMonths', 'adjustMaxPoints', 'goldThreshold'])(
+    'put() refuses a DEPOT override of %s from a depot admin',
+    async (key) => {
+      await expect(
+        ctrl.put({ scope: 'DEPOT', depotId: 'd1', key, value: '1' } as never, user({ role: 'MANAGER' })),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(settings.put).not.toHaveBeenCalled();
+    },
+  );
+
+  it('put() lets head office set those same keys for one depot', async () => {
+    await ctrl.put(
+      { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '900' } as never,
+      user({ sub: 'hq-1', role: 'SUPER_ADMIN' }),
+    );
+    expect(settings.put).toHaveBeenCalledWith({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'earnRateRupiah',
+      value: '900',
+      updatedBy: 'hq-1',
+    });
+  });
+
+  it('reset() applies the same rule as put()', async () => {
+    await expect(
+      ctrl.reset(
+        { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah' } as never,
+        user({ role: 'MANAGER' }),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('reset() rejects a GLOBAL reset from a non-super-admin', async () => {
@@ -469,10 +517,10 @@ describe('SettingsController (guards + delegation)', () => {
 
   it('reset() removes a DEPOT override', async () => {
     await ctrl.reset(
-      { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah' } as never,
+      { scope: 'DEPOT', depotId: 'd1', key: 'goldDiscountPct' } as never,
       user({ role: 'MANAGER' }),
     );
-    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'earnRateRupiah', 'cust-1');
+    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'goldDiscountPct', 'cust-1');
   });
 });
 
