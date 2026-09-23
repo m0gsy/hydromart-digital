@@ -1,13 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { INestApplication } from '@nestjs/common';
-import type { Express, Request, RequestHandler } from 'express';
+import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
 import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { GatewayConfigService } from './config/gateway-config.service';
 import { resolveRoute } from './routing/route-table';
-import { AT_COOKIE, createSessionRouter, readCookie } from './routing/session-bff';
+import { atCookieName, createSessionRouter, readCookie } from './routing/session-bff';
 import { tokenBucket } from './rate-limit/token-bucket';
 
 // Kept in sync with @hydromart/platform's INTERNAL_KEY_HEADER. Inlined so the
@@ -58,8 +58,9 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * The `sub` is a user id, not a credential, so it is used as-is; the old hash existed to
  * keep a usable token out of the limiter's key set and there is no longer a token in it.
  */
-export function rateLimitKey(req: Request, secret = ''): string {
-  const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
+export function rateLimitKey(req: Request, secret = '', secure = false): string {
+  // GW-4: the session cookie is prefixed wherever TLS allows it, so read the name in use.
+  const credential = req.headers.authorization ?? readCookie(req, atCookieName(secure));
   if (credential && secret) {
     const sub = verifiedSubject(credential, secret);
     if (sub) return `u:${sub}`;
@@ -165,8 +166,83 @@ export function trustProxyHops(
   return 1;
 }
 
+/**
+ * GW-1 — whether a request issues an OTP, asked the way auth-service's ROUTER asks it.
+ *
+ * The tier matched `req.path` exactly, and Express routing does not: case-insensitive and
+ * non-strict by default, so `/auth/api/v1/auth/REGISTER` and `.../register/` reached the same
+ * handler while skipping this bucket — 20 paid SMS a minute became 600. Normalised the same
+ * way the router normalises, so the only paths that miss the tier are ones that also miss
+ * the handler.
+ */
+export function isOtpIssuingPath(path: string): boolean {
+  const normalised = path
+    .toLowerCase()
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/+$/, '');
+  return /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/.test(normalised);
+}
+
+const PRIVATE_V4 = [/^10\./, /^127\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./];
+
+/**
+ * GW-3 — `/metrics` answers the docker network and nobody else.
+ *
+ * Caddy 404s it for the internet (BI-2), but a bare-IP deploy has no Caddy: the gateway port
+ * is published straight out and the platform's traffic figures went with it. Prometheus
+ * scrapes over the private network, so the SOCKET peer is the test — never `req.ip`, which
+ * `trust proxy` would let a caller write for themselves.
+ */
+export function isPrivatePeer(address: string | undefined): boolean {
+  if (!address) return false;
+  const v4 = address.startsWith('::ffff:') ? address.slice(7) : address;
+  if (PRIVATE_V4.some((range) => range.test(v4))) return true;
+  const lower = address.toLowerCase();
+  return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd');
+}
+
+export function metricsForPrivateNetworkOnly(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (isPrivatePeer(req.socket.remoteAddress)) return next();
+  // 404, not 403, for the reason Caddy gives: a refusal that names the path confirms it.
+  res.status(404).json({ statusCode: 404, message: 'Not Found' });
+}
+
+/**
+ * GW-3 — a production gateway with no WEB_DOMAIN has no TLS in front of it: sessions,
+ * cookies and OTP codes cross the network in the clear. The bare-IP deploy is documented and
+ * stays allowed, but it is no longer silent — the boot log says what it costs.
+ */
+export function insecureTransportWarning(
+  nodeEnv: string,
+  webDomain: string | undefined,
+): string | null {
+  if (nodeEnv !== 'production' || (webDomain ?? '').trim() !== '') return null;
+  return (
+    'WEB_DOMAIN is empty: no TLS terminates in front of this gateway. Session cookies are ' +
+    'sent without Secure, and every login, OTP and token crosses the network in plain text. ' +
+    'Set WEB_DOMAIN and start with --profile tls before real users sign in.'
+  );
+}
+
+/**
+ * GW-4: whether the session cookies may be Secure — and therefore prefixed.
+ *
+ * `isProduction` alone was the wrong question and the integration stack proved it: that
+ * stack runs NODE_ENV=production over plain HTTP, so Secure cookies are set and no browser
+ * would keep them. TLS is terminated by Caddy, and Caddy is in front exactly when WEB_DOMAIN
+ * names a host — the same signal `insecureTransportWarning` reads.
+ */
+export function cookiesAreSecure(nodeEnv: string, webDomain: string | undefined): boolean {
+  return nodeEnv === 'production' && (webDomain ?? '').trim() !== '';
+}
+
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
+  const secureCookies = cookiesAreSecure(config.nodeEnv, process.env.WEB_DOMAIN);
 
   // B-2: the limiter keys on `req.ip`. Behind Caddy every request arrives from
   // Caddy's address, so without this the socket peer IS the proxy and all traffic from
@@ -215,13 +291,12 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
    * Keyed by address because these callers hold no credential yet, and deliberately strict:
    * a human registering needs three calls, so twenty is roughly seven honest attempts.
    */
-  const OTP_ISSUING = /^\/auth\/api\/v\d+\/auth\/(register|login|otp\/resend)$/;
   app.use(
     tokenBucket({
       capacity: config.rateLimit.otpLimit,
       refillPerSecond: config.rateLimit.otpLimit / config.rateLimit.ttlSeconds,
       keyGenerator: (req) => `otp:${req.ip}`,
-      skip: (req) => !OTP_ISSUING.test(req.path),
+      skip: (req) => !isOtpIssuingPath(req.path),
       message: 'Too many verification requests',
       // CA-3-36: its own code, so the OTP screen keeps the specific sentence this tier
       // deliberately chose rather than falling back to the general one.
@@ -246,7 +321,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     tokenBucket({
       capacity: config.rateLimit.burstLimit,
       refillPerSecond: config.rateLimit.limit / config.rateLimit.ttlSeconds,
-      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret),
+      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret, secureCookies),
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
     }),
   );
@@ -295,7 +370,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
 
   // SEC-4: BFF session lifecycle (login-verify/refresh/logout) — owns httpOnly cookies.
   // Mounted ahead of the proxy; non-session /auth/* paths fall through untouched.
-  instance.use('/auth', createSessionRouter(upstreams.auth, config.isProduction));
+  instance.use('/auth', createSessionRouter(upstreams.auth, secureCookies));
 
   instance.use((req, res, next) => {
     // Defense-in-depth: the internal service key authenticates trusted service-to-service
@@ -307,7 +382,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     // so the browser holds no readable token. An explicit Authorization header (none from
     // the SPA now) is left intact.
     if (!req.headers.authorization) {
-      const at = readCookie(req, AT_COOKIE);
+      const at = readCookie(req, atCookieName(secureCookies));
       if (at) req.headers.authorization = `Bearer ${at}`;
     }
     const route = resolveRoute(req.path, upstreams);

@@ -10,7 +10,11 @@ import { enableMetrics } from '@hydromart/platform/dist/nest/metrics';
 
 import { AppModule } from './app.module';
 import { GatewayConfigService } from './config/gateway-config.service';
-import { configureGateway } from './gateway.setup';
+import {
+  configureGateway,
+  insecureTransportWarning,
+  metricsForPrivateNetworkOnly,
+} from './gateway.setup';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -24,7 +28,10 @@ async function bootstrap(): Promise<void> {
   // No capability refresher here on purpose: the gateway is a pure proxy that
   // authorizes nothing, and pulling it in would drag the guard barrel (and @nestjs/jwt)
   // back into a service that deliberately avoids both.
+  app.use('/metrics', metricsForPrivateNetworkOnly);
   enableMetrics(app, 'gateway-service');
+  const transportWarning = insecureTransportWarning(config.nodeEnv, process.env.WEB_DOMAIN);
+  if (transportWarning) logger.error(transportWarning, 'Bootstrap');
 
   // Wire before listen() so the proxies/health/404 precede Nest's own router.
   configureGateway(app, config);
