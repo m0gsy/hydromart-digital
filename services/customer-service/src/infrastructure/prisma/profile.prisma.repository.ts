@@ -115,6 +115,30 @@ export class ProfilePrismaRepository implements ProfileRepository {
     });
   }
 
+  /**
+   * PRM-9: the contact for ONE customer.
+   *
+   * promo-service used to answer "what is this person's name and number" by downloading the
+   * entire customer directory — every name and phone number in the network, over the wire,
+   * to a service that needed one row — and filtering it client-side. Same join as
+   * `findSegment` minus the marketing opt-out: this is a transactional message about a
+   * voucher the customer was just given, not a campaign.
+   */
+  async findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
+    const rows = await this.prisma.$queryRaw<DirectoryRecipient[]>`
+      SELECT DISTINCT ON (p."customerId")
+        p."customerId" AS "customerId",
+        a."recipientName" AS "name",
+        a."phone" AS "phone"
+      FROM "customer_profiles" p
+      JOIN "addresses" a
+        ON a."customerId" = p."customerId" AND a."isPrimary" = true
+      WHERE p."customerId" = ${customerId}
+      ORDER BY p."customerId"
+    `;
+    return rows[0] ?? null;
+  }
+
   async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
     // Null params short-circuit the guarded predicate so the same query serves every
     // combination of filters. tier is compared as text to sidestep enum-cast binding.

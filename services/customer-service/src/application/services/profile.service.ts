@@ -70,6 +70,11 @@ export class ProfileService {
     return this.profiles.findSegment(filter);
   }
 
+  /** PRM-9: one customer's contact, for a service addressing exactly one person. */
+  findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
+    return this.profiles.findRecipient(customerId);
+  }
+
   /**
    * Grant birthday points (FR-091) to every customer whose DOB is today and who has not
    * been rewarded this year. Admin/scheduler-triggered. Idempotent per year via a stamp

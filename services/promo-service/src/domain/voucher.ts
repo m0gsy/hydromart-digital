@@ -12,6 +12,7 @@ import {
   VoucherExpiredError,
   VoucherInactiveError,
   VoucherNotStartedError,
+  VoucherNotYoursError,
   VoucherUsageExceededError,
   VoucherWrongDepotError,
 } from './errors';
@@ -36,6 +37,8 @@ export interface VoucherRules {
   active: boolean;
   /** CA-2-65: the depot this voucher belongs to; null = network-wide. */
   depotId?: string | null;
+  /** PRM-4: 'PUBLIC' (anybody who types the code) or 'GRANTED' (only its grantees). */
+  audience?: string;
 }
 
 /**
@@ -121,8 +124,14 @@ export function validateVoucher(
    * would leave the same hole open under a new name.
    */
   orderDepotId?: string | null,
+  /** PRM-4: whether this customer holds a grant for the voucher. */
+  grantedToCaller?: boolean,
 ): void {
   if (!v.active) throw new VoucherInactiveError();
+  // PRM-4: a voucher that belongs to the people it was given to. `grantedToCaller` is
+  // undefined when the caller could not say — same rule as the depot check below: unknown
+  // is refused, because defaulting it to "allow" reopens the hole under a new name.
+  if (v.audience === 'GRANTED' && grantedToCaller !== true) throw new VoucherNotYoursError();
   if (v.depotId != null && v.depotId !== orderDepotId) throw new VoucherWrongDepotError();
   if (v.validFrom !== null && now < v.validFrom) throw new VoucherNotStartedError();
   if (v.validUntil !== null && now > v.validUntil) throw new VoucherExpiredError();

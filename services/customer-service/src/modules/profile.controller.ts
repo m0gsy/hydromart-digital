@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -132,6 +133,26 @@ export class ProfileController {
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async internalDirectory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
     return this.profiles.findSegment({ tier: query.tier, city: query.city });
+  }
+
+  /**
+   * PRM-9: one customer's contact, by id.
+   *
+   * promo-service answered "who is this customer" by downloading the WHOLE directory —
+   * every name and phone in the network — and filtering it in memory, on a staff token that
+   * happened to have `customerDirectory`. One row, over the internal key, is both smaller
+   * and narrower: a voucher grant needs one person's number, not everybody's.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('profile/internal/contact/:customerId')
+  @ApiOperation({ summary: "One customer's name + phone (internal service auth)" })
+  @ApiOkResponse({ type: DirectoryRecipientDto })
+  async internalContact(
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<DirectoryRecipient | null> {
+    return this.profiles.findRecipient(customerId);
   }
 
   /**

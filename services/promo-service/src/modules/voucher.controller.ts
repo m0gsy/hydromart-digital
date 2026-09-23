@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -26,7 +25,12 @@ import {
 } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
-import { QuoteResult, RedeemResult, VoucherService } from '../application/services/voucher.service';
+import {
+  PublicVoucherPreview,
+  QuoteResult,
+  RedeemResult,
+  VoucherService,
+} from '../application/services/voucher.service';
 import { UpdateVoucherData, VoucherRecord } from '../application/ports/voucher.repository';
 import {
   BrowseQueryDto,
@@ -34,6 +38,7 @@ import {
   GrantVoucherDto,
   InternalQuoteVoucherDto,
   MyVoucherDto,
+  PublicVoucherPreviewDto,
   QuoteVoucherDto,
   RedeemVoucherDto,
   ReleaseResponseDto,
@@ -188,6 +193,7 @@ export class VoucherController {
       perCustomerLimit: dto.perCustomerLimit ?? 1,
       budgetCap: dto.budgetCap ?? null,
       active: dto.active,
+      audience: dto.audience,
     });
   }
 
@@ -199,9 +205,8 @@ export class VoucherController {
   grant(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: GrantVoucherDto,
-    @Headers('authorization') authorization?: string,
   ): Promise<{ voucher: VoucherRecord; granted: boolean }> {
-    return this.vouchers.grant(id, dto.customerId, authorization ?? '');
+    return this.vouchers.grant(id, dto.customerId);
   }
 
   @ApiOkResponse({ type: VoucherResponseDto })
@@ -223,6 +228,10 @@ export class VoucherController {
       validUntil: toDate(dto.validUntil),
       usageLimit: dto.usageLimit,
       perCustomerLimit: dto.perCustomerLimit,
+      // PRM-6: the PATCH door silently dropped this. An editor lowering a campaign's budget
+      // cap saw the form accept it and the cap never move — the voucher kept burning to the
+      // old ceiling, which is the one number on this screen that is literally money.
+      budgetCap: dto.budgetCap,
       active: dto.active,
     };
     return this.vouchers.update(id, patch, dto.seenUpdatedAt);
@@ -237,11 +246,16 @@ export class VoucherController {
     return this.vouchers.deactivate(id);
   }
 
-  @ApiOkResponse({ type: VoucherResponseDto })
+  /**
+   * PRM-7: a public preview is a preview. It used to answer with the whole row — a draft
+   * campaign not yet launched, a deactivated one, its budget cap and its usage counters —
+   * to anybody who guessed a code.
+   */
+  @ApiOkResponse({ type: PublicVoucherPreviewDto })
   @Public()
   @Get(':code')
   @ApiOperation({ summary: 'Public voucher preview by code (FR-089/FR-090)' })
-  getByCode(@Param('code') code: string): Promise<VoucherRecord> {
-    return this.vouchers.getByCode(code);
+  getByCode(@Param('code') code: string): Promise<PublicVoucherPreview> {
+    return this.vouchers.previewByCode(code);
   }
 }

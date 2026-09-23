@@ -1,3 +1,5 @@
 {
-  "orphans": []
+  "orphans": [
+    "GET customer: /profile/directory"
+  ]
 }

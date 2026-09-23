@@ -89,7 +89,7 @@ describe('VoucherPrismaRepository', () => {
     findUnique: jest.fn(),
     create: jest.fn(),
   };
-  const voucherGrant = { findUnique: jest.fn(), create: jest.fn() };
+  const voucherGrant = { findUnique: jest.fn(), create: jest.fn(), findMany: jest.fn() };
   const $transaction = jest.fn();
   const $queryRaw = jest.fn();
   const prisma = {
@@ -261,11 +261,14 @@ describe('VoucherPrismaRepository', () => {
   it('countRedemptions scopes by voucher and optionally customer', async () => {
     voucherRedemption.count.mockResolvedValue(3);
     expect(await repo.countRedemptions('v-1', 'c-1')).toBe(3);
+    // PRM-8: a redemption a voided order handed back is not one anybody spent.
     expect(voucherRedemption.count).toHaveBeenCalledWith({
-      where: { voucherId: 'v-1', customerId: 'c-1' },
+      where: { voucherId: 'v-1', releasedAt: null, customerId: 'c-1' },
     });
     await repo.countRedemptions('v-1');
-    expect(voucherRedemption.count).toHaveBeenLastCalledWith({ where: { voucherId: 'v-1' } });
+    expect(voucherRedemption.count).toHaveBeenLastCalledWith({
+      where: { voucherId: 'v-1', releasedAt: null },
+    });
   });
 
   it('loads all authoritative redemption rows for one linked voucher in one query', async () => {
@@ -311,15 +314,17 @@ describe('VoucherPrismaRepository', () => {
     ]);
   });
 
-  it('listForCustomer tallies redemptions in memory', async () => {
+  it('listForCustomer tallies redemptions in memory and marks the granted ones', async () => {
     $transaction.mockResolvedValue([
       [voucherRow(), { ...voucherRow(), id: 'v-2' }],
       [{ voucherId: 'v-1' }, { voucherId: 'v-1' }],
+      // PRM-4: the wallet query asks which of these were granted to this customer.
+      [{ voucherId: 'v-2' }],
     ]);
     const res = await repo.listForCustomer('c-1');
     expect(res).toEqual([
-      { voucher: expect.objectContaining({ id: 'v-1' }), customerRedemptions: 2 },
-      { voucher: expect.objectContaining({ id: 'v-2' }), customerRedemptions: 0 },
+      { voucher: expect.objectContaining({ id: 'v-1' }), customerRedemptions: 2, granted: false },
+      { voucher: expect.objectContaining({ id: 'v-2' }), customerRedemptions: 0, granted: true },
     ]);
   });
 
@@ -376,15 +381,21 @@ describe('VoucherPrismaRepository', () => {
    * together, or a concurrent redemption reads a count that disagrees with what is behind
    * it.
    */
-  it('releaseAtomic deletes the redemption and decrements the counter under a lock', async () => {
+  /*
+   * PRM-8: the row is STAMPED, not deleted — the evidence that a discount was burned and
+   * then returned is what a burn report reconciles against — and the stamp is claimed
+   * conditionally, so two voids arriving together cannot both decrement the counter.
+   */
+  it('releaseAtomic stamps the redemption and decrements the counter under a lock', async () => {
     const red = { id: 'r-1', voucherId: 'v-1', orderId: 'o-9', discountApplied: 2_500 };
     const tx = {
       voucherRedemption: {
         findUnique: jest.fn().mockResolvedValue(red),
-        delete: jest.fn().mockResolvedValue(red),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       voucher: { update: jest.fn().mockResolvedValue(voucherRow()) },
       $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     $transaction.mockImplementationOnce(async (fn: (t: unknown) => unknown) => fn(tx));
 
@@ -393,11 +404,29 @@ describe('VoucherPrismaRepository', () => {
     expect(out?.id).toBe('r-1');
     // The row lock comes BEFORE the write, which is the whole point of doing it in here.
     expect(tx.$queryRaw).toHaveBeenCalled();
-    expect(tx.voucherRedemption.delete).toHaveBeenCalledWith({ where: { orderId: 'o-9' } });
-    expect(tx.voucher.update).toHaveBeenCalledWith({
-      where: { id: 'v-1' },
-      data: { usedCount: { decrement: 1 } },
+    expect(tx.voucherRedemption.updateMany).toHaveBeenCalledWith({
+      where: { orderId: 'o-9', releasedAt: null },
+      data: { releasedAt: expect.any(Date) },
     });
+    // GREATEST, which is what the old comment claimed and `decrement: 1` never did.
+    expect(tx.$executeRaw.mock.calls[0][0].join('')).toContain('GREATEST(0, "usedCount" - 1)');
+  });
+
+  it('releaseAtomic answers null when another void claimed the row first', async () => {
+    const red = { id: 'r-1', voucherId: 'v-1', orderId: 'o-9', discountApplied: 2_500 };
+    const tx = {
+      voucherRedemption: {
+        findUnique: jest.fn().mockResolvedValue(red),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      voucher: { update: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn(),
+    };
+    $transaction.mockImplementationOnce(async (fn: (t: unknown) => unknown) => fn(tx));
+
+    await expect(repo.releaseAtomic('o-9')).resolves.toBeNull();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('releaseAtomic answers null for an order that redeemed nothing', async () => {

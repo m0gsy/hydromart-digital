@@ -36,6 +36,20 @@ export interface RedeemResult {
   discountApplied: number;
 }
 
+/**
+ * PRM-7: the public face of a voucher — what a customer needs to decide whether to type the
+ * code, and nothing about how the campaign is doing.
+ */
+export interface PublicVoucherPreview {
+  code: string;
+  description: string | null;
+  discountType: DiscountType;
+  value: number;
+  minSpend: number;
+  maxDiscount: number | null;
+  validUntil: Date | null;
+}
+
 export interface WalletVoucher {
   voucher: VoucherRecord;
   status: VoucherStatus;
@@ -56,19 +70,19 @@ export class VoucherService {
    * Grant an existing voucher to a specific customer's wallet (spec 5h "voucher baru").
    * Idempotent per (voucher, customer) — a repeat grant is a no-op and re-sends nothing.
    * On the first grant, fires VOUCHER_GRANTED via crm (fail-open: notification never
-   * blocks the grant). Requires the acting staff token to resolve the customer's contact.
+   * blocks the grant). PRM-9: the contact is resolved by id under the internal key, not by
+   * downloading the customer directory on the acting staff member's token.
    */
   async grant(
     voucherId: string,
     customerId: string,
-    authorization: string,
   ): Promise<{ voucher: VoucherRecord; granted: boolean }> {
     const voucher = await this.repo.findById(voucherId);
     if (!voucher || !voucher.active) throw new VoucherNotFoundError();
 
     const granted = await this.repo.grantVoucher(voucherId, customerId);
     if (granted) {
-      const contact = await this.customers.resolve(customerId, authorization);
+      const contact = await this.customers.resolve(customerId);
       if (contact) {
         await this.notifications.notify('VOUCHER_GRANTED', contact.phone, customerId, {
           name: contact.name,
@@ -80,32 +94,34 @@ export class VoucherService {
     return { voucher, granted };
   }
 
+  /**
+   * PRM-6: the money rules a voucher must satisfy, whichever door it came through.
+   *
+   * These lived inline in `create`, and `update` — the door an existing campaign is edited
+   * through — checked none of them. A voucher created at a legal 20% could be PATCHed to
+   * 500% afterwards, which is the same defect CA-2-65 closed on the other door.
+   */
+  private assertMoneySane(discountType: DiscountType | undefined, value: number | undefined): void {
+    if (discountType === undefined || value === undefined) return;
+    // FREE_SHIPPING waives the delivery fee and needs no `value`; percent/fixed do.
+    if (discountType !== DiscountType.FREE_SHIPPING && value <= 0) {
+      throw new InvalidVoucherValueError();
+    }
+    if (discountType === DiscountType.PERCENTAGE && value > 100) {
+      throw new InvalidVoucherValueError(`A percentage voucher cannot exceed 100% — got ${value}.`);
+    }
+  }
+
   /** Create a voucher (admin). Code is stored UPPERCASE and must be unique. */
   async create(input: CreateVoucherData): Promise<VoucherRecord> {
     const code = input.code.toUpperCase();
-    // FREE_SHIPPING waives the delivery fee and needs no `value`; percent/fixed do.
-    if (input.discountType !== DiscountType.FREE_SHIPPING && input.value <= 0) {
-      throw new InvalidVoucherValueError();
-    }
     /*
-     * CA-2-65: a PERCENTAGE voucher could be created at 500%.
-     *
-     * The column comment says "PERCENTAGE: a percent 1..100", both DTOs repeat it in their
-     * `@ApiProperty` description, and not one of them enforced it — `@Min(0)` was the whole
-     * check. A voucher at 500 does not fail anywhere either: the discount is computed as a
-     * fraction of the subtotal, so it simply pays the customer more than the order is worth,
-     * capped only by `maxDiscount` when somebody remembered to set one. And nothing on the
-     * HQ form sets one for a percentage voucher by default.
-     *
-     * Checked here rather than in the DTOs because the bound depends on ANOTHER field, and
-     * because both doors — the HQ form and an approved depot request — come through this
-     * method. A `@Max(100)` on `value` would have refused a Rp 50.000 fixed voucher.
+     * CA-2-65: a PERCENTAGE voucher could be created at 500%. The bound depends on ANOTHER
+     * field, so it cannot live in the DTO — a `@Max(100)` on `value` would refuse a
+     * Rp 50.000 fixed voucher. PRM-6 moved it into `assertMoneySane`, which the PATCH door
+     * runs too.
      */
-    if (input.discountType === DiscountType.PERCENTAGE && input.value > 100) {
-      throw new InvalidVoucherValueError(
-        `A percentage voucher cannot exceed 100% — got ${input.value}.`,
-      );
-    }
+    this.assertMoneySane(input.discountType, input.value);
     if (await this.repo.findByCode(code)) throw new DuplicateVoucherCodeError(code);
     return this.repo.create({ ...input, code });
   }
@@ -121,7 +137,11 @@ export class VoucherService {
     patch: UpdateVoucherData,
     seenUpdatedAt?: string,
   ): Promise<VoucherRecord> {
-    assertFresh((await this.getById(id)).updatedAt, seenUpdatedAt);
+    const current = await this.getById(id);
+    assertFresh(current.updatedAt, seenUpdatedAt);
+    // PRM-6: the same money rules `create` enforces. A patch that changes only the value
+    // is judged against the type the voucher already has.
+    this.assertMoneySane(patch.discountType ?? current.discountType, patch.value ?? current.value);
     return this.repo.update(id, patch);
   }
 
@@ -136,6 +156,39 @@ export class VoucherService {
     const voucher = await this.repo.findByCode(code.toUpperCase());
     if (!voucher) throw new VoucherNotFoundError();
     return voucher;
+  }
+
+  /**
+   * PRM-7 — what an unauthenticated caller may learn about a code.
+   *
+   * `GET /vouchers/:code` was public and answered with the whole row: a draft voucher not
+   * yet launched, a deactivated one, its budget cap, its usage counters, its depot. That is
+   * an oracle — a script can sit on it and discover every campaign before it starts, then
+   * watch `usedCount` move. It also confirmed which codes exist at all.
+   *
+   * A code somebody actually holds still previews. Anything else — inactive, not started,
+   * expired, or addressed to specific customers — is answered exactly like a code that does
+   * not exist, and only the fields a customer needs to decide come back.
+   */
+  async previewByCode(code: string): Promise<PublicVoucherPreview> {
+    const voucher = await this.repo.findByCode(code.toUpperCase());
+    const now = new Date();
+    const visible =
+      voucher !== null &&
+      voucher.active &&
+      voucher.audience !== 'GRANTED' &&
+      (voucher.validFrom === null || now >= voucher.validFrom) &&
+      (voucher.validUntil === null || now <= voucher.validUntil);
+    if (!visible) throw new VoucherNotFoundError();
+    return {
+      code: voucher.code,
+      description: voucher.description,
+      discountType: voucher.discountType,
+      value: voucher.value,
+      minSpend: voucher.minSpend,
+      maxDiscount: voucher.maxDiscount,
+      validUntil: voucher.validUntil,
+    };
   }
 
   async browse(page = 1, limit = 20, activeOnly = false): Promise<Page<VoucherRecord>> {
@@ -179,6 +232,8 @@ export class VoucherService {
     depotId?: string | null,
   ): Promise<QuoteResult> {
     const voucher = await this.getByCode(code);
+    // PRM-4: a GRANTED voucher is only spendable by the people it was given to.
+    const granted = await this.repo.hasGrant(voucher.id, customerId);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
     // computeDiscount is pure and never throws, so it can run before validation — the
@@ -192,6 +247,7 @@ export class VoucherService {
       customerRedemptionCount,
       burned + discount,
       depotId,
+      granted,
     );
     return { code: voucher.code, discountType: voucher.discountType, discount, valid: true };
   }
@@ -235,6 +291,7 @@ export class VoucherService {
     }
 
     const voucher = await this.getByCode(code);
+    const granted = await this.repo.hasGrant(voucher.id, customerId);
 
     // H-1: the caps are checked INSIDE the lock, not before it. Reading usedCount, the
     // per-customer count and the burned budget on a separate connection and then writing
@@ -255,6 +312,7 @@ export class VoucherService {
           customerRedemptions,
           burned + discount,
           depotId,
+          granted,
         );
         return discount;
       },
@@ -268,6 +326,9 @@ export class VoucherService {
    */
   async myVouchers(customerId: string): Promise<WalletVoucher[]> {
     const now = new Date();
+    // PRM-4: the repository returns only what this customer may spend — every PUBLIC code
+    // plus the GRANTED ones addressed to them. The rule lives in the query rather than in
+    // this mapper, because a filter in the reader is the kind that gets missed.
     const rows = await this.repo.listForCustomer(customerId);
     return rows.map(({ voucher, customerRedemptions }) => ({
       voucher,

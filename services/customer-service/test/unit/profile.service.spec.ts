@@ -28,6 +28,12 @@ describe('ProfileService', () => {
     service = new ProfileService(repo, loyalty, ledger(), buildTestConfig());
   });
 
+  // PRM-9: the service hands the one-customer lookup straight to the repository.
+  it('resolves one customer’s contact', async () => {
+    await service.get('cust-1');
+    await expect(service.findRecipient('cust-1')).resolves.toBeNull();
+  });
+
   it('lazily creates a default BASIC profile on first read', async () => {
     const p = await service.get('cust-1');
     expect(p.membershipTier).toBe(MembershipTier.BASIC);

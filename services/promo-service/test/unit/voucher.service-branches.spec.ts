@@ -47,7 +47,7 @@ describe('VoucherService branch gaps', () => {
   });
 
   it('grant throws when the voucher is missing', async () => {
-    await expect(service.grant('missing', 'cust-1', 'Bearer tok')).rejects.toBeInstanceOf(
+    await expect(service.grant('missing', 'cust-1')).rejects.toBeInstanceOf(
       VoucherNotFoundError,
     );
   });
@@ -55,7 +55,7 @@ describe('VoucherService branch gaps', () => {
   it('grant throws when the voucher is inactive', async () => {
     const v = await service.create(baseVoucher({ code: 'OFF' }));
     await service.deactivate(v.id);
-    await expect(service.grant(v.id, 'cust-1', 'Bearer tok')).rejects.toBeInstanceOf(
+    await expect(service.grant(v.id, 'cust-1')).rejects.toBeInstanceOf(
       VoucherNotFoundError,
     );
   });
@@ -63,7 +63,7 @@ describe('VoucherService branch gaps', () => {
   it('grant is a no-op notification when the customer contact cannot be resolved', async () => {
     customers.contact = null;
     const v = await service.create(baseVoucher({ code: 'SILENT' }));
-    const result = await service.grant(v.id, 'cust-1', 'Bearer tok');
+    const result = await service.grant(v.id, 'cust-1');
     expect(result.granted).toBe(true);
     expect(notifications.calls).toHaveLength(0);
   });

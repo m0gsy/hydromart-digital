@@ -31,6 +31,8 @@ interface VoucherRow {
   budgetCap: number | null;
   /** CA-2-65: null = network-wide, which is every row written before 0008. */
   depotId: string | null;
+  /** PRM-4: 'PUBLIC' or 'GRANTED'; every row written before this column is PUBLIC. */
+  audience: string;
   usedCount: number;
   active: boolean;
   createdAt: Date;
@@ -95,15 +97,23 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return { items: rows.map((r) => this.toVoucher(r)), total };
   }
 
+  /*
+   * PRM-8: `releasedAt: null` on every count and sum below.
+   *
+   * The release used to DELETE the row, so "not released" and "not there" were the same
+   * thing and no query had to say it. Keeping the row for reconciliation means every reader
+   * must now exclude it, or a voided order would still spend the customer's allowance and
+   * still count against the campaign's budget.
+   */
   async countRedemptions(voucherId: string, customerId?: string): Promise<number> {
     return this.prisma.voucherRedemption.count({
-      where: { voucherId, ...(customerId ? { customerId } : {}) },
+      where: { voucherId, releasedAt: null, ...(customerId ? { customerId } : {}) },
     });
   }
 
   async sumRedemptionsFor(voucherId: string): Promise<number> {
     const agg = await this.prisma.voucherRedemption.aggregate({
-      where: { voucherId },
+      where: { voucherId, releasedAt: null },
       _sum: { discountApplied: true },
     });
     return agg._sum.discountApplied ?? 0;
@@ -112,6 +122,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
   async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
     const grouped = await this.prisma.voucherRedemption.groupBy({
       by: ['voucherId'],
+      where: { releasedAt: null },
       _sum: { discountApplied: true },
     });
     return grouped.map((g) => ({
@@ -122,16 +133,30 @@ export class VoucherPrismaRepository implements VoucherRepository {
 
   async listForCustomer(
     customerId: string,
-  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]> {
-    const [rows, redemptions] = await this.prisma.$transaction([
-      this.prisma.voucher.findMany({ where: { active: true }, orderBy: { validUntil: 'asc' } }),
+  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number; granted: boolean }[]> {
+    const [rows, redemptions, grants] = await this.prisma.$transaction([
+      /*
+       * PRM-4: every wallet used to list every active code, so a voucher meant for one
+       * customer was advertised to all of them. A PUBLIC code still shows to everybody —
+       * that is what a campaign code is — and a GRANTED one shows only to its grantees.
+       */
+      this.prisma.voucher.findMany({
+        where: {
+          active: true,
+          OR: [{ audience: 'PUBLIC' }, { grants: { some: { customerId } } }],
+        },
+        orderBy: { validUntil: 'asc' },
+      }),
       // A customer has few redemptions (perCustomerLimit is small), so tallying in
       // memory is cheaper and simpler than a typed groupBy.
       this.prisma.voucherRedemption.findMany({
-        where: { customerId },
+        // PRM-8: a redemption handed back by a voided order is not one the customer spent.
+        where: { customerId, releasedAt: null },
         select: { voucherId: true },
       }),
+      this.prisma.voucherGrant.findMany({ where: { customerId }, select: { voucherId: true } }),
     ]);
+    const granted = new Set(grants.map((g) => g.voucherId));
     const byVoucher = new Map<string, number>();
     for (const r of redemptions) {
       byVoucher.set(r.voucherId, (byVoucher.get(r.voucherId) ?? 0) + 1);
@@ -139,6 +164,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return rows.map((r) => ({
       voucher: this.toVoucher(r),
       customerRedemptions: byVoucher.get(r.id) ?? 0,
+      granted: granted.has(r.id),
     }));
   }
 
@@ -248,10 +274,11 @@ export class VoucherPrismaRepository implements VoucherRepository {
 
         const [customerRedemptions, burnedAgg] = await Promise.all([
           tx.voucherRedemption.count({
-            where: { voucherId: input.voucherId, customerId: input.customerId },
+            // PRM-8: a redemption handed back by a voided order is not one they spent.
+            where: { voucherId: input.voucherId, customerId: input.customerId, releasedAt: null },
           }),
           tx.voucherRedemption.aggregate({
-            where: { voucherId: input.voucherId },
+            where: { voucherId: input.voucherId, releasedAt: null },
             _sum: { discountApplied: true },
           }),
         ]);
@@ -313,15 +340,40 @@ export class VoucherPrismaRepository implements VoucherRepository {
       if (!redemption) return null;
 
       await tx.$queryRaw`SELECT "usedCount" FROM "vouchers" WHERE "id" = ${redemption.voucherId} FOR UPDATE`;
-      await tx.voucherRedemption.delete({ where: { orderId } });
-      await tx.voucher.update({
-        where: { id: redemption.voucherId },
-        // Floored at zero: a counter that has already been corrected by hand must not be
-        // driven negative by a replayed void.
-        data: { usedCount: { decrement: 1 } },
+      /*
+       * PRM-8. Three things were wrong with deleting the row.
+       *
+       * It threw away the only evidence that a discount was burned and then returned, so a
+       * burn report could not be reconciled against the money. A void replayed after a
+       * timeout found no row the second time and answered `released: false` — correct by
+       * accident — but two voids arriving TOGETHER both found the row, both deleted, and
+       * the second raised P2025 out of the delete, which surfaced as a 500. And the comment
+       * below claimed the counter was floored at zero, which `decrement: 1` never did.
+       *
+       * The release is now a flag, claimed conditionally: exactly one caller wins.
+       */
+      const { count } = await tx.voucherRedemption.updateMany({
+        where: { orderId, releasedAt: null },
+        data: { releasedAt: new Date() },
       });
+      if (count === 0) return null;
+      // GREATEST, so a counter already corrected by hand cannot be driven negative — which
+      // is what the old comment promised and the old code did not do.
+      await tx.$executeRaw`
+        UPDATE "vouchers"
+           SET "usedCount" = GREATEST(0, "usedCount" - 1),
+               "updatedAt" = NOW()
+         WHERE "id" = ${redemption.voucherId}
+      `;
       return this.toRedemption(redemption);
     });
+  }
+
+  async hasGrant(voucherId: string, customerId: string): Promise<boolean> {
+    const grant = await this.prisma.voucherGrant.findUnique({
+      where: { voucherId_customerId: { voucherId, customerId } },
+    });
+    return grant !== null;
   }
 
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {

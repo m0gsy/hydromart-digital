@@ -65,4 +65,6 @@ export interface ProfileRepository {
    * excluded (nothing to broadcast to).
    */
   findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]>;
+  /** PRM-9: the contact for one customer, without paging the whole directory. */
+  findRecipient(customerId: string): Promise<DirectoryRecipient | null>;
 }

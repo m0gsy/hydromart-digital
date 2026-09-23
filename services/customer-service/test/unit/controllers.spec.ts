@@ -345,6 +345,28 @@ describe('ProfileController · my gallon deposit (I5)', () => {
 });
 
 /*
+ * PRM-9: promo-service answered "who is this customer" by downloading the WHOLE staff
+ * directory — every name and phone in the network — and filtering it in memory. One row,
+ * by id, under the internal key.
+ */
+describe('ProfileController · one customer’s contact (PRM-9)', () => {
+  const profiles = { findRecipient: jest.fn() };
+  const c = new ProfileController(profiles as never, {} as never);
+
+  it('asks for exactly the customer named', async () => {
+    const row = { customerId: 'c1', name: 'Budi', phone: '+62800' };
+    profiles.findRecipient.mockResolvedValue(row);
+    await expect(c.internalContact('c1')).resolves.toEqual(row);
+    expect(profiles.findRecipient).toHaveBeenCalledWith('c1');
+  });
+
+  it('answers null for a customer with no contact on file', async () => {
+    profiles.findRecipient.mockResolvedValue(null);
+    await expect(c.internalContact('c1')).resolves.toBeNull();
+  });
+});
+
+/*
  * PAR-05. FR-091 was built, tested and idempotent per customer per year — and the only
  * route to it was @Roles(SUPER_ADMIN), i.e. it needed a human's JWT. The scheduler
  * authenticates with `x-internal-key` and has none, so no birthday point has ever been
