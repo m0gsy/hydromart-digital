@@ -29,6 +29,14 @@ describe('pageArgs', () => {
     expect(pageArgs({ page: 3, limit: 20, cursor })).toEqual({ take: 20, skip: 40 });
   });
 
+  it('refuses a cursor whose body decodes to nothing', () => {
+    const empty = `k1..${''}`;
+    expect(decodeCursor(empty)).toBeNull();
+    // A well-formed envelope around an empty id is still not an id.
+    const body = Buffer.from('', 'utf8').toString('base64url');
+    expect(decodeCursor(`k1.${body}.0000`)).toBeNull();
+  });
+
   it('round-trips an id through the cursor', () => {
     expect(decodeCursor(encodeCursor('row-9'))).toBe('row-9');
     // And the id is not sitting in plain sight in the value handed to the client.

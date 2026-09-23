@@ -183,6 +183,20 @@ describe('startCapabilityRefresh', () => {
     stop();
   });
 
+  // Nothing to drop: a source that has never answered is already serving the defaults.
+  it('says nothing about staleness when there was no snapshot to begin with', async () => {
+    const warn = jest.fn();
+    const stop = startCapabilityRefresh(
+      async () => {
+        throw new Error('down');
+      },
+      { ttlMs: 5, maxStaleMs: 10, logger: { warn } },
+    );
+    await tick(40);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('stale'))).toBe(false);
+    stop();
+  });
+
   it('stops polling once stopped', async () => {
     const load = jest.fn().mockResolvedValue({});
     const stop = startCapabilityRefresh(load, { ttlMs: 5 });
