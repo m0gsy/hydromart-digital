@@ -80,7 +80,11 @@ export class ShiftPrismaRepository implements ShiftRepository {
   async search(query: ShiftQuery): Promise<ShiftRecord[]> {
     const rows = await this.prisma.shift.findMany({
       where: {
-        ...(query.depotId ? { depotId: query.depotId } : {}),
+        ...(query.depotId
+          ? { depotId: query.depotId }
+          : query.depotIds
+            ? { depotId: { in: [...query.depotIds] } }
+            : {}),
         ...(query.from || query.to
           ? {
               checkInAt: {
