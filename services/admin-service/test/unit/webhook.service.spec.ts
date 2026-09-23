@@ -2,13 +2,16 @@ import { WebhookNotFoundError } from '../../src/domain/errors';
 import { WebhookService } from '../../src/application/services/webhook.service';
 import { InMemoryWebhookRepository } from '../support/fakes';
 
+/** ADM-1: registration resolves the URL too, so the test decides what it resolves to. */
+const publicLookup = async () => [{ address: '203.0.113.10' }];
+
 describe('WebhookService', () => {
   let repo: InMemoryWebhookRepository;
   let service: WebhookService;
 
   beforeEach(() => {
     repo = new InMemoryWebhookRepository();
-    service = new WebhookService(repo);
+    service = new WebhookService(repo, publicLookup);
   });
 
   it('creates a webhook with no fabricated delivery data', async () => {
@@ -58,7 +61,7 @@ describe('WebhookService', () => {
  */
 describe('WebhookService signing secret (CA-2-37)', () => {
   it('gives every endpoint a secret, even when the caller sends none', async () => {
-    const service = new WebhookService(new InMemoryWebhookRepository());
+    const service = new WebhookService(new InMemoryWebhookRepository(), publicLookup);
 
     const w = await service.create({
       url: 'https://partner.example.com/hooks',
@@ -71,7 +74,7 @@ describe('WebhookService signing secret (CA-2-37)', () => {
   });
 
   it('gives two endpoints different secrets', async () => {
-    const service = new WebhookService(new InMemoryWebhookRepository());
+    const service = new WebhookService(new InMemoryWebhookRepository(), publicLookup);
     const a = await service.create({ url: 'https://a.example.com/h', events: ['x'] });
     const b = await service.create({ url: 'https://b.example.com/h', events: ['x'] });
     expect(a.secret).not.toBe(b.secret);
@@ -82,7 +85,7 @@ describe('WebhookService signing secret (CA-2-37)', () => {
    * to keep it — generating over the top would break the verification we are trying to add.
    */
   it('honours a secret the caller supplies, and ignores a blank one', async () => {
-    const service = new WebhookService(new InMemoryWebhookRepository());
+    const service = new WebhookService(new InMemoryWebhookRepository(), publicLookup);
 
     const supplied = await service.create({
       url: 'https://partner.example.com/hooks',

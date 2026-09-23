@@ -18,10 +18,23 @@ interface ExcelModule {
 
 const HEADERS = ['Label', 'Pesanan', 'Pendapatan'] as const;
 
-/** RFC 4180 quoting. A depot called `Depot "Baru", Cibubur` must not split into two columns. */
-function csvCell(value: string | number): string {
+/**
+ * RFC 4180 quoting, plus ADM-9: a cell is data, never a formula.
+ *
+ * A depot called `Depot "Baru", Cibubur` must not split into two columns — that part was
+ * already handled. What was not: Excel and Sheets treat a cell starting `=`, `+`, `-` or
+ * `@` as a formula, and these rows are labels typed by staff into product and depot names.
+ * `=HYPERLINK(...)` exfiltrating the row to a URL, or `=WEBSERVICE(...)` fetching one, runs
+ * when head office opens the scheduled report. Neither needs macros enabled.
+ *
+ * A leading apostrophe is the neutraliser every spreadsheet agrees on: the cell shows what
+ * was typed and evaluates nothing. Tab and CR get it too — a reader that trims leading
+ * whitespace turns "\t=CMD" back into a formula.
+ */
+export function csvCell(value: string | number): string {
   const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /**

@@ -55,11 +55,26 @@ export class RemotePurgeExecutor implements PurgeExecutor {
     if (!response.ok) {
       throw new Error(`${this.dataset}: owner responded ${response.status}`);
     }
-    // DELETE endpoints answer with `deleted`, REPORT endpoints with `eligible`. Reading
-    // the wrong one would silently report 0 and look like "nothing was due".
-    const body = (await response.json()) as { deleted?: number; eligible?: number };
-    const key = this.mode === 'REPORT' ? body.eligible : body.deleted;
-    const affected = typeof key === 'number' ? key : 0;
+    /*
+     * ADM-7 — an owner that answers 200 with a body this cannot read used to be recorded
+     * as "PURGED, 0 deleted", which is indistinguishable from "nothing was due". That is
+     * the single outcome this whole feature exists to prevent, and it was not theoretical:
+     * the HR retention routes answer `{ purged }`, the erasure ones answer `{ erased }`,
+     * and only `deleted` was ever read. Every one of those sweeps reported a clean zero.
+     *
+     * So: every count key the services in this repo actually use is accepted, and a body
+     * with NONE of them raises. A number nobody can produce is a failure to report, not a
+     * zero to file.
+     */
+    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const keys = this.mode === 'REPORT' ? ['eligible'] : ['deleted', 'purged', 'erased'];
+    const found = keys.map((k) => body[k]).find((v) => typeof v === 'number');
+    if (typeof found !== 'number') {
+      throw new Error(
+        `${this.dataset}: owner answered 200 without a count (expected ${keys.join('/')})`,
+      );
+    }
+    const affected = found;
     this.logger.log(
       this.mode === 'REPORT'
         ? `${affected} rows in ${this.dataset} are past their window (report only)`

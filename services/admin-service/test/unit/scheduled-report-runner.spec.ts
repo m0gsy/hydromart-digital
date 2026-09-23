@@ -86,6 +86,41 @@ describe('renderReport', () => {
     expect(text).toContain('Depot Cibubur,3,90000');
   });
 
+  /*
+   * ADM-9: these labels are product and depot names typed by staff, and Excel and Sheets
+   * run a cell that starts with `=`, `+`, `-` or `@`. `=HYPERLINK(...)` posting the row to
+   * a URL executes when head office opens the scheduled report; no macros needed.
+   */
+  it.each(['=WEBSERVICE(X)', '+1+1', '-2+3', '@SUM(A1)', '	=CMD'])(
+    'neutralises a label that a spreadsheet would run: %s',
+    async (label) => {
+      const text = (
+        await renderReport([{ label, orders: 1, revenue: 1 }], ExportFormat.CSV, 'x')
+      ).toString('utf8');
+      // The apostrophe every spreadsheet understands: shown as typed, evaluated never.
+      expect(text).toContain(`'${label}`);
+    },
+  );
+
+  // The quoting and the neutralising have to survive each other: this one needs both.
+  it('neutralises a formula that also has to be quoted', async () => {
+    const text = (
+      await renderReport(
+        [{ label: '=HYPERLINK("http://x","klik")', orders: 1, revenue: 1 }],
+        ExportFormat.CSV,
+        'x',
+      )
+    ).toString('utf8');
+    expect(text).toContain(`"'=HYPERLINK(""http://x"",""klik"")",1,1`);
+  });
+
+  it('leaves an ordinary label untouched', async () => {
+    const text = (
+      await renderReport([{ label: 'Depot Cibubur', orders: 1, revenue: 1 }], ExportFormat.CSV, 'x')
+    ).toString('utf8');
+    expect(text).not.toContain("'Depot");
+  });
+
   // A depot called `Depot "Baru", Cibubur` must stay one column.
   it('quotes a label containing a comma or a quote', async () => {
     const text = (

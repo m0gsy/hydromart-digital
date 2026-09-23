@@ -189,11 +189,12 @@ describe('RemotePurgeExecutor.purge', () => {
     ).rejects.toThrow(/owner unreachable/);
   });
 
-  it('treats a body with neither count as 0 rather than NaN', async () => {
+  // ADM-7: a body with no count at all is a failure to report, not a zero to file.
+  it('raises on a body carrying neither count', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as never;
     await expect(
       new RemotePurgeExecutor('orders', 'http://owner', '/purge', 'k').purge(new Date()),
-    ).resolves.toBe(0);
+    ).rejects.toThrow(/without a count/);
   });
 });
 
