@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   UnauthorizedException,
@@ -28,6 +29,7 @@ import {
 } from '../../domain/shift-rotation';
 import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
+import { hrStorageKey } from '../storage-key';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
@@ -48,6 +50,8 @@ export interface FacePunch {
 
 @Injectable()
 export class AttendanceService {
+  private readonly logger = new Logger(AttendanceService.name);
+
   constructor(
     @Inject(ATTENDANCE_REPOSITORY) private readonly repo: AttendanceRepository,
     @Inject(FACE_VERIFIER) private readonly verifier: FaceVerifier,
@@ -335,6 +339,40 @@ export class AttendanceService {
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
     assertDepotAccess(user, employee.depotId);
     return this.repo.listAdjustments(id);
+  }
+
+  /**
+   * HR-4 (owner decision 2026-09-17) — attendance selfies stop being kept forever.
+   *
+   * Every face check-in stored a frame, and nothing ever deleted one for an employee who
+   * was still on the payroll: the only sweep that touched them was the departed-staff
+   * scrub. The photo is evidence for a disputed punch, and ninety days (the window head
+   * office sets; admin-service passes the cutoff) is long past the payroll cycle it could
+   * be disputed in.
+   *
+   * The OBJECT goes first and the columns are nulled after: a bucket that refuses a delete
+   * leaves the row pointing at it, so the next sweep tries again instead of orphaning a face
+   * nothing can find. Bounded per run so one sweep cannot hold the table.
+   */
+  async purgePhotosOlderThan(cutoff: Date, limit = 500): Promise<{ purged: number }> {
+    const values = await this.repo.photosBefore(cutoff, limit);
+    let failed = 0;
+    for (const key of new Set(values.map(hrStorageKey).filter((k): k is string => !!k))) {
+      if (!this.storage) break;
+      try {
+        await this.storage.remove(key);
+      } catch (error) {
+        failed += 1;
+        this.logger.error(`Retention: attendance photo ${key} left behind: ${(error as Error).message}`);
+      }
+    }
+    if (failed > 0) {
+      this.logger.warn(`Retention: ${failed} attendance photo(s) could not be deleted; rows kept for the next sweep`);
+      return { purged: 0 };
+    }
+    const purged = await this.repo.clearPhotosBefore(cutoff, limit);
+    this.logger.log(`Retention: cleared attendance photos on ${purged} row(s) before ${cutoff.toISOString()}`);
+    return { purged };
   }
 
   /**

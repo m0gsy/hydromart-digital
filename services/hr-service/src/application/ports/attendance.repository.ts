@@ -120,6 +120,16 @@ export interface AttendanceRepository {
     after: unknown;
     approvedBy: string | null;
   }): Promise<void>;
+  /**
+   * HR-4 (owner decision 2026-09-17): the check-in/out photo values on rows older than the
+   * cutoff, read before they are cleared. A selfie is proof that a punch was really that
+   * person; ninety days after the fact it is a face in a bucket with no question left to
+   * answer. The attendance row itself — hours, lateness, score — is payroll evidence and
+   * stays.
+   */
+  photosBefore(cutoff: Date, limit: number): Promise<string[]>;
+  /** HR-4: null both photo columns on rows older than the cutoff. Returns rows changed. */
+  clearPhotosBefore(cutoff: Date, limit: number): Promise<number>;
   /** Present/late day counts for [from, to] (inclusive), used by the payroll engine. */
   summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary>;
   /**

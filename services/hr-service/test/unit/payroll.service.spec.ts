@@ -105,6 +105,9 @@ function build(opts: {
 }) {
   const repo = opts.repo ?? new FakePayrollRepo();
   const attendance: AttendanceRepository = {
+    // HR-4: payroll never sweeps photos; the retention route does.
+    photosBefore: async () => [],
+    clearPhotosBefore: async () => 0,
     findByEmployeeAndDate: async () => null,
     findById: async () => null,
     upsertManual: async () => ({}) as never,

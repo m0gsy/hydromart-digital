@@ -15,6 +15,8 @@ import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { PdpRepository } from '../application/ports/pdp.repository';
+import { ResellerRepository } from '../application/ports/reseller.repository';
+import { StoragePort, resellerPhotoKey } from '../application/ports/storage.port';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
 import { CustomerImportService } from '../application/services/customer-import.service';
@@ -45,6 +47,8 @@ export class InternalController {
     private readonly customers: CustomerImportService,
     private readonly resellers: ResellerService,
     @Inject(CUSTOMER_TOKENS.PdpRepository) private readonly pdp: PdpRepository,
+    @Inject(CUSTOMER_TOKENS.ResellerRepository) private readonly resellerRows: ResellerRepository,
+    @Inject(CUSTOMER_TOKENS.Storage) private readonly storage: StoragePort,
   ) {}
 
   /**
@@ -85,7 +89,12 @@ export class InternalController {
   @ApiOperation({
     summary: 'Strip profile and address PII for a deleted customer (internal, idempotent)',
   })
-  pdpAnonymise(@Body() dto: PdpCustomerDto): Promise<void> {
+  async pdpAnonymise(@Body() dto: PdpCustomerDto): Promise<void> {
+    // CUS-1: the photo OBJECT first, then the pointer. `anonymise` nulls `photoUrl`; after
+    // that nothing can find the KTP again, so a failed delete must stop the erasure here —
+    // auth-service reports it FAILED and the retry still knows which object to delete.
+    const key = resellerPhotoKey((await this.resellerRows.findById(dto.customerId))?.photoUrl);
+    if (key) await this.storage.remove(key);
     return this.pdp.anonymise(dto.customerId);
   }
 

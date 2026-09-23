@@ -171,6 +171,13 @@ describe('PaymentService', () => {
 
     // Same fail-closed rule as settling: an order whose depot cannot be read is not
     // readable by a depot-scoped caller either.
+    // PAY-1: the staff read behind the proof link carries the same depot rule.
+    it('refuses a payment to a depot head of another depot', async () => {
+      const p = await paymentAtDepotB();
+      await expect(service.getForStaff(p.id, outsider)).rejects.toThrow(/depot/i);
+      await expect(service.getForStaff(p.id, insider)).resolves.toMatchObject({ id: p.id });
+    });
+
     it('refuses the history when the order depot cannot be read', async () => {
       const p = await paymentAtDepotB();
       orders.orderDepots.clear();

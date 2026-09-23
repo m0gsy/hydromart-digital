@@ -48,7 +48,11 @@ function makeService(): jest.Mocked<
 }
 
 const importsMock = { importResellers: jest.fn() };
-const storageMock = { put: jest.fn() };
+const storageMock = {
+  put: jest.fn(),
+  remove: jest.fn().mockResolvedValue(undefined),
+  signedUrl: jest.fn(async (key: string) => `https://signed/${key}?X-Amz-Expires=900`),
+};
 
 function controllerWith(svc: ReturnType<typeof makeService>): ResellerController {
   return new ResellerController(
@@ -76,6 +80,28 @@ const registerDto: RegisterResellerDto = {
 };
 
 describe('ResellerController', () => {
+  /*
+   * XCUT-1: every row leaves with a link that expires in place of the stored identifier;
+   * a value with no key (typed before uploads existed) is left as it is.
+   */
+  it('signs the photo on every read and write, and leaves unrecognised values alone', async () => {
+    const svc = makeService();
+    const stored = { ...row, photoUrl: 'https://b/x/resellers/ktp.jpg' };
+    svc.list.mockResolvedValue([{ ...stored, customerName: 'Budi' }, { ...row, customerName: 'Sri' }]);
+    svc.get.mockResolvedValue(stored);
+    svc.register.mockResolvedValue(stored);
+    svc.update.mockResolvedValue({ ...stored, photoUrl: 'hand-typed' });
+    const signed = 'https://signed/resellers/ktp.jpg?X-Amz-Expires=900';
+    const ctl = controllerWith(svc);
+
+    const listed = await ctl.list(user, {});
+    expect(listed.map((r) => r.photoUrl)).toEqual([signed, null]);
+    expect((await ctl.get(user, 'c1')).photoUrl).toBe(signed);
+    expect((await ctl.register(user, registerDto)).photoUrl).toBe(signed);
+    expect((await ctl.update(user, 'c1', {})).photoUrl).toBe('hand-typed');
+    expect(storageMock.signedUrl).toHaveBeenCalledWith('resellers/ktp.jpg', 900);
+  });
+
   it('list delegates to the service with the depot/active filter', async () => {
     const svc = makeService();
     const view = { ...row, customerName: 'Budi' };
@@ -131,14 +157,39 @@ describe('ResellerController', () => {
 
   // SOP §7: the agen's registration photo, on the existing storage path.
   describe('uploadPhoto', () => {
-    beforeEach(() => storageMock.put.mockReset());
+    beforeEach(() => {
+      storageMock.put.mockReset();
+      storageMock.remove.mockClear();
+    });
+
+    // CUS-1: the photo a new upload replaces is deleted; a refused delete is only logged.
+    it('deletes the photo it replaces, and survives a refused delete', async () => {
+      const svc = makeService();
+      svc.get.mockResolvedValue({ ...row, photoUrl: 'https://cdn/resellers/old.png' });
+      svc.update.mockResolvedValue({ ...row, photoUrl: 'https://cdn/resellers/new.png' });
+      storageMock.put.mockResolvedValue({ url: 'https://cdn/resellers/new.png', key: 'k' });
+      await controllerWith(svc).uploadPhoto(user, 'c1', upload());
+      expect(storageMock.remove).toHaveBeenCalledWith('resellers/old.png');
+
+      storageMock.remove.mockRejectedValueOnce(new Error('denied'));
+      await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).resolves.toMatchObject({
+        photoUrl: 'https://signed/resellers/new.png?X-Amz-Expires=900',
+      });
+
+      storageMock.remove.mockClear();
+      svc.get.mockResolvedValue({ ...row, photoUrl: 'https://cdn/resellers/new.png' });
+      await controllerWith(svc).uploadPhoto(user, 'c1', upload());
+      expect(storageMock.remove).not.toHaveBeenCalled();
+    });
 
     it('stores the file and records the URL on the reseller', async () => {
       const svc = makeService();
       storageMock.put.mockResolvedValue({ url: 'https://cdn/resellers/a.png', key: 'x' });
+      svc.get.mockResolvedValue(row);
       svc.update.mockResolvedValue({ ...row, photoUrl: 'https://cdn/resellers/a.png' });
+      // The stored identifier goes to the record; the response carries a link that expires.
       await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).resolves.toMatchObject({
-        photoUrl: 'https://cdn/resellers/a.png',
+        photoUrl: 'https://signed/resellers/a.png?X-Amz-Expires=900',
       });
       // The content type comes from the BYTES, not from what the client declared.
       expect(storageMock.put).toHaveBeenCalledWith({
@@ -191,6 +242,7 @@ describe('ResellerController', () => {
     it('maps an unknown reseller to 404 and rethrows anything else', async () => {
       const svc = makeService();
       storageMock.put.mockResolvedValue({ url: 'https://cdn/x.png', key: 'x' });
+      svc.get.mockResolvedValue(row);
       svc.update.mockRejectedValueOnce(new ResellerNotFoundError());
       await expect(controllerWith(svc).uploadPhoto(user, 'c1', upload())).rejects.toBeInstanceOf(
         NotFoundException,

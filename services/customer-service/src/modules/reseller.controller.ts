@@ -30,7 +30,7 @@ import {
 } from '@hydromart/platform';
 
 import { CUSTOMER_TOKENS } from '../application/tokens';
-import { StoragePort } from '../application/ports/storage.port';
+import { StoragePort, resellerPhotoKey } from '../application/ports/storage.port';
 
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { ResellerService, ResellerView } from '../application/services/reseller.service';
@@ -57,6 +57,9 @@ interface UploadedImage {
   originalname: string;
 }
 
+/** XCUT-1: long enough to open the registry screen, short enough not to outlive it. */
+const PHOTO_LINK_TTL_SECONDS = 15 * 60;
+
 @ApiTags('Resellers')
 @ApiBearerAuth()
 @Can('resellerView')
@@ -70,14 +73,27 @@ export class ResellerController {
     @Inject(CUSTOMER_TOKENS.Storage) private readonly storage: StoragePort,
   ) {}
 
+  /**
+   * XCUT-1: the photo — often a KTP — leaves as a link that expires, never as the stored
+   * identifier. Signed inline because the registry screen shows a thumbnail per row, and
+   * presigning is local CPU work, not a round trip. A value with no key (typed by hand
+   * before uploads existed) goes out as it is.
+   */
+  private async withPhotoLink<T extends { photoUrl: string | null }>(row: T): Promise<T> {
+    const key = resellerPhotoKey(row.photoUrl);
+    if (!key) return row;
+    return { ...row, photoUrl: await this.storage.signedUrl(key, PHOTO_LINK_TTL_SECONDS) };
+  }
+
   @ApiOkResponse({ type: ResellerResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List resellers (optionally by depot / active)' })
-  list(
+  async list(
     @CurrentUser() user: AuthenticatedUser,
     @Query() q: ListResellerQueryDto,
   ): Promise<ResellerView[]> {
-    return this.resellers.list(user, { homeDepotId: q.depotId, active: q.active });
+    const rows = await this.resellers.list(user, { homeDepotId: q.depotId, active: q.active });
+    return Promise.all(rows.map((r) => this.withPhotoLink(r)));
   }
 
   @Get(':customerId')
@@ -87,7 +103,7 @@ export class ResellerController {
     @Param('customerId', ParseUUIDPipe) customerId: string,
   ) {
     try {
-      return await this.resellers.get(user, customerId);
+      return await this.withPhotoLink(await this.resellers.get(user, customerId));
     } catch (e) {
       if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
       throw e;
@@ -110,7 +126,7 @@ export class ResellerController {
   @ApiOperation({ summary: 'Register an existing customer as a reseller' })
   async register(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegisterResellerDto) {
     try {
-      return await this.resellers.register(user, {
+      const created = await this.resellers.register(user, {
         customerId: dto.customerId,
         homeDepotId: dto.homeDepotId,
         monthlyTargetQty: dto.monthlyTargetQty,
@@ -119,6 +135,7 @@ export class ResellerController {
         joinDate: new Date(dto.joinDate),
         note: dto.note,
       });
+      return await this.withPhotoLink(created);
     } catch (e) {
       if (e instanceof ResellerExistsError) throw new ConflictException(e.message);
       throw e;
@@ -168,7 +185,18 @@ export class ResellerController {
       );
     }
     try {
-      return await this.resellers.update(user, customerId, { photoUrl: url });
+      const previous = (await this.resellers.get(user, customerId)).photoUrl;
+      const saved = await this.resellers.update(user, customerId, { photoUrl: url });
+      // CUS-1: the photo this replaces is somebody's KTP with nothing pointing at it.
+      const oldKey = previous !== url ? resellerPhotoKey(previous) : null;
+      if (oldKey) {
+        await this.storage
+          .remove(oldKey)
+          .catch((error: Error) =>
+            this.logger.error(`Old agen photo ${oldKey} left behind: ${error.message}`),
+          );
+      }
+      return await this.withPhotoLink(saved);
     } catch (e) {
       if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
       throw e;
@@ -192,11 +220,13 @@ export class ResellerController {
   ) {
     const { effectiveAt, ...patch } = dto;
     try {
-      return await this.resellers.update(
-        user,
-        customerId,
-        patch,
-        effectiveAt ? new Date(effectiveAt) : undefined,
+      return await this.withPhotoLink(
+        await this.resellers.update(
+          user,
+          customerId,
+          patch,
+          effectiveAt ? new Date(effectiveAt) : undefined,
+        ),
       );
     } catch (e) {
       if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);

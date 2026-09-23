@@ -90,6 +90,9 @@ class FakeEmployees implements EmployeeRepository {
   async anonymiseRetentionEligible(): Promise<number> {
     return 0;
   }
+  async photoValuesFor(): Promise<string[]> {
+    return [];
+  }
   async purgeFaceEmbeddings(): Promise<number> {
     return 0;
   }
