@@ -169,6 +169,14 @@ describe('FaceService biometric consent (HR-3)', () => {
     expect(employees.consents).toEqual([{ id: 'e1', consent: null }]);
   });
 
+  // A deployment with no storage adapter configured still has to withdraw: the template is
+  // what makes a face usable, and it is gone either way.
+  it('withdraws with no storage adapter configured', async () => {
+    const { svc, employees } = make([1, 0, 0]);
+    await expect(svc.withdrawConsent({ id: 'e1' })).resolves.toEqual({ deleted: 1 });
+    expect(employees.consents).toEqual([{ id: 'e1', consent: null }]);
+  });
+
   it('resolves the subject of a withdrawal: by id for HR, own record for self', async () => {
     const { svc } = make([1, 0, 0]);
     await expect(svc.employeeFor(user, 'e1')).resolves.toMatchObject({ id: 'e1' });

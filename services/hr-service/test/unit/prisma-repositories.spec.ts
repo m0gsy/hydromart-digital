@@ -2045,6 +2045,24 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     expect(p.$transaction).not.toHaveBeenCalled();
   });
 
+  // HR-3: consent is written as a row, and withdrawing puts all three columns back to
+  // "never asked" — which is what the absence of consent means here.
+  it('records and withdraws biometric consent', async () => {
+    const p = makePrisma();
+    const repo = new EmployeePrismaRepository(p as never);
+    await repo.setFaceConsent('e1', { by: 'u1', source: 'HR_DESK' });
+    const written = m(p, 'employee').update.mock.calls[0][0].data;
+    expect(written.faceConsentAt).toBeInstanceOf(Date);
+    expect(written).toMatchObject({ faceConsentBy: 'u1', faceConsentSource: 'HR_DESK' });
+
+    await repo.setFaceConsent('e1', null);
+    expect(m(p, 'employee').update.mock.calls[1][0].data).toEqual({
+      faceConsentAt: null,
+      faceConsentBy: null,
+      faceConsentSource: null,
+    });
+  });
+
   it('purges biometrics through the employee relation, on their own window', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').deleteMany.mockResolvedValue({ count: 4 });

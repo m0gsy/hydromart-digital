@@ -9,6 +9,7 @@ import { EmployeeAllowances } from '@/components/hr/employee-allowances';
 import { EmployeeAssets } from '@/components/hr/employee-assets';
 import { EmployeeDocuments } from '@/components/hr/employee-documents';
 import { EmployeeLoans } from '@/components/hr/employee-loans';
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import {
   Badge,
@@ -57,6 +58,7 @@ export default function EmployeeDetailPage() {
   const id = useQueryParam('id');
   const { customer } = useAuth();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const isAdmin = canManageHr(customer?.role);
 
   const emp = useAsync<Employee>(() => api.get<Employee>(endpoints.hr.employee(id), true), [id]);
@@ -88,7 +90,12 @@ export default function EmployeeDetailPage() {
   }
 
   async function deleteFace() {
-    if (!window.confirm(t('hrFix.employeeDetailExtra.faceDeleteConfirm'))) return;
+    const ok = await confirm({
+      title: t('hrFix.employeeDetailExtra.faceDelete'),
+      message: t('hrFix.employeeDetailExtra.faceDeleteConfirm'),
+      tone: 'danger',
+    });
+    if (!ok) return;
     setEnrolling(true);
     try {
       await api.del(endpoints.hr.faceData(id), true);

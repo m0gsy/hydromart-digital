@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
 import { FaceCapture } from '@/components/hr/face-capture';
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { Button, Card, SectionHeader } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -12,6 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 export default function MeEnrollPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [frames, setFrames] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -34,7 +36,12 @@ export default function MeEnrollPage() {
   }
 
   async function withdraw() {
-    if (!window.confirm(t('hrFix.enroll.withdrawConfirm'))) return;
+    const ok = await confirm({
+      title: t('hrFix.enroll.withdraw'),
+      message: t('hrFix.enroll.withdrawConfirm'),
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.del(endpoints.hr.faceDataMe, true);
