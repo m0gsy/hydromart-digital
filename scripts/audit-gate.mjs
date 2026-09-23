@@ -61,6 +61,14 @@ const ALLOWLIST = {
   // because onnxruntime-node pins the range itself.
   'GHSA-vwc7-r8mq-g2x9': 'adm-zip symlink overwrite — onnxruntime (inactive onnx driver), not prod path',
 
+  // adm-zip, the THIRD advisory on that same path (2026-09-23). Same driver, same
+  // reachability answer: onnxruntime-node is an optionalDependency loaded only by the
+  // on-device ONNX face driver, and production runs FACE_VERIFIER_DRIVER=neo. The
+  // `overrides` route was re-tested on this advisory before adding the line — npm still
+  // will not move it, because onnxruntime-node pins adm-zip's range itself, so the tree
+  // keeps 0.5.18 whether or not the override is present.
+  'GHSA-7q85-xj36-vmfc': 'adm-zip declared-size DoS — onnxruntime (inactive onnx driver), not prod path',
+
   // sharp libheif, the SECOND advisory on the path GHSA-f88m above already
   // documents: next's OPTIONAL image-optimization engine. No images.remotePatterns
   // is configured, so only local/bundled assets reach libvips/libheif; hr-service's
