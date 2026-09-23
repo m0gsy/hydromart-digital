@@ -64,6 +64,14 @@ export class LoyaltyConfigService {
     );
   }
 
+  /**
+   * LOY-2: the ceiling on a single manual correction, in points, either direction.
+   * Per-depot, because what counts as a routine goodwill top-up differs by depot size.
+   */
+  adjustMaxPoints(depotId: string | null): number {
+    return this.tunable('adjustMaxPoints', this.num('LOYALTY_ADJUST_MAX_POINTS'), depotId);
+  }
+
   /** Months a point remains valid after it is earned (BR-014). */
   pointExpiryMonths(depotId: string | null = null): number {
     return this.tunable('pointExpiryMonths', this.num('LOYALTY_POINT_EXPIRY_MONTHS'), depotId);

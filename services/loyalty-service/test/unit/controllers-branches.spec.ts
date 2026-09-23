@@ -155,8 +155,16 @@ describe('LoyaltyController (delegation)', () => {
   });
 
   it('adjust() forwards the signed delta', async () => {
-    await ctrl.adjust({ customerId: 'c', points: -50, reason: 'fix' } as never);
-    expect(loyalty.adjust).toHaveBeenCalledWith('c', -50, 'fix');
+    await ctrl.adjust({ customerId: 'c', points: -50, reason: 'fix' } as never, {
+      sub: 'hq-1',
+      role: 'SUPER_ADMIN',
+    } as never);
+    // LOY-1/LOY-2: head office carries no depot list, so it is neither fenced nor capped.
+    expect(loyalty.adjust).toHaveBeenCalledWith('c', -50, 'fix', {
+      id: 'hq-1',
+      capped: false,
+      depotIds: undefined,
+    });
   });
 
   it('reward() forwards the grant', async () => {

@@ -9,6 +9,7 @@ import {
   InvalidAdjustmentError,
   RewardOutOfStockError,
 } from '../../src/domain/errors';
+import { Prisma } from '../../prisma/generated/client';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 
@@ -61,6 +62,8 @@ describe('LoyaltyPrismaRepository', () => {
     findMany: jest.fn(),
     count: jest.fn(),
     update: jest.fn(),
+    // LOY-8: the expiry claim is conditional now, so it goes through updateMany + count.
+    updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   };
   const rewardRedemption = { aggregate: jest.fn() };
   // $transaction receives an array of already-built ops; resolve it as-is so the repo's
@@ -331,6 +334,8 @@ describe('LoyaltyPrismaRepository', () => {
         type: PointsTxnType.ADJUST,
         points: -50,
         reason: 'manual correction',
+        // LOY-2: a manual correction carries its actor; a system entry passes null.
+        createdBy: null,
       },
     });
     // A debit carries the balance floor in its WHERE; two of them cannot both pass.
@@ -355,6 +360,78 @@ describe('LoyaltyPrismaRepository', () => {
     expect(pointsTransaction.count).toHaveBeenCalledWith({ where: { customerId: 'cust-1' } });
   });
 
+  /*
+   * LOY-6/LOY-7. The reversal is its own write, not an `adjust`: keyed on the order so a
+   * retried void collides instead of debiting twice, flooring the balance instead of
+   * refusing when the points were already spent, and handing the lifetime back so a voided
+   * sale stops counting towards a tier.
+   */
+  it('reverses an order once: ledger row keyed on the order, balance and lifetime both given back', async () => {
+    loyaltyAccount.findUniqueOrThrow.mockResolvedValue(accountRow());
+    await repo.recordReversal({
+      accountId: 'acc-1',
+      customerId: 'cust-1',
+      orderId: 'ord-9',
+      points: 60,
+      reason: 'sale voided',
+    });
+    expect(pointsTransaction.create).toHaveBeenCalledWith({
+      data: {
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        type: PointsTxnType.ADJUST,
+        orderId: 'ord-9',
+        points: -60,
+        reason: 'sale voided',
+      },
+    });
+    const sql = $executeRaw.mock.calls.at(-1)![0].join('');
+    expect(sql).toContain('GREATEST(0, "pointsBalance" -');
+    expect(sql).toContain('GREATEST(0, "lifetimePoints" -');
+  });
+
+  it('treats a repeated void as a no-op and answers with the account as it stands', async () => {
+    loyaltyAccount.findUniqueOrThrow.mockResolvedValue(accountRow());
+    $transaction.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('duplicate', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    await expect(
+      repo.recordReversal({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        orderId: 'ord-9',
+        points: 60,
+        reason: 'sale voided',
+      }),
+    ).resolves.toMatchObject({ id: 'acc-1' });
+  });
+
+  // Anything that is NOT the idempotency collision is a real fault and must surface.
+  it('rethrows a write failure that is not the duplicate', async () => {
+    $transaction.mockRejectedValueOnce(new Error('connection lost'));
+    await expect(
+      repo.recordReversal({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        orderId: 'ord-9',
+        points: 60,
+        reason: 'sale voided',
+      }),
+    ).rejects.toThrow('connection lost');
+  });
+
+  // LOY-8: a lot with nothing left to take is still closed, or every sweep finds it again.
+  it('closes a lot without debiting', async () => {
+    await repo.markLotExpired('txn-1');
+    expect(pointsTransaction.updateMany).toHaveBeenCalledWith({
+      where: { id: 'txn-1', expired: false },
+      data: { expired: true },
+    });
+  });
+
   it('finds expirable EARN lots past their expiry', async () => {
     pointsTransaction.findMany.mockResolvedValue([txnRow()]);
     const now = new Date('2026-08-01');
@@ -371,15 +448,14 @@ describe('LoyaltyPrismaRepository', () => {
     pointsTransaction.update.mockReturnValue('mark' as never);
     pointsTransaction.create.mockReturnValue('expire-entry' as never);
     loyaltyAccount.update.mockReturnValue('debit' as never);
-    await repo.recordExpiry({
-      lotId: 'txn-1',
-      accountId: 'acc-1',
-      customerId: 'cust-1',
-      points: 100,
-    });
+    await expect(
+      repo.recordExpiry({ lotId: 'txn-1', accountId: 'acc-1', customerId: 'cust-1', points: 100 }),
+    ).resolves.toBe(true);
     expect($transaction).toHaveBeenCalledTimes(1);
-    expect(pointsTransaction.update).toHaveBeenCalledWith({
-      where: { id: 'txn-1' },
+    // LOY-8: the lot is CLAIMED first, conditionally. An unconditional `update` by id let
+    // two overlapping sweeps both write an EXPIRE row for the same lot and debit it twice.
+    expect(pointsTransaction.updateMany).toHaveBeenCalledWith({
+      where: { id: 'txn-1', expired: false },
       data: { expired: true },
     });
     expect(pointsTransaction.create).toHaveBeenCalledWith({
@@ -395,6 +471,17 @@ describe('LoyaltyPrismaRepository', () => {
     // instead of driving it negative — and it reads the balance at write time, not before.
     expect($executeRaw.mock.calls[0][0].join('')).toContain('GREATEST(0, "pointsBalance" -');
     expect($executeRaw.mock.calls[0].slice(1)).toEqual([100, 'acc-1']);
+  });
+
+  // LOY-8: a lot another sweep already took is not debited a second time, and the caller
+  // is told so rather than counting it.
+  it('reports a lot already claimed by another sweep, writing nothing', async () => {
+    pointsTransaction.updateMany.mockResolvedValueOnce({ count: 0 });
+    const before = $transaction.mock.calls.length;
+    await expect(
+      repo.recordExpiry({ lotId: 'txn-1', accountId: 'acc-1', customerId: 'cust-1', points: 100 }),
+    ).resolves.toBe(false);
+    expect($transaction.mock.calls).toHaveLength(before);
   });
 });
 

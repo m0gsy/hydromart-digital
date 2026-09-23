@@ -39,6 +39,26 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1000000,
     envDefault: 1000,
   },
+  /*
+   * LOY-2: the most points one manual correction may move, in either direction.
+   *
+   * `adjust` was unbounded: a depot MANAGER could mint any number of points onto any
+   * account, and points are money — they buy gallons at the counter. A ceiling makes the
+   * routine correction (a mis-scanned order, a goodwill top-up) ordinary and the large one
+   * a conversation with head office, which is where a number that size belongs.
+   *
+   * 1.000 poin at the default earn rate is a Rp1.000.000 purchase: far above any mis-scan,
+   * far below anything worth minting quietly. Head office can raise it per depot.
+   */
+  {
+    key: 'adjustMaxPoints',
+    label: 'Batas koreksi poin manual',
+    type: 'int',
+    unit: 'poin',
+    min: 1,
+    max: 1000000,
+    envDefault: 1000,
+  },
   // PAR-01. The expiry sweep's own switch, and it ships OFF.
   //
   // BR-014 has been implemented and unreachable since it was written: `runExpiry` exists,

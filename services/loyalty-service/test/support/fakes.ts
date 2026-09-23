@@ -13,6 +13,7 @@ import {
   AccountMutation,
   EarnMutation,
   ExpiryMutation,
+  ReversalMutation,
   LoyaltyAccountRecord,
   LoyaltyRepository,
   PointsTransactionRecord,
@@ -173,8 +174,37 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
       .map((t) => ({ ...t }));
   }
 
-  async recordExpiry(m: ExpiryMutation): Promise<void> {
+  /** LOY-6/LOY-7: one reversal per order, balance floored, lifetime handed back. */
+  async recordReversal(m: ReversalMutation): Promise<LoyaltyAccountRecord> {
+    const acc = this.accounts.find((x) => x.id === m.accountId)!;
+    const already = this.txns.some((t) => t.orderId === m.orderId && t.type === PointsTxnType.ADJUST);
+    if (already) return { ...acc };
+    this.txns.push({
+      id: randomUUID(),
+      customerId: m.customerId,
+      type: PointsTxnType.ADJUST,
+      points: -m.points,
+      orderId: m.orderId,
+      reason: m.reason,
+      expiresAt: null,
+      expired: false,
+      createdAt: nextDate(),
+    });
+    acc.pointsBalance = Math.max(0, acc.pointsBalance - m.points);
+    acc.lifetimePoints = Math.max(0, acc.lifetimePoints - m.points);
+    acc.updatedAt = nextDate();
+    return { ...acc };
+  }
+
+  async markLotExpired(lotId: string): Promise<void> {
+    const lot = this.txns.find((t) => t.id === lotId);
+    if (lot) lot.expired = true;
+  }
+
+  /** LOY-8: the claim is conditional — a lot another sweep already took returns false. */
+  async recordExpiry(m: ExpiryMutation): Promise<boolean> {
     const lot = this.txns.find((t) => t.id === m.lotId)!;
+    if (lot.expired) return false;
     lot.expired = true;
     this.txns.push({
       id: randomUUID(),
@@ -190,6 +220,7 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     const acc = this.accounts.find((x) => x.id === m.accountId)!;
     acc.pointsBalance = Math.max(0, acc.pointsBalance - m.points);
     acc.updatedAt = nextDate();
+    return true;
   }
 }
 
@@ -414,6 +445,8 @@ function withCache(cache: SettingsCache, overrides: Record<string, string>): Loy
     RATE_LIMIT_MAX: '100',
     LOYALTY_EARN_RATE_RUPIAH: '1000',
     LOYALTY_POINT_EXPIRY_MONTHS: '12',
+    // LOY-2: ceiling on one manual correction; mirrors env.validation's default.
+    LOYALTY_ADJUST_MAX_POINTS: '1000',
     // PAR-01: '0', mirroring production. A test env that silently enables a switch the
     // release ships disabled would prove the sweep works in a configuration nobody runs.
     // The expiry tests turn it on explicitly, which is also what documents the switch.
