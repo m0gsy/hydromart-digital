@@ -133,9 +133,14 @@ describe('Loyalty HTTP flows (e2e)', () => {
       .send({ customerId, orderId: randomUUID(), subtotal: 60000 })
       .expect(201);
 
-    const res = await request(server())
+    // LOY-4: a MANAGER responsible for no depot cannot read a stranger's standing.
+    await request(server())
       .get(`/api/v1/loyalty/customers/${customerId}`)
       .set(auth(managerToken))
+      .expect(403);
+    const res = await request(server())
+      .get(`/api/v1/loyalty/customers/${customerId}`)
+      .set(auth(superToken))
       .expect(200);
     expect(res.body).toMatchObject({ pointsBalance: 60, lifetimePoints: 60 });
   });

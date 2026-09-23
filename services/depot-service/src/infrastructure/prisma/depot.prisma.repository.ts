@@ -55,8 +55,12 @@ export class DepotPrismaRepository implements DepotRepository {
     };
   }
 
-  private whereFor(query: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly'>) {
+  private whereFor(
+    query: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly' | 'depotIds' | 'ownerId'>,
+  ) {
     return {
+      ...(query.depotIds ? { id: { in: [...query.depotIds] } } : {}),
+      ...(query.ownerId ? { ownerId: query.ownerId } : {}),
       ...(query.activeOnly ? { active: true } : {}),
       ...(query.ownershipType ? { ownershipType: query.ownershipType } : {}),
       ...(query.search

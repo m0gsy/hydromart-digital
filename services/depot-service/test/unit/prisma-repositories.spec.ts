@@ -378,6 +378,16 @@ describe('DepotPrismaRepository', () => {
     });
   });
 
+  // DPT-1: the scope a controller resolved reaches the query, not just the response.
+  it('searches narrowed to a depot set and to an owner', async () => {
+    model.findMany.mockResolvedValue([]);
+    model.count.mockResolvedValue(0);
+    await repo.search({ page: 1, limit: 5, depotIds: ['d1', 'd2'] } as never);
+    expect(model.count).toHaveBeenLastCalledWith({ where: { id: { in: ['d1', 'd2'] } } });
+    await repo.search({ page: 1, limit: 5, ownerId: 'o1' } as never);
+    expect(model.count).toHaveBeenLastCalledWith({ where: { ownerId: 'o1' } });
+  });
+
   it('maps a null minOrderAmount to null', async () => {
     model.findFirst.mockResolvedValue({ ...row, minOrderAmount: null });
     const out = await repo.findById('depot-1', false);

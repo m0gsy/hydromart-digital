@@ -361,7 +361,11 @@ export interface DeliveryRepository {
    * depotId are excluded (unattributable). Powers the HQ network roll-up
    * (dashboard-service) — one row per depot that has ≥1 delivered order.
    */
-  slaStatsByDepot(range: ReportRange, thresholdMinutes: number): Promise<DepotSlaStats[]>;
+  slaStatsByDepot(
+    range: ReportRange,
+    thresholdMinutes: number,
+    depotIds?: readonly string[],
+  ): Promise<DepotSlaStats[]>;
   /**
    * J8. Deliveries still on the road (ASSIGNED/PICKED_UP/ON_DELIVERY) that were assigned
    * before `assignedBefore` and have not had their breach reported yet.

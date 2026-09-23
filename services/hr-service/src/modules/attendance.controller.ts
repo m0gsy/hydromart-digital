@@ -4,6 +4,8 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -11,11 +13,24 @@ import {
   Query,
   Res,
   StreamableFile,
+  UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { AttendanceService, FacePunch } from '../application/services/attendance.service';
 import {
@@ -33,6 +48,8 @@ import {
   ListSelf3ResponseDto,
 } from './dto/responses.generated.dto';
 import { AttendanceAdjustmentRecord } from '../application/ports/attendance.repository';
+import { RetentionReportDto } from './dto/employee.dto';
+import { PurgeAttendancePhotosResponseDto } from './dto/attendance.dto';
 
 @ApiTags('HR Attendance')
 @ApiBearerAuth()
@@ -159,4 +176,21 @@ export class AttendanceController {
       capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : null,
     };
   }
+
+  /**
+   * HR-4: the retention sweep admin-service drives, same internal-key shape as the employee
+   * retention routes. Deletes the stored selfie and clears the column; the attendance row,
+   * its hours and its match score stay — they are payroll evidence, the face is not.
+   */
+  @ApiOkResponse({ type: PurgeAttendancePhotosResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/retention-photos')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete attendance selfies older than the cutoff (internal)' })
+  purgePhotos(@Body() dto: RetentionReportDto): Promise<{ purged: number }> {
+    return this.attendance.purgePhotosOlderThan(new Date(dto.cutoff));
+  }
 }
+

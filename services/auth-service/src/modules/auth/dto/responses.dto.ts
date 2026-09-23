@@ -168,3 +168,9 @@ export class MessageResponseDto {
   @ApiProperty({ example: 'Signed out.' })
   message!: string;
 }
+
+/** AUTH-1: the caller's avatar as a link that expires; null when there is none. */
+export class AvatarLinkResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  avatarUrl!: string | null;
+}

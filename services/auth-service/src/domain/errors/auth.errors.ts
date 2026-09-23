@@ -1,3 +1,5 @@
+import { grantorsFor } from '@hydromart/access';
+
 import { DomainError } from './domain-error';
 
 /** Standard HTTP status codes referenced by domain errors (PRD §21). */
@@ -68,14 +70,17 @@ export class StaffDepotRequiredError extends DomainError {
 }
 
 /**
- * AUTHZ-1: a caller tried to grant a role only a SUPER_ADMIN may hand out. 403 and not 400:
+ * AUTHZ-1: a caller tried to grant a restricted role it may not hand out. 403 and not 400:
  * the request is well formed, the caller is simply not entitled to the role they asked for.
+ *
+ * The sentence names who MAY grant it, read from the same map the rule uses — it said
+ * "only SUPER_ADMIN" for every role, and since CORE-1 HR may also promote to MANAGER.
  */
 export class RoleEscalationError extends DomainError {
   readonly code = 'AUTH_ROLE_ESCALATION';
   readonly status = HTTP.FORBIDDEN;
   constructor(role: string) {
-    super(`Hanya SUPER_ADMIN yang boleh memberikan peran ${role}.`);
+    super(`Peran ${role} hanya boleh diberikan oleh ${grantorsFor(role).join(' atau ')}.`);
   }
 }
 

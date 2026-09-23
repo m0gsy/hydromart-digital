@@ -46,6 +46,15 @@ export interface EmployeeRepository {
    * leak, and its only purpose — clocking someone in — ends when they leave.
    */
   purgeFaceEmbeddings(cutoff: Date): Promise<number>;
+  /**
+   * HR-1: the stored photo values the matching scrub is about to delete — face source photos,
+   * attendance frames and (unless `facesOnly`) the profile photo. Read BEFORE the scrub: the
+   * rows are the only record of which objects exist, and once they are gone nothing can find
+   * a face in the bucket again.
+   */
+  photoValuesFor(
+    scope: { authSubjectId: string } | { departedBefore: Date; facesOnly?: boolean },
+  ): Promise<string[]>;
   list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }>;
   findById(id: string): Promise<Employee | null>;
   /** Resolve by the human-facing staff code — what a spreadsheet carries instead of a UUID. */

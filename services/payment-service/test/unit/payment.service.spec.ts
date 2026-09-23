@@ -171,10 +171,37 @@ describe('PaymentService', () => {
 
     // Same fail-closed rule as settling: an order whose depot cannot be read is not
     // readable by a depot-scoped caller either.
+    // PAY-1: the staff read behind the proof link carries the same depot rule.
+    it('refuses a payment to a depot head of another depot', async () => {
+      const p = await paymentAtDepotB();
+      await expect(service.getForStaff(p.id, outsider)).rejects.toThrow(/depot/i);
+      await expect(service.getForStaff(p.id, insider)).resolves.toMatchObject({ id: p.id });
+    });
+
     it('refuses the history when the order depot cannot be read', async () => {
       const p = await paymentAtDepotB();
       orders.orderDepots.clear();
       await expect(service.listForOrderAs(p.orderId, insider)).rejects.toThrow(/depot/i);
+    });
+
+    /*
+     * PAY-2 + PAY-3: the two BATCH reads. Both took the id set on trust, so a kepala depot
+     * posting another depot's order ids read that depot's payments and cash totals. One
+     * foreign or unreadable order refuses the whole batch.
+     */
+    it("refuses batch payment and cash reads that include another depot's order", async () => {
+      const p = await paymentAtDepotB();
+      await expect(service.listForOrders([p.orderId], outsider)).rejects.toThrow(/depot/i);
+      await expect(service.cashCollected([p.orderId], outsider)).rejects.toThrow(/depot/i);
+      await expect(service.listForOrders([p.orderId], insider)).resolves.toHaveLength(1);
+      await expect(service.cashCollected([p.orderId], insider)).resolves.toMatchObject({
+        count: 0,
+      });
+      const unknown = randomUUID();
+      await expect(service.listForOrders([p.orderId, unknown], insider)).rejects.toThrow(/depot/i);
+      // Unscoped callers (finance, the internal key) are untouched.
+      await expect(service.listForOrders([p.orderId, unknown])).resolves.toHaveLength(1);
+      await expect(service.listForOrders([], insider)).resolves.toEqual([]);
     });
   });
 

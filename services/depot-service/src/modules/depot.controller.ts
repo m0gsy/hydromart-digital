@@ -196,13 +196,25 @@ export class DepotController {
   // console admits — every one of them 403'd. On /hq/reconciliation that is a hard
   // `ErrorState`, so the whole page died. Creating, editing and deactivating a depot below
   // are still `depotAdmin`.
+  //
+  // DPT-1: this is the FULL record — bank account and QRIS — and `depotDirectory` also
+  // admits KEPALA_DEPOT, MANAGER and FRANCHISE_OWNER. DepotScopeGuard only checks a depot
+  // the request names and this route names none, so each of them read every depot's
+  // payment destination. Cut to the caller's own set here, the same rule `scope` uses.
   @ApiOkResponse({ type: PagedDepotResponseDto })
   @ApiBearerAuth()
   @Can('depotDirectory')
   @Get('manage')
-  @ApiOperation({ summary: 'List all depots incl. inactive (admin)' })
-  manage(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
-    return this.depots.browse(query, false);
+  @ApiOperation({ summary: 'List depots incl. inactive, within the caller scope (admin)' })
+  manage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: BrowseDepotsQueryDto,
+  ): Promise<Page<DepotRecord>> {
+    if (user.role === Role.FRANCHISE_OWNER) {
+      return this.depots.browse({ ...query, ownerId: user.sub }, false);
+    }
+    const depotIds = depotScopeIds(user);
+    return this.depots.browse(depotIds ? { ...query, depotIds } : query, false);
   }
 
   /**

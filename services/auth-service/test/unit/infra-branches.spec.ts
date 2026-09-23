@@ -82,6 +82,31 @@ describe('S3StorageAdapter', () => {
     expect(result.key).toMatch(/^avatars\/.+\.png$/);
     expect(result.url).toBe(`https://cdn.example/${result.key}`);
   });
+
+  // AUTH-1/AUTH-2: presigning is local (nothing is sent); delete is one DeleteObject.
+  it('signs without sending, and deletes by key', async () => {
+    const send = jest.spyOn(S3Client.prototype, 'send').mockResolvedValue({} as never);
+    const adapter = new S3StorageAdapter(
+      buildTestConfig({
+        STORAGE_S3_ENDPOINT: 'https://nos.example',
+        STORAGE_S3_BUCKET: 'avatars-bucket',
+        STORAGE_S3_ACCESS_KEY_ID: 'ak',
+        STORAGE_S3_SECRET_ACCESS_KEY: 'sk',
+        STORAGE_PUBLIC_BASE_URL: 'https://cdn.example/',
+      }),
+    );
+    const link = await adapter.signedUrl('avatars/a.png', 900);
+    expect(link).toContain('avatars/a.png');
+    expect(link).toContain('X-Amz-Expires=900');
+    expect(send).not.toHaveBeenCalled();
+
+    await adapter.remove('avatars/a.png');
+    expect(send).toHaveBeenCalledTimes(1);
+    expect((send.mock.calls[0][0] as { input: unknown }).input).toEqual({
+      Bucket: 'avatars-bucket',
+      Key: 'avatars/a.png',
+    });
+  });
 });
 
 describe('LocalDiskStorageAdapter', () => {
@@ -108,6 +133,18 @@ describe('LocalDiskStorageAdapter', () => {
     expect(writeFile).toHaveBeenCalled();
     expect(result.key).toMatch(/^avatars\/.+\.jpg$/);
     expect(result.url).toBe(`http://localhost:3001/uploads/${result.key}`);
+  });
+
+  it('hands back the dev link as the signed one, and removes idempotently', async () => {
+    const config = buildTestConfig({
+      STORAGE_LOCAL_DIR: './var/uploads-test-missing',
+      STORAGE_PUBLIC_BASE_URL: 'http://localhost:3001',
+    });
+    const adapter = new LocalDiskStorageAdapter(config);
+    await expect(adapter.signedUrl('avatars/a.png', 900)).resolves.toBe(
+      'http://localhost:3001/uploads/avatars/a.png',
+    );
+    await expect(adapter.remove('avatars/never-written.png')).resolves.toBeUndefined();
   });
 });
 

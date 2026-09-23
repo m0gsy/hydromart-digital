@@ -225,6 +225,22 @@ describe('OrderCoordinationHttpAdapter.getOrderNumbers', () => {
 // AUTHZ-2. Settling reads the ORDER's depot, because a payment row's own depotId is the
 // till of a counter sale and null for every delivery payment. Same batch endpoint as the
 // order numbers above — this adds an endpoint to nobody.
+describe('OrderCoordinationHttpAdapter.getOrderDepots', () => {
+  it('maps a batch of orders to their depots off the same values read', async () => {
+    fetchMock.mockResolvedValue(
+      res({
+        body: [
+          { orderId: 'o1', depotId: 'depot-1' },
+          { orderId: 'o2', depotId: null },
+        ],
+      }),
+    );
+    const out = await new OrderCoordinationHttpAdapter(makeConfig()).getOrderDepots(['o1', 'o2']);
+    expect([...out]).toEqual([['o1', 'depot-1']]);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://order:3002/api/v1/orders/internal/values');
+  });
+});
+
 describe('OrderCoordinationHttpAdapter.getOrderDepot', () => {
   it('reads the depot of exactly the order asked for', async () => {
     fetchMock.mockResolvedValue(

@@ -208,6 +208,23 @@ describe('ReferralService summary paging clamps', () => {
     expect(summary.referrals.limit).toBe(20);
   });
 
+  // REF-1: a depot-scoped read of a customer outside every one of the caller's depots.
+  it('refuses a scoped summary for a customer outside the caller depots', async () => {
+    const scoped = new ReferralService(
+      new InMemoryReferralRepository(),
+      new FakeLoyaltyReward(),
+      new FakeCustomerDirectory({ d1: ['cust-1'], d2: ['cust-2'] }),
+      buildTestConfig(),
+      new FakeOrderHistory(),
+    );
+    await expect(scoped.getCustomerSummary('cust-1', 1, 20, ['d2', 'd1'])).resolves.toMatchObject({
+      referrals: { page: 1 },
+    });
+    await expect(scoped.getCustomerSummary('cust-1', 1, 20, ['d2'])).rejects.toThrow(
+      'bukan pelanggan depot Anda',
+    );
+  });
+
   it('clamps page below 1 up to 1 and an over-max limit down to MAX_LIMIT', async () => {
     const summary = await svc().getCustomerSummary('cust-1', 0, 9999);
     expect(summary.referrals.page).toBe(1);

@@ -328,6 +328,13 @@ export class PaymentService {
     return this.listAll({ orderId, limit: 20 });
   }
 
+  /** PAY-1: one payment for a staff caller, refused outside the caller's depots. */
+  async getForStaff(id: string, user: AuthenticatedUser): Promise<PaymentRecord> {
+    const payment = await this.getAny(id);
+    await this.assertOrderDepotAccess(user, payment.orderId, payment.depotId);
+    return payment;
+  }
+
   async getAny(id: string): Promise<PaymentRecord> {
     const payment = await this.payments.findById(id);
     if (!payment) {
@@ -383,8 +390,28 @@ export class PaymentService {
    * DTO caps the set, and this is the only place that decides what "the same order twice"
    * means.
    */
-  async listForOrders(orderIds: string[]): Promise<PaymentRecord[]> {
-    return this.payments.findByOrderIds([...new Set(orderIds)]);
+  async listForOrders(orderIds: string[], user?: AuthenticatedUser): Promise<PaymentRecord[]> {
+    const unique = [...new Set(orderIds)];
+    await this.assertOrdersInScope(user, unique);
+    return this.payments.findByOrderIds(unique);
+  }
+
+  /**
+   * PAY-2/PAY-3: every order in the set must belong to one of the caller's depots.
+   *
+   * Both batch reads trusted the id set because "the console sends ids it already read
+   * under its own scope" — but the console is not the only thing that can send a body.
+   * `depotFinance`/`paymentSettle` reach depot-scoped roles, and DepotScopeGuard never sees
+   * an order id. One refused order refuses the batch: answering for the rest would tell
+   * the caller which ids were someone else's. Unscoped callers cost no lookup.
+   */
+  private async assertOrdersInScope(
+    user: AuthenticatedUser | undefined,
+    orderIds: string[],
+  ): Promise<void> {
+    if (!user || !isDepotScoped(user.role as PlatformRole) || orderIds.length === 0) return;
+    const depots = await this.orderCoordination.getOrderDepots(orderIds);
+    for (const id of orderIds) assertDepotAccess(user, depots.get(id));
   }
 
   /**
@@ -616,7 +643,9 @@ export class PaymentService {
    */
   async cashCollected(
     orderIds: string[],
+    user?: AuthenticatedUser,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
+    await this.assertOrdersInScope(user, [...new Set(orderIds)]);
     const byOrder = await this.payments.cashByOrder(orderIds);
     return {
       total: byOrder.reduce((s, r) => s + r.amountIdr, 0),

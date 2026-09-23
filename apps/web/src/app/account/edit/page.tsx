@@ -42,6 +42,14 @@ function EditProfileInner() {
     () => (customer ? api.get(endpoints.profile.me, true) : Promise.resolve(null)),
     [customer?.id],
   );
+  // AUTH-1: `customer.avatarUrl` is a stored identifier, not a link — the bucket is private.
+  const avatar = useAsync<{ avatarUrl: string | null }>(
+    () =>
+      customer?.avatarUrl
+        ? api.get(endpoints.auth.avatarLink, true)
+        : Promise.resolve({ avatarUrl: null }),
+    [customer?.avatarUrl],
+  );
   const [birthdate, setBirthdate] = useState<string | null>(null);
   const loaded = profile.data?.birthdate ?? null;
   useEffect(() => setBirthdate(loaded), [loaded]);
@@ -141,9 +149,9 @@ function EditProfileInner() {
       {/* Avatar picker */}
       <div className="flex flex-col items-center gap-2">
         <div className="relative">
-          {customer.avatarUrl ? (
+          {avatar.data?.avatarUrl ? (
             <RemoteImage
-              src={customer.avatarUrl}
+              src={avatar.data.avatarUrl}
               alt=""
               width={88}
               height={88}

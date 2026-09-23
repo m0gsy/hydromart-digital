@@ -613,31 +613,60 @@ export const HR_MANAGED_ROLES = [
 export type HrManagedRole = (typeof HR_MANAGED_ROLES)[number];
 
 /**
- * Roles that only a SUPER_ADMIN may hand out (AUTHZ-1).
+ * Who may grant each restricted role (AUTHZ-1, SEC-AUDIT CORE-1).
  *
  * `staffAdmin` — the power to invite staff — is held by HEAD_OFFICE as well, and the invite
  * write path refused exactly one role: CUSTOMER. So head office could invite its own phone
  * back as SUPER_ADMIN, which is a superuser holding every capability whether listed or not,
  * and nothing in the request was invalid enough for anything to log a refusal.
  *
- * DIREKTUR is on the list for the same reason and not because it outranks head office in
- * the org chart: it holds capabilities HEAD_OFFICE does not, so granting it is a way to
- * acquire them. Granting a role that is genuinely below you stays untouched.
+ * The rule is not rank. A role is restricted when it holds a capability head office does
+ * not, because granting it is a way to acquire that capability. DIREKTUR was the first
+ * case written down; FINANCE (`hqPayout`, `refundIssue`), HR (`hrPayroll`), MANAGER
+ * (`refundIssue`) and MARKETING are the same case, and leaving them out let head office mint
+ * itself a FINANCE account and release a franchise owner's balance to a bank reference it
+ * typed (XCUT-4). The spec derives the money half of this from the matrix, so a future edit
+ * that hands a grantable role such a capability fails there.
+ *
+ * MANAGER is the one role HR may also grant: a promotion up the supervision chain is
+ * ordinary HR work (see `HR_MANAGED_ROLES`), decided by the owner on 2026-09-11. Head office
+ * holds `hrAdmin` too, so hr-service has to name the human actor rather than stay anonymous
+ * — an anonymous internal call may grant no restricted role.
+ *
+ * A role absent from this map is unrestricted: any `staffAdmin` holder may grant it, and so
+ * may an internal route, because those are bounded by their own allowlists
+ * (`STAFF_IMPORT_ROLES`, `HR_MANAGED_ROLES`).
  */
-export const SUPER_ADMIN_GRANT_ONLY_ROLES = [
-  'SUPER_ADMIN',
-  'DIREKTUR',
-] as const satisfies readonly Role[];
+export const RESTRICTED_GRANTS: Partial<Record<Role, readonly Role[]>> = {
+  SUPER_ADMIN: ['SUPER_ADMIN'],
+  DIREKTUR: ['SUPER_ADMIN'],
+  FINANCE: ['SUPER_ADMIN'],
+  HR: ['SUPER_ADMIN'],
+  MARKETING: ['SUPER_ADMIN'],
+  MANAGER: ['SUPER_ADMIN', 'HR'],
+};
 
 /**
- * Whether `actorRole` may grant `targetRole`. An unknown actor (an internal service call
- * with no principal) is treated as not entitled — fail closed.
+ * Whether `actorRole` may grant `targetRole`.
+ *
+ * An unknown actor — an internal call that did not say who is asking — may grant an
+ * unrestricted role and no restricted one (SEC-AUDIT CORE-2: the old comment here promised
+ * "fail closed" for every role, and it only ever held for the restricted ones).
  */
 export function canGrantRole(actorRole: Role | string | undefined | null, targetRole: Role | string): boolean {
-  if (!(SUPER_ADMIN_GRANT_ONLY_ROLES as readonly string[]).includes(targetRole)) {
-    return true;
-  }
-  return actorRole === 'SUPER_ADMIN';
+  const grantors = (RESTRICTED_GRANTS as Record<string, readonly string[] | undefined>)[targetRole];
+  if (!grantors) return true;
+  return actorRole != null && grantors.includes(actorRole);
+}
+
+/**
+ * Who may grant `targetRole` — the sentence a refusal needs, read from the map the rule
+ * itself uses so the two cannot drift. An unrestricted role answers SUPER_ADMIN, who may
+ * grant anything; that case is not reachable from a refusal, which is why it lives here
+ * rather than as a fallback at each call site.
+ */
+export function grantorsFor(targetRole: Role | string): readonly string[] {
+  return (RESTRICTED_GRANTS as Record<string, readonly string[] | undefined>)[targetRole] ?? ['SUPER_ADMIN'];
 }
 
 /**

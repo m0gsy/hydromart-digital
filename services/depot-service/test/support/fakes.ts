@@ -161,8 +161,10 @@ export class InMemoryDepotRepository implements DepotRepository {
 
   private match(
     r: DepotRecord,
-    q: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly'>,
+    q: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly' | 'depotIds' | 'ownerId'>,
   ): boolean {
+    if (q.depotIds && !q.depotIds.includes(r.id)) return false;
+    if (q.ownerId && r.ownerId !== q.ownerId) return false;
     if (q.activeOnly && !r.active) return false;
     if (q.ownershipType && r.ownershipType !== q.ownershipType) return false;
     if (q.search) {

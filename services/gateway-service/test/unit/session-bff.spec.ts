@@ -343,7 +343,8 @@ describe('createSessionRouter — logout', () => {
     const res = await logout(makeApp(), `${AT_COOKIE}=AT-123; ${RT_COOKIE}=RT-456`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Signed out.' });
+    // GW-2: `revoked` is only true when auth-service actually revoked the session.
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: true });
     expect(fetchMock).toHaveBeenCalledWith(
       `${AUTH_BASE}/api/v1/auth/logout`,
       expect.objectContaining({ method: 'POST' }),
@@ -355,13 +356,50 @@ describe('createSessionRouter — logout', () => {
     const res = await logout(makeApp(), `${RT_COOKIE}=RT-456`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Signed out.' });
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: false });
+  });
+
+  it('reports revoked:false when auth-service refuses the revoke', async () => {
+    fetchMock.mockResolvedValue(jsonRes(401, { message: 'expired' }));
+    const res = await logout(makeApp(), `${RT_COOKIE}=RT-456`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: false });
   });
 
   it('skips the upstream call when there is no refresh token', async () => {
     const res = await logout(makeApp());
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Signed out.' });
+    expect(res.body).toEqual({ message: 'Signed out.', revoked: false });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * GW-4 (owner decision 2026-09-17): over TLS the session cookies carry browser-enforced
+ * prefixes, so a cookie set at a narrower Path cannot shadow them — and the reads look for
+ * the prefixed names, so a leftover `hm_at` from before the switch is simply not a session.
+ */
+describe('createSessionRouter — cookie prefixes over TLS', () => {
+  it('sets __Host-/__Secure- names and ignores an unprefixed impostor', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, SESSION));
+    const res = await request(makeApp(true))
+      .post('/auth/api/v1/auth/otp/verify')
+      .send({ otp: '000000' });
+
+    const cookies = (res.headers['set-cookie'] as unknown as string[]).join(String.fromCharCode(10));
+    expect(cookies).toContain('__Host-hm_at=AT-123');
+    expect(cookies).toContain('__Secure-hm_rt=RT-456');
+    expect(
+      cookies.split(String.fromCharCode(10)).some((c) => c.startsWith('hm_at=')),
+    ).toBe(false);
+
+    // A logout carrying only the OLD cookie names finds no session to revoke.
+    fetchMock.mockClear();
+    const out = await request(makeApp(true))
+      .post('/auth/api/v1/auth/logout')
+      .set('Cookie', `${AT_COOKIE}=AT-123; ${RT_COOKIE}=RT-456`);
+    expect(out.body).toEqual({ message: 'Signed out.', revoked: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+

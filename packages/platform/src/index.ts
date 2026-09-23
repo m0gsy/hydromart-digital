@@ -62,6 +62,7 @@ export {
   assertDepotAccess,
   assertDepotOwnership,
   depotScopeIds,
+  reportScopeIds,
   depotWhere,
   isDepotLocked,
   isDepotResolved,

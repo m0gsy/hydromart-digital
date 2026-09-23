@@ -6,6 +6,8 @@ import { Button, Card, Field, Input, LoadError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useAuth } from '@/lib/auth-context';
+import { grantableRoles } from '@/lib/roles';
 import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, Page } from '@/lib/types';
 
@@ -37,6 +39,8 @@ function today(): string {
 
 export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  const offered = grantableRoles(STAFF_ROLES, customer?.role);
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
@@ -135,7 +139,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">{t('hq.staff.form.role')}</span>
         <div className="flex flex-wrap gap-2">
-          {STAFF_ROLES.map((r) => (
+          {offered.map((r) => (
             <button
               key={r}
               type="button"

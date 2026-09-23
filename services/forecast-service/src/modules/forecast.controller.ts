@@ -79,6 +79,25 @@ export class ForecastController {
     }
   }
 
+  /**
+   * FCT-2: the depot a demand/sales forecast runs over. No `depotId` meant the network for
+   * everyone — including a kepala depot or manager, who then read the whole chain's revenue
+   * and demand forecast. DepotScopeGuard vets a NAMED depot; this answers for an unnamed
+   * one: the caller's only depot, or a refusal to guess between several. Unscoped roles
+   * keep the global forecast.
+   */
+  private async resolveForecastDepot(
+    user: AuthenticatedUser,
+    depotId: string | undefined,
+  ): Promise<string | undefined> {
+    await this.assertForecastDepot(user, depotId);
+    if (depotId) return depotId;
+    const scope = depotScopeIds(user);
+    if (!scope) return undefined;
+    if (scope.length === 1) return scope[0];
+    throw new ForbiddenException('Pilih satu depot untuk melihat forecast.');
+  }
+
   // `demand` (static) is declared before `depot/:depotId` (param); distinct prefixes make
   // the order safe regardless, but static-first is kept as the convention.
 
@@ -89,10 +108,10 @@ export class ForecastController {
     @Query() query: DemandQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<ForecastResult> {
-    await this.assertForecastDepot(user, query.depotId);
     return this.forecasts.demand({
       productId: query.productId,
-      depotId: query.depotId, // omitted -> undefined -> global (all depots)
+      // omitted -> undefined -> global (all depots), for an unscoped caller only
+      depotId: await this.resolveForecastDepot(user, query.depotId),
       historyDays: query.historyDays,
       horizonDays: query.horizonDays,
     });
@@ -122,9 +141,9 @@ export class ForecastController {
     @Query() query: SalesQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SalesForecast> {
-    await this.assertForecastDepot(user, query.depotId);
     return this.forecasts.salesForecast({
-      depotId: query.depotId, // omitted -> undefined -> global (all depots)
+      // omitted -> undefined -> global (all depots), for an unscoped caller only
+      depotId: await this.resolveForecastDepot(user, query.depotId),
       historyDays: query.historyDays,
       horizonDays: query.horizonDays,
     });

@@ -7,7 +7,14 @@ export interface StoragePutInput {
 }
 
 export interface StoragePutResult {
-  /** Publicly renderable URL (usable directly in <img src>). */
+  /**
+   * The object's stable identifier, `${STORAGE_PUBLIC_BASE_URL}/<key>`.
+   *
+   * PAY-1: it used to be a live link because the bucket served `payment-proof/*` to anyone —
+   * a photo of somebody's banking app, name, account number and balance. The bucket is
+   * private now (same recipe as delivery CA-4-49); the string stays what every row holds and
+   * nothing renders it. Reads go through `signedUrl`.
+   */
   url: string;
   /** Storage key, e.g. 'payment-proof/<uuid>.jpg'. */
   key: string;
@@ -27,6 +34,8 @@ export interface StoragePutResult {
  */
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
+  /** PAY-1: a time-limited GET link for one key. Minted per read, never stored. */
+  signedUrl(key: string, ttlSeconds: number): Promise<string>;
   /**
    * Delete one object by key. CA-3-07: the payment ROW is a financial record and stays for
    * ten years, but the photo attached to it is a picture of somebody's bank app — a name,

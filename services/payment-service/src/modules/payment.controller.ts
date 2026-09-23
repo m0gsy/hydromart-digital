@@ -71,6 +71,7 @@ import {
   StaffInitiatePaymentDto,
   UnsettledByMethodQueryDto,
   RefundRulesDto,
+  ProofLinkResponseDto,
 } from './dto/payment.dto';
 import {
   CashByOrderResponseDto,
@@ -94,6 +95,15 @@ import {
 
 /** A transfer receipt photographed on a phone. Same ceiling the PoD upload uses. */
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+
+/** PAY-1: long enough to open the receipt, short enough not to outlive the screen. */
+const PROOF_LINK_TTL_SECONDS = 15 * 60;
+
+/** Both adapters build `<base>[/uploads]/payment-proof/<uuid>.<ext>`; the key starts there. */
+export function proofKeyFromUrl(url: string): string | null {
+  const at = url.indexOf('payment-proof/');
+  return at === -1 ? null : url.slice(at);
+}
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -265,8 +275,11 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @Can('depotFinance')
   @ApiOperation({ summary: 'Payments recorded against a set of orders (depot reconciliation)' })
-  listForOrders(@Body() dto: PaymentsForOrdersDto): Promise<PaymentRecord[]> {
-    return this.payments.listForOrders(dto.orderIds);
+  listForOrders(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PaymentsForOrdersDto,
+  ): Promise<PaymentRecord[]> {
+    return this.payments.listForOrders(dto.orderIds, user);
   }
 
   /*
@@ -425,9 +438,10 @@ export class PaymentController {
     summary: 'PAID cash over a set of orders, total + per order (courier COD deposit)',
   })
   cashCollected(
+    @CurrentUser() user: AuthenticatedUser,
     @Query() query: CashCollectedQueryDto,
   ): Promise<CashCollectedSummary & { byOrder: OrderCashRow[] }> {
-    return this.payments.cashCollected(query.orderIds);
+    return this.payments.cashCollected(query.orderIds, user);
   }
 
   /*
@@ -503,7 +517,40 @@ export class PaymentController {
         'Penyimpanan bukti bayar sedang tidak tersedia. Coba lagi sebentar lagi.',
       );
     }
-    return this.payments.attachProof(user.sub, id, url);
+    const previous = (await this.payments.getForCustomer(user.sub, id)).proofUrl;
+    const updated = await this.payments.attachProof(user.sub, id, url);
+    // PAY-5: a replaced receipt is somebody's banking screen with nothing pointing at it.
+    // The row now names the new one, so the old object goes; a refusal from the bucket is
+    // logged rather than turning a successful upload into an error.
+    const oldKey = previous && previous !== url ? proofKeyFromUrl(previous) : null;
+    if (oldKey) {
+      await this.storage.remove(oldKey).catch((error: Error) =>
+        this.logger.error(`Old payment proof ${oldKey} left behind: ${error.message}`),
+      );
+    }
+    return updated;
+  }
+
+  /*
+   * PAY-1 — the receipt as a link that expires, for staff who may read this payment.
+   *
+   * Same shape as delivery's `proof-links` (CA-4-49) and for the same reasons: a signed URL
+   * on every payment read would be minted whether or not anyone looks, and a redirect would
+   * lose the session cookie across origins. Declared before ':id'-only routes resolve.
+   */
+  @ApiOkResponse({ type: ProofLinkResponseDto })
+  @Get(':id/proof-link')
+  @Can('paymentRead')
+  @ApiOperation({ summary: 'Time-limited link to the payment proof (staff)' })
+  async proofLink(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ proofUrl: string | null }> {
+    const payment = await this.payments.getForStaff(id, user);
+    const key = payment.proofUrl ? proofKeyFromUrl(payment.proofUrl) : null;
+    return {
+      proofUrl: key ? await this.storage.signedUrl(key, PROOF_LINK_TTL_SECONDS) : null,
+    };
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })

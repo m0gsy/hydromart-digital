@@ -19,6 +19,8 @@ auth: {
   updateProfile: '/auth/api/v1/auth/me',
   // Multipart avatar-photo upload (self); returns the updated customer.
   uploadAvatar: '/auth/api/v1/auth/me/avatar',
+  // AUTH-1: the avatar bucket is private; this answers a link that expires.
+  avatarLink: '/auth/api/v1/auth/me/avatar-link',
   // K1.4, the two halves of changing the login identity. `requestPhoneChange` sends a code
   // to the NEW number; `confirmPhoneChange` spends it and moves the account. The confirm
   // body carries only the code — the destination is read off the stored challenge, so a
