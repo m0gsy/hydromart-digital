@@ -51,4 +51,10 @@ export interface OrderCoordinationPort {
    * so the finance/HQ settlement path costs no extra round trip.
    */
   getOrderDepot(orderId: string): Promise<string | null>;
+  /**
+   * PAY-2/PAY-3: the depot of each order in a batch, in one round trip. Fails SOFT — an
+   * order that could not be read is simply absent — and the caller treats absent as
+   * "not yours", exactly like `getOrderDepot`'s null.
+   */
+  getOrderDepots(orderIds: string[]): Promise<Map<string, string>>;
 }

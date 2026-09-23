@@ -176,6 +176,26 @@ describe('PaymentService', () => {
       orders.orderDepots.clear();
       await expect(service.listForOrderAs(p.orderId, insider)).rejects.toThrow(/depot/i);
     });
+
+    /*
+     * PAY-2 + PAY-3: the two BATCH reads. Both took the id set on trust, so a kepala depot
+     * posting another depot's order ids read that depot's payments and cash totals. One
+     * foreign or unreadable order refuses the whole batch.
+     */
+    it("refuses batch payment and cash reads that include another depot's order", async () => {
+      const p = await paymentAtDepotB();
+      await expect(service.listForOrders([p.orderId], outsider)).rejects.toThrow(/depot/i);
+      await expect(service.cashCollected([p.orderId], outsider)).rejects.toThrow(/depot/i);
+      await expect(service.listForOrders([p.orderId], insider)).resolves.toHaveLength(1);
+      await expect(service.cashCollected([p.orderId], insider)).resolves.toMatchObject({
+        count: 0,
+      });
+      const unknown = randomUUID();
+      await expect(service.listForOrders([p.orderId, unknown], insider)).rejects.toThrow(/depot/i);
+      // Unscoped callers (finance, the internal key) are untouched.
+      await expect(service.listForOrders([p.orderId, unknown])).resolves.toHaveLength(1);
+      await expect(service.listForOrders([], insider)).resolves.toEqual([]);
+    });
   });
 
   it('initiates an online payment with a gateway charge and reference', async () => {
