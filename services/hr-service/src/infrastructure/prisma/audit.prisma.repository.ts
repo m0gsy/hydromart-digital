@@ -26,6 +26,11 @@ export class AuditPrismaRepository implements AuditRepository {
     });
   }
 
+  async deleteBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.auditLog.deleteMany({ where: { at: { lt: cutoff } } });
+    return count;
+  }
+
   async list(filter: AuditListFilter): Promise<{ rows: AuditLog[]; total: number }> {
     const where: Prisma.AuditLogWhereInput = {
       entity: filter.entity,

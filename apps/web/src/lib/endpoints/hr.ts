@@ -97,6 +97,9 @@ export const hr = {
     importAssets: '/employee-assets/api/v1/employee-assets/import',
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,
     enrollFaceMe: '/attendance/api/v1/attendance/me/face/enroll',
+    // HR-3: withdrawing consent deletes the templates and the frames behind them.
+    faceData: (id: string) => `/employees/api/v1/employees/${id}/face`,
+    faceDataMe: '/attendance/api/v1/attendance/me/face',
     checkIn: '/attendance/api/v1/attendance/check-in',
     checkOut: '/attendance/api/v1/attendance/check-out',
     attendanceManual: '/attendance/api/v1/attendance/manual',

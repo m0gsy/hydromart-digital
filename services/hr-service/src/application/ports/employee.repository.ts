@@ -97,6 +97,14 @@ export interface EmployeeRepository {
   ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }>;
   /** Resolve the HR record linked to an auth account (self-service check-in/profile). */
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null>;
+  /**
+   * HR-3: write (or clear) the biometric consent on one employee. `null` withdraws — all
+   * three columns go back to "never asked", which is what the absence of consent means here.
+   */
+  setFaceConsent(
+    employeeId: string,
+    consent: { by: string | null; source: 'SELF' | 'HR_DESK' } | null,
+  ): Promise<void>;
   /** Change log for one employee, newest first. */
   listHistory(employeeId: string): Promise<EmploymentHistory[]>;
   /** Create the employee and (optionally) its first employment-history row atomically. */

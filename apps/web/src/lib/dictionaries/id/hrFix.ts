@@ -1379,6 +1379,14 @@ export const hrFix = {
     done: 'Wajah terdaftar. Kamu bisa absen sekarang.',
     enrolled: 'Wajah berhasil didaftarkan',
     enrollFailed: 'Gagal enroll',
+    consentTitle: 'Persetujuan data wajah',
+    consentText:
+      'Saya setuju foto wajah saya diproses menjadi data biometrik untuk absensi. Saya bisa menarik persetujuan ini kapan saja, dan datanya dihapus.',
+    consentRequired: 'Centang persetujuan dulu sebelum menyimpan.',
+    withdraw: 'Tarik persetujuan & hapus data wajah',
+    withdrawConfirm:
+      'Hapus data wajah Anda? Absensi wajah berhenti bekerja sampai Anda mendaftar lagi.',
+    withdrawn: 'Data wajah dihapus',
   },
   commission: {
     depotNoteAfter:
@@ -1948,6 +1956,11 @@ export const hrFix = {
   employeeDetailExtra: {
     faceEnrolled: 'Wajah berhasil di-enroll',
     faceFailed: 'Gagal enroll wajah',
+    faceConsent: 'Karyawan ini menyetujui data wajahnya dipakai untuk absensi (direkam sekarang)',
+    faceConsentRequired: 'Rekam persetujuan karyawan dulu.',
+    faceDelete: 'Hapus data wajah',
+    faceDeleteConfirm: 'Hapus data wajah karyawan ini dan tarik persetujuannya?',
+    faceDeleted: 'Data wajah dihapus',
     unreadable: 'Tidak terbaca',
   },
   myPayrollDetail: {

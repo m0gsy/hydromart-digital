@@ -44,6 +44,13 @@ export class EmployeePrismaRepository implements EmployeeRepository {
       this.prisma.faceEmbedding.deleteMany({ where: { employeeId: { in: ids } } }),
       this.prisma.attendance.deleteMany({ where: { employeeId: { in: ids } } }),
       this.prisma.performanceReview.deleteMany({ where: { employeeId: { in: ids } } }),
+      // HR-2: the trail kept a copy of everything the scrub is about to rewrite — a POST of
+      // the employee form with the NIK, the address and the salary in it. The rows stay (who
+      // did what, when), their payloads do not.
+      this.prisma.auditLog.updateMany({
+        where: { entityId: { in: ids } },
+        data: { before: Prisma.JsonNull, after: Prisma.JsonNull },
+      }),
       this.prisma.employee.updateMany({
         where: { id: { in: ids } },
         data: {
@@ -77,6 +84,11 @@ export class EmployeePrismaRepository implements EmployeeRepository {
       this.prisma.faceEmbedding.deleteMany({ where: { employeeId: employee.id } }),
       this.prisma.attendance.deleteMany({ where: { employeeId: employee.id } }),
       this.prisma.performanceReview.deleteMany({ where: { employeeId: employee.id } }),
+      // HR-2: the audit payloads about this person, and the ones they filed themselves.
+      this.prisma.auditLog.updateMany({
+        where: { OR: [{ entityId: employee.id }, { actorId: authSubjectId }] },
+        data: { before: Prisma.JsonNull, after: Prisma.JsonNull },
+      }),
       this.prisma.employee.update({
         where: { id: employee.id },
         data: {
@@ -97,6 +109,20 @@ export class EmployeePrismaRepository implements EmployeeRepository {
       }),
     ]);
     return 1;
+  }
+
+  async setFaceConsent(
+    employeeId: string,
+    consent: { by: string | null; source: 'SELF' | 'HR_DESK' } | null,
+  ): Promise<void> {
+    await this.prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        faceConsentAt: consent ? new Date() : null,
+        faceConsentBy: consent?.by ?? null,
+        faceConsentSource: consent?.source ?? null,
+      },
+    });
   }
 
   async photoValuesFor(

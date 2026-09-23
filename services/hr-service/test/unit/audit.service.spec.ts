@@ -14,6 +14,7 @@ function build(writeImpl?: (e: AuditWrite) => Promise<void>) {
       lastFilter = filter;
       return { rows: [{ id: 'a1' } as AuditLog], total: 1 };
     },
+    deleteBefore: async () => 3,
   };
   return { svc: new AuditService(repo), filter: () => lastFilter };
 }
@@ -43,6 +44,16 @@ describe('AuditService', () => {
       throw new Error('db down');
     });
     await expect(svc.record(entry)).resolves.toBeUndefined();
+  });
+
+  /*
+   * HR-2: this trail lives in hr-service's own database, so the retention sweep that has
+   * covered auth-service's `audit_logs` for a year had never heard of it. It kept the personal
+   * data of departed staff with no window at all.
+   */
+  it('purges rows older than the cutoff and reports the count', async () => {
+    const { svc } = build();
+    await expect(svc.purgeOlderThan(new Date('2026-01-01'))).resolves.toEqual({ purged: 3 });
   });
 
   it('translates page/pageSize into skip/take', async () => {

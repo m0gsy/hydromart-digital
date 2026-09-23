@@ -66,6 +66,10 @@ class FakeRepo implements EmployeeRepository {
   async findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.rows.find((r) => r.authSubjectId === authSubjectId) ?? null;
   }
+  consents: { id: string; consent: unknown }[] = [];
+  async setFaceConsent(id: string, consent: unknown): Promise<void> {
+    this.consents.push({ id, consent });
+  }
   async findByEmployeeCode(employeeCode: string): Promise<Employee | null> {
     return this.rows.find((r) => r.employeeCode === employeeCode) ?? null;
   }

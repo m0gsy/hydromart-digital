@@ -1364,6 +1364,14 @@ export const hrFix = {
     done: 'Your face is enrolled. You can clock in now.',
     enrolled: 'Face enrolled',
     enrollFailed: 'Enrolment failed',
+    consentTitle: 'Face data consent',
+    consentText:
+      'I agree to my face photo being processed as biometric data for attendance. I can withdraw this at any time, and the data is deleted.',
+    consentRequired: 'Tick the consent before saving.',
+    withdraw: 'Withdraw consent & delete my face data',
+    withdrawConfirm:
+      'Delete your face data? Face check-in stops working until you enrol again.',
+    withdrawn: 'Face data deleted',
   },
   commission: {
     depotNoteAfter: ', which head office computes from net profit and pays to the franchise owner.',
@@ -1928,6 +1936,11 @@ export const hrFix = {
   },
   employeeDetailExtra: {
     faceEnrolled: 'Face enrolled',
+    faceConsent: 'This employee consents to their face data being used for attendance (recorded now)',
+    faceConsentRequired: 'Record the employee’s consent first.',
+    faceDelete: 'Delete face data',
+    faceDeleteConfirm: 'Delete this employee’s face data and withdraw their consent?',
+    faceDeleted: 'Face data deleted',
     faceFailed: 'Face enrolment failed',
     unreadable: 'Could not be read',
   },

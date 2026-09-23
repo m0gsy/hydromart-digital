@@ -278,6 +278,14 @@ model Employee {
   emergencyName    String?
   emergencyPhone   String?
   status           EmployeeStatus   @default(ACTIVE)
+  /// HR-3 — when this employee agreed to face biometrics being processed, who recorded it,
+  /// and how. Null = never asked, which is NOT consent: enrolment is refused until a row
+  /// here says otherwise, and withdrawing clears all three and deletes the templates.
+  faceConsentAt     DateTime?
+  faceConsentBy     String?         @db.Uuid
+  /// 'SELF' (the employee ticked it in their own app) or 'HR_DESK' (recorded in person by
+  /// the HR admin named in faceConsentBy). Kept because the two are not equal evidence.
+  faceConsentSource String?
   createdBy        String?          @db.Uuid
   updatedBy        String?          @db.Uuid
   createdAt        DateTime         @default(now())

@@ -24,4 +24,6 @@ export interface AuditListFilter {
 export interface AuditRepository {
   write(entry: AuditWrite): Promise<void>;
   list(filter: AuditListFilter): Promise<{ rows: AuditLog[]; total: number }>;
+  /** HR-2: delete trail rows older than the cutoff. Returns rows deleted. */
+  deleteBefore(cutoff: Date): Promise<number>;
 }

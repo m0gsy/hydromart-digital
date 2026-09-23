@@ -21,4 +21,10 @@ export interface FaceEmbeddingRepository {
   listActiveVectorsExcept(employeeId: string): Promise<OwnedVector[]>;
   /** Retire an employee's current embeddings (re-enroll replaces). */
   deactivateForEmployee(employeeId: string): Promise<void>;
+  /**
+   * HR-3: delete every template this employee has, active or retired, and hand back the
+   * source-photo values so the caller can delete the objects too. Withdrawal of consent has
+   * to leave nothing behind — a deactivated row is still a face.
+   */
+  deleteForEmployee(employeeId: string): Promise<string[]>;
 }

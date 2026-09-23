@@ -43,6 +43,15 @@ export class EnrollFaceDto {
   @IsString()
   @MaxLength(500)
   sourcePhotoUrl?: string;
+
+  /**
+   * HR-3: the employee agrees, now, to their face being processed as biometric data — ticked
+   * by the employee on their own device, or recorded by the HR admin sitting with them.
+   * Omitted means "not stated", and enrolment then needs a consent already on file.
+   */
+  @IsOptional()
+  @IsBoolean()
+  consent?: boolean;
 }
 
 export class FacePunchDto {
@@ -130,6 +139,18 @@ export class ListAttendanceDto {
   @Min(1)
   @Max(100)
   pageSize = 30;
+}
+
+/** HR-2: how many HR audit rows the retention sweep deleted. */
+export class PurgeHrAuditResponseDto {
+  @ApiProperty({ example: 4210 })
+  purged!: number;
+}
+
+/** HR-3: how many face templates a withdrawal deleted. */
+export class WithdrawFaceResponseDto {
+  @ApiProperty({ example: 3 })
+  deleted!: number;
 }
 
 /** HR-4: how many attendance rows lost their selfie in this sweep. */

@@ -241,6 +241,16 @@ describe('AuditController', () => {
     expect(audit.list).toHaveBeenCalledWith(q);
     expect(out).toEqual({ rows: [{ id: 'a' }], total: 5, page: 2, pageSize: 50 });
   });
+
+  // HR-2: the retention sweep admin-service drives against this trail's own database.
+  it('passes the retention cutoff through as a date', async () => {
+    const audit = { purgeOlderThan: jest.fn().mockResolvedValue({ purged: 4 }) };
+    const c = new AuditController(audit as never);
+    await expect(c.purge({ cutoff: '2026-01-01T00:00:00.000Z' } as never)).resolves.toEqual({
+      purged: 4,
+    });
+    expect(audit.purgeOlderThan).toHaveBeenCalledWith(new Date('2026-01-01T00:00:00.000Z'));
+  });
 });
 
 describe('HolidayController / ShiftController', () => {
@@ -578,6 +588,30 @@ describe('FaceController / SelfFaceController', () => {
     const c = new FaceController(face as never);
     c.enroll('e1', { images: [b64] } as never, user);
     expect(face.enroll.mock.calls[0][3]).toBeNull();
+  });
+
+  // HR-3: consent travels with the enrolment, and an absent flag is not a consent.
+  it('forwards the consent flag on both enrolment paths', () => {
+    const face = { enroll: jest.fn(), enrollSelf: jest.fn() };
+    new FaceController(face as never).enroll('e1', { images: [b64], consent: true } as never, user);
+    expect(face.enroll.mock.calls[0][4]).toBe(true);
+    new SelfFaceController(face as never).enroll({ images: [b64] } as never, user);
+    expect(face.enrollSelf.mock.calls[0][2]).toBe(false);
+  });
+
+  it('withdrawal resolves the subject first: own record for self, by id for HR', async () => {
+    const face = {
+      employeeFor: jest.fn().mockResolvedValue({ id: 'e1' }),
+      withdrawConsent: jest.fn().mockResolvedValue({ deleted: 2 }),
+    };
+    await expect(new SelfFaceController(face as never).withdraw(user)).resolves.toEqual({
+      deleted: 2,
+    });
+    expect(face.employeeFor).toHaveBeenCalledWith(user);
+    await expect(new FaceController(face as never).withdraw('e1', user)).resolves.toEqual({
+      deleted: 2,
+    });
+    expect(face.employeeFor).toHaveBeenLastCalledWith(user, 'e1');
   });
 });
 

@@ -61,6 +61,17 @@ const REMOTE_DATASETS = [
     path: '/api/v1/attendance/internal/retention-photos',
     mode: 'DELETE',
   },
+  /*
+   * HR-2: the HR service keeps its own audit trail in its own database. `audit_logs` above is
+   * auth-service's; this one had no window at all and no sweep knew it existed, so it held the
+   * personal data of departed staff indefinitely. Same two years as the other trail.
+   */
+  {
+    dataset: 'hr_audit_logs',
+    envKey: 'HR_SERVICE_URL',
+    path: '/api/v1/hr-audit/internal/retention',
+    mode: 'DELETE',
+  },
   // Biometrics on their own, far shorter window (30d). A face cannot be reissued after a
   // leak, and its only purpose ends the day the employee does.
   {

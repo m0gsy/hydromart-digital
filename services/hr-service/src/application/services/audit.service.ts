@@ -18,6 +18,18 @@ export class AuditService {
     }
   }
 
+  /**
+   * HR-2 — the HR trail kept every row forever. `audit_logs` in auth-service has had a
+   * two-year window since the retention console shipped; this table is a second audit trail in
+   * a second database that the sweep had never heard of, so it grew without limit and held the
+   * personal data of people who left years ago. Same window, same console.
+   */
+  async purgeOlderThan(cutoff: Date): Promise<{ purged: number }> {
+    const purged = await this.repo.deleteBefore(cutoff);
+    this.logger.log(`Retention: deleted ${purged} HR audit row(s) before ${cutoff.toISOString()}`);
+    return { purged };
+  }
+
   // hrAdmin-only endpoint (guarded at the controller); no depot scope — audit is HQ-wide.
   // CA-1-26: `/hr/audit` reads `HrPage<AuditLog>` — four fields — and this answered two.
   // The declared return type said so out loud and still nobody noticed, because the client
