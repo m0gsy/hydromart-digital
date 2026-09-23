@@ -63,6 +63,15 @@ export interface OtpChallengeResult {
    * say "this one is taking a moment" instead of pretending everything was instant.
    */
   deliveryPending?: boolean;
+  /**
+   * AUTH-3: which flow this code belongs to — the client posts it back to `otp/verify`.
+   *
+   * Login used to answer 404 for a number with no account, which told anybody who asked
+   * whether a phone number banks here. The number is now walked through registration
+   * instead, and the answer is the same shape either way, so the client has to be told
+   * which code it is holding rather than assuming LOGIN.
+   */
+  purpose: 'LOGIN' | 'REGISTRATION';
   /** Masked phone the code was sent to, e.g. "+62812****789". */
   phoneMasked: string;
   expiresInSeconds: number;

@@ -122,6 +122,7 @@ export class OtpService {
           throw new OtpDeliveryUnavailableError();
         }
         return {
+          purpose: OtpService.challengePurpose(purpose),
           phoneMasked: OtpService.maskPhone(destination),
           expiresInSeconds: policy.ttlSeconds,
           resendCooldownSeconds: policy.resendCooldownSeconds,
@@ -131,10 +132,22 @@ export class OtpService {
     }
 
     return {
+      purpose: OtpService.challengePurpose(purpose),
       phoneMasked: OtpService.maskPhone(destination),
       expiresInSeconds: policy.ttlSeconds,
       resendCooldownSeconds: policy.resendCooldownSeconds,
     };
+  }
+
+  /**
+   * AUTH-3: which door the client is standing in, for the screen that types the code.
+   *
+   * Only the two the client can be sent to. Everything else (a phone change, a password
+   * reset) is started from inside a session where the client already knows what it asked
+   * for, and is reported as LOGIN rather than leaking a third state into the public shape.
+   */
+  private static challengePurpose(purpose: OtpPurpose): 'LOGIN' | 'REGISTRATION' {
+    return purpose === OtpPurpose.REGISTRATION ? 'REGISTRATION' : 'LOGIN';
   }
 
   /**
@@ -188,7 +201,16 @@ export class OtpService {
    */
   private fixedCodeFor(phone: string): string | null {
     const reviewer = this.config.reviewerOtp;
-    return reviewer?.phones.includes(phone) ? reviewer.code : null;
+    if (!reviewer || !reviewer.phones.includes(phone)) return null;
+    // AUTH-8: the review window is over, so the fixed code is over with it. Whoever set the
+    // variable is not here any more; the date is.
+    if (this.clock.now() > reviewer.expiresAt) {
+      this.logger.warn(
+        `Reviewer OTP expired on ${reviewer.expiresAt.toISOString()}; issuing a random code`,
+      );
+      return null;
+    }
+    return reviewer.code;
   }
 
   /**

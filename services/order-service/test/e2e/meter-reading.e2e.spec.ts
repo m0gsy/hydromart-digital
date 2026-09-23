@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -178,13 +179,16 @@ describe('Meter reading HTTP flows (e2e)', () => {
     depotId = randomUUID();
     staffToken = jwt.sign(
       { sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62', depotId },
-      { secret },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
     );
     managerToken = jwt.sign(
       { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId },
-      { secret },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
     );
-    outsiderToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    outsiderToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {

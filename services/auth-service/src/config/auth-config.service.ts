@@ -67,14 +67,29 @@ export class AuthConfigService {
    * them — it is rotated the moment review ends, and per-number codes would only add a
    * way to mistype one.
    */
-  get reviewerOtp(): { phones: string[]; code: string } | null {
+  /**
+   * AUTH-8 — the Play reviewer's fixed code, and the date it stops working.
+   *
+   * A predictable credential for named numbers is a deliberate, documented trade for app
+   * review. What made it a finding is that it had no end: the env var is set once for a
+   * review that lasts days, and nothing ever turns it off again — it survives every deploy
+   * until somebody remembers a variable nobody looks at.
+   *
+   * `REVIEWER_OTP_EXPIRES_AT` (ISO date) is that end, read on every issue rather than at
+   * boot so the feature dies on its own schedule without a restart. Unset means unset: the
+   * whole feature is off, because a backdoor whose expiry was forgotten is the exact thing
+   * being fixed. An unparseable date is also off — a typo must fail closed.
+   */
+  get reviewerOtp(): { phones: string[]; code: string; expiresAt: Date } | null {
     const phones = this.config
       .get<string>('REVIEWER_PHONE', '')
       .split(',')
       .map((p) => p.trim())
       .filter(Boolean);
     const code = this.config.get<string>('REVIEWER_OTP_CODE', '').trim();
-    return phones.length && code ? { phones, code } : null;
+    const expiry = new Date(this.config.get<string>('REVIEWER_OTP_EXPIRES_AT', '').trim());
+    if (!phones.length || !code || Number.isNaN(expiry.getTime())) return null;
+    return { phones, code, expiresAt: expiry };
   }
 
   get otpDeliveryChannel(): OtpDeliveryChannel {

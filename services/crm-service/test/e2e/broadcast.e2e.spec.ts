@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -80,8 +81,14 @@ describe('Broadcast HTTP flows (e2e)', () => {
     // must carry the depotId they act on or broadcasts scoped to `depot-1` get 403.
     // STAFF_DEPOT joined that set with the role rename (its predecessor DRIVER was
     // unlocked), which is why the courier token now carries a depot too.
-    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: '+62', depotId }, { secret });
-    driverToken = jwt.sign({ sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62', depotId }, { secret });
+    operatorToken = jwt.sign(
+      { sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: '+62', depotId },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    driverToken = jwt.sign(
+      { sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62', depotId },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -90,12 +97,21 @@ describe('Broadcast HTTP flows (e2e)', () => {
 
   const server = () => app.getHttpServer();
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
-  const body = () => ({ depotId, title: 'Jalan ditutup', body: 'Pakai jalur alternatif.', level: 'URGENT' });
+  const body = () => ({
+    depotId,
+    title: 'Jalan ditutup',
+    body: 'Pakai jalur alternatif.',
+    level: 'URGENT',
+  });
 
   let broadcastId: string;
 
   it('rejects a STAFF_DEPOT posting a broadcast with 403', async () => {
-    await request(server()).post('/api/v1/broadcasts').set(auth(driverToken)).send(body()).expect(403);
+    await request(server())
+      .post('/api/v1/broadcasts')
+      .set(auth(driverToken))
+      .send(body())
+      .expect(403);
   });
 
   it('lets a KEPALA_DEPOT post a broadcast (201)', async () => {

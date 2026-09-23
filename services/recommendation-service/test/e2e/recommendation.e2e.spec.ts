@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -92,9 +93,18 @@ describe('Recommendation HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     customerAId = randomUUID();
-    customerAToken = jwt.sign({ sub: customerAId, role: Role.CUSTOMER, phone: '+62' }, { secret });
-    customerBToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
-    superAdminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
+    customerAToken = jwt.sign(
+      { sub: customerAId, role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    customerBToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    superAdminToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -115,7 +125,9 @@ describe('Recommendation HTTP flows (e2e)', () => {
 
   it('accepts ingest with the right internal key and makes the data queryable', async () => {
     const productId = randomUUID();
-    const body = ingestBody({ items: [{ productId, productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon' }] });
+    const body = ingestBody({
+      items: [{ productId, productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon' }],
+    });
 
     await request(server())
       .post('/api/v1/recommendations/ingest')
@@ -136,7 +148,7 @@ describe('Recommendation HTTP flows (e2e)', () => {
     await request(server()).get('/api/v1/recommendations/reorder').expect(401);
   });
 
-  it('reorder returns only the calling customer\'s items (cross-customer isolation)', async () => {
+  it("reorder returns only the calling customer's items (cross-customer isolation)", async () => {
     const productId = randomUUID();
 
     await request(server())
@@ -150,19 +162,30 @@ describe('Recommendation HTTP flows (e2e)', () => {
       )
       .expect(200);
 
-    const resA = await request(server()).get('/api/v1/recommendations/reorder').set(auth(customerAToken)).expect(200);
+    const resA = await request(server())
+      .get('/api/v1/recommendations/reorder')
+      .set(auth(customerAToken))
+      .expect(200);
     expect(resA.body.map((i: { productId: string }) => i.productId)).toContain(productId);
 
     // Customer B has no history, so their list is the PUBLIC trending feed (cold start,
     // UAT-M22-08) — never A's personal ranking. Isolation is asserted by pinning B's
     // response to exactly what an unauthenticated caller can already see.
-    const resB = await request(server()).get('/api/v1/recommendations/reorder').set(auth(customerBToken)).expect(200);
-    const publicTrending = await request(server()).get('/api/v1/recommendations/trending?days=30').expect(200);
+    const resB = await request(server())
+      .get('/api/v1/recommendations/reorder')
+      .set(auth(customerBToken))
+      .expect(200);
+    const publicTrending = await request(server())
+      .get('/api/v1/recommendations/trending?days=30')
+      .expect(200);
     expect(resB.body).toEqual(publicTrending.body);
   });
 
   it('rebuild is restricted to SUPER_ADMIN (403 customer) and pulls the order feed (200)', async () => {
-    await request(server()).post('/api/v1/recommendations/rebuild').set(auth(customerAToken)).expect(403);
+    await request(server())
+      .post('/api/v1/recommendations/rebuild')
+      .set(auth(customerAToken))
+      .expect(403);
 
     const productId = randomUUID();
     feed.orders = [

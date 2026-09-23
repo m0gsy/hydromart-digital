@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'crypto';
 
+import { TOKEN_ALGORITHM, TOKEN_AUDIENCE, TOKEN_ISSUER } from './token-claims';
+
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
@@ -57,8 +59,13 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
+      // AUTH-5: the secret alone said only "somebody with the key signed this". These three
+      // say it was OUR auth service, for THIS api, with the algorithm we chose.
       const payload = await this.jwt.verifyAsync<AuthenticatedUser>(token, {
         secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        issuer: TOKEN_ISSUER,
+        audience: TOKEN_AUDIENCE,
+        algorithms: [TOKEN_ALGORITHM],
       });
       request.user = {
         sub: payload.sub,

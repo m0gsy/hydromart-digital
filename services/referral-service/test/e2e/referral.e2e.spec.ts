@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -11,11 +12,7 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { ReferralModule } from '../../src/modules/referral.module';
 import { REFERRAL_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import {
-  FakeLoyaltyReward,
-  FakeOrderHistory,
-  InMemoryReferralRepository,
-} from '../support/fakes';
+import { FakeLoyaltyReward, FakeOrderHistory, InMemoryReferralRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 const INTERNAL_KEY = 'test-internal-service-key-0123456789';
@@ -80,8 +77,14 @@ describe('Referral HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     customerAId = randomUUID();
     customerBId = randomUUID();
-    customerAToken = jwt.sign({ sub: customerAId, role: Role.CUSTOMER, phone: '+62' }, { secret });
-    customerBToken = jwt.sign({ sub: customerBId, role: Role.CUSTOMER, phone: '+62' }, { secret });
+    customerAToken = jwt.sign(
+      { sub: customerAId, role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    customerBToken = jwt.sign(
+      { sub: customerBId, role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -104,7 +107,10 @@ describe('Referral HTTP flows (e2e)', () => {
    * against the route that remains.
    */
   it('lazily creates the referral code on the customer’s first read', async () => {
-    const res = await request(server()).get('/api/v1/referrals/me').set(auth(customerAToken)).expect(200);
+    const res = await request(server())
+      .get('/api/v1/referrals/me')
+      .set(auth(customerAToken))
+      .expect(200);
     expect(res.body.code).toMatchObject({ customerId: customerAId });
     expect(res.body.code.code).toMatch(/^[A-Z0-9]{8}$/);
     sharedCode = res.body.code.code;

@@ -91,7 +91,11 @@ function LoginForm() {
     setError(null);
     try {
       const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone });
-      const params = new URLSearchParams({ phone, purpose: 'LOGIN' });
+      // AUTH-3: the server decides. A number with no account is registered rather than
+      // refused, and it answers REGISTRATION so /verify shows the signup wording and posts
+      // the matching purpose — the walkover to /register below is no longer reachable for
+      // an unknown number, because there is no longer an error that names one.
+      const params = new URLSearchParams({ phone, purpose: challenge.purpose ?? 'LOGIN' });
       if (next) params.set('next', next);
       // E4: carry the server's own cooldown forward so /verify counts the same seconds
       // the server is enforcing, instead of its own guess.

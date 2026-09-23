@@ -66,7 +66,13 @@ describe('OtpService', () => {
         delivery,
         crypto,
         clock,
-        buildTestConfig({ REVIEWER_PHONE: REVIEWER, REVIEWER_OTP_CODE: '424242', ...overrides }),
+        buildTestConfig({
+          REVIEWER_PHONE: REVIEWER,
+          REVIEWER_OTP_CODE: '424242',
+          // AUTH-8: the feature is dated now; unset is off.
+          REVIEWER_OTP_EXPIRES_AT: '2099-01-01T00:00:00.000Z',
+          ...overrides,
+        }),
       );
 
     const reviewerCustomer = (): Customer => activeCustomer(REVIEWER);
@@ -108,6 +114,29 @@ describe('OtpService', () => {
       otpRepo.rows.length = 0;
       await many.issue(activeCustomer(), OtpPurpose.LOGIN);
       expect(delivery.lastCode).toBe('123456');
+    });
+
+    /*
+     * AUTH-8. A predictable credential for named numbers is a deliberate trade for app
+     * review; what made it a finding is that it had no end. The env pair is set once for a
+     * review that lasts days and survives every deploy until somebody remembers a variable
+     * nobody looks at.
+     */
+    it('stops honouring the fixed code once the review window has passed', async () => {
+      const expired = withReviewer({ REVIEWER_OTP_EXPIRES_AT: '2020-01-01T00:00:00.000Z' });
+      await expired.issue(reviewerCustomer(), OtpPurpose.LOGIN);
+
+      expect(otpRepo.rows[0].codeHash).toBe('hashed:123456');
+      // And the SMS comes back with it: the number is an ordinary number again.
+      expect(delivery.sent).toHaveLength(1);
+    });
+
+    it('treats a missing or unparseable expiry as the feature being off', async () => {
+      for (const REVIEWER_OTP_EXPIRES_AT of ['', 'segera']) {
+        otpRepo.rows.length = 0;
+        await withReviewer({ REVIEWER_OTP_EXPIRES_AT }).issue(reviewerCustomer(), OtpPurpose.LOGIN);
+        expect(otpRepo.rows[0].codeHash).toBe('hashed:123456');
+      }
     });
 
     // The reviewer already knows the code, so sending it costs an SMS and rings a phone

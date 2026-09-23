@@ -35,6 +35,8 @@ function tokenFor(role, sub, depotId = null) {
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
   const body = { sub, role, phone: '+620000000000', depotId, iat: now, exp: now + 900 };
+  // AUTH-5: the guards check `iss`/`aud` now, so a hand-minted token carries them.
+  Object.assign(body, { iss: 'hydromart-auth', aud: 'hydromart-api' });
   const data = `${b64(head)}.${b64(body)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
   return `${data}.${sig}`;

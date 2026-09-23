@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -73,7 +74,11 @@ describe('Admin HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    const mint = (role: Role) => jwt.sign({ sub: randomUUID(), role, phone: '+62' }, { secret });
+    const mint = (role: Role) =>
+      jwt.sign(
+        { sub: randomUUID(), role, phone: '+62' },
+        { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+      );
     superToken = mint(Role.SUPER_ADMIN);
     headOfficeToken = mint(Role.HEAD_OFFICE);
     customerToken = mint(Role.CUSTOMER);

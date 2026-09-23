@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { TOKEN_ALGORITHM, TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import {
   AccessTokenClaims,
@@ -21,6 +22,11 @@ export class AccessTokenSigner implements AccessTokenSignerPort {
     const token = await this.jwt.signAsync(claims, {
       secret: accessSecret,
       expiresIn: accessTtlSeconds,
+      // AUTH-5: say who minted it, what it is for, and how it is signed — and pin the
+      // algorithm so a token cannot tell the verifier how to check it.
+      issuer: TOKEN_ISSUER,
+      audience: TOKEN_AUDIENCE,
+      algorithm: TOKEN_ALGORITHM,
     });
     return { token, expiresIn: accessTtlSeconds };
   }

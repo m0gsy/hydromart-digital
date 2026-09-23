@@ -1,4 +1,6 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+
+import { TOKEN_ALGORITHM, TOKEN_AUDIENCE, TOKEN_ISSUER } from '../src/nest/token-claims';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
@@ -62,12 +64,31 @@ describe('JwtAuthGuard internal-key + bearer auth', () => {
     const guard = new JwtAuthGuard(reflector, jwt, makeConfig(INTERNAL_KEY));
     const token = await jwt.signAsync(
       { sub: 'user-42', role: Role.FRANCHISE_OWNER, phone: '+628123' },
-      { secret: SECRET },
+      { secret: SECRET, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE, algorithm: TOKEN_ALGORITHM },
     );
     const { ctx, request } = makeContext({ authorization: `Bearer ${token}` });
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(request.user).toMatchObject({ sub: 'user-42', role: Role.FRANCHISE_OWNER });
+  });
+
+  /*
+   * AUTH-5. The secret alone said only "somebody with the key signed this". Anything else
+   * signed with the same secret — a download link, a webhook payload, whatever a later
+   * feature signs — was a valid session, and with the algorithm unpinned the token told the
+   * verifier how to check it.
+   */
+  it('(e) refuses a token signed with the right key but minted for something else', async () => {
+    const guard = new JwtAuthGuard(reflector, jwt, makeConfig(INTERNAL_KEY));
+    for (const options of [
+      { secret: SECRET },
+      { secret: SECRET, issuer: 'somebody-else', audience: TOKEN_AUDIENCE },
+      { secret: SECRET, issuer: TOKEN_ISSUER, audience: 'another-api' },
+    ]) {
+      const token = await jwt.signAsync({ sub: 'user-42', role: Role.CUSTOMER }, options);
+      const { ctx } = makeContext({ authorization: `Bearer ${token}` });
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    }
   });
 
   it('(d) does not accept an internal key when the configured key is empty', async () => {

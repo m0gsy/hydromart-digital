@@ -44,6 +44,8 @@ function staffToken() {
     iat: now,
     exp: now + 7200,
   };
+  // AUTH-5: the guards check `iss`/`aud` now, so a hand-minted token carries them.
+  Object.assign(body, { iss: 'hydromart-auth', aud: 'hydromart-api' });
   const data = `${b64(head)}.${b64(body)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url');
   return `${data}.${sig}`;
@@ -650,6 +652,8 @@ function roleToken(sub, role, phone, depotId) {
   const now = Math.floor(Date.now() / 1000);
   const head = { alg: 'HS256', typ: 'JWT' };
   const body = { sub, role, phone, depotId: depotId ?? null, iat: now, exp: now + 7200 };
+  // AUTH-5: the guards check `iss`/`aud` now, so a hand-minted token carries them.
+  Object.assign(body, { iss: 'hydromart-auth', aud: 'hydromart-api' });
   const data = `${b64(head)}.${b64(body)}`;
   return `${data}.${crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url')}`;
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -80,10 +81,22 @@ describe('Campaign HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
-    customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
-    driverToken = jwt.sign({ sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62' }, { secret });
-    superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
+    marketingToken = jwt.sign(
+      { sub: randomUUID(), role: Role.MARKETING, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    customerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    driverToken = jwt.sign(
+      { sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    superToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
   });
 
   afterAll(async () => {
@@ -158,7 +171,11 @@ describe('Campaign HTTP flows (e2e)', () => {
     const res = await request(server())
       .post('/api/v1/campaigns')
       .set(auth(marketingToken))
-      .send({ name: 'Silver Depok', messageTemplate: 'Hi {{name}}!', segment: { tier: 'SILVER', city: 'Depok' } })
+      .send({
+        name: 'Silver Depok',
+        messageTemplate: 'Hi {{name}}!',
+        segment: { tier: 'SILVER', city: 'Depok' },
+      })
       .expect(201);
     expect(res.body).toMatchObject({ status: 'DRAFT', totalRecipients: 1 });
     expect(res.body.recipients[0]).toMatchObject({ phone: '+628111', name: 'Sinta' });

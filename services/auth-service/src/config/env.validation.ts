@@ -71,6 +71,23 @@ export const envValidationSchema = Joi.object({
       is: Joi.string().min(1).required(),
       then: Joi.string().min(4).required(),
     }),
+  /*
+   * AUTH-8: the day the fixed code stops working, whatever the other two say.
+   *
+   * The pair above is set once for a review that lasts days, and nothing ever turns it off
+   * again — it survives every deploy until somebody remembers a variable nobody looks at.
+   * That is what made a documented trade into a standing backdoor. Required as soon as a
+   * reviewer phone is configured, and read on every issue rather than at boot, so the
+   * feature dies on its own schedule with no restart and no reminder.
+   */
+  REVIEWER_OTP_EXPIRES_AT: Joi.string()
+    .allow('')
+    .isoDate()
+    .default('')
+    .when('REVIEWER_PHONE', {
+      is: Joi.string().min(1).required(),
+      then: Joi.string().isoDate().required(),
+    }),
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
