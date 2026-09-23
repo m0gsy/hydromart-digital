@@ -170,8 +170,11 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     to: Date,
     topCustomers: number,
     timeZone: string,
+    orderIds?: readonly string[],
   ): Promise<RedemptionAnalytics> {
-    const rows = this.redemptions.filter((r) => r.voucherId === voucherId);
+    const rows = this.redemptions.filter(
+      (r) => r.voucherId === voucherId && (!orderIds || orderIds.includes(r.orderId)),
+    );
     const inWindow = rows.filter((r) => r.createdAt >= from && r.createdAt < to);
     const byDay = new Map<string, number>();
     for (const row of inWindow) {

@@ -46,7 +46,7 @@ export class OrderValueHttpAdapter implements OrderValuePort {
     const values: OrderValue[] = [];
     for (const item of body) {
       if (!item || typeof item !== 'object') return null;
-      const { orderId, totalIdr } = item as Record<string, unknown>;
+      const { orderId, totalIdr, depotId } = item as Record<string, unknown>;
       if (
         typeof orderId !== 'string' ||
         !requested.has(orderId) ||
@@ -58,7 +58,7 @@ export class OrderValueHttpAdapter implements OrderValuePort {
         return null;
       }
       seen.add(orderId);
-      values.push({ orderId, totalIdr });
+      values.push({ orderId, totalIdr, depotId: typeof depotId === 'string' ? depotId : null });
     }
     return seen.size === requested.size ? values : null;
   }

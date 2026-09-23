@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, Public } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, Public, depotScopeIds } from '@hydromart/platform';
 
 import { PromotionRecord } from '../application/ports/promotion.repository';
 import { PromotionService } from '../application/services/promotion.service';
@@ -56,8 +56,13 @@ export class PromotionController {
   @Get(':id/analytics')
   @ApiOperation({ summary: 'Read authoritative usage and order-value analytics for a promotion' })
   @ApiOkResponse({ type: PromotionAnalyticsDto })
-  async analytics(@Param('id', ParseUUIDPipe) id: string): Promise<PromotionAnalyticsDto> {
-    return PromotionAnalyticsDto.from(await this.promotions.analytics(id));
+  async analytics(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PromotionAnalyticsDto> {
+    return PromotionAnalyticsDto.from(
+      await this.promotions.analytics(id, new Date(), depotScopeIds(user)),
+    );
   }
 
   @ApiOkResponse({ type: PromotionResponseDto })
