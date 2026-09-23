@@ -1,10 +1,17 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { AuditService } from '../application/services/audit.service';
 import { ListAuditDto } from './dto/audit.dto';
+import { PurgeHrAuditResponseDto } from './dto/attendance.dto';
 import { RetentionReportDto } from './dto/employee.dto';
 
 /** HR audit-trail viewer. hrAdmin only — audit is HQ-wide and sensitive. */
@@ -26,6 +33,7 @@ export class AuditController {
    * HR-2: the retention sweep admin-service drives, same internal-key shape as the employee
    * retention routes. The window lives in the retention console, not here.
    */
+  @ApiOkResponse({ type: PurgeHrAuditResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

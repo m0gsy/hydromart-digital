@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { FaceService } from '../application/services/face.service';
-import { EnrollFaceDto } from './dto/attendance.dto';
+import { EnrollFaceDto, WithdrawFaceResponseDto } from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
 import { FaceEmbedding } from '../../prisma/generated/client';
 import { FaceEmbeddingResponseDto } from './dto/responses.generated.dto';
@@ -25,6 +25,7 @@ export class SelfFaceController {
   }
 
   /** HR-3: withdraw my consent — templates and stored frames deleted, consent cleared. */
+  @ApiOkResponse({ type: WithdrawFaceResponseDto })
   @Delete()
   @ApiOperation({ summary: 'Withdraw my biometric consent and delete my face data' })
   async withdraw(@CurrentUser() user: AuthenticatedUser): Promise<{ deleted: number }> {
@@ -53,6 +54,7 @@ export class FaceController {
   }
 
   /** HR-3: withdrawal on the employee's behalf (they asked at the desk, or they left). */
+  @ApiOkResponse({ type: WithdrawFaceResponseDto })
   @Delete()
   @Can('hrAdmin')
   @ApiOperation({ summary: 'Delete this employee’s face data and clear their consent' })

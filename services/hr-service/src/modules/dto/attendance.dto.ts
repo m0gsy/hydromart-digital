@@ -141,6 +141,18 @@ export class ListAttendanceDto {
   pageSize = 30;
 }
 
+/** HR-2: how many HR audit rows the retention sweep deleted. */
+export class PurgeHrAuditResponseDto {
+  @ApiProperty({ example: 4210 })
+  purged!: number;
+}
+
+/** HR-3: how many face templates a withdrawal deleted. */
+export class WithdrawFaceResponseDto {
+  @ApiProperty({ example: 3 })
+  deleted!: number;
+}
+
 /** HR-4: how many attendance rows lost their selfie in this sweep. */
 export class PurgeAttendancePhotosResponseDto {
   @ApiProperty({ example: 128 })
