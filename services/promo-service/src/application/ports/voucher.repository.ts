@@ -15,11 +15,16 @@ export interface VoucherRecord {
   budgetCap: number | null;
   /** CA-2-65: the depot this voucher belongs to; null = network-wide. */
   depotId: string | null;
+  /** PRM-4: 'PUBLIC' (any code-holder) or 'GRANTED' (only the customers it was given to). */
+  audience: string;
   usedCount: number;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+/** PRM-4: the audience a voucher is created with. Defaults to PUBLIC when unstated. */
+export type VoucherAudience = 'PUBLIC' | 'GRANTED';
 
 export interface VoucherRedemptionRecord {
   id: string;
@@ -29,6 +34,8 @@ export interface VoucherRedemptionRecord {
   orderId: string;
   discountApplied: number;
   createdAt: Date;
+  /** PRM-8: when a voided order handed this redemption back; null = still spent. */
+  releasedAt?: Date | null;
 }
 
 /** Fields for creating a voucher; `code` is already normalised (uppercased). */
@@ -53,6 +60,8 @@ export interface CreateVoucherData {
    * form is network-wide, which is what it has always been and what the column defaults to.
    */
   depotId?: string | null;
+  /** PRM-4: who may spend it. Omitted = PUBLIC, which is what every voucher used to be. */
+  audience?: VoucherAudience;
 }
 
 /** Partial patch for an existing voucher; omitted keys are left unchanged. */
@@ -131,7 +140,7 @@ export interface VoucherRepository {
    */
   listForCustomer(
     customerId: string,
-  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]>;
+  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number; granted: boolean }[]>;
 
   /**
    * Redeem under a lock on the voucher row (H-1). The only way to redeem.
@@ -170,4 +179,6 @@ export interface VoucherRepository {
   /** Record a grant of the voucher to a customer. Returns true only when newly created
    *  (idempotent per voucher+customer) so the notification fires once. */
   grantVoucher(voucherId: string, customerId: string): Promise<boolean>;
+  /** PRM-4: whether this customer holds a grant for this voucher. */
+  hasGrant(voucherId: string, customerId: string): Promise<boolean>;
 }

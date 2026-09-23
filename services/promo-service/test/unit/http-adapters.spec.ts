@@ -44,47 +44,43 @@ beforeEach(() => {
 });
 
 describe('CustomerLookupHttpAdapter', () => {
-  it('returns null without base url or authorization (no fetch)', async () => {
+  it('returns null without base url or internal key (no fetch)', async () => {
     expect(
-      await new CustomerLookupHttpAdapter(makeConfig({ customerServiceUrl: '' })).resolve(
-        'c1',
-        'Bearer x',
-      ),
+      await new CustomerLookupHttpAdapter(makeConfig({ customerServiceUrl: '' })).resolve('c1'),
     ).toBeNull();
-    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1', '')).toBeNull();
+    expect(
+      await new CustomerLookupHttpAdapter(makeConfig({ internalServiceKey: '' })).resolve('c1'),
+    ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('resolves matching contact on happy path', async () => {
-    fetchMock.mockResolvedValue(
-      res({
-        body: [
-          { customerId: 'c1', name: 'Budi', phone: '0811' },
-          { customerId: 'c2', name: 'Sari', phone: '0822' },
-        ],
-      }),
-    );
-    const out = await new CustomerLookupHttpAdapter(makeConfig()).resolve('c2', 'Bearer x');
+  /*
+   * PRM-9: one customer, by id, under the internal key. It used to download the whole staff
+   * directory — every name and phone in the network — and filter it in memory.
+   */
+  it('asks for exactly one customer and returns their contact', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerId: 'c2', name: 'Sari', phone: '0822' } }));
+    const out = await new CustomerLookupHttpAdapter(makeConfig()).resolve('c2');
     expect(out).toEqual({ name: 'Sari', phone: '0822' });
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://customer:3002/api/v1/profile/directory',
-      expect.objectContaining({ headers: { authorization: 'Bearer x' } }),
+      'http://customer:3002/api/v1/profile/internal/contact/c2',
+      expect.objectContaining({ headers: { 'x-internal-key': expect.any(String) } }),
     );
   });
 
-  it('returns null when no directory entry matches', async () => {
-    fetchMock.mockResolvedValue(res({ body: [{ customerId: 'other', name: 'X', phone: '0' }] }));
-    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1', 'Bearer x')).toBeNull();
+  it('returns null when the customer has no contact on file', async () => {
+    fetchMock.mockResolvedValue(res({ body: null }));
+    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1')).toBeNull();
   });
 
   it('fails open (null) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
-    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1', 'Bearer x')).toBeNull();
+    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1')).toBeNull();
   });
 
   it('fails open (null) when fetch throws', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1', 'Bearer x')).toBeNull();
+    expect(await new CustomerLookupHttpAdapter(makeConfig()).resolve('c1')).toBeNull();
   });
 });
 

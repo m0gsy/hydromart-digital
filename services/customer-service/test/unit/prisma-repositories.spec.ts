@@ -396,6 +396,22 @@ describe('ProfilePrismaRepository', () => {
     });
   });
 
+  // PRM-9: one customer, one row — the same join as the segment, without the audience.
+  it('finds one customer’s contact by id', async () => {
+    $queryRaw.mockResolvedValue([{ customerId: 'cust-1', name: 'Budi', phone: '+62800' }]);
+    await expect(repo.findRecipient('cust-1')).resolves.toEqual({
+      customerId: 'cust-1',
+      name: 'Budi',
+      phone: '+62800',
+    });
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers null when that customer has no primary address', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await expect(repo.findRecipient('cust-1')).resolves.toBeNull();
+  });
+
   it('finds a segment with filters applied', async () => {
     $queryRaw.mockResolvedValue([{ customerId: 'cust-1', name: 'Budi', phone: '+62800' }]);
     const out = await repo.findSegment({ tier: MembershipTier.GOLD, city: 'Jakarta' });

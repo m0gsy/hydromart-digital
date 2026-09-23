@@ -26,6 +26,146 @@ const baseVoucher = (overrides: Partial<CreateVoucherData> = {}): CreateVoucherD
   ...overrides,
 });
 
+/*
+ * PRM-4. A voucher "granted" to one customer was spendable by every customer who learned the
+ * code — a birthday voucher, a complaint apology, a reactivation offer — and every wallet
+ * listed every active code, including the ones meant for somebody else.
+ */
+describe('VoucherService · audience (PRM-4)', () => {
+  let repo: InMemoryVoucherRepository;
+  let service: VoucherService;
+
+  beforeEach(() => {
+    repo = new InMemoryVoucherRepository();
+    service = new VoucherService(repo, new FakeCustomerLookup(), new FakeNotification());
+  });
+
+  it('refuses a GRANTED voucher to a customer who was not given it', async () => {
+    const v = await service.create(baseVoucher({ code: 'MAAFYA', audience: 'GRANTED' }));
+    await service.grant(v.id, 'cust-1');
+
+    await expect(service.quote('MAAFYA', 'cust-2', 60000)).rejects.toThrow(/khusus untuk/);
+    await expect(
+      service.redeem('MAAFYA', 'cust-2', randomUUID(), 60000),
+    ).rejects.toThrow(/khusus untuk/);
+  });
+
+  it('lets the customer it was given to spend it', async () => {
+    const v = await service.create(baseVoucher({ code: 'MAAFYA', audience: 'GRANTED' }));
+    await service.grant(v.id, 'cust-1');
+    await expect(service.quote('MAAFYA', 'cust-1', 60000)).resolves.toMatchObject({ valid: true });
+  });
+
+  it('leaves a PUBLIC campaign code spendable by anybody', async () => {
+    await service.create(baseVoucher({ code: 'HEMAT10' }));
+    await expect(service.quote('HEMAT10', 'anybody', 60000)).resolves.toMatchObject({
+      valid: true,
+    });
+  });
+
+  it('shows a GRANTED voucher only in its grantee’s wallet', async () => {
+    const mine = await service.create(baseVoucher({ code: 'MAAFYA', audience: 'GRANTED' }));
+    await service.create(baseVoucher({ code: 'HEMAT10' }));
+    await service.grant(mine.id, 'cust-1');
+
+    expect((await service.myVouchers('cust-1')).map((w) => w.voucher.code).sort()).toEqual([
+      'HEMAT10',
+      'MAAFYA',
+    ]);
+    expect((await service.myVouchers('cust-2')).map((w) => w.voucher.code)).toEqual(['HEMAT10']);
+  });
+});
+
+/*
+ * PRM-6. The PATCH door ran none of create's money rules and dropped `budgetCap` on the
+ * floor: a voucher created at a legal 20% could be edited to 500% afterwards, and an editor
+ * lowering a campaign's budget saw the form accept a number that never moved.
+ */
+describe('VoucherService.update · money invariants (PRM-6)', () => {
+  let service: VoucherService;
+  let repo: InMemoryVoucherRepository;
+
+  beforeEach(() => {
+    repo = new InMemoryVoucherRepository();
+    service = new VoucherService(repo, new FakeCustomerLookup(), new FakeNotification());
+  });
+
+  it('refuses a percentage edited past 100%', async () => {
+    const v = await service.create(baseVoucher({ value: 20 }));
+    await expect(
+      service.update(v.id, { value: 500 }, v.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(InvalidVoucherValueError);
+  });
+
+  it('refuses a zero or negative value on a discount that needs one', async () => {
+    const v = await service.create(baseVoucher({ discountType: DiscountType.FIXED, value: 5000 }));
+    await expect(
+      service.update(v.id, { value: 0 }, v.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(InvalidVoucherValueError);
+  });
+
+  it('judges a value-only patch against the type the voucher already has', async () => {
+    const v = await service.create(baseVoucher({ discountType: DiscountType.FIXED, value: 5000 }));
+    // 500 is nonsense as a percentage and ordinary as rupiah off.
+    await expect(
+      service.update(v.id, { value: 500 }, v.updatedAt.toISOString()),
+    ).resolves.toMatchObject({ value: 500 });
+  });
+
+  it('carries the budget cap through the patch', async () => {
+    const v = await service.create(baseVoucher({ budgetCap: 5_000_000 }));
+    await expect(
+      service.update(v.id, { budgetCap: 1_000_000 }, v.updatedAt.toISOString()),
+    ).resolves.toMatchObject({ budgetCap: 1_000_000 });
+  });
+});
+
+/*
+ * PRM-7. The public preview answered with the whole row to anybody who guessed a code: a
+ * draft campaign not yet launched, a deactivated one, its budget cap and its usage counters.
+ */
+describe('VoucherService.previewByCode (PRM-7)', () => {
+  let service: VoucherService;
+
+  beforeEach(() => {
+    service = new VoucherService(
+      new InMemoryVoucherRepository(),
+      new FakeCustomerLookup(),
+      new FakeNotification(),
+    );
+  });
+
+  it('returns only what a customer needs to decide', async () => {
+    await service.create(baseVoucher({ budgetCap: 5_000_000 }));
+    const preview = await service.previewByCode('hemat10');
+    expect(preview).toEqual({
+      code: 'HEMAT10',
+      description: null,
+      discountType: DiscountType.PERCENTAGE,
+      value: 10,
+      minSpend: 0,
+      maxDiscount: null,
+      validUntil: null,
+    });
+    expect(preview).not.toHaveProperty('budgetCap');
+    expect(preview).not.toHaveProperty('usedCount');
+  });
+
+  it.each([
+    ['a draft', { active: false }],
+    ['one that has not started', { validFrom: new Date(Date.now() + 86_400_000) }],
+    ['an expired one', { validUntil: new Date(Date.now() - 86_400_000) }],
+    ['one addressed to named customers', { audience: 'GRANTED' as const }],
+  ])('answers %s exactly like a code that does not exist', async (_label, over) => {
+    await service.create(baseVoucher(over));
+    await expect(service.previewByCode('HEMAT10')).rejects.toThrow(/not found|tidak/i);
+  });
+
+  it('answers an unknown code the same way', async () => {
+    await expect(service.previewByCode('NOSUCH')).rejects.toThrow(/not found|tidak/i);
+  });
+});
+
 describe('VoucherService', () => {
   let repo: InMemoryVoucherRepository;
   let customers: FakeCustomerLookup;
@@ -42,7 +182,7 @@ describe('VoucherService', () => {
   it('grants a voucher once and fires VOUCHER_GRANTED; a repeat grant is a silent no-op', async () => {
     const v = await service.create(baseVoucher({ code: 'GRATISKIRIM' }));
 
-    const first = await service.grant(v.id, 'cust-1', 'Bearer tok');
+    const first = await service.grant(v.id, 'cust-1');
     expect(first.granted).toBe(true);
     expect(notifications.calls).toHaveLength(1);
     expect(notifications.calls[0]).toMatchObject({
@@ -52,7 +192,7 @@ describe('VoucherService', () => {
     });
     expect(notifications.calls[0].vars).toMatchObject({ code: 'GRATISKIRIM', name: 'Budi' });
 
-    const second = await service.grant(v.id, 'cust-1', 'Bearer tok');
+    const second = await service.grant(v.id, 'cust-1');
     expect(second.granted).toBe(false);
     expect(notifications.calls).toHaveLength(1); // not re-sent
   });
@@ -125,7 +265,10 @@ describe('VoucherService', () => {
       const out = await service.release(orderId);
 
       expect(out).toEqual({ released: true, discountReturned: 5000 });
-      expect(repo.redemptions).toHaveLength(0);
+      // PRM-8: the row STAYS, stamped. Deleting it threw away the only evidence that a
+      // discount was burned and then returned, which is what a burn report reconciles against.
+      expect(repo.redemptions).toHaveLength(1);
+      expect(repo.redemptions[0].releasedAt).toBeInstanceOf(Date);
       expect((await service.getByCode('HEMAT10')).usedCount).toBe(0);
     });
 

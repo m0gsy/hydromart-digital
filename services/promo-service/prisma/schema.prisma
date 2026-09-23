@@ -48,6 +48,15 @@ model Voucher {
   /// column the approval produced a code every customer in the network could spend. Null is
   /// what every HQ-created voucher is, and what every row predating this migration is.
   depotId     String?
+  /// PRM-4: who may spend this code.
+  ///
+  /// `PUBLIC` is a campaign code — printed on a banner, spendable by anybody who types it,
+  /// which is what every voucher used to be. `GRANTED` is a code that belongs to the people
+  /// it was given to: it appears in their wallet only, and a customer who was not granted it
+  /// cannot quote or redeem it even if they learn the code.
+  ///
+  /// TEXT, not an enum, so a third audience needs no irreversible migration.
+  audience    String       @default("PUBLIC")
   /// Denormalised global redemption count (kept in step with redemptions).
   usedCount   Int          @default(0)
   active      Boolean      @default(true)
@@ -139,6 +148,12 @@ model VoucherRedemption {
   orderId         String
   discountApplied Int
   createdAt       DateTime @default(now())
+  /// PRM-8: when a voided order handed this redemption back. Null = still spent.
+  ///
+  /// The release used to DELETE the row, which is why the same void replayed twice
+  /// decremented the counter twice, and why nothing could reconcile a burn report against
+  /// what was actually returned: the evidence was gone.
+  releasedAt      DateTime?
 
   @@unique([orderId])
   @@index([voucherId, customerId])

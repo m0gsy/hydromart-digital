@@ -10,5 +10,5 @@ export interface CustomerContact {
  * still succeeds without a notification.
  */
 export interface CustomerLookupPort {
-  resolve(customerId: string, authorization: string): Promise<CustomerContact | null>;
+  resolve(customerId: string): Promise<CustomerContact | null>;
 }

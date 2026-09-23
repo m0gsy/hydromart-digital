@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsPositive,
@@ -13,6 +14,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  MinLength,
   Min,
 } from 'class-validator';
 
@@ -22,9 +24,17 @@ import { WalletVoucher } from '../../application/services/voucher.service';
 /* ---------- Requests ---------- */
 
 export class CreateVoucherDto {
+  /*
+   * PRM-7: a floor under how guessable a code is.
+   *
+   * `GET /vouchers/:code` is public by design (a customer types a code off a banner), so a
+   * three-character code is a code anybody can find by trying. Six characters is the
+   * shortest thing still worth printing, and it is what every campaign here already uses.
+   */
   @ApiProperty({ example: 'HEMAT10', description: 'Unique voucher code (stored uppercase).' })
   @IsString()
   @IsNotEmpty()
+  @MinLength(6)
   @MaxLength(64)
   code!: string;
 
@@ -99,6 +109,15 @@ export class CreateVoucherDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /**
+   * PRM-4: who may spend it. `PUBLIC` is a campaign code anybody may type; `GRANTED` belongs
+   * to the customers it is given to and appears in nobody else's wallet.
+   */
+  @ApiPropertyOptional({ enum: ['PUBLIC', 'GRANTED'], default: 'PUBLIC' })
+  @IsOptional()
+  @IsIn(['PUBLIC', 'GRANTED'])
+  audience?: 'PUBLIC' | 'GRANTED';
 }
 
 export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {
@@ -215,6 +234,27 @@ export class RedeemVoucherDto {
 /* ---------- Responses ---------- */
 
 /** One voucher in the customer's wallet (spec 4a "Voucher kamu"). */
+/**
+ * PRM-7: everything an unauthenticated caller may learn about a code — enough to decide
+ * whether to type it, nothing about how the campaign is performing.
+ */
+export class PublicVoucherPreviewDto {
+  @ApiProperty({ example: 'HEMAT10' })
+  code!: string;
+  @ApiPropertyOptional({ nullable: true, example: '10% off your refill order.' })
+  description!: string | null;
+  @ApiProperty({ enum: DiscountType })
+  discountType!: DiscountType;
+  @ApiProperty({ example: 10 })
+  value!: number;
+  @ApiProperty({ example: 50000 })
+  minSpend!: number;
+  @ApiPropertyOptional({ nullable: true, example: 20000 })
+  maxDiscount!: number | null;
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  validUntil!: Date | null;
+}
+
 export class MyVoucherDto {
   @ApiProperty({ example: 'HEMAT10' })
   code!: string;

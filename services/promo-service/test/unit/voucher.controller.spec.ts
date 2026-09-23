@@ -26,6 +26,7 @@ describe('VoucherController', () => {
     update: jest.fn().mockResolvedValue({ id: 'v1' }),
     deactivate: jest.fn().mockResolvedValue({ id: 'v1', active: false }),
     getByCode: jest.fn().mockResolvedValue({ id: 'v1', code: 'HEMAT' }),
+    previewByCode: jest.fn().mockResolvedValue({ code: 'HEMAT' }),
   };
   const controller = new VoucherController(vouchers as unknown as VoucherService);
 
@@ -207,14 +208,11 @@ describe('VoucherController', () => {
     });
   });
 
-  it('grant forwards the authorization header when present', async () => {
-    await controller.grant('v1', { customerId: 'c1' } as unknown as GrantVoucherDto, 'Bearer tok');
-    expect(vouchers.grant).toHaveBeenCalledWith('v1', 'c1', 'Bearer tok');
-  });
-
-  it('grant defaults authorization to empty string when absent', async () => {
-    await controller.grant('v1', { customerId: 'c1' } as unknown as GrantVoucherDto, undefined);
-    expect(vouchers.grant).toHaveBeenCalledWith('v1', 'c1', '');
+  // PRM-9: the grant no longer borrows the clicking staff member's token — the contact is
+  // read by id under the internal key, so there is nothing to forward.
+  it('grant passes the voucher and the customer, and nothing else', async () => {
+    await controller.grant('v1', { customerId: 'c1' } as unknown as GrantVoucherDto);
+    expect(vouchers.grant).toHaveBeenCalledWith('v1', 'c1');
   });
 
   it('update maps patch and parses provided dates', async () => {
@@ -243,9 +241,11 @@ describe('VoucherController', () => {
     expect(vouchers.deactivate).toHaveBeenCalledWith('v1');
   });
 
-  it('getByCode delegates with the code', async () => {
+  // PRM-7: the public route answers a PREVIEW, not the stored row. It used to hand a draft
+  // campaign, its budget cap and its usage counters to anybody who guessed a code.
+  it('getByCode answers the public preview, not the row', async () => {
     await controller.getByCode('HEMAT');
-    expect(vouchers.getByCode).toHaveBeenCalledWith('HEMAT');
+    expect(vouchers.previewByCode).toHaveBeenCalledWith('HEMAT');
   });
 });
 

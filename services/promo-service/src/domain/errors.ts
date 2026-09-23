@@ -43,6 +43,21 @@ export class VoucherWrongDepotError extends DomainError {
   }
 }
 
+/**
+ * PRM-4: the code is real, but it was given to somebody else.
+ *
+ * A voucher granted to one customer used to be spendable by every customer who learned the
+ * code — a birthday voucher, a complaint apology, a reactivation offer, all network-wide
+ * the moment one person forwarded the message.
+ */
+export class VoucherNotYoursError extends DomainError {
+  readonly code = 'VOUCHER_NOT_YOURS';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Voucher ini khusus untuk pelanggan yang menerimanya.');
+  }
+}
+
 export class PromotionNotFoundError extends DomainError {
   readonly code = 'PROMOTION_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

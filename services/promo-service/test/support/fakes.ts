@@ -92,6 +92,8 @@ export class InMemoryVoucherRepository implements VoucherRepository {
       usageLimit: data.usageLimit,
       perCustomerLimit: data.perCustomerLimit,
       budgetCap: data.budgetCap ?? null,
+      // PRM-4: omitted means PUBLIC, which is what every voucher used to be.
+      audience: data.audience ?? 'PUBLIC',
       usedCount: 0,
       active: data.active ?? true,
       createdAt: now,
@@ -125,27 +127,43 @@ export class InMemoryVoucherRepository implements VoucherRepository {
   }
 
   async countRedemptions(voucherId: string, customerId?: string): Promise<number> {
+    // PRM-8: a redemption handed back by a voided order no longer counts against anybody.
     return this.redemptions.filter(
-      (r) => r.voucherId === voucherId && (customerId ? r.customerId === customerId : true),
+      (r) =>
+        r.voucherId === voucherId &&
+        !r.releasedAt &&
+        (customerId ? r.customerId === customerId : true),
     ).length;
   }
 
   async listForCustomer(
     customerId: string,
-  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]> {
+  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number; granted: boolean }[]> {
+    // PRM-4: a PUBLIC code shows to everybody; a GRANTED one only to its grantees.
     return this.vouchers
-      .filter((v) => v.active)
+      .filter(
+        (v) =>
+          v.active &&
+          (v.audience !== 'GRANTED' ||
+            this.grants.some((g) => g.voucherId === v.id && g.customerId === customerId)),
+      )
       .map((v) => ({
         voucher: { ...v },
         customerRedemptions: this.redemptions.filter(
-          (r) => r.voucherId === v.id && r.customerId === customerId,
+          (r) => r.voucherId === v.id && r.customerId === customerId && !r.releasedAt,
         ).length,
+        granted: this.grants.some((g) => g.voucherId === v.id && g.customerId === customerId),
       }));
+  }
+
+  async hasGrant(voucherId: string, customerId: string): Promise<boolean> {
+    return this.grants.some((g) => g.voucherId === voucherId && g.customerId === customerId);
   }
 
   async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
     const map = new Map<string, number>();
     for (const r of this.redemptions) {
+      if (r.releasedAt) continue; // PRM-8: returned, so it burned nothing.
       map.set(r.voucherId, (map.get(r.voucherId) ?? 0) + r.discountApplied);
     }
     return [...map.entries()].map(([voucherId, burned]) => ({ voucherId, burned }));
@@ -153,7 +171,7 @@ export class InMemoryVoucherRepository implements VoucherRepository {
 
   async sumRedemptionsFor(voucherId: string): Promise<number> {
     return this.redemptions
-      .filter((r) => r.voucherId === voucherId)
+      .filter((r) => r.voucherId === voucherId && !r.releasedAt)
       .reduce((sum, r) => sum + r.discountApplied, 0);
   }
 
@@ -234,7 +252,10 @@ export class InMemoryVoucherRepository implements VoucherRepository {
   ): Promise<VoucherRedemptionRecord> {
     const voucher = this.vouchers.find((x) => x.id === input.voucherId);
     if (!voucher) throw new VoucherNotFoundError();
-    const forVoucher = this.redemptions.filter((r) => r.voucherId === input.voucherId);
+    // PRM-8: released rows count against nobody and burned nothing.
+    const forVoucher = this.redemptions.filter(
+      (r) => r.voucherId === input.voucherId && !r.releasedAt,
+    );
     const discountApplied = decide({
       usedCount: voucher.usedCount,
       customerRedemptions: forVoucher.filter((r) => r.customerId === input.customerId).length,
@@ -251,14 +272,17 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     return { ...redemption };
   }
 
-  /** C4: mirrors `releaseAtomic` — delete the row, decrement the counter, together. */
+  /**
+   * C4 + PRM-8: mirrors `releaseAtomic` — the row STAYS and is stamped, so the burn that was
+   * returned can still be reconciled, and a replayed void wins nothing the second time.
+   */
   async releaseAtomic(orderId: string): Promise<VoucherRedemptionRecord | null> {
-    const i = this.redemptions.findIndex((r) => r.orderId === orderId);
-    if (i < 0) return null;
-    const [redemption] = this.redemptions.splice(i, 1);
+    const redemption = this.redemptions.find((r) => r.orderId === orderId);
+    if (!redemption || redemption.releasedAt) return null;
+    redemption.releasedAt = nextDate();
     const voucher = this.vouchers.find((x) => x.id === redemption.voucherId);
     if (voucher) voucher.usedCount = Math.max(0, voucher.usedCount - 1);
-    return redemption;
+    return { ...redemption };
   }
 
   grants: { voucherId: string; customerId: string }[] = [];
@@ -273,9 +297,10 @@ export class InMemoryVoucherRepository implements VoucherRepository {
 
 export class FakeCustomerLookup {
   contact: { name: string; phone: string } | null = { name: 'Budi', phone: '+6281234567890' };
-  calls: { customerId: string; authorization: string }[] = [];
-  async resolve(customerId: string, authorization: string) {
-    this.calls.push({ customerId, authorization });
+  /** PRM-9: the lookup asks for ONE customer by id, under the internal key. */
+  calls: { customerId: string }[] = [];
+  async resolve(customerId: string) {
+    this.calls.push({ customerId });
     return this.contact;
   }
 }

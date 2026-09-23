@@ -110,6 +110,17 @@ export class InMemoryProfileRepository implements ProfileRepository {
     if (rec) rec.lastBirthdayRewardYear = year;
   }
 
+  /** PRM-9: one customer's contact, without paging the whole directory. */
+  async findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
+    const profile = this.rows.get(customerId);
+    if (!profile) return null;
+    const addrs = this.addresses ? await this.addresses.listByCustomer(customerId) : [];
+    const primary = addrs.find((a) => a.isPrimary);
+    return primary
+      ? { customerId, name: primary.recipientName, phone: primary.phone }
+      : null;
+  }
+
   async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
     const out: DirectoryRecipient[] = [];
     for (const p of this.rows.values()) {

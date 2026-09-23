@@ -42,11 +42,12 @@ function recordingPrisma(captured: Captured[]) {
       groupBy: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation(({ data }) => ({ id: 'r-1', createdAt: new Date(), ...data })),
       findUnique: jest.fn().mockResolvedValue({ id: 'r-1', voucherId: VOUCHER_ID, orderId: ORDER_ID }),
-      delete: jest.fn().mockResolvedValue({}),
+      // PRM-8: the release stamps the row rather than deleting it, and claims it first.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     voucher: { update: jest.fn().mockResolvedValue({}) },
   };
-  const tx = { ...models, $queryRaw: queryRaw };
+  const tx = { ...models, $queryRaw: queryRaw, $executeRaw: queryRaw };
   return { ...tx, $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx) };
 }
 
@@ -102,10 +103,11 @@ describe('voucher raw SQL on the real schema (PRM-3)', () => {
     results = runOnPostgres(captured);
   });
 
-  it('sends the four raw statements this spec exists for', () => {
-    // Redeem lock, release lock, daily uses, distinct orders. If the repository grows or
-    // drops a raw statement, this count is where the spec finds out it must look again.
-    expect(captured).toHaveLength(6);
+  it('sends the raw statements this spec exists for', () => {
+    // Redeem lock, release lock, the release's own counter write (PRM-8), daily uses,
+    // distinct orders — and the depot-scoped variants of the last two. If the repository
+    // grows or drops a raw statement, this count is where the spec finds out.
+    expect(captured).toHaveLength(7);
   });
 
   it('runs every one of them on the schema the migrations actually build', () => {
@@ -113,10 +115,13 @@ describe('voucher raw SQL on the real schema (PRM-3)', () => {
   });
 
   it('finds the voucher it locks, and the redemption it counts', () => {
-    const [redeemLock, releaseLock, daily, orders, scopedDaily, scopedOrders] =
+    const [redeemLock, releaseLock, releaseDebit, daily, orders, scopedDaily, scopedOrders] =
       results as Extract<Result, { ok: true }>[];
     expect(redeemLock.rows).toEqual([{ usedCount: 0 }]);
     expect(releaseLock.rows).toEqual([{ usedCount: 0 }]);
+    // PRM-8: the counter comes back floored at zero, which is what the old comment claimed
+    // and `decrement: 1` never did. Running it on the real schema is the proof.
+    expect(releaseDebit.rows).toEqual([]);
     // 03:00 UTC on 20 August is 10:00 WIB the same day — the two-hop zone read (C2) intact.
     expect(daily.rows).toEqual([{ day: '2026-08-20', uses: 1 }]);
     expect(orders.rows).toEqual([{ orderId: ORDER_ID }]);

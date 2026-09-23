@@ -10,10 +10,20 @@ interface DirectoryRecipient {
 }
 
 /**
- * Resolves a single customer's name+phone by scanning customer-service's staff directory
- * (GET /profile/directory), forwarding the acting staff member's token. ponytail: a bulk
- * scan filtered client-side — grant is a low-frequency admin action; add a by-id endpoint
- * on customer-service if grant volume grows. Fails OPEN (returns null) on any error.
+ * PRM-9: resolves ONE customer's name + phone from customer-service, by id.
+ *
+ * It used to download the entire staff directory — every name and phone number in the
+ * network — on the acting staff member's token and filter it in memory. The note above this
+ * code called that acceptable because granting is rare; what it missed is that rarity does
+ * not make the payload smaller, and the whole directory crossing a service boundary to
+ * answer a one-row question is the exposure, not the cost.
+ *
+ * Internal key rather than the caller's token, like every other service-to-service read
+ * here: the answer should not depend on whether the staff member who clicked "grant"
+ * happens to hold `customerDirectory`.
+ *
+ * Fails OPEN (returns null) on any error — the grant itself still happens; only the
+ * notification is skipped.
  */
 @Injectable()
 export class CustomerLookupHttpAdapter implements CustomerLookupPort {
@@ -22,19 +32,21 @@ export class CustomerLookupHttpAdapter implements CustomerLookupPort {
 
   constructor(private readonly config: PromoConfigService) {}
 
-  async resolve(customerId: string, authorization: string): Promise<CustomerContact | null> {
+  async resolve(customerId: string): Promise<CustomerContact | null> {
     const base = this.config.customerServiceUrl;
-    if (!base || !authorization) return null;
-    const url = `${base}/api/v1/profile/directory`;
+    const key = this.config.internalServiceKey;
+    if (!base || !key) return null;
+    const url = `${base}/api/v1/profile/internal/contact/${customerId}`;
     try {
       const res = await fetch(url, {
-        headers: { authorization },
+        headers: { 'x-internal-key': key },
         signal: AbortSignal.timeout(CustomerLookupHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`customer-service responded ${res.status}`);
-      const recipients = (await res.json()) as DirectoryRecipient[];
-      const match = recipients.find((r) => r.customerId === customerId);
-      return match ? { name: match.name, phone: match.phone } : null;
+      const match = (await res.json()) as DirectoryRecipient | null;
+      // A customer with no primary address has no number to notify: that is a null, not a
+      // contact with undefined fields.
+      return match?.name && match?.phone ? { name: match.name, phone: match.phone } : null;
     } catch (error) {
       this.logger.warn(`customer lookup skipped: ${(error as Error).message}`);
       return null;
