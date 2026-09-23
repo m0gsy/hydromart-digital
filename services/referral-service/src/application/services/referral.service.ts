@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ReferralConfigService } from '../../config/referral-config.service';
 import { generateReferralCode, normalizeCode } from '../../domain/referral-code';
@@ -136,8 +136,27 @@ export class ReferralService {
     return this.summaryFor(customerId, page, limit);
   }
 
-  /** Staff read: same summary shape for an arbitrary customer. */
-  getCustomerSummary(customerId: string, page = 1, limit = 20): Promise<ReferralSummary> {
+  /**
+   * Staff read: same summary shape for an arbitrary customer.
+   *
+   * REF-1: `depotIds` is a depot-scoped caller's set — a MANAGER read the referral history
+   * of any customer in the network by id. Refused unless the customer belongs to one of
+   * those depots; the directory fails open to [], which here means "not yours".
+   */
+  async getCustomerSummary(
+    customerId: string,
+    page = 1,
+    limit = 20,
+    depotIds?: readonly string[],
+  ): Promise<ReferralSummary> {
+    if (depotIds) {
+      const lists = await Promise.all(
+        depotIds.map((d) => this.customerDirectory.customerIdsForDepot(d)),
+      );
+      if (!lists.some((ids) => ids.includes(customerId))) {
+        throw new ForbiddenException('Pelanggan ini bukan pelanggan depot Anda.');
+      }
+    }
     return this.summaryFor(customerId, page, limit);
   }
 

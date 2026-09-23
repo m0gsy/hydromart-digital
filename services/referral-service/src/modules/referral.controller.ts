@@ -12,7 +12,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { ReferralConfigService } from '../config/referral-config.service';
 import { ReferralService } from '../application/services/referral.service';
@@ -120,11 +127,17 @@ export class ReferralController {
   @Get('customers/:customerId')
   @ApiOperation({ summary: "Read a customer's referral summary (staff)" })
   async byCustomer(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('customerId', ParseUUIDPipe) customerId: string,
     @Query() query: ReferralPageQueryDto,
   ): Promise<ReferralSummaryDto> {
     return ReferralSummaryDto.from(
-      await this.referrals.getCustomerSummary(customerId, query.page, query.limit),
+      await this.referrals.getCustomerSummary(
+        customerId,
+        query.page,
+        query.limit,
+        depotScopeIds(user),
+      ),
     );
   }
 }

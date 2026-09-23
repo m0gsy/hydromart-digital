@@ -101,8 +101,13 @@ describe('ReferralController', () => {
 
   it('byCustomer reads a summary for an arbitrary customer', async () => {
     const { controller, service } = makeController();
-    const out = await controller.byCustomer('u9', { page: 1, limit: 20 });
-    expect(service.getCustomerSummary).toHaveBeenCalledWith('u9', 1, 20);
+    const hq = { sub: 'h', role: 'HEAD_OFFICE' } as never;
+    const out = await controller.byCustomer(hq, 'u9', { page: 1, limit: 20 });
+    expect(service.getCustomerSummary).toHaveBeenCalledWith('u9', 1, 20, undefined);
+    // REF-1: a MANAGER's read carries its depots.
+    const mgr = { sub: 'm', role: 'MANAGER', depotId: 'd1' } as never;
+    await controller.byCustomer(mgr, 'u9', { page: 1, limit: 20 });
+    expect(service.getCustomerSummary).toHaveBeenLastCalledWith('u9', 1, 20, ['d1']);
     expect(out.qualifiedCount).toBe(0);
   });
 

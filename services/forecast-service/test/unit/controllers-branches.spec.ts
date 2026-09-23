@@ -66,6 +66,19 @@ describe('ForecastController', () => {
     expect(forecasts.demand).toHaveBeenCalled();
   });
 
+  // FCT-2: an unnamed depot is the caller's own, never the network.
+  it('demand and sales fall back to the caller depot, and refuse to guess between several', async () => {
+    await ctrl.sales({}, user({ role: Role.KEPALA_DEPOT, depotId: UUID }));
+    expect(forecasts.salesForecast).toHaveBeenLastCalledWith({ depotId: UUID, historyDays: undefined, horizonDays: undefined });
+    await ctrl.demand({ productId: UUID }, user({ role: Role.MANAGER, depotId: null, depotIds: [UUID] }));
+    expect(forecasts.demand).toHaveBeenLastCalledWith({ productId: UUID, depotId: UUID, historyDays: undefined, horizonDays: undefined });
+    await expect(
+      ctrl.sales({}, user({ role: Role.SUPERVISOR, depotId: null, depotIds: [UUID, 'd2'] })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await ctrl.sales({}, user());
+    expect(forecasts.salesForecast).toHaveBeenLastCalledWith({ depotId: undefined, historyDays: undefined, horizonDays: undefined });
+  });
+
   it('depotRollup delegates with the path depot id', async () => {
     await ctrl.depotRollup(UUID, { limit: 5 }, user());
     expect(forecasts.depotRollup).toHaveBeenCalledWith({ depotId: UUID, historyDays: undefined, horizonDays: undefined, limit: 5 });

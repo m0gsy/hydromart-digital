@@ -18,6 +18,9 @@ export class SettingsController {
 
   @ApiOkResponse({ type: SettingsSchemaResponseDto })
   @Get('schema')
+  // FCT-1: the class gate is `forecast`, which reaches depot staff and franchise owners.
+  // Reading tunables is `settingsRead` in every other service; this one had been missed.
+  @Can('settingsRead')
   @ApiOperation({ summary: 'Setting defs + effective values for an optional depot' })
   schema(
     @Query('depotId') depotId?: string,
