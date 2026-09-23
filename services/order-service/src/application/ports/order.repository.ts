@@ -533,13 +533,13 @@ export interface OrderRepository {
   ): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number, depotIds?: readonly string[]): Promise<DepotSales[]>;
-  shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
+  shippingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotShipping[]>;
   /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
-  refundsByDepot(range: ReportRange): Promise<DepotRefund[]>;
+  refundsByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRefund[]>;
   /** Record the refunded amount on an order (payment-service coordination). Idempotent set. */
   recordRefund(orderId: string, amount: number): Promise<void>;
   /** Average rating per depot (orders in-window that have a review), 14d. */
-  ratingByDepot(range: ReportRange): Promise<DepotRating[]>;
+  ratingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRating[]>;
   /**
    * One depot's ratings detail: average, count, star distribution, and the most recent
    * reviews (design 14b). Reviews are joined to their parent order for depot + createdAt
