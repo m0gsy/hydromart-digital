@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -152,6 +153,8 @@ describe('Cash settlement HTTP flows (e2e)', () => {
       { sub, role, phone: '+62', depotId },
       {
         secret: app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET'),
+        issuer: TOKEN_ISSUER,
+        audience: TOKEN_AUDIENCE,
       },
     );
 
