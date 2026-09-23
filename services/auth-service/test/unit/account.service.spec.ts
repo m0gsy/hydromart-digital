@@ -231,6 +231,24 @@ describe('AccountService', () => {
       ).rejects.toBeInstanceOf(RoleEscalationError);
     });
 
+    /*
+     * SEC-AUDIT CORE-1 / XCUT-4: FINANCE carries `hqPayout` and `refundIssue`, which head
+     * office does not hold. Inviting its own phone back as FINANCE was the first link of a
+     * chain that ended with a franchise owner's balance released to a bank reference typed
+     * by the same person.
+     */
+    it.each([Role.FINANCE, Role.HR, Role.MARKETING, Role.MANAGER])(
+      'refuses head office minting %s',
+      async (role) => {
+        await expect(
+          service.inviteStaffWithEmployee(
+            { ...EMPLOYMENT, phone: '+628997770020', role, fullName: 'Diri Sendiri' },
+            Role.HEAD_OFFICE,
+          ),
+        ).rejects.toBeInstanceOf(RoleEscalationError);
+      },
+    );
+
     it('lets a SUPER_ADMIN do it, and leaves ordinary staff invites alone', async () => {
       await expect(
         service.inviteStaffWithEmployee(
@@ -256,18 +274,21 @@ describe('AccountService', () => {
     it('fails only the escalating row of a bulk import', async () => {
       const summary = await service.importStaff(
         [
-          { ...EMPLOYMENT, phone: '+628997770011', role: Role.FINANCE, fullName: 'Keuangan' },
+          { ...EMPLOYMENT, phone: '+628997770011', role: Role.SUPERVISOR, fullName: 'Supervisor' },
           {
             ...EMPLOYMENT,
             phone: '+628997770012',
             role: Role.SUPER_ADMIN,
             fullName: 'Diri Sendiri',
           },
+          // Until CORE-1 this row was CREATED — the spreadsheet minted FINANCE as happily as the form.
+          { ...EMPLOYMENT, phone: '+628997770013', role: Role.FINANCE, fullName: 'Keuangan' },
         ],
         Role.HEAD_OFFICE,
       );
-      expect(summary).toMatchObject({ created: 1, failed: 1 });
+      expect(summary).toMatchObject({ created: 1, failed: 2 });
       expect(summary.results[1]).toMatchObject({ row: 2, status: 'failed' });
+      expect(summary.results[2]).toMatchObject({ row: 3, status: 'failed' });
     });
   });
 
@@ -470,7 +491,7 @@ describe('AccountService', () => {
           fullName: 'Joko',
           depotId: 'depot-1',
         },
-      ]);
+      ], Role.SUPER_ADMIN); // FINANCE is SUPER_ADMIN-granted since CORE-1
       expect(second).toMatchObject({ created: 0, updated: 2, failed: 0 });
       expect(second.results[0].id).toBe(first.results[0].id);
     });
@@ -626,8 +647,30 @@ describe('AccountService', () => {
 
     it('moves an office role that never had a depot', async () => {
       const office = await service.inviteStaff('+628990003006', Role.HEAD_OFFICE, 'Kantor');
-      const moved = await service.setStaffRole(office.id, Role.FINANCE);
+      const moved = await service.setStaffRole(office.id, Role.FINANCE, undefined, Role.SUPER_ADMIN);
       expect(moved).toMatchObject({ role: Role.FINANCE, assignedDepotId: null });
+    });
+
+    /*
+     * SEC-AUDIT CORE-1. This path never asked who was granting: it is reached only from
+     * hr-service, and hr-service's `hrAdmin` is held by head office too — so a jabatan edit
+     * was a second door to MANAGER, beside the invite the grant rule had just closed. HR
+     * promoting along the supervision chain stays ordinary work (owner decision 2026-09-11).
+     */
+    it('refuses a promotion to MANAGER that nobody vouched for, or that head office asked for', async () => {
+      const staff = await service.inviteStaff('+628990003007', Role.SUPERVISOR, 'Spv');
+      await expect(service.setStaffRole(staff.id, Role.MANAGER)).rejects.toBeInstanceOf(
+        RoleEscalationError,
+      );
+      await expect(
+        service.setStaffRole(staff.id, Role.MANAGER, undefined, Role.HEAD_OFFICE),
+      ).rejects.toBeInstanceOf(RoleEscalationError);
+    });
+
+    it('lets HR promote to MANAGER', async () => {
+      const staff = await service.inviteStaff('+628990003008', Role.SUPERVISOR, 'Spv');
+      const moved = await service.setStaffRole(staff.id, Role.MANAGER, undefined, Role.HR);
+      expect(moved).toMatchObject({ role: Role.MANAGER });
     });
 
     /*
@@ -755,7 +798,7 @@ describe('AccountService', () => {
     const customer = makeCustomer({ phone: '+628990002222', role: Role.CUSTOMER });
     customers.seed(customer);
 
-    const promoted = await service.inviteStaff('+628990002222', Role.MANAGER, null, 'depot-1');
+    const promoted = await service.inviteStaff('+628990002222', Role.MANAGER, null, 'depot-1', undefined, Role.SUPER_ADMIN);
     expect(promoted.id).toBe(customer.id);
     expect(promoted.role).toBe(Role.MANAGER);
   });
@@ -1094,7 +1137,7 @@ describe('AccountService', () => {
     // A role above any single depot legitimately has none, and null must survive the hop
     // rather than being coerced into "no push".
     it('pushes a null depot for a role that is not depot-locked', async () => {
-      const staff = await service.inviteStaff('+628990006005', Role.MANAGER, 'Rina', 'depot-1');
+      const staff = await service.inviteStaff('+628990006005', Role.MANAGER, 'Rina', 'depot-1', undefined, Role.SUPER_ADMIN);
       hr.depotCalls.length = 0;
 
       await service.setStaffDepot(staff.id, null);

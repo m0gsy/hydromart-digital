@@ -211,7 +211,7 @@ describe('EmployeeService (M1)', () => {
     const e = await svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' });
 
     expect(identity.calls).toEqual([
-      { phone: baseInput.phone, role: 'KEPALA_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+      { phone: baseInput.phone, role: 'KEPALA_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A, grantedBy: 'HR' },
     ]);
     expect(e.authSubjectId).toBe('00000000-0000-4000-8000-000000000001');
   });
@@ -373,11 +373,25 @@ describe('EmployeeService (M1)', () => {
         customerId: '11111111-1111-4111-8111-111111111111',
         role: 'SUPERVISOR',
         depotId: DEPOT_A,
+        grantedBy: 'HR',
       },
     ]);
 
     await svc.update(hr, e.id, { role: 'SUPERVISOR', position: 'SPV Wilayah' });
     expect(identity.roleCalls).toHaveLength(1);
+  });
+
+  /*
+   * SEC-AUDIT CORE-1. `hrAdmin` is held by head office as well as HR, and only HR may promote
+   * to MANAGER — so the login side has to be told WHO is asking, or it cannot tell the two
+   * apart. hr-service names the human actor on both of its login-changing calls; auth-service
+   * decides.
+   */
+  it('names the human behind a new login, so the grant rule can refuse head office', async () => {
+    const { identity, svc } = make();
+    const headOffice: AuthenticatedUser = { sub: 'ho-1', role: 'HEAD_OFFICE' as never, phone: null, depotId: null };
+    await svc.create(headOffice, { ...baseInput, role: 'MANAGER' });
+    expect(identity.calls.at(-1)).toMatchObject({ role: 'MANAGER', grantedBy: 'HEAD_OFFICE' });
   });
 
   // Used to pass silently: no account, no call, no error — the promotion simply did not
@@ -748,7 +762,7 @@ describe('EmployeeService (M1)', () => {
 
     const linked = await svc.createAccountFor(hr, e.id);
     expect(identity.calls).toEqual([
-      { phone: baseInput.phone, role: 'STAFF_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+      { phone: baseInput.phone, role: 'STAFF_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A, grantedBy: 'HR' },
     ]);
     expect(linked.authSubjectId).toBe('00000000-0000-4000-8000-000000000002');
 
@@ -790,6 +804,7 @@ describe('EmployeeService (M1)', () => {
         customerId: '11111111-1111-4111-8111-111111111111',
         role: 'STAFF_DEPOT',
         depotId: DEPOT_B,
+        grantedBy: 'HR',
       },
     ]);
   });

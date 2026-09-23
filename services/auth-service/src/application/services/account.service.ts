@@ -525,9 +525,16 @@ export class AccountService {
     customerId: string,
     role: Role,
     depotId?: string | null,
+    grantedBy?: Role,
   ): Promise<PublicCustomer> {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
+    }
+    // SEC-AUDIT CORE-1. The invite path asked this question and this one did not, so a
+    // jabatan edit in hr-service — whose `hrAdmin` head office also holds — was a second
+    // door to MANAGER. hr-service now names the human actor.
+    if (!canGrantRole(grantedBy, role)) {
+      throw new RoleEscalationError(role);
     }
     const customer = await this.customers.findById(customerId);
     if (!customer) {

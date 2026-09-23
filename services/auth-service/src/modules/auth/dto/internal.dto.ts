@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsIn,
   IsISO8601,
   IsOptional,
@@ -74,6 +75,16 @@ export class AssignStaffRoleDto {
   @IsOptional()
   @IsUUID()
   depotId?: string | null;
+
+  /**
+   * SEC-AUDIT CORE-1. Who, on the hr-service side, is asking. The grant rule needs it:
+   * `hrAdmin` is held by head office as well as HR, and only HR may promote to MANAGER.
+   * Absent = an anonymous internal call, which may grant no restricted role.
+   */
+  @ApiPropertyOptional({ enum: Role, description: 'Role of the person making the change in hr-service.' })
+  @IsOptional()
+  @IsEnum(Role)
+  grantedBy?: Role;
 }
 
 /** Everything a provisioning call carries except the one field that decides its power. */
@@ -122,6 +133,16 @@ export class ProvisionManagedStaffDto extends ProvisionStaffBaseDto {
   @ApiProperty({ enum: HR_MANAGED_ROLES })
   @IsIn(HR_MANAGED_ROLES as readonly string[])
   role!: HrManagedRole & Role;
+
+  /**
+   * SEC-AUDIT CORE-1. Who, on the hr-service side, is asking. The grant rule needs it:
+   * `hrAdmin` is held by head office as well as HR, and only HR may promote to MANAGER.
+   * Absent = an anonymous internal call, which may grant no restricted role.
+   */
+  @ApiPropertyOptional({ enum: Role, description: 'Role of the person making the change in hr-service.' })
+  @IsOptional()
+  @IsEnum(Role)
+  grantedBy?: Role;
 }
 
 export class PreRegisterCustomerDto {

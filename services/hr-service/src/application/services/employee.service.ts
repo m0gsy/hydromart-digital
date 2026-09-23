@@ -272,7 +272,7 @@ export class EmployeeService {
     // the two writes live in two databases with no saga between them (see importMany). A
     // collision discovered after provisioning would leave a staff login nobody recorded.
     if (!alreadyUnique) await this.assertNobodyElseHas(input);
-    const authSubjectId = input.authSubjectId ?? (await this.provisionFor(input));
+    const authSubjectId = input.authSubjectId ?? (await this.provisionFor(input, user.role));
 
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
       fullName: input.fullName,
@@ -366,6 +366,7 @@ export class EmployeeService {
       role: employee.role as HrManagedRole,
       fullName: employee.fullName,
       depotId: employee.depotId ?? undefined,
+      grantedBy: user.role,
     });
     return this.repo.update(id, { authSubjectId: customerId, updatedBy: actorId(user.sub) }, []);
   }
@@ -524,7 +525,7 @@ export class EmployeeService {
    * cannot clock in, and nothing downstream would notice. Only the import path arrives
    * here with an account already provisioned, and it passes it in.
    */
-  private async provisionFor(input: CreateEmployeeInput): Promise<string> {
+  private async provisionFor(input: CreateEmployeeInput, grantedBy: string): Promise<string> {
     if (!input.role) {
       throw new BadRequestException('Jabatan (peran login) wajib diisi untuk karyawan baru');
     }
@@ -535,6 +536,7 @@ export class EmployeeService {
       phone: input.phone,
       fullName: input.fullName,
       depotId: input.depotId,
+      grantedBy,
     });
     return customerId;
   }
@@ -827,6 +829,7 @@ export class EmployeeService {
           customerId: current.authSubjectId,
           role,
           depotId: input.depotId ?? current.depotId,
+          grantedBy: user.role,
         });
       } else if (roleMoved && input.authSubjectId === undefined) {
         // No account to move the jabatan onto. This used to pass silently: the promotion

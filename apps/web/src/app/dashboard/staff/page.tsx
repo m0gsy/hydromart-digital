@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { CAPABILITIES, canManageStaff, type Capability } from '@/lib/roles';
+import { CAPABILITIES, canManageStaff, grantableRoles, type Capability } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Page } from '@/lib/types';
 
@@ -35,6 +35,8 @@ function selectClass() {
 
 function InviteForm({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  const offered = grantableRoles(STAFF_ROLES, customer?.role);
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
@@ -103,7 +105,7 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
       </div>
       <Field label={t('dashC.staff.role')} htmlFor="st-role">
         <select id="st-role" value={role} onChange={(e) => setRole(e.target.value)} className={selectClass()}>
-          {STAFF_ROLES.map((r) => (
+          {offered.map((r) => (
             <option key={r} value={r}>
               {t(`dashC.staff.roleLabel.${r}`)}
             </option>

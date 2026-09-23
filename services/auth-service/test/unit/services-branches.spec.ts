@@ -92,6 +92,8 @@ describe('AccountService branch gaps', () => {
       Role.MANAGER,
       'New Name',
       'depot-1',
+      undefined,
+      Role.SUPER_ADMIN, // MANAGER is a restricted grant since SEC-AUDIT CORE-1
     );
     expect(promoted.role).toBe(Role.MANAGER);
     expect(promoted.fullName).toBe('New Name');

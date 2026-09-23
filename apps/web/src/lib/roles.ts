@@ -4,7 +4,7 @@
 // the backend's own definition, imported. Change a role once in @hydromart/access and
 // the server guard, every canX() gate, and the "Peran & hak akses" matrix all move
 // together. Covered by test/roles.test.ts.
-import { CAPABILITIES, can as compiledCan, type Capability } from '@hydromart/access';
+import { CAPABILITIES, can as compiledCan, canGrantRole, type Capability } from '@hydromart/access';
 
 import { hqItemsForRole } from './hq-nav';
 import { isServedHere } from './deep-link';
@@ -353,3 +353,12 @@ export function notificationHome(
   }
   return consoleHome(role, native);
 }
+
+/**
+ * The roles an invite form may offer this viewer — exactly what auth-service will accept,
+ * because it is the same `canGrantRole` (SEC-AUDIT CORE-1). Both invite forms used to list
+ * every role for everyone, so head office could pick SUPER_ADMIN or FINANCE and learn from
+ * a 403 that it may not. Order is the form's own.
+ */
+export const grantableRoles = <R extends string>(roles: readonly R[], actor: string | null | undefined): R[] =>
+  roles.filter((role) => canGrantRole(actor, role));
