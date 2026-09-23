@@ -1071,9 +1071,22 @@ describe('SupportTicketPrismaRepository.erasePerson', () => {
       where: { OR: [{ customerId: 'cust-1' }, { customerPhone: '+628111' }] },
       select: { id: true },
     });
+    /*
+     * ADM-3: the erasure used to stop at the name and the number and leave the three
+     * things that identify the person just as well — the subject they typed (often with
+     * an address and a number in it), the order it points at, and the id that joins this
+     * ticket to every other trace of them. A deletion that keeps the join key has deleted
+     * nothing.
+     */
     expect(supportTicket.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['t1', 't2'] } },
-      data: { customerRef: 'Pengguna dihapus', customerPhone: '-' },
+      data: {
+        customerRef: 'Pengguna dihapus',
+        customerPhone: '-',
+        subject: '[dihapus atas permintaan pemilik data]',
+        orderRef: null,
+        customerId: null,
+      },
     });
     // Only the CUSTOMER's words. A staff reply is the depot's record of how it was handled.
     expect(ticketMessage.updateMany).toHaveBeenCalledWith({

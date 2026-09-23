@@ -1,8 +1,13 @@
 import { randomBytes } from 'node:crypto';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
 import { WebhookNotFoundError } from '../../domain/errors';
+import {
+  AddressLookup,
+  assertSendableWebhookUrl,
+  defaultAddressLookup,
+} from '../../domain/safe-webhook-url';
 import {
   CreateWebhookData,
   UpdateWebhookData,
@@ -13,7 +18,12 @@ import { ADMIN_TOKENS } from '../tokens';
 
 @Injectable()
 export class WebhookService {
-  constructor(@Inject(ADMIN_TOKENS.WebhookRepository) private readonly repo: WebhookRepository) {}
+  constructor(
+    @Inject(ADMIN_TOKENS.WebhookRepository) private readonly repo: WebhookRepository,
+    /** ADM-1: overridable so a test can decide what a hostname resolves to. */
+    @Optional()
+    private readonly lookup: AddressLookup = defaultAddressLookup,
+  ) {}
 
   /** All webhook endpoints (Design 19c), newest first. */
   list(): Promise<WebhookRecord[]> {
@@ -37,7 +47,11 @@ export class WebhookService {
    * 32 bytes of `randomBytes`, hex — the same shape the API keys in this service use, and
    * long enough that the HMAC is the weakest part rather than the key.
    */
-  create(data: CreateWebhookData): Promise<WebhookRecord> {
+  async create(data: CreateWebhookData): Promise<WebhookRecord> {
+    // ADM-1: refuse a destination inside our own network while somebody is still watching
+    // the form. The dispatcher checks again on every send, because a hostname can change
+    // its mind later — but a partner typing `http://order:3004` deserves an error now.
+    await assertSendableWebhookUrl(data.url, this.lookup);
     return this.repo.create({
       ...data,
       secret: data.secret?.trim() || randomBytes(32).toString('hex'),
@@ -46,6 +60,7 @@ export class WebhookService {
 
   /** Toggle/edit an endpoint. 404 when the id is unknown. */
   async update(id: string, data: UpdateWebhookData): Promise<WebhookRecord> {
+    if (data.url) await assertSendableWebhookUrl(data.url, this.lookup);
     const updated = await this.repo.update(id, data);
     if (!updated) throw new WebhookNotFoundError(id);
     return updated;

@@ -185,9 +185,52 @@ describe('RemotePurgeExecutor', () => {
     expect(await del.purge(NOW)).toBe(99);
   });
 
-  it('treats a missing count as zero rather than NaN', async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
-    expect(await new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).toBe(0);
+  /*
+   * ADM-7: a 200 whose body this cannot read used to be filed as "PURGED, 0 deleted" —
+   * indistinguishable from "nothing was due", which is the one outcome this feature exists
+   * to prevent. It was not theoretical: only `deleted` was ever read, while the HR
+   * retention routes answer `{ purged }` and the erasure ones `{ erased }`.
+   */
+  it('raises when the owner answers 200 without any count it can read', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    await expect(new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).rejects.toThrow(
+      /without a count/,
+    );
+  });
+
+  it('reads the REPORT mode count under its own key', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ eligible: 4, deleted: 99 }) });
+    expect(
+      await new RemotePurgeExecutor('ds', 'http://x', '/p', 'k', 'REPORT').purge(NOW),
+    ).toBe(4);
+  });
+
+  it('raises in REPORT mode when the owner answers with a delete count instead', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ deleted: 9 }) });
+    await expect(
+      new RemotePurgeExecutor('ds', 'http://x', '/p', 'k', 'REPORT').purge(NOW),
+    ).rejects.toThrow(/without a count/);
+  });
+
+  it('raises when the owner answers 200 with no JSON at all', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error('not json');
+      },
+    });
+    await expect(new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).rejects.toThrow(
+      /without a count/,
+    );
+  });
+
+  it.each([
+    ['deleted', { deleted: 7 }],
+    ['purged', { purged: 7 }],
+    ['erased', { erased: 7 }],
+  ])('accepts the count under its %s spelling', async (_label, body) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => body });
+    expect(await new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).toBe(7);
   });
 
   it('raises on a non-2xx instead of reporting a silent zero', async () => {

@@ -74,4 +74,37 @@ describe('rejectionReasonFor', () => {
     expect(rejectionReasonFor(DataClass.MARKETING, 30)).toBeNull();
     expect(rejectionReasonFor(DataClass.MARKETING, -1)).toContain('negatif');
   });
+
+  /*
+   * ADM-2. The floor was checked against the class the CALLER supplied, so one PUT could
+   * reclassify a dataset out of FINANCIAL and shorten its window on the way past: ten years
+   * of order history eligible for deletion, and every check in the file passed.
+   */
+  it('refuses to reclassify a financial dataset into something cheaper', () => {
+    expect(rejectionReasonFor(DataClass.OPERATIONAL, 30, DataClass.FINANCIAL)).toContain(
+      'tidak bisa diturunkan',
+    );
+    // Raising INTO financial is fine — that direction only ever keeps more.
+    expect(rejectionReasonFor(DataClass.FINANCIAL, 3650, DataClass.OPERATIONAL)).toBeNull();
+    expect(rejectionReasonFor(DataClass.FINANCIAL, 3650, DataClass.FINANCIAL)).toBeNull();
+  });
+
+  /*
+   * ADM-2, the other half: an audit trail answers "who did this" for an investigation that
+   * starts after somebody notices. A 7-day window does not make the company lighter, it
+   * makes the next incident unreconstructable.
+   */
+  it('holds a floor under the audit trail whatever its class says', () => {
+    expect(rejectionReasonFor(DataClass.OPERATIONAL, 7, undefined, 'audit_logs')).toContain('365');
+    expect(rejectionReasonFor(DataClass.OPERATIONAL, 7, undefined, 'hr_audit_logs')).toContain(
+      '365',
+    );
+    expect(rejectionReasonFor(DataClass.OPERATIONAL, 730, undefined, 'audit_logs')).toBeNull();
+    // 0 keeps meaning "keep everything" here, exactly as it does elsewhere in this file.
+    expect(rejectionReasonFor(DataClass.OPERATIONAL, 0, undefined, 'audit_logs')).toBeNull();
+    // And it is the audit datasets only: a 7-day window on message history is a choice.
+    expect(
+      rejectionReasonFor(DataClass.OPERATIONAL, 7, undefined, 'notifications_messages'),
+    ).toBeNull();
+  });
 });

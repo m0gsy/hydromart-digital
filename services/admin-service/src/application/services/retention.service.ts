@@ -58,7 +58,9 @@ export class RetentionService {
     if (!current) throw new RetentionPolicyNotFoundError(id);
 
     const dataClass = data.dataClass ?? current.dataClass;
-    const reason = rejectionReasonFor(dataClass, data.windowDays);
+    // ADM-2: judged against what the dataset already is, not only against what this request
+    // says it is — otherwise the reclassification and the shortening travel together.
+    const reason = rejectionReasonFor(dataClass, data.windowDays, current.dataClass, current.dataset);
     if (reason) throw new RetentionPolicyInvalidError(reason);
     // CA-2-53: refused when the caller's copy is older. Validation runs first — "your
     // window is illegal" is a more useful answer than "reload".

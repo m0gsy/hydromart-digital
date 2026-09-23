@@ -95,6 +95,12 @@ function makeRepos(dueRows: DueDelivery[], subscribers: WebhookRecord[] = [endpo
   return { deliveries, endpoints, calls, stats };
 }
 
+/**
+ * ADM-1: the dispatcher resolves the destination before every send, so a test has to say
+ * what a hostname resolves to. Public address = a partner's real endpoint.
+ */
+const publicLookup = async () => [{ address: '203.0.113.10' }];
+
 describe('webhook signing (H-30)', () => {
   it('signs the timestamp with the body, so a captured request cannot be replayed forever', () => {
     const sig = signPayload('s3cret', '1785790000', '{"a":1}');
@@ -129,7 +135,7 @@ describe('WebhookDispatchService', () => {
 
   it('queues one delivery per subscribed endpoint', async () => {
     const { deliveries, endpoints, calls } = makeRepos([], [endpoint(), endpoint({ id: 'ep-2' })]);
-    const service = new WebhookDispatchService(deliveries, endpoints);
+    const service = new WebhookDispatchService(deliveries, endpoints, publicLookup);
 
     await expect(
       service.publish({ event: 'delivery.delivered', payload: { a: 1 } }, NOW),
@@ -140,7 +146,7 @@ describe('WebhookDispatchService', () => {
   it('sends a signed POST and records the endpoint outcome', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200 });
     const { deliveries, endpoints, calls } = makeRepos([due()]);
-    const service = new WebhookDispatchService(deliveries, endpoints);
+    const service = new WebhookDispatchService(deliveries, endpoints, publicLookup);
 
     await expect(service.process(NOW)).resolves.toEqual({ sent: 1, failed: 0, dead: 0, ok: true });
 
@@ -171,7 +177,7 @@ describe('WebhookDispatchService', () => {
   it('sends unsigned rather than signing with a placeholder when no secret is set', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200 });
     const { deliveries, endpoints } = makeRepos([due({ secret: null })]);
-    await new WebhookDispatchService(deliveries, endpoints).process(NOW);
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW);
 
     expect(fetchMock.mock.calls[0][1].headers['X-Hydromart-Signature']).toBeUndefined();
   });
@@ -180,7 +186,7 @@ describe('WebhookDispatchService', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 });
     const { deliveries, endpoints, calls } = makeRepos([due({ attempts: 1 })]);
 
-    await expect(new WebhookDispatchService(deliveries, endpoints).process(NOW)).resolves.toEqual({
+    await expect(new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW)).resolves.toEqual({
       sent: 0,
       failed: 1,
       dead: 0,
@@ -196,7 +202,7 @@ describe('WebhookDispatchService', () => {
     fetchMock.mockRejectedValue(new Error('ETIMEDOUT'));
     const { deliveries, endpoints, calls } = makeRepos([due()]);
 
-    await new WebhookDispatchService(deliveries, endpoints).process(NOW);
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW);
     expect(calls.retried[0]).toMatchObject({ attempts: 1, error: 'ETIMEDOUT' });
   });
 
@@ -204,7 +210,7 @@ describe('WebhookDispatchService', () => {
     fetchMock.mockRejectedValue(new Error('ENOTFOUND'));
     const { deliveries, endpoints, calls } = makeRepos([due({ attempts: MAX_ATTEMPTS - 1 })]);
 
-    await expect(new WebhookDispatchService(deliveries, endpoints).process(NOW)).resolves.toEqual({
+    await expect(new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW)).resolves.toEqual({
       sent: 0,
       failed: 0,
       dead: 1,
@@ -222,7 +228,7 @@ describe('WebhookDispatchService', () => {
       return rows.length;
     };
     const earlier = new Date('2026-08-04T09:00:00.000Z');
-    await new WebhookDispatchService(deliveries, endpoints).publish(
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).publish(
       { event: 'delivery.delivered', payload: {}, occurredAt: earlier },
       NOW,
     );
@@ -232,7 +238,7 @@ describe('WebhookDispatchService', () => {
   it('queues nothing when no endpoint subscribed to the event', async () => {
     const { deliveries, endpoints, calls } = makeRepos([], []);
     await expect(
-      new WebhookDispatchService(deliveries, endpoints).publish(
+      new WebhookDispatchService(deliveries, endpoints, publicLookup).publish(
         { event: 'nobody.cares', payload: {} },
         NOW,
       ),
@@ -242,7 +248,7 @@ describe('WebhookDispatchService', () => {
 
   it('does nothing, and touches no endpoint, when nothing is due', async () => {
     const { deliveries, endpoints, calls } = makeRepos([]);
-    await expect(new WebhookDispatchService(deliveries, endpoints).process(NOW)).resolves.toEqual({
+    await expect(new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW)).resolves.toEqual({
       sent: 0,
       failed: 0,
       dead: 0,
@@ -256,7 +262,7 @@ describe('WebhookDispatchService', () => {
     fetchMock.mockResolvedValue({ ok: true, status: 202 });
     const { deliveries, endpoints, calls } = makeRepos([due(), due({ id: 'd-2' })]);
 
-    await new WebhookDispatchService(deliveries, endpoints).process(NOW);
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW);
     expect(calls.delivered).toHaveLength(2);
     expect(calls.updated).toHaveLength(1);
   });
@@ -268,7 +274,7 @@ describe('WebhookDispatchService', () => {
       seen.push({ limit, event });
       return [];
     };
-    await new WebhookDispatchService(deliveries, endpoints).list(10, 'delivery.delivered');
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).list(10, 'delivery.delivered');
     expect(seen[0]).toEqual({ limit: 10, event: 'delivery.delivered' });
   });
 
@@ -277,7 +283,7 @@ describe('WebhookDispatchService', () => {
   it('uses the wall clock when no time is supplied', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200 });
     const { deliveries, endpoints, calls } = makeRepos([due()]);
-    const service = new WebhookDispatchService(deliveries, endpoints);
+    const service = new WebhookDispatchService(deliveries, endpoints, publicLookup);
 
     await service.publish({ event: 'delivery.delivered', payload: {} });
     await service.process();
@@ -290,7 +296,7 @@ describe('WebhookDispatchService', () => {
     fetchMock.mockRejectedValue('socket hang up');
     const { deliveries, endpoints, calls } = makeRepos([due()]);
 
-    await new WebhookDispatchService(deliveries, endpoints).process(NOW);
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW);
     expect(calls.retried[0]!.error).toBe('socket hang up');
   });
 
@@ -298,13 +304,13 @@ describe('WebhookDispatchService', () => {
     fetchMock.mockResolvedValue({ ok: true });
     const { deliveries, endpoints, calls } = makeRepos([due()]);
 
-    await new WebhookDispatchService(deliveries, endpoints).process(NOW);
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW);
     expect(calls.delivered[0]).toEqual({ id: 'd-1', status: 200 });
   });
 
   it('replays a known delivery and 404s an unknown one', async () => {
     const { deliveries, endpoints } = makeRepos([]);
-    const service = new WebhookDispatchService(deliveries, endpoints);
+    const service = new WebhookDispatchService(deliveries, endpoints, publicLookup);
 
     await expect(service.replay('d-1', undefined, NOW)).resolves.toMatchObject({ id: 'd-1' });
     await expect(service.replay('nope', undefined, NOW)).rejects.toThrow('Delivery not found');

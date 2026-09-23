@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+
+import {
+  AddressLookup,
+  assertSendableWebhookUrl,
+  defaultAddressLookup,
+} from '../../domain/safe-webhook-url';
 
 import {
   MAX_ATTEMPTS,
@@ -42,6 +48,9 @@ export class WebhookDispatchService {
     @Inject(ADMIN_TOKENS.WebhookDeliveryRepository)
     private readonly deliveries: WebhookDeliveryRepository,
     @Inject(ADMIN_TOKENS.WebhookRepository) private readonly endpoints: WebhookRepository,
+    /** ADM-1: overridable so a test can decide what a hostname resolves to. */
+    @Optional()
+    private readonly lookup: AddressLookup = defaultAddressLookup,
   ) {}
 
   /** Fan one event out to every active subscriber. Returns how many were queued. */
@@ -133,14 +142,28 @@ export class WebhookDispatchService {
     let status: number | null = null;
     let error: string | null = null;
     try {
+      /*
+       * ADM-1: checked HERE, on every attempt, not only when the endpoint was registered.
+       * A hostname is a promise the owner can break later — a public name that resolves to
+       * 10.x tomorrow is the whole point of DNS rebinding — and a delivery that was queued
+       * yesterday is sent today.
+       */
+      await assertSendableWebhookUrl(delivery.url, this.lookup);
       const response = await fetch(delivery.url, {
         method: 'POST',
         headers,
         body,
+        // A 302 to the metadata service is the same attack wearing a public hostname, so
+        // no hop is followed: the partner's own endpoint has to answer.
+        redirect: 'manual',
         signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       });
       status = response.status;
-      if (!response.ok) error = `endpoint responded ${response.status}`;
+      if (status >= 300 && status < 400) {
+        error = `endpoint redirected (${status}); webhooks do not follow redirects`;
+      } else if (!response.ok) {
+        error = `endpoint responded ${response.status}`;
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }

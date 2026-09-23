@@ -143,8 +143,25 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     await this.prisma.$transaction([
       this.prisma.supportTicket.updateMany({
         where: { id: { in: ids } },
-        // A blank reference reads as a data bug; the tombstone says what happened.
-        data: { customerRef: 'Pengguna dihapus', customerPhone: '-' },
+        /*
+         * ADM-3: the erasure used to stop at the name and the number, and leave behind the
+         * three things that identify the person just as well.
+         *
+         * `subject` is what the customer typed ("galon bocor di Jl. Melati 7, hub 0812…"),
+         * `orderRef` points at an order-service row that still holds their address, and
+         * `customerId` is the key that joins this ticket to every other trace of them. A
+         * deletion that keeps the join key has deleted nothing.
+         *
+         * The ticket ITSELF stays: how many complaints a depot received, and how they were
+         * resolved, is the depot's operating record and belongs to nobody's identity.
+         */
+        data: {
+          customerRef: 'Pengguna dihapus',
+          customerPhone: '-',
+          subject: '[dihapus atas permintaan pemilik data]',
+          orderRef: null,
+          customerId: null,
+        },
       }),
       // The CUSTOMER's own words only. Staff replies are the depot's record of how it was
       // handled, and erasing those would erase the depot's answer, not the person.
