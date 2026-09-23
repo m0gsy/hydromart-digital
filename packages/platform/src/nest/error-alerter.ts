@@ -107,9 +107,17 @@ export function alertServerError({ method, path, status, exception }: ServerErro
 
 /** `postgres://user:pass@host` → `postgres://***:***@host`. */
 const CREDENTIALED_URL = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi;
-/** `key=abc`, `"password": "abc"`, `x-internal-key: abc` — the value goes. */
+/**
+ * `key=abc`, `"password": "abc"`, `x-internal-key: abc` — the value goes.
+ *
+ * PLAT-7: the unquoted form stops at whitespace, which is right for a header or an env
+ * assignment and wrong for the quoted form — `"password": "hunter two"` redacted `hunter`
+ * and published ` two"`. A passphrase with a space in it is the ordinary case for the one
+ * field here a human chooses. So a QUOTED value is consumed to its closing quote, and only
+ * an unquoted one stops at whitespace.
+ */
 const SECRET_ASSIGNMENT =
-  /((?:api[_-]?key|secret|token|password|passwd|pwd|authorization|internal[_-]?key)["'\s]*[:=]\s*)(?:["']?)([^\s"',;)}]+)/gi;
+  /((?:api[_-]?key|secret|token|password|passwd|pwd|authorization|internal[_-]?key)["'\s]*[:=]\s*)(?:"([^"]*)"|'([^']*)'|([^\s"',;)}]+))/gi;
 /** A bare high-entropy blob (JWT segment, hex key, base64 secret) with no label. */
 const OPAQUE_BLOB = /\b[A-Za-z0-9+_-]{32,}={0,2}\b/g;
 const EMAIL = /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g;

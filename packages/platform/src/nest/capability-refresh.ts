@@ -2,6 +2,8 @@ import { loadOverrides, type CapabilityOverrides, type Role } from '@hydromart/a
 
 const DEFAULT_TTL_MS = 30_000;
 const TIMEOUT_MS = 5_000;
+/** PLAT-6: how long a snapshot may outlive the source that produced it. */
+const DEFAULT_MAX_STALE_MS = 5 * 60_000;
 
 /**
  * What the last successful load produced. `null` means this process has never loaded the
@@ -50,17 +52,28 @@ interface RefreshLogger {
  * source leaves the last good snapshot in place (an empty one at boot), and an empty
  * snapshot IS the compiled default matrix. So a wobble in the override source degrades
  * to the policy shipped in the binary instead of locking every service out of itself.
- * The trade is explicit: for up to one TTL after an outage a revoked permission may
- * still work.
+ *
+ * PLAT-6 — that trade used to be written as "for up to one TTL after an outage a revoked
+ * permission may still work", and the code did not keep the promise: a source down for a
+ * week served the week-old snapshot for a week. A permission revoked because somebody
+ * should no longer hold it is exactly the case where an outage must not extend it
+ * indefinitely.
+ *
+ * So staleness is bounded: after `maxStaleMs` without a successful load the snapshot is
+ * dropped and the service falls back to the compiled default matrix — the same policy a
+ * fresh boot would serve. Overrides that GRANT something extra are lost with it, which is
+ * the right direction to fail: back to the policy shipped in the binary, not forward to
+ * one nobody can refresh.
  *
  * Never throws and never rejects, so a caller can fire it from bootstrap without a
  * catch. Returns a stop() for tests and shutdown.
  */
 export function startCapabilityRefresh(
   load: () => Promise<CapabilityOverrides>,
-  opts: { ttlMs?: number; logger?: RefreshLogger } = {},
+  opts: { ttlMs?: number; maxStaleMs?: number; logger?: RefreshLogger } = {},
 ): () => void {
   const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
+  const maxStaleMs = opts.maxStaleMs ?? DEFAULT_MAX_STALE_MS;
   const logger = opts.logger;
   let failing = false;
   let stopped = false;
@@ -91,6 +104,16 @@ export function startCapabilityRefresh(
         failing = true;
         logger?.warn(
           `Capability overrides unavailable, serving the last known matrix: ${String(err)}`,
+        );
+      }
+      // PLAT-6: the snapshot expires even though the source cannot say so.
+      const age = lastLoad ? Date.now() - lastLoad.at : Number.POSITIVE_INFINITY;
+      if (lastLoad && age > maxStaleMs && lastLoad.overrides > 0) {
+        loadOverrides({});
+        lastLoad = { at: lastLoad.at, overrides: 0 };
+        logger?.warn(
+          `Capability overrides are ${Math.round(age / 1000)}s stale; falling back to the ` +
+            'compiled default matrix until the source answers again.',
         );
       }
     }

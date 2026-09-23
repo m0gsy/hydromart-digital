@@ -62,18 +62,93 @@ export function queryBoundsMiddleware(options: QueryBoundsOptions = {}): QueryBo
   const max = options.max ?? DEFAULT_MAX_ROWS;
 
   return async <P extends QueryBoundsParams>(params: P, next: (params: P) => Promise<unknown>) => {
-    // ponytail: top-level reads only. Prisma middleware never sees a nested `include`, so a
-    // relation list still returns whole; bound those on the relation's own repository method.
     if (params.action !== 'findMany') return next(params);
 
     const args = params.args ?? {};
-    if (typeof args.take === 'number') return next(params);
-
-    params.args = { ...args, take: max };
+    /*
+     * PLAT-8 — the bound used to stop at the top level, and said so in its own note: "a
+     * relation list still returns whole". That is the half of the problem the middleware
+     * exists to solve. `order.findMany({ include: { items: true } })` is bounded to 500
+     * ORDERS and unbounded in items, so one order with three years of movements is the
+     * out-of-memory this file was written to prevent, reached by a different road.
+     *
+     * The relation objects are in the args, so they can be bounded here: `include: { x: true }`
+     * becomes `{ x: { take: max } }`, and one that already names a `take` is left alone —
+     * same rule as the top level.
+     */
+    const bounded = {
+      ...args,
+      ...(typeof args.take === 'number' ? {} : { take: max }),
+      ...boundRelations(args.include, 'include', max),
+      ...boundRelations(args.select, 'select', max),
+    };
+    params.args = bounded;
     const rows = await next(params);
-    if (Array.isArray(rows) && rows.length >= max) {
-      options.onTruncate?.(params.model ?? 'unknown', max);
+    if (Array.isArray(rows)) {
+      if (typeof args.take !== 'number' && rows.length >= max) {
+        options.onTruncate?.(params.model ?? 'unknown', max);
+      }
+      reportFullRelations(rows, params.model ?? 'unknown', max, options.onTruncate);
     }
     return rows;
   };
+}
+
+/**
+ * PLAT-8: `include`/`select` with a bound filled into each relation that has none.
+ *
+ * `true` becomes `{ take: max }` — still the whole relation, just not all of it. A relation
+ * given its own object keeps whatever it asked for, including a `take` it set itself; a
+ * scalar `select: { name: true }` is untouched, because `take` there means nothing and
+ * Prisma would reject it.
+ */
+function boundRelations(
+  clause: unknown,
+  key: 'include' | 'select',
+  max: number,
+): Record<string, unknown> {
+  if (!clause || typeof clause !== 'object') return {};
+  const entries = Object.entries(clause as Record<string, unknown>);
+  const next: Record<string, unknown> = {};
+  let changed = false;
+  for (const [relation, value] of entries) {
+    if (key === 'include' && value === true) {
+      next[relation] = { take: max };
+      changed = true;
+      continue;
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const inner = value as Record<string, unknown>;
+      // A `select` entry is a relation only when it carries relation arguments; a plain
+      // `{ id: true }` projection is not a list and must not be given a `take`.
+      const isRelation = key === 'include' || 'select' in inner || 'include' in inner || 'where' in inner;
+      if (isRelation && typeof inner.take !== 'number') {
+        next[relation] = { ...inner, take: max };
+        changed = true;
+        continue;
+      }
+    }
+    next[relation] = value;
+  }
+  return changed ? { [key]: next } : {};
+}
+
+/** A relation array that came back exactly full is the same truncation, one level down. */
+function reportFullRelations(
+  rows: unknown[],
+  model: string,
+  max: number,
+  onTruncate?: (model: string, max: number) => void,
+): void {
+  if (!onTruncate) return;
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+      if (Array.isArray(value) && value.length >= max && !seen.has(key)) {
+        seen.add(key);
+        onTruncate(`${model}.${key}`, max);
+      }
+    }
+  }
 }

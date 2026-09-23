@@ -21,6 +21,33 @@ describe('sniffFileType', () => {
     expect(sniffFileType(Buffer.from('MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00'))).toBeNull();
   });
 
+  /*
+   * CORE-5: a polyglot has an honest header and a document behind it. The signature check
+   * cannot see that — being honest at the front is the whole attack — so a browser that
+   * content-sniffs (or any viewer that ignores the served Content-Type) runs the markup.
+   */
+  it.each([
+    ['a script', '<script>alert(1)</script>'],
+    ['an svg', '<svg onload="alert(1)">'],
+    ['an html document', '<!DOCTYPE html><html>'],
+    ['an iframe', "<iframe src='x'>"],
+    ['markup further into the sniffing window', `${' '.repeat(600)}<script>alert(1)</script>`],
+  ])('refuses a real JPEG header with %s behind it', (_label, payload) => {
+    expect(sniffFileType(Buffer.concat([jpg, Buffer.from(payload)]))).toBeNull();
+  });
+
+  it('leaves an ordinary image alone, markup-shaped bytes and all', () => {
+    // `<` and a word is not markup; a real photo carries every byte value eventually.
+    const photo = Buffer.concat([jpg, Buffer.from('EXIF Comment: 3 < 4 and 5 > 2')]);
+    expect(sniffFileType(photo)).toBe('jpg');
+  });
+
+  // Past the window a sniffer reads, the bytes cannot decide how the file is treated.
+  it('does not scan the whole file, only the window a sniffer reads', () => {
+    const deep = Buffer.concat([jpg, Buffer.alloc(4096, 0x20), Buffer.from('<script>x</script>')]);
+    expect(sniffFileType(deep)).toBe('jpg');
+  });
+
   it('refuses anything too short to carry a signature', () => {
     expect(sniffFileType(Buffer.from([0xff, 0xd8, 0xff]))).toBeNull();
     expect(sniffFileType(Buffer.alloc(0))).toBeNull();

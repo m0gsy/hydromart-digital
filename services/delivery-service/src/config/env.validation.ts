@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -13,7 +13,7 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret. The platform JwtAuthGuard treats a caller
   // presenting this (x-internal-key) as a trusted system principal — the dashboard BFF
   // uses it to read the global SLA report. Blank = internal-key auth stays fail-closed.
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   // Read for the depot's coordinates when a courier checks in (GET /depots/:id is public).
   DEPOT_SERVICE_URL: Joi.string().uri().required(),

@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -22,7 +22,7 @@ export const envValidationSchema = Joi.object({
   LOYALTY_POINT_EXPIRY_SWEEP_ENABLED: Joi.number().integer().min(0).max(1).default(0),
   // Shared service-to-service secret guarding /loyalty/earn + /loyalty/reward
   // (system-triggered). Blank = fail-closed (internal calls rejected).
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   // customer-service base URL, used to resolve a depot's customers for depot-scoped
   // loyalty aggregates. Blank = no directory → depot summary returns zeros (fail-open).
   CUSTOMER_SERVICE_URL: Joi.string().uri().optional().allow(''),

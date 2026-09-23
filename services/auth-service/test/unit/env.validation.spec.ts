@@ -6,6 +6,10 @@ const BASE = {
   JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
   JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-long-enough-1',
   OTP_PEPPER: 'test-otp-pepper-value',
+  // CORE-4: production now has to name the service-to-service key. Blank used to boot
+  // everywhere, which silently disabled retention, PDP erasure and counter-sale lookups —
+  // each failing in a way that reads like a feature nobody wired.
+  INTERNAL_SERVICE_KEY: 'test-internal-service-key-0123456',
 };
 
 function validate(env: Record<string, string>) {

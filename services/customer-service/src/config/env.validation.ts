@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 /** Boot-time env validation — fail fast on missing/malformed config. */
@@ -25,7 +25,7 @@ export const envValidationSchema = Joi.object({
   BIRTHDAY_REWARD_POINTS: Joi.number().integer().positive().default(250),
   // Shared service-to-service secret authenticating the birthday reward call to
   // loyalty. Blank = fail-closed (birthday sweep can't award, retries next run).
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Agen registration-photo storage (SOP §7). Same names and same rules as depot-service:
   // in production the public base URL must be a real origin, because the stored URL is

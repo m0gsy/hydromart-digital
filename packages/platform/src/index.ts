@@ -1,7 +1,14 @@
 export { DomainError, HTTP_STATUS } from './domain/domain-error';
 export { StaleWriteError, assertFresh, isDecisionOnlyPatch } from './domain/stale-write';
 export { readAllPages } from './domain/read-all';
-export { pageArgs, nextCursor, type KeysetArgs, type KeysetQuery } from './domain/keyset';
+export {
+  pageArgs,
+  nextCursor,
+  encodeCursor,
+  decodeCursor,
+  type KeysetArgs,
+  type KeysetQuery,
+} from './domain/keyset';
 export { Role } from './domain/role.enum';
 export { money } from './domain/money';
 export { haversineKm } from './domain/geo';
@@ -101,7 +108,7 @@ export {
   type QueryBoundsParams,
 } from './nest/query-bounds';
 export { protectDocs } from './nest/docs-guard';
-export { requiredSecret, optionalSecret } from './config/env-secret';
+export { requiredSecret, optionalSecret, internalServiceKey } from './config/env-secret';
 export { sniffFileType, SNIFFED_MIME, type SniffedType } from './upload/file-type';
 export {
   SettingType,

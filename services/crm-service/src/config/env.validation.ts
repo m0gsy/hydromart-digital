@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -18,7 +18,7 @@ export const envValidationSchema = Joi.object({
   ORDER_SERVICE_URL: Joi.string().allow('').default(''),
   // Shared secret authenticating system-to-system notification calls (POST /notifications/internal).
   // Blank = the internal route rejects everything (fail-closed).
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   // Web Push VAPID keypair (design 7b transport). Blank = push disabled (fail-open).
   // Generate with: node -e "console.log(require('web-push').generateVAPIDKeys())".
   VAPID_PUBLIC_KEY: Joi.string().allow('').default(''),

@@ -1,4 +1,5 @@
 import { Prisma } from '../../prisma/generated/client';
+import { encodeCursor } from '@hydromart/platform';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../../src/infrastructure/prisma/delivery.prisma.repository';
 import { IncidentPrismaRepository } from '../../src/infrastructure/prisma/incident.prisma.repository';
@@ -319,12 +320,12 @@ describe('DeliveryPrismaRepository', () => {
   it('search seeks past a cursor and hands the next one back', async () => {
     delivery.findMany.mockResolvedValue([deliveryRow(), { ...deliveryRow(), id: 'del-2' }]);
     delivery.count.mockResolvedValue(99);
-    const res = await repo.search({ page: 5, limit: 2, cursor: 'del-0' } as never);
+    const res = await repo.search({ page: 5, limit: 2, cursor: encodeCursor('del-0') } as never);
     // `page` is ignored once a cursor is given — honouring both re-reads or skips rows.
     expect(delivery.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: { id: 'del-0' }, skip: 1, take: 2 }),
     );
-    expect(res.nextCursor).toBe('del-2');
+    expect(res.nextCursor).toBe(encodeCursor('del-2'));
   });
 
   it('search omits absent filters', async () => {

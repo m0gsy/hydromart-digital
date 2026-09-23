@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -45,7 +45,7 @@ export const envValidationSchema = Joi.object({
   // depot-service, pushed to when a product is renamed or deactivated so its stock lines
   // follow. Both blank = push disabled (fail-open); depot labels then go stale silently.
   DEPOT_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
