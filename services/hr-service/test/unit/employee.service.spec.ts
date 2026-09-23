@@ -40,6 +40,13 @@ class FakeRepo implements EmployeeRepository {
   async purgeFaceEmbeddings(): Promise<number> {
     return this.facesPurged;
   }
+  /** HR-1: stored photo values the next scrub would delete, per scope, for assertions. */
+  photoValues: string[] = [];
+  photoScopes: unknown[] = [];
+  async photoValuesFor(scope: unknown): Promise<string[]> {
+    this.photoScopes.push(scope);
+    return this.photoValues;
+  }
 
   async countRetentionEligible(): Promise<number> {
     return this.retentionEligible;
@@ -211,7 +218,7 @@ describe('EmployeeService (M1)', () => {
     const e = await svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' });
 
     expect(identity.calls).toEqual([
-      { phone: baseInput.phone, role: 'KEPALA_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+      { phone: baseInput.phone, role: 'KEPALA_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A, grantedBy: 'HR' },
     ]);
     expect(e.authSubjectId).toBe('00000000-0000-4000-8000-000000000001');
   });
@@ -373,11 +380,25 @@ describe('EmployeeService (M1)', () => {
         customerId: '11111111-1111-4111-8111-111111111111',
         role: 'SUPERVISOR',
         depotId: DEPOT_A,
+        grantedBy: 'HR',
       },
     ]);
 
     await svc.update(hr, e.id, { role: 'SUPERVISOR', position: 'SPV Wilayah' });
     expect(identity.roleCalls).toHaveLength(1);
+  });
+
+  /*
+   * SEC-AUDIT CORE-1. `hrAdmin` is held by head office as well as HR, and only HR may promote
+   * to MANAGER — so the login side has to be told WHO is asking, or it cannot tell the two
+   * apart. hr-service names the human actor on both of its login-changing calls; auth-service
+   * decides.
+   */
+  it('names the human behind a new login, so the grant rule can refuse head office', async () => {
+    const { identity, svc } = make();
+    const headOffice: AuthenticatedUser = { sub: 'ho-1', role: 'HEAD_OFFICE' as never, phone: null, depotId: null };
+    await svc.create(headOffice, { ...baseInput, role: 'MANAGER' });
+    expect(identity.calls.at(-1)).toMatchObject({ role: 'MANAGER', grantedBy: 'HEAD_OFFICE' });
   });
 
   // Used to pass silently: no account, no call, no error — the promotion simply did not
@@ -748,7 +769,7 @@ describe('EmployeeService (M1)', () => {
 
     const linked = await svc.createAccountFor(hr, e.id);
     expect(identity.calls).toEqual([
-      { phone: baseInput.phone, role: 'STAFF_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+      { phone: baseInput.phone, role: 'STAFF_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A, grantedBy: 'HR' },
     ]);
     expect(linked.authSubjectId).toBe('00000000-0000-4000-8000-000000000002');
 
@@ -790,6 +811,7 @@ describe('EmployeeService (M1)', () => {
         customerId: '11111111-1111-4111-8111-111111111111',
         role: 'STAFF_DEPOT',
         depotId: DEPOT_B,
+        grantedBy: 'HR',
       },
     ]);
   });
@@ -1486,3 +1508,62 @@ describe('EmployeeService uniqueness and account plumbing', () => {
     await expect(svc.setActiveInternal('auth-nobody', false)).resolves.toEqual({ updated: false });
   });
 });
+
+/*
+ * HR-1. Every erasure and retention path deleted the ROWS — embeddings, attendance, the
+ * profile photo column — and left the images in the bucket. A face cannot be reissued.
+ */
+describe('EmployeeService photo objects (HR-1)', () => {
+  const storage = () => ({ remove: jest.fn().mockResolvedValue(undefined) });
+  const build = (repo: FakeRepo, store?: ReturnType<typeof storage>) =>
+    new EmployeeService(repo, {} as never, undefined, undefined, store as never);
+
+  it('deletes each distinct photo object after the scrub, both stored shapes', async () => {
+    const repo = new FakeRepo();
+    repo.photoValues = [
+      'hr/faces/a.jpg',
+      'https://nos.example/hydromart-hr/hr/attendance/b.jpg',
+      'hr/faces/a.jpg',
+      'https://elsewhere/avatar.png',
+      'hr/../etc/passwd',
+    ];
+    const store = storage();
+    const service = build(repo, store);
+
+    await expect(service.anonymiseByAccount('acc-1')).resolves.toEqual({ anonymised: 1 });
+    expect(repo.photoScopes).toEqual([{ authSubjectId: 'acc-1' }]);
+    expect(store.remove.mock.calls.map((c) => c[0])).toEqual([
+      'hr/faces/a.jpg',
+      'hr/attendance/b.jpg',
+    ]);
+
+    const cutoff = new Date('2026-01-01T00:00:00Z');
+    await service.retentionAnonymise(cutoff);
+    await service.purgeBiometrics(cutoff);
+    expect(repo.photoScopes.slice(1)).toEqual([
+      { departedBefore: cutoff },
+      { departedBefore: cutoff, facesOnly: true },
+    ]);
+  });
+
+  it('fails one person erasure on a refused delete, but keeps a retention sweep going', async () => {
+    const repo = new FakeRepo();
+    repo.photoValues = ['hr/faces/a.jpg', 'hr/faces/b.jpg'];
+    const store = storage();
+    store.remove.mockRejectedValueOnce(new Error('denied'));
+    const service = build(repo, store);
+    await expect(service.anonymiseByAccount('acc-1')).rejects.toThrow('belum bisa dihapus');
+    expect(store.remove).toHaveBeenCalledTimes(2);
+
+    store.remove.mockRejectedValueOnce(new Error('denied'));
+    repo.anonymised = 3;
+    await expect(service.retentionAnonymise(new Date())).resolves.toEqual({ deleted: 3 });
+  });
+
+  it('does nothing to storage when none is bound', async () => {
+    const repo = new FakeRepo();
+    repo.photoValues = ['hr/faces/a.jpg'];
+    await expect(build(repo).anonymiseByAccount('acc-1')).resolves.toEqual({ anonymised: 1 });
+  });
+});
+

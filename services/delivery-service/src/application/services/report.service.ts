@@ -89,11 +89,15 @@ export class ReportService {
   }
 
   /** Same on-time SLA computation as `sla`, but grouped per depot (HQ network roll-up). */
-  async slaByDepot(range: ReportRange, thresholdMinutes?: number): Promise<DepotSlaReport> {
+  async slaByDepot(
+    range: ReportRange,
+    thresholdMinutes?: number,
+    depotIds?: readonly string[],
+  ): Promise<DepotSlaReport> {
     // Same network-wide breakdown as `sla` — one threshold column across every
     // depot row, so the global tunable applies here too (see comment above).
     const threshold = thresholdMinutes ?? this.config.slaMinutes();
-    const stats = await this.deliveries.slaStatsByDepot(range, threshold);
+    const stats = await this.deliveries.slaStatsByDepot(range, threshold, depotIds);
     return {
       from: range.from ? range.from.toISOString() : null,
       to: range.to ? range.to.toISOString() : null,

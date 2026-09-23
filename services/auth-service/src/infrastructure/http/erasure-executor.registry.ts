@@ -7,6 +7,10 @@ import {
   ErasureExemption,
 } from '../../application/ports/erasure-executor.port';
 import { AuthConfigService } from '../../config/auth-config.service';
+import { CustomerRepository } from '../../application/ports/customer.repository';
+import { StoragePort } from '../../application/ports/storage.port';
+import { AUTH_TOKENS } from '../../application/tokens';
+import { AvatarObjectErasure } from '../storage/avatar-object.erasure';
 import { RemoteErasureExecutor } from './remote-erasure.executor';
 import { UnenforcedErasure } from './unenforced-erasure.executor';
 
@@ -133,8 +137,13 @@ export const ERASURE_EXEMPTION_LIST: ErasureExemption[] = [
 
 export const erasureExecutorProvider: Provider = {
   provide: ERASURE_EXECUTORS,
-  inject: [AuthConfigService],
-  useFactory: (config: AuthConfigService): ErasureExecutor[] => [
+  inject: [AuthConfigService, AUTH_TOKENS.CustomerRepository, AUTH_TOKENS.Storage],
+  useFactory: (
+    config: AuthConfigService,
+    customers: CustomerRepository,
+    storage: StoragePort,
+  ): ErasureExecutor[] => [
+    new AvatarObjectErasure(customers, storage),
     ...REMOTE_DATASETS.map(
       (d) =>
         new RemoteErasureExecutor(

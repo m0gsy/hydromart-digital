@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -129,4 +130,10 @@ export class ListAttendanceDto {
   @Min(1)
   @Max(100)
   pageSize = 30;
+}
+
+/** HR-4: how many attendance rows lost their selfie in this sweep. */
+export class PurgeAttendancePhotosResponseDto {
+  @ApiProperty({ example: 128 })
+  purged!: number;
 }

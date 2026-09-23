@@ -311,8 +311,15 @@ const PNG_BYTES = Buffer.concat([
 ]);
 
 describe('AvatarController', () => {
-  const storage = { put: jest.fn() };
-  const account = { setAvatar: jest.fn() };
+  const storage = {
+    put: jest.fn(),
+    remove: jest.fn().mockResolvedValue(undefined),
+    signedUrl: jest.fn().mockResolvedValue('https://signed/avatars/x.png?X-Amz-Expires=900'),
+  };
+  const account = {
+    setAvatar: jest.fn(),
+    getProfile: jest.fn().mockResolvedValue(publicCustomer()),
+  };
   const controller = new AvatarController(storage as never, account as never);
   const user = { sub: 'cust-1', role: Role.CUSTOMER, phone: '+62' };
   const file = (overrides: Partial<Express.Multer.File> = {}): Express.Multer.File =>
@@ -323,10 +330,46 @@ describe('AvatarController', () => {
       ...overrides,
     }) as Express.Multer.File;
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    account.getProfile.mockResolvedValue(publicCustomer());
+  });
 
   it('rejects a request with no file', async () => {
     await expect(controller.upload(user, undefined)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // AUTH-2: the photo a new upload replaces is deleted; a refused delete is only logged.
+  it('deletes the avatar it replaces, and survives a refused delete', async () => {
+    account.getProfile.mockResolvedValue(publicCustomer({ avatarUrl: 'https://cdn/avatars/old.png' }));
+    storage.put.mockResolvedValue({ url: 'https://cdn/avatars/new.png', key: 'avatars/new.png' });
+    account.setAvatar.mockResolvedValue(publicCustomer({ avatarUrl: 'https://cdn/avatars/new.png' }));
+    await controller.upload(user, file());
+    expect(storage.remove).toHaveBeenCalledWith('avatars/old.png');
+
+    storage.remove.mockRejectedValueOnce(new Error('denied'));
+    await expect(controller.upload(user, file())).resolves.toMatchObject({
+      avatarUrl: 'https://cdn/avatars/new.png',
+    });
+
+    // The same URL coming back is not a replacement: nothing is deleted.
+    storage.remove.mockClear();
+    account.getProfile.mockResolvedValue(publicCustomer({ avatarUrl: 'https://cdn/avatars/new.png' }));
+    await controller.upload(user, file());
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  // AUTH-1: the caller's avatar is read through a link that expires.
+  it('signs the caller avatar for 15 minutes, and answers null without one', async () => {
+    account.getProfile.mockResolvedValue(publicCustomer({ avatarUrl: 'https://cdn/avatars/me.png' }));
+    await expect(controller.avatarLink(user)).resolves.toEqual({
+      avatarUrl: 'https://signed/avatars/x.png?X-Amz-Expires=900',
+    });
+    expect(account.getProfile).toHaveBeenCalledWith('cust-1');
+    expect(storage.signedUrl).toHaveBeenCalledWith('avatars/me.png', 900);
+
+    account.getProfile.mockResolvedValue(publicCustomer({ avatarUrl: null }));
+    await expect(controller.avatarLink(user)).resolves.toEqual({ avatarUrl: null });
   });
 
   it('rejects an unsupported file, however it was labelled', async () => {
@@ -450,6 +493,19 @@ describe('InternalAccountController.assignStaffRole', () => {
       role: Role.KEPALA_DEPOT,
       depotId: 'depot-1',
     } as never);
-    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.KEPALA_DEPOT, 'depot-1');
+    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.KEPALA_DEPOT, 'depot-1', undefined);
+  });
+
+  // SEC-AUDIT CORE-1: hr-service names the human behind a jabatan change, so the grant rule
+  // can refuse head office promoting itself to MANAGER through the HR module.
+  it('passes the actor hr-service names on to the grant rule', async () => {
+    const account = { setStaffRole: jest.fn().mockResolvedValue(publicCustomer()) };
+    const controller = new InternalAccountController(account as never, {} as never);
+    await controller.assignStaffRole({
+      customerId: 'cust-1',
+      role: Role.MANAGER,
+      grantedBy: Role.HR,
+    } as never);
+    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.MANAGER, undefined, Role.HR);
   });
 });

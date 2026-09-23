@@ -515,7 +515,11 @@ for (const file of walk(ROOT)) {
 // found by eye in the 2026-08-14 browser pass, invisible to tsc, tests and lint because
 // the key is built at runtime. A computed key needs a check that walks the same source.
 const capsSrc = readFileSync('packages/access/src/index.ts', 'utf8');
-const capsBody = capsSrc.slice(capsSrc.indexOf('const CAPABILITIES'));
+// Bounded to the CAPABILITIES literal, not "everything after it": the file also holds
+// RESTRICTED_GRANTS, whose `FINANCE: [...]` entries have the identical shape and were read
+// as five capabilities that need a dictionary label. A role is not a capability.
+const capsStart = capsSrc.indexOf('const CAPABILITIES');
+const capsBody = capsSrc.slice(capsStart, capsSrc.indexOf('} as const', capsStart));
 const caps = [...capsBody.matchAll(/^ {2}([a-zA-Z][a-zA-Z0-9]*):\s*\[/gm)].map((m) => m[1]);
 for (const locale of ['id', 'en']) {
   const dict = readFileSync(`${ROOT}/lib/dictionaries/${locale}/dashC.ts`, 'utf8');

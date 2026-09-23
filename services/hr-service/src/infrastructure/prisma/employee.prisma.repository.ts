@@ -99,6 +99,35 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return 1;
   }
 
+  async photoValuesFor(
+    scope: { authSubjectId: string } | { departedBefore: Date; facesOnly?: boolean },
+  ): Promise<string[]> {
+    const facesOnly = 'departedBefore' in scope && scope.facesOnly === true;
+    const rows = await this.prisma.employee.findMany({
+      where:
+        'authSubjectId' in scope
+          ? { authSubjectId: scope.authSubjectId }
+          : { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: scope.departedBefore } },
+      select: {
+        photoUrl: true,
+        faceEmbeddings: { select: { sourcePhotoUrl: true } },
+        ...(facesOnly
+          ? {}
+          : { attendance: { select: { checkInPhotoUrl: true, checkOutPhotoUrl: true } } }),
+      },
+    });
+    const values: (string | null)[] = [];
+    for (const row of rows) {
+      for (const face of row.faceEmbeddings) values.push(face.sourcePhotoUrl);
+      if (facesOnly) continue;
+      values.push(row.photoUrl);
+      for (const day of row.attendance ?? []) {
+        values.push(day.checkInPhotoUrl, day.checkOutPhotoUrl);
+      }
+    }
+    return values.filter((v): v is string => !!v);
+  }
+
   async purgeFaceEmbeddings(cutoff: Date): Promise<number> {
     const { count } = await this.prisma.faceEmbedding.deleteMany({
       where: {

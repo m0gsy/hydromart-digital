@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
 
@@ -20,6 +21,8 @@ import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
+import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
+import { hrStorageKey } from '../storage-key';
 import { STAFF_IMPORT_ROLES, type EmployableRole, type HrManagedRole } from '@hydromart/access';
 
 /** The roles an import may mint an account for — the allowlist auth-service enforces too. */
@@ -153,7 +156,31 @@ export class EmployeeService {
     // Last on purpose: every existing positional construction site keeps working. Absent,
     // the import's `atasan` column reports "not linked" instead of failing the row.
     @Optional() @Inject(SUPERVISION_PORT) private readonly supervision?: SupervisionPort,
+    // HR-1: optional for the same reason; absent (dev, CI) there are no objects to delete.
+    @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
   ) {}
+
+  /**
+   * HR-1 — the photo OBJECTS behind a scrub: faces, attendance frames, profile photos.
+   *
+   * Every erasure and retention path here deleted the rows and left the images. A face
+   * cannot be reissued after a leak; deleting its embedding while the source photo stays
+   * in the bucket is not erasure. Deleted after the rows, one by one: a bucket that refuses
+   * one must not stop the rest, and the key is logged so the leftover is findable.
+   */
+  private async removePhotos(values: string[]): Promise<number> {
+    if (!this.storage) return 0;
+    let failed = 0;
+    for (const key of new Set(values.map(hrStorageKey).filter((k): k is string => !!k))) {
+      try {
+        await this.storage.remove(key);
+      } catch (error) {
+        failed += 1;
+        this.logger.error(`HR photo ${key} left behind: ${(error as Error).message}`);
+      }
+    }
+    return failed;
+  }
 
   /**
    * Retention report (M23-21). Counts departed records past their window and deletes
@@ -171,7 +198,10 @@ export class EmployeeService {
    * were paid. Same shape as the customer decision in item 13 — one pattern, not two.
    */
   async retentionAnonymise(cutoff: Date): Promise<{ deleted: number }> {
-    return { deleted: await this.repo.anonymiseRetentionEligible(cutoff) };
+    const photos = await this.repo.photoValuesFor({ departedBefore: cutoff });
+    const deleted = await this.repo.anonymiseRetentionEligible(cutoff);
+    await this.removePhotos(photos);
+    return { deleted };
   }
 
   /**
@@ -180,12 +210,23 @@ export class EmployeeService {
    * employees, and deleting one of those is not a failure.
    */
   async anonymiseByAccount(authSubjectId: string): Promise<{ anonymised: number }> {
-    return { anonymised: await this.repo.anonymiseByAuthSubjectId(authSubjectId) };
+    const photos = await this.repo.photoValuesFor({ authSubjectId });
+    const anonymised = await this.repo.anonymiseByAuthSubjectId(authSubjectId);
+    // One person, one request: a photo that could not be deleted makes the erasure fail,
+    // so auth-service reports it FAILED instead of COMPLETED. The rows are already scrubbed
+    // and the call is idempotent; the log names the key to delete by hand.
+    if ((await this.removePhotos(photos)) > 0) {
+      throw new ServiceUnavailableException('Foto karyawan belum bisa dihapus dari penyimpanan.');
+    }
+    return { anonymised };
   }
 
   /** Biometric purge on its own short window. */
   async purgeBiometrics(cutoff: Date): Promise<{ deleted: number }> {
-    return { deleted: await this.repo.purgeFaceEmbeddings(cutoff) };
+    const photos = await this.repo.photoValuesFor({ departedBefore: cutoff, facesOnly: true });
+    const deleted = await this.repo.purgeFaceEmbeddings(cutoff);
+    await this.removePhotos(photos);
+    return { deleted };
   }
 
   async list(
@@ -272,7 +313,7 @@ export class EmployeeService {
     // the two writes live in two databases with no saga between them (see importMany). A
     // collision discovered after provisioning would leave a staff login nobody recorded.
     if (!alreadyUnique) await this.assertNobodyElseHas(input);
-    const authSubjectId = input.authSubjectId ?? (await this.provisionFor(input));
+    const authSubjectId = input.authSubjectId ?? (await this.provisionFor(input, user.role));
 
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
       fullName: input.fullName,
@@ -366,6 +407,7 @@ export class EmployeeService {
       role: employee.role as HrManagedRole,
       fullName: employee.fullName,
       depotId: employee.depotId ?? undefined,
+      grantedBy: user.role,
     });
     return this.repo.update(id, { authSubjectId: customerId, updatedBy: actorId(user.sub) }, []);
   }
@@ -524,7 +566,7 @@ export class EmployeeService {
    * cannot clock in, and nothing downstream would notice. Only the import path arrives
    * here with an account already provisioned, and it passes it in.
    */
-  private async provisionFor(input: CreateEmployeeInput): Promise<string> {
+  private async provisionFor(input: CreateEmployeeInput, grantedBy: string): Promise<string> {
     if (!input.role) {
       throw new BadRequestException('Jabatan (peran login) wajib diisi untuk karyawan baru');
     }
@@ -535,6 +577,7 @@ export class EmployeeService {
       phone: input.phone,
       fullName: input.fullName,
       depotId: input.depotId,
+      grantedBy,
     });
     return customerId;
   }
@@ -827,6 +870,7 @@ export class EmployeeService {
           customerId: current.authSubjectId,
           role,
           depotId: input.depotId ?? current.depotId,
+          grantedBy: user.role,
         });
       } else if (roleMoved && input.authSubjectId === undefined) {
         // No account to move the jabatan onto. This used to pass silently: the promotion

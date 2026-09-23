@@ -367,10 +367,16 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .expect(200)
       .expect((r) => expect(r.body.total).toBe(0));
 
-    // admin manage still returns it (so it can be reactivated)
+    // DPT-1: a MANAGER responsible for no depot reads none — it used to read the network.
     await request(server())
       .get('/api/v1/depots/manage?search=manage')
       .set(auth(managerToken))
+      .expect(403);
+
+    // admin manage still returns it to its own manager (so it can be reactivated)
+    await request(server())
+      .get('/api/v1/depots/manage?search=manage')
+      .set(auth(mgrAt))
       .expect(200)
       .expect((r) => {
         expect(r.body.total).toBe(1);

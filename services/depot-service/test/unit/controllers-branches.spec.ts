@@ -1248,7 +1248,7 @@ describe('DepotController', () => {
     expect(await c.internalAssistant(DEPOT)).toEqual({ assistantSupervisorId: 'asv-1' });
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: null });
     expect(await c.internalAssistant(DEPOT)).toEqual({ assistantSupervisorId: null });
-    await c.manage({} as never);
+    await c.manage(user, {} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);
     expect(svc.listMine).toHaveBeenCalledWith('user-1');
@@ -1256,6 +1256,33 @@ describe('DepotController', () => {
     expect(svc.get).toHaveBeenCalledWith(ID, true);
     await c.remove(ID);
     expect(svc.deactivate).toHaveBeenCalledWith(ID);
+  });
+
+  /*
+   * DPT-1: `manage` is the full record — bank account and QRIS included — and
+   * `depotDirectory` admits KEPALA_DEPOT, MANAGER and FRANCHISE_OWNER. The guard only
+   * checks a depot the request NAMES, and this route names none, so every one of them read
+   * every depot's payment destination. The list is now cut to the caller's own depots.
+   */
+  it('manage narrows a depot-scoped caller to its own depots', async () => {
+    await c.manage(
+      { sub: 'k1', role: Role.KEPALA_DEPOT, depotId: DEPOT } as AuthenticatedUser,
+      { search: 'x' } as never,
+    );
+    expect(svc.browse).toHaveBeenLastCalledWith({ search: 'x', depotIds: [DEPOT] }, false);
+    await c.manage(
+      { sub: 'm1', role: Role.MANAGER, depotId: null, depotIds: [DEPOT, 'd2'] } as never,
+      {} as never,
+    );
+    expect(svc.browse).toHaveBeenLastCalledWith({ depotIds: [DEPOT, 'd2'] }, false);
+  });
+
+  it('manage narrows a franchise owner to the depots they own', async () => {
+    await c.manage(
+      { sub: 'owner-9', role: Role.FRANCHISE_OWNER, depotId: null } as AuthenticatedUser,
+      {} as never,
+    );
+    expect(svc.browse).toHaveBeenLastCalledWith({ ownerId: 'owner-9' }, false);
   });
 
   it('creates with defaults and with all optional fields', async () => {

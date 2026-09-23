@@ -36,6 +36,9 @@ class FakeRepo implements EmployeeRepository {
   async anonymiseRetentionEligible(): Promise<number> {
     return this.anonymised;
   }
+  async photoValuesFor(): Promise<string[]> {
+    return [];
+  }
   async purgeFaceEmbeddings(): Promise<number> {
     return this.facesPurged;
   }

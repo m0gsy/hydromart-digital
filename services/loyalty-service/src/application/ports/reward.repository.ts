@@ -99,10 +99,11 @@ export interface RewardRepository {
    * With a `depotId` the queue is that depot's, PLUS every legacy row that has no depot
    * recorded: those predate the question, and hiding them would strand a customer whose
    * reward no depot can see. Without one (head office) it is the whole network.
+   * A supervisor passes every depot it covers.
    */
   listRedemptionsByStatus(
     status: RedemptionStatus,
-    depotId?: string,
+    depotIds?: readonly string[],
   ): Promise<RewardRedemptionView[]>;
   /** Staff marks the reward physically handed over — after this it cannot be cancelled. */
   /**

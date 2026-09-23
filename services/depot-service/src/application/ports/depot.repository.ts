@@ -46,6 +46,8 @@ export interface DepotQuery {
   limit: number;
   ownershipType?: OwnershipType;
   search?: string;
+  depotIds?: readonly string[];
+  ownerId?: string;
   /** When true, only active depots are returned (public browse). */
   activeOnly: boolean;
 }

@@ -357,18 +357,27 @@ export class ReportService {
     return { ...ReportService.rangeView(range), items };
   }
 
-  async shippingByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotShipping[] }> {
-    const items = await this.orders.shippingByDepot(range);
+  async shippingByDepot(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<ReportRangeView & { items: DepotShipping[] }> {
+    const items = await this.orders.shippingByDepot(range, depotIds);
     return { ...ReportService.rangeView(range), items };
   }
 
-  async refundsByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotRefund[] }> {
-    const items = await this.orders.refundsByDepot(range);
+  async refundsByDepot(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<ReportRangeView & { items: DepotRefund[] }> {
+    const items = await this.orders.refundsByDepot(range, depotIds);
     return { ...ReportService.rangeView(range), items };
   }
 
-  async ratingByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotRating[] }> {
-    const items = await this.orders.ratingByDepot(range);
+  async ratingByDepot(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<ReportRangeView & { items: DepotRating[] }> {
+    const items = await this.orders.ratingByDepot(range, depotIds);
     return { ...ReportService.rangeView(range), items };
   }
 

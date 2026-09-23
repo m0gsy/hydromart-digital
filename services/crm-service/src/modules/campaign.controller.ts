@@ -19,6 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
+import { can } from '@hydromart/access';
 import {
   Can,
   AuthenticatedUser,
@@ -104,8 +105,25 @@ export class CampaignController {
   @Can('campaignRead')
   @Get(':id')
   @ApiOperation({ summary: 'Get a campaign with its recipients' })
-  async get(@Param('id', ParseUUIDPipe) id: string): Promise<CampaignDto> {
-    return CampaignDto.from(await this.campaigns.get(id));
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CampaignDto> {
+    const dto = CampaignDto.from(await this.campaigns.get(id));
+    /*
+     * CRM-4: `campaignRead` reaches DIREKTUR, who may not read the customer directory, and
+     * the recipient list IS the directory — every name and number the campaign went to.
+     * Without `customerDirectory` the report keeps its status per row and loses the person:
+     * no name, and the number cut to its last three digits so a failed row is still findable.
+     */
+    if (!can('customerDirectory', user?.role)) {
+      dto.recipients = dto.recipients.map((r) => ({
+        ...r,
+        name: null,
+        phone: `•••${r.phone.slice(-3)}`,
+      }));
+    }
+    return dto;
   }
 
   /**

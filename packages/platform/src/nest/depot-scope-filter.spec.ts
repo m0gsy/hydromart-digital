@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 
 import { Role } from '../domain/role.enum';
-import { assertDepotAccess, depotScopeIds, depotWhere } from './depot-scope';
+import { assertDepotAccess, depotScopeIds, depotWhere, reportScopeIds } from './depot-scope';
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -85,5 +85,31 @@ describe('depotWhere', () => {
   it('builds an IN filter, or none at all for an unscoped caller', () => {
     expect(depotWhere([A, B])).toEqual({ in: [A, B] });
     expect(depotWhere(undefined)).toBeUndefined();
+  });
+});
+
+/*
+ * SEC-AUDIT XCUT-3. A report route reads a depot SELECTOR, and DepotScopeGuard only checks the
+ * depots a request NAMES — so a depot-scoped caller who named none passed the guard and the
+ * handler read the absent filter as "every depot". This is the answer both halves need: what
+ * the caller asked for when they asked, and what they are responsible for when they did not.
+ */
+describe('reportScopeIds', () => {
+  const manager = { role: Role.MANAGER, depotId: null, depotIds: [A, B] };
+
+  it('keeps what the caller asked for — the guard has already checked it', () => {
+    expect(reportScopeIds(manager, [A])).toEqual([A]);
+    expect(reportScopeIds(manager, A)).toEqual([A]);
+    expect(reportScopeIds(manager, `${A},${B}`)).toEqual([A, B]);
+  });
+
+  it('falls back to the depots a scoped caller is responsible for', () => {
+    expect(reportScopeIds(manager)).toEqual([A, B]);
+    expect(reportScopeIds(manager, '')).toEqual([A, B]);
+    expect(reportScopeIds(manager, [])).toEqual([A, B]);
+  });
+
+  it('leaves a network-wide caller unfiltered', () => {
+    expect(reportScopeIds({ role: Role.HEAD_OFFICE, depotId: null })).toBeUndefined();
   });
 });

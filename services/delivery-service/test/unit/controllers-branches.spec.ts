@@ -455,14 +455,16 @@ describe('DriverShiftController', () => {
 describe('ShiftController (dispatch)', () => {
   const shifts = { search: jest.fn().mockResolvedValue([]) };
   const controller = new ShiftController(shifts as never);
+  const headOffice = { sub: 'hq-1', role: 'HEAD_OFFICE', phone: null, depotId: null } as never;
 
   it('lists with an explicit window', () => {
     void controller.list({
       depotId,
       from: '2026-07-01T00:00:00.000Z',
       to: '2026-07-31T00:00:00.000Z',
-    } as never);
+    } as never, headOffice);
     expect(shifts.search).toHaveBeenCalledWith({
+      depotIds: [depotId],
       depotId,
       from: new Date('2026-07-01T00:00:00.000Z'),
       to: new Date('2026-07-31T00:00:00.000Z'),
@@ -470,8 +472,13 @@ describe('ShiftController (dispatch)', () => {
   });
 
   it('lists with the window omitted (undefined bounds)', () => {
-    void controller.list({ depotId } as never);
-    expect(shifts.search).toHaveBeenCalledWith({ depotId, from: undefined, to: undefined });
+    void controller.list({ depotId } as never, headOffice);
+    expect(shifts.search).toHaveBeenCalledWith({
+      depotIds: [depotId],
+      depotId,
+      from: undefined,
+      to: undefined,
+    });
   });
 });
 
@@ -481,13 +488,17 @@ describe('ReportController delegation', () => {
     slaByDepot: jest.fn().mockResolvedValue({ depots: [] }),
   };
   const controller = new ReportController(reports as never, deliveryTestConfig());
+  const headOfficeUser = { sub: 'hq-1', role: 'HEAD_OFFICE', phone: null, depotId: null } as never;
 
   it('delegates sla, translating the range and passing filters', () => {
-    void controller.sla({
-      from: '2026-07-01T00:00:00.000Z',
-      thresholdMinutes: 90,
-      depotIds: [depotId],
-    } as never);
+    void controller.sla(
+      {
+        from: '2026-07-01T00:00:00.000Z',
+        thresholdMinutes: 90,
+        depotIds: [depotId],
+      } as never,
+      headOfficeUser,
+    );
     expect(reports.sla).toHaveBeenCalledWith(
       { from: new Date('2026-07-01T00:00:00.000Z'), to: undefined },
       90,
@@ -496,8 +507,12 @@ describe('ReportController delegation', () => {
   });
 
   it('delegates slaByDepot with an empty range', () => {
-    void controller.slaByDepot({} as never);
-    expect(reports.slaByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
+    void controller.slaByDepot({} as never, headOfficeUser);
+    expect(reports.slaByDepot).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      undefined,
+      undefined,
+    );
   });
 });
 

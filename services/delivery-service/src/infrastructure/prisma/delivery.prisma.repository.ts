@@ -585,11 +585,18 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     };
   }
 
-  async slaStatsByDepot(range: ReportRange, thresholdMinutes: number): Promise<DepotSlaStats[]> {
+  async slaStatsByDepot(
+    range: ReportRange,
+    thresholdMinutes: number,
+    depotIds?: readonly string[],
+  ): Promise<DepotSlaStats[]> {
     const conds: Prisma.Sql[] = [
       Prisma.sql`"deliveredAt" IS NOT NULL`,
       Prisma.sql`"depotId" IS NOT NULL`,
     ];
+    // Column is uuid, ids are text: compare as text rather than casting the parameter to
+    // ::uuid, which is the mismatch PRM-3 was.
+    if (depotIds) conds.push(Prisma.sql`"depotId"::text = ANY(${[...depotIds]})`);
     if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
     const rows = await this.prisma.$queryRaw<

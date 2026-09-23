@@ -122,18 +122,25 @@ describe('NotificationPrismaRepository.deleteOlderThan', () => {
   // only signal anybody ever sees from it.
   it('deletes by cutoff and reports the count back', async () => {
     const deleteMany = jest.fn().mockResolvedValue({ count: 42 });
+    const recipients = jest.fn().mockResolvedValue({ count: 8 });
     const repo = new NotificationPrismaRepository({
       notification: { deleteMany },
+      campaignRecipient: { deleteMany: recipients },
     } as unknown as PrismaService);
 
     const cutoff = new Date('2026-01-01T00:00:00.000Z');
-    expect(await repo.deleteOlderThan(cutoff)).toBe(42);
+    expect(await repo.deleteOlderThan(cutoff)).toBe(50);
     expect(deleteMany).toHaveBeenCalledWith({ where: { createdAt: { lt: cutoff } } });
+    // CRM-7: finished campaign recipient rows go on the same window; queued ones stay.
+    expect(recipients).toHaveBeenCalledWith({
+      where: { createdAt: { lt: cutoff }, status: { in: ['SENT', 'FAILED'] } },
+    });
   });
 
   it('reports zero when nothing was old enough', async () => {
     const repo = new NotificationPrismaRepository({
       notification: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      campaignRecipient: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     } as unknown as PrismaService);
     expect(await repo.deleteOlderThan(new Date())).toBe(0);
   });

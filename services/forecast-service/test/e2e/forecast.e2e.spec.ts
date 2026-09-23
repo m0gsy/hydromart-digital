@@ -212,10 +212,16 @@ describe('Forecast HTTP flows (e2e)', () => {
   it('sales forecast is gated to planning staff (200 manager, 403 customer)', async () => {
     const sales = await request(server())
       .get('/api/v1/forecast/sales')
-      .set(auth(managerToken))
+      .set(auth(superAdminToken))
       .expect(200);
     expect(sales.body).toHaveProperty('predictedDaily');
-    expect(sales.body.depotId).toBeNull(); // global when depotId omitted
+    expect(sales.body.depotId).toBeNull(); // global when depotId omitted, for head office
+    // FCT-2: a manager omitting the depot gets its own depot's forecast, not the network's.
+    const own = await request(server())
+      .get('/api/v1/forecast/sales')
+      .set(auth(managerToken))
+      .expect(200);
+    expect(own.body.depotId).not.toBeNull();
 
     await request(server()).get('/api/v1/forecast/sales').set(auth(customerToken)).expect(403);
   });

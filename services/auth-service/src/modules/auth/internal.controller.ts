@@ -91,7 +91,14 @@ export class InternalAccountController {
     summary: 'Create or promote an HR-managed staff account (internal service auth)',
   })
   async provisionManagedStaff(@Body() dto: ProvisionManagedStaffDto): Promise<PublicCustomerDto> {
-    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    const staff = await this.account.inviteStaff(
+      dto.phone,
+      dto.role,
+      dto.fullName,
+      dto.depotId,
+      undefined,
+      dto.grantedBy,
+    );
     return PublicCustomerDto.from(staff);
   }
 
@@ -157,7 +164,7 @@ export class InternalAccountController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Change an existing staff account's role (internal service auth)" })
   async assignStaffRole(@Body() dto: AssignStaffRoleDto): Promise<PublicCustomerDto> {
-    const staff = await this.account.setStaffRole(dto.customerId, dto.role, dto.depotId);
+    const staff = await this.account.setStaffRole(dto.customerId, dto.role, dto.depotId, dto.grantedBy);
     return PublicCustomerDto.from(staff);
   }
 
