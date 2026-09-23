@@ -53,6 +53,8 @@ function token() {
     iat: now,
     exp: now + 3600,
   };
+  // AUTH-5: the guards check `iss`/`aud` now, so a hand-minted token carries them.
+  Object.assign(payload, { iss: 'hydromart-auth', aud: 'hydromart-api' });
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const body = `${b64(header)}.${b64(payload)}`;
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(body).digest('base64url');
