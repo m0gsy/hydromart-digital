@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 
 import { CampaignChannel } from '../../domain/channel';
@@ -48,6 +50,9 @@ interface CampaignRow {
 
 @Injectable()
 export class CampaignPrismaRepository implements CampaignRepository {
+  /** CRM-9: how long a SENDING claim is honoured before another sweep may take it. */
+  private static readonly CLAIM_WINDOW_MS = 10 * 60 * 1000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   private toRecipient(row: CampaignRecipientRow): CampaignRecipientRecord {
@@ -153,9 +158,28 @@ export class CampaignPrismaRepository implements CampaignRepository {
    * eligibility predicate in the WHERE, then read back only what this call moved. Reading
    * first and updating after is what lets a slow sweep and the next tick send twice.
    */
-  async claimRecipients(campaignId: string, limit: number): Promise<CampaignRecipientRecord[]> {
+  async claimRecipients(
+    campaignId: string,
+    limit: number,
+    now: Date = new Date(),
+  ): Promise<CampaignRecipientRecord[]> {
+    /*
+     * CRM-9. Two holes in the claim above it:
+     *  - read back on `status: SENDING`, which another overlapping sweep's rows also match,
+     *    so both sweeps sent each other's batch;
+     *  - a sweep that crashed left its rows SENDING forever — counted as pending, never sent.
+     * Each claim now carries its own token and reads back only that, and a SENDING row whose
+     * claim is older than the window (or predates the column) is claimable again.
+     * ponytail: the window assumes a batch sends in well under ten minutes; raise it if not.
+     */
+    const staleBefore = new Date(now.getTime() - CampaignPrismaRepository.CLAIM_WINDOW_MS);
+    const claimable = [
+      { status: PrismaRecipientStatus.PENDING },
+      { status: PrismaRecipientStatus.SENDING, claimedAt: null },
+      { status: PrismaRecipientStatus.SENDING, claimedAt: { lt: staleBefore } },
+    ];
     const candidates = await this.prisma.campaignRecipient.findMany({
-      where: { campaignId, status: PrismaRecipientStatus.PENDING },
+      where: { campaignId, OR: claimable },
       orderBy: { createdAt: 'asc' },
       take: limit,
       select: { id: true },
@@ -163,12 +187,13 @@ export class CampaignPrismaRepository implements CampaignRepository {
     if (candidates.length === 0) return [];
 
     const ids = candidates.map((c) => c.id);
+    const claimToken = randomUUID();
     await this.prisma.campaignRecipient.updateMany({
-      where: { id: { in: ids }, status: PrismaRecipientStatus.PENDING },
-      data: { status: PrismaRecipientStatus.SENDING },
+      where: { id: { in: ids }, OR: claimable },
+      data: { status: PrismaRecipientStatus.SENDING, claimToken, claimedAt: now },
     });
     const claimed = await this.prisma.campaignRecipient.findMany({
-      where: { id: { in: ids }, status: PrismaRecipientStatus.SENDING },
+      where: { id: { in: ids }, claimToken },
       orderBy: { createdAt: 'asc' },
     });
     return claimed.map((r) => this.toRecipient(r));

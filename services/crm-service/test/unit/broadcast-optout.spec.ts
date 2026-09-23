@@ -44,15 +44,17 @@ describe('InboxBroadcastDelivery · marketing opt-out', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('delivers when the preference cannot be read — an outage must not kill a campaign', async () => {
+  // CRM-2 (owner decision 2026-09-11): marketing fails CLOSED. A promo to somebody who
+  // switched promos off is the outcome the switch promises cannot happen.
+  it('holds the message when the preference cannot be read, and says it was not an opt-out', async () => {
     const delivery = withPrefs(jest.fn().mockRejectedValue(new Error('customer-service down')));
-    await delivery.deliver('+62800', 'Promo', 'cust-1');
-    expect(notify).toHaveBeenCalledTimes(1);
+    await expect(delivery.deliver('+62800', 'Promo', 'cust-1')).rejects.toThrow(/tidak bisa dibaca/);
+    expect(notify).not.toHaveBeenCalled();
   });
 
-  it('delivers when no preference port is wired at all', async () => {
+  it('holds the message when no preference port is wired at all', async () => {
     const delivery = new InboxBroadcastDelivery(notifications);
-    await delivery.deliver('+62800', 'Promo', 'cust-1');
-    expect(notify).toHaveBeenCalledTimes(1);
+    await expect(delivery.deliver('+62800', 'Promo', 'cust-1')).rejects.toThrow(/ditahan/);
+    expect(notify).not.toHaveBeenCalled();
   });
 });

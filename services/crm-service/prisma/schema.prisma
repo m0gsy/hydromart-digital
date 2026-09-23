@@ -94,6 +94,10 @@ model CampaignRecipient {
   status     RecipientStatus @default(PENDING)
   error      String?
   sentAt     DateTime?
+  /// CRM-9: which sweep holds a SENDING row, and since when. A row held past the claim
+  /// window by a sweep that died is claimable again instead of stuck forever.
+  claimToken String?
+  claimedAt  DateTime?
   createdAt  DateTime        @default(now())
 
   @@unique([campaignId, phone])

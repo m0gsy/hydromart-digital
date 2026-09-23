@@ -36,6 +36,7 @@ import {
   OpsNotificationRecord,
   RecordNotificationData,
 } from '../../src/application/ports/notification.repository';
+import { PERSONAL_OPS_EVENTS } from '../../src/domain/notification-event';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -280,6 +281,10 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       // O6: this depot's rows plus the ones belonging to no depot, mirroring the Prisma
       // filter — a fake that answers a wider set would hide the bug the filter exists for.
       .filter((r) => !depotIds || r.depotId === null || depotIds.includes(r.depotId))
+      // CRM-3: mirrors the Prisma filter — personal HR rows only reach their recipient.
+      .filter(
+        (r) => !PERSONAL_OPS_EVENTS.includes(r.event as never) || r.customerId === staffId,
+      )
       .map((r) => ({ ...r, readAt: this.reads.get(`${r.id}:${staffId}`) ?? null }));
   }
 

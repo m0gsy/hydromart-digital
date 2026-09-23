@@ -77,6 +77,28 @@ describe('NotificationService', () => {
     expect(feed[0].event).toBe(NotificationEvent.STOCK_LOW);
     expect(feed[0].readAt).toBeNull();
   });
+  /*
+   * CRM-3: a kasbon amount or a leave rejection reason belongs to one employee. It carries no
+   * depot, so the depot filter showed it to every staff account in the network.
+   */
+  it('shows a personal HR row to its recipient only, and an announcement to everyone', async () => {
+    await service.notify(
+      NotificationEvent.LOAN_REQUEST_REJECTED,
+      '+62811',
+      { name: 'Sari', amount: '500000', reason: 'utang lama' },
+      'emp-sari',
+    );
+    await service.notify(NotificationEvent.HR_ANNOUNCEMENT, '+62812', { title: 'Libur', body: 'Senin' }, 'emp-sari');
+
+    const own = await service.listOpsFeed('emp-sari');
+    const other = await service.listOpsFeed('staff-1', ['depot-1']);
+    const hq = await service.listOpsFeed('hq-1');
+    expect(own.map((n) => n.event)).toContain(NotificationEvent.LOAN_REQUEST_REJECTED);
+    for (const feed of [other, hq]) {
+      expect(feed.map((n) => n.event)).not.toContain(NotificationEvent.LOAN_REQUEST_REJECTED);
+      expect(feed.map((n) => n.event)).toContain(NotificationEvent.HR_ANNOUNCEMENT);
+    }
+  });
 });
 
 describe('NotificationService ops read state (per staff member)', () => {
