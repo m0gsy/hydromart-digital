@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { assertFresh, addLocalDays, localDayKey, startOfLocalDay } from '@hydromart/platform';
 
 import { PromotionNotFoundError } from '../../domain/errors';
@@ -8,7 +8,7 @@ import {
   PromotionRepository,
   UpdatePromotionData,
 } from '../ports/promotion.repository';
-import { OrderValuePort } from '../ports/order-value.port';
+import { OrderValue, OrderValuePort } from '../ports/order-value.port';
 import { VoucherRepository } from '../ports/voucher.repository';
 import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
@@ -72,7 +72,22 @@ export class PromotionService {
     await this.repo.delete(id);
   }
 
-  async analytics(id: string, now: Date = new Date()): Promise<PromotionAnalytics> {
+  /**
+   * PRM-2: `depotIds` is a depot-scoped caller's set. The voucher is network-wide (owner
+   * decision PRM-1), so its analytics were too — and a kepala depot or manager read every
+   * depot's customer ids, order ids and order value. A scoped caller now gets the same
+   * card computed over its own depots' orders only.
+   *
+   * A redemption row does not record a depot; the order does. So the voucher's order ids
+   * are read first, their depots asked of order-service, and the aggregates re-run over
+   * the ones in scope. If order-service cannot say, the answer is refused rather than
+   * falling back to the network.
+   */
+  async analytics(
+    id: string,
+    now: Date = new Date(),
+    depotIds?: readonly string[],
+  ): Promise<PromotionAnalytics> {
     const promotion = await this.getById(id);
     // H-16: the 7-day strip was bucketed on UTC days, so a redemption at 02:00 WIB
     // landed on the previous bar and "today" only began at 07:00 WIB.
@@ -107,21 +122,43 @@ export class PromotionService {
     // The window ends at the START of tomorrow, local — a fixed +24h divisor is the
     // H-16 defect, and the day labels the database groups by have to be the same local
     // labels `dailyUses` was built with or every bucket reads zero.
-    const stats = await this.vouchers.redemptionAnalytics(
+    const windowFrom = new Date(firstDayUtc);
+    const windowTo = addLocalDays(new Date(todayStart), 1, tz);
+    let stats = await this.vouchers.redemptionAnalytics(
       voucher.id,
-      new Date(firstDayUtc),
-      addLocalDays(new Date(todayStart), 1, tz),
+      windowFrom,
+      windowTo,
       TOP_CUSTOMERS,
       tz,
     );
     if (stats.totalUses === 0) return empty();
+
+    let scopedValues: OrderValue[] | undefined;
+    if (depotIds) {
+      const all = await this.orderValues.findOrderValues(stats.orderIds);
+      if (!all) {
+        throw new ServiceUnavailableException(
+          'Depot pesanan tidak bisa dipastikan; analitik promo ditahan sementara.',
+        );
+      }
+      scopedValues = all.filter((v) => v.depotId !== null && depotIds.includes(v.depotId));
+      if (scopedValues.length === 0) return empty();
+      stats = await this.vouchers.redemptionAnalytics(
+        voucher.id,
+        windowFrom,
+        windowTo,
+        TOP_CUSTOMERS,
+        tz,
+        scopedValues.map((v) => v.orderId),
+      );
+    }
 
     // The seven-day series is dense: a day with no redemptions still has to show a zero.
     const usesByDay = new Map(stats.dailyUses.map((row) => [row.day, row.uses]));
     for (const bucket of dailyUses) bucket.uses = usesByDay.get(bucket.day) ?? 0;
 
     const affectedOrderIds = stats.orderIds;
-    const values = await this.orderValues.findOrderValues(affectedOrderIds);
+    const values = scopedValues ?? (await this.orderValues.findOrderValues(affectedOrderIds));
     return {
       promotionId: promotion.id,
       title: promotion.title,

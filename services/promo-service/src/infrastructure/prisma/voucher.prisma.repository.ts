@@ -161,17 +161,23 @@ export class VoucherPrismaRepository implements VoucherRepository {
     to: Date,
     topCustomers: number,
     timeZone: string,
+    orderIds?: readonly string[],
   ): Promise<RedemptionAnalytics> {
+    const scoped = orderIds ? { orderId: { in: [...orderIds] } } : {};
+    // `orderId` is TEXT: compare as text, never cast the parameter (PRM-3).
+    const scopedSql = orderIds
+      ? Prisma.sql`AND "orderId" = ANY(${[...orderIds]}::text[])`
+      : Prisma.empty;
     // Four statements that each return a handful of rows, instead of the whole redemption
     // history and five passes over it in Node (audit S-14).
     const [totals, window, daily, top, orders] = await Promise.all([
       this.prisma.voucherRedemption.aggregate({
-        where: { voucherId },
+        where: { voucherId, ...scoped },
         _count: { _all: true },
         _sum: { discountApplied: true },
       }),
       this.prisma.voucherRedemption.count({
-        where: { voucherId, createdAt: { gte: from, lt: to } },
+        where: { voucherId, ...scoped, createdAt: { gte: from, lt: to } },
       }),
       this.prisma.$queryRaw<{ day: string; uses: bigint }[]>(Prisma.sql`
         -- C2: two hops, not one. The column is a naive timestamp holding UTC, so a single
@@ -182,11 +188,12 @@ export class VoucherPrismaRepository implements VoucherRepository {
                COUNT(*)::bigint AS uses
         FROM "voucher_redemptions"
         WHERE "voucherId" = ${voucherId} AND "createdAt" >= ${from} AND "createdAt" < ${to}
+        ${scopedSql}
         GROUP BY 1
         ORDER BY 1`),
       this.prisma.voucherRedemption.groupBy({
         by: ['customerId'],
-        where: { voucherId },
+        where: { voucherId, ...scoped },
         _count: { _all: true },
         _sum: { discountApplied: true },
         // Most uses first, then biggest savings — the console's long-standing order.
@@ -200,6 +207,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
         SELECT "orderId"
         FROM "voucher_redemptions"
         WHERE "voucherId" = ${voucherId}
+        ${scopedSql}
         GROUP BY "orderId"
         ORDER BY MIN("createdAt") ASC`),
     ]);

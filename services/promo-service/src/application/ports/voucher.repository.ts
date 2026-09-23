@@ -115,6 +115,8 @@ export interface VoucherRepository {
     to: Date,
     topCustomers: number,
     timeZone: string,
+    /** PRM-2: only these orders' redemptions. Omitted = the whole voucher. */
+    orderIds?: readonly string[],
   ): Promise<RedemptionAnalytics>;
 
   /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */

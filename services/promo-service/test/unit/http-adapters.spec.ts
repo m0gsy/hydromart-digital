@@ -150,8 +150,8 @@ describe('OrderValueHttpAdapter', () => {
     const result = await new OrderValueHttpAdapter(makeConfig()).findOrderValues(ids);
 
     expect(result).toEqual([
-      { orderId: ids[0], totalIdr: 25_000 },
-      { orderId: ids[1], totalIdr: 40_000 },
+      { orderId: ids[0], totalIdr: 25_000, depotId: null },
+      { orderId: ids[1], totalIdr: 40_000, depotId: null },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://order:3004/api/v1/orders/internal/values',
