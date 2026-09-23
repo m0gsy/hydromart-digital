@@ -29,8 +29,18 @@ export class OtpChallengeResponseDto {
   })
   deliveryPending!: boolean;
 
+  @ApiProperty({
+    enum: ['LOGIN', 'REGISTRATION'],
+    description:
+      'AUTH-3: which flow this code belongs to. Login answers the same shape for a number ' +
+      'with no account (it is registered instead), so the client is told rather than ' +
+      'inferring it from an error it no longer receives.',
+  })
+  purpose!: 'LOGIN' | 'REGISTRATION';
+
   static from(result: OtpChallengeResult): OtpChallengeResponseDto {
     return {
+      purpose: result.purpose,
       phoneMasked: result.phoneMasked,
       expiresInSeconds: result.expiresInSeconds,
       resendCooldownSeconds: result.resendCooldownSeconds,

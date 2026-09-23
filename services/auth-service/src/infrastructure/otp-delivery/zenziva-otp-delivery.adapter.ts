@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { redactGatewayDetail } from './redact-gateway-detail';
+
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import { OtpDeliveryPort, OtpMessage } from '../../application/ports/otp-delivery.port';
 import { AuthConfigService } from '../../config/auth-config.service';
@@ -72,7 +74,11 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
     }
 
     if (!response.ok) {
-      const detail = await response.text().catch(() => '');
+      // AUTH-6: Zenziva echoes the message it was asked to send, and the message IS the code.
+      const detail = redactGatewayDetail(await response.text().catch(() => ''), {
+        code: message.code,
+        phone: message.phone,
+      });
       this.logger.error(`Zenziva OTP delivery failed (HTTP ${response.status}): ${detail}`);
       throw new OtpGatewayRejectedError(`Zenziva answered HTTP ${response.status}`);
     }
@@ -83,7 +89,12 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
       text?: string;
     } | null;
     if (!body || String(body.status) !== '1') {
-      this.logger.error(`Zenziva rejected the OTP send: status=${body?.status} text=${body?.text}`);
+      this.logger.error(
+        `Zenziva rejected the OTP send: status=${body?.status} text=${redactGatewayDetail(
+          String(body?.text ?? ''),
+          { code: message.code, phone: message.phone },
+        )}`,
+      );
       throw new OtpGatewayRejectedError(`Zenziva status ${body?.status ?? 'unknown'}`);
     }
   }

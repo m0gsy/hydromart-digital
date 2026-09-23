@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { TOKEN_ALGORITHM, TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AuthenticatedUser } from '../interfaces/authenticated-user';
@@ -35,8 +36,13 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
+      // AUTH-5: the fork of the shared guard checks the same three facts. A fork that drifts
+      // is how a hardening lands everywhere except in the service that owns the tokens.
       const payload = await this.jwt.verifyAsync<AuthenticatedUser & { exp: number }>(token, {
         secret: this.config.tokenPolicy.accessSecret,
+        issuer: TOKEN_ISSUER,
+        audience: TOKEN_AUDIENCE,
+        algorithms: [TOKEN_ALGORITHM],
       });
       request.user = {
         sub: payload.sub,

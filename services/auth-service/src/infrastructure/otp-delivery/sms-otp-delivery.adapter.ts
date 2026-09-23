@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { redactGatewayDetail } from './redact-gateway-detail';
+
 import {
   OtpDeliveryPort,
   OtpGatewayRejectedError,
@@ -60,7 +62,11 @@ export class SmsOtpDeliveryAdapter implements OtpDeliveryPort {
     }
 
     if (!response.ok) {
-      const detail = await response.text().catch(() => '');
+      // AUTH-6: the body is the gateway's, and these gateways echo the destination back.
+      const detail = redactGatewayDetail(await response.text().catch(() => ''), {
+        code: message.code,
+        phone: message.phone,
+      });
       this.logger.error(`SMS OTP delivery failed (${response.status}): ${detail}`);
       // An answer, and the answer was no: nothing was sent, so the challenge can go and the
       // customer may ask again without waiting out the resend cooldown.

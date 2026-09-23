@@ -125,6 +125,9 @@ services:
       # Indonesian SMS. Both blank = the feature does not exist. See docs/MOBILE_PLAY_STORE.md.
       REVIEWER_PHONE: ${REVIEWER_PHONE:-}
       REVIEWER_OTP_CODE: ${REVIEWER_OTP_CODE:-}
+      # AUTH-8: the day that fixed code stops working. Required once REVIEWER_PHONE is set —
+      # the pair above outlives the review it was set for otherwise.
+      REVIEWER_OTP_EXPIRES_AT: ${REVIEWER_OTP_EXPIRES_AT:-}
       CRM_SERVICE_URL: http://crm:3012
       # UU PDP tahap 1 (item 13): auth-service fans out to customer-service to export or
       # scrub the profile and addresses. The adapter fails closed, so a missing value

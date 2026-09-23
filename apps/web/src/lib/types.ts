@@ -93,6 +93,15 @@ export interface Session {
 }
 
 export interface OtpChallenge {
+  /**
+   * AUTH-3: which flow the code belongs to. Login no longer 404s a number with no account —
+   * that answer told anybody who asked whether a phone banks here — so the server says
+   * which door it opened instead of the client inferring it from an error.
+   *
+   * Optional so an older gateway still parses; absent reads as LOGIN, which is what the
+   * screen assumed before.
+   */
+  purpose?: 'LOGIN' | 'REGISTRATION';
   phoneMasked: string;
   expiresInSeconds: number;
   /**
