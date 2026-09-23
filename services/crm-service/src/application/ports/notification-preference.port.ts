@@ -40,9 +40,11 @@ export interface NotificationPreferencePort {
    * about that depot, through a row in their own in-app feed, and may switch it off at any
    * time in one tap. This is that switch.
    *
-   * Also fails open. The durable gate is the audience query in customer-service, which has
-   * no failure mode at all; this one is the backstop for a pasted recipient list, and an
-   * outage must not silently abandon a campaign.
+   * CRM-2 — and it fails CLOSED: it REJECTS when the preference cannot be read. It used to
+   * fail open like the two above, on the premise that "the audience was already filtered" —
+   * false for exactly the case this check exists for, a pasted recipient list. A promo sent
+   * to somebody who switched promos off is the one outcome the switch promises cannot
+   * happen. Owner decision 2026-09-11: marketing fails closed, transactional stays open.
    */
   marketingAllowed(customerId: string): Promise<boolean>;
 }

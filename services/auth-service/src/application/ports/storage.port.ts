@@ -7,7 +7,13 @@ export interface StoragePutInput {
 }
 
 export interface StoragePutResult {
-  /** Publicly renderable URL (usable directly in <img src>). */
+  /**
+   * The object's stable identifier, `${STORAGE_PUBLIC_BASE_URL}/<key>`.
+   *
+   * AUTH-1: this used to be a permanent public link to a person's face, repeated in every
+   * profile response. The bucket is private now (delivery CA-4-49 recipe); the string is
+   * what rows hold, and reads go through `signedUrl`.
+   */
   url: string;
   /** Storage key, e.g. 'avatars/<uuid>.jpg'. */
   key: string;
@@ -20,4 +26,14 @@ export interface StoragePutResult {
  */
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
+  /** AUTH-1: a time-limited GET link for one key. Minted per read, never stored. */
+  signedUrl(key: string, ttlSeconds: number): Promise<string>;
+  /** AUTH-2: delete one object. Idempotent — a key already gone is a success. */
+  remove(key: string): Promise<void>;
+}
+
+/** Both adapters build `<base>[/uploads]/avatars/<uuid>.<ext>`; the key starts there. */
+export function avatarKeyFromUrl(url: string | null): string | null {
+  const at = url ? url.indexOf('avatars/') : -1;
+  return at === -1 ? null : url!.slice(at);
 }

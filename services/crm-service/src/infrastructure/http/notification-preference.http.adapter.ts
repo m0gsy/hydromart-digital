@@ -26,7 +26,7 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
 
   async pushAllowed(customerId: string): Promise<boolean> {
     // Only an explicit `false` mutes. A malformed body is an outage, not a decision.
-    return (await this.read(customerId, 'push')).push !== false;
+    return (await this.read(customerId, 'push'))?.push !== false;
   }
 
   /**
@@ -35,12 +35,16 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
    * outage, a missing column, or any value that is not a language crm holds templates for.
    */
   async localeFor(customerId: string): Promise<MessageLocale> {
-    const locale = (await this.read(customerId, 'locale')).locale;
+    const locale = (await this.read(customerId, 'locale'))?.locale;
     return locale === 'en' || locale === 'id' ? locale : 'id';
   }
 
   async marketingAllowed(customerId: string): Promise<boolean> {
+    // CRM-2: the one read that fails CLOSED — an unreadable answer is not "allowed".
     const body = await this.read(customerId, 'marketing');
+    if (body === null) {
+      throw new Error('marketing preference could not be read');
+    }
     const categories = (body.categories ?? {}) as Record<string, unknown>;
     // Absent key = never asked = still sendable. See the port for why that is the position.
     return categories.marketing !== false;
@@ -49,12 +53,14 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
   private async read(
     customerId: string,
     what: string,
-  ): Promise<{ push?: unknown; categories?: unknown; locale?: unknown }> {
+  ): Promise<{ push?: unknown; categories?: unknown; locale?: unknown } | null> {
+    // null = could not be read. Push and locale treat it as "allowed"/Indonesian; marketing
+    // treats it as a refusal (CRM-2).
     const base = this.config.customerServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) {
       this.logger.warn(`${what} preference not checked: customer-service URL or internal key missing`);
-      return {};
+      return null;
     }
 
     const url = `${base}/api/v1/profile/internal/notifications?customerId=${encodeURIComponent(customerId)}`;
@@ -64,13 +70,13 @@ export class NotificationPreferenceHttpAdapter implements NotificationPreference
         signal: AbortSignal.timeout(NotificationPreferenceHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) {
-        this.logger.warn(`${what} preference lookup responded ${res.status}; assuming allowed`);
-        return {};
+        this.logger.warn(`${what} preference lookup responded ${res.status}`);
+        return null;
       }
       return (await res.json()) as { push?: unknown; categories?: unknown; locale?: unknown };
     } catch (error) {
-      this.logger.warn(`${what} preference lookup failed: ${(error as Error).message}; assuming allowed`);
-      return {};
+      this.logger.warn(`${what} preference lookup failed: ${(error as Error).message}`);
+      return null;
     }
   }
 }

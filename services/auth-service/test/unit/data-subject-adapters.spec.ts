@@ -3,6 +3,8 @@ import { DataSubjectRequestPrismaRepository } from '../../src/infrastructure/pri
 import { CustomerDataHttpAdapter } from '../../src/infrastructure/http/customer-data.http.adapter';
 import { RemoteErasureExecutor } from '../../src/infrastructure/http/remote-erasure.executor';
 import { UnenforcedErasure } from '../../src/infrastructure/http/unenforced-erasure.executor';
+import { AvatarObjectErasure } from '../../src/infrastructure/storage/avatar-object.erasure';
+import { avatarKeyFromUrl } from '../../src/application/ports/storage.port';
 import {
   anonymisedIdentity,
   isDecidable,
@@ -461,5 +463,41 @@ describe('UnenforcedErasure', () => {
     expect(declared.configured).toBe(false);
     expect(declared.unenforcedReason).toBe('no customerId column');
     expect(await declared.erase()).toBeNull();
+  });
+});
+
+/*
+ * AUTH-2. Erasure nulled the avatar column and left the face in the bucket, at a URL every
+ * profile response had already handed out.
+ */
+describe('AvatarObjectErasure', () => {
+  const storage = { remove: jest.fn().mockResolvedValue(undefined) };
+
+  it('deletes the stored avatar object and reports one', async () => {
+    const customers = {
+      findById: jest.fn().mockResolvedValue({ avatarUrl: 'https://cdn/b/avatars/f.jpg' }),
+    };
+    const eraser = new AvatarObjectErasure(customers as never, storage as never);
+    expect(eraser.dataset).toBe('auth.avatar_objects');
+    expect(eraser.configured).toBe(true);
+    await expect(eraser.erase({ customerId: 'c1', phone: null })).resolves.toBe(1);
+    expect(customers.findById).toHaveBeenCalledWith('c1');
+    expect(storage.remove).toHaveBeenCalledWith('avatars/f.jpg');
+  });
+
+  it('touches nothing when there is no avatar or no account', async () => {
+    storage.remove.mockClear();
+    for (const found of [{ avatarUrl: null }, null]) {
+      const customers = { findById: jest.fn().mockResolvedValue(found) };
+      const eraser = new AvatarObjectErasure(customers as never, storage as never);
+      await expect(eraser.erase({ customerId: 'c1', phone: null })).resolves.toBe(0);
+    }
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('reads the key out of both adapters URL shapes', () => {
+    expect(avatarKeyFromUrl('http://localhost:3001/uploads/avatars/a.png')).toBe('avatars/a.png');
+    expect(avatarKeyFromUrl('typed-by-hand')).toBeNull();
+    expect(avatarKeyFromUrl(null)).toBeNull();
   });
 });

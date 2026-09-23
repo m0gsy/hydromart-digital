@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
+import { PERSONAL_OPS_EVENTS } from '../../domain/notification-event';
+import { phoneVariants } from '../../domain/phone-variants';
+
 import { NotificationStatus } from '../../domain/notification-status';
 import {
   NotificationRecord,
@@ -38,21 +41,44 @@ export class NotificationPrismaRepository implements NotificationRepository {
     const { count } = await this.prisma.notification.deleteMany({
       where: { createdAt: { lt: cutoff } },
     });
-    return count;
+    // CRM-7: campaign recipient lists are names and numbers too, and the purge never reached
+    // them. Same window; only rows already delivered or failed — a queued one is still work.
+    const recipients = await this.prisma.campaignRecipient.deleteMany({
+      where: { createdAt: { lt: cutoff }, status: { in: ['SENT', 'FAILED'] } },
+    });
+    return count + recipients.count;
   }
 
   async erasePerson(customerId: string, phone: string | null): Promise<number> {
     // OR, not AND: a campaign recipient who never registered has a phone and no id, and a
     // notification written after registration has both. Either match is the same person.
+    // CRM-8: every stored spelling of the number, not only the one auth-service holds.
     const match = phone
-      ? [{ customerId }, { phone }]
+      ? [{ customerId }, { phone: { in: phoneVariants(phone) } }]
       : [{ customerId }];
     const [notifications, recipients, subscriptions] = await this.prisma.$transaction([
       this.prisma.notification.deleteMany({ where: { OR: match } }),
       this.prisma.campaignRecipient.deleteMany({ where: { OR: match } }),
       this.prisma.webPushSubscription.deleteMany({ where: { customerId } }),
     ]);
-    return notifications.count + recipients.count + subscriptions.count;
+    // CRM-8: a saved segment can name customers by id. Drop this one from every list; the
+    // segment itself is staff's, and the other people in it are not being erased.
+    const segments = await this.prisma.savedSegment.findMany({
+      where: { conditions: { path: ['customerIds'], array_contains: [customerId] } },
+    });
+    for (const segment of segments) {
+      const conditions = segment.conditions as { customerIds?: string[] };
+      await this.prisma.savedSegment.update({
+        where: { id: segment.id },
+        data: {
+          conditions: {
+            ...conditions,
+            customerIds: (conditions.customerIds ?? []).filter((id) => id !== customerId),
+          },
+        },
+      });
+    }
+    return notifications.count + recipients.count + subscriptions.count + segments.length;
   }
 
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
@@ -102,9 +128,13 @@ export class NotificationPrismaRepository implements NotificationRepository {
     const rows = await this.prisma.notification.findMany({
       where: {
         event: { in: events },
-        // O6: this depot's rows, plus the ones that belong to no depot (every row written
-        // before the column existed, and the platform-wide ones).
-        ...(depotIds ? { OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] } : {}),
+        AND: [
+          // O6: this depot's rows, plus the ones that belong to no depot (every row written
+          // before the column existed, and the platform-wide ones).
+          ...(depotIds ? [{ OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] }] : []),
+          // CRM-3: somebody's leave or kasbon is theirs alone, whatever depot scope says.
+          { OR: [{ event: { notIn: PERSONAL_OPS_EVENTS } }, { customerId: staffId }] },
+        ],
       },
       orderBy: { createdAt: 'desc' },
       take: limit,

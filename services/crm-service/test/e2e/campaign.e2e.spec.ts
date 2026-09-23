@@ -25,6 +25,7 @@ describe('Campaign HTTP flows (e2e)', () => {
   let marketingToken: string;
   let customerToken: string;
   let driverToken: string;
+  let superToken: string;
   const directory = new FakeCustomerDirectory();
   // B-17: the sweep is what messages people now, so the e2e needs to see the transport.
   const delivery = new FakeBroadcastDelivery();
@@ -82,6 +83,7 @@ describe('Campaign HTTP flows (e2e)', () => {
     marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     driverToken = jwt.sign({ sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62' }, { secret });
+    superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -186,10 +188,16 @@ describe('Campaign HTTP flows (e2e)', () => {
       .expect(403);
   });
 
-  it('lets a fulfilment role (STAFF_DEPOT) trigger a rendered WhatsApp notification (200)', async () => {
-    const res = await request(server())
+  // CRM-1: depot floor staff could push free text into any customer's inbox through here.
+  it('refuses the manual send to depot staff (403) and serves it to a super admin (200)', async () => {
+    await request(server())
       .post('/api/v1/notifications')
       .set(auth(driverToken))
+      .send({ ...notifyBody(), event: 'BROADCAST', vars: { message: 'bukan promo resmi' } })
+      .expect(403);
+    const res = await request(server())
+      .post('/api/v1/notifications')
+      .set(auth(superToken))
       .send(notifyBody())
       .expect(200);
     expect(res.body).toMatchObject({ event: 'ORDER_CONFIRMED', status: 'SENT' });
@@ -200,7 +208,7 @@ describe('Campaign HTTP flows (e2e)', () => {
   it('rejects an unknown event (validation 400)', async () => {
     await request(server())
       .post('/api/v1/notifications')
-      .set(auth(driverToken))
+      .set(auth(superToken))
       .send({ ...notifyBody(), event: 'NOT_A_REAL_EVENT' })
       .expect(400);
   });

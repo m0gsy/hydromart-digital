@@ -92,6 +92,39 @@ export class AttendancePrismaRepository implements AttendanceRepository {
    * already does in one grouped query. Delegating keeps exactly one definition of what
    * "present / late / leave" means; the two used to be kept in step by a comment.
    */
+  async photosBefore(cutoff: Date, limit: number): Promise<string[]> {
+    const rows = await this.prisma.attendance.findMany({
+      where: {
+        workDate: { lt: cutoff },
+        OR: [{ checkInPhotoUrl: { not: null } }, { checkOutPhotoUrl: { not: null } }],
+      },
+      select: { checkInPhotoUrl: true, checkOutPhotoUrl: true },
+      take: limit,
+    });
+    return rows
+      .flatMap((r) => [r.checkInPhotoUrl, r.checkOutPhotoUrl])
+      .filter((v): v is string => !!v);
+  }
+
+  async clearPhotosBefore(cutoff: Date, limit: number): Promise<number> {
+    // Bounded the same way the read is, so one sweep cannot lock the whole table: the ids
+    // are taken first and the update names them.
+    const rows = await this.prisma.attendance.findMany({
+      where: {
+        workDate: { lt: cutoff },
+        OR: [{ checkInPhotoUrl: { not: null } }, { checkOutPhotoUrl: { not: null } }],
+      },
+      select: { id: true },
+      take: limit,
+    });
+    if (rows.length === 0) return 0;
+    const { count } = await this.prisma.attendance.updateMany({
+      where: { id: { in: rows.map((r) => r.id) } },
+      data: { checkInPhotoUrl: null, checkOutPhotoUrl: null },
+    });
+    return count;
+  }
+
   async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
     const byEmployee = await this.summaryMany([employeeId], from, to);
     return (

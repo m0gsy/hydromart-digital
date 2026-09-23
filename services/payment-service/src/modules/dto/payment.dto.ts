@@ -343,3 +343,9 @@ export class DepotRefundsQueryDto {
   @IsDateString()
   to!: string;
 }
+
+/** PAY-1: the proof as a link that expires; null when the payment carries none. */
+export class ProofLinkResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  proofUrl!: string | null;
+}

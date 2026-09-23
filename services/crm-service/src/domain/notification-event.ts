@@ -212,6 +212,21 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.HR_ANNOUNCEMENT,
 ];
 
+/**
+ * CRM-3: ops events addressed to ONE employee — their leave, their kasbon. They carry the
+ * amount, the rejection reason and the phone, and no depot (an HR decision is not a depot
+ * alert), so the depot filter let every staff account in the network read them. They are
+ * shown to their recipient only. HR_ANNOUNCEMENT is deliberately absent: it is for everyone.
+ */
+export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
+  NotificationEvent.LEAVE_SUBMITTED,
+  NotificationEvent.LEAVE_APPROVED,
+  NotificationEvent.LEAVE_REJECTED,
+  NotificationEvent.LOAN_REQUEST_SUBMITTED,
+  NotificationEvent.LOAN_REQUEST_APPROVED,
+  NotificationEvent.LOAN_REQUEST_REJECTED,
+];
+
 // English. Same tokens, same order, same meaning — including the operational ones, which go
 // to a depot's own number: a depot run in English gets its alerts in English too.
 const TEMPLATES_EN: Record<NotificationEvent, string> = {
