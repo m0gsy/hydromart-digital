@@ -20,11 +20,11 @@ on:
         description: 'Which service image to probe'
         default: 'auth'
       mode:
-        description: 'pull = probe the registry; diagnose = read-only questions about the box (M10/M15/M16)'
+        description: 'pull = probe the registry; diagnose = read-only questions about the box (M10/M15/M16); golive = is the DATA ready for real customers (read-only)'
         required: false
         type: choice
         default: pull
-        options: [pull, diagnose]
+        options: [pull, diagnose, golive]
 
 # M19/M20 apply here for a different reason: this workflow SSHes into the production box.
 # Two runs meant two sessions pulling images onto the same disk at the same time — the disk
@@ -66,9 +66,10 @@ jobs:
             # merging it. Either way it is ONE fetch of named read-only scripts, and
             # deploy.sh's `git reset --hard` puts the tree back on the next release.
             git fetch --quiet origin "${PROBE_REF:-main}"
-            git checkout FETCH_HEAD -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh
+            git checkout FETCH_HEAD -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh scripts/go-live-report.sh
             case "${PROBE_MODE:-pull}" in
               diagnose) bash scripts/ask-the-box.sh ;;
+              golive)   bash scripts/go-live-report.sh ;;
               *)        bash scripts/check-registry-pull.sh ;;
             esac
         env:

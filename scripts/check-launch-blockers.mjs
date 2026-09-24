@@ -523,6 +523,21 @@ function worse(current, next) {
         'the tier badge promises a discount and the checkout applies none — a stored 0 here ' +
         'is what a mistyped rate (0.05 instead of 5) leaves behind',
     })),
+    /*
+     * The other half of the same promise. The app tells every customer "Poin hangus setelah
+     * 12 bulan tanpa aktivitas" (profile.ts), and the sweep that makes it true ships INERT until
+     * this is set to 1 — deliberately, because switching it on the day it deploys would expire
+     * every old lot at once. That is a decision, and until somebody takes it the sentence is
+     * false for every customer who reads it. A stored 0 is a decision too, so it is not treated
+     * as broken here; only "nobody decided" is.
+     */
+    {
+      db: 'loyalty',
+      key: 'pointExpirySweepEnabled',
+      what: 'the expiry sweep behind the "poin hangus setelah 12 bulan" sentence in the app',
+      source: `${SERVICES_ROOT}/loyalty-service/src/config/setting-defs.ts`,
+      note: 'ships INERT; set to 1 to make the promise true, or change the sentence',
+    },
     {
       db: 'referral',
       key: 'referrerPoints',
