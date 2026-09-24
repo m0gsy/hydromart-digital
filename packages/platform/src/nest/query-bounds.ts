@@ -65,24 +65,7 @@ export function queryBoundsMiddleware(options: QueryBoundsOptions = {}): QueryBo
     if (params.action !== 'findMany') return next(params);
 
     const args = params.args ?? {};
-    /*
-     * PLAT-8 — the bound used to stop at the top level, and said so in its own note: "a
-     * relation list still returns whole". That is the half of the problem the middleware
-     * exists to solve. `order.findMany({ include: { items: true } })` is bounded to 500
-     * ORDERS and unbounded in items, so one order with three years of movements is the
-     * out-of-memory this file was written to prevent, reached by a different road.
-     *
-     * The relation objects are in the args, so they can be bounded here: `include: { x: true }`
-     * becomes `{ x: { take: max } }`, and one that already names a `take` is left alone —
-     * same rule as the top level.
-     */
-    const bounded = {
-      ...args,
-      ...(typeof args.take === 'number' ? {} : { take: max }),
-      ...boundRelations(args.include, 'include', max),
-      ...boundRelations(args.select, 'select', max),
-    };
-    params.args = bounded;
+    if (typeof args.take !== 'number') params.args = { ...args, take: max };
     const rows = await next(params);
     if (Array.isArray(rows)) {
       if (typeof args.take !== 'number' && rows.length >= max) {
@@ -94,45 +77,25 @@ export function queryBoundsMiddleware(options: QueryBoundsOptions = {}): QueryBo
   };
 }
 
-/**
- * PLAT-8: `include`/`select` with a bound filled into each relation that has none.
+/*
+ * PLAT-8 — why the bound REPORTS a relation instead of bounding it.
  *
- * `true` becomes `{ take: max }` — still the whole relation, just not all of it. A relation
- * given its own object keeps whatever it asked for, including a `take` it set itself; a
- * scalar `select: { name: true }` is untouched, because `take` there means nothing and
- * Prisma would reject it.
+ * The finding is real: `order.findMany({ include: { items: true } })` is bounded to 500
+ * orders and unbounded in items, so one order with three years of movements is the same
+ * out-of-memory this file exists to prevent, reached by a different road.
+ *
+ * The obvious fix — rewriting `include: { x: true }` into `{ x: { take: max } }` — was
+ * written, and it broke the HRIS flows in the integration stack. `take` is only legal on a
+ * to-MANY relation, and the args cannot say which a relation is: `include: { proof: true }`
+ * and `include: { employee: { select: … } }` look identical here and are both to-one, so the
+ * query throws and the caller sees a feature quietly stop working. Arity lives in the Prisma
+ * schema, which this package deliberately does not depend on.
+ *
+ * So the middleware does what it CAN do safely: a relation array that comes back at or above
+ * the cap is reported through the same `onTruncate` the top-level bound uses, naming
+ * `model.relation`. That turns an invisible unbounded read into a logged one somebody can
+ * bound at its own repository — which is where the arity is known.
  */
-function boundRelations(
-  clause: unknown,
-  key: 'include' | 'select',
-  max: number,
-): Record<string, unknown> {
-  if (!clause || typeof clause !== 'object') return {};
-  const entries = Object.entries(clause as Record<string, unknown>);
-  const next: Record<string, unknown> = {};
-  let changed = false;
-  for (const [relation, value] of entries) {
-    if (key === 'include' && value === true) {
-      next[relation] = { take: max };
-      changed = true;
-      continue;
-    }
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const inner = value as Record<string, unknown>;
-      // A `select` entry is a relation only when it carries relation arguments; a plain
-      // `{ id: true }` projection is not a list and must not be given a `take`.
-      const isRelation = key === 'include' || 'select' in inner || 'include' in inner || 'where' in inner;
-      if (isRelation && typeof inner.take !== 'number') {
-        next[relation] = { ...inner, take: max };
-        changed = true;
-        continue;
-      }
-    }
-    next[relation] = value;
-  }
-  return changed ? { [key]: next } : {};
-}
-
 /** A relation array that came back exactly full is the same truncation, one level down. */
 function reportFullRelations(
   rows: unknown[],
