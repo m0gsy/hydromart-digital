@@ -253,6 +253,31 @@ echo "    BACKUP_S3_*         the offsite job cannot authenticate even once DEST
 echo "    SENTRY_DSN          server exceptions are invisible; you learn from a customer"
 echo "    SENTRY_DSN_WEB      browser + WebView crashes are invisible (BUILD ARG: needs rebuild)"
 
+line "PROMETHEUS — the rules it is actually evaluating, and what is firing right now"
+# A rules file on disk is not the rules a container evaluates: it is bind-mounted, and a
+# container whose definition did not change is never recreated by a deploy, so it can keep
+# reading a superseded ruleset for weeks (it did, from 5 to 25 August). Ask the running
+# process. The route selectors are printed because two business alerts selected a route that
+# did not exist and fired — or stayed silent — on that basis; the firing list is what a
+# person on call would see first.
+PROM="$(docker ps --filter 'name=prometheus' --format '{{.Names}}' 2>/dev/null | head -1)"
+if [ -n "$PROM" ]; then
+  LIVE_RULES="$(docker exec "$PROM" wget -qO- http://localhost:9090/api/v1/rules 2>/dev/null || true)"
+  if [ -z "$LIVE_RULES" ]; then
+    echo "  could not read /api/v1/rules from $PROM"
+  else
+    echo "  alerting rules loaded : $(printf '%s' "$LIVE_RULES" | grep -o '"type":"alerting"' | wc -l | tr -d ' ')"
+    echo "  route selectors in the LIVE rules:"
+    printf '%s' "$LIVE_RULES" | tr -d '\\' | grep -o 'route=~\?"[^"]*"' | sort -u | sed 's/^/    /'
+  fi
+  LIVE_ALERTS="$(docker exec "$PROM" wget -qO- http://localhost:9090/api/v1/alerts 2>/dev/null |
+    grep -o '"alertname":"[A-Za-z]*"' | sort | uniq -c || true)"
+  echo "  alerts firing or pending now:"
+  if [ -n "$LIVE_ALERTS" ]; then printf '%s\n' "$LIVE_ALERTS" | sed 's/^/    /'; else echo "    none"; fi
+else
+  echo "  no prometheus container found"
+fi
+
 line "ORDERS — how many were cancelled by the sweep, and how many were placed after hours?"
 # The rupiah size of the silent-cancellation defect. The code path is certain; the count is
 # the only thing that turns it from a certainty into a number. WIB is UTC+7 and the columns
@@ -365,9 +390,10 @@ else
   echo "  !! $DRILL_LOG does not exist — no restore drill has ever run on this box."
 fi
 
-line "DEMO-01 — a fixture depot, live and public, with no operating hours"
-# operatingHours {} means ALWAYS OPEN (order-service/src/domain/opening-hours.ts), so a real
-# customer within 3 km of Malang can order cash at 03:00 from a depot that does not operate.
+line "DEMO-01 — a fixture depot, live and public"
+# operatingHours {} used to mean ALWAYS OPEN; opening-hours.ts now reads it as SHUT, so a depot
+# with no hours simply loses "antar sekarang". The demo depot is printed anyway: it is a fixture
+# that is live and public, and the hours below are the ones a Play reviewer sees.
 if [ -n "$PG" ]; then
   q hydromart_depot "
     select code, active, coalesce(\"operatingHours\"::text,'null')

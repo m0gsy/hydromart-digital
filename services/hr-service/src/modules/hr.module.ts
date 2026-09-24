@@ -99,6 +99,7 @@ import { AttendanceController } from './attendance.controller';
 import { PayrollController } from './payroll.controller';
 import { BonusController, DeductionController } from './adjustment.controller';
 import { BonusRuleController, LoanController } from './rules.controller';
+import { LoanRequestController, SelfLoanRequestController } from './loan-request.controller';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
 import { ReportsController } from './reports.controller';
@@ -202,6 +203,8 @@ const providers: Provider[] = [
     AllowanceController,
     BonusRuleController,
     LoanController,
+    SelfLoanRequestController,
+    LoanRequestController,
     PerformanceController,
     AuditController,
     ReportsController,
