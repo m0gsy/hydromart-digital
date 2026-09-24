@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
 import {
@@ -28,6 +28,7 @@ export class PayrollController {
     return this.payroll.list(user, query);
   }
 
+  @SelfScoped()
   @Get('me')
   @ApiOperation({ summary: 'My payroll history (self)' })
   listSelf(@Query() query: ListPayrollDto, @CurrentUser() user: AuthenticatedUser) {
@@ -44,6 +45,7 @@ export class PayrollController {
    * Two path segments, so the single-segment `:id` route cannot swallow it.
    */
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })
+  @SelfScoped()
   @Get('me/:id')
   @ApiOperation({ summary: 'One of my own payslips with its item lines (self)' })
   getSelfById(
@@ -57,6 +59,7 @@ export class PayrollController {
     description: 'The salary slip as a PDF.',
     content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
   })
+  @SelfScoped()
   @Get('me/:id/slip')
   @ApiOperation({ summary: 'Download one of my own payslips as a PDF (self)' })
   async selfSlip(

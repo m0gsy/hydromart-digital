@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { FavoriteService } from '../application/services/favorite.service';
 import { AddFavoriteDto } from './dto/favorite.dto';
@@ -14,6 +14,7 @@ export class FavoriteController {
   constructor(private readonly favorites: FavoriteService) {}
 
   @ApiOkResponse({ type: List2ResponseDto })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'List my favorited product ids (newest first)' })
   async list(@CurrentUser() user: AuthenticatedUser): Promise<{ productIds: string[] }> {
@@ -21,6 +22,7 @@ export class FavoriteController {
   }
 
   @ApiOkResponse({ type: List2ResponseDto })
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Favorite a product (idempotent)' })
   async add(
@@ -31,6 +33,7 @@ export class FavoriteController {
   }
 
   @ApiOkResponse({ description: 'No content.' })
+  @SelfScoped()
   @Delete(':productId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Unfavorite a product (idempotent, no-op if absent)' })

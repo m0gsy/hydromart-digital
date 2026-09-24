@@ -11,6 +11,8 @@ import {
   Public,
   ROLES_KEY,
   Roles,
+  SELF_SCOPED_KEY,
+  SelfScoped,
 } from './decorators';
 
 /** Pull the factory Nest stored for a @CurrentUser() parameter and call it directly. */
@@ -67,6 +69,21 @@ describe('route decorators', () => {
     expect(Reflect.getMetadata(CAPABILITY_KEY, C)).toBe('dashboard');
     expect(Reflect.getMetadata(ROLES_KEY, C)).toEqual(['SUPER_ADMIN']);
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, C)).toBe(true);
+  });
+
+  // PLAT-1: the marker RolesGuard checks at runtime for a route that only reads
+  // @CurrentUser() — @CurrentUser() itself is a parameter decorator, invisible to it.
+  it('@SelfScoped marks the handler, and works at class level too', () => {
+    class C {
+      @SelfScoped()
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      handler(): void {}
+    }
+    expect(Reflect.getMetadata(SELF_SCOPED_KEY, C.prototype.handler)).toBe(true);
+
+    @SelfScoped()
+    class D {}
+    expect(Reflect.getMetadata(SELF_SCOPED_KEY, D)).toBe(true);
   });
 
   it('@CurrentUser hands back whatever JwtAuthGuard put on the request', () => {

@@ -14,7 +14,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
+import { SNIFFED_MIME, sniffFileType, SelfScoped } from '@hydromart/platform';
 
 import { AccountService } from '../../application/services/account.service';
 import { StoragePort, avatarKeyFromUrl } from '../../application/ports/storage.port';
@@ -44,6 +44,7 @@ export class AvatarController {
     private readonly account: AccountService,
   ) {}
 
+  @SelfScoped()
   @Post('auth/me/avatar')
   @ApiOperation({ summary: 'Upload the authenticated account avatar; returns the updated profile' })
   @ApiConsumes('multipart/form-data')
@@ -107,6 +108,7 @@ export class AvatarController {
    * cookie across origins. The signature authorises the object store, so the image request
    * itself needs no credentials.
    */
+  @SelfScoped()
   @Get('auth/me/avatar-link')
   @ApiOperation({ summary: "Time-limited link to the authenticated account's avatar" })
   @ApiOkResponse({ type: AvatarLinkResponseDto })

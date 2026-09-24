@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { LoanRequest } from '../../prisma/generated/client';
 import { LoanRequestService } from '../application/services/loan-request.service';
@@ -27,6 +27,7 @@ export class SelfLoanRequestController {
   constructor(private readonly requests: LoanRequestService) {}
 
   @ApiOkResponse({ type: [LoanRequestResponseDto] })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'My kasbon requests, newest first' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<LoanRequest[]> {
@@ -34,6 +35,7 @@ export class SelfLoanRequestController {
   }
 
   @ApiOkResponse({ type: LoanRequestResponseDto })
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Raise a kasbon request (amount and reason only)' })
   submit(
@@ -44,6 +46,7 @@ export class SelfLoanRequestController {
   }
 
   @ApiOkResponse({ type: LoanRequestResponseDto })
+  @SelfScoped()
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Withdraw my request while it is still pending' })
   cancel(

@@ -16,9 +16,10 @@ import {
   AuthenticatedUser,
   Can,
   CurrentUser,
+  depotScopeIds,
   InternalAuthGuard,
   Public,
-  depotScopeIds,
+  SelfScoped,
 } from '@hydromart/platform';
 
 import { ReferralConfigService } from '../config/referral-config.service';
@@ -78,6 +79,7 @@ export class ReferralController {
 
   @ApiOkResponse({ type: ReferralSummaryDto })
   @ApiBearerAuth()
+  @SelfScoped()
   @Get('me')
   @ApiOperation({ summary: "Get the current customer's referral summary (code + referrals)" })
   async mySummary(
@@ -91,6 +93,7 @@ export class ReferralController {
 
   @ApiOkResponse({ type: ReferralDto })
   @ApiBearerAuth()
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Redeem a referral code as a new customer (FR-092)' })
   async redeem(

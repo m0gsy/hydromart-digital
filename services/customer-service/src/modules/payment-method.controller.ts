@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { PaymentMethodService } from '../application/services/payment-method.service';
 import { PaymentMethodRecord } from '../application/ports/payment-method.repository';
@@ -26,6 +26,7 @@ export class PaymentMethodController {
   constructor(private readonly methods: PaymentMethodService) {}
 
   @ApiOkResponse({ type: PaymentMethodResponseDto, isArray: true })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'List my saved payment methods' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<PaymentMethodRecord[]> {
@@ -33,6 +34,7 @@ export class PaymentMethodController {
   }
 
   @ApiOkResponse({ type: PaymentMethodResponseDto })
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Save a payment method (first becomes default)' })
   create(
@@ -43,6 +45,7 @@ export class PaymentMethodController {
   }
 
   @ApiOkResponse({ type: PaymentMethodResponseDto })
+  @SelfScoped()
   @Patch(':id')
   @ApiOperation({ summary: 'Update one of my payment methods' })
   update(
@@ -54,6 +57,7 @@ export class PaymentMethodController {
   }
 
   @ApiOkResponse({ type: PaymentMethodResponseDto })
+  @SelfScoped()
   @Post(':id/default')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Set a payment method as default' })
@@ -65,6 +69,7 @@ export class PaymentMethodController {
   }
 
   @ApiOkResponse({ description: 'No content.' })
+  @SelfScoped()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete one of my payment methods' })

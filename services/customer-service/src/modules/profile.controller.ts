@@ -19,6 +19,7 @@ import {
   Public,
   Role,
   Roles,
+  SelfScoped,
 } from '@hydromart/platform';
 
 import { CustomerProfileRecord, DirectoryRecipient } from '../application/ports/profile.repository';
@@ -62,6 +63,7 @@ export class ProfileController {
     private readonly notifications: NotificationService,
   ) {}
 
+  @SelfScoped()
   @Get('profile')
   @ApiOperation({ summary: 'Get my customer profile' })
   @ApiOkResponse({ type: ProfileResponseDto })
@@ -77,6 +79,7 @@ export class ProfileController {
    * as `null`, not flattened to `[]`: the screen must say "belum tersambung" rather than
    * print a zero nobody checked, because a zero here reads as "you have no deposit".
    */
+  @SelfScoped()
   @Get('profile/gallon-deposit')
   @ApiOperation({ summary: 'My gallons on loan and deposit held, per depot' })
   @ApiOkResponse({ type: CustomerDepotDepositRowResponseDto, isArray: true })
@@ -86,6 +89,7 @@ export class ProfileController {
     return this.profiles.myGallonDeposits(user.sub);
   }
 
+  @SelfScoped()
   @Patch('profile')
   @ApiOperation({ summary: 'Update my profile (favorite depot, date of birth)' })
   @ApiOkResponse({ type: ProfileResponseDto })

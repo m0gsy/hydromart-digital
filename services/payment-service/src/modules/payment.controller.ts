@@ -29,11 +29,12 @@ import {
 } from '@nestjs/swagger';
 
 import {
-  Can,
   AuthenticatedUser,
+  Can,
   CurrentUser,
   InternalAuthGuard,
   Public,
+  SelfScoped,
   SNIFFED_MIME,
   sniffFileType,
 } from '@hydromart/platform';
@@ -117,6 +118,7 @@ export class PaymentController {
   ) {}
 
   @ApiOkResponse({ type: PaymentResponseDto })
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Initiate a payment for an order' })
   initiate(
@@ -338,6 +340,7 @@ export class PaymentController {
   }
 
   @ApiOkResponse({ type: PagedPaymentResponseDto })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: "List the current customer's payments" })
   list(
@@ -486,6 +489,7 @@ export class PaymentController {
    * Declared before ':id' so the static segment cannot be read as a payment id.
    */
   @ApiOkResponse({ type: PaymentResponseDto })
+  @SelfScoped()
   @Post(':id/proof')
   @ApiOperation({ summary: 'Upload the receipt for your own payment (TRANSFER/QRIS)' })
   @ApiConsumes('multipart/form-data')
@@ -562,6 +566,7 @@ export class PaymentController {
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })
+  @SelfScoped()
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's payments" })
   get(

@@ -42,9 +42,11 @@ export {
   Roles,
   Can,
   CurrentUser,
+  SelfScoped,
   IS_PUBLIC_KEY,
   ROLES_KEY,
   CAPABILITY_KEY,
+  SELF_SCOPED_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
 export { recordAuditEvent, type AuditEvent, type AuditTrailConfig } from './nest/audit-trail';

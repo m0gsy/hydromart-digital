@@ -23,15 +23,16 @@ import {
 } from '@nestjs/swagger';
 
 import {
+  assertDepotAccess,
   AuthenticatedUser,
   Can,
   CurrentUser,
+  depotScopeIds,
   InternalAuthGuard,
   Public,
   Role,
   Roles,
-  assertDepotAccess,
-  depotScopeIds,
+  SelfScoped,
 } from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
@@ -94,6 +95,7 @@ export class OrderController {
   ) {}
 
   @ApiOkResponse({ type: OrderResponseDto })
+  @SelfScoped()
   @Post('checkout')
   @ApiOperation({ summary: 'Place an order from the cart (prices re-verified server-side)' })
   @ApiHeader({
@@ -135,7 +137,11 @@ export class OrderController {
   }
 
   // Declared before any ':id' route so 'delivery-options' is never read as an order id.
+  //
+  // route-authz: takes no subject — depotId is the depot's, not the caller's, and the
+  // answer is a property of that depot's own configuration, not of who is asking.
   @ApiOkResponse({ type: DeliveryOptionsResponseDto })
+  @SelfScoped()
   @Get('delivery-options')
   @ApiOperation({
     summary: 'Delivery windows and express pricing offered by a depot',
@@ -367,6 +373,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: PagedOrderResponseDto })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: "List the current customer's orders" })
   list(
@@ -668,6 +675,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: OrderResponseDto })
+  @SelfScoped()
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's orders" })
   get(
@@ -678,6 +686,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: OrderStatusHistoryResponseDto, isArray: true })
+  @SelfScoped()
   @Get(':id/timeline')
   @ApiOperation({ summary: "Get the status history of one of the customer's orders" })
   async timeline(
@@ -689,6 +698,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: OrderResponseDto })
+  @SelfScoped()
   @Post(':id/cancel')
   @ApiOperation({ summary: 'Cancel an order (only before a driver is assigned, BR-006)' })
   cancel(
@@ -701,6 +711,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: CartResponseDto })
+  @SelfScoped()
   @Post(':id/repeat')
   @ApiOperation({ summary: "Re-add an order's available items back to the cart" })
   repeat(
@@ -711,6 +722,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: OrderReviewResponseDto })
+  @SelfScoped()
   @Get(':id/review')
   @ApiOperation({ summary: "Get the customer's review of an order (null if unrated)" })
   getReview(
@@ -721,6 +733,7 @@ export class OrderController {
   }
 
   @ApiOkResponse({ type: OrderReviewResponseDto })
+  @SelfScoped()
   @Post(':id/review')
   @ApiOperation({ summary: 'Rate a delivered/completed order (spec 7c, one per order)' })
   review(

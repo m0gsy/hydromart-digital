@@ -1,7 +1,7 @@
 import { Controller, Get, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { ResellerService } from '../application/services/reseller.service';
 import { Me2ResponseDto } from './dto/responses.generated.dto';
@@ -15,6 +15,7 @@ export class ResellerSelfController {
   constructor(private readonly resellers: ResellerService) {}
 
   @ApiOkResponse({ type: Me2ResponseDto })
+  @SelfScoped()
   @Get('me')
   @ApiOperation({ summary: 'My reseller pricing (active + discount percent or flat galon price)' })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<{

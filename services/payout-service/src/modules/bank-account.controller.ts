@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Role, SelfScoped } from '@hydromart/platform';
 
 import { PayoutBankAccountService } from '../application/services/bank-account.service';
 import { PayoutBankAccountRecord } from '../application/ports/bank-account.repository';
@@ -24,6 +24,7 @@ export class PayoutBankAccountController {
   constructor(private readonly accounts: PayoutBankAccountService) {}
 
   @ApiOkResponse({ type: BankAccountResponseDto })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'The payout destination registered by the caller (null when none)' })
   mine(@CurrentUser() user: AuthenticatedUser): Promise<PayoutBankAccountRecord | null> {
@@ -35,6 +36,7 @@ export class PayoutBankAccountController {
    * new destination is a new destination, whatever the old one was verified as.
    */
   @ApiOkResponse({ type: BankAccountResponseDto })
+  @SelfScoped()
   @Put()
   @ApiOperation({ summary: 'Register or replace the payout destination (goes back to PENDING)' })
   register(

@@ -16,11 +16,12 @@ import {
   AuthenticatedUser,
   Can,
   CurrentUser,
+  depotScopeIds,
   InternalAuthGuard,
   Public,
   Role,
   Roles,
-  depotScopeIds,
+  SelfScoped,
 } from '@hydromart/platform';
 
 import { LoyaltyService } from '../application/services/loyalty.service';
@@ -82,6 +83,7 @@ export class LoyaltyController {
 
   @ApiOkResponse({ type: LoyaltyAccountDto })
   @ApiBearerAuth()
+  @SelfScoped()
   @Get('me')
   @ApiOperation({ summary: "Get the current customer's loyalty account (FR-014/015)" })
   async me(
@@ -117,6 +119,7 @@ export class LoyaltyController {
 
   @ApiOkResponse({ type: PagedPointsTransactionResponseDto })
   @ApiBearerAuth()
+  @SelfScoped()
   @Get('me/transactions')
   @ApiOperation({ summary: "List the current customer's points ledger" })
   async myTransactions(

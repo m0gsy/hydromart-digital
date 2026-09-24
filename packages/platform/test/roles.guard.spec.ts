@@ -2,17 +2,25 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { Role } from '../src/domain/role.enum';
-import { IS_PUBLIC_KEY, ROLES_KEY } from '../src/nest/decorators';
+import { IS_PUBLIC_KEY, ROLES_KEY, SELF_SCOPED_KEY } from '../src/nest/decorators';
 import { RolesGuard } from '../src/nest/roles.guard';
 
 // The guard reads @Public() with getAllAndOverride (handler-or-class is enough there)
 // but resolves the role/capability pair with get(), handler first, so a class-level
 // decorator cannot overrule a narrower one on the method.
-function makeGuard(meta: { isPublic?: boolean; roles?: readonly string[] }): RolesGuard {
+function makeGuard(meta: {
+  isPublic?: boolean;
+  roles?: readonly string[];
+  selfScoped?: boolean;
+}): RolesGuard {
   const reflector = {
     getAllAndOverride: (key: unknown) =>
       key === IS_PUBLIC_KEY ? (meta.isPublic ?? false) : meta.roles,
-    get: (key: unknown) => (key === ROLES_KEY ? meta.roles : undefined),
+    get: (key: unknown) => {
+      if (key === ROLES_KEY) return meta.roles;
+      if (key === SELF_SCOPED_KEY) return meta.selfScoped;
+      return undefined;
+    },
   } as unknown as Reflector;
   return new RolesGuard(reflector);
 }
@@ -36,9 +44,19 @@ describe('RolesGuard', () => {
     expect(() => guard.canActivate(makeContext({ role: Role.STAFF_DEPOT }))).toThrow(ForbiddenException);
   });
 
-  it('allows a route with no @Roles decorator', () => {
+  // PLAT-1: no decorator at all used to mean no restriction, which is indistinguishable
+  // from a route nobody remembered to decorate. Refused now, unless @SelfScoped() says
+  // this one really is meant to be open to any signed-in account.
+  it('refuses a route with no @Roles/@Can/@SelfScoped decorator', () => {
     const guard = makeGuard({});
-    expect(guard.canActivate(makeContext())).toBe(true);
+    expect(() => guard.canActivate(makeContext({ role: Role.CUSTOMER }))).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('allows a route with @SelfScoped() and no role/capability', () => {
+    const guard = makeGuard({ selfScoped: true });
+    expect(guard.canActivate(makeContext({ role: Role.CUSTOMER }))).toBe(true);
   });
 
   // Regression: a @Public() service-to-service handler inside a @Roles() controller has
