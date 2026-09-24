@@ -1,4 +1,4 @@
-import { internalServiceKey, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 /**
@@ -98,6 +98,10 @@ export const envValidationSchema = Joi.object({
   // the service still boots, but an invite then fails 503 rather than half-creating a person.
   HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: internalServiceKey(),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   // CA-2-06: where the idle-session limit lives. Blank = no idle limit (fail-open).
   ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
 

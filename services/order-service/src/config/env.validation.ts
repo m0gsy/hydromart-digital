@@ -1,4 +1,4 @@
-import { internalServiceKey, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -26,6 +26,10 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret. Notifications to crm and the payment→order
   // confirm callback authenticate with this (not a user JWT). Blank = fail-closed.
   INTERNAL_SERVICE_KEY: internalServiceKey(),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   // Age (minutes) after which an unconfirmed CREATED order is treated as abandoned
   // and can be auto-cancelled (releasing its stock hold). Company policy default.
   ORDER_ABANDON_MINUTES: Joi.number().integer().positive().default(60),

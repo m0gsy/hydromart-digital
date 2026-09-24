@@ -1,4 +1,4 @@
-import { internalServiceKey, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -14,6 +14,10 @@ export const envValidationSchema = Joi.object({
   // presenting this (x-internal-key) as a trusted system principal — the dashboard BFF
   // uses it to read the global SLA report. Blank = internal-key auth stays fail-closed.
   INTERNAL_SERVICE_KEY: internalServiceKey(),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   // Read for the depot's coordinates when a courier checks in (GET /depots/:id is public).
   DEPOT_SERVICE_URL: Joi.string().uri().required(),

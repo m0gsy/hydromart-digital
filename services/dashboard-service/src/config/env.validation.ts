@@ -1,4 +1,4 @@
-import { internalServiceKey, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -11,6 +11,10 @@ export const envValidationSchema = Joi.object({
   // reports as a trusted system principal (x-internal-key) rather than forwarding the
   // franchise owner's user JWT — required so those fan-out calls authenticate.
   INTERNAL_SERVICE_KEY: internalServiceKey(),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   DELIVERY_SERVICE_URL: Joi.string().uri().required(),
   DEPOT_SERVICE_URL: Joi.string().uri().required(),

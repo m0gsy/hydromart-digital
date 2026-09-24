@@ -14,9 +14,13 @@ const INTERNAL_KEY = 'super-secret-internal-service-key';
 // Non-public reflector: exercises the token/internal-key branches, never @Public().
 const reflector = { getAllAndOverride: () => false } as unknown as Reflector;
 
-function makeConfig(internalKey: string): ConfigService {
+function makeConfig(internalKey: string, previousInternalKey?: string): ConfigService {
   return {
-    get: (key: string) => (key === 'INTERNAL_SERVICE_KEY' ? internalKey : undefined),
+    get: (key: string) => {
+      if (key === 'INTERNAL_SERVICE_KEY') return internalKey;
+      if (key === 'INTERNAL_SERVICE_KEY_PREVIOUS') return previousInternalKey;
+      return undefined;
+    },
     getOrThrow: (key: string) => {
       if (key === 'JWT_ACCESS_SECRET') return SECRET;
       throw new Error(`unexpected getOrThrow(${key})`);
@@ -96,5 +100,18 @@ describe('JwtAuthGuard internal-key + bearer auth', () => {
     // Header equals the empty configured value — must still be rejected (fail closed).
     const { ctx } = makeContext({ 'x-internal-key': '' });
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  /*
+   * PLAT-5: a rotation in progress. Sixteen OTHER services have not redeployed yet, so
+   * their calls still carry the OLD key — it has to keep working as the SUPER_ADMIN system
+   * principal too, not just the current one.
+   */
+  it('(f) accepts the PREVIOUS internal key as the system principal during a rotation', async () => {
+    const guard = new JwtAuthGuard(reflector, jwt, makeConfig(INTERNAL_KEY, 'old-internal-key'));
+    const { ctx, request } = makeContext({ 'x-internal-key': 'old-internal-key' });
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(request.user).toEqual({ sub: 'system', role: Role.SUPER_ADMIN, phone: null, depotId: null });
   });
 });

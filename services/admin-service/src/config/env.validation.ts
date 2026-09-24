@@ -1,4 +1,4 @@
-import { internalServiceKey, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 import { SERVICE_REGISTRY } from './service-registry';
@@ -22,6 +22,10 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret. Present so the platform JwtAuthGuard can accept
   // internal-key system calls; admin's own endpoints are JWT + role gated. Blank = off.
   INTERNAL_SERVICE_KEY: internalServiceKey(),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   // Peers the scheduled-report sweep reads its rows from (design 15c). Blank = that
   // dataset's run is recorded FAILED, never an empty file that reads as a quiet month.
   ORDER_SERVICE_URL: Joi.string().allow('').default(''),

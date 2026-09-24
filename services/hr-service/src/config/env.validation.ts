@@ -1,4 +1,4 @@
-import { internalServiceKey, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -77,6 +77,10 @@ export const envValidationSchema = Joi.object({
   // notifications are skipped with a warning; an HR approval never fails because crm is down.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: internalServiceKey(),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   // NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only, never committed.
   NEO_FR_ENDPOINT: Joi.string().uri().default('https://fr.neoapi.id'),
   NEO_FR_TOKEN: Joi.string().allow('').default(''),
