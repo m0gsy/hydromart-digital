@@ -595,6 +595,13 @@ jobs:
       - name: Business alerts can actually fire (N12)
         run: bash scripts/check-alert-rules.test.sh
 
+      # The go-live report and the test-data reset are run by a person, once, against
+      # production — the worst place to learn a query was wrong. Both are run here against a
+      # throwaway Postgres carrying the real schema (every migration.sql) and a small fixture.
+      # Skips, saying so, when there is no Docker daemon or the image cannot be pulled.
+      - name: Go-live report and test-data reset behave on the real schema
+        run: bash scripts/go-live-tools.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple
