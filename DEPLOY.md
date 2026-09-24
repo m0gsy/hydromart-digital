@@ -2,7 +2,14 @@
 
 A production single-host deploy with Docker Compose: base infra
 (`docker-compose.yml` → Postgres) plus the production overlay
-(`docker-compose.prod.yml` → all 15 microservices + the Next.js web app).
+(`docker-compose.prod.yml` → the 18 microservices behind the gateway, the Next.js web app, the
+`scheduler` sidecar, and the monitoring stack — 28 containers in all).
+
+> **Day-to-day you do not run most of this by hand.** A merge to `main` runs CI, then
+> `.github/workflows/deploy.yml` runs `scripts/deploy.sh` on the box: it applies pending migrations
+> (after taking a dump), pulls the commit's images in registry mode, converges the stack, waits for
+> health, smoke-tests, and rolls back on failure. The numbered steps below are the FIRST install and the
+> manual fallback. `bash scripts/deploy.sh` is the manual form of the same thing.
 
 The app services are only reachable on the internal docker network. The two
 ports you actually serve are **8080** (API gateway) and **3000** (web).
@@ -22,10 +29,14 @@ ports you actually serve are **8080** (API gateway) and **3000** (web).
 ## 1. Prerequisites (on the VPS)
 
 - Linux with **Docker Engine + the Compose v2 plugin** (`docker compose version`).
-- **~4 GB RAM** minimum (16 containers: Postgres, 15 Node services + web),
-  8 GB comfortable. A couple of GB free disk for images.
-- **Node.js 20+** on the host — needed once, to run database migrations
-  (`prisma migrate deploy`) against the compose Postgres over `localhost:5432`.
+- **Sizing (measured on the live box, 2026-09-24):** 28 containers idle at ~2.2 GB with 15 GiB present;
+  the peaks that matter are image builds, which registry mode removes. **4 vCPU / 8 GB + 4 GB swap /
+  80–100 GB NVMe** is the recommended target for ~50 depots in registry mode; grow it if CPU p95 stays
+  above 60% or `MemAvailable` falls under 1.5 GB. The per-container ceilings in the compose file
+  (512 MB each) add up to more than 8 GB on purpose — they are ceilings, not reservations.
+- **Node.js 22+** on the host (`package.json` `engines` is `>=22.14 <23`; the containers are already
+  `node:22`). The host runs the cron backup and the migration step. Node 20 reached end of life on
+  30 April 2026 and AWS SDK v3 drops it in January 2027; `deploy.sh` reports a host below 22.
 - **Host firewall (required).** Allow only `22` (SSH) + `3000` + `8080` (or
   `80`/`443` with a reverse proxy — see §6). Explicitly block `5432` from the
   internet, e.g. with ufw:
@@ -60,7 +71,8 @@ secret, so `up` fails fast with a clear message if any required value is unset.
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-First run builds 16 images (slow — many minutes). Watch them come up healthy:
+First run builds the images (slow — many minutes; with `IMAGE_PREFIX` set, see "Registry mode" below,
+it pulls prebuilt ones instead). Watch them come up healthy:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
@@ -71,7 +83,11 @@ The app services will boot but return errors until migrations are applied
 
 ---
 
-## 4. Run database migrations (do this once per deploy, host-side)
+## 4. Run database migrations (first install only — `deploy.sh` does this for every later release)
+
+`scripts/deploy.sh` applies a release's pending migrations itself, BEFORE any container starts on the new
+code, after a fresh dump and after building new indexes concurrently (B-20, H-39). What follows is what it
+runs, for a first install or a manual repair.
 
 Migrations run from the **host** against the compose Postgres, which is
 published on `127.0.0.1:5432`. Each Prisma schema reads its own
@@ -98,7 +114,7 @@ confirm PASS.)
 ```bash
 # from the repo root, with .env already filled in:
 npm ci                    # installs workspaces + generates Prisma clients (postinstall)
-npm run db:migrate:prod   # derives all 13 *_DATABASE_URL from POSTGRES_PASSWORD, then migrates
+npm run db:migrate:prod   # derives every *_DATABASE_URL (16 databases) from POSTGRES_PASSWORD, then migrates
 ```
 
 `db:migrate:prod` ([`scripts/migrate-prod.sh`](scripts/migrate-prod.sh)) loads
@@ -239,10 +255,9 @@ docker run --rm -e WEB_DOMAIN -e API_DOMAIN -v "$PWD/infra/caddy:/etc/caddy:ro" 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f order
 
-# update to new code
-git pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-npm run db:migrate      # if new migrations landed (env exported as in §4)
+# update to new code — merge to main and let deploy.yml do it, or by hand:
+bash scripts/deploy.sh              # migrations, images, converge, health, smoke, rollback on failure
+bash scripts/deploy.sh --all        # rebuild/pull everything
 
 # stop (keeps volumes/data)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml down
@@ -395,18 +410,18 @@ TOKENS="<t1>,<t2>,...,<tN>" VUS=10 CART_LINES=3 \
 
 ### Registry mode — and what a rollback actually costs
 
-`.github/workflows/images.yml` has always ended its header with *"The VPS opts in by
-setting `IMAGE_PREFIX` + `IMAGE_TAG` in `.env` (see DEPLOY.md)"*. Until now this page
+`.github/workflows/images.yml` has always ended its header with _"The VPS opts in by
+setting `IMAGE_PREFIX` + `IMAGE_TAG` in `.env` (see DEPLOY.md)"_. Until now this page
 never mentioned `IMAGE_PREFIX`, so that sentence pointed at nothing.
 
 **Two modes, and the difference only shows up on your worst day.**
 
-| | `IMAGE_PREFIX` empty (today) | `IMAGE_PREFIX` set |
-|---|---|---|
-| a deploy | compiles 19 images **on this box** | pulls 19 prebuilt images |
-| a rollback | recompiles them, **while the box is unhealthy** | pulls the target commit's images |
-| what runs | whatever this box built | the exact bytes CI tested |
-| rollback targets | none — local images are tagged `:local` | every SHA the registry still holds |
+|                  | `IMAGE_PREFIX` empty (until 2026-09-17)         | `IMAGE_PREFIX` set (**production, since 2026-09-17**) |
+| ---------------- | ----------------------------------------------- | ----------------------------------------------------- |
+| a deploy         | compiles 19 images **on this box**              | pulls 19 prebuilt images                              |
+| a rollback       | recompiles them, **while the box is unhealthy** | pulls the target commit's images                      |
+| what runs        | whatever this box built                         | the exact bytes CI tested                             |
+| rollback targets | none — local images are tagged `:local`         | every SHA the registry still holds                    |
 
 `scripts/rollback.sh` is the only way out of a bad release. With `IMAGE_PREFIX` empty it
 falls through to `rebuild-stale.sh`, i.e. the remedy for a broken release is to recompile
@@ -445,7 +460,7 @@ To go back: delete the `IMAGE_PREFIX` line from `.env` and deploy. Nothing else 
 compose falls back to `hydromart-<svc>:local` and the box builds its own images again.
 
 **One caveat that is not optional.** `deploy.yml` and `images.yml` are both triggered by
-*CI completed*, so they run in parallel: a deploy can arrive before its images exist.
+_CI completed_, so they run in parallel: a deploy can arrive before its images exist.
 `deploy.sh` already waits up to `IMAGE_WAIT_SECONDS` (default 600) and then aborts without
 touching the running stack, so this is a slower deploy, never a broken one.
 
@@ -486,10 +501,15 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d alertmanag
 - No `ops/alertmanager.webhook-url` file → the container won't start. That's
   intentional: a missing webhook means alerting is unconfigured, and a silent
   no-op alerter is worse than a loud failure at boot.
-- **Alerts:** `ServiceDown`/`ServiceCrashLooping` (critical), `HighErrorRate`
-  (critical, >5% 5xx / 5m), `HighLatencyP95` (warning, >1.5s p95 / 10m),
-  `EventLoopLagHigh` (warning, >200ms / 5m). A firing critical inhibits same-service
-  warnings so an incident pages once, not three times.
+- **Alerts:** sixteen rules in `ops/alert-rules.yml` — availability (`ServiceDown`,
+  `ServiceCrashLooping`), latency and errors (`HighErrorRate`, `HighLatencyP95`), runtime and host
+  (`ExporterDown`, `EventLoopLagHigh`, `DiskSpaceLow`, `HostMemoryLow`, `ContainerOOMKilled`), datastores
+  (`PostgresDown`, `PostgresConnectionsNearMax`, `PostgresDeadlocks`), and business
+  (`NoOrdersCreated`, `CheckoutFailing`, `PaymentConfirmFailing`, `SchedulerSweepsSilent`). A firing
+  critical inhibits same-service warnings so an incident pages once, not three times. What to do for
+  each: [docs/RUNBOOK_INCIDENTS.md](docs/RUNBOOK_INCIDENTS.md); who is woken and how fast:
+  [docs/RUNBOOK_ONCALL.md](docs/RUNBOOK_ONCALL.md). Everything above lives ON the box; the one check that
+  does not is `.github/workflows/uptime.yml`, which asks production from GitHub every ten minutes.
 - **View state:** Prometheus `Alerts` tab at `127.0.0.1:9090` (SSH-tunnel), or
   Alertmanager UI at `127.0.0.1:9093`. Both are loopback-only.
 - **Validate after editing rules/config:**

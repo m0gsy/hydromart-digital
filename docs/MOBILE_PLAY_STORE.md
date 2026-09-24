@@ -641,6 +641,10 @@ terpasang sebagai **variables** — dua-duanya dicek dengan `gh variable list` d
 `gh secret list`, dan job `bundle` gagal keras kalau salah satu variable kosong
 (`mobile.yml:344-351`).
 
+> **Snapshot 2026-08-18.** Nomor tag dan `versionCode` di bagian ini adalah keadaan hari itu (tag terbaru
+> saat itu `mobile-v1.4.0`). Sejak itu tag naik sampai `mobile-v1.10.0`; baca yang terkini dari
+> `git tag -l 'mobile-v*' --sort=creatordate` dan dari log step **Version numbers** run `mobile.yml`-nya.
+
 **Tiga: tag terbaru tidak boleh diunggah.** `mobile-v1.4.0` = run **43 attempt 2**, jadi
 `versionCode` **4302**, `versionName` 1.4.0; artefaknya `hydromart-aab-1.4.0` (11,6 MB, dua
 AAB) masih ada, dibuat 2026-08-18 dan kedaluwarsa 2026-09-17. Tapi commit-nya

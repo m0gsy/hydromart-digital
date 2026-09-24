@@ -20,6 +20,9 @@ created on first boot by [`infra/postgres/init-databases.sql`](../infra/postgres
 | crm-service            | `hydromart_crm`            | …                                                   |
 | recommendation-service | `hydromart_recommendation` | `services/recommendation-service/prisma/migrations` |
 | forecast-service       | `hydromart_forecast`       | `services/forecast-service/prisma/migrations`       |
+| payout-service         | `hydromart_payout`         | `services/payout-service/prisma/migrations`         |
+| admin-service          | `hydromart_admin`          | `services/admin-service/prisma/migrations`          |
+| hr-service             | `hydromart_hr`             | `services/hr-service/prisma/migrations`             |
 | dashboard-service      | — (no DB, BFF aggregator)  | —                                                   |
 | gateway-service        | — (no DB, reverse proxy)   | —                                                   |
 
@@ -72,9 +75,12 @@ Rules:
 
 ## Notes
 
-- **Schemas are validated in CI** (`db:validate`) but migrations are applied only
-  against a running Postgres — the dev shell here has no Docker/psql, so migrations
-  have not been executed in-repo; run the setup above in an environment with Docker.
+- **Schemas are validated in CI** (`db:validate`), and migrations are executed for real there too:
+  the integration job boots every service against Postgres, and `scripts/go-live-tools.test.sh` applies
+  every service's `migration.sql` in order to a throwaway Postgres. **Production applies them itself**:
+  `scripts/deploy.sh` dumps the databases and runs `migrate-prod.sh` before any container starts on the
+  new code. The schema rule is that a column ships one release BEFORE the code that reads it, so a
+  code rollback never meets a schema it cannot read.
 - Every service uses a **service-local Prisma client output**
   (`prisma/generated/client`) so the hoisted `node_modules/@prisma/client` is never
   shared or clobbered across schemas.

@@ -1,3 +1,7 @@
+> **ARSIP — foto keadaan 2026-07-18.** Tiga temuan Critical di bawah (SEC-1, DB-1, DB-2) sudah diperbaiki
+> sejak itu, begitu juga sebagian besar sisanya; vonis "NOT READY" di bawah **bukan** keadaan hari ini.
+> Keadaan terkini dan yang masih terbuka: [PRODUCTION_READINESS_REGISTER.md](PRODUCTION_READINESS_REGISTER.md).
+
 # Hydromart — Production Readiness Audit
 
 **Date:** 2026-07-18
