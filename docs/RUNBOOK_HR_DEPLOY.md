@@ -1,3 +1,8 @@
+> **ARSIP — runbook sekali jalan untuk PR #27 (Juli 2026), bukan prosedur hari ini.** Path
+> `/opt/hydromart` di bawah salah (kotak yang hidup memakai `/home/hydromart/hydromart`), `db:migrate:prod`
+> dan build manual tidak lagi dijalankan tangan, dan Alertmanager sudah punya 16 aturan, bukan 5. Untuk
+> deploy: [DEPLOY.md](../DEPLOY.md); untuk alert: [RUNBOOK_ONCALL.md](RUNBOOK_ONCALL.md).
+
 # Runbook — Deploy HR module + arm alerting (post PR #27)
 
 Post-merge ops steps for the `feat/hr-module` → main merge (PR #27): deploy the

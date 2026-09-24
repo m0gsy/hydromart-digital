@@ -5,7 +5,8 @@
 ## 1. Context
 
 Hydromart digitizes the operations of a network of refillable drinking-water depots
-(~50 today, targeting 100+). It replaces phone/WhatsApp ordering and manual
+(3 active on production as of 2026-09-24, one of them a demo fixture; the requirement documents
+target ~50, then 100+ — the brief for the first launch is ~10 depots and 50–150 concurrent users). It replaces phone/WhatsApp ordering and manual
 spreadsheets with a single platform spanning customers, drivers, depots, franchise
 owners, and head office.
 
@@ -60,7 +61,9 @@ never shared across schemas.
 `docker-compose.prod.yml` (19 services + web + scheduler + Prometheus, Alertmanager
 and Grafana), with Caddy terminating TLS and holding HSTS/CSP. Object storage is
 BiznetGio NEO (S3-compatible). CI/CD is GitHub Actions; a merge to `main` deploys
-itself, while database migrations stay a deliberate manual step.
+itself — including database migrations: `scripts/deploy.sh` takes a dump and applies pending
+migrations BEFORE any container starts on the new code (B-20), and rolls the code back if the release
+is unhealthy. Production runs in registry mode: CI builds the images, the box only pulls them.
 
 An earlier revision of this document specified Google Cloud Run, Cloud SQL,
 Memorystore, Secret Manager, Cloud Build, Artifact Registry and Firebase Hosting.

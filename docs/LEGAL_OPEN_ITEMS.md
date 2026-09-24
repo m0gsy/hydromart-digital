@@ -49,9 +49,10 @@ ini memeriksa apakah bentuk buktinya cukup bila diminta.
 Bukan legal, tapi berdiri di rak yang sama: ditulis sebagai lubang yang diketahui, tanpa
 item untuk direproduksi.
 
-- **RPO/RTO** belum pernah dinyatakan, apalagi diuji. Yang ada: dump nightly + drill restore
-  mingguan (keduanya terjadwal, `scripts/install-host-cron.sh`), dan backup masih di kotak
-  yang sama dengan basis datanya (L2.7).
+- **RPO/RTO**: RPO 24 jam dinyatakan di [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) (dump nightly, tanpa
+  WAL). Drill restore mingguan berjalan dan terukur di produksi (21 Sep 2026: restore 14 detik, 16 database
+  cocok dengan yang hidup). Salinan luar kotak sudah jalan (`BACKUP_OFFSITE_DEST`), tapi di **penyedia yang
+  sama** dengan mesinnya (NEO); rebuild kotak baru penuh (env, image, objek) belum pernah diulang.
 - **Kapasitas** — berapa depot, kurir, dan pesanan per jam sebelum sesuatu patah, dan yang
   mana patah duluan. Gerbang beban di CI mengukur regresi terhadap dirinya sendiri, bukan
   atap.

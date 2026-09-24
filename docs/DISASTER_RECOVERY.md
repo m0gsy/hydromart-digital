@@ -13,13 +13,13 @@ dengan tangan gemetar.
 
 ## Apa yang Anda punya, dan apa yang tidak
 
-| Ada | Di mana | Sedalam apa |
-| --- | --- | --- |
-| Dump seluruh cluster, tiap malam 03:00 | `s3://hydromart-backup/db/` | 14 malam (`BACKUP_KEEP`) |
-| `.env` terenkripsi, tiap malam 03:25 | `s3://hydromart-backup/env/` | 14 malam |
-| Berkas objek (foto PoD, bukti transfer, dll), tiap malam 03:40 | `s3://hydromart-backup/objects/<bucket>/` | tidak dipangkas |
-| Kode | GitHub, `main` | seluruh riwayat |
-| Image per commit | `ghcr.io/m0gsy/hydromart-digital-<service>:<sha>` | selama GHCR menyimpannya |
+| Ada                                                            | Di mana                                           | Sedalam apa                                                                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Dump seluruh cluster, tiap malam 03:00                         | `s3://hydromart-backup/db/`                       | 14 malam (`BACKUP_KEEP`)                                                                                                 |
+| `.env` terenkripsi, tiap malam 03:25                           | `s3://hydromart-backup/env/`                      | 14 malam                                                                                                                 |
+| Berkas objek (foto PoD, bukti transfer, dll), tiap malam 03:40 | `s3://hydromart-backup/objects/<bucket>/`         | salinan `pod/` dan `payment-proof/` kedaluwarsa **395 hari** (12 bulan janji privasi + 1 bulan); sisanya tidak dipangkas |
+| Kode                                                           | GitHub, `main`                                    | seluruh riwayat                                                                                                          |
+| Image per commit                                               | `ghcr.io/m0gsy/hydromart-digital-<service>:<sha>` | selama GHCR menyimpannya                                                                                                 |
 
 **Yang TIDAK ada, dan harus Anda tahu sebelum mulai:**
 
@@ -30,8 +30,10 @@ dengan tangan gemetar.
   **Kehilangan AKUN NEO tetap kehilangan keduanya sekaligus.**
 - **RPO 24 jam.** Tidak ada WAL archiving. Kehilangan volume pukul 02:59 membuang hampir
   sehari penuh pesanan dan setoran kurir. Tidak ada cara memulihkannya.
-- **RTO belum pernah diukur di volume produksi.** Angka di bawah adalah urutan langkah, bukan
-  janji durasi.
+- **RTO penuh belum pernah diukur.** Yang terukur: drill mingguan memulihkan dump terbaru ke kluster
+  scratch di kotak yang sama — 21 Sep 2026, 131 MB dalam 14 detik (35 detik dengan verifikasi 16 database
+  terhadap yang hidup). Itu bukan RTO: kotak baru, dekripsi env, penarikan image, dan pemulihan objek
+  belum pernah diulang. Angka di bawah adalah urutan langkah, bukan janji durasi.
 
 ---
 
@@ -157,13 +159,13 @@ membaca ini Anda tidak yakin ada di mana, berhenti dan pastikan sekarang — buk
   satu-satunya salinan database, dan seluruh berkas objek ada di BiznetGio. Alasan yang
   selalu dipakai untuk menunda adalah ongkos. Diukur 2026-08-31, ongkosnya nol:
 
-  | Yang harus disalin | Ukuran |
-  | --- | --- |
+  | Yang harus disalin                               | Ukuran     |
+  | ------------------------------------------------ | ---------- |
   | 14 dump database (seluruh riwayat yang disimpan) | **2,9 MB** |
-  | `*-products` — 9 objek | 4,6 MB |
-  | `*-pod` — 7 objek (bukti antar + tanda tangan) | 0,4 MB |
-  | `*-facer` — 25 objek (absen wajah) | 0,2 MB |
-  | **Total** | **~8 MB** |
+  | `*-products` — 9 objek                           | 4,6 MB     |
+  | `*-pod` — 7 objek (bukti antar + tanda tangan)   | 0,4 MB     |
+  | `*-facer` — 25 objek (absen wajah)               | 0,2 MB     |
+  | **Total**                                        | **~8 MB**  |
 
   Delapan megabyte. Cloudflare R2 memberi 10 GB gratis tanpa biaya egress; Backblaze B2
   memberi 10 GB gratis. Seluruh sistem ini muat 1.250 kali di dalam kuota gratis salah
@@ -177,10 +179,17 @@ membaca ini Anda tidak yakin ada di mana, berhenti dan pastikan sekarang — buk
   **Keputusan Anda**, dan hanya perlu dijawab sekali: buat bucket kedua di penyedia lain,
   atau terima bahwa kehilangan akun BiznetGio menghilangkan mesin, database, dan seluruh
   buktinya sekaligus.
+
 - **Kunci yang menulis backup juga bisa menghapusnya.** Tidak ada object-lock atau versioning
   di bucket. Ransomware dengan akses ke kotak bisa menghapus backup-nya juga.
 - **Salinan objek ada, tapi belum pernah dipulihkan sungguhan.** `--restore` sudah ditulis dan
   sengaja menolak menimpa objek yang masih hidup, tapi belum pernah dijalankan di volume
   produksi.
-- **Drill belum pernah dijalankan di volume produksi**, jadi setiap durasi di atas adalah
-  urutan langkah, bukan angka.
+- **Prosedur "kotak hilang seluruhnya" belum pernah dilatih.** Drill mingguan (Senin 04:30 WIB) membuktikan
+  dump bisa dipulihkan dan cocok dengan basis data hidup; ia tidak membuktikan langkah 3–6 di atas.
+  Pindah VPS adalah kesempatan yang sebenarnya untuk melatihnya — jalankan langkah 1–7 di kotak baru
+  sebelum memindahkan DNS, dan catat durasinya di sini.
+- **Salinan objek kedaluwarsa dengan sengaja.** Kebijakan privasi berjanji bukti pengantaran dan bukti
+  transfer dihapus 12 bulan; salinan di bucket backup mengikuti dengan penyangga sebulan (aturan lifecycle
+  dipasang `scripts/backup-objects.mjs`, tanpa satu pun panggilan delete). Pemulihan foto yang lebih tua dari
+  itu memang tidak mungkin, dan itu benar.

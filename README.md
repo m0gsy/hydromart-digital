@@ -70,7 +70,7 @@ adapter and a signed webhook.
 
 ## Prerequisites
 
-- Node.js **>= 20** (developed on 25.x)
+- Node.js **22.x** (`>=22.14 <23`, see `.nvmrc` and `package.json` `engines`; the containers are `node:22`)
 - npm **>= 10** (workspaces)
 - Docker (needed to run PostgreSQL locally, or the whole stack)
 
