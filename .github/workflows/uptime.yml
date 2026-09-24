@@ -1,0 +1,45 @@
+name: Uptime
+
+# Production, asked from OUTSIDE the box it runs on.
+#
+# Every alarm this platform has — Prometheus, Alertmanager, the watchdog, the cron checks, the
+# 5xx pings from inside each service — runs on the same VPS it watches. When the box, its
+# network or its provider goes down at 02:00 there is nobody left to say so: the first report
+# is a customer. This workflow is the one check that does not live there.
+#
+# A failing run turns red, and GitHub emails the repository owner for a failed scheduled
+# workflow — that is the notification that works with no setup. To ALSO post to the ops channel,
+# add the repository secret ALERT_WEBHOOK_URL (the same webhook the box uses).
+#
+# What it asks and how patient it is: scripts/uptime-probe.sh. GitHub runs scheduled workflows
+# late under load and never faster than every five minutes, so this is a smoke alarm, not a
+# stopwatch — a ten-minute cadence, three tries per check before it counts.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# Nothing here reads or writes the repository beyond the checkout.
+permissions:
+  contents: read
+
+# A slow probe must not stack behind the next one: two runs at once would double-post an outage.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Ask production from outside
+        env:
+          # The public hostnames are already repository variables (the mobile build reads the
+          # same two); nothing about them is secret.
+          API_URL: ${{ vars.MOBILE_API_URL }}
+          WEB_HOST: ${{ vars.MOBILE_WEB_HOST }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: bash scripts/uptime-probe.sh

@@ -950,6 +950,16 @@ services:
     mem_limit: 128m
     cpus: 0.5
     profiles: ["tls"]
+    # The TLS ingress had no healthcheck, no metrics and no alert: a Caddy that was running
+    # but wedged took every customer, courier and depot screen down while `docker ps` said
+    # Up. Its admin API answers on loopback inside the container, so this asks Caddy itself.
+    # The deploy gate and the watchdog both read container health, so both now see it.
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
       - web
       - gateway

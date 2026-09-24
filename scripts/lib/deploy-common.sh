@@ -443,3 +443,43 @@ alert() {
   curl -fsS -m 10 -X POST -H 'content-type: application/json' \
     --data "{\"text\":\"${text}\",\"content\":\"${text}\"}" "$url" >/dev/null 2>&1 || true
 }
+
+# A STANDING condition — one that stays true until a person acts on it — must not page on every
+# deploy. "Depots with no payment destination" was true from 29 August, and the deploy that
+# reported it runs several times a day, so the same sentence landed in the channel where 5xx
+# alerts and Alertmanager also land, over and over. A channel that repeats one complaint teaches
+# everybody to skip it, and the alert nobody skips is the one that matters.
+#
+# So: say it when the message CHANGES, and again once a week so it never goes fully quiet.
+# `alert_clear` forgets it when the condition ends, so the next occurrence speaks at once.
+ALERT_MEMORY_DIR="${ALERT_MEMORY_DIR:-.deploy/alerted}"
+alert_once() {
+  local key="$1" text="$2" file="$ALERT_MEMORY_DIR/$1"
+  if [ -f "$file" ] && [ "$(cat "$file" 2>/dev/null)" = "$text" ] &&
+    [ -z "$(find "$file" -mmin +"${ALERT_REPEAT_MINUTES:-10080}" 2>/dev/null)" ]; then
+    return 0
+  fi
+  mkdir -p "$ALERT_MEMORY_DIR" 2>/dev/null || true
+  printf '%s' "$text" > "$file" 2>/dev/null || true
+  alert "$text"
+}
+alert_clear() { rm -f "$ALERT_MEMORY_DIR/$1" 2>/dev/null || true; }
+
+# The watchdog restarts what STOPPED. A container that is running and failing its healthcheck is
+# a different animal — `restart: unless-stopped` does not act on it, and a hung process needs a
+# person to decide, not a blind restart — so it is only REPORTED, and only when the same set has
+# stayed unhealthy across two consecutive runs (a container that is merely `starting` after a
+# restart is not an incident). Pure, so it is testable without Docker.
+#
+#   watchdog_unhealthy_step <previous names> <previous alerted 0|1> <current names>
+#   prints "<names>|<alerted>|<action>", action = none | alert | recovered
+watchdog_unhealthy_step() {
+  local prev_names="$1" prev_flag="$2" cur="$3"
+  if [ -z "$cur" ]; then
+    if [ "$prev_flag" = 1 ] && [ -n "$prev_names" ]; then echo "||recovered"; else echo "||none"; fi
+  elif [ "$cur" = "$prev_names" ]; then
+    if [ "$prev_flag" = 1 ]; then echo "$cur|1|none"; else echo "$cur|1|alert"; fi
+  else
+    echo "$cur|0|none"
+  fi
+}

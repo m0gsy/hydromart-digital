@@ -604,6 +604,15 @@ jobs:
       - name: Config backup is encrypted to a key the box does not hold
         run: bash scripts/backup-env.test.sh
 
+      # The alarms that live on the box cannot report the box being gone. The external probe
+      # and the watchdog's running-but-unhealthy report are exercised against stand-ins for
+      # curl and docker compose, so their red paths are proven here rather than at 02:00.
+      - name: External uptime probe can go red
+        run: bash scripts/uptime-probe.test.sh
+
+      - name: Watchdog reports running-but-unhealthy containers
+        run: bash scripts/watchdog.test.sh
+
       # N12 — fourteen alert rules and, until now, nothing that could evaluate one.
       # Prometheus only complains about a rule that fails to PARSE; a rule that parses and
       # can never match looks exactly like a rule that is simply not firing, which is what a

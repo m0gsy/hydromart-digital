@@ -320,6 +320,41 @@ SMS_API_TOKEN=
 " > .env
   [ -z "$(unselected_provider_keys)" ] || { echo "  turned cannot-tell into all-clear"; exit 1; }'
 
+# A standing condition must not page on every deploy (alert_once), yet must speak when it
+# changes, when it clears and comes back, and once a week so it never goes fully quiet.
+memory="$(mktemp -d)"
+sent="$memory/sent"
+alert() { printf '%s
+' "$1" >> "$sent"; }
+ALERT_MEMORY_DIR="$memory/alerted"
+count() { { [ -f "$sent" ] && wc -l < "$sent" | tr -d ' '; } || echo 0; }
+
+alert_once depot-payment "depots with no payment destination: A, B"
+is "alert_once speaks the first time" "$(count)" "1"
+alert_once depot-payment "depots with no payment destination: A, B"
+alert_once depot-payment "depots with no payment destination: A, B"
+is "alert_once stays quiet while nothing changed" "$(count)" "1"
+alert_once depot-payment "depots with no payment destination: A"
+is "alert_once speaks again when the message changes" "$(count)" "2"
+alert_clear depot-payment
+alert_once depot-payment "depots with no payment destination: A"
+is "alert_once speaks at once when a cleared condition comes back" "$(count)" "3"
+alert_once other-key "unrelated"
+is "alert_once keeps one memory per key" "$(count)" "4"
+ALERT_REPEAT_MINUTES=-1 alert_once depot-payment "depots with no payment destination: A"
+is "alert_once repeats once its memory is older than the repeat window" "$(count)" "5"
+unset -f alert
+rm -rf "$memory"
+
+# The watchdog reports a container that is running but unhealthy — once, after two runs.
+is "unhealthy: first sighting waits" "$(watchdog_unhealthy_step '' 0 'web')" "web|0|none"
+is "unhealthy: same set again alerts" "$(watchdog_unhealthy_step 'web' 0 'web')" "web|1|alert"
+is "unhealthy: already alerted stays quiet" "$(watchdog_unhealthy_step 'web' 1 'web')" "web|1|none"
+is "unhealthy: a different set starts over" "$(watchdog_unhealthy_step 'web' 1 'web hr')" "web hr|0|none"
+is "unhealthy: recovery after an alert is announced" "$(watchdog_unhealthy_step 'web' 1 '')" "||recovered"
+is "unhealthy: clearing before any alert says nothing" "$(watchdog_unhealthy_step 'web' 0 '')" "||none"
+is "unhealthy: nothing to report, nothing said" "$(watchdog_unhealthy_step '' 0 '')" "||none"
+
 rm -rf "$probe"
 
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
