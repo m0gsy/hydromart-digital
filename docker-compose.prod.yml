@@ -935,6 +935,10 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      # Dashboards, the same way. The DIRECTORY is mounted (a new file inside it is simply visible;
+      # a single-file mount pins an inode and a redeploy would keep serving the old one).
+      - ./ops/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/hydromart.yml:ro
+      - ./ops/grafana-dashboards:/var/lib/grafana/dashboards/hydromart:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "127.0.0.1:3300:3000"

@@ -614,6 +614,16 @@ jobs:
       - name: Alert-route gate can go red
         run: bash scripts/check-alert-routes.test.sh
 
+      # Nothing was provisioned in Grafana, so the first person to open it found it empty. The
+      # dashboard is data, and a wrong one fails silently (an empty graph reads as "all quiet"):
+      # its JSON, datasource variable, metric names and PromQL are checked, and its route
+      # selectors go through the same check as the alerts (check-alert-routes.mjs, above).
+      - name: Grafana dashboards are provisionable and query real metrics
+        run: node scripts/check-grafana-dashboards.mjs
+
+      - name: Grafana-dashboard gate can go red (and promtool parses every query)
+        run: bash scripts/check-grafana-dashboards.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple
