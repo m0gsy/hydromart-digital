@@ -33,6 +33,9 @@ describe('PaymentService', () => {
     repo = new InMemoryPaymentRepository();
     gateway = new FakeGateway();
     orders = new FakeOrderCoordination();
+    // PAY-4: the order belongs to the customer these tests pay as. Without an owner the
+    // service would refuse every one of them — which is the point of the new check.
+    orders.orderCustomerId = customer;
     service = new PaymentService(repo, gateway, orders, buildTestConfig());
   });
 
@@ -238,6 +241,40 @@ describe('PaymentService', () => {
   it('accepts a payment whose amount matches the order total (SEC-1)', async () => {
     orders.orderTotal = 45000;
     const payment = await initiate(PaymentMethod.CASH, 45000);
+    expect(payment.status).toBe(PaymentStatus.PENDING);
+  });
+
+  /*
+   * PAY-4. `initiate` validated the AMOUNT against the authoritative total and never asked
+   * whose order it was, so a customer could open a payment against any order id at all —
+   * and the mismatch error then answered with the real total, which turns a walk of the id
+   * space into a price list for other people's orders.
+   */
+  it('refuses to open a payment on somebody else’s order', async () => {
+    orders.orderTotal = 45000;
+    orders.orderCustomerId = randomUUID();
+    await expect(initiate(PaymentMethod.CASH, 45000)).rejects.toThrow(/tidak ditemukan/);
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it('does not say what the real total was', async () => {
+    orders.orderTotal = 135_000;
+    await expect(initiate(PaymentMethod.CASH, 1000)).rejects.toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining('135000') }),
+    );
+  });
+
+  // A counter sale is rung up BY staff FOR the buyer, so ownership is not the cashier's.
+  it('lets staff open a payment for the buyer at the counter', async () => {
+    orders.orderTotal = 45000;
+    orders.orderCustomerId = randomUUID();
+    const payment = await service.initiate(orders.orderCustomerId, {
+      orderId: randomUUID(),
+      method: PaymentMethod.CASH,
+      amount: 45000,
+      staffFor: true,
+      atCounter: true,
+    });
     expect(payment.status).toBe(PaymentStatus.PENDING);
   });
 

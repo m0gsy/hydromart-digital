@@ -59,3 +59,26 @@ model Product {
   @@index([active])
   @@map("products")
 }
+
+/// PRD-1 — every change to a network-wide base price, and who made it.
+///
+/// Owner decision 2026-09-11: a depot MANAGER keeps the right to edit the catalog. What the
+/// audit asked for instead is the trail, and there was none: `basePrice` is the number every
+/// depot sells from, it can be edited by any `catalogWrite` holder, and the row simply
+/// changed. Afterwards nobody could say what it had been, who moved it, or when — for the
+/// one field in this service that is money.
+///
+/// Append-only. Nothing here is ever updated or deleted by the service.
+model ProductPriceChange {
+  id        String   @id @default(uuid())
+  productId String
+  /// The staff account that made the change (JWT sub). Never null: a price does not move
+  /// by itself, and a write with no actor has no business reaching this table.
+  changedBy String
+  fromPrice Decimal  @db.Decimal(12, 2)
+  toPrice   Decimal  @db.Decimal(12, 2)
+  changedAt DateTime @default(now())
+
+  @@index([productId, changedAt])
+  @@map("product_price_changes")
+}

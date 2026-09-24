@@ -6,6 +6,10 @@ import { NotificationPrismaRepository } from '../../src/infrastructure/prisma/no
 import { PaymentMethodPrismaRepository } from '../../src/infrastructure/prisma/payment-method.prisma.repository';
 import { ProfilePrismaRepository } from '../../src/infrastructure/prisma/profile.prisma.repository';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
+import {
+  AddressNotFoundError,
+  PaymentMethodNotFoundError,
+} from '../../src/domain/errors';
 
 // Unit-tests the Prisma repositories against a per-model jest.fn() mock of PrismaService.
 // No real database, no testcontainers: each test asserts the EXACT prisma call args and the
@@ -19,6 +23,8 @@ describe('AddressPrismaRepository', () => {
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    // CUS-2: the update reads the row back after a scoped updateMany.
+    findUniqueOrThrow: jest.fn(),
     deleteMany: jest.fn(),
   };
   const $transaction = jest.fn().mockResolvedValue([]);
@@ -62,11 +68,28 @@ describe('AddressPrismaRepository', () => {
     expect(model.create).toHaveBeenCalledWith({ data });
   });
 
-  it('updates by id ignoring the customer scope arg', async () => {
-    model.update.mockResolvedValue(row);
+  /*
+   * CUS-2. This took a `customerId` and threw it away, so the row was found by id alone and
+   * ownership rested on every caller remembering to check first. One handler that forgets —
+   * or one written from the shape of the signature — edits somebody else's address.
+   */
+  it('updates only the row that belongs to the customer', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUniqueOrThrow.mockResolvedValue(row);
     const patch = { label: 'Office' } as never;
     await repo.update('cust-1', 'addr-1', patch);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'addr-1' }, data: patch });
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'addr-1', customerId: 'cust-1' },
+      data: patch,
+    });
+  });
+
+  it('refuses an address that belongs to somebody else, as a 404', async () => {
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.update('cust-1', 'addr-9', {} as never)).rejects.toBeInstanceOf(
+      AddressNotFoundError,
+    );
+    expect(model.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it('unsets the current primary flag', async () => {
@@ -130,6 +153,8 @@ describe('PaymentMethodPrismaRepository', () => {
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    // CUS-2: the update reads the row back after a scoped updateMany.
+    findUniqueOrThrow: jest.fn(),
     deleteMany: jest.fn(),
   };
   const $transaction = jest.fn().mockResolvedValue([]);
@@ -161,11 +186,23 @@ describe('PaymentMethodPrismaRepository', () => {
     expect(model.create).toHaveBeenCalledWith({ data });
   });
 
-  it('updates by id ignoring the customer scope arg', async () => {
-    model.update.mockResolvedValue(row);
+  // CUS-2: same rule for a saved card as for an address — the owner is in the query.
+  it('updates only the payment method that belongs to the customer', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUniqueOrThrow.mockResolvedValue(row);
     const patch = { label: 'Visa' } as never;
     await repo.update('cust-1', 'pm-1', patch);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'pm-1' }, data: patch });
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pm-1', customerId: 'cust-1' },
+      data: patch,
+    });
+  });
+
+  it('refuses a payment method that belongs to somebody else, as a 404', async () => {
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.update('cust-1', 'pm-9', {} as never)).rejects.toBeInstanceOf(
+      PaymentMethodNotFoundError,
+    );
   });
 
   it('unsets the current default flag', async () => {

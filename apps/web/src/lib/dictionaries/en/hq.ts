@@ -1111,6 +1111,10 @@ export const hq = {
       active: 'Active',
     },
     noCategory: 'No category',
+    priceHistory: {
+      title: 'Base price history',
+      empty: 'No recorded price changes yet.',
+    },
     save: 'Save',
     create: 'Create product',
     cancel: 'Cancel',

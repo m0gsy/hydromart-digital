@@ -40,6 +40,8 @@ export const shop = {
     // Admin CRUD (MANAGER / SUPER_ADMIN).
     create: '/products/api/v1/products',
     update: (id: string) => `/products/api/v1/products/${id}`,
+    // PRD-1: what this product's base price has been, and who moved it.
+    priceHistory: (id: string) => `/products/api/v1/products/${id}/price-history`,
     remove: (id: string) => `/products/api/v1/products/${id}`,
     // Many active products by id, one call. Public, like the single-product read. The home
     // rails use it: recommendation-service mirrors only name/sku/unit, so a rail that wants

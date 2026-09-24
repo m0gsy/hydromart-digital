@@ -621,8 +621,22 @@ describe('OrderPrismaRepository', () => {
 
   it('batch-reads order totals in one selected findMany query', async () => {
     order.findMany.mockResolvedValue([
-      { id: 'ord-1', orderNumber: 'HM-1', total: dec(103_000), depotId: 'depot-1', status: 'DELIVERED' },
-      { id: 'ord-2', orderNumber: 'HM-2', total: dec(47_500), depotId: null, status: 'CANCELLED' },
+      {
+        id: 'ord-1',
+        orderNumber: 'HM-1',
+        total: dec(103_000),
+        depotId: 'depot-1',
+        status: 'DELIVERED',
+        customerId: 'cust-1',
+      },
+      {
+        id: 'ord-2',
+        orderNumber: 'HM-2',
+        total: dec(47_500),
+        depotId: null,
+        status: 'CANCELLED',
+        customerId: null,
+      },
     ]);
 
     const result = await (
@@ -645,20 +659,36 @@ describe('OrderPrismaRepository', () => {
     // unassigned order answers null, and a depot-scoped caller is refused on that.
     // CA-2-34: the status travels too — payment-service refuses to REJECT a refund on a
     // cancelled order, and a payment row knows nothing about the order beyond its id.
+    // PAY-4: and whose order it is, so payment-service can refuse somebody else's.
     expect(result).toEqual([
       {
         orderId: 'ord-1',
+        customerId: 'cust-1',
         orderNumber: 'HM-1',
         totalIdr: 103_000,
         depotId: 'depot-1',
         status: 'DELIVERED',
       },
-      { orderId: 'ord-2', orderNumber: 'HM-2', totalIdr: 47_500, depotId: null, status: 'CANCELLED' },
+      {
+        orderId: 'ord-2',
+        customerId: null,
+        orderNumber: 'HM-2',
+        totalIdr: 47_500,
+        depotId: null,
+        status: 'CANCELLED',
+      },
     ]);
     expect(order.findMany).toHaveBeenCalledTimes(1);
     expect(order.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['ord-1', 'ord-2', 'missing'] } },
-      select: { id: true, orderNumber: true, total: true, depotId: true, status: true },
+      select: {
+        id: true,
+        orderNumber: true,
+        total: true,
+        depotId: true,
+        status: true,
+        customerId: true,
+      },
     });
   });
 

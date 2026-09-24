@@ -139,7 +139,15 @@ export class PaymentController {
   ): Promise<PaymentRecord> {
     // C2: the cashier's own token, so the service can ask depot-service which drawer THEY
     // have open. Deliberately not a body field — see `CashierShiftPort`.
-    return this.payments.initiate(dto.customerId, { ...dto, atCounter: true, authorization });
+    // PAY-4: the cashier is not the buyer. Their right to open this payment is the
+    // `paymentSettle` capability above, so the ownership check is told to stand down here
+    // and only here.
+    return this.payments.initiate(dto.customerId, {
+      ...dto,
+      atCounter: true,
+      staffFor: true,
+      authorization,
+    });
   }
 
   // Voiding a counter sale gives the buyer their money back. Internal-key only, and

@@ -17,6 +17,7 @@ import {
   InvalidWebhookSignatureError,
   PaymentAlreadyExistsError,
   PaymentAmountMismatchError,
+  PaymentOrderNotYoursError,
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
@@ -58,6 +59,15 @@ export interface InitiatePaymentInput {
   amount: number;
   /** Counter sale: the buyer is at the depot, so no courier hands anything over. */
   atCounter?: boolean;
+  /**
+   * PAY-4: this payment is being rung up BY staff FOR somebody else.
+   *
+   * The ownership check exists because a customer could open a payment against any order
+   * id at all. A cashier legitimately opens one against a buyer's order, and their right
+   * to do it is the `paymentSettle` capability on the staff route — not ownership. Set only
+   * by that route; a customer body cannot reach it (the DTO has no such field).
+   */
+  staffFor?: boolean;
   /** Depot whose drawer takes the money. Counter sales only. */
   depotId?: string | null;
   /**
@@ -171,13 +181,31 @@ export class PaymentService {
     }
 
     const amount = money(input.amount);
-    // SEC-1: the amount is client-supplied. Validate it against the authoritative order
-    // total before charging so a tampered price can't be paid. getOrderTotal returns null
-    // only when coordination is disabled (dev); a configured-but-unreachable order-service
-    // throws (fail closed) — we never create a payment at an unvalidated amount.
-    const orderTotal = await this.orderCoordination.getOrderTotal(input.orderId);
-    if (orderTotal !== null && money(orderTotal) !== amount) {
-      throw new PaymentAmountMismatchError(money(orderTotal), amount);
+    /*
+     * SEC-1: the amount is client-supplied. Validate it against the authoritative order
+     * total before charging so a tampered price cannot be paid. `getOrderForPayment` returns
+     * null only when coordination is disabled (dev); a configured-but-unreachable
+     * order-service throws (fail closed) — a payment is never created at an unvalidated
+     * amount.
+     *
+     * PAY-4: and the same answer says whose order it is. Validating only the amount meant a
+     * payment could be opened against ANY order id — nothing checked ownership — and the
+     * mismatch error then replied with the real total, which turns a walk of the id space
+     * into a price list for other people's orders. `staffFor` is the counter sale: the
+     * cashier is not the buyer, and their right to ring it up is the `paymentSettle`
+     * capability on the route, not ownership of the order.
+     */
+    const order = await this.orderCoordination.getOrderForPayment(input.orderId);
+    if (order && !input.staffFor && order.customerId !== customerId) {
+      throw new PaymentOrderNotYoursError();
+    }
+    if (order && money(order.total) !== amount) {
+      // Deliberately NOT told which number was expected: the caller supplied one and it is
+      // wrong, and the right one is the order's business, not the error message's.
+      this.logger.warn(
+        `Payment refused on order ${input.orderId}: sent ${amount}, order is ${money(order.total)}`,
+      );
+      throw new PaymentAmountMismatchError();
     }
 
     const base: CreatePaymentData = {

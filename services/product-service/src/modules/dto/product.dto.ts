@@ -144,3 +144,24 @@ export class UpdateProductDto extends PartialType(CreateProductDto) {
   @IsBoolean()
   active?: boolean;
 }
+
+/** PRD-1: one recorded move of a product's base price. */
+export class PriceChangeResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  productId!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'The staff account that made the change.' })
+  changedBy!: string;
+
+  @ApiProperty({ example: 20000, description: 'Base price before the change, in IDR.' })
+  fromPrice!: number;
+
+  @ApiProperty({ example: 22000, description: 'Base price after the change, in IDR.' })
+  toPrice!: number;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  changedAt!: Date;
+}

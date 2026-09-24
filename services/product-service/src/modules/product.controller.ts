@@ -13,13 +13,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, Public } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, Public } from '@hydromart/platform';
 
 import { ProductService } from '../application/services/product.service';
-import { ProductRecord } from '../application/ports/product.repository';
+import { PriceChangeRecord, ProductRecord } from '../application/ports/product.repository';
 import { Page } from '../application/pagination';
 import { BrowseProductsQueryDto, CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { PagedProductResponseDto, ProductResponseDto } from './dto/responses.generated.dto';
+import { PriceChangeResponseDto } from './dto/product.dto';
 
 
 @ApiTags('Products')
@@ -101,8 +102,26 @@ export class ProductController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductRecord> {
-    return this.products.update(id, dto, dto.seenUpdatedAt);
+    // PRD-1: who moved the price travels with the write. The catalog stays editable by a
+    // depot manager (owner decision 2026-09-11); what was missing is the record.
+    return this.products.update(id, dto, dto.seenUpdatedAt, user.sub);
+  }
+
+  /**
+   * PRD-1: what this product's base price has been, and who changed it.
+   *
+   * `catalogWrite`, not a read capability: the trail names staff accounts, and the people
+   * who may see who changed a price are the people who may change one.
+   */
+  @ApiOkResponse({ type: PriceChangeResponseDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('catalogWrite')
+  @Get(':id/price-history')
+  @ApiOperation({ summary: 'Recorded base-price changes for a product (admin)' })
+  priceHistory(@Param('id', ParseUUIDPipe) id: string): Promise<PriceChangeRecord[]> {
+    return this.products.priceHistory(id);
   }
 
   @ApiOkResponse({ type: ProductResponseDto })

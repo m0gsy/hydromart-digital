@@ -13,13 +13,7 @@ import {
   CreateCategoryData,
   UpdateCategoryData,
 } from '../../src/application/ports/category.repository';
-import {
-  CreateProductData,
-  ProductQuery,
-  ProductRecord,
-  ProductRepository,
-  UpdateProductData,
-} from '../../src/application/ports/product.repository';
+import { CreateProductData, PriceChangeRecord, ProductQuery, ProductRecord, ProductRepository, UpdateProductData } from '../../src/application/ports/product.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -87,6 +81,27 @@ export class InMemoryProductRepository implements ProductRepository {
     this.rows.push(rec);
     return { ...rec };
   }
+  /** PRD-1: the recorded price moves, newest first. */
+  priceChanges: PriceChangeRecord[] = [];
+
+  async updateWithPriceAudit(
+    id: string,
+    patch: UpdateProductData,
+    audit: { changedBy: string; fromPrice: number; toPrice: number },
+  ): Promise<ProductRecord> {
+    this.priceChanges.unshift({
+      id: randomUUID(),
+      productId: id,
+      ...audit,
+      changedAt: nextDate(),
+    });
+    return this.update(id, patch);
+  }
+
+  async listPriceChanges(productId: string, limit: number): Promise<PriceChangeRecord[]> {
+    return this.priceChanges.filter((c) => c.productId === productId).slice(0, limit);
+  }
+
   async update(id: string, patch: UpdateProductData): Promise<ProductRecord> {
     const rec = this.rows.find((r) => r.id === id)!;
     Object.assign(rec, patch, { updatedAt: nextDate() });

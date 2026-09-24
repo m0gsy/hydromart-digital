@@ -10,11 +10,11 @@ import { Badge, Button, Card, ErrorState, Field, FormError, Input, Money, Skelet
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { slugify } from '@/lib/format';
+import { formatDateTime, formatIDR, slugify } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import type { Category, Product } from '@/lib/types';
+import type { Category, PriceChange, Product } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -61,6 +61,43 @@ const EMPTY: ProductForm = {
   active: true,
   imageUrl: '',
 };
+
+/** PRD-1: who changed this product's base price, from what, to what, and when. */
+function PriceHistory({ productId }: { productId: string }) {
+  const { t } = useT();
+  const history = useAsync<PriceChange[]>(
+    () => api.get<PriceChange[]>(endpoints.products.priceHistory(productId), true),
+    [productId],
+  );
+
+  if (history.loading) return <Skeleton className="h-16 w-full" />;
+  if (history.error) return <ErrorState message={history.error} onRetry={history.reload} />;
+  const rows = history.data ?? [];
+
+  return (
+    <div className="rounded-xl border border-app p-3">
+      <h3 className="text-sm font-semibold">{t('hq.catalog.priceHistory.title')}</h3>
+      {rows.length === 0 ? (
+        // An empty trail is not a bug: it means nobody has repriced this since the trail
+        // began, and the screen says so rather than showing nothing at all.
+        <p className="mt-1 text-xs text-muted">{t('hq.catalog.priceHistory.empty')}</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1 text-xs">
+          {rows.map((c) => (
+            <li key={c.id} className="flex flex-wrap justify-between gap-2">
+              <span>
+                {formatIDR(c.fromPrice)} → <strong>{formatIDR(c.toPrice)}</strong>
+              </span>
+              <span className="text-muted">
+                {formatDateTime(c.changedAt)} · {c.changedBy.slice(0, 8)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ProductEditor({
   product,
@@ -209,6 +246,9 @@ function ProductEditor({
         />
       </Field>
       <FormError message={error} />
+      {/* PRD-1: the base price is the number every depot sells from, and until now it moved
+          without a trace. A trail nobody can read is half a trail, so it has a screen. */}
+      {product && <PriceHistory productId={product.id} />}
       <div className="flex gap-2">
         <Button onClick={submit} loading={busy}>
           {product ? t('hq.catalog.save') : t('hq.catalog.create')}

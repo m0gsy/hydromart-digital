@@ -1115,6 +1115,12 @@ export const hq = {
       active: 'Aktif',
     },
     noCategory: 'Tanpa kategori',
+    // PRD-1: harga dasar adalah angka yang dipakai setiap depot; sebelumnya ia berpindah
+    // tanpa jejak sama sekali.
+    priceHistory: {
+      title: 'Riwayat harga dasar',
+      empty: 'Belum ada perubahan harga yang tercatat.',
+    },
     save: 'Simpan',
     create: 'Buat produk',
     cancel: 'Batal',

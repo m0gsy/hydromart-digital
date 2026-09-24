@@ -3005,3 +3005,14 @@ export interface GenerateBatchResult {
   generated: number;
   failed: GenerateBatchFailure[];
 }
+
+/** PRD-1: one recorded move of a product's base price, for the HQ catalog panel. */
+export interface PriceChange {
+  id: string;
+  productId: string;
+  /** The staff account that made the change. */
+  changedBy: string;
+  fromPrice: number;
+  toPrice: number;
+  changedAt: string;
+}

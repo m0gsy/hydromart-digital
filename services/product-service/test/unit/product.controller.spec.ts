@@ -14,6 +14,8 @@ describe('ProductController', () => {
     update: jest.fn().mockResolvedValue({ id: 'p1' }),
     deactivate: jest.fn().mockResolvedValue({ id: 'p1' }),
     byIds: jest.fn().mockResolvedValue([]),
+    // PRD-1: the recorded base-price moves for one product.
+    priceHistory: jest.fn().mockResolvedValue([]),
   };
   const controller = new ProductController(service as unknown as ProductService);
 
@@ -94,11 +96,17 @@ describe('ProductController', () => {
     });
   });
 
-  it('update delegates id and dto', async () => {
+  it('update delegates id, dto and the actor', async () => {
     const dto: UpdateProductDto = { name: 'New' };
-    await controller.update('p1', dto);
+    await controller.update('p1', dto, { sub: 'staff-1' } as never);
     // CA-2-53: the version travels beside the body; this call names none.
-    expect(service.update).toHaveBeenCalledWith('p1', dto, undefined);
+    // PRD-1: and so does who is making the change, for the price trail.
+    expect(service.update).toHaveBeenCalledWith('p1', dto, undefined, 'staff-1');
+  });
+
+  it('price history delegates to the service', async () => {
+    await expect(controller.priceHistory('p1')).resolves.toEqual([]);
+    expect(service.priceHistory).toHaveBeenCalledWith('p1');
   });
 
   it('remove delegates to deactivate', async () => {

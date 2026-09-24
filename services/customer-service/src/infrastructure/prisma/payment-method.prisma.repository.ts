@@ -6,7 +6,10 @@ import {
   PaymentMethodRepository,
   UpdatePaymentMethodData,
 } from '../../application/ports/payment-method.repository';
-import { DefaultPaymentMethodConflictError } from '../../domain/errors';
+import {
+  DefaultPaymentMethodConflictError,
+  PaymentMethodNotFoundError,
+} from '../../domain/errors';
 import { PrismaService } from './prisma.service';
 
 /** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
@@ -57,12 +60,27 @@ export class PaymentMethodPrismaRepository implements PaymentMethodRepository {
     }
   }
 
-  update(
-    _customerId: string,
+  /*
+   * CUS-2 — the owner is part of the query, not part of the caller's good manners.
+   *
+   * This took a `customerId` and threw it away (`_customerId`), so the row was found by id
+   * alone and ownership rested entirely on every caller remembering to check first. One
+   * handler that forgets — or one new one written from the shape of this signature — edits
+   * somebody else's address. `updateMany` with both keys makes the database refuse it, and
+   * a count of zero is the same answer as "no such row", which is what the caller of a
+   * by-id update already knows how to handle.
+   */
+  async update(
+    customerId: string,
     id: string,
     patch: UpdatePaymentMethodData,
   ): Promise<PaymentMethodRecord> {
-    return this.prisma.savedPaymentMethod.update({ where: { id }, data: patch });
+    const { count } = await this.prisma.savedPaymentMethod.updateMany({
+      where: { id, customerId },
+      data: patch,
+    });
+    if (count === 0) throw new PaymentMethodNotFoundError();
+    return this.prisma.savedPaymentMethod.findUniqueOrThrow({ where: { id } });
   }
 
   async unsetDefault(customerId: string): Promise<void> {

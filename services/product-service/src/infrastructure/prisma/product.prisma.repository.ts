@@ -1,12 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import {
-  CreateProductData,
-  ProductQuery,
-  ProductRecord,
-  ProductRepository,
-  UpdateProductData,
-} from '../../application/ports/product.repository';
+import { CreateProductData, PriceChangeRecord, ProductQuery, ProductRecord, ProductRepository, UpdateProductData } from '../../application/ports/product.repository';
 import { PrismaService } from './prisma.service';
 
 interface ProductRow {
@@ -83,6 +77,43 @@ export class ProductPrismaRepository implements ProductRepository {
   async create(data: CreateProductData): Promise<ProductRecord> {
     const row = await this.prisma.product.create({ data });
     return this.toRecord(row);
+  }
+
+  async updateWithPriceAudit(
+    id: string,
+    patch: UpdateProductData,
+    audit: { changedBy: string; fromPrice: number; toPrice: number },
+  ): Promise<ProductRecord> {
+    // PRD-1: one transaction. A trail written separately can disagree with the price it is
+    // supposed to explain, which is the same gap in a smaller window.
+    const [, row] = await this.prisma.$transaction([
+      this.prisma.productPriceChange.create({
+        data: {
+          productId: id,
+          changedBy: audit.changedBy,
+          fromPrice: audit.fromPrice,
+          toPrice: audit.toPrice,
+        },
+      }),
+      this.prisma.product.update({ where: { id }, data: patch }),
+    ]);
+    return this.toRecord(row);
+  }
+
+  async listPriceChanges(productId: string, limit: number): Promise<PriceChangeRecord[]> {
+    const rows = await this.prisma.productPriceChange.findMany({
+      where: { productId },
+      orderBy: { changedAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      productId: r.productId,
+      changedBy: r.changedBy,
+      fromPrice: r.fromPrice.toNumber(),
+      toPrice: r.toPrice.toNumber(),
+      changedAt: r.changedAt,
+    }));
   }
 
   async update(id: string, patch: UpdateProductData): Promise<ProductRecord> {

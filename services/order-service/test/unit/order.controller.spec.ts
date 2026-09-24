@@ -551,8 +551,18 @@ describe('OrderController', () => {
     expect(service.recordRefund).toHaveBeenCalledWith('o1', 5000);
   });
 
-  it('internalTotal: reads the authoritative order total', async () => {
-    await expect(controller.internalTotal('o1')).resolves.toEqual({ orderId: 'o1', total: 42000 });
+  /*
+   * PAY-4: the owner travels with the total. payment-service validated the AMOUNT against
+   * this answer and never asked whose order it was, so a payment could be opened against any
+   * order id at all — and the mismatch error then replied with the real total.
+   */
+  it('internalTotal: reads the authoritative total, the owner and the depot', async () => {
+    await expect(controller.internalTotal('o1')).resolves.toEqual({
+      orderId: 'o1',
+      total: 42000,
+      customerId: null,
+      depotId: 'd1',
+    });
     expect(service.getAny).toHaveBeenCalledWith('o1');
   });
 

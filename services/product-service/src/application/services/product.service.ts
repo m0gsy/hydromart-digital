@@ -2,12 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { CategoryNotFoundError, DuplicateSkuError, ProductNotFoundError } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
-import {
-  CreateProductData,
-  ProductRecord,
-  ProductRepository,
-  UpdateProductData,
-} from '../ports/product.repository';
+import { CreateProductData, PriceChangeRecord, ProductRecord, ProductRepository, UpdateProductData } from '../ports/product.repository';
 import { CategoryRepository } from '../ports/category.repository';
 import { StockNotifierPort } from '../ports/stock-notifier.port';
 import { PRODUCT_TOKENS } from '../tokens';
@@ -80,11 +75,12 @@ export class ProductService {
     id: string,
     patch: UpdateProductData,
     seenUpdatedAt?: string,
+    changedBy?: string,
   ): Promise<ProductRecord> {
     // Destructured, not held as a reference: the values are compared after the write, and
     // a repository that hands back the row it is about to mutate would make every
     // comparison see the new value and never notify.
-    const { name, unit, active, updatedAt } = await this.get(id, false);
+    const { name, unit, active, updatedAt, basePrice } = await this.get(id, false);
     assertFresh(updatedAt, seenUpdatedAt);
     if (patch.sku) {
       const owner = await this.products.findBySku(patch.sku);
@@ -95,7 +91,24 @@ export class ProductService {
     if (patch.categoryId !== undefined) {
       await this.assertCategory(patch.categoryId);
     }
-    const updated = await this.products.update(id, patch);
+    /*
+     * PRD-1 — the base price is the number every depot sells from, and it moved without a
+     * trace. Owner decision 2026-09-11 left the right to edit the catalog with depot
+     * managers; what was missing is the record, so afterwards nobody could say what the
+     * price had been, who moved it, or when.
+     *
+     * Only an actual move is recorded: a PATCH that re-saves the same number, or that does
+     * not mention the price at all, is not a price change and must not pad the trail.
+     */
+    const movesPrice = patch.basePrice !== undefined && patch.basePrice !== basePrice;
+    const updated =
+      movesPrice && changedBy
+        ? await this.products.updateWithPriceAudit(id, patch, {
+            changedBy,
+            fromPrice: basePrice,
+            toPrice: patch.basePrice as number,
+          })
+        : await this.products.update(id, patch);
     // Only the three fields a depot stock line copied. Editing a price or a photo changes
     // nothing a depot mirrors, and pushing on every edit would make a busy catalog session
     // hammer depot-service for no reason.
@@ -103,6 +116,12 @@ export class ProductService {
       await this.notifyStock(updated);
     }
     return updated;
+  }
+
+  /** PRD-1: the recorded price moves for one product, newest first. */
+  async priceHistory(id: string, limit = 50): Promise<PriceChangeRecord[]> {
+    await this.get(id, false); // 404 for a product that does not exist
+    return this.products.listPriceChanges(id, Math.min(Math.max(limit, 1), 200));
   }
 
   /** Soft delete. */

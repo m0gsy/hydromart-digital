@@ -250,6 +250,8 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((row) => orderIds.includes(row.id))
       .map((row) => ({
         orderId: row.id,
+        // PAY-4: whose order it is, so payment-service can refuse somebody else's.
+        customerId: row.customerId ?? null,
         orderNumber: row.orderNumber,
         totalIdr: row.total,
         depotId: row.depotId ?? null,
