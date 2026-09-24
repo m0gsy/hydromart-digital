@@ -595,6 +595,15 @@ jobs:
       - name: Business alerts can actually fire (N12)
         run: bash scripts/check-alert-rules.test.sh
 
+      # The alarms that live on the box cannot report the box being gone. The external probe
+      # and the watchdog's running-but-unhealthy report are exercised against stand-ins for
+      # curl and docker compose, so their red paths are proven here rather than at 02:00.
+      - name: External uptime probe can go red
+        run: bash scripts/uptime-probe.test.sh
+
+      - name: Watchdog reports running-but-unhealthy containers
+        run: bash scripts/watchdog.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple

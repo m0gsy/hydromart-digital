@@ -143,9 +143,12 @@ if docker exec "$PG" true >/dev/null 2>&1; then
     log "   so nothing on any screen says a method was removed."
     log "   Fix: /dashboard/depots as MANAGER or SUPER_ADMIN (that screen has the real QRIS"
     log "   uploader; the HQ form only takes a raw URL and will happily save one that 404s)."
-    alert "depots with no payment destination: $NOPAY - cash only, silently"
+    # alert_once: this stays true until an owner enters the account numbers, and the deploy
+    # runs several times a day — a channel that repeats one sentence is a channel people skip.
+    alert_once depot-payment "depots with no payment destination: $NOPAY - cash only, silently"
   else
     log "depot payment probe — every active depot has a bank account or a QRIS image"
+    alert_clear depot-payment
   fi
 fi
 
@@ -178,13 +181,32 @@ if docker exec "$PG" true >/dev/null 2>&1; then
     done
     if [ -z "$UNCOVERED" ]; then
       log "franchise commission probe — every active WARALABA depot has a commission scheme"
+      alert_clear franchise-commission
     else
       log "!! franchise depots with NO commission_schemes row:$UNCOVERED"
       log "   payout falls back to 0%, so HQ takes nothing and the ledger still balances —"
       log "   there is no broken thing to notice, only money that never arrived."
-      alert "franchise depots with no commission scheme:$UNCOVERED - HQ is taking 0%"
+      alert_once franchise-commission "franchise depots with no commission scheme:$UNCOVERED - HQ is taking 0%"
     fi
   fi
+fi
+
+# 1c-bis. The Node the HOST runs. Containers are node:22, but the host runs the cron jobs
+# (backup-objects.mjs, migrate-prod.sh) and the migration step, and it was v20.20.2 when asked on
+# 2026-09-24. Node 20 reached end of life on 30 April 2026 and the AWS SDK v3 stops supporting it
+# in January 2027 — after which the nightly object backup would fail on the box that runs it.
+# Reported once, then weekly (alert_once), not on every deploy.
+HOST_NODE="$(node -p 'process.versions.node' 2>/dev/null || true)"
+if [ -z "$HOST_NODE" ]; then
+  log "!! the host has no node, so backup-objects.mjs and the migration step cannot run here."
+  alert_once host-node "host has no node: the nightly object backup and migrations cannot run"
+elif [ "${HOST_NODE%%.*}" -lt 22 ] 2>/dev/null; then
+  log "!! host Node is $HOST_NODE — end of life since 2026-04-30, and AWS SDK v3 needs >=22 from January 2027."
+  log "   The cron backup runs on this Node; install 22 on the host (containers are already on it)."
+  alert_once host-node "host Node $HOST_NODE is end-of-life; install Node 22 before AWS SDK v3 drops it (Jan 2027)"
+else
+  log "host node probe — Node $HOST_NODE"
+  alert_clear host-node
 fi
 
 # 1d. Which face verifier is actually running, and whether it can work.
