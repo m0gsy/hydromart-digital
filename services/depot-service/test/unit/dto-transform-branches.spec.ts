@@ -6,7 +6,11 @@ import {
   CreateDepotDto,
   NearbyDepotsQueryDto,
 } from '../../src/modules/dto/depot.dto';
-import { ListApplicationsQueryDto } from '../../src/modules/dto/franchise-application.dto';
+import {
+  ListApplicationsQueryDto,
+  SubmitFranchiseApplicationDto,
+} from '../../src/modules/dto/franchise-application.dto';
+import { ListTransfersDto, SendTransferDto } from '../../src/modules/dto/stock-transfer.dto';
 import {
   CreateGallonIssueDto,
   CreateGallonIssueFromOrderDto,
@@ -200,5 +204,79 @@ describe('cashier shift DTOs', () => {
     const dto = plainToInstance(CloseShiftDto, { countedCash: '99000000000' });
     expect(dto.countedCash).toBe(99000000000);
     await expect(validate(dto)).resolves.not.toHaveLength(0);
+  });
+});
+
+/*
+ * The transfer DTOs: a quantity and a page size arrive as form strings, so the
+ * `@Type(() => Number)` arrows have to run before `@IsInt` can mean anything.
+ */
+describe('stock transfer DTOs', () => {
+  const DEPOT_A = '11111111-1111-4111-8111-111111111111';
+  const DEPOT_B = '22222222-2222-4222-8222-222222222222';
+  const PRODUCT = '33333333-3333-4333-8333-333333333333';
+
+  it('coerces a numeric-string quantity', async () => {
+    const dto = plainToInstance(SendTransferDto, {
+      fromDepotId: DEPOT_A,
+      toDepotId: DEPOT_B,
+      productId: PRODUCT,
+      quantity: '12',
+    });
+    expect(dto.quantity).toBe(12);
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('rejects a fractional quantity — half a gallon cannot be moved', async () => {
+    const dto = plainToInstance(SendTransferDto, {
+      fromDepotId: DEPOT_A,
+      toDepotId: DEPOT_B,
+      productId: PRODUCT,
+      quantity: '1.5',
+    });
+    await expect(validate(dto)).resolves.not.toHaveLength(0);
+  });
+
+  it('coerces the page size and keeps its default', async () => {
+    expect(plainToInstance(ListTransfersDto, { limit: '25' }).limit).toBe(25);
+    expect(plainToInstance(ListTransfersDto, {}).limit).toBe(50);
+  });
+});
+
+/*
+ * The public franchise form: everything on it arrives as a string from a browser, and the
+ * consent tick is refused at the API boundary, not only in the page — a checkbox the client
+ * alone enforces is a checkbox `curl` never sees (CA-3-53).
+ */
+describe('SubmitFranchiseApplicationDto', () => {
+  const form = (over: Record<string, unknown> = {}) => ({
+    applicantName: 'Budi',
+    applicantPhone: '+628123456789',
+    proposedCode: 'BDG-01',
+    proposedName: 'Depot Melati',
+    email: 'budi@example.com',
+    city: 'Bandung',
+    province: 'Jawa Barat',
+    lat: '-6.9421',
+    lng: '107.6386',
+    investmentAmount: '150000000',
+    projectedMonthlyRevenue: '45000000',
+    privacyConsent: true,
+    ...over,
+  });
+
+  it('coerces the coordinates and the money the form sends as strings', async () => {
+    const dto = plainToInstance(SubmitFranchiseApplicationDto, form());
+    expect(dto.lat).toBeCloseTo(-6.9421);
+    expect(dto.lng).toBeCloseTo(107.6386);
+    expect(dto.investmentAmount).toBe(150000000);
+    expect(dto.projectedMonthlyRevenue).toBe(45000000);
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('refuses a submission with the consent box unticked', async () => {
+    const dto = plainToInstance(SubmitFranchiseApplicationDto, form({ privacyConsent: false }));
+    const errors = await validate(dto);
+    expect(errors.map((e) => e.property)).toContain('privacyConsent');
   });
 });

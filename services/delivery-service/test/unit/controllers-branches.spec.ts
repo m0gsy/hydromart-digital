@@ -218,6 +218,7 @@ describe('SettlementController (cashier)', () => {
     searchForDepot: jest.fn().mockResolvedValue([]),
     verify: jest.fn().mockResolvedValue({ id }),
     dispute: jest.fn().mockResolvedValue({ id }),
+    depositedForDepot: jest.fn().mockResolvedValue({ total: 0, count: 0, byOrder: [] }),
   };
   const controller = new SettlementController(settlements as never);
 
@@ -230,6 +231,20 @@ describe('SettlementController (cashier)', () => {
     const dto = { chargeShortfall: true };
     void controller.verify(user, id, dto as never);
     expect(settlements.verify).toHaveBeenCalledWith(user, id, dto);
+  });
+
+  // The internal window read: the dates arrive as strings and must reach the service parsed.
+  it('parses the window before asking for the COD accepted in it', async () => {
+    await controller.deposited({
+      depotId,
+      from: '2026-09-01T00:00:00.000Z',
+      to: '2026-09-02T00:00:00.000Z',
+    } as never);
+    expect(settlements.depositedForDepot).toHaveBeenCalledWith(
+      depotId,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-02T00:00:00.000Z'),
+    );
   });
 
   it('disputes a deposit with a note', () => {
@@ -251,6 +266,7 @@ describe('DriverDeliveryController', () => {
     markNoShow: jest.fn().mockResolvedValue({ id }),
     reschedule: jest.fn().mockResolvedValue({ id }),
     claimByDriver: jest.fn().mockResolvedValue({ id }),
+    contactStatus: jest.fn().mockResolvedValue({ canDeclareNoShow: false }),
   };
   const controller = new DriverDeliveryController(deliveries as never);
   const auth = 'Bearer t';
@@ -359,6 +375,17 @@ describe('DriverDeliveryController', () => {
     expect(deliveries.fail).toHaveBeenCalledWith(user.sub, id, 'not found', 'Bearer t', undefined);
   });
 
+  /*
+   * 5a: reading the gate must not move it. A courier whose app restarted mid-wait could
+   * otherwise see the no-show countdown again only by adding an attempt they never made.
+   */
+  it('reads the no-show gate without recording an attempt', () => {
+    const attemptsBefore = deliveries.recordContactAttempt.mock.calls.length;
+    void controller.contactStatus(user, id);
+    expect(deliveries.contactStatus).toHaveBeenCalledWith(user.sub, id);
+    expect(deliveries.recordContactAttempt.mock.calls).toHaveLength(attemptsBefore);
+  });
+
   it('defaults the contact-attempt method to CALL when omitted', () => {
     void controller.recordContactAttempt(user, id, { note: 'no answer' } as never);
     expect(deliveries.recordContactAttempt).toHaveBeenCalledWith(
@@ -402,8 +429,15 @@ describe('DriverSettlementController', () => {
     listForDriver: jest.fn().mockResolvedValue([]),
     getForDriver: jest.fn().mockResolvedValue({ id }),
     submit: jest.fn().mockResolvedValue({ id }),
+    expectedForShift: jest.fn().mockResolvedValue({ shiftId: 's1', expectedIdr: 60000 }),
   };
   const controller = new DriverSettlementController(settlements as never);
+
+  // Scoped to the caller's own sub, like every route here: never another courier's shift.
+  it('asks for the expected deposit of the CALLER own shift', () => {
+    void controller.expected(user, 'Bearer t', 's1');
+    expect(settlements.expectedForShift).toHaveBeenCalledWith(user.sub, 's1', 'Bearer t');
+  });
 
   it('delegates history, get and submit', () => {
     void controller.history(user);

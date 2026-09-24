@@ -115,6 +115,13 @@ model ApiKey {
   scopes      String[]
   environment ApiKeyEnvironment @default(PROD)
   lastUsedAt  DateTime?
+  /// ADM-5: the day this key stops working, whatever else is true of it.
+  ///
+  /// A partner credential with no end is one nobody ever has to think about again: it
+  /// outlives the integration it was minted for, the person who asked for it, and the
+  /// laptop it was pasted into. An expiry makes rotation an event with a date rather than
+  /// a task nobody owns. Null only for keys minted before this column existed.
+  expiresAt   DateTime?
   revokedAt   DateTime?
   createdAt   DateTime          @default(now())
 
@@ -344,6 +351,7 @@ model TicketMessage {
 
 /// A fraud/risk flag on an order or account (Design 15b). `score`/`level`/`signals` are the
 /// values a scoring job supplied at ingest — stored verbatim, not recomputed here.
+/// ADM-8: `blockedAt` is what makes "clear" reversible without being indiscriminate.
 model FraudFlag {
   id         String          @id @default(uuid())
   entityType FraudEntityType
@@ -359,6 +367,14 @@ model FraudFlag {
   @@index([status])
   @@index([level])
   @@map("fraud_flags")
+  /// ADM-8: when THIS flag suspended the account, if it ever did.
+  ///
+  /// Clearing used to reinstate whenever the flag currently read BLOCKED, which got the
+  /// question wrong in both directions: an account held by two suspicions was released by
+  /// resolving either one, and the ordinary block → review → clear path never reinstated at
+  /// all, because by then the flag said REVIEWED. Null means this flag never suspended
+  /// anybody, so clearing it must not reopen an account somebody else closed.
+  blockedAt   DateTime?
 }
 
 /// A platform incident (Design 14c). Timeline entries live in the child `IncidentUpdate` rows.

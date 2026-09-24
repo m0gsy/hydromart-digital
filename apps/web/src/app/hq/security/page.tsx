@@ -139,14 +139,18 @@ export default function HqSecurityPage() {
           </div>
         </div>
         {/*
-         * CA-2-06: this one is enforced now, and the other two are not.
+         * CA-2-06 then ADM-6: two of the three are enforced now, each where it can be.
          *
-         * All three settings had a screen, a DTO and a repository, and not one line
-         * outside admin-service ever read any of them. The idle limit is applied on the
-         * refresh path from this release. The allowlist and 2FA are not, and saying so is
-         * this repo's rule — "UNENFORCED not silent": a control that does nothing while
-         * looking like it does something is worse than no control, because somebody plans
-         * around it.
+         * All three settings had a screen, a DTO and a repository, and not one line outside
+         * admin-service ever read any of them. The idle limit is applied on the refresh path
+         * (CA-2-06). The IP allowlist is applied to the PARTNER API (ADM-6) — the one
+         * surface this service owns end to end, its own keys against its own policy; it is
+         * not applied to this console, whose requests arrive through the gateway, and the
+         * warning below says exactly that rather than implying more.
+         *
+         * 2FA remains impossible rather than unbuilt: there is no password anywhere in
+         * auth-service, so phone + OTP is the whole credential and OTP is factor one. The
+         * switch was removed rather than left lying.
          */}
         <p className="-mt-1 text-xs text-[color:var(--success)]">{t('hq.security.idleEnforced')}</p>
         <div>

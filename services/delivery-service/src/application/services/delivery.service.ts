@@ -14,9 +14,10 @@ import {
   OrderAlreadyClaimedError,
   OrderCoordinationError,
   OrderNotClaimableError,
+  PaymentLookupUnavailableError,
+  ProofTooFarError,
   SelfClaimDisabledError,
   SelfClaimTooSoonError,
-  PaymentLookupUnavailableError,
 } from '../../domain/errors';
 import {
   DeliveryStatus,
@@ -388,6 +389,29 @@ export class DeliveryService {
       this.config.offlineMaxAgeHours(delivery.depotId),
       delivery.assignedAt,
     );
+    /*
+     * DLV-4 — is the courier where the order was going?
+     *
+     * The proof carries the courier's own GPS reading, and nothing compared it to the
+     * destination: "delivered" could be stamped from the depot, from home, or from anywhere
+     * at all, and the photo is of whatever the camera was pointed at. The coordinates are on
+     * the record precisely so somebody can ask this question.
+     *
+     * The distance is always measured and always stored. Whether it REFUSES the handover is
+     * a per-depot setting that ships off — turning a geofence on for a live fleet with no
+     * measurement first locks couriers out of deliveries they are standing at, and a pinned
+     * address is often hundreds of metres from the door. Off, the evidence still exists and
+     * can be read, which is what was missing.
+     */
+    const distanceMeters = this.proofDistance(delivery, proof);
+    if (
+      distanceMeters !== null &&
+      this.config.proofRadiusEnforced(delivery.depotId) &&
+      distanceMeters > this.config.proofRadiusMeters(delivery.depotId)
+    ) {
+      throw new ProofTooFarError(distanceMeters, this.config.proofRadiusMeters(delivery.depotId));
+    }
+
     // H-8: the proof is written FIRST, and it is what makes the rest legitimate. The order
     // used to be marched to DELIVERED and then COMPLETED before this line ran, so a proof
     // write that failed left an order closed, its stock consumed, its points awarded and
@@ -398,7 +422,7 @@ export class DeliveryService {
     const completed = await this.deliveries.completeWithProof(
       id,
       delivery.status,
-      proof,
+      { ...proof, distanceMeters },
       driverId,
       capturedAt,
     );
@@ -902,6 +926,21 @@ export class DeliveryService {
     const key = storageKeyFromUrl(url);
     if (!key) return null;
     return this.storage.signedUrl(key, DeliveryService.PHOTO_LINK_TTL_SECONDS);
+  }
+
+  /**
+   * DLV-4: metres between the proof's GPS reading and the order's destination, or null when
+   * the order carries no pinned coordinates — an address problem, not a courier one, and
+   * inventing a zero would hide it.
+   */
+  private proofDistance(
+    delivery: { destinationLat: number | null; destinationLng: number | null },
+    proof: ProofInput,
+  ): number | null {
+    if (delivery.destinationLat === null || delivery.destinationLng === null) return null;
+    return Math.round(
+      haversineMeters(proof.latitude, proof.longitude, delivery.destinationLat, delivery.destinationLng),
+    );
   }
 
   async purgeProofsOlderThan(cutoff: Date): Promise<{ purged: number }> {

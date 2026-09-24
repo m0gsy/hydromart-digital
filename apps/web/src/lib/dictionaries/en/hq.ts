@@ -1599,7 +1599,7 @@ export const hq = {
   security: {
     idleEnforced: 'Enforced: a session idle longer than this must sign in again.',
     ipUnenforced:
-      'NOT ENFORCED. This list is stored, but nothing yet refuses a request from an address outside it. Do not rely on it as your only control until enforcement is decided and built.',
+      'PARTLY ENFORCED. This list now refuses partner API requests (x-api-key) from addresses outside it. It is NOT enforced for this HQ console: those requests arrive through the gateway, which admin-service cannot see past.',
     title: 'Security & 2FA',
     subtitle: 'Session policy, 2FA, and active sessions',
     sessionPolicy: 'Session policy',

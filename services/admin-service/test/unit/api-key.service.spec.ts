@@ -47,6 +47,37 @@ describe('ApiKeyService', () => {
     expect(rotated.record.keyPrefix).toBe(rotated.token.slice(0, 16));
   });
 
+  /*
+   * ADM-5. Rotation used to clear `revokedAt`, so the button labelled "rotate" quietly
+   * undid a revocation: the same partner got a working credential back, and nothing on the
+   * screen said a security decision had been reversed. Revoking is final; a partner who
+   * needs access again gets a new key, which is a decision somebody makes on purpose.
+   */
+  it('refuses to rotate a key that was revoked', async () => {
+    const created = await service.create({
+      name: 'Gateway',
+      scopes: ['payments:read'],
+      environment: ApiKeyEnvironment.PROD,
+    });
+    await service.revoke(created.record.id);
+
+    await expect(service.rotate(created.record.id)).rejects.toThrow(/dicabut/);
+  });
+
+  it('gives every new and rotated key an end date', async () => {
+    const created = await service.create({
+      name: 'Gateway',
+      scopes: ['payments:read'],
+      environment: ApiKeyEnvironment.PROD,
+    });
+    expect(created.record.expiresAt).toBeInstanceOf(Date);
+    expect(created.record.expiresAt!.getTime()).toBeGreaterThan(Date.now());
+
+    const rotated = await service.rotate(created.record.id, 30);
+    const days = (rotated.record.expiresAt!.getTime() - Date.now()) / 86_400_000;
+    expect(Math.round(days)).toBe(30);
+  });
+
   it('revokes a key by id', async () => {
     const created = await service.create({
       name: 'Gateway',

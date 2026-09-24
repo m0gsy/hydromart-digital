@@ -10,6 +10,37 @@ function cacheWith(rows: SettingRow[]): SettingsCache {
 describe('DeliveryConfigService with settings cache', () => {
   const env = new ConfigService({ SHIFT_LENGTH_HOURS: '8' } as never);
 
+  /*
+   * DLV-4: the network default, asked for with no depot at all. Enforcement ships OFF —
+   * turning a geofence on for a live fleet before anyone has looked at the distances locks
+   * couriers out of deliveries they are standing at.
+   */
+  it('answers the network proof radius, with refusal off by default', async () => {
+    const cache = cacheWith([]);
+    await cache.refresh();
+    const cfg = new DeliveryConfigService(
+      new ConfigService({ PROOF_RADIUS_M: '500', PROOF_RADIUS_ENFORCED: '0' } as never),
+      cache,
+    );
+    expect(cfg.proofRadiusMeters()).toBe(500);
+    expect(cfg.proofRadiusEnforced()).toBe(false);
+  });
+
+  it('lets one depot turn refusal on without touching the rest', async () => {
+    const cache = cacheWith([
+      { scope: 'DEPOT', depotId: 'd1', key: 'proofRadiusEnforced', value: '1' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'proofRadiusMeters', value: '250' },
+    ]);
+    await cache.refresh();
+    const cfg = new DeliveryConfigService(
+      new ConfigService({ PROOF_RADIUS_M: '500', PROOF_RADIUS_ENFORCED: '0' } as never),
+      cache,
+    );
+    expect(cfg.proofRadiusEnforced('d1')).toBe(true);
+    expect(cfg.proofRadiusMeters('d1')).toBe(250);
+    expect(cfg.proofRadiusEnforced('d2')).toBe(false);
+  });
+
   it('returns depot override when present', async () => {
     const cache = cacheWith([
       { scope: 'DEPOT', depotId: 'd1', key: 'shiftLengthHours', value: '6' },

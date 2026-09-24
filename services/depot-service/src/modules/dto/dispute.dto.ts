@@ -74,3 +74,27 @@ export class ResolveDisputeDto {
   @MaxLength(1000)
   resolutionNote?: string;
 }
+
+/** DPT-2: the subject of an erasure, as auth-service's registry sends it. */
+export class PdpAnonymiseDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: '+628123456789',
+    description:
+      'An incident only ever carries the number the operator wrote down, never an account id.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string | null;
+}
+
+/** DPT-2: how many rows lost the person named in them. */
+export class PdpErasedResponseDto {
+  @ApiProperty({ example: 7 })
+  erased!: number;
+}

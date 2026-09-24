@@ -16,6 +16,20 @@ export class ApiKeyNotFoundError extends DomainError {
   }
 }
 
+/**
+ * ADM-5: the key was revoked, and rotating it would hand the same partner a working
+ * credential again — an undo of a security decision, spelled as routine maintenance.
+ */
+export class ApiKeyRevokedError extends DomainError {
+  readonly code = 'API_KEY_REVOKED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(id: string) {
+    super(
+      `API key "${id}" sudah dicabut. Kunci yang dicabut tidak bisa diputar ulang — terbitkan kunci baru.`,
+    );
+  }
+}
+
 export class WebhookNotFoundError extends DomainError {
   readonly code = 'WEBHOOK_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

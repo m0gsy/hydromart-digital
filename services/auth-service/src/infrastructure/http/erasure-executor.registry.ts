@@ -77,6 +77,17 @@ const REMOTE_DATASETS = [
     path: '/api/v1/loyalty/internal/pdp-anonymise',
   },
   /*
+   * DPT-2: depot-service holds a complainant's name and the free text naming them in a
+   * dispute, the callback number on an incident, and the customer name on a standing
+   * subscription. It was reported UNENFORCED while the `customerId` column made its way to
+   * the live database — which was honest, and is what made this executor possible now.
+   */
+  {
+    dataset: 'depot.order_disputes',
+    envKey: 'DEPOT_SERVICE_URL',
+    path: '/api/v1/order-disputes/internal/pdp-anonymise',
+  },
+  /*
    * admin.support_tickets.customerPhone (14) plus the free text in ticket_messages —
    * a complaint queue answered by phoning whoever is on the row.
    */
@@ -94,15 +105,14 @@ const REMOTE_DATASETS = [
  * close, and a gap that is silent is the one the next audit re-discovers.
  */
 const UNENFORCED_DATASETS: { dataset: string; reason: string }[] = [
-  {
-    dataset: 'depot.order_disputes',
-    reason:
-      'depot.order_disputes (18 baris, AUDIT_L3 §4.2) memegang customerName + orderRef. ' +
-      'Kolom customerId sudah ditambahkan (migrasi 20260901120000) dan sengaja belum dibaca ' +
-      'siapa pun di rilis ini — kolom dulu, kode yang membacanya rilis berikutnya. ' +
-      'Eksekutornya menyusul begitu kolom itu ada di basis data produksi. Sampai saat itu ' +
-      'dataset ini UNENFORCED, bukan dilewatkan diam-diam.',
-  },
+  /*
+   * Empty, and that is the news.
+   *
+   * `depot.order_disputes` sat here from the day the `customerId` column shipped, with the
+   * reason written out: the column had to reach the live database before anything could
+   * read it. DPT-2 is that follow-up release, so the dataset moved up into the executors
+   * above. A gap that was named is a gap somebody can close; this is one being closed.
+   */
 ];
 
 /**

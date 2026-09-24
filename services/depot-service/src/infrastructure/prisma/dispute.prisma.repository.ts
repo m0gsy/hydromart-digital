@@ -17,6 +17,7 @@ interface DisputeRow {
   id: string;
   depotId: string;
   orderRef: string;
+  customerId: string | null;
   customerName: string;
   category: string;
   description: string;
@@ -35,6 +36,41 @@ interface DisputeRow {
 @Injectable()
 export class DisputePrismaRepository implements DisputeRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * DPT-2: erase one person from every row this service holds them in.
+   *
+   * Three tables, keyed three ways. A dispute carries the account id (null for a walk-in at
+   * the counter); an incident only ever carries the number the operator wrote down; a
+   * subscription carries the id. So the match is by id where there is one and by phone where
+   * there is not, and both are tried.
+   *
+   * The ROWS stay. How many disputes a depot received, how they were resolved, and what a
+   * standing order was for is the depot's operating record — it belongs to nobody's
+   * identity. What goes is the person: the name, the number, and the free text they are
+   * named in. `description` is scrubbed with the name because it is where the complaint
+   * actually says who and where ("galon bocor di Jl. Melati 7, hub 0812…").
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    const TOMBSTONE = 'Pengguna dihapus';
+    const SCRUBBED = '[dihapus atas permintaan pemilik data]';
+    const [disputes, incidents, subscriptions] = await this.prisma.$transaction([
+      this.prisma.orderDispute.updateMany({
+        where: { customerId },
+        data: { customerName: TOMBSTONE, description: SCRUBBED },
+      }),
+      this.prisma.incident.updateMany({
+        // No number on file matches no incident: an empty `in` says that outright.
+        where: phone ? { customerPhone: phone } : { customerPhone: { in: [] } },
+        data: { customerPhone: '-' },
+      }),
+      this.prisma.subscription.updateMany({
+        where: { customerId },
+        data: { customerName: TOMBSTONE },
+      }),
+    ]);
+    return disputes.count + incidents.count + subscriptions.count;
+  }
 
   private toRecord(row: DisputeRow): OrderDispute {
     return {

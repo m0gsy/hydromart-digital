@@ -1612,7 +1612,7 @@ export const hq = {
   security: {
     idleEnforced: 'Ditegakkan: sesi yang menganggur lebih lama dari ini harus masuk ulang.',
     ipUnenforced:
-      'BELUM DITEGAKKAN. Daftar ini tersimpan tapi belum ada yang menolak permintaan dari IP di luarnya. Jangan jadikan ini satu-satunya pengaman sampai penegakannya diputuskan dan dipasang.',
+      'DITEGAKKAN SEBAGIAN. Daftar ini sekarang menolak permintaan API mitra (x-api-key) dari alamat di luarnya. Konsol HQ ini TIDAK ditegakkan: permintaannya masuk lewat gateway, dan admin-service tidak bisa melihat menembusnya.',
     title: 'Keamanan & 2FA',
     subtitle: 'Kebijakan sesi, 2FA, dan sesi aktif',
     sessionPolicy: 'Kebijakan sesi',

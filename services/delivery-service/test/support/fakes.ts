@@ -646,6 +646,9 @@ export function buildTestConfig(
     PAYMENT_SERVICE_URL: 'http://localhost:3005',
     MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
     SHIFT_CHECKIN_RADIUS_M: '200',
+    // DLV-4: proof proximity. Enforcement ships off, same as production.
+    PROOF_RADIUS_M: '500',
+    PROOF_RADIUS_ENFORCED: '0',
     SHIFT_LENGTH_HOURS: '8',
     SHIFT_BREAK_QUOTA_MINUTES: '60',
     NO_SHOW_MIN_CONTACT_ATTEMPTS: '2',

@@ -104,6 +104,33 @@ describe('CommissionService', () => {
    * commission run and the courier's own ledger stated two different amounts for the same
    * deliveries, and both were live. The report reads the payer now.
    */
+  /*
+   * The union is the point: either side alone hides the disagreement the report exists to
+   * surface. A courier paid here with no delivery recorded here, and a courier who
+   * delivered here and was never paid, both have to appear — with a zero on the side that
+   * has nothing, not an absence.
+   */
+  it('lists a courier paid with no delivery, and one who delivered and was never paid', async () => {
+    seedDelivered(deliveries, depot, driverA, inWindow);
+    payout.earnings.set(depot, [{ courierId: driverB, earnedIdr: 12000, paidDeliveries: 1 }]);
+
+    const run = await service.run(depot, FROM, TO);
+    const byId = new Map(run.couriers.map((c) => [c.courierId, c]));
+    expect(byId.get(driverA)).toMatchObject({
+      delivered: 1,
+      paidDeliveries: 0,
+      grossIdr: 0,
+      shortfallIdr: 0,
+      netIdr: 0,
+    });
+    expect(byId.get(driverB)).toMatchObject({
+      delivered: 0,
+      paidDeliveries: 1,
+      grossIdr: 12000,
+      netIdr: 12000,
+    });
+  });
+
   it('reports what the payer credited, not a rate of its own', async () => {
     seedDelivered(deliveries, depot, driverA, inWindow);
     seedDelivered(deliveries, depot, driverA, inWindow);

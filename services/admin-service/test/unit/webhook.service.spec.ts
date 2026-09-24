@@ -33,6 +33,17 @@ describe('WebhookService', () => {
     expect(off.active).toBe(false);
   });
 
+  // ADM-1: a URL changed after registration is resolved again — otherwise the SSRF check
+  // only ever guards the address the endpoint was born with.
+  it('re-checks the URL when an update moves the endpoint', async () => {
+    const w = await service.create({
+      url: 'https://x.example.com/hooks',
+      events: ['order.created'],
+    });
+    const moved = await service.update(w.id, { url: 'https://y.example.com/hooks' });
+    expect(moved.url).toBe('https://y.example.com/hooks');
+  });
+
   it('deletes a webhook', async () => {
     const w = await service.create({
       url: 'https://x.example.com/hooks',

@@ -149,6 +149,8 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
       scopes: data.scopes,
       environment: data.environment,
       lastUsedAt: null,
+      // ADM-5: a key that ends.
+      expiresAt: data.expiresAt ?? null,
       revokedAt: null,
       createdAt: nextDate(),
     };
@@ -157,11 +159,18 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
     return { ...record };
   }
 
-  async rotate(id: string, keyPrefix: string, keyHash: string): Promise<ApiKeyRecord | null> {
+  async rotate(
+    id: string,
+    keyPrefix: string,
+    keyHash: string,
+    expiresAt: Date | null,
+  ): Promise<ApiKeyRecord | null> {
     const k = this.keys.find((x) => x.id === id);
     if (!k) return null;
     k.keyPrefix = keyPrefix;
-    k.revokedAt = null;
+    // ADM-5: `revokedAt` stays. Rotation used to clear it, so "rotate" quietly undid a
+    // revocation and handed the same partner a working credential back.
+    k.expiresAt = expiresAt;
     this.hashes.set(k.id, keyHash);
     return { ...k };
   }
@@ -180,6 +189,7 @@ export function makeApiKey(over: Partial<ApiKeyRecord> = {}): ApiKeyRecord {
     name: 'Sample key',
     keyPrefix: 'hm_live_sample01',
     scopes: ['payments:read'],
+    expiresAt: null,
     environment: ApiKeyEnvironment.PROD,
     lastUsedAt: null,
     revokedAt: null,
@@ -492,6 +502,7 @@ export function makeFraudFlag(over: Partial<FraudFlagRecord> = {}): FraudFlagRec
     level: FraudLevel.HIGH,
     signals: ['Sample signal'],
     status: FraudStatus.OPEN,
+    blockedAt: null,
     createdAt: nextDate(),
     ...over,
   };
@@ -518,6 +529,7 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
       level: data.level,
       signals: data.signals,
       status: data.status ?? FraudStatus.OPEN,
+      blockedAt: null,
       createdAt: nextDate(),
     };
     this.rows.push(record);
@@ -532,7 +544,16 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
     r.status = status;
+    // ADM-8: stamped once, never cleared — it records what happened, not what is true now.
+    if (status === FraudStatus.BLOCKED && !r.blockedAt) r.blockedAt = nextDate();
     return { ...r };
+  }
+
+  /** ADM-8: is anything ELSE still holding this entity blocked? */
+  async countBlockedFor(entityRef: string, excludeId: string): Promise<number> {
+    return this.rows.filter(
+      (f) => f.entityRef === entityRef && f.id !== excludeId && f.status === FraudStatus.BLOCKED,
+    ).length;
   }
 }
 

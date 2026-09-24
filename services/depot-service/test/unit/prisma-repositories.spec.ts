@@ -456,7 +456,14 @@ describe('DisputePrismaRepository', () => {
     findUnique: jest.fn(),
     update: jest.fn(),
   };
-  const prisma = { orderDispute: model } as unknown as PrismaService;
+  const updateMany = jest.fn();
+  const $transaction = jest.fn();
+  const prisma = {
+    orderDispute: { ...model, updateMany },
+    incident: { updateMany },
+    subscription: { updateMany },
+    $transaction,
+  } as unknown as PrismaService;
   const repo = new DisputePrismaRepository(prisma);
   const row = {
     id: 'dp-1',
@@ -478,6 +485,33 @@ describe('DisputePrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * DPT-2: the erasure fan-out. The rows stay — the depot's operating record is nobody's
+   * identity — and the person goes out of all three tables in one transaction.
+   */
+  it('erases a person from disputes, incidents and subscriptions, and counts the rows', async () => {
+    $transaction.mockResolvedValue([{ count: 2 }, { count: 1 }, { count: 4 }]);
+    await expect(repo.erasePerson('cust-1', '+628123')).resolves.toBe(7);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1' },
+      data: { customerName: 'Pengguna dihapus', description: '[dihapus atas permintaan pemilik data]' },
+    });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { customerPhone: '+628123' },
+      data: { customerPhone: '-' },
+    });
+  });
+
+  // An account with no number on it must not match every incident that has none either.
+  it('matches no incident at all when the person has no phone number', async () => {
+    $transaction.mockResolvedValue([{ count: 1 }, { count: 0 }, { count: 0 }]);
+    await expect(repo.erasePerson('cust-1', null)).resolves.toBe(1);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { customerPhone: { in: [] } },
+      data: { customerPhone: '-' },
+    });
+  });
 
   it('creates and maps enums, resolution null default', async () => {
     model.create.mockResolvedValue(row);

@@ -2,6 +2,23 @@ import { DomainError, HTTP_STATUS } from '@hydromart/platform';
 
 import { DeliveryStatus } from './delivery-status';
 
+/**
+ * DLV-4: the proof was captured too far from where the order was going.
+ *
+ * Only raised where head office has turned enforcement on for that depot — elsewhere the
+ * distance is recorded and the handover proceeds, because a pinned address is often
+ * hundreds of metres from the door and the refusal would land on the courier standing at it.
+ */
+export class ProofTooFarError extends DomainError {
+  readonly code = 'PROOF_TOO_FAR';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(meters: number, allowed: number) {
+    super(
+      `Bukti antar diambil ${meters} m dari alamat tujuan (batas ${allowed} m). Pastikan Anda di alamat pelanggan.`,
+    );
+  }
+}
+
 export class DeliveryNotFoundError extends DomainError {
   readonly code = 'DELIVERY_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
