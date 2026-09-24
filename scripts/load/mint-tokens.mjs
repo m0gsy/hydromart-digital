@@ -108,26 +108,44 @@ if (process.argv.includes('--staff')) {
  * The franchise dashboard scopes to the depots the caller OWNS. A SUPER_ADMIN owns none, so a
  * load run with only the staff token measured an empty page in every green run this workflow
  * ever produced ("this owner has 0 depots"). The seed does create WARALABA depots with real
- * owners (BDG-01, SBY-01): read one from the depot list, and sign a token whose subject IS
+ * owners (BDG-01, SBY-01): read the owner with the most depots, and sign a token whose subject IS
  * that owner. Fails loudly when there is no owned depot — a token that owns nothing would
  * quietly reproduce the very defect this exists to remove.
  */
 if (process.argv.includes('--owner')) {
-  const staff = signToken({ sub: randomUUID(), role: 'SUPER_ADMIN' });
-  const list = await api(
-    'GET',
-    '/depots/api/v1/depots/manage?limit=100&ownershipType=WARALABA',
-    undefined,
-    staff,
+  // Read the owner straight from the depot database of the stack this workflow booted, the same
+  // way the OTP is read from the auth logs above. The depot list over HTTP answers 401 to a
+  // token signed here (depot-service does not accept a made-up subject), and a token that owns
+  // nothing would quietly reproduce the defect this exists to remove.
+  const sql =
+    'select "ownerId", count(*) from depots where "ownerId" is not null group by 1 order by 2 desc limit 1';
+  const r = spawnSync(
+    'docker',
+    [
+      'compose',
+      ...COMPOSE,
+      'exec',
+      '-T',
+      'postgres',
+      'psql',
+      '-U',
+      'hydromart',
+      '-d',
+      'hydromart_depot',
+      '-tA',
+      '-F',
+      '|',
+      '-c',
+      sql,
+    ],
+    { encoding: 'utf8', shell: win },
   );
-  if (list.status !== 200)
-    throw new Error(`depot list: HTTP ${list.status} ${JSON.stringify(list.body)}`);
-  const owned = (list.body.items ?? []).filter((d) => d.ownerId);
-  if (owned.length === 0) throw new Error('no WARALABA depot with an owner — did the seed run?');
-  // The owner with the MOST depots: the fan-out under test is per owned depot.
-  const perOwner = new Map();
-  for (const d of owned) perOwner.set(d.ownerId, (perOwner.get(d.ownerId) ?? 0) + 1);
-  const [ownerId, depots] = [...perOwner.entries()].sort((a, b) => b[1] - a[1])[0];
+  const [ownerId, depots] = (r.stdout || '').trim().split('|');
+  if (r.status !== 0 || !ownerId) {
+    throw new Error(
+      `no depot with an owner (${(r.stderr || r.stdout || 'no output').trim()}) — did the seed run?`,
+    );
+  }
   console.error(`owner ${ownerId} owns ${depots} depot(s)`);
   process.stdout.write(signToken({ sub: ownerId, role: 'FRANCHISE_OWNER' }));
   process.exit(0);
