@@ -93,6 +93,13 @@ const signToken = ({ sub, role }) => {
     sub,
     phone: '+620000000000',
     role,
+    // AUTH-5: every guard checks issuer and audience now, so a hand-signed token carries them
+    // (scripts/seed.mjs does the same). Without these BOTH tokens minted here answer 401 — the
+    // staff token used by the performance dashboard included, which is how this workflow was
+    // silently broken from the day AUTH-5 shipped, until the franchise token was added and the
+    // failure finally had a name.
+    iss: 'hydromart-auth',
+    aud: 'hydromart-api',
     iat: now,
     exp: now + 3600,
   })}`;
