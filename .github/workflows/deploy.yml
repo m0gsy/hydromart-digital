@@ -173,6 +173,18 @@ jobs:
         if: github.event_name == 'workflow_run' && vars.IMAGE_PREFIX != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job never checks the repository out — it only opens an SSH session to the
+          # box — so `gh` had no git directory to infer a repository from, and answered
+          # "failed to determine base repo: not a git repository" on every single run. The
+          # loop below then did exactly the right thing with an unanswered question and
+          # refused to deploy. So EVERY deploy since this gate was added went red here, on
+          # releases whose images had in fact been published (the Images run beside each one
+          # is green), and the failure read like a broken box rather than a broken lookup.
+          #
+          # `GH_REPO` is how `gh` is told the repository without a checkout. Named here
+          # rather than adding a checkout step, so the job stays what it is: one that ships,
+          # not one that builds.
+          GH_REPO: ${{ github.repository }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           for attempt in $(seq 1 60); do
