@@ -72,6 +72,7 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # next migration. The PENDING predicate is dollar-quoted: this block is a single-quoted
 # shell string, and one apostrophe in it would end the table right there.
 INDEXES='
+product|product_price_changes_productId_changedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "product_price_changes_productId_changedAt_idx" ON "product_price_changes"("productId", "changedAt")
 payout|hq_release_requests_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_status_createdAt_idx" ON "hq_release_requests"("status", "createdAt")
 payout|hq_release_requests_one_pending_per_owner|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_one_pending_per_owner" ON "hq_release_requests"("franchiseOwnerId") WHERE "status"::text = $$PENDING$$
 payout|payout_bank_accounts_subjectId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "payout_bank_accounts_subjectId_key" ON "payout_bank_accounts"("subjectId")
