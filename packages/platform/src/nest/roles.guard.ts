@@ -5,15 +5,22 @@ import { Request } from 'express';
 import { can, type Capability } from '@hydromart/access';
 
 import { AuthenticatedUser } from '../http/authenticated-user';
-import { CAPABILITY_KEY, IS_PUBLIC_KEY, ROLES_KEY } from './decorators';
+import { CAPABILITY_KEY, IS_PUBLIC_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
 
 /**
- * Enforces @Can(capability) and @Roles(...). No decorator ⇒ no restriction. Runs after
- * JwtAuthGuard.
+ * Enforces @Can(capability) and @Roles(...). Runs after JwtAuthGuard.
  *
  * @Can resolves against the live capability map, so a super admin's matrix edit takes
  * effect without a deploy. @Roles keeps its literal list, for the routes where the set
  * is a fact rather than a policy (customer-only, service-to-service).
+ *
+ * PLAT-1: a route with none of @Can/@Roles/@SelfScoped is refused, not admitted. This used
+ * to read "no decorator ⇒ no restriction" — which was true for every route `check-route-authz`
+ * had already audited, and also true for the next route somebody adds and forgets to
+ * decorate, since JwtAuthGuard is a global APP_GUARD and would otherwise be the ONLY check
+ * standing between a fresh handler and every signed-in account on the platform. @SelfScoped()
+ * is the explicit, checked-in-CI way to say "this one really is fine, it only reads
+ * @CurrentUser()" — see that decorator's doc comment.
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -31,9 +38,15 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { capability, roles } = this.required(context);
+    const { capability, roles, selfScoped } = this.required(context);
     if (!capability && (!roles || roles.length === 0)) {
-      return true;
+      if (selfScoped) {
+        return true;
+      }
+      // PLAT-1: nothing at all said who may call this — not a capability, not a role
+      // list, not @SelfScoped(). `check-route-authz` refuses this shape in CI; this is
+      // the runtime backstop for whatever reaches production despite that.
+      throw new ForbiddenException('This route has no authorisation rule.');
     }
     const user = context.switchToHttp().getRequest<Request>().user as AuthenticatedUser | undefined;
     if (!user) {
@@ -61,17 +74,20 @@ export class RolesGuard implements CanActivate {
   private required(context: ExecutionContext): {
     capability?: Capability;
     roles?: readonly string[];
+    selfScoped?: boolean;
   } {
     const handler = context.getHandler();
     const handlerCapability = this.reflector.get<Capability | undefined>(CAPABILITY_KEY, handler);
     const handlerRoles = this.reflector.get<readonly string[] | undefined>(ROLES_KEY, handler);
-    if (handlerCapability || (handlerRoles && handlerRoles.length > 0)) {
-      return { capability: handlerCapability, roles: handlerRoles };
+    const handlerSelfScoped = this.reflector.get<boolean | undefined>(SELF_SCOPED_KEY, handler);
+    if (handlerCapability || (handlerRoles && handlerRoles.length > 0) || handlerSelfScoped) {
+      return { capability: handlerCapability, roles: handlerRoles, selfScoped: handlerSelfScoped };
     }
     const cls = context.getClass();
     return {
       capability: this.reflector.get<Capability | undefined>(CAPABILITY_KEY, cls),
       roles: this.reflector.get<readonly string[] | undefined>(ROLES_KEY, cls),
+      selfScoped: this.reflector.get<boolean | undefined>(SELF_SCOPED_KEY, cls),
     };
   }
 }

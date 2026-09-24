@@ -24,14 +24,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
+  AuthenticatedUser,
   Can,
   CurrentUser,
-  AuthenticatedUser,
   depotScopeIds,
   InternalAuthGuard,
   Public,
   Role,
   Roles,
+  SelfScoped,
   SNIFFED_MIME,
   sniffFileType,
 } from '@hydromart/platform';
@@ -240,6 +241,7 @@ export class DepotController {
    */
   @ApiOkResponse({ type: PublicDepotView, isArray: true })
   @ApiBearerAuth()
+  @SelfScoped()
   @Get('scope')
   @ApiOperation({ summary: 'Depots the calling account may act on (its own scope)' })
   async scope(@CurrentUser() user: AuthenticatedUser): Promise<PublicDepotView[]> {
@@ -292,8 +294,13 @@ export class DepotController {
 
   // Where to send money for ONE depot. Any signed-in user (a customer paying for an
   // order needs it), never anonymous and never in bulk.
+  //
+  // route-authz: takes no subject — the id in the path is the DEPOT's, not the caller's,
+  // and every signed-in account gets the same answer for it. Public information gated only
+  // on "must be signed in", the same shape as `contact` below and push's vapid-public-key.
   @ApiOkResponse({ type: DepotPaymentInfoView })
   @ApiBearerAuth()
+  @SelfScoped()
   @Get(':id/payment-info')
   @ApiOperation({ summary: "A depot's payment destination (signed-in callers)" })
   async paymentInfo(@Param('id', ParseUUIDPipe) id: string): Promise<DepotPaymentInfoView> {
@@ -303,8 +310,11 @@ export class DepotController {
   // The depot's own phone, for the customer help screen. Same guard as payment-info and
   // for the same reason: one depot at a time to a signed-in caller is fine, a public bulk
   // directory of every depot's line is not. Declared before `:id` so it is not swallowed.
+  //
+  // route-authz: takes no subject, same shape as payment-info just above.
   @ApiOkResponse({ type: DepotContactView })
   @ApiBearerAuth()
+  @SelfScoped()
   @Get(':id/contact')
   @ApiOperation({ summary: "A depot's contact phone (signed-in callers)" })
   async contact(@Param('id', ParseUUIDPipe) id: string): Promise<DepotContactView> {

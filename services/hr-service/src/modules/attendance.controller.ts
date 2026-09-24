@@ -25,11 +25,12 @@ import {
 } from '@nestjs/swagger';
 
 import {
-  Can,
   AuthenticatedUser,
+  Can,
   CurrentUser,
   InternalAuthGuard,
   Public,
+  SelfScoped,
 } from '@hydromart/platform';
 
 import { AttendanceService, FacePunch } from '../application/services/attendance.service';
@@ -60,6 +61,7 @@ export class AttendanceController {
   // Self-service (PWA): any authenticated staff whose auth account is linked to an
   // employee record. Identity is proven by the face match; ownership by authSubjectId.
   @ApiOkResponse({ type: AttendanceResponseDto })
+  @SelfScoped()
   @Post('check-in')
   @ApiOperation({ summary: 'Face check-in (self)' })
   checkIn(@Body() dto: FacePunchDto, @CurrentUser() user: AuthenticatedUser): Promise<Attendance> {
@@ -67,6 +69,7 @@ export class AttendanceController {
   }
 
   @ApiOkResponse({ type: AttendanceResponseDto })
+  @SelfScoped()
   @Post('check-out')
   @ApiOperation({ summary: 'Face check-out (self)' })
   checkOut(@Body() dto: FacePunchDto, @CurrentUser() user: AuthenticatedUser): Promise<Attendance> {
@@ -74,6 +77,7 @@ export class AttendanceController {
   }
 
   @ApiOkResponse({ type: ListSelf3ResponseDto })
+  @SelfScoped()
   @Get('me')
   @ApiOperation({ summary: 'My attendance log (self)' })
   listSelf(@Query() query: ListAttendanceDto, @CurrentUser() user: AuthenticatedUser): Promise<{ rows: Attendance[]; total: number; page: number; pageSize: number }> {

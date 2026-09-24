@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, SelfScoped } from '@hydromart/platform';
 
 import { AddressService } from '../application/services/address.service';
 import { AddressRecord } from '../application/ports/address.repository';
@@ -28,6 +28,7 @@ export class AddressController {
   constructor(private readonly addresses: AddressService) {}
 
   @ApiOkResponse({ type: AddressResponseDto, isArray: true })
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'List my delivery addresses' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<AddressRecord[]> {
@@ -55,6 +56,7 @@ export class AddressController {
   }
 
   @ApiOkResponse({ type: AddressResponseDto })
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Add a delivery address (max 20, first becomes primary)' })
   create(
@@ -64,6 +66,7 @@ export class AddressController {
     return this.addresses.create(user.sub, dto);
   }
 
+  @SelfScoped()
   @Get(':id')
   @ApiOperation({ summary: 'Get one of my addresses' })
   @ApiOkResponse()
@@ -75,6 +78,7 @@ export class AddressController {
   }
 
   @ApiOkResponse({ type: AddressResponseDto })
+  @SelfScoped()
   @Patch(':id')
   @ApiOperation({ summary: 'Update one of my addresses' })
   update(
@@ -86,6 +90,7 @@ export class AddressController {
   }
 
   @ApiOkResponse({ type: AddressResponseDto })
+  @SelfScoped()
   @Post(':id/primary')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Set an address as primary' })
@@ -97,6 +102,7 @@ export class AddressController {
   }
 
   @ApiOkResponse({ description: 'No content.' })
+  @SelfScoped()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete one of my addresses' })

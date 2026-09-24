@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, ImportSummary } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, ImportSummary, SelfScoped } from '@hydromart/platform';
 
 import { LeaveService } from '../application/services/leave.service';
 import {
@@ -22,6 +22,7 @@ import { ImportResponseDto, LeaveBalanceResponseDto, LeaveRequestResponseDto } f
 export class SelfLeaveController {
   constructor(private readonly leave: LeaveService) {}
 
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'My leave applications, newest first' })
   list(@Query() q: ListLeaveDto, @CurrentUser() user: AuthenticatedUser) {
@@ -29,6 +30,7 @@ export class SelfLeaveController {
   }
 
   @ApiOkResponse({ type: LeaveBalanceResponseDto })
+  @SelfScoped()
   @Get('balance')
   @ApiOperation({ summary: 'My quota for a year (created on first read)' })
   balance(@Query() q: LeaveBalanceQueryDto, @CurrentUser() user: AuthenticatedUser): Promise<LeaveBalance> {
@@ -36,6 +38,7 @@ export class SelfLeaveController {
   }
 
   @ApiOkResponse({ type: LeaveRequestResponseDto })
+  @SelfScoped()
   @Post()
   @ApiOperation({ summary: 'Apply for leave' })
   submit(@Body() dto: SubmitLeaveDto, @CurrentUser() user: AuthenticatedUser): Promise<LeaveRequest> {
@@ -43,6 +46,7 @@ export class SelfLeaveController {
   }
 
   @ApiOkResponse({ type: LeaveRequestResponseDto })
+  @SelfScoped()
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Withdraw my application while it is still pending' })
   cancel(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<LeaveRequest> {

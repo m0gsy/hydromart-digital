@@ -89,6 +89,34 @@ TS
 expect 0 'a self-scoped route passes on @CurrentUser() in its signature' <<'TS'
 @Controller({ version: '1' })
 export class SelfController {
+  @SelfScoped()
+  @Get('me')
+  me(@CurrentUser() user: AuthenticatedUser): Promise<void> {
+    return this.things.forUser(user.sub);
+  }
+}
+TS
+
+# --- fails: PLAT-1. @CurrentUser() alone is no longer enough ----------------
+# @CurrentUser() proves the CODE only ever acts on the caller; it says nothing RolesGuard
+# can see at runtime (it's a parameter decorator, invisible to Reflector). Before
+# @SelfScoped() existed, this exact shape was the checker's OK case above — and was also
+# indistinguishable, to RolesGuard, from a route nobody remembered to decorate at all.
+expect 1 '@CurrentUser() without @SelfScoped() is refused, not waved through' <<'TS'
+@Controller({ version: '1' })
+export class SelfController {
+  @Get('me')
+  me(@CurrentUser() user: AuthenticatedUser): Promise<void> {
+    return this.things.forUser(user.sub);
+  }
+}
+TS
+
+# --- passes: a class-level @SelfScoped() covers its self-scoped routes ------
+expect 0 'a class-level @SelfScoped() covers a route that takes @CurrentUser()' <<'TS'
+@SelfScoped()
+@Controller({ version: '1' })
+export class SelfController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser): Promise<void> {
     return this.things.forUser(user.sub);
@@ -113,6 +141,7 @@ TS
 expect 1 'a bare route under a self-scoped one is still refused' <<'TS'
 @Controller({ version: '1' })
 export class MixedController {
+  @SelfScoped()
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser): Promise<void> {
     return this.things.forUser(user.sub);
@@ -121,6 +150,21 @@ export class MixedController {
   @Get('everyone')
   everyone(): Promise<void> {
     return this.things.everyone();
+  }
+}
+TS
+
+# --- fails: @SelfScoped() alone, no @CurrentUser() --------------------------
+# The other half of the AND. The decorator says "trust me, this is self-scoped" with
+# nothing backing it — no parameter reads the token, so nothing stops the handler from
+# acting on a subject the caller supplied instead of their own.
+expect 1 '@SelfScoped() without @CurrentUser() is refused' <<'TS'
+@Controller({ version: '1' })
+export class ThingController {
+  @SelfScoped()
+  @Get('everything')
+  everything(): Promise<void> {
+    return this.things.everything();
   }
 }
 TS
@@ -138,7 +182,24 @@ export class ThingController {
 TS
 
 # --- passes: the deliberate marker, which must carry a reason ---------------
-expect 0 'a route-authz: marker with a reason is accepted' <<'TS'
+expect 0 'a route-authz: reason PLUS @SelfScoped() is accepted' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  /*
+   * route-authz: takes no subject — the same constant for every caller.
+   */
+  @SelfScoped()
+  @Get('constant')
+  constantValue(): Promise<void> {
+    return this.things.constant();
+  }
+}
+TS
+
+# --- fails: PLAT-1. A reason with no @SelfScoped() is no longer enough -----
+# This exact shape used to be THE accepted no-subject case — and was also, unnoticed,
+# a route RolesGuard was already refusing at runtime: a comment is not metadata.
+expect 1 'a route-authz: reason WITHOUT @SelfScoped() is refused' <<'TS'
 @Controller({ path: 'things', version: '1' })
 export class ThingController {
   /*
@@ -164,7 +225,7 @@ fi
 
 echo
 if [ "$fails" -eq 0 ]; then
-  echo "PASS — the route-authz gate accepts the four legitimate shapes and refuses the three bad ones."
+  echo "PASS — the route-authz gate accepts the six legitimate shapes and refuses the six bad ones."
   exit 0
 fi
 echo "FAIL — $fails assertion(s) above."

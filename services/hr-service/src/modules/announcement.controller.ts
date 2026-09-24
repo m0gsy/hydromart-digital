@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, SelfScoped } from '@hydromart/platform';
 
 import { AnnouncementService } from '../application/services/announcement.service';
 import { CreateAnnouncementDto, ListAnnouncementDto } from './dto/announcement.dto';
@@ -79,6 +79,7 @@ export class AnnouncementController {
 export class SelfAnnouncementController {
   constructor(private readonly announcements: AnnouncementService) {}
 
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: 'Announcements addressed to me, newest first' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<(AnnouncementWithTargets & { read: boolean })[]> {
@@ -86,6 +87,7 @@ export class SelfAnnouncementController {
   }
 
   @ApiOkResponse({ type: MarkRead3ResponseDto })
+  @SelfScoped()
   @Post(':id/read')
   @HttpCode(200)
   @ApiOperation({ summary: 'Mark an announcement read (idempotent)' })

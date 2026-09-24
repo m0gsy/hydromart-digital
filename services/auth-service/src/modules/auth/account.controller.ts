@@ -21,7 +21,7 @@ import { PhoneChangeService } from '../../application/services/phone-change.serv
 import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { AuditMutationsInterceptor, Can, ImportSummary } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, ImportSummary, SelfScoped } from '@hydromart/platform';
 
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
@@ -63,6 +63,7 @@ export class AccountController {
     private readonly phoneChange: PhoneChangeService,
   ) {}
 
+  @SelfScoped()
   @Get('auth/me')
   @ApiOperation({ summary: 'Get the currently authenticated account' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -71,6 +72,7 @@ export class AccountController {
     return PublicCustomerDto.withCapabilities(profile);
   }
 
+  @SelfScoped()
   @Patch('auth/me')
   @ApiOperation({ summary: 'Update the authenticated account (name, email)' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -90,6 +92,7 @@ export class AccountController {
    * the account changes here — an unconfirmed request leaves only an audit row, which is
    * what a failed hijack attempt should leave.
    */
+  @SelfScoped()
   @Post('auth/me/phone')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send a verification code to a new phone number (K1.4)' })
@@ -108,6 +111,7 @@ export class AccountController {
    * delivered to — read off the stored challenge, never off this request. Every session is
    * revoked on success, including this one, so the caller signs in again on the new number.
    */
+  @SelfScoped()
   @Post('auth/me/phone/confirm')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Confirm the code and move the account to the new number (K1.4)' })
@@ -329,6 +333,7 @@ export class AccountController {
     return this.account.importStaff(dto.rows, user.role as never);
   }
 
+  @SelfScoped()
   @Get('sessions')
   @ApiOperation({ summary: 'List active device sessions' })
   @ApiOkResponse({ type: SessionInfoDto, isArray: true })
@@ -337,6 +342,7 @@ export class AccountController {
     return sessions.map((session) => SessionInfoDto.from(session));
   }
 
+  @SelfScoped()
   @Post('sessions/:id/revoke')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke one of your own active device sessions by id' })
@@ -350,6 +356,7 @@ export class AccountController {
     return { message: 'Session revoked.' };
   }
 
+  @SelfScoped()
   @Post('auth/logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sign out of the current session (revoke a refresh token)' })
@@ -367,6 +374,7 @@ export class AccountController {
     return { message: 'Signed out.' };
   }
 
+  @SelfScoped()
   @Post('auth/logout/all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sign out of every device (revoke all sessions)' })

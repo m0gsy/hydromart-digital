@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { FaceService } from '../application/services/face.service';
 import { EnrollFaceDto, WithdrawFaceResponseDto } from './dto/attendance.dto';
@@ -18,6 +18,7 @@ export class SelfFaceController {
   constructor(private readonly face: FaceService) {}
 
   @ApiOkResponse({ type: FaceEmbeddingResponseDto })
+  @SelfScoped()
   @Post('enroll')
   @ApiOperation({ summary: 'Enroll my own face frames (self)' })
   enroll(@Body() dto: EnrollFaceDto, @CurrentUser() user: AuthenticatedUser): Promise<FaceEmbedding> {
@@ -26,6 +27,7 @@ export class SelfFaceController {
 
   /** HR-3: withdraw my consent — templates and stored frames deleted, consent cleared. */
   @ApiOkResponse({ type: WithdrawFaceResponseDto })
+  @SelfScoped()
   @Delete()
   @ApiOperation({ summary: 'Withdraw my biometric consent and delete my face data' })
   async withdraw(@CurrentUser() user: AuthenticatedUser): Promise<{ deleted: number }> {

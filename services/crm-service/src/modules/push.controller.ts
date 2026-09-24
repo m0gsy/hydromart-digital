@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { CrmConfigService } from '../config/crm-config.service';
 import { PushService } from '../application/services/push.service';
@@ -40,8 +40,14 @@ export class PushController {
    *
    * Left behind the global JwtAuthGuard rather than made @Public(): nothing needs it before
    * sign-in, and loosening auth to satisfy a checker is the wrong direction.
+   *
+   * PLAT-1: this was the checker's only accepted "reason alone" case, and it was ALSO the
+   * proof that reason alone was never enough — RolesGuard had no decorator to read here and
+   * refused it same as any other. @SelfScoped() is what makes the sentence above true at
+   * runtime, not just in this comment.
    */
   @ApiOkResponse({ type: VapidPublicKey3ResponseDto })
+  @SelfScoped()
   @Get('vapid-public-key')
   @ApiOperation({ summary: 'Public VAPID key the browser needs to subscribe (empty = push off)' })
   vapidPublicKey(): { key: string } {
@@ -49,6 +55,7 @@ export class PushController {
   }
 
   @ApiOkResponse({ description: 'No content.' })
+  @SelfScoped()
   @Post('subscriptions')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Register this device for push notifications' })
@@ -67,6 +74,7 @@ export class PushController {
   }
 
   @ApiOkResponse({ description: 'No content.' })
+  @SelfScoped()
   @Delete('subscriptions')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiQuery({ name: 'endpoint', required: true })

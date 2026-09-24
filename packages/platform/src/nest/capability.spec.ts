@@ -6,7 +6,7 @@ import { loadOverrides } from '@hydromart/access';
 import { Role } from '../domain/role.enum';
 import { assertCapability } from './capability';
 import { startCapabilityRefresh } from './capability-refresh';
-import { CAPABILITY_KEY, ROLES_KEY, IS_PUBLIC_KEY } from './decorators';
+import { CAPABILITY_KEY, ROLES_KEY, IS_PUBLIC_KEY, SELF_SCOPED_KEY } from './decorators';
 import { RolesGuard } from './roles.guard';
 
 afterEach(() => loadOverrides({}));
@@ -36,8 +36,15 @@ function guardFor(ctx: ExecutionContext): RolesGuard {
 }
 
 describe('RolesGuard capability path', () => {
-  it('allows a route with neither decorator', () => {
+  // PLAT-1: neither decorator used to mean no restriction — the same shape as a route
+  // nobody remembered to decorate. Refused now, unless @SelfScoped() says otherwise.
+  it('refuses a route with neither decorator', () => {
     const ctx = contextWith({}, {}, { role: 'CUSTOMER' });
+    expect(() => guardFor(ctx).canActivate(ctx)).toThrow(ForbiddenException);
+  });
+
+  it('allows a route with @SelfScoped() and neither @Can nor @Roles', () => {
+    const ctx = contextWith({ [SELF_SCOPED_KEY]: true }, {}, { role: 'CUSTOMER' });
     expect(guardFor(ctx).canActivate(ctx)).toBe(true);
   });
 

@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Public } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Public, SelfScoped } from '@hydromart/platform';
 
 import { CartService, CartView } from '../application/services/cart.service';
 import { AddCartItemDto, SetCartItemQuantityDto, ShelfPricesResponseDto } from './dto/cart.dto';
@@ -70,6 +70,7 @@ export class CartController {
 
   @ApiOkResponse({ type: CartResponseDto })
   @ApiQuery(DEPOT_QUERY)
+  @SelfScoped()
   @Get()
   @ApiOperation({ summary: "Get the current customer's cart with live pricing" })
   view(
@@ -82,6 +83,7 @@ export class CartController {
 
   @ApiOkResponse({ type: CartResponseDto })
   @ApiQuery(DEPOT_QUERY)
+  @SelfScoped()
   @Post('items')
   @ApiOperation({ summary: 'Add a quantity of a product to the cart' })
   add(
@@ -102,6 +104,7 @@ export class CartController {
 
   @ApiOkResponse({ type: CartResponseDto })
   @ApiQuery(DEPOT_QUERY)
+  @SelfScoped()
   @Put('items/:productId')
   @ApiOperation({ summary: 'Set the absolute quantity for a product in the cart' })
   set(
@@ -123,6 +126,7 @@ export class CartController {
 
   @ApiOkResponse({ type: CartResponseDto })
   @ApiQuery(DEPOT_QUERY)
+  @SelfScoped()
   @Delete('items/:productId')
   @ApiOperation({ summary: 'Remove a product from the cart' })
   remove(
@@ -135,6 +139,7 @@ export class CartController {
   }
 
   @ApiOkResponse({ description: 'No content.' })
+  @SelfScoped()
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Empty the cart' })

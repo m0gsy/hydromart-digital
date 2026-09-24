@@ -11,7 +11,7 @@ import { Reflector } from '@nestjs/core';
 import { SettingsCache, coerce } from '../config/settings';
 import { Role } from '../domain/role.enum';
 import { AllExceptionsFilter } from './all-exceptions.filter';
-import { CAPABILITY_KEY, ROLES_KEY, IS_PUBLIC_KEY } from './decorators';
+import { CAPABILITY_KEY, ROLES_KEY, IS_PUBLIC_KEY, SELF_SCOPED_KEY } from './decorators';
 import { DepotScopeGuard } from './depot-scope.guard';
 import { INTERNAL_KEY_HEADER } from './internal-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -135,11 +135,29 @@ describe('RolesGuard edges', () => {
     expect(guard.canActivate(ctxFor({ user: { sub: 's', role: Role.SUPER_ADMIN } }))).toBe(true);
   });
 
-  // An empty @Roles() list is "no restriction declared", the same as no decorator —
-  // the route is then guarded by whatever the class carries, or by nothing.
-  it('treats an empty role list as an undecorated route', () => {
+  // An empty @Roles() list is "no restriction declared" via THAT decorator — the same as
+  // no decorator at all — so PLAT-1's fail-closed default applies: refused, not admitted,
+  // unless @SelfScoped() says otherwise.
+  it('treats an empty role list as undecorated, and refuses it (PLAT-1)', () => {
     const guard = new RolesGuard(reflectorReturning({ [ROLES_KEY]: [] }));
-    expect(guard.canActivate(ctxFor({ user: { sub: 's', role: Role.MANAGER } }))).toBe(true);
+    expect(() => guard.canActivate(ctxFor({ user: { sub: 's', role: Role.MANAGER } }))).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  // PLAT-1: @SelfScoped() is what a route with no @Can/@Roles needs to pass at runtime —
+  // the explicit, checked-in-CI declaration that RolesGuard can actually see, unlike the
+  // @CurrentUser() parameter decorator the route's handler also carries.
+  it('admits a route with no @Can/@Roles when @SelfScoped() is set', () => {
+    const guard = new RolesGuard(reflectorReturning({ [SELF_SCOPED_KEY]: true }));
+    expect(guard.canActivate(ctxFor({ user: { sub: 's', role: Role.CUSTOMER } }))).toBe(true);
+  });
+
+  it('refuses a route with none of @Can, @Roles or @SelfScoped', () => {
+    const guard = new RolesGuard(reflectorReturning({}));
+    expect(() => guard.canActivate(ctxFor({ user: { sub: 's', role: Role.CUSTOMER } }))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('denies a role outside a declared list', () => {

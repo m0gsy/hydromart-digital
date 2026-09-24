@@ -10,7 +10,7 @@ merah sebelum perbaikan dan hijau sesudahnya.
 
 **102 temuan** — High 35, Medium 28, Low 39 —
 ditambah satu rantai Critical (XCUT-4: CORE-1 → PYO-2 → PYO-4) yang diputus lewat CORE-1.
-Selesai: **4**.
+Selesai: **5**.
 
 ## Keputusan pemilik, 2026-09-11
 
@@ -136,7 +136,7 @@ Selesai: **4**.
 | LOY-8 | Low | loyalty | Expiry sweep can expire a lot twice and expires points that were already spent | PR-9 | Terbuka |
 | LOY-9 | Low | loyalty | `members/count` gives depot-scoped MANAGER the network-wide member count | PR-3 | Terbuka |
 | LOY-10 | Low | loyalty | Loyalty ledger is outside the UU PDP access/erasure fan-out; free-text `reason` may carry PII | PR-9 | Terbuka |
-| PLAT-1 | Low | platform · nest | `RolesGuard`/`DepotScopeGuard` fail OPEN when their metadata is absent (mitigated by CI gates) | PR-13 | Terbuka |
+| PLAT-1 | Low | platform · nest | `RolesGuard`/`DepotScopeGuard` fail OPEN when their metadata is absent (mitigated by CI gates) — Selesai 2026-09-24: `RolesGuard`'s half closed (fail-closed at runtime + `@SelfScoped()`; `check-route-authz`'s own false-negative found 32 MORE undecorated routes along the way, incl. checkout/payment). `DepotScopeGuard`'s "no depotId in the request" path is untouched — that is the separate, already-documented AUTHZ-B1/B2 by-id shape, not this one. | PR-13 | Selesai |
 | PLAT-2 | Low | platform · nest | JWT `algorithms` not pinned explicitly on `verifyAsync` (currently safe via library default) | PR-13 | Terbuka |
 | PLAT-3 | Low | platform · nest | JWT `iss`/`aud` claims are never checked | PR-13 | Terbuka |
 | PLAT-6 | Low | platform · nest | Capability-override staleness during an outage is unbounded, not "one TTL" | PR-13 | Terbuka |
