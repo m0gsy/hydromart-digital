@@ -22,14 +22,21 @@ const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function api(method, path, body) {
+async function api(method, path, body, token) {
   const res = await fetch(`${GATEWAY}${path}`, {
     method,
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
-  return { status: res.status, body: text ? JSON.parse(text) : {}, cookies: res.headers.getSetCookie?.() ?? [] };
+  return {
+    status: res.status,
+    body: text ? JSON.parse(text) : {},
+    cookies: res.headers.getSetCookie?.() ?? [],
+  };
 }
 
 /*
@@ -78,18 +85,76 @@ const cookieValue = (cookies, name) =>
  * staff are invited. It is signed here from the stack's own secret, exactly the way
  * flow.mjs and the f6 harnesses do, rather than inventing a back door in auth-service.
  */
-if (process.argv.includes('--staff')) {
+const signToken = ({ sub, role }) => {
   const secret = process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef';
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const now = Math.floor(Date.now() / 1000);
   const data = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
-    sub: randomUUID(),
+    sub,
     phone: '+620000000000',
-    role: 'SUPER_ADMIN',
+    role,
+    // AUTH-5: every guard checks issuer and audience now, so a hand-signed token carries them
+    // (scripts/seed.mjs does the same). Without these BOTH tokens minted here answer 401 — the
+    // staff token used by the performance dashboard included, which is how this workflow was
+    // silently broken from the day AUTH-5 shipped, until the franchise token was added and the
+    // failure finally had a name.
+    iss: 'hydromart-auth',
+    aud: 'hydromart-api',
     iat: now,
     exp: now + 3600,
   })}`;
-  process.stdout.write(`${data}.${createHmac('sha256', secret).update(data).digest('base64url')}`);
+  return `${data}.${createHmac('sha256', secret).update(data).digest('base64url')}`;
+};
+
+if (process.argv.includes('--staff')) {
+  process.stdout.write(signToken({ sub: randomUUID(), role: 'SUPER_ADMIN' }));
+  process.exit(0);
+}
+
+/*
+ * The franchise dashboard scopes to the depots the caller OWNS. A SUPER_ADMIN owns none, so a
+ * load run with only the staff token measured an empty page in every green run this workflow
+ * ever produced ("this owner has 0 depots"). The seed does create WARALABA depots with real
+ * owners (BDG-01, SBY-01): read the owner with the most depots, and sign a token whose subject IS
+ * that owner. Fails loudly when there is no owned depot — a token that owns nothing would
+ * quietly reproduce the very defect this exists to remove.
+ */
+if (process.argv.includes('--owner')) {
+  // Read the owner straight from the depot database of the stack this workflow booted, the same
+  // way the OTP is read from the auth logs above. The depot list over HTTP answers 401 to a
+  // token signed here (depot-service does not accept a made-up subject), and a token that owns
+  // nothing would quietly reproduce the defect this exists to remove.
+  const sql =
+    'select "ownerId", count(*) from depots where "ownerId" is not null group by 1 order by 2 desc limit 1';
+  const r = spawnSync(
+    'docker',
+    [
+      'compose',
+      ...COMPOSE,
+      'exec',
+      '-T',
+      'postgres',
+      'psql',
+      '-U',
+      'hydromart',
+      '-d',
+      'hydromart_depot',
+      '-tA',
+      '-F',
+      '|',
+      '-c',
+      sql,
+    ],
+    { encoding: 'utf8', shell: win },
+  );
+  const [ownerId, depots] = (r.stdout || '').trim().split('|');
+  if (r.status !== 0 || !ownerId) {
+    throw new Error(
+      `no depot with an owner (${(r.stderr || r.stdout || 'no output').trim()}) — did the seed run?`,
+    );
+  }
+  console.error(`owner ${ownerId} owns ${depots} depot(s)`);
+  process.stdout.write(signToken({ sub: ownerId, role: 'FRANCHISE_OWNER' }));
   process.exit(0);
 }
 
@@ -98,9 +163,14 @@ const tokens = [];
 for (let i = 0; i < COUNT; i++) {
   const phone = `08${stamp}${String(i).padStart(2, '0')}`;
   const reg = await api('POST', '/auth/api/v1/auth/register', { phone, fullName: `Load VU ${i}` });
-  if (reg.status >= 400) throw new Error(`register ${phone}: HTTP ${reg.status} ${JSON.stringify(reg.body)}`);
+  if (reg.status >= 400)
+    throw new Error(`register ${phone}: HTTP ${reg.status} ${JSON.stringify(reg.body)}`);
   const code = await readOtp(phone);
-  const verify = await api('POST', '/auth/api/v1/auth/otp/verify', { phone, code, purpose: 'REGISTRATION' });
+  const verify = await api('POST', '/auth/api/v1/auth/otp/verify', {
+    phone,
+    code,
+    purpose: 'REGISTRATION',
+  });
   const token = cookieValue(verify.cookies, 'hm_at');
   if (!token) throw new Error(`no hm_at cookie for ${phone}: ${JSON.stringify(verify.body)}`);
   tokens.push(token);

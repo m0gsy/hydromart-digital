@@ -13,9 +13,12 @@
 //   k6 run scripts/load/dashboards.k6.js
 //
 // Required:
-//   TOKEN     bearer access token for a user who can read both dashboards. An owner or
-//             SUPER_ADMIN covers it (franchise needs owner scope, performance needs hrView).
+//   TOKEN     bearer access token for a user who can read the performance dashboard
+//             (hrView; SUPER_ADMIN covers it).
 //             Mint it the smoke.sh way: login -> [DEV OTP] from the auth log -> otp/verify.
+//   FRANCHISE_TOKEN  bearer token of a franchise OWNER (mint-tokens.mjs --owner). The franchise
+//             dashboard scopes to the depots the caller OWNS, and a SUPER_ADMIN owns none, so
+//             with TOKEN alone the scenario measures an empty page. Falls back to TOKEN.
 //
 // Optional (defaults in parens):
 //   BASE_URL          gateway base                (http://localhost:8080)
@@ -86,6 +89,7 @@ import { Trend, Rate } from 'k6/metrics';
 
 const BASE = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 const TOKEN = (__ENV.TOKEN || '').trim();
+const FRANCHISE_TOKEN = (__ENV.FRANCHISE_TOKEN || __ENV.TOKEN || '').trim();
 const VUS = Math.max(1, Number(__ENV.VUS || 5));
 const DURATION = __ENV.DURATION || '30s';
 // M22: ~4x the one green run's p95 (125.95ms / 148.57ms), not the 16-20x headroom these
@@ -136,7 +140,7 @@ export const options = {
 export function setup() {
   if (!TOKEN) fail('Set TOKEN. See header for how to mint one.');
   const probe = http.get(`${BASE}/dashboard/api/v1/dashboard/franchise`, {
-    headers: { authorization: `Bearer ${TOKEN}` },
+    headers: { authorization: `Bearer ${FRANCHISE_TOKEN}` },
   });
   if (probe.status === 401 || probe.status === 403) {
     fail(`TOKEN cannot read the franchise dashboard (${probe.status}) — needs owner scope.`);
@@ -150,11 +154,11 @@ export function setup() {
   // A franchise dashboard with no owned depots measures nothing: the whole point is cost
   // per depot. Say so loudly rather than reporting a fast, empty page.
   //
-  // Why it currently reads 0, measured: the workflow mints TOKEN with
-  // `mint-tokens.mjs --staff`, which signs `role: 'SUPER_ADMIN'`. This endpoint scopes to
-  // depots the caller OWNS, and a super-admin owns none — while the seed does create two
-  // WARALABA depots with real owners (BDG-01, SBY-01). Minting for one of those owners is
-  // what turns this scenario back on.
+  // Why it read 0 in every run before FRANCHISE_TOKEN existed, measured: the workflow minted
+  // TOKEN with `mint-tokens.mjs --staff`, which signs `role: 'SUPER_ADMIN'`. This endpoint
+  // scopes to depots the caller OWNS, and a super-admin owns none — while the seed creates two
+  // WARALABA depots with real owners (BDG-01, SBY-01). `mint-tokens.mjs --owner` signs a token
+  // for one of those owners, which is what turns this scenario on.
   const owned = probe.status === 200 ? (probe.json('depots') || []).length : 0;
   if (owned === 0) console.warn('WARN: this owner has 0 depots — S-1 fan-out is not exercised.');
   else console.log(`owner has ${owned} depot(s) — S-1 cost should be flat across them`);
@@ -174,12 +178,15 @@ export function setup() {
 
 export default function (data) {
   const headers = { authorization: `Bearer ${TOKEN}` };
+  const franchiseHeaders = { authorization: `Bearer ${FRANCHISE_TOKEN}` };
 
   // Constant for the run, so `med` in the exported summary is the width itself.
   franchiseDepots.add(data.owned);
   performanceRoster.add(data.roster);
 
-  const franchise = http.get(`${BASE}/dashboard/api/v1/dashboard/franchise`, { headers });
+  const franchise = http.get(`${BASE}/dashboard/api/v1/dashboard/franchise`, {
+    headers: franchiseHeaders,
+  });
   franchiseLatency.add(franchise.timings.duration);
   const fOk = check(franchise, { 'franchise 2xx': (r) => r.status >= 200 && r.status < 300 });
 
