@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import { onboardingApplies, onboardingDone, type OnboardingStepId } from '@/lib/onboarding';
 import type { Customer, DepotAdmin, InventoryItem } from '@/lib/types';
 
 const selectClass =
@@ -20,12 +21,20 @@ const selectClass =
 // done-state is DERIVED from real system signals for the selected depot (no separate
 // onboarding-workflow store). Legal + survey are prerequisites to provisioning, so a
 // depot that exists in the system has cleared them.
-const STEPS = [
-  { id: 'legal', ownerKey: 'legal' as const },
-  { id: 'survey', ownerKey: 'ops' as const },
-  { id: 'provision', ownerKey: 'hq' as const, href: '/hq/depots?onboard=1' },
-  { id: 'stock', ownerKey: 'manager' as const, href: '/hq/catalog' },
-  { id: 'staff', ownerKey: 'hq' as const, href: '/hq/staff' },
+const STEPS: {
+  id: OnboardingStepId;
+  ownerKey: 'legal' | 'ops' | 'hq' | 'manager' | 'finance';
+  href?: string;
+}[] = [
+  { id: 'legal', ownerKey: 'legal' },
+  { id: 'survey', ownerKey: 'ops' },
+  { id: 'provision', ownerKey: 'hq', href: '/hq/depots?onboard=1' },
+  // Without opening hours "antar sekarang" is silently unavailable (opening-hours.ts reads {} as shut).
+  { id: 'hours', ownerKey: 'manager', href: '/hq/depots?onboard=1' },
+  // Shown for franchise depots only: with no owner the owner ledger and commission path is dead.
+  { id: 'owner', ownerKey: 'hq', href: '/hq/franchise' },
+  { id: 'stock', ownerKey: 'manager', href: '/hq/catalog' },
+  { id: 'staff', ownerKey: 'hq', href: '/hq/staff' },
   /*
    * CA-2-69: the link went to the wrong screen.
    *
@@ -39,7 +48,7 @@ const STEPS = [
    * read the public depot projection which carries no payment fields — was CA-2-26 and is
    * already fixed above.
    */
-  { id: 'payments', ownerKey: 'finance' as const, href: '/hq/depots?onboard=1' },
+  { id: 'payments', ownerKey: 'finance', href: '/hq/depots?onboard=1' },
 ];
 
 export default function HqOnboardingPage() {
@@ -80,15 +89,14 @@ export default function HqOnboardingPage() {
   );
 
   const d = depot.data;
-  // Derived readiness per step. Legal/survey/provision are proven by the depot existing.
-  const doneById: Record<string, boolean> = {
-    legal: !!d,
-    survey: !!d,
-    provision: !!d,
-    stock: (inv.data ?? []).length > 0,
-    staff: (staff.data?.total ?? 0) > 0,
-    payments: !!(d?.paymentBankAccountNumber || d?.paymentQrisImageUrl),
-  };
+  // Derived readiness per step (lib/onboarding.ts). Legal/survey/provision are proven by the depot
+  // existing; hours and owner are checked, because nothing else enforced them.
+  const steps = STEPS.filter((s) => onboardingApplies(s.id, d ?? null));
+  const doneById = onboardingDone({
+    depot: d ?? null,
+    stockLines: (inv.data ?? []).length,
+    staffTotal: staff.data?.total ?? 0,
+  });
 
   const loading = depot.loading || inv.loading || staff.loading;
   // A failed read is NOT an unfinished step. `stock` and `staff` are derived from list
@@ -96,7 +104,7 @@ export default function HqOnboardingPage() {
   // staf" — a go-live checklist that reports a depot as not ready because a service was
   // down is worse than one that admits it could not check.
   const failed = depot.error ?? inv.error ?? staff.error ?? null;
-  const doneCount = STEPS.filter((s) => doneById[s.id]).length;
+  const doneCount = steps.filter((s) => doneById[s.id]).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,7 +115,7 @@ export default function HqOnboardingPage() {
         action={
           d ? (
             <Badge tone="brand">
-              {t('hq.onboarding.progress', { done: doneCount, total: STEPS.length })}
+              {t('hq.onboarding.progress', { done: doneCount, total: steps.length })}
             </Badge>
           ) : undefined
         }
@@ -148,12 +156,12 @@ export default function HqOnboardingPage() {
           <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-soft)]">
             <div
               className="h-full rounded-full bg-brand-600"
-              style={{ width: `${(doneCount / STEPS.length) * 100}%` }}
+              style={{ width: `${(doneCount / steps.length) * 100}%` }}
             />
           </div>
 
           <ol className="flex flex-col gap-3">
-            {STEPS.map((s, i) => {
+            {steps.map((s, i) => {
               const isDone = doneById[s.id];
               return (
                 <Card key={s.id} className="flex items-center gap-3 p-4">
