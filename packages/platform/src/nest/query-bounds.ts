@@ -62,18 +62,56 @@ export function queryBoundsMiddleware(options: QueryBoundsOptions = {}): QueryBo
   const max = options.max ?? DEFAULT_MAX_ROWS;
 
   return async <P extends QueryBoundsParams>(params: P, next: (params: P) => Promise<unknown>) => {
-    // ponytail: top-level reads only. Prisma middleware never sees a nested `include`, so a
-    // relation list still returns whole; bound those on the relation's own repository method.
     if (params.action !== 'findMany') return next(params);
 
     const args = params.args ?? {};
-    if (typeof args.take === 'number') return next(params);
-
-    params.args = { ...args, take: max };
+    if (typeof args.take !== 'number') params.args = { ...args, take: max };
     const rows = await next(params);
-    if (Array.isArray(rows) && rows.length >= max) {
-      options.onTruncate?.(params.model ?? 'unknown', max);
+    if (Array.isArray(rows)) {
+      if (typeof args.take !== 'number' && rows.length >= max) {
+        options.onTruncate?.(params.model ?? 'unknown', max);
+      }
+      reportFullRelations(rows, params.model ?? 'unknown', max, options.onTruncate);
     }
     return rows;
   };
+}
+
+/*
+ * PLAT-8 — why the bound REPORTS a relation instead of bounding it.
+ *
+ * The finding is real: `order.findMany({ include: { items: true } })` is bounded to 500
+ * orders and unbounded in items, so one order with three years of movements is the same
+ * out-of-memory this file exists to prevent, reached by a different road.
+ *
+ * The obvious fix — rewriting `include: { x: true }` into `{ x: { take: max } }` — was
+ * written, and it broke the HRIS flows in the integration stack. `take` is only legal on a
+ * to-MANY relation, and the args cannot say which a relation is: `include: { proof: true }`
+ * and `include: { employee: { select: … } }` look identical here and are both to-one, so the
+ * query throws and the caller sees a feature quietly stop working. Arity lives in the Prisma
+ * schema, which this package deliberately does not depend on.
+ *
+ * So the middleware does what it CAN do safely: a relation array that comes back at or above
+ * the cap is reported through the same `onTruncate` the top-level bound uses, naming
+ * `model.relation`. That turns an invisible unbounded read into a logged one somebody can
+ * bound at its own repository — which is where the arity is known.
+ */
+/** A relation array that came back exactly full is the same truncation, one level down. */
+function reportFullRelations(
+  rows: unknown[],
+  model: string,
+  max: number,
+  onTruncate?: (model: string, max: number) => void,
+): void {
+  if (!onTruncate) return;
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+      if (Array.isArray(value) && value.length >= max && !seen.has(key)) {
+        seen.add(key);
+        onTruncate(`${model}.${key}`, max);
+      }
+    }
+  }
 }

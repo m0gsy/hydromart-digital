@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -15,7 +15,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   // Shared service-to-service secret guarding /vouchers/redeem (system-triggered by
   // order-service at checkout). Blank = fail-closed (internal calls rejected).
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   // Outbound targets for the voucher-grant notification (spec 7b/5h). Blank = grant
   // still succeeds; the "voucher baru" notification is skipped (fail-open).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),

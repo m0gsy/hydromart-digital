@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { encodeCursor } from '@hydromart/platform';
 import { plainToInstance } from 'class-transformer';
 
 import { AUTH_TOKENS } from '../../src/application/tokens';
@@ -316,13 +317,13 @@ describe('ConsentService.fleetLag', () => {
 
   it('asks only about the mandatory purposes, at the version in force', async () => {
     const reader = readerOf();
-    const report = await serviceWith(reader).fleetLag({ limit: 10, cursor: 'cust-0' });
+    const report = await serviceWith(reader).fleetLag({ limit: 10, cursor: encodeCursor('cust-0') });
 
     expect(reader.mandatoryLag).toHaveBeenCalledWith({
       version: CONSENT_DOCUMENT_VERSION,
       purposes: MANDATORY_PURPOSES,
       limit: 10,
-      cursor: 'cust-0',
+      cursor: encodeCursor('cust-0'),
     });
     // The version is echoed back: "how many are behind" means nothing without naming what
     // they are behind, least of all in a report that outlives the wording it counted.
@@ -441,9 +442,9 @@ describe('ConsentController — the two questions W10 opened', () => {
       new ConsentService(new InMemoryConsentRepository(), { mandatoryLag }),
     );
 
-    const report = await controller.report({ limit: 1, cursor: 'cust-8' });
+    const report = await controller.report({ limit: 1, cursor: encodeCursor('cust-8') });
     expect(mandatoryLag).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 1, cursor: 'cust-8' }),
+      expect.objectContaining({ limit: 1, cursor: encodeCursor('cust-8') }),
     );
     expect(report).toEqual({
       documentVersion: CONSENT_DOCUMENT_VERSION,
@@ -534,7 +535,7 @@ describe('ConsentPrismaRepository.mandatoryLag', () => {
       { id: 'a', present: [], refused: [], outdated: [] },
       { id: 'b', present: [], refused: [], outdated: [] },
     ]).repo.mandatoryLag(query);
-    expect(full.nextCursor).toBe('b');
+    expect(full.nextCursor).toBe(encodeCursor('b'));
 
     const short = await repoWith([
       { id: 'a', present: [], refused: [], outdated: [] },
@@ -544,7 +545,7 @@ describe('ConsentPrismaRepository.mandatoryLag', () => {
 
   it('accepts a cursor without changing the shape of the answer', async () => {
     const { repo } = repoWith([]);
-    const page = await repo.mandatoryLag({ ...query, cursor: 'cust-1' });
+    const page = await repo.mandatoryLag({ ...query, cursor: encodeCursor('cust-1') });
     expect(page).toEqual({ totals: totalsRow, items: [], nextCursor: null });
   });
 });

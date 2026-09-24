@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 /**
@@ -97,7 +97,7 @@ export const envValidationSchema = Joi.object({
   // hr-service, for the employee row behind an invited staff account. Blank is allowed so
   // the service still boots, but an invite then fails 503 rather than half-creating a person.
   HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   // CA-2-06: where the idle-session limit lives. Blank = no idle limit (fail-open).
   ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
 

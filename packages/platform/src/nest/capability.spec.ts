@@ -155,6 +155,48 @@ describe('startCapabilityRefresh', () => {
     stop();
   });
 
+  /*
+   * PLAT-6. The note above this code promised "for up to one TTL after an outage a revoked
+   * permission may still work", and the code did not keep it: a source down for a week
+   * served the week-old snapshot for a week. A permission revoked because somebody should
+   * no longer hold it is precisely the case where an outage must not extend it forever.
+   */
+  it('drops a snapshot that outlived its source, back to the compiled defaults', async () => {
+    const warn = jest.fn();
+    let mode: 'ok' | 'fail' = 'ok';
+    const stop = startCapabilityRefresh(
+      async () => {
+        if (mode === 'fail') throw new Error('down');
+        return { approvals: ['SUPERVISOR'] };
+      },
+      { ttlMs: 5, maxStaleMs: 30, logger: { warn } },
+    );
+    await tick(20);
+    expect(assertPasses('approvals', 'SUPERVISOR')).toBe(true);
+
+    mode = 'fail';
+    await tick(80);
+
+    // The override is gone; what is left is the policy the binary shipped with.
+    expect(assertPasses('approvals', 'SUPERVISOR')).toBe(false);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('stale'))).toBe(true);
+    stop();
+  });
+
+  // Nothing to drop: a source that has never answered is already serving the defaults.
+  it('says nothing about staleness when there was no snapshot to begin with', async () => {
+    const warn = jest.fn();
+    const stop = startCapabilityRefresh(
+      async () => {
+        throw new Error('down');
+      },
+      { ttlMs: 5, maxStaleMs: 10, logger: { warn } },
+    );
+    await tick(40);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('stale'))).toBe(false);
+    stop();
+  });
+
   it('stops polling once stopped', async () => {
     const load = jest.fn().mockResolvedValue({});
     const stop = startCapabilityRefresh(load, { ttlMs: 5 });

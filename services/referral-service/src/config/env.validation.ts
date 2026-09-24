@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -27,7 +27,7 @@ export const envValidationSchema = Joi.object({
   REFERRAL_REFEREE_POINTS: Joi.number().integer().positive().default(250),
   // Shared service-to-service secret: guards /referrals/qualify (order-service triggers
   // it) AND authenticates referral's own reward call to loyalty. Blank = fail-closed.
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
   // unset value does not degrade tenant isolation — it refuses every scoped request.
   DEPOT_SERVICE_URL: Joi.string()

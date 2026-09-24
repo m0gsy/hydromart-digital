@@ -135,3 +135,50 @@ describe('queryBoundsMiddleware', () => {
     expect(out).toEqual([1]);
   });
 });
+
+/*
+ * PLAT-8. The bound stopped at the top level and said so in its own note: "a relation list
+ * still returns whole". `order.findMany({ include: { items: true } })` was bounded to 500
+ * ORDERS and unbounded in items — the same out-of-memory by a different road.
+ */
+describe('queryBoundsMiddleware · relations (PLAT-8)', () => {
+  /*
+   * The bound cannot ADD a `take` to a relation: `take` is only legal on a to-many one, and
+   * the args cannot say which a relation is — `include: { proof: true }` is to-one and looks
+   * identical to a list. Writing it anyway made Prisma throw and quietly stopped a feature
+   * (caught in the integration stack). What it can do is name the relation that came back
+   * full, so an unbounded read is logged instead of invisible.
+   */
+  it('leaves relation args exactly as the caller wrote them', async () => {
+    let seen: Record<string, unknown> | undefined;
+    const mw = queryBoundsMiddleware({ max: 5 });
+    await mw(
+      { model: 'Order', action: 'findMany', args: { include: { items: true, proof: true } } },
+      async (p) => {
+        seen = p.args;
+        return [];
+      },
+    );
+    expect(seen).toEqual({ take: 5, include: { items: true, proof: true } });
+  });
+
+  it('names a relation that came back at the cap', async () => {
+    const onTruncate = jest.fn();
+    const mw = queryBoundsMiddleware({ max: 2, onTruncate });
+    await mw({ model: 'Order', action: 'findMany', args: { take: 1 } }, async () => [
+      { id: 'o1', items: [1, 2], notes: [1] },
+      { id: 'o2', items: [1, 2] },
+      'not an object',
+    ]);
+    // Once per relation, not once per row — and the top-level bound is not re-reported.
+    expect(onTruncate).toHaveBeenCalledTimes(1);
+    expect(onTruncate).toHaveBeenCalledWith('Order.items', 2);
+  });
+
+  it('says nothing about relations when nobody is listening', async () => {
+    const mw = queryBoundsMiddleware({ max: 2 });
+    await expect(
+      mw({ model: 'Order', action: 'findMany', args: {} }, async () => [{ items: [1, 2] }]),
+    ).resolves.toEqual([{ items: [1, 2] }]);
+  });
+});

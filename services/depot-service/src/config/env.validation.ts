@@ -1,4 +1,4 @@
-import { optionalSecret, requiredSecret } from '@hydromart/platform';
+import { internalServiceKey, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -35,7 +35,7 @@ export const envValidationSchema = Joi.object({
   APPROVAL_AUTO_PASS_IDR: Joi.number().integer().min(0).default(100000),
   // Shared service-to-service secret authenticating the low-stock alert call to crm's
   // internal notification endpoint. Blank = alerting disabled (fail-open).
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  INTERNAL_SERVICE_KEY: internalServiceKey(),
   // Static-QRIS image storage (design 4b). Mirrors product/auth/delivery-service.
   STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
   // Public base URL the uploaded QRIS is reachable at. Local: returned URLs are

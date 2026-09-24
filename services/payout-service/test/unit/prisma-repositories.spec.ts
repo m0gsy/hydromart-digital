@@ -1,4 +1,5 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
+import { encodeCursor } from '@hydromart/platform';
 import { WithdrawalPrismaRepository } from '../../src/infrastructure/prisma/withdrawal.prisma.repository';
 import { CommissionSchemePrismaRepository } from '../../src/infrastructure/prisma/commission-scheme.prisma.repository';
 import { LedgerPrismaRepository } from '../../src/infrastructure/prisma/ledger.prisma.repository';
@@ -594,11 +595,11 @@ describe('LedgerPrismaRepository', () => {
   it('seeks past a ledger cursor rather than an offset (audit Q-16)', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(900);
-    const result = await repo.listForOwner('own-1', 45, 1, 'led-0');
+    const result = await repo.listForOwner('own-1', 45, 1, encodeCursor('led-0'));
     expect(model.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: { id: 'led-0' }, skip: 1, take: 1 }),
     );
-    expect(result.nextCursor).toBe(row.id);
+    expect(result.nextCursor).toBe(encodeCursor(row.id));
   });
 });
 

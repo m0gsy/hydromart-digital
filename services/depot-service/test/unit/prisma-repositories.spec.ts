@@ -1,4 +1,5 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
+import { encodeCursor } from '@hydromart/platform';
 import { ApprovalPrismaRepository } from '../../src/infrastructure/prisma/approval.prisma.repository';
 import { CashbookPrismaRepository } from '../../src/infrastructure/prisma/cashbook.prisma.repository';
 import { DepotTargetPrismaRepository } from '../../src/infrastructure/prisma/depot-target.prisma.repository';
@@ -1617,13 +1618,13 @@ describe('InventoryPrismaRepository', () => {
     const out = await repo.listForDepotMovements('depot-1', {
       page: 40,
       limit: 1,
-      cursor: 'mv-8',
+      cursor: encodeCursor('mv-8'),
     });
 
     expect(stockMovement.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: { id: 'mv-8' }, skip: 1, take: 1 }),
     );
-    expect(out.nextCursor).toBe('mv-9');
+    expect(out.nextCursor).toBe(encodeCursor('mv-9'));
   });
 
   it('lists one page of depot movements with item labels and filters', async () => {

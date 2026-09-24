@@ -1,4 +1,5 @@
 import { PaymentPrismaRepository } from '../../src/infrastructure/prisma/payment.prisma.repository';
+import { encodeCursor } from '@hydromart/platform';
 import { TaxSettingsPrismaRepository } from '../../src/infrastructure/prisma/tax-settings.prisma.repository';
 import {
   EXPIRABLE_PENDING_METHODS,
@@ -179,11 +180,14 @@ describe('PaymentPrismaRepository', () => {
   it('search seeks past a cursor rather than an offset (audit Q-16)', async () => {
     model.findMany.mockResolvedValue([fullRow()]);
     model.count.mockResolvedValue(900);
-    const out = await repo.search({ page: 30, limit: 1, cursor: 'pay-0' });
+    // CORE-6: the cursor is opaque now — a raw row id is not one, and the caller gets the
+    // page-number path instead of a 500 from inside Prisma.
+    const out = await repo.search({ page: 30, limit: 1, cursor: encodeCursor('pay-0') });
     expect(model.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: { id: 'pay-0' }, skip: 1, take: 1 }),
     );
-    expect(out.nextCursor).toBe(out.items[0].id);
+    // The handed-back cursor is the opaque form of that id, not the id itself (CORE-6).
+    expect(out.nextCursor).toBe(encodeCursor(out.items[0].id));
   });
 
   it('findByOrderIds reads the id set newest-first', async () => {

@@ -260,3 +260,27 @@ describe('redactAlertText', () => {
     expect(redactAlertText('failed at 2026-08-05 10:11:12')).toContain('2026-08-05');
   });
 });
+
+/*
+ * PLAT-7: the value pattern stopped at whitespace, which is right for a header and wrong
+ * for a quoted one — `"password": "hunter two"` redacted `hunter` and published ` two"`.
+ */
+describe('redactAlertText · quoted secrets (PLAT-7)', () => {
+  it('takes a quoted value to its closing quote, spaces and all', () => {
+    const out = redactAlertText('Error: {"password": "hunter two", "depotId": "d1"}');
+    expect(out).not.toContain('hunter');
+    expect(out).not.toContain('two');
+    // What is not a secret survives, or the alert stops being actionable.
+    expect(out).toContain('depotId');
+  });
+
+  it('still stops an unquoted value at whitespace, so the frame stays readable', () => {
+    const out = redactAlertText('x-internal-key: abc123 at Object.<anonymous>');
+    expect(out).not.toContain('abc123');
+    expect(out).toContain('at Object.');
+  });
+
+  it("handles single quotes the same way", () => {
+    expect(redactAlertText("secret: 'two words here' next")).not.toContain('words');
+  });
+});

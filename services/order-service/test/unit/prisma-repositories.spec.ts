@@ -1,4 +1,5 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
+import { encodeCursor } from '@hydromart/platform';
 import { CartPrismaRepository } from '../../src/infrastructure/prisma/cart.prisma.repository';
 import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/subscription.prisma.repository';
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
@@ -730,13 +731,13 @@ describe('OrderPrismaRepository', () => {
     order.findMany.mockResolvedValue(rows);
     order.count.mockResolvedValue(50);
 
-    const out = await repo.search({ page: 9, limit: 2, cursor: 'o-0' });
+    const out = await repo.search({ page: 9, limit: 2, cursor: encodeCursor('o-0') });
 
     // `page` is ignored once a cursor is given — honouring both would re-read or skip rows.
     expect(order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: { id: 'o-0' }, skip: 1, take: 2 }),
     );
-    expect(out.nextCursor).toBe('o-2');
+    expect(out.nextCursor).toBe(encodeCursor('o-2'));
   });
 
   // `subscriptionId: null` was added here in D1, and this assertion was inverted with it:

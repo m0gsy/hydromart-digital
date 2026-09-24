@@ -1,6 +1,6 @@
 import * as Joi from 'joi';
 
-import { optionalSecret, requiredSecret } from './env-secret';
+import { internalServiceKey, optionalSecret, requiredSecret } from './env-secret';
 
 const schema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
@@ -50,5 +50,50 @@ describe('optionalSecret', () => {
       INTERNAL_SERVICE_KEY: 'change-me-internal-service-key',
     });
     expect(error?.message).toMatch(/INTERNAL_SERVICE_KEY/);
+  });
+});
+
+/*
+ * CORE-4: the shared service-to-service key was `optionalSecret` in fifteen services and a
+ * bare `Joi.string().allow('')` in hr-service, so blank booted everywhere. Blank makes the
+ * internal guard fail closed — which sounds safe and is not: retention sweeps, PDP erasure
+ * fan-out and counter-sale resolution all quietly stop, each looking like a feature nobody
+ * wired rather than a secret nobody set.
+ */
+describe('internalServiceKey', () => {
+  const schema = Joi.object({
+    NODE_ENV: Joi.string().default('development'),
+    INTERNAL_SERVICE_KEY: internalServiceKey(),
+  });
+
+  it('lets a development box boot without one', () => {
+    expect(schema.validate({ INTERNAL_SERVICE_KEY: '' }).error).toBeUndefined();
+    expect(schema.validate({}).error).toBeUndefined();
+  });
+
+  it('refuses a production boot with none', () => {
+    const { error } = schema.validate({ NODE_ENV: 'production', INTERNAL_SERVICE_KEY: '' });
+    expect(error?.message).toMatch(/INTERNAL_SERVICE_KEY/);
+  });
+
+  it('refuses a production boot with the dev placeholder or a short key', () => {
+    expect(
+      schema.validate({
+        NODE_ENV: 'production',
+        INTERNAL_SERVICE_KEY: 'change-me-internal-service-key',
+      }).error?.message,
+    ).toMatch(/INTERNAL_SERVICE_KEY/);
+    expect(
+      schema.validate({ NODE_ENV: 'production', INTERNAL_SERVICE_KEY: 'short' }).error?.message,
+    ).toMatch(/INTERNAL_SERVICE_KEY/);
+  });
+
+  it('accepts a real key in production', () => {
+    expect(
+      schema.validate({
+        NODE_ENV: 'production',
+        INTERNAL_SERVICE_KEY: 'b7f3c2a9d1e84f60a5c7b8d9e0f1a2b3',
+      }).error,
+    ).toBeUndefined();
   });
 });
