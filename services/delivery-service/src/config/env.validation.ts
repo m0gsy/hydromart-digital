@@ -31,6 +31,9 @@ export const envValidationSchema = Joi.object({
   OPS_ALERT_PHONE: Joi.string().allow('').default(''),
   MAX_ACTIVE_DELIVERIES_PER_DRIVER: Joi.number().integer().positive().default(1),
   // How close to the depot a courier must stand to check in (design 3a).
+  // DLV-4: proof-of-delivery proximity. Enforcement ships OFF — see setting-defs.ts.
+  PROOF_RADIUS_M: Joi.number().integer().positive().default(500),
+  PROOF_RADIUS_ENFORCED: Joi.number().integer().min(0).max(1).default(0),
   SHIFT_CHECKIN_RADIUS_M: Joi.number().integer().positive().default(200),
   // Shift window length, frozen onto the shift at check-in. ponytail: derived from
   // check-in because there is no roster yet — a roster (design Operator 6d) would

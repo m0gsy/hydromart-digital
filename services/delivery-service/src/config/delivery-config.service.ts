@@ -75,6 +75,16 @@ export class DeliveryConfigService {
     );
   }
   /** How close to the depot a courier must be to check in, in metres. */
+  /** DLV-4: how far from the delivery address a proof may be captured. */
+  proofRadiusMeters(depotId: string | null = null): number {
+    return this.tunable('proofRadiusMeters', this.num('PROOF_RADIUS_M'), depotId);
+  }
+
+  /** DLV-4: whether that radius refuses the handover, or only records the distance. */
+  proofRadiusEnforced(depotId: string | null = null): boolean {
+    return this.tunable('proofRadiusEnforced', this.num('PROOF_RADIUS_ENFORCED'), depotId) === 1;
+  }
+
   shiftCheckInRadiusMeters(depotId: string | null = null): number {
     return this.tunable('shiftCheckInRadiusMeters', this.num('SHIFT_CHECKIN_RADIUS_M'), depotId);
   }

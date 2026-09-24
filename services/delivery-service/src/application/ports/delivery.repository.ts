@@ -3,6 +3,8 @@ import { ContactMethod, ContactState } from '../../domain/no-show';
 
 export interface ProofRecord {
   photoUrl: string;
+  /** DLV-4: metres from the delivery address; null when the order had no coordinates. */
+  distanceMeters?: number | null;
   signatureUrl: string | null;
   /**
    * K2.8: what the courier answered about the gallon seal, or NULL if nobody was asked.

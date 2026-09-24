@@ -240,6 +240,13 @@ model ProofOfDelivery {
   recipientName String
   latitude      Float
   longitude     Float
+  /// DLV-4: metres between where the courier said they were and where the order was going.
+  ///
+  /// The proof has always carried the courier's own GPS reading and nothing compared it to
+  /// the destination, so "delivered" could be stamped from the depot, from home, or from
+  /// anywhere at all. Null when the order had no pinned coordinates to measure against —
+  /// that is an address problem, not a courier one, and inventing a zero would hide it.
+  distanceMeters Int?
   note          String?
   /// K2.8: the courier's answer to the seal check the screen has always asked for.
   ///

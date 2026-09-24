@@ -43,6 +43,47 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 2000,
     envDefault: 200,
   },
+  /*
+   * DLV-4: how far from the delivery address a proof of delivery may be captured.
+   *
+   * The proof carries the courier's own GPS reading and nothing checked it against the
+   * address the order was going to — so "delivered" could be stamped from the depot, from
+   * home, or from anywhere at all, and the photo is of whatever the camera was pointed at.
+   * The coordinates are on the record precisely so somebody can ask this question.
+   *
+   * 500m, wider than the 200m check-in radius on purpose: a check-in happens at a depot
+   * whose coordinates the business set, while a delivery address is whatever the customer
+   * pinned — often the front of a gang, a kelurahan centroid, or a pin dropped indoors.
+   * Tunable per depot, and enforcement is per depot too (see `proofRadiusEnforced`).
+   */
+  {
+    key: 'proofRadiusMeters',
+    label: 'Radius bukti antar',
+    type: 'int',
+    unit: 'meter',
+    min: 50,
+    max: 5000,
+    envDefault: 500,
+  },
+  /*
+   * DLV-4: whether that radius REFUSES a handover or merely records the distance.
+   *
+   * Ships OFF, deliberately. Turning a geofence on for a live fleet with no measurement
+   * first is how couriers get locked out of deliveries they are standing at — a pinned
+   * address can be hundreds of metres from the door, and the failure lands on the person
+   * holding the gallon, not on whoever set the radius. Off, the distance is still computed
+   * and stored on every proof, which is what the audit asked for: the evidence exists and
+   * can be read. Head office turns refusal on per depot once it has looked at the numbers.
+   */
+  {
+    key: 'proofRadiusEnforced',
+    label: 'Tolak bukti di luar radius',
+    type: 'int',
+    unit: '0/1',
+    min: 0,
+    max: 1,
+    envDefault: 0,
+  },
   // Cap on how far back a queued offline capture (shift check-in, proof of delivery) may
   // date itself once the courier reconnects.
   {

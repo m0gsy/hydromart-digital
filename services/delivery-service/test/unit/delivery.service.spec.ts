@@ -83,6 +83,8 @@ describe('DeliveryService', () => {
   /** Same wiring, one tunable moved — for the gates that are per-depot settings. */
   let makeWithAttempts: (minAttempts: number) => DeliveryService;
   let makeWithNotifier: (notifier: unknown) => DeliveryService;
+  /** DLV-4: same wiring with the proof-radius tunables moved. */
+  let makeWithSettings: (over: Record<string, string>) => DeliveryService;
   let events: { publish: jest.Mock };
   let payments: FakeOrderPayment;
   let urbanSpeedKmph: number;
@@ -131,6 +133,17 @@ describe('DeliveryService', () => {
       );
     // Same wiring as `service`, plus a customer-notification double — built here because
     // `config` and `depots` are locals of this setup.
+    makeWithSettings = (over) =>
+      new DeliveryService(
+        repo,
+        orders,
+        payout,
+        shifts,
+        buildTestConfig({ DELIVERY_URBAN_SPEED_KMPH: '30', ...over }),
+        depots,
+        payments,
+        new FakeOrderLookup(),
+      );
     makeWithNotifier = (notifier) =>
       new DeliveryService(
         repo,
@@ -1214,4 +1227,83 @@ describe('DeliveryService', () => {
       expect(storage.signedUrl).not.toHaveBeenCalled();
     });
   });
+
+  describe('proof of delivery proximity (DLV-4)', () => {
+    const DESTINATION = { destinationLat: -6.9147, destinationLng: 107.6098 };
+    // ~2.5 km north of the destination: far enough that no pin error explains it.
+    const FAR = { ...PROOF, latitude: -6.8925, longitude: 107.6098 };
+
+    const arrive = async (svc: DeliveryService, over: Record<string, unknown> = DESTINATION) => {
+      const d = await svc.assign(
+        staff,
+        {
+          orderId: randomUUID(),
+          orderNumber: 'HM-1',
+          driverId: driver,
+          destinationAddress: 'Jl. Merdeka 10',
+          ...over,
+        } as never,
+        AUTH,
+      );
+      await svc.pickup(driver, d.id, AUTH);
+      await svc.start(driver, d.id, AUTH);
+      return d.id;
+    };
+    const proofOf = (id: string) => repo.rows.find((r) => r.id === id)?.proof as
+      | { distanceMeters?: number | null }
+      | null
+      | undefined;
+
+    it('records the distance on every proof, near or far', async () => {
+      const near = await arrive(service);
+      await service.complete(driver, near, PROOF, AUTH);
+      expect(proofOf(near)?.distanceMeters).toBe(0);
+
+      const far = await arrive(service);
+      await service.complete(driver, far, FAR, AUTH);
+      expect(proofOf(far)?.distanceMeters).toBeGreaterThan(2000);
+    });
+
+    // Ships off: turning a geofence on for a live fleet with no measurement first locks
+    // couriers out of deliveries they are standing at.
+    it('does not refuse a far handover while enforcement is off', async () => {
+      const id = await arrive(service);
+      await expect(service.complete(driver, id, FAR, AUTH)).resolves.toMatchObject({
+        status: DeliveryStatus.DELIVERED,
+      });
+    });
+
+    it('refuses it once head office turns enforcement on', async () => {
+      const strict = makeWithSettings({ PROOF_RADIUS_ENFORCED: '1', PROOF_RADIUS_M: '500' });
+      const id = await arrive(strict);
+      await expect(strict.complete(driver, id, FAR, AUTH)).rejects.toThrow(/alamat tujuan/i);
+    });
+
+    it('still accepts a handover at the door with enforcement on', async () => {
+      const strict = makeWithSettings({ PROOF_RADIUS_ENFORCED: '1', PROOF_RADIUS_M: '500' });
+      const id = await arrive(strict);
+      await expect(strict.complete(driver, id, PROOF, AUTH)).resolves.toMatchObject({
+        status: DeliveryStatus.DELIVERED,
+      });
+    });
+
+    // An order with no pinned coordinates is an address problem, not a courier one, and
+    // inventing a zero would hide it.
+    it('records null and refuses nothing when the order has no coordinates', async () => {
+      const strict = makeWithSettings({ PROOF_RADIUS_ENFORCED: '1' });
+      const id = await arrive(strict, {});
+      await expect(strict.complete(driver, id, FAR, AUTH)).resolves.toMatchObject({
+        status: DeliveryStatus.DELIVERED,
+      });
+      expect(proofOf(id)?.distanceMeters ?? null).toBeNull();
+    });
+  });
+
 });
+
+/*
+ * DLV-4. The proof carries the courier's own GPS reading, and nothing compared it to the
+ * address the order was going to — "delivered" could be stamped from the depot, from home,
+ * or from anywhere at all, and the photo is of whatever the camera was pointed at. The
+ * coordinates are on the record precisely so somebody can ask this question.
+ */
