@@ -181,6 +181,18 @@ groups:
         # window is deliberately long: a depot town at 03:00 has no orders and that is not
         # an incident, so this is scoped by an hour-of-day guard rather than a shorter window.
         #
+        # THE ROUTE LABEL IS THE REAL ONE. This selected `.*/orders` — a POST route that does
+        # not exist (order-service creates orders at `/orders/checkout` and `/orders/walk-in`,
+        # and the label is req.route.path, i.e. `/api/v1/orders/checkout`). Nothing matched, so
+        # `or vector(0)` made the alert fire EVERY business day whatever was ordered, and
+        # CheckoutFailing below could never fire at all. The promtool fixtures passed because
+        # they invented the label. scripts/check-alert-routes.mjs now checks every route
+        # selector here, and every route label in the fixtures, against the controllers.
+        #
+        # The guard starts at 04:00 UTC (11:00 WIB), not at opening: the window looks back two
+        # hours, so a guard from 02:00 UTC judged the pre-opening night as "no orders in two
+        # hours" and fired at 09:10 WIB any morning the first order came after that.
+        #
         # `or vector(0)` is load-bearing, not defensive. Without it this rule could not fire
         # on the one event it was written for. A counter whose label set has never been seen
         # is ABSENT, not zero: every deploy restarts the process, and until the first order
@@ -189,36 +201,37 @@ groups:
         # broke checkout produced exactly the silence this alert is deaf to. Proven with
         # promtool in ops/alert-rules.test.yml, which reported `got:[]` before this edit.
         expr: |
-          (sum(increase(http_request_duration_seconds_count{route=~".*/orders", method="POST"}[2h])) or vector(0)) == 0
-            and on() (hour() >= 2 < 13)
+          (sum(increase(http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)", method="POST"}[2h])) or vector(0)) == 0
+            and on() (hour() >= 4 < 13)
         for: 10m
         labels: { severity: critical }
         annotations:
           summary: 'No order has been created in 2 hours'
           description: >-
-            Nothing has POSTed an order for two hours during opening hours (09:00-20:00 WIB
-            = 02:00-13:00 UTC). Every service may be healthy and the business still stopped:
-            check the customer app can reach the gateway, and that a depot is open.
+            Nothing has POSTed an order for two hours since opening (checked 11:00-20:00 WIB
+            = 04:00-13:00 UTC, so the whole lookback is inside opening hours). Every service
+            may be healthy and the business still stopped: check the customer app can reach
+            the gateway, and that a depot is open.
 
       - alert: CheckoutFailing
         # Not the 5% all-traffic rate above: a checkout that fails 5% of the time is an
         # outage even while the service's overall error rate looks fine, because everything
         # else it serves is reads.
         expr: |
-          sum(rate(http_request_duration_seconds_count{route=~".*/orders", method="POST", status=~"5.."}[10m]))
-            / sum(rate(http_request_duration_seconds_count{route=~".*/orders", method="POST"}[10m]))
+          sum(rate(http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)", method="POST", status=~"5.."}[10m]))
+            / sum(rate(http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)", method="POST"}[10m]))
             > 0.05
         for: 5m
         labels: { severity: critical }
         annotations:
           summary: 'Checkout is failing for {{ $value | humanizePercentage }} of attempts'
-          description: 'POST /orders has been answering 5xx for more than 5% of attempts over 10m.'
+          description: 'POST /orders/checkout and /orders/walk-in have been answering 5xx for more than 5% of attempts over 10m.'
 
       - alert: PaymentConfirmFailing
         # The money leg. A sale that records and never settles is the defect that shows up
         # as a cash variance days later, in a shift nobody can reconstruct.
         expr: |
-          sum(rate(http_request_duration_seconds_count{route=~".*/payments/.*/confirm", status=~"5.."}[10m])) > 0
+          sum(rate(http_request_duration_seconds_count{route="/api/v1/payments/:id/confirm", status=~"5.."}[10m])) > 0
         for: 5m
         labels: { severity: critical }
         annotations:
@@ -233,7 +246,7 @@ groups:
         # has never swept since the last restart has no series at all, which is precisely
         # the state "it is up but doing nothing" produces.
         expr: |
-          (sum(increase(http_request_duration_seconds_count{route=~".*/internal/.*"}[1h])) or vector(0)) == 0
+          (sum(increase(http_request_duration_seconds_count{route=~"/api/v1/.*/internal/.*"}[1h])) or vector(0)) == 0
         for: 30m
         labels: { severity: warning }
         annotations:

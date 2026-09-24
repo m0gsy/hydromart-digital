@@ -9,8 +9,11 @@
 #
 # eval_time is seconds from epoch 0 = 1970-01-01T00:00:00 UTC, so `hour()` inside
 # NoOrdersCreated's opening-hours guard is literally the number of hours into the test.
-# 3h therefore lands inside the 02:00-13:00 UTC window the alert is scoped to; 14h and 1h
-# land outside it, which is what makes the guard itself testable.
+# 5h therefore lands inside the 04:00-13:00 UTC window the alert is scoped to; 14h, 3h and 1h
+# land outside it, which is what makes the guard itself testable. Every route label below is
+# a REAL one (scripts/check-alert-routes.mjs fails on an invented label): the first version of
+# this file wrote route="/orders", a route that does not exist, so it proved that a rule that
+# selected nothing could fire.
 rule_files:
   - alert-rules.yml
 
@@ -22,7 +25,7 @@ tests:
     name: no series at all — the shape a deploy leaves behind
     # THE CASE THIS FILE EXISTS FOR. A counter with a label set that has never been observed
     # is not zero, it is ABSENT: every deploy resets the process and, until the first order
-    # of the day, `http_request_duration_seconds_count{route=~".*/orders"}` does not exist.
+    # of the day, `http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)"}` does not exist.
     # `sum()` over nothing returns an empty vector, and `empty == 0` compares nothing and
     # matches nothing. So the alert built to notice "checkout stopped" was structurally
     # blind to a release that broke checkout — the one occasion it was written for.
@@ -31,42 +34,67 @@ tests:
     # route carries the clock. That is also what production looks like: the gateway is busy,
     # nobody is ordering.
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/products", method="GET", status="200"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
         values: '0+3x400'
     alert_rule_test:
-      - eval_time: 3h
+      - eval_time: 5h
         alertname: NoOrdersCreated
         exp_alerts:
           - exp_labels: { severity: critical }
             exp_annotations:
               summary: 'No order has been created in 2 hours'
               description: >-
-                Nothing has POSTed an order for two hours during opening hours (09:00-20:00 WIB
-                = 02:00-13:00 UTC). Every service may be healthy and the business still stopped:
-                check the customer app can reach the gateway, and that a depot is open.
+                Nothing has POSTed an order for two hours since opening (checked 11:00-20:00 WIB
+                = 04:00-13:00 UTC, so the whole lookback is inside opening hours). Every service
+                may be healthy and the business still stopped: check the customer app can reach
+                the gateway, and that a depot is open.
 
   - interval: 1m
     name: the series exists and is flat — the case that always worked
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/orders", method="POST", status="201"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
         values: '7+0x400'
     alert_rule_test:
-      - eval_time: 3h
+      - eval_time: 5h
         alertname: NoOrdersCreated
         exp_alerts:
           - exp_labels: { severity: critical }
             exp_annotations:
               summary: 'No order has been created in 2 hours'
               description: >-
-                Nothing has POSTed an order for two hours during opening hours (09:00-20:00 WIB
-                = 02:00-13:00 UTC). Every service may be healthy and the business still stopped:
-                check the customer app can reach the gateway, and that a depot is open.
+                Nothing has POSTed an order for two hours since opening (checked 11:00-20:00 WIB
+                = 04:00-13:00 UTC, so the whole lookback is inside opening hours). Every service
+                may be healthy and the business still stopped: check the customer app can reach
+                the gateway, and that a depot is open.
 
   - interval: 1m
     name: orders are flowing — stays quiet
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/orders", method="POST", status="201"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
         values: '0+2x400'
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: NoOrdersCreated
+        exp_alerts: []
+
+  - interval: 1m
+    name: walk-in counter sales count as orders — stays quiet
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/walk-in", method="POST", status="201"}'
+        values: '0+1x400'
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: NoOrdersCreated
+        exp_alerts: []
+
+  - interval: 1m
+    name: silent at 03:00 UTC — the two-hour lookback still reaches the night, so stay quiet
+    # 03:00 UTC is 10:00 WIB. Looking back two hours from here is 08:00-10:00 WIB: the depot
+    # opening and the overnight quiet before it. The guard used to start at 02:00 UTC and this
+    # fired at 09:10 WIB on any morning the first order came later than that.
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
+        values: '0+3x400'
     alert_rule_test:
       - eval_time: 3h
         alertname: NoOrdersCreated
@@ -77,7 +105,7 @@ tests:
     # The guard is half the alert: a depot town at 08:00 WIB has no orders and that is not an
     # incident. If the fix below broke the guard, this is what would catch it.
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/products", method="GET", status="200"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
         values: '0+3x200'
     alert_rule_test:
       - eval_time: 1h
@@ -88,7 +116,7 @@ tests:
   - interval: 1m
     name: scheduler has never been observed — same absence, no hour guard to hide behind
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/products", method="GET", status="200"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
         values: '0+3x400'
     alert_rule_test:
       - eval_time: 3h
@@ -104,7 +132,7 @@ tests:
   - interval: 1m
     name: sweeps are running — stays quiet
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/internal/sweep", method="POST", status="200"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/internal/expire-abandoned", method="POST", status="200"}'
         values: '0+1x400'
     alert_rule_test:
       - eval_time: 3h
@@ -235,9 +263,9 @@ tests:
   - interval: 1m
     name: half of the responses from a service are 5xx
     input_series:
-      - series: 'http_request_duration_seconds_count{service="order-service", status="500", route="/orders", method="POST"}'
+      - series: 'http_request_duration_seconds_count{service="order-service", status="500", route="/api/v1/orders/checkout", method="POST"}'
         values: '0+60x20'
-      - series: 'http_request_duration_seconds_count{service="order-service", status="200", route="/orders", method="POST"}'
+      - series: 'http_request_duration_seconds_count{service="order-service", status="200", route="/api/v1/orders/checkout", method="POST"}'
         values: '0+60x20'
     alert_rule_test:
       - eval_time: 15m
@@ -253,9 +281,9 @@ tests:
     # The near-miss that matters: 4% is a bad afternoon, 5% is the page. A rule that fired
     # here would wake somebody every day and stop being read.
     input_series:
-      - series: 'http_request_duration_seconds_count{service="order-service", status="500", route="/orders", method="POST"}'
+      - series: 'http_request_duration_seconds_count{service="order-service", status="500", route="/api/v1/orders/checkout", method="POST"}'
         values: '0+4x20'
-      - series: 'http_request_duration_seconds_count{service="order-service", status="200", route="/orders", method="POST"}'
+      - series: 'http_request_duration_seconds_count{service="order-service", status="200", route="/api/v1/orders/checkout", method="POST"}'
         values: '0+96x20'
     alert_rule_test:
       - eval_time: 15m
@@ -447,9 +475,9 @@ tests:
   - interval: 1m
     name: one checkout in five is answering 5xx
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="POST", status="500"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="500"}'
         values: '0+20x30'
-      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="POST", status="201"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
         values: '0+80x30'
     alert_rule_test:
       - eval_time: 20m
@@ -458,7 +486,23 @@ tests:
           - exp_labels: { severity: critical }
             exp_annotations:
               summary: 'Checkout is failing for 20% of attempts'
-              description: 'POST /orders has been answering 5xx for more than 5% of attempts over 10m.'
+              description: 'POST /orders/checkout and /orders/walk-in have been answering 5xx for more than 5% of attempts over 10m.'
+
+  - interval: 1m
+    name: counter-sale (walk-in) failures fire the checkout alert too
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/walk-in", method="POST", status="500"}'
+        values: '0+50x30'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/walk-in", method="POST", status="201"}'
+        values: '0+50x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: CheckoutFailing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: 'Checkout is failing for 50% of attempts'
+              description: 'POST /orders/checkout and /orders/walk-in have been answering 5xx for more than 5% of attempts over 10m.'
 
   - interval: 1m
     name: 5xx everywhere EXCEPT checkout does not fire the checkout alert
@@ -470,7 +514,7 @@ tests:
         values: '0+100x30'
       - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="GET", status="500"}'
         values: '0+100x30'
-      - series: 'http_request_duration_seconds_count{route="/api/v1/orders", method="POST", status="201"}'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
         values: '0+100x30'
     alert_rule_test:
       - eval_time: 20m
