@@ -1791,6 +1791,8 @@ export const hq = {
       legal: 'Verifikasi dokumen legal',
       survey: 'Survei lokasi & radius layanan',
       provision: 'Provision depot di sistem',
+      hours: 'Isi jam operasional',
+      owner: 'Tetapkan pemilik waralaba',
       stock: 'Isi stok awal & harga',
       staff: 'Onboarding staf & kurir',
       payments: 'Aktifkan kanal pembayaran',

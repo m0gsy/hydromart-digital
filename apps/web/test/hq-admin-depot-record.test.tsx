@@ -153,15 +153,46 @@ describe('hq/depots/detail reads the admin record', () => {
 });
 
 describe('hq/onboarding counts the payment step', () => {
-  it('ticks payments once the depot has a bank account', async () => {
+  // The fixture depot is a franchise depot (so the owner step applies) that entered a bank
+  // account but no opening hours — which is exactly the shape the checklist used to call ready.
+  const HOURS = { mon: { open: '08:00', close: '21:00' } };
+
+  it('ticks payments once the depot has a bank account, and does not tick hours it never entered', async () => {
     serveDepot();
     renderPage(<HqOnboardingPage />);
 
     const select = await screen.findByRole('combobox');
     await userEvent.setup().selectOptions(select, 'dep-1');
 
-    // 6 of 6. Read off the public projection the payment step can never tick, whatever
-    // the depot's actual setup — the checklist is stuck one short forever.
-    expect(await screen.findByText('6/6 langkah selesai')).toBeTruthy();
+    // 7 of 8: legal, survey, provision, owner, stock, staff and payments — but NOT hours.
+    // Read off the public projection the payment step can never tick, whatever the depot's
+    // actual setup — the checklist is stuck one short forever; and a depot with no opening
+    // hours (`{}` means shut) used to read as fully ready.
+    expect(await screen.findByText('7/8 langkah selesai')).toBeTruthy();
+  });
+
+  it('is complete once the depot has entered its opening hours', async () => {
+    serveDepot({ ...ADMIN_ROW, operatingHours: HOURS } as typeof ADMIN_ROW);
+    renderPage(<HqOnboardingPage />);
+
+    const select = await screen.findByRole('combobox');
+    await userEvent.setup().selectOptions(select, 'dep-1');
+
+    expect(await screen.findByText('8/8 langkah selesai')).toBeTruthy();
+  });
+
+  it('leaves the owner step out for a company depot', async () => {
+    serveDepot({
+      ...ADMIN_ROW,
+      ownershipType: 'HKP',
+      ownerId: null,
+      operatingHours: HOURS,
+    } as unknown as typeof ADMIN_ROW);
+    renderPage(<HqOnboardingPage />);
+
+    const select = await screen.findByRole('combobox');
+    await userEvent.setup().selectOptions(select, 'dep-1');
+
+    expect(await screen.findByText('7/7 langkah selesai')).toBeTruthy();
   });
 });

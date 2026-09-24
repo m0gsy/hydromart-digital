@@ -1779,6 +1779,8 @@ export const hq = {
       legal: 'Verify legal documents',
       survey: 'Site survey & service radius',
       provision: 'Provision depot in the system',
+      hours: 'Enter opening hours',
+      owner: 'Assign the franchise owner',
       stock: 'Load opening stock & prices',
       staff: 'Onboard staff & couriers',
       payments: 'Activate payment channel',
