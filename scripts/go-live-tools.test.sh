@@ -77,8 +77,16 @@ if ! docker run -d --name "$PG" -e POSTGRES_USER=hydromart -e POSTGRES_PASSWORD=
   echo "  SKIPPED — could not start postgres:16-alpine (no image and no network?)."
   [ "$fails" -eq 0 ] && { echo "go-live tools: static checks passed"; exit 0; } || exit 1
 fi
-for _ in $(seq 1 40); do
-  docker exec "$PG" pg_isready -U hydromart >/dev/null 2>&1 && break
+# The image starts a TEMPORARY server to run its init step, answers pg_isready, then shuts it
+# down and starts the real one. Creating databases in that gap fails with "server closed the
+# connection unexpectedly" (it did, on the CI runner). The line below is printed only once the
+# real server is about to start, and the count of "ready to accept connections" reaches two.
+for _ in $(seq 1 90); do
+  if docker logs "$PG" 2>&1 | grep -q 'PostgreSQL init process complete' &&
+    [ "$(docker logs "$PG" 2>&1 | grep -c 'ready to accept connections')" -ge 2 ] &&
+    docker exec "$PG" pg_isready -U hydromart >/dev/null 2>&1; then
+    break
+  fi
   sleep 1
 done
 
