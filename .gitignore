@@ -104,3 +104,10 @@ apk-build*.log
 # carried the absolute paths of the laptop that produced it, node install and all.
 full.json
 solo.json
+
+# Scratch output of one-off audits and coverage runs. Once committed by accident (a 1.2 MB jest
+# --json dump with the developer machine paths in it); a checked-in artifact is never read again.
+/tmp-hr.json
+/.audit-endpoints.json
+/.audit_tmp/
+**/.cov-full/
