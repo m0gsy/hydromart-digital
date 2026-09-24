@@ -5,6 +5,7 @@ import { PaymentController } from '../../src/modules/payment.controller';
 import { TaxController } from '../../src/modules/tax.controller';
 import { HealthController } from '../../src/modules/health.controller';
 import type { PaymentService } from '../../src/application/services/payment.service';
+import type { PaymentProofRetentionService } from '../../src/application/services/payment-proof-retention.service';
 import type { TaxSettingsService } from '../../src/application/services/tax-settings.service';
 import type { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import type { AuthenticatedUser } from '@hydromart/platform';
@@ -51,14 +52,23 @@ describe('PaymentController', () => {
     remove: jest.fn().mockResolvedValue(undefined),
     signedUrl: jest.fn().mockResolvedValue('https://signed/payment-proof/a.png?X-Amz-Expires=900'),
   };
+  const proofRetention = { purgeOlderThan: jest.fn().mockResolvedValue({ purged: 4 }) };
   const controller = new PaymentController(
     svc as unknown as PaymentService,
+    proofRetention as unknown as PaymentProofRetentionService,
     storage as unknown as StoragePort,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
     Object.values(svc).forEach((fn) => fn.mockResolvedValue('RESULT'));
+  });
+
+  // UU PDP: the retention sweep hands over the policy's cutoff and gets the count back.
+  it('purges receipt photos older than the policy cutoff and reports how many', async () => {
+    const cutoff = '2025-09-25T00:00:00.000Z';
+    await expect(controller.purgeProofs({ cutoff })).resolves.toEqual({ purged: 4 });
+    expect(proofRetention.purgeOlderThan).toHaveBeenCalledWith(new Date(cutoff));
   });
 
   // O5: the screen needs one answer to "which methods can this take", and there was no

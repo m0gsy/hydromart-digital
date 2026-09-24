@@ -105,6 +105,22 @@ export interface PaymentRepository {
    */
   attachProof(id: string, proofUrl: string): Promise<PaymentRecord>;
 
+  /**
+   * Retention: payments whose receipt photo is past its window, oldest first, bounded.
+   *
+   * The window runs from settlement (`paidAt`), falling back to `createdAt` for a transfer
+   * that was never confirmed — a receipt uploaded against a payment nobody settled is still a
+   * photograph of somebody's banking app, and it has no other clock. Only rows that STILL hold
+   * a proof are returned, which is what makes the sweep resumable: a row leaves this list the
+   * moment its pointer is cleared.
+   */
+  findProofsSettledBefore(
+    cutoff: Date,
+    limit: number,
+  ): Promise<{ id: string; proofUrl: string }[]>;
+  /** Drop the receipt pointer once the object is gone. The payment row itself is kept. */
+  clearProof(id: string): Promise<void>;
+
   create(data: CreatePaymentData): Promise<PaymentRecord>;
   findById(id: string): Promise<PaymentRecord | null>;
   /** Active = PENDING or PAID. Used to enforce one live payment per order. */

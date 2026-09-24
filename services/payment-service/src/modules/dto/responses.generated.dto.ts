@@ -175,6 +175,12 @@ export class RefundCountsResponseDto {
   customers!: RefundCountRowResponseDto[];
 }
 
+/** What one receipt-photo retention sweep removed. `purged` is the key the purge executor reads. */
+export class PurgeProofsResponseDto {
+  @ApiProperty({ type: Number, description: 'Receipt photos deleted on this call.' })
+  purged!: number;
+}
+
 /** K2.2: what one stale-payment sweep did, in the shape J7 gave every sweep. */
 export class ExpirePendingPaymentsResponseDto {
   @ApiProperty({ type: Number, description: 'Stale PENDING payments failed on this tick.' })

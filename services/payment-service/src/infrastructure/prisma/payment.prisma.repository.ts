@@ -343,6 +343,26 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return this.toRecord(row);
   }
 
+  async findProofsSettledBefore(
+    cutoff: Date,
+    limit: number,
+  ): Promise<{ id: string; proofUrl: string }[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        proofUrl: { not: null },
+        OR: [{ paidAt: { lt: cutoff } }, { paidAt: null, createdAt: { lt: cutoff } }],
+      },
+      select: { id: true, proofUrl: true },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.flatMap((r) => (r.proofUrl ? [{ id: r.id, proofUrl: r.proofUrl }] : []));
+  }
+
+  async clearProof(id: string): Promise<void> {
+    await this.prisma.payment.update({ where: { id }, data: { proofUrl: null } });
+  }
+
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {
     const row = await this.prisma.payment.update({ where: { id }, data: patch });
     return this.toRecord(row);

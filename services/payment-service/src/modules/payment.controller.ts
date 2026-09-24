@@ -41,6 +41,8 @@ import {
 
 import { PAYMENT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
+import { proofKeyFromUrl } from '../domain/payment-proof';
+import { PaymentProofRetentionService } from '../application/services/payment-proof-retention.service';
 import { MulterExceptionFilter } from './multer-exception.filter';
 
 import {
@@ -64,6 +66,7 @@ import {
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentsForOrdersDto,
+  PurgeProofsDto,
   DepotRefundsQueryDto,
   RefundCountsQueryDto,
   PaymentWebhookDto,
@@ -82,6 +85,7 @@ import {
   PagedPaymentResponseDto,
   PagedRefundQueueResponseDto,
   PaymentResponseDto,
+  PurgeProofsResponseDto,
   DepotRefundsResponseDto,
   RefundCountsResponseDto,
   UnsettledMethodAggregateResponseDto,
@@ -100,12 +104,6 @@ const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 /** PAY-1: long enough to open the receipt, short enough not to outlive the screen. */
 const PROOF_LINK_TTL_SECONDS = 15 * 60;
 
-/** Both adapters build `<base>[/uploads]/payment-proof/<uuid>.<ext>`; the key starts there. */
-export function proofKeyFromUrl(url: string): string | null {
-  const at = url.indexOf('payment-proof/');
-  return at === -1 ? null : url.slice(at);
-}
-
 @ApiTags('Payments')
 @ApiBearerAuth()
 @Controller({ path: 'payments', version: '1' })
@@ -114,6 +112,7 @@ export class PaymentController {
 
   constructor(
     private readonly payments: PaymentService,
+    private readonly proofRetention: PaymentProofRetentionService,
     @Inject(PAYMENT_TOKENS.Storage) private readonly storage: StoragePort,
   ) {}
 
@@ -181,6 +180,22 @@ export class PaymentController {
   @ApiOperation({ summary: 'Fail non-cash payments left PENDING too long (internal service auth)' })
   expirePending(): Promise<PaymentExpirySweepResult> {
     return this.payments.expireStalePending(new Date());
+  }
+
+  /**
+   * UU PDP retention for transfer receipts, driven by admin-service's purge engine
+   * (dataset `payment_proof`). The cutoff is the policy's, not this service's; the payment row
+   * stays as a financial record and only the photo of somebody's banking app goes.
+   */
+  @ApiOkResponse({ type: PurgeProofsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/purge-proofs')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete receipt photos older than the cutoff (internal, UU PDP)' })
+  async purgeProofs(@Body() dto: PurgeProofsDto): Promise<{ purged: number }> {
+    return this.proofRetention.purgeOlderThan(new Date(dto.cutoff));
   }
 
   /**

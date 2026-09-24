@@ -12,10 +12,11 @@ import { RemotePurgeExecutor } from './remote-purge.executor';
  * to make visible, so keep them in step. Datasets absent from this list are reported as
  * UNENFORCED by the sweep rather than skipped quietly.
  *
- * Deliberately short: the two datasets here are pure history (a security trail and
- * message history). Business records — orders, deliveries, stock — are NOT enforced from
- * a central sweep, because deleting them touches money and inventory and needs its own
- * decision per service, not a generic loop.
+ * Deliberately limited to data that is not a business record: history (a security trail,
+ * message history), evidence photos, and personal data of people who never became customers.
+ * Business records — orders, deliveries, stock, payments — are NOT enforced from a central
+ * sweep, because deleting them touches money and inventory and needs its own decision per
+ * service, not a generic loop.
  */
 const REMOTE_DATASETS = [
   {
@@ -36,6 +37,29 @@ const REMOTE_DATASETS = [
     dataset: 'proof_of_delivery',
     envKey: 'DELIVERY_SERVICE_URL',
     path: '/api/v1/proofs/purge-expired',
+    mode: 'DELETE',
+  },
+  /*
+   * CA-3-07 / CA-3-53 — the two promises the privacy policy makes in writing and no executor
+   * kept. Both had a policy row (migration 20260902140000) and nothing to run it, so the sweep
+   * reported them UNENFORCED while the public text said "dihapus".
+   *
+   * payment_proof: the transfer receipt a customer uploads, 12 months. The payment ROW is a
+   * financial record and stays; only the photo (and the pointer to it) goes.
+   */
+  {
+    dataset: 'payment_proof',
+    envKey: 'PAYMENT_SERVICE_URL',
+    path: '/api/v1/payments/internal/purge-proofs',
+    mode: 'DELETE',
+  },
+  // franchise_applications_rejected: name, WhatsApp number and a GPS pin of somebody we told no,
+  // 24 months from the decision. Approved applications are the paper trail of how a depot came
+  // to exist and are not touched; a pending one has no clock yet.
+  {
+    dataset: 'franchise_applications_rejected',
+    envKey: 'DEPOT_SERVICE_URL',
+    path: '/api/v1/franchise-applications/internal/purge-rejected',
     mode: 'DELETE',
   },
   // Departed employee records: identity stripped, biometrics/attendance/reviews deleted,

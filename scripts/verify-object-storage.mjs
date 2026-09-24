@@ -35,8 +35,9 @@ import {
   PutObjectCommand,
   PutBucketAclCommand,
   PutBucketPolicyCommand,
-  PutBucketLifecycleConfigurationCommand,
 } from '@aws-sdk/client-s3';
+
+import { EVIDENCE_PREFIXES, applyRules, evidenceRules } from './lib/s3-lifecycle.mjs';
 
 const env = (k) => {
   const v = process.env[k];
@@ -84,7 +85,9 @@ async function main() {
     );
     console.log('✓ public-read bucket policy set');
   } catch (e) {
-    console.warn(`! could not set bucket policy (${e.name}); set public access in the console instead`);
+    console.warn(
+      `! could not set bucket policy (${e.name}); set public access in the console instead`,
+    );
   }
 
   // 1b) …and take the LISTING back. The policy above grants `s3:GetObject` only; a bucket
@@ -97,27 +100,25 @@ async function main() {
     console.warn(`! could not set bucket ACL (${e.name}); set it to private in the console`);
   }
 
-  // 1b) UU PDP retention: bucket lifecycle rule expiring pod/* after the window.
-  //     Only applies to the pod bucket (prefix-filtered, so harmless elsewhere).
+  // 1b) UU PDP retention: expire the evidence prefixes (pod/, payment-proof/) after the window.
+  //     Prefix-filtered, so harmless in a bucket that holds neither. MERGED into the bucket's
+  //     existing rules — this used to Put a single pod/ rule, replacing everything else — and
+  //     old versions expire too, because with versioning on a plain expiry only adds a delete
+  //     marker and the bytes stay behind.
   try {
-    await client.send(
-      new PutBucketLifecycleConfigurationCommand({
-        Bucket: bucket,
-        LifecycleConfiguration: {
-          Rules: [
-            {
-              ID: 'expire-pod-uu-pdp',
-              Status: 'Enabled',
-              Filter: { Prefix: 'pod/' },
-              Expiration: { Days: retentionDays },
-            },
-          ],
-        },
-      }),
+    const rules = evidenceRules({
+      prefixes: EVIDENCE_PREFIXES,
+      days: retentionDays,
+      idPrefix: 'expire-evidence',
+    });
+    const outcome = await applyRules(client, bucket, rules, { retire: ['expire-pod-uu-pdp'] });
+    console.log(
+      `✓ lifecycle rules ${outcome}: expire ${EVIDENCE_PREFIXES.join(', ')} after ${retentionDays}d`,
     );
-    console.log(`✓ lifecycle rule set: expire pod/* after ${retentionDays}d`);
   } catch (e) {
-    console.warn(`! could not set lifecycle rule (${e.name}); set pod/* expiry ${retentionDays}d in the console`);
+    console.warn(
+      `! could not set lifecycle rules (${e.name}); set ${EVIDENCE_PREFIXES.join(', ')} expiry ${retentionDays}d in the console`,
+    );
   }
 
   // 2) Upload a probe object (mirrors the adapter's key shape / content-type).
@@ -139,7 +140,9 @@ async function main() {
   const res = await fetch(url);
   const got = Buffer.from(await res.arrayBuffer());
   if (res.status !== 200) {
-    console.error(`✗ public GET ${url} -> ${res.status} (bucket not public, or STORAGE_PUBLIC_BASE_URL wrong)`);
+    console.error(
+      `✗ public GET ${url} -> ${res.status} (bucket not public, or STORAGE_PUBLIC_BASE_URL wrong)`,
+    );
     process.exit(1);
   }
   if (!got.equals(body)) {

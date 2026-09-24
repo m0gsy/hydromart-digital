@@ -37,6 +37,21 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return row;
   }
 
+  async findProofsSettledBefore(
+    cutoff: Date,
+    limit: number,
+  ): Promise<{ id: string; proofUrl: string }[]> {
+    return this.rows
+      .filter((r) => r.proofUrl && (r.paidAt ?? r.createdAt) < cutoff)
+      .slice(0, limit)
+      .map((r) => ({ id: r.id, proofUrl: r.proofUrl as string }));
+  }
+
+  async clearProof(id: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === id);
+    if (row) row.proofUrl = null;
+  }
+
   async create(data: CreatePaymentData): Promise<PaymentRecord> {
     const now = nextDate();
     const rec: PaymentRecord = {

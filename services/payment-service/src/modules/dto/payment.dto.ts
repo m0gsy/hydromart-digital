@@ -344,6 +344,17 @@ export class DepotRefundsQueryDto {
   to!: string;
 }
 
+/**
+ * Retention sweep body. admin-service computes the cutoff from the `payment_proof` policy;
+ * payment-service owns the rows and never the rule — the same shape as delivery-service's
+ * `PurgeProofsDto`, because it is the same purge engine on the other end.
+ */
+export class PurgeProofsDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601()
+  cutoff!: string;
+}
+
 /** PAY-1: the proof as a link that expires; null when the payment carries none. */
 export class ProofLinkResponseDto {
   @ApiProperty({ type: String, nullable: true })

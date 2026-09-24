@@ -10,6 +10,7 @@ import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { StoragePort } from '../application/ports/storage.port';
 import { PAYMENT_TOKENS } from '../application/tokens';
 import { PaymentService } from '../application/services/payment.service';
+import { PaymentProofRetentionService } from '../application/services/payment-proof-retention.service';
 import { TaxSettingsService } from '../application/services/tax-settings.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { PaymentPrismaRepository } from '../infrastructure/prisma/payment.prisma.repository';
@@ -25,6 +26,7 @@ const providers: Provider[] = [
   PrismaService,
   PaymentConfigService,
   PaymentService,
+  PaymentProofRetentionService,
   TaxSettingsService,
   { provide: PAYMENT_TOKENS.PaymentRepository, useClass: PaymentPrismaRepository },
   { provide: PAYMENT_TOKENS.TaxSettingsRepository, useClass: TaxSettingsPrismaRepository },

@@ -38,8 +38,15 @@
  * THE REFUSAL THAT MATTERS: this never deletes anything at the destination. A "sync" that
  * mirrors deletions faithfully reproduces the accident you are backing up against — somebody
  * deletes a prefix, the next run deletes the copy, and the backup is a second casualty rather
- * than the recovery. Objects that vanish upstream stay here. The bucket therefore grows
- * monotonically; that is the intended trade, and the destination has a lifecycle rule.
+ * than the recovery. Objects that vanish upstream stay here.
+ *
+ * The one bounded exception is the privacy policy's 12 months. `pod/` and `payment-proof/`
+ * hold photographs of people and of their banking apps, and the policy promises they are
+ * deleted; a backup that keeps them forever makes that sentence false. So the DESTINATION
+ * carries lifecycle rules (set below, by this script, never a delete call): the copy of those
+ * two prefixes expires `EVIDENCE_BACKUP_DAYS` days after it was written — the source's 365 plus a
+ * month of margin — and the source buckets get the same rule at 365. Everything else, the
+ * catalogue images and QR codes and avatars, still only grows.
  *
  * Incremental by (key, size). Two objects with the same key and the same byte count are taken
  * to be the same object — these are write-once uploads under a uuid-shaped key, not files that
@@ -54,6 +61,16 @@ import {
   GetBucketVersioningCommand,
   PutBucketVersioningCommand,
 } from '@aws-sdk/client-s3';
+
+import {
+  EVIDENCE_BACKUP_DAYS,
+  EVIDENCE_DAYS,
+  EVIDENCE_PREFIXES,
+  alreadyApplied,
+  applyRules,
+  evidenceRules,
+  mergeRules,
+} from './lib/s3-lifecycle.mjs';
 
 /*
  * Pure, so it can be tested without a bucket. Returns the objects that still have to move.
@@ -188,6 +205,93 @@ if (process.argv.includes('--self-test')) {
       sources({ ...env({ AUTH: 'a', PRODUCT: 'p', DELIVERY: 'd' }), HR_STORAGE_S3_BUCKET: 'h' }),
     /HR_STORAGE_S3_BUCKET is set but its key pair is not/,
   );
+
+  // Lifecycle rules. PutBucketLifecycleConfiguration REPLACES the rule set, so three scripts
+  // each writing their own rule deleted each other's; these are the properties that stop it.
+  const keep = { ID: 'expire-noncurrent', Status: 'Enabled', Filter: { Prefix: '' } };
+  const ours = evidenceRules({ prefixes: ['pod/', 'payment-proof/'], days: 365, idPrefix: 'x' });
+  assert.deepEqual(
+    ours.map((r) => r.ID),
+    ['x-pod', 'x-payment-proof'],
+  );
+  assert.equal(ours[0].Expiration.Days, 365);
+  assert.equal(
+    ours[0].NoncurrentVersionExpiration.NoncurrentDays,
+    30,
+    'old versions must go too, or a versioned bucket keeps the bytes behind a delete marker',
+  );
+  // Somebody else's rule survives; ours are added.
+  assert.deepEqual(
+    mergeRules([keep], ours).map((r) => r.ID),
+    ['expire-noncurrent', 'x-pod', 'x-payment-proof'],
+  );
+  // The same ID is replaced in place, never duplicated.
+  const stale = { ...ours[0], Expiration: { Days: 999 } };
+  const merged = mergeRules([stale, keep], ours);
+  assert.equal(merged.filter((r) => r.ID === 'x-pod').length, 1);
+  assert.equal(merged.find((r) => r.ID === 'x-pod').Expiration.Days, 365);
+  // A renamed rule from an earlier version is retired, not left overlapping the new one.
+  assert.deepEqual(
+    mergeRules([{ ID: 'expire-pod-uu-pdp' }, keep], ours, ['expire-pod-uu-pdp']).map((r) => r.ID),
+    ['expire-noncurrent', 'x-pod', 'x-payment-proof'],
+  );
+  // Idempotent: applying what is already there must not write again.
+  assert.equal(alreadyApplied(mergeRules([keep], ours), ours), true);
+  assert.equal(alreadyApplied([keep], ours), false);
+  assert.equal(alreadyApplied([stale, ...ours.slice(1)], ours), false);
+  assert.equal(alreadyApplied(mergeRules([{ ID: 'old' }], ours), ours, ['old']), false);
+  // The copy must outlive the source by a margin, never the other way round, and the source
+  // window is the one the privacy policy states.
+  assert.equal(EVIDENCE_DAYS, 365);
+  assert.ok(EVIDENCE_BACKUP_DAYS > EVIDENCE_DAYS);
+  assert.deepEqual(EVIDENCE_PREFIXES, ['pod/', 'payment-proof/']);
+
+  // applyRules against a stand-in bucket: what it reads, what it writes, and when it writes.
+  const fakeBucket = (initial) => {
+    const state = { rules: initial, puts: 0, missing: initial === null };
+    return {
+      state,
+      send: async (command) => {
+        const kind = command.constructor.name;
+        if (kind === 'GetBucketLifecycleConfigurationCommand') {
+          if (state.missing) {
+            throw Object.assign(new Error('none'), { name: 'NoSuchLifecycleConfiguration' });
+          }
+          return { Rules: state.rules };
+        }
+        state.puts += 1;
+        state.missing = false;
+        state.rules = command.input.LifecycleConfiguration.Rules;
+        return {};
+      },
+    };
+  };
+  const bare = fakeBucket(null);
+  assert.equal(await applyRules(bare, 'b', ours), 'set (2 rule(s) in total)');
+  assert.equal(bare.state.puts, 1, 'a bucket with no rules gets them');
+  assert.equal(await applyRules(bare, 'b', ours), 'already set');
+  assert.equal(bare.state.puts, 1, 'the second night must not write again');
+
+  const shared = fakeBucket([keep]);
+  await applyRules(shared, 'b', ours);
+  assert.ok(
+    shared.state.rules.some((r) => r.ID === 'expire-noncurrent'),
+    'the rule s3-prune wrote must survive — it used to be wiped and re-added each night',
+  );
+  assert.equal(shared.state.rules.length, 3);
+
+  const looking = fakeBucket([keep]);
+  assert.equal(await applyRules(looking, 'b', ours, { dryRun: true }), 'NOT set yet (dry run)');
+  assert.equal(looking.state.puts, 0, 'a dry run only reads');
+  assert.equal(await applyRules(shared, 'b', ours, { dryRun: true }), 'already set');
+
+  const refusing = {
+    send: async () => {
+      throw Object.assign(new Error('nope'), { name: 'AccessDenied' });
+    },
+  };
+  await assert.rejects(() => applyRules(refusing, 'b', ours), /nope/);
+
   console.log('self-test ok');
   process.exit(0);
 }
@@ -279,6 +383,23 @@ const enableVersioning = async (client, bucket) => {
   }
 };
 
+/*
+ * Retention rules on a bucket, for the evidence prefixes. Not fatal when refused, for the same
+ * reason versioning is not: the copy is the point of this script and some S3 implementations
+ * refuse the call outright. A refusal is printed, so it reads as a finding rather than as
+ * silence — a dry run reports whether the rules are actually there.
+ */
+const ensureRetention = async (client, bucket, prefixes, days, idPrefix, retire = []) => {
+  try {
+    return await applyRules(client, bucket, evidenceRules({ prefixes, days, idPrefix }), {
+      retire,
+      dryRun,
+    });
+  } catch (e) {
+    return `unavailable (${e.name || e.message})`;
+  }
+};
+
 let totalDone = 0;
 let totalTodo = 0;
 const failures = [];
@@ -342,9 +463,30 @@ if (restore) {
   process.exit(0);
 }
 
+// The copies expire too (see the header): one rule per source bucket and evidence prefix.
+const copyPrefixes = SRC.flatMap((s) =>
+  EVIDENCE_PREFIXES.map((p) => `${destPrefix}${s.bucket}/${p}`),
+);
+console.log(
+  `[objects] ${destBucket}: copies of ${EVIDENCE_PREFIXES.join(', ')} expire after ${EVIDENCE_BACKUP_DAYS}d — ` +
+    (await ensureRetention(
+      dst,
+      destBucket,
+      copyPrefixes,
+      EVIDENCE_BACKUP_DAYS,
+      'expire-backup-evidence',
+    )),
+);
+
 for (const s of SRC) {
   const src = clientFor(s);
   console.log(`[objects] ${s.bucket}: versioning ${await enableVersioning(src, s.bucket)}`);
+  console.log(
+    `[objects] ${s.bucket}: ${EVIDENCE_PREFIXES.join(', ')} expire after ${EVIDENCE_DAYS}d — ` +
+      (await ensureRetention(src, s.bucket, EVIDENCE_PREFIXES, EVIDENCE_DAYS, 'expire-evidence', [
+        'expire-pod-uu-pdp',
+      ])),
+  );
 
   // One prefix per bucket. Two buckets can hold the same key and they are different files;
   // flattening them would let one silently overwrite the other in the backup.
