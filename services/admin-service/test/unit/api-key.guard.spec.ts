@@ -38,6 +38,13 @@ async function seedKey(
   return { token: minted.token, record };
 }
 
+/**
+ * ADM-6: the guard now reads the security policy's IP allowlist. Empty = from anywhere,
+ * which is what it has always meant and what every existing test assumes.
+ */
+const openPolicy = (ipAllowlist: string[] = []) =>
+  ({ get: async () => ({ ipAllowlist, idleTimeoutMinutes: 15, require2fa: true }) }) as never;
+
 describe('ApiKeyGuard (H-30)', () => {
   let repo: InMemoryApiKeyRepository;
   let guard: ApiKeyGuard;
@@ -46,7 +53,7 @@ describe('ApiKeyGuard (H-30)', () => {
     repo = new InMemoryApiKeyRepository();
     // ADM-5: the guard reads the environment it is running in — a test key is not a
     // production credential.
-    guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never, openPolicy());
   });
 
   it('admits a live key that carries the required scope, and stamps it as used', async () => {
@@ -128,7 +135,7 @@ describe('ApiKeyGuard · expiry and environment (ADM-5)', () => {
 
   it('refuses a key whose day has passed', async () => {
     const repo = new InMemoryApiKeyRepository();
-    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never, openPolicy());
     const { token } = await seedKey(repo, [], { expiresAt: new Date('2020-01-01') });
 
     await expect(guard.canActivate(ctx(token))).rejects.toThrow(/expired/i);
@@ -136,7 +143,7 @@ describe('ApiKeyGuard · expiry and environment (ADM-5)', () => {
 
   it('admits one whose day has not', async () => {
     const repo = new InMemoryApiKeyRepository();
-    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never, openPolicy());
     const { token } = await seedKey(repo, [], { expiresAt: new Date('2099-01-01') });
 
     await expect(guard.canActivate(ctx(token))).resolves.toBe(true);
@@ -146,7 +153,7 @@ describe('ApiKeyGuard · expiry and environment (ADM-5)', () => {
   // expiring a partner's live credential on deploy is an outage, not a fix.
   it('admits a key that predates expiries at all', async () => {
     const repo = new InMemoryApiKeyRepository();
-    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never, openPolicy());
     const { token } = await seedKey(repo, [], { expiresAt: null });
 
     await expect(guard.canActivate(ctx(token))).resolves.toBe(true);
@@ -156,18 +163,65 @@ describe('ApiKeyGuard · expiry and environment (ADM-5)', () => {
     const repo = new InMemoryApiKeyRepository();
     const { token } = await seedKey(repo, [], { environment: ApiKeyEnvironment.STAGING });
 
-    const inProd = new ApiKeyGuard(repo, new Reflector(), { isProduction: true } as never);
+    const inProd = new ApiKeyGuard(repo, new Reflector(), { isProduction: true } as never, openPolicy());
     await expect(inProd.canActivate(ctx(token))).rejects.toThrow(/production/i);
 
-    const inStaging = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const inStaging = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never, openPolicy());
     await expect(inStaging.canActivate(ctx(token))).resolves.toBe(true);
   });
 
   it('still admits a live key in production', async () => {
     const repo = new InMemoryApiKeyRepository();
-    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: true } as never);
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: true } as never, openPolicy());
     const { token } = await seedKey(repo, []);
 
     await expect(guard.canActivate(ctx(token))).resolves.toBe(true);
+  });
+});
+
+/*
+ * ADM-6: the allowlist is read by the one surface admin-service owns end to end — its own
+ * partner keys, its own policy. Not the HQ console: those requests arrive through the
+ * gateway, which this service cannot see past, and pretending otherwise would be a second
+ * lie of the same kind.
+ */
+describe('ApiKeyGuard · IP allowlist (ADM-6)', () => {
+  const from = (ip: string, token: string) =>
+    ({
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { 'x-api-key': token },
+          socket: { remoteAddress: ip },
+        }),
+      }),
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+    }) as never;
+
+  it('admits a partner inside the allowlist and refuses one outside it', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const { token } = await seedKey(repo, []);
+    const guard = new ApiKeyGuard(
+      repo,
+      new Reflector(),
+      { isProduction: false } as never,
+      openPolicy(['203.0.113.0/24']),
+    );
+
+    await expect(guard.canActivate(from('203.0.113.9', token))).resolves.toBe(true);
+    await expect(guard.canActivate(from('198.51.100.4', token))).rejects.toThrow(/address/i);
+  });
+
+  it('still admits everyone while the list is empty', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const { token } = await seedKey(repo, []);
+    const guard = new ApiKeyGuard(
+      repo,
+      new Reflector(),
+      { isProduction: false } as never,
+      openPolicy(),
+    );
+
+    await expect(guard.canActivate(from('198.51.100.4', token))).resolves.toBe(true);
   });
 });
