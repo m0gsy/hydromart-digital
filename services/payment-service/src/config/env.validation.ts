@@ -29,6 +29,10 @@ export const envValidationSchema = Joi.object({
     is: 'production',
     then: Joi.string().required().invalid(''),
   }),
+  // PLAT-5: accepted alongside INTERNAL_SERVICE_KEY during a rotation, so moving to a new
+  // key is a two-step roll instead of a flag day across all seventeen services. Blank
+  // (the default) means no rotation in progress.
+  INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   // Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
   // default in domain/payment.ts, which is the only place that number lives — a
   // `.default()` here would be a second copy of it, free to drift.
