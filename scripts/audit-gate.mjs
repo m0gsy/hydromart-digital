@@ -35,12 +35,23 @@ const ALLOWLIST = {
   // sharp is bumped to 0.35.3 (patched); this entry is next's copy only.
   'GHSA-f88m-g3jw-g9cj': 'sharp libvips CVEs — next optional image-opt, local assets only; hr-service on 0.35.3',
 
-  // adm-zip via onnxruntime-node — the on-device ONNX face driver, which is NOT
-  // the production driver (FACE_VERIFIER_DRIVER=neo; see neo-face.provider.ts).
-  // onnxruntime/sharp are optionalDependencies loaded lazily only by the onnx
-  // driver, so this ZIP-bomb CVE is unreachable in prod. Fix (adm-zip>=0.6.0)
-  // needs a full `npm install` override — deferred to the next dep refresh.
-  'GHSA-xcpc-8h2w-3j85': 'adm-zip 4GB-alloc — onnxruntime (inactive onnx driver), not prod path',
+  /*
+   * DEP-1: the original entry here claimed onnx was "not the production driver" and
+   * pointed at FACE_VERIFIER_DRIVER=neo — but the default in env.validation.ts,
+   * docker-compose.prod.yml and .env.production.example is all `onnx`. Whether prod
+   * actually runs neo is an ops fact this repo cannot verify, and the honest reading is
+   * the opposite of what was written: onnx is what a deployment gets by saying nothing.
+   *
+   * adm-zip is reachable a different way, and it is a real one: onnxruntime-node's own
+   * `postinstall` (script/install-utils.js) uses adm-zip to unpack the prebuilt binary
+   * it downloads from Microsoft's NuGet CDN. That happens once, at `npm install` time,
+   * on a URL this repo controls (the package version), never at request time and never
+   * on attacker-supplied bytes — so the CVE is unreachable regardless of which face
+   * driver ends up selected in prod. Fix (adm-zip>=0.6.0) still needs a full `npm
+   * install` override; onnxruntime-node pins the range itself, so `overrides` cannot
+   * move it — deferred to the next dep refresh.
+   */
+  'GHSA-xcpc-8h2w-3j85': 'adm-zip 4GB-alloc — onnxruntime postinstall only (npm-controlled URL), no runtime path',
 
   // js-yaml via @nestjs/swagger: parses the service's OWN decorator metadata to
   // build the OpenAPI doc — never attacker-supplied YAML. Fix exists but is
@@ -54,20 +65,18 @@ const ALLOWLIST = {
   // by 15.5.21 -> 15.5.25 in apps/web (a patch bump), which also drops `next`
   // from critical to moderate. What is left here is what has no fix to take.
 
-  // adm-zip symlink-overwrite, the SECOND advisory on the path GHSA-xcpc above
-  // already documents: onnxruntime-node, the on-device ONNX face driver, which
-  // is not the production driver (FACE_VERIFIER_DRIVER=neo). An `overrides`
-  // entry for adm-zip@^0.6.0 was tried and REMOVED again: npm will not apply it,
-  // because onnxruntime-node pins the range itself.
-  'GHSA-vwc7-r8mq-g2x9': 'adm-zip symlink overwrite — onnxruntime (inactive onnx driver), not prod path',
+  // adm-zip symlink-overwrite, the SECOND advisory on the postinstall-only path
+  // GHSA-xcpc above documents: same `npm install`-time-only unpack, same npm-controlled
+  // URL, never attacker input. An `overrides` entry for adm-zip@^0.6.0 was tried and
+  // REMOVED again: npm will not apply it, because onnxruntime-node pins the range itself.
+  'GHSA-vwc7-r8mq-g2x9': 'adm-zip symlink overwrite — onnxruntime postinstall only, no runtime path',
 
-  // adm-zip, the THIRD advisory on that same path (2026-09-23). Same driver, same
-  // reachability answer: onnxruntime-node is an optionalDependency loaded only by the
-  // on-device ONNX face driver, and production runs FACE_VERIFIER_DRIVER=neo. The
-  // `overrides` route was re-tested on this advisory before adding the line — npm still
-  // will not move it, because onnxruntime-node pins adm-zip's range itself, so the tree
-  // keeps 0.5.18 whether or not the override is present.
-  'GHSA-7q85-xj36-vmfc': 'adm-zip declared-size DoS — onnxruntime (inactive onnx driver), not prod path',
+  // adm-zip, the THIRD advisory on that same path (2026-09-23). Same postinstall-only
+  // reachability answer as GHSA-xcpc/GHSA-vwc7 above. The `overrides` route was
+  // re-tested on this advisory before adding the line — npm still will not move it,
+  // because onnxruntime-node pins adm-zip's range itself, so the tree keeps 0.5.18
+  // whether or not the override is present.
+  'GHSA-7q85-xj36-vmfc': 'adm-zip declared-size DoS — onnxruntime postinstall only, no runtime path',
 
   // sharp libheif, the SECOND advisory on the path GHSA-f88m above already
   // documents: next's OPTIONAL image-optimization engine. No images.remotePatterns
@@ -93,17 +102,23 @@ const ALLOWLIST = {
    * (a major bump) still pins 2.2.0. An `overrides` entry was tried and removed for
    * the same reason as adm-zip's — npm will not apply it over a parent's pin.
    *
-   * Reachability is real but narrow: the only multipart routes are authenticated and
-   * capability-gated (hr document upload = hrAdmin, PoD = the assigned courier), and
-   * the bodies are size-capped before multer sees them. Three of the four are DoS by
-   * a caller who already holds a staff token; the fourth is a file-size-limit bypass
-   * bounded by that same cap.
+   * DEP-2: this used to claim "bodies are size-capped before multer sees them", which
+   * is not what the code does. hr-service's own `body-limits.ts` caps `express.json()`
+   * and `express.urlencoded()` — parsers that never run on a `multipart/form-data`
+   * request at all, so that cap gives multer nothing. What actually bounds these routes
+   * is multer's OWN `limits.fileSize` option, passed per-route to `FileInterceptor`
+   * (payment proof, HR documents, avatars, reseller photos) — real, but it is multer
+   * capping itself, not something upstream of it. Reachability is otherwise narrow: the
+   * only multipart routes are authenticated and capability-gated (hr document upload =
+   * hrAdmin, PoD = the assigned courier). Three of the four are DoS by a caller who
+   * already holds a staff token; the fourth is a file-size-limit bypass bounded by that
+   * same per-route option.
    *
    * REVISIT when platform-express moves off 2.2.0. This is a deferral, not a verdict.
    */
   'GHSA-wc9g-mqfw-jrwm': 'multer DoS via crafted field names — no upstream fix (platform-express@12 still pins 2.2.0); authenticated multipart only',
   'GHSA-qfvm-cv95-jqjf': 'multer fd leak on aborted upload — no upstream fix; authenticated multipart only',
-  'GHSA-qvfw-j98x-7q72': 'multer fileFilter race size bypass — no upstream fix; body cap applies before multer',
+  'GHSA-qvfw-j98x-7q72': 'multer fileFilter race size bypass — no upstream fix; per-route fileSize option, not a pre-multer cap',
   'GHSA-535w-7cp7-47q4': 'multer oversized array index DoS — no upstream fix; authenticated multipart only',
 };
 

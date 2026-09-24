@@ -78,6 +78,29 @@ describe('parseCsvRecords', () => {
   });
 });
 
+/*
+ * WEBB-2. Every export here is made of text somebody typed into the app - a customer name,
+ * a depot name, a note on an order - and Excel and Sheets RUN a cell that starts with `=`,
+ * `+`, `-` or `@`. The person who opens an export is usually the one with the most access.
+ */
+describe('toCsv - spreadsheet formulas (WEBB-2)', () => {
+  it.each(['=WEBSERVICE(X)', '+1+1', '-2+3', '@SUM(A1)'])('neutralises %s', (cell) => {
+    expect(toCsv(['a'], [[cell]])).toBe(`a\r\n'${cell}`);
+  });
+
+  it('neutralises a formula that also needs quoting', () => {
+    expect(toCsv(['a'], [['=HYPERLINK("http://x","go")']])).toBe(
+      'a\r\n"\'=HYPERLINK(""http://x"",""go"")"',
+    );
+  });
+
+  it('leaves ordinary text, numbers and blanks alone', () => {
+    expect(toCsv(['a', 'b', 'c'], [['Depot Cikini', 20000, null]])).toBe(
+      'a,b,c\r\nDepot Cikini,20000,',
+    );
+  });
+});
+
 describe('toCsv', () => {
   it('joins with CRLF and quotes only what needs it', () => {
     expect(toCsv(['a', 'b'], [['plain', 'has,comma']])).toBe('a,b\r\nplain,"has,comma"');

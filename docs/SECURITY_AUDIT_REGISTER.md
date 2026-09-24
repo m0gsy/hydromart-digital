@@ -10,7 +10,7 @@ merah sebelum perbaikan dan hijau sesudahnya.
 
 **102 temuan** — High 35, Medium 28, Low 39 —
 ditambah satu rantai Critical (XCUT-4: CORE-1 → PYO-2 → PYO-4) yang diputus lewat CORE-1.
-Selesai: **2**.
+Selesai: **4**.
 
 ## Keputusan pemilik, 2026-09-11
 
@@ -56,7 +56,7 @@ Selesai: **2**.
 | CRM-2 | High | crm | Marketing opt-out check FAILS OPEN: a customer-service outage, 5xx, timeout, or missing env sends promo to opted-out customers — Keputusan 2026-09-11: marketing gagal-tertutup, transaksional tetap gagal-terbuka. | PR-7 | Terbuka |
 | CRM-3 | High | crm | Ops feed shows every employee's kasbon amount, leave-rejection reason and phone to every depot's staff network-wide | PR-7 | Terbuka |
 | CUS-1 | High | customer | PDP erasure never deletes the reseller's KTP/shopfront photo from public object storage — only the DB pointer is nulled | PR-4 | Terbuka |
-| DEP-1 | High | dependency | Rasional "onnx bukan driver produksi" dibantah default prod repo sendiri | PR-15 | Terbuka |
+| DEP-1 | High | dependency | Rasional "onnx bukan driver produksi" dibantah default prod repo sendiri — Selesai 2026-09-24: rasional diganti fakta yang benar terverifikasi (adm-zip hanya terpakai di `postinstall` onnxruntime-node, mengunduh dari URL yang dikontrol repo, tidak pernah dari input runtime — tidak bergantung driver mana yang aktif) | PR-15 | Selesai |
 | DLV-1 | High | delivery | `GET /reports/sla-by-depot` has no depot-scoping mechanism at all; MANAGER sees every depot's SLA breakdown | PR-3 | Terbuka |
 | DLV-2 | High | delivery | `GET /reports/sla` defaults to network-wide totals when `depotIds` is omitted; MANAGER can drop the filter | PR-3 | Terbuka |
 | DLV-3 | High | delivery | `GET /shifts` returns every depot's courier shift rows (incl. GPS check-in/out coordinates) when `depotId` is omitted | PR-3 | Terbuka |
@@ -130,7 +130,7 @@ Selesai: **2**.
 | CRM-8 | Low | crm | PDP erasure misses saved-segment customer ids and unnormalised phone numbers | PR-7 | Terbuka |
 | CRM-9 | Low | crm | Recipient claim is not caller-exclusive (double delivery on overlapping sweeps) and a crash strands rows in SENDING forever | PR-7 | Terbuka |
 | CUS-2 | Low | customer | Address/payment-method repository `update()` silently ignores its `customerId` parameter — ownership enforced only by caller discipline, not the query itself | PR-14 | Terbuka |
-| DEP-2 | Low | dependency | Rasional multer menyebut cap yang letaknya bukan di sana | PR-15 | Terbuka |
+| DEP-2 | Low | dependency | Rasional multer menyebut cap yang letaknya bukan di sana — Selesai 2026-09-24: rasional diganti fakta yang benar (cap JSON/urlencoded `body-limits.ts` tidak pernah berjalan pada multipart; yang sungguh membatasi adalah `limits.fileSize` multer sendiri per rute) | PR-15 | Selesai |
 | GW-4 | Low | gateway | Hand-rolled `readCookie` is first-match-wins with no Domain scoping, so a same-name cookie at a more specific Path shadows the real session cookie | PR-5 | Terbuka |
 | LOY-7 | Low | loyalty | `internal/reverse-earn` is not idempotent and debits the caller-named customer | PR-9 | Terbuka |
 | LOY-8 | Low | loyalty | Expiry sweep can expire a lot twice and expires points that were already spent | PR-9 | Terbuka |
