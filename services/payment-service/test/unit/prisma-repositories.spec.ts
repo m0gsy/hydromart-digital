@@ -468,6 +468,34 @@ describe('PaymentPrismaRepository', () => {
     });
     expect(record.proofUrl).toBe('https://cdn/b.png');
   });
+
+  // UU PDP: the window runs from settlement, and from creation when nobody ever settled it.
+  it('finds receipts past their window by paidAt, falling back to createdAt', async () => {
+    const cutoff = new Date('2026-01-01T00:00:00.000Z');
+    model.findMany.mockResolvedValue([
+      { id: 'pay-1', proofUrl: 'https://cdn/payment-proof/a.png' },
+      { id: 'pay-2', proofUrl: null },
+    ]);
+
+    await expect(repo.findProofsSettledBefore(cutoff, 50)).resolves.toEqual([
+      { id: 'pay-1', proofUrl: 'https://cdn/payment-proof/a.png' },
+    ]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        proofUrl: { not: null },
+        OR: [{ paidAt: { lt: cutoff } }, { paidAt: null, createdAt: { lt: cutoff } }],
+      },
+      select: { id: true, proofUrl: true },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+  });
+
+  it('clearProof nulls the pointer and touches nothing else', async () => {
+    model.update.mockResolvedValue({});
+    await repo.clearProof('pay-1');
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'pay-1' }, data: { proofUrl: null } });
+  });
 });
 
 describe('TaxSettingsPrismaRepository', () => {

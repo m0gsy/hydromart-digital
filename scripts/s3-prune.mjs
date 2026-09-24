@@ -28,8 +28,9 @@ import {
   DeleteObjectCommand,
   GetBucketVersioningCommand,
   PutBucketVersioningCommand,
-  PutBucketLifecycleConfigurationCommand,
 } from '@aws-sdk/client-s3';
+
+import { applyRules } from './lib/s3-lifecycle.mjs';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(name);
@@ -86,21 +87,16 @@ async function protectBucket() {
     );
     console.log('prune: versioning ENABLED — a delete is now recoverable, not final.');
   }
-  await client.send(
-    new PutBucketLifecycleConfigurationCommand({
-      Bucket: bucket,
-      LifecycleConfiguration: {
-        Rules: [
-          {
-            ID: 'expire-noncurrent',
-            Status: 'Enabled',
-            Filter: { Prefix: '' },
-            NoncurrentVersionExpiration: { NoncurrentDays: 30 },
-          },
-        ],
-      },
-    }),
-  );
+  // Merged, never replaced: this runs twice a night against a bucket that also carries the
+  // evidence-retention rules (backup-objects.mjs), and a plain Put here deleted them each time.
+  await applyRules(client, bucket, [
+    {
+      ID: 'expire-noncurrent',
+      Status: 'Enabled',
+      Filter: { Prefix: '' },
+      NoncurrentVersionExpiration: { NoncurrentDays: 30 },
+    },
+  ]);
 }
 
 if (!dryRun) {
