@@ -12,19 +12,29 @@ nomor telepon, dan siapa yang menjawab pukul dua pagi — ditandai **PEMILIK: An
 
 ## 1. Apa yang sekarang bisa membangunkan orang
 
-| Alert                                | Kelas                    | Arti                                                   |
-| ------------------------------------ | ------------------------ | ------------------------------------------------------ |
-| `ServiceDown`, `ServiceCrashLooping` | infra · critical         | prosesnya mati atau berputar-putar                     |
-| `HighErrorRate`, `HighLatencyP95`    | infra · critical/warning | prosesnya hidup tapi menjawab salah atau lambat        |
-| `ExporterDown`, host & datastore     | infra                    | yang mengukur ikut mati, disk, memori, Postgres/Redis  |
-| **`NoOrdersCreated`**                | **bisnis · critical**    | dua jam tanpa satu pun pesanan dibuat, di jam buka     |
-| **`CheckoutFailing`**                | **bisnis · critical**    | >5% percobaan checkout menjawab 5xx                    |
-| **`PaymentConfirmFailing`**          | **bisnis · critical**    | kaki uang gagal — penjualan tercatat, pembayaran tidak |
-| **`SchedulerSweepsSilent`**          | **bisnis · warning**     | scheduler hidup tapi tidak menyapu apa pun             |
+| Alert                                | Kelas                    | Arti                                                                                   |
+| ------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------- |
+| `ServiceDown`, `ServiceCrashLooping` | infra · critical         | prosesnya mati atau berputar-putar                                                     |
+| `HighErrorRate`, `HighLatencyP95`    | infra · critical/warning | prosesnya hidup tapi menjawab salah atau lambat                                        |
+| `ExporterDown`, host & datastore     | infra                    | yang mengukur ikut mati, disk, memori, Postgres/Redis                                  |
+| **`NoOrdersCreated`**                | **bisnis · critical**    | dua jam tanpa satu pun pesanan (checkout atau kasir konter), diperiksa 11:00–20:00 WIB |
+| **`CheckoutFailing`**                | **bisnis · critical**    | >5% percobaan checkout menjawab 5xx                                                    |
+| **`PaymentConfirmFailing`**          | **bisnis · critical**    | kaki uang gagal — penjualan tercatat, pembayaran tidak                                 |
+| **`SchedulerSweepsSilent`**          | **bisnis · warning**     | scheduler hidup tapi tidak menyapu apa pun                                             |
 
 Empat yang terakhir baru. Semuanya tidak butuh instrumentasi baru — dibangun di atas
 histogram HTTP yang sudah ada. Itu juga membatasi apa yang bisa dikatakannya: mereka
 berkata "pesanan berhenti dibuat", bukan "pesanan salah".
+
+**Selector-nya harus rute yang benar-benar ada.** Versi pertama dua alert bisnis memilih rute
+`.*/orders` dengan method POST; tak ada rute itu (pesanan dibuat di `/orders/checkout` dan
+`/orders/walk-in`), jadi `NoOrdersCreated` menyala setiap hari kerja apa pun yang dipesan dan
+`CheckoutFailing` tak pernah bisa menyala — dan tes promtool lulus karena fixture-nya menulis label
+karangan yang sama. `scripts/check-alert-routes.mjs` (CI) kini mencocokkan setiap selector dan setiap
+label fixture dengan rute yang dideklarasikan controller. Apa yang benar-benar dievaluasi Prometheus
+di kotak tampak di bagian PROMETHEUS pada `Registry pull check` mode `diagnose`.
+
+Apa yang harus dilakukan saat tiap alert menyala: [RUNBOOK_INCIDENTS.md](RUNBOOK_INCIDENTS.md).
 
 **Yang masih tidak bisa dijawab siapa pun dari luar:** apakah angka-angkanya BENAR. Selisih
 kas, harga yang salah, poin yang tidak masuk — tidak ada alert untuk itu dan tidak akan ada
@@ -99,11 +109,23 @@ tidak ada eskalasi otomatis. Yang benar-benar terjadi pada alert yang tidak dija
 diposting ulang setiap `repeat_interval: 4h`. Empat jam, bukan lima belas menit — angka 15
 menit di atas adalah janji manusia, dan §6 menghitung apa yang mesin benar-benar berikan.
 
-## 4. Halaman status pelanggan
+## 4. Halaman status pelanggan, dan pemantau dari luar
 
-**Tidak ada, dan sengaja belum dibuat.** Halaman status yang di-host di infrastruktur yang
-sama dengan yang sedang mati adalah halaman status yang ikut mati. Membuatnya benar berarti
-host di luar VPS ini — keputusan biaya, bukan keputusan kode. **PEMILIK: Anda.**
+**Halaman status pelanggan: tidak ada, dan sengaja belum dibuat.** Halaman status yang di-host di
+infrastruktur yang sama dengan yang sedang mati adalah halaman status yang ikut mati. Membuatnya benar
+berarti host di luar VPS ini — keputusan biaya, bukan keputusan kode. **PEMILIK: Anda.**
+
+**Pemantau dari luar kotak: ada.** Semua alarm di atas (Prometheus, Alertmanager, watchdog, cek cron)
+hidup di VPS yang sama dengan yang mereka awasi, jadi VPS, jaringan, atau penyedia yang mati tidak
+melapor sama sekali. `.github/workflows/uptime.yml` bertanya ke produksi dari GitHub Actions tiap 10 menit
+(`/health`, jalur gateway ke depot-service ke database, dan halaman web; tiga percobaan sebelum dihitung;
+logikanya di `scripts/uptime-probe.sh`). Run yang merah membuat GitHub mengirim email ke pemilik repo tanpa
+setup apa pun; secret `ALERT_WEBHOOK_URL` (opsional) ikut memposting ke Discord. Ini alarm asap, bukan
+stopwatch: GitHub menjalankan jadwal terlambat saat sibuk dan tak pernah lebih cepat dari 5 menit.
+
+**Watchdog juga melaporkan container yang `running` tapi gagal healthcheck** (`web` tidak di-scrape
+Prometheus, Caddy kini punya healthcheck): satu pesan setelah dua run berturut-turut, satu saat pulih. Ia
+**tidak** me-restart yang sakit — proses yang hang butuh orang yang membaca lognya lebih dulu.
 
 Sementara itu, jalur yang sudah ada dan berfungsi: WhatsApp depot di `/help` (K1.5 menambah
 jalur komplain yang tidak bergantung pada nomor depot terisi).
@@ -147,7 +169,9 @@ konfigurasi, bukan cacat:
 
 1. **`NoOrdersCreated` bukan alert dua menit.** Jendelanya dua jam, jadi checkout bisa mati
    dua jam sebelum ada yang dibangunkan. Memendekkannya berarti memalsukan alert setiap
-   subuh di kota kecil — lihat komentar hour-of-day guard di `ops/alert-rules.yml`.
+   subuh di kota kecil — lihat komentar hour-of-day guard di `ops/alert-rules.yml`. Guard-nya
+   baru mulai 11:00 WIB (04:00 UTC), bukan saat buka: lookback dua jam harus seluruhnya di dalam jam
+   buka, atau alert menyala 09:10 WIB pada setiap pagi yang pesanan pertamanya datang belakangan.
 2. **`warning` bisa hilang sama sekali.** `inhibit_rules` membungkam `warning` selama ada
    `critical` dengan label `service` yang sama. Itu sengaja (satu halaman per insiden), tapi
    artinya "tidak ada warning" bukan bukti tidak ada masalah lambat.
@@ -208,14 +232,13 @@ apa pun. Jadi orang yang pertama kali membuka `127.0.0.1:3300` menemukan Grafana
 dan satu-satunya cara membaca metrik malam itu adalah Explore + PromQL, atau langsung ke
 Prometheus di `:9090`. Ditulis di sini supaya tidak ditemukan pukul dua pagi.
 
-Satu fakta yang mengubah rencana pemulihan, dan sudah diukur: **VPS ini berjalan dengan
-`IMAGE_PREFIX` kosong — mode build-locally.** Tidak ada registry untuk menarik image versi
-sebelumnya, jadi `scripts/rollback.sh` **membangun ulang di kotak itu** (`git reset --hard`
-ke `.deploy/prev-sha` lalu rebuild service yang berbeda). Konsekuensi untuk yang bangun jam
-dua pagi: rollback berbiaya menit-menit build dan butuh ruang disk — itu sebabnya
-`DiskSpaceLow` di §6 adalah `critical` dan bukan `warning`, dan sebabnya `docker-gc.sh`
-disebut di deskripsi alert-nya. Rollback kode saja; migrasi yang harus dibatalkan butuh
-`scripts/restore-db.sh` dari backup pra-deploy.
+Satu fakta yang mengubah rencana pemulihan, dan sudah diukur: **sejak 2026-09-17 VPS ini berjalan dalam
+mode registry** (`IMAGE_PREFIX=ghcr.io/m0gsy/hydromart-digital-`). Image dibangun CI dan hanya ditarik di
+kotak, jadi `scripts/rollback.sh` **menarik image commit sebelumnya** (`.deploy/prev-sha`) — deploy
+terakhir yang diukur menarik 19 image dalam 59 detik, dan tidak ada yang dikompilasi di mesin yang sedang
+sakit. Disk tetap penting (`DiskSpaceLow` masih `critical`: dump dan image menumpuk di sana). Rollback
+hanya kode; migrasi yang harus dibatalkan butuh `scripts/restore-db.sh` dari backup pra-deploy. (Catatan
+lama di dokumen ini mengatakan mode build-locally; itu benar sampai 17 September dan tidak lagi.)
 
 ## 8. Pemeriksa rota
 
@@ -229,16 +252,6 @@ pemeriksaan yang hijau padahal subjeknya tidak ada. Karena itu `--self-test` iku
 membuktikan pemeriksa ini **gagal ketika seksi rota dihapus**, bukan hanya ketika isinya
 salah.
 
-**Belum terpasang di CI.** `.github/workflows/ci.yml` tidak diubah dari sini (file itu milik
-pekerjaan lain), jadi hari ini pemeriksa ini hanya berjalan kalau dijalankan tangan. Dua
-baris yang membuatnya menjadi gerbang, letakkan di sebelah pemeriksa sejenis di job `guards`:
-
-```yaml
-- name: On-call rota has real people in it (L1.6)
-  run: node scripts/check-oncall-rota.mjs
-- name: ...and that gate can go red (self-test)
-  run: node scripts/check-oncall-rota.mjs --self-test
-```
-
-Sampai itu terjadi, rota kosong ini masih hanya sebuah dokumen — persis keadaan yang §3 ada
-untuk mengakhiri.
+**Terpasang di CI**: `ci.yml` (job `guards`) menjalankan `node scripts/check-oncall-rota.mjs`, jadi rota
+yang kosong atau berisi tebakan membuat CI merah. (Bagian ini dulu mengatakan pemeriksa belum terpasang
+dan memberi dua baris YAML untuk memasangnya; keduanya sudah dipasang.)
