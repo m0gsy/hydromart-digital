@@ -104,6 +104,9 @@ else
     fs.writeFileSync(process.argv[2], JSON.stringify({ groups: [{ name: "dashboards", rules }] }));
   ' "$ROOT/ops/grafana-dashboards" "$WORK/rules.json"
   export MSYS_NO_PATHCONV=1
+  # mktemp -d is 0700 and the prometheus image runs as "nobody": without this the container
+  # cannot even stat the rules file ("permission denied", which is how this failed in CI).
+  chmod -R a+rX "$WORK"
   HOST_WORK="$(cd "$WORK" && pwd -W 2>/dev/null || pwd)"
   if docker run --rm -v "$HOST_WORK:/w" --entrypoint promtool "$IMAGE" check rules /w/rules.json >"$WORK/promtool.out" 2>&1; then
     ok "promtool parses every query in the real dashboard"
@@ -112,6 +115,7 @@ else
   fi
   # And the check itself can go red: a broken expression must be refused.
   echo '{"groups":[{"name":"x","rules":[{"record":"dash:x","expr":"sum(rate(http_request_duration_seconds_count[5m])"}]}]}' > "$WORK/broken.json"
+  chmod a+r "$WORK/broken.json"
   if docker run --rm -v "$HOST_WORK:/w" --entrypoint promtool "$IMAGE" check rules /w/broken.json >/dev/null 2>&1; then
     bad "promtool accepted a query with an unclosed parenthesis — the syntax check proves nothing"
   else
