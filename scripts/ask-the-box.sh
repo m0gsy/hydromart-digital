@@ -188,6 +188,14 @@ echo "  containers named scheduler, any project:"
 docker ps -a --filter 'name=scheduler' --format '    {{.Names}}  {{.Status}}' 2>/dev/null |
   head -5 || true
 
+# The scheduler answer above is one container. A `running` container can still be unhealthy —
+# the state the watchdog now reports — so list everything that is not running-and-healthy,
+# and always the two services whose definition changed with the ops hardening (caddy's new
+# healthcheck, grafana's provisioned dashboards).
+line "CONTAINERS — anything not running and healthy, plus caddy and grafana"
+docker compose $COMPOSE_FILES ps --format '  {{.Service}}\t{{.State}}\t{{.Health}}' 2>/dev/null |
+  awk -F'\t' '$2 != "running" || ($3 != "" && $3 != "healthy") || $1 ~ /caddy|grafana/' || true
+
 # M15 sits in the same corner of the plan and has no description there beyond "VPS side",
 # so this reports the facts a VPS-side capacity item would need rather than guessing at it.
 line "capacity (context for M13/M15)"
