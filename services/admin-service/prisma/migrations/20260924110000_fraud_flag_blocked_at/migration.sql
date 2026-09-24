@@ -6,8 +6,9 @@
 -- stayed locked out with every flag against it resolved.
 --
 -- Backfilled for rows that are BLOCKED right now: those are exactly the flags currently
--- holding an account, and the stamp is their own `updatedAt` — the closest honest answer to
--- "when did this happen" for a decision nobody recorded a time for.
+-- holding an account. `fraud_flags` carries only `createdAt` (no `updatedAt` — confirmed
+-- against schema.prisma, not assumed), so that is the stamp used: the closest honest answer
+-- to "when did this happen" for a decision nobody recorded a time for.
 ALTER TABLE "fraud_flags" ADD COLUMN "blockedAt" TIMESTAMP(3);
 
-UPDATE "fraud_flags" SET "blockedAt" = "updatedAt" WHERE "status" = 'BLOCKED';
+UPDATE "fraud_flags" SET "blockedAt" = "createdAt" WHERE "status" = 'BLOCKED';
