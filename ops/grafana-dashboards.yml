@@ -1,0 +1,13 @@
+# Auto-provisioned dashboards → everything under ops/grafana-dashboards/ (mounted read-only into
+# the container). Nothing was provisioned before: whoever first opened Grafana at 02:00 found it
+# empty and had to write PromQL from scratch. Edit the JSON in the repo, not the screen — a
+# provisioned dashboard cannot be saved from the UI (allowUiUpdates: false), by design.
+apiVersion: 1
+providers:
+  - name: hydromart
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards/hydromart

@@ -20,13 +20,14 @@
  * The label is req.route.path, `/api/v1/<controller>/<route>` (see scripts/lib/route-inventory.mjs).
  * Exit 0 = every alert selector and fixture label names a route that exists.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { ROOT, controllers, routePattern } from './lib/route-inventory.mjs';
 
 const RULES = process.env.ALERT_RULES ?? join(ROOT, 'ops/alert-rules.yml');
 const TESTS = process.env.ALERT_TESTS ?? join(ROOT, 'ops/alert-rules.test.yml');
+const DASHBOARDS = process.env.GRAFANA_DASHBOARDS_DIR ?? join(ROOT, 'ops/grafana-dashboards');
 
 const routes = controllers().flatMap((c) =>
   c.routes.map((r) => ({ ...r, service: c.service, re: routePattern(r.full) })),
@@ -58,12 +59,24 @@ const matches = (matcher, actual) => {
   return true; // a negative matcher selects everything else; nothing to prove
 };
 
+/** Every query expression in the provisioned dashboards — they select routes too. */
+function dashboardText() {
+  if (!existsSync(DASHBOARDS)) return '';
+  return readdirSync(DASHBOARDS)
+    .filter((f) => f.endsWith('.json'))
+    .flatMap((f) => JSON.parse(readFileSync(join(DASHBOARDS, f), 'utf8')).panels ?? [])
+    .flatMap((panel) => panel.targets ?? [])
+    .map((target) => String(target.expr ?? ''))
+    .join('\n');
+}
+
 const problems = [];
-for (const [file, label] of [
-  [RULES, 'alert rule'],
-  [TESTS, 'fixture'],
+for (const [text, label] of [
+  [code(RULES), 'alert rule'],
+  [code(TESTS), 'fixture'],
+  [dashboardText(), 'dashboard query'],
 ]) {
-  for (const sel of selectors(code(file))) {
+  for (const sel of selectors(text)) {
     const { route, method } = sel.labels;
     if (route.op === '!~' || route.op === '!=') continue;
     const real = routes.filter(

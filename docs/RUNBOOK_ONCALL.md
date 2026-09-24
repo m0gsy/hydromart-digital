@@ -225,12 +225,13 @@ menindaknya. Daftarnya konkret dari repo, bukan generik:
 | Wewenang menjalankan `scripts/deploy.sh`, `rollback.sh`, `rebuild-stale.sh`, `docker-gc.sh`, `backup-db.sh`, `restore-db.sh` | `scripts/` di host                                                                                              | bisa mendiagnosis, tidak bisa memulihkan                                                                                                                        |
 | Hak dispatch workflow di GitHub                                                                                              | `.github/workflows/deploy.yml`                                                                                  | perbaikan hanya bisa dari host                                                                                                                                  |
 
-Satu hal yang tidak ada di tabel itu karena memang tidak ada di repo: **tidak satu pun
-dasbor Grafana yang di-provision.** `ops/grafana-datasource.yml` hanya menyambungkan
-datasource Prometheus, dan `docker-compose.prod.yml` tidak me-mount direktori dashboard
-apa pun. Jadi orang yang pertama kali membuka `127.0.0.1:3300` menemukan Grafana kosong,
-dan satu-satunya cara membaca metrik malam itu adalah Explore + PromQL, atau langsung ke
-Prometheus di `:9090`. Ditulis di sini supaya tidak ditemukan pukul dua pagi.
+**Dasbor Grafana: satu, diprovision dari repo.** Buka `http://127.0.0.1:3300` lewat terowongan SSH →
+**Hydromart — ringkasan operasional** (`ops/grafana-dashboards/hydromart-overview.json`): baris pertama menjawab
+"apakah uangnya mengalir" (pesanan, checkout 5xx, konfirmasi pembayaran, sapuan terjadwal), lalu per service, lalu
+kotak dan basis data (disk, memori, koneksi Postgres, OOM-kill, deadlock). Dasbor itu tidak bisa disimpan dari layar
+(`allowUiUpdates: false`) — ubah berkas JSON-nya di repo; CI memeriksa JSON, nama metrik, selector rute, dan
+mem-parse setiap kueri dengan promtool. Sebelum ada dasbor ini, orang yang pertama membuka Grafana pukul dua pagi
+menemukan layar kosong dan harus menulis PromQL dari nol.
 
 Satu fakta yang mengubah rencana pemulihan, dan sudah diukur: **sejak 2026-09-17 VPS ini berjalan dalam
 mode registry** (`IMAGE_PREFIX=ghcr.io/m0gsy/hydromart-digital-`). Image dibangun CI dan hanya ditarik di
