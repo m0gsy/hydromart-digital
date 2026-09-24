@@ -187,7 +187,7 @@ describe('hq/onboarding counts the payment step', () => {
       ownershipType: 'HKP',
       ownerId: null,
       operatingHours: HOURS,
-    } as typeof ADMIN_ROW);
+    } as unknown as typeof ADMIN_ROW);
     renderPage(<HqOnboardingPage />);
 
     const select = await screen.findByRole('combobox');
