@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ProductService } from '../../src/application/services/product.service';
 import {
   CategoryNotFoundError,
@@ -94,6 +95,49 @@ describe('ProductService', () => {
     await service.deactivate(p.id);
     await expect(service.get(p.id, true)).rejects.toBeInstanceOf(ProductNotFoundError);
     await expect(service.get(p.id, false)).resolves.toMatchObject({ id: p.id, active: false });
+  });
+
+  /*
+   * PRD-1. The base price is the number every depot sells from, any `catalogWrite` holder
+   * can edit it (owner decision 2026-09-11 kept that), and the row simply changed —
+   * afterwards nobody could say what it had been, who moved it, or when.
+   */
+  describe('records who moved the base price', () => {
+    it('writes the move, both numbers and the actor', async () => {
+      const p = await service.create(base());
+      await service.update(p.id, { basePrice: 22000 }, p.updatedAt.toISOString(), 'staff-1');
+
+      await expect(service.priceHistory(p.id)).resolves.toEqual([
+        expect.objectContaining({
+          productId: p.id,
+          changedBy: 'staff-1',
+          fromPrice: 20000,
+          toPrice: 22000,
+        }),
+      ]);
+    });
+
+    // A PATCH that re-saves the same number is not a price change, and padding the trail
+    // with it makes the real ones harder to find.
+    it('records nothing when the price does not actually move', async () => {
+      const p = await service.create(base());
+      await service.update(p.id, { basePrice: 20000 }, p.updatedAt.toISOString(), 'staff-1');
+      const after = await service.get(p.id, false);
+      await service.update(after.id, { name: 'Air Galon 19,2L' }, after.updatedAt.toISOString(), 'staff-1');
+
+      await expect(service.priceHistory(p.id)).resolves.toEqual([]);
+    });
+
+    it('answers an empty trail for a product nobody has repriced', async () => {
+      const p = await service.create(base());
+      await expect(service.priceHistory(p.id)).resolves.toEqual([]);
+    });
+
+    it('404s the history of a product that does not exist', async () => {
+      await expect(service.priceHistory(randomUUID())).rejects.toBeInstanceOf(
+        ProductNotFoundError,
+      );
+    });
   });
 
   // Depot stock lines copy a product's name and unit when they are opened, so the catalog

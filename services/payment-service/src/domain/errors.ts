@@ -93,11 +93,28 @@ export class CashShortError extends DomainError {
 }
 
 /** Client-supplied amount does not match the authoritative order total (SEC-1). */
+/**
+ * PAY-4: the amount does not match the order — and the answer does not say what would.
+ *
+ * It used to read `Payment amount (50000) does not match the order total (135000)`, which
+ * an unauthenticated-in-practice caller (any signed-in customer, any order id) could use to
+ * read the value of orders that were not theirs. The ownership check above closes the walk;
+ * this closes what the walk was worth.
+ */
 export class PaymentAmountMismatchError extends DomainError {
   readonly code = 'PAYMENT_AMOUNT_MISMATCH';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
-  constructor(expected: number, provided: number) {
-    super(`Payment amount (${provided}) does not match the order total (${expected}).`);
+  constructor() {
+    super('Jumlah pembayaran tidak cocok dengan pesanan ini.');
+  }
+}
+
+/** PAY-4: the order belongs to somebody else. Same answer as an order that does not exist. */
+export class PaymentOrderNotYoursError extends DomainError {
+  readonly code = 'PAYMENT_ORDER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Pesanan tidak ditemukan.');
   }
 }
 

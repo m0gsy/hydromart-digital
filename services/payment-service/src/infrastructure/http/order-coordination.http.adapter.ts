@@ -15,7 +15,9 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
 
   constructor(private readonly config: PaymentConfigService) {}
 
-  async getOrderTotal(orderId: string): Promise<number | null> {
+  async getOrderForPayment(
+    orderId: string,
+  ): Promise<{ total: number; customerId: string | null; depotId: string | null } | null> {
     const { orderServiceUrl, internalServiceKey } = this.config;
     if (!orderServiceUrl || !internalServiceKey) {
       return null; // coordination disabled in this environment → skip validation
@@ -30,17 +32,36 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
       if (!res.ok) {
         throw new Error(`order-service responded ${res.status}`);
       }
-      const body = (await res.json()) as { total?: number };
+      const body = (await res.json()) as {
+        total?: number;
+        customerId?: string | null;
+        depotId?: string | null;
+      };
       if (typeof body.total !== 'number') {
         throw new Error('order-service returned no total');
       }
-      return body.total;
-      // Fail CLOSED (unlike the notify paths): a failed total fetch throws so we never
-      // create a payment at an unvalidated amount.
+      // Fail CLOSED like the total read it replaces: a failed fetch throws, so a payment is
+      // never created against an order nobody could confirm the owner of.
+      return {
+        total: body.total,
+        customerId: body.customerId ?? null,
+        depotId: body.depotId ?? null,
+      };
     } finally {
       clearTimeout(timer);
     }
   }
+
+  /**
+   * The order's authoritative total, for the SEC-1 amount check.
+   *
+   * PAY-4 folded this into `getOrderForPayment`: the same endpoint answers both questions,
+   * and two copies of the fetch would be two places for the fail-closed contract to drift.
+   */
+  async getOrderTotal(orderId: string): Promise<number | null> {
+    return (await this.getOrderForPayment(orderId))?.total ?? null;
+  }
+
 
   /**
    * Reuses the same `internal/values` batch the refund queue reads for order numbers, so

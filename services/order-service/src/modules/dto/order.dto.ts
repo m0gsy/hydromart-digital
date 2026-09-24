@@ -283,6 +283,15 @@ export class OrderValueDto {
   @ApiProperty({ format: 'uuid' })
   orderId!: string;
 
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'PAY-4: the account this order belongs to, or null for a counter sale with no ' +
+      'account. payment-service refuses to open a payment on somebody else’s order.',
+  })
+  customerId!: string | null;
+
   @ApiProperty({ example: 'HM-20260806-1000001', description: 'Human-readable order number.' })
   orderNumber!: string;
 

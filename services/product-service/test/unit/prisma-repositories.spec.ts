@@ -28,10 +28,67 @@ describe('ProductPrismaRepository', () => {
     create: jest.fn(),
     update: jest.fn(),
   };
-  const prisma = { product: model } as unknown as PrismaService;
+  // PRD-1: the price trail lives beside the product, written in the same transaction.
+  const priceChange = { create: jest.fn(), findMany: jest.fn() };
+  const $transaction = jest.fn((ops: unknown) => Promise.resolve(ops));
+  const prisma = {
+    product: model,
+    productPriceChange: priceChange,
+    $transaction,
+  } as unknown as PrismaService;
   const repo = new ProductPrismaRepository(prisma);
 
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * PRD-1: one transaction. A trail written separately can disagree with the price it is
+   * supposed to explain, which is the same gap the finding names, in a smaller window.
+   */
+  it('writes the price trail and the update together', async () => {
+    priceChange.create.mockReturnValue('trail-row');
+    model.update.mockReturnValue(productRow());
+    $transaction.mockResolvedValueOnce(['trail-row', productRow()]);
+
+    await repo.updateWithPriceAudit(
+      'p-1',
+      { basePrice: 22000 },
+      { changedBy: 'staff-1', fromPrice: 20000, toPrice: 22000 },
+    );
+
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(priceChange.create).toHaveBeenCalledWith({
+      data: { productId: 'p-1', changedBy: 'staff-1', fromPrice: 20000, toPrice: 22000 },
+    });
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'p-1' }, data: { basePrice: 22000 } });
+  });
+
+  it('reads one product’s trail newest first, bounded', async () => {
+    priceChange.findMany.mockResolvedValue([
+      {
+        id: 'c-1',
+        productId: 'p-1',
+        changedBy: 'staff-1',
+        fromPrice: { toNumber: () => 20000 },
+        toPrice: { toNumber: () => 22000 },
+        changedAt: new Date('2026-09-01T00:00:00.000Z'),
+      },
+    ]);
+    await expect(repo.listPriceChanges('p-1', 50)).resolves.toEqual([
+      {
+        id: 'c-1',
+        productId: 'p-1',
+        changedBy: 'staff-1',
+        fromPrice: 20000,
+        toPrice: 22000,
+        changedAt: new Date('2026-09-01T00:00:00.000Z'),
+      },
+    ]);
+    expect(priceChange.findMany).toHaveBeenCalledWith({
+      where: { productId: 'p-1' },
+      orderBy: { changedAt: 'desc' },
+      take: 50,
+    });
+  });
 
   // Audit S-7: the batch behind checkout's line resolution. Active only, same as the
   // single-product read.

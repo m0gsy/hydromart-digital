@@ -1156,6 +1156,9 @@ describe('OrderService', () => {
     expect(result).toEqual([
       {
         orderId: order.id,
+        // PAY-4: payment-service refuses to open a payment on somebody else's order, and a
+        // payment row cannot answer that question on its own.
+        customerId: customer,
         orderNumber: order.orderNumber,
         totalIdr: order.total,
         depotId: order.depotId ?? null,

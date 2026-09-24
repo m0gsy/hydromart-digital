@@ -1,5 +1,5 @@
 {
-  "count": 66,
+  "count": 63,
   "routes": [
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
@@ -34,7 +34,6 @@
     "services/hr-service/src/modules/loan-request.controller.ts Patch :id/cancel @Can(-)",
     "services/hr-service/src/modules/payroll.controller.ts Get me/:id @Can(-)",
     "services/hr-service/src/modules/payroll.controller.ts Get me/:id/slip @Can(-)",
-    "services/loyalty-service/src/modules/loyalty.controller.ts Get customers/:customerId @Can(loyaltyRead)",
     "services/loyalty-service/src/modules/reward.controller.ts Post redemptions/:id/cancel @Can(-)",
     "services/order-service/src/modules/cart.controller.ts Delete items/:productId @Can(-)",
     "services/order-service/src/modules/cart.controller.ts Put items/:productId @Can(-)",
@@ -56,16 +55,14 @@
     "services/product-service/src/modules/category.controller.ts Delete :id @Can(catalogWrite)",
     "services/product-service/src/modules/category.controller.ts Patch :id @Can(catalogWrite)",
     "services/product-service/src/modules/product.controller.ts Delete :id @Can(catalogWrite)",
+    "services/product-service/src/modules/product.controller.ts Get :id/price-history @Can(catalogWrite)",
     "services/product-service/src/modules/product.controller.ts Patch :id @Can(catalogWrite)",
     "services/promo-service/src/modules/promotion.controller.ts Delete :id @Can(promotionWrite)",
-    "services/promo-service/src/modules/promotion.controller.ts Get :id/analytics @Can(promotionRead)",
     "services/promo-service/src/modules/promotion.controller.ts Patch :id @Can(promotionWrite)",
     "services/promo-service/src/modules/voucher.controller.ts Delete :id @Can(voucherWrite)",
     "services/promo-service/src/modules/voucher.controller.ts Get :code @Can(voucherRead)",
     "services/promo-service/src/modules/voucher.controller.ts Get :code @Can(voucherRead)",
-    "services/promo-service/src/modules/voucher.controller.ts Get :code @Can(voucherWrite)",
     "services/promo-service/src/modules/voucher.controller.ts Patch :id @Can(voucherWrite)",
-    "services/promo-service/src/modules/voucher.controller.ts Post :id/grant @Can(voucherWrite)",
-    "services/referral-service/src/modules/referral.controller.ts Get customers/:customerId @Can(loyaltyRead)"
+    "services/promo-service/src/modules/voucher.controller.ts Post :id/grant @Can(voucherWrite)"
   ]
 }

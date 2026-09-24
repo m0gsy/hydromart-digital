@@ -139,6 +139,45 @@ describe('OrderCoordinationHttpAdapter', () => {
     });
   });
 
+  /*
+   * PAY-4: the same read, now also answering WHOSE order it is. `initiate` validated the
+   * amount and never asked, so a payment could be opened against any order id at all.
+   */
+  describe('getOrderForPayment', () => {
+    it('returns null (skips both checks) when coordination is disabled', async () => {
+      const a = new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' }));
+      expect(await a.getOrderForPayment('o1')).toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('returns the total with the owner and the depot', async () => {
+      fetchMock.mockResolvedValue(
+        res({ body: { total: 57000, customerId: 'cust-1', depotId: 'depot-1' } }),
+      );
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).getOrderForPayment('o1'),
+      ).resolves.toEqual({ total: 57000, customerId: 'cust-1', depotId: 'depot-1' });
+    });
+
+    it('reads a counter sale with no account as an owner of null', async () => {
+      fetchMock.mockResolvedValue(res({ body: { total: 20000 } }));
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).getOrderForPayment('o1'),
+      ).resolves.toEqual({ total: 20000, customerId: null, depotId: null });
+    });
+
+    it('fails CLOSED on a non-2xx and on a body with no total', async () => {
+      fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).getOrderForPayment('o1'),
+      ).rejects.toThrow(/503/);
+      fetchMock.mockResolvedValue(res({ body: {} }));
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).getOrderForPayment('o1'),
+      ).rejects.toThrow(/no total/);
+    });
+  });
+
   describe('confirmPaid / notifyRefunded (fail-open POST)', () => {
     it('confirmPaid: skips without key + posts on happy path', async () => {
       await new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' })).confirmPaid('o1');

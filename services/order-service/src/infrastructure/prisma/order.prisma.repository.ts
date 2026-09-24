@@ -406,10 +406,19 @@ export class OrderPrismaRepository implements OrderRepository {
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     const rows = await this.prisma.order.findMany({
       where: { id: { in: orderIds } },
-      select: { id: true, orderNumber: true, total: true, depotId: true, status: true },
+      select: {
+        id: true,
+        orderNumber: true,
+        total: true,
+        depotId: true,
+        status: true,
+        // PAY-4: payment-service has to be able to ask whose order this is.
+        customerId: true,
+      },
     });
     return rows.map((row) => ({
       orderId: row.id,
+      customerId: row.customerId,
       orderNumber: row.orderNumber,
       totalIdr: Math.round(row.total.toNumber()),
       depotId: row.depotId,

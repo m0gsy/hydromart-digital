@@ -15,6 +15,14 @@ export interface OrderCoordinationPort {
    */
   getOrderTotal(orderId: string): Promise<number | null>;
   /**
+   * PAY-4: the order's total AND who it belongs to, for the ownership check `initiate`
+   * could not make. Null with the same meaning as `getOrderTotal`: coordination is not
+   * configured (dev), so the caller skips both checks rather than refusing every payment.
+   */
+  getOrderForPayment(
+    orderId: string,
+  ): Promise<{ total: number; customerId: string | null; depotId: string | null } | null>;
+  /**
    * Records a settled refund amount on the order so order-service can report refunds
    * per depot (reconciliation 22a). Same fail-open contract as confirmPaid: the refund
    * is already settled, so a coordination hiccup must never surface as a payment error.

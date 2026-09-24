@@ -90,9 +90,12 @@ describe('PaymentController', () => {
     // C2: the cashier's own bearer rides along so the service can ask depot-service which
     // drawer THEY have open. It is not a body field on purpose — a body that could name the
     // shift could name somebody else's till.
+    // PAY-4: and `staffFor` says the ownership check does not apply here — the cashier is
+    // not the buyer, and their right to ring this up is `paymentSettle` on the route.
     expect(svc.initiate).toHaveBeenCalledWith('buyer-9', {
       ...dto,
       atCounter: true,
+      staffFor: true,
       authorization: 'Bearer cashier-token',
     });
   });

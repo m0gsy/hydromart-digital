@@ -6,7 +6,7 @@ import {
   CreateAddressData,
   UpdateAddressData,
 } from '../../application/ports/address.repository';
-import { PrimaryAddressConflictError } from '../../domain/errors';
+import { AddressNotFoundError, PrimaryAddressConflictError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
 
 /** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
@@ -61,8 +61,27 @@ export class AddressPrismaRepository implements AddressRepository {
     }
   }
 
-  update(_customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
-    return this.prisma.address.update({ where: { id }, data: patch });
+  /*
+   * CUS-2 — the owner is part of the query, not part of the caller's good manners.
+   *
+   * This took a `customerId` and threw it away (`_customerId`), so the row was found by id
+   * alone and ownership rested entirely on every caller remembering to check first. One
+   * handler that forgets — or one new one written from the shape of this signature — edits
+   * somebody else's address. `updateMany` with both keys makes the database refuse it, and
+   * a count of zero is the same answer as "no such row", which is what the caller of a
+   * by-id update already knows how to handle.
+   */
+  async update(
+    customerId: string,
+    id: string,
+    patch: UpdateAddressData,
+  ): Promise<AddressRecord> {
+    const { count } = await this.prisma.address.updateMany({
+      where: { id, customerId },
+      data: patch,
+    });
+    if (count === 0) throw new AddressNotFoundError();
+    return this.prisma.address.findUniqueOrThrow({ where: { id } });
   }
 
   async unsetPrimary(customerId: string): Promise<void> {

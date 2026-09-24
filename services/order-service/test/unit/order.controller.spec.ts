@@ -551,9 +551,34 @@ describe('OrderController', () => {
     expect(service.recordRefund).toHaveBeenCalledWith('o1', 5000);
   });
 
-  it('internalTotal: reads the authoritative order total', async () => {
-    await expect(controller.internalTotal('o1')).resolves.toEqual({ orderId: 'o1', total: 42000 });
+  /*
+   * PAY-4: the owner travels with the total. payment-service validated the AMOUNT against
+   * this answer and never asked whose order it was, so a payment could be opened against any
+   * order id at all — and the mismatch error then replied with the real total.
+   */
+  it('internalTotal: reads the authoritative total, the owner and the depot', async () => {
+    await expect(controller.internalTotal('o1')).resolves.toEqual({
+      orderId: 'o1',
+      total: 42000,
+      customerId: null,
+      depotId: 'd1',
+    });
     expect(service.getAny).toHaveBeenCalledWith('o1');
+  });
+
+  /*
+   * PAY-4: a counter sale rung up for somebody with no account has no owner, and no depot
+   * is assigned until dispatch. Both answer null rather than being absent — payment-service
+   * reads "not yours" off a value, and an undefined would read as a missing field.
+   */
+  it('internalTotal: answers null for an order with neither owner nor depot', async () => {
+    service.getAny.mockResolvedValueOnce({ id: 'o2', total: 20000 });
+    await expect(controller.internalTotal('o2')).resolves.toEqual({
+      orderId: 'o2',
+      total: 20000,
+      customerId: null,
+      depotId: null,
+    });
   });
 
   it('ratingBatch: returns the mean rating over the order ids', async () => {

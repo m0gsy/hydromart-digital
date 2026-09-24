@@ -294,6 +294,17 @@ export interface OrderValue {
    * stop. A payment row cannot answer that: it knows nothing about the order beyond an id.
    */
   status: string;
+  /**
+   * PAY-4: who the order belongs to.
+   *
+   * payment-service could create a payment against ANY order id — nothing checked that the
+   * caller owned it — and the mismatch error then answered with the real total, so the id
+   * space could be walked for order values. It cannot answer "whose is this" from a payment
+   * row, because a payment row knows nothing about the order beyond its id.
+   *
+   * Null for a counter sale rung up for somebody with no account.
+   */
+  customerId: string | null;
   /** The human-readable HM-… number (§G-3): what every other console shows for an order. */
   orderNumber: string;
   totalIdr: number;

@@ -781,9 +781,23 @@ export class OrderController {
   @ApiOperation({ summary: 'Read an order total for payment validation (internal service auth)' })
   async internalTotal(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ orderId: string; total: number }> {
+  ): Promise<{ orderId: string; total: number; customerId: string | null; depotId: string | null }> {
     const order = await this.orders.getAny(id);
-    return { orderId: order.id, total: order.total };
+    /*
+     * PAY-4: the owner travels with the total.
+     *
+     * payment-service validated the AMOUNT against this answer and never asked whose order
+     * it was, so a customer could open a payment against any order id at all — and the
+     * mismatch error then told them the real total, which turns the id space into a price
+     * list. It cannot answer the ownership question itself: a payment row knows nothing
+     * about the order beyond an id.
+     */
+    return {
+      orderId: order.id,
+      total: order.total,
+      customerId: order.customerId ?? null,
+      depotId: order.depotId ?? null,
+    };
   }
 
   // Service-to-service: delivery-service reads a courier's mean rating over the orders

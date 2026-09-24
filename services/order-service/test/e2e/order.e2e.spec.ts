@@ -390,6 +390,9 @@ describe('Order HTTP flows (e2e)', () => {
     expect(values.body).toEqual([
       {
         orderId: order.body.id,
+        // PAY-4: whose order it is — payment-service could open a payment against any id
+        // at all, and a payment row cannot answer the ownership question on its own.
+        customerId: order.body.customerId ?? expect.any(String),
         // §G-3: the number payment-service puts on the refund queue.
         orderNumber: order.body.orderNumber,
         totalIdr: order.body.total,

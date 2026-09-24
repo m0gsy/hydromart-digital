@@ -288,8 +288,20 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   refunded: { orderId: string; amount: number }[] = [];
   /** null = coordination disabled (validation skipped); a number = authoritative order total. */
   orderTotal: number | null = null;
+  /** PAY-4: whose order it is. Defaults to the customer every test pays as. */
+  orderCustomerId: string | null = null;
+  orderDepotId: string | null = null;
   async getOrderTotal(): Promise<number | null> {
     return this.orderTotal;
+  }
+  async getOrderForPayment(): Promise<{
+    total: number;
+    customerId: string | null;
+    depotId: string | null;
+  } | null> {
+    return this.orderTotal === null
+      ? null
+      : { total: this.orderTotal, customerId: this.orderCustomerId, depotId: this.orderDepotId };
   }
   async confirmPaid(orderId: string): Promise<void> {
     this.confirmedOrderIds.push(orderId);

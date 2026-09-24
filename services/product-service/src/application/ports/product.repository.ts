@@ -50,4 +50,28 @@ export interface ProductRepository {
   findBySku(sku: string): Promise<ProductRecord | null>;
   create(data: CreateProductData): Promise<ProductRecord>;
   update(id: string, patch: UpdateProductData): Promise<ProductRecord>;
+  /**
+   * PRD-1: record that the base price moved, and who moved it. Append-only.
+   *
+   * Written in the SAME transaction as the update, so a trail can never disagree with the
+   * price it is supposed to explain — a best-effort write would leave exactly the gap the
+   * finding is about, just less often.
+   */
+  updateWithPriceAudit(
+    id: string,
+    patch: UpdateProductData,
+    audit: { changedBy: string; fromPrice: number; toPrice: number },
+  ): Promise<ProductRecord>;
+  /** PRD-1: the recorded changes for one product, newest first. */
+  listPriceChanges(productId: string, limit: number): Promise<PriceChangeRecord[]>;
+}
+
+/** PRD-1: one recorded move of a product's base price. */
+export interface PriceChangeRecord {
+  id: string;
+  productId: string;
+  changedBy: string;
+  fromPrice: number;
+  toPrice: number;
+  changedAt: Date;
 }
