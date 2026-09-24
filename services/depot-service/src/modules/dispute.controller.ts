@@ -3,19 +3,41 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  assertDepotAccess,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { DisputeService } from '../application/services/dispute.service';
 import { OrderDispute } from '../domain/order-dispute';
-import { CreateDisputeDto, ListDisputeQueryDto, ResolveDisputeDto } from './dto/dispute.dto';
+import {
+  CreateDisputeDto,
+  ListDisputeQueryDto,
+  PdpAnonymiseDto,
+  PdpErasedResponseDto,
+  ResolveDisputeDto,
+} from './dto/dispute.dto';
 import { OrderDisputeResponseDto } from './dto/responses.generated.dto';
 
 /** Customer order disputes inbox (depot CRM). */
@@ -25,6 +47,21 @@ import { OrderDisputeResponseDto } from './dto/responses.generated.dto';
 @Controller({ path: 'order-disputes', version: '1' })
 export class DisputeController {
   constructor(private readonly disputes: DisputeService) {}
+
+  /**
+   * DPT-2: the erasure fan-out auth-service drives, same internal-key shape as every other
+   * service's. Internal key rather than a bearer: the caller is auth-service, not a person.
+   */
+  @ApiOkResponse({ type: PdpErasedResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Erase one person from depot disputes, incidents and subscriptions' })
+  pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
+    return this.disputes.erasePerson(dto.customerId, dto.phone ?? null);
+  }
 
   @ApiOkResponse({ type: OrderDisputeResponseDto })
   @Post()

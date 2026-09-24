@@ -38,6 +38,17 @@ export class DisputeService {
     @Inject(DEPOT_TOKENS.DisputeRefund) private readonly refunds: DisputeRefundPort,
   ) {}
 
+  /**
+   * DPT-2: the UU PDP erasure fan-out reaches depot-service at last.
+   *
+   * The rows stay — how many disputes a depot received and how they were resolved is the
+   * depot's operating record, and it belongs to nobody's identity. What goes is the person:
+   * the name, the number, and the free text they are named in.
+   */
+  async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {
+    return { erased: await this.disputes.erasePerson(customerId, phone) };
+  }
+
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();

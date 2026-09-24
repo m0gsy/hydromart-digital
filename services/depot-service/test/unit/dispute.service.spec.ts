@@ -23,6 +23,18 @@ import { FakeDisputeRefund, InMemoryDepotRepository } from '../support/fakes';
 
 // Local in-memory DisputeRepository (do not edit shared fakes.ts).
 class InMemoryDisputeRepository implements DisputeRepository {
+  /** DPT-2: the erasure fan-out. The rows stay; the person named in them does not. */
+  async erasePerson(customerId: string, phone: string | null): Promise<number> {
+    const mine = this.rows.filter((r) => r.customerId === customerId);
+    for (const row of mine) {
+      row.customerName = 'Pengguna dihapus';
+      row.description = '[dihapus atas permintaan pemilik data]';
+    }
+    // Incidents and subscriptions live in other repositories; this fake holds disputes only.
+    void phone;
+    return mine.length;
+  }
+
   rows: OrderDispute[] = [];
   private seq = 0;
   private next(): Date {
@@ -33,6 +45,7 @@ class InMemoryDisputeRepository implements DisputeRepository {
     const at = this.next();
     const row: OrderDispute = {
       id: randomUUID(),
+      customerId: data.customerId ?? null,
       ...data,
       status: DisputeStatus.OPEN,
       resolution: null,
@@ -307,5 +320,53 @@ describe('DisputeService REFUND queues the money (CA-2-39)', () => {
 
     // A refund with no reason at all is one nobody can review later.
     expect(refunds.calls[0]!.reason).toBe(`Sengketa ${DisputeCategory.WRONG_ITEM}`);
+  });
+});
+
+/*
+ * DPT-2. depot-service kept customer PII in three places nobody could reach from the
+ * deletion path, and `depot.order_disputes` was reported UNENFORCED while the `customerId`
+ * column made its way to the live database. This is the follow-up release that column was
+ * waiting for.
+ */
+describe('DisputeService.erasePerson (DPT-2)', () => {
+  const build = () => {
+    const repo = new InMemoryDisputeRepository();
+    const service = new DisputeService(repo, new InMemoryDepotRepository(), new FakeDisputeRefund());
+    return { repo, service };
+  };
+  const raise = (repo: InMemoryDisputeRepository, over: Record<string, unknown>) =>
+    repo.create({
+      depotId: randomUUID(),
+      orderRef: 'HM-1',
+      category: DisputeCategory.NOT_RECEIVED,
+      amountIdr: 20000,
+      courierName: 'Andi',
+      raisedBy: randomUUID(),
+      customerName: 'Budi Santoso',
+      description: 'galon bocor di Jl. Melati 7, hub 0812',
+      ...over,
+    } as never);
+
+  it('scrubs the person from their own disputes and leaves everybody else alone', async () => {
+    const { repo, service } = build();
+    const mine = await raise(repo, { customerId: 'cust-1' });
+    const theirs = await raise(repo, { customerId: 'cust-2', customerName: 'Siti' });
+
+    await expect(service.erasePerson('cust-1', '+628123')).resolves.toEqual({ erased: 1 });
+
+    const after = repo.rows.find((r) => r.id === mine.id)!;
+    expect(after.customerName).toBe('Pengguna dihapus');
+    expect(after.description).not.toContain('Melati');
+    // The row itself stays: how many disputes a depot received and how they were resolved
+    // is the depot's operating record, and it belongs to nobody's identity.
+    expect(after.status).toBe(mine.status);
+    expect(after.amountIdr).toBe(20000);
+    expect(repo.rows.find((r) => r.id === theirs.id)?.customerName).toBe('Siti');
+  });
+
+  it('touches nothing for a person with no rows here', async () => {
+    const { service } = build();
+    await expect(service.erasePerson('nobody', null)).resolves.toEqual({ erased: 0 });
   });
 });

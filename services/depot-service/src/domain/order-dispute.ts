@@ -26,6 +26,15 @@ export interface OrderDispute {
   id: string;
   depotId: string;
   orderRef: string;
+  /**
+   * DPT-2: the account this dispute belongs to, or null for a walk-in at the counter.
+   *
+   * The column shipped a release early on purpose — "nothing READS it in the release that
+   * adds it; the erasure executor lands one release later, after the column is on the live
+   * database". This is that release: the executor matches on it rather than on
+   * `customerName`, which would erase the disputes of everybody who shares a name.
+   */
+  customerId: string | null;
   customerName: string;
   category: DisputeCategory;
   description: string;
