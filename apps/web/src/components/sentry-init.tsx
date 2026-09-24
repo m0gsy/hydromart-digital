@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 
+import { sentryOptions } from '@/lib/sentry-options';
+
 /**
  * PR-I, the browser half. A 500 reaches the server alerter; a TypeError in a React tree
  * reaches nobody — the customer sees "Ada yang tidak beres", closes the app, and the only
@@ -26,35 +28,7 @@ export function SentryInit() {
     let cancelled = false;
     void import('@sentry/nextjs').then((Sentry) => {
       if (cancelled) return;
-      Sentry.init({
-        dsn,
-        environment: process.env.NEXT_PUBLIC_SENTRY_ENV,
-        release: process.env.NEXT_PUBLIC_APP_VERSION,
-        tracesSampleRate: 0,
-        /*
-         * Explicit, not left to the SDK default. `sendDefaultPii` is what attaches the IP
-         * address, cookies and headers to an event, and the default has changed between
-         * major versions of this SDK before. On a screen carrying a customer's name and
-         * address, the difference between the default and the intent is the whole question,
-         * and a reader of this file should not have to know which version is installed.
-         *
-         * This is the client half. Sentry still SEES the request IP because it is the peer
-         * address of the upload — turning that off is a project setting (Security & Privacy
-         * -> Prevent Storing of IP Addresses), not something code can do.
-         */
-        sendDefaultPii: false,
-        // The customer's own screen is full of their name, address and phone. A replay or
-        // a breadcrumb trail carries all of it to a third party, so neither is enabled and
-        // breadcrumbs are dropped on the way out — same rule the backend alerter follows.
-        beforeSend(event) {
-          event.breadcrumbs = [];
-          if (event.request?.url) {
-            // A query string carries phone numbers and ids on the search screens.
-            event.request.url = event.request.url.split('?')[0];
-          }
-          return event;
-        },
-      });
+      Sentry.init(sentryOptions(dsn));
     });
     return () => {
       cancelled = true;

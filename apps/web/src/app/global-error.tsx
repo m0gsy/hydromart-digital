@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 
+import { sentryOptions } from '@/lib/sentry-options';
+
 import { callPlugin } from '@/lib/capacitor';
 
 // Catches failures in the ROOT layout itself, where the normal error boundary and
@@ -38,7 +40,10 @@ export default function GlobalError({
     void import('@sentry/nextjs')
       .then((Sentry) => {
         if (!Sentry.getClient()) {
-          Sentry.init({ dsn, environment: process.env.NEXT_PUBLIC_SENTRY_ENV, tracesSampleRate: 0 });
+          // WEBA-1: the SAME options the normal path uses. This branch used to init with
+          // three of them and none of the scrubbing, so the events most likely to be sent
+          // from a broken screen were the ones sent with the least care.
+          Sentry.init(sentryOptions(dsn));
         }
         Sentry.captureException(error, { tags: { boundary: 'global-error' } });
       })
