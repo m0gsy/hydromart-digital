@@ -133,6 +133,49 @@ describe('FraudFlagService blocking the account (CA-2-05)', () => {
     ]);
   });
 
+  /*
+   * ADM-8, the first failure mode: an account held by TWO suspicions was released by
+   * resolving either one. The other flag stayed BLOCKED on the screen while the customer
+   * ordered again.
+   */
+  it('leaves the account suspended while another flag still holds it', async () => {
+    const repo = new InMemoryFraudFlagRepository();
+    const accounts = new FakeAccountSuspension();
+    const service = new FraudFlagService(repo, accounts);
+    const first = await service.ingest(accountFlag);
+    const second = await service.ingest(accountFlag);
+
+    await service.block(first.id);
+    await service.block(second.id);
+    accounts.calls.length = 0;
+
+    await service.clear(first.id);
+    expect(accounts.calls).toEqual([]);
+
+    // Once the last hold is resolved, the account comes back.
+    await service.clear(second.id);
+    expect(accounts.calls).toEqual([{ customerId: accountFlag.entityRef, active: true }]);
+  });
+
+  /*
+   * ADM-8, the second: the ORDINARY path. Block, mark reviewed, clear — the old rule read
+   * the flag's CURRENT status, which by then said REVIEWED, so the suspension was never
+   * lifted. The account stayed locked out with every flag against it resolved.
+   */
+  it('reinstates after the block → review → clear path', async () => {
+    const repo = new InMemoryFraudFlagRepository();
+    const accounts = new FakeAccountSuspension();
+    const service = new FraudFlagService(repo, accounts);
+    const flag = await service.ingest(accountFlag);
+
+    await service.block(flag.id);
+    await service.review(flag.id);
+    accounts.calls.length = 0;
+    await service.clear(flag.id);
+
+    expect(accounts.calls).toEqual([{ customerId: accountFlag.entityRef, active: true }]);
+  });
+
   it('does not reinstate an account a flag never blocked', async () => {
     const repo = new InMemoryFraudFlagRepository();
     const accounts = new FakeAccountSuspension();

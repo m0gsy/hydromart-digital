@@ -17,6 +17,7 @@ interface FraudFlagRow {
   level: string;
   signals: string[];
   status: string;
+  blockedAt: Date | null;
   createdAt: Date;
 }
 
@@ -30,6 +31,7 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
       entityType: row.entityType as FraudEntityType,
       level: row.level as FraudLevel,
       status: row.status as FraudStatus,
+      blockedAt: row.blockedAt,
     };
   }
 
@@ -55,10 +57,24 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async countBlockedFor(entityRef: string, excludeId: string): Promise<number> {
+    return this.prisma.fraudFlag.count({
+      where: { entityRef, status: FraudStatus.BLOCKED, id: { not: excludeId } },
+    });
+  }
+
   async setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null> {
     const existing = await this.prisma.fraudFlag.findUnique({ where: { id } });
     if (!existing) return null;
-    const row = await this.prisma.fraudFlag.update({ where: { id }, data: { status } });
+    // ADM-8: stamped when it becomes BLOCKED and never cleared — "this flag suspended
+    // somebody" is a fact about what happened, not a state that can be undone.
+    const row = await this.prisma.fraudFlag.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === FraudStatus.BLOCKED && !existing.blockedAt ? { blockedAt: new Date() } : {}),
+      },
+    });
     return this.toRecord(row);
   }
 }

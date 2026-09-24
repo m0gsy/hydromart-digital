@@ -20,14 +20,20 @@ function contextWith(headers: Record<string, string>, scopes?: string[]): Execut
   } as unknown as ExecutionContext;
 }
 
-async function seedKey(repo: InMemoryApiKeyRepository, scopes: string[]) {
-  const minted = generateApiKey(ApiKeyEnvironment.PROD);
+async function seedKey(
+  repo: InMemoryApiKeyRepository,
+  scopes: string[],
+  over: { environment?: ApiKeyEnvironment; expiresAt?: Date | null } = {},
+) {
+  const environment = over.environment ?? ApiKeyEnvironment.PROD;
+  const minted = generateApiKey(environment);
   const record = await repo.create({
     name: 'partner',
     keyPrefix: minted.keyPrefix,
     keyHash: minted.keyHash,
     scopes,
-    environment: ApiKeyEnvironment.PROD,
+    environment,
+    expiresAt: over.expiresAt ?? null,
   });
   return { token: minted.token, record };
 }
@@ -38,7 +44,9 @@ describe('ApiKeyGuard (H-30)', () => {
 
   beforeEach(() => {
     repo = new InMemoryApiKeyRepository();
-    guard = new ApiKeyGuard(repo, new Reflector());
+    // ADM-5: the guard reads the environment it is running in — a test key is not a
+    // production credential.
+    guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
   });
 
   it('admits a live key that carries the required scope, and stamps it as used', async () => {
@@ -105,5 +113,61 @@ describe('ApiKeyGuard (H-30)', () => {
     await expect(
       guard.canActivate(contextWith({ 'x-api-key': token }, ['webhooks:read'])),
     ).resolves.toBe(true);
+  });
+});
+
+/*
+ * ADM-5. A partner credential with no end outlives the integration it was minted for, the
+ * person who asked for it, and the laptop it was pasted into. And a TEST key — prefixed
+ * `hm_test_…`, labelled STAGING in the console — was accepted against production data
+ * exactly like a live one, so a credential handed out for a sandbox, with the care that
+ * implies, was a production credential the whole time.
+ */
+describe('ApiKeyGuard · expiry and environment (ADM-5)', () => {
+  const ctx = (token: string) => contextWith({ 'x-api-key': token });
+
+  it('refuses a key whose day has passed', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const { token } = await seedKey(repo, [], { expiresAt: new Date('2020-01-01') });
+
+    await expect(guard.canActivate(ctx(token))).rejects.toThrow(/expired/i);
+  });
+
+  it('admits one whose day has not', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const { token } = await seedKey(repo, [], { expiresAt: new Date('2099-01-01') });
+
+    await expect(guard.canActivate(ctx(token))).resolves.toBe(true);
+  });
+
+  // Keys minted before the column existed have no date, and are left working: silently
+  // expiring a partner's live credential on deploy is an outage, not a fix.
+  it('admits a key that predates expiries at all', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    const { token } = await seedKey(repo, [], { expiresAt: null });
+
+    await expect(guard.canActivate(ctx(token))).resolves.toBe(true);
+  });
+
+  it('refuses a STAGING key against production, and admits it off production', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const { token } = await seedKey(repo, [], { environment: ApiKeyEnvironment.STAGING });
+
+    const inProd = new ApiKeyGuard(repo, new Reflector(), { isProduction: true } as never);
+    await expect(inProd.canActivate(ctx(token))).rejects.toThrow(/production/i);
+
+    const inStaging = new ApiKeyGuard(repo, new Reflector(), { isProduction: false } as never);
+    await expect(inStaging.canActivate(ctx(token))).resolves.toBe(true);
+  });
+
+  it('still admits a live key in production', async () => {
+    const repo = new InMemoryApiKeyRepository();
+    const guard = new ApiKeyGuard(repo, new Reflector(), { isProduction: true } as never);
+    const { token } = await seedKey(repo, []);
+
+    await expect(guard.canActivate(ctx(token))).resolves.toBe(true);
   });
 });

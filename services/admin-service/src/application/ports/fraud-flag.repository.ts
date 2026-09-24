@@ -8,6 +8,8 @@ export interface FraudFlagRecord {
   level: FraudLevel;
   signals: string[];
   status: FraudStatus;
+  /** ADM-8: when this flag suspended the account, or null if it never did. */
+  blockedAt: Date | null;
   createdAt: Date;
 }
 
@@ -37,6 +39,19 @@ export interface FraudFlagRepository {
    * needs the row before the write, which `setStatus` alone could not give.
    */
   findById(id: string): Promise<FraudFlagRecord | null>;
-  /** Set a flag's review status. Null when the id is unknown. */
+  /**
+   * Set a flag's review status. Null when the id is unknown.
+   *
+   * ADM-8: `blockedAt` is stamped when the status becomes BLOCKED and never cleared —
+   * "this flag suspended somebody" is a fact about what happened, not a current state.
+   */
   setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null>;
+  /**
+   * ADM-8: how many OTHER flags still hold this entity blocked.
+   *
+   * Clearing one flag used to reinstate the account outright, so an account held by two
+   * separate suspicions was released by resolving either of them — the remaining flag stayed
+   * BLOCKED on the screen while the customer ordered again.
+   */
+  countBlockedFor(entityRef: string, excludeId: string): Promise<number>;
 }

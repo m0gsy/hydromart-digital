@@ -57,17 +57,42 @@ export class FraudFlagService {
   }
 
   /**
-   * Clearing a flag lifts the suspension it caused.
+   * Clearing a flag lifts the suspension it caused — if nothing else is holding it.
    *
-   * Same reasoning in reverse: a queue that can block an account and cannot unblock it
-   * makes every false positive permanent, and the operator who cleared it would have no
-   * way to tell that the customer is still locked out.
+   * A queue that can block an account and cannot unblock it makes every false positive
+   * permanent, and the operator who cleared it would have no way to tell the customer is
+   * still locked out. ADM-8 found the two ways the original rule got that wrong.
+   *
+   * It reinstated whenever THIS flag read BLOCKED, so an account held by two separate
+   * suspicions was released by resolving either one: the other flag stayed BLOCKED on the
+   * screen while the customer ordered again. And it reinstated ONLY when this flag read
+   * BLOCKED, so the ordinary path — block, mark reviewed, then clear — never lifted the
+   * suspension at all, because by then the flag said REVIEWED. The account stayed locked
+   * out with every flag against it resolved, and nothing in the queue showed why.
+   *
+   * The question is therefore not "was this flag blocked" but "is this account still held":
+   * reinstate exactly when no OTHER flag on the same entity is BLOCKED.
    */
   async clear(id: string): Promise<FraudFlagRecord> {
     const flag = await this.repo.findById(id);
     if (!flag) throw new FraudFlagNotFoundError(id);
-    if (flag.entityType === FraudEntityType.ACCOUNT && flag.status === FraudStatus.BLOCKED) {
-      await this.accounts.setActive(flag.entityRef, true);
+    /*
+     * Reinstate only when BOTH are true: this flag is the one that suspended the account,
+     * and nothing else is still holding it.
+     *
+     * `blockedAt` answers the first — the flag's CURRENT status cannot, because the
+     * ordinary path marks it REVIEWED on the way to CLEARED, and reading the status there
+     * is why block → review → clear never released anybody. `countBlockedFor` answers the
+     * second, which is why resolving one of two suspicions no longer opens the door.
+     *
+     * A flag that never blocked anything reinstates nothing: an account suspended for some
+     * other reason entirely must not be reopened by tidying this queue.
+     */
+    if (flag.entityType === FraudEntityType.ACCOUNT && flag.blockedAt) {
+      const heldElsewhere = await this.repo.countBlockedFor(flag.entityRef, id);
+      if (heldElsewhere === 0) {
+        await this.accounts.setActive(flag.entityRef, true);
+      }
     }
     return this.transition(id, FraudStatus.CLEARED);
   }

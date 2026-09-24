@@ -85,6 +85,8 @@ describe('ApiKeyPrismaRepository', () => {
     scopes: true,
     environment: true,
     lastUsedAt: true,
+    // ADM-5: a key that ends.
+    expiresAt: true,
     revokedAt: true,
     createdAt: true,
   };
@@ -128,13 +130,19 @@ describe('ApiKeyPrismaRepository', () => {
     expect(model.create).toHaveBeenCalledWith({ data, select: SELECT });
   });
 
-  it('rotate updates prefix/hash and clears revokedAt when the key exists', async () => {
+  /*
+   * ADM-5: rotation no longer clears `revokedAt`. It used to, so the button labelled
+   * "rotate" quietly undid a revocation — the same partner got a working credential back,
+   * and nothing on the screen said a security decision had been reversed.
+   */
+  it('rotate replaces prefix/hash and the expiry, and leaves revokedAt alone', async () => {
+    const expiresAt = new Date('2027-01-01T00:00:00.000Z');
     model.findUnique.mockResolvedValue(row());
     model.update.mockResolvedValue(row());
-    const rec = await repo.rotate('key-1', 'hm_live_cd', 'new-hash');
+    const rec = await repo.rotate('key-1', 'hm_live_cd', 'new-hash', expiresAt);
     expect(model.update).toHaveBeenCalledWith({
       where: { id: 'key-1' },
-      data: { keyPrefix: 'hm_live_cd', keyHash: 'new-hash', revokedAt: null },
+      data: { keyPrefix: 'hm_live_cd', keyHash: 'new-hash', expiresAt },
       select: SELECT,
     });
     expect(rec?.id).toBe('key-1');
@@ -142,7 +150,7 @@ describe('ApiKeyPrismaRepository', () => {
 
   it('rotate returns null and does not update an unknown key', async () => {
     model.findUnique.mockResolvedValue(null);
-    expect(await repo.rotate('nope', 'p', 'h')).toBeNull();
+    expect(await repo.rotate('nope', 'p', 'h', null)).toBeNull();
     expect(model.update).not.toHaveBeenCalled();
   });
 
