@@ -9,7 +9,7 @@ import {
   ReportLocationDto,
   RescheduleDeliveryDto,
 } from '../../src/modules/dto/delivery.dto';
-import { ReportIncidentDto } from '../../src/modules/dto/incident.dto';
+import { IncidentDto, ReportIncidentDto } from '../../src/modules/dto/incident.dto';
 import { SlaReportQueryDto } from '../../src/modules/dto/report.dto';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { ContactMethod } from '../../src/domain/no-show';
@@ -128,5 +128,30 @@ describe('ListDeliveriesQueryDto.statuses transform', () => {
   it('rejects a status that is not one of the six', async () => {
     const dto = plainToInstance(ListDeliveriesQueryDto, { statuses: 'ASSIGNED,NOT_A_STATUS' });
     expect(await validate(dto)).not.toHaveLength(0);
+  });
+});
+
+/*
+ * CA-4-49: the photo link is minted per read, so a caller with nothing to mint passes
+ * nothing — and the DTO must answer null rather than leave the field undefined.
+ */
+describe('IncidentDto.from', () => {
+  const record = {
+    id: 'inc-1',
+    driverId: 'drv-1',
+    deliveryId: 'dlv-1',
+    category: IncidentCategory.ACCIDENT,
+    severity: IncidentSeverity.HIGH,
+    description: 'ban bocor',
+    photoKey: 'incidents/x.jpg',
+    createdAt: new Date('2026-09-01T00:00:00Z'),
+  };
+
+  it('defaults the minted link to null when the caller has none', () => {
+    expect(IncidentDto.from(record as never).photoUrl).toBeNull();
+  });
+
+  it('carries a minted link through when there is one', () => {
+    expect(IncidentDto.from(record as never, 'https://signed/x').photoUrl).toBe('https://signed/x');
   });
 });

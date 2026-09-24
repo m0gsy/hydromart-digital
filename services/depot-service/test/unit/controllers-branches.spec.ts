@@ -289,11 +289,28 @@ describe('CashbookController', () => {
 });
 
 describe('DisputeController', () => {
-  const svc = { raise: jest.fn(), list: jest.fn(), get: jest.fn(), resolve: jest.fn() };
+  const svc = {
+    raise: jest.fn(),
+    list: jest.fn(),
+    get: jest.fn(),
+    resolve: jest.fn(),
+    erasePerson: jest.fn(),
+  };
   const c = new DisputeController(svc as never);
   beforeEach(() => {
     jest.clearAllMocks();
     svc.get.mockResolvedValue({ depotId: DEPOT });
+  });
+
+  // DPT-2: the internal erasure route, with and without the number an incident keys on.
+  it('passes the erasure subject through, defaulting a missing phone to null', async () => {
+    svc.erasePerson.mockResolvedValue({ erased: 3 });
+    await expect(c.pdpAnonymise({ customerId: 'cust-1', phone: '+628123' } as never)).resolves.toEqual(
+      { erased: 3 },
+    );
+    expect(svc.erasePerson).toHaveBeenCalledWith('cust-1', '+628123');
+    await c.pdpAnonymise({ customerId: 'cust-1' } as never);
+    expect(svc.erasePerson).toHaveBeenLastCalledWith('cust-1', null);
   });
 
   it('raises with and without courierName, lists and resolves', async () => {

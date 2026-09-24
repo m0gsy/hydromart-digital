@@ -41,5 +41,8 @@ describe('ipAllowed', () => {
     expect(ipAllowed('203.0.113.7', ['not-an-ip', '203.0.113.7'])).toBe(true);
     expect(ipAllowed('203.0.113.7', ['203.0.113.0/99', ''])).toBe(false);
     expect(ipAllowed('203.0.113.7', ['999.0.0.1/24'])).toBe(false);
+    // Neither side is four octets: a truncated network, and a truncated caller address.
+    expect(ipAllowed('203.0.113.7', ['203.0.113/24'])).toBe(false);
+    expect(ipAllowed('203.0.113', ['203.0.113.0/24'])).toBe(false);
   });
 });

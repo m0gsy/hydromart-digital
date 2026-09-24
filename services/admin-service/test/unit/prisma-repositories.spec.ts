@@ -321,9 +321,10 @@ describe('FraudFlagPrismaRepository', () => {
     findUnique: jest.fn(),
     update: jest.fn(),
   };
-  const prisma = { fraudFlag: model } as unknown as PrismaService;
+  const prisma = { fraudFlag: { ...model, count: jest.fn() } } as unknown as PrismaService;
   const repo = new FraudFlagPrismaRepository(prisma);
-  const row = () => ({
+  const count = (prisma as unknown as { fraudFlag: { count: jest.Mock } }).fraudFlag.count;
+  const row = (over: Record<string, unknown> = {}) => ({
     id: 'fr-1',
     entityType: 'ORDER',
     entityRef: 'ord-1',
@@ -331,10 +332,41 @@ describe('FraudFlagPrismaRepository', () => {
     level: 'HIGH',
     signals: ['velocity'],
     status: 'OPEN',
+    blockedAt: null,
     createdAt: now,
+    ...over,
   });
 
   beforeEach(() => jest.clearAllMocks());
+
+  /*
+   * ADM-8: "is anything ELSE still holding this account blocked?" — the question clearing
+   * one of two suspicions has to ask before it reopens anybody.
+   */
+  it('counts the OTHER flags still holding an entity blocked', async () => {
+    count.mockResolvedValue(2);
+    await expect(repo.countBlockedFor('cust-1', 'fr-1')).resolves.toBe(2);
+    expect(count).toHaveBeenCalledWith({
+      where: { entityRef: 'cust-1', status: 'BLOCKED', id: { not: 'fr-1' } },
+    });
+  });
+
+  // ADM-8: stamped the first time it blocks, and never re-stamped or cleared afterwards.
+  it('stamps blockedAt on the first block only', async () => {
+    model.findUnique.mockResolvedValue(row());
+    model.update.mockResolvedValue(row({ status: 'BLOCKED' }));
+    await repo.setStatus('fr-1', FraudStatus.BLOCKED);
+    expect(model.update.mock.calls[0]![0].data.blockedAt).toBeInstanceOf(Date);
+
+    model.update.mockClear();
+    model.findUnique.mockResolvedValue(row({ status: 'BLOCKED', blockedAt: now }));
+    await repo.setStatus('fr-1', FraudStatus.BLOCKED);
+    expect(model.update.mock.calls[0]![0].data).not.toHaveProperty('blockedAt');
+
+    model.update.mockClear();
+    await repo.setStatus('fr-1', FraudStatus.CLEARED);
+    expect(model.update.mock.calls[0]![0].data).not.toHaveProperty('blockedAt');
+  });
 
   it('answers null for a flag id that is not there', async () => {
     // The caller decides what a missing flag means (404, or a no-op sweep). Returning a

@@ -1,5 +1,6 @@
 import {
   SettlementStatus,
+  appendNote,
   canResolve,
   computeVariance,
   isShortfall,
@@ -28,5 +29,16 @@ describe('settlement domain', () => {
     expect(canResolve(SettlementStatus.SUBMITTED)).toBe(true);
     expect(canResolve(SettlementStatus.VERIFIED)).toBe(false);
     expect(canResolve(SettlementStatus.DISPUTED)).toBe(true);
+  });
+
+  /*
+   * C10: `resolve` writes ONE note column, so appending is the only thing that keeps the
+   * reason a deposit was disputed alongside the reason it was closed.
+   */
+  it('appends to an existing note and stands alone when there is none', () => {
+    expect(appendNote('kurang 15rb', 'disetor esok')).toBe('kurang 15rb\n— disetor esok');
+    expect(appendNote(null, 'disetor esok')).toBe('disetor esok');
+    // Whitespace is not a note: it must not leave a dangling dash above the real one.
+    expect(appendNote('   ', 'disetor esok')).toBe('disetor esok');
   });
 });
