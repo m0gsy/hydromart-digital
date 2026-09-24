@@ -69,7 +69,9 @@ describe('purge executor registry', () => {
   });
 
   it('drops a dataset whose owner this environment cannot reach, so it reads UNENFORCED', () => {
-    const { PAYMENT_SERVICE_URL: _payment, ...withoutPayment } = ALL;
+    const withoutPayment = Object.fromEntries(
+      Object.entries(ALL).filter(([key]) => key !== 'PAYMENT_SERVICE_URL'),
+    );
 
     const datasets = build(withoutPayment).map((e) => e.dataset);
 
