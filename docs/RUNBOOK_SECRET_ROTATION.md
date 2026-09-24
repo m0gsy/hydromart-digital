@@ -11,15 +11,15 @@ produksi, dan tidak satu pun bisa dikerjakan dari repo.
 
 ## Jadwal yang disarankan
 
-| Rahasia | Ritme | Kenapa segitu |
-| --- | --- | --- |
-| `JWT_SECRET` / `REFRESH_SECRET` | 90 hari, dan **segera** bila dicurigai bocor | Memutus semua sesi. Biaya rotasi = semua orang login ulang |
-| `INTERNAL_SERVICE_KEY` | 90 hari | Hanya antar-service; tidak ada pengguna yang merasakannya |
-| Kunci S3 / object storage | 90 hari, dan **sekarang** (L2.2 — kunci lama masih sah) | Kunci yang pernah bocor tetap sah sampai dicabut |
-| `GRAFANA_ADMIN_PASSWORD` | 180 hari | Loopback + tunnel; risikonya rendah tapi bukan nol |
-| Kredensial OTP (Zenziva) | saat penyedia memintanya, atau 180 hari | Mengganti ini memutus pendaftaran — lakukan di jam sepi |
-| `PLAY_SERVICE_ACCOUNT_JSON` | 365 hari | Google merotasi kuncinya sendiri; yang penting cabut yang lama |
-| Webhook alert | saat ada yang meninggalkan tim | Bukan rahasia bernilai tinggi, tapi ia mengirim ke ruang orang |
+| Rahasia                                    | Ritme                                                   | Kenapa segitu                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | 90 hari, dan **segera** bila dicurigai bocor            | Memutus semua sesi. Biaya rotasi = semua orang login ulang                                                            |
+| `INTERNAL_SERVICE_KEY`                     | 90 hari                                                 | Hanya antar-service; tidak ada pengguna yang merasakannya. **Mulus** lewat `INTERNAL_SERVICE_KEY_PREVIOUS` (di bawah) |
+| Kunci S3 / object storage                  | 90 hari, dan **sekarang** (L2.2 — kunci lama masih sah) | Kunci yang pernah bocor tetap sah sampai dicabut                                                                      |
+| `GRAFANA_ADMIN_PASSWORD`                   | 180 hari                                                | Loopback + tunnel; risikonya rendah tapi bukan nol                                                                    |
+| Kredensial OTP (Zenziva)                   | saat penyedia memintanya, atau 180 hari                 | Mengganti ini memutus pendaftaran — lakukan di jam sepi                                                               |
+| `PLAY_SERVICE_ACCOUNT_JSON`                | 365 hari                                                | Google merotasi kuncinya sendiri; yang penting cabut yang lama                                                        |
+| Webhook alert                              | saat ada yang meninggalkan tim                          | Bukan rahasia bernilai tinggi, tapi ia mengirim ke ruang orang                                                        |
 
 ## Urutan yang benar untuk tiap rahasia
 
@@ -38,12 +38,23 @@ Aturannya sama untuk semuanya, dan urutannya yang membedakan rotasi dari pemadam
 
 ### Yang khusus per rahasia
 
-- **`JWT_SECRET` / `REFRESH_SECRET`** — tidak ada rotasi mulus: semua token yang beredar
+- **`JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`** — tidak ada rotasi mulus: semua token yang beredar
   langsung tidak valid. Lakukan di jam sepi, dan beri tahu depot lebih dulu, karena setiap
-  kasir dan kurir akan diminta masuk lagi di tengah shift kalau tidak.
-- **`INTERNAL_SERVICE_KEY`** — semua service harus dinaikkan bersama. Selama jendela itu,
-  panggilan antar-service yang lewat kunci lama menjawab 401; jendelanya sekecil satu
-  `docker compose up -d` untuk seluruh stack.
+  kasir dan kurir akan diminta masuk lagi di tengah shift kalau tidak. (Nama variabelnya persis
+  itu — dokumen ini dulu menulis `JWT_SECRET` / `REFRESH_SECRET`, yang tidak dibaca service mana pun.)
+- **`INTERNAL_SERVICE_KEY`** — **tanpa hari-H** sejak PLAT-5: setiap service menerima kunci saat ini
+  _dan_ `INTERNAL_SERVICE_KEY_PREVIOUS`. Urutannya:
+  1. tulis kunci lama ke `INTERNAL_SERVICE_KEY_PREVIOUS` dan kunci baru ke `INTERNAL_SERVICE_KEY`
+     (`bash scripts/env-set.sh INTERNAL_SERVICE_KEY_PREVIOUS <lama>`, lalu yang baru);
+  2. deploy seperti biasa. Penerima yang sudah di versi baru menerima kunci baru **dan** kunci lama,
+     jadi pemanggil yang belum diganti tetap dilayani. Arah sebaliknya tidak dijamin: pengirim yang
+     sudah baru ke penerima yang belum dibuat ulang mendapat 401. Kunci itu ada di anchor bersama
+     `x-shared`, jadi satu `up -d` membuat ulang semua service sekaligus dan jendelanya hitungan detik;
+     sweep dan outbox mengulang sendiri;
+  3. setelah **semua** service sehat di versi baru, kosongkan `INTERNAL_SERVICE_KEY_PREVIOUS` dan
+     deploy lagi — kunci lama berhenti berlaku. Kosong berarti tidak ada rotasi yang berjalan.
+     Yang tidak dicakup: pemanggil di luar service (scheduler memakai kunci yang sama dari `.env`,
+     jadi ikut di deploy yang sama; tak ada yang lain).
 - **Kunci S3** — berkas yang sudah diunggah tidak terpengaruh; yang berubah hanya kemampuan
   menulis yang baru. Cabut kunci lama SETELAH satu unggahan berhasil dengan yang baru.
 - **Zenziva** — kanal OTP adalah pemblokir rilis (L2.1). Jangan merotasi ini pada hari yang
@@ -61,13 +72,13 @@ nyata adalah rotasi yang baru ketahuan gagal saat pelanggan pertama mencoba masu
 
 ## Catatan rotasi — **PEMILIK: Anda**
 
-| Rahasia | Terakhir dirotasi | Oleh | Yang lama sudah dicabut? |
-| --- | --- | --- | --- |
-| `JWT_SECRET` | _(belum pernah)_ | | |
-| `REFRESH_SECRET` | _(belum pernah)_ | | |
-| `INTERNAL_SERVICE_KEY` | _(belum pernah)_ | | |
-| Kunci S3 | _(belum pernah — L2.2)_ | | |
-| `GRAFANA_ADMIN_PASSWORD` | _(belum pernah)_ | | |
+| Rahasia                  | Terakhir dirotasi       | Oleh | Yang lama sudah dicabut? |
+| ------------------------ | ----------------------- | ---- | ------------------------ |
+| `JWT_ACCESS_SECRET`      | _(belum pernah)_        |      |                          |
+| `JWT_REFRESH_SECRET`     | _(belum pernah)_        |      |                          |
+| `INTERNAL_SERVICE_KEY`   | _(belum pernah)_        |      |                          |
+| Kunci S3                 | _(belum pernah — L2.2)_ |      |                          |
+| `GRAFANA_ADMIN_PASSWORD` | _(belum pernah)_        |      |                          |
 
 Kolom terakhir yang paling penting. Rahasia baru yang hidup berdampingan dengan yang lama
 adalah dua rahasia, bukan satu yang diganti.

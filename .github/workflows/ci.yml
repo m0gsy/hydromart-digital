@@ -188,6 +188,15 @@ jobs:
       - name: Route-authz gate can go red
         run: bash scripts/check-route-authz.test.sh
 
+      # A controller no module mounts compiles, passes its own unit tests (they build the class
+      # by hand) and does not exist as a route. The kasbon controllers were like that from #523
+      # until the employee screen answered "Cannot GET" in production.
+      - name: Every controller is mounted by a module
+        run: node scripts/check-controllers-registered.mjs
+
+      - name: Controller-registration gate can go red
+        run: bash scripts/check-controllers-registered.test.sh
+
       # AUTHZ-B1/B2 — "who may call it" and "whose row is it" are different questions, and
       # only the first had a gate. DepotScopeGuard's own class comment says it cannot see
       # by-id routes: they carry no `depotId` to compare. Two Kritis IDORs lived in exactly
@@ -594,6 +603,16 @@ jobs:
       # message when no docker daemon is present rather than passing quietly.
       - name: Business alerts can actually fire (N12)
         run: bash scripts/check-alert-rules.test.sh
+
+      # promtool proves a rule fires on the fixture it is given, not that the fixture describes
+      # anything real: NoOrdersCreated and CheckoutFailing selected a POST route that does not
+      # exist, and their fixtures invented the same label. Selectors and fixture labels are now
+      # checked against the controllers.
+      - name: Alert route selectors name real routes
+        run: node scripts/check-alert-routes.mjs
+
+      - name: Alert-route gate can go red
+        run: bash scripts/check-alert-routes.test.sh
 
       # The go-live report and the test-data reset are run by a person, once, against
       # production — the worst place to learn a query was wrong. Both are run here against a

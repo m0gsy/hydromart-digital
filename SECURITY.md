@@ -48,7 +48,7 @@ Worth knowing before reporting, and worth keeping true:
   [`scripts/audit-gate.mjs`](scripts/audit-gate.mjs), each with a written reason and
   an upgrade path — that list is the triage record, not a mute button.
 - **Transport.** Caddy terminates TLS and sets HSTS plus a Content-Security-Policy
-  ([`Caddyfile`](Caddyfile)). A deploy without the `tls` profile has neither; that
+  ([`Caddyfile`](infra/caddy/Caddyfile)). A deploy without the `tls` profile has neither; that
   posture is for testing only.
 - **Secrets.** Every secret comes from the environment; the production overlay uses
   `${VAR:?}` so a missing one fails the deploy rather than starting with a default.
