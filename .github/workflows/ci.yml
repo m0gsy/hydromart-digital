@@ -614,6 +614,15 @@ jobs:
       - name: Alert-route gate can go red
         run: bash scripts/check-alert-routes.test.sh
 
+      # admin-service reaches each retention dataset through a path written as a string. A typo
+      # or a moved route is a 404 at 03:30, recorded as a failed sweep, while the privacy policy
+      # goes on promising a deletion that never happens.
+      - name: Every retention executor calls a real route
+        run: node scripts/check-retention-routes.mjs
+
+      - name: Retention-route gate can go red
+        run: bash scripts/check-retention-routes.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple
