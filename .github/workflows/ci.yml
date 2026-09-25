@@ -648,6 +648,15 @@ jobs:
       - name: Alert-route gate can go red
         run: bash scripts/check-alert-routes.test.sh
 
+      # The point-expiry sweep named loyalty:3010 — promo's port — and failed every night for
+      # eighteen nights while nothing read the failure. Every crontab line must now name a port
+      # and a route that the target service actually has.
+      - name: Scheduled sweeps are aimed at a service and route that exist
+        run: node scripts/check-scheduler-targets.mjs
+
+      - name: Scheduler-target gate can go red
+        run: bash scripts/check-scheduler-targets.test.sh
+
       # The go-live report and the test-data reset are run by a person, once, against
       # production — the worst place to learn a query was wrong. Both are run here against a
       # throwaway Postgres carrying the real schema (every migration.sql) and a small fixture.

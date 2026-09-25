@@ -117,4 +117,8 @@
 # accumulating past its window, which is a decision about customers' balances and not a
 # deployment detail. The response says `disabled: true` rather than "0 lots", so "switched
 # off" and "nothing was due" are never the same line in the log.
-45 3 * * * sh /scripts/sweep.sh loyalty/internal/expire loyalty:3010
+# Aimed at 3009, loyalty's own port. It said 3010 — promo's — for its first eighteen nights: promo
+# answered 404 and the sweep read FAILED every night, so points never expired even with the switch
+# on. scripts/check-scheduler-targets.mjs now requires every line here to name a port and a route
+# that the target service really has.
+45 3 * * * sh /scripts/sweep.sh loyalty/internal/expire loyalty:3009
