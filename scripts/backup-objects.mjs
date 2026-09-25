@@ -34,6 +34,8 @@
  *
  *   node scripts/backup-objects.mjs [--dry-run] [--self-test]
  *   node scripts/backup-objects.mjs --restore [--dry-run]     # the other direction
+ *   node scripts/backup-objects.mjs --rehearse-restore        # the same journey to a scratch
+ *                                                             # prefix; never touches a live key
  *
  * THE REFUSAL THAT MATTERS: this never deletes anything at the destination. A "sync" that
  * mirrors deletions faithfully reproduces the accident you are backing up against — somebody
@@ -62,6 +64,7 @@ import {
   PutBucketVersioningCommand,
 } from '@aws-sdk/client-s3';
 
+import { rehearseRestore } from './lib/restore-rehearsal.mjs';
 import {
   EVIDENCE_BACKUP_DAYS,
   EVIDENCE_DAYS,
@@ -292,6 +295,126 @@ if (process.argv.includes('--self-test')) {
   };
   await assert.rejects(() => applyRules(refusing, 'b', ours), /nope/);
 
+  // The restore rehearsal, against an in-memory stand-in for two buckets. What matters: the
+  // journey completes and cleans up, it NEVER writes or deletes a key outside its scratch
+  // prefix, and each way it can go wrong is reported rather than swallowed.
+  const memoryBucket = (
+    objects,
+    { failPut = false, failDelete = false, versioned = false } = {},
+  ) => {
+    const store = new Map(Object.entries(objects));
+    const writes = [];
+    const deletes = [];
+    let version = 0;
+    const body = (bytes) => ({ transformToByteArray: async () => bytes });
+    return {
+      store,
+      writes,
+      deletes,
+      send: async (command) => {
+        const kind = command.constructor.name;
+        const { Key, Prefix, Body } = command.input;
+        if (kind === 'ListObjectsV2Command') {
+          return {
+            Contents: [...store.keys()]
+              .filter((k) => k.startsWith(Prefix || ''))
+              .map((k) => ({ Key: k, Size: store.get(k).length })),
+          };
+        }
+        if (kind === 'GetObjectCommand') {
+          if (!store.has(Key)) throw Object.assign(new Error('no'), { name: 'NoSuchKey' });
+          return { Body: body(store.get(Key)), ContentType: 'image/jpeg' };
+        }
+        if (kind === 'PutObjectCommand') {
+          if (failPut) throw Object.assign(new Error('chunked'), { name: 'InvalidChunkSizeError' });
+          writes.push(Key);
+          store.set(Key, Buffer.from(Body));
+          return versioned ? { VersionId: `v${(version += 1)}` } : {};
+        }
+        if (kind === 'DeleteObjectCommand') {
+          if (failDelete) throw Object.assign(new Error('no'), { name: 'AccessDenied' });
+          deletes.push({ Key, VersionId: command.input.VersionId });
+          store.delete(Key);
+          return {};
+        }
+        throw new Error(`unexpected ${kind}`);
+      },
+    };
+  };
+  const photo = (s) => Buffer.from(s);
+  const backedUp = () =>
+    memoryBucket({ 'objects/b/pod/a.jpg': photo('AAAA'), 'objects/b/pod/b.jpg': photo('BBBB') });
+  const rehearse = (live, backup) =>
+    rehearseRestore({
+      live,
+      backup,
+      liveBucket: 'b',
+      backupBucket: 'bk',
+      prefix: 'objects/b/',
+      runId: 'run1',
+      limit: 5,
+    });
+
+  const liveOk = memoryBucket(
+    { 'pod/a.jpg': photo('AAAA'), 'pod/b.jpg': photo('BBBB') },
+    { versioned: true },
+  );
+  const good = await rehearse(liveOk, backedUp());
+  assert.deepEqual([good.checked, good.roundTripOk, good.sameAsLive, good.cleaned], [2, 2, 2, 2]);
+  assert.deepEqual([good.failed, good.differsFromLive, good.leftBehind], [[], [], []]);
+  assert.ok(
+    liveOk.writes.every((k) => k.startsWith('_restore-rehearsal/run1/')),
+    'writes only under the scratch prefix',
+  );
+  assert.ok(
+    liveOk.deletes.every((d) => d.Key.startsWith('_restore-rehearsal/') && d.VersionId),
+    'deletes only scratch keys, by version',
+  );
+  assert.deepEqual(
+    [...liveOk.store.keys()].sort(),
+    ['pod/a.jpg', 'pod/b.jpg'],
+    'nothing is left behind and no original moved',
+  );
+
+  // The live original is gone (the very case a restore is for): counted, not an error.
+  const liveGone = memoryBucket({});
+  const gone = await rehearse(liveGone, backedUp());
+  assert.deepEqual([gone.roundTripOk, gone.noLiveOriginal, gone.sameAsLive], [2, 2, 0]);
+  assert.deepEqual(gone.failed, []);
+
+  // A live object that no longer matches its backup is surfaced, not swallowed.
+  const drift = await rehearse(
+    memoryBucket({ 'pod/a.jpg': photo('ZZZZ'), 'pod/b.jpg': photo('BBBB') }),
+    backedUp(),
+  );
+  assert.deepEqual(drift.differsFromLive, ['pod/a.jpg']);
+
+  // The live bucket refusing the write is a FAILURE — the restore path is what this measures.
+  const refusesPut = await rehearse(memoryBucket({}, { failPut: true }), backedUp());
+  assert.equal(refusesPut.checked, 0);
+  assert.equal(refusesPut.failed.length, 2);
+  assert.equal(refusesPut.cleaned, 0, 'nothing was written, so nothing is "cleaned"');
+
+  // A cleanup that cannot delete says which scratch objects it left behind.
+  const stuck = await rehearse(
+    memoryBucket({ 'pod/a.jpg': photo('AAAA') }, { failDelete: true }),
+    backedUp(),
+  );
+  assert.equal(stuck.leftBehind.length, 2);
+  assert.ok(stuck.leftBehind.every((k) => k.startsWith('_restore-rehearsal/run1/')));
+
+  // The limit bounds the work.
+  const limited = await rehearseRestore({
+    live: memoryBucket({}),
+    backup: backedUp(),
+    liveBucket: 'b',
+    backupBucket: 'bk',
+    prefix: 'objects/b/',
+    runId: 'r',
+    limit: 1,
+  });
+  assert.equal(limited.checked, 1);
+
   console.log('self-test ok');
   process.exit(0);
 }
@@ -399,6 +522,44 @@ const ensureRetention = async (client, bucket, prefixes, days, idPrefix, retire 
     return `unavailable (${e.name || e.message})`;
   }
 };
+
+/*
+ * `--rehearse-restore`: the restore journey for a few objects per bucket, to a scratch prefix,
+ * compared and cleaned up (scripts/lib/restore-rehearsal.mjs). Exits 1 on any problem, so the
+ * Deploy button that runs it is green only when a restore would actually work.
+ */
+if (process.argv.includes('--rehearse-restore')) {
+  const runId = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+  let problems = 0;
+  for (const s of SRC) {
+    const r = await rehearseRestore({
+      live: clientFor(s),
+      backup: dst,
+      liveBucket: s.bucket,
+      backupBucket: destBucket,
+      prefix: `${destPrefix}${s.bucket}/`,
+      runId,
+      limit: Number(process.env.REHEARSE_LIMIT) || 5,
+    });
+    console.log(
+      `[rehearse] ${s.bucket}: ${r.checked} restored to a scratch prefix, ${r.roundTripOk} read back ` +
+        `identical, ${r.sameAsLive} identical to the live original` +
+        (r.noLiveOriginal ? `, ${r.noLiveOriginal} no longer live` : '') +
+        `, ${r.cleaned} cleaned up`,
+    );
+    for (const k of r.differsFromLive)
+      console.error(`!! the backup differs from the live object ${s.bucket}/${k}`);
+    for (const f of r.failed) console.error(`!! ${s.bucket}: ${f}`);
+    for (const k of r.leftBehind) console.error(`!! scratch object left behind: ${s.bucket}/${k}`);
+    problems += r.differsFromLive.length + r.failed.length + r.leftBehind.length;
+  }
+  console.log(
+    problems
+      ? `!! the rehearsal found ${problems} problem(s)`
+      : '[rehearse] the copy restores byte-identical and leaves nothing behind',
+  );
+  process.exit(problems ? 1 : 0);
+}
 
 let totalDone = 0;
 let totalTodo = 0;

@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key)'
         type: choice
         default: deploy
         options:
@@ -70,6 +70,7 @@ on:
             backup-env,
             install-cron,
             explain-queries,
+            restore-rehearsal,
           ]
       sha:
         description: 'rollback target SHA (blank = previous good)'
@@ -327,6 +328,10 @@ jobs:
             # environment variable, never the script body, and the button is not offered to the
             # automatic workflow_run path — only a person can press it.
             reset-test-data) echo 'run=if [ "${RESET_CONFIRM:-}" = "RESET-TEST-DATA" ]; then CONFIRM=RESET-TEST-DATA bash scripts/reset-test-data.sh --execute; else bash scripts/reset-test-data.sh; fi' >> "$GITHUB_OUTPUT" ;;
+            # The object restore had never been run. This walks the real journey — read the backup, write
+            # into the LIVE bucket, read back, compare — but only to a scratch prefix, for a few objects
+            # per bucket, then deletes them. Green means a restore would work; it writes no live key.
+            restore-rehearsal) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs --rehearse-restore" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -403,6 +408,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "reset-test-data" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/reset-test-data.sh scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "restore-rehearsal" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/backup-objects.mjs scripts/lib/restore-rehearsal.mjs scripts/lib/s3-lifecycle.mjs
             fi
             ${{ steps.cmd.outputs.run }}
         env:

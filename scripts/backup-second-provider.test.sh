@@ -30,6 +30,7 @@ cp scripts/lib/second-provider.sh "$WORK/repo/scripts/lib/"
 cat > "$WORK/repo/scripts/backup-offsite.sh" <<'SH'
 #!/usr/bin/env bash
 echo "offsite dest=$BACKUP_OFFSITE_DEST endpoint=$BACKUP_S3_ENDPOINT region=$BACKUP_S3_REGION key=$BACKUP_S3_ACCESS_KEY_ID secret=$BACKUP_S3_SECRET_ACCESS_KEY" >> "$CALLS"
+printf '%s' "${BACKUP_SKIP_PRUNE:-}" > "$CALLS.skip"
 [ "${FAIL_DUMP:-}" = 1 ] && exit 1
 exit 0
 SH
@@ -83,6 +84,16 @@ grep -q '^offsite dest=s3://second-bucket/db endpoint=https://acct.r2.cloudflare
 grep -q '^objects dest=s3://second-bucket/db endpoint=https://acct.r2.cloudflarestorage.com key=SECONDKEY$' "$CALLS" &&
   ok "the objects script is handed the second provider too" || bad "the objects copy got the wrong provider: $(tail -1 "$CALLS")"
 grep -q 'PRIMARY' "$CALLS" && bad "the primary's credentials leaked into the second copy" || ok "the primary's credentials never reach the second copy"
+[ "$(cat "$CALLS.skip")" = "" ] && ok "by default the second copy prunes like the first (BACKUP_SKIP_PRUNE unset)" || bad "prune must stay on by default: '$(cat "$CALLS.skip")'"
+
+# A key that cannot delete (the ransomware-resistant setup) must not turn the nightly log into a
+# standing "prune failed": BACKUP2_NO_DELETE=1 tells the offsite script to leave pruning to the
+# provider's own lifecycle rule.
+reset; configure; export BACKUP2_NO_DELETE=1
+run
+[ "$RC" = 0 ] && [ "$(cat "$CALLS.skip")" = 1 ] && ok "BACKUP2_NO_DELETE=1 reaches the offsite script as BACKUP_SKIP_PRUNE=1" || bad "the no-delete flag was not passed on (rc=$RC, skip='$(cat "$CALLS.skip")')"
+unset BACKUP2_NO_DELETE
+grep -q 'BACKUP_SKIP_PRUNE' scripts/backup-offsite.sh && ok "backup-offsite.sh honours BACKUP_SKIP_PRUNE" || bad "backup-offsite.sh ignores BACKUP_SKIP_PRUNE, so the flag does nothing"
 
 reset; configure; export FAIL_DUMP=1
 run

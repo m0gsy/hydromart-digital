@@ -383,7 +383,10 @@ case "$verdict" in
 # to somebody else — "NEO retention = set a lifecycle rule". Nobody did, so the bucket had no
 # rule at all: it grew forever, and on the day the first copy landed it also held exactly one
 # night of history. Same sentence, read at two different times.
-if [ "$SHAPE" = s3 ]; then
+# BACKUP_SKIP_PRUNE=1 is for a destination whose key deliberately CANNOT delete (the second provider
+# with a write-and-read-only key, BACKUP2_NO_DELETE=1): a ransomware-proof bucket is pruned by the
+# provider's own lifecycle rule, and a prune attempt there would only fail every night in the log.
+if [ "$SHAPE" = s3 ] && [ "${BACKUP_SKIP_PRUNE:-}" != 1 ]; then
   S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}"     S3_REGION="${BACKUP_S3_REGION:-jkt-1}"     S3_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"     S3_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"     node scripts/s3-prune.mjs --bucket "$BUCKET" --prefix "${PREFIX:-db}/"       --keep "${BACKUP_KEEP:-14}" || echo "!! offsite prune failed — the copy is safe, the bucket will grow" >&2
 fi
 
