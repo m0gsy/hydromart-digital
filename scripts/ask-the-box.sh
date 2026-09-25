@@ -204,6 +204,11 @@ if [ -f scripts/lib/zenziva-balance.cjs ] && docker compose $COMPOSE_FILES exec 
   docker compose $COMPOSE_FILES exec -T auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | sed 's/^/  /' || true
   # The line the six-hourly monitor (scripts/check-zenziva-balance.sh) acts on, produced the same way.
   echo "  monitor reads: $(docker compose $COMPOSE_FILES exec -T -e ZENZIVA_MODE=monitor auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | tail -1)"
+  # A balance is not delivery. Zenziva's answer carries an `expired` date, and one that is already in the
+  # past may mean the account no longer sends. The database says whether codes are actually being used:
+  # a week where challenges were issued and none was ever consumed is a week of codes that did not arrive.
+  echo "  OTP challenges by week (issued | consumed):"
+  q hydromart_auth "select date_trunc('week', \"createdAt\")::date, count(*), count(\"consumedAt\") from otp_tokens where \"createdAt\" > now() - interval '10 weeks' group by 1 order by 1" | sed 's/^/    /'
 else
   echo "  auth container or scripts/lib/zenziva-balance.cjs not available"
 fi
