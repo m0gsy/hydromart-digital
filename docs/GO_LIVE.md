@@ -89,6 +89,21 @@ MX dan SPF sendiri). Uji: kirim satu surat dari alamat lain, lalu balas.
 - Sesudah pesanan pertama selesai: buka `/hq/orders`, `/hq/payments`, dan rekonsiliasi depot; angkanya
   harus sama dengan yang dipegang kasir.
 
+## 5b. DEMO-01 sesudah tinjauan Play lolos
+
+Keputusan pemilik 2026-09-25: **nonaktifkan, jangan hapus**, begitu tinjauan Play selesai. Depot fixture ini
+(Malang, jam buka 08:00–20:00 tiap hari, aktif dan publik) dipakai reviewer Play dan `seed-demo`.
+
+1. Di `/hq/depots` → **DEMO-01** → tangguhkan depot (kebalikannya: aktifkan kembali). Itu hanya mengubah
+   `active`; tak ada baris yang dihapus dan `seed-demo` tak perlu dijalankan ulang.
+2. **Nyalakan lagi sebelum setiap rilis yang akan ditinjau ulang oleh Play.** Reviewer masuk dengan
+   `REVIEWER_PHONE` dan kode tetap; tanpa depot aktif mereka melihat aplikasi kosong dan itu penolakan.
+3. Smoke deploy (`scripts/smoke.sh`) memakai depot pertama di `/depots` sebagai titik ambil untuk uji
+   redeem yang dibatalkan lagi. Selama DEMO-01 nonaktif, itu jatuh pada depot asli pertama — transien,
+   tak meninggalkan apa pun, tetapi bisa tampil sebentar di antrean depot itu.
+4. Jangan menonaktifkannya **sekarang**: aplikasi Play masih di pengujian internal, dan tinjauan
+   berikutnya akan gagal.
+
 ## 6. Yang hanya bisa dijawab pemilik (tulis jawabannya di tempat yang aman, bukan di repo)
 
 Siapa selain `VPS_SSH_KEY` milik CI yang punya SSH ke VPS · pemilik, 2FA, dan email pemulihan akun
