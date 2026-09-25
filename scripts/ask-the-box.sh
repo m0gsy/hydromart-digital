@@ -196,6 +196,36 @@ line "CONTAINERS — anything not running and healthy, plus caddy and grafana"
 docker compose $COMPOSE_FILES ps --format '  {{.Service}}\t{{.State}}\t{{.Health}}' 2>/dev/null |
   awk -F'\t' '$2 != "running" || ($3 != "" && $3 != "healthy") || $1 ~ /caddy|grafana/' || true
 
+# Login is an SMS OTP. When the Zenziva credit reaches zero nobody can sign in, and nothing on this box
+# knew the number. This asks Zenziva the way the OTP adapter does (from inside the auth container, so
+# the credentials never leave it) and prints only status and balance.
+line "ZENZIVA — how much SMS credit is left (login stops at zero)"
+if [ -f scripts/lib/zenziva-balance.cjs ] && docker compose $COMPOSE_FILES exec -T auth true >/dev/null 2>&1; then
+  docker compose $COMPOSE_FILES exec -T auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | sed 's/^/  /' || true
+  # The line the six-hourly monitor (scripts/check-zenziva-balance.sh) acts on, produced the same way.
+  echo "  monitor reads: $(docker compose $COMPOSE_FILES exec -T -e ZENZIVA_MODE=monitor auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | tail -1)"
+  # A balance is not delivery. Zenziva's answer carries an `expired` date, and one that is already in the
+  # past may mean the account no longer sends. The database says whether codes are actually being used:
+  # a week where challenges were issued and none was ever consumed is a week of codes that did not arrive.
+  echo "  OTP challenges by week (issued | consumed):"
+  q hydromart_auth "select date_trunc('week', \"createdAt\")::date, count(*), count(\"consumedAt\") from otp_tokens where \"createdAt\" > now() - interval '10 weeks' group by 1 order by 1" | sed 's/^/    /'
+else
+  echo "  auth container or scripts/lib/zenziva-balance.cjs not available"
+fi
+
+# What the host offers, before anyone proposes changing it. Node 20 on this host is past end of life
+# and the cron jobs (backup-objects, migrate-prod) run on it; whether it can be replaced without a
+# person at a root shell depends on who this user is and how node got here — asked, not assumed.
+line "HOST — who runs the cron jobs, and how node got here"
+echo "  user      : $(id -un) (uid $(id -u)) groups: $(id -Gn | tr ' ' ',')"
+echo "  os        : $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME" || uname -sr)"
+echo "  sudo      : $(sudo -n true 2>/dev/null && echo 'passwordless sudo works' || echo 'no passwordless sudo')"
+echo "  node      : $(command -v node || echo none) $(node -v 2>/dev/null)"
+echo "  node from : $(dpkg -S "$(command -v node 2>/dev/null)" 2>/dev/null | head -1 || true) $(ls -d "$HOME"/.nvm 2>/dev/null) $(ls -d /usr/local/n /opt/node* 2>/dev/null | tr '
+' ' ')"
+echo "  npm       : $(npm -v 2>/dev/null || echo none)"
+echo "  cron PATH : $(crontab -l 2>/dev/null | grep -m1 '^PATH=' || echo 'not set in crontab')"
+
 # The alerts that reach Discord are a symptom; this is the cause, asked for. Every log line is
 # filtered to the few words that name the failure and any run of 9+ digits is masked, because this
 # output lands in a public repository's Actions log.
