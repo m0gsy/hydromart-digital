@@ -213,6 +213,19 @@ else
   echo "  auth container or scripts/lib/zenziva-balance.cjs not available"
 fi
 
+# What the host offers, before anyone proposes changing it. Node 20 on this host is past end of life
+# and the cron jobs (backup-objects, migrate-prod) run on it; whether it can be replaced without a
+# person at a root shell depends on who this user is and how node got here — asked, not assumed.
+line "HOST — who runs the cron jobs, and how node got here"
+echo "  user      : $(id -un) (uid $(id -u)) groups: $(id -Gn | tr ' ' ',')"
+echo "  os        : $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME" || uname -sr)"
+echo "  sudo      : $(sudo -n true 2>/dev/null && echo 'passwordless sudo works' || echo 'no passwordless sudo')"
+echo "  node      : $(command -v node || echo none) $(node -v 2>/dev/null)"
+echo "  node from : $(dpkg -S "$(command -v node 2>/dev/null)" 2>/dev/null | head -1 || true) $(ls -d "$HOME"/.nvm 2>/dev/null) $(ls -d /usr/local/n /opt/node* 2>/dev/null | tr '
+' ' ')"
+echo "  npm       : $(npm -v 2>/dev/null || echo none)"
+echo "  cron PATH : $(crontab -l 2>/dev/null | grep -m1 '^PATH=' || echo 'not set in crontab')"
+
 # M15 sits in the same corner of the plan and has no description there beyond "VPS side",
 # so this reports the facts a VPS-side capacity item would need rather than guessing at it.
 line "capacity (context for M13/M15)"
