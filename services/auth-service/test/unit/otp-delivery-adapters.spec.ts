@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import { ConsoleOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../src/infrastructure/otp-delivery/sms-otp-delivery.adapter';
@@ -101,14 +103,12 @@ describe('OTP delivery adapters', () => {
     });
 
     function mockZenziva(body: unknown, ok = true, status = 200): jest.SpyInstance {
-      return jest
-        .spyOn(global, 'fetch')
-        .mockResolvedValue({
-          ok,
-          status,
-          json: async () => body,
-          text: async () => '',
-        } as Response);
+      return jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok,
+        status,
+        json: async () => body,
+        text: async () => '',
+      } as Response);
     }
 
     function sentForm(fetchMock: jest.SpyInstance): URLSearchParams {
@@ -165,6 +165,44 @@ describe('OTP delivery adapters', () => {
     it('throws on a transport-level failure', async () => {
       mockZenziva(null, false, 502);
       await expect(new ZenzivaOtpDeliveryAdapter(config).send(message)).rejects.toThrow(/502/);
+    });
+
+    // "The code took minutes" needs to be told apart from "we handed it over minutes late", and a
+    // success used to leave no trace. The line records how long Zenziva took to ACCEPT the send and
+    // the reference it gave — never the body, which echoes the number and the code.
+    describe('the accepted-send log line', () => {
+      it('records how long acceptance took, the response field names, and a reference', async () => {
+        const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+        mockZenziva({ status: '1', text: 'Success', messageId: 'abc-123' });
+        await new ZenzivaOtpDeliveryAdapter(config).send(message);
+        const line = log.mock.calls.map((c) => String(c[0])).join('\n');
+        expect(line).toMatch(/Zenziva accepted the OTP send in \d+ms/);
+        expect(line).toContain('response fields: status,text,messageId');
+        expect(line).toContain('ref=abc-123');
+      });
+
+      it('never logs the number, the code or a value that looks like a phone number', async () => {
+        const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+        mockZenziva({
+          status: '1',
+          to: '081234567890',
+          message: 'Kode OTP Anda adalah 123456.',
+          id: '081234567890',
+        });
+        await new ZenzivaOtpDeliveryAdapter(config).send(message);
+        const line = log.mock.calls.map((c) => String(c[0])).join('\n');
+        expect(line).toContain('response fields: status,to,message,id');
+        expect(line).not.toContain('081234567890');
+        expect(line).not.toContain('123456');
+        expect(line).not.toContain('ref=');
+      });
+
+      it('accepts a numeric reference that is not phone-shaped', async () => {
+        const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+        mockZenziva({ status: '1', trxid: 4815162 });
+        await new ZenzivaOtpDeliveryAdapter(config).send(message);
+        expect(log.mock.calls.map((c) => String(c[0])).join('\n')).toContain('ref=4815162');
+      });
     });
   });
 });
