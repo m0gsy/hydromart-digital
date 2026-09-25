@@ -130,3 +130,10 @@ services:
   gateway:
     mem_limit: 512m
     cpus: 1.0
+    environment:
+      # The OTP tier (default 20 per address) is a BILLING control on real SMS, keyed by IP. The load
+      # harness registers one customer per virtual user through the real OTP path from ONE address, so
+      # at 50-150 VUs it was refused with RATE_LIMITED_OTP after ~22 customers (run 36106002539) and
+      # the load test never started — the harness's registration was measured, not the app. Lifted for
+      # this test stack only, like RATE_LIMIT_MAX; production keeps 20.
+      RATE_LIMIT_OTP_MAX: 1000000
