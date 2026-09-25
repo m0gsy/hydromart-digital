@@ -146,4 +146,42 @@ else
   fails=1
 fi
 
+# --- 4. a SECOND provider, when there is one ----------------------------------------------
+# Everything above can be green while every copy sits with one provider. Unset is a decision
+# the owner may make, so it is reported, not failed; SET is a promise, so it is checked the way
+# the first is: the job ran lately, and the newest dump reads back byte-identical from there.
+# shellcheck source=scripts/lib/second-provider.sh
+. ./scripts/lib/second-provider.sh
+BACKUP2_LOG="${BACKUP2_LOG:-/var/log/hydromart-backup2.log}"
+if [ -z "${BACKUP2_OFFSITE_DEST:-}" ]; then
+  echo "..   one provider only (BACKUP2_OFFSITE_DEST unset): a suspension there takes every copy with it"
+elif [ -n "$(second_provider_missing)" ]; then
+  echo "!! the second backup provider is half-configured; missing: $(second_provider_missing)" >&2
+  alert "second backup provider is half-configured (missing $(second_provider_missing))"
+  fails=1
+elif second_provider_is_primary; then
+  echo "!! BACKUP2_S3_ENDPOINT is the same host as the primary — that is one provider, not two" >&2
+  alert "second backup provider points at the SAME provider as the first"
+  fails=1
+else
+  B2_AGE="$(newest_age_hours "$BACKUP2_LOG" || true)"
+  if [ -z "$B2_AGE" ]; then
+    echo "!! $BACKUP2_LOG does not exist — the second provider is configured and has never run." >&2
+    echo "   Install the cron block: bash scripts/install-host-cron.sh" >&2
+    alert "second backup provider is configured but has never run"
+    fails=1
+  elif [ "$B2_AGE" -gt "$OBJECTS_MAX_AGE_HOURS" ]; then
+    echo "!! the second-provider backup last ran ${B2_AGE}h ago (limit ${OBJECTS_MAX_AGE_HOURS}h)." >&2
+    alert "second-provider backup last ran ${B2_AGE}h ago (limit ${OBJECTS_MAX_AGE_HOURS}h)"
+    fails=1
+  elif B2_OUT="$( (second_provider_env; bash scripts/backup-offsite.sh --verify) 2>&1)"; then
+    echo "ok   the newest dump also reads back byte-identical from the second provider (ran ${B2_AGE}h ago)"
+  else
+    echo "!! the newest dump is NOT verifiable at the second provider:" >&2
+    echo "$B2_OUT" | sed 's/^/   /' >&2
+    alert "newest dump is not verifiable at the second provider — $(echo "$B2_OUT" | head -1)"
+    fails=1
+  fi
+fi
+
 exit "$fails"
