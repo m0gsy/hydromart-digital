@@ -915,6 +915,10 @@ services:
     volumes:
       - ./ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./ops/alertmanager.webhook-url:/etc/alertmanager/webhook-url:ro
+      # The SECOND channel's URL, in a DIRECTORY (a missing file source would become a root-owned
+      # directory and could never be filled). Empty or absent is fine: this Alertmanager loads the
+      # config and fails only that receiver. Written by scripts/set-alert-channel.sh.
+      - ./ops/alertmanager-secondary:/etc/alertmanager/secondary:ro
       - alertmanager_data:/alertmanager
     ports:
       - "127.0.0.1:9093:9093"

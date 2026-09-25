@@ -888,6 +888,9 @@ fi
 # One idempotent converge brings the whole project to its declared state — and is what
 # makes a compose/env change actually recreate the containers it affects.
 log "converging the full stack (recreates changed containers, starts anything stopped)"
+# Alertmanager bind-mounts this directory. Made HERE, as the deploy user, so compose never creates it
+# as root (which would leave scripts/set-alert-channel.sh unable to write the second channel).
+mkdir -p ops/alertmanager-secondary 2>/dev/null || true
 converge
 
 # The scheduler bind-mounts scripts/scheduler/ and its entrypoint COPIES the crontab to

@@ -70,6 +70,7 @@ on:
             backup-env,
             install-cron,
             explain-queries,
+            alert-channel-2,
           ]
       sha:
         description: 'rollback target SHA (blank = previous good)'
@@ -327,6 +328,9 @@ jobs:
             # environment variable, never the script body, and the button is not offered to the
             # automatic workflow_run path — only a person can press it.
             reset-test-data) echo 'run=if [ "${RESET_CONFIRM:-}" = "RESET-TEST-DATA" ]; then CONFIRM=RESET-TEST-DATA bash scripts/reset-test-data.sh --execute; else bash scripts/reset-test-data.sh; fi' >> "$GITHUB_OUTPUT" ;;
+            # The second alert channel: writes the ALERT_WEBHOOK_URL_2 repo secret into
+            # ops/alertmanager-secondary/webhook-url on the box (never printed) and posts one test line to it.
+            alert-channel-2) echo "run=bash scripts/set-alert-channel.sh --test" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -356,7 +360,7 @@ jobs:
           # DEPLOY_SHA rides the same way (M26): the commit whose CI went green, handed to
           # deploy.sh so it stops choosing its own target. Empty on manual dispatch, which
           # keeps "deploy whatever the tip is" as a deliberate button.
-          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM
+          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM,ALERT_WEBHOOK_URL_2
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
@@ -400,6 +404,10 @@ jobs:
               git fetch --quiet origin main
               git checkout origin/main -- scripts/backup-second-provider.sh scripts/lib/second-provider.sh scripts/backup-offsite.sh scripts/lib/backup-dir.sh scripts/backup-objects.mjs scripts/lib/s3-lifecycle.mjs
             fi
+            if [ "${{ github.event.inputs.mode }}" = "alert-channel-2" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/set-alert-channel.sh
+            fi
             if [ "${{ github.event.inputs.mode }}" = "reset-test-data" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/reset-test-data.sh scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh
@@ -408,4 +416,5 @@ jobs:
         env:
           ENV_SET_BLOCK: ${{ secrets.ENV_SET_BLOCK }}
           RESET_CONFIRM: ${{ github.event.inputs.confirm }}
+          ALERT_WEBHOOK_URL_2: ${{ secrets.ALERT_WEBHOOK_URL_2 }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}

@@ -16,6 +16,17 @@ route:
   group_wait: 30s        # let a burst coalesce before the first page
   group_interval: 5m     # ...then batch new alerts in the same group
   repeat_interval: 4h    # re-remind on still-firing alerts every 4h
+  # A SECOND channel for CRITICAL alerts (2026-09-25 owner decision): one webhook, one channel, one
+  # person was the whole alerting path. `continue: true` sends a critical to the secondary AND then
+  # falls through to the catch-all below, so the primary still gets everything it always did.
+  # Warnings go to the primary only. The secondary's URL lives in a FILE that may be empty or absent:
+  # this Alertmanager loads such a config fine and fails only that receiver's notification, so a
+  # missing second channel never takes alerting down (proven with amtool in scripts/check-alertmanager-config.sh).
+  routes:
+    - matchers: [severity="critical"]
+      receiver: ops-webhook-secondary
+      continue: true
+    - receiver: ops-webhook
 
 # Silence the warning latency/lag alerts while a critical for the same service is
 # already firing — one page per incident, not three.
@@ -27,7 +38,8 @@ inhibit_rules:
 receivers:
   - name: ops-webhook
     slack_configs:
-      - api_url_file: /etc/alertmanager/webhook-url
+      - &slack
+        api_url_file: /etc/alertmanager/webhook-url
         channel: '#ops'   # ignored by Discord; Slack incoming-webhooks pin their own channel
         send_resolved: true
         # Empty on purpose. Alertmanager builds this from --web.external-url, which is
@@ -47,3 +59,12 @@ receivers:
         text: >-
           {{ range .Alerts }}{{ .Annotations.description }}
           {{ end }}
+
+  # The second channel. Same payload as the first (the anchor above), a different file. Written by
+  # scripts/set-alert-channel.sh (Deploy -> alert-channel-2) into ops/alertmanager-secondary/, a
+  # DIRECTORY mount: a missing single-file bind source becomes a root-owned directory the moment
+  # compose creates the container, and a script can then never fill it in.
+  - name: ops-webhook-secondary
+    slack_configs:
+      - <<: *slack
+        api_url_file: /etc/alertmanager/secondary/webhook-url
