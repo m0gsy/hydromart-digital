@@ -668,6 +668,15 @@ jobs:
       - name: Scheduler-target gate can go red
         run: bash scripts/check-scheduler-targets.test.sh
 
+      # The load test ran with no memory ceiling, an unbounded pool and a default postgres, so its
+      # capacity number was about a different system than the one production runs. The overlay
+      # holds it to production's limits; this keeps the overlay complete as services are added.
+      - name: Load stack is held to production limits
+        run: node scripts/check-load-limits.mjs
+
+      - name: Load-limits gate can go red
+        run: bash scripts/check-load-limits.test.sh
+
       # The go-live report and the test-data reset are run by a person, once, against
       # production — the worst place to learn a query was wrong. Both are run here against a
       # throwaway Postgres carrying the real schema (every migration.sql) and a small fixture.

@@ -1,0 +1,132 @@
+# The load test's stack, held to the limits PRODUCTION runs under.
+#
+# Layered ONLY by .github/workflows/load.yml (COMPOSE_EXTRA_FILES) — the integration and UAT stacks
+# stay as they were. The load stack ran with no memory ceiling, no CPU ceiling, an unbounded
+# Prisma pool and a postgres on its default max_connections, on a 4-core runner; production runs
+# every service at 512 MB / 1 CPU, every pool at connection_limit=5 (16 x 5 = 80 connections against
+# max_connections=150) and postgres at 2 GB / 2 CPUs. A capacity number measured without those is
+# a number about a different system: it cannot see an OOM kill or a pool that is exhausted at 50
+# concurrent users, which are the two ways this box actually runs out.
+#
+# The RATE LIMIT is deliberately NOT restored. Production's edge limit is per client address, and a
+# load generator is one address: at 600 requests a minute k6 would spend its hour measuring the
+# limiter (see the RATE_LIMIT_MAX note in docker-compose.test.yml — three times already). What is
+# under test is the app under prod-shaped resources, not the throttler.
+#
+# scripts/check-load-limits.mjs fails CI if a service in docker-compose.test.yml is missing here.
+services:
+  postgres:
+    mem_limit: 2g
+    cpus: 2.0
+    command:
+      - postgres
+      - -c
+      - max_connections=150
+
+  auth:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      AUTH_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_auth?schema=public&connection_limit=5&pool_timeout=10
+
+  customer:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_customer?schema=public&connection_limit=5&pool_timeout=10
+
+  product:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_product?schema=public&connection_limit=5&pool_timeout=10
+
+  order:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      ORDER_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_order?schema=public&connection_limit=5&pool_timeout=10
+
+  payment:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_payment?schema=public&connection_limit=5&pool_timeout=10
+
+  delivery:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_delivery?schema=public&connection_limit=5&pool_timeout=10
+
+  depot:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_depot?schema=public&connection_limit=5&pool_timeout=10
+
+  loyalty:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      LOYALTY_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_loyalty?schema=public&connection_limit=5&pool_timeout=10
+
+  promo:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      PROMO_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_promo?schema=public&connection_limit=5&pool_timeout=10
+
+  referral:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_referral?schema=public&connection_limit=5&pool_timeout=10
+
+  crm:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      CRM_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_crm?schema=public&connection_limit=5&pool_timeout=10
+
+  recommendation:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_recommendation?schema=public&connection_limit=5&pool_timeout=10
+
+  forecast:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_forecast?schema=public&connection_limit=5&pool_timeout=10
+
+  payout:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      PAYOUT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_payout?schema=public&connection_limit=5&pool_timeout=10
+
+  hr:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      HR_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_hr?schema=public&connection_limit=5&pool_timeout=10
+
+  admin:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_admin?schema=public&connection_limit=5&pool_timeout=10
+
+  gateway-stub:
+    mem_limit: 512m
+    cpus: 1.0
+
+  dashboard:
+    mem_limit: 512m
+    cpus: 1.0
+
+  gateway:
+    mem_limit: 512m
+    cpus: 1.0

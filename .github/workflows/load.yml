@@ -93,7 +93,9 @@ jobs:
       - name: Boot the stack
         env:
           COMPOSE_BAKE: 'true'
-          COMPOSE_EXTRA_FILES: docker-compose.cache.yml
+          # The second file holds the stack to production's memory, CPU and pool limits
+          # (docker-compose.load-limits.yml; scripts/check-load-limits.mjs keeps it complete).
+          COMPOSE_EXTRA_FILES: docker-compose.cache.yml,docker-compose.load-limits.yml
         run: node test/integration/run.mjs --keep --boot-only
 
       # A shelf the run cannot empty.
@@ -284,6 +286,21 @@ jobs:
               logs --no-color --tail 4000 "$s" > "load-logs/$s.log" 2>&1 || true
           done
           echo "captured: $(wc -l < load-logs/all-services.log) lines"
+
+      # Under production's ceilings the way this box actually runs out is an OOM kill or an exhausted
+      # pool, and neither shows in a latency percentile. `docker inspect .State.OOMKilled` is a fact
+      # the container keeps until it is removed — read it before the teardown removes it.
+      - name: Anything OOM-killed under production limits?
+        if: always()
+        run: |
+          killed="$(docker ps -aq | xargs -r docker inspect --format '{{.Name}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}' | grep 'oom=true' || true)"
+          docker ps -aq | xargs -r docker inspect --format '{{.Name}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}' | sort > load-logs/containers.txt || true
+          if [ -n "$killed" ]; then
+            echo "::error::a container was OOM-killed under production's 512 MB ceiling:"
+            echo "$killed"
+            exit 1
+          fi
+          echo "no container was OOM-killed (see load-logs/containers.txt for restart counts)"
 
       - name: Upload service logs
         if: always()
