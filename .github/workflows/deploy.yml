@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back)'
         type: choice
         default: deploy
         options:
@@ -67,6 +67,7 @@ on:
             reset-test-data,
             install-node,
             backup-second,
+            backup-env,
             install-cron,
             explain-queries,
           ]
@@ -315,6 +316,9 @@ jobs:
             install-node) echo 'run=if [ "${RESET_CONFIRM:-}" = "install" ]; then bash scripts/install-host-node.sh; else bash scripts/install-host-node.sh --check; fi' >> "$GITHUB_OUTPUT" ;;
             # The copy to the SECOND provider, now, instead of at 04:00: proves the bucket, the keys and the
             # read-back. Exits 0 with "one provider only" while BACKUP2_OFFSITE_DEST is unset.
+            # The nightly 03:25 .env backup, now, with the box's own read-back. Encrypts to
+            # ops/env-backup-public.pem; only the private key held off this box can open the result.
+            backup-env) echo "run=. ./scripts/load-env.sh && bash scripts/backup-env.sh" >> "$GITHUB_OUTPUT" ;;
             backup-second) echo "run=. ./scripts/load-env.sh && bash scripts/backup-second-provider.sh" >> "$GITHUB_OUTPUT" ;;
             # docs/GO_LIVE.md §3. A DRY RUN unless `confirm` is exactly RESET-TEST-DATA: it counts
             # the rows and says whose they are, and writes nothing. With the phrase it takes its own
@@ -387,6 +391,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "install-node" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/install-host-node.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "backup-env" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/backup-env.sh ops/env-backup-public.pem
             fi
             if [ "${{ github.event.inputs.mode }}" = "backup-second" ]; then
               git fetch --quiet origin main
