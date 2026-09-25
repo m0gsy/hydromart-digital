@@ -266,6 +266,42 @@ else
   docker exec "$AM_C" wget -qO- http://localhost:9093/metrics 2>/dev/null | grep -E '^alertmanager_notifications_(failed_)?total\{' | grep 'integration="slack"' | sed 's/^/    /' || true
 fi
 
+# A customer waited minutes for a login code. Is the delay on OUR side (the request that issues
+# the code, and the call to Zenziva inside it) or after Zenziva accepted the message (the SMS
+# network)? The three things below answer that without sending anything: how long people took to
+# type a code, whether our call to Zenziva ever failed or timed out, and how long the issuing
+# request took. Nothing here carries a phone number; digit runs are masked because this output
+# lands in a public repository's Actions log.
+line "OTP — is a slow code ours, or the SMS network's?"
+echo "  challenges in the last 48h (WIB time, purpose, seconds until the code was typed):"
+# "createdAt" is a NAIVE timestamp holding UTC, so it takes TWO hops to reach WIB: a single
+# `at time zone 'Asia/Jakarta'` reads the UTC value as if it were already local and shifts it by 7 hours
+# the wrong way (the first version of this query did, and printed times 14 hours off).
+q hydromart_auth "select to_char((\"createdAt\" at time zone 'UTC') at time zone 'Asia/Jakarta', 'MM-DD HH24:MI:SS'), purpose, case when \"consumedAt\" is null then 'not used' else round(extract(epoch from \"consumedAt\" - \"createdAt\"))::text || 's' end from otp_tokens where \"createdAt\" > now() - interval '48 hours' order by \"createdAt\"" | sed 's/^/    /' || true
+echo "  auth container: delivery failures and timeouts since it last started:"
+docker compose $COMPOSE_FILES logs auth 2>&1 | grep -iE 'OTP delivery failed|Zenziva (OTP|rejected)|unreachable|aborted' | tail -10 | cut -c1-200 | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
+echo "  auth container started: $(docker inspect -f '{{.State.StartedAt}}' "$(docker compose $COMPOSE_FILES ps -q auth 2>/dev/null | head -1)" 2>/dev/null || echo unknown)"
+echo "  the request that issues a code — latency at the auth service, POST, last 36h:"
+PROM_C="$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
+pq() { docker exec "$PROM_C" wget -qO- "http://localhost:9090/api/v1/query?query=$1" 2>/dev/null; }
+for qtl in 0.5 0.95 0.99; do
+  RES="$(pq "histogram_quantile($qtl%2Csum%20by%20(le%2Croute)(increase(http_request_duration_seconds_bucket%7Bmethod%3D%22POST%22%2Croute%3D~%22%2Fapi%2Fv1%2Fauth%2F(login%7Cregister%7Cotp%2Fresend)%22%7D%5B36h%5D)))")"
+  printf '%s' "$RES" | grep -oE '"route":"[^"]*"\},"value":\[[0-9.]+,"[^"]*"\]' |
+    sed -E "s/\"route\":\"([^\"]*)\"\},\"value\":\[[0-9.]+,\"([^\"]*)\"\]/    p$qtl \1 = \2 s/" || true
+done
+echo "  request count by route and status (36h):"
+pq 'sum%20by%20(route%2Cstatus)%20(increase(http_request_duration_seconds_count%7Bmethod%3D%22POST%22%2Croute%3D~%22%2Fapi%2Fv1%2Fauth%2F(login%7Cregister%7Cotp%2Fresend)%22%7D%5B36h%5D))' |
+  grep -oE '"route":"[^"]*","status":"[0-9]+"\},"value":\[[0-9.]+,"[^"]*"\]' |
+  sed -E 's/"route":"([^"]*)","status":"([0-9]+)"\},"value":\[[0-9.]+,"([^"]*)"\]/    \1 \2 x\3/' | head -10 || true
+
+line "CONFIG DRIFT — does any container run a config file older than the one on disk?"
+bash scripts/check-config-drift.sh 2>&1 | tail -14 | sed 's/^/  /'
+PROM_D="$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
+if [ -n "$PROM_D" ]; then
+  echo "  alert-rules.yml md5  host: $(md5sum ops/alert-rules.yml | cut -c1-12)  container: $(docker exec "$PROM_D" md5sum /etc/prometheus/alert-rules.yml 2>/dev/null | cut -c1-12)"
+  echo "  repo HEAD on the box: $(git rev-parse --short HEAD)  prometheus started: $(docker inspect -f '{{.State.StartedAt}}' "$PROM_D")"
+fi
+
 # M15 sits in the same corner of the plan and has no description there beyond "VPS side",
 # so this reports the facts a VPS-side capacity item would need rather than guessing at it.
 line "capacity (context for M13/M15)"
@@ -347,6 +383,15 @@ if [ -n "$PROM" ]; then
     echo "  alerting rules loaded : $(printf '%s' "$LIVE_RULES" | grep -o '"type":"alerting"' | wc -l | tr -d ' ')"
     echo "  route selectors in the LIVE rules:"
     printf '%s' "$LIVE_RULES" | tr -d '\\' | grep -o 'route=~\?"[^"]*"' | sort -u | sed 's/^/    /'
+    # A rule file edited in the repo reaches a single-file bind mount only if the container is
+    # recreated (git replaces the file; the mount keeps the old inode). So ask the RUNNING
+    # Prometheus whether the arming clause of NoOrdersCreated (7-day history) is in what it evaluates.
+    # Prometheus prints a duration in its canonical form: the rule file says [7d], the API says [1w].
+    if printf '%s' "$LIVE_RULES" | grep -qE '\[(7d|1w)\]'; then
+      echo "  NoOrdersCreated is armed by 7-day history in the LIVE rules: yes"
+    else
+      echo "  NoOrdersCreated is armed by 7-day history in the LIVE rules: NO — the running Prometheus holds an older rule file than the repo"
+    fi
   fi
   LIVE_ALERTS="$(docker exec "$PROM" wget -qO- http://localhost:9090/api/v1/alerts 2>/dev/null |
     grep -o '"alertname":"[A-Za-z]*"' | sort | uniq -c || true)"
