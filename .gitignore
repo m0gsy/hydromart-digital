@@ -58,6 +58,7 @@ var/
 
 # Alertmanager webhook secret (operator-created — see ops/alertmanager.yml)
 ops/alertmanager.webhook-url
+ops/alertmanager-secondary/
 
 # Claude Code personal settings
 .claude/settings.local.json
