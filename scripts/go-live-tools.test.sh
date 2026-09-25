@@ -140,8 +140,10 @@ count_all() { echo "$(psql_ order 'select count(*) from orders')/$(psql_ payment
 BEFORE="$(count_all)"
 [ "$BEFORE" = "1/1/1/1" ] && ok "reset: the fixture holds one row in each cleared table" || bad "fixture counts unexpected: $BEFORE"
 
-bash scripts/reset-test-data.sh >/dev/null 2>&1
+DRY="$(bash scripts/reset-test-data.sh 2>&1)"
 [ "$?" = 0 ] && [ "$(count_all)" = "$BEFORE" ] && ok "reset: a dry run changes nothing" || bad "the dry run must not write"
+printf '%s' "$DRY" | grep -q 'orders placed by: 1 distinct customer(s), ' &&
+  ok "reset: the dry run says how many different customers placed the orders" || bad "the dry run must name whose data it is: $DRY"
 
 bash scripts/reset-test-data.sh --execute >/dev/null 2>&1
 [ "$?" = 1 ] && [ "$(count_all)" = "$BEFORE" ] && ok "reset: --execute without CONFIRM refuses" || bad "--execute must need CONFIRM"

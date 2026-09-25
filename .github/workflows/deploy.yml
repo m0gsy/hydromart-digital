@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch)'
         type: choice
         default: deploy
         options:
@@ -64,6 +64,7 @@ on:
             backup-offsite,
             backup-objects,
             storage-policy,
+            reset-test-data,
             install-cron,
             explain-queries,
           ]
@@ -79,6 +80,10 @@ on:
         description: 'seed-demo only: the phone the Play reviewer will sign in with'
         required: false
         default: '+6281199900001'
+      confirm:
+        description: 'reset-test-data only: type RESET-TEST-DATA to actually clear (anything else = dry run, writes nothing)'
+        required: false
+        default: ''
 
 concurrency:
   group: deploy-prod
@@ -302,6 +307,13 @@ jobs:
             backup-offsite) echo "run=. ./scripts/load-env.sh && bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
             backup-objects) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs" >> "$GITHUB_OUTPUT" ;;
             smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
+            # docs/GO_LIVE.md §3. A DRY RUN unless `confirm` is exactly RESET-TEST-DATA: it counts
+            # the rows and says whose they are, and writes nothing. With the phrase it takes its own
+            # dump, rehearses every TRUNCATE, then clears the order lifecycle (never accounts,
+            # depots, catalogue, stock quantities or the audit trail). The phrase rides an
+            # environment variable, never the script body, and the button is not offered to the
+            # automatic workflow_run path — only a person can press it.
+            reset-test-data) echo 'run=if [ "${RESET_CONFIRM:-}" = "RESET-TEST-DATA" ]; then CONFIRM=RESET-TEST-DATA bash scripts/reset-test-data.sh --execute; else bash scripts/reset-test-data.sh; fi' >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -331,7 +343,7 @@ jobs:
           # DEPLOY_SHA rides the same way (M26): the commit whose CI went green, handed to
           # deploy.sh so it stops choosing its own target. Empty on manual dispatch, which
           # keeps "deploy whatever the tip is" as a deliberate button.
-          envs: ENV_SET_BLOCK,DEPLOY_SHA
+          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
@@ -361,7 +373,14 @@ jobs:
               git fetch --quiet origin main
               git checkout origin/main -- scripts/backup-objects.mjs
             fi
+            # The reset script and the dump it takes first must be the reviewed ones on main,
+            # not whatever the last release left on the box.
+            if [ "${{ github.event.inputs.mode }}" = "reset-test-data" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/reset-test-data.sh scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh
+            fi
             ${{ steps.cmd.outputs.run }}
         env:
           ENV_SET_BLOCK: ${{ secrets.ENV_SET_BLOCK }}
+          RESET_CONFIRM: ${{ github.event.inputs.confirm }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
