@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it)'
         type: choice
         default: deploy
         options:
@@ -65,6 +65,8 @@ on:
             backup-objects,
             storage-policy,
             reset-test-data,
+            install-node,
+            backup-second,
             install-cron,
             explain-queries,
           ]
@@ -81,7 +83,7 @@ on:
         required: false
         default: '+6281199900001'
       confirm:
-        description: 'reset-test-data only: type RESET-TEST-DATA to actually clear (anything else = dry run, writes nothing)'
+        description: 'reset-test-data: type RESET-TEST-DATA to actually clear; install-node: type install to actually upgrade (anything else = dry run / check only, writes nothing)'
         required: false
         default: ''
 
@@ -307,6 +309,13 @@ jobs:
             backup-offsite) echo "run=. ./scripts/load-env.sh && bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
             backup-objects) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs" >> "$GITHUB_OUTPUT" ;;
             smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
+            # Host Node 20 -> 22 (end of life since 2026-04-30; AWS SDK v3 drops it in January 2027). Same
+            # shape as reset-test-data: `--check` (says what it would change, touches nothing) unless
+            # `confirm` is exactly `install`. It edits the NodeSource apt source and rolls back on failure.
+            install-node) echo 'run=if [ "${RESET_CONFIRM:-}" = "install" ]; then bash scripts/install-host-node.sh; else bash scripts/install-host-node.sh --check; fi' >> "$GITHUB_OUTPUT" ;;
+            # The copy to the SECOND provider, now, instead of at 04:00: proves the bucket, the keys and the
+            # read-back. Exits 0 with "one provider only" while BACKUP2_OFFSITE_DEST is unset.
+            backup-second) echo "run=. ./scripts/load-env.sh && bash scripts/backup-second-provider.sh" >> "$GITHUB_OUTPUT" ;;
             # docs/GO_LIVE.md §3. A DRY RUN unless `confirm` is exactly RESET-TEST-DATA: it counts
             # the rows and says whose they are, and writes nothing. With the phrase it takes its own
             # dump, rehearses every TRUNCATE, then clears the order lifecycle (never accounts,
@@ -375,6 +384,14 @@ jobs:
             fi
             # The reset script and the dump it takes first must be the reviewed ones on main,
             # not whatever the last release left on the box.
+            if [ "${{ github.event.inputs.mode }}" = "install-node" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/install-host-node.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "backup-second" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/backup-second-provider.sh scripts/lib/second-provider.sh scripts/backup-offsite.sh scripts/lib/backup-dir.sh scripts/backup-objects.mjs scripts/lib/s3-lifecycle.mjs
+            fi
             if [ "${{ github.event.inputs.mode }}" = "reset-test-data" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/reset-test-data.sh scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh

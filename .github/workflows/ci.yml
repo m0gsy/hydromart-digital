@@ -620,6 +620,11 @@ jobs:
       - name: Second backup provider refuses to be the first, and is handed only its own keys
         run: bash scripts/backup-second-provider.test.sh
 
+      # The host runtime the nightly backup depends on is replaced by editing an apt source. The refusals
+      # and — above all — the rollback are proven against stand-ins before the button exists.
+      - name: Host Node upgrade refuses what it does not understand and rolls back what fails
+        run: bash scripts/install-host-node.test.sh
+
       # The alarms that live on the box cannot report the box being gone. The external probe
       # and the watchdog's running-but-unhealthy report are exercised against stand-ins for
       # curl and docker compose, so their red paths are proven here rather than at 02:00.
