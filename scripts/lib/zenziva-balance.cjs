@@ -11,6 +11,10 @@
 //   <METHOD> <path> http=<code> status=<s> balance=<n> keys=<names> text=<first 60 chars>
 // Exit 0 when an attempt answered status "1" with a numeric balance, 1 otherwise.
 //
+// With ZENZIVA_MODE=monitor it makes ONE call (the masking path, GET) and prints one line for
+// scripts/check-zenziva-balance.sh:  balance=<integer> days=<whole days until `expired` | none>
+// The balance arrives as a string with thousands separators ("1,941,690", measured 2026-09-25).
+//
 // The first attempt (POST) answered HTTP 405 on both paths, so the endpoint exists and wants GET
 // with the keys in the query string — the shape Zenziva documents for its read-only calls. The
 // OTP endpoint lives under `/masking/`, so that prefix is tried first. Kept as a probe: whichever
@@ -24,6 +28,15 @@ const METHODS = ['GET', 'POST'];
 /** A gateway may echo what it was sent; a credential must never reach a log through that. */
 const scrub = (s) => String(s).split(userkey).join('***').split(passkey).join('***');
 
+/** "1,941,690" -> 1941690. Null when it is not a number at all. */
+const toNumber = (raw) => {
+  const n = Number(String(raw).replace(/,/g, ''));
+  return Number.isFinite(n) && /\d/.test(String(raw)) ? n : null;
+};
+
+const QUIET = process.env.ZENZIVA_MODE === 'monitor';
+
+/** One call. Resolves to the parsed body when Zenziva answered status "1", else null. */
 async function attempt(method, path) {
   const params = new URLSearchParams({ userkey, passkey }).toString();
   const res =
@@ -37,11 +50,13 @@ async function attempt(method, path) {
         });
   const body = await res.json().catch(() => null);
   const keys = body && typeof body === 'object' ? Object.keys(body).join(',') : 'not-json';
-  console.log(
-    `${method} ${path} http=${res.status} status=${body?.status ?? '?'} balance=${body?.balance ?? '?'} ` +
-      `keys=${keys} text=${scrub(body?.text ?? '').slice(0, 60)}`,
-  );
-  return body && String(body.status) === '1' && /^\d+(\.\d+)?$/.test(String(body.balance));
+  if (!QUIET) {
+    console.log(
+      `${method} ${path} http=${res.status} status=${body?.status ?? '?'} balance=${body?.balance ?? '?'} ` +
+        `expired=${body?.expired ?? '-'} keys=${keys} text=${scrub(body?.text ?? '').slice(0, 60)}`,
+    );
+  }
+  return body && String(body.status) === '1' && toNumber(body.balance) !== null ? body : null;
 }
 
 async function main() {
@@ -49,11 +64,20 @@ async function main() {
     console.log('ZENZIVA_USERKEY / ZENZIVA_PASSKEY are not set in this container');
     process.exit(1);
   }
+  if (process.env.ZENZIVA_MODE === 'monitor') {
+    const body = await attempt('GET', PATHS[0]).catch(() => null);
+    const balance = body ? toNumber(body.balance) : null;
+    if (balance === null) process.exit(1);
+    const ms = Date.parse(String(body.expired ?? ''));
+    const days = Number.isNaN(ms) ? 'none' : Math.floor((ms - Date.now()) / 86400000);
+    console.log(`balance=${Math.floor(balance)} days=${days}`);
+    process.exit(0);
+  }
   let found = false;
   for (const method of METHODS) {
     for (const path of PATHS) {
       try {
-        found = (await attempt(method, path)) || found;
+        found = (await attempt(method, path)) !== null || found;
       } catch (e) {
         console.log(`${method} ${path} failed: ${scrub(e instanceof Error ? e.message : e)}`);
       }

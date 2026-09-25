@@ -202,6 +202,8 @@ docker compose $COMPOSE_FILES ps --format '  {{.Service}}\t{{.State}}\t{{.Health
 line "ZENZIVA — how much SMS credit is left (login stops at zero)"
 if [ -f scripts/lib/zenziva-balance.cjs ] && docker compose $COMPOSE_FILES exec -T auth true >/dev/null 2>&1; then
   docker compose $COMPOSE_FILES exec -T auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | sed 's/^/  /' || true
+  # The line the six-hourly monitor (scripts/check-zenziva-balance.sh) acts on, produced the same way.
+  echo "  monitor reads: $(docker compose $COMPOSE_FILES exec -T -e ZENZIVA_MODE=monitor auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | tail -1)"
 else
   echo "  auth container or scripts/lib/zenziva-balance.cjs not available"
 fi

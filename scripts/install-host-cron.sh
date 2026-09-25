@@ -121,6 +121,12 @@ CRON_TZ=$CRON_TZ_VALUE
 # useless until real traffic arrives — and then start reporting the plans that matter,
 # without anybody having had to diarise it. Read-only: EXPLAIN, never EXPLAIN ANALYZE.
 15 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/explain-hot-queries.sh >> /var/log/hydromart-ops-checks.log 2>&1
+
+# Login is an SMS one-time code, and the credit that pays for it was watched by nobody: at zero
+# nobody signs in on any depot, and the first report would be a customer. Asks Zenziva from
+# inside the auth container every six hours; alerts under ZENZIVA_MIN_BALANCE, on a credit that
+# is about to expire, and on a balance it cannot read twice in a row.
+10 */6 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/check-zenziva-balance.sh >> /var/log/hydromart-ops-checks.log 2>&1
 $END
 EOF
 }

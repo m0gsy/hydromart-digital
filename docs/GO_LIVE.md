@@ -90,6 +90,6 @@ Siapa selain `VPS_SSH_KEY` milik CI yang punya SSH ke VPS · pemilik, 2FA, dan e
 penyedia VPS dan object storage (dan apakah NEO tetap dipakai setelah pindah VPS) · pemilik Play Console
 dan cadangan keystore upload (`ANDROID_KEYSTORE_*` hanya ada di GitHub secrets) · pemilik akun
 Cloudflare dan registrar domain · siapa di kanal Discord dan siapa yang menerima email Sentry · siapa
-yang mengisi ulang saldo Zenziva (saldo habis = tak ada yang bisa login; belum ada pemantauannya) ·
+yang mengisi ulang saldo Zenziva (saldo habis = tak ada yang bisa login; `scripts/check-zenziva-balance.sh` memantaunya tiap 6 jam dan memberi tahu Discord di bawah `ZENZIVA_MIN_BALANCE`, default Rp250.000) ·
 lokasi kunci privat `hydromart-env-private.pem` dan salinan keduanya · SOP depot dan staf baru tertulis
 di luar repo · nasib DEMO-01 setelah tinjauan Play selesai · apakah repo memang sengaja publik.
