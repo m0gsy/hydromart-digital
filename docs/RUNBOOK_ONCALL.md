@@ -122,9 +122,9 @@ Aturan eskalasi yang disarankan, sampai Anda menggantinya:
    bisnis: keduanya kehilangan uang, dan yang kedua tahu apakah depot memang tutup.
 
 Tidak satu pun dari tiga aturan itu ditegakkan oleh perangkat. `ops/alertmanager.yml` punya
-**satu** `receiver` dan tidak punya `routes`, jadi `warning` dan `critical` mendarat di chat
-yang sama dengan kenyaringan yang sama; tidak ada acknowledge, tidak ada panggilan telepon,
-tidak ada eskalasi otomatis. Yang benar-benar terjadi pada alert yang tidak dijawab: ia
+**dua** `receiver` dan satu `routes`: `critical` mendarat di kedua kanal, `warning` hanya di yang
+utama — tetapi keduanya sama kerasnya di layar, dan tidak ada acknowledge, tidak ada panggilan
+telepon, tidak ada eskalasi otomatis. Yang benar-benar terjadi pada alert yang tidak dijawab: ia
 diposting ulang setiap `repeat_interval: 4h`. Empat jam, bukan lima belas menit — angka 15
 menit di atas adalah janji manusia, dan §6 menghitung apa yang mesin benar-benar berikan.
 
