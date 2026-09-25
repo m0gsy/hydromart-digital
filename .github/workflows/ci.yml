@@ -623,6 +623,12 @@ jobs:
       - name: Watchdog reports running-but-unhealthy containers
         run: bash scripts/watchdog.test.sh
 
+      # Login is an SMS code and nothing knew how much credit was left. Driven against stand-ins
+      # for the auth container and curl: silence while healthy, one message per condition, and an
+      # unreadable balance speaks only on the second failure in a row.
+      - name: Zenziva balance monitor alerts on low, expiring and unreadable credit
+        run: bash scripts/check-zenziva-balance.test.sh
+
       # N12 — fourteen alert rules and, until now, nothing that could evaluate one.
       # Prometheus only complains about a rule that fails to PARSE; a rule that parses and
       # can never match looks exactly like a rule that is simply not firing, which is what a
