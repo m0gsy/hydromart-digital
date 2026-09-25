@@ -103,6 +103,12 @@ done
 echo
 echo "$total row(s) across the tables above."
 
+# A count says how much, not whose. Before anyone presses the real button, say how many DIFFERENT
+# customers placed these orders and over what dates: two customers and a month of history is a
+# tester's afternoon; two hundred is a business, and this script is the wrong tool for it.
+who="$(psql_db order -c "select count(distinct \"customerId\") || ' distinct customer(s), ' || coalesce(min(\"createdAt\")::date::text, '-') || ' .. ' || coalesce(max(\"createdAt\")::date::text, '-') from orders" 2>&1)" || who="unreadable"
+echo "orders placed by: $who"
+
 if ! $EXECUTE; then
   echo
   echo "Dry run only. To clear them: CONFIRM=RESET-TEST-DATA bash $0 --execute$($LEDGERS && echo ' --with-ledgers')"

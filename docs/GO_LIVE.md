@@ -45,8 +45,11 @@ Setelah itu `go-live-report` tak lagi menandai keduanya, dan `check-launch-block
 
 `go-live-report` menampilkan jumlah baris yang sudah ada. Kalau semuanya uji, bersihkan:
 
+Tanpa SSH: **Actions → Deploy → Run workflow → mode `reset-test-data`**. Kolom `confirm` kosong = dry run
+(menghitung, menyebut berapa pelanggan berbeda yang memesan, tak menulis apa pun); isi `RESET-TEST-DATA`
+= sungguhan. Di kotak, hasilnya sama:
+
 ```bash
-# di kotak, saat depot tutup
 bash scripts/reset-test-data.sh                                     # dry run: hanya menghitung
 CONFIRM=RESET-TEST-DATA bash scripts/reset-test-data.sh --execute   # sungguhan
 ```
