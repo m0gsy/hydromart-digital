@@ -1714,7 +1714,11 @@ export const hrFix = {
     inactive: 'Nonaktif',
     active: 'Aktif',
     empty: 'Belum ada depot dengan koordinat.',
-    caption: 'Posisi relatif dari koordinat depot.',
+    caption: 'Skala sama ke segala arah. Klik gelembung untuk memperbesar.',
+    all: 'Semua depot',
+    count: '{n} depot',
+    groupAria: 'Perbesar {n} depot di {place}',
+    stacked: '{n} depot di titik yang sama',
   },
   faceCapture: {
     take: 'Ambil Foto',
