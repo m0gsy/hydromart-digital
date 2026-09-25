@@ -529,7 +529,7 @@ export async function run(ctx) {
   await check('UAT-M21-03', async () => {
     const key = await api('GET', `${CRM}/push/vapid-public-key`, { token: A });
     const sub = await api('POST', `${CRM}/push/subscriptions`, {
-      token: A, body: { endpoint: `https://push.example.com/${uniq()}`, keys: { p256dh: 'BJ' + 'x'.repeat(85), auth: 'y'.repeat(22) } },
+      token: A, body: { endpoint: `https://fcm.googleapis.com/fcm/send/${uniq()}`, keys: { p256dh: 'BJ' + 'x'.repeat(85), auth: 'y'.repeat(22) } },
     });
     ctx.pushEndpoint = sub.body?.endpoint;
     return key.status === 200 && sub.status < 400

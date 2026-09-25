@@ -35,6 +35,40 @@ const ctx = {
   hr: mintToken('HR'),
 };
 
+/*
+ * Every staff invite now creates the employee record too (the HR sync), so position, joinDate,
+ * employmentStatus and salaryType are required. The harness sent none of them: the invite answered
+ * 400, `if (inv.status < 400)` swallowed it, and no courier existed — so every case that needs a
+ * driver reported "no delivery" and looked like a dispatch defect.
+ */
+const EMPLOYMENT = {
+  position: 'Staf UAT',
+  joinDate: '2026-01-01',
+  employmentStatus: 'PERMANENT',
+  salaryType: 'MONTHLY',
+  monthlyRate: 5_000_000,
+};
+
+async function inviteStaff(role, phone, fullName, extra = {}) {
+  const r = await api('POST', '/auth/api/v1/auth/staff/invite', {
+    token: ctx.admin,
+    body: { phone, role, fullName, ...EMPLOYMENT, ...extra },
+  });
+  if (r.status >= 400) console.log(`WARN invite ${role} ${phone}: HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 220)}`);
+  return r;
+}
+
+/** A real MANAGER account granted one depot, and a token carrying its id. */
+async function provisionManager(depot, label) {
+  const phone = `+62822${String(Date.now() + (label === 'B' ? 1 : 0)).slice(-8)}`;
+  const inv = await inviteStaff('MANAGER', phone, `Manajer UAT ${label}`);
+  const id = inv.body?.id;
+  if (!id) return mintToken('MANAGER', { depotId: depot.id });
+  const grant = await api('PUT', `/depots/api/v1/staff-hierarchy/${id}/depots/${depot.id}`, { token: ctx.admin, body: {} });
+  if (grant.status >= 400) console.log(`WARN manager ${label} depot grant: HTTP ${grant.status} ${JSON.stringify(grant.body).slice(0, 160)}`);
+  return mintToken('MANAGER', { sub: id, phone });
+}
+
 async function provision() {
   // depots + products from the seed
   const d = await api('GET', '/depots/api/v1/depots/manage?limit=100', { token: ctx.admin });
@@ -43,11 +77,27 @@ async function provision() {
   ctx.depotB = depots.find((x) => x.id !== ctx.depotA?.id);
   if (!ctx.depotA) throw new Error(`no depots seeded: HTTP ${d.status} ${JSON.stringify(d.body).slice(0, 200)}`);
 
-  // staff tokens scoped to depot A (role + depotId claims, as the guards expect)
-  ctx.operator = mintToken('STAFF_DEPOT', { depotId: ctx.depotA.id });
-  ctx.manager = mintToken('KEPALA_DEPOT', { depotId: ctx.depotA.id });
-  ctx.operatorB = mintToken('STAFF_DEPOT', { depotId: ctx.depotB?.id });
-  ctx.managerB = mintToken('KEPALA_DEPOT', { depotId: ctx.depotB?.id });
+  /*
+   * Depot staff tokens, on the roles that exist now.
+   *
+   * This harness last ran before the depot chain was rebuilt into thirteen roles and before the
+   * separation-of-duties pass, so it still used STAFF_DEPOT for "the operator" and KEPALA_DEPOT
+   * for "the manager". Today:
+   *
+   *  - `operator` is the KEPALA_DEPOT: the one person at a depot who writes inventory, returns,
+   *    handovers and maintenance. STAFF_DEPOT is the floor/courier role and holds none of those, so
+   *    every operator case answered 403 — correctly.
+   *  - `manager` is a MANAGER: cashbook, approvals, procurement, pricing and reports are theirs,
+   *    KEPALA_DEPOT holds none of them. A MANAGER carries no depot in the token — their depots are
+   *    resolved per request from the staff hierarchy — so it has to be a real account with a grant,
+   *    which is what provisionManager builds.
+   *  - `staff` is the STAFF_DEPOT, kept for the cases that assert what the floor role may NOT do.
+   */
+  ctx.operator = mintToken('KEPALA_DEPOT', { depotId: ctx.depotA.id });
+  ctx.operatorB = mintToken('KEPALA_DEPOT', { depotId: ctx.depotB?.id });
+  ctx.staff = mintToken('STAFF_DEPOT', { depotId: ctx.depotA.id });
+  ctx.manager = await provisionManager(ctx.depotA, 'A');
+  ctx.managerB = ctx.depotB ? await provisionManager(ctx.depotB, 'B') : undefined;
   ctx.franchiseA = mintToken('FRANCHISE_OWNER', { depotId: ctx.depotA.id });
   ctx.franchiseB = mintToken('FRANCHISE_OWNER', { depotId: ctx.depotB?.id });
   // Drivers must be real accounts — delivery assignment stores the driverId and the
@@ -57,9 +107,7 @@ async function provision() {
   const drivers = [];
   for (let i = 0; i < 2; i += 1) {
     const p = `+62821${String(Date.now() + i).slice(-8)}`;
-    const inv = await api('POST', '/auth/api/v1/auth/staff/invite', {
-      token: ctx.admin, body: { phone: p, role: 'STAFF_DEPOT', fullName: `Kurir UAT ${i + 1}`, depotId: ctx.depotA.id },
-    });
+    const inv = await inviteStaff('STAFF_DEPOT', p, `Kurir UAT ${i + 1}`, { depotId: ctx.depotA.id });
     if (inv.status < 400) drivers.push(inv.body);
   }
   ctx.driverAId = drivers[0]?.id;
@@ -92,8 +140,9 @@ async function provision() {
         },
       });
       line = created.status < 400 ? created.body : null;
+      if (!line) console.log(`WARN stock line create HTTP ${created.status} ${JSON.stringify(created.body).slice(0, 200)}`);
     }
-    if (!line) { console.log(`WARN no stock line for depot ${depot.code}`); continue; }
+    if (!line) { console.log(`WARN no stock line for depot ${depot.code} (list HTTP ${listed.status})`); continue; }
     // Top the line back up to a known quantity — opname sets an absolute count, so the
     // run starts from the same place no matter what earlier runs consumed or reserved.
     const reset = await api('POST', `/depots/api/v1/inventory/${line.id}/opname`, {

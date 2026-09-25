@@ -219,7 +219,7 @@ export async function run(ctx) {
     // RetentionOverview = { policies, backup } — not a bare array or a page envelope.
     const rows = Array.isArray(r.body) ? r.body : r.body?.policies ?? r.body?.items ?? [];
     if (!rows.length) return blocked(`no retention policies (HTTP ${r.status})`);
-    const u = await api('PUT', `${ADM}/retention/${rows[0].id}`, { token: ctx.admin, body: { windowLabel: rows[0].windowLabel ?? 'UAT', windowDays: (rows[0].windowDays ?? 30) + 1 } });
+    const u = await api('PUT', `${ADM}/retention/${rows[0].id}`, { token: ctx.admin, body: { windowLabel: rows[0].windowLabel ?? 'UAT', windowDays: (rows[0].windowDays ?? 30) + 1, updatedAt: rows[0].updatedAt } });
     return u.status < 400 ? pass(`policy ${rows[0].id} updated HTTP ${u.status}; purge job itself runs on schedule`) : fail(`HTTP ${u.status} ${JSON.stringify(u.body)}`);
   });
 

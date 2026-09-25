@@ -167,7 +167,10 @@ export async function run(ctx) {
   });
 
   await check('UAT-M3-05', async () => {
-    const r = await api('PATCH', `${PROD}/${ctx.uatProduct.id}`, { token: ctx.admin, body: { active: false } });
+    // A product write is refused without the version it was read at (CA-2-53), and earlier cases have
+    // already edited this one, so read it fresh.
+    const fresh = await api('GET', `${PROD}/${ctx.uatProduct.id}`, { token: ctx.admin });
+    const r = await api('PATCH', `${PROD}/${ctx.uatProduct.id}`, { token: ctx.admin, body: { active: false, updatedAt: fresh.body?.updatedAt } });
     const pub = await api('GET', `${PROD}?limit=200`);
     const rows = Array.isArray(pub.body) ? pub.body : pub.body?.items ?? [];
     return r.status < 400 && !rows.some((p) => p.id === ctx.uatProduct.id)
