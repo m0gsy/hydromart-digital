@@ -34,6 +34,30 @@ const toNumber = (raw) => {
   return Number.isFinite(n) && /\d/.test(String(raw)) ? n : null;
 };
 
+// Zenziva writes the credit period as "21 Agustus 2026" (measured 2026-09-25): Indonesian month names,
+// which Date.parse reads as NaN. Read as the END of that day in WIB (UTC+7); null when it is not a date.
+const MONTHS = [
+  'januari',
+  'februari',
+  'maret',
+  'april',
+  'mei',
+  'juni',
+  'juli',
+  'agustus',
+  'september',
+  'oktober',
+  'november',
+  'desember',
+];
+const parseExpiry = (raw) => {
+  const m = /^\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(String(raw ?? ''));
+  const month = m ? MONTHS.indexOf(m[2].toLowerCase()) : -1;
+  if (month >= 0) return Date.UTC(Number(m[3]), month, Number(m[1]) + 1) - 7 * 3600 * 1000;
+  const ms = Date.parse(String(raw ?? ''));
+  return Number.isNaN(ms) ? null : ms;
+};
+
 const QUIET = process.env.ZENZIVA_MODE === 'monitor';
 
 /** One call. Resolves to the parsed body when Zenziva answered status "1", else null. */
@@ -68,8 +92,8 @@ async function main() {
     const body = await attempt('GET', PATHS[0]).catch(() => null);
     const balance = body ? toNumber(body.balance) : null;
     if (balance === null) process.exit(1);
-    const ms = Date.parse(String(body.expired ?? ''));
-    const days = Number.isNaN(ms) ? 'none' : Math.floor((ms - Date.now()) / 86400000);
+    const end = parseExpiry(body.expired);
+    const days = end === null ? 'none' : Math.floor((end - Date.now()) / 86400000);
     console.log(`balance=${Math.floor(balance)} days=${days}`);
     process.exit(0);
   }

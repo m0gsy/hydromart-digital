@@ -65,8 +65,12 @@ else
 fi
 
 if [ "$days" != none ] && [ "$days" -le "$WARN_DAYS" ]; then
-  echo "!! the credit expires in $days day(s)"
-  alert_once zenziva-expiry "Zenziva SMS credit expires within ${WARN_DAYS} days — top up or renew at console.zenziva.net before login OTP stops."
+  if [ "$days" -lt 0 ]; then
+    echo "!! the credit period ended $((-days)) day(s) ago"
+  else
+    echo "!! the credit expires in $days day(s)"
+  fi
+  alert_once zenziva-expiry "Zenziva reports the SMS credit period ends within ${WARN_DAYS} days or has already ended — renew at console.zenziva.net and confirm a real login code arrives, before login OTP stops."
   rc=1
 else
   alert_clear zenziva-expiry

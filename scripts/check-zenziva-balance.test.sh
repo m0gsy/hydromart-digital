@@ -84,8 +84,15 @@ run
 
 echo 'balance=900000 days=10' > "$SCENARIO"
 run
-[ "$RC" = 1 ] && said 'expires within 14 days' && ok "credit expiring inside the window: warned" ||
+[ "$RC" = 1 ] && said 'ends within 14 days' && ok "credit expiring inside the window: warned" ||
   bad "an expiring credit should alert (rc=$RC)"
+
+# Measured on production 2026-09-25: Zenziva's period was "21 Agustus 2026", a month in the past
+# while the balance was still Rp1.9 million. An ended period must warn, not read as "far off".
+echo 'balance=900000 days=-35' > "$SCENARIO"
+run
+[ "$RC" = 1 ] && grep -q 'ended 35 day' "$WORK/out" && ok "a credit period that already ended: warned, and says how long ago" ||
+  bad "an ended credit period must alert (rc=$RC): $(cat "$WORK/out")"
 
 echo 'balance=900000 days=90' > "$SCENARIO"
 run
