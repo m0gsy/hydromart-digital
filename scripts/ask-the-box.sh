@@ -196,35 +196,28 @@ line "CONTAINERS — anything not running and healthy, plus caddy and grafana"
 docker compose $COMPOSE_FILES ps --format '  {{.Service}}\t{{.State}}\t{{.Health}}' 2>/dev/null |
   awk -F'\t' '$2 != "running" || ($3 != "" && $3 != "healthy") || $1 ~ /caddy|grafana/' || true
 
-# Login is an SMS OTP. When the Zenziva credit reaches zero nobody can sign in, and nothing on this box
-# knew the number. This asks Zenziva the way the OTP adapter does (from inside the auth container, so
-# the credentials never leave it) and prints only status and balance.
-line "ZENZIVA — how much SMS credit is left (login stops at zero)"
-if [ -f scripts/lib/zenziva-balance.cjs ] && docker compose $COMPOSE_FILES exec -T auth true >/dev/null 2>&1; then
-  docker compose $COMPOSE_FILES exec -T auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | sed 's/^/  /' || true
-  # The line the six-hourly monitor (scripts/check-zenziva-balance.sh) acts on, produced the same way.
-  echo "  monitor reads: $(docker compose $COMPOSE_FILES exec -T -e ZENZIVA_MODE=monitor auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | tail -1)"
-  # A balance is not delivery. Zenziva's answer carries an `expired` date, and one that is already in the
-  # past may mean the account no longer sends. The database says whether codes are actually being used:
-  # a week where challenges were issued and none was ever consumed is a week of codes that did not arrive.
-  echo "  OTP challenges by week (issued | consumed):"
-  q hydromart_auth "select date_trunc('week', \"createdAt\")::date, count(*), count(\"consumedAt\") from otp_tokens where \"createdAt\" > now() - interval '10 weeks' group by 1 order by 1" | sed 's/^/    /'
-else
-  echo "  auth container or scripts/lib/zenziva-balance.cjs not available"
+# The alerts that reach Discord are a symptom; this is the cause, asked for. Every log line is
+# filtered to the few words that name the failure and any run of 9+ digits is masked, because this
+# output lands in a public repository's Actions log.
+line "ALERTS — why the last day's Discord messages fired"
+echo "  .env backup (backup-env.sh exits 2 when it is not configured):"
+echo "    BACKUP_ENV_CERT in .env : $(grep -c '^BACKUP_ENV_CERT=.' .env 2>/dev/null || true) line(s)"
+_cert="$(sed -n 's/^BACKUP_ENV_CERT=//p' .env 2>/dev/null | tail -1 | tr -d "\"'")"
+if [ -n "$_cert" ]; then
+  if [ -f "$_cert" ]; then echo "    certificate file        : present"; else echo "    certificate file        : MISSING at the configured path"; fi
 fi
-
-# What the host offers, before anyone proposes changing it. Node 20 on this host is past end of life
-# and the cron jobs (backup-objects, migrate-prod) run on it; whether it can be replaced without a
-# person at a root shell depends on who this user is and how node got here — asked, not assumed.
-line "HOST — who runs the cron jobs, and how node got here"
-echo "  user      : $(id -un) (uid $(id -u)) groups: $(id -Gn | tr ' ' ',')"
-echo "  os        : $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME" || uname -sr)"
-echo "  sudo      : $(sudo -n true 2>/dev/null && echo 'passwordless sudo works' || echo 'no passwordless sudo')"
-echo "  node      : $(command -v node || echo none) $(node -v 2>/dev/null)"
-echo "  node from : $(dpkg -S "$(command -v node 2>/dev/null)" 2>/dev/null | head -1 || true) $(ls -d "$HOME"/.nvm 2>/dev/null) $(ls -d /usr/local/n /opt/node* 2>/dev/null | tr '
-' ' ')"
-echo "  npm       : $(npm -v 2>/dev/null || echo none)"
-echo "  cron PATH : $(crontab -l 2>/dev/null | grep -m1 '^PATH=' || echo 'not set in crontab')"
+echo "    BACKUP_OFFSITE_DEST set : $(grep -c '^BACKUP_OFFSITE_DEST=s3://' .env 2>/dev/null || true) line(s)"
+echo "    last log lines about it :"
+grep -hE 'backup-env|BACKUP_ENV_CERT|\.env backup|env-20' /var/log/hydromart-backup.log 2>/dev/null | tail -4 | cut -c1-200 | sed 's/^/      /' || true
+echo "  scheduler sweeps that failed or were skipped (30h):"
+docker compose $COMPOSE_FILES logs --since 30h scheduler 2>&1 | grep -E 'FAILED|stale lock|dead round' | tail -8 | cut -c1-220 | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
+echo "  sweep_runs rows that are not ok:"
+q hydromart_admin "select job, host, ok, \"consecutiveFailures\", \"lastRunAt\"::text, coalesce(\"lastOkAt\"::text, 'never'), left(coalesce(detail, ''), 90) from sweep_runs where ok = false order by \"lastRunAt\" desc limit 8" | sed 's/^/    /' || true
+echo "  5xx responses per service and route, last 36h (Prometheus):"
+PROMQ='sum%20by%20(job%2Croute%2Cstatus)%20(increase(http_request_duration_seconds_count%7Bstatus%3D~%225..%22%7D%5B36h%5D))'
+docker exec "$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)" wget -qO- "http://localhost:9090/api/v1/query?query=${PROMQ}" 2>/dev/null |
+  grep -oE '"metric":\{[^}]*\},"value":\[[0-9.]+,"[0-9.]+"\]' |
+  sed -E 's/"metric":\{//; s/"job":"([a-z-]+)"/\1/; s/,?"route":"([^"]*)"/ \1/; s/,?"status":"(5..)"/ \1/; s/\},"value":\[[0-9.]+,"([0-9.]+)"\]/ x\1/' | head -14 | sed 's/^/    /' || true
 
 # M15 sits in the same corner of the plan and has no description there beyond "VPS side",
 # so this reports the facts a VPS-side capacity item would need rather than guessing at it.
