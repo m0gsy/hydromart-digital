@@ -77,6 +77,11 @@ openssl smime -decrypt -binary -inform DER -in env-<TANGGAL>.enc \
 Kalau ini gagal, kunci privatnya salah dan tidak ada jalan lain — enkripsinya asimetris,
 justru supaya kotak yang jatuh tidak membawa kunci pembukanya.
 
+Sertifikat publik yang dipakai kotak ada di repo (`ops/env-backup-public.pem`, dibuat 2026-09-25,
+berlaku sampai 2036); pasangan pribadinya dibuat di laptop pemilik dan **harus dipindahkan ke
+password manager** — bukan disimpan di laptop itu saja. Untuk membuktikan salinan malam ini ada dan
+terbaca: **Actions → Deploy → mode `backup-env`**.
+
 ### 3. Siapkan kotak baru
 
 ```bash
@@ -140,6 +145,30 @@ Anda akan mengulangi hari ini tanpa jaring.
 
 ---
 
+## Lembar latihan saat pindah VPS
+
+Keputusan pemilik 2026-09-25: latihan "kotak hilang seluruhnya" dijalankan **sekali, saat pindah VPS**, di
+kotak baru **sebelum DNS dipindahkan**. Pindah VPS adalah satu-satunya kesempatan yang tak perlu
+dibuat-buat. Isi kolom kanan sambil berjalan; selisih antara perkiraan dan kenyataan adalah temuannya.
+
+| #   | Langkah (bagian di atas)                                                 | Mulai | Selesai | Durasi | Perkiraan | Lulus jika                                    |
+| --- | ------------------------------------------------------------------------ | ----- | ------- | ------ | --------- | --------------------------------------------- |
+| 1   | Ambil dump + `.env` terenkripsi dari bucket (langkah 1)                  |       |         |        | 5 mnt     | kedua berkas ada, ukuran wajar                |
+| 2   | Buka `.env` dengan kunci privat dari password manager (2)                |       |         |        | 2 mnt     | `.env` terbaca; `env-doctor --inspect` bersih |
+| 3   | Siapkan kotak: clone, `.env`, periksa nilai yang menunjuk mesin lama (3) |       |         |        | 15 mnt    | tak ada nilai menunjuk IP/host lama           |
+| 4   | Postgres saja, lalu `restore-db.sh --into-prod` (4)                      |       |         |        | 10 mnt    | angka durasi tercetak; 16 database cocok      |
+| 5   | `deploy.sh --all` dengan image dari registry (5)                         |       |         |        | 10 mnt    | semua container `healthy`                     |
+| 6   | `backup-objects.mjs --restore` (6)                                       |       |         |        | 5 mnt     | jumlah objek sama dengan bucket lama          |
+| 7   | `smoke.sh`, `check-backup-freshness.sh`, pasang cron (7)                 |       |         |        | 10 mnt    | smoke hijau; cron terpasang                   |
+| 8   | Ubah DNS, tunggu propagasi, cek `/health` dari luar                      |       |         |        | 30 mnt    | Uptime hijau dari GitHub                      |
+|     | **Total (RTO yang sebenarnya)**                                          |       |         |        | ~90 mnt   | dicatat di dokumen ini setelahnya             |
+
+Setelah latihan: tulis total durasi di sini, langkah yang ternyata salah atau hilang, dan perbaiki
+dokumen ini pada hari yang sama. Sebelum memulai, jalankan **Deploy → `restore-rehearsal`** (langkah 6
+tanpa risiko: memulihkan beberapa objek ke prefix sementara dan membuktikan byte-nya sama).
+
+---
+
 ## Kalau kunci privat `.env` hilang
 
 Dump-nya masih bisa dipulihkan — datanya utuh. Yang hilang adalah konfigurasinya, dan itu
@@ -181,21 +210,35 @@ membaca ini Anda tidak yakin ada di mana, berhenti dan pastikan sekarang — buk
 
   **Yang tinggal Anda kerjakan (~30 menit, gratis):**
 
-  1. Cloudflare → **R2** → buat bucket (mis. `hydromart-backup2`) → **Manage API tokens** → token
-     _Object Read & Write_ yang dibatasi ke bucket itu. (Backblaze B2 atau Wasabi sama saja: apa pun yang
-     S3-compatible dan **bukan BiznetGio**.)
-  2. Tambahkan lima baris ini ke secret GitHub `ENV_SET_BLOCK`, lalu **Actions → Deploy → mode `env-set`**:
+  Keputusan pemilik 2026-09-25: penyedia kedua adalah **Backblaze B2**, dengan kunci yang **tidak bisa
+  menghapus**. Langkah berikut mengikuti dokumentasi B2 dan belum diuji di akun Anda; `backup-second` di
+  langkah 3 adalah pembuktiannya.
+
+  1. Di B2: buat bucket **privat** (mis. `hydromart-backup2`); aktifkan **Object Lock** dan
+     **Versioning/Keep all versions** pada bucket itu. Buat **application key yang dibatasi ke bucket itu**
+     dengan kemampuan `listBuckets, listFiles, readFiles, writeFiles` — **tanpa `deleteFiles`**. UI B2 hanya
+     menawarkan "Read and Write / Read Only / Write Only", dan yang pertama menyertakan hapus; kunci
+     berkemampuan khusus dibuat lewat CLI: `b2 key create --bucket hydromart-backup2 hydromart-backup2
+listBuckets,listFiles,readFiles,writeFiles`. Baca (`readFiles`) memang diperlukan: `check-backup-freshness`
+     membaca dump kembali dari sana. Lalu, di konsol B2, pasang **lifecycle rule** untuk memangkas versi
+     lama (mis. simpan 395 hari) — kunci tanpa hak hapus tidak bisa memangkas sendiri.
+  2. Tambahkan baris ini ke secret GitHub `ENV_SET_BLOCK`, lalu **Actions → Deploy → mode `env-set`**:
      `BACKUP2_OFFSITE_DEST=s3://hydromart-backup2/hydromart`,
-     `BACKUP2_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`, `BACKUP2_S3_REGION=auto`,
-     `BACKUP2_S3_ACCESS_KEY_ID=…`, `BACKUP2_S3_SECRET_ACCESS_KEY=…`.
+     `BACKUP2_S3_ENDPOINT=https://s3.<region>.backblazeb2.com`, `BACKUP2_S3_REGION=<region>` (bagian
+     yang sama di endpoint, mis. `us-west-004`), `BACKUP2_S3_ACCESS_KEY_ID=…`,
+     `BACKUP2_S3_SECRET_ACCESS_KEY=…`, dan **`BACKUP2_NO_DELETE=1`** (kunci ini tak bisa memangkas; tanpa
+     tanda ini log malam berisi "prune failed" permanen).
   3. **Actions → Deploy → mode `backup-second`** — menyalin sekarang dan membuktikannya; jangan tunggu 04:00.
-     Hijau berarti dump terbaca kembali identik dari penyedia kedua.
+     Hijau berarti dump terbaca kembali identik dari penyedia kedua. Baris `lifecycle … unavailable
+(AccessDenied)` untuk bucket ini **wajar** dengan kunci itu (aturan usia disetel di konsol B2).
 
   **Keputusan Anda**, dan hanya perlu dijawab sekali: lakukan tiga langkah itu, atau terima bahwa
   kehilangan akun BiznetGio menghilangkan mesin, database, dan seluruh buktinya sekaligus.
 
-- **Kunci yang menulis backup juga bisa menghapusnya.** Tidak ada object-lock atau versioning
-  di bucket. Ransomware dengan akses ke kotak bisa menghapus backup-nya juga.
+- **Kunci yang menulis backup juga bisa menghapusnya** — pada penyedia pertama. Tidak ada object-lock
+  di bucket BiznetGio, dan ransomware dengan akses ke kotak bisa menghapus backup-nya juga. Penyedia
+  kedua di atas menutupnya **begitu Anda membuatnya** dengan kunci tanpa `deleteFiles` dan Object Lock;
+  sampai itu, celahnya terbuka.
 - **Salinan objek ada, tapi belum pernah dipulihkan sungguhan.** `--restore` sudah ditulis dan
   sengaja menolak menimpa objek yang masih hidup, tapi belum pernah dijalankan di volume
   produksi.

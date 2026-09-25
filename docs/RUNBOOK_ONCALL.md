@@ -95,6 +95,20 @@ Kontak yang diterima hanya dua bentuk, karena hanya dua bentuk yang bisa membang
 nomor Indonesia (`+62…`, `08…`) atau email. Nama grup chat bukan kontak on-call — grup itu
 sudah menerima alert-nya, dan itulah masalah yang dokumen ini ada untuk menutup.
 
+**Keputusan 2026-09-25: tambah kanal kedua, dan tuliskan eskalasinya.** Yang jujur saat ini:
+
+- **Kanal kedua: belum terpasang.** Ia butuh URL webhook Discord kedua (kanal pribadi atau orang lain)
+  dari pemilik. Alertmanager tidak bisa memuat receiver secara opsional — berkas URL yang tidak ada
+  membuat Docker membuat _direktori_ dan konfigurasinya gagal dimuat, yang mematikan semua alert —
+  jadi ini dipasang dengan langkah deploy yang membuat berkasnya lebih dulu, bukan dengan menambah
+  baris di `ops/alertmanager.yml`. Sampai URL itu ada, jaring kedua yang benar-benar berjalan adalah
+  workflow **Uptime** (email GitHub + webhook `ALERT_WEBHOOK_URL` di repo) yang hidup di luar kotak.
+- **Eskalasi tertulis:** karena Sekunder memang tidak ada, "bila primer diam 30 menit" tidak punya
+  penerima. Yang tertulis sebagai gantinya: alert `critical` yang belum ditangani diposting ulang
+  tiap 4 jam; Uptime merah mengirim email tersendiri; dan pemilik bisnis (baris ketiga tabel di atas)
+  adalah orang yang sama. **Menambah orang kedua** mengubah semua ini dan adalah satu-satunya
+  perbaikan nyata — di luar kemampuan kode.
+
 Aturan eskalasi yang disarankan, sampai Anda menggantinya:
 
 1. `critical` → primer, langsung. Tidak dijawab dalam 15 menit → sekunder.
