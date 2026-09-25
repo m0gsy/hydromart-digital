@@ -36,4 +36,8 @@ second_provider_env() {
   export BACKUP_S3_REGION="${BACKUP2_S3_REGION:-auto}"
   export BACKUP_S3_ACCESS_KEY_ID="$BACKUP2_S3_ACCESS_KEY_ID"
   export BACKUP_S3_SECRET_ACCESS_KEY="$BACKUP2_S3_SECRET_ACCESS_KEY"
+  # A key that cannot delete (the point of a ransomware-resistant second copy) cannot prune either;
+  # the provider's own lifecycle rule does that. BACKUP2_NO_DELETE=1 says so, so the nightly log is
+  # not a standing "prune failed".
+  export BACKUP_SKIP_PRUNE="${BACKUP2_NO_DELETE:-}"
 }
