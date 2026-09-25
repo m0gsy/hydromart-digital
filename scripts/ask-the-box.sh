@@ -280,6 +280,11 @@ echo "  challenges in the last 48h (WIB time, purpose, seconds until the code wa
 q hydromart_auth "select to_char((\"createdAt\" at time zone 'UTC') at time zone 'Asia/Jakarta', 'MM-DD HH24:MI:SS'), purpose, case when \"consumedAt\" is null then 'not used' else round(extract(epoch from \"consumedAt\" - \"createdAt\"))::text || 's' end from otp_tokens where \"createdAt\" > now() - interval '48 hours' order by \"createdAt\"" | sed 's/^/    /' || true
 echo "  auth container: delivery failures and timeouts since it last started:"
 docker compose $COMPOSE_FILES logs auth 2>&1 | grep -iE 'OTP delivery failed|Zenziva (OTP|rejected)|unreachable|aborted' | tail -10 | cut -c1-200 | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
+# The success side of the same call: how long Zenziva took to ACCEPT each send, from the log line the
+# adapter writes (no number, no code — see zenziva-otp-delivery.adapter.ts). A slow figure here means
+# the wait was on our side of the handover; a fast one with a late SMS means it was the SMS network.
+echo "  auth container: how long Zenziva took to accept each send (newest last):"
+docker compose $COMPOSE_FILES logs --timestamps auth 2>&1 | grep 'Zenziva accepted the OTP send' | tail -8 | cut -c1-200 | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
 echo "  auth container started: $(docker inspect -f '{{.State.StartedAt}}' "$(docker compose $COMPOSE_FILES ps -q auth 2>/dev/null | head -1)" 2>/dev/null || echo unknown)"
 echo "  the request that issues a code — latency at the auth service, POST, last 36h:"
 PROM_C="$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
