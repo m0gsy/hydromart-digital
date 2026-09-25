@@ -66,7 +66,7 @@ jobs:
             # merging it. Either way it is ONE fetch of named read-only scripts, and
             # deploy.sh's `git reset --hard` puts the tree back on the next release.
             git fetch --quiet origin "${PROBE_REF:-main}"
-            git checkout FETCH_HEAD -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh scripts/go-live-report.sh
+            git checkout FETCH_HEAD -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh scripts/go-live-report.sh scripts/lib/zenziva-balance.cjs
             case "${PROBE_MODE:-pull}" in
               diagnose) bash scripts/ask-the-box.sh ;;
               golive)   bash scripts/go-live-report.sh ;;

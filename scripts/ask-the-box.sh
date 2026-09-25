@@ -196,6 +196,16 @@ line "CONTAINERS — anything not running and healthy, plus caddy and grafana"
 docker compose $COMPOSE_FILES ps --format '  {{.Service}}\t{{.State}}\t{{.Health}}' 2>/dev/null |
   awk -F'\t' '$2 != "running" || ($3 != "" && $3 != "healthy") || $1 ~ /caddy|grafana/' || true
 
+# Login is an SMS OTP. When the Zenziva credit reaches zero nobody can sign in, and nothing on this box
+# knew the number. This asks Zenziva the way the OTP adapter does (from inside the auth container, so
+# the credentials never leave it) and prints only status and balance.
+line "ZENZIVA — how much SMS credit is left (login stops at zero)"
+if [ -f scripts/lib/zenziva-balance.cjs ] && docker compose $COMPOSE_FILES exec -T auth true >/dev/null 2>&1; then
+  docker compose $COMPOSE_FILES exec -T auth node - < scripts/lib/zenziva-balance.cjs 2>&1 | sed 's/^/  /' || true
+else
+  echo "  auth container or scripts/lib/zenziva-balance.cjs not available"
+fi
+
 # M15 sits in the same corner of the plan and has no description there beyond "VPS side",
 # so this reports the facts a VPS-side capacity item would need rather than guessing at it.
 line "capacity (context for M13/M15)"
