@@ -1696,7 +1696,11 @@ export const hrFix = {
     inactive: 'Inactive',
     active: 'Active',
     empty: 'No depot has coordinates yet.',
-    caption: "Positions are relative to each depot's coordinates.",
+    caption: 'Same scale in every direction. Click a bubble to zoom in.',
+    all: 'All depots',
+    count: '{n} depots',
+    groupAria: 'Zoom in on {n} depots in {place}',
+    stacked: '{n} depots at the same spot',
   },
   faceCapture: {
     take: 'Take photo',
