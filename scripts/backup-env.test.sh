@@ -93,6 +93,27 @@ else
   bad "unconfigured box did not refuse with exit 2 naming BACKUP_ENV_CERT (got $rc)"
 fi
 
+# 4b. With BACKUP_ENV_CERT unset but the committed certificate present at its default path, the
+#     script must get PAST the certificate check (and stop at the next missing thing) — that is
+#     what lets a never-configured box encrypt without anyone editing .env.
+mkdir -p "$WORK/root/ops"
+cp "$WORK/pub.pem" "$WORK/root/ops/env-backup-public.pem"
+out="$(cd "$WORK/root" && env -u BACKUP_ENV_CERT -u BACKUP_OFFSITE_DEST bash scripts/backup-env.sh 2>&1)"
+rc=$?
+if [ "$rc" = 2 ] && printf '%s' "$out" | grep -q 'BACKUP_OFFSITE_DEST is not set' && ! printf '%s' "$out" | grep -q 'BACKUP_ENV_CERT is not set'; then
+  ok "the default certificate path is used when BACKUP_ENV_CERT is unset"
+else
+  bad "the default cert path was not used (rc=$rc): $out"
+fi
+rm -rf "$WORK/root/ops"
+
+# 4c. The certificate committed to the repo is a CERTIFICATE, never a private key.
+if [ -f ops/env-backup-public.pem ] && head -1 ops/env-backup-public.pem | grep -q 'BEGIN CERTIFICATE' && ! grep -q 'PRIVATE KEY' ops/env-backup-public.pem; then
+  ok "ops/env-backup-public.pem is a public certificate and holds no private key"
+else
+  bad "ops/env-backup-public.pem is missing, is not a certificate, or contains a private key"
+fi
+
 # 5. The plaintext guard in the script itself must exist. It is the one assertion that
 #    catches an operator swapping the openssl line for a `cp` during a hurried fix — which
 #    would publish every credential this system has, to a bucket, forever.

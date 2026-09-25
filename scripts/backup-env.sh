@@ -61,8 +61,13 @@ MODE=copy
 
 [ -f .env ] || { echo "!! no .env in $PWD — nothing to back up" >&2; exit 2; }
 
-CERT="${BACKUP_ENV_CERT:-}"
-if [ -z "$CERT" ] || [ ! -f "$CERT" ]; then
+# The public certificate is committed at ops/env-backup-public.pem (a certificate is public by
+# definition; the private half is held off this box), so a box that has never been configured
+# still encrypts with it. This job failed every night with "BACKUP_ENV_CERT is not set" because the
+# one-time setup was a step nobody could see they had not done — a default in the repo removes the
+# step. BACKUP_ENV_CERT still wins, so a rotated key needs no code change.
+CERT="${BACKUP_ENV_CERT:-ops/env-backup-public.pem}"
+if [ ! -f "$CERT" ]; then
   echo "!! BACKUP_ENV_CERT is not set to a readable public certificate, so the configuration" >&2
   echo "   for this box exists in exactly one place: this box." >&2
   echo "   Generate a keypair OFF this machine and copy only the public half here:" >&2

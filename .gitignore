@@ -27,6 +27,9 @@ mobile-out-*/
 !.env.example
 !.env.production.example
 *.pem
+# The ONE .pem meant to be committed: a public CERTIFICATE (scripts/backup-env.sh encrypts .env to it).
+# Its private half lives off this box and off this repo; the *.pem rule above still catches every other.
+!ops/env-backup-public.pem
 *.key
 
 # Logs
