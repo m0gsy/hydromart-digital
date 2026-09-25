@@ -58,6 +58,8 @@ function staffToken() {
     sub: crypto.randomUUID(),
     role: 'SUPER_ADMIN',
     phone: '+620000000000',
+    iss: 'hydromart-auth',
+    aud: 'hydromart-api',
     iat: now,
     exp: now + 900,
   })}`;

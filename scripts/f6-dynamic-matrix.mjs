@@ -35,7 +35,7 @@ if (!JWT_SECRET) {
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 function tokenFor(role, sub = crypto.randomUUID(), depotId = null) {
   const now = Math.floor(Date.now() / 1000);
-  const data = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub, role, phone: '+620000000000', depotId, iat: now, exp: now + 3600 })}`;
+  const data = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub, role, phone: '+620000000000', depotId, iss: 'hydromart-auth', aud: 'hydromart-api', iat: now, exp: now + 3600 })}`;
   return `${data}.${crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64url')}`;
 }
 
