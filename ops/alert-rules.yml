@@ -200,8 +200,20 @@ groups:
         # vector, and `empty == 0` compares nothing and matches nothing — so a release that
         # broke checkout produced exactly the silence this alert is deaf to. Proven with
         # promtool in ops/alert-rules.test.yml, which reported `got:[]` before this edit.
+        #
+        # ARMED BY HISTORY. Before the first real customer there is nothing for this alert to
+        # notice the loss OF, and it fired every business day at about 13:00 WIB on a system that
+        # had never taken an order — a critical page that was correct and useless, and one that
+        # teaches everybody to skip the channel the day it matters. So it is armed only once
+        # checkout has been attempted at least once in the last 7 days: `[7d] > 0` is empty (and
+        # the `and` empty) until then. From the first order on it behaves exactly as before, and a
+        # release that kills checkout still fires — the earlier orders are in the 7-day window even
+        # though the restarted process has no series of its own. The cost is stated, not hidden: a
+        # full week with no attempt at all disarms it again; the uptime probe and the scheduler
+        # alerts are what speak in that case.
         expr: |
           (sum(increase(http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)", method="POST"}[2h])) or vector(0)) == 0
+            and on() (sum(increase(http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)", method="POST"}[7d])) > 0)
             and on() (hour() >= 4 < 13)
         for: 10m
         labels: { severity: critical }

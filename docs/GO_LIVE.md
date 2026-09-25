@@ -80,9 +80,11 @@ MX dan SPF sendiri). Uji: kirim satu surat dari alamat lain, lalu balas.
 ## 5. Hari pertama — apa yang dilihat
 
 - **Actions → Uptime**: hijau tiap 10 menit. Merah = produksi tak terjangkau dari luar; GitHub mengirim
-  email. Tambahkan secret `ALERT_WEBHOOK_URL` bila ingin Discord ikut menerima.
-- Discord (alert dari kotak): `NoOrdersCreated` menyala bila tak ada pesanan dua jam antara 11:00–20:00 WIB
-  — pada hari pertama yang sepi itu wajar, jadi pastikan Anda tahu kapan depot memang tutup.
+  email, dan secret `ALERT_WEBHOOK_URL` (sudah dipasang 2026-09-25) mengirimnya ke Discord juga.
+- Discord (alert dari kotak): `NoOrdersCreated` **baru aktif setelah ada percobaan pesanan dalam 7 hari
+  terakhir**, jadi sunyi sebelum peluncuran. Sesudah pesanan pertama, ia menyala bila tak ada pesanan dua
+  jam antara 11:00–20:00 WIB — pada hari yang memang sepi itu wajar, jadi pastikan Anda tahu kapan depot
+  tutup. Seminggu penuh tanpa satu pun percobaan membuatnya diam lagi (Uptime dan alert scheduler tetap bicara).
 - `/hq/health`: setiap sapuan terjadwal harus bertanggal baru, tak ada `NEVER RUN`.
 - Sesudah pesanan pertama selesai: buka `/hq/orders`, `/hq/payments`, dan rekonsiliasi depot; angkanya
   harus sama dengan yang dipegang kasir.

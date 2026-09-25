@@ -22,7 +22,7 @@ evaluation_interval: 1m
 tests:
   # --- NoOrdersCreated -----------------------------------------------------------------
   - interval: 1m
-    name: no series at all — the shape a deploy leaves behind
+    name: armed by an earlier order, then the series vanishes — the shape a deploy leaves behind
     # THE CASE THIS FILE EXISTS FOR. A counter with a label set that has never been observed
     # is not zero, it is ABSENT: every deploy resets the process and, until the first order
     # of the day, `http_request_duration_seconds_count{route=~"/api/v1/orders/(checkout|walk-in)"}` does not exist.
@@ -30,12 +30,12 @@ tests:
     # matches nothing. So the alert built to notice "checkout stopped" was structurally
     # blind to a release that broke checkout — the one occasion it was written for.
     #
-    # Some series must exist or promtool has no timeline to evaluate over, so an unrelated
-    # route carries the clock. That is also what production looks like: the gateway is busy,
-    # nobody is ordering.
+    # Orders arrive for the first hour (the rule is now ARMED by that history: any attempt in the
+    # last 7 days), then the series is ABSENT — `_` is "no sample", which is what a restarted
+    # process leaves. At 5h the last two hours hold no samples at all, and it must still fire.
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
-        values: '0+3x400'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
+        values: '0+1x60 _x400'
     alert_rule_test:
       - eval_time: 5h
         alertname: NoOrdersCreated
@@ -50,10 +50,23 @@ tests:
                 the gateway, and that a depot is open.
 
   - interval: 1m
-    name: the series exists and is flat — the case that always worked
+    name: never ordered at all (pre-launch) — the alert is not armed, so it stays quiet
+    # Before the first real customer this used to page every business day about 13:00 WIB: correct,
+    # useless, and a channel taught to be ignored. An unrelated route carries the clock, exactly as
+    # production does while the gateway is busy and nobody is ordering.
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
+        values: '0+3x400'
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: NoOrdersCreated
+        exp_alerts: []
+
+  - interval: 1m
+    name: the series exists and is flat after earlier orders — the case that always worked
     input_series:
       - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
-        values: '7+0x400'
+        values: '0+1x60 60+0x340'
     alert_rule_test:
       - eval_time: 5h
         alertname: NoOrdersCreated
@@ -87,28 +100,32 @@ tests:
         alertname: NoOrdersCreated
         exp_alerts: []
 
-  - interval: 1m
+  # The two guard cases below are ARMED and SILENT for the last two hours, so they would fire if
+  # the hour-of-day guard were broken — which is what makes them a test of the guard. Being armed
+  # needs a 7-day history before the evaluation time, so they run on the second day: 27h is
+  # 03:00 UTC and 25h is 01:00 UTC, with orders during the first hour of day one.
+  - interval: 10m
     name: silent at 03:00 UTC — the two-hour lookback still reaches the night, so stay quiet
     # 03:00 UTC is 10:00 WIB. Looking back two hours from here is 08:00-10:00 WIB: the depot
     # opening and the overnight quiet before it. The guard used to start at 02:00 UTC and this
     # fired at 09:10 WIB on any morning the first order came later than that.
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
-        values: '0+3x400'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
+        values: '0+1x6 _x200'
     alert_rule_test:
-      - eval_time: 3h
+      - eval_time: 27h
         alertname: NoOrdersCreated
         exp_alerts: []
 
-  - interval: 1m
+  - interval: 10m
     name: silent at 01:00 UTC — outside opening hours, deliberately quiet
     # The guard is half the alert: a depot town at 08:00 WIB has no orders and that is not an
     # incident. If the fix below broke the guard, this is what would catch it.
     input_series:
-      - series: 'http_request_duration_seconds_count{route="/api/v1/products", method="GET", status="200"}'
-        values: '0+3x200'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/orders/checkout", method="POST", status="201"}'
+        values: '0+1x6 _x200'
     alert_rule_test:
-      - eval_time: 1h
+      - eval_time: 25h
         alertname: NoOrdersCreated
         exp_alerts: []
 
