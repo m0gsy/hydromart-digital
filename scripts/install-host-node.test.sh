@@ -74,11 +74,24 @@ reset() {
   echo 'deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main' > "$NODESOURCE_LIST"
   unset NO_SUDO FAIL_UPDATE FAIL_INSTALL STUCK
 }
-run() { bash "$ROOT/scripts/install-host-node.sh" > "$WORK/out" 2>&1; RC=$?; }
+run() { bash "$ROOT/scripts/install-host-node.sh" "$@" > "$WORK/out" 2>&1; RC=$?; }
 apt_calls() { [ -f "$CALLS" ] && wc -l < "$CALLS" | tr -d ' ' || echo 0; }
 list_says() { grep -q "$1" "$NODESOURCE_LIST"; }
 
 echo "host node upgrade:"
+
+reset
+run --check
+[ "$RC" = 0 ] && [ "$(apt_calls)" = 0 ] && list_says node_20 && grep -q 'would change' "$WORK/out" && ok "--check: says what it would do, edits nothing, never calls apt" || bad "--check must change nothing (rc=$RC)"
+
+reset
+rm -f "$NODESOURCE_LIST"
+printf 'Types: deb
+URIs: https://deb.nodesource.com/node_20.x
+Suites: nodistro
+' > "$WORK/nodesource.sources"
+NODESOURCE_LIST="$WORK/nodesource.sources" run
+[ "$RC" = 0 ] && grep -q 'node_22.x' "$WORK/nodesource.sources" && ok "the newer deb822 nodesource.sources file is upgraded the same way" || bad "a .sources file must work too (rc=$RC): $(cat "$WORK/out")"
 
 reset
 echo 22 > "$STATE/major"

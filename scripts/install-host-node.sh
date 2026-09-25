@@ -4,11 +4,13 @@
 # 2026-09-25. Node 20 reached end of life on 30 April 2026, and AWS SDK v3 stops supporting it in
 # January 2027 — after which the nightly object backup would fail on the box that runs it.
 #
+#   bash scripts/install-host-node.sh --check  # say what it WOULD do; changes nothing
 #   bash scripts/install-host-node.sh          # upgrade (a no-op when the host is already on 22+)
 #
 # How: Node here came from the NodeSource apt repository (dpkg owns /usr/bin/node). That repo is one
-# line, `deb ... /node_20.x nodistro main`, and every major version lives behind the same signing
-# key — so the change is to say `node_22.x` in that line and let apt do the rest. No remote script
+# entry — `deb ... /node_20.x nodistro main` in nodesource.list, or `URIs: .../node_20.x` in the newer
+# nodesource.sources — and every major version lives behind the same signing key, so the change is to
+# say `node_22.x` in that entry and let apt do the rest. No remote script
 # is downloaded and executed, and no second copy of node is put beside the first.
 #
 # It refuses, rather than guesses, when node did NOT come from NodeSource (no such repo file, or
@@ -20,7 +22,15 @@
 set -euo pipefail
 
 WANT="${WANT_NODE_MAJOR:-22}"
-LIST="${NODESOURCE_LIST:-/etc/apt/sources.list.d/nodesource.list}"
+CHECK=false
+[ "${1:-}" = "--check" ] && CHECK=true
+# The installer NodeSource shipped until 2024 writes .list; the current one writes .sources (deb822).
+LIST="${NODESOURCE_LIST:-}"
+if [ -z "$LIST" ]; then
+  for f in /etc/apt/sources.list.d/nodesource.list /etc/apt/sources.list.d/nodesource.sources; do
+    [ -f "$f" ] && LIST="$f" && break
+  done
+fi
 SUDO="${SUDO:-sudo -n}"
 
 major() { node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
@@ -35,14 +45,21 @@ if ! $SUDO true 2>/dev/null; then
   echo "!! passwordless sudo is not available for $(id -un); run this as root or add a sudoers rule" >&2
   exit 2
 fi
-if [ ! -f "$LIST" ]; then
-  echo "!! $LIST does not exist — node did not come from NodeSource, so this script cannot say how to upgrade it." >&2
+if [ -z "$LIST" ] || [ ! -f "$LIST" ]; then
+  echo "!! no NodeSource apt source under /etc/apt/sources.list.d — node did not come from NodeSource, so this" >&2
+  echo "   script cannot say how to upgrade it. What is there:" >&2
+  ls /etc/apt/sources.list.d 2>/dev/null | sed 's/^/     /' >&2
   exit 2
 fi
 if ! grep -qE '/node_[0-9]+\.x' "$LIST"; then
   echo "!! $LIST has no node_<major>.x line I recognise; refusing to edit it:" >&2
   sed 's/^/     /' "$LIST" >&2
   exit 2
+fi
+
+if $CHECK; then
+  echo "would change $LIST from node_$(grep -oE 'node_[0-9]+' "$LIST" | head -1 | sed 's/node_//').x to node_${WANT}.x, then apt-get update && apt-get install nodejs"
+  exit 0
 fi
 
 OLD_VERSION="$(dpkg-query -W -f='${Version}' nodejs 2>/dev/null || true)"
