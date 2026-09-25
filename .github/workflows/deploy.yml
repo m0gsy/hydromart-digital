@@ -68,9 +68,9 @@ on:
             install-node,
             backup-second,
             backup-env,
+            restore-rehearsal,
             install-cron,
             explain-queries,
-            restore-rehearsal,
           ]
       sha:
         description: 'rollback target SHA (blank = previous good)'
@@ -311,6 +311,10 @@ jobs:
             backup-offsite) echo "run=. ./scripts/load-env.sh && bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
             backup-objects) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs" >> "$GITHUB_OUTPUT" ;;
             smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
+            # The object restore had never been run. This walks the real journey — read the backup, write
+            # into the LIVE bucket, read back, compare — but only to a scratch prefix, for a few objects
+            # per bucket, then deletes them. Green means a restore would work; it writes no live key.
+            restore-rehearsal) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs --rehearse-restore" >> "$GITHUB_OUTPUT" ;;
             # Host Node 20 -> 22 (end of life since 2026-04-30; AWS SDK v3 drops it in January 2027). Same
             # shape as reset-test-data: `--check` (says what it would change, touches nothing) unless
             # `confirm` is exactly `install`. It edits the NodeSource apt source and rolls back on failure.
@@ -328,10 +332,6 @@ jobs:
             # environment variable, never the script body, and the button is not offered to the
             # automatic workflow_run path — only a person can press it.
             reset-test-data) echo 'run=if [ "${RESET_CONFIRM:-}" = "RESET-TEST-DATA" ]; then CONFIRM=RESET-TEST-DATA bash scripts/reset-test-data.sh --execute; else bash scripts/reset-test-data.sh; fi' >> "$GITHUB_OUTPUT" ;;
-            # The object restore had never been run. This walks the real journey — read the backup, write
-            # into the LIVE bucket, read back, compare — but only to a scratch prefix, for a few objects
-            # per bucket, then deletes them. Green means a restore would work; it writes no live key.
-            restore-rehearsal) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs --rehearse-restore" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
