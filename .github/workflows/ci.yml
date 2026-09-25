@@ -640,6 +640,15 @@ jobs:
       - name: Zenziva balance monitor alerts on low, expiring and unreadable credit
         run: bash scripts/check-zenziva-balance.test.sh
 
+      # Every CRITICAL alert now goes to two channels. The routing (critical -> both, warning ->
+      # primary only) and the property the design leans on — Alertmanager BOOTS with the second
+      # URL file absent — are asked of the real Alertmanager image, not assumed from the YAML.
+      - name: Alertmanager routes critical alerts to both channels and boots without the second URL
+        run: bash scripts/check-alertmanager-config.sh
+
+      - name: Second alert channel writer refuses what it should and never prints the URL
+        run: bash scripts/set-alert-channel.test.sh
+
       # N12 — fourteen alert rules and, until now, nothing that could evaluate one.
       # Prometheus only complains about a rule that fails to PARSE; a rule that parses and
       # can never match looks exactly like a rule that is simply not firing, which is what a
