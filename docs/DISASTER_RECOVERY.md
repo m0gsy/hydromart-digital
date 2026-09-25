@@ -172,13 +172,27 @@ membaca ini Anda tidak yakin ada di mana, berhenti dan pastikan sekarang — buk
   satunya. Yang menghalangi bukan uang, melainkan ~30 menit menyiapkan bucket kedua dan
   satu pasang kunci.
 
-  Kodenya sudah tidak menghalangi juga: `backup-offsite.sh` dan `backup-objects.mjs`
-  keduanya membaca `BACKUP_S3_ENDPOINT`, jadi penyedia kedua adalah satu set variabel
-  tambahan, bukan skrip baru.
+  **Kodenya sudah siap (2026-09-25).** `scripts/backup-second-provider.sh` menyalin dump terbaru dan
+  bucket bukti ke penyedia kedua setiap malam pukul 04:00, lewat skrip yang sama dengan yang pertama
+  (`backup-offsite.sh`, `backup-objects.mjs`) — hanya nama variabelnya `BACKUP2_*`. Ia menolak endpoint yang
+  satu host dengan penyedia pertama (dua salinan di satu penyedia adalah satu salinan) dan menolak
+  konfigurasi setengah jalan. `check-backup-freshness.sh` ikut memantau log-nya dan membaca dump-nya
+  kembali byte demi byte dari sana. Tak diisi = "satu penyedia saja", keluar 0.
 
-  **Keputusan Anda**, dan hanya perlu dijawab sekali: buat bucket kedua di penyedia lain,
-  atau terima bahwa kehilangan akun BiznetGio menghilangkan mesin, database, dan seluruh
-  buktinya sekaligus.
+  **Yang tinggal Anda kerjakan (~30 menit, gratis):**
+
+  1. Cloudflare → **R2** → buat bucket (mis. `hydromart-backup2`) → **Manage API tokens** → token
+     _Object Read & Write_ yang dibatasi ke bucket itu. (Backblaze B2 atau Wasabi sama saja: apa pun yang
+     S3-compatible dan **bukan BiznetGio**.)
+  2. Tambahkan lima baris ini ke secret GitHub `ENV_SET_BLOCK`, lalu **Actions → Deploy → mode `env-set`**:
+     `BACKUP2_OFFSITE_DEST=s3://hydromart-backup2/hydromart`,
+     `BACKUP2_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`, `BACKUP2_S3_REGION=auto`,
+     `BACKUP2_S3_ACCESS_KEY_ID=…`, `BACKUP2_S3_SECRET_ACCESS_KEY=…`.
+  3. **Actions → Deploy → mode `backup-second`** — menyalin sekarang dan membuktikannya; jangan tunggu 04:00.
+     Hijau berarti dump terbaca kembali identik dari penyedia kedua.
+
+  **Keputusan Anda**, dan hanya perlu dijawab sekali: lakukan tiga langkah itu, atau terima bahwa
+  kehilangan akun BiznetGio menghilangkan mesin, database, dan seluruh buktinya sekaligus.
 
 - **Kunci yang menulis backup juga bisa menghapusnya.** Tidak ada object-lock atau versioning
   di bucket. Ransomware dengan akses ke kotak bisa menghapus backup-nya juga.

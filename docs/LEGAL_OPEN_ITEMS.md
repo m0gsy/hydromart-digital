@@ -6,6 +6,9 @@ di bawah butuh tanda tangan manusia yang berkualifikasi, bukan commit.
 
 ---
 
+> Untuk diserahkan ke akuntan: [BRIEF_AKUNTAN.md](BRIEF_AKUNTAN.md) menuliskan pertanyaan §1 dan §2 beserta
+> angka yang dipakai sistem hari ini, satu halaman, tanpa perlu membaca kode.
+
 ## 1. PPN dan faktur atas penjualan ritel — **PEMILIK: belum ada** (N15)
 
 **Statusnya:** tidak dimiliki siapa pun. L3 hanya menyebut TER (PPh 21, payroll). K3.4

@@ -84,6 +84,13 @@ CRON_TZ=$CRON_TZ_VALUE
 # has STOPPED — and a failed run must still touch it, or silence would read as success.
 40 3 * * * cd $REPO && . ./scripts/load-env.sh && node scripts/backup-objects.mjs >> /var/log/hydromart-objects.log 2>&1
 
+# A SECOND provider. The dump, the offsite copy and the evidence bucket all live with one provider,
+# so a suspension, a billing lapse or a regional failure there takes every copy at once. When
+# BACKUP2_OFFSITE_DEST is set this copies the newest dump and the evidence bucket to another
+# provider; unset, it says "one provider only" and exits 0. After the primary copies (03:20, 03:40).
+# Its own log, whose mtime check-backup-freshness.sh reads to notice the job has STOPPED.
+0 4 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-second-provider.sh >> /var/log/hydromart-backup2.log 2>&1
+
 # CMP-04 — notice when the backups STOP. Every other job here reports an outcome; none of
 # them reports an absence, so a cron block that was never installed on a rebuilt box, or a
 # job that stopped being able to write, leaves /hq/retention showing the last OK forever.
