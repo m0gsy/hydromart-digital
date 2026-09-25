@@ -10,6 +10,18 @@ import {
   OtpGatewayUnreachableError,
 } from '../../application/ports/otp-delivery.port';
 
+/** Response fields that may carry Zenziva's own reference for a message (names only; see send()). */
+const REF_KEYS = ['messageId', 'message_id', 'id', 'trxid', 'trx_id', 'reference'];
+
+/**
+ * A value safe to put in a log line as a message reference: identifier-shaped, and not a run of
+ * 9-14 digits, which is the shape of a phone number and the one thing that must never be logged.
+ */
+const isReference = (v: unknown): boolean =>
+  (typeof v === 'string' || typeof v === 'number') &&
+  /^[\w-]{3,64}$/.test(String(v)) &&
+  !/^\d{9,14}$/.test(String(v));
+
 /**
  * Delivers OTP codes over Zenziva's masking SMS API. Selected via
  * OTP_DELIVERY_CHANNEL=zenziva.
@@ -46,6 +58,7 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
   async send(message: OtpMessage): Promise<void> {
     const { baseUrl, userkey, passkey } = this.config.zenziva;
 
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ZenzivaOtpDeliveryAdapter.TIMEOUT_MS);
     let response: Response;
@@ -97,6 +110,23 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
       );
       throw new OtpGatewayRejectedError(`Zenziva status ${body?.status ?? 'unknown'}`);
     }
+
+    /*
+     * The success path used to be silent, so "the code took minutes" could not be told apart from
+     * "we handed it to Zenziva minutes late": only a failure left a trace, and a slow success left
+     * none. This is the one line that separates OUR side from the SMS network's — how long Zenziva
+     * took to accept the message, and the reference it gave us, which is what its support asks for
+     * when a delivery is late.
+     *
+     * Never the body: it echoes the destination number and the message, and the message IS the
+     * code. Only the response's field NAMES are logged (so the reference field can be identified
+     * from a real send), plus one reference value when it has the shape of an identifier.
+     */
+    const ref = REF_KEYS.map((key) => (body as Record<string, unknown>)[key]).find(isReference);
+    this.logger.log(
+      `Zenziva accepted the OTP send in ${Date.now() - startedAt}ms ` +
+        `(response fields: ${Object.keys(body).join(',')}${ref === undefined ? '' : `; ref=${String(ref)}`})`,
+    );
   }
 
   /**
