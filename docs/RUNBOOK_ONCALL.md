@@ -97,12 +97,17 @@ sudah menerima alert-nya, dan itulah masalah yang dokumen ini ada untuk menutup.
 
 **Keputusan 2026-09-25: tambah kanal kedua, dan tuliskan eskalasinya.** Yang jujur saat ini:
 
-- **Kanal kedua: belum terpasang.** Ia butuh URL webhook Discord kedua (kanal pribadi atau orang lain)
-  dari pemilik. Alertmanager tidak bisa memuat receiver secara opsional — berkas URL yang tidak ada
-  membuat Docker membuat _direktori_ dan konfigurasinya gagal dimuat, yang mematikan semua alert —
-  jadi ini dipasang dengan langkah deploy yang membuat berkasnya lebih dulu, bukan dengan menambah
-  baris di `ops/alertmanager.yml`. Sampai URL itu ada, jaring kedua yang benar-benar berjalan adalah
-  workflow **Uptime** (email GitHub + webhook `ALERT_WEBHOOK_URL` di repo) yang hidup di luar kotak.
+- **Kanal kedua: alert `critical` masuk ke dua webhook** (`ops/alertmanager.yml`: receiver
+  `ops-webhook-secondary`, `continue: true`; `warning` hanya ke yang utama). URL-nya adalah secret repo
+  `ALERT_WEBHOOK_URL_2`; **Actions → Deploy → `alert-channel-2`** menulisnya ke
+  `ops/alertmanager-secondary/webhook-url` di kotak dan mengirim satu baris uji. Tanpa berkas itu
+  Alertmanager tetap boot sehat dan hanya receiver kedua yang gagal — diuji dengan image sungguhan
+  (`scripts/check-alertmanager-config.sh`). Untuk mengganti kanalnya: perbarui secret lalu jalankan
+  mode itu lagi. Di luar kotak, workflow **Uptime** (email GitHub + webhook `ALERT_WEBHOOK_URL` di
+  repo) tetap jaring yang hidup bila kotaknya sendiri mati.
+- **Bukan orang kedua.** Dua kanal berarti dua tempat pesan mendarat; kalau keduanya dibaca orang yang
+  sama, pukul dua pagi tak berubah. Kanal kedua paling berguna bila diikuti orang lain atau perangkat
+  lain yang berbunyi.
 - **Eskalasi tertulis:** karena Sekunder memang tidak ada, "bila primer diam 30 menit" tidak punya
   penerima. Yang tertulis sebagai gantinya: alert `critical` yang belum ditangani diposting ulang
   tiap 4 jam; Uptime merah mengirim email tersendiri; dan pemilik bisnis (baris ketiga tabel di atas)
