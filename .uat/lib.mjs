@@ -59,6 +59,10 @@ export function mintToken(role, claims = {}, ttl = 14400) {
     sub: given.sub ?? crypto.randomUUID(),
     role,
     phone: given.phone ?? '+620000000000',
+    // AUTH-5: the guards check issuer and audience, so a token without them is a 401 on the very
+    // first call. This harness went unrun through that change and the next run died at provision.
+    iss: 'hydromart-auth',
+    aud: 'hydromart-api',
     iat: now,
     exp: now + ttl,
     ...given,
