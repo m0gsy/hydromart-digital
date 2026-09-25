@@ -249,6 +249,23 @@ docker exec "$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -
   grep -oE '"metric":\{[^}]*\},"value":\[[0-9.]+,"[0-9.]+"\]' |
   sed -E 's/"metric":\{//; s/"job":"([a-z-]+)"/\1/; s/,?"route":"([^"]*)"/ \1/; s/,?"status":"(5..)"/ \1/; s/\},"value":\[[0-9.]+,"([0-9.]+)"\]/ x\1/' | head -14 | sed 's/^/    /' || true
 
+# Every CRITICAL alert is meant to reach two channels. "The config in the repo says so" is not "the
+# running Alertmanager does": its bind mounts are read at container creation, and a container that
+# was not recreated keeps the old ones. So ask the running one — which receivers it holds, whether
+# the second channel's URL file is there and non-empty (size only, never the URL), and whether it has
+# failed a notification since it started.
+line "ALERTMANAGER — is the second channel live in the RUNNING container?"
+AM_C="$(docker ps --filter name=alertmanager --format '{{.Names}}' | grep -v exporter | head -1)"
+if [ -z "$AM_C" ]; then
+  echo "  no alertmanager container is running"
+else
+  echo "  container : $AM_C ($(docker inspect -f '{{.State.Status}}, started {{.State.StartedAt}}' "$AM_C" 2>/dev/null))"
+  echo "  receivers : $(docker exec "$AM_C" wget -qO- http://localhost:9093/api/v2/receivers 2>/dev/null | grep -o '"name":"[^"]*"' | tr '\n' ' ')"
+  echo "  secondary URL file in the container: $(docker exec "$AM_C" sh -c 'wc -c < /etc/alertmanager/secondary/webhook-url' 2>/dev/null | tr -d ' ' || echo missing) bytes"
+  echo "  notifications failed since start (per integration):"
+  docker exec "$AM_C" wget -qO- http://localhost:9093/metrics 2>/dev/null | grep -E '^alertmanager_notifications_(failed_)?total\{' | grep 'integration="slack"' | sed 's/^/    /' || true
+fi
+
 # M15 sits in the same corner of the plan and has no description there beyond "VPS side",
 # so this reports the facts a VPS-side capacity item would need rather than guessing at it.
 line "capacity (context for M13/M15)"
