@@ -239,15 +239,23 @@ export function dc(...args) {
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 
-/** Register (or log in) a customer through the real OTP flow. */
+/**
+ * Register (or log in) a customer through the real OTP flow.
+ *
+ * REGISTER first, and only fall back to login when the number already exists. It used to be the
+ * other way round: try login, and register on a 4xx. Login now answers 200 for a number nobody has
+ * registered (so the endpoint cannot be used to enumerate customers), which means the fallback
+ * never fired, no OTP was ever sent for a brand-new phone, and customer B failed verification with
+ * AUTH_OTP_INVALID on every run — taking the whole cross-customer (IDOR) group with it.
+ */
 export async function loginPhone(phone, fullName) {
-  let purpose = 'LOGIN';
-  let r = await api('POST', '/auth/api/v1/auth/login', { body: { phone } });
+  let purpose = 'REGISTRATION';
+  let r = await api('POST', '/auth/api/v1/auth/register', {
+    body: { phone, fullName: fullName ?? 'UAT User' },
+  });
   if (r.status >= 400) {
-    purpose = 'REGISTRATION';
-    r = await api('POST', '/auth/api/v1/auth/register', {
-      body: { phone, fullName: fullName ?? 'UAT User' },
-    });
+    purpose = 'LOGIN';
+    r = await api('POST', '/auth/api/v1/auth/login', { body: { phone } });
   }
   if (r.status >= 400) return { ok: false, detail: r };
   const code = readOtp(phone);
@@ -312,6 +320,26 @@ export const phone = () => `+62812${String(Math.floor(Math.random() * 1e8)).padS
  * container reaches them directly over the compose network, and so do we, by running the
  * fetch inside a service container.
  */
+/**
+ * The running container for a compose service.
+ *
+ * Callers used to pass `hydromart-admin-1`, which is what compose names a container when the
+ * checkout directory is called `Hydromart`. On a runner the directory is `hydromart-digital`, the
+ * container is `hydromart-digital-admin-1`, and `docker exec` failed for every internal call —
+ * the fraud-flag seed and the two scheduler cases answered HTTP 0. Ask compose instead of
+ * assuming a project name; a name that is not `hydromart-<service>-1` is passed through as is.
+ */
+function containerOf(nameOrService) {
+  const service = nameOrService.match(/^hydromart-(.+)-1$/)?.[1];
+  if (!service) return nameOrService;
+  const r = spawnSync('docker', [...DC, 'ps', '-q', service], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  return (r.stdout || '').trim().split('\n')[0] || nameOrService;
+}
+
 export async function internalApi(container, port, path, { method = 'POST', body } = {}) {
   const { execFile } = await import('node:child_process');
   // Wrapped in an async IIFE: `node -e` evaluates as CommonJS, where top-level await is
@@ -327,7 +355,7 @@ export async function internalApi(container, port, path, { method = 'POST', body
   return new Promise((resolve) => {
     execFile(
       'docker',
-      ['exec', container, 'node', '-e', script],
+      ['exec', containerOf(container), 'node', '-e', script],
       { timeout: 30_000 },
       (err, stdout) => {
         if (err && !stdout)

@@ -257,24 +257,9 @@ export async function run(ctx) {
       : fail(`checkout against a Rp1 voucher budget returned HTTP ${r.status} ${s.slice(0, 200)}`);
   });
 
-  await check('UAT-M5-04', async () => {
-    const req = await api('POST', `/vouchers/api/v1/depots/${depot.id}/voucher-requests`, {
-      token: ctx.manager, body: { depotName: depot.name, code: `UATVR${uniq().slice(0, 6).toUpperCase()}`, description: 'Promo akhir pekan', discountType: 'PERCENTAGE', value: 5, usageLimit: 20 },
-    });
-    if (req.status >= 400) return fail(`request HTTP ${req.status} ${JSON.stringify(req.body)}`);
-    ctx.voucherRequest = req.body;
-    const r = await api('POST', `/vouchers/api/v1/voucher-requests/${req.body.id}/approve`, { token: ctx.hq, body: {} });
-    return r.status < 400
-      ? pass(`request HTTP ${req.status}; approved HTTP ${r.status}; decided by=${r.body?.decidedBy ?? r.body?.decidedById ?? 'recorded'}`)
-      : fail(`approve HTTP ${r.status} ${JSON.stringify(r.body)}`);
-  });
+  await check('UAT-M5-04', async () => na('the depot voucher-request flow was removed by owner decision CA-2-34 (#469): a depot no longer files a voucher for HQ to approve, so there is no request or approval to exercise'));
 
-  await check('UAT-M5-16', async () => {
-    if (!ctx.voucherRequest?.id) return blocked('no voucher request');
-    const r = await api('POST', `/vouchers/api/v1/voucher-requests/${ctx.voucherRequest.id}/reject`, { token: ctx.hq, body: { reason: 'lagi' } });
-    const s = JSON.stringify(r.body);
-    return r.status >= 400 && /DECIDED|already/i.test(s) ? pass(`HTTP ${r.status} ${s}`) : fail(`HTTP ${r.status} ${s}`);
-  });
+  await check('UAT-M5-16', async () => na('follows M5-04: the voucher-request flow was removed by owner decision CA-2-34 (#469), so there is no request to reject twice'));
 
   // ---------------------------------------------------------------- M14
   await check('UAT-M14-05', async () => {
@@ -293,14 +278,14 @@ export async function run(ctx) {
   await check('UAT-M14-06', async () => {
     const app = await api('POST', `${D}/franchise-applications`, {
       token: ctx.hq,
-      body: { applicantName: 'Mitra E2E', applicantPhone: `+62822${Date.now().toString().slice(-8)}`, proposedCode: `E2E-${uniq().slice(0, 5)}`, proposedName: `Depot E2E ${uniq().slice(0, 4)}`, city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, investmentAmount: 300000000, projectedMonthlyRevenue: 60000000 },
+      body: { privacyConsent: true, applicantName: 'Mitra E2E', applicantPhone: `+62822${Date.now().toString().slice(-8)}`, proposedCode: `E2E-${uniq().slice(0, 5)}`, proposedName: `Depot E2E ${uniq().slice(0, 4)}`, city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, investmentAmount: 300000000, projectedMonthlyRevenue: 60000000 },
     });
     if (app.status >= 400) return fail(`application HTTP ${app.status} ${JSON.stringify(app.body)}`);
     const approve = await api('POST', `${D}/franchise-applications/${app.body.id}/approve`, { token: ctx.hq, body: { note: 'E2E' } });
     const code = `E2E-${uniq().slice(0, 4).toUpperCase()}`;
     const depotNew = await api('POST', `${D}/depots`, {
       token: ctx.admin,
-      body: { code, name: 'Depot Waralaba E2E', ownershipType: 'WARALABA', address: 'Jl. E2E 1', city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, serviceRadiusKm: 7, deliveryFee: 1000, minOrderAmount: 15000 },
+      body: { code, name: 'Depot Waralaba E2E', ownershipType: 'WARALABA', ownerId: ctx.franchiseOwnerId ?? '33333333-0000-4000-a000-000000000001', address: 'Jl. E2E 1', city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, serviceRadiusKm: 7, deliveryFee: 1000, minOrderAmount: 15000 },
     });
     let stock = { status: 'n/a' };
     if (depotNew.status < 400) {

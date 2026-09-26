@@ -152,15 +152,16 @@ export async function run(ctx) {
   await check('UAT-M1-11', async () => {
     const sp = phone();
     const r = await api('POST', `${A}/staff/invite`, {
-      token: ctx.admin, body: { phone: sp, role: 'STAFF_DEPOT', fullName: 'Operator UAT' },
+      token: ctx.admin,
+      body: { phone: sp, role: 'STAFF_DEPOT', fullName: 'Operator UAT', depotId: ctx.depotA.id, position: 'Staf UAT', joinDate: '2026-01-01', employmentStatus: 'PERMANENT', salaryType: 'MONTHLY', monthlyRate: 5000000 },
     });
     if (r.status >= 400) return fail(`HTTP ${r.status} ${JSON.stringify(r.body)}`);
     const staff = await api('GET', `${A}/staff`, { token: ctx.admin });
     const rows = Array.isArray(staff.body) ? staff.body : staff.body?.items ?? [];
     const found = rows.find((s) => s.phone === sp);
     ctx.invitedOperatorPhone = sp;
-    return found?.role === 'DEPOT_OPERATOR'
-      ? pass(`HTTP ${r.status}; staff account created with role DEPOT_OPERATOR`)
+    return found?.role === 'STAFF_DEPOT'
+      ? pass(`HTTP ${r.status}; staff account created with role STAFF_DEPOT`)
       : fail(`invited but not listed with expected role: ${JSON.stringify(rows.slice(0, 3))}`);
   });
 

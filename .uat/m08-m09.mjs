@@ -252,7 +252,7 @@ export async function run(ctx) {
     const affordable = rewards.find((x) => (x.pointsCost ?? x.points) <= (ctx.pointsBalance ?? 0) && (x.stock ?? 1) > 0);
     if (!affordable) return blocked(`balance ${ctx.pointsBalance} below the cheapest reward (${Math.min(...rewards.map((x) => x.pointsCost ?? x.points))})`);
     const before = ctx.pointsBalance;
-    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: affordable.id, idempotencyKey: crypto.randomUUID() } });
+    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: affordable.id, idempotencyKey: crypto.randomUUID(), depotId: ctx.depotA.id } });
     const after = balanceOf((await api('GET', `${L}/loyalty/me`, { token: A })).body);
     return r.status < 400 && after === before - (affordable.pointsCost ?? affordable.points)
       ? pass(`redeemed ${affordable.id}; balance ${before} -> ${after}`)
@@ -267,7 +267,7 @@ export async function run(ctx) {
     const bal = (b) => b?.balance ?? b?.pointsBalance ?? 0;
     const before = bal((await api('GET', `${L}/loyalty/me`, { token: A })).body);
     if ((expensive.pointsCost ?? expensive.points) <= before) return blocked(`balance ${before} covers even the priciest reward`);
-    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: expensive.id, idempotencyKey: crypto.randomUUID() } });
+    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: expensive.id, idempotencyKey: crypto.randomUUID(), depotId: ctx.depotA.id } });
     const after = bal((await api('GET', `${L}/loyalty/me`, { token: A })).body);
     const s = JSON.stringify(r.body);
     return r.status >= 400 && /INSUFFICIENT_POINTS/i.test(s) && after === before
@@ -276,7 +276,7 @@ export async function run(ctx) {
   });
 
   await check('UAT-M9-09', async () => {
-    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: '00000000-0000-0000-0000-000000000000', idempotencyKey: crypto.randomUUID() } });
+    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: '00000000-0000-0000-0000-000000000000', idempotencyKey: crypto.randomUUID(), depotId: ctx.depotA.id } });
     const s = JSON.stringify(r.body);
     return r.status >= 400 && /REWARD_NOT_FOUND|not found/i.test(s) ? pass(`HTTP ${r.status} ${s}`) : fail(`HTTP ${r.status} ${s}`);
   });
@@ -286,7 +286,7 @@ export async function run(ctx) {
     const rewards = Array.isArray(cat.body) ? cat.body : cat.body?.items ?? [];
     const out = rewards.find((x) => (x.stock ?? x.remainingStock) === 0);
     if (!out) return blocked('no out-of-stock reward in the catalog to exercise this path');
-    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: out.id, idempotencyKey: crypto.randomUUID() } });
+    const r = await api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: out.id, idempotencyKey: crypto.randomUUID(), depotId: ctx.depotA.id } });
     const s = JSON.stringify(r.body);
     return r.status >= 400 && /OUT_OF_STOCK/i.test(s) ? pass(`HTTP ${r.status} ${s}`) : fail(`HTTP ${r.status} ${s}`);
   });
@@ -306,8 +306,8 @@ export async function run(ctx) {
     const target = rewards.find((x) => (x.pointsCost ?? x.points) <= bal && (x.pointsCost ?? x.points) * 2 > bal && (x.stock ?? 1) > 0);
     if (!target) return blocked(`no reward priced for a single-redeem race at balance ${bal}`);
     const [a, b] = await Promise.all([
-      api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: target.id, idempotencyKey: crypto.randomUUID() } }),
-      api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: target.id, idempotencyKey: crypto.randomUUID() } }),
+      api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: target.id, idempotencyKey: crypto.randomUUID(), depotId: ctx.depotA.id } }),
+      api('POST', `${L}/rewards/redeem`, { token: A, body: { rewardItemId: target.id, idempotencyKey: crypto.randomUUID(), depotId: ctx.depotA.id } }),
     ]);
     const after = balanceOf((await api('GET', `${L}/loyalty/me`, { token: A })).body);
     const ok = [a, b].filter((x) => x.status < 400).length;
@@ -319,10 +319,11 @@ export async function run(ctx) {
   await check('UAT-M9-13', async () => na('needs a balance engineered to equal a reward price exactly; covered indirectly by UAT-M9-02'));
 
   await check('UAT-M9-03', async () => {
-    const code = await api('GET', `${R}/referrals/me/code`, { token: A });
-    if (code.status >= 400) return fail(`referral code HTTP ${code.status} ${JSON.stringify(code.body)}`);
-    ctx.referralCode = code.body?.code ?? code.body?.referralCode;
+    // The code rides on the summary itself; the separate /me/code route was folded into it.
     const mine = await api('GET', `${R}/referrals/me`, { token: A });
+    const code = mine;
+    if (code.status >= 400) return fail(`referral summary HTTP ${code.status} ${JSON.stringify(code.body)}`);
+    ctx.referralCode = code.body?.code?.code ?? code.body?.code ?? code.body?.referralCode;
     return ctx.referralCode
       ? pass(`code=${ctx.referralCode}; referral summary HTTP ${mine.status} ${JSON.stringify(mine.body).slice(0, 200)}`)
       : fail(`no code returned: ${JSON.stringify(code.body)}`);

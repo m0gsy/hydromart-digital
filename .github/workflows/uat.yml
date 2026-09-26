@@ -53,6 +53,8 @@ jobs:
       # The stack the orchestrator boots is docker-compose.test.yml; the harness defaults
       # to the dev secret, so it has to be told which one it is talking to.
       JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
+      # Same reason: M6-11 signs a payment webhook, and the test stack's secret is not the dev default.
+      PAYMENT_WEBHOOK_SECRET: itest-webhook-secret-min-16-chars
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -77,15 +79,16 @@ jobs:
       - name: Boot the stack
         env:
           COMPOSE_BAKE: 'true'
-          COMPOSE_EXTRA_FILES: docker-compose.cache.yml
+          COMPOSE_EXTRA_FILES: docker-compose.cache.yml,.uat/docker-compose.ci.yml
         run: node test/integration/run.mjs --keep --boot-only
 
       - name: Seed catalog + staff
         run: node scripts/seed.mjs
 
-      - name: Run the UAT harness
-        run: node .uat/run.mjs
-
+      # Served BEFORE the harness, not after it. Modules 13, 26 and 27 fetch real pages from :3000
+      # (PWA manifest, login page, /help, sitemap...), and this step used to run after the harness had
+      # finished — so all fifteen of those cases got HTTP 0 and read as a broken web app when nothing
+      # was listening at all.
       # Verification step 4 of the go-live plan. It is the only check in this repo that asks
       # what a screen actually SHOWS the person who owns it, at the widths that person holds
       # — and it needs a browser, which is why it has never run anywhere but a laptop.
@@ -112,6 +115,9 @@ jobs:
           # continue-on-error, so a dead server and five genuinely broken roles look
           # identical and /tmp/web.log is never read by anyone.
           curl -fsS http://localhost:3000 >/dev/null || { echo "web never came up:"; cat /tmp/web.log; exit 1; }
+
+      - name: Run the UAT harness
+        run: node .uat/run.mjs
 
       # Cached, capped, and retried — because this one step has now eaten a whole day twice.
       #

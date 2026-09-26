@@ -303,16 +303,16 @@ export async function run(ctx) {
   await check('UAT-M16-13', async () => {
     const item = ctx.invRow;
     if (!item) return blocked('no inventory row');
-    await api('PATCH', `${itemApi}/${item.id}`, { token: ctx.operator, body: { minimumStock: 10 } });
-    await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 10 } });
+    const setMin = await api('PATCH', `${itemApi}/${item.id}`, { token: ctx.operator, body: { minimumStock: 10 } });
+    const count10 = await api('POST', `${itemApi}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 10 } });
     const at = await api('GET', `${itemApi}/low-stock?depotId=${depot.id}`, { token: ctx.operator });
     const inAt = (Array.isArray(at.body) ? at.body : at.body?.items ?? []).some((x) => x.id === item.id);
-    await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 9 } });
+    const count9 = await api('POST', `${itemApi}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 9 } });
     const below = await api('GET', `${itemApi}/low-stock?depotId=${depot.id}`, { token: ctx.operator });
     const inBelow = (Array.isArray(below.body) ? below.body : below.body?.items ?? []).some((x) => x.id === item.id);
     return inBelow
       ? pass(`qty 10 (== minimum) listed=${inAt}; qty 9 listed=${inBelow} — ambang ${inAt ? 'inklusif' : 'eksklusif'}, konfirmasikan ke pemilik proses`)
-      : fail(`qty 9 below minimum 10 but not listed as low stock`);
+      : fail(`qty 9 below minimum 10 but not listed as low stock (set minimum HTTP ${setMin.status} ${JSON.stringify(setMin.body).slice(0, 90)}; opname 10 HTTP ${count10.status}; opname 9 HTTP ${count9.status} ${JSON.stringify(count9.body).slice(0, 120)}; low-stock HTTP ${below.status}, ${(Array.isArray(below.body) ? below.body : below.body?.items ?? []).length} rows; item now ${JSON.stringify((await api('GET', `${itemApi}/${item.id}`, { token: ctx.operator })).body).slice(0, 200)})`);
   });
 
   await check('UAT-M16-06', async () => {
@@ -434,7 +434,7 @@ export async function run(ctx) {
     await api('PATCH', `${DEL}/driver/deliveries/${d.body.id}/pickup`, { token: ctx.driverB });
     await api('PATCH', `${DEL}/driver/deliveries/${d.body.id}/start`, { token: ctx.driverB });
     const cash = await api('POST', `${PAY}/${p.body?.id}/confirm`, { token: ctx.driverB, body: { cashReceived: total + 10000 } });
-    await api('POST', `${DEL}/driver/deliveries/${d.body.id}/complete`, {
+    const comp = await api('POST', `${DEL}/driver/deliveries/${d.body.id}/complete`, {
       token: ctx.driverB, body: { photoUrl: 'https://dummy.local/pod.jpg', recipientName: 'Budi', latitude: -6.1944, longitude: 106.8412 },
     });
     // Settlement is per SHIFT: { shiftId, depositedAmount }. The old {amount,cashAmount}
@@ -443,8 +443,9 @@ export async function run(ctx) {
       ?? (await api('POST', `${DEL}/driver/shifts/check-in`, {
         token: ctx.driverB, body: { depotId: depot.id, lat: Number(depot.lat ?? -6.2), lng: Number(depot.lng ?? 106.8) },
       })).body;
+    let checkOut = { status: 'n/a' };
     if (shiftB?.id) {
-      await api('POST', `${DEL}/driver/shifts/${shiftB.id}/check-out`, {
+      checkOut = await api('POST', `${DEL}/driver/shifts/${shiftB.id}/check-out`, {
         token: ctx.driverB, body: { lat: Number(depot.lat ?? -6.2), lng: Number(depot.lng ?? 106.8) },
       });
     }
@@ -455,7 +456,7 @@ export async function run(ctx) {
     const paid = (await api('GET', `${PAY}/${p.body?.id}`, { token: A })).body?.status;
     return paid === 'PAID' && settle.status < 400
       ? pass(`cash ${total}+10000 => PAID (change handled); settlement HTTP ${settle.status}; reconciliation HTTP ${recon.status} ${JSON.stringify(recon.body).slice(0, 140)}`)
-      : fail(`cash confirm HTTP ${cash.status} ${JSON.stringify(cash.body)}; payment=${paid}; settlement HTTP ${settle.status}`);
+      : fail(`settlement HTTP ${settle.status} ${JSON.stringify(settle.body).slice(0, 220)}; payment=${paid}; cash confirm HTTP ${cash.status}; shift ${shiftB?.id ?? 'none'}; complete HTTP ${comp.status} ${JSON.stringify(comp.body).slice(0, 120)}; check-out HTTP ${checkOut.status} ${JSON.stringify(checkOut.body).slice(0, 160)}`);
   });
 
   await check('UAT-M14-03', async () => {
@@ -628,13 +629,13 @@ export async function run(ctx) {
     const c = await api('POST', `${D}/order-disputes`, { token: ctx.operator, body: { depotId: depot.id, orderRef: ctx.orderA?.orderNumber ?? 'HM-UAT', customerName: 'Budi Santoso', category: 'QUALITY', description: 'Galon kotor' } });
     if (c.status >= 400) return fail(`create HTTP ${c.status} ${JSON.stringify(c.body)}`);
     ctx.dispute = c.body;
-    const r = await api('PATCH', `${D}/order-disputes/${c.body.id}/resolve`, { token: ctx.manager, body: { resolution: 'REFUND', resolutionNote: 'Ganti galon baru' } });
+    const r = await api('PATCH', `${D}/order-disputes/${c.body.id}/resolve`, { token: ctx.manager, body: { resolution: 'RESEND', resolutionNote: 'Ganti galon baru' } });
     return r.status < 400 ? pass(`dispute created then resolved (HTTP ${r.status}); status=${r.body?.status}`) : fail(`resolve HTTP ${r.status} ${JSON.stringify(r.body)}`);
   });
 
   await check('UAT-M17-14', async () => {
     if (!ctx.dispute?.id) return blocked('no dispute');
-    const r = await api('PATCH', `${D}/order-disputes/${ctx.dispute.id}/resolve`, { token: ctx.manager, body: { resolution: 'REFUND', resolutionNote: 'lagi' } });
+    const r = await api('PATCH', `${D}/order-disputes/${ctx.dispute.id}/resolve`, { token: ctx.manager, body: { resolution: 'RESEND', resolutionNote: 'lagi' } });
     const s = JSON.stringify(r.body);
     return r.status >= 400 && /ALREADY_RESOLVED|resolved/i.test(s) ? pass(`HTTP ${r.status} ${s}`) : fail(`HTTP ${r.status} ${s}`);
   });

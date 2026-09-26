@@ -113,8 +113,9 @@ export async function run(ctx) {
   });
 
   await check('UAT-M6-10', async () => {
-    const body = { reference: payment?.reference ?? payment?.id ?? 'FAKE', event: 'PAID', signature: 'deadbeef' };
-    const none = await api('POST', `${PAY}/webhook`, { body: { reference: body.reference, event: 'PAID', signature: '' } });
+    // A fresh timestamp on both, so what is refused is the SIGNATURE and not a missing field.
+    const body = { reference: payment?.reference ?? payment?.id ?? 'FAKE', event: 'PAID', timestamp: Date.now(), signature: 'deadbeef' };
+    const none = await api('POST', `${PAY}/webhook`, { body: { reference: body.reference, event: 'PAID', timestamp: Date.now(), signature: '' } });
     const wrong = await api('POST', `${PAY}/webhook`, { body, headers: { 'x-signature': 'deadbeef' } });
     const after = await api('GET', `${PAY}/${payment?.id}`, { token: A });
     return none.status >= 400 && wrong.status >= 400
@@ -127,8 +128,15 @@ export async function run(ctx) {
     const c = await api('POST', PAY, { token: A, body: { orderId: o.id, method: 'QRIS', amount: o.totalIdr ?? o.total } });
     if (c.status >= 400) return blocked(`payment create HTTP ${c.status} ${JSON.stringify(c.body)}`);
     const reference = c.body.reference ?? c.body.providerRef ?? c.body.id;
-    const sig = crypto.createHmac('sha256', WEBHOOK_SECRET).update(`${reference}.PAID`).digest('hex');
-    const send = () => api('POST', `${PAY}/webhook`, { body: { reference, event: 'PAID', signature: sig } });
+    // The signature covers EVERY field except itself, sorted by key and joined k=v&k=v, and the payload
+    // carries an epoch-millisecond timestamp that must be within five minutes of the server clock — a
+    // captured callback stops being replayable (payment.service.ts). The old `${reference}.PAID` scheme
+    // signed two fields and no time.
+    const payload = { reference, event: 'PAID', timestamp: Date.now() };
+    const sig = crypto.createHmac('sha256', WEBHOOK_SECRET)
+      .update(Object.keys(payload).sort().map((k) => `${k}=${payload[k]}`).join('&'))
+      .digest('hex');
+    const send = () => api('POST', `${PAY}/webhook`, { body: { ...payload, signature: sig } });
     const one = await send();
     const two = await send();
     const p = await api('GET', `${PAY}/${c.body.id}`, { token: A });
@@ -286,6 +294,13 @@ export async function run(ctx) {
   await check('UAT-M7-20', async () => {
     const r = await api('POST', `${DEL}/driver/shifts/check-in`, { token: ctx.driverB, body: shiftBody });
     const s = JSON.stringify(r.body);
+    /*
+     * A second check-in at the SAME depot is answered with the shift already open, not refused: it is
+     * the replay of a check-in whose answer was lost, and it rides the offline capture queue, which
+     * retries until it hears back (shift.service.ts). "Already open" is now reserved for a shift at a
+     * DIFFERENT depot. What must hold is that no second shift appears.
+     */
+    if (r.status < 400 && r.body?.id && r.body.id === ctx.shift?.id) return pass(`HTTP ${r.status}; replay answered with the SAME open shift ${r.body.id}, no second shift created`);
     return r.status >= 400 && /ALREADY_OPEN|already/i.test(s) ? pass(`HTTP ${r.status} ${s}`) : fail(`HTTP ${r.status} ${s}`);
   });
 
@@ -397,6 +412,12 @@ export async function run(ctx) {
       token: ctx.driverA,
       body: { photoUrl: `https://dummy.local/${'a'.repeat(480)}.jpg`, recipientName: 'x'.repeat(121), latitude: -6.1944, longitude: 106.8412 },
     });
+    // The refused submission leaves the delivery in progress, and a driver holds one active delivery at
+    // a time — so finish it properly, or every case after this one is DELIVERY_DRIVER_BUSY.
+    await api('POST', `${DEL}/driver/deliveries/${d.body.id}/complete`, {
+      token: ctx.driverA,
+      body: { photoUrl: 'https://dummy.local/pod.jpg', recipientName: 'Budi', latitude: -6.1944, longitude: 106.8412 },
+    });
     return long.status === 400
       ? pass(`recipientName 121 chars rejected HTTP 400 ${JSON.stringify(long.body?.message ?? '')}`)
       : fail(`over-length POD accepted: HTTP ${long.status}`);
@@ -446,7 +467,7 @@ export async function run(ctx) {
   await check('UAT-M7-10', async () => {
     const cur = await api('GET', `${DEL}/driver/shifts/current`, { token: ctx.driverA });
     if (cur.status >= 400 || !cur.body?.id) return blocked(`no open shift: HTTP ${cur.status}`);
-    const dep = await api('POST', `${DEL}/driver/settlement`, { token: ctx.driverA, body: { amount: 20000, cashAmount: 20000, shiftId: cur.body.id } });
+    const dep = await api('POST', `${DEL}/driver/settlement`, { token: ctx.driverA, body: { shiftId: cur.body.id, depositedAmount: 20000 } });
     const out = await api('POST', `${DEL}/driver/shifts/${cur.body.id}/check-out`, { token: ctx.driverA, body: outBody });
     return out.status < 400
       ? pass(`settlement HTTP ${dep.status}; check-out HTTP ${out.status}`)

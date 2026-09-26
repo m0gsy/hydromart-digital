@@ -20,7 +20,7 @@ export async function run(ctx) {
     const r = await api('POST', EMP, {
       token: ctx.hr,
       body: {
-        fullName: 'Karyawan UAT', phone: phone(), position: 'Kasir', depotId: depot.id,
+        fullName: 'Karyawan UAT', phone: phone(), position: 'Kasir', role: 'STAFF_DEPOT', depotId: depot.id,
         employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 100000,
         joinDate: '2026-01-06T00:00:00.000Z',
       },
@@ -83,7 +83,7 @@ export async function run(ctx) {
     if (!hrUp) return blocked('hr-service not reachable');
     const fresh = await api('POST', EMP, {
       token: ctx.hr,
-      body: { fullName: 'Tanpa Absen', phone: phone(), position: 'Kasir', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
+      body: { fullName: 'Tanpa Absen', phone: phone(), position: 'Kasir', role: 'STAFF_DEPOT', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
     });
     if (fresh.status >= 400) return blocked(`could not create employee: HTTP ${fresh.status}`);
     const r = await api('POST', `${HR}/attendance/check-out`, { token: ctx.hr, body: { image: TINY_JPEG, live: true } });
@@ -94,7 +94,7 @@ export async function run(ctx) {
     if (!hrUp) return blocked('hr-service not reachable');
     const fresh = await api('POST', EMP, {
       token: ctx.hr,
-      body: { fullName: 'Jauh Geofence', phone: phone(), position: 'Kasir', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
+      body: { fullName: 'Jauh Geofence', phone: phone(), position: 'Kasir', role: 'STAFF_DEPOT', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
     });
     if (fresh.status >= 400) return blocked(`could not create employee: HTTP ${fresh.status}`);
     const r = await api('POST', `${HR}/attendance/check-in`, { token: ctx.hr, body: { image: TINY_JPEG, live: true } });
@@ -122,7 +122,9 @@ export async function run(ctx) {
 
   await check('UAT-M10-05', async () => {
     if (!hrUp) return blocked('hr-service not reachable');
-    const periodMonth = new Date().toISOString().slice(0, 7);
+    // The previous month: the service refuses a period that has not ended ("belum selesai").
+    const now = new Date();
+    const periodMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
     const staff = await api('GET', `${HR}/employees?pageSize=10`, { token: ctx.hr });
     const employees = (staff.body?.rows ?? staff.body?.items ?? (Array.isArray(staff.body) ? staff.body : []))
       .filter((e) => e?.id);
@@ -186,7 +188,7 @@ export async function run(ctx) {
   await check('UAT-M11-01', async () => {
     const r = await api('POST', `${D}/franchise-applications`, {
       token: ctx.admin,
-      body: { applicantName: 'Calon Mitra UAT', applicantPhone: phone(), proposedCode: `UATF-${uniq().slice(0, 5)}`, proposedName: `Depot Mitra ${uniq().slice(0, 4)}`, city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, investmentAmount: 150000000, projectedMonthlyRevenue: 45000000 },
+      body: { privacyConsent: true, applicantName: 'Calon Mitra UAT', applicantPhone: phone(), proposedCode: `UATF-${uniq().slice(0, 5)}`, proposedName: `Depot Mitra ${uniq().slice(0, 4)}`, city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, investmentAmount: 150000000, projectedMonthlyRevenue: 45000000 },
     });
     const list = await api('GET', `${D}/franchise-applications`, { token: ctx.hq });
     const rows = Array.isArray(list.body) ? list.body : list.body?.items ?? [];
