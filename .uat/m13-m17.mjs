@@ -304,10 +304,10 @@ export async function run(ctx) {
     const item = ctx.invRow;
     if (!item) return blocked('no inventory row');
     const setMin = await api('PATCH', `${itemApi}/${item.id}`, { token: ctx.operator, body: { minimumStock: 10 } });
-    const count10 = await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 10 } });
+    const count10 = await api('POST', `${itemApi}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 10 } });
     const at = await api('GET', `${itemApi}/low-stock?depotId=${depot.id}`, { token: ctx.operator });
     const inAt = (Array.isArray(at.body) ? at.body : at.body?.items ?? []).some((x) => x.id === item.id);
-    const count9 = await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 9 } });
+    const count9 = await api('POST', `${itemApi}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 9 } });
     const below = await api('GET', `${itemApi}/low-stock?depotId=${depot.id}`, { token: ctx.operator });
     const inBelow = (Array.isArray(below.body) ? below.body : below.body?.items ?? []).some((x) => x.id === item.id);
     return inBelow
@@ -434,7 +434,7 @@ export async function run(ctx) {
     await api('PATCH', `${DEL}/driver/deliveries/${d.body.id}/pickup`, { token: ctx.driverB });
     await api('PATCH', `${DEL}/driver/deliveries/${d.body.id}/start`, { token: ctx.driverB });
     const cash = await api('POST', `${PAY}/${p.body?.id}/confirm`, { token: ctx.driverB, body: { cashReceived: total + 10000 } });
-    await api('POST', `${DEL}/driver/deliveries/${d.body.id}/complete`, {
+    const comp = await api('POST', `${DEL}/driver/deliveries/${d.body.id}/complete`, {
       token: ctx.driverB, body: { photoUrl: 'https://dummy.local/pod.jpg', recipientName: 'Budi', latitude: -6.1944, longitude: 106.8412 },
     });
     // Settlement is per SHIFT: { shiftId, depositedAmount }. The old {amount,cashAmount}
@@ -443,8 +443,9 @@ export async function run(ctx) {
       ?? (await api('POST', `${DEL}/driver/shifts/check-in`, {
         token: ctx.driverB, body: { depotId: depot.id, lat: Number(depot.lat ?? -6.2), lng: Number(depot.lng ?? 106.8) },
       })).body;
+    let checkOut = { status: 'n/a' };
     if (shiftB?.id) {
-      await api('POST', `${DEL}/driver/shifts/${shiftB.id}/check-out`, {
+      checkOut = await api('POST', `${DEL}/driver/shifts/${shiftB.id}/check-out`, {
         token: ctx.driverB, body: { lat: Number(depot.lat ?? -6.2), lng: Number(depot.lng ?? 106.8) },
       });
     }
@@ -455,7 +456,7 @@ export async function run(ctx) {
     const paid = (await api('GET', `${PAY}/${p.body?.id}`, { token: A })).body?.status;
     return paid === 'PAID' && settle.status < 400
       ? pass(`cash ${total}+10000 => PAID (change handled); settlement HTTP ${settle.status}; reconciliation HTTP ${recon.status} ${JSON.stringify(recon.body).slice(0, 140)}`)
-      : fail(`settlement HTTP ${settle.status} ${JSON.stringify(settle.body).slice(0, 220)}; payment=${paid}; cash confirm HTTP ${cash.status}; shift ${shiftB?.id ?? 'none'}`);
+      : fail(`settlement HTTP ${settle.status} ${JSON.stringify(settle.body).slice(0, 220)}; payment=${paid}; cash confirm HTTP ${cash.status}; shift ${shiftB?.id ?? 'none'}; complete HTTP ${comp.status} ${JSON.stringify(comp.body).slice(0, 120)}; check-out HTTP ${checkOut.status} ${JSON.stringify(checkOut.body).slice(0, 160)}`);
   });
 
   await check('UAT-M14-03', async () => {

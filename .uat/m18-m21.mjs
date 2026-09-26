@@ -353,7 +353,7 @@ export async function run(ctx) {
     const available = bal.body?.availableBalance ?? bal.body?.availableIdr ?? bal.body?.balanceIdr ?? 0;
     // A withdrawal goes to a destination the courier registered and head office verified (PYO-3, PYO-5);
     // without one it is PAYOUT_DESTINATION_NOT_VERIFIED. Register as the courier, verify as finance.
-    const acct = await api('PUT', `${PAYOUT}/bank-account`, { token: ctx.driverA, body: { bankName: 'BCA', accountNumber: '1234567890', accountHolder: 'Kurir UAT' } });
+    const acct = await api('PUT', `${PAYOUT}/payout/bank-account`, { token: ctx.driverA, body: { bankName: 'BCA', accountNumber: '1234567890', accountHolder: 'Kurir UAT' } });
     if (acct.body?.id) await api('POST', `${PAYOUT}/payout/hq/bank-accounts/${acct.body.id}/verify`, { token: ctx.finance, body: {} });
     const r = await api('POST', `${PAYOUT}/courier/withdrawals`, { token: ctx.driverA, body: { amount: Math.max(1, Math.floor(available / 2)) } });
     ctx.withdrawal = r.body;
