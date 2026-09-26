@@ -186,7 +186,7 @@ jobs:
         continue-on-error: true
         run: |
           failed=""
-          for role in hq operator manager courier customer; do
+          for role in hq operator manager courier customer hr head_office direktur; do
             echo "=== $role"
             if ! node scripts/role-browser-pass.mjs "$role" id; then
               failed="$failed $role"
