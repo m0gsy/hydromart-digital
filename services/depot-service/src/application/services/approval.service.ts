@@ -28,6 +28,18 @@ export interface CreateApprovalInput {
   payload?: ApprovalPayload;
 }
 
+/**
+ * Largest rupiah figure an approval can carry: the column is a Postgres INT4.
+ *
+ * A gallon return of 100,000 empties at Rp1,000,000 each is Rp99,999,000,000, which the column
+ * cannot hold — Prisma answered "Unable to fit integer value into an INT4" and the request was a
+ * 500. By then the return and its stock movement were already written, so the caller got an error
+ * for a change that had happened. An approval this size is far past any auto-pass threshold either
+ * way, so the figure is capped rather than refused: it still lands PENDING for a human, which is
+ * the point of the queue.
+ */
+export const MAX_APPROVAL_AMOUNT_IDR = 2_147_483_647;
+
 export type ApprovalDecision = 'APPROVE' | 'REJECT' | 'HOLD';
 
 const DECISION_STATUS: Record<ApprovalDecision, ApprovalStatus> = {
@@ -64,7 +76,11 @@ export class ApprovalService {
   async create(input: CreateApprovalInput, submittedBy: string): Promise<Approval> {
     await this.requireDepot(input.depotId);
     const threshold = this.config.approvalAutoPassIdr(input.depotId);
-    const autoPass = !needsApproval(input.amountIdr, threshold);
+    const amountIdr = Math.max(
+      -MAX_APPROVAL_AMOUNT_IDR,
+      Math.min(MAX_APPROVAL_AMOUNT_IDR, input.amountIdr),
+    );
+    const autoPass = !needsApproval(amountIdr, threshold);
     const now = new Date();
     return this.approvals.create({
       depotId: input.depotId,
@@ -73,7 +89,7 @@ export class ApprovalService {
       title: input.title,
       submittedBy,
       subjectRef: input.subjectRef ?? null,
-      amountIdr: input.amountIdr,
+      amountIdr,
       payload: input.payload ?? {},
       autoPassThreshold: threshold,
       decisionNote: autoPass ? 'Disetujui otomatis (di bawah ambang)' : null,
