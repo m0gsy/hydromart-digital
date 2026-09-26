@@ -698,7 +698,10 @@ export class OrderPrismaRepository implements OrderRepository {
       conds.push(
         depotIds.length === 0
           ? Prisma.sql`false`
-          : Prisma.sql`"depotId" IN (${Prisma.join([...depotIds])})`,
+          : // Each id cast to uuid: the column is `@db.Uuid` and a bound string parameter is text, so a
+            // bare `IN ($1)` is "operator does not exist: uuid = text" — a 500 on the sales report for
+            // every depot-scoped account (manager, supervisor). Every sibling raw query here casts.
+            Prisma.sql`"depotId" IN (${Prisma.join(depotIds.map((id) => Prisma.sql`${id}::uuid`))})`,
       );
     }
     const rows = await this.prisma.$queryRaw<

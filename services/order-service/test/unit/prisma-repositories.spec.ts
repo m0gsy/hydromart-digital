@@ -1072,6 +1072,10 @@ describe('OrderPrismaRepository', () => {
     expect(twoHop(q)).toContain('"depotId" IN');
     expect(q.values).toContain('depot-a');
     expect(q.values).toContain('depot-b');
+    // The column is a uuid and a bound parameter is text. Without the cast this is "operator does
+    // not exist: uuid = text" — a 500 for every depot-scoped caller that a mocked client cannot
+    // raise, which is how it shipped. The UAT sweep found it against a real database.
+    expect(twoHop(q)).toMatch(/"depotId" IN \(\?::uuid,\?::uuid\)/);
 
     await repo.salesSeries('daily', {}, 'Asia/Jakarta', []);
     q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
