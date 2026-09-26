@@ -1,7 +1,7 @@
 // Per-role browser pass — the check nothing else in this repo performs: what a screen
 // actually shows the person who owns it, at the widths that person actually holds.
 //
-//   node scripts/role-browser-pass.mjs <hq|operator|manager|courier|customer> [id|en|both]
+//   node scripts/role-browser-pass.mjs <hq|head_office|direktur|operator|manager|courier|hr|customer> [id|en|both]
 //   ROUTES="/hq/staff /hq/audit" node scripts/role-browser-pass.mjs hq id   # narrow a run
 //   WIDTHS=320,412 node scripts/role-browser-pass.mjs courier id            # narrow widths
 //
@@ -50,8 +50,8 @@ const BASE = process.env.BASE ?? 'http://localhost:3000';
 const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml'];
 const e164 = (phone) => (phone.startsWith('0') ? `+62${phone.slice(1)}` : phone);
 
-function readLoginOtp(phone) {
-  const marker = `LOGIN code for ${e164(phone)}:`;
+function readOtp(phone, purpose) {
+  const marker = `${purpose} code for ${e164(phone)}:`;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const r = spawnSync('docker', ['compose', ...COMPOSE_FILES, 'logs', '--no-log-prefix', 'auth'], {
       encoding: 'utf8',
@@ -68,7 +68,39 @@ function readLoginOtp(phone) {
     // login page is already waiting for us.
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
-  throw new Error(`no LOGIN OTP in the auth log for ${phone} — is the console channel on?`);
+  throw new Error(`no ${purpose} OTP in the auth log for ${phone} — is the console channel on?`);
+}
+const readLoginOtp = (phone) => readOtp(phone, 'LOGIN');
+
+/*
+ * A customer has to EXIST before the login page can send them a code.
+ *
+ * `login` answers 200 for a number nobody registered — on purpose, so the endpoint cannot be used to
+ * find out who is a customer — and sends nothing. The customer pass asked for a LOGIN code for a
+ * number that was never registered, waited ten seconds for a log line that could not come, and died on
+ * "no LOGIN OTP in the auth log". It has done that on every run since that change, and the step is
+ * continue-on-error, so the UAT job read green while the 28 pages of the shop — the entire customer
+ * binary — went unmeasured.
+ *
+ * So register the number first, the way a person would: request a REGISTRATION code, read it from the
+ * log, verify it. A number that is already registered answers 4xx to `register` and is left alone.
+ */
+async function ensureCustomer(phone) {
+  const gateway = process.env.GATEWAY_URL ?? 'http://localhost:8080';
+  const post = (path, body) =>
+    fetch(`${gateway}/auth/api/v1/auth/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const registered = await post('register', { phone: e164(phone), fullName: 'Sweep Customer' });
+  if (!registered.ok) return;
+  const verified = await post('otp/verify', {
+    phone: e164(phone),
+    code: readOtp(phone, 'REGISTRATION'),
+    purpose: 'REGISTRATION',
+  });
+  if (!verified.ok) throw new Error(`could not register the sweep customer ${phone}: HTTP ${verified.status}`);
 }
 
 const R = (list) => list.trim().split(/\s+/);
@@ -84,6 +116,8 @@ const HQ = R(`
 /hq/scheduled-reports /hq/scorecard /hq/search /hq/security /hq/sitemap /hq/sla-policy
 /hq/staff /hq/staff/import /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
 /hq/webhooks /hq/wizard /hq/access/landing
+/hq/access/detail /hq/applications/detail /hq/depots/detail /hq/forecast-models
+/hq/orders/detail /hq/pnl
 `);
 
 // The `/dashboard` pages the ops binary actually ships (counted off apps/web/mobile-out-ops, not
@@ -111,6 +145,22 @@ const OPS = R(`
 /dashboard/wastage /dashboard/wholesale
 `);
 
+/*
+ * The HR desk: 32 pages the sweep had never opened (31 desk pages + `/hr/me/kasbon`), because it had no HR role to open them as. Every
+ * other console had a run; this one had a directory of employees, the payroll, leave, attendance and
+ * the kasbon screens that a push notification lands on, and the first anybody heard of a broken one
+ * was an HR clerk. `/hr/me/*` belongs to the courier list below (the same employee self-service), so
+ * only `/hr/me/kasbon`, which that list did not name, is added here.
+ */
+const HR = R(`
+/hr /hr/adjustments /hr/adjustments/import /hr/allowances /hr/allowances/import
+/hr/announcements /hr/assets /hr/assets/import /hr/attendance /hr/audit /hr/calendar
+/hr/customers /hr/departments /hr/employees /hr/employees/detail /hr/employees/detail/edit
+/hr/employees/import /hr/employees/new /hr/leave /hr/leave/balances-import /hr/loans
+/hr/loans/import /hr/loans/requests /hr/me/kasbon /hr/payroll /hr/payroll/detail
+/hr/performance /hr/reports /hr/resellers /hr/rules /hr/settings /hr/shift
+`);
+
 // All 8 `/m/manager` screens — including the two nobody had ever loaded.
 const MANAGER = R(`
 /m/manager /m/manager/account /m/manager/approvals /m/manager/approvals/detail
@@ -124,7 +174,7 @@ const DRIVER = R(`
 /driver /driver/announcements /driver/deliveries/detail /driver/deliveries/detail/fail
 /driver/deliveries/detail/no-show /driver/deliveries/detail/pay
 /driver/deliveries/detail/reschedule /driver/deliveries/detail/returns
-/driver/deliveries/detail/success /driver/earnings /driver/expenses /driver/goal
+/driver/deliveries/detail/success /driver/earnings /driver/earnings/history /driver/expenses /driver/goal
 /driver/help /driver/history /driver/incidents/new /driver/onboarding
 /driver/performance /driver/profile /driver/route /driver/settings /driver/settlement
 /driver/settlement/history /driver/shift/check-in /driver/shift/status
@@ -137,7 +187,7 @@ const DRIVER = R(`
 const SHOP = R(`
 / /products /products/detail /cart /checkout /orders /orders/detail
 /orders/detail/review /account /account/edit /addresses /favorites /notifications
-/promo /referral /rewards /subscriptions /vouchers /resellers /help
+/promo /referral /rewards /subscriptions /vouchers /resellers /help /agen /syarat-ketentuan
 /kebijakan-privasi /hapus-akun /waralaba /login /register /verify
 `);
 
@@ -157,6 +207,7 @@ const ROLES = {
   operator: { phone: '+6281100000005', routes: OPS },
   manager: { phone: '+6281100000002', routes: MANAGER },
   courier: { phone: '+6281100000003', routes: DRIVER },
+  hr: { phone: '+6281100000004', routes: HR },
   customer: { phone: '+6281298765432', routes: SHOP },
 };
 
@@ -175,7 +226,16 @@ const ID_SOURCE = {
   '/dashboard/approvals/detail': '/dashboard/approvals',
   '/dashboard/customers/detail': '/dashboard/customers',
   '/dashboard/purchase-orders/detail': '/dashboard/purchase-orders',
+  '/hr/employees/detail': '/hr/employees',
+  '/hr/payroll/detail': '/hr/payroll',
+  // /hq/depots itself opens a depot with onClick, not a link, so the id comes from a page that links.
+  '/hq/depots/detail': '/hq/inventory',
+  '/hq/orders/detail': '/hq/orders',
+  '/hq/applications/detail': '/hq/applications',
 };
+
+/** A detail screen keyed by something other than `?id=`. */
+const FIXED_QUERY = { '/hq/access/detail': 'role=KEPALA_DEPOT' };
 
 /** The five widths this app is actually held at. Height matters only for the fold. */
 const ALL_WIDTHS = [
@@ -519,6 +579,7 @@ await page
   .first()
   .click({ timeout: 2500 })
   .catch(() => {});
+if (roleName === 'customer') await ensureCustomer(role.phone);
 const local = role.phone.replace('+62', '');
 await page.fill('input#phone', local);
 await page.locator('form button[type=submit]').first().click();
@@ -571,7 +632,7 @@ const urlFor = (route) => {
   const prefix = Object.keys(idFor)
     .filter((p) => route === p || route.startsWith(p + '/'))
     .sort((a, b) => b.length - a.length)[0];
-  return BASE + route + (prefix ? `?id=${idFor[prefix]}` : '');
+  return BASE + route + (prefix ? `?id=${idFor[prefix]}` : FIXED_QUERY[route] ? `?${FIXED_QUERY[route]}` : '');
 };
 
 // ---- the pass ---------------------------------------------------------------

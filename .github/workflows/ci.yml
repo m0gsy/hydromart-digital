@@ -558,6 +558,15 @@ jobs:
       - name: Route parity gate can go red
         run: bash scripts/check-route-parity.test.sh
 
+      # Every page has to be one the role browser pass is asked to open, and the pass may not name a
+      # page that does not exist. The lists are hand-written: two 404ing routes read as broken
+      # screens and 42 pages (the whole HR desk among them) were never visited by anything.
+      - name: Sweep coverage (every page is swept)
+        run: node scripts/check-sweep-coverage.mjs
+
+      - name: Sweep coverage gate can go red
+        run: bash scripts/check-sweep-coverage.test.sh
+
       # BI-2 — /metrics is mounted outside every guard on purpose (Prometheus has no token)
       # and the public API hostname proxies the gateway, so it was answering the platform's
       # traffic to anybody who asked.
