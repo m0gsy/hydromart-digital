@@ -106,7 +106,12 @@ export class ProductController {
   ): Promise<ProductRecord> {
     // PRD-1: who moved the price travels with the write. The catalog stays editable by a
     // depot manager (owner decision 2026-09-11); what was missing is the record.
-    return this.products.update(id, dto, dto.seenUpdatedAt, user.sub);
+    // `seenUpdatedAt` is the version the client read, a token for the freshness check and not a column:
+    // it has to stop here. Forwarded with the rest of the patch it reached Prisma as an unknown field
+    // ("Unknown argument `seenUpdatedAt`") and the save answered 500 — for every console form that
+    // sends the stamp, which is what CA-2-53 made them all do.
+    const { seenUpdatedAt, ...patch } = dto;
+    return this.products.update(id, patch, seenUpdatedAt, user.sub);
   }
 
   /**
