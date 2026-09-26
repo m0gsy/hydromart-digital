@@ -61,7 +61,9 @@ function Stat({
       >
         {label}
       </p>
-      <p className={`text-2xl font-extrabold tabular-nums ${tone === 'amber' ? 'text-[color:var(--warning)]' : ''}`}>
+      <p
+        className={`text-2xl font-extrabold tabular-nums ${tone === 'amber' ? 'text-[color:var(--warning)]' : ''}`}
+      >
         {value}
       </p>
       {hint && <p className="text-[11px] font-medium text-[color:var(--text-muted)]">{hint}</p>}
@@ -104,12 +106,14 @@ function RingkasanBody({ depotId }: { depotId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-extrabold tracking-tight">{t('hrFix.operatorSummary.today')}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">
+          {t('hrFix.operatorSummary.today')}
+        </h1>
         <p className="text-[12.5px] text-[color:var(--text-muted)]">{todayLabel()}</p>
       </div>
 
       {/* Headline counters */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t('hrFix.operatorSummary.ordersIn')} value={data.orders.length} />
         <Stat
           label={t('hrFix.operatorSummary.needsAssigning')}
@@ -121,19 +125,32 @@ function RingkasanBody({ depotId }: { depotId: string }) {
           value={
             <>
               {data.activeDrivers}
-              <span className="text-[15px] text-[color:var(--text-muted)]">/{data.totalDrivers}</span>
+              <span className="text-[15px] text-[color:var(--text-muted)]">
+                /{data.totalDrivers}
+              </span>
             </>
           }
         />
-        <Stat label={t('hrFix.operatorSummary.codOutstanding')} value={<Money amount={codOutstanding} />} />
+        <Stat
+          label={t('hrFix.operatorSummary.codOutstanding')}
+          value={<Money amount={codOutstanding} />}
+        />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      {/*
+        grid-cols-1, not the implicit auto column: a grid item defaults to min-width:auto, so the
+        card's `truncate` rows still counted their full text width and pushed the page 112px wider
+        than a 320px screen. `minmax(0, 1fr)` lets the column shrink and the text actually truncate.
+      */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* Needs assignment */}
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold">{t('hrFix.operatorSummary.needsAssigning')}</span>
-            <Link href="/dashboard/orders" className="inline-flex min-h-11 items-center text-xs font-bold text-brand-800 hover:underline">
+            <Link
+              href="/dashboard/orders"
+              className="inline-flex min-h-11 items-center text-xs font-bold text-brand-800 hover:underline"
+            >
               {t('hrFix.operatorSummary.viewQueue2')}
             </Link>
           </div>
@@ -144,10 +161,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
           ) : (
             <ul className="flex flex-col gap-2">
               {data.needAssign.slice(0, 3).map((o) => (
-                <li
-                  key={o.id}
-                  className="flex items-center gap-3 rounded-xl border border-app p-3"
-                >
+                <li key={o.id} className="flex items-center gap-3 rounded-xl border border-app p-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-brand-50">
                     <Package size={18} weight="fill" className="text-brand-800" />
                   </span>
@@ -181,7 +195,9 @@ function RingkasanBody({ depotId }: { depotId: string }) {
               </span>
             </div>
             {data.lowStock.length === 0 ? (
-              <p className="text-xs text-[color:var(--danger)]/80">{t('hrFix.operatorSummary.allAboveThreshold')}</p>
+              <p className="text-xs text-[color:var(--danger)]/80">
+                {t('hrFix.operatorSummary.allAboveThreshold')}
+              </p>
             ) : (
               data.lowStock.slice(0, 3).map((it) => (
                 <div key={it.id} className="flex items-center justify-between text-[12.5px]">
@@ -197,7 +213,9 @@ function RingkasanBody({ depotId }: { depotId: string }) {
           <Card className="flex flex-col gap-2 p-4">
             <div className="flex items-center gap-2">
               <HandCoins size={18} weight="fill" className="text-brand-800" />
-              <span className="text-[13.5px] font-bold">{t('hrFix.operatorSummary.settlementsPending')}</span>
+              <span className="text-[13.5px] font-bold">
+                {t('hrFix.operatorSummary.settlementsPending')}
+              </span>
             </div>
             <div className="flex items-center justify-between text-[12.5px]">
               <span className="text-[color:var(--text-muted)]">
@@ -223,7 +241,10 @@ export function OperatorRingkasan() {
   const { scopedId } = useDepot();
   if (!scopedId) {
     return (
-      <CenterState title={t('hrFix.operatorSummary.pickDepot')} icon={<Storefront size={40} weight="fill" />}>
+      <CenterState
+        title={t('hrFix.operatorSummary.pickDepot')}
+        icon={<Storefront size={40} weight="fill" />}
+      >
         {t('hrFix.operatorSummary.pickDepot2')}
       </CenterState>
     );

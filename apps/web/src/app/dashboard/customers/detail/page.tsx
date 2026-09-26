@@ -197,7 +197,7 @@ function DetailBody({ id }: { id: string }) {
                 </Card>
               </section>
 
-              <CustomerReferralCard customerId={id} />
+              <CustomerReferralCard customerId={id} role={customer?.role} />
 
               {/* Recent orders */}
               <section>
