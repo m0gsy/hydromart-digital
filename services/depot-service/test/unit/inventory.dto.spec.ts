@@ -3,6 +3,11 @@ import { validate } from 'class-validator';
 
 import { InventoryItemType, StockMovementType } from '../../src/domain/inventory';
 import {
+  CreateCourierReturnDto,
+  CreateGallonReturnDto,
+  MAX_GALLONS_PER_RETURN,
+} from '../../src/modules/dto/gallon-return.dto';
+import {
   CreateInventoryItemDto,
   ListInventoryQueryDto,
   ListStockMovementsQueryDto,
@@ -69,5 +74,26 @@ describe('inventory write/query DTO transforms', () => {
 
     expect(await validate(dto)).toHaveLength(0);
     expect(dto).toMatchObject({ minimumStock: 5, sellPrice: 18000 });
+  });
+});
+
+describe('gallon return DTOs', () => {
+  const base = { depotId: '11111111-1111-4111-8111-111111111111', orderId: '22222222-2222-4222-8222-222222222222' };
+
+  it('accepts a normal handover and refuses an absurd one before anything is written', async () => {
+    const ok = plainToInstance(CreateGallonReturnDto, { quantity: 3 });
+    expect(await validate(ok)).toHaveLength(0);
+    const limit = plainToInstance(CreateGallonReturnDto, { quantity: MAX_GALLONS_PER_RETURN });
+    expect(await validate(limit)).toHaveLength(0);
+
+    // 100000 empties was accepted, booked in the ledger, and then 500'd on the approval it queued.
+    const huge = plainToInstance(CreateGallonReturnDto, { quantity: MAX_GALLONS_PER_RETURN + 1 });
+    expect((await validate(huge)).map((e) => e.property)).toEqual(['quantity']);
+  });
+
+  it('bounds the courier handover the same way', async () => {
+    expect(await validate(plainToInstance(CreateCourierReturnDto, { ...base, quantity: 2 }))).toHaveLength(0);
+    const huge = plainToInstance(CreateCourierReturnDto, { ...base, quantity: 100000 });
+    expect((await validate(huge)).map((e) => e.property)).toEqual(['quantity']);
   });
 });

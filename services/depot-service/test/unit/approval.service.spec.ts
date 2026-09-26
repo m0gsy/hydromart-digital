@@ -51,6 +51,18 @@ describe('ApprovalService', () => {
       SUBMITTER,
     );
 
+  // The amount column is an INT4. 100,000 gallons at a Rp1,000,000 deposit is Rp99,999,000,000 and
+  // used to reach the database as-is: a 500 raised AFTER the return that queued it was written.
+  it('caps an amount the column cannot hold instead of failing, and still queues it for a human', async () => {
+    const huge = await raise(99_999_000_000);
+    expect(huge.amountIdr).toBe(2_147_483_647);
+    expect(huge.status).toBe(ApprovalStatus.PENDING);
+
+    const hugeLoss = await raise(-99_999_000_000);
+    expect(hugeLoss.amountIdr).toBe(-2_147_483_647);
+    expect(hugeLoss.status).toBe(ApprovalStatus.PENDING);
+  });
+
   it('auto-passes (APPROVED) a value at or under the threshold', async () => {
     const under = await raise(-80_000);
     expect(under.status).toBe(ApprovalStatus.APPROVED);
