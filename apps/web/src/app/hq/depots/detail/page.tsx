@@ -181,7 +181,7 @@ export default function HqDepotDetailPage() {
       {/* All four fall back to a dash together, which reads as a depot with no trade
           rather than as four numbers nobody could fetch. */}
       {rollup.error && <LoadError onRetry={rollup.reload} />}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={t('hq.depotDetail.kpi.revenue')}
           value={
@@ -204,7 +204,9 @@ export default function HqDepotDetailPage() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* grid-cols-1, not the implicit auto column: a grid item defaults to min-width:auto, so the
+          cards counted their widest row and pushed the page 114px past a 320px screen. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Coverage & configuration */}
         <Card className="flex flex-col gap-3 p-5">
           <h2 className="flex items-center gap-2 font-semibold">
