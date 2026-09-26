@@ -75,7 +75,12 @@ export class SupplierController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Supplier> {
     assertDepotAccess(user, (await this.suppliers.get(id)).depotId);
-    return this.suppliers.update(id, dto, dto.seenUpdatedAt);
+    // `seenUpdatedAt` is the version the client read, a token for the freshness check and not a column:
+    // it has to stop here. Forwarded with the rest of the patch it reached Prisma as an unknown field
+    // ("Unknown argument `seenUpdatedAt`") and the save answered 500 — for every console form that
+    // sends the stamp, which is what CA-2-53 made them all do.
+    const { seenUpdatedAt, ...patch } = dto;
+    return this.suppliers.update(id, patch, seenUpdatedAt);
   }
 
   /*
