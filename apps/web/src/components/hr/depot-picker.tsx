@@ -41,13 +41,13 @@ export function HrDepotPicker({
   if (!controlled && depots.length <= 1) return null;
 
   return (
-    <label className="flex items-center gap-2 text-sm">
+    <label className="flex min-w-0 max-w-full items-center gap-2 text-sm">
       <span className="text-muted">{label ?? t('hrFix.depotPicker.depot')}</span>
       <select
         value={controlled ? (value ?? '') : (scopedId ?? '')}
         onChange={(e) => (controlled ? onChange(e.target.value) : setSelected(e.target.value))}
         aria-label={t('hrFix.depotPicker.aria')}
-        className="surface-elevated rounded-lg border border-app px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+        className="surface-elevated min-w-0 max-w-full rounded-lg border border-app px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
       >
         {includeEmpty !== undefined && <option value="">{includeEmpty}</option>}
         {depots.map((d) => (

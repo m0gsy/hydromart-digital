@@ -143,7 +143,7 @@ export default function ForecastModelsPage() {
                   {t('hq.forecastModels.effective')}: {String(data.effective[d.key] ?? '—')}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* The definition's own label is the name of this control — no dictionary
                     key can say it better, and it is already on screen above. */}
                 <select
