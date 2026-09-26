@@ -53,6 +53,8 @@ jobs:
       # The stack the orchestrator boots is docker-compose.test.yml; the harness defaults
       # to the dev secret, so it has to be told which one it is talking to.
       JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
+      # Same reason: M6-11 signs a payment webhook, and the test stack's secret is not the dev default.
+      PAYMENT_WEBHOOK_SECRET: itest-webhook-secret-min-16-chars
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 

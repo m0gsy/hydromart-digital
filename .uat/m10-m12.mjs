@@ -83,7 +83,7 @@ export async function run(ctx) {
     if (!hrUp) return blocked('hr-service not reachable');
     const fresh = await api('POST', EMP, {
       token: ctx.hr,
-      body: { fullName: 'Tanpa Absen', phone: phone(), position: 'Kasir', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
+      body: { fullName: 'Tanpa Absen', phone: phone(), position: 'Kasir', role: 'STAFF_DEPOT', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
     });
     if (fresh.status >= 400) return blocked(`could not create employee: HTTP ${fresh.status}`);
     const r = await api('POST', `${HR}/attendance/check-out`, { token: ctx.hr, body: { image: TINY_JPEG, live: true } });
@@ -94,7 +94,7 @@ export async function run(ctx) {
     if (!hrUp) return blocked('hr-service not reachable');
     const fresh = await api('POST', EMP, {
       token: ctx.hr,
-      body: { fullName: 'Jauh Geofence', phone: phone(), position: 'Kasir', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
+      body: { fullName: 'Jauh Geofence', phone: phone(), position: 'Kasir', role: 'STAFF_DEPOT', depotId: depot.id, employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 90000, joinDate: '2026-01-06T00:00:00.000Z' },
     });
     if (fresh.status >= 400) return blocked(`could not create employee: HTTP ${fresh.status}`);
     const r = await api('POST', `${HR}/attendance/check-in`, { token: ctx.hr, body: { image: TINY_JPEG, live: true } });

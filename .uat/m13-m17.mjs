@@ -312,7 +312,7 @@ export async function run(ctx) {
     const inBelow = (Array.isArray(below.body) ? below.body : below.body?.items ?? []).some((x) => x.id === item.id);
     return inBelow
       ? pass(`qty 10 (== minimum) listed=${inAt}; qty 9 listed=${inBelow} — ambang ${inAt ? 'inklusif' : 'eksklusif'}, konfirmasikan ke pemilik proses`)
-      : fail(`qty 9 below minimum 10 but not listed as low stock`);
+      : fail(`qty 9 below minimum 10 but not listed as low stock (low-stock HTTP ${below.status}, ${(Array.isArray(below.body) ? below.body : below.body?.items ?? []).length} rows; item now ${JSON.stringify((await api('GET', `${itemApi}/${item.id}`, { token: ctx.operator })).body).slice(0, 200)})`);
   });
 
   await check('UAT-M16-06', async () => {
@@ -628,13 +628,13 @@ export async function run(ctx) {
     const c = await api('POST', `${D}/order-disputes`, { token: ctx.operator, body: { depotId: depot.id, orderRef: ctx.orderA?.orderNumber ?? 'HM-UAT', customerName: 'Budi Santoso', category: 'QUALITY', description: 'Galon kotor' } });
     if (c.status >= 400) return fail(`create HTTP ${c.status} ${JSON.stringify(c.body)}`);
     ctx.dispute = c.body;
-    const r = await api('PATCH', `${D}/order-disputes/${c.body.id}/resolve`, { token: ctx.manager, body: { resolution: 'REFUND', resolutionNote: 'Ganti galon baru' } });
+    const r = await api('PATCH', `${D}/order-disputes/${c.body.id}/resolve`, { token: ctx.manager, body: { resolution: 'RESEND', resolutionNote: 'Ganti galon baru' } });
     return r.status < 400 ? pass(`dispute created then resolved (HTTP ${r.status}); status=${r.body?.status}`) : fail(`resolve HTTP ${r.status} ${JSON.stringify(r.body)}`);
   });
 
   await check('UAT-M17-14', async () => {
     if (!ctx.dispute?.id) return blocked('no dispute');
-    const r = await api('PATCH', `${D}/order-disputes/${ctx.dispute.id}/resolve`, { token: ctx.manager, body: { resolution: 'REFUND', resolutionNote: 'lagi' } });
+    const r = await api('PATCH', `${D}/order-disputes/${ctx.dispute.id}/resolve`, { token: ctx.manager, body: { resolution: 'RESEND', resolutionNote: 'lagi' } });
     const s = JSON.stringify(r.body);
     return r.status >= 400 && /ALREADY_RESOLVED|resolved/i.test(s) ? pass(`HTTP ${r.status} ${s}`) : fail(`HTTP ${r.status} ${s}`);
   });

@@ -106,7 +106,7 @@ export async function run(ctx) {
 
   await check('UAT-M18-03', async () => {
     if (!ctx.tier?.id) return blocked('no tier');
-    const upd = await api('PATCH', `${D}/wholesale-tiers/${ctx.tier.id}`, { token: ctx.manager, body: { priceIdr: 6000 } });
+    const upd = await api('PATCH', `${D}/wholesale-tiers/${ctx.tier.id}`, { token: ctx.manager, body: { priceIdr: 6000, updatedAt: ctx.tier.updatedAt } });
     const del = await api('DELETE', `${D}/wholesale-tiers/${ctx.tier.id}`, { token: ctx.manager });
     return upd.status < 400 && del.status < 400 ? pass(`update HTTP ${upd.status}; delete HTTP ${del.status}`) : fail(`update HTTP ${upd.status} ${JSON.stringify(upd.body)}; delete HTTP ${del.status}`);
   });
@@ -351,7 +351,7 @@ export async function run(ctx) {
   await check('UAT-M20-02', async () => {
     const bal = await api('GET', `${PAYOUT}/courier/earnings/summary`, { token: ctx.driverA });
     const available = bal.body?.availableBalance ?? bal.body?.availableIdr ?? bal.body?.balanceIdr ?? 0;
-    const r = await api('POST', `${PAYOUT}/courier/withdrawals`, { token: ctx.driverA, body: { amount: Math.max(1, Math.floor(available / 2)), bankAccountRef: 'BCA-1234567890' } });
+    const r = await api('POST', `${PAYOUT}/courier/withdrawals`, { token: ctx.driverA, body: { amount: Math.max(1, Math.floor(available / 2)) } });
     ctx.withdrawal = r.body;
     return available > 0
       ? (r.status < 400 ? pass(`HTTP ${r.status}; withdrawal ${JSON.stringify(r.body).slice(0, 180)}`) : fail(`HTTP ${r.status} ${JSON.stringify(r.body)}`))

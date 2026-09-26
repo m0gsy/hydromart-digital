@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { api, mintToken, record, results, save, loginPhone } from './lib.mjs';
-import { seedQueues, seedPoints } from './seed-queues.mjs';
+import { seedQueues, seedPoints, seedRewards } from './seed-queues.mjs';
 
 /*
  * `fileURLToPath`, not a hand-rolled strip of the leading slash.
@@ -226,6 +226,7 @@ await refreshCustomerIds();
 // settlements, fraud flags, …). Without this a third of the sweep reads an empty list and
 // records Blocked for something that was never a product defect.
 await seedQueues(ctx);
+await seedRewards(ctx);
 // UAT_SEED_ONLY=1 checks the provisioning by itself without paying for a full sweep.
 if (process.env.UAT_SEED_ONLY) process.exit(0);
 

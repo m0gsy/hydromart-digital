@@ -285,7 +285,7 @@ export async function run(ctx) {
     const code = `E2E-${uniq().slice(0, 4).toUpperCase()}`;
     const depotNew = await api('POST', `${D}/depots`, {
       token: ctx.admin,
-      body: { code, name: 'Depot Waralaba E2E', ownershipType: 'WARALABA', address: 'Jl. E2E 1', city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, serviceRadiusKm: 7, deliveryFee: 1000, minOrderAmount: 15000 },
+      body: { code, name: 'Depot Waralaba E2E', ownershipType: 'WARALABA', ownerId: ctx.franchiseOwnerId ?? '33333333-0000-4000-a000-000000000001', address: 'Jl. E2E 1', city: 'Bekasi', province: 'Jawa Barat', lat: -6.2383, lng: 106.9756, serviceRadiusKm: 7, deliveryFee: 1000, minOrderAmount: 15000 },
     });
     let stock = { status: 'n/a' };
     if (depotNew.status < 400) {

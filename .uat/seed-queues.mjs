@@ -47,8 +47,10 @@ export async function seedQueues(ctx) {
     ['DEPOSIT_REFUND', 'Refund deposit galon pelanggan'],
     ['COD_VARIANCE', 'Selisih setoran COD kurir'],
   ]) {
+    // Filed by SUPER_ADMIN, decided by the manager: the person who raises an item may not decide it
+    // (APPROVAL_SELF_DECIDE), so seeding it as the manager made M8-04 and M8-12 refuse their own item.
     const r = await api('POST', `${D}/approvals`, {
-      token: ctx.manager,
+      token: ctx.admin,
       body: { depotId: depot.id, type, title, subjectRef: 'UAT seed', amountIdr: APPROVAL_AMOUNT, payload: { seededBy: 'uat' } },
     });
     if (r.status < 400 && r.body?.status === 'PENDING') approvals += 1;
@@ -143,13 +145,17 @@ export async function seedQueues(ctx) {
   if (shiftA.status >= 400 && shiftA.status !== 409) notes.push(`driver A check-in HTTP ${shiftA.status} ${JSON.stringify(shiftA.body).slice(0, 120)}`);
   ctx.driverAShift = shiftA.body?.id ? shiftA.body : (await api('GET', `${DEL}/driver/shifts/current`, { token: ctx.driverA })).body;
 
+  // TWO settlements, because M20-06 verifies one and M20-07 disputes one, and a settlement that has been
+  // verified can no longer be disputed (SETTLEMENT_NOT_SUBMITTED). One seeded row made the second case fall
+  // back to a row that was already resolved.
   let settlement = { status: 0 };
-  const shiftB = await checkIn(ctx.driverB);
-  const shiftBId = shiftB.body?.id ?? (await api('GET', `${DEL}/driver/shifts/current`, { token: ctx.driverB })).body?.id;
-  if (shiftBId) {
+  for (let round = 0; round < 2; round += 1) {
+    const shiftB = await checkIn(ctx.driverB);
+    const shiftBId = shiftB.body?.id ?? (await api('GET', `${DEL}/driver/shifts/current`, { token: ctx.driverB })).body?.id;
+    if (!shiftBId) continue;
     await api('POST', `${DEL}/driver/shifts/${shiftBId}/check-out`, { token: ctx.driverB, body: at });
     settlement = await api('POST', `${DEL}/driver/settlement`, { token: ctx.driverB, body: { shiftId: shiftBId, depositedAmount: 0 } });
-    if (settlement.status >= 400) notes.push(`settlement seed HTTP ${settlement.status} ${JSON.stringify(settlement.body).slice(0, 120)}`);
+    if (settlement.status >= 400) notes.push(`settlement seed ${round + 1} HTTP ${settlement.status} ${JSON.stringify(settlement.body).slice(0, 120)}`);
   }
 
   // -------------------------------------------------- SQL-only seeds
@@ -197,6 +203,21 @@ export async function seedQueues(ctx) {
  * where customer A is registered. M9-12 needs a balance that affords exactly one of the
  * cheapest reward and not two, so read the catalogue instead of guessing a number.
  */
+export async function seedRewards(ctx) {
+  // A fresh database has an empty reward catalog, so four M9 cases reported "catalog empty". One reward
+  // per shape a case needs: affordable (M9-02, M9-12 — 500 fits under a 1250 balance once and again
+  // under the 750 left), out of reach (M9-07), and out of stock (M9-08).
+  const items = [
+    { name: 'Voucher Belanja Rp10.000', unit: 'potongan belanja', pointsCost: 500, stock: 500 },
+    { name: 'Kulkas Mini UAT', unit: '1 unit', pointsCost: 50000, stock: 10 },
+    { name: 'Tumbler Edisi Terbatas', unit: '1 buah', pointsCost: 300, stock: 0 },
+  ];
+  for (const item of items) {
+    const r = await api('POST', `${L}/rewards/items`, { token: ctx.admin, body: item });
+    if (r.status >= 400) console.log(`  WARN reward seed "${item.name}" HTTP ${r.status} ${JSON.stringify(r.body).slice(0, 140)}`);
+  }
+}
+
 export async function seedPoints(ctx) {
   if (!ctx.customerAId) return;
   const cat = await api('GET', `${L}/rewards/catalog`);
