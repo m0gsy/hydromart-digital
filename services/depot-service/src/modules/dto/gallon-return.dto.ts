@@ -17,6 +17,9 @@ import {
 
 import { GallonCondition } from '../../domain/gallon-return';
 
+/** Most empties one return record may carry. */
+export const MAX_GALLONS_PER_RETURN = 10_000;
+
 export class CreateGallonReturnDto {
   @ApiPropertyOptional({
     format: 'uuid',
@@ -30,6 +33,9 @@ export class CreateGallonReturnDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  // One record is one handover, and a truck carries a few hundred. Unbounded, a typo (or a hostile
+  // 100000) was accepted, booked in the ledger and then failed on the approval it queued.
+  @Max(MAX_GALLONS_PER_RETURN)
   quantity!: number;
 
   @ApiPropertyOptional({ enum: GallonCondition, default: GallonCondition.GOOD })
@@ -70,6 +76,9 @@ export class CreateCourierReturnDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  // One record is one handover, and a truck carries a few hundred. Unbounded, a typo (or a hostile
+  // 100000) was accepted, booked in the ledger and then failed on the approval it queued.
+  @Max(MAX_GALLONS_PER_RETURN)
   quantity!: number;
 
   @ApiPropertyOptional({ enum: GallonCondition, default: GallonCondition.GOOD })

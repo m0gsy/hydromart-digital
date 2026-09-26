@@ -5,6 +5,7 @@ import { UsersThree } from '@phosphor-icons/react';
 import { Card, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { ReferralSummary } from '@/lib/types';
@@ -21,7 +22,25 @@ import type { ReferralSummary } from '@/lib/types';
  * only renderable with half a dozen contexts in place and this card is not — and a card
  * about money that cannot be tested is a card nobody can change safely.
  */
-export function CustomerReferralCard({ customerId }: { customerId: string }) {
+export function CustomerReferralCard({
+  customerId,
+  role,
+}: {
+  customerId: string;
+  role: string | null | undefined;
+}) {
+  /*
+   * Nothing at all for a role that may not read it. The endpoint is `loyaltyRead`, which a depot
+   * head does not hold: their card asked anyway, got a 403, and drew "could not load" under a page
+   * that had loaded fine — an error for something they were never meant to see, and a failed
+   * request on every customer they opened. It is a separate component from the body so the read
+   * below is never even started for them (hooks cannot sit behind an early return).
+   */
+  if (!can('loyaltyRead', role)) return null;
+  return <ReferralBody customerId={customerId} />;
+}
+
+function ReferralBody({ customerId }: { customerId: string }) {
   const { t } = useT();
   /*
    * Fail-soft to null, like the reseller read on the same screen. A referral card that

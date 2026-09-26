@@ -86,8 +86,9 @@ const HQ = R(`
 /hq/webhooks /hq/wizard /hq/access/landing
 `);
 
-// The 70 `/dashboard` pages the ops binary actually ships (counted off
-// apps/web/mobile-out-ops, not from memory). The three `*/detail` routes are new here.
+// The `/dashboard` pages the ops binary actually ships (counted off apps/web/mobile-out-ops, not
+// from memory). Every entry needs a page.tsx: `/dashboard/products` and `/dashboard/promotions/detail`
+// were listed without one, answered 404 on every run, and read as broken screens in the report.
 const OPS = R(`
 /dashboard /dashboard/account /dashboard/approvals /dashboard/approvals/detail
 /dashboard/audit /dashboard/broadcast /dashboard/campaigns /dashboard/cashbook
@@ -100,8 +101,8 @@ const OPS = R(`
 /dashboard/monthly-review /dashboard/notifications /dashboard/onboarding
 /dashboard/operator-settings /dashboard/orders /dashboard/payment-recon
 /dashboard/payments /dashboard/payout /dashboard/pricing /dashboard/pricing/import
-/dashboard/products /dashboard/products/manage /dashboard/profile /dashboard/promotions
-/dashboard/promotions/detail /dashboard/purchase-orders /dashboard/purchase-orders/detail
+/dashboard/products/manage /dashboard/profile /dashboard/promotions
+/dashboard/purchase-orders /dashboard/purchase-orders/detail
 /dashboard/ratings /dashboard/recommendations /dashboard/redemptions /dashboard/referral
 /dashboard/reports /dashboard/resellers/import /dashboard/returns /dashboard/roles
 /dashboard/search /dashboard/settings /dashboard/settlements /dashboard/shift
@@ -174,7 +175,6 @@ const ID_SOURCE = {
   '/dashboard/approvals/detail': '/dashboard/approvals',
   '/dashboard/customers/detail': '/dashboard/customers',
   '/dashboard/purchase-orders/detail': '/dashboard/purchase-orders',
-  '/dashboard/promotions/detail': '/dashboard/promotions',
 };
 
 /** The five widths this app is actually held at. Height matters only for the fold. */

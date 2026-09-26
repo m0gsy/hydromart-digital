@@ -27,10 +27,21 @@ const REFERRAL = {
 beforeEach(() => get.mockReset().mockResolvedValue(REFERRAL));
 afterEach(() => vi.clearAllMocks());
 
-const show = (id = 'cust-1') =>
-  render(<CustomerReferralCard customerId={id} />, { wrapper: LocaleProvider });
+const show = (id = 'cust-1', role = 'MANAGER') =>
+  render(<CustomerReferralCard customerId={id} role={role} />, { wrapper: LocaleProvider });
 
 describe('CustomerReferralCard', () => {
+  /*
+   * `loyaltyRead` is MANAGER, HEAD_OFFICE, MARKETING — not the depot head. A KEPALA_DEPOT opening a
+   * customer used to fire the read, take a 403 and see "could not load" on a page that had loaded
+   * fine. The browser pass caught it as a failed request on /dashboard/customers/detail.
+   */
+  it('draws nothing and asks for nothing when the role cannot read it', () => {
+    const { container } = show('cust-1', 'KEPALA_DEPOT');
+    expect(container.textContent).toBe('');
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it('reads THIS customer’s referrals, not the depot rollup', async () => {
     show();
     expect(await screen.findByText('BUDI1234')).toBeTruthy();
