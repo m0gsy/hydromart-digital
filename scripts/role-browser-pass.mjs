@@ -50,8 +50,8 @@ const BASE = process.env.BASE ?? 'http://localhost:3000';
 const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml'];
 const e164 = (phone) => (phone.startsWith('0') ? `+62${phone.slice(1)}` : phone);
 
-function readLoginOtp(phone) {
-  const marker = `LOGIN code for ${e164(phone)}:`;
+function readOtp(phone, purpose) {
+  const marker = `${purpose} code for ${e164(phone)}:`;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const r = spawnSync('docker', ['compose', ...COMPOSE_FILES, 'logs', '--no-log-prefix', 'auth'], {
       encoding: 'utf8',
@@ -68,7 +68,39 @@ function readLoginOtp(phone) {
     // login page is already waiting for us.
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
-  throw new Error(`no LOGIN OTP in the auth log for ${phone} — is the console channel on?`);
+  throw new Error(`no ${purpose} OTP in the auth log for ${phone} — is the console channel on?`);
+}
+const readLoginOtp = (phone) => readOtp(phone, 'LOGIN');
+
+/*
+ * A customer has to EXIST before the login page can send them a code.
+ *
+ * `login` answers 200 for a number nobody registered — on purpose, so the endpoint cannot be used to
+ * find out who is a customer — and sends nothing. The customer pass asked for a LOGIN code for a
+ * number that was never registered, waited ten seconds for a log line that could not come, and died on
+ * "no LOGIN OTP in the auth log". It has done that on every run since that change, and the step is
+ * continue-on-error, so the UAT job read green while the 28 pages of the shop — the entire customer
+ * binary — went unmeasured.
+ *
+ * So register the number first, the way a person would: request a REGISTRATION code, read it from the
+ * log, verify it. A number that is already registered answers 4xx to `register` and is left alone.
+ */
+async function ensureCustomer(phone) {
+  const gateway = process.env.GATEWAY_URL ?? 'http://localhost:8080';
+  const post = (path, body) =>
+    fetch(`${gateway}/auth/api/v1/auth/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const registered = await post('register', { phone: e164(phone), fullName: 'Sweep Customer' });
+  if (!registered.ok) return;
+  const verified = await post('otp/verify', {
+    phone: e164(phone),
+    code: readOtp(phone, 'REGISTRATION'),
+    purpose: 'REGISTRATION',
+  });
+  if (!verified.ok) throw new Error(`could not register the sweep customer ${phone}: HTTP ${verified.status}`);
 }
 
 const R = (list) => list.trim().split(/\s+/);
@@ -547,6 +579,7 @@ await page
   .first()
   .click({ timeout: 2500 })
   .catch(() => {});
+if (roleName === 'customer') await ensureCustomer(role.phone);
 const local = role.phone.replace('+62', '');
 await page.fill('input#phone', local);
 await page.locator('form button[type=submit]').first().click();
