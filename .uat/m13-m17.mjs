@@ -303,16 +303,16 @@ export async function run(ctx) {
   await check('UAT-M16-13', async () => {
     const item = ctx.invRow;
     if (!item) return blocked('no inventory row');
-    await api('PATCH', `${itemApi}/${item.id}`, { token: ctx.operator, body: { minimumStock: 10 } });
-    await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 10 } });
+    const setMin = await api('PATCH', `${itemApi}/${item.id}`, { token: ctx.operator, body: { minimumStock: 10 } });
+    const count10 = await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 10 } });
     const at = await api('GET', `${itemApi}/low-stock?depotId=${depot.id}`, { token: ctx.operator });
     const inAt = (Array.isArray(at.body) ? at.body : at.body?.items ?? []).some((x) => x.id === item.id);
-    await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 9 } });
+    const count9 = await api('POST', `${inv}/${item.id}/opname`, { token: ctx.operator, body: { countedQuantity: 9 } });
     const below = await api('GET', `${itemApi}/low-stock?depotId=${depot.id}`, { token: ctx.operator });
     const inBelow = (Array.isArray(below.body) ? below.body : below.body?.items ?? []).some((x) => x.id === item.id);
     return inBelow
       ? pass(`qty 10 (== minimum) listed=${inAt}; qty 9 listed=${inBelow} — ambang ${inAt ? 'inklusif' : 'eksklusif'}, konfirmasikan ke pemilik proses`)
-      : fail(`qty 9 below minimum 10 but not listed as low stock (low-stock HTTP ${below.status}, ${(Array.isArray(below.body) ? below.body : below.body?.items ?? []).length} rows; item now ${JSON.stringify((await api('GET', `${itemApi}/${item.id}`, { token: ctx.operator })).body).slice(0, 200)})`);
+      : fail(`qty 9 below minimum 10 but not listed as low stock (set minimum HTTP ${setMin.status} ${JSON.stringify(setMin.body).slice(0, 90)}; opname 10 HTTP ${count10.status}; opname 9 HTTP ${count9.status} ${JSON.stringify(count9.body).slice(0, 120)}; low-stock HTTP ${below.status}, ${(Array.isArray(below.body) ? below.body : below.body?.items ?? []).length} rows; item now ${JSON.stringify((await api('GET', `${itemApi}/${item.id}`, { token: ctx.operator })).body).slice(0, 200)})`);
   });
 
   await check('UAT-M16-06', async () => {
@@ -455,7 +455,7 @@ export async function run(ctx) {
     const paid = (await api('GET', `${PAY}/${p.body?.id}`, { token: A })).body?.status;
     return paid === 'PAID' && settle.status < 400
       ? pass(`cash ${total}+10000 => PAID (change handled); settlement HTTP ${settle.status}; reconciliation HTTP ${recon.status} ${JSON.stringify(recon.body).slice(0, 140)}`)
-      : fail(`cash confirm HTTP ${cash.status} ${JSON.stringify(cash.body)}; payment=${paid}; settlement HTTP ${settle.status}`);
+      : fail(`settlement HTTP ${settle.status} ${JSON.stringify(settle.body).slice(0, 220)}; payment=${paid}; cash confirm HTTP ${cash.status}; shift ${shiftB?.id ?? 'none'}`);
   });
 
   await check('UAT-M14-03', async () => {

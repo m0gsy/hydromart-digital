@@ -106,7 +106,7 @@ export async function run(ctx) {
 
   await check('UAT-M18-03', async () => {
     if (!ctx.tier?.id) return blocked('no tier');
-    const upd = await api('PATCH', `${D}/wholesale-tiers/${ctx.tier.id}`, { token: ctx.manager, body: { priceIdr: 6000, updatedAt: ctx.tier.updatedAt } });
+    const upd = await api('PATCH', `${D}/wholesale-tiers/${ctx.tier.id}`, { token: ctx.manager, body: { priceIdr: 6000, seenUpdatedAt: ctx.tier.updatedAt } });
     const del = await api('DELETE', `${D}/wholesale-tiers/${ctx.tier.id}`, { token: ctx.manager });
     return upd.status < 400 && del.status < 400 ? pass(`update HTTP ${upd.status}; delete HTTP ${del.status}`) : fail(`update HTTP ${upd.status} ${JSON.stringify(upd.body)}; delete HTTP ${del.status}`);
   });
@@ -351,6 +351,10 @@ export async function run(ctx) {
   await check('UAT-M20-02', async () => {
     const bal = await api('GET', `${PAYOUT}/courier/earnings/summary`, { token: ctx.driverA });
     const available = bal.body?.availableBalance ?? bal.body?.availableIdr ?? bal.body?.balanceIdr ?? 0;
+    // A withdrawal goes to a destination the courier registered and head office verified (PYO-3, PYO-5);
+    // without one it is PAYOUT_DESTINATION_NOT_VERIFIED. Register as the courier, verify as finance.
+    const acct = await api('PUT', `${PAYOUT}/bank-account`, { token: ctx.driverA, body: { bankName: 'BCA', accountNumber: '1234567890', accountHolder: 'Kurir UAT' } });
+    if (acct.body?.id) await api('POST', `${PAYOUT}/payout/hq/bank-accounts/${acct.body.id}/verify`, { token: ctx.finance, body: {} });
     const r = await api('POST', `${PAYOUT}/courier/withdrawals`, { token: ctx.driverA, body: { amount: Math.max(1, Math.floor(available / 2)) } });
     ctx.withdrawal = r.body;
     return available > 0

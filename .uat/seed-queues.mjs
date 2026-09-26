@@ -189,7 +189,7 @@ export async function seedQueues(ctx) {
   // payout revenue/internal) fill the HQ release queue during the sweep.
   const ownerId = ctx.franchiseOwnerSeedId ?? '33333333-0000-4000-a000-000000000001';
   // `updatedAt` because a depot write is refused without the version it was read at (CA-2-53).
-  const owner = await api('PATCH', `${D}/depots/${depot.id}`, { token: ctx.admin, body: { ownerId, updatedAt: depot.updatedAt } });
+  const owner = await api('PATCH', `${D}/depots/${depot.id}`, { token: ctx.admin, body: { ownerId, seenUpdatedAt: depot.updatedAt } });
   if (owner.status >= 400) notes.push(`depot owner seed HTTP ${owner.status} ${JSON.stringify(owner.body).slice(0, 120)}`);
   else ctx.franchiseOwnerId = ownerId;
 
