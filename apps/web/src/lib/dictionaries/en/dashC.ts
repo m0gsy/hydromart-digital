@@ -154,6 +154,7 @@ export const dashC = {
       driverRoster: 'Courier roster',
       opsNotif: 'Operational notifications',
       tracking: 'Tracking & dispatch',
+      trackingRead: 'View courier roster & location',
       forecast: 'Planning / forecast',
       churn: 'Churn & re-engagement',
       paymentSettle: 'Payment confirmation',

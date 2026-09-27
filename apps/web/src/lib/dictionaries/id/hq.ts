@@ -261,6 +261,7 @@ export const hq = {
       driverRoster: 'Roster driver',
       opsNotif: 'Notifikasi ops',
       tracking: 'Live tracking & dispatch',
+      trackingRead: 'Lihat roster & posisi kurir',
       forecast: 'Perkiraan permintaan',
       churn: 'Risiko churn',
       paymentSettle: 'Konfirmasi pembayaran',

@@ -16,10 +16,19 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, toast } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), toast: vi.fn() }));
+const { get, post, toast, role } = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  toast: vi.fn(),
+  // Mutable so a later describe block can sign in as someone other than SUPER_ADMIN.
+  role: { current: 'SUPER_ADMIN' },
+}));
 
 vi.mock('@/lib/api', () => ({ api: { get, post }, ApiError: class extends Error {} }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'u1', role: role.current, fullName: 'Staf', phone: '81100000001' }, ready: true, signOut: vi.fn() }),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/hq/health',
@@ -102,6 +111,7 @@ const SWEEPS = [
 ];
 
 beforeEach(() => {
+  role.current = 'SUPER_ADMIN';
   toast.mockReset();
   post.mockReset().mockResolvedValue({ delivered: 4, failed: 1, ingested: 120 });
   get.mockReset().mockImplementation((path: string) => {
@@ -208,5 +218,31 @@ describe('/hq/health · the scheduled sweeps (CA-5-01)', () => {
     open();
     // 2 of 4: NEVER_RAN and FAILING. OK and DORMANT are not problems.
     expect(await screen.findByText('2 dari 4 sapuan bermasalah')).toBeTruthy();
+  });
+});
+
+/*
+ * The outbox gauge and the backfills are SUPER_ADMIN-only on the server
+ * (`@Roles(Role.SUPER_ADMIN)`, not a CAPABILITIES entry). HEAD_OFFICE and DIREKTUR open this
+ * page to check the network's health and both cards fired a 403 for them — a repair tool
+ * nobody but the platform owner may use, drawn as a broken panel to two roles who were
+ * never meant to see it. Found by the role browser pass once it signed in as HEAD_OFFICE.
+ */
+describe('/hq/health · the outbox gauge and backfills are SUPER_ADMIN only', () => {
+  it.each(['HEAD_OFFICE', 'DIREKTUR'])('draws neither card for %s, and asks the server for neither', async (r) => {
+    role.current = r;
+    open();
+    expect(await screen.findByText('order')).toBeTruthy(); // the page itself still renders
+    expect(screen.queryByText('Tiriskan sekarang')).toBeNull();
+    expect(screen.queryByText(/Bangun ulang/)).toBeNull();
+    await waitFor(() => {
+      expect(get.mock.calls.some((c) => String(c[0]).includes('/outbox/pending'))).toBe(false);
+    });
+  });
+
+  it('still draws both cards for SUPER_ADMIN', async () => {
+    open();
+    expect(await screen.findByRole('button', { name: 'Tiriskan sekarang' })).toBeTruthy();
+    expect((await screen.findAllByRole('button', { name: /Bangun ulang/ })).length).toBe(2);
   });
 });

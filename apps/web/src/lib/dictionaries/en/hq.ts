@@ -258,6 +258,7 @@ export const hq = {
       driverRoster: 'Driver roster',
       opsNotif: 'Ops notifications',
       tracking: 'Live tracking & dispatch',
+      trackingRead: 'View courier roster & location',
       forecast: 'Demand forecast',
       churn: 'Churn risk',
       paymentSettle: 'Confirm payment',

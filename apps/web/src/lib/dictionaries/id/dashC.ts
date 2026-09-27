@@ -156,6 +156,7 @@ export const dashC = {
       driverRoster: 'Roster kurir',
       opsNotif: 'Notifikasi operasional',
       tracking: 'Pelacakan & dispatch',
+      trackingRead: 'Lihat roster & posisi kurir',
       forecast: 'Perencanaan / forecast',
       churn: 'Churn & re-engagement',
       paymentSettle: 'Konfirmasi pembayaran',

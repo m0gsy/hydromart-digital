@@ -15,7 +15,9 @@ import { ShiftResponseDto } from './dto/responses.generated.dto';
 export class ShiftController {
   constructor(private readonly shifts: ShiftService) {}
 
+  // `trackingRead`, not the class's `tracking` — see delivery.controller.ts's list() for why.
   @ApiOkResponse({ type: ShiftResponseDto, isArray: true })
+  @Can('trackingRead')
   @Get()
   @ApiOperation({ summary: 'List courier shifts at a depot over a window' })
   list(

@@ -164,8 +164,31 @@ export const CAPABILITIES = {
     'DIREKTUR',
     'SUPER_ADMIN',
   ],
-  // delivery-service — dispatch (live tracking + courier assignment).
+  // delivery-service — dispatch (live tracking + courier assignment: create/release/cancel a
+  // delivery). Depot-floor and oversight roles only — HEAD_OFFICE and DIREKTUR read the same
+  // data through `trackingRead` below, not this one, so widening the roster's READ never
+  // hands the network office the power to create or cancel a delivery.
   tracking: ['KEPALA_DEPOT', 'MANAGER', 'SUPERVISOR', 'ASSISTANT_SUPERVISOR', 'SUPER_ADMIN'],
+  /*
+   * delivery-service — read-only half of `tracking`: the active-deliveries list and the
+   * on-shift roster (`GET /deliveries`, `GET /shifts`), for `/hq/roster`.
+   *
+   * HEAD_OFFICE and DIREKTUR open that screen to check who is working right now, and both
+   * calls 403'd for them — `tracking` never named them, on purpose, because it also gates
+   * assigning and cancelling a delivery, which is a depot-floor decision. A second
+   * capability, method-level-overriding `tracking` on just the two GET routes, is what lets
+   * the network office read the roster without picking up the write power that guards the
+   * rest of the controller.
+   */
+  trackingRead: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // forecast-service — planning queries.
   forecast: [
     'KEPALA_DEPOT',
@@ -192,8 +215,10 @@ export const CAPABILITIES = {
    *
    * Split rather than widened, the same shape as `depotBroadcastRead`: whoever may settle
    * may read, the roles that already see the order may read, and nobody gains the power to
-   * settle by being able to look. DIREKTUR is here for the same reason `depotFinance`
-   * carries them — they read money, they do not move it.
+   * settle by being able to look. DIREKTUR and HEAD_OFFICE are here for the same reason
+   * `depotFinance` carries them — they read money, they do not move it. HEAD_OFFICE was
+   * missing until the /hq order-detail and invoice-template screens (built for them) were
+   * found 403'ing on this exact read.
    */
   paymentRead: [
     'KEPALA_DEPOT',
@@ -202,6 +227,7 @@ export const CAPABILITIES = {
     'FINANCE',
     'SUPERVISOR',
     'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
     'DIREKTUR',
     'SUPER_ADMIN',
   ],
@@ -529,8 +555,10 @@ export const CAPABILITIES = {
   orderReports: ['HEAD_OFFICE', 'MANAGER', 'DIREKTUR', 'SUPER_ADMIN'],
   // order-service — the same reports scoped to one depot, which a depot head may read.
   orderReportsDepot: ['HEAD_OFFICE', 'MANAGER', 'SUPER_ADMIN', 'KEPALA_DEPOT'],
-  // order-service — audience-size reads behind the broadcast composer.
-  audienceReach: ['HEAD_OFFICE', 'SUPER_ADMIN', 'MARKETING'],
+  // order-service — audience-size reads behind the broadcast composer. Read-only (a count),
+  // so DIREKTUR reads it for the same reason they read `orderReports` above: the company's
+  // own numbers, not a marketing action — /hq/campaigns 403'd this for them until now.
+  audienceReach: ['HEAD_OFFICE', 'SUPER_ADMIN', 'MARKETING', 'DIREKTUR'],
   // payment-service — the depot tax rate a receipt is printed with.
   taxSettings: ['HEAD_OFFICE', 'SUPER_ADMIN', 'FINANCE'],
   // loyalty-service — hand-adjust a customer's points balance. Money-adjacent.

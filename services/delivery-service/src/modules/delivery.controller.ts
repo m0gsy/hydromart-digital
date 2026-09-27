@@ -107,7 +107,10 @@ export class DeliveryController {
     return this.deliveries.cancelByStaff(user, id, dto.reason, authorization);
   }
 
+  // `trackingRead`, not the class's `tracking`: HEAD_OFFICE and DIREKTUR read the roster
+  // (/hq/roster) without picking up the write power `tracking` also guards on this controller.
   @ApiOkResponse({ type: PagedDeliveryResponseDto })
+  @Can('trackingRead')
   @Get()
   @ApiOperation({ summary: 'List all deliveries (staff), optionally filtered by status' })
   list(
