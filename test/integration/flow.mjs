@@ -987,10 +987,64 @@ async function deliveryLeg(staff) {
   );
 }
 
+/*
+ * A console edit carries the version it read (`seenUpdatedAt`, CA-2-53) and the server refuses a save
+ * whose stamp is stale. What was not covered anywhere is the happy path against a REAL database: the
+ * controllers forwarded the stamp on with the rest of the patch, Prisma rejected the unknown field,
+ * and every stamped save of a product, depot, category, supplier, wholesale tier or reward answered
+ * 500. Unit tests use in-memory repositories, which accept any object. This is the check that does not.
+ */
+async function stampedEdits(staff) {
+  console.log('\n[stamped edits] a save that carries its freshness stamp reaches the database');
+
+  const { productId } = await createProduct(staff);
+  const read = await api('GET', `/products/api/v1/products/${productId}`, { token: staff });
+  ok(read, 'read product');
+  const edited = await api('PATCH', `/products/api/v1/products/${productId}`, {
+    token: staff,
+    body: { basePrice: 21000, seenUpdatedAt: read.body.updatedAt },
+  });
+  ok(edited, 'edit a product with the stamp it read');
+  assert(Number(edited.body.basePrice) === 21000, `product edit not applied: ${JSON.stringify(edited.body)}`);
+  const stale = await api('PATCH', `/products/api/v1/products/${productId}`, {
+    token: staff,
+    body: { basePrice: 22000, seenUpdatedAt: read.body.updatedAt },
+  });
+  assert(stale.status === 409, `a stale stamp must be refused with 409, got ${stale.status}`);
+  console.log('  product: stamped edit applied, stale stamp refused (409)');
+
+  const depot = await createDepot(staff, { lat: -6.2, lng: 106.8, deliveryFee: 5000, minOrderAmount: 10000, serviceRadiusKm: 5 });
+  const depotEdit = await api('PATCH', `/depots/api/v1/depots/${depot.id}`, {
+    token: staff,
+    body: { deliveryFee: 6000, seenUpdatedAt: depot.updatedAt },
+  });
+  ok(depotEdit, 'edit a depot with the stamp it read');
+  assert(Number(depotEdit.body.deliveryFee) === 6000, `depot edit not applied: ${JSON.stringify(depotEdit.body)}`);
+  console.log('  depot: stamped edit applied');
+
+  const reward = await api('POST', '/loyalty/api/v1/rewards/items', {
+    token: staff,
+    body: { name: `Integration reward ${Date.now()}`, unit: 'x', pointsCost: 500, stock: 5 },
+  });
+  ok(reward, 'create reward');
+  const rewardEdit = await api('PATCH', `/loyalty/api/v1/rewards/items/${reward.body.id}`, {
+    token: staff,
+    body: { pointsCost: 600, seenUpdatedAt: reward.body.updatedAt },
+  });
+  ok(rewardEdit, 'edit a reward with the stamp it read');
+  assert(Number(rewardEdit.body.pointsCost) === 600, `reward edit not applied: ${JSON.stringify(rewardEdit.body)}`);
+  await api('PATCH', `/loyalty/api/v1/rewards/items/${reward.body.id}`, {
+    token: staff,
+    body: { active: false, seenUpdatedAt: rewardEdit.body.updatedAt },
+  });
+  console.log('  reward: stamped edit applied');
+}
+
 async function main() {
   const staff = staffToken();
   try {
     await coreLoop(staff);
+    await stampedEdits(staff);
     await depotRoutedLoop(staff);
     await onlineWebhookLoop(staff);
     await failurePaths(staff);

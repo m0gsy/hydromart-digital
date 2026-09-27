@@ -275,6 +275,7 @@ describe('RewardController (delegation)', () => {
         imageUrl: null,
         stock: 5,
         active: true,
+        updatedAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
   });
@@ -566,6 +567,7 @@ describe('response DTO mappers', () => {
       imageUrl: 'x',
       stock: null,
       active: true,
+      updatedAt: '2026-01-01T00:00:00.000Z',
     });
   });
 

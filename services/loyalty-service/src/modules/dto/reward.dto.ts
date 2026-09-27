@@ -140,6 +140,13 @@ export class RewardItemDto {
   stock!: number | null;
   @ApiProperty({ description: 'False once retired — hidden from the customer catalogue.' })
   active!: boolean;
+  @ApiProperty({
+    format: 'date-time',
+    description:
+      'CA-2-53: the version an edit starts from — send it back as `seenUpdatedAt`. Without it the console ' +
+      'has nothing to send and every save is refused (409).',
+  })
+  updatedAt!: string;
 
   static from(item: RewardItemRecord): RewardItemDto {
     return {
@@ -150,6 +157,9 @@ export class RewardItemDto {
       imageUrl: item.imageUrl,
       stock: item.stock,
       active: item.active,
+      // The mapper listed every field but this one, so the reward form read `undefined`, sent no stamp
+      // and the server — which refuses a save with no stamp — answered 409 on every edit.
+      updatedAt: item.updatedAt.toISOString(),
     };
   }
 }
