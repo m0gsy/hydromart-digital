@@ -16,6 +16,8 @@ export class ShiftController {
   constructor(private readonly shifts: ShiftService) {}
 
   @ApiOkResponse({ type: ShiftResponseDto, isArray: true })
+  // `trackingRead`, not the class's `tracking` — see delivery.controller.ts's list() for why.
+  @Can('trackingRead')
   @Get()
   @ApiOperation({ summary: 'List courier shifts at a depot over a window' })
   list(

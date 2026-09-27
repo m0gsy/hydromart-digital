@@ -8,8 +8,10 @@ import { SweepCard } from '@/components/hq/sweep-card';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { isSuperAdmin } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ServiceHealth, SystemHealth } from '@/lib/types';
 
@@ -176,6 +178,12 @@ function BackfillCard() {
 
 export default function HqHealthPage() {
   const { t } = useT();
+  const { customer } = useAuth();
+  // The outbox gauge and the two backfills are SUPER_ADMIN-only on the server (`@Roles(SUPER_ADMIN)`,
+  // hardcoded rather than a CAPABILITIES entry). HEAD_OFFICE and DIREKTUR open this page to check the
+  // network's health, and both cards fired a 403 for them — a repair tool nobody but the platform
+  // owner may use is drawn as a broken panel to two roles who were never meant to see it at all.
+  const superAdmin = isSuperAdmin(customer?.role);
   const query = useAsync<SystemHealth>(() => api.get(endpoints.admin.health, true));
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
@@ -198,9 +206,9 @@ export default function HqHealthPage() {
 
       <SweepCard />
 
-      <OutboxCard />
+      {superAdmin && <OutboxCard />}
 
-      <BackfillCard />
+      {superAdmin && <BackfillCard />}
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[520px] border-collapse text-sm">
