@@ -11,6 +11,7 @@ import {
   StaleOrderStatusError,
 } from '../../domain/errors';
 import {
+  CashierSales,
   CreateOrderData,
   CreateReviewData,
   CustomerLifetime,
@@ -1101,6 +1102,22 @@ export class OrderPrismaRepository implements OrderRepository {
       },
     );
     return rows.map((r) => this.toRecord(r));
+  }
+
+  async cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]> {
+    const rows = await this.prisma.order.groupBy({
+      by: ['cashierId', 'cashierLabel'],
+      where: { ...this.reportWhere(range), depotId, isWalkIn: true },
+      _sum: { total: true },
+      _count: { _all: true },
+      orderBy: { _sum: { total: 'desc' } },
+    });
+    return rows.map((r) => ({
+      cashierId: r.cashierId,
+      cashierLabel: r.cashierLabel,
+      orderCount: r._count._all,
+      revenue: r._sum.total ? r._sum.total.toNumber() : 0,
+    }));
   }
 
   /**

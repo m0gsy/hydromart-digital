@@ -1051,6 +1051,166 @@ describe('ReportService', () => {
     });
   });
 
+  describe('busy hours', () => {
+    const day = '2026-07-15';
+    const mk = async (
+      r: InMemoryOrderRepository,
+      depot: string,
+      iso: string,
+      total: number,
+      status: OrderStatus = OrderStatus.COMPLETED,
+    ) => {
+      const o = await r.create({ ...orderData({ depotId: depot, total }), status });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date(iso);
+    };
+
+    it('spreads the day over all 24 business-zone hours, empty hours as zeros', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await mk(r, depot, '2026-07-15T01:30:00.000Z', 30000); // 08:30 WIB
+      await mk(r, depot, '2026-07-15T01:45:00.000Z', 20000); // 08:45 WIB
+      await mk(r, depot, '2026-07-15T10:15:00.000Z', 10000); // 17:15 WIB
+      await mk(r, depot, '2026-07-14T17:30:00.000Z', 5000); // 00:30 WIB on the 15th, 17:30 in UTC
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.byHour).toHaveLength(24);
+      expect(rep.byHour.map((h) => h.hour)).toEqual(Array.from({ length: 24 }, (_, i) => i));
+      expect(rep.byHour[8]).toEqual({ hour: 8, orders: 2, revenueIdr: 50000 });
+      expect(rep.byHour[17]).toEqual({ hour: 17, orders: 1, revenueIdr: 10000 });
+      // The zone is the point: 17:30 UTC is the small hours of the depot's own day.
+      expect(rep.byHour[0]).toEqual({ hour: 0, orders: 1, revenueIdr: 5000 });
+      expect(rep.byHour[12]).toEqual({ hour: 12, orders: 0, revenueIdr: 0 });
+      // The hours add up to the day — they are the same orders, cut differently.
+      expect(rep.byHour.reduce((s, h) => s + h.orders, 0)).toBe(rep.orders);
+      expect(rep.byHour.reduce((s, h) => s + h.revenueIdr, 0)).toBe(rep.revenueIdr);
+    });
+
+    it('leaves cancelled and voided orders out of every hour', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await mk(r, depot, '2026-07-15T01:30:00.000Z', 30000);
+      await mk(r, depot, '2026-07-15T01:40:00.000Z', 99000, OrderStatus.CANCELLED);
+      await mk(r, depot, '2026-07-15T01:50:00.000Z', 88000, OrderStatus.VOIDED);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.byHour[8]).toEqual({ hour: 8, orders: 1, revenueIdr: 30000 });
+    });
+
+    it('adds up the same hour across the days of a week', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await mk(r, depot, '2026-07-11T02:00:00.000Z', 40000); // 09:00 WIB
+      await mk(r, depot, '2026-07-13T02:20:00.000Z', 25000); // 09:20 WIB
+      await mk(r, depot, '2026-07-13T09:00:00.000Z', 15000); // 16:00 WIB
+
+      const rep = await svc.depotWeekly(
+        depot,
+        new Date('2026-07-10T00:00:00.000Z'),
+        new Date('2026-07-17T00:00:00.000Z'),
+      );
+      expect(rep.byHour).toHaveLength(24);
+      expect(rep.byHour[9]).toEqual({ hour: 9, orders: 2, revenueIdr: 65000 });
+      expect(rep.byHour[16]).toEqual({ hour: 16, orders: 1, revenueIdr: 15000 });
+      expect(rep.byHour.filter((h) => h.orders > 0)).toHaveLength(2);
+    });
+
+    it('is 24 zeros for a depot that sold nothing, not an empty list', async () => {
+      const svc = new ReportService(new InMemoryOrderRepository(), reportTestConfig());
+      const rep = await svc.depotDaily(randomUUID(), day);
+      expect(rep.byHour).toHaveLength(24);
+      expect(rep.byHour.every((h) => h.orders === 0 && h.revenueIdr === 0)).toBe(true);
+    });
+  });
+
+  describe('sales per cashier', () => {
+    const day = '2026-07-15';
+    const at = new Date(`${day}T03:00:00.000Z`);
+
+    const counter = async (
+      r: InMemoryOrderRepository,
+      depot: string,
+      total: number,
+      cashier: { id: string; label: string } | null,
+      status: OrderStatus = OrderStatus.COMPLETED,
+      walkIn = true,
+    ) => {
+      const o = await r.create({
+        ...orderData({ depotId: depot, total }),
+        isWalkIn: walkIn,
+        status,
+        ...(cashier ? { cashierId: cashier.id, cashierLabel: cashier.label } : {}),
+      });
+      r.rows.find((x) => x.id === o.id)!.createdAt = at;
+    };
+
+    it('groups counter sales by the person who rang them, biggest first', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const budi = { id: 'c-budi', label: '0811' };
+      const sari = { id: 'c-sari', label: '0822' };
+      await counter(r, depot, 40000, budi);
+      await counter(r, depot, 10000, budi);
+      await counter(r, depot, 20000, sari);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCashier).toEqual([
+        { cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50000 },
+        { cashierId: 'c-sari', label: '0822', orders: 1, revenueIdr: 20000 },
+      ]);
+    });
+
+    it('keeps sales rung before the order carried a cashier as their own "not recorded" line', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await counter(r, depot, 30000, { id: 'c-budi', label: '0811' });
+      await counter(r, depot, 5000, null);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCashier).toEqual([
+        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000 },
+        { cashierId: null, label: null, orders: 1, revenueIdr: 5000 },
+      ]);
+    });
+
+    it('counts only counter sales — a delivery has no cashier — and never a voided or cancelled one', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const budi = { id: 'c-budi', label: '0811' };
+      await counter(r, depot, 30000, budi);
+      await counter(r, depot, 70000, budi, OrderStatus.VOIDED);
+      await counter(r, depot, 60000, budi, OrderStatus.CANCELLED);
+      await counter(r, depot, 45000, null, OrderStatus.CONFIRMED, false); // a delivery order
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCashier).toEqual([
+        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000 },
+      ]);
+    });
+
+    it('is empty when nobody sold at the till, and stays inside the depot and the day', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await counter(r, randomUUID(), 30000, { id: 'c-other', label: '0899' }); // another depot
+      const outside = await r.create({
+        ...orderData({ depotId: depot, total: 9000 }),
+        isWalkIn: true,
+        status: OrderStatus.COMPLETED,
+        cashierId: 'c-late',
+        cashierLabel: '0877',
+      });
+      r.rows.find((x) => x.id === outside.id)!.createdAt = new Date('2026-07-16T03:00:00.000Z');
+
+      expect((await svc.depotDaily(depot, day)).perCashier).toEqual([]);
+    });
+  });
+
   it('compares depots: real orders/revenue, zeroes for empty depots, cancelled excluded', async () => {
     const empty = randomUUID();
     const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {});

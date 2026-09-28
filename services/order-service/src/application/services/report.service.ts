@@ -1,5 +1,11 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { addLocalDays, addLocalMonths, dayStartUtc, localDayKey } from '@hydromart/platform';
+import {
+  addLocalDays,
+  addLocalMonths,
+  dayStartUtc,
+  localDayKey,
+  localHour,
+} from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
 import {
@@ -104,6 +110,25 @@ export interface DepotCourierDaily {
   codIdr: number | null;
 }
 
+/** One hour of the business day (0..23, business time zone) in a depot report. */
+export interface HourBucket {
+  hour: number;
+  orders: number;
+  revenueIdr: number;
+}
+
+/**
+ * One cashier's counter sales in the depot daily report. `cashierId` null is the "not
+ * recorded" line — counter sales rung before the order carried a cashier — kept as its own
+ * row so the table still adds up to the day's counter total.
+ */
+export interface CashierDaily {
+  cashierId: string | null;
+  label: string | null;
+  orders: number;
+  revenueIdr: number;
+}
+
 /**
  * One order on the daily export. Cancelled rows are carried and flagged rather than
  * filtered: a file that quietly omits them cannot be reconciled against the till.
@@ -141,6 +166,10 @@ export interface DepotDailyReport {
   cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotCourierDaily[];
+  /** All 24 hours, empty ones included as zeros — the screen draws a fixed axis. */
+  byHour: HourBucket[];
+  /** Counter sales by the cashier who rang them, biggest first. Empty when nobody sold at the till. */
+  perCashier: CashierDaily[];
 }
 
 /** One depot's row in the cross-depot comparison (design 14d compare). */
@@ -239,6 +268,8 @@ export interface DepotWeeklyReport {
   /** Omitted — SLA on-time needs delivery-service data (no order-service source). */
   slaOnTimePct?: number;
   revenueByDay: { day: string; revenueIdr: number }[];
+  /** The window's orders by hour of day — when the depot is busy, not which day. */
+  byHour: HourBucket[];
   topProducts: { label: string; qty: number }[];
   topCourier?: { name: string; delivered: number; rating?: number };
 }
@@ -620,7 +651,7 @@ export class ReportService {
     // payment is booked against the depot, and `depotCash` already counts it — asking for
     // both would put the same rupiah in two columns of the same report.
     const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
-    const [cashRows, drawer, returns] = await Promise.all([
+    const [cashRows, drawer, returns, cashiers] = await Promise.all([
       deliveryOrders.length > 0 && this.paymentCash
         ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
         : Promise.resolve(this.paymentCash ? [] : null),
@@ -628,6 +659,7 @@ export class ReportService {
       this.depotDirectory?.gallonReturns
         ? this.depotDirectory.gallonReturns(depotId, from, to)
         : Promise.resolve(null),
+      this.orders.cashierSalesForDepot(depotId, { from, to }),
     ]);
     const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
 
@@ -643,7 +675,39 @@ export class ReportService {
       cashInDrawerIdr: drawer,
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
       perCourier: ReportService.perCourier(rows, cashBy),
+      byHour: this.hourBuckets(live),
+      perCashier: cashiers.map((c) => ({
+        cashierId: c.cashierId,
+        label: c.cashierLabel,
+        orders: c.orderCount,
+        revenueIdr: Math.round(c.revenue),
+      })),
     };
+  }
+
+  /**
+   * The orders spread over the 24 hours of the business day.
+   *
+   * The hour is read in the business zone, not UTC: a depot's morning rush is 07:00 WIB, and in
+   * UTC it would land at 00:00 — on the wrong side of midnight from anything the operator sees
+   * on the clock. Every hour is returned, empty ones as zeros, so the screen can draw a fixed
+   * axis instead of guessing which hours are missing because nothing sold in them.
+   */
+  private hourBuckets(rows: OrderRecord[]): HourBucket[] {
+    const tz = this.config.businessTimeZone;
+    const seen = new Map<number, { orders: number; revenue: number }>();
+    for (const r of rows) {
+      const hour = localHour(r.createdAt, tz);
+      const cur = seen.get(hour) ?? { orders: 0, revenue: 0 };
+      cur.orders += 1;
+      cur.revenue += r.total;
+      seen.set(hour, cur);
+    }
+    return Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      orders: seen.get(hour)?.orders ?? 0,
+      revenueIdr: Math.round(seen.get(hour)?.revenue ?? 0),
+    }));
   }
 
   /**
@@ -754,6 +818,7 @@ export class ReportService {
       revenueByDay: [...byDay.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([day, r]) => ({ day, revenueIdr: Math.round(r) })),
+      byHour: this.hourBuckets(live),
       topProducts,
       // topCourier from order-owned driverName (real delivered count); rating is review-owned.
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),

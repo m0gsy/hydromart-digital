@@ -973,6 +973,11 @@ export class OrderService {
          */
         status: wantsDelivery ? OrderStatus.CONFIRMED : OrderStatus.COMPLETED,
         isWalkIn: true,
+        // Same label the shift screen prints for this person (cashier-shift.controller
+        // opens the shift with `user.phone ?? user.sub`), so a cashier reads the same
+        // everywhere the two reports name them.
+        cashierId: user.sub,
+        cashierLabel: user.phone ?? user.sub,
         idempotencyKey,
         // A pick-up is born COMPLETED, so it earns the fan-out at creation rather than at a
         // later transition. A DELIVERY has completed nothing yet: its stock, points and

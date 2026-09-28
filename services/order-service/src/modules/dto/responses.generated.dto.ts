@@ -87,6 +87,28 @@ export class RetentionCohortReportResponseDto {
   rows!: RetentionCohortRowResponseDto[];
 }
 
+/** Mirrors `HourBucket` exactly. */
+export class HourBucketResponseDto {
+  @ApiProperty({ type: Number, minimum: 0, maximum: 23 })
+  hour!: number;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenueIdr!: number;
+}
+
+/** Mirrors `CashierDaily` exactly. `cashierId` null is the "not recorded" line. */
+export class CashierDailyResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  cashierId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  label!: string | null;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenueIdr!: number;
+}
+
 /** Mirrors `DepotCourierDaily` exactly — generated for audit D-6, no field added or removed. */
 export class DepotCourierDailyResponseDto {
   @ApiProperty({ type: String })
@@ -121,6 +143,10 @@ export class DepotDailyReportResponseDto {
   failedDeliveries!: number;
   @ApiProperty({ type: [DepotCourierDailyResponseDto] })
   perCourier!: DepotCourierDailyResponseDto[];
+  @ApiProperty({ type: [HourBucketResponseDto], description: 'All 24 hours of the business day; empty hours are zeros.' })
+  byHour!: HourBucketResponseDto[];
+  @ApiProperty({ type: [CashierDailyResponseDto], description: 'Counter sales by cashier, biggest first.' })
+  perCashier!: CashierDailyResponseDto[];
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
@@ -167,6 +193,8 @@ export class DepotWeeklyReportResponseDto {
   slaOnTimePct?: number;
   @ApiProperty({ type: [DepotWeeklyReportRevenueByDayResponseDto] })
   revenueByDay!: DepotWeeklyReportRevenueByDayResponseDto[];
+  @ApiProperty({ type: [HourBucketResponseDto], description: 'The window by hour of day; empty hours are zeros.' })
+  byHour!: HourBucketResponseDto[];
   @ApiProperty({ type: [DepotWeeklyReportTopProductsResponseDto] })
   topProducts!: DepotWeeklyReportTopProductsResponseDto[];
   @ApiProperty({ required: false, type: DepotWeeklyReportTopCourierResponseDto })

@@ -1184,6 +1184,31 @@ describe('OrderPrismaRepository', () => {
     ]);
   });
 
+  it('groups counter sales by cashier, one query, voided and cancelled left out', async () => {
+    order.groupBy.mockResolvedValue([
+      { cashierId: 'c-1', cashierLabel: '0811', _sum: { total: dec(50000) }, _count: { _all: 2 } },
+      { cashierId: null, cashierLabel: null, _sum: { total: null }, _count: { _all: 0 } },
+    ]);
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+    const out = await repo.cashierSalesForDepot('depot-1', { from, to });
+    expect(out).toEqual([
+      { cashierId: 'c-1', cashierLabel: '0811', orderCount: 2, revenue: 50000 },
+      { cashierId: null, cashierLabel: null, orderCount: 0, revenue: 0 },
+    ]);
+    expect(order.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        by: ['cashierId', 'cashierLabel'],
+        where: expect.objectContaining({
+          depotId: 'depot-1',
+          isWalkIn: true,
+          status: { notIn: ['CANCELLED', 'VOIDED'] },
+          createdAt: { gte: from, lt: to },
+        }),
+      }),
+    );
+  });
+
   it('ranks top depots by revenue, and carries the commission base beside it', async () => {
     order.groupBy.mockResolvedValue([
       // CA-2-09: two DIFFERENT numbers. `total` is what the customer paid (goods + ongkir

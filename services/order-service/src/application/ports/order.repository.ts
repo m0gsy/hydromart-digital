@@ -150,6 +150,14 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
   isWalkIn?: boolean;
   /**
+   * Who rang up a counter sale. Written only by the walk-in path; a delivery order has no
+   * cashier and leaves both null. Deliberately NOT on `OrderRecord`: it is read by exactly one
+   * report (`cashierSalesForDepot`), and a field on the record would ride every order response
+   * in the API for the sake of a table on one screen.
+   */
+  cashierId?: string | null;
+  cashierLabel?: string | null;
+  /**
    * Side effects the order owes the moment it exists, written in the same transaction
    * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
    * fan-out at creation rather than at a later transition.
@@ -237,6 +245,18 @@ export interface DepotSales {
    * both moved a bill the owner had already been charged differently (CA-2-09).
    */
   commissionBase: number;
+}
+
+/**
+ * One cashier's counter sales over a range. `cashierId` null is the "not recorded" bucket:
+ * every counter sale written before the column existed, which must be reported as exactly
+ * that rather than attributed to whoever happens to be on shift when somebody opens the page.
+ */
+export interface CashierSales {
+  cashierId: string | null;
+  cashierLabel: string | null;
+  orderCount: number;
+  revenue: number;
 }
 
 /** Shipping (ongkir) billed per depot over a range — reconciliation 22a. */
@@ -589,6 +609,15 @@ export interface OrderRepository {
    * cancelled vs live itself (orders/revenue exclude cancelled; failed counts them).
    */
   ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]>;
+  /**
+   * Counter sales for one depot grouped by the cashier who rang them, voided sales excluded
+   * (a reversed sale did not happen — the same rule every revenue figure here follows).
+   *
+   * One aggregate, not `ordersForDepot` plus a loop: the cashier is not on `OrderRecord`, and
+   * a day of rows hauled into memory to be counted by a column the database can count is the
+   * shape the rest of this file already refuses.
+   */
+  cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]>;
   /**
    * J12: a named set of customers' orders in a window, across every depot.
    *

@@ -8,6 +8,7 @@ import { SettingsRepository } from '../../src/application/ports/settings.reposit
 import { OrderStatus } from '../../src/domain/order-status';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
+  CashierSales,
   CreateOrderData,
   CreateReviewData,
   CustomerLifetime,
@@ -652,6 +653,24 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => !range.to || r.createdAt < range.to)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((r) => structuredClone(r));
+  }
+
+  async cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]> {
+    type Attributed = OrderRecord & { cashierId?: string | null; cashierLabel?: string | null };
+    const by = new Map<string, CashierSales>();
+    for (const row of this.rows) {
+      if (row.depotId !== depotId || !row.isWalkIn) continue;
+      if (row.status === OrderStatus.CANCELLED || row.status === OrderStatus.VOIDED) continue;
+      if (range.from && row.createdAt < range.from) continue;
+      if (range.to && row.createdAt >= range.to) continue;
+      const { cashierId = null, cashierLabel = null } = row as Attributed;
+      const key = cashierId ?? '';
+      const cur = by.get(key) ?? { cashierId, cashierLabel, orderCount: 0, revenue: 0 };
+      cur.orderCount += 1;
+      cur.revenue += row.total;
+      by.set(key, cur);
+    }
+    return [...by.values()].sort((a, b) => b.revenue - a.revenue);
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
