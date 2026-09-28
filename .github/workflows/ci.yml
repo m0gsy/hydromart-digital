@@ -634,6 +634,12 @@ jobs:
       - name: Host Node upgrade refuses what it does not understand and rolls back what fails
         run: bash scripts/install-host-node.test.sh
 
+      # check-log-retention.sh only ever REPORTS that running containers do not carry the 50m x 3
+      # cap; this is the fix it points at, made runnable. Driven against stand-in docker/sudo/
+      # systemctl, so the refusals and — above all — the rollback on a failed restart are proven
+      # before this is ever pressed against the one production box there is.
+      - name: Docker daemon.json install refuses what it should and rolls back what fails
+        run: bash scripts/install-host-docker-daemon.test.sh
       # The alarms that live on the box cannot report the box being gone. The external probe
       # and the watchdog's running-but-unhealthy report are exercised against stand-ins for
       # curl and docker compose, so their red paths are proven here rather than at 02:00.

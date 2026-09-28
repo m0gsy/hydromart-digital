@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key)'
         type: choice
         default: deploy
         options:
@@ -72,6 +72,7 @@ on:
             install-cron,
             explain-queries,
             alert-channel-2,
+            install-docker-daemon,
           ]
       sha:
         description: 'rollback target SHA (blank = previous good)'
@@ -86,7 +87,7 @@ on:
         required: false
         default: '+6281199900001'
       confirm:
-        description: 'reset-test-data: type RESET-TEST-DATA to actually clear; install-node: type install to actually upgrade (anything else = dry run / check only, writes nothing)'
+        description: 'reset-test-data: type RESET-TEST-DATA to actually clear; install-node / install-docker-daemon: type install to actually upgrade / restart (anything else = dry run / check only, writes nothing)'
         required: false
         default: ''
 
@@ -320,6 +321,12 @@ jobs:
             # shape as reset-test-data: `--check` (says what it would change, touches nothing) unless
             # `confirm` is exactly `install`. It edits the NodeSource apt source and rolls back on failure.
             install-node) echo 'run=if [ "${RESET_CONFIRM:-}" = "install" ]; then bash scripts/install-host-node.sh; else bash scripts/install-host-node.sh --check; fi' >> "$GITHUB_OUTPUT" ;;
+            # ops/docker-daemon.json (50m x 3 log cap + live-restore) installed to /etc/docker/daemon.json
+            # and the daemon restarted so it applies. Same shape: `--check` (says what is live and what
+            # would change, touches nothing) unless `confirm` is exactly `install`. Backs up the previous
+            # file and rolls back if the restart fails. A restart only ever caps containers CREATED after
+            # it — see the script's own header for why this is not a `deploy-all` in disguise.
+            install-docker-daemon) echo 'run=if [ "${RESET_CONFIRM:-}" = "install" ]; then bash scripts/install-host-docker-daemon.sh; else bash scripts/install-host-docker-daemon.sh --check; fi' >> "$GITHUB_OUTPUT" ;;
             # The copy to the SECOND provider, now, instead of at 04:00: proves the bucket, the keys and the
             # read-back. Exits 0 with "one provider only" while BACKUP2_OFFSITE_DEST is unset.
             # The nightly 03:25 .env backup, now, with the box's own read-back. Encrypts to
@@ -400,6 +407,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "install-node" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/install-host-node.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "install-docker-daemon" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/install-host-docker-daemon.sh ops/docker-daemon.json
             fi
             if [ "${{ github.event.inputs.mode }}" = "backup-env" ]; then
               git fetch --quiet origin main
