@@ -2585,6 +2585,24 @@ export interface DepotDailyReport {
   cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotDailyCourier[];
+  /** All 24 hours of the business day; hours with no orders are present as zeros. */
+  byHour: DepotHourBucket[];
+  /** Counter sales by the cashier who rang them, biggest first. `cashierId` null = not recorded. */
+  perCashier: DepotDailyCashier[];
+}
+
+/** One hour (0..23, business time zone) of a depot report. */
+export interface DepotHourBucket {
+  hour: number;
+  orders: number;
+  revenueIdr: number;
+}
+
+export interface DepotDailyCashier {
+  cashierId: string | null;
+  label: string | null;
+  orders: number;
+  revenueIdr: number;
 }
 
 export interface DepotWeeklyReport {
@@ -2596,6 +2614,8 @@ export interface DepotWeeklyReport {
   avgPerDayIdr: number;
   slaOnTimePct?: number;
   revenueByDay: { day: string; revenueIdr: number }[];
+  /** The window by hour of day; hours with no orders are present as zeros. */
+  byHour: DepotHourBucket[];
   topProducts: { label: string; qty: number }[];
   topCourier?: { name: string; delivered: number; rating?: number };
 }
