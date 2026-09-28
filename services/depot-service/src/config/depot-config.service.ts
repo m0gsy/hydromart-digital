@@ -53,6 +53,10 @@ export class DepotConfigService {
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }
+  /** Customer contact lookup for the gallon reminder sweep. Blank = reminders cannot be addressed. */
+  get customerServiceUrl(): string {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** Catalog read for PRODUK line validation. Blank = accept lines unvalidated. */
   get productServiceUrl(): string {
     return this.config.get<string>('PRODUCT_SERVICE_URL', '').replace(/\/+$/, '');
@@ -136,6 +140,14 @@ export class DepotConfigService {
    *  the refund as GALLON_DEPOSIT_IDR × quantity — the courier never enters an amount. */
   gallonDepositIdr(depotId: string | null = null): number {
     return this.tunable('gallonDepositIdr', this.num('GALLON_DEPOSIT_IDR'), depotId);
+  }
+  /** Days a customer may hold a depot's gallons before they count as overdue. */
+  gallonMaxHoldDays(depotId: string | null = null): number {
+    return this.tunable('gallonMaxHoldDays', this.num('GALLON_MAX_HOLD_DAYS'), depotId);
+  }
+  /** Days between reminders to one overdue customer. */
+  gallonReminderEveryDays(depotId: string | null = null): number {
+    return this.tunable('gallonReminderEveryDays', this.num('GALLON_REMINDER_EVERY_DAYS'), depotId);
   }
   /** Manager approval queue: value changes at/under this rupiah amount auto-pass without review. */
   approvalAutoPassIdr(depotId: string | null = null): number {

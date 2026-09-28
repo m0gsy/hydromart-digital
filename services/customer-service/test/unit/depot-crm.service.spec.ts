@@ -583,7 +583,15 @@ describe('DepotCrmService.getDepotDetail', () => {
   /** Everything the detail screen reads cross-service; each defaults to "nothing known". */
   interface Wired {
     stats?: DepotCustomerOrderStats[];
-    gallons?: { customerId: string; gallonsOnLoan: number; depositHeldIdr: number }[] | null;
+    gallons?:
+      | {
+          customerId: string;
+          gallonsOnLoan: number;
+          depositHeldIdr: number;
+          overdueGallons?: number;
+          oldestIssuedAt?: string | null;
+        }[]
+      | null;
     ledger?: {
       id: string;
       type: 'ISSUE' | 'RETURN';
@@ -834,6 +842,52 @@ describe('DepotCrmService.getDepotDetail', () => {
       totalSpentIdr: 0,
       gallonsOnLoan: 0,
       depositHeldIdr: 0,
+    });
+  });
+
+  /*
+   * #26: how LONG the gallons have been out, not only how many. It rides the same three-way
+   * honesty as `gallonsOnLoan` next to it: an unreadable ledger is null, a customer with no
+   * row owes nothing (0), and a row from a depot-service that predates the fields is null —
+   * "not known" — because a 0 there would read as "nobody is late".
+   */
+  describe('how long the gallons have been out', () => {
+    const detail = (gallons: Wired['gallons']) =>
+      service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+        stats: [],
+        gallons,
+      }).getDepotDetail('c1', 'depot-a');
+
+    it('passes the depot ledger’s overdue count and oldest date through', async () => {
+      const d = await detail([
+        {
+          customerId: 'c1',
+          gallonsOnLoan: 3,
+          depositHeldIdr: 60_000,
+          overdueGallons: 2,
+          oldestIssuedAt: '2026-08-01T00:00:00.000Z',
+        },
+      ]);
+      expect(d.profile).toMatchObject({
+        gallonsOnLoan: 3,
+        overdueGallons: 2,
+        oldestGallonAt: '2026-08-01T00:00:00.000Z',
+      });
+    });
+
+    it('says none are overdue, and gives no date, for a customer the ledger has no row for', async () => {
+      const d = await detail([{ customerId: 'someone-else', gallonsOnLoan: 1, depositHeldIdr: 1 }]);
+      expect(d.profile).toMatchObject({ overdueGallons: 0, oldestGallonAt: null });
+    });
+
+    it('stays null when the ledger could not be read — not a confident "none overdue"', async () => {
+      const d = await detail(null);
+      expect(d.profile).toMatchObject({ overdueGallons: null, oldestGallonAt: null });
+    });
+
+    it('stays null for a depot-service that has not started reporting it yet', async () => {
+      const d = await detail([{ customerId: 'c1', gallonsOnLoan: 3, depositHeldIdr: 60_000 }]);
+      expect(d.profile).toMatchObject({ gallonsOnLoan: 3, overdueGallons: null, oldestGallonAt: null });
     });
   });
 

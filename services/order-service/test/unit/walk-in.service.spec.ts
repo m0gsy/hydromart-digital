@@ -135,6 +135,33 @@ describe('OrderService.walkInSale', () => {
   };
 
   /**
+   * The order remembers who rang it. The shift already said whose DRAWER the cash was in;
+   * without this nothing could say how much each cashier SOLD.
+   */
+  describe('cashier attribution', () => {
+    const stored = (id: string) =>
+      orders.rows.find((r) => r.id === id) as unknown as {
+        cashierId?: string | null;
+        cashierLabel?: string | null;
+      };
+
+    it('records the auth subject and the label the shift screen shows for that person', async () => {
+      const order = await sell();
+      expect(stored(order.id).cashierId).toBe('op-1');
+      expect(stored(order.id).cashierLabel).toBe('08');
+    });
+
+    it('falls back to the subject when the token carries no phone', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const order = await service.walkInSale(
+        { ...operator, phone: null },
+        { depotId: DEPOT, lines: [{ productId: product.id, quantity: 1 }] },
+      );
+      expect(stored(order.id).cashierLabel).toBe('op-1');
+    });
+  });
+
+  /**
    * C12 · the cashier screen stops guessing.
    *
    * The screen added up shelf prices while the server applied tier, agen and voucher on

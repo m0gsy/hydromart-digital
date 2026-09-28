@@ -1,4 +1,13 @@
-import { Controller, Get, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -19,10 +28,15 @@ import {
   GallonOutstandingRow,
 } from '../application/services/gallon-network.service';
 import {
+  GallonReminderService,
+  GallonReminderSweepResult,
+} from '../application/services/gallon-reminder.service';
+import {
   CustomerDepotDepositRowResponseDto,
   CustomerGallonLedgerEntryResponseDto,
   CustomerGallonRowResponseDto,
   GallonOutstandingRowResponseDto,
+  GallonReminderSweepResponseDto,
   GallonReturnRangeResponseDto,
 } from './dto/responses.generated.dto';
 import { GallonReturnRangeQueryDto } from './dto/gallon-return.dto';
@@ -39,7 +53,27 @@ export class GallonNetworkController {
   constructor(
     private readonly gallon: GallonNetworkService,
     private readonly depots: DepotService,
+    private readonly reminders: GallonReminderService,
   ) {}
+
+  /**
+   * The scheduler's morning round: ask every customer holding gallons past their depot's limit
+   * to bring them back, at most once per that depot's reminder interval.
+   *
+   * Not a JWT route — `@Public()` bypasses the guards and the internal key is the sole,
+   * fail-closed auth, like every other sweep. Declared FIRST so the static `internal` segment
+   * is never read as anything else.
+   */
+  @ApiOkResponse({ type: GallonReminderSweepResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/overdue-reminders')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remind customers holding gallons past the depot limit (scheduler)' })
+  overdueReminders(): Promise<GallonReminderSweepResult> {
+    return this.reminders.sweep();
+  }
 
   /**
    * J-2: the two columns the depot customer directory rendered as a hardcoded null —

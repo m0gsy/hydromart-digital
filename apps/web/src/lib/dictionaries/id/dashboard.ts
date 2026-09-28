@@ -103,7 +103,12 @@ export const dashboard = {
     // Days-to-stockout metric added alongside reorder suggestion.
     daysToStockout: 'Hari habis',
     daysToStockoutValue: '{n} hari',
+    // Nothing is selling, so the stock cannot run out: genuinely safe.
     daysToStockoutNa: 'Aman',
+    // No stock figure for this product — NOT the same as safe.
+    daysToStockoutUnknown: '—',
+    stockUnknownHint: 'Depot belum melacak stok produk ini, jadi sisa hari tidak bisa dihitung.',
+    colNeeded: 'Perlu dipesan',
     gateTitle: 'Khusus staf',
     gateBody: 'Perkiraan hanya untuk staf — tersedia untuk staf depot dan perencanaan.',
   },

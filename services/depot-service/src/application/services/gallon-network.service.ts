@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { DepotConfigService } from '../../config/depot-config.service';
+import { ageOutstanding, IssueRow } from '../../domain/gallon-aging';
 import { DepotRepository } from '../ports/depot.repository';
 import { GallonIssueRepository } from '../ports/gallon-issue.repository';
 import {
@@ -26,7 +28,18 @@ export interface CustomerGallonRow {
   customerId: string;
   gallonsOnLoan: number;
   depositHeldIdr: number;
+  /** Of `gallonsOnLoan`, how many have been held longer than the depot's limit. */
+  overdueGallons: number;
+  /** When the oldest gallon still out was handed over; null when none is out. */
+  oldestIssuedAt: string | null;
 }
+
+/**
+ * Most issue rows one aging read will pull. A depot's history is measured in thousands, not
+ * millions, and the read is newest-first — so the cap can only ever drop the oldest issues,
+ * which a customer with gallons still out is least likely to need.
+ */
+const AGING_ROWS = 20_000;
 
 /**
  * I5: one depot where a customer is still holding gallons, or still has deposit with it.
@@ -60,6 +73,7 @@ export class GallonNetworkService {
     @Inject(DEPOT_TOKENS.GallonIssueRepository) private readonly issues: GallonIssueRepository,
     @Inject(DEPOT_TOKENS.GallonReturnRepository) private readonly returns: GallonReturnRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    private readonly config: DepotConfigService,
   ) {}
 
   /**
@@ -145,6 +159,10 @@ export class GallonNetworkService {
    * so a return recorded against the wrong depot cannot show as a negative loan. Customers
    * with nothing outstanding AND no deposit are dropped — the directory wants the two
    * numbers, not a row per person who ever borrowed a gallon.
+   *
+   * Each row also says HOW LONG: `overdueGallons` and `oldestIssuedAt`, measured against this
+   * depot's own limit. "2 on loan" hid the difference between a customer who took them last
+   * week and one who took them last year.
    */
   async perCustomer(depotId: string): Promise<CustomerGallonRow[]> {
     const [issued, returned] = await Promise.all([
@@ -152,16 +170,37 @@ export class GallonNetworkService {
       this.returns.perCustomerForDepot(depotId),
     ]);
     const returnedBy = new Map(returned.map((r) => [r.customerId, r]));
-    const rows: CustomerGallonRow[] = [];
+    const balances: { customerId: string; gallonsOnLoan: number; depositHeldIdr: number }[] = [];
     for (const i of issued) {
       const back = returnedBy.get(i.customerId);
-      rows.push({
+      balances.push({
         customerId: i.customerId,
         gallonsOnLoan: Math.max(0, i.gallons - (back?.gallons ?? 0)),
         depositHeldIdr: Math.max(0, i.amountIdr - (back?.amountIdr ?? 0)),
       });
     }
-    return rows.filter((r) => r.gallonsOnLoan > 0 || r.depositHeldIdr > 0);
+    const live = balances.filter((r) => r.gallonsOnLoan > 0 || r.depositHeldIdr > 0);
+
+    // Dates are only fetched for customers who actually hold gallons: a deposit with every
+    // gallon back has nothing to age.
+    const holding = live.filter((r) => r.gallonsOnLoan > 0).map((r) => r.customerId);
+    const issuesBy = new Map<string, IssueRow[]>();
+    for (const row of await this.issues.newestIssuesForCustomers(depotId, holding, AGING_ROWS)) {
+      const list = issuesBy.get(row.customerId) ?? [];
+      list.push(row);
+      issuesBy.set(row.customerId, list);
+    }
+
+    const now = new Date();
+    const maxHoldDays = this.config.gallonMaxHoldDays(depotId);
+    return live.map((r) => {
+      const aging = ageOutstanding(issuesBy.get(r.customerId) ?? [], r.gallonsOnLoan, now, maxHoldDays);
+      return {
+        ...r,
+        overdueGallons: aging.overdue,
+        oldestIssuedAt: aging.oldestIssuedAt ? aging.oldestIssuedAt.toISOString() : null,
+      };
+    });
   }
 
   /**

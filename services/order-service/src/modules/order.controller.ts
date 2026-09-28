@@ -82,6 +82,7 @@ import {
   PagedOrderResponseDto,
   RatingResponseDto,
   RemindStale2ResponseDto,
+  ReviewRequestSweepResponseDto,
 } from './dto/responses.generated.dto';
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
@@ -672,6 +673,20 @@ export class OrderController {
       days ? Number(days) : undefined,
       limit ? Number(limit) : undefined,
     );
+  }
+
+  // Scheduler-triggered "how was your delivery?" sweep (internal service auth).
+  @ApiOkResponse({ type: ReviewRequestSweepResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('reminders/review')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ask customers to rate a recent delivery (internal service auth)' })
+  requestReviews(
+    @Query('limit') limit?: string,
+  ): Promise<{ asked: number; skipped: number; failed: number; ok: boolean }> {
+    return this.orders.requestReviews(new Date(), limit ? Number(limit) : undefined);
   }
 
   @ApiOkResponse({ type: OrderResponseDto })

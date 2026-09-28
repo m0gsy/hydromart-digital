@@ -82,6 +82,12 @@ model Order {
   /// Reporting needs it — otherwise a zero-fee order looks like a broken delivery order.
   isWalkIn       Boolean @default(false)
 
+  /// Who rang up a counter sale: the staff member's auth subject and the label the shift screen
+  /// already shows for them (phone or subject — the token carries no display name). Null on every
+  /// delivery order and on every counter sale written before this column existed.
+  cashierId      String?
+  cashierLabel   String?
+
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 
@@ -116,6 +122,11 @@ model Order {
   /// Before this, the only link was the sweep's idempotency string `sub:<id>:<iso>`, which
   /// no read model exposed and nothing could query.
   subscriptionId String?
+
+  /// When the customer was asked to rate this delivery. Null = never asked. Written by the
+  /// review-request sweep BEFORE it sends, so a round that dies halfway loses one nudge rather
+  /// than sending the same one twice — an unwanted second message is the worse failure.
+  reviewRequestedAt DateTime?
 
   items   OrderItem[]
   history OrderStatusHistory[]

@@ -987,6 +987,230 @@ describe('ReportService', () => {
     expect(rep.slaOnTimePct).toBeUndefined();
   });
 
+  /*
+   * A voided counter sale is money handed back across the till. The repository already
+   * excludes VOIDED from every aggregate it owns (H-14), but these four composites filtered
+   * only CANCELLED on the rows they fetch — so a reversed sale still counted as an order and
+   * as revenue on the daily, weekly, monthly and compare screens, and the depot looked busier
+   * by exactly what it had refunded.
+   */
+  describe('a voided counter sale is not an order and not revenue', () => {
+    const day = '2026-07-15';
+    const setup = async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const mk = async (total: number) => {
+        const o = await r.create({
+          ...orderData({ depotId: depot, total }),
+          isWalkIn: true,
+          status: OrderStatus.COMPLETED,
+        });
+        r.rows.find((x) => x.id === o.id)!.createdAt = new Date(`${day}T03:00:00.000Z`);
+        return o;
+      };
+      await mk(40000);
+      const voided = await mk(60000);
+      r.rows.find((x) => x.id === voided.id)!.status = OrderStatus.VOIDED;
+      return { svc, depot };
+    };
+
+    it('is left out of the daily report', async () => {
+      const { svc, depot } = await setup();
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.orders).toBe(1);
+      expect(rep.revenueIdr).toBe(40000);
+    });
+
+    it('is left out of the weekly report', async () => {
+      const { svc, depot } = await setup();
+      const rep = await svc.depotWeekly(
+        depot,
+        new Date('2026-07-10T00:00:00.000Z'),
+        new Date('2026-07-17T00:00:00.000Z'),
+      );
+      expect(rep.orders).toBe(1);
+      expect(rep.revenueIdr).toBe(40000);
+    });
+
+    it('is left out of the monthly review', async () => {
+      const { svc, depot } = await setup();
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      expect(rep.orders).toBe(1);
+      expect(rep.revenueIdr).toBe(40000);
+      expect(rep.activeCustomers).toBe(1);
+    });
+
+    it('is left out of the cross-depot comparison', async () => {
+      const { svc, depot } = await setup();
+      const cmp = await svc.reportsDepotCompare([depot], {
+        from: new Date('2026-07-01T00:00:00.000Z'),
+        to: new Date('2026-08-01T00:00:00.000Z'),
+      });
+      expect(cmp.depots[0]).toMatchObject({ orders: 1, revenueIdr: 40000 });
+    });
+  });
+
+  describe('busy hours', () => {
+    const day = '2026-07-15';
+    const mk = async (
+      r: InMemoryOrderRepository,
+      depot: string,
+      iso: string,
+      total: number,
+      status: OrderStatus = OrderStatus.COMPLETED,
+    ) => {
+      const o = await r.create({ ...orderData({ depotId: depot, total }), status });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date(iso);
+    };
+
+    it('spreads the day over all 24 business-zone hours, empty hours as zeros', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await mk(r, depot, '2026-07-15T01:30:00.000Z', 30000); // 08:30 WIB
+      await mk(r, depot, '2026-07-15T01:45:00.000Z', 20000); // 08:45 WIB
+      await mk(r, depot, '2026-07-15T10:15:00.000Z', 10000); // 17:15 WIB
+      await mk(r, depot, '2026-07-14T17:30:00.000Z', 5000); // 00:30 WIB on the 15th, 17:30 in UTC
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.byHour).toHaveLength(24);
+      expect(rep.byHour.map((h) => h.hour)).toEqual(Array.from({ length: 24 }, (_, i) => i));
+      expect(rep.byHour[8]).toEqual({ hour: 8, orders: 2, revenueIdr: 50000 });
+      expect(rep.byHour[17]).toEqual({ hour: 17, orders: 1, revenueIdr: 10000 });
+      // The zone is the point: 17:30 UTC is the small hours of the depot's own day.
+      expect(rep.byHour[0]).toEqual({ hour: 0, orders: 1, revenueIdr: 5000 });
+      expect(rep.byHour[12]).toEqual({ hour: 12, orders: 0, revenueIdr: 0 });
+      // The hours add up to the day — they are the same orders, cut differently.
+      expect(rep.byHour.reduce((s, h) => s + h.orders, 0)).toBe(rep.orders);
+      expect(rep.byHour.reduce((s, h) => s + h.revenueIdr, 0)).toBe(rep.revenueIdr);
+    });
+
+    it('leaves cancelled and voided orders out of every hour', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await mk(r, depot, '2026-07-15T01:30:00.000Z', 30000);
+      await mk(r, depot, '2026-07-15T01:40:00.000Z', 99000, OrderStatus.CANCELLED);
+      await mk(r, depot, '2026-07-15T01:50:00.000Z', 88000, OrderStatus.VOIDED);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.byHour[8]).toEqual({ hour: 8, orders: 1, revenueIdr: 30000 });
+    });
+
+    it('adds up the same hour across the days of a week', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await mk(r, depot, '2026-07-11T02:00:00.000Z', 40000); // 09:00 WIB
+      await mk(r, depot, '2026-07-13T02:20:00.000Z', 25000); // 09:20 WIB
+      await mk(r, depot, '2026-07-13T09:00:00.000Z', 15000); // 16:00 WIB
+
+      const rep = await svc.depotWeekly(
+        depot,
+        new Date('2026-07-10T00:00:00.000Z'),
+        new Date('2026-07-17T00:00:00.000Z'),
+      );
+      expect(rep.byHour).toHaveLength(24);
+      expect(rep.byHour[9]).toEqual({ hour: 9, orders: 2, revenueIdr: 65000 });
+      expect(rep.byHour[16]).toEqual({ hour: 16, orders: 1, revenueIdr: 15000 });
+      expect(rep.byHour.filter((h) => h.orders > 0)).toHaveLength(2);
+    });
+
+    it('is 24 zeros for a depot that sold nothing, not an empty list', async () => {
+      const svc = new ReportService(new InMemoryOrderRepository(), reportTestConfig());
+      const rep = await svc.depotDaily(randomUUID(), day);
+      expect(rep.byHour).toHaveLength(24);
+      expect(rep.byHour.every((h) => h.orders === 0 && h.revenueIdr === 0)).toBe(true);
+    });
+  });
+
+  describe('sales per cashier', () => {
+    const day = '2026-07-15';
+    const at = new Date(`${day}T03:00:00.000Z`);
+
+    const counter = async (
+      r: InMemoryOrderRepository,
+      depot: string,
+      total: number,
+      cashier: { id: string; label: string } | null,
+      status: OrderStatus = OrderStatus.COMPLETED,
+      walkIn = true,
+    ) => {
+      const o = await r.create({
+        ...orderData({ depotId: depot, total }),
+        isWalkIn: walkIn,
+        status,
+        ...(cashier ? { cashierId: cashier.id, cashierLabel: cashier.label } : {}),
+      });
+      r.rows.find((x) => x.id === o.id)!.createdAt = at;
+    };
+
+    it('groups counter sales by the person who rang them, biggest first', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const budi = { id: 'c-budi', label: '0811' };
+      const sari = { id: 'c-sari', label: '0822' };
+      await counter(r, depot, 40000, budi);
+      await counter(r, depot, 10000, budi);
+      await counter(r, depot, 20000, sari);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCashier).toEqual([
+        { cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50000 },
+        { cashierId: 'c-sari', label: '0822', orders: 1, revenueIdr: 20000 },
+      ]);
+    });
+
+    it('keeps sales rung before the order carried a cashier as their own "not recorded" line', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await counter(r, depot, 30000, { id: 'c-budi', label: '0811' });
+      await counter(r, depot, 5000, null);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCashier).toEqual([
+        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000 },
+        { cashierId: null, label: null, orders: 1, revenueIdr: 5000 },
+      ]);
+    });
+
+    it('counts only counter sales — a delivery has no cashier — and never a voided or cancelled one', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const budi = { id: 'c-budi', label: '0811' };
+      await counter(r, depot, 30000, budi);
+      await counter(r, depot, 70000, budi, OrderStatus.VOIDED);
+      await counter(r, depot, 60000, budi, OrderStatus.CANCELLED);
+      await counter(r, depot, 45000, null, OrderStatus.CONFIRMED, false); // a delivery order
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCashier).toEqual([
+        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000 },
+      ]);
+    });
+
+    it('is empty when nobody sold at the till, and stays inside the depot and the day', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await counter(r, randomUUID(), 30000, { id: 'c-other', label: '0899' }); // another depot
+      const outside = await r.create({
+        ...orderData({ depotId: depot, total: 9000 }),
+        isWalkIn: true,
+        status: OrderStatus.COMPLETED,
+        cashierId: 'c-late',
+        cashierLabel: '0877',
+      });
+      r.rows.find((x) => x.id === outside.id)!.createdAt = new Date('2026-07-16T03:00:00.000Z');
+
+      expect((await svc.depotDaily(depot, day)).perCashier).toEqual([]);
+    });
+  });
+
   it('compares depots: real orders/revenue, zeroes for empty depots, cancelled excluded', async () => {
     const empty = randomUUID();
     const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {});
@@ -1443,37 +1667,148 @@ describe('ReportService.depotDailyGallons', () => {
 // Depot SOP §3: the twice-daily "laporan penjualan siang/sore", sent to each depot.
 describe('ReportService.broadcastDailySales', () => {
   const config = { businessTimeZone: 'Asia/Jakarta', alertPhone: '0800-ops' } as OrderConfigService;
-  const orders = {
-    depotDailyGallons: jest.fn(async () => [{ day: '2026-08-11', gallons: 137 }]),
-  } as never;
+  /** 12:00 WIB on 11 August 2026 — nowhere near a midnight boundary, so "today" is not a race. */
+  const NOW = new Date('2026-08-11T05:00:00.000Z');
+  const gallon = (qty: number, lineTotal: number) => [
+    {
+      productId: randomUUID(),
+      productName: 'Galon 19L',
+      sku: 'G19',
+      unit: 'Galon',
+      volumeMl: 19000,
+      isGallon: true,
+      unitPrice: lineTotal / qty,
+      quantity: qty,
+      lineTotal,
+    },
+  ];
+
+  /** A depot that has sold today: two delivered gallon orders, plus a reversed counter sale. */
+  async function seededOrders(depot: string) {
+    const repo = new InMemoryOrderRepository();
+    const mk = async (total: number, qty: number, status: OrderStatus, walkIn = false) => {
+      const o = await repo.create({
+        ...orderData({ depotId: depot, total }),
+        items: gallon(qty, total),
+        isWalkIn: walkIn,
+        status,
+      });
+      repo.rows.find((x) => x.id === o.id)!.createdAt = NOW;
+    };
+    await mk(700_000, 7, OrderStatus.DELIVERED);
+    await mk(550_000, 5, OrderStatus.COMPLETED);
+    await mk(90_000, 3, OrderStatus.VOIDED, true); // handed back across the till
+    return repo;
+  }
 
   function build(
     contacts: { id: string; name: string; contactPhone: string | null }[] | null,
-    overrides: { notify?: jest.Mock; alertPhone?: string } = {},
+    overrides: {
+      notify?: jest.Mock;
+      alertPhone?: string;
+      repo?: InMemoryOrderRepository;
+      paymentCash?: unknown;
+    } = {},
   ) {
     const notify = overrides.notify ?? jest.fn(async () => undefined);
     const directory = { listContacts: jest.fn(async () => contacts) } as never;
     const svc = new ReportService(
-      orders,
+      overrides.repo ?? new InMemoryOrderRepository(),
       { ...config, alertPhone: overrides.alertPhone ?? '0800-ops' } as OrderConfigService,
       directory,
       { notify } as never,
+      overrides.paymentCash as never,
     );
     return { svc, notify, directory };
   }
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers({ now: NOW });
+  });
+  afterEach(() => jest.useRealTimers());
 
-  it("sends each depot today's gallon count, to the depot's own number", async () => {
-    const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 0, ok: true });
+  it("sends each depot the day so far — gallons, orders, revenue and the two cash buckets — to the depot's own number", async () => {
+    const depot = randomUUID();
+    const repo = await seededOrders(depot);
+    const paymentCash = {
+      cashByOrder: jest.fn(async () => [{ orderId: 'x', amountIdr: 250_000 }]),
+      depotCash: jest.fn(async () => 1_000_000),
+    };
+    const { svc, notify } = build([{ id: depot, name: 'Depot Cikini', contactPhone: '0811' }], {
+      repo,
+      paymentCash,
+    });
+    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 0, ok: true });
     expect(notify).toHaveBeenCalledWith(
       'DEPOT_SALES_UPDATE',
       '0811',
-      { slot: 'siang', depot: 'Depot Cikini', gallons: '137' },
+      {
+        slot: 'sore',
+        depot: 'Depot Cikini',
+        gallons: '12', // 7 + 5 delivered; the voided sale's 3 are not sold gallons
+        orders: '2', // the voided counter sale is not an order
+        revenue: 'Rp1.250.000', // Rp1.340.000 minus the reversed Rp90.000
+        counterCash: 'Rp1.000.000',
+        cod: 'Rp250.000',
+      },
       null,
       '',
     );
+  });
+
+  // The number in the message is the number on the screen: both come out of depotDaily, so a
+  // rule fixed in one place (the void filter) cannot leave the other stale.
+  it('reports exactly what the daily report screen reports for the same day', async () => {
+    const depot = randomUUID();
+    const repo = await seededOrders(depot);
+    const { svc, notify } = build([{ id: depot, name: 'D', contactPhone: '0811' }], { repo });
+    const screen = await svc.depotDaily(depot, '2026-08-11');
+    await svc.broadcastDailySales('siang');
+    const vars = notify.mock.calls[0]?.[2] as Record<string, string>;
+    expect(vars.orders).toBe(String(screen.orders));
+    expect(vars.gallons).toBe(String(screen.gallonsDelivered));
+  });
+
+  // "Kas konter Rp0" would read as a drawer that took nothing; the truth is that
+  // payment-service could not be asked.
+  it('says "—" for a cash figure it could not read, never a zero', async () => {
+    const depot = randomUUID();
+    const repo = await seededOrders(depot);
+    const { svc, notify } = build([{ id: depot, name: 'D', contactPhone: '0811' }], { repo });
+    await svc.broadcastDailySales('siang');
+    expect(notify.mock.calls[0]?.[2]).toMatchObject({ counterCash: '—', cod: '—' });
+  });
+
+  it('reports a depot that sold nothing as zeros, not as a missing depot', async () => {
+    const { svc, notify } = build([{ id: randomUUID(), name: 'Quiet', contactPhone: '0811' }]);
+    await svc.broadcastDailySales('siang');
+    expect(notify.mock.calls[0]?.[2]).toMatchObject({
+      gallons: '0',
+      orders: '0',
+      revenue: 'Rp0',
+    });
+  });
+
+  it('counts a depot whose figures cannot be read as failed, and still reports the others', async () => {
+    const bad = randomUUID();
+    const good = randomUUID();
+    const repo = await seededOrders(good);
+    const original = repo.ordersForDepot.bind(repo);
+    repo.ordersForDepot = async (depotId, range) => {
+      if (depotId === bad) throw new Error('db down');
+      return original(depotId, range);
+    };
+    const { svc, notify } = build(
+      [
+        { id: bad, name: 'Bad', contactPhone: '0811' },
+        { id: good, name: 'Good', contactPhone: '0822' },
+      ],
+      { repo },
+    );
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 1, ok: true });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0]?.[1]).toBe('0822');
   });
 
   // A depot with no number of its own is still reported, just to the ops number — dropping
@@ -1519,7 +1854,7 @@ describe('ReportService.broadcastDailySales', () => {
 
   // The ports are optional so every two-argument ReportService in these tests still builds.
   it('does nothing at all when the ports are not wired', async () => {
-    const svc = new ReportService(orders, config);
+    const svc = new ReportService(new InMemoryOrderRepository(), config);
     await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0, failed: 0, ok: false });
   });
 });

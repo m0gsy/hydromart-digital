@@ -1360,6 +1360,162 @@ describe('OrderService', () => {
     ).rejects.toBeInstanceOf(OrderAlreadyReviewedError);
   });
 
+  /*
+   * "How was your delivery?" — nothing prompted a rating before: the review screen was reachable
+   * only by a customer who opened the order themselves. The sweep asks once, a while after the
+   * delivery, and never twice.
+   */
+  describe('review request sweep', () => {
+    const NOW = new Date('2026-09-28T10:00:00.000Z');
+    const minutesAgo = (m: number) => new Date(NOW.getTime() - m * 60_000);
+
+    /** A delivered order whose delivery landed `deliveredMinutesAgo` before NOW. */
+    const delivered = async (deliveredMinutesAgo: number) => {
+      await addToCart(20000, 1);
+      const o = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+      ]) {
+        await service.updateStatus(o.id, s, 'staff');
+      }
+      orders.rows.find((r) => r.id === o.id)!.statusChangedAt = minutesAgo(deliveredMinutesAgo);
+      notification.calls.length = 0;
+      return o;
+    };
+    const reviewEvents = () => notification.calls.filter((c) => c.event === 'REVIEW_REQUEST');
+
+    it('asks a customer to rate a delivery once it has settled, addressed to the order', async () => {
+      const o = await delivered(45); // default delay is 30 minutes
+      await expect(service.requestReviews(NOW)).resolves.toEqual({
+        asked: 1,
+        skipped: 0,
+        failed: 0,
+        ok: true,
+      });
+      expect(reviewEvents()).toHaveLength(1);
+      expect(reviewEvents()[0]).toMatchObject({
+        event: 'REVIEW_REQUEST',
+        customerId: o.customerId,
+        vars: { orderNumber: o.orderNumber, orderId: o.id },
+      });
+    });
+
+    it('waits until the delivery has had time to settle', async () => {
+      await delivered(10);
+      await expect(service.requestReviews(NOW)).resolves.toMatchObject({ asked: 0 });
+      expect(reviewEvents()).toHaveLength(0);
+    });
+
+    it('does not chase a delivery from days ago — that reads as spam', async () => {
+      await delivered(4 * 24 * 60); // default window is 72 hours
+      await expect(service.requestReviews(NOW)).resolves.toMatchObject({ asked: 0 });
+      expect(reviewEvents()).toHaveLength(0);
+    });
+
+    it('asks each order once, however many rounds run', async () => {
+      await delivered(45);
+      await service.requestReviews(NOW);
+      await service.requestReviews(NOW);
+      await service.requestReviews(new Date(NOW.getTime() + 10 * 60_000));
+      expect(reviewEvents()).toHaveLength(1);
+    });
+
+    it('does not ask about an order that has already been rated', async () => {
+      const o = await delivered(45);
+      await service.reviewOrder(customer, o.id, { rating: 5, aspects: [] });
+      notification.calls.length = 0;
+      await expect(service.requestReviews(NOW)).resolves.toMatchObject({ asked: 0 });
+      expect(reviewEvents()).toHaveLength(0);
+    });
+
+    it('does not ask about an order that has not arrived', async () => {
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+      notification.calls.length = 0;
+      await expect(service.requestReviews(new Date(Date.now() + 3 * 60 * 60_000))).resolves.toMatchObject({
+        asked: 0,
+      });
+    });
+
+    // Claim-then-send: a round that dies between the two loses one nudge; send-then-claim would
+    // send it again next round. A missing prompt is invisible, a duplicate one is spam.
+    it('claims the order before sending, so a failed send is not retried into a duplicate', async () => {
+      const o = await delivered(45);
+      notification.notify = async () => {
+        throw new Error('sms gateway down');
+      };
+      await expect(service.requestReviews(NOW)).resolves.toEqual({
+        asked: 0,
+        skipped: 0,
+        failed: 1,
+        ok: false,
+      });
+      expect(orders.reviewRequestedAt.has(o.id)).toBe(true);
+      // The next round finds it already claimed and asks nobody.
+      await expect(service.requestReviews(NOW)).resolves.toMatchObject({ asked: 0, failed: 0 });
+    });
+
+    // The port says whether the message actually went (D9): a refusal is not a silent success.
+    it('counts a message the notifier declined as failed, not asked', async () => {
+      await delivered(45);
+      notification.notify = async () => false;
+      await expect(service.requestReviews(NOW)).resolves.toEqual({
+        asked: 0,
+        skipped: 0,
+        failed: 1,
+        ok: false,
+      });
+    });
+
+    it('skips an order another round has just claimed', async () => {
+      const o = await delivered(45);
+      await orders.claimReviewRequest(o.id, NOW);
+      // Simulate the race: the target list was read before the other round claimed it.
+      const original = orders.findReviewRequestTargets.bind(orders);
+      orders.findReviewRequestTargets = async (a, b, c) => {
+        orders.reviewRequestedAt.delete(o.id);
+        const found = await original(a, b, c);
+        await orders.claimReviewRequest(o.id, NOW);
+        return found;
+      };
+      await expect(service.requestReviews(NOW)).resolves.toEqual({
+        asked: 0,
+        skipped: 1,
+        failed: 0,
+        ok: true,
+      });
+      expect(reviewEvents()).toHaveLength(0);
+    });
+
+    it('is ok, and quiet, when nobody is due', async () => {
+      await expect(service.requestReviews(NOW)).resolves.toEqual({
+        asked: 0,
+        skipped: 0,
+        failed: 0,
+        ok: true,
+      });
+    });
+
+    it.each([
+      ['NaN', Number.NaN, 200],
+      ['Infinity', Number.POSITIVE_INFINITY, 200],
+      ['zero', 0, 1],
+      ['negative', -5, 1],
+      ['a fraction', 7.9, 7],
+      ['above the ceiling', 100_000, 500],
+    ])('bounds a %s limit before it reaches the database', async (_label, given, expected) => {
+      const spy = jest.spyOn(orders, 'findReviewRequestTargets');
+      await service.requestReviews(NOW, given);
+      expect(spy.mock.calls[0]?.[2]).toBe(expected);
+      spy.mockRestore();
+    });
+  });
+
   it('averages ratings over a batch of orders, null when none reviewed (design 4c)', async () => {
     const deliver = async (rating: number): Promise<string> => {
       await addToCart(20000, 1);

@@ -42,6 +42,8 @@ const ORDER_EVENTS = new Set<NotificationEvent>([
   // screen that now offers the depot's number instead (H10).
   NotificationEvent.ORDER_DRIVER_ASSIGNED,
   NotificationEvent.DELIVERY_RESCHEDULED,
+  // The rating form is on the order itself — tapping "how was it?" must land on the order.
+  NotificationEvent.REVIEW_REQUEST,
 ]);
 
 export function destinationFor(
@@ -64,6 +66,10 @@ export function destinationFor(
     // so it opens the catalogue, not a record of what was ordered before.
     case NotificationEvent.REORDER_REMINDER:
       return '/products';
+    // The customer's own gallon deposit card lives on the account screen: how many they hold
+    // and how much deposit is waiting for them is exactly what the message is about.
+    case NotificationEvent.GALLON_RETURN_REMINDER:
+      return '/account';
     case NotificationEvent.CUSTOMER_REGISTERED:
       return '/';
     /*

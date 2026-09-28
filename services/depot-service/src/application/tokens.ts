@@ -12,6 +12,12 @@ export const DEPOT_TOKENS = {
   PricingRuleRepository: Symbol('PricingRuleRepository'),
   GallonReturnRepository: Symbol('GallonReturnRepository'),
   GallonIssueRepository: Symbol('GallonIssueRepository'),
+  /** When each overdue customer was last asked to return their gallons. */
+  GallonReminderRepository: Symbol('GallonReminderRepository'),
+  /** Name + phone of one customer, from customer-service. */
+  CustomerContact: Symbol('CustomerContact'),
+  /** Customer-facing messages through crm-service; reports whether crm accepted. */
+  CustomerNotification: Symbol('CustomerNotification'),
   FranchiseApplicationRepository: Symbol('FranchiseApplicationRepository'),
   PriceOverrideProposalRepository: Symbol('PriceOverrideProposalRepository'),
   IncidentRepository: Symbol('IncidentRepository'),

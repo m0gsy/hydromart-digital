@@ -66,6 +66,18 @@ export class DepotCustomerDto {
   orderCount!: number | null;
   @ApiProperty({ nullable: true, example: null })
   gallonsOnLoan!: number | null;
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'Of gallonsOnLoan, held longer than the depot limit; null when not known.',
+  })
+  overdueGallons!: number | null;
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'When the oldest gallon still out was handed over.',
+  })
+  oldestGallonAt!: string | null;
   @ApiProperty({ nullable: true, example: null })
   depositHeldIdr!: number | null;
   @ApiProperty({ nullable: true, example: null })
@@ -201,6 +213,18 @@ export class DepotCustomerDetailProfileDto {
   totalSpentIdr!: number | null;
   @ApiProperty({ nullable: true, example: null })
   gallonsOnLoan!: number | null;
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'Of gallonsOnLoan, held longer than the depot limit; null when not known.',
+  })
+  overdueGallons!: number | null;
+  @ApiProperty({
+    nullable: true,
+    example: null,
+    description: 'When the oldest gallon still out was handed over.',
+  })
+  oldestGallonAt!: string | null;
   @ApiProperty({ nullable: true, example: null })
   depositHeldIdr!: number | null;
   @ApiProperty({ enum: ['LOW', 'MEDIUM', 'HIGH'], nullable: true })

@@ -11,6 +11,7 @@ import {
   Warning,
 } from '@phosphor-icons/react';
 
+import { OverdueGallons } from '@/components/dashboard/overdue-gallons';
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
@@ -125,6 +126,12 @@ function DetailBody({ id }: { id: string }) {
                   )}
                 </Stat>
               </div>
+
+              <OverdueGallons
+                overdue={profile.overdueGallons}
+                oldestAt={profile.oldestGallonAt}
+                variant="line"
+              />
 
               {/* SOP §7 — agen registration photo, when this customer is one. */}
               {reseller.data?.photoUrl && (

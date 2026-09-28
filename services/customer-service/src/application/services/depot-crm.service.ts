@@ -5,7 +5,7 @@ import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
 import { IdentityPort } from '../ports/identity.port';
 import { OrderCrmPort, DepotCustomerOrderStats } from '../ports/order-crm.port';
-import { DepotLedgerPort } from '../ports/depot-ledger.port';
+import { DepotGallonLedgerRow, DepotLedgerPort } from '../ports/depot-ledger.port';
 import { ProfileRepository } from '../ports/profile.repository';
 import { ChurnRiskPort } from '../ports/churn-risk.port';
 import { DepotGeo, DepotProfilePort } from '../ports/depot-profile.port';
@@ -26,6 +26,10 @@ export interface DepotCustomerListItem {
   membershipTier: MembershipTier;
   orderCount: number | null;
   gallonsOnLoan: number | null;
+  /** Of `gallonsOnLoan`, held longer than the depot's limit. Null = not known, never 0. */
+  overdueGallons: number | null;
+  /** When the oldest gallon still out was handed over; null when none is out or unknown. */
+  oldestGallonAt: string | null;
   depositHeldIdr: number | null;
   lastOrderAt: string | null;
   isSubscriber: boolean | null;
@@ -102,6 +106,10 @@ export interface DepotCustomerDetail {
     orderCount: number | null;
     totalSpentIdr: number | null;
     gallonsOnLoan: number | null;
+    /** Of `gallonsOnLoan`, held longer than the depot's limit. Null = not known, never 0. */
+    overdueGallons: number | null;
+    /** When the oldest gallon still out was handed over; null when none is out or unknown. */
+    oldestGallonAt: string | null;
     depositHeldIdr: number | null;
     /** Manager churn-risk panel (12b); null while the forecast aggregate is unwired. */
     churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
@@ -269,6 +277,7 @@ export class DepotCrmService {
         // J-2: real now. `null` means the ledger could not be read at all — a customer who
         // simply owes nothing comes back as 0, and the two are not the same answer.
         gallonsOnLoan: ledgerBy ? (ledgerBy.get(r.customerId)?.gallonsOnLoan ?? 0) : null,
+        ...DepotCrmService.gallonAge(ledgerBy?.get(r.customerId), ledgerBy !== null),
         depositHeldIdr: ledgerBy ? (ledgerBy.get(r.customerId)?.depositHeldIdr ?? 0) : null,
         // S2: matched on the linked account id. A subscription typed in as a free-text name
         // is one nobody linked, not one that does not exist — which is why the create route
@@ -405,6 +414,7 @@ export class DepotCrmService {
         orderCount: stats.length > 0 ? (stat?.orderCount ?? 0) : null,
         totalSpentIdr: stats.length > 0 ? Math.round(stat?.totalSpent ?? 0) : null,
         gallonsOnLoan: ledgerRows ? (gallons?.gallonsOnLoan ?? 0) : null,
+        ...DepotCrmService.gallonAge(gallons, ledgerRows !== null),
         depositHeldIdr: ledgerRows ? (gallons?.depositHeldIdr ?? 0) : null,
         // Same rule as the directory — see there.
         isSubscriber: subscriberIds ? subscriberIds.includes(customerId) : null,
@@ -422,6 +432,21 @@ export class DepotCrmService {
         placedAt: o.placedAt,
       })),
     };
+  }
+
+  /**
+   * The two "how long" figures for one customer, with the same three-way honesty as
+   * `gallonsOnLoan` beside them: a ledger that could not be read is `null`; a customer with no
+   * row owes nothing (0, no date); and a row from a depot-service that predates the fields is
+   * `null` too — not known — because a 0 there would read as "nobody is late".
+   */
+  private static gallonAge(
+    row: DepotGallonLedgerRow | undefined,
+    ledgerRead: boolean,
+  ): { overdueGallons: number | null; oldestGallonAt: string | null } {
+    if (!ledgerRead) return { overdueGallons: null, oldestGallonAt: null };
+    if (!row) return { overdueGallons: 0, oldestGallonAt: null };
+    return { overdueGallons: row.overdueGallons ?? null, oldestGallonAt: row.oldestIssuedAt ?? null };
   }
 
   private toAddress(a: AddressRecord, geo: DepotGeo | null): DepotCrmAddress {

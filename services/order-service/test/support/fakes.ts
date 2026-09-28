@@ -8,6 +8,7 @@ import { SettingsRepository } from '../../src/application/ports/settings.reposit
 import { OrderStatus } from '../../src/domain/order-status';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
+  CashierSales,
   CreateOrderData,
   CreateReviewData,
   CustomerLifetime,
@@ -27,10 +28,12 @@ import {
   ProductRevenue,
   ReportRange,
   RetentionCell,
+  ReviewRequestTarget,
   SalesBucket,
   SegmentConditions,
   DeliveryAddressSnapshot,
 } from '../../src/application/ports/order.repository';
+import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
   CreateSubscriptionData,
   SubscriptionNetworkSummary,
@@ -165,6 +168,42 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => r.createdAt < cutoff)
       .slice(0, limit)
       .map((r) => ({ customerId: r.customerId, phone: r.phone, recipientName: r.recipientName }));
+  }
+
+  /** orderId -> when the customer was asked; mirrors the nullable `reviewRequestedAt` column. */
+  reviewRequestedAt = new Map<string, Date>();
+
+  async findReviewRequestTargets(
+    settledBefore: Date,
+    notBefore: Date,
+    limit: number,
+  ): Promise<ReviewRequestTarget[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          (r.status === OrderStatus.DELIVERED || r.status === OrderStatus.COMPLETED) &&
+          r.statusChangedAt <= settledBefore &&
+          r.statusChangedAt > notBefore &&
+          !this.reviewRequestedAt.has(r.id) &&
+          !r.reviewed &&
+          !r.isWalkIn &&
+          r.customerId !== ANONYMOUS_CUSTOMER_ID,
+      )
+      .sort((a, b) => a.statusChangedAt.getTime() - b.statusChangedAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({
+        orderId: r.id,
+        orderNumber: r.orderNumber,
+        customerId: r.customerId,
+        phone: r.phone,
+        recipientName: r.recipientName,
+      }));
+  }
+
+  async claimReviewRequest(orderId: string, at: Date): Promise<boolean> {
+    if (this.reviewRequestedAt.has(orderId)) return false;
+    this.reviewRequestedAt.set(orderId, at);
+    return true;
   }
 
   async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
@@ -652,6 +691,24 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => !range.to || r.createdAt < range.to)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((r) => structuredClone(r));
+  }
+
+  async cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]> {
+    type Attributed = OrderRecord & { cashierId?: string | null; cashierLabel?: string | null };
+    const by = new Map<string, CashierSales>();
+    for (const row of this.rows) {
+      if (row.depotId !== depotId || !row.isWalkIn) continue;
+      if (row.status === OrderStatus.CANCELLED || row.status === OrderStatus.VOIDED) continue;
+      if (range.from && row.createdAt < range.from) continue;
+      if (range.to && row.createdAt >= range.to) continue;
+      const { cashierId = null, cashierLabel = null } = row as Attributed;
+      const key = cashierId ?? '';
+      const cur = by.get(key) ?? { cashierId, cashierLabel, orderCount: 0, revenue: 0 };
+      cur.orderCount += 1;
+      cur.revenue += row.total;
+      by.set(key, cur);
+    }
+    return [...by.values()].sort((a, b) => b.revenue - a.revenue);
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
@@ -1370,6 +1427,8 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_DELIVERY_FEE: '5000',
     ORDER_STALLED_HOURS: '24',
     ORDER_ABANDON_MINUTES: '60',
+    ORDER_REVIEW_REQUEST_DELAY_MINUTES: '30',
+    ORDER_REVIEW_REQUEST_WINDOW_HOURS: '72',
     ORDER_COUNTER_DELIVERY: '1',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
     ORDER_STAFF_COMPLETE_DELIVERED: '1',

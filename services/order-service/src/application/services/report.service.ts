@@ -1,5 +1,11 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { addLocalDays, addLocalMonths, dayStartUtc, localDayKey } from '@hydromart/platform';
+import {
+  addLocalDays,
+  addLocalMonths,
+  dayStartUtc,
+  localDayKey,
+  localHour,
+} from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
 import {
@@ -104,6 +110,25 @@ export interface DepotCourierDaily {
   codIdr: number | null;
 }
 
+/** One hour of the business day (0..23, business time zone) in a depot report. */
+export interface HourBucket {
+  hour: number;
+  orders: number;
+  revenueIdr: number;
+}
+
+/**
+ * One cashier's counter sales in the depot daily report. `cashierId` null is the "not
+ * recorded" line — counter sales rung before the order carried a cashier — kept as its own
+ * row so the table still adds up to the day's counter total.
+ */
+export interface CashierDaily {
+  cashierId: string | null;
+  label: string | null;
+  orders: number;
+  revenueIdr: number;
+}
+
 /**
  * One order on the daily export. Cancelled rows are carried and flagged rather than
  * filtered: a file that quietly omits them cannot be reconciled against the till.
@@ -141,6 +166,10 @@ export interface DepotDailyReport {
   cashInDrawerIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotCourierDaily[];
+  /** All 24 hours, empty ones included as zeros — the screen draws a fixed axis. */
+  byHour: HourBucket[];
+  /** Counter sales by the cashier who rang them, biggest first. Empty when nobody sold at the till. */
+  perCashier: CashierDaily[];
 }
 
 /** One depot's row in the cross-depot comparison (design 14d compare). */
@@ -239,6 +268,8 @@ export interface DepotWeeklyReport {
   /** Omitted — SLA on-time needs delivery-service data (no order-service source). */
   slaOnTimePct?: number;
   revenueByDay: { day: string; revenueIdr: number }[];
+  /** The window's orders by hour of day — when the depot is busy, not which day. */
+  byHour: HourBucket[];
   topProducts: { label: string; qty: number }[];
   topCourier?: { name: string; delivered: number; rating?: number };
 }
@@ -284,6 +315,22 @@ export function gallonQty(order: OrderRecord): number {
 // reconciliation is that its sales side matches the daily report's.
 export const isDelivered = (s: OrderStatus): boolean =>
   s === OrderStatus.DELIVERED || s === OrderStatus.COMPLETED;
+
+/** Whole rupiah with Indonesian grouping, for a message a person reads: "Rp1.250.000". */
+const rupiah = (amount: number): string => `Rp${Math.round(amount).toLocaleString('id-ID')}`;
+/** What a figure that could not be read is called in a message — not a zero. */
+const UNREADABLE = '—';
+
+/**
+ * Whether an order is part of what the depot actually sold.
+ *
+ * CANCELLED never happened; VOIDED is a counter sale reversed at the till with the money
+ * handed back. The repository's own aggregates already exclude both (H-14) — these composites
+ * fetch the raw rows and filter them here, and filtered only CANCELLED, so a reversed sale
+ * still counted as an order and as revenue.
+ */
+const countsAsSale = (s: OrderStatus): boolean =>
+  s !== OrderStatus.CANCELLED && s !== OrderStatus.VOIDED;
 
 /** Sales/customer/depot aggregates over the order book (PRD Module 13, FR-095..098). */
 @Injectable()
@@ -602,14 +649,14 @@ export class ReportService {
   async depotDaily(depotId: string, date?: string): Promise<DepotDailyReport> {
     const { day, from, to } = this.dayWindow(date);
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const live = rows.filter((r) => countsAsSale(r.status));
     const delivered = live.filter((r) => isDelivered(r.status));
 
     // Courier COD is asked for over the day's DELIVERY orders only. A counter sale's
     // payment is booked against the depot, and `depotCash` already counts it — asking for
     // both would put the same rupiah in two columns of the same report.
     const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
-    const [cashRows, drawer, returns] = await Promise.all([
+    const [cashRows, drawer, returns, cashiers] = await Promise.all([
       deliveryOrders.length > 0 && this.paymentCash
         ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
         : Promise.resolve(this.paymentCash ? [] : null),
@@ -617,6 +664,7 @@ export class ReportService {
       this.depotDirectory?.gallonReturns
         ? this.depotDirectory.gallonReturns(depotId, from, to)
         : Promise.resolve(null),
+      this.orders.cashierSalesForDepot(depotId, { from, to }),
     ]);
     const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
 
@@ -632,7 +680,39 @@ export class ReportService {
       cashInDrawerIdr: drawer,
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
       perCourier: ReportService.perCourier(rows, cashBy),
+      byHour: this.hourBuckets(live),
+      perCashier: cashiers.map((c) => ({
+        cashierId: c.cashierId,
+        label: c.cashierLabel,
+        orders: c.orderCount,
+        revenueIdr: Math.round(c.revenue),
+      })),
     };
+  }
+
+  /**
+   * The orders spread over the 24 hours of the business day.
+   *
+   * The hour is read in the business zone, not UTC: a depot's morning rush is 07:00 WIB, and in
+   * UTC it would land at 00:00 — on the wrong side of midnight from anything the operator sees
+   * on the clock. Every hour is returned, empty ones as zeros, so the screen can draw a fixed
+   * axis instead of guessing which hours are missing because nothing sold in them.
+   */
+  private hourBuckets(rows: OrderRecord[]): HourBucket[] {
+    const tz = this.config.businessTimeZone;
+    const seen = new Map<number, { orders: number; revenue: number }>();
+    for (const r of rows) {
+      const hour = localHour(r.createdAt, tz);
+      const cur = seen.get(hour) ?? { orders: 0, revenue: 0 };
+      cur.orders += 1;
+      cur.revenue += r.total;
+      seen.set(hour, cur);
+    }
+    return Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      orders: seen.get(hour)?.orders ?? 0,
+      revenueIdr: Math.round(seen.get(hour)?.revenue ?? 0),
+    }));
   }
 
   /**
@@ -712,7 +792,7 @@ export class ReportService {
     const toDate = to ?? new Date();
     const fromDate = from ?? new Date(toDate.getTime() - 7 * DAY_MS);
     const rows = await this.orders.ordersForDepot(depotId, { from: fromDate, to: toDate });
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const live = rows.filter((r) => countsAsSale(r.status));
     const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
     const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / DAY_MS));
 
@@ -743,6 +823,7 @@ export class ReportService {
       revenueByDay: [...byDay.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([day, r]) => ({ day, revenueIdr: Math.round(r) })),
+      byHour: this.hourBuckets(live),
       topProducts,
       // topCourier from order-owned driverName (real delivered count); rating is review-owned.
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
@@ -782,7 +863,7 @@ export class ReportService {
             ? this.depotDirectory.gallonReturns(depotId, from, to)
             : Promise.resolve(null),
         ]);
-        const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+        const live = rows.filter((r) => countsAsSale(r.status));
         const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
         return {
           depotId,
@@ -824,7 +905,7 @@ export class ReportService {
       // Approvals, stock counts and the daily close all live in depot-service; one read.
       this.depotCosts ? this.depotCosts.governance(depotId, from, to) : Promise.resolve(null),
     ]);
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const live = rows.filter((r) => countsAsSale(r.status));
     const byCourier = new Map<string, number>();
     for (const o of live) {
       if (isDelivered(o.status) && o.driverName)
@@ -942,12 +1023,23 @@ export class ReportService {
         continue;
       }
       try {
-        const days = await this.depotDailyGallons(depot.id, today, today);
-        const gallons = days.reduce((sum, d) => sum + d.gallons, 0);
+        // The very composite the operator reads on the daily report screen, so the message and
+        // the screen cannot disagree about what the day sold. A cash figure payment-service
+        // could not give is "—", never a zero: "Kas konter Rp0" would read as a drawer that
+        // took nothing.
+        const day = await this.depotDaily(depot.id, today);
         await this.notifications.notify(
           'DEPOT_SALES_UPDATE',
           phone,
-          { slot, depot: depot.name, gallons: String(gallons) },
+          {
+            slot,
+            depot: depot.name,
+            gallons: String(day.gallonsDelivered),
+            orders: String(day.orders),
+            revenue: rupiah(day.revenueIdr),
+            counterCash: day.cashInDrawerIdr === null ? UNREADABLE : rupiah(day.cashInDrawerIdr),
+            cod: day.codCollectedIdr === null ? UNREADABLE : rupiah(day.codCollectedIdr),
+          },
           null,
           '',
         );

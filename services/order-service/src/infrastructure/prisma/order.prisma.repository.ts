@@ -11,6 +11,7 @@ import {
   StaleOrderStatusError,
 } from '../../domain/errors';
 import {
+  CashierSales,
   CreateOrderData,
   CreateReviewData,
   CustomerLifetime,
@@ -30,6 +31,7 @@ import {
   ProductRevenue,
   ReportRange,
   RetentionCell,
+  ReviewRequestTarget,
   SalesBucket,
   SegmentConditions,
 } from '../../application/ports/order.repository';
@@ -297,6 +299,47 @@ export class OrderPrismaRepository implements OrderRepository {
     const dueIds = rows.map((r) => r.customerId);
     if (dueIds.length === 0) return [];
     return this.latestContactPerCustomer(dueIds);
+  }
+
+  async findReviewRequestTargets(
+    settledBefore: Date,
+    notBefore: Date,
+    limit: number,
+  ): Promise<ReviewRequestTarget[]> {
+    const rows = await this.prisma.order.findMany({
+      where: {
+        status: { in: [DbOrderStatus.DELIVERED, DbOrderStatus.COMPLETED] },
+        // Reads through the (status, statusChangedAt) index: the range narrows to the last few
+        // days' deliveries before the never-asked / never-rated filters run on it.
+        statusChangedAt: { lte: settledBefore, gt: notBefore },
+        reviewRequestedAt: null,
+        review: null,
+        // A counter sale is handed over across the till — "how was your delivery?" does not
+        // apply — and an anonymous one has nobody to ask.
+        isWalkIn: false,
+        customerId: { not: ANONYMOUS_CUSTOMER_ID },
+      },
+      select: { id: true, orderNumber: true, customerId: true, phone: true, recipientName: true },
+      orderBy: { statusChangedAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      orderId: r.id,
+      orderNumber: r.orderNumber,
+      customerId: r.customerId,
+      phone: r.phone,
+      recipientName: r.recipientName,
+    }));
+  }
+
+  async claimReviewRequest(orderId: string, at: Date): Promise<boolean> {
+    // The `reviewRequestedAt: null` guard IS the claim: two rounds racing on one order both try
+    // this, and only one of them updates a row.
+    const { count } = await this.prisma.order.updateMany({
+      where: { id: orderId, reviewRequestedAt: null },
+      data: { reviewRequestedAt: at },
+    });
+    return count === 1;
   }
 
   /**
@@ -1101,6 +1144,22 @@ export class OrderPrismaRepository implements OrderRepository {
       },
     );
     return rows.map((r) => this.toRecord(r));
+  }
+
+  async cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]> {
+    const rows = await this.prisma.order.groupBy({
+      by: ['cashierId', 'cashierLabel'],
+      where: { ...this.reportWhere(range), depotId, isWalkIn: true },
+      _sum: { total: true },
+      _count: { _all: true },
+      orderBy: { _sum: { total: 'desc' } },
+    });
+    return rows.map((r) => ({
+      cashierId: r.cashierId,
+      cashierLabel: r.cashierLabel,
+      orderCount: r._count._all,
+      revenue: r._sum.total ? r._sum.total.toNumber() : 0,
+    }));
   }
 
   /**

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ChartBar, Drop, Export, Lock, Truck, Warning } from '@phosphor-icons/react';
 
+import { CashierSales } from '@/components/dashboard/cashier-sales';
+import { HourChart } from '@/components/dashboard/hour-chart';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -348,6 +350,10 @@ function Harian({ depotId }: { depotId: string }) {
             )}
           </Card>
 
+          <HourChart hours={rep.data.byHour} />
+
+          <CashierSales rows={rep.data.perCashier} />
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex items-center gap-2 text-sm font-extrabold">
@@ -432,6 +438,8 @@ function Mingguan({ depotId }: { depotId: string }) {
           </div>
         )}
       </Card>
+
+      <HourChart hours={rep.data.byHour} />
 
       <Card className="overflow-hidden">
         <div className="border-b border-app px-4 py-3 text-sm font-extrabold">

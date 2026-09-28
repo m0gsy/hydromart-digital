@@ -1302,6 +1302,30 @@ export class CustomerGallonRowResponseDto {
   gallonsOnLoan!: number;
   @ApiProperty({ type: Number })
   depositHeldIdr!: number;
+  @ApiProperty({ type: Number, description: 'Of gallonsOnLoan, held longer than the depot limit.' })
+  overdueGallons!: number;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'When the oldest gallon still out was handed over; null when none is out.',
+  })
+  oldestIssuedAt!: string | null;
+}
+
+/** Mirrors `GallonReminderSweepResult` exactly. */
+export class GallonReminderSweepResponseDto {
+  @ApiProperty({ type: Number, description: 'Overdue customers this round tried to reach.' })
+  attempted!: number;
+  @ApiProperty({ type: Number, description: 'Reminders crm accepted.' })
+  sent!: number;
+  @ApiProperty({ type: Number, description: 'Left alone: reminded recently, or no number on file.' })
+  skipped!: number;
+  @ApiProperty({ type: Number, description: 'Customers or depots that could not be processed.' })
+  failed!: number;
+  @ApiProperty({ type: Boolean, description: 'The per-round cap stopped the walk early.' })
+  capped!: boolean;
+  @ApiProperty({ type: Boolean, description: 'False only when the round failed and accomplished nothing.' })
+  ok!: boolean;
 }
 
 /** Mirrors `CustomerDepotDepositRow` exactly — generated for audit D-6, no field added or removed. */

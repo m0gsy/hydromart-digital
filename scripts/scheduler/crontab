@@ -122,3 +122,16 @@
 # on. scripts/check-scheduler-targets.mjs now requires every line here to name a port and a route
 # that the target service really has.
 45 3 * * * sh /scripts/sweep.sh loyalty/internal/expire loyalty:3009
+
+# Gallon-return reminders: ask every customer still holding a depot's gallons past that
+# depot's loan limit to bring them back, at most once per the depot's own reminder interval
+# (`gallonReminderEveryDays`, 7 by default). Daily at 09:00 WIB — after the depots open, so a
+# customer who answers finds somebody to hand the gallons to. Safe to run twice: a customer
+# already reminded inside the interval is skipped, so a double run sends nothing more.
+0 9 * * * sh /scripts/sweep.sh gallon-outstanding/internal/overdue-reminders depot:3007
+
+# Review requests: ask each customer how a delivery went, `reviewRequestDelayMinutes` (30) after
+# it arrived and until `reviewRequestWindowHours` (72) have passed. Every 10 minutes because the
+# point is to ask while the delivery is still fresh; each order is claimed before the message
+# goes out, so a double run or an overlapping tick asks nobody twice. Bounded at 200 per round.
+*/10 * * * * sh /scripts/sweep.sh orders/reminders/review

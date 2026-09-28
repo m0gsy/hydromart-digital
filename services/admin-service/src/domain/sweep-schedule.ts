@@ -61,6 +61,12 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   { job: 'fraud-flags/internal/scan', everyMinutes: 1440, label: 'Pemindaian kecurangan' },
   { job: 'profile/internal/birthday-rewards', everyMinutes: 1440, label: 'Hadiah ulang tahun' },
   {
+    job: 'gallon-outstanding/internal/overdue-reminders',
+    everyMinutes: 1440,
+    label: 'Pengingat galon telat',
+  },
+  { job: 'orders/reminders/review', everyMinutes: 10, label: 'Permintaan ulasan' },
+  {
     job: 'loyalty/internal/expire',
     everyMinutes: 1440,
     label: 'Kedaluwarsa poin',

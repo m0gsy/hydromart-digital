@@ -47,6 +47,7 @@ function makeService(): Mocked {
     customerOrdersAtDepot: jest.fn().mockResolvedValue([]),
     findOrderValues: jest.fn().mockResolvedValue([{ orderId: 'o1', total: 42000 }]),
     remindStaleCustomers: jest.fn().mockResolvedValue({ reminded: 4, failed: 0, ok: true }),
+    requestReviews: jest.fn().mockResolvedValue({ asked: 3, skipped: 0, failed: 0, ok: true }),
     getForCustomer: jest.fn().mockResolvedValue({ id: 'o1', history: ['h1', 'h2'] }),
     cancel: jest.fn().mockResolvedValue({ id: 'o1', status: 'CANCELLED' }),
     repeat: jest.fn().mockResolvedValue({ items: ['x'] }),
@@ -489,6 +490,23 @@ describe('OrderController', () => {
     call = service.remindStaleCustomers.mock.calls[1];
     expect(call[1]).toBe(14);
     expect(call[2]).toBe(100);
+  });
+
+  // The scheduler's review-request round: the route only starts it and hands the counters back
+  // untouched — the heartbeat reads `ok` off that body. The limit arrives as a string.
+  it('requestReviews: runs the sweep now, forwarding a numeric limit only when given', async () => {
+    await expect(controller.requestReviews()).resolves.toEqual({
+      asked: 3,
+      skipped: 0,
+      failed: 0,
+      ok: true,
+    });
+    let call = service.requestReviews.mock.calls[0];
+    expect(call[0]).toBeInstanceOf(Date);
+    expect(call[1]).toBeUndefined();
+    await controller.requestReviews('50');
+    call = service.requestReviews.mock.calls[1];
+    expect(call[1]).toBe(50);
   });
 
   it('get: reads one of the customer own orders', async () => {

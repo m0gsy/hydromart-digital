@@ -47,9 +47,11 @@ export enum NotificationEvent {
   // reports a HIGH-severity field incident (design 4b). Tokens: {{severity}},
   // {{category}}, {{note}}. Recipient is the ops number.
   COURIER_INCIDENT = 'COURIER_INCIDENT',
-  // Operational (not customer-facing): fired twice a day by order-service's cron with the
-  // depot's gallon count so far. Tokens: {{slot}}, {{depot}}, {{gallons}}. Recipient is the
-  // depot's own number, falling back to the ops number.
+  // Operational (not customer-facing): fired twice a day by order-service's cron (13:00 and
+  // 21:00 WIB) with the day so far — the same figures the depot's daily report screen shows.
+  // Tokens: {{slot}}, {{depot}}, {{gallons}}, {{orders}}, {{revenue}}, {{counterCash}},
+  // {{cod}}; the two cash tokens read "—" when payment-service could not be reached, never
+  // a fabricated zero. Recipient is the depot's own number, falling back to the ops number.
   DEPOT_SALES_UPDATE = 'DEPOT_SALES_UPDATE',
   // Account: fired by auth-service (via internal service auth) when a new customer
   // completes phone verification. Token: {{name}}.
@@ -85,6 +87,15 @@ export enum NotificationEvent {
   SUBSCRIPTION_PAUSED = 'SUBSCRIPTION_PAUSED',
   // Retention nudge: "time to refill". Token: {{name}}.
   REORDER_REMINDER = 'REORDER_REMINDER',
+  // Fired daily by depot-service's reminder sweep for a customer still holding gallons past the
+  // depot's loan limit. A service message about something the customer holds on deposit, not
+  // a promotion — so it is NOT gated by the marketing opt-out. Tokens: {{name}}, {{depot}},
+  // {{gallons}} (how many are overdue), {{since}} (when the oldest went out, e.g. "12 Ags 2026").
+  GALLON_RETURN_REMINDER = 'GALLON_RETURN_REMINDER',
+  // Fired by order-service's review sweep some time after a delivery arrived: "how was it?".
+  // Opens the order, where the rating form is. A service message about a purchase the customer
+  // made, not a promotion. Tokens: {{name}}, {{orderNumber}}; `orderId` rides along for the tap.
+  REVIEW_REQUEST = 'REVIEW_REQUEST',
   // HR (hr-service, internal key). Staff-facing, never customers. Leave events carry
   // {{name}}, {{type}}, {{from}}, {{to}}; a rejection adds {{reason}}. HR_ANNOUNCEMENT
   // carries {{title}} and {{body}}.
@@ -152,7 +163,7 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 Insiden {{severity}} dilaporkan kurir — {{category}}: {{note}}. Mohon segera ditindaklanjuti.',
   [NotificationEvent.DEPOT_SALES_UPDATE]:
-    'Laporan penjualan {{slot}} depot {{depot}} : {{gallons}} Galon',
+    'Laporan penjualan {{slot}} depot {{depot}}: {{gallons}} galon, {{orders}} pesanan, omzet {{revenue}}. Kas konter {{counterCash}}, COD {{cod}}.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
   [NotificationEvent.PHONE_CHANGED]:
@@ -169,6 +180,10 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}! Langganan {{product}} kami jeda dulu karena {{reason}}. Tidak ada tagihan selama dijeda — buka Langganan untuk melanjutkan kapan saja.',
   [NotificationEvent.REORDER_REMINDER]:
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
+  [NotificationEvent.GALLON_RETURN_REMINDER]:
+    'Halo {{name}}, kamu masih memegang {{gallons}} galon milik depot {{depot}} sejak {{since}}. Kalau sudah tidak dipakai, mohon dikembalikan ya — deposit galonnya bisa kamu terima kembali.',
+  [NotificationEvent.REVIEW_REQUEST]:
+    'Halo {{name}}, pesanan {{orderNumber}} sudah sampai. Bagaimana kesannya? Beri penilaian sebentar — masukanmu membantu depot memperbaiki layanan ⭐',
   [NotificationEvent.LEAVE_SUBMITTED]:
     'Pengajuan cuti {{type}} dari {{name}} ({{from}} s/d {{to}}) menunggu persetujuan Anda.',
   [NotificationEvent.LEAVE_APPROVED]:
@@ -259,7 +274,7 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 {{severity}} incident reported by a courier — {{category}}: {{note}}. Please follow up immediately.',
   [NotificationEvent.DEPOT_SALES_UPDATE]:
-    '{{slot}} sales report for depot {{depot}} : {{gallons}} gallons',
+    '{{slot}} sales report for depot {{depot}}: {{gallons}} gallons, {{orders}} orders, revenue {{revenue}}. Counter cash {{counterCash}}, COD {{cod}}.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Welcome to Hydromart, {{name}}! 💧 Your account is active. Order clean water any time from the app. Thank you for joining!',
   [NotificationEvent.PHONE_CHANGED]:
@@ -276,6 +291,10 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}! Your {{product}} subscription is paused because {{reason}}. Nothing is charged while it is paused — open Subscriptions to resume whenever you like.',
   [NotificationEvent.REORDER_REMINDER]:
     'Hi {{name}}, you may be running low on water. Reorder now for fast delivery from your nearest depot 💧',
+  [NotificationEvent.GALLON_RETURN_REMINDER]:
+    'Hi {{name}}, you are still holding {{gallons}} gallons that belong to depot {{depot}}, out since {{since}}. If you no longer need them, please return them — you can get the gallon deposit back.',
+  [NotificationEvent.REVIEW_REQUEST]:
+    'Hi {{name}}, order {{orderNumber}} has arrived. How was it? Leave a quick rating — your feedback helps the depot improve ⭐',
   [NotificationEvent.LEAVE_SUBMITTED]:
     '{{type}} leave request from {{name}} ({{from}} to {{to}}) is waiting for your approval.',
   [NotificationEvent.LEAVE_APPROVED]:

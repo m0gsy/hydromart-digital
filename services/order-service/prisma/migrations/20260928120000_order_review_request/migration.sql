@@ -1,0 +1,11 @@
+-- Remember when a customer was asked to rate a delivery.
+--
+-- Nothing prompted a rating: the review screen was reachable only by a customer who opened the
+-- order themselves. A sweep now asks once, some time after the delivery — and needs to know it
+-- already asked, or it would nudge every customer every round.
+--
+-- Additive and nullable: every existing order stays NULL ("never asked"). No index: the sweep
+-- reads through the existing (status, statusChangedAt) index and filters this column on the
+-- few rows that range returns, so a new index would be write cost on the busiest table for
+-- nothing.
+ALTER TABLE "orders" ADD COLUMN "reviewRequestedAt" TIMESTAMP(3);

@@ -37,6 +37,11 @@ export const envValidationSchema = Joi.object({
   // and auto-cancelled, releasing its stock hold. Long by design — the depot has already
   // accepted the order, and payment is collected at the depot, so being unpaid is normal.
   ORDER_STALLED_HOURS: Joi.number().integer().positive().default(24),
+  // Review request: minutes after a delivery before the customer is asked how it went (long
+  // enough that the water has been drunk from, short enough that it is still remembered), and
+  // hours after which it is too late to ask — a nudge days late reads as spam.
+  ORDER_REVIEW_REQUEST_DELAY_MINUTES: Joi.number().integer().min(5).max(1440).default(30),
+  ORDER_REVIEW_REQUEST_WINDOW_HOURS: Joi.number().integer().min(1).max(720).default(72),
   // Percent off the subtotal of every subscription delivery (spec 7b "hemat 5%").
   // Boot-time fallback only; a depot may override it through settings.
   ORDER_SUBSCRIPTION_DISCOUNT_PCT: Joi.number().min(0).max(50).default(5),

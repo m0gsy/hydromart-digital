@@ -896,6 +896,20 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
       .slice(0, limit);
   }
 
+  /** Newest first, the real repository's order, so a test cannot lean on insertion order. */
+  async newestIssuesForCustomers(depotId: string, customerIds: readonly string[], limit: number) {
+    const wanted = new Set(customerIds);
+    return this.rows
+      .filter((r) => r.depotId === depotId && r.customerId !== null && wanted.has(r.customerId))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({
+        customerId: r.customerId as string,
+        quantity: r.quantity,
+        createdAt: r.createdAt,
+      }));
+  }
+
   async networkSummary() {
     const map = new Map<string, { gallons: number; depositHeld: number }>();
     for (const r of this.rows) {
