@@ -987,6 +987,70 @@ describe('ReportService', () => {
     expect(rep.slaOnTimePct).toBeUndefined();
   });
 
+  /*
+   * A voided counter sale is money handed back across the till. The repository already
+   * excludes VOIDED from every aggregate it owns (H-14), but these four composites filtered
+   * only CANCELLED on the rows they fetch — so a reversed sale still counted as an order and
+   * as revenue on the daily, weekly, monthly and compare screens, and the depot looked busier
+   * by exactly what it had refunded.
+   */
+  describe('a voided counter sale is not an order and not revenue', () => {
+    const day = '2026-07-15';
+    const setup = async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const mk = async (total: number) => {
+        const o = await r.create({
+          ...orderData({ depotId: depot, total }),
+          isWalkIn: true,
+          status: OrderStatus.COMPLETED,
+        });
+        r.rows.find((x) => x.id === o.id)!.createdAt = new Date(`${day}T03:00:00.000Z`);
+        return o;
+      };
+      await mk(40000);
+      const voided = await mk(60000);
+      r.rows.find((x) => x.id === voided.id)!.status = OrderStatus.VOIDED;
+      return { svc, depot };
+    };
+
+    it('is left out of the daily report', async () => {
+      const { svc, depot } = await setup();
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.orders).toBe(1);
+      expect(rep.revenueIdr).toBe(40000);
+    });
+
+    it('is left out of the weekly report', async () => {
+      const { svc, depot } = await setup();
+      const rep = await svc.depotWeekly(
+        depot,
+        new Date('2026-07-10T00:00:00.000Z'),
+        new Date('2026-07-17T00:00:00.000Z'),
+      );
+      expect(rep.orders).toBe(1);
+      expect(rep.revenueIdr).toBe(40000);
+    });
+
+    it('is left out of the monthly review', async () => {
+      const { svc, depot } = await setup();
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      expect(rep.orders).toBe(1);
+      expect(rep.revenueIdr).toBe(40000);
+      expect(rep.activeCustomers).toBe(1);
+    });
+
+    it('is left out of the cross-depot comparison', async () => {
+      const { svc, depot } = await setup();
+      const cmp = await svc.reportsDepotCompare([depot], {
+        from: new Date('2026-07-01T00:00:00.000Z'),
+        to: new Date('2026-08-01T00:00:00.000Z'),
+      });
+      expect(cmp.depots[0]).toMatchObject({ orders: 1, revenueIdr: 40000 });
+    });
+  });
+
   it('compares depots: real orders/revenue, zeroes for empty depots, cancelled excluded', async () => {
     const empty = randomUUID();
     const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {});

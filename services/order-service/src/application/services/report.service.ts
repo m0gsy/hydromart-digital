@@ -285,6 +285,17 @@ export function gallonQty(order: OrderRecord): number {
 export const isDelivered = (s: OrderStatus): boolean =>
   s === OrderStatus.DELIVERED || s === OrderStatus.COMPLETED;
 
+/**
+ * Whether an order is part of what the depot actually sold.
+ *
+ * CANCELLED never happened; VOIDED is a counter sale reversed at the till with the money
+ * handed back. The repository's own aggregates already exclude both (H-14) — these composites
+ * fetch the raw rows and filter them here, and filtered only CANCELLED, so a reversed sale
+ * still counted as an order and as revenue.
+ */
+const countsAsSale = (s: OrderStatus): boolean =>
+  s !== OrderStatus.CANCELLED && s !== OrderStatus.VOIDED;
+
 /** Sales/customer/depot aggregates over the order book (PRD Module 13, FR-095..098). */
 @Injectable()
 export class ReportService {
@@ -602,7 +613,7 @@ export class ReportService {
   async depotDaily(depotId: string, date?: string): Promise<DepotDailyReport> {
     const { day, from, to } = this.dayWindow(date);
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const live = rows.filter((r) => countsAsSale(r.status));
     const delivered = live.filter((r) => isDelivered(r.status));
 
     // Courier COD is asked for over the day's DELIVERY orders only. A counter sale's
@@ -712,7 +723,7 @@ export class ReportService {
     const toDate = to ?? new Date();
     const fromDate = from ?? new Date(toDate.getTime() - 7 * DAY_MS);
     const rows = await this.orders.ordersForDepot(depotId, { from: fromDate, to: toDate });
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const live = rows.filter((r) => countsAsSale(r.status));
     const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
     const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / DAY_MS));
 
@@ -782,7 +793,7 @@ export class ReportService {
             ? this.depotDirectory.gallonReturns(depotId, from, to)
             : Promise.resolve(null),
         ]);
-        const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+        const live = rows.filter((r) => countsAsSale(r.status));
         const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
         return {
           depotId,
@@ -824,7 +835,7 @@ export class ReportService {
       // Approvals, stock counts and the daily close all live in depot-service; one read.
       this.depotCosts ? this.depotCosts.governance(depotId, from, to) : Promise.resolve(null),
     ]);
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const live = rows.filter((r) => countsAsSale(r.status));
     const byCourier = new Map<string, number>();
     for (const o of live) {
       if (isDelivered(o.status) && o.driverName)
