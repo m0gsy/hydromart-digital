@@ -80,6 +80,20 @@ export function formatDateTime(iso: string | Date): string {
   return dateFmt.format(d);
 }
 
+// The calendar day only, in the business zone — for "since 12 Aug", where a clock time would
+// be noise and a device-zone day could disagree with the day the depot recorded.
+const dayOnlyFmt = new Intl.DateTimeFormat('id-ID', {
+  timeZone: BUSINESS_TZ,
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
+export function formatDate(iso: string | Date): string {
+  const d = typeof iso === 'string' ? new Date(iso) : iso;
+  return dayOnlyFmt.format(d);
+}
+
 /**
  * Normalise an Indonesian mobile number to E.164-ish local form for display.
  * Leaves the value largely intact — the backend does authoritative validation.

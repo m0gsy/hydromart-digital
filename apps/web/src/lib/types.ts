@@ -2483,6 +2483,10 @@ export interface DepotCustomer {
   // null = aggregate not computed yet (cross-service unwired); render as "—".
   orderCount: number | null;
   gallonsOnLoan: number | null;
+  /** Of `gallonsOnLoan`, held longer than the depot's limit. Null = not known — never 0. */
+  overdueGallons: number | null;
+  /** When the oldest gallon still out was handed over; null when none is out or unknown. */
+  oldestGallonAt: string | null;
   depositHeldIdr: number | null;
   lastOrderAt: string | null;
   isSubscriber: boolean | null;
@@ -2549,6 +2553,10 @@ export interface DepotCustomerDetail {
     orderCount: number | null;
     totalSpentIdr: number | null;
     gallonsOnLoan: number | null;
+    /** Of `gallonsOnLoan`, held longer than the depot's limit. Null = not known — never 0. */
+    overdueGallons: number | null;
+    /** When the oldest gallon still out was handed over; null when none is out or unknown. */
+    oldestGallonAt: string | null;
     depositHeldIdr: number | null;
     churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   };

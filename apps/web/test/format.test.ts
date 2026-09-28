@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatIDR, mediaUrl, normalizePhone, slugify, toIndonesianE164 } from '@/lib/format';
+import {
+  formatDate,
+  formatIDR,
+  mediaUrl,
+  normalizePhone,
+  slugify,
+  toIndonesianE164,
+} from '@/lib/format';
+
+describe('formatDate', () => {
+  it('prints the calendar day in Indonesian, without a clock time', () => {
+    const out = formatDate('2026-08-12T05:00:00.000Z');
+    expect(out).toContain('12');
+    expect(out).toContain('2026');
+    expect(out).not.toMatch(/\d{2}[.:]\d{2}/);
+  });
+
+  // 17:30 UTC on the 11th is already the 12th in Jakarta. A device set to another zone must
+  // not move the day the depot recorded the gallon on.
+  it('uses the business zone, not the device zone', () => {
+    expect(formatDate('2026-08-11T17:30:00.000Z')).toContain('12');
+    expect(formatDate(new Date('2026-08-11T17:30:00.000Z'))).toContain('12');
+  });
+});
 
 describe('toIndonesianE164', () => {
   it('accepts every form an Indonesian applicant actually types', () => {

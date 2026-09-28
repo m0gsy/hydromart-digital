@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CaretRight, Lock, MagnifyingGlass, UserPlus, Users } from '@phosphor-icons/react';
 
+import { OverdueGallons } from '@/components/dashboard/overdue-gallons';
 import { RequireAuth } from '@/components/require-auth';
 import {
   Badge,
@@ -88,7 +89,10 @@ function CustomerRow({ c }: { c: DepotCustomer }) {
         </div>
       </div>
       <span className="tabular-nums">{c.orderCount ?? '—'}</span>
-      <GallonCell gallons={c.gallonsOnLoan} deposit={c.depositHeldIdr} />
+      <div className="flex min-w-0 flex-col items-start gap-1">
+        <GallonCell gallons={c.gallonsOnLoan} deposit={c.depositHeldIdr} />
+        <OverdueGallons overdue={c.overdueGallons} oldestAt={c.oldestGallonAt} variant="badge" />
+      </div>
       <span className="text-[color:var(--text-muted)]">
         {c.lastOrderAt ? formatDateTime(c.lastOrderAt) : '—'}
       </span>
