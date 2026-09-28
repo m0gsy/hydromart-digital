@@ -3,6 +3,16 @@ export interface DepotGallonLedgerRow {
   customerId: string;
   gallonsOnLoan: number;
   depositHeldIdr: number;
+  /**
+   * Of `gallonsOnLoan`, how many have been out longer than the depot's limit.
+   *
+   * Optional only because depot-service and customer-service deploy separately: an older
+   * depot-service answers without it, and "not reported" must not be read as "none overdue".
+   * The mapping below turns an absent value into `null` (not known), never into 0.
+   */
+  overdueGallons?: number;
+  /** When the oldest gallon still out was handed over; null when none is out. */
+  oldestIssuedAt?: string | null;
 }
 
 /**

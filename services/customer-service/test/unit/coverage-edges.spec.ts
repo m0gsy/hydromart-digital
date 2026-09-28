@@ -386,6 +386,41 @@ describe('DepotCrmService directory union and ledger (§I, J-2)', () => {
     for (const r of rows) {
       expect(r.gallonsOnLoan).toBeNull();
       expect(r.depositHeldIdr).toBeNull();
+      // How long they have been out is unknown too — never a confident "none overdue".
+      expect(r.overdueGallons).toBeNull();
+      expect(r.oldestGallonAt).toBeNull();
+    }
+  });
+
+  // #26: the directory row carries how LONG, next to how many. A row from a depot-service that
+  // predates the fields is "not known", and a customer the ledger does not mention owes nothing.
+  it('carries how long the gallons have been out, straight from the depot ledger', async () => {
+    const rows = await build([
+      {
+        customerId: 'c-profile',
+        gallonsOnLoan: 3,
+        depositHeldIdr: 60_000,
+        overdueGallons: 2,
+        oldestIssuedAt: '2026-08-01T00:00:00.000Z',
+      },
+      { customerId: 'c-orderer', gallonsOnLoan: 1, depositHeldIdr: 20_000 },
+    ]).listDepotCustomers(DEPOT);
+
+    expect(rows.find((r) => r.id === 'c-profile')).toMatchObject({
+      overdueGallons: 2,
+      oldestGallonAt: '2026-08-01T00:00:00.000Z',
+    });
+    expect(rows.find((r) => r.id === 'c-orderer')).toMatchObject({
+      overdueGallons: null,
+      oldestGallonAt: null,
+    });
+  });
+
+  it('says none are overdue for a customer a read ledger does not mention', async () => {
+    const rows = await build([]).listDepotCustomers(DEPOT);
+    for (const r of rows) {
+      expect(r.overdueGallons).toBe(0);
+      expect(r.oldestGallonAt).toBeNull();
     }
   });
 
