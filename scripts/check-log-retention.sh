@@ -47,6 +47,9 @@ if [ "${#problems[@]}" -gt 0 ]; then
   echo
   echo "   Fix: sudo cp ops/docker-daemon.json /etc/docker/daemon.json && sudo systemctl restart docker"
   echo "   (a restart is required — the setting is applied at container CREATE time)"
+  echo "   A container created BEFORE the file was installed stays uncapped until it is recreated."
+  echo "   docker-compose.prod.yml declares the cap per service (x-logging), so a normal deploy"
+  echo "   (converge -> up -d) recreates it capped — the daemon restart alone will not."
   alert "Container log retention is not what the repo says: ${problems[0]}"
   exit 1
 fi

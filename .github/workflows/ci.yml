@@ -580,6 +580,13 @@ jobs:
       - name: Caddy knobs are reachable
         run: node scripts/check-caddy-knobs.mjs
 
+      # daemon.json caps logs only for containers CREATED after the daemon read it. On 2026-09-28
+      # the file on the box matched the repo, live-restore was on, and the running gateway still
+      # carried `{}` — so the cap now lives in every compose service too, and this fails when a
+      # service is added without it or the two copies of the number drift.
+      - name: Every production service carries the log cap
+        run: node scripts/check-compose-logging.mjs
+
       - name: Public-metrics gate can go red
         run: bash scripts/check-public-metrics.test.sh
 
