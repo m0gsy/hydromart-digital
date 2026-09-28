@@ -229,6 +229,17 @@ describe('endpoints', () => {
       '/orders/api/v1/reports/depot-daily/export?depotId=d1&date=2026-08-04',
     );
   });
+
+  it('prints the daily report on the same path family, with the depot name as a bounded label', () => {
+    expect(endpoints.reports.depotDailyPdf('d1')).toBe('/orders/api/v1/reports/depot-daily/pdf?depotId=d1');
+    expect(endpoints.reports.depotDailyPdf('d1', '2026-08-04', 'Depot Tirta & Jaya')).toBe(
+      '/orders/api/v1/reports/depot-daily/pdf?depotId=d1&date=2026-08-04&label=Depot+Tirta+%26+Jaya',
+    );
+    // The server refuses a label over 80 characters; cutting it here means a long depot
+    // name still prints instead of turning the button into a 400.
+    const long = endpoints.reports.depotDailyPdf('d1', undefined, 'x'.repeat(200));
+    expect(new URL(long, 'http://h').searchParams.get('label')).toHaveLength(80);
+  });
 });
 
 /*

@@ -909,6 +909,27 @@ describe('ReportService', () => {
     }
   });
 
+  it('prints the PDF for the day the report resolved, not a second "today"', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-03T19:00:00Z')); // 02:00 WIB, 4 Aug
+    try {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const o = await r.create({ ...orderData({ depotId: depot, total: 50000 }) });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-08-03T19:30:00Z');
+      const rowsSpy = jest.spyOn(svc, 'depotDailyRows');
+
+      const { file, day } = await svc.depotDailyPdf(depot, undefined, 'Depot A');
+
+      expect(day).toBe('2026-08-04');
+      // The rows are asked for the resolved day, so totals and orders cannot straddle midnight.
+      expect(rowsSpy).toHaveBeenCalledWith(depot, '2026-08-04');
+      expect(file.subarray(0, 5).toString()).toBe('%PDF-');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   // H-16: the window used to be [date T00:00Z, +24h) — which is 07:00 WIB to 07:00 WIB.
   // An order at 01:00 WIB fell into the PREVIOUS day's report and one at 03:00 WIB the
   // next morning was counted as today's, so the depot's daily revenue was wrong twice

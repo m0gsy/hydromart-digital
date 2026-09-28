@@ -293,6 +293,7 @@ export const opsFix = {
     gateBody2: 'Depot ops reports are for depot operators and managers.',
     exportExcel: 'Export Excel',
     exportCsv: 'CSV',
+    exportPdf: 'PDF',
     exportError: 'Could not export the report.',
     fileName: 'daily-report',
     sheetName: 'Daily report',

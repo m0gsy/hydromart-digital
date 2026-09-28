@@ -6,9 +6,11 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 
 import {
   AuthenticatedUser,
@@ -26,6 +28,7 @@ import {
   AudienceReachQueryDto,
   DepotCompareQueryDto,
   DepotDailyGallonsQueryDto,
+  DepotDailyPdfQueryDto,
   DepotDailyQueryDto,
   DepotMonthlyQueryDto,
   DepotRatingsQueryDto,
@@ -253,6 +256,31 @@ export class ReportController {
   depotDailyExport(@Query() q: DepotDailyQueryDto, @CurrentUser() user: AuthenticatedUser) {
     assertDepotAccess(user, q.depotId);
     return this.reports.depotDailyRows(q.depotId, q.date);
+  }
+
+  /**
+   * The daily report as a printable PDF.
+   *
+   * Gated exactly like the export above and for the same reason: it carries every customer's
+   * and courier's name for the day, so `depotId` is checked against the CALLER, not trusted.
+   */
+  @ApiOkResponse({
+    description: 'The daily report as a PDF.',
+    content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Can('orderReportsDepot')
+  @Get('depot-daily/pdf')
+  @ApiOperation({ summary: 'The daily report as a printable PDF sheet' })
+  async depotDailyPdf(
+    @Query() q: DepotDailyPdfQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ): Promise<void> {
+    assertDepotAccess(user, q.depotId);
+    const { file, day } = await this.reports.depotDailyPdf(q.depotId, q.date, q.label);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="laporan-harian-${day}.pdf"`);
+    res.send(file);
   }
 
   @ApiOkResponse({ type: DepotWeeklyReportResponseDto })

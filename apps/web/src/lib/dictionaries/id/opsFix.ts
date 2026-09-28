@@ -295,6 +295,7 @@ export const opsFix = {
     gateBody2: 'Laporan operasional depot tersedia untuk operator dan manajer depot.',
     exportExcel: 'Ekspor Excel',
     exportCsv: 'CSV',
+    exportPdf: 'PDF',
     exportError: 'Gagal mengekspor laporan.',
     fileName: 'laporan-harian',
     sheetName: 'Laporan harian',

@@ -20,6 +20,7 @@ import {
   ReportRange,
   SalesBucket,
 } from '../ports/order.repository';
+import { depotDailyPdf } from './depot-daily-pdf';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
@@ -781,6 +782,29 @@ export class ReportService {
         totalIdr: Math.round(r.total),
         isWalkIn: r.isWalkIn === true,
       }));
+  }
+
+  /**
+   * The daily report as a PDF sheet, for the button beside Excel and CSV.
+   *
+   * The rows are read for the day the report RESOLVED, not for a second "today": with no
+   * date given, two independent defaults straddling midnight would put one day's totals
+   * over another day's orders on the same page.
+   */
+  async depotDailyPdf(
+    depotId: string,
+    date?: string,
+    depotLabel?: string,
+  ): Promise<{ file: Buffer; day: string }> {
+    const report = await this.depotDaily(depotId, date);
+    const rows = await this.depotDailyRows(depotId, report.date);
+    const file = await depotDailyPdf({
+      report,
+      rows,
+      depotLabel,
+      timeZone: this.config.businessTimeZone,
+    });
+    return { file, day: report.date };
   }
 
   /**

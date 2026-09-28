@@ -7,8 +7,8 @@ import { CashierSales } from '@/components/dashboard/cashier-sales';
 import { HourChart } from '@/components/dashboard/hour-chart';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
+import { api, ApiError, getBlob } from '@/lib/api';
+import { downloadBlob, downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
 import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -82,15 +82,32 @@ const dailyRow = (r: DailyExportRow): CsvCell[] => [
  * a human opens: the money columns land as real numbers there, and Excel on an Indonesian
  * locale can't split a comma-separated file into one useless column.
  */
-function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
+function ExportDaily({
+  depotId,
+  date,
+  depotName,
+}: {
+  depotId: string;
+  date: string;
+  depotName?: string;
+}) {
   const { t } = useT();
-  const [busy, setBusy] = useState<'csv' | 'xlsx' | null>(null);
+  const [busy, setBusy] = useState<'csv' | 'xlsx' | 'pdf' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(format: 'csv' | 'xlsx') {
+  async function run(format: 'csv' | 'xlsx' | 'pdf') {
     setBusy(format);
     setError(null);
     try {
+      if (format === 'pdf') {
+        // Rendered server-side, unlike the two below: a PDF cannot be built in the browser
+        // without shipping a renderer, and `window.print()` does nothing in the Android app.
+        downloadBlob(
+          `${t('opsFix.reports.fileName')}-${date}.pdf`,
+          await getBlob(endpoints.reports.depotDailyPdf(depotId, date, depotName)),
+        );
+        return;
+      }
       const rows = (
         await api.get<DailyExportRow[]>(endpoints.reports.depotDailyExport(depotId, date), true)
       ).map(dailyRow);
@@ -119,6 +136,9 @@ function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
         </Button>
         <Button variant="ghost" onClick={() => void run('csv')} loading={busy === 'csv'}>
           <Export size={16} weight="bold" /> {t('opsFix.reports.exportCsv')}
+        </Button>
+        <Button variant="ghost" onClick={() => void run('pdf')} loading={busy === 'pdf'}>
+          <Export size={16} weight="bold" /> {t('opsFix.reports.exportPdf')}
         </Button>
       </div>
       {error && (
@@ -262,7 +282,7 @@ function codHint(
     : t('opsFix.reports.counterCash', { amount: formatIDR(d.cashInDrawerIdr) });
 }
 
-function Harian({ depotId }: { depotId: string }) {
+function Harian({ depotId, depotName }: { depotId: string; depotName?: string }) {
   const { t } = useT();
   const [date, setDate] = useState(today());
   const rep = useAsync<DepotDailyReport>(
@@ -287,7 +307,7 @@ function Harian({ depotId }: { depotId: string }) {
             onChange={(e) => setDate(e.target.value)}
             className="min-w-0 flex-1 rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium sm:flex-none"
           />
-          <ExportDaily depotId={depotId} date={date} />
+          <ExportDaily depotId={depotId} date={date} depotName={depotName} />
           <CloseBooks depotId={depotId} date={date} />
         </div>
       </div>
@@ -489,7 +509,7 @@ const TAB_KEY = { harian: 'tabDaily', mingguan: 'tabWeekly' } as const;
 
 function Body() {
   const { t } = useT();
-  const { scopedId, selected } = useDepot();
+  const { scopedId, selected, depots } = useDepot();
   const [tab, setTab] = useState<'harian' | 'mingguan'>('harian');
 
   if (!scopedId) {
@@ -520,7 +540,11 @@ function Body() {
           {t('opsFix.reports.depotLabel', { name: selected.name })}
         </p>
       )}
-      {tab === 'harian' ? <Harian depotId={scopedId} /> : <Mingguan depotId={scopedId} />}
+      {tab === 'harian' ? (
+        <Harian depotId={scopedId} depotName={depots.find((d) => d.id === scopedId)?.name} />
+      ) : (
+        <Mingguan depotId={scopedId} />
+      )}
     </div>
   );
 }
