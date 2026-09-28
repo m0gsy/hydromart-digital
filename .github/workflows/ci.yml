@@ -634,6 +634,13 @@ jobs:
       - name: Host Node upgrade refuses what it does not understand and rolls back what fails
         run: bash scripts/install-host-node.test.sh
 
+      # check-log-retention.sh only ever REPORTS that running containers do not carry the 50m x 3
+      # cap; this is the fix it points at, made runnable. Driven against stand-in docker/sudo/
+      # systemctl, so the refusals and — above all — the rollback on a failed restart are proven
+      # before this is ever pressed against the one production box there is.
+      - name: Docker daemon.json install refuses what it should and rolls back what fails
+        run: bash scripts/install-host-docker-daemon.test.sh
+
       # Never wired into CI, and it would have caught this: the script's one live re-run since it
       # was written died on "STORAGE_S3_ACCESS_KEY_ID missing from .env" — a shared credential that
       # has never existed, because each bucket belongs to a different service with its own key
