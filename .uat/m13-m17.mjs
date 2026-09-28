@@ -420,6 +420,16 @@ export async function run(ctx) {
   });
 
   await check('UAT-M14-02', async () => {
+    // Driver B is shared across every module in this run, and a shift's own check-out refuses
+    // while it holds even ONE active delivery (SHIFT_HAS_ACTIVE_DELIVERIES) — regardless of which
+    // case assigned it. A no-show/reschedule/POD-rejection case earlier in the run can leave one
+    // behind, and this case's own settlement would then fail on a delivery it never touched,
+    // reading as a product bug when it is a fixture the harness itself never closed.
+    const stray = await api('GET', `${DEL}/deliveries?statuses=ASSIGNED,PICKED_UP,ON_DELIVERY&limit=100`, { token: ctx.admin });
+    const strayRows = (Array.isArray(stray.body) ? stray.body : stray.body?.items ?? []).filter((d) => d.driverId === ctx.driverBId);
+    for (const d of strayRows) {
+      await api('PATCH', `${DEL}/driver/deliveries/${d.id}/fail`, { token: ctx.driverB, body: { reason: 'UAT cleanup: cleared before M14-02' } });
+    }
     const o = await newOrder(ctx, 2);
     if (!o) return blocked('checkout failed');
     const total = o.totalIdr ?? o.total;

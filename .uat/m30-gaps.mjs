@@ -120,9 +120,13 @@ export async function run(ctx) {
     if (p.status >= 400) return blocked(`could not create the probe product: HTTP ${p.status}`);
     await api('POST', `${D}/depots/${depot.id}/inventory`, { token: ctx.operator, body: { itemType: 'PRODUK', productId: p.body.id, label: p.body.name, unit: 'Pcs', quantity: 50, minimumStock: 1 } });
     await cartOnly(ctx, 1, p.body.id);
-    await api('PATCH', `${PROD}/${p.body.id}`, { token: ctx.admin, body: { active: false } });
+    // A product write is refused without the version it was read at (CA-2-53) — without seenUpdatedAt
+    // this deactivation was silently 409'd, the product stayed active, and checkout succeeding was
+    // simply correct given nothing was ever turned off.
+    const deactivate = await api('PATCH', `${PROD}/${p.body.id}`, { token: ctx.admin, body: { active: false, seenUpdatedAt: p.body.updatedAt } });
     const r = await checkout(ctx);
     const s = JSON.stringify(r.body);
+    if (deactivate.status >= 400) return blocked(`could not deactivate the probe product: HTTP ${deactivate.status} ${JSON.stringify(deactivate.body).slice(0, 160)}`);
     return r.status >= 400 && /PRODUCT_UNAVAILABLE|not available|tidak tersedia/i.test(s)
       ? pass(`HTTP ${r.status} ${s}`)
       : fail(`checkout with a product deactivated mid-session returned HTTP ${r.status} ${s.slice(0, 220)}`);
