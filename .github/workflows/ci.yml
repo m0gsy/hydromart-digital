@@ -640,6 +640,14 @@ jobs:
       # before this is ever pressed against the one production box there is.
       - name: Docker daemon.json install refuses what it should and rolls back what fails
         run: bash scripts/install-host-docker-daemon.test.sh
+
+      # Never wired into CI, and it would have caught this: the script's one live re-run since it
+      # was written died on "STORAGE_S3_ACCESS_KEY_ID missing from .env" — a shared credential that
+      # has never existed, because each bucket belongs to a different service with its own key
+      # (and HR its own NEO region). Driven against a stub `node`, so no network or real credentials.
+      - name: Storage policy resolves each bucket's OWN service credentials
+        run: bash scripts/storage-policy.test.sh
+
       # The alarms that live on the box cannot report the box being gone. The external probe
       # and the watchdog's running-but-unhealthy report are exercised against stand-ins for
       # curl and docker compose, so their red paths are proven here rather than at 02:00.

@@ -57,6 +57,34 @@ export class GallonReturnService {
   private readonly logger = new Logger(GallonReturnService.name);
 
   /**
+   * A queue write that must never roll back a return already recorded and stock already
+   * moved. #592: an over-return (100000) wrote the return, moved the stock, and THEN 500'd
+   * inside `queueVariance` (the approval amount overflowed Postgres's INT4) — the caller
+   * saw an error for a change that had already happened, with the ledger showing it (`returned`
+   * 6 -> 100006) and no way to tell from the response.
+   *
+   * The overflow itself is fixed (approval amounts are clamped, ApprovalService), but a
+   * queue write is still one more database call after the fact this method exists to
+   * record, and it can still fail for a reason that has nothing to do with the return —
+   * this is what stops the NEXT such failure from becoming a 500 on a committed write
+   * again. Same shape `warnIfReservationsUnbacked` already uses in InventoryService: the
+   * primary fact stands, the side channel is logged rather than allowed to fail the
+   * request. A full cross-repository transaction (return + stock + approval atomic or
+   * none of them) was the alternative and was not built: this service holds no Prisma
+   * client of its own, only the ApprovalService/InventoryService ports, and threading a
+   * transaction through both would mean either the hexagonal boundary (ports depend only on
+   * their own repository) or a new unit-of-work abstraction this codebase has never needed
+   * before — for a gap that is a missed manager notification, not a lost fact.
+   */
+  private async queueBestEffort(what: string, write: () => Promise<void>): Promise<void> {
+    try {
+      await write();
+    } catch (error) {
+      this.logger.warn(`${what} not raised: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * CA-2-57. GOOD only, and that is a decision worth stating rather than leaving in the
    * shape of an `if`.
    *
@@ -276,10 +304,14 @@ export class GallonReturnService {
     });
     await this.moveStockIn(depotId, record, condition, actorId);
     if (excessGallons > 0) {
-      await this.queueVariance(depotId, excessGallons, record.id, actorId);
+      await this.queueBestEffort(`variance approval for return ${record.id}`, () =>
+        this.queueVariance(depotId, excessGallons, record.id, actorId),
+      );
     }
     if (condition === GallonCondition.DAMAGED) {
-      await this.queueDamagedRefund(depotId, record, input.note ?? null, actorId);
+      await this.queueBestEffort(`damaged-refund approval for return ${record.id}`, () =>
+        this.queueDamagedRefund(depotId, record, input.note ?? null, actorId),
+      );
     }
     return record;
   }
@@ -360,7 +392,9 @@ export class GallonReturnService {
     // handover, and stock must not move twice for empties that came back once.
     await this.moveStockIn(depotId, record, condition, courierId, input.orderId);
     if (excessGallons > 0) {
-      await this.queueVariance(depotId, excessGallons, record.id, courierId);
+      await this.queueBestEffort(`variance approval for return ${record.id}`, () =>
+        this.queueVariance(depotId, excessGallons, record.id, courierId),
+      );
     }
     /*
      * CA-4-47: an unidentified GOOD return owes somebody a deposit, and this is the only
@@ -368,10 +402,14 @@ export class GallonReturnService {
      * rather than a silence — the same treatment a damaged return already gets.
      */
     if (condition === GallonCondition.GOOD && !identified) {
-      await this.queueUnidentifiedRefund(depotId, record, input.note ?? null, courierId);
+      await this.queueBestEffort(`unidentified-refund approval for return ${record.id}`, () =>
+        this.queueUnidentifiedRefund(depotId, record, input.note ?? null, courierId),
+      );
     }
     if (condition === GallonCondition.DAMAGED) {
-      await this.queueDamagedRefund(depotId, record, input.note ?? null, courierId);
+      await this.queueBestEffort(`damaged-refund approval for return ${record.id}`, () =>
+        this.queueDamagedRefund(depotId, record, input.note ?? null, courierId),
+      );
     }
     return { ...record, alreadyRecorded: false };
   }
