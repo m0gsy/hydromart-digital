@@ -723,6 +723,27 @@ describe('GallonIssuePrismaRepository', () => {
     });
   });
 
+  // Aging needs dates the totals do not carry. Newest first, bounded, and never a query at
+  // all for an empty set of customers.
+  it('reads the newest issues for the named customers, bounded, newest first', async () => {
+    const at = new Date('2026-09-01T00:00:00.000Z');
+    model.findMany.mockResolvedValue([{ customerId: 'c1', quantity: 2, createdAt: at }]);
+    await expect(repo.newestIssuesForCustomers('depot-1', ['c1', 'c2'], 500)).resolves.toEqual([
+      { customerId: 'c1', quantity: 2, createdAt: at },
+    ]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', customerId: { in: ['c1', 'c2'] } },
+      select: { customerId: true, quantity: true, createdAt: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 500,
+    });
+  });
+
+  it('does not query at all when there is nobody to age', async () => {
+    await expect(repo.newestIssuesForCustomers('depot-1', [], 500)).resolves.toEqual([]);
+    expect(model.findMany).not.toHaveBeenCalled();
+  });
+
   // I2: the cap reads ONE customer's balance per return, so it needs a targeted aggregate —
   // `perCustomerForDepot` would read every customer of the depot to serve one refund.
   it('aggregates one customer’s issued gallons and deposit held', async () => {

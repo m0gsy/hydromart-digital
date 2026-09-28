@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import {
   GallonCustomerBalance,
   GallonDepotBalance,
+  GallonIssueAgeRow,
   CreateGallonIssueData,
   CreateGallonIssueFromOrderData,
   GallonIssueDepotRow,
@@ -116,6 +117,26 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
       // It does now — and an uncast Decimal does not throw here, it reaches the customer's
       // own deposit screen and concatenates instead of adding.
       amountIdr: Number(g._sum.depositHeld ?? 0),
+    }));
+  }
+
+  async newestIssuesForCustomers(
+    depotId: string,
+    customerIds: readonly string[],
+    limit: number,
+  ): Promise<GallonIssueAgeRow[]> {
+    // Not asked at all for an empty set: `in: []` matches nothing, but it is still a round trip.
+    if (customerIds.length === 0) return [];
+    const rows = await this.prisma.gallonIssue.findMany({
+      where: { depotId, customerId: { in: [...customerIds] } },
+      select: { customerId: true, quantity: true, createdAt: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+    return rows.map((r) => ({
+      customerId: r.customerId as string,
+      quantity: r.quantity,
+      createdAt: r.createdAt,
     }));
   }
 

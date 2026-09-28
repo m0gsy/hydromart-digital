@@ -63,6 +63,13 @@ export interface GallonCustomerBalance {
   amountIdr: number;
 }
 
+/** One issue, reduced to what aging a customer's holding needs. */
+export interface GallonIssueAgeRow {
+  customerId: string;
+  quantity: number;
+  createdAt: Date;
+}
+
 /** I5: one customer's side of one ledger, at one named depot. */
 export interface GallonDepotBalance extends GallonCustomerBalance {
   depotId: string;
@@ -108,6 +115,20 @@ export interface GallonIssueRepository {
    * "where am I holding gallons". Depots with no activity are simply absent.
    */
   perDepotForCustomer(customerId: string): Promise<GallonDepotBalance[]>;
+  /**
+   * The individual issues behind `perCustomerForDepot`, for the customers named, NEWEST first.
+   *
+   * The totals carry no dates, and aging a holding needs them. Newest first because what is
+   * still out is the most recent issues (returns clear the oldest — see `ageOutstanding`), so
+   * a caller can stop as soon as the gallons still out are placed. `limit` bounds the read for
+   * a depot with a long history; it drops the OLDEST rows, which are exactly the ones a
+   * customer with gallons still out is least likely to need.
+   */
+  newestIssuesForCustomers(
+    depotId: string,
+    customerIds: readonly string[],
+    limit: number,
+  ): Promise<GallonIssueAgeRow[]>;
   /** One customer's most recent issues at one depot — the CRM detail deposit ledger. */
   listForCustomerAtDepot(
     depotId: string,

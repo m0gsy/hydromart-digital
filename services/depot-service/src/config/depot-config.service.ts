@@ -137,6 +137,14 @@ export class DepotConfigService {
   gallonDepositIdr(depotId: string | null = null): number {
     return this.tunable('gallonDepositIdr', this.num('GALLON_DEPOSIT_IDR'), depotId);
   }
+  /** Days a customer may hold a depot's gallons before they count as overdue. */
+  gallonMaxHoldDays(depotId: string | null = null): number {
+    return this.tunable('gallonMaxHoldDays', this.num('GALLON_MAX_HOLD_DAYS'), depotId);
+  }
+  /** Days between reminders to one overdue customer. */
+  gallonReminderEveryDays(depotId: string | null = null): number {
+    return this.tunable('gallonReminderEveryDays', this.num('GALLON_REMINDER_EVERY_DAYS'), depotId);
+  }
   /** Manager approval queue: value changes at/under this rupiah amount auto-pass without review. */
   approvalAutoPassIdr(depotId: string | null = null): number {
     return this.tunable('approvalAutoPassIdr', this.num('APPROVAL_AUTO_PASS_IDR'), depotId);

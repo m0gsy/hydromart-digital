@@ -1302,6 +1302,14 @@ export class CustomerGallonRowResponseDto {
   gallonsOnLoan!: number;
   @ApiProperty({ type: Number })
   depositHeldIdr!: number;
+  @ApiProperty({ type: Number, description: 'Of gallonsOnLoan, held longer than the depot limit.' })
+  overdueGallons!: number;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'When the oldest gallon still out was handed over; null when none is out.',
+  })
+  oldestIssuedAt!: string | null;
 }
 
 /** Mirrors `CustomerDepotDepositRow` exactly — generated for audit D-6, no field added or removed. */

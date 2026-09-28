@@ -8,6 +8,10 @@ import {
   GallonReturnRepository,
 } from '../../src/application/ports/gallon-return.repository';
 import { DepotRepository } from '../../src/application/ports/depot.repository';
+import { DepotConfigService } from '../../src/config/depot-config.service';
+
+// The limit is the depot's own tunable; a plain 14 keeps these tests about the arithmetic.
+const config = { gallonMaxHoldDays: () => 14 } as unknown as DepotConfigService;
 
 // Only networkSummary() is exercised; the rest of each repo port is irrelevant to the
 // rollup, so the fakes stub just that one method.
@@ -45,6 +49,7 @@ describe('GallonNetworkService.outstanding', () => {
       issues([{ depotId: 'd1', gallons: 100, depositHeld: 500000 }]),
       returns([{ depotId: 'd1', gallons: 40, depositRefunded: 200000 }]),
       depots(),
+      config,
     );
     const [row] = await service.outstanding();
     expect(row).toEqual({
@@ -63,6 +68,7 @@ describe('GallonNetworkService.outstanding', () => {
       issues([{ depotId: 'd1', gallons: 10, depositHeld: 50000 }]),
       returns([{ depotId: 'd1', gallons: 25, depositRefunded: 120000 }]),
       depots(),
+      config,
     );
     const [row] = await service.outstanding();
     expect(row.outstanding).toBe(0);
@@ -74,6 +80,7 @@ describe('GallonNetworkService.outstanding', () => {
       issues([]),
       returns([{ depotId: 'd2', gallons: 5, depositRefunded: 25000 }]),
       depots(),
+      config,
     );
     const [row] = await service.outstanding();
     expect(row).toMatchObject({ depotId: 'd2', issued: 0, returned: 5, outstanding: 0 });
@@ -87,13 +94,14 @@ describe('GallonNetworkService.outstanding', () => {
       ]),
       returns([{ depotId: 'd3', gallons: 4, depositRefunded: 0 }]),
       depots(),
+      config,
     );
     const ids = (await service.outstanding()).map((r) => r.depotId).sort();
     expect(ids).toEqual(['d1', 'd2', 'd3']);
   });
 
   it('returns an empty array when there is no activity', async () => {
-    const service = new GallonNetworkService(issues([]), returns([]), depots());
+    const service = new GallonNetworkService(issues([]), returns([]), depots(), config);
     expect(await service.outstanding()).toEqual([]);
   });
 });
@@ -109,11 +117,16 @@ describe('GallonNetworkService.perCustomer (J-2)', () => {
   const perCustomer = (
     issued: { customerId: string; gallons: number; amountIdr: number }[],
     returned: { customerId: string; gallons: number; amountIdr: number }[],
+    dated: { customerId: string; quantity: number; createdAt: Date }[] = [],
   ) =>
     new GallonNetworkService(
-      { perCustomerForDepot: async () => issued } as unknown as GallonIssueRepository,
+      {
+        perCustomerForDepot: async () => issued,
+        newestIssuesForCustomers: async () => dated,
+      } as unknown as GallonIssueRepository,
       { perCustomerForDepot: async () => returned } as unknown as GallonReturnRepository,
       depots(),
+      config,
     ).perCustomer('d1');
 
   it('nets returns off issues, per customer', async () => {
@@ -126,8 +139,8 @@ describe('GallonNetworkService.perCustomer (J-2)', () => {
         [{ customerId: 'c1', gallons: 2, amountIdr: 40_000 }],
       ),
     ).resolves.toEqual([
-      { customerId: 'c1', gallonsOnLoan: 3, depositHeldIdr: 60_000 },
-      { customerId: 'c2', gallonsOnLoan: 2, depositHeldIdr: 40_000 },
+      { customerId: 'c1', gallonsOnLoan: 3, depositHeldIdr: 60_000, overdueGallons: 0, oldestIssuedAt: null },
+      { customerId: 'c2', gallonsOnLoan: 2, depositHeldIdr: 40_000, overdueGallons: 0, oldestIssuedAt: null },
     ]);
   });
 
@@ -157,11 +170,100 @@ describe('GallonNetworkService.perCustomer (J-2)', () => {
         [{ customerId: 'c1', gallons: 2, amountIdr: 40_000 }],
         [{ customerId: 'c1', gallons: 2, amountIdr: 0 }],
       ),
-    ).resolves.toEqual([{ customerId: 'c1', gallonsOnLoan: 0, depositHeldIdr: 40_000 }]);
+    ).resolves.toEqual([
+      { customerId: 'c1', gallonsOnLoan: 0, depositHeldIdr: 40_000, overdueGallons: 0, oldestIssuedAt: null },
+    ]);
   });
 
   it('is empty for a depot that has issued nothing', async () => {
     await expect(perCustomer([], [])).resolves.toEqual([]);
+  });
+
+  /*
+   * #26. "2 on loan" hid the difference between a customer who took them last week and one
+   * who took them last year. The depot's own limit (14 days here) decides which is which.
+   */
+  describe('how long the gallons have been out', () => {
+    const NOW = new Date('2026-09-28T05:00:00.000Z');
+    const ago = (days: number) => new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000);
+
+    beforeEach(() => jest.useFakeTimers({ now: NOW }));
+    afterEach(() => jest.useRealTimers());
+
+    it('flags gallons held past the limit and says when the oldest went out', async () => {
+      const [row] = await perCustomer(
+        [{ customerId: 'c1', gallons: 3, amountIdr: 60_000 }],
+        [],
+        [
+          { customerId: 'c1', quantity: 1, createdAt: ago(3) },
+          { customerId: 'c1', quantity: 2, createdAt: ago(40) },
+        ],
+      );
+      expect(row).toMatchObject({
+        gallonsOnLoan: 3,
+        overdueGallons: 2,
+        oldestIssuedAt: ago(40).toISOString(),
+      });
+    });
+
+    it('does not flag a customer whose gallons are recent', async () => {
+      const [row] = await perCustomer(
+        [{ customerId: 'c1', gallons: 2, amountIdr: 40_000 }],
+        [],
+        [{ customerId: 'c1', quantity: 2, createdAt: ago(5) }],
+      );
+      expect(row).toMatchObject({ overdueGallons: 0, oldestIssuedAt: ago(5).toISOString() });
+    });
+
+    // Returns clear the oldest issue first, so a customer who took two long ago, took one
+    // yesterday and returned two is holding only yesterday's gallon.
+    it('treats returns as settling the oldest issues, not the newest', async () => {
+      const [row] = await perCustomer(
+        [{ customerId: 'c1', gallons: 3, amountIdr: 60_000 }],
+        [{ customerId: 'c1', gallons: 2, amountIdr: 40_000 }],
+        [
+          { customerId: 'c1', quantity: 1, createdAt: ago(1) },
+          { customerId: 'c1', quantity: 2, createdAt: ago(200) },
+        ],
+      );
+      expect(row).toMatchObject({ gallonsOnLoan: 1, overdueGallons: 0 });
+    });
+
+    it('ages each customer from their own issues, not from the depot pooled together', async () => {
+      const rows = await perCustomer(
+        [
+          { customerId: 'old', gallons: 1, amountIdr: 20_000 },
+          { customerId: 'new', gallons: 1, amountIdr: 20_000 },
+        ],
+        [],
+        [
+          { customerId: 'new', quantity: 1, createdAt: ago(1) },
+          { customerId: 'old', quantity: 1, createdAt: ago(90) },
+        ],
+      );
+      const by = Object.fromEntries(rows.map((r) => [r.customerId, r.overdueGallons]));
+      expect(by).toEqual({ old: 1, new: 0 });
+    });
+
+    it('reads dates only for customers who hold gallons, never for a deposit with every gallon back', async () => {
+      const newest = jest.fn(async () => []);
+      const service = new GallonNetworkService(
+        {
+          perCustomerForDepot: async () => [
+            { customerId: 'holding', gallons: 2, amountIdr: 40_000 },
+            { customerId: 'deposit-only', gallons: 2, amountIdr: 40_000 },
+          ],
+          newestIssuesForCustomers: newest,
+        } as unknown as GallonIssueRepository,
+        {
+          perCustomerForDepot: async () => [{ customerId: 'deposit-only', gallons: 2, amountIdr: 0 }],
+        } as unknown as GallonReturnRepository,
+        depots(),
+        config,
+      );
+      await service.perCustomer('d1');
+      expect(newest).toHaveBeenCalledWith('d1', ['holding'], expect.any(Number));
+    });
   });
 });
 
@@ -188,6 +290,7 @@ describe('GallonNetworkService.customerLedger', () => {
       { listForCustomerAtDepot: async () => issued } as unknown as GallonIssueRepository,
       { listForCustomerAtDepot: async () => returned } as unknown as GallonReturnRepository,
       depots(),
+      config,
     ).customerLedger('d1', 'c1', limit);
 
   it('merges both sides into one newest-first history', async () => {
@@ -241,6 +344,7 @@ describe('GallonNetworkService.forCustomer (I5)', () => {
       { perDepotForCustomer: async () => issued } as unknown as GallonIssueRepository,
       { perDepotForCustomer: async () => returned } as unknown as GallonReturnRepository,
       depots(names),
+      config,
     ).forCustomer('c1');
 
   it('nets each depot and names it, because the customer has no depot directory', async () => {
@@ -331,6 +435,7 @@ describe('GallonNetworkService.gallonsInRange', () => {
       {} as unknown as GallonIssueRepository,
       { gallonsInRange } as unknown as GallonReturnRepository,
       depots(),
+      config,
     );
     const from = new Date('2026-07-14T17:00:00.000Z');
     const to = new Date('2026-07-15T17:00:00.000Z');

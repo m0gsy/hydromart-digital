@@ -30,6 +30,12 @@ export const envValidationSchema = Joi.object({
   // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
   // business; the courier never enters the amount — the server computes deposit × qty.
   GALLON_DEPOSIT_IDR: Joi.number().integer().min(0).default(20000),
+  // How long a customer may hold a depot's gallons before they count as overdue. A gallon is
+  // a deposit-backed asset the depot has to buy again if it never comes back.
+  GALLON_MAX_HOLD_DAYS: Joi.number().integer().min(1).max(365).default(14),
+  // Once a customer is overdue, how many days pass before the depot asks again. The reminder
+  // sweep runs daily; without this it would send the same message every morning.
+  GALLON_REMINDER_EVERY_DAYS: Joi.number().integer().min(1).max(90).default(7),
   // Manager approval queue: value changes at/under this rupiah amount auto-pass without a
   // manager decision (mirrors payout's expense auto-approve). Tune per business.
   APPROVAL_AUTO_PASS_IDR: Joi.number().integer().min(0).default(100000),
