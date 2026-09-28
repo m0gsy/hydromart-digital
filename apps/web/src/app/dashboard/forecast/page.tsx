@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { ChartLineUp, Lock } from '@phosphor-icons/react';
 
+import { RunwayCell } from '@/components/dashboard/runway-cell';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Field, LoadError, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
-import { trendLabel } from '@/lib/forecast';
+import { orderNeeded, trendLabel } from '@/lib/forecast';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { canViewForecast } from '@/lib/roles';
@@ -49,12 +50,6 @@ function RevenueCard({ sales, horizonDays }: { sales: ReturnType<typeof useAsync
       </div>
     </Card>
   );
-}
-
-/** Days until a product's on-hand stock runs out at its forecast avg/day. */
-function daysToStockout(available: number | undefined, avgDaily: number): number | null {
-  if (available == null || avgDaily <= 0) return null;
-  return Math.floor(available / avgDaily);
 }
 
 function ForecastBody() {
@@ -173,11 +168,13 @@ function ForecastBody() {
                     <th className="px-4 py-3 text-right font-medium">{t('dashboard.forecast.colPredicted', { n: horizonDays })}</th>
                     <th className="px-4 py-3 text-right font-medium">{t('dashboard.forecast.daysToStockout')}</th>
                     <th className="px-4 py-3 text-right font-medium">{t('dashboard.forecast.colReorder')}</th>
+                    <th className="px-4 py-3 text-right font-medium">{t('dashboard.forecast.colNeeded')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.data.map((r) => {
-                    const dts = daysToStockout(stockByProduct.get(r.productId), r.avgDaily);
+                    const stock = stockByProduct.get(r.productId);
+                    const needed = orderNeeded(r.reorderSuggestion, stock);
                     return (
                       <tr key={r.productId} className="border-b border-app last:border-0">
                         <td className="px-4 py-3">
@@ -189,13 +186,12 @@ function ForecastBody() {
                         <td className="px-4 py-3 text-right font-semibold tabular-nums">
                           {r.predictedTotal.toLocaleString('id-ID')}
                         </td>
-                        <td className={`px-4 py-3 text-right tabular-nums ${dts != null && dts <= 3 ? 'font-semibold text-[color:var(--warning)]' : ''}`}>
-                          {dts == null
-                            ? t('dashboard.forecast.daysToStockoutNa')
-                            : t('dashboard.forecast.daysToStockoutValue', { n: dts })}
-                        </td>
+                        <RunwayCell available={stock} avgDaily={r.avgDaily} />
                         <td className="px-4 py-3 text-right tabular-nums">
                           {r.reorderSuggestion.toLocaleString('id-ID')}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                          {needed === null ? '—' : needed.toLocaleString('id-ID')}
                         </td>
                       </tr>
                     );

@@ -100,7 +100,13 @@ export const dashboard = {
     colReorder: 'Reorder',
     daysToStockout: 'Days to stockout',
     daysToStockoutValue: '{n} days',
+    // Nothing is selling, so the stock cannot run out: genuinely safe.
     daysToStockoutNa: 'Safe',
+    // No stock figure for this product — NOT the same as safe.
+    daysToStockoutUnknown: '—',
+    stockUnknownHint:
+      'This depot does not track stock for this product, so the days left cannot be worked out.',
+    colNeeded: 'To order',
     gateTitle: 'Staff access only',
     gateBody: 'Forecasting is staff-only — available to depot and planning staff.',
   },
