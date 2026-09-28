@@ -89,6 +89,7 @@ depot|stock_transfers_toDepotId_status_sentAt_idx|CREATE INDEX CONCURRENTLY IF N
 depot|stock_transfers_fromDepotId_status_sentAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_transfers_fromDepotId_status_sentAt_idx" ON "stock_transfers"("fromDepotId", "status", "sentAt")
 depot|gallon_issues_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_issues_orderId_key" ON "gallon_issues"("orderId")
 depot|gallon_returns_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_returns_orderId_key" ON "gallon_returns"("orderId")
+depot|gallon_reminders_depotId_customerId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_reminders_depotId_customerId_key" ON "gallon_reminders"("depotId", "customerId")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
 customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_customerId_createdAt_idx" ON "reseller_price_changes"("customerId", "createdAt" DESC)
 customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")

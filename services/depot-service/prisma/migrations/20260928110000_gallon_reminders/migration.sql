@@ -18,6 +18,10 @@ CREATE TABLE "gallon_reminders" (
     CONSTRAINT "gallon_reminders_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "gallon_reminders_depotId_customerId_key" ON "gallon_reminders"("depotId", "customerId");
+-- IF NOT EXISTS, and registered in scripts/create-indexes.sh like every index since H-39. The
+-- table is new so the concurrent build is skipped ("its table does not exist yet") and this
+-- statement builds the index on an empty table, where locking costs nothing — the same path
+-- stock_transfers took.
+CREATE UNIQUE INDEX IF NOT EXISTS "gallon_reminders_depotId_customerId_key" ON "gallon_reminders"("depotId", "customerId");
 
 ALTER TABLE "gallon_reminders" ADD CONSTRAINT "gallon_reminders_depotId_fkey" FOREIGN KEY ("depotId") REFERENCES "depots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
