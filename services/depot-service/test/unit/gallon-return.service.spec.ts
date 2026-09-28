@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { GallonReturnService } from '../../src/application/services/gallon-return.service';
 import { GallonCondition } from '../../src/domain/gallon-return';
 import { OwnershipType } from '../../src/domain/inventory';
@@ -241,6 +243,51 @@ describe('GallonReturnService', () => {
   it('queues nothing when the return is within the outstanding balance (M15-11)', async () => {
     await service.record(depotId, { quantity: 10 }, 'staff-1');
     expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(0);
+  });
+
+  /**
+   * #592: an over-return (100000) wrote the return, moved the stock, and THEN 500'd inside
+   * the approval it queued (the amount overflowed Postgres's INT4) — the caller saw an
+   * error for a change that had already happened, with no way to tell so from the response.
+   * The overflow is fixed elsewhere (ApprovalService clamps the amount), but a queue write
+   * is still one more database call after the fact this method exists to record, and it
+   * can still fail for an unrelated reason. This is what proves the NEXT such failure
+   * cannot repeat #592: the return stands, and only the queue write is lost — logged, not
+   * thrown.
+   */
+  it('keeps a return already recorded even when queuing its approval fails (#592)', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    approvals.create = async () => {
+      throw new Error('approvals table unreachable');
+    };
+    const record = await service.record(depotId, { quantity: 103 }, 'staff-1');
+    // The return and its stock movement are the primary facts, and they stand.
+    expect(record.quantity).toBe(103);
+    expect((await service.summary(depotId)).gallons).toBe(103);
+    // The queue write is not silent, but it is not the caller's problem either.
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`variance approval for return ${record.id}`),
+    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('approvals table unreachable'));
+    warn.mockRestore();
+  });
+
+  it('keeps a courier return already recorded even when queuing its approval fails (#592)', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    approvals.create = async () => {
+      throw new Error('approvals table unreachable');
+    };
+    const record = await service.recordFromCourier(
+      depotId,
+      { orderId: 'order-1', quantity: 103, condition: GallonCondition.GOOD },
+      'courier-1',
+    );
+    expect(record.quantity).toBe(103);
+    expect((await service.summary(depotId)).gallons).toBe(103);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`variance approval for return ${record.id}`),
+    );
+    warn.mockRestore();
   });
 
   /**
