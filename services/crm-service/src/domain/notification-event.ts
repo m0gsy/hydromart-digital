@@ -47,9 +47,11 @@ export enum NotificationEvent {
   // reports a HIGH-severity field incident (design 4b). Tokens: {{severity}},
   // {{category}}, {{note}}. Recipient is the ops number.
   COURIER_INCIDENT = 'COURIER_INCIDENT',
-  // Operational (not customer-facing): fired twice a day by order-service's cron with the
-  // depot's gallon count so far. Tokens: {{slot}}, {{depot}}, {{gallons}}. Recipient is the
-  // depot's own number, falling back to the ops number.
+  // Operational (not customer-facing): fired twice a day by order-service's cron (13:00 and
+  // 21:00 WIB) with the day so far — the same figures the depot's daily report screen shows.
+  // Tokens: {{slot}}, {{depot}}, {{gallons}}, {{orders}}, {{revenue}}, {{counterCash}},
+  // {{cod}}; the two cash tokens read "—" when payment-service could not be reached, never
+  // a fabricated zero. Recipient is the depot's own number, falling back to the ops number.
   DEPOT_SALES_UPDATE = 'DEPOT_SALES_UPDATE',
   // Account: fired by auth-service (via internal service auth) when a new customer
   // completes phone verification. Token: {{name}}.
@@ -152,7 +154,7 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 Insiden {{severity}} dilaporkan kurir — {{category}}: {{note}}. Mohon segera ditindaklanjuti.',
   [NotificationEvent.DEPOT_SALES_UPDATE]:
-    'Laporan penjualan {{slot}} depot {{depot}} : {{gallons}} Galon',
+    'Laporan penjualan {{slot}} depot {{depot}}: {{gallons}} galon, {{orders}} pesanan, omzet {{revenue}}. Kas konter {{counterCash}}, COD {{cod}}.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
   [NotificationEvent.PHONE_CHANGED]:
@@ -259,7 +261,7 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 {{severity}} incident reported by a courier — {{category}}: {{note}}. Please follow up immediately.',
   [NotificationEvent.DEPOT_SALES_UPDATE]:
-    '{{slot}} sales report for depot {{depot}} : {{gallons}} gallons',
+    '{{slot}} sales report for depot {{depot}}: {{gallons}} gallons, {{orders}} orders, revenue {{revenue}}. Counter cash {{counterCash}}, COD {{cod}}.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Welcome to Hydromart, {{name}}! 💧 Your account is active. Order clean water any time from the app. Thank you for joining!',
   [NotificationEvent.PHONE_CHANGED]:

@@ -316,6 +316,11 @@ export function gallonQty(order: OrderRecord): number {
 export const isDelivered = (s: OrderStatus): boolean =>
   s === OrderStatus.DELIVERED || s === OrderStatus.COMPLETED;
 
+/** Whole rupiah with Indonesian grouping, for a message a person reads: "Rp1.250.000". */
+const rupiah = (amount: number): string => `Rp${Math.round(amount).toLocaleString('id-ID')}`;
+/** What a figure that could not be read is called in a message — not a zero. */
+const UNREADABLE = '—';
+
 /**
  * Whether an order is part of what the depot actually sold.
  *
@@ -1018,12 +1023,23 @@ export class ReportService {
         continue;
       }
       try {
-        const days = await this.depotDailyGallons(depot.id, today, today);
-        const gallons = days.reduce((sum, d) => sum + d.gallons, 0);
+        // The very composite the operator reads on the daily report screen, so the message and
+        // the screen cannot disagree about what the day sold. A cash figure payment-service
+        // could not give is "—", never a zero: "Kas konter Rp0" would read as a drawer that
+        // took nothing.
+        const day = await this.depotDaily(depot.id, today);
         await this.notifications.notify(
           'DEPOT_SALES_UPDATE',
           phone,
-          { slot, depot: depot.name, gallons: String(gallons) },
+          {
+            slot,
+            depot: depot.name,
+            gallons: String(day.gallonsDelivered),
+            orders: String(day.orders),
+            revenue: rupiah(day.revenueIdr),
+            counterCash: day.cashInDrawerIdr === null ? UNREADABLE : rupiah(day.cashInDrawerIdr),
+            cod: day.codCollectedIdr === null ? UNREADABLE : rupiah(day.codCollectedIdr),
+          },
           null,
           '',
         );
