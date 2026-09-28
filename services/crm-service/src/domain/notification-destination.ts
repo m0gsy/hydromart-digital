@@ -64,6 +64,10 @@ export function destinationFor(
     // so it opens the catalogue, not a record of what was ordered before.
     case NotificationEvent.REORDER_REMINDER:
       return '/products';
+    // The customer's own gallon deposit card lives on the account screen: how many they hold
+    // and how much deposit is waiting for them is exactly what the message is about.
+    case NotificationEvent.GALLON_RETURN_REMINDER:
+      return '/account';
     case NotificationEvent.CUSTOMER_REGISTERED:
       return '/';
     /*

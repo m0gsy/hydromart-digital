@@ -18,6 +18,59 @@ describe('notification event catalogue', () => {
   });
 });
 
+/*
+ * The token names a template asks for and the ones an emitting service sends are agreed in
+ * two different repositories' worth of code, and a mismatch is silent: `renderMessage` leaves
+ * an unknown `{{token}}` in the text, so the customer or the depot reads it verbatim. These
+ * render each message with exactly the vars the emitter sends and refuse a leftover token.
+ */
+describe('emitter and template agree on the tokens', () => {
+  const render = (event: NotificationEvent, vars: Record<string, string>, locale: 'id' | 'en') =>
+    renderMessage(templateFor(event, locale), vars);
+
+  it.each(['id', 'en'] as const)(
+    'fills every token of the depot sales report order-service sends (%s)',
+    (locale) => {
+      const message = render(
+        NotificationEvent.DEPOT_SALES_UPDATE,
+        {
+          slot: 'sore',
+          depot: 'Depot Cikini',
+          gallons: '12',
+          orders: '2',
+          revenue: 'Rp1.250.000',
+          counterCash: 'Rp1.000.000',
+          cod: 'Rp250.000',
+        },
+        locale,
+      );
+      for (const part of ['sore', 'Depot Cikini', '12', 'Rp1.250.000', 'Rp1.000.000', 'Rp250.000']) {
+        expect(message).toContain(part);
+      }
+      expect(message).not.toContain('{{');
+    },
+  );
+
+  it.each(['id', 'en'] as const)(
+    'fills every token of the gallon-return reminder depot-service sends (%s)',
+    (locale) => {
+      const message = render(
+        NotificationEvent.GALLON_RETURN_REMINDER,
+        { name: 'Budi', depot: 'Cikini', gallons: '2', since: '12 Agu 2026' },
+        locale,
+      );
+      for (const part of ['Budi', 'Cikini', '2', '12 Agu 2026']) expect(message).toContain(part);
+      expect(message).not.toContain('{{');
+    },
+  );
+
+  // A service message about something the customer holds on deposit reaches the customer's own
+  // inbox — the ops feed is for staff.
+  it('sends the gallon reminder to the customer, not the ops feed', () => {
+    expect(OPS_EVENTS).not.toContain(NotificationEvent.GALLON_RETURN_REMINDER);
+  });
+});
+
 describe('HR events (A2)', () => {
   const HR_EVENTS = [
     NotificationEvent.LEAVE_SUBMITTED,

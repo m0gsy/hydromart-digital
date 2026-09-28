@@ -87,6 +87,11 @@ export enum NotificationEvent {
   SUBSCRIPTION_PAUSED = 'SUBSCRIPTION_PAUSED',
   // Retention nudge: "time to refill". Token: {{name}}.
   REORDER_REMINDER = 'REORDER_REMINDER',
+  // Fired daily by depot-service's reminder sweep for a customer still holding gallons past the
+  // depot's loan limit. A service message about something the customer holds on deposit, not
+  // a promotion — so it is NOT gated by the marketing opt-out. Tokens: {{name}}, {{depot}},
+  // {{gallons}} (how many are overdue), {{since}} (when the oldest went out, e.g. "12 Ags 2026").
+  GALLON_RETURN_REMINDER = 'GALLON_RETURN_REMINDER',
   // HR (hr-service, internal key). Staff-facing, never customers. Leave events carry
   // {{name}}, {{type}}, {{from}}, {{to}}; a rejection adds {{reason}}. HR_ANNOUNCEMENT
   // carries {{title}} and {{body}}.
@@ -171,6 +176,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}! Langganan {{product}} kami jeda dulu karena {{reason}}. Tidak ada tagihan selama dijeda — buka Langganan untuk melanjutkan kapan saja.',
   [NotificationEvent.REORDER_REMINDER]:
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
+  [NotificationEvent.GALLON_RETURN_REMINDER]:
+    'Halo {{name}}, kamu masih memegang {{gallons}} galon milik depot {{depot}} sejak {{since}}. Kalau sudah tidak dipakai, mohon dikembalikan ya — deposit galonnya bisa kamu terima kembali.',
   [NotificationEvent.LEAVE_SUBMITTED]:
     'Pengajuan cuti {{type}} dari {{name}} ({{from}} s/d {{to}}) menunggu persetujuan Anda.',
   [NotificationEvent.LEAVE_APPROVED]:
@@ -278,6 +285,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}! Your {{product}} subscription is paused because {{reason}}. Nothing is charged while it is paused — open Subscriptions to resume whenever you like.',
   [NotificationEvent.REORDER_REMINDER]:
     'Hi {{name}}, you may be running low on water. Reorder now for fast delivery from your nearest depot 💧',
+  [NotificationEvent.GALLON_RETURN_REMINDER]:
+    'Hi {{name}}, you are still holding {{gallons}} gallons that belong to depot {{depot}}, out since {{since}}. If you no longer need them, please return them — you can get the gallon deposit back.',
   [NotificationEvent.LEAVE_SUBMITTED]:
     '{{type}} leave request from {{name}} ({{from}} to {{to}}) is waiting for your approval.',
   [NotificationEvent.LEAVE_APPROVED]:

@@ -53,6 +53,10 @@ export class DepotConfigService {
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }
+  /** Customer contact lookup for the gallon reminder sweep. Blank = reminders cannot be addressed. */
+  get customerServiceUrl(): string {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** Catalog read for PRODUK line validation. Blank = accept lines unvalidated. */
   get productServiceUrl(): string {
     return this.config.get<string>('PRODUCT_SERVICE_URL', '').replace(/\/+$/, '');

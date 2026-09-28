@@ -20,6 +20,7 @@ import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonIssueService } from '../application/services/gallon-issue.service';
 import { GallonNetworkService } from '../application/services/gallon-network.service';
+import { GallonReminderService } from '../application/services/gallon-reminder.service';
 import { FranchiseApplicationService } from '../application/services/franchise-application.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
 import { IncidentService } from '../application/services/incident.service';
@@ -56,6 +57,9 @@ import { StockTransferController } from './stock-transfer.controller';
 import { PricingRulePrismaRepository } from '../infrastructure/prisma/pricing-rule.prisma.repository';
 import { GallonReturnPrismaRepository } from '../infrastructure/prisma/gallon-return.prisma.repository';
 import { GallonIssuePrismaRepository } from '../infrastructure/prisma/gallon-issue.prisma.repository';
+import { GallonReminderPrismaRepository } from '../infrastructure/prisma/gallon-reminder.prisma.repository';
+import { CustomerContactHttpAdapter } from '../infrastructure/http/customer-contact.http.adapter';
+import { CustomerNotificationHttpAdapter } from '../infrastructure/http/customer-notification.http.adapter';
 import { FranchiseApplicationPrismaRepository } from '../infrastructure/prisma/franchise-application.prisma.repository';
 import { PriceOverrideProposalPrismaRepository } from '../infrastructure/prisma/price-override-proposal.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
@@ -131,6 +135,7 @@ const providers: Provider[] = [
   GallonReturnService,
   GallonIssueService,
   GallonNetworkService,
+  GallonReminderService,
   FranchiseApplicationService,
   PriceOverrideService,
   IncidentService,
@@ -168,6 +173,9 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
   { provide: DEPOT_TOKENS.GallonReturnRepository, useClass: GallonReturnPrismaRepository },
   { provide: DEPOT_TOKENS.GallonIssueRepository, useClass: GallonIssuePrismaRepository },
+  { provide: DEPOT_TOKENS.GallonReminderRepository, useClass: GallonReminderPrismaRepository },
+  { provide: DEPOT_TOKENS.CustomerContact, useClass: CustomerContactHttpAdapter },
+  { provide: DEPOT_TOKENS.CustomerNotification, useClass: CustomerNotificationHttpAdapter },
   {
     provide: DEPOT_TOKENS.FranchiseApplicationRepository,
     useClass: FranchiseApplicationPrismaRepository,

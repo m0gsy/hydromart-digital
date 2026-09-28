@@ -372,6 +372,10 @@ services:
       DEPOT_SERVICE_PORT: 3007
       DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CRM_SERVICE_URL: http://crm:3012
+      # The gallon-return reminder sweep addresses each overdue customer by name and phone,
+      # read from customer-service. Unset it and every overdue customer counts as "no number":
+      # the round would run green and remind nobody.
+      CUSTOMER_SERVICE_URL: http://customer:3002
       # CA-2-58: head office's complaint queue lives in admin-service, and a depot complaint
       # is mirrored there so the two records finally meet. This line was the one missing
       # half of that fix in production — `delivery`, `dashboard` and `gateway` all carry the

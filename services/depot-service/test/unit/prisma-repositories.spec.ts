@@ -7,6 +7,7 @@ import { DepotPrismaRepository } from '../../src/infrastructure/prisma/depot.pri
 import { DisputePrismaRepository } from '../../src/infrastructure/prisma/dispute.prisma.repository';
 import { FranchiseApplicationPrismaRepository } from '../../src/infrastructure/prisma/franchise-application.prisma.repository';
 import { GallonIssuePrismaRepository } from '../../src/infrastructure/prisma/gallon-issue.prisma.repository';
+import { GallonReminderPrismaRepository } from '../../src/infrastructure/prisma/gallon-reminder.prisma.repository';
 import { GallonReturnPrismaRepository } from '../../src/infrastructure/prisma/gallon-return.prisma.repository';
 import { HandoverPrismaRepository } from '../../src/infrastructure/prisma/handover.prisma.repository';
 import { HuddlePrismaRepository } from '../../src/infrastructure/prisma/huddle.prisma.repository';
@@ -666,6 +667,44 @@ describe('FranchiseApplicationPrismaRepository', () => {
   it('reports zero rather than throwing when nothing is old enough', async () => {
     model.deleteMany.mockResolvedValue({ count: 0 });
     expect(await repo.purgeRejectedBefore(new Date())).toBe(0);
+  });
+});
+
+describe('GallonReminderPrismaRepository', () => {
+  const model = { findMany: jest.fn(), upsert: jest.fn() };
+  const repo = new GallonReminderPrismaRepository({ gallonReminder: model } as unknown as PrismaService);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('answers when each named customer was last asked, and leaves the never-asked absent', async () => {
+    const at = new Date('2026-09-20T02:00:00.000Z');
+    model.findMany.mockResolvedValue([{ customerId: 'c1', remindedAt: at }]);
+    const found = await repo.lastRemindedAt('depot-1', ['c1', 'c2']);
+    expect(found.get('c1')).toBe(at);
+    expect(found.has('c2')).toBe(false);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', customerId: { in: ['c1', 'c2'] } },
+      select: { customerId: true, remindedAt: true },
+    });
+  });
+
+  it('does not query at all for an empty set of customers', async () => {
+    const found = await repo.lastRemindedAt('depot-1', []);
+    expect(found.size).toBe(0);
+    expect(model.findMany).not.toHaveBeenCalled();
+  });
+
+  // One row per (depot, customer): the second reminder overwrites the first, so the table
+  // never grows past the number of customers who have ever been late.
+  it('records a reminder by overwriting the one row for that depot and customer', async () => {
+    const at = new Date('2026-09-28T02:00:00.000Z');
+    model.upsert.mockResolvedValue({});
+    await repo.markReminded('depot-1', 'c1', at);
+    expect(model.upsert).toHaveBeenCalledWith({
+      where: { depotId_customerId: { depotId: 'depot-1', customerId: 'c1' } },
+      create: { depotId: 'depot-1', customerId: 'c1', remindedAt: at },
+      update: { remindedAt: at },
+    });
   });
 });
 

@@ -93,6 +93,7 @@ model Depot {
   inventory      InventoryItem[]
   gallonReturns  GallonReturn[]
   gallonIssues   GallonIssue[]
+  gallonReminders GallonReminder[]
   // Console/manager models (DB-5): FK back-relations. Config models cascade on depot
   // delete; financial/audit models (POs, approvals, cashbook, disputes) restrict.
   priceOverrideProposals PriceOverrideProposal[]
@@ -200,6 +201,25 @@ model GallonIssue {
   @@unique([orderId], map: "gallon_issues_orderId_key")
   @@index([depotId, createdAt])
   @@map("gallon_issues")
+}
+
+/// When a depot last asked one customer to bring its gallons back.
+///
+/// The reminder sweep runs every morning; without this it would send an overdue customer the
+/// same message every morning. One row per (depot, customer), overwritten on each reminder —
+/// it answers "when did we last ask?", not "what did we ask", so it never grows past the number
+/// of customers who have ever been late.
+model GallonReminder {
+  id         String   @id @default(uuid()) @db.Uuid
+  depotId    String   @db.Uuid
+  depot      Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
+  customerId String   @db.Uuid
+  remindedAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([depotId, customerId])
+  @@map("gallon_reminders")
 }
 
 model InventoryItem {

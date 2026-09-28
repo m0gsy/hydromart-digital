@@ -13,6 +13,9 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   // Low-stock alerting via crm-service (optional; blank disables the feature).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Addresses the gallon-return reminder to a customer (name + phone by id). Blank = the
+  // reminder sweep skips everyone as "no number" rather than failing.
+  CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // CA-2-58: head office's complaint queue. Blank = a depot complaint is not mirrored.
   ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Product catalog, read to validate and name PRODUK stock lines. Blank = validation

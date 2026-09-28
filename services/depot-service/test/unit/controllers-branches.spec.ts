@@ -556,7 +556,8 @@ describe('GallonNetworkController', () => {
     gallonsInRange: jest.fn(),
   };
   const depots = { listMine: jest.fn() };
-  const c = new GallonNetworkController(gallon as never, depots as never);
+  const reminders = { sweep: jest.fn() };
+  const c = new GallonNetworkController(gallon as never, depots as never, reminders as never);
   const CUSTOMER = '22222222-2222-4222-8222-222222222222';
   beforeEach(() => {
     jest.clearAllMocks();
@@ -584,6 +585,15 @@ describe('GallonNetworkController', () => {
   it('passes the depot straight through to the per-customer ledger', async () => {
     await expect(c.perCustomer(DEPOT)).resolves.toEqual([]);
     expect(gallon.perCustomer).toHaveBeenCalledWith(DEPOT);
+  });
+
+  // The scheduler's morning round: the route only starts the sweep and hands back its counters
+  // unchanged — the scheduler's heartbeat reads `ok` off that body.
+  it('runs the overdue-gallon reminder sweep and returns its result untouched', async () => {
+    const result = { attempted: 3, sent: 2, skipped: 1, failed: 0, capped: false, ok: true };
+    reminders.sweep.mockResolvedValue(result);
+    await expect(c.overdueReminders()).resolves.toBe(result);
+    expect(reminders.sweep).toHaveBeenCalledTimes(1);
   });
 
   // S2: the daily report's returned/damaged columns. The window is parsed here and the
