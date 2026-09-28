@@ -186,6 +186,28 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 168,
     envDefault: 24,
   },
+  // Review request. GLOBAL only: the sweep is not depot-scoped, so a per-depot override would be
+  // a lever that moves nothing — the same trap `deliveryFee` was removed for.
+  {
+    key: 'reviewRequestDelayMinutes',
+    label: 'Jeda minta ulasan setelah pesanan sampai',
+    type: 'int',
+    unit: 'menit',
+    min: 5,
+    max: 1440,
+    envDefault: 30,
+    global: true,
+  },
+  {
+    key: 'reviewRequestWindowHours',
+    label: 'Batas terlambat minta ulasan',
+    type: 'int',
+    unit: 'jam',
+    min: 1,
+    max: 720,
+    envDefault: 72,
+    global: true,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

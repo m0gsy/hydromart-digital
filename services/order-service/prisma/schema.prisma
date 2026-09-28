@@ -123,6 +123,11 @@ model Order {
   /// no read model exposed and nothing could query.
   subscriptionId String?
 
+  /// When the customer was asked to rate this delivery. Null = never asked. Written by the
+  /// review-request sweep BEFORE it sends, so a round that dies halfway loses one nudge rather
+  /// than sending the same one twice — an unwanted second message is the worse failure.
+  reviewRequestedAt DateTime?
+
   items   OrderItem[]
   history OrderStatusHistory[]
   review  OrderReview?

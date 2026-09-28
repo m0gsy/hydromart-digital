@@ -92,6 +92,10 @@ export enum NotificationEvent {
   // a promotion — so it is NOT gated by the marketing opt-out. Tokens: {{name}}, {{depot}},
   // {{gallons}} (how many are overdue), {{since}} (when the oldest went out, e.g. "12 Ags 2026").
   GALLON_RETURN_REMINDER = 'GALLON_RETURN_REMINDER',
+  // Fired by order-service's review sweep some time after a delivery arrived: "how was it?".
+  // Opens the order, where the rating form is. A service message about a purchase the customer
+  // made, not a promotion. Tokens: {{name}}, {{orderNumber}}; `orderId` rides along for the tap.
+  REVIEW_REQUEST = 'REVIEW_REQUEST',
   // HR (hr-service, internal key). Staff-facing, never customers. Leave events carry
   // {{name}}, {{type}}, {{from}}, {{to}}; a rejection adds {{reason}}. HR_ANNOUNCEMENT
   // carries {{title}} and {{body}}.
@@ -178,6 +182,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
   [NotificationEvent.GALLON_RETURN_REMINDER]:
     'Halo {{name}}, kamu masih memegang {{gallons}} galon milik depot {{depot}} sejak {{since}}. Kalau sudah tidak dipakai, mohon dikembalikan ya — deposit galonnya bisa kamu terima kembali.',
+  [NotificationEvent.REVIEW_REQUEST]:
+    'Halo {{name}}, pesanan {{orderNumber}} sudah sampai. Bagaimana kesannya? Beri penilaian sebentar — masukanmu membantu depot memperbaiki layanan ⭐',
   [NotificationEvent.LEAVE_SUBMITTED]:
     'Pengajuan cuti {{type}} dari {{name}} ({{from}} s/d {{to}}) menunggu persetujuan Anda.',
   [NotificationEvent.LEAVE_APPROVED]:
@@ -287,6 +293,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}, you may be running low on water. Reorder now for fast delivery from your nearest depot 💧',
   [NotificationEvent.GALLON_RETURN_REMINDER]:
     'Hi {{name}}, you are still holding {{gallons}} gallons that belong to depot {{depot}}, out since {{since}}. If you no longer need them, please return them — you can get the gallon deposit back.',
+  [NotificationEvent.REVIEW_REQUEST]:
+    'Hi {{name}}, order {{orderNumber}} has arrived. How was it? Leave a quick rating — your feedback helps the depot improve ⭐',
   [NotificationEvent.LEAVE_SUBMITTED]:
     '{{type}} leave request from {{name}} ({{from}} to {{to}}) is waiting for your approval.',
   [NotificationEvent.LEAVE_APPROVED]:

@@ -99,6 +99,14 @@ export class OrderConfigService {
   get stalledHours(): number {
     return this.tunable('stalledHours', this.num('ORDER_STALLED_HOURS'));
   }
+  /** Minutes after a delivery before the customer is asked to rate it. Global: the sweep has no depot scope. */
+  get reviewRequestDelayMinutes(): number {
+    return this.tunable('reviewRequestDelayMinutes', this.num('ORDER_REVIEW_REQUEST_DELAY_MINUTES'));
+  }
+  /** Hours after a delivery beyond which it is too late to ask. */
+  get reviewRequestWindowHours(): number {
+    return this.tunable('reviewRequestWindowHours', this.num('ORDER_REVIEW_REQUEST_WINDOW_HOURS'));
+  }
   /**
    * Fraction off the subtotal of every subscription delivery (spec 7b). Settings hold
    * whole percent (an operator types "5"); the pricing code wants 0.05. Scoped to the

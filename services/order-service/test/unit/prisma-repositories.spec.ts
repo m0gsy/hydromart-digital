@@ -3,6 +3,7 @@ import { encodeCursor } from '@hydromart/platform';
 import { CartPrismaRepository } from '../../src/infrastructure/prisma/cart.prisma.repository';
 import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/subscription.prisma.repository';
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
+import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
 import {
@@ -1182,6 +1183,46 @@ describe('OrderPrismaRepository', () => {
       { customerId: 'cust-1', orderCount: 4, revenue: 500000 },
       { customerId: 'cust-2', orderCount: 0, revenue: 0 },
     ]);
+  });
+
+  // "How was your delivery?" targets: every filter is a way of NOT bothering somebody.
+  it('finds delivered, never-asked, never-rated, non-counter orders in the ask window', async () => {
+    const settledBefore = new Date('2026-09-28T09:30:00.000Z');
+    const notBefore = new Date('2026-09-25T10:00:00.000Z');
+    order.findMany.mockResolvedValue([
+      { id: 'o1', orderNumber: 'HM-1', customerId: 'c1', phone: '+62811', recipientName: 'Budi' },
+    ]);
+    await expect(repo.findReviewRequestTargets(settledBefore, notBefore, 200)).resolves.toEqual([
+      { orderId: 'o1', orderNumber: 'HM-1', customerId: 'c1', phone: '+62811', recipientName: 'Budi' },
+    ]);
+    expect(order.findMany).toHaveBeenLastCalledWith({
+      where: {
+        status: { in: ['DELIVERED', 'COMPLETED'] },
+        statusChangedAt: { lte: settledBefore, gt: notBefore },
+        reviewRequestedAt: null,
+        review: null,
+        isWalkIn: false,
+        customerId: { not: ANONYMOUS_CUSTOMER_ID },
+      },
+      select: { id: true, orderNumber: true, customerId: true, phone: true, recipientName: true },
+      orderBy: { statusChangedAt: 'asc' },
+      take: 200,
+    });
+  });
+
+  // The `reviewRequestedAt: null` guard IS the claim: two rounds racing on one order both try
+  // it and only one updates a row.
+  it.each([
+    [1, true],
+    [0, false],
+  ])('claims a review request only when the guard matched a row (count %s)', async (count, claimed) => {
+    order.updateMany.mockResolvedValue({ count });
+    const at = new Date('2026-09-28T10:00:00.000Z');
+    await expect(repo.claimReviewRequest('o1', at)).resolves.toBe(claimed);
+    expect(order.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'o1', reviewRequestedAt: null },
+      data: { reviewRequestedAt: at },
+    });
   });
 
   it('groups counter sales by cashier, one query, voided and cancelled left out', async () => {

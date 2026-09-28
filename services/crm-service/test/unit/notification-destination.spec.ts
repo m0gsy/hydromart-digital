@@ -13,6 +13,8 @@ describe('destinationFor', () => {
     NotificationEvent.ORDER_DELIVERED,
     NotificationEvent.ORDER_COMPLETED,
     NotificationEvent.ORDER_CANCELLED,
+    // The rating form is on the order itself.
+    NotificationEvent.REVIEW_REQUEST,
   ];
 
   it.each(ORDER_EVENTS)('%s opens that order in the query-param route', (event) => {

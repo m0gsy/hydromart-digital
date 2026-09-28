@@ -129,3 +129,9 @@
 # customer who answers finds somebody to hand the gallons to. Safe to run twice: a customer
 # already reminded inside the interval is skipped, so a double run sends nothing more.
 0 9 * * * sh /scripts/sweep.sh gallon-outstanding/internal/overdue-reminders depot:3007
+
+# Review requests: ask each customer how a delivery went, `reviewRequestDelayMinutes` (30) after
+# it arrived and until `reviewRequestWindowHours` (72) have passed. Every 10 minutes because the
+# point is to ask while the delivery is still fresh; each order is claimed before the message
+# goes out, so a double run or an overlapping tick asks nobody twice. Bounded at 200 per round.
+*/10 * * * * sh /scripts/sweep.sh orders/reminders/review

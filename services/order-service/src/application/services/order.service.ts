@@ -1331,6 +1331,60 @@ export class OrderService {
     return { reminded, failed, ok: failed === 0 || reminded > 0 };
   }
 
+  /**
+   * "How was your delivery?" — asks each customer to rate an order a little while after it
+   * arrived. Nothing prompted a rating before: the review screen was reachable only by a
+   * customer who opened the order on their own, so most deliveries were never rated.
+   *
+   * Scheduler-triggered like the refill nudge. An order is due once it has been delivered for
+   * `reviewRequestDelayMinutes` and until `reviewRequestWindowHours` have passed; it is asked
+   * at most once, and never if it was already rated, was a counter sale, or has no real
+   * customer behind it (see `findReviewRequestTargets`).
+   *
+   * The order is CLAIMED before the message is sent, not after. Claim-then-send means a round
+   * that dies in between loses one nudge; send-then-claim would send it again on the next
+   * round. A missing prompt is invisible, a duplicate one is spam — so lose the prompt.
+   *
+   * Counts follow the other sweeps (J7): `ok` is false only when the round lost something and
+   * asked nobody.
+   */
+  async requestReviews(
+    now: Date,
+    limit = 200,
+  ): Promise<{ asked: number; skipped: number; failed: number; ok: boolean }> {
+    const settledBefore = new Date(now.getTime() - this.config.reviewRequestDelayMinutes * 60_000);
+    const notBefore = new Date(now.getTime() - this.config.reviewRequestWindowHours * 3_600_000);
+    // The limit arrives as a query string; anything that is not a sane whole number falls back
+    // to the default instead of reaching the database as NaN.
+    const bound = Number.isFinite(limit) ? Math.min(Math.max(1, Math.trunc(limit)), 500) : 200;
+    const targets = await this.orders.findReviewRequestTargets(settledBefore, notBefore, bound);
+
+    let asked = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const target of targets) {
+      // Another round (or a retry of this one) already took it: not ours to send.
+      if (!(await this.orders.claimReviewRequest(target.orderId, now))) {
+        skipped += 1;
+        continue;
+      }
+      // D9: the port says whether the message actually went, so a refusal or an outage is a
+      // failure in the round's own count rather than a nudge that vanished into a success.
+      const delivered = await this.notification
+        .notify(
+          'REVIEW_REQUEST',
+          target.phone,
+          { name: target.recipientName, orderNumber: target.orderNumber, orderId: target.orderId },
+          target.customerId,
+          '',
+        )
+        .catch(() => false);
+      if (delivered) asked += 1;
+      else failed += 1;
+    }
+    return { asked, skipped, failed, ok: failed === 0 || asked > 0 };
+  }
+
   async listForCustomer(customerId: string, input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search({ ...input, customerId });
   }

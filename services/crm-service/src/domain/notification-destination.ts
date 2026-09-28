@@ -42,6 +42,8 @@ const ORDER_EVENTS = new Set<NotificationEvent>([
   // screen that now offers the depot's number instead (H10).
   NotificationEvent.ORDER_DRIVER_ASSIGNED,
   NotificationEvent.DELIVERY_RESCHEDULED,
+  // The rating form is on the order itself — tapping "how was it?" must land on the order.
+  NotificationEvent.REVIEW_REQUEST,
 ]);
 
 export function destinationFor(

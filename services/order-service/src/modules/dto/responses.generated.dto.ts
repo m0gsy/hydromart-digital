@@ -1188,6 +1188,21 @@ export class RemindStale2ResponseDto {
   ok!: boolean;
 }
 
+/** Mirrors the shape `POST /orders/reminders/review` returns. */
+export class ReviewRequestSweepResponseDto {
+  @ApiProperty({ type: Number, description: 'Customers asked to rate their delivery.' })
+  asked!: number;
+  @ApiProperty({ type: Number, description: 'Orders another round had already claimed.' })
+  skipped!: number;
+  @ApiProperty({ type: Number, description: 'Requests that could not be sent.' })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description: 'False when the round failed at something and asked nobody.',
+  })
+  ok!: boolean;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class InternalConfirm2ResponseDto {
   @ApiProperty({ type: String })

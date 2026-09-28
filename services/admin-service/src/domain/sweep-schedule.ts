@@ -65,6 +65,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
     everyMinutes: 1440,
     label: 'Pengingat galon telat',
   },
+  { job: 'orders/reminders/review', everyMinutes: 10, label: 'Permintaan ulasan' },
   {
     job: 'loyalty/internal/expire',
     everyMinutes: 1440,

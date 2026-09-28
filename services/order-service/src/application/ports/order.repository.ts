@@ -247,6 +247,15 @@ export interface DepotSales {
   commissionBase: number;
 }
 
+/** An order due a review request: who to ask, and about which delivery. */
+export interface ReviewRequestTarget {
+  orderId: string;
+  orderNumber: string;
+  customerId: string;
+  phone: string;
+  recipientName: string;
+}
+
 /**
  * One cashier's counter sales over a range. `cashierId` null is the "not recorded" bucket:
  * every counter sale written before the column existed, which must be reported as exactly
@@ -486,6 +495,22 @@ export interface OrderRepository {
     cutoff: Date,
     limit: number,
   ): Promise<{ customerId: string; phone: string; recipientName: string }[]>;
+  /**
+   * Delivered orders that are due a "how was it?" request: delivered at least `settledBefore`
+   * ago (so the water has actually been drunk from, not just dropped off), no longer ago than
+   * `notBefore` (a nudge weeks late reads as spam), never asked, never rated, not a counter
+   * sale, and with a real customer to ask. Oldest first, bounded.
+   */
+  findReviewRequestTargets(
+    settledBefore: Date,
+    notBefore: Date,
+    limit: number,
+  ): Promise<ReviewRequestTarget[]>;
+  /**
+   * Marks one order as asked. True only for the caller that set it — a concurrent round finds
+   * it already claimed and gets false, so the customer is asked once.
+   */
+  claimReviewRequest(orderId: string, at: Date): Promise<boolean>;
   /** Persist a customer's review of an order (one per order). */
   createReview(data: CreateReviewData): Promise<OrderReviewRecord>;
   /** The review for an order, or null if not yet rated. */

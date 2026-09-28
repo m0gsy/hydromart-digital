@@ -64,6 +64,26 @@ describe('emitter and template agree on the tokens', () => {
     },
   );
 
+  it.each(['id', 'en'] as const)(
+    'fills every token of the review request order-service sends (%s)',
+    (locale) => {
+      const message = render(
+        NotificationEvent.REVIEW_REQUEST,
+        { name: 'Budi', orderNumber: 'HM-1234', orderId: 'ignored-by-the-copy' },
+        locale,
+      );
+      expect(message).toContain('Budi');
+      expect(message).toContain('HM-1234');
+      expect(message).not.toContain('{{');
+      // `orderId` rides along for the tap target only; it is not part of the copy.
+      expect(message).not.toContain('ignored-by-the-copy');
+    },
+  );
+
+  it('sends the review request to the customer, not the ops feed', () => {
+    expect(OPS_EVENTS).not.toContain(NotificationEvent.REVIEW_REQUEST);
+  });
+
   // A service message about something the customer holds on deposit reaches the customer's own
   // inbox — the ops feed is for staff.
   it('sends the gallon reminder to the customer, not the ops feed', () => {

@@ -28,10 +28,12 @@ import {
   ProductRevenue,
   ReportRange,
   RetentionCell,
+  ReviewRequestTarget,
   SalesBucket,
   SegmentConditions,
   DeliveryAddressSnapshot,
 } from '../../src/application/ports/order.repository';
+import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
   CreateSubscriptionData,
   SubscriptionNetworkSummary,
@@ -166,6 +168,42 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => r.createdAt < cutoff)
       .slice(0, limit)
       .map((r) => ({ customerId: r.customerId, phone: r.phone, recipientName: r.recipientName }));
+  }
+
+  /** orderId -> when the customer was asked; mirrors the nullable `reviewRequestedAt` column. */
+  reviewRequestedAt = new Map<string, Date>();
+
+  async findReviewRequestTargets(
+    settledBefore: Date,
+    notBefore: Date,
+    limit: number,
+  ): Promise<ReviewRequestTarget[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          (r.status === OrderStatus.DELIVERED || r.status === OrderStatus.COMPLETED) &&
+          r.statusChangedAt <= settledBefore &&
+          r.statusChangedAt > notBefore &&
+          !this.reviewRequestedAt.has(r.id) &&
+          !r.reviewed &&
+          !r.isWalkIn &&
+          r.customerId !== ANONYMOUS_CUSTOMER_ID,
+      )
+      .sort((a, b) => a.statusChangedAt.getTime() - b.statusChangedAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({
+        orderId: r.id,
+        orderNumber: r.orderNumber,
+        customerId: r.customerId,
+        phone: r.phone,
+        recipientName: r.recipientName,
+      }));
+  }
+
+  async claimReviewRequest(orderId: string, at: Date): Promise<boolean> {
+    if (this.reviewRequestedAt.has(orderId)) return false;
+    this.reviewRequestedAt.set(orderId, at);
+    return true;
   }
 
   async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
@@ -1389,6 +1427,8 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_DELIVERY_FEE: '5000',
     ORDER_STALLED_HOURS: '24',
     ORDER_ABANDON_MINUTES: '60',
+    ORDER_REVIEW_REQUEST_DELAY_MINUTES: '30',
+    ORDER_REVIEW_REQUEST_WINDOW_HOURS: '72',
     ORDER_COUNTER_DELIVERY: '1',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
     ORDER_STAFF_COMPLETE_DELIVERED: '1',

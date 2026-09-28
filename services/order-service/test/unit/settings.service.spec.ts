@@ -107,21 +107,28 @@ describe('SettingsService', () => {
   // D1's `subscriptionSweepExempt` brings a real one back (the sweep has no depot scope, so
   // a per-depot override would be a lever moving nothing), which lets the guard be asserted
   // against the registry that actually ships.
-  it('rejects a DEPOT override for the real global-only key (D1)', async () => {
-    expect(SETTING_DEFS.filter((d) => d.global).map((d) => d.key)).toEqual([
+  it('rejects a DEPOT override for every real global-only key (D1)', async () => {
+    // The review-request sweep is not depot-scoped either, so its two tunables are global-only
+    // for the same reason: a per-depot override would be a lever that moves nothing.
+    const globalKeys = SETTING_DEFS.filter((d) => d.global).map((d) => d.key);
+    expect(globalKeys).toEqual([
       'subscriptionSweepExempt',
+      'reviewRequestDelayMinutes',
+      'reviewRequestWindowHours',
     ]);
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
-    await expect(
-      svc.put({
-        scope: 'DEPOT',
-        depotId: '11111111-1111-1111-1111-111111111111',
-        key: 'subscriptionSweepExempt',
-        value: '0',
-        updatedBy: 'u1',
-      }),
-    ).rejects.toThrow();
+    for (const key of globalKeys) {
+      await expect(
+        svc.put({
+          scope: 'DEPOT',
+          depotId: '11111111-1111-1111-1111-111111111111',
+          key,
+          value: '5',
+          updatedBy: 'u1',
+        }),
+      ).rejects.toThrow();
+    }
   });
 
   it('put rejects a prototype-inherited key like "constructor"', async () => {
