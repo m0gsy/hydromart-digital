@@ -38,6 +38,8 @@ describe('destinationFor', () => {
     // The customer's own gallon deposit card is on the account screen — what they hold and
     // what deposit is waiting for them is exactly what the reminder is about.
     [NotificationEvent.GALLON_RETURN_REMINDER, '/account'],
+    // Where the tiers and their benefits are shown — the thing the message tells them about.
+    [NotificationEvent.MEMBERSHIP_TIER_UPGRADED, '/rewards'],
     [NotificationEvent.CUSTOMER_REGISTERED, '/'],
   ])('%s opens %s', (event, url) => {
     expect(destinationFor(event, {})).toBe(url);

@@ -63,6 +63,11 @@ export enum NotificationEvent {
   PHONE_CHANGED = 'PHONE_CHANGED',
   // Loyalty: fired by order-service on completion. Tokens: {{name}}, {{points}}, {{orderNumber}}.
   POINTS_EARNED = 'POINTS_EARNED',
+  // Loyalty: fired by order-service right after POINTS_EARNED when that earn lifted the customer
+  // into a higher tier (loyalty-service reports it). Tokens: {{name}}, {{tier}} ("Silver").
+  // It deliberately quotes no discount rate: the rate a customer gets is re-derived against the
+  // ladder of the depot they order from, so a number here could be wrong at some depots.
+  MEMBERSHIP_TIER_UPGRADED = 'MEMBERSHIP_TIER_UPGRADED',
   // Rewards/referral: fired when a voucher is granted. Tokens: {{name}}, {{code}}, {{description}}.
   VOUCHER_GRANTED = 'VOUCHER_GRANTED',
   // K4.2, agen-facing. What a reseller pays used to change with no trail, no date and no
@@ -178,6 +183,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}, status agen kamu dinonaktifkan, jadi pembelian berikutnya memakai harga umum. Hubungi depot bila ini tidak sesuai.',
   [NotificationEvent.SUBSCRIPTION_PAUSED]:
     'Halo {{name}}! Langganan {{product}} kami jeda dulu karena {{reason}}. Tidak ada tagihan selama dijeda — buka Langganan untuk melanjutkan kapan saja.',
+  [NotificationEvent.MEMBERSHIP_TIER_UPGRADED]:
+    'Selamat, {{name}}! Kamu naik ke tier {{tier}} 🎉 Lihat keuntungan tier barumu di halaman Rewards.',
   [NotificationEvent.REORDER_REMINDER]:
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
   [NotificationEvent.GALLON_RETURN_REMINDER]:
@@ -289,6 +296,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}, your reseller status has been deactivated, so your next purchases use standard pricing. Contact your depot if this is not right.',
   [NotificationEvent.SUBSCRIPTION_PAUSED]:
     'Hi {{name}}! Your {{product}} subscription is paused because {{reason}}. Nothing is charged while it is paused — open Subscriptions to resume whenever you like.',
+  [NotificationEvent.MEMBERSHIP_TIER_UPGRADED]:
+    'Congratulations, {{name}}! You have moved up to the {{tier}} tier 🎉 See your new tier benefits on the Rewards page.',
   [NotificationEvent.REORDER_REMINDER]:
     'Hi {{name}}, you may be running low on water. Reorder now for fast delivery from your nearest depot 💧',
   [NotificationEvent.GALLON_RETURN_REMINDER]:

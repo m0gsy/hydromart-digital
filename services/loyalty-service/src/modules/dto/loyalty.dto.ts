@@ -214,6 +214,13 @@ export class EarnResultDto extends LoyaltyAccountDto {
     description: 'Points this call awarded; 0 when already earned or the subtotal is too small.',
   })
   pointsEarned!: number;
+
+  @ApiProperty({
+    enum: MembershipTier,
+    nullable: true,
+    description: 'The tier this earn lifted the customer into; null when it did not move them up.',
+  })
+  tierUpgradedTo!: MembershipTier | null;
 }
 
 export class PointsTransactionDto {

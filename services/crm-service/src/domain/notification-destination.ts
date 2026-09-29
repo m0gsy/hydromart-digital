@@ -59,6 +59,7 @@ export function destinationFor(
   }
   switch (event) {
     case NotificationEvent.POINTS_EARNED:
+    case NotificationEvent.MEMBERSHIP_TIER_UPGRADED:
       return '/rewards';
     case NotificationEvent.VOUCHER_GRANTED:
       return '/vouchers';

@@ -2063,6 +2063,63 @@ describe('OrderService', () => {
     expect(notification.calls.map((c) => c.event)).not.toContain('POINTS_EARNED');
   });
 
+  describe('tier-upgrade message', () => {
+    const complete = async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+        OrderStatus.COMPLETED,
+      ]) {
+        await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+      }
+      return order;
+    };
+
+    it('tells the customer which tier they moved into, right after the points message', async () => {
+      loyalty.tierUpgradedTo = 'SILVER';
+      const order = await complete();
+      const customerEvents = notification.calls.filter((c) => c.customerId !== null).map((c) => c.event);
+      expect(customerEvents.slice(-2)).toEqual(['POINTS_EARNED', 'MEMBERSHIP_TIER_UPGRADED']);
+      const call = notification.calls.find((c) => c.event === 'MEMBERSHIP_TIER_UPGRADED');
+      expect(call).toMatchObject({
+        phone: order.phone,
+        customerId: customer,
+        authorization: 'Bearer tok',
+        vars: { name: order.recipientName, tier: 'Silver' },
+      });
+    });
+
+    it('says nothing when the earn did not move the customer up', async () => {
+      loyalty.tierUpgradedTo = null;
+      await complete();
+      expect(notification.calls.map((c) => c.event)).not.toContain('MEMBERSHIP_TIER_UPGRADED');
+    });
+
+    it('never mentions the tier when the award itself is unknown', async () => {
+      loyalty.pointsEarned = null;
+      loyalty.tierUpgradedTo = 'GOLD';
+      await complete();
+      expect(notification.calls.map((c) => c.event)).not.toContain('MEMBERSHIP_TIER_UPGRADED');
+    });
+
+    it('does not fail the completion when the message cannot be sent', async () => {
+      loyalty.tierUpgradedTo = 'GOLD';
+      const realNotify = notification.notify.bind(notification);
+      notification.notify = async (event, phone, vars, customerId, authorization) => {
+        if (event === 'MEMBERSHIP_TIER_UPGRADED') throw new Error('crm down');
+        return realNotify(event, phone, vars, customerId, authorization);
+      };
+      await expect(complete()).resolves.toMatchObject({ id: expect.any(String) });
+      expect(notification.calls.map((c) => c.event)).toContain('POINTS_EARNED');
+    });
+  });
+
   it('deducts routed-depot stock once, only when a routed order completes (FR-067..074)', async () => {
     depots.depots = [
       {

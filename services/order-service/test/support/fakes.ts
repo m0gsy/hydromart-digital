@@ -61,7 +61,10 @@ import { GallonIssueEvent, GallonIssuePort } from '../../src/application/ports/g
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
-import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
+import {
+  LoyaltyCoordinationPort,
+  PointsAward,
+} from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
 import { ForecastCoordinationPort } from '../../src/application/ports/forecast-coordination.port';
@@ -1070,15 +1073,19 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
   calls: AwardCall[] = [];
   /** What the next award reports back; null mimics loyalty being down (fail-open). */
   pointsEarned: number | null = 60;
+  /** The tier the next award reports having lifted the customer into; null = no promotion. */
+  tierUpgradedTo: string | null = null;
   async awardPoints(
     customerId: string,
     orderId: string,
     subtotal: number,
     depotId: string | null,
     authorization: string,
-  ): Promise<number | null> {
+  ): Promise<PointsAward | null> {
     this.calls.push({ customerId, orderId, subtotal, depotId, authorization });
-    return this.pointsEarned;
+    return this.pointsEarned === null
+      ? null
+      : { points: this.pointsEarned, tierUpgradedTo: this.tierUpgradedTo };
   }
   reversals: { customerId: string; orderId: string; reason: string }[] = [];
   /** When set, reversePoints throws it — loyalty down while a void is in flight. */

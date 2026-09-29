@@ -746,6 +746,9 @@ export type NotificationEvent =
   | 'COURIER_INCIDENT'
   | 'DEPOT_SALES_UPDATE'
   | 'POINTS_EARNED'
+  // MEMBERSHIP_TIER_UPGRADED (2026-09): the earn that crosses a tier threshold. Sent right
+  // after POINTS_EARNED for the same order, from the same order-service completion.
+  | 'MEMBERSHIP_TIER_UPGRADED'
   | 'VOUCHER_GRANTED'
   | 'REORDER_REMINDER'
   // Customer-facing, from depot-service's overdue-gallon sweep and order-service's review

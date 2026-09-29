@@ -145,7 +145,11 @@ export class LoyaltyController {
       dto.subtotal,
       dto.depotId ?? null,
     );
-    return { ...LoyaltyAccountDto.from(result.account), pointsEarned: result.pointsEarned };
+    return {
+      ...LoyaltyAccountDto.from(result.account),
+      pointsEarned: result.pointsEarned,
+      tierUpgradedTo: result.tierUpgradedTo,
+    };
   }
 
   @ApiOkResponse({ type: LoyaltyAccountDto })

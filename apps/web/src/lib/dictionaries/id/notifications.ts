@@ -22,7 +22,11 @@ export const notifications = {
     DEPOT_ORDER_INCOMING: 'Pesanan baru masuk',
     STOCK_LOW: 'Stok menipis',
     POINTS_EARNED: 'Poin bertambah',
+    MEMBERSHIP_TIER_UPGRADED: 'Naik tier membership',
     VOUCHER_GRANTED: 'Voucher baru',
+    // F3 mengulang: kedua event ini dikirim sejak 2026-09-28 tapi lupa didaftarkan di
+    // kamus, jadi judulnya tampil sebagai string mentah `notifications.events.…` di
+    // kotak masuk pelanggan sungguhan. `satisfies` di bawah membuat ini mustahil terulang.
     GALLON_RETURN_REMINDER: 'Galon belum dikembalikan',
     REVIEW_REQUEST: 'Beri penilaian',
     REORDER_REMINDER: 'Saatnya isi ulang?',

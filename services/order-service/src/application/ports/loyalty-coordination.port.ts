@@ -10,6 +10,16 @@
  * from the subtotal: the earn rate is per-depot, so a local divisor quotes the wrong number
  * at every depot that overrode it.
  */
+export interface PointsAward {
+  points: number;
+  /**
+   * The tier this earn lifted the customer into ("SILVER"), or null when it did not move them
+   * up — including when loyalty-service is an older build that does not say. Null is the safe
+   * reading: the customer simply gets no congratulation.
+   */
+  tierUpgradedTo: string | null;
+}
+
 export interface LoyaltyCoordinationPort {
   awardPoints(
     customerId: string,
@@ -17,7 +27,7 @@ export interface LoyaltyCoordinationPort {
     subtotal: number,
     depotId: string | null,
     authorization: string,
-  ): Promise<number | null>;
+  ): Promise<PointsAward | null>;
 
   /**
    * Takes back the points a reversed sale awarded. Named by order, never by an amount:

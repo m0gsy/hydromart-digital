@@ -53,6 +53,16 @@ export function tierFor(
   return result;
 }
 
+/**
+ * True when `to` is a HIGHER rung than `from`. The enum is declared lowest to highest, so its
+ * declaration order is the ladder — a per-depot override changes the thresholds, never the
+ * order of the rungs.
+ */
+export function isHigherTier(from: MembershipTier, to: MembershipTier): boolean {
+  const ladder = Object.values(MembershipTier);
+  return ladder.indexOf(to) > ladder.indexOf(from);
+}
+
 export function benefitFor(
   tier: MembershipTier,
   benefits: readonly TierBenefit[] = TIER_BENEFITS,

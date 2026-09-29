@@ -66,6 +66,7 @@ describe('LoyaltyController (delegation)', () => {
       account: account(),
       pointsEarned: 60,
       alreadyEarned: false,
+      tierUpgradedTo: 'SILVER',
     })),
     adjust: jest.fn(async () => account()),
     reverseEarnForOrder: jest.fn(async () => account()),
@@ -146,6 +147,8 @@ describe('LoyaltyController (delegation)', () => {
     } as never);
     expect(loyalty.earnForOrder).toHaveBeenCalledWith('c', 'o', 60000, 'd1');
     expect(out.pointsEarned).toBe(60);
+    // order-service reads this to tell the customer, so it must survive the controller.
+    expect(out.tierUpgradedTo).toBe('SILVER');
     expect(out.customerId).toBe('cust-1');
   });
 

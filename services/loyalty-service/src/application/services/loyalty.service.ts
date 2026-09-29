@@ -3,7 +3,7 @@ import { startOfLocalMonth } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
 import { AdjustmentTooLargeError, InvalidAdjustmentError } from '../../domain/errors';
-import { MembershipTier, TierBenefit, benefitFor, tierFor } from '../../domain/membership';
+import { MembershipTier, TierBenefit, benefitFor, isHigherTier, tierFor } from '../../domain/membership';
 import { PointsTxnType, expiryFrom, pointsForOrder } from '../../domain/points';
 import { Page, buildPage } from '../pagination';
 import { CustomerDirectory } from '../ports/customer-directory.port';
@@ -28,6 +28,16 @@ export interface EarnResult {
   pointsEarned: number;
   /** True when this order had already earned — the call was a no-op (idempotent). */
   alreadyEarned: boolean;
+  /**
+   * The tier this earn lifted the customer INTO, or null when it did not move them up.
+   * order-service tells the customer; loyalty only knows the before and the after.
+   *
+   * At-most-once, like the points message beside it: a retried earn is an idempotent no-op
+   * and reports null, so a response lost after the commit means the congratulation is not
+   * repeated. Only order earns are announced — a referral bonus or a manual adjustment can
+   * also raise the tier, and nothing is sent for those.
+   */
+  tierUpgradedTo: MembershipTier | null;
 }
 
 export interface ExpiryResult {
@@ -183,13 +193,18 @@ export class LoyaltyService {
   ): Promise<EarnResult> {
     const existing = await this.repo.findEarnByOrder(orderId);
     if (existing) {
-      return { account: await this.getAccount(customerId), pointsEarned: 0, alreadyEarned: true };
+      return {
+        account: await this.getAccount(customerId),
+        pointsEarned: 0,
+        alreadyEarned: true,
+        tierUpgradedTo: null,
+      };
     }
 
     const points = pointsForOrder(subtotal, this.config.earnRateRupiah(depotId));
     const account = await this.getAccount(customerId);
     if (points <= 0) {
-      return { account, pointsEarned: 0, alreadyEarned: false };
+      return { account, pointsEarned: 0, alreadyEarned: false, tierUpgradedTo: null };
     }
 
     const updated = await this.repo.recordEarn({
@@ -201,7 +216,15 @@ export class LoyaltyService {
       expiresAt: expiryFrom(new Date(), this.config.pointExpiryMonths(depotId)),
       lifetimeDelta: points,
     });
-    return { account: await this.retier(updated), pointsEarned: points, alreadyEarned: false };
+    const retiered = await this.retier(updated);
+    return {
+      account: retiered,
+      pointsEarned: points,
+      alreadyEarned: false,
+      // Compared with the tier read BEFORE this earn, and by rank: `retier` can also move a
+      // tier down when a ladder was edited, and that is not news to congratulate.
+      tierUpgradedTo: isHigherTier(account.tier, retiered.tier) ? retiered.tier : null,
+    };
   }
 
   /**

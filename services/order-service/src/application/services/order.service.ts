@@ -222,6 +222,9 @@ const REROUTABLE_STATUSES: ReadonlySet<OrderStatus> = new Set([
   OrderStatus.PREPARING,
 ]);
 
+/** "SILVER" → "Silver": a membership tier the way the customer reads it in a message. */
+const tierLabel = (tier: string): string => tier.charAt(0) + tier.slice(1).toLowerCase();
+
 @Injectable()
 export class OrderService {
   private static readonly MAX_LIMIT = 100;
@@ -281,7 +284,7 @@ export class OrderService {
    */
   private async awardLoyalty(orderId: string, authorization: string): Promise<void> {
     const order = await this.getAny(orderId);
-    const pointsEarned = await this.loyalty.awardPoints(
+    const award = await this.loyalty.awardPoints(
       order.customerId,
       order.id,
       order.subtotal,
@@ -290,20 +293,33 @@ export class OrderService {
     );
     // Null = the award failed or its count is unknown: stay silent rather than promise
     // points. The award itself is idempotent per order, so a retry cannot double-credit.
-    if (pointsEarned !== null && pointsEarned > 0) {
+    if (award !== null && award.points > 0) {
       await this.notification
         .notify(
           'POINTS_EARNED',
           order.phone,
           {
             name: order.recipientName,
-            points: String(pointsEarned),
+            points: String(award.points),
             orderNumber: order.orderNumber,
           },
           order.customerId,
           authorization,
         )
         .catch(() => {});
+      // The earn that crossed a threshold gets its own message, after the points one. Best
+      // effort like it: a customer who misses "you moved up" still has the tier on their card.
+      if (award.tierUpgradedTo) {
+        await this.notification
+          .notify(
+            'MEMBERSHIP_TIER_UPGRADED',
+            order.phone,
+            { name: order.recipientName, tier: tierLabel(award.tierUpgradedTo) },
+            order.customerId,
+            authorization,
+          )
+          .catch(() => {});
+      }
     }
   }
 
