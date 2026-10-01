@@ -53,6 +53,12 @@ model Order {
   customerId  String      @db.Uuid
   status      OrderStatus @default(CREATED)
 
+  /// #34: an unguessable key for the public "lacak pesanan" link — deliberately NOT
+  /// `orderNumber`, which is sequential (`HM-YYYYMMDD-NNNNNN`) and would let a public route
+  /// be enumerated into every other customer's name, phone and address. Null on every order
+  /// placed before this column existed; those have no public link, not a broken one.
+  trackingToken String? @unique
+
   /// Fulfilling depot, resolved at checkout by delivery-address proximity
   /// (nearest active depot within its service radius). Null when the address
   /// has no coordinates or no depot covers it. Powers Top-Depot reporting (FR-098).
@@ -87,6 +93,13 @@ model Order {
   /// delivery order and on every counter sale written before this column existed.
   cashierId      String?
   cashierLabel   String?
+
+  /// #27: empty galon the buyer handed over AT this counter sale, for the refill-vs-beli
+  /// split in the daily report. Null = not asked (a delivery order, or a counter sale
+  /// written before this column existed) — distinct from 0, which means asked and the
+  /// buyer brought none. Does NOT change the gallon-issue deposit ledger in depot-service;
+  /// that still nets an empty returned later through the existing return flow.
+  emptiesReturned Int?
 
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
@@ -203,6 +216,12 @@ model MeterReading {
   closingM3       Decimal?  @db.Decimal(12, 3)
   sourceOpeningM3 Decimal?  @db.Decimal(12, 3)
   sourceClosingM3 Decimal?  @db.Decimal(12, 3)
+  /// #24: how full the storage tank reads, 0..100, at the same two moments the dial is
+  /// read. Null until an operator types one — "unmeasured", never read as 0% full. The
+  /// litre capacity it is a percentage OF is a per-depot SETTING (meterTankCapacityLiters,
+  /// configured once), not on this row — a tank's size does not change day to day.
+  openingTankPct  Decimal?  @db.Decimal(5, 2)
+  closingTankPct  Decimal?  @db.Decimal(5, 2)
   openedBy        String    @db.Uuid
   openedAt        DateTime  @default(now())
   closedBy        String?   @db.Uuid

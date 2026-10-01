@@ -6,6 +6,7 @@ import { SettingRow, SettingsCache, localDayKey } from '@hydromart/platform';
 import { OrderConfigService } from '../../src/config/order-config.service';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
 import { OrderStatus } from '../../src/domain/order-status';
+import { galonQuantity } from '../../src/domain/pricing';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
   CashierSales,
@@ -26,6 +27,8 @@ import {
   OrderValue,
   RatingSummary,
   ProductRevenue,
+  PublicTrackingRecord,
+  RefillSplit,
   ReportRange,
   RetentionCell,
   ReviewRequestTarget,
@@ -61,7 +64,10 @@ import { GallonIssueEvent, GallonIssuePort } from '../../src/application/ports/g
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
-import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
+import {
+  LoyaltyCoordinationPort,
+  PointsAward,
+} from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
 import { ForecastCoordinationPort } from '../../src/application/ports/forecast-coordination.port';
@@ -268,6 +274,19 @@ export class InMemoryOrderRepository implements OrderRepository {
     }
     return structuredClone(rec);
   }
+  async findByTrackingToken(token: string): Promise<PublicTrackingRecord | null> {
+    const row = this.rows.find((r) => r.trackingToken === token);
+    if (!row) return null;
+    return {
+      orderNumber: row.orderNumber,
+      status: row.status,
+      city: row.city,
+      driverFirstName: row.driverName ? row.driverName.split(' ')[0] : null,
+      estimatedArrivalAt: row.estimatedArrivalAt,
+      statusHistory: row.history.map((h) => ({ status: h.status, changedAt: h.createdAt })),
+    };
+  }
+
   async findById(id: string): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
@@ -711,6 +730,25 @@ export class InMemoryOrderRepository implements OrderRepository {
     return [...by.values()].sort((a, b) => b.revenue - a.revenue);
   }
 
+  async refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit> {
+    type WithEmpties = OrderRecord & { emptiesReturned?: number | null };
+    const split: RefillSplit = { refill: 0, partial: 0, beli: 0, notAsked: 0 };
+    for (const row of this.rows) {
+      if (row.depotId !== depotId || !row.isWalkIn) continue;
+      if (row.status === OrderStatus.CANCELLED || row.status === OrderStatus.VOIDED) continue;
+      if (range.from && row.createdAt < range.from) continue;
+      if (range.to && row.createdAt >= range.to) continue;
+      const gallons = galonQuantity(row.items);
+      if (gallons === 0) continue;
+      const { emptiesReturned = null } = row as WithEmpties;
+      if (emptiesReturned === null) split.notAsked += 1;
+      else if (emptiesReturned >= gallons) split.refill += 1;
+      else if (emptiesReturned > 0) split.partial += 1;
+      else split.beli += 1;
+    }
+    return split;
+  }
+
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
     return this.segmentMatches(conditions).length;
   }
@@ -1070,15 +1108,19 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
   calls: AwardCall[] = [];
   /** What the next award reports back; null mimics loyalty being down (fail-open). */
   pointsEarned: number | null = 60;
+  /** The tier the next award reports having lifted the customer into; null = no promotion. */
+  tierUpgradedTo: string | null = null;
   async awardPoints(
     customerId: string,
     orderId: string,
     subtotal: number,
     depotId: string | null,
     authorization: string,
-  ): Promise<number | null> {
+  ): Promise<PointsAward | null> {
     this.calls.push({ customerId, orderId, subtotal, depotId, authorization });
-    return this.pointsEarned;
+    return this.pointsEarned === null
+      ? null
+      : { points: this.pointsEarned, tierUpgradedTo: this.tierUpgradedTo };
   }
   reversals: { customerId: string; orderId: string; reason: string }[] = [];
   /** When set, reversePoints throws it — loyalty down while a void is in flight. */

@@ -143,9 +143,15 @@ export class DepotDailyReportResponseDto {
   failedDeliveries!: number;
   @ApiProperty({ type: [DepotCourierDailyResponseDto] })
   perCourier!: DepotCourierDailyResponseDto[];
-  @ApiProperty({ type: [HourBucketResponseDto], description: 'All 24 hours of the business day; empty hours are zeros.' })
+  @ApiProperty({
+    type: [HourBucketResponseDto],
+    description: 'All 24 hours of the business day; empty hours are zeros.',
+  })
   byHour!: HourBucketResponseDto[];
-  @ApiProperty({ type: [CashierDailyResponseDto], description: 'Counter sales by cashier, biggest first.' })
+  @ApiProperty({
+    type: [CashierDailyResponseDto],
+    description: 'Counter sales by cashier, biggest first.',
+  })
   perCashier!: CashierDailyResponseDto[];
 }
 
@@ -193,7 +199,10 @@ export class DepotWeeklyReportResponseDto {
   slaOnTimePct?: number;
   @ApiProperty({ type: [DepotWeeklyReportRevenueByDayResponseDto] })
   revenueByDay!: DepotWeeklyReportRevenueByDayResponseDto[];
-  @ApiProperty({ type: [HourBucketResponseDto], description: 'The window by hour of day; empty hours are zeros.' })
+  @ApiProperty({
+    type: [HourBucketResponseDto],
+    description: 'The window by hour of day; empty hours are zeros.',
+  })
   byHour!: HourBucketResponseDto[];
   @ApiProperty({ type: [DepotWeeklyReportTopProductsResponseDto] })
   topProducts!: DepotWeeklyReportTopProductsResponseDto[];
@@ -472,6 +481,10 @@ export class MeterReadingResponseDto {
   sourceOpeningM3!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   sourceClosingM3!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  openingTankPct!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  closingTankPct!: number | null;
   @ApiProperty({ type: String })
   openedBy!: string;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -484,6 +497,20 @@ export class MeterReadingResponseDto {
   alertedAt!: string | null;
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
+}
+
+/** Mirrors `TankStatus` exactly — #24. */
+export class TankStatusResponseDto {
+  @ApiProperty({ type: Number, nullable: true })
+  levelPct!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  liters!: number | null;
+  @ApiProperty({ type: Number })
+  capacityLiters!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  avgDailyLiters!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  hoursRemaining!: number | null;
 }
 
 /** Mirrors `MeterReconciliation` exactly — generated for audit D-6, no field added or removed. */
@@ -518,6 +545,8 @@ export class MeterReconciliationResponseDto {
   toleranceLiters!: number;
   @ApiProperty({ type: Boolean })
   overTolerance!: boolean;
+  @ApiProperty({ type: TankStatusResponseDto })
+  tank!: TankStatusResponseDto;
 }
 
 /** Mirrors `MeterHistoryRow` exactly — generated for audit D-6, no field added or removed. */
@@ -583,6 +612,55 @@ export class OrderStatusHistoryResponseDto {
   note!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+}
+
+/** #34: mirrors `PublicTrackingRecord` exactly — the whole point is that it carries nothing else. */
+export class PublicTrackingStatusResponseDto {
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
+  status!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  changedAt!: string;
+}
+
+export class PublicTrackingResponseDto {
+  @ApiProperty({ type: String })
+  orderNumber!: string;
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
+  status!: string;
+  @ApiProperty({ type: String })
+  city!: string;
+  @ApiProperty({ type: String, nullable: true })
+  driverFirstName!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  estimatedArrivalAt!: string | null;
+  @ApiProperty({ type: PublicTrackingStatusResponseDto, isArray: true })
+  statusHistory!: PublicTrackingStatusResponseDto[];
 }
 
 /** Mirrors `OrderRecord` exactly — generated for audit D-6, no field added or removed. */

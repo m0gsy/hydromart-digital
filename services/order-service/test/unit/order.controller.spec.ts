@@ -23,6 +23,7 @@ function makeService(): Mocked {
   return {
     checkout: jest.fn().mockResolvedValue({ id: 'o1' }),
     walkInSale: jest.fn().mockResolvedValue({ id: 'w1', isWalkIn: true }),
+    publicTracking: jest.fn().mockResolvedValue({ orderNumber: 'HM-1', status: 'ON_DELIVERY' }),
     quoteCounterBasket: jest.fn().mockResolvedValue({
       subtotal: 60000,
       discount: 15000,
@@ -202,8 +203,15 @@ describe('OrderController', () => {
   // The one route that may mint an account, and it only runs when the cashier taps.
   it('identifies a buyer on request, and only on request', async () => {
     const dto = { depotId: 'depot-1', phone: '08123', name: 'Budi' } as never;
-    await expect(controller.walkInIdentify(dto, 'Bearer t')).resolves.toEqual({ customerId: 'buyer-9' });
-    expect(service.identifyCounterBuyer).toHaveBeenCalledWith('depot-1', '08123', 'Budi', 'Bearer t');
+    await expect(controller.walkInIdentify(dto, 'Bearer t')).resolves.toEqual({
+      customerId: 'buyer-9',
+    });
+    expect(service.identifyCounterBuyer).toHaveBeenCalledWith(
+      'depot-1',
+      '08123',
+      'Budi',
+      'Bearer t',
+    );
   });
 
   it('passes a null name rather than an empty one', async () => {
@@ -234,7 +242,20 @@ describe('OrderController', () => {
       deliveryAddress: null,
       voucherCode: null,
       idempotencyKey: null,
+      emptiesReturned: null,
     });
+  });
+
+  it('walk-in: forwards emptiesReturned (#27) when the cashier recorded one', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const dto = {
+      depotId: 'd1',
+      lines: [{ productId: 'p1', quantity: 2 }],
+      emptiesReturned: 2,
+    } as never;
+    await controller.walkIn(staff, dto, 'Bearer t');
+    const [, payload] = service.walkInSale.mock.calls[0];
+    expect(payload).toMatchObject({ emptiesReturned: 2 });
   });
 
   // `now` comes from the controller, not the client: a cashier who could name the moment
@@ -324,7 +345,11 @@ describe('OrderController', () => {
 
   it('listManaged: lets HQ read the unrouted tray but refuses a depot-scoped caller', async () => {
     await controller.listManaged(admin, { unrouted: true, limit: 10 } as never);
-    expect(service.listAll).toHaveBeenCalledWith({ unrouted: true, limit: 10, depotIds: undefined });
+    expect(service.listAll).toHaveBeenCalledWith({
+      unrouted: true,
+      limit: 10,
+      depotIds: undefined,
+    });
 
     const manager = { sub: 'mgr-1', role: Role.MANAGER, depotIds: ['depot-a'] } as never;
     await expect(
@@ -665,5 +690,19 @@ describe('OrderController', () => {
       expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
       expect(Reflect.getMetadata('__guards__', handler)).toContain(InternalAuthGuard);
     }
+  });
+
+  // #34: a stranger holding the link, not a service with the internal key.
+  it('track: truly public — no JWT, no internal key, and forwards the bare token', async () => {
+    await expect(controller.track('tok-123')).resolves.toMatchObject({ orderNumber: 'HM-1' });
+    expect(service.publicTracking).toHaveBeenCalledWith('tok-123');
+
+    const handler = OrderController.prototype.track;
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBe(true);
+    expect(Reflect.getMetadata(ROLES_KEY, handler)).toBeUndefined();
+    expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
+    // Unlike the internal sweeps above: no guard at all, because there is no internal
+    // caller here to hold a key — the token itself is the only credential this route has.
+    expect(Reflect.getMetadata('__guards__', handler) ?? []).not.toContain(InternalAuthGuard);
   });
 });

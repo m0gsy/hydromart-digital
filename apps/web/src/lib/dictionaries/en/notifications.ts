@@ -21,6 +21,7 @@ export const notifications = {
     DEPOT_ORDER_INCOMING: 'New order arrived',
     STOCK_LOW: 'Low stock',
     POINTS_EARNED: 'Points earned',
+    MEMBERSHIP_TIER_UPGRADED: 'Membership tier upgraded',
     VOUCHER_GRANTED: 'New voucher',
     GALLON_RETURN_REMINDER: 'Gallon not returned yet',
     REVIEW_REQUEST: 'Leave a rating',

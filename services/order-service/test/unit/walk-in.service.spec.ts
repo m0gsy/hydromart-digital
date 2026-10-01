@@ -306,7 +306,12 @@ describe('OrderService.walkInSale', () => {
     });
 
     it('charges ongkir, and it is NOT a product line', async () => {
-      const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true, volumeMl: 19000 });
+      const p = catalog.seed({
+        id: randomUUID(),
+        basePrice: 20000,
+        isGallon: true,
+        volumeMl: 19000,
+      });
 
       const order = await service.walkInSale(operator, {
         depotId: DEPOT,
@@ -320,6 +325,88 @@ describe('OrderService.walkInSale', () => {
       // price and would report as goods sold rather than as delivery.
       expect(order.items).toHaveLength(1);
       expect(order.items[0].productId).toBe(p.id);
+    });
+
+    // #27: refill-vs-beli split, read back through the same aggregate the daily report uses.
+    describe('emptiesReturned (#27)', () => {
+      it('refuses an empties count above the galon actually sold', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+
+        await expect(
+          service.walkInSale(operator, {
+            depotId: DEPOT,
+            lines: [{ productId: p.id, quantity: 2 }],
+            emptiesReturned: 3,
+          }),
+        ).rejects.toThrow(/melebihi galon isi/);
+      });
+
+      it('classifies a full exchange as refill', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 3 }],
+          emptiesReturned: 3,
+        });
+
+        const split = await orders.refillSplitForDepot(DEPOT, { from: undefined, to: undefined });
+        expect(split).toEqual({ refill: 1, partial: 0, beli: 0, notAsked: 0 });
+      });
+
+      it('classifies a partial exchange as partial, not refill', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 3 }],
+          emptiesReturned: 1,
+        });
+
+        const split = await orders.refillSplitForDepot(DEPOT, { from: undefined, to: undefined });
+        expect(split).toEqual({ refill: 0, partial: 1, beli: 0, notAsked: 0 });
+      });
+
+      it('classifies zero empties as beli, and an omitted answer as notAsked', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 2 }],
+          emptiesReturned: 0,
+        });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 1 }],
+          // emptiesReturned omitted — the cashier was never asked.
+        });
+
+        const split = await orders.refillSplitForDepot(DEPOT, { from: undefined, to: undefined });
+        expect(split).toEqual({ refill: 0, partial: 0, beli: 1, notAsked: 1 });
+      });
+
+      it('excludes a sale with no galon line from every bucket', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 5000, isGallon: false });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 2 }],
+        });
+
+        const split = await orders.refillSplitForDepot(DEPOT, { from: undefined, to: undefined });
+        expect(split).toEqual({ refill: 0, partial: 0, beli: 0, notAsked: 0 });
+      });
+
+      it('leaves a voided counter sale out of the split', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        const order = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 2 }],
+          emptiesReturned: 2,
+        });
+        // Same exclusion `cashierSalesForDepot` already relies on: a reversed sale did not
+        // happen, so it must not count in the split any more than it counts as revenue.
+        orders.rows.find((r) => r.id === order.id)!.status = OrderStatus.VOIDED;
+
+        const split = await orders.refillSplitForDepot(DEPOT, { from: undefined, to: undefined });
+        expect(split).toEqual({ refill: 0, partial: 0, beli: 0, notAsked: 0 });
+      });
     });
 
     it('carries the address the buyer gave, not "ambil di depot"', async () => {
@@ -463,7 +550,14 @@ describe('OrderService.walkInSale', () => {
     // the directory too — the delivery describe above seeds its own and scopes it there.
     beforeEach(() => {
       depots.depots = [
-        { id: DEPOT, lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+        {
+          id: DEPOT,
+          lat: -6.9,
+          lng: 107.6,
+          serviceRadiusKm: 10,
+          deliveryFee: 5000,
+          minOrderAmount: null,
+        },
       ];
     });
     // C11: its own copy — the delivery describe above scopes its ADDRESS to itself.
@@ -513,7 +607,10 @@ describe('OrderService.walkInSale', () => {
     it('quotes a pick-up with no ongkir when no address was given', async () => {
       const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
       const quote = await service.quoteCounterBasket(
-        null, DEPOT, [{ productId: product.id, quantity: 2 }], null,
+        null,
+        DEPOT,
+        [{ productId: product.id, quantity: 2 }],
+        null,
       );
       expect(quote.shippingFee).toBe(0);
     });
@@ -562,7 +659,9 @@ describe('OrderService.walkInSale', () => {
       const out = await service.identifyCounterBuyer(DEPOT, ' 08123 ', ' Budi ');
 
       expect(out.customerId).toBe(BUYER);
-      expect(directory.resolveCalls).toEqual([{ phone: '08123', fullName: 'Budi', depotId: DEPOT }]);
+      expect(directory.resolveCalls).toEqual([
+        { phone: '08123', fullName: 'Budi', depotId: DEPOT },
+      ]);
     });
 
     it('a quote for an identified buyer prices their agen band, and says so', async () => {
@@ -796,9 +895,9 @@ describe('OrderService.walkInSale', () => {
   });
 
   it('rejects an empty sale', async () => {
-    await expect(service.walkInSale(operator, { depotId: DEPOT, lines: [] })).rejects.toBeInstanceOf(
-      EmptyCartError,
-    );
+    await expect(
+      service.walkInSale(operator, { depotId: DEPOT, lines: [] }),
+    ).rejects.toBeInstanceOf(EmptyCartError);
   });
 
   it('leaves no order behind when stock is short', async () => {
@@ -835,7 +934,10 @@ describe('OrderService.walkInSale', () => {
       throw new Error('unique constraint');
     };
     await expect(
-      service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 2 }] }),
+      service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: product.id, quantity: 2 }],
+      }),
     ).rejects.toThrow('unique constraint');
 
     expect(inventory.releaseCalls).toHaveLength(1);
@@ -857,7 +959,10 @@ describe('OrderService.walkInSale', () => {
       throw new Error('depot-service down');
     };
     await expect(
-      service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 1 }] }),
+      service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: product.id, quantity: 1 }],
+      }),
     ).rejects.toThrow('unique constraint');
   });
 
@@ -880,7 +985,12 @@ describe('OrderService.walkInSale', () => {
     it('asks depot-service about this depot, carrying the caller token', async () => {
       await service.walkInSale(
         operator,
-        { depotId: DEPOT, lines: [{ productId: catalog.seed({ id: randomUUID(), basePrice: 20000 }).id, quantity: 1 }] },
+        {
+          depotId: DEPOT,
+          lines: [
+            { productId: catalog.seed({ id: randomUUID(), basePrice: 20000 }).id, quantity: 1 },
+          ],
+        },
         'Bearer cashier-token',
       );
       expect(shift.calls[0]).toEqual({ depotId: DEPOT, authorization: 'Bearer cashier-token' });
@@ -908,7 +1018,12 @@ describe('OrderService.walkInSale', () => {
      */
     it('charges an agen the flat SOP galon price, not the list price', async () => {
       membership.rate = 0.05; // must be ignored — reseller pricing replaces it
-      resellerDiscount.result = { active: true, discountPct: 0, flatGallonPriceIdr: 5000, homeDepotId: DEPOT };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 0,
+        flatGallonPriceIdr: 5000,
+        homeDepotId: DEPOT,
+      };
       const customerId = randomUUID();
       const order = await sell(10, { customerId, customerPhone: '0812' });
 
@@ -921,7 +1036,12 @@ describe('OrderService.walkInSale', () => {
     });
 
     it('applies the agen percentage when there is no flat price', async () => {
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: DEPOT };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 10,
+        flatGallonPriceIdr: 0,
+        homeDepotId: DEPOT,
+      };
       const order = await sell(2, { customerId: randomUUID(), customerPhone: '0812' });
       expect(order.discount).toBe(4000); // 10% of 40.000
     });
@@ -971,7 +1091,12 @@ describe('OrderService.walkInSale', () => {
     });
 
     it('refuses a voucher from an agen at the counter, exactly as checkout does', async () => {
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: DEPOT };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 10,
+        flatGallonPriceIdr: 0,
+        homeDepotId: DEPOT,
+      };
       await expect(
         sell(1, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'HEMAT10' }),
       ).rejects.toBeInstanceOf(ResellerVoucherNotAllowedError);
@@ -983,7 +1108,11 @@ describe('OrderService.walkInSale', () => {
       const customerId = randomUUID();
       const order = await sell(2, { customerId, customerPhone: '0812', voucherCode: ' hemat10 ' });
 
-      expect(promo.quoteForCalls[0]).toMatchObject({ code: 'HEMAT10', customerId, subtotal: 40000 });
+      expect(promo.quoteForCalls[0]).toMatchObject({
+        code: 'HEMAT10',
+        customerId,
+        subtotal: 40000,
+      });
       expect(order.discount).toBe(5000);
       expect(order.total).toBe(35000);
       expect(promo.redeemCalls[0]).toMatchObject({ code: 'HEMAT10', orderId: order.id });
@@ -992,7 +1121,11 @@ describe('OrderService.walkInSale', () => {
     it('stacks the tier and the voucher, capped at the goods', async () => {
       membership.rate = 0.5;
       promo.quoteDiscount = 30000;
-      const order = await sell(2, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'BIG' });
+      const order = await sell(2, {
+        customerId: randomUUID(),
+        customerPhone: '0812',
+        voucherCode: 'BIG',
+      });
 
       expect(order.discount).toBe(40000);
       expect(order.total).toBe(0);
@@ -1046,7 +1179,13 @@ describe('OrderService.walkInSale', () => {
       const customerId = randomUUID();
       const { order, now } = await soldToday({ customerId, customerPhone: '0812' });
 
-      const voided = await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
+      const voided = await service.voidCounterSale(
+        operator,
+        order.id,
+        'Salah ukuran',
+        now,
+        'Bearer t',
+      );
 
       expect(voided.status).toBe(OrderStatus.VOIDED);
       expect(inventory.restockCalls[0]).toMatchObject({ depotId: DEPOT, orderId: order.id });
@@ -1057,7 +1196,10 @@ describe('OrderService.walkInSale', () => {
       expect(franchiseRevenue.voided[0]).toEqual({ orderId: order.id, reason: 'Salah ukuran' });
       expect(loyalty.reversals[0]).toMatchObject({ customerId, orderId: order.id });
       // The reason is the till's own account of a drawer that will now be short.
-      expect(voided.history.at(-1)).toMatchObject({ status: OrderStatus.VOIDED, note: 'Salah ukuran' });
+      expect(voided.history.at(-1)).toMatchObject({
+        status: OrderStatus.VOIDED,
+        note: 'Salah ukuran',
+      });
     });
 
     it('asks loyalty nothing for an anonymous sale — it never earned anything', async () => {
@@ -1114,6 +1256,7 @@ describe('OrderService.walkInSale', () => {
     it('refuses a delivery order — that is what the refund queue is for', async () => {
       const delivery = await orders.create({
         orderNumber: 'HM-DEL-1',
+        trackingToken: 'track-del-1',
         customerId: randomUUID(),
         depotId: DEPOT,
         status: OrderStatus.COMPLETED,

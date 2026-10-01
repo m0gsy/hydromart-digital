@@ -43,6 +43,7 @@ import {
   OrderRecord,
   OrderReviewRecord,
   OrderStatusHistoryRecord,
+  PublicTrackingRecord,
   RatingSummary,
 } from '../application/ports/order.repository';
 import { Page } from '../application/pagination';
@@ -80,6 +81,7 @@ import {
   OrderReviewResponseDto,
   OrderStatusHistoryResponseDto,
   PagedOrderResponseDto,
+  PublicTrackingResponseDto,
   RatingResponseDto,
   RemindStale2ResponseDto,
   ReviewRequestSweepResponseDto,
@@ -137,6 +139,22 @@ export class OrderController {
     );
   }
 
+  /**
+   * #34 — "lacak pesanan", no login. Declared before any ':id' route so 'track' is never
+   * read as an order id.
+   *
+   * Public like `cart/shelf-prices`: the token itself is the credential (16 random bytes,
+   * never sequential like `orderNumber`), and `publicTracking` answers from its own narrow
+   * projection — no recipient name, phone, address or courier phone leave this route.
+   */
+  @ApiOkResponse({ type: PublicTrackingResponseDto })
+  @Public()
+  @Get('track/:token')
+  @ApiOperation({ summary: 'Public order status by tracking link, no auth (#34)' })
+  track(@Param('token') token: string): Promise<PublicTrackingRecord> {
+    return this.orders.publicTracking(token);
+  }
+
   // Declared before any ':id' route so 'delivery-options' is never read as an order id.
   //
   // route-authz: takes no subject — depotId is the depot's, not the caller's, and the
@@ -179,6 +197,7 @@ export class OrderController {
         customerPhone: dto.customerPhone ?? null,
         voucherCode: dto.voucherCode ?? null,
         idempotencyKey: idempotencyKey ?? null,
+        emptiesReturned: dto.emptiesReturned ?? null,
         // C11: present = deliver it, absent = the counter behaviour that was always here.
         // Mapped field by field like checkout, so an optional DTO field cannot arrive as
         // `undefined` in a column the snapshot declares as nullable-but-present.
@@ -807,9 +826,12 @@ export class OrderController {
   @ApiSecurity('internal-key')
   @Get(':id/internal-total')
   @ApiOperation({ summary: 'Read an order total for payment validation (internal service auth)' })
-  async internalTotal(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ orderId: string; total: number; customerId: string | null; depotId: string | null }> {
+  async internalTotal(@Param('id', ParseUUIDPipe) id: string): Promise<{
+    orderId: string;
+    total: number;
+    customerId: string | null;
+    depotId: string | null;
+  }> {
     const order = await this.orders.getAny(id);
     /*
      * PAY-4: the owner travels with the total.

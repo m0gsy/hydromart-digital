@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { ChartBar, Drop, Export, Lock, Truck, Warning } from '@phosphor-icons/react';
 
 import { CashierSales } from '@/components/dashboard/cashier-sales';
+import { RefillSplit } from '@/components/dashboard/refill-split';
 import { HourChart } from '@/components/dashboard/hour-chart';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
+import { api, ApiError, getBlob } from '@/lib/api';
+import { downloadBlob, downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
 import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -20,7 +21,11 @@ import { useT } from '@/lib/locale-context';
 import type { DepotDailyReport, DepotWeeklyReport } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
 
-const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+const DAY_LABEL = new Intl.DateTimeFormat('id-ID', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});
 const today = () => todayWib();
 
 /** One order of the exported day, as order-service returns it. */
@@ -82,15 +87,32 @@ const dailyRow = (r: DailyExportRow): CsvCell[] => [
  * a human opens: the money columns land as real numbers there, and Excel on an Indonesian
  * locale can't split a comma-separated file into one useless column.
  */
-function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
+function ExportDaily({
+  depotId,
+  date,
+  depotName,
+}: {
+  depotId: string;
+  date: string;
+  depotName?: string;
+}) {
   const { t } = useT();
-  const [busy, setBusy] = useState<'csv' | 'xlsx' | null>(null);
+  const [busy, setBusy] = useState<'csv' | 'xlsx' | 'pdf' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(format: 'csv' | 'xlsx') {
+  async function run(format: 'csv' | 'xlsx' | 'pdf') {
     setBusy(format);
     setError(null);
     try {
+      if (format === 'pdf') {
+        // Rendered server-side, unlike the two below: a PDF cannot be built in the browser
+        // without shipping a renderer, and `window.print()` does nothing in the Android app.
+        downloadBlob(
+          `${t('opsFix.reports.fileName')}-${date}.pdf`,
+          await getBlob(endpoints.reports.depotDailyPdf(depotId, date, depotName)),
+        );
+        return;
+      }
       const rows = (
         await api.get<DailyExportRow[]>(endpoints.reports.depotDailyExport(depotId, date), true)
       ).map(dailyRow);
@@ -119,6 +141,9 @@ function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
         </Button>
         <Button variant="ghost" onClick={() => void run('csv')} loading={busy === 'csv'}>
           <Export size={16} weight="bold" /> {t('opsFix.reports.exportCsv')}
+        </Button>
+        <Button variant="ghost" onClick={() => void run('pdf')} loading={busy === 'pdf'}>
+          <Export size={16} weight="bold" /> {t('opsFix.reports.exportPdf')}
         </Button>
       </div>
       {error && (
@@ -228,7 +253,10 @@ function CloseBooks({ depotId, date }: { depotId: string; date: string }) {
         </p>
       )}
       {error && (
-        <p className="max-w-[280px] text-right text-[11px] font-medium text-[color:var(--danger)]" role="alert">
+        <p
+          className="max-w-[280px] text-right text-[11px] font-medium text-[color:var(--danger)]"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -262,7 +290,7 @@ function codHint(
     : t('opsFix.reports.counterCash', { amount: formatIDR(d.cashInDrawerIdr) });
 }
 
-function Harian({ depotId }: { depotId: string }) {
+function Harian({ depotId, depotName }: { depotId: string; depotName?: string }) {
   const { t } = useT();
   const [date, setDate] = useState(today());
   const rep = useAsync<DepotDailyReport>(
@@ -287,7 +315,7 @@ function Harian({ depotId }: { depotId: string }) {
             onChange={(e) => setDate(e.target.value)}
             className="min-w-0 flex-1 rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium sm:flex-none"
           />
-          <ExportDaily depotId={depotId} date={date} />
+          <ExportDaily depotId={depotId} date={date} depotName={depotName} />
           <CloseBooks depotId={depotId} date={date} />
         </div>
       </div>
@@ -329,9 +357,15 @@ function Harian({ depotId }: { depotId: string }) {
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wide text-muted">
                     <th className="px-4 py-2 font-semibold">{t('opsFix.reports.courier')}</th>
-                    <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.done')}</th>
-                    <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.failed')}</th>
-                    <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.cod')}</th>
+                    <th className="px-4 py-2 text-right font-semibold">
+                      {t('opsFix.reports.done')}
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold">
+                      {t('opsFix.reports.failed')}
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold">
+                      {t('opsFix.reports.cod')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -354,19 +388,26 @@ function Harian({ depotId }: { depotId: string }) {
 
           <CashierSales rows={rep.data.perCashier} />
 
+          <RefillSplit split={rep.data.refillSplit} />
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex items-center gap-2 text-sm font-extrabold">
-                <Drop size={18} weight="fill" className="text-brand-500" /> {t('opsFix.reports.gallons')}
+                <Drop size={18} weight="fill" className="text-brand-500" />{' '}
+                {t('opsFix.reports.gallons')}
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                {([
-                  [t('opsFix.reports.gallonsIn'), rep.data.gallonsReturned],
-                  [t('opsFix.reports.gallonsOut'), rep.data.gallonsDelivered],
-                  [t('opsFix.reports.gallonsDamaged'), rep.data.gallonsDamaged],
-                ] as [string, number | null][]).map(([label, n]) => (
+                {(
+                  [
+                    [t('opsFix.reports.gallonsIn'), rep.data.gallonsReturned],
+                    [t('opsFix.reports.gallonsOut'), rep.data.gallonsDelivered],
+                    [t('opsFix.reports.gallonsDamaged'), rep.data.gallonsDamaged],
+                  ] as [string, number | null][]
+                ).map(([label, n]) => (
                   <div key={label} className="rounded-xl bg-[color:var(--surface-soft)] py-3">
-                    <div className="text-lg font-extrabold tabular-nums">{n === null ? '—' : n}</div>
+                    <div className="text-lg font-extrabold tabular-nums">
+                      {n === null ? '—' : n}
+                    </div>
                     <div className="text-[11px] text-muted">{label}</div>
                   </div>
                 ))}
@@ -377,9 +418,7 @@ function Harian({ depotId }: { depotId: string }) {
               <Warning size={20} weight="fill" className="mt-0.5 text-[color:var(--warning)]" />
               <div>
                 <p className="text-sm font-extrabold">{t('opsFix.reports.lowStockTitle')}</p>
-                <p className="text-[12.5px] text-muted">
-                  {t('opsFix.reports.lowStockBody')}
-                </p>
+                <p className="text-[12.5px] text-muted">{t('opsFix.reports.lowStockBody')}</p>
               </div>
             </Card>
           </div>
@@ -419,10 +458,13 @@ function Mingguan({ depotId }: { depotId: string }) {
 
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-sm font-extrabold">
-          <ChartBar size={18} weight="fill" className="text-brand-500" /> {t('opsFix.reports.revenuePerDay')}
+          <ChartBar size={18} weight="fill" className="text-brand-500" />{' '}
+          {t('opsFix.reports.revenuePerDay')}
         </div>
         {rep.data.revenueByDay.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">{t('opsFix.reports.noRevenueThisWeek')}</p>
+          <p className="py-6 text-center text-sm text-muted">
+            {t('opsFix.reports.noRevenueThisWeek')}
+          </p>
         ) : (
           <div className="flex items-end gap-2" style={{ height: 160 }}>
             {rep.data.revenueByDay.map((d) => (
@@ -432,7 +474,9 @@ function Mingguan({ depotId }: { depotId: string }) {
                   style={{ height: `${Math.round((d.revenueIdr / peak) * 120) + 4}px` }}
                   title={formatIDR(d.revenueIdr)}
                 />
-                <span className="truncate text-[10px] text-muted">{DAY_LABEL.format(new Date(d.day))}</span>
+                <span className="truncate text-[10px] text-muted">
+                  {DAY_LABEL.format(new Date(d.day))}
+                </span>
               </div>
             ))}
           </div>
@@ -489,12 +533,15 @@ const TAB_KEY = { harian: 'tabDaily', mingguan: 'tabWeekly' } as const;
 
 function Body() {
   const { t } = useT();
-  const { scopedId, selected } = useDepot();
+  const { scopedId, selected, depots } = useDepot();
   const [tab, setTab] = useState<'harian' | 'mingguan'>('harian');
 
   if (!scopedId) {
     return (
-      <CenterState title={t('opsFix.reports.pickDepot')} icon={<ChartBar size={40} weight="fill" />}>
+      <CenterState
+        title={t('opsFix.reports.pickDepot')}
+        icon={<ChartBar size={40} weight="fill" />}
+      >
         {t('opsFix.reports.pickDepotBody')}
       </CenterState>
     );
@@ -520,7 +567,11 @@ function Body() {
           {t('opsFix.reports.depotLabel', { name: selected.name })}
         </p>
       )}
-      {tab === 'harian' ? <Harian depotId={scopedId} /> : <Mingguan depotId={scopedId} />}
+      {tab === 'harian' ? (
+        <Harian depotId={scopedId} depotName={depots.find((d) => d.id === scopedId)?.name} />
+      ) : (
+        <Mingguan depotId={scopedId} />
+      )}
     </div>
   );
 }
@@ -532,7 +583,10 @@ function Gate() {
   // alongside the dashboard capability held by managers/HQ.
   if (!isStaff(customer?.role) && !canViewDashboard(customer?.role)) {
     return (
-      <CenterState title={t('hrFix.depotReports.staffOnly')} icon={<Lock size={40} weight="fill" />}>
+      <CenterState
+        title={t('hrFix.depotReports.staffOnly')}
+        icon={<Lock size={40} weight="fill" />}
+      >
         {t('opsFix.reports.gateBody2')}
       </CenterState>
     );

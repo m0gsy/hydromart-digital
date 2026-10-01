@@ -33,6 +33,7 @@ function makeService(): Mocked {
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
+    depotDailyPdf: jest.fn().mockResolvedValue({ file: Buffer.from('%PDF-fake'), day: '2026-08-04' }),
     depotDailyGallons: jest.fn().mockResolvedValue([]),
     broadcastDailySales: jest.fn().mockResolvedValue({ attempted: 2, skipped: 0 }),
   } as unknown as Mocked;
@@ -82,6 +83,50 @@ describe('ReportController', () => {
         controller.depotDailyExport({ depotId: DEPOT_B, date: '2026-08-04' } as never, headOffice()),
       ).resolves.toBe('dailyRows');
       expect(service.depotDailyRows).toHaveBeenCalledWith(DEPOT_B, '2026-08-04');
+    });
+  });
+
+  /*
+   * The PDF carries the same named rows as the export, so it is fenced the same way — and is
+   * sent as an attachment named for the day it covers, which the service resolved (a default
+   * "today" decided here would be the UTC one).
+   */
+  describe('depot-daily/pdf', () => {
+    const fakeRes = () => ({ setHeader: jest.fn(), send: jest.fn() });
+
+    it('sends the sheet as a PDF attachment named for the resolved day', async () => {
+      const res = fakeRes();
+      await controller.depotDailyPdf(
+        { depotId: DEPOT_A, label: 'Depot A' } as never,
+        kepalaDepot(DEPOT_A),
+        res as never,
+      );
+      expect(service.depotDailyPdf).toHaveBeenCalledWith(DEPOT_A, undefined, 'Depot A');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        'attachment; filename="laporan-harian-2026-08-04.pdf"',
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from('%PDF-fake'));
+    });
+
+    it("refuses a depot head asking for another depot's sheet, before rendering anything", async () => {
+      const res = fakeRes();
+      await expect(
+        controller.depotDailyPdf({ depotId: DEPOT_B } as never, kepalaDepot(DEPOT_A), res as never),
+      ).rejects.toThrow();
+      expect(service.depotDailyPdf).not.toHaveBeenCalled();
+      expect(res.send).not.toHaveBeenCalled();
+    });
+
+    it('leaves head office able to print any depot', async () => {
+      const res = fakeRes();
+      await controller.depotDailyPdf(
+        { depotId: DEPOT_B, date: '2026-08-04' } as never,
+        headOffice(),
+        res as never,
+      );
+      expect(service.depotDailyPdf).toHaveBeenCalledWith(DEPOT_B, '2026-08-04', undefined);
     });
   });
 

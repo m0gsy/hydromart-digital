@@ -781,7 +781,8 @@ export const hrFix = {
     refundAction: 'Raise a refund',
     failAction: 'Mark as failed',
     failTitle: 'Mark this payment failed?',
-    failMessage: 'The payment for {order} will be marked FAILED. The order stays, and the customer can still pay again.',
+    failMessage:
+      'The payment for {order} will be marked FAILED. The order stays, and the customer can still pay again.',
     failConfirm: 'Mark failed',
     refundTitle: 'Raise a payment refund',
     refundMessage:
@@ -1006,7 +1007,8 @@ export const hrFix = {
     sealBroken: 'Seal broken',
     discardTitle: 'Discard this proof of delivery?',
     cancel: 'Cancel',
-    discardConfirm: 'Discard this proof of delivery? The photo, recipient name and signature you have filled in will be lost.',
+    discardConfirm:
+      'Discard this proof of delivery? The photo, recipient name and signature you have filled in will be lost.',
     sealIntact: 'Gallon seal intact and not leaking',
     sealLabel: 'Seal',
     sealYes: 'Intact at handover',
@@ -1195,7 +1197,8 @@ export const hrFix = {
     batchDepot: 'Depot',
     batchPickDepot: 'Choose a depot',
     batchGenerate: 'Generate for one depot',
-    batchHint: 'Writes a DRAFT for every active employee of that depot. Approving and paying stay manual, one person at a time.',
+    batchHint:
+      'Writes a DRAFT for every active employee of that depot. Approving and paying stay manual, one person at a time.',
     batchDone: '{n} drafts written',
     batchFailed: 'Batch failed',
     batchGenerated: '{n} drafts written',
@@ -1369,8 +1372,7 @@ export const hrFix = {
       'I agree to my face photo being processed as biometric data for attendance. I can withdraw this at any time, and the data is deleted.',
     consentRequired: 'Tick the consent before saving.',
     withdraw: 'Withdraw consent & delete my face data',
-    withdrawConfirm:
-      'Delete your face data? Face check-in stops working until you enrol again.',
+    withdrawConfirm: 'Delete your face data? Face check-in stops working until you enrol again.',
     withdrawn: 'Face data deleted',
   },
   commission: {
@@ -1446,6 +1448,14 @@ export const hrFix = {
     pickDepot: 'Select a depot',
     saving: 'Saving…',
     save: 'Save',
+    tankMorning: 'Tank level, morning (%, optional)',
+    tankEvening: 'Tank level, evening (%, optional)',
+    tankLevel: 'Tank level',
+    tankLiters: 'Estimated water remaining',
+    tankHoursRemaining: 'Estimated time to empty',
+    tankHoursValue: '{hours} hours left',
+    tankNoCapacity: 'tank capacity not configured yet',
+    tankNoReading: 'no tank level reading yet',
   },
   wastage: {
     sourceHintBefore: 'Every wastage entry is recorded as one inventory movement of type',
@@ -1558,6 +1568,12 @@ export const hrFix = {
     topCourier: 'Top courier',
     activeCustomers: 'Active customers',
     winBack: 'Won back from churn',
+    closeMonth: 'Close month',
+    monthClosed: 'Month closed',
+    reopenMonth: 'Reopen month',
+    closeMonthError: 'Could not close the month.',
+    monthCloseStateUnreadable: 'The monthly close status could not be read right now.',
+    missingDays: '{n} day(s) not yet closed: {list}',
   },
   driverAnnouncements: {
     emptyBody2: 'Operational notices from the depot will appear here.',
@@ -1732,7 +1748,8 @@ export const hrFix = {
         'For carrying an outstanding advance over from the old system. Put the REMAINING unpaid amount as at startPeriod in the principal column, not the original loan — payroll counts forward from that figure, so the original would be deducted twice.',
     },
     gateTitle: 'Bulk import is not available for this role',
-    gateBody: 'A bulk import changes many rows at once, so it needs the same permission as changing them one by one. Ask your supervisor if you need it.',
+    gateBody:
+      'A bulk import changes many rows at once, so it needs the same permission as changing them one by one. Ask your supervisor if you need it.',
     resellers: 'Import resellers / agents',
     resellersBody:
       'A phone with no account yet is pre-registered first, then listed as an agen of this depot. An agen already on the registry is UPDATED from this file — discount, target and flat gallon price. The join date is left alone.',
@@ -1840,8 +1857,10 @@ export const hrFix = {
   payrollDetail: {
     approvedAt: 'Approved',
     paidAt: 'Paid',
-    pendingWarning: '{n} attendance day(s) in this period are still undecided. The payroll can still be approved — decide those days, then record the difference as an adjustment in the next period (deducted if rejected, paid in arrears if approved).',
-    approveConfirmPending: 'Approve a payment of {net}? {n} attendance day(s) are still undecided; the difference must be recorded in the next period.',
+    pendingWarning:
+      '{n} attendance day(s) in this period are still undecided. The payroll can still be approved — decide those days, then record the difference as an adjustment in the next period (deducted if rejected, paid in arrears if approved).',
+    approveConfirmPending:
+      'Approve a payment of {net}? {n} attendance day(s) are still undecided; the difference must be recorded in the next period.',
     failed: 'Failed',
     downloadFailed: 'Download failed',
     netPay: 'Net pay',
@@ -1940,7 +1959,8 @@ export const hrFix = {
   },
   employeeDetailExtra: {
     faceEnrolled: 'Face enrolled',
-    faceConsent: 'This employee consents to their face data being used for attendance (recorded now)',
+    faceConsent:
+      'This employee consents to their face data being used for attendance (recorded now)',
     faceConsentRequired: 'Record the employee’s consent first.',
     faceDelete: 'Delete face data',
     faceDeleteConfirm: 'Delete this employee’s face data and withdraw their consent?',
@@ -2001,7 +2021,8 @@ export const hrFix = {
   },
   faceCapture2: {
     retry: 'Try again',
-    retryHint: 'If camera access was denied, re-enable it in your browser settings, then press Try again.',
+    retryHint:
+      'If camera access was denied, re-enable it in your browser settings, then press Try again.',
     cameraDenied: 'The camera is unavailable. Allow camera access, then reload.',
   },
   nav: {

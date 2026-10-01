@@ -50,6 +50,8 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   staffCanComplete?: boolean;
   id: string;
   orderNumber: string;
+  /** #34: the public tracking link's key. Null on every order placed before it existed. */
+  trackingToken: string | null;
   customerId: string;
   depotId: string | null;
   status: OrderStatus;
@@ -137,6 +139,8 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   /** Pre-generated id so stock can be reserved (keyed by order id) before the row is created. */
   id?: string;
   orderNumber: string;
+  /** #34: the public tracking link's key, generated once at creation. */
+  trackingToken: string;
   customerId: string;
   depotId: string | null;
   subtotal: number;
@@ -157,6 +161,12 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
    */
   cashierId?: string | null;
   cashierLabel?: string | null;
+  /**
+   * #27: empty galon the buyer handed over AT this counter sale. Written only by the
+   * walk-in path, same reasoning as `cashierId` above — read by exactly one report
+   * (`refillSplitForDepot`), not on `OrderRecord`.
+   */
+  emptiesReturned?: number | null;
   /**
    * Side effects the order owes the moment it exists, written in the same transaction
    * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
@@ -257,6 +267,22 @@ export interface ReviewRequestTarget {
 }
 
 /**
+ * #34: the public "lacak pesanan" projection. Every field here is safe to hand to anyone
+ * holding the link — no recipient name, phone, address or courier phone. `city` is the
+ * delivery city alone (the order's own snapshot), never the street address.
+ */
+export interface PublicTrackingRecord {
+  orderNumber: string;
+  status: OrderStatus;
+  city: string;
+  /** First name only — a public page shows who is coming, not how to reach them directly. */
+  driverFirstName: string | null;
+  estimatedArrivalAt: Date | null;
+  /** Oldest first. Internal fields (changedBy, note) are deliberately not part of this shape. */
+  statusHistory: { status: OrderStatus; changedAt: Date }[];
+}
+
+/**
  * One cashier's counter sales over a range. `cashierId` null is the "not recorded" bucket:
  * every counter sale written before the column existed, which must be reported as exactly
  * that rather than attributed to whoever happens to be on shift when somebody opens the page.
@@ -266,6 +292,22 @@ export interface CashierSales {
   cashierLabel: string | null;
   orderCount: number;
   revenue: number;
+}
+
+/**
+ * #27: counter sales split by whether the buyer exchanged an empty galon at the till.
+ * `notAsked` is sales where the cashier never recorded an answer — a delivery order, or a
+ * counter sale rung before this column existed — kept separate rather than folded into
+ * `beli`, which would read as "nobody brings their own gallon here" when nobody was asked.
+ */
+export interface RefillSplit {
+  /** Every galon in the sale was exchanged for an empty. */
+  refill: number;
+  /** Some but not all galons were exchanged. */
+  partial: number;
+  /** No empty was handed over. */
+  beli: number;
+  notAsked: number;
 }
 
 /** Shipping (ongkir) billed per depot over a range — reconciliation 22a. */
@@ -424,6 +466,13 @@ export interface OrderRepository {
   nextOrderSequence(): Promise<number>;
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /**
+   * #34: the narrow read behind the public tracking page. Deliberately its own query, not
+   * `findById` plus a filter in the service — `OrderRecord` carries the recipient's name,
+   * phone and full address, and a public route must never be one missed field away from
+   * handing those to anyone who guesses, or is handed, the link.
+   */
+  findByTrackingToken(token: string): Promise<PublicTrackingRecord | null>;
   /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
   findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
   /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
@@ -643,6 +692,13 @@ export interface OrderRepository {
    * shape the rest of this file already refuses.
    */
   cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]>;
+  /**
+   * #27: counter sales classified by whether the buyer handed over an empty galon AT the
+   * sale — refill (every galon exchanged), beli (none exchanged), or partial (some but not
+   * all). Only sales where the cashier was asked (`emptiesReturned` not null) count; a
+   * delivery order or a sale from before this column existed is neither, not "beli".
+   */
+  refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit>;
   /**
    * J12: a named set of customers' orders in a window, across every depot.
    *

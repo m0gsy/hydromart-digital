@@ -94,6 +94,9 @@ export const shop = {
     // Undo a counter sale at the till (same day only).
     voidWalkIn: (id: string) => `/orders/api/v1/orders/walk-in/${id}/void`,
     checkout: '/orders/api/v1/orders/checkout',
+    // #34: public, no auth — the token itself is the credential. Never call this with
+    // `true` (the authed-request flag); it must reach order-service with no bearer at all.
+    track: (token: string) => `/orders/api/v1/orders/track/${encodeURIComponent(token)}`,
     // Delivery windows + express pricing as the fulfilling depot has them configured. The
     // checkout screen carries no prices of its own: the surcharge shown here is the one the
     // order is charged.

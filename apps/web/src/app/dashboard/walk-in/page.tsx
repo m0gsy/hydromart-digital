@@ -87,6 +87,9 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [phone, setPhone] = useState('');
   const [cash, setCash] = useState('');
   const [voucher, setVoucher] = useState('');
+  // #27: how many empty galon the buyer handed over for THIS sale. '' means not asked yet —
+  // kept as a string so an empty box is distinct from a typed 0, and parsed only at submit.
+  const [emptiesReturned, setEmptiesReturned] = useState('');
   /*
    * C11: the buyer came to the counter and asked for it to be delivered.
    *
@@ -186,7 +189,8 @@ function WalkIn({ depotId }: { depotId: string }) {
    * size to outgrow, no search box, no pagination controls.
    */
   const catalog = useAsync<Product[]>(
-    () => (stockedIds.length === 0 ? Promise.resolve([]) : api.get(endpoints.products.batch(stockedIds))),
+    () =>
+      stockedIds.length === 0 ? Promise.resolve([]) : api.get(endpoints.products.batch(stockedIds)),
     [stockedIds.join(',')],
   );
 
@@ -246,16 +250,16 @@ function WalkIn({ depotId }: { depotId: string }) {
   const askQty = products.map((p) => qty[p.id] ?? 0);
   const resolved = useAsync<ResolvedPrice[]>(
     () =>
-      ids.length
-        ? api.get(endpoints.inventory.prices(depotId, ids, askQty))
-        : Promise.resolve([]),
+      ids.length ? api.get(endpoints.inventory.prices(depotId, ids, askQty)) : Promise.resolve([]),
     [depotId, ids.join(','), askQty.join(',')],
   );
 
   // Prices shown here are the same ones checkout would charge: depot override + active rule.
   const priceById = useMemo(() => {
     const byId = new Map((resolved.data ?? []).map((r) => [r.productId, r]));
-    return new Map(products.map((p) => [p.id, computeEffective(p.basePrice, byId.get(p.id)).effective]));
+    return new Map(
+      products.map((p) => [p.id, computeEffective(p.basePrice, byId.get(p.id)).effective]),
+    );
   }, [products, resolved.data]);
 
   const lines = products
@@ -272,6 +276,13 @@ function WalkIn({ depotId }: { depotId: string }) {
   const basketKey = lines.map((l) => `${l.product.id}:${l.quantity}`).join('|');
   useEffect(() => {
     attemptKey.current = '';
+  }, [basketKey]);
+
+  // #27: how many galon this basket actually sells — the ceiling the empties box is bound
+  // to, and whether the question is worth asking at all.
+  const galonQty = lines.filter((l) => l.product.isGallon).reduce((sum, l) => sum + l.quantity, 0);
+  useEffect(() => {
+    setEmptiesReturned('');
   }, [basketKey]);
 
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
@@ -319,7 +330,11 @@ function WalkIn({ depotId }: { depotId: string }) {
   const deliveryAddress =
     deliver && addrLine.trim() && addrCity.trim()
       ? {
-          recipientName: (addrName.trim() || name.trim() || t('opsFix.walkIn.deliverRecipientFallback')).slice(0, 120),
+          recipientName: (
+            addrName.trim() ||
+            name.trim() ||
+            t('opsFix.walkIn.deliverRecipientFallback')
+          ).slice(0, 120),
           phone: (addrPhone.trim() || phone.trim()).slice(0, 20),
           addressLine: addrLine.trim().slice(0, 255),
           city: addrCity.trim().slice(0, 100),
@@ -467,9 +482,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     // late), and confirming money into an account nobody published is worse than refusing.
     if (!methodReady[method]) {
       return toast(
-        payTo.error
-          ? t('hrFix.walkIn.payTargetUnreadable')
-          : t('hrFix.walkIn.noPayTarget'),
+        payTo.error ? t('hrFix.walkIn.payTargetUnreadable') : t('hrFix.walkIn.noPayTarget'),
         'error',
       );
     }
@@ -501,6 +514,9 @@ function WalkIn({ depotId }: { depotId: string }) {
           // C11: the same object the quote was priced from, so the sale cannot be a
           // different journey than the one the buyer was quoted.
           deliveryAddress: deliveryReady ? deliveryAddress : undefined,
+          // #27: empty string = not asked, sent as undefined rather than a false "0 brought".
+          emptiesReturned:
+            galonQty > 0 && emptiesReturned.trim() !== '' ? Number(emptiesReturned) : undefined,
         },
         true,
         { 'Idempotency-Key': attemptKey.current },
@@ -521,8 +537,8 @@ function WalkIn({ depotId }: { depotId: string }) {
        */
       if (e instanceof ApiError && e.code === 'ORDER_INSUFFICIENT_STOCK') {
         stockReloadRef.current();
-    // C6: the sale just made belongs in the till's own list.
-    void recent.reload();
+        // C6: the sale just made belongs in the till's own list.
+        void recent.reload();
         return toast(t('opsFix.walkIn.stockShort'), 'error');
       }
       return toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.saveError'), 'error');
@@ -634,7 +650,9 @@ function WalkIn({ depotId }: { depotId: string }) {
       {unpaid && (
         <Card className="space-y-3 border-red-300 bg-red-50 p-4">
           <div>
-            <p className="font-semibold text-[color:var(--danger)]">{t('hrFix.walkIn.unpaidTitle')}</p>
+            <p className="font-semibold text-[color:var(--danger)]">
+              {t('hrFix.walkIn.unpaidTitle')}
+            </p>
             <p className="text-sm text-[color:var(--danger)]">
               {t('hrFix.walkIn.unpaidBody', { order: unpaid.order.orderNumber })}
             </p>
@@ -654,13 +672,22 @@ function WalkIn({ depotId }: { depotId: string }) {
       {lastSale && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm">
-            {t('opsFix.walkIn.lastSale')} <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
+            {t('opsFix.walkIn.lastSale')}{' '}
+            <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
             <Money amount={lastSale.order.total} />
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="ghost"
-              onClick={() => printReceipt(lastSale.order, { t, locale }, lastSale.cash, lastSale.method, outlet())}
+              onClick={() =>
+                printReceipt(
+                  lastSale.order,
+                  { t, locale },
+                  lastSale.cash,
+                  lastSale.method,
+                  outlet(),
+                )
+              }
             >
               <Printer size={18} className="mr-1" />
               {t('opsFix.walkIn.reprint')}
@@ -679,9 +706,7 @@ function WalkIn({ depotId }: { depotId: string }) {
             <p className="font-semibold">
               {t('opsFix.walkIn.voidConfirm', { order: voiding.orderNumber })}
             </p>
-            <p className="text-sm text-muted">
-              {t('opsFix.walkIn.voidBody')}
-            </p>
+            <p className="text-sm text-muted">{t('opsFix.walkIn.voidBody')}</p>
           </div>
           <Field
             label={t('opsFix.walkIn.voidReason')}
@@ -724,9 +749,13 @@ function WalkIn({ depotId }: { depotId: string }) {
           <span className="text-xs text-muted">{t('opsFix.walkIn.recentHint')}</span>
         </div>
         {recent.loading && !recent.data ? (
-          <div className="p-3"><Skeleton className="h-24" /></div>
+          <div className="p-3">
+            <Skeleton className="h-24" />
+          </div>
         ) : recent.error ? (
-          <div className="p-3"><ErrorState message={recent.error} onRetry={recent.reload} /></div>
+          <div className="p-3">
+            <ErrorState message={recent.error} onRetry={recent.reload} />
+          </div>
         ) : (recent.data?.items ?? []).length === 0 ? (
           <p className="p-3 text-sm text-muted">{t('opsFix.walkIn.recentEmpty')}</p>
         ) : (
@@ -751,7 +780,9 @@ function WalkIn({ depotId }: { depotId: string }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm tabular-nums ${voided ? 'line-through text-muted' : 'font-bold'}`}>
+                    <span
+                      className={`text-sm tabular-nums ${voided ? 'line-through text-muted' : 'font-bold'}`}
+                    >
                       <Money amount={o.total} />
                     </span>
                     {!voided && (
@@ -799,9 +830,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           </div>
         ))}
         {products.length === 0 && (
-          <p className="p-6 text-center text-sm text-muted">
-            {t('opsFix.walkIn.noProducts')}
-          </p>
+          <p className="p-6 text-center text-sm text-muted">{t('opsFix.walkIn.noProducts')}</p>
         )}
       </Card>
 
@@ -927,6 +956,25 @@ function WalkIn({ depotId }: { depotId: string }) {
           )}
         </div>
 
+        {galonQty > 0 && (
+          <Field
+            label={t('opsFix.reports.emptiesReturnedLabel')}
+            htmlFor="wi-empties"
+            hint={t('opsFix.reports.emptiesReturnedHint')}
+          >
+            <Input
+              id="wi-empties"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={galonQty}
+              value={emptiesReturned}
+              onChange={(e) => setEmptiesReturned(e.target.value)}
+              placeholder="0"
+            />
+          </Field>
+        )}
+
         <Field
           label={t('opsFix.walkIn.voucher')}
           htmlFor="wi-voucher"
@@ -945,7 +993,9 @@ function WalkIn({ depotId }: { depotId: string }) {
             adding anything up itself. */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted">{t('opsFix.walkIn.subtotal')}</span>
-          <span className="tabular-nums"><Money amount={subtotal} /></span>
+          <span className="tabular-nums">
+            <Money amount={subtotal} />
+          </span>
         </div>
         {(quote.data?.discountIdr ?? 0) > 0 && (
           <div className="flex items-center justify-between text-sm">
@@ -966,7 +1016,9 @@ function WalkIn({ depotId }: { depotId: string }) {
         {(quote.data?.shippingIdr ?? 0) > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted">{t('opsFix.walkIn.shipping')}</span>
-            <span className="tabular-nums"><Money amount={quote.data?.shippingIdr ?? 0} /></span>
+            <span className="tabular-nums">
+              <Money amount={quote.data?.shippingIdr ?? 0} />
+            </span>
           </div>
         )}
 
@@ -1012,9 +1064,7 @@ function WalkIn({ depotId }: { depotId: string }) {
             ))}
           </div>
           {(!methodReady.QRIS || !methodReady.TRANSFER) && (
-            <p className="text-xs text-muted">
-              {t('opsFix.walkIn.methodOffHint')}
-            </p>
+            <p className="text-xs text-muted">{t('opsFix.walkIn.methodOffHint')}</p>
           )}
         </fieldset>
 
@@ -1050,7 +1100,9 @@ function WalkIn({ depotId }: { depotId: string }) {
             <Field
               label={t('opsFix.walkIn.cashReceived')}
               htmlFor="wi-cash"
-              error={short ? t('opsFix.walkIn.cashShort', { amount: formatIDR(-change) }) : undefined}
+              error={
+                short ? t('opsFix.walkIn.cashShort', { amount: formatIDR(-change) }) : undefined
+              }
             >
               <Input
                 id="wi-cash"

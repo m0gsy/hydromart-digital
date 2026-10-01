@@ -80,6 +80,17 @@ describe('emitter and template agree on the tokens', () => {
     },
   );
 
+  it.each(['id', 'en'] as const)('fills every token of the tier-upgrade message order-service sends (%s)', (locale) => {
+    const message = render(NotificationEvent.MEMBERSHIP_TIER_UPGRADED, { name: 'Budi', tier: 'Silver' }, locale);
+    expect(message).toContain('Budi');
+    expect(message).toContain('Silver');
+    expect(message).not.toContain('{{');
+  });
+
+  it('sends the tier upgrade to the customer, not the ops feed', () => {
+    expect(OPS_EVENTS).not.toContain(NotificationEvent.MEMBERSHIP_TIER_UPGRADED);
+  });
+
   it('sends the review request to the customer, not the ops feed', () => {
     expect(OPS_EVENTS).not.toContain(NotificationEvent.REVIEW_REQUEST);
   });

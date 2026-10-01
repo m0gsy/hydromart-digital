@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsISO8601, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsISO8601, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 /**
@@ -45,6 +45,22 @@ export class SaveMeterReadingDto {
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
   sourceClosingM3?: number;
+
+  @ApiPropertyOptional({ example: 72, description: '#24: tank level at opening, 0..100%.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  openingTankPct?: number;
+
+  @ApiPropertyOptional({ example: 65, description: '#24: tank level at closing, 0..100%.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  closingTankPct?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

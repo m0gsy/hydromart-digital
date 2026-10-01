@@ -47,6 +47,20 @@ export class CounterBasketChangedError extends DomainError {
   }
 }
 
+/**
+ * #27: the cashier typed more empties returned than galon sold in this basket — almost
+ * always a typo, since a customer cannot hand over more empties than they are buying
+ * filled. Refused rather than clamped: a silent clamp would record a number the cashier
+ * never actually counted.
+ */
+export class EmptiesReturnedExceedGallonsError extends DomainError {
+  readonly code = 'ORDER_EMPTIES_RETURNED_EXCEED_GALLONS';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(emptiesReturned: number, gallons: number) {
+    super(`Galon kosong (${emptiesReturned}) melebihi galon isi yang dijual (${gallons}).`);
+  }
+}
+
 export class DuplicateCheckoutError extends DomainError {
   readonly code = 'ORDER_DUPLICATE_CHECKOUT';
   readonly status = HTTP_STATUS.CONFLICT;

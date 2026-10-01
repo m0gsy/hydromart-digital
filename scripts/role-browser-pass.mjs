@@ -188,7 +188,7 @@ const SHOP = R(`
 / /products /products/detail /cart /checkout /orders /orders/detail
 /orders/detail/review /account /account/edit /addresses /favorites /notifications
 /promo /referral /rewards /subscriptions /vouchers /resellers /help /agen /syarat-ketentuan
-/kebijakan-privasi /hapus-akun /waralaba /login /register /verify
+/kebijakan-privasi /hapus-akun /waralaba /login /register /verify /track
 `);
 
 /*

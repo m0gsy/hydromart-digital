@@ -365,6 +365,7 @@ describe('OrderPrismaRepository', () => {
 
   const createData: CreateOrderData = {
     orderNumber: 'ORD-0001',
+    trackingToken: 'track-token-0001',
     customerId: 'cust-1',
     depotId: 'depot-1',
     subtotal: 100000,
@@ -549,6 +550,66 @@ describe('OrderPrismaRepository', () => {
     await expect(repo.findByIdempotencyKey('cust-1', 'key-1')).resolves.toBeNull();
   });
 
+  // #34
+  it('answers the public tracking read from its own narrow select, no PII fields in it', async () => {
+    order.findUnique.mockResolvedValue({
+      orderNumber: 'HM-20261001-000001',
+      status: 'ON_DELIVERY',
+      city: 'Jakarta Selatan',
+      driverName: 'Agus Setiawan',
+      estimatedArrivalAt: new Date('2026-10-01T04:30:00.000Z'),
+      history: [
+        { status: 'CONFIRMED', createdAt: new Date('2026-10-01T02:00:00.000Z') },
+        { status: 'ON_DELIVERY', createdAt: new Date('2026-10-01T04:00:00.000Z') },
+      ],
+    });
+
+    const out = await repo.findByTrackingToken('tok-abc');
+
+    expect(out).toEqual({
+      orderNumber: 'HM-20261001-000001',
+      status: 'ON_DELIVERY',
+      city: 'Jakarta Selatan',
+      driverFirstName: 'Agus', // first name only — never the full name or the phone
+      estimatedArrivalAt: new Date('2026-10-01T04:30:00.000Z'),
+      statusHistory: [
+        { status: 'CONFIRMED', changedAt: new Date('2026-10-01T02:00:00.000Z') },
+        { status: 'ON_DELIVERY', changedAt: new Date('2026-10-01T04:00:00.000Z') },
+      ],
+    });
+    expect(order.findUnique).toHaveBeenCalledWith({
+      where: { trackingToken: 'tok-abc' },
+      select: expect.objectContaining({
+        orderNumber: true,
+        status: true,
+        city: true,
+        driverName: true,
+        estimatedArrivalAt: true,
+      }),
+    });
+    // The whole point of the narrow select: these never appear in the mocked call's shape.
+    const select = order.findUnique.mock.calls.at(-1)![0].select;
+    for (const field of ['recipientName', 'phone', 'addressLine', 'postalCode', 'driverPhone']) {
+      expect(select).not.toHaveProperty(field);
+    }
+  });
+
+  it('returns null, and null first-name, for an unknown token / no courier yet', async () => {
+    order.findUnique.mockResolvedValue(null);
+    await expect(repo.findByTrackingToken('nope')).resolves.toBeNull();
+
+    order.findUnique.mockResolvedValue({
+      orderNumber: 'HM-1',
+      status: 'CONFIRMED',
+      city: 'Bekasi',
+      driverName: null,
+      estimatedArrivalAt: null,
+      history: [],
+    });
+    const out = await repo.findByTrackingToken('tok-2');
+    expect(out?.driverFirstName).toBeNull();
+  });
+
   it('finds an order by id, mapping reviewed=true when a review row exists', async () => {
     order.findUnique.mockResolvedValue({ ...orderRow(), review: { id: 'rev-1' } });
     const out = await repo.findById('ord-1');
@@ -609,7 +670,9 @@ describe('OrderPrismaRepository', () => {
     order.findMany.mockClear();
     await repo.search({ depotIds: ['depot-a'], page: 1, limit: 10 });
     const [call] = order.findMany.mock.calls;
-    expect(Object.keys((call![0] as { where: Record<string, unknown> }).where)).not.toContain('isWalkIn');
+    expect(Object.keys((call![0] as { where: Record<string, unknown> }).where)).not.toContain(
+      'isWalkIn',
+    );
   });
 
   it('can ask for delivery orders only', async () => {
@@ -643,9 +706,7 @@ describe('OrderPrismaRepository', () => {
 
     const result = await (
       repo as unknown as {
-        findOrderValues(
-          ids: string[],
-        ): Promise<
+        findOrderValues(ids: string[]): Promise<
           {
             orderId: string;
             orderNumber: string;
@@ -1036,10 +1097,14 @@ describe('OrderPrismaRepository', () => {
 
   it('builds daily and monthly sales series from raw rows', async () => {
     $queryRaw.mockResolvedValue([{ period: '2026-01-01', orderCount: BigInt(3), revenue: 300000 }]);
-    const daily = await repo.salesSeries('daily', {
-      from: new Date('2026-01-01'),
-      to: new Date('2026-02-01'),
-    }, 'Asia/Jakarta');
+    const daily = await repo.salesSeries(
+      'daily',
+      {
+        from: new Date('2026-01-01'),
+        to: new Date('2026-02-01'),
+      },
+      'Asia/Jakarta',
+    );
     expect(daily).toEqual([{ period: '2026-01-01', orderCount: 3, revenue: 300000 }]);
 
     $queryRaw.mockResolvedValue([{ period: '2026-01', orderCount: BigInt(3), revenue: null }]);
@@ -1193,7 +1258,13 @@ describe('OrderPrismaRepository', () => {
       { id: 'o1', orderNumber: 'HM-1', customerId: 'c1', phone: '+62811', recipientName: 'Budi' },
     ]);
     await expect(repo.findReviewRequestTargets(settledBefore, notBefore, 200)).resolves.toEqual([
-      { orderId: 'o1', orderNumber: 'HM-1', customerId: 'c1', phone: '+62811', recipientName: 'Budi' },
+      {
+        orderId: 'o1',
+        orderNumber: 'HM-1',
+        customerId: 'c1',
+        phone: '+62811',
+        recipientName: 'Budi',
+      },
     ]);
     expect(order.findMany).toHaveBeenLastCalledWith({
       where: {
@@ -1215,15 +1286,18 @@ describe('OrderPrismaRepository', () => {
   it.each([
     [1, true],
     [0, false],
-  ])('claims a review request only when the guard matched a row (count %s)', async (count, claimed) => {
-    order.updateMany.mockResolvedValue({ count });
-    const at = new Date('2026-09-28T10:00:00.000Z');
-    await expect(repo.claimReviewRequest('o1', at)).resolves.toBe(claimed);
-    expect(order.updateMany).toHaveBeenLastCalledWith({
-      where: { id: 'o1', reviewRequestedAt: null },
-      data: { reviewRequestedAt: at },
-    });
-  });
+  ])(
+    'claims a review request only when the guard matched a row (count %s)',
+    async (count, claimed) => {
+      order.updateMany.mockResolvedValue({ count });
+      const at = new Date('2026-09-28T10:00:00.000Z');
+      await expect(repo.claimReviewRequest('o1', at)).resolves.toBe(claimed);
+      expect(order.updateMany).toHaveBeenLastCalledWith({
+        where: { id: 'o1', reviewRequestedAt: null },
+        data: { reviewRequestedAt: at },
+      });
+    },
+  );
 
   it('groups counter sales by cashier, one query, voided and cancelled left out', async () => {
     order.groupBy.mockResolvedValue([
@@ -1250,13 +1324,45 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
+  // #27
+  it('classifies counter sales into refill / partial / beli / not asked', async () => {
+    const gallonLine = (quantity: number) => [{ isGallon: true, quantity }];
+    order.findMany.mockResolvedValue([
+      { emptiesReturned: 3, items: gallonLine(3) }, // refill: every galon exchanged
+      { emptiesReturned: 1, items: gallonLine(3) }, // partial
+      { emptiesReturned: 0, items: gallonLine(2) }, // beli
+      { emptiesReturned: null, items: gallonLine(1) }, // never asked
+      { emptiesReturned: 5, items: gallonLine(0) }, // no galon line — not a galon sale at all
+    ]);
+    const from = new Date('2026-07-14T17:00:00.000Z');
+    const to = new Date('2026-07-15T17:00:00.000Z');
+
+    const out = await repo.refillSplitForDepot('depot-1', { from, to });
+
+    expect(out).toEqual({ refill: 1, partial: 1, beli: 1, notAsked: 1 });
+    expect(order.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          depotId: 'depot-1',
+          isWalkIn: true,
+          status: { notIn: ['CANCELLED', 'VOIDED'] },
+          createdAt: { gte: from, lt: to },
+        }),
+      }),
+    );
+  });
+
   it('ranks top depots by revenue, and carries the commission base beside it', async () => {
     order.groupBy.mockResolvedValue([
       // CA-2-09: two DIFFERENT numbers. `total` is what the customer paid (goods + ongkir
       // − discount); `subtotal` is the goods before discount, which is what
       // payout-service charges the franchise percentage on. The reconciliation statement
       // was recomputing HQ's cut from the first while the second was being billed.
-      { depotId: 'depot-1', _sum: { total: dec(400000), subtotal: dec(370000) }, _count: { _all: 3 } },
+      {
+        depotId: 'depot-1',
+        _sum: { total: dec(400000), subtotal: dec(370000) },
+        _count: { _all: 3 },
+      },
     ]);
     const out = await repo.topDepots({}, 5);
     expect(out).toEqual([
@@ -1591,9 +1697,7 @@ describe('SubscriptionPrismaRepository.erasePerson', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    subscription.updateMany
-      .mockResolvedValueOnce({ count: 2 })
-      .mockResolvedValueOnce({ count: 3 });
+    subscription.updateMany.mockResolvedValueOnce({ count: 2 }).mockResolvedValueOnce({ count: 3 });
   });
 
   it('cancels first, then scrubs, in one transaction — and reports every row', async () => {

@@ -17,9 +17,11 @@ import {
   OrderRecord,
   OrderRepository,
   ProductRevenue,
+  RefillSplit,
   ReportRange,
   SalesBucket,
 } from '../ports/order.repository';
+import { depotDailyPdf } from './depot-daily-pdf';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
@@ -170,6 +172,8 @@ export interface DepotDailyReport {
   byHour: HourBucket[];
   /** Counter sales by the cashier who rang them, biggest first. Empty when nobody sold at the till. */
   perCashier: CashierDaily[];
+  /** #27: the day's counter sales, split by whether an empty galon came back at the till. */
+  refillSplit: RefillSplit;
 }
 
 /** One depot's row in the cross-depot comparison (design 14d compare). */
@@ -656,7 +660,7 @@ export class ReportService {
     // payment is booked against the depot, and `depotCash` already counts it — asking for
     // both would put the same rupiah in two columns of the same report.
     const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
-    const [cashRows, drawer, returns, cashiers] = await Promise.all([
+    const [cashRows, drawer, returns, cashiers, refillSplit] = await Promise.all([
       deliveryOrders.length > 0 && this.paymentCash
         ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
         : Promise.resolve(this.paymentCash ? [] : null),
@@ -665,6 +669,7 @@ export class ReportService {
         ? this.depotDirectory.gallonReturns(depotId, from, to)
         : Promise.resolve(null),
       this.orders.cashierSalesForDepot(depotId, { from, to }),
+      this.orders.refillSplitForDepot(depotId, { from, to }),
     ]);
     const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
 
@@ -687,6 +692,7 @@ export class ReportService {
         orders: c.orderCount,
         revenueIdr: Math.round(c.revenue),
       })),
+      refillSplit,
     };
   }
 
@@ -781,6 +787,29 @@ export class ReportService {
         totalIdr: Math.round(r.total),
         isWalkIn: r.isWalkIn === true,
       }));
+  }
+
+  /**
+   * The daily report as a PDF sheet, for the button beside Excel and CSV.
+   *
+   * The rows are read for the day the report RESOLVED, not for a second "today": with no
+   * date given, two independent defaults straddling midnight would put one day's totals
+   * over another day's orders on the same page.
+   */
+  async depotDailyPdf(
+    depotId: string,
+    date?: string,
+    depotLabel?: string,
+  ): Promise<{ file: Buffer; day: string }> {
+    const report = await this.depotDaily(depotId, date);
+    const rows = await this.depotDailyRows(depotId, report.date);
+    const file = await depotDailyPdf({
+      report,
+      rows,
+      depotLabel,
+      timeZone: this.config.businessTimeZone,
+    });
+    return { file, day: report.date };
   }
 
   /**

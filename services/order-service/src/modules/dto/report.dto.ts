@@ -9,6 +9,7 @@ import {
   IsUUID,
   Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -116,6 +117,14 @@ export class DepotDailyQueryDto {
   @IsOptional()
   @IsISO8601()
   date?: string;
+}
+
+export class DepotDailyPdfQueryDto extends DepotDailyQueryDto {
+  @ApiPropertyOptional({ description: 'Depot name printed in the sheet header.', maxLength: 80 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  label?: string;
 }
 
 export class DepotWeeklyQueryDto {

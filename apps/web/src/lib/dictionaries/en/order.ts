@@ -3,7 +3,8 @@ import { order as base } from '../id/order';
 // English — mirrors the shape of id/order.ts (the source of truth for keys).
 export const order: typeof base = {
   cart: {
-    clearConfirm: "Empty the {n} items from your cart? There is no undo — you would build it again from scratch.",
+    clearConfirm:
+      'Empty the {n} items from your cart? There is no undo — you would build it again from scratch.',
     title: 'Cart',
     itemCount: '— {n} item',
     emptyTitle: 'Your cart is empty',
@@ -30,7 +31,8 @@ export const order: typeof base = {
     trustSealed: 'Sealed',
   },
   checkout: {
-    resellerNoVoucher: "The reseller discount applies automatically. Vouchers cannot be combined with reseller pricing.",
+    resellerNoVoucher:
+      'The reseller discount applies automatically. Vouchers cannot be combined with reseller pricing.',
     title: 'Checkout',
     deliveryAddress: 'Delivery address',
     newAddress: '+ New address',
@@ -122,12 +124,13 @@ export const order: typeof base = {
     notFound: 'Order not found.',
     payError: 'Could not start payment.',
     cancelError: 'Could not cancel the order.',
-    repeatNothing: "Nothing from this order is still on sale.",
-    repeatPartial: "{n} item(s) are no longer sold and were not added.",
+    repeatNothing: 'Nothing from this order is still on sale.',
+    repeatPartial: '{n} item(s) are no longer sold and were not added.',
     repeatError: 'Could not add these items again.',
     // Payment instruction sheets (spec 5e)
     copy: 'Copy',
     copied: 'Copied',
+    shareTracking: 'Share tracking link',
     nominal: 'Amount',
     // CA-3-69: see id/order.ts — the direct-to-depot panel wrote its own sentences.
     qrisTitle: 'Pay with QRIS',
@@ -137,7 +140,8 @@ export const order: typeof base = {
     vaTitle: 'Virtual account',
     ewalletTitle: 'E-wallet',
     proofTitle: 'Payment proof',
-    proofBody: 'Upload a photo of the transfer receipt or QRIS slip. The depot sees it when checking the payment, so there is no need to send it over WhatsApp.',
+    proofBody:
+      'Upload a photo of the transfer receipt or QRIS slip. The depot sees it when checking the payment, so there is no need to send it over WhatsApp.',
     proofPick: 'Choose a photo',
     proofReplace: 'Replace the photo',
     proofUploading: 'Uploading…',
@@ -151,9 +155,11 @@ export const order: typeof base = {
     callDriver: 'Call the driver',
     // Cancel-with-reason (spec 10b)
     cancelTitle: 'Cancel this order?',
-    cancelIntro: 'Still cancellable — the depot hasn’t prepared it yet. Any amount already paid will be refunded.',
+    cancelIntro:
+      'Still cancellable — the depot hasn’t prepared it yet. Any amount already paid will be refunded.',
     // H10: shown where the cancel button used to simply vanish.
-    cancelClosed: 'A courier has been assigned, so this order can no longer be cancelled from here. The depot can still stop it.',
+    cancelClosed:
+      'A courier has been assigned, so this order can no longer be cancelled from here. The depot can still stop it.',
     contactDepot: 'Contact the depot',
     cancelReasonLabel: 'Reason',
     cancelConfirm: 'Cancel order',

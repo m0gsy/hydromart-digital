@@ -1,4 +1,10 @@
-import { MembershipTier, TierBenefit, benefitFor, tierFor } from '../../src/domain/membership';
+import {
+  MembershipTier,
+  TierBenefit,
+  benefitFor,
+  isHigherTier,
+  tierFor,
+} from '../../src/domain/membership';
 import { expiryFrom, pointsForOrder } from '../../src/domain/points';
 
 describe('membership tiers', () => {
@@ -46,6 +52,18 @@ describe('membership tiers', () => {
   it('falls back to the default table when the supplied ladder is empty', () => {
     expect(tierFor(9999, [])).toBe(MembershipTier.REGULAR);
     expect(benefitFor(MembershipTier.GOLD, []).discountRate).toBe(0);
+  });
+});
+
+describe('isHigherTier', () => {
+  it('ranks the rungs in ladder order', () => {
+    expect(isHigherTier(MembershipTier.REGULAR, MembershipTier.SILVER)).toBe(true);
+    expect(isHigherTier(MembershipTier.SILVER, MembershipTier.PLATINUM)).toBe(true);
+    expect(isHigherTier(MembershipTier.GOLD, MembershipTier.SILVER)).toBe(false);
+  });
+
+  it('is false for the same tier, so "no move" is never mistaken for a promotion', () => {
+    expect(isHigherTier(MembershipTier.GOLD, MembershipTier.GOLD)).toBe(false);
   });
 });
 

@@ -8,9 +8,12 @@ import {
   MeterHistoryRow,
   MeterReading,
   MeterReconciliation,
+  MeterReconciliationWithTank,
   SoldTotals,
+  TankStatus,
   reconcile,
   sumSoldLiters,
+  tankStatus,
 } from '../../domain/meter-reading';
 import { NotificationPort } from '../ports/notification.port';
 import { MeterReadingRepository, UpsertMeterReadingData } from '../ports/meter-reading.repository';
@@ -42,8 +45,13 @@ export interface SaveMeterReadingInput {
   closingM3?: number;
   sourceOpeningM3?: number;
   sourceClosingM3?: number;
+  /** #24: 0..100, same partial-upsert shape as the dial readings above. Range is DTO-validated. */
+  openingTankPct?: number;
+  closingTankPct?: number;
   note?: string;
 }
+
+const TANK_HISTORY_DAYS = 7;
 
 /**
  * Depot water-meter reconciliation. The operator writes the dial twice a day; this
@@ -76,7 +84,10 @@ export class MeterService {
    * replace the first one's readings. A caller editing a day that already has readings must
    * say which version it read; the first save of a day has nothing to lose.
    */
-  async save(input: SaveMeterReadingInput, seenUpdatedAt?: string): Promise<MeterReconciliation> {
+  async save(
+    input: SaveMeterReadingInput,
+    seenUpdatedAt?: string,
+  ): Promise<MeterReconciliationWithTank> {
     const existing = await this.readings.findForDate(input.depotId, input.date);
     const opening = input.openingM3 ?? existing?.openingM3 ?? null;
     if (opening === null) {
@@ -105,6 +116,8 @@ export class MeterService {
       ...(input.closingM3 !== undefined ? { closingM3: input.closingM3 } : {}),
       ...(input.sourceOpeningM3 !== undefined ? { sourceOpeningM3: input.sourceOpeningM3 } : {}),
       ...(input.sourceClosingM3 !== undefined ? { sourceClosingM3: input.sourceClosingM3 } : {}),
+      ...(input.openingTankPct !== undefined ? { openingTankPct: input.openingTankPct } : {}),
+      ...(input.closingTankPct !== undefined ? { closingTankPct: input.closingTankPct } : {}),
       ...(input.note !== undefined ? { note: input.note } : {}),
     };
     const saved = await this.readings.upsertForDate(patch);
@@ -117,7 +130,7 @@ export class MeterService {
     return result;
   }
 
-  async reconcile(depotId: string, date: string): Promise<MeterReconciliation> {
+  async reconcile(depotId: string, date: string): Promise<MeterReconciliationWithTank> {
     const reading = await this.readings.findForDate(depotId, date);
     return this.reconcileWith(depotId, date, reading);
   }
@@ -178,8 +191,8 @@ export class MeterService {
     depotId: string,
     date: string,
     reading: MeterReading | null,
-  ): Promise<MeterReconciliation> {
-    return reconcile({
+  ): Promise<MeterReconciliationWithTank> {
+    const result = reconcile({
       depotId,
       date,
       reading,
@@ -187,6 +200,37 @@ export class MeterService {
       referenceVolumeMl: this.config.meterReferenceVolumeMl(depotId),
       toleranceLiters: this.config.meterVarianceToleranceLiters(depotId),
     });
+    return { ...result, tank: await this.tankStatus(depotId, reading) };
+  }
+
+  /**
+   * #24: the latest % reading turned into litres and a rough time-to-empty, using the
+   * depot's own trailing consumption rather than a guessed rate.
+   */
+  private async tankStatus(depotId: string, reading: MeterReading | null): Promise<TankStatus> {
+    const levelPct = reading?.closingTankPct ?? reading?.openingTankPct ?? null;
+    const capacityLiters = this.config.meterTankCapacityLiters(depotId);
+    const avgDailyLiters = await this.avgDailyLiters(depotId, reading?.date ?? null);
+    return tankStatus(levelPct, capacityLiters, avgDailyLiters);
+  }
+
+  /** Trailing window ending on the reading's own day — "recent", not "ever". */
+  private async avgDailyLiters(
+    depotId: string,
+    throughDate: string | null,
+  ): Promise<number | null> {
+    if (throughDate === null) return null;
+    const tz = this.config.businessTimeZone;
+    const from = localDayKey(
+      addLocalDays(dayStartUtc(throughDate, tz), -(TANK_HISTORY_DAYS - 1), tz),
+      tz,
+    );
+    const rows = (await this.history(depotId, from, throughDate)).filter(
+      (r) => r.meterLiters !== null,
+    );
+    if (rows.length === 0) return null;
+    const total = rows.reduce((s, r) => s + (r.meterLiters as number), 0);
+    return Math.round((total / rows.length) * 100) / 100;
   }
 
   /**

@@ -83,6 +83,14 @@ export const insight = {
       if (date) p.set('date', date);
       return `/orders/api/v1/reports/depot-daily/export?${p}`;
     },
+    // The same day as a printable PDF sheet. `label` is the depot's name for the header:
+    // order-service knows depots only by id, and an id means nothing on paper.
+    depotDailyPdf: (depotId: string, date?: string, label?: string) => {
+      const p = new URLSearchParams({ depotId });
+      if (date) p.set('date', date);
+      if (label) p.set('label', label.slice(0, 80));
+      return `/orders/api/v1/reports/depot-daily/pdf?${p}`;
+    },
     // Depot water-meter reading. The SAME path serves the morning (openingM3) and the
     // evening (closingM3) write — one partial upsert, not two endpoints.
     meterSave: (depotId: string, date: string) => `/orders/api/v1/reports/meter/${depotId}/${date}`,

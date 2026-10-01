@@ -16,6 +16,8 @@ function row(over: Record<string, unknown> = {}) {
     closingM3: null,
     sourceOpeningM3: null,
     sourceClosingM3: null,
+    openingTankPct: null,
+    closingTankPct: null,
     openedBy: 'staff-1',
     openedAt: new Date('2026-08-02T01:00:00.000Z'),
     closedBy: null,
@@ -49,6 +51,8 @@ describe('MeterReadingPrismaRepository', () => {
       closingM3: 1002.6,
       sourceOpeningM3: 500,
       sourceClosingM3: 504,
+      openingTankPct: null,
+      closingTankPct: null,
       openedBy: 'staff-1',
       openedAt: new Date('2026-08-02T01:00:00.000Z'),
       closedBy: null,
@@ -157,6 +161,22 @@ describe('MeterReadingPrismaRepository', () => {
     expect(model.update.mock.calls[0][0].data).toMatchObject({
       sourceOpeningM3: 500,
       sourceClosingM3: 504,
+    });
+  });
+
+  it('patches the tank-level pair independently', async () => {
+    model.findUnique.mockResolvedValue(row());
+    model.update.mockResolvedValue(row({ openingTankPct: dec(80), closingTankPct: dec(65) }));
+    await repo.upsertForDate({
+      depotId: DEPOT,
+      date: DATE,
+      actorId: 'staff-1',
+      openingTankPct: 80,
+      closingTankPct: 65,
+    });
+    expect(model.update.mock.calls[0][0].data).toMatchObject({
+      openingTankPct: 80,
+      closingTankPct: 65,
     });
   });
 

@@ -91,20 +91,34 @@ class FakeShifts {
   }
 }
 
+/** Which month (if any) currently seals a given day — the one thing a monthly close checks. */
+class FakeMonthlySeal {
+  /** Set to a businessMonth ('YYYY-MM') to make every day in it report sealed. */
+  sealedMonth: string | null = null;
+  async findSealing(_depotId: string, businessDate: string) {
+    if (this.sealedMonth && businessDate.startsWith(this.sealedMonth)) {
+      return { businessMonth: this.sealedMonth } as never;
+    }
+    return null;
+  }
+}
+
 function make(cod = { depositedIdr: 500_000, expectedIdr: 520_000, settlements: 3 }) {
   const cashbook = new FakeCashbook();
   const closes = new FakeCloses();
   const shifts = new FakeShifts();
   const depots = new InMemoryDepotRepository();
+  const monthlySeal = new FakeMonthlySeal();
   const service = new DailyCloseService(
     closes,
     cashbook,
     shifts as never,
     depots as never,
     { depositedInWindow: async () => cod } as never,
+    monthlySeal as never,
     { businessTimeZone: 'Asia/Jakarta' } as never,
   );
-  return { cashbook, closes, shifts, depots, service };
+  return { cashbook, closes, shifts, depots, monthlySeal, service };
 }
 
 async function seedDepot(depots: InMemoryDepotRepository): Promise<string> {
@@ -292,6 +306,42 @@ describe('DailyCloseService', () => {
     const depotId = await seedDepot(depots);
 
     await expect(service.reopen(depotId, DAY, 'hq-1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // #17: a sealed month locks the days inside it — otherwise HQ's monthly sign-off could go
+  // stale the moment one of its days quietly changed underneath it.
+  describe('month seal', () => {
+    it('refuses to reopen a closed day whose month is sealed', async () => {
+      const { service, depots, monthlySeal } = make();
+      const depotId = await seedDepot(depots);
+      await service.close(kepalaDepot(depotId), depotId, DAY, null);
+      monthlySeal.sealedMonth = DAY.slice(0, 7);
+
+      await expect(service.reopen(depotId, DAY, 'hq-1')).rejects.toThrow(
+        /Bulan 2026-08 sudah ditutup/,
+      );
+    });
+
+    it('a sealed OTHER month does not block this one', async () => {
+      const { service, depots, monthlySeal } = make();
+      const depotId = await seedDepot(depots);
+      await service.close(kepalaDepot(depotId), depotId, DAY, null);
+      monthlySeal.sealedMonth = '2026-07';
+
+      await expect(service.reopen(depotId, DAY, 'hq-1')).resolves.toMatchObject({
+        reopenedBy: 'hq-1',
+      });
+    });
+
+    it('refuses to close a day inside a sealed month', async () => {
+      const { service, depots, monthlySeal } = make();
+      const depotId = await seedDepot(depots);
+      monthlySeal.sealedMonth = DAY.slice(0, 7);
+
+      await expect(service.close(kepalaDepot(depotId), depotId, DAY, null)).rejects.toThrow(
+        /Bulan 2026-08 sudah ditutup/,
+      );
+    });
   });
 });
 

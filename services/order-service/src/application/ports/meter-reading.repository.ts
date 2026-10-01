@@ -10,6 +10,9 @@ export interface UpsertMeterReadingData {
   closingM3?: number;
   sourceOpeningM3?: number;
   sourceClosingM3?: number;
+  /** #24: 0..100, same partial-upsert shape as the dial readings beside it. */
+  openingTankPct?: number;
+  closingTankPct?: number;
   note?: string;
 }
 

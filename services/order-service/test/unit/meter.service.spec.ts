@@ -1,9 +1,6 @@
 import { OrderConfigService } from '../../src/config/order-config.service';
 import { MeterService } from '../../src/application/services/meter.service';
-import {
-  MeterReadingBackwardsError,
-  MeterReadingNotOpenedError,
-} from '../../src/domain/errors';
+import { MeterReadingBackwardsError, MeterReadingNotOpenedError } from '../../src/domain/errors';
 import { MeterReading } from '../../src/domain/meter-reading';
 import {
   MeterReadingRepository,
@@ -30,6 +27,8 @@ class FakeMeterRepo implements MeterReadingRepository {
       closingM3: null,
       sourceOpeningM3: null,
       sourceClosingM3: null,
+      openingTankPct: null,
+      closingTankPct: null,
       openedBy: 'staff-1',
       openedAt: new Date('2026-08-02T01:00:00.000Z'),
       closedBy: null,
@@ -52,6 +51,8 @@ class FakeMeterRepo implements MeterReadingRepository {
         closingM3: data.closingM3 ?? null,
         sourceOpeningM3: data.sourceOpeningM3 ?? null,
         sourceClosingM3: data.sourceClosingM3 ?? null,
+        openingTankPct: data.openingTankPct ?? null,
+        closingTankPct: data.closingTankPct ?? null,
         openedBy: data.actorId,
         note: data.note ?? null,
       });
@@ -62,6 +63,8 @@ class FakeMeterRepo implements MeterReadingRepository {
       ...(data.closingM3 !== undefined ? { closingM3: data.closingM3 } : {}),
       ...(data.sourceOpeningM3 !== undefined ? { sourceOpeningM3: data.sourceOpeningM3 } : {}),
       ...(data.sourceClosingM3 !== undefined ? { sourceClosingM3: data.sourceClosingM3 } : {}),
+      ...(data.openingTankPct !== undefined ? { openingTankPct: data.openingTankPct } : {}),
+      ...(data.closingTankPct !== undefined ? { closingTankPct: data.closingTankPct } : {}),
       ...(data.note !== undefined ? { note: data.note } : {}),
       // CA-2-53: the stored row moves on every write, so a second save cannot reuse the
       // version the first one read.
@@ -124,6 +127,7 @@ function build(
     orders?: OrderRecord[];
     alertPhone?: string;
     toleranceLiters?: number;
+    tankCapacityLiters?: number;
   } = {},
 ): {
   service: MeterService;
@@ -137,7 +141,9 @@ function build(
   const config = {
     meterReferenceVolumeMl: () => 19000,
     meterVarianceToleranceLiters: () => opts.toleranceLiters ?? 200,
+    meterTankCapacityLiters: () => opts.tankCapacityLiters ?? 0,
     alertPhone: opts.alertPhone ?? '+628123',
+    businessTimeZone: 'Asia/Jakarta',
   } as unknown as OrderConfigService;
   return {
     service: new MeterService(repo, orders as unknown as OrderRepository, notifications, config),
@@ -153,53 +159,56 @@ const SEEDED_AT = '2026-09-09T00:00:00.000Z';
 describe('MeterService.save', () => {
   it('records the opening reading in the morning and reports the day as not comparable', async () => {
     const { service } = build();
-    const result = await service.save(
-        {
-        depotId: DEPOT,
-        date: DATE,
-        actorId: 'staff-1',
-        authorization: 'Bearer t',
-        openingM3: 1000,
-      });
-      expect(result.meterLiters).toBeNull();
-      expect(result.soldLiters).toBe(2430);
+    const result = await service.save({
+      depotId: DEPOT,
+      date: DATE,
+      actorId: 'staff-1',
+      authorization: 'Bearer t',
+      openingM3: 1000,
     });
+    expect(result.meterLiters).toBeNull();
+    expect(result.soldLiters).toBe(2430);
+  });
 
-    it('accepts a closing-only evening write against the morning row', async () => {
-      const { service, repo } = build();
-      repo.seed({ openingM3: 1000 });
-      const result = await service.save({
+  it('accepts a closing-only evening write against the morning row', async () => {
+    const { service, repo } = build();
+    repo.seed({ openingM3: 1000 });
+    const result = await service.save(
+      {
         depotId: DEPOT,
         date: DATE,
         actorId: 'staff-2',
         authorization: 'Bearer t',
         closingM3: 1002.6,
-      }, SEEDED_AT);
-      expect(result.meterLiters).toBe(2600);
-      expect(result.varianceLiters).toBe(170);
-    });
+      },
+      SEEDED_AT,
+    );
+    expect(result.meterLiters).toBe(2600);
+    expect(result.varianceLiters).toBe(170);
+  });
 
-    it('rejects a closing reading below the opening one', async () => {
-      const { service, repo } = build();
-      repo.seed({ openingM3: 1000 });
-      await expect(
-        service.save(
-          {
-            depotId: DEPOT,
-            date: DATE,
-            actorId: 'staff-2',
-            authorization: '',
-            closingM3: 999,
-          },
-          SEEDED_AT,
-        ),
-      ).rejects.toBeInstanceOf(MeterReadingBackwardsError);
-    });
+  it('rejects a closing reading below the opening one', async () => {
+    const { service, repo } = build();
+    repo.seed({ openingM3: 1000 });
+    await expect(
+      service.save(
+        {
+          depotId: DEPOT,
+          date: DATE,
+          actorId: 'staff-2',
+          authorization: '',
+          closingM3: 999,
+        },
+        SEEDED_AT,
+      ),
+    ).rejects.toBeInstanceOf(MeterReadingBackwardsError);
+  });
 
-    it('rejects a raw-water pair that runs backwards', async () => {
-      const { service } = build();
-      await expect(
-        service.save({
+  it('rejects a raw-water pair that runs backwards', async () => {
+    const { service } = build();
+    await expect(
+      service.save(
+        {
           depotId: DEPOT,
           date: DATE,
           actorId: 'staff-1',
@@ -284,6 +293,23 @@ describe('MeterService.save', () => {
     expect(result.roYieldPct).toBe(65); // 2600 L treated out of 4000 L raw
   });
 
+  it('stores the tank level percentages', async () => {
+    const { service, repo } = build();
+    await service.save({
+      depotId: DEPOT,
+      date: DATE,
+      actorId: 'staff-1',
+      authorization: '',
+      openingM3: 1000,
+      openingTankPct: 80,
+      closingTankPct: 65,
+    });
+    expect(await repo.findForDate(DEPOT, DATE)).toMatchObject({
+      openingTankPct: 80,
+      closingTankPct: 65,
+    });
+  });
+
   it('stores an optional note', async () => {
     const { service, repo } = build();
     await service.save({
@@ -304,13 +330,16 @@ describe('MeterService variance alert', () => {
   it('fires once when the gap crosses the tolerance', async () => {
     const { service, repo, notifications } = build();
     repo.seed({ openingM3: wideGap.openingM3 });
-    await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: 'Bearer t',
-      closingM3: wideGap.closingM3,
-    }, SEEDED_AT);
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: 'Bearer t',
+        closingM3: wideGap.closingM3,
+      },
+      SEEDED_AT,
+    );
     expect(notifications.calls).toHaveLength(1);
     expect(notifications.calls[0].event).toBe('METER_VARIANCE');
     expect(notifications.calls[0].vars.variance).toBe('7570');
@@ -320,13 +349,16 @@ describe('MeterService variance alert', () => {
   it('does not fire again when the operator corrects a typo and saves once more', async () => {
     const { service, repo, notifications } = build();
     repo.seed({ openingM3: wideGap.openingM3 });
-    await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: '',
-      closingM3: wideGap.closingM3,
-    }, SEEDED_AT);
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: wideGap.closingM3,
+      },
+      SEEDED_AT,
+    );
     // The operator re-reads the day before correcting the typo, so they hold the version
     // their own first save produced.
     const afterFirst = await repo.findForDate(DEPOT, DATE);
@@ -346,26 +378,32 @@ describe('MeterService variance alert', () => {
   it('stays quiet inside the tolerance', async () => {
     const { service, repo, notifications } = build();
     repo.seed({ openingM3: 1000 });
-    await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: '',
-      closingM3: 1002.6, // 170 L gap, tolerance 200
-    }, SEEDED_AT);
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: 1002.6, // 170 L gap, tolerance 200
+      },
+      SEEDED_AT,
+    );
     expect(notifications.calls).toHaveLength(0);
   });
 
   it('skips delivery when no ops number is configured', async () => {
     const { service, repo, notifications } = build({ alertPhone: '' });
     repo.seed({ openingM3: wideGap.openingM3 });
-    await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: '',
-      closingM3: wideGap.closingM3,
-    }, SEEDED_AT);
+    await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: wideGap.closingM3,
+      },
+      SEEDED_AT,
+    );
     expect(notifications.calls).toHaveLength(0);
     expect(repo.alerted).toHaveLength(0);
   });
@@ -374,13 +412,16 @@ describe('MeterService variance alert', () => {
     const { service, repo, notifications } = build();
     notifications.throwOnNotify = true;
     repo.seed({ openingM3: wideGap.openingM3 });
-    const result = await service.save({
-      depotId: DEPOT,
-      date: DATE,
-      actorId: 'staff-2',
-      authorization: '',
-      closingM3: wideGap.closingM3,
-    }, SEEDED_AT);
+    const result = await service.save(
+      {
+        depotId: DEPOT,
+        date: DATE,
+        actorId: 'staff-2',
+        authorization: '',
+        closingM3: wideGap.closingM3,
+      },
+      SEEDED_AT,
+    );
     expect(result.meterLiters).toBe(10000);
     // Not marked alerted, so a later save can retry the delivery.
     expect(repo.alerted).toHaveLength(0);
@@ -544,5 +585,61 @@ describe('MeterService reads', () => {
         closingM3: 1002,
       }),
     ).rejects.toMatchObject({ code: 'STALE_WRITE' });
+  });
+});
+
+// #24: tank level reads as litres and a rough time-to-empty, from the depot's own
+// trailing meter output rather than a guessed consumption rate.
+describe('MeterService tank status', () => {
+  it('reports level, litres and hours remaining from the trailing daily average', async () => {
+    const { service, repo } = build({ tankCapacityLiters: 5000 });
+    repo.seed({ openingM3: 1000, closingM3: 1002.6, closingTankPct: 50 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.tank).toEqual({
+      levelPct: 50,
+      liters: 2500,
+      capacityLiters: 5000,
+      avgDailyLiters: 2600,
+      hoursRemaining: 23.08,
+    });
+  });
+
+  it('falls back to the opening tank reading when no closing one is in yet', async () => {
+    const { service, repo } = build({ tankCapacityLiters: 5000 });
+    repo.seed({ openingM3: 1000, openingTankPct: 40 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.tank.levelPct).toBe(40);
+  });
+
+  it('reports litres and hours as null until an operator types a % reading', async () => {
+    const { service, repo } = build({ tankCapacityLiters: 5000 });
+    repo.seed({ openingM3: 1000, closingM3: 1002.6 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.tank.levelPct).toBeNull();
+    expect(result.tank.liters).toBeNull();
+    expect(result.tank.hoursRemaining).toBeNull();
+    // The depot's output rate is still knowable even without a tank reading.
+    expect(result.tank.avgDailyLiters).toBe(2600);
+  });
+
+  it('reports litres and hours as null while the tank capacity is unconfigured', async () => {
+    const { service, repo } = build(); // tankCapacityLiters defaults to 0 = not configured
+    repo.seed({ openingM3: 1000, closingM3: 1002.6, closingTankPct: 80 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.tank.capacityLiters).toBe(0);
+    expect(result.tank.liters).toBeNull();
+    expect(result.tank.hoursRemaining).toBeNull();
+  });
+
+  it('reports everything null but the configured capacity when the day has no reading', async () => {
+    const { service } = build({ tankCapacityLiters: 5000 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.tank).toEqual({
+      levelPct: null,
+      liters: null,
+      capacityLiters: 5000,
+      avgDailyLiters: null,
+      hoursRemaining: null,
+    });
   });
 });

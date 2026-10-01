@@ -67,6 +67,8 @@ export const envValidationSchema = Joi.object({
   ORDER_METER_REFERENCE_VOLUME_ML: Joi.number().integer().positive().default(19000),
   // Litres of meter-vs-sales variance tolerated before an ops alert fires.
   ORDER_METER_VARIANCE_TOLERANCE_LITERS: Joi.number().integer().min(0).default(200),
+  // #24: tank size in litres, so a % reading can be read as a volume. 0 = not configured.
+  ORDER_METER_TANK_CAPACITY_LITERS: Joi.number().integer().min(0).default(0),
   // Ops WhatsApp number for staff-facing alerts (meter variance). Blank = alerting off,
   // same fail-open convention depot-service uses for its low-stock alert.
   ORDER_ALERT_PHONE: Joi.string().allow('').default(''),

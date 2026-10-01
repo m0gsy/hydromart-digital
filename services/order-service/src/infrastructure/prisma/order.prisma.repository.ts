@@ -4,6 +4,7 @@ import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platf
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { OrderStatus } from '../../domain/order-status';
+import { galonQuantity } from '../../domain/pricing';
 import {
   DuplicateCheckoutError,
   OrderAlreadyVoidedError,
@@ -29,6 +30,8 @@ import {
   OrderValue,
   RatingSummary,
   ProductRevenue,
+  PublicTrackingRecord,
+  RefillSplit,
   ReportRange,
   RetentionCell,
   ReviewRequestTarget,
@@ -112,6 +115,7 @@ interface ReviewRow {
 interface OrderRow {
   id: string;
   orderNumber: string;
+  trackingToken: string | null;
   customerId: string;
   depotId: string | null;
   status: string;
@@ -215,6 +219,7 @@ export class OrderPrismaRepository implements OrderRepository {
     return {
       id: row.id,
       orderNumber: row.orderNumber,
+      trackingToken: row.trackingToken,
       customerId: row.customerId,
       depotId: row.depotId,
       status: row.status as OrderStatus,
@@ -424,6 +429,37 @@ export class OrderPrismaRepository implements OrderRepository {
   async findById(id: string): Promise<OrderRecord | null> {
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
     return row ? this.toRecord(row) : null;
+  }
+
+  /**
+   * #34. Its own `select`, not `findById` plus a filter: a public route is one missed field
+   * away from leaking a name, phone or address, and listing exactly the columns this is
+   * allowed to answer with is what makes that impossible rather than merely unintended.
+   */
+  async findByTrackingToken(token: string): Promise<PublicTrackingRecord | null> {
+    const row = await this.prisma.order.findUnique({
+      where: { trackingToken: token },
+      select: {
+        orderNumber: true,
+        status: true,
+        city: true,
+        driverName: true,
+        estimatedArrivalAt: true,
+        history: { select: { status: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!row) return null;
+    return {
+      orderNumber: row.orderNumber,
+      status: row.status as OrderStatus,
+      city: row.city,
+      driverFirstName: row.driverName ? row.driverName.split(' ')[0] : null,
+      estimatedArrivalAt: row.estimatedArrivalAt,
+      statusHistory: row.history.map((h) => ({
+        status: h.status as OrderStatus,
+        changedAt: h.createdAt,
+      })),
+    };
   }
 
   async findByIdempotencyKey(
@@ -816,7 +852,10 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async shippingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotShipping[]> {
+  async shippingByDepot(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<DepotShipping[]> {
     const rows = await this.prisma.order.groupBy({
       by: ['depotId'],
       where: { ...this.reportWhere(range), depotId: this.depotFilter(depotIds) },
@@ -1160,6 +1199,39 @@ export class OrderPrismaRepository implements OrderRepository {
       orderCount: r._count._all,
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
     }));
+  }
+
+  /**
+   * #27. Not a `groupBy`: the bucket a sale falls into depends on `emptiesReturned` against
+   * the gallon count on ITS OWN items, a per-row comparison Prisma cannot express as an
+   * aggregate. Only the two columns a classification needs are selected, so this stays a
+   * narrow read rather than `ordersForDepot` (full `OrderRecord`, every field, every item
+   * column) run through a filter.
+   */
+  async refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit> {
+    const rows = await this.prisma.order.findMany({
+      where: { ...this.reportWhere(range), depotId, isWalkIn: true },
+      select: {
+        emptiesReturned: true,
+        items: { where: { isGallon: true }, select: { isGallon: true, quantity: true } },
+      },
+    });
+    const split: RefillSplit = { refill: 0, partial: 0, beli: 0, notAsked: 0 };
+    for (const row of rows) {
+      const gallons = galonQuantity(row.items);
+      // A sale with no galon line has nothing to classify — not a galon sale at all.
+      if (gallons === 0) continue;
+      if (row.emptiesReturned === null) {
+        split.notAsked += 1;
+      } else if (row.emptiesReturned >= gallons) {
+        split.refill += 1;
+      } else if (row.emptiesReturned > 0) {
+        split.partial += 1;
+      } else {
+        split.beli += 1;
+      }
+    }
+    return split;
   }
 
   /**

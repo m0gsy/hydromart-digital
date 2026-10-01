@@ -14,7 +14,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { MeterService } from '../application/services/meter.service';
-import { MeterHistoryRow, MeterReconciliation } from '../domain/meter-reading';
+import { MeterHistoryRow, MeterReconciliationWithTank } from '../domain/meter-reading';
 import { MeterHistoryQueryDto, SaveMeterReadingDto } from './dto/meter-reading.dto';
 import {
   MeterHistoryRowResponseDto,
@@ -58,14 +58,17 @@ export class MeterController {
     // Forwarded to crm-service with the variance alert, same as the order lifecycle
     // notifications do.
     @Headers('authorization') authorization?: string,
-  ): Promise<MeterReconciliation> {
-    return this.meter.save({
-      depotId,
-      date: assertDay(date),
-      actorId: user.sub,
-      authorization: authorization ?? '',
-      ...dto,
-    }, dto.seenUpdatedAt);
+  ): Promise<MeterReconciliationWithTank> {
+    return this.meter.save(
+      {
+        depotId,
+        date: assertDay(date),
+        actorId: user.sub,
+        authorization: authorization ?? '',
+        ...dto,
+      },
+      dto.seenUpdatedAt,
+    );
   }
 
   @ApiOkResponse({ type: MeterReconciliationResponseDto })
@@ -75,7 +78,7 @@ export class MeterController {
   reconcile(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Param('date') date: string,
-  ): Promise<MeterReconciliation> {
+  ): Promise<MeterReconciliationWithTank> {
     return this.meter.reconcile(depotId, assertDay(date));
   }
 

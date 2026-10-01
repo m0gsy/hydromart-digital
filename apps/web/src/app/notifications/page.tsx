@@ -13,6 +13,7 @@ import {
   Receipt,
   Star,
   Ticket,
+  Trophy,
   Truck,
   XCircle,
 } from '@phosphor-icons/react';
@@ -58,6 +59,7 @@ const EVENT_STYLE: Partial<Record<NotificationEvent, { icon: Icon; fg: string; b
   CUSTOMER_REGISTERED: { icon: Gift, fg: 'text-brand-600', bg: 'bg-brand-50' },
   STOCK_LOW: { icon: Package, fg: 'text-brand-600', bg: 'bg-brand-50' },
   POINTS_EARNED: { icon: Coin, fg: 'text-[#b97d10]', bg: 'bg-[#faf1de]' },
+  MEMBERSHIP_TIER_UPGRADED: { icon: Trophy, fg: 'text-[#b97d10]', bg: 'bg-[#faf1de]' },
   VOUCHER_GRANTED: { icon: Ticket, fg: 'text-brand-600', bg: 'bg-brand-50' },
   GALLON_RETURN_REMINDER: { icon: Drop, fg: 'text-brand-600', bg: 'bg-brand-50' },
   REVIEW_REQUEST: { icon: Star, fg: 'text-[#b97d10]', bg: 'bg-[#faf1de]' },

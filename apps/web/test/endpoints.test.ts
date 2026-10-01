@@ -25,9 +25,7 @@ describe('endpoints', () => {
   // Both hang off the line id, not the depot: a line is only ever addressed by its own id.
   it('addresses one stock line for delete and reservation drill-down', () => {
     expect(endpoints.inventory.remove('i1')).toBe('/depots/api/v1/inventory/i1');
-    expect(endpoints.inventory.reservations('i1')).toBe(
-      '/depots/api/v1/inventory/i1/reservations',
-    );
+    expect(endpoints.inventory.reservations('i1')).toBe('/depots/api/v1/inventory/i1/reservations');
   });
 
   // The console's list. Same query, different path: this one keeps deactivated products,
@@ -102,8 +100,15 @@ describe('endpoints', () => {
       '/forecast/api/v1/forecast/demand?productId=p1',
     );
     expect(
-      endpoints.forecast.demand({ productId: 'p1', depotId: 'd1', historyDays: 60, horizonDays: 14 }),
-    ).toBe('/forecast/api/v1/forecast/demand?productId=p1&depotId=d1&historyDays=60&horizonDays=14');
+      endpoints.forecast.demand({
+        productId: 'p1',
+        depotId: 'd1',
+        historyDays: 60,
+        horizonDays: 14,
+      }),
+    ).toBe(
+      '/forecast/api/v1/forecast/demand?productId=p1&depotId=d1&historyDays=60&horizonDays=14',
+    );
     expect(endpoints.forecast.depot('d1')).toBe('/forecast/api/v1/forecast/depot/d1');
     expect(endpoints.forecast.depot('d1', { historyDays: 30, horizonDays: 7, limit: 50 })).toBe(
       '/forecast/api/v1/forecast/depot/d1?historyDays=30&horizonDays=7&limit=50',
@@ -197,9 +202,7 @@ describe('endpoints', () => {
     expect(endpoints.auth.setStaffDepot('s1')).toBe('/auth/api/v1/auth/staff/s1/depot');
     expect(endpoints.auth.setStaffActive('s1')).toBe('/auth/api/v1/auth/staff/s1/status');
     expect(endpoints.auth.deleteStaff('s1')).toBe('/auth/api/v1/auth/staff/s1');
-    expect(endpoints.hr.createEmployeeAccount('e1')).toBe(
-      '/employees/api/v1/employees/e1/account',
-    );
+    expect(endpoints.hr.createEmployeeAccount('e1')).toBe('/employees/api/v1/employees/e1/account');
   });
 
   it('builds the daily-close paths, with the business date on the read', () => {
@@ -208,6 +211,21 @@ describe('endpoints', () => {
     );
     expect(endpoints.depots.closeDay('d1')).toBe('/depots/api/v1/depots/d1/daily-close');
     expect(endpoints.depots.reopenDay('d1')).toBe('/depots/api/v1/depots/d1/daily-close/reopen');
+  });
+
+  it('builds the public tracking path (#34), URL-encoding the token', () => {
+    expect(endpoints.orders.track('abc123')).toBe('/orders/api/v1/orders/track/abc123');
+    expect(endpoints.orders.track('a/b c')).toBe('/orders/api/v1/orders/track/a%2Fb%20c');
+  });
+
+  it('builds the monthly-close paths (#17), one size up from the daily ones', () => {
+    expect(endpoints.depots.monthlyClose('d1', '2026-07')).toBe(
+      '/depots/api/v1/depots/d1/monthly-close?businessMonth=2026-07',
+    );
+    expect(endpoints.depots.closeMonth('d1')).toBe('/depots/api/v1/depots/d1/monthly-close');
+    expect(endpoints.depots.reopenMonth('d1')).toBe(
+      '/depots/api/v1/depots/d1/monthly-close/reopen',
+    );
   });
 
   // `from` is never optional: the service filters on checkInAt with no default window, so
@@ -228,6 +246,19 @@ describe('endpoints', () => {
     expect(endpoints.reports.depotDailyExport('d1', '2026-08-04')).toBe(
       '/orders/api/v1/reports/depot-daily/export?depotId=d1&date=2026-08-04',
     );
+  });
+
+  it('prints the daily report on the same path family, with the depot name as a bounded label', () => {
+    expect(endpoints.reports.depotDailyPdf('d1')).toBe(
+      '/orders/api/v1/reports/depot-daily/pdf?depotId=d1',
+    );
+    expect(endpoints.reports.depotDailyPdf('d1', '2026-08-04', 'Depot Tirta & Jaya')).toBe(
+      '/orders/api/v1/reports/depot-daily/pdf?depotId=d1&date=2026-08-04&label=Depot+Tirta+%26+Jaya',
+    );
+    // The server refuses a label over 80 characters; cutting it here means a long depot
+    // name still prints instead of turning the button into a 400.
+    const long = endpoints.reports.depotDailyPdf('d1', undefined, 'x'.repeat(200));
+    expect(new URL(long, 'http://h').searchParams.get('label')).toHaveLength(80);
   });
 });
 
@@ -278,9 +309,7 @@ describe('every endpoint entry has a caller', () => {
      * called from `app/subscriptions/page.tsx:286,290,319` and always were. A check that
      * cannot see a call site is a check that asks you to delete working code.
      */
-    const computed = new Set(
-      [...blob.matchAll(/\b(?:endpoints\.)?(\w+)\s*\[/g)].map((m) => m[1]),
-    );
+    const computed = new Set([...blob.matchAll(/\b(?:endpoints\.)?(\w+)\s*\[/g)].map((m) => m[1]));
 
     // The last two segments are enough: entries are reached as `endpoints.group.key`, and
     // are often destructured to `group.key` first.

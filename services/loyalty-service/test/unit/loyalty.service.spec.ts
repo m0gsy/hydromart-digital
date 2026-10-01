@@ -246,6 +246,53 @@ describe('LoyaltyService', () => {
     expect(result.account.tier).toBe(MembershipTier.SILVER);
   });
 
+  describe('tierUpgradedTo', () => {
+    it('names the tier an order lifted the customer into', async () => {
+      const result = await service.earnForOrder('cust-1', randomUUID(), 1_000_000); // 1000 pts
+      expect(result.tierUpgradedTo).toBe(MembershipTier.SILVER);
+    });
+
+    it('is null when the order earned points but did not cross a threshold', async () => {
+      const result = await service.earnForOrder('cust-1', randomUUID(), 60000); // 60 pts
+      expect(result.pointsEarned).toBe(60);
+      expect(result.tierUpgradedTo).toBeNull();
+    });
+
+    it('is null for a customer already at that tier: an upgrade is a change, not a standing', async () => {
+      await service.earnForOrder('cust-1', randomUUID(), 1_000_000); // → SILVER
+      const next = await service.earnForOrder('cust-1', randomUUID(), 1_000_000); // 2000 pts, still SILVER
+      expect(next.account.tier).toBe(MembershipTier.SILVER);
+      expect(next.tierUpgradedTo).toBeNull();
+    });
+
+    it('reports the tier a big order jumped to, skipping the rungs between', async () => {
+      const result = await service.earnForOrder('cust-1', randomUUID(), 6_000_000); // 6000 pts
+      expect(result.tierUpgradedTo).toBe(MembershipTier.GOLD);
+    });
+
+    it('is null on a repeated earn, so a retry does not congratulate twice', async () => {
+      const orderId = randomUUID();
+      await service.earnForOrder('cust-1', orderId, 1_000_000);
+      const again = await service.earnForOrder('cust-1', orderId, 1_000_000);
+      expect(again.alreadyEarned).toBe(true);
+      expect(again.tierUpgradedTo).toBeNull();
+    });
+
+    it('is null for a sub-threshold order that earned nothing', async () => {
+      const result = await service.earnForOrder('cust-1', randomUUID(), 500);
+      expect(result.tierUpgradedTo).toBeNull();
+    });
+
+    // `retier` can move a stored tier DOWN when a ladder was edited. That is not news.
+    it('is null when the recomputed tier is LOWER than the stored one', async () => {
+      const account = await service.getAccount('cust-1');
+      await repo.setTier(account.id, MembershipTier.PLATINUM);
+      const result = await service.earnForOrder('cust-1', randomUUID(), 60000); // 60 pts → REGULAR by points
+      expect(result.account.tier).toBe(MembershipTier.REGULAR);
+      expect(result.tierUpgradedTo).toBeNull();
+    });
+  });
+
   it('records nothing for a sub-threshold order but still reads as handled', async () => {
     const result = await service.earnForOrder('cust-1', randomUUID(), 500);
     expect(result.pointsEarned).toBe(0);

@@ -15,6 +15,8 @@ function reading(over: Partial<MeterReading> = {}): MeterReading {
     closingM3: 1002.6,
     sourceOpeningM3: null,
     sourceClosingM3: null,
+    openingTankPct: null,
+    closingTankPct: null,
     openedBy: 'staff-1',
     openedAt: new Date('2026-08-02T01:00:00.000Z'),
     closedBy: 'staff-1',
@@ -32,7 +34,7 @@ function totals(over: Partial<SoldTotals> = {}): SoldTotals {
 const settings = { referenceVolumeMl: 19000, toleranceLiters: 200 };
 
 describe('sumSoldLiters', () => {
-  it("sums a mixed 19L/15L day the way an operator counts it", () => {
+  it('sums a mixed 19L/15L day the way an operator counts it', () => {
     // The worked example from the request: 120 galon x 19L + 10 Le Minerale x 15L.
     const { soldLiters, unmeasuredLines } = sumSoldLiters([
       { quantity: 120, volumeMl: 19000 },

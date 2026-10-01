@@ -54,9 +54,7 @@ function VarianceChart({ rows }: { rows: MeterHistoryRow[] }) {
   const withVariance = rows.filter((r) => r.varianceLiters != null);
   if (withVariance.length === 0) {
     return (
-      <p className="py-3 text-sm text-[color:var(--text-muted)]">
-        {t('hrFix.meter.noClosedDays')}
-      </p>
+      <p className="py-3 text-sm text-[color:var(--text-muted)]">{t('hrFix.meter.noClosedDays')}</p>
     );
   }
   const peak = Math.max(...withVariance.map((r) => Math.abs(r.varianceLiters!)), 1);
@@ -97,11 +95,14 @@ function MeterBody() {
   const [closing, setClosing] = useState('');
   const [sourceOpening, setSourceOpening] = useState('');
   const [sourceClosing, setSourceClosing] = useState('');
+  const [tankOpening, setTankOpening] = useState('');
+  const [tankClosing, setTankClosing] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const day = useAsync<MeterReconciliation | null>(
-    () => (depot ? api.get(endpoints.reports.meterDay(depot.id, TODAY), true) : Promise.resolve(null)),
+    () =>
+      depot ? api.get(endpoints.reports.meterDay(depot.id, TODAY), true) : Promise.resolve(null),
     [depot?.id],
   );
   const history = useAsync<MeterHistoryRow[]>(
@@ -128,6 +129,8 @@ function MeterBody() {
       setClosing('');
       setSourceOpening('');
       setSourceClosing('');
+      setTankOpening('');
+      setTankClosing('');
       day.reload();
       history.reload();
     } catch (e) {
@@ -146,11 +149,15 @@ function MeterBody() {
   const closingValue = parsed(closing);
   const sourceOpeningValue = parsed(sourceOpening);
   const sourceClosingValue = parsed(sourceClosing);
+  const tankOpeningValue = parsed(tankOpening);
+  const tankClosingValue = parsed(tankClosing);
   const nothingToSave =
     openingValue === null &&
     closingValue === null &&
     sourceOpeningValue === null &&
-    sourceClosingValue === null;
+    sourceClosingValue === null &&
+    tankOpeningValue === null &&
+    tankClosingValue === null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -202,6 +209,28 @@ function MeterBody() {
                 onChange={(e) => setSourceClosing(e.target.value)}
               />
             </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.tankMorning')}</span>
+              <Input
+                inputMode="decimal"
+                placeholder={
+                  reading?.openingTankPct != null ? String(reading.openingTankPct) : '80'
+                }
+                value={tankOpening}
+                onChange={(e) => setTankOpening(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.tankEvening')}</span>
+              <Input
+                inputMode="decimal"
+                placeholder={
+                  reading?.closingTankPct != null ? String(reading.closingTankPct) : '65'
+                }
+                value={tankClosing}
+                onChange={(e) => setTankClosing(e.target.value)}
+              />
+            </label>
           </div>
           <FormError message={saveError} />
           <Button
@@ -212,14 +241,14 @@ function MeterBody() {
                 ...(closingValue !== null ? { closingM3: closingValue } : {}),
                 ...(sourceOpeningValue !== null ? { sourceOpeningM3: sourceOpeningValue } : {}),
                 ...(sourceClosingValue !== null ? { sourceClosingM3: sourceClosingValue } : {}),
+                ...(tankOpeningValue !== null ? { openingTankPct: tankOpeningValue } : {}),
+                ...(tankClosingValue !== null ? { closingTankPct: tankClosingValue } : {}),
               })
             }
           >
             {saving ? t('hrFix.meter.saving') : t('hrFix.meter.save')}
           </Button>
-          <p className="text-xs text-[color:var(--text-muted)]">
-            {t('hrFix.meter.twiceHint')}
-          </p>
+          <p className="text-xs text-[color:var(--text-muted)]">{t('hrFix.meter.twiceHint')}</p>
         </Card>
       )}
 
@@ -242,7 +271,10 @@ function MeterBody() {
             <Stat
               label={t('hrFix.meter.waterSold')}
               value={`${num(data?.soldLiters)} L`}
-              hint={t('opsFix.meter.deliveredHint', { n: num(data?.gallonsDelivered), amount: formatIDR(data?.revenueIdr ?? 0) })}
+              hint={t('opsFix.meter.deliveredHint', {
+                n: num(data?.gallonsDelivered),
+                amount: formatIDR(data?.revenueIdr ?? 0),
+              })}
             />
             <Stat
               label={t('hrFix.meter.difference')}
@@ -285,17 +317,48 @@ function MeterBody() {
             </Card>
           )}
 
+          {data?.tank && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Stat
+                label={t('hrFix.meter.tankLevel')}
+                value={data.tank.levelPct != null ? `${num(data.tank.levelPct, 1)}%` : '—'}
+                hint={
+                  data.tank.levelPct == null
+                    ? t('hrFix.meter.tankNoReading')
+                    : t('hrFix.meter.tankLiters')
+                }
+              />
+              <Stat
+                label={t('hrFix.meter.tankLiters')}
+                value={data.tank.liters != null ? `${num(data.tank.liters)} L` : '—'}
+                hint={
+                  data.tank.capacityLiters <= 0
+                    ? t('hrFix.meter.tankNoCapacity')
+                    : data.tank.hoursRemaining != null
+                      ? t('hrFix.meter.tankHoursValue', { hours: num(data.tank.hoursRemaining, 1) })
+                      : t('hrFix.meter.tankHoursRemaining')
+                }
+              />
+            </div>
+          )}
+
           {data != null && data.unmeasuredLines > 0 && (
             <Card className="flex items-start gap-3 bg-brand-50 p-4">
               <Warning size={22} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
               <p className="text-[12.5px] text-brand-800/80">
-                <strong>{t('hrFix.meter.orderLines', { count: data.unmeasuredLines })}</strong>{t('hrFix.meter.noVolumeHint')}</p>
+                <strong>{t('hrFix.meter.orderLines', { count: data.unmeasuredLines })}</strong>
+                {t('hrFix.meter.noVolumeHint')}
+              </p>
             </Card>
           )}
 
           {data?.overTolerance && (
             <Card className="flex items-start gap-3 border border-[color:var(--danger)] p-4">
-              <Warning size={22} weight="fill" className="mt-0.5 shrink-0 text-[color:var(--danger)]" />
+              <Warning
+                size={22}
+                weight="fill"
+                className="mt-0.5 shrink-0 text-[color:var(--danger)]"
+              />
               <p className="text-[12.5px]">
                 {t('hrFix.meter.overThreshold', { liters: num(data.toleranceLiters) })}
               </p>

@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { LoyaltyCoordinationPort } from '../../application/ports/loyalty-coordination.port';
+import {
+  LoyaltyCoordinationPort,
+  PointsAward,
+} from '../../application/ports/loyalty-coordination.port';
 
 /**
  * Awards points on the loyalty-service when an order completes (BR-013). System-to-system
@@ -23,7 +26,7 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
     subtotal: number,
     depotId: string | null,
     _authorization: string,
-  ): Promise<number | null> {
+  ): Promise<PointsAward | null> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
       this.logger.warn(`No internal service key; skipped loyalty award for order ${orderId}`);
@@ -45,8 +48,14 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
       // loyalty owns the earn rate (per-depot), so the awarded count comes back with the
       // account rather than being recomputed here. An unparseable body is still a
       // successful award — report "unknown" (null), never a made-up number.
-      const body = (await res.json()) as { pointsEarned?: number };
-      return typeof body?.pointsEarned === 'number' ? body.pointsEarned : null;
+      const body = (await res.json()) as { pointsEarned?: number; tierUpgradedTo?: unknown };
+      if (typeof body?.pointsEarned !== 'number') return null;
+      return {
+        points: body.pointsEarned,
+        // Anything but a non-empty string (absent on an older loyalty-service) is "no upgrade".
+        tierUpgradedTo:
+          typeof body.tierUpgradedTo === 'string' && body.tierUpgradedTo ? body.tierUpgradedTo : null,
+      };
     } catch (error) {
       this.logger.warn(`Loyalty award skipped for order ${orderId}: ${(error as Error).message}`);
       return null;

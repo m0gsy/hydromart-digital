@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Copy,
   Money as MoneyIcon,
+  ShareNetwork,
   Star,
 } from '@phosphor-icons/react';
 
@@ -404,10 +405,22 @@ function OrderDetailInner({ id }: { id: string }) {
             <Money amount={order.total} className="font-bold text-[color:var(--text)]" />
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-[18px] py-[9px] text-[13.5px] font-extrabold text-brand-800">
-          <span className={`h-2 w-2 rounded-full ${DOT[toneKey]}`} />
-          {t(`order.status.${order.status}`)}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-[18px] py-[9px] text-[13.5px] font-extrabold text-brand-800">
+            <span className={`h-2 w-2 rounded-full ${DOT[toneKey]}`} />
+            {t(`order.status.${order.status}`)}
+          </span>
+          {/* #34: a stranger holding this link sees status + ETA only — order-service's own
+              narrow public projection, never this order's name/phone/address. */}
+          {order.trackingToken && (
+            <Button
+              variant="ghost"
+              onClick={() => copy(`${window.location.origin}/track?token=${order.trackingToken}`)}
+            >
+              <ShareNetwork size={16} weight="bold" /> {t('order.detail.shareTracking')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* progress stepper */}

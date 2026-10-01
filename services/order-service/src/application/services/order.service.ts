@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
@@ -18,6 +18,7 @@ import {
   CounterBasketChangedError,
   CounterDeliveryUnavailableError,
   DuplicateCheckoutError,
+  EmptiesReturnedExceedGallonsError,
   EmptyCartError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
@@ -67,6 +68,7 @@ import {
   OrderRepository,
   OrderReviewRecord,
   OrderValue,
+  PublicTrackingRecord,
   RatingSummary,
 } from '../ports/order.repository';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
@@ -158,6 +160,11 @@ export interface WalkInSaleInput {
    * ongkir was not "forgotten", the path did not exist.
    */
   deliveryAddress?: DeliveryAddressSnapshot | null;
+  /**
+   * #27: empty galon the buyer handed over AT this sale. Undefined/omitted = not asked;
+   * validated against the priced basket's own galon count once that is known.
+   */
+  emptiesReturned?: number | null;
 }
 
 export interface CheckoutInput {
@@ -222,6 +229,9 @@ const REROUTABLE_STATUSES: ReadonlySet<OrderStatus> = new Set([
   OrderStatus.PREPARING,
 ]);
 
+/** "SILVER" → "Silver": a membership tier the way the customer reads it in a message. */
+const tierLabel = (tier: string): string => tier.charAt(0) + tier.slice(1).toLowerCase();
+
 @Injectable()
 export class OrderService {
   private static readonly MAX_LIMIT = 100;
@@ -281,7 +291,7 @@ export class OrderService {
    */
   private async awardLoyalty(orderId: string, authorization: string): Promise<void> {
     const order = await this.getAny(orderId);
-    const pointsEarned = await this.loyalty.awardPoints(
+    const award = await this.loyalty.awardPoints(
       order.customerId,
       order.id,
       order.subtotal,
@@ -290,20 +300,33 @@ export class OrderService {
     );
     // Null = the award failed or its count is unknown: stay silent rather than promise
     // points. The award itself is idempotent per order, so a retry cannot double-credit.
-    if (pointsEarned !== null && pointsEarned > 0) {
+    if (award !== null && award.points > 0) {
       await this.notification
         .notify(
           'POINTS_EARNED',
           order.phone,
           {
             name: order.recipientName,
-            points: String(pointsEarned),
+            points: String(award.points),
             orderNumber: order.orderNumber,
           },
           order.customerId,
           authorization,
         )
         .catch(() => {});
+      // The earn that crossed a threshold gets its own message, after the points one. Best
+      // effort like it: a customer who misses "you moved up" still has the tier on their card.
+      if (award.tierUpgradedTo) {
+        await this.notification
+          .notify(
+            'MEMBERSHIP_TIER_UPGRADED',
+            order.phone,
+            { name: order.recipientName, tier: tierLabel(award.tierUpgradedTo) },
+            order.customerId,
+            authorization,
+          )
+          .catch(() => {});
+      }
     }
   }
 
@@ -543,6 +566,7 @@ export class OrderService {
       depot.id,
       {
         orderNumber: await this.newOrderNumber(),
+        trackingToken: this.newTrackingToken(),
         customerId,
         depotId: depot.id,
         subtotal,
@@ -813,6 +837,7 @@ export class OrderService {
       depot.id,
       {
         orderNumber: await this.newOrderNumber(),
+        trackingToken: this.newTrackingToken(),
         customerId,
         depotId: depot.id,
         subtotal,
@@ -955,12 +980,23 @@ export class OrderService {
         shippingFee,
       );
 
+    // #27: validated against the PRICED basket's own galon count, not the raw line
+    // quantities the DTO carried — a line priced down to 0 by stock or a catalogue miss
+    // must not let a stale empties count through.
+    if (input.emptiesReturned != null) {
+      const gallons = galonQuantity(items);
+      if (input.emptiesReturned > gallons) {
+        throw new EmptiesReturnedExceedGallonsError(input.emptiesReturned, gallons);
+      }
+    }
+
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
     const order = await this.reserveThenCreate(
       input.depotId,
       {
         orderNumber: await this.newOrderNumber(),
+        trackingToken: this.newTrackingToken(),
         customerId,
         depotId: input.depotId,
         /*
@@ -978,6 +1014,7 @@ export class OrderService {
         // everywhere the two reports name them.
         cashierId: user.sub,
         cashierLabel: user.phone ?? user.sub,
+        emptiesReturned: input.emptiesReturned ?? null,
         idempotencyKey,
         // A pick-up is born COMPLETED, so it earns the fan-out at creation rather than at a
         // later transition. A DELIVERY has completed nothing yet: its stock, points and
@@ -1611,6 +1648,19 @@ export class OrderService {
       throw new OrderNotFoundError();
     }
     return order;
+  }
+
+  /**
+   * #34: the public "lacak pesanan" read. No auth, no depot scope — the token IS the
+   * credential, which is exactly why `findByTrackingToken` answers from its own narrow
+   * projection rather than `OrderRecord`.
+   */
+  async publicTracking(token: string): Promise<PublicTrackingRecord> {
+    const tracking = await this.orders.findByTrackingToken(token);
+    if (!tracking) {
+      throw new OrderNotFoundError();
+    }
+    return tracking;
   }
 
   /** BR-006: a customer may cancel only before a driver is assigned. */
@@ -2422,5 +2472,15 @@ export class OrderService {
     const ymd = localDayKey(now, this.config.businessTimeZone).replace(/-/g, '');
     const seq = await this.orders.nextOrderSequence();
     return `HM-${ymd}-${String(seq).padStart(6, '0')}`;
+  }
+
+  /**
+   * #34: the public tracking link's key. 16 random bytes (128 bits) is far past what an
+   * attacker could ever brute-force through a rate-limited public route — unlike
+   * `orderNumber`, which is sequential and exists to be read in order, this exists to never
+   * be guessed.
+   */
+  private newTrackingToken(): string {
+    return randomBytes(16).toString('base64url');
   }
 }

@@ -703,7 +703,20 @@ describe('LoyaltyCoordinationHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: true, body: { pointsEarned: 42 } }));
     await expect(
       new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
-    ).resolves.toBe(42);
+    ).resolves.toEqual({ points: 42, tierUpgradedTo: null });
+
+    // The tier the earn lifted the customer into rides along; anything that is not a
+    // non-empty string (an older loyalty-service omits it) reads as "no upgrade".
+    fetchMock.mockResolvedValue(res({ ok: true, body: { pointsEarned: 1000, tierUpgradedTo: 'SILVER' } }));
+    await expect(
+      new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+    ).resolves.toEqual({ points: 1000, tierUpgradedTo: 'SILVER' });
+    for (const tierUpgradedTo of [null, '', 7]) {
+      fetchMock.mockResolvedValue(res({ ok: true, body: { pointsEarned: 60, tierUpgradedTo } }));
+      await expect(
+        new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+      ).resolves.toEqual({ points: 60, tierUpgradedTo: null });
+    }
 
     // No count in the body (or an unreadable one) is still a successful award — report
     // unknown rather than a number this service invented from the subtotal.

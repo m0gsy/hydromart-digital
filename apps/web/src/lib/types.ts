@@ -353,6 +353,8 @@ export interface DeliveryOptions {
 export interface Order extends DeliveryAddress {
   id: string;
   orderNumber: string;
+  /** #34: the public "lacak pesanan" link's key. Null for an order placed before it existed. */
+  trackingToken: string | null;
   customerId: string;
   depotId: string | null;
   status: OrderStatus;
@@ -746,6 +748,9 @@ export type NotificationEvent =
   | 'COURIER_INCIDENT'
   | 'DEPOT_SALES_UPDATE'
   | 'POINTS_EARNED'
+  // MEMBERSHIP_TIER_UPGRADED (2026-09): the earn that crosses a tier threshold. Sent right
+  // after POINTS_EARNED for the same order, from the same order-service completion.
+  | 'MEMBERSHIP_TIER_UPGRADED'
   | 'VOUCHER_GRANTED'
   | 'REORDER_REMINDER'
   // Customer-facing, from depot-service's overdue-gallon sweep and order-service's review
@@ -1535,12 +1540,7 @@ export interface CashSettlement {
  * nothing saying what it was for.
  */
 export type CourierLedgerEntryType =
-  | 'EARNING'
-  | 'INCENTIVE'
-  | 'DEDUCTION'
-  | 'CASH_VARIANCE'
-  | 'WITHDRAWAL'
-  | 'ADJUSTMENT';
+  'EARNING' | 'INCENTIVE' | 'DEDUCTION' | 'CASH_VARIANCE' | 'WITHDRAWAL' | 'ADJUSTMENT';
 
 export interface CourierLedgerEntry {
   id: string;
@@ -2604,6 +2604,16 @@ export interface DepotDailyReport {
   byHour: DepotHourBucket[];
   /** Counter sales by the cashier who rang them, biggest first. `cashierId` null = not recorded. */
   perCashier: DepotDailyCashier[];
+  /** #27: counter galon sales split by whether an empty came back at the till. */
+  refillSplit: DepotRefillSplit;
+}
+
+/** #27: counter sales classified by whether the buyer exchanged an empty galon. */
+export interface DepotRefillSplit {
+  refill: number;
+  partial: number;
+  beli: number;
+  notAsked: number;
 }
 
 /** One hour (0..23, business time zone) of a depot report. */
@@ -2701,6 +2711,17 @@ export interface ReportProfitBreakdown {
   payrollIdr: number | null;
 }
 
+// #34: the public "lacak pesanan" projection — deliberately minimal, nothing a stranger
+// holding the link should not see (no recipient name, phone, address, or courier phone).
+export interface PublicTracking {
+  orderNumber: string;
+  status: OrderStatus;
+  city: string;
+  driverFirstName: string | null;
+  estimatedArrivalAt: string | null;
+  statusHistory: { status: OrderStatus; changedAt: string }[];
+}
+
 // One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/
 // activeCustomers are real; slaPct comes from delivery-service and netProfitIdr from
 // depot-service + hr-service — each null when its source could not be read, never 0.
@@ -2766,6 +2787,9 @@ export interface MeterReading {
   closingM3: number | null;
   sourceOpeningM3: number | null;
   sourceClosingM3: number | null;
+  /** #24: 0..100, read at the same two moments. Null = not measured, never 0% full. */
+  openingTankPct: number | null;
+  closingTankPct: number | null;
   openedBy: string;
   openedAt: string;
   closedBy: string | null;
@@ -2774,6 +2798,15 @@ export interface MeterReading {
   note: string | null;
   /** CA-2-53: the version a form edits against. */
   updatedAt: string;
+}
+
+/** #24: the tank read as litres and a rough time-to-empty, never a guessed rate. */
+export interface TankStatus {
+  levelPct: number | null;
+  liters: number | null;
+  capacityLiters: number;
+  avgDailyLiters: number | null;
+  hoursRemaining: number | null;
 }
 
 /**
@@ -2798,6 +2831,7 @@ export interface MeterReconciliation {
   referenceVolumeMl: number;
   toleranceLiters: number;
   overTolerance: boolean;
+  tank: TankStatus;
 }
 
 export interface MeterHistoryRow {
