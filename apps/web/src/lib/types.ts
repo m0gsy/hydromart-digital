@@ -748,6 +748,13 @@ export type NotificationEvent =
   | 'POINTS_EARNED'
   | 'VOUCHER_GRANTED'
   | 'REORDER_REMINDER'
+  // Customer-facing, from depot-service's overdue-gallon sweep and order-service's review
+  // sweep respectively — shipped 2026-09-28 without an entry in either dictionary, so both
+  // rendered as the literal key `notifications.events.…` in real customers' inboxes for a
+  // day. The `satisfies` on each dictionary's `events` map (below) makes that class of gap
+  // a build failure from here on, the way F3 tried to with a per-event test and could not.
+  | 'GALLON_RETURN_REMINDER'
+  | 'REVIEW_REQUEST'
   | 'LEAVE_SUBMITTED'
   | 'LEAVE_APPROVED'
   | 'LEAVE_REJECTED'

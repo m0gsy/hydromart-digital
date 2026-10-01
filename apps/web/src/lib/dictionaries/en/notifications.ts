@@ -1,3 +1,5 @@
+import type { NotificationEvent } from '@/lib/types';
+
 // Notifications inbox (spec 5h). Mirrors id/notifications.ts.
 export const notifications = {
   title: 'Notifications',
@@ -20,6 +22,8 @@ export const notifications = {
     STOCK_LOW: 'Low stock',
     POINTS_EARNED: 'Points earned',
     VOUCHER_GRANTED: 'New voucher',
+    GALLON_RETURN_REMINDER: 'Gallon not returned yet',
+    REVIEW_REQUEST: 'Leave a rating',
     REORDER_REMINDER: 'Time to refill?',
     BROADCAST: 'News from Hydromart',
     STOCK_UNTRACKED: 'Sale with no stock line',
@@ -30,5 +34,5 @@ export const notifications = {
     LEAVE_APPROVED: 'Leave approved',
     LEAVE_REJECTED: 'Leave rejected',
     HR_ANNOUNCEMENT: 'HR announcement',
-  },
+  } satisfies Record<NotificationEvent, string>,
 };

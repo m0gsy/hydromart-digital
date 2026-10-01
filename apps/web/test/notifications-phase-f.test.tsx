@@ -63,6 +63,26 @@ describe('F3 · every event crm can file has a title in both dictionaries', () =
     expect(idDict.notifications.events.BROADCAST).not.toContain('notifications.events');
   });
 
+  /*
+   * F3 repeated itself: GALLON_RETURN_REMINDER and REVIEW_REQUEST shipped in production
+   * for a day (2026-09-28) with no dictionary entry, so both rendered as the literal key
+   * in real customers' inboxes — this test only ever pinned the ONE event F3 named.
+   *
+   * The actual fix is `events: {…} satisfies Record<NotificationEvent, string>` in both
+   * dictionary files, which now fails the BUILD if a new NotificationEvent union member
+   * ships without a title in either language — a compile-time check this per-event test
+   * could never be, since nothing forced anyone to extend it for the next event either.
+   * Kept as a readable regression marker for the two names above.
+   */
+  it('GALLON_RETURN_REMINDER and REVIEW_REQUEST are named, not rendered as their own key', () => {
+    for (const dict of [idDict, enDict]) {
+      expect(dict.notifications.events.GALLON_RETURN_REMINDER).toBeTruthy();
+      expect(dict.notifications.events.REVIEW_REQUEST).toBeTruthy();
+    }
+    expect(idDict.notifications.events.GALLON_RETURN_REMINDER).not.toContain('notifications.events');
+    expect(idDict.notifications.events.REVIEW_REQUEST).not.toContain('notifications.events');
+  });
+
   it('the two dictionaries name exactly the same set of events', () => {
     expect(Object.keys(idDict.notifications.events).sort()).toEqual(
       Object.keys(enDict.notifications.events).sort(),

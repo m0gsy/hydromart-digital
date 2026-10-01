@@ -1,3 +1,5 @@
+import type { NotificationEvent } from '@/lib/types';
+
 // Notifikasi inbox (spec 5h): feed event-triggered dari crm-service.
 export const notifications = {
   title: 'Notifikasi',
@@ -21,6 +23,8 @@ export const notifications = {
     STOCK_LOW: 'Stok menipis',
     POINTS_EARNED: 'Poin bertambah',
     VOUCHER_GRANTED: 'Voucher baru',
+    GALLON_RETURN_REMINDER: 'Galon belum dikembalikan',
+    REVIEW_REQUEST: 'Beri penilaian',
     REORDER_REMINDER: 'Saatnya isi ulang?',
     // F3: kampanye adalah satu-satunya event yang pasti dilihat pelanggan, dan selama ini
     // tampil sebagai string mentah `notifications.events.BROADCAST`.
@@ -34,5 +38,5 @@ export const notifications = {
     LEAVE_APPROVED: 'Cuti disetujui',
     LEAVE_REJECTED: 'Cuti ditolak',
     HR_ANNOUNCEMENT: 'Pengumuman HR',
-  },
+  } satisfies Record<NotificationEvent, string>,
 };
