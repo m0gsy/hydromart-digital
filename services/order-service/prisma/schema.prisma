@@ -53,6 +53,12 @@ model Order {
   customerId  String      @db.Uuid
   status      OrderStatus @default(CREATED)
 
+  /// #34: an unguessable key for the public "lacak pesanan" link — deliberately NOT
+  /// `orderNumber`, which is sequential (`HM-YYYYMMDD-NNNNNN`) and would let a public route
+  /// be enumerated into every other customer's name, phone and address. Null on every order
+  /// placed before this column existed; those have no public link, not a broken one.
+  trackingToken String? @unique
+
   /// Fulfilling depot, resolved at checkout by delivery-address proximity
   /// (nearest active depot within its service radius). Null when the address
   /// has no coordinates or no depot covers it. Powers Top-Depot reporting (FR-098).

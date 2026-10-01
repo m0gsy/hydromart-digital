@@ -50,6 +50,8 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   staffCanComplete?: boolean;
   id: string;
   orderNumber: string;
+  /** #34: the public tracking link's key. Null on every order placed before it existed. */
+  trackingToken: string | null;
   customerId: string;
   depotId: string | null;
   status: OrderStatus;
@@ -137,6 +139,8 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   /** Pre-generated id so stock can be reserved (keyed by order id) before the row is created. */
   id?: string;
   orderNumber: string;
+  /** #34: the public tracking link's key, generated once at creation. */
+  trackingToken: string;
   customerId: string;
   depotId: string | null;
   subtotal: number;
@@ -260,6 +264,22 @@ export interface ReviewRequestTarget {
   customerId: string;
   phone: string;
   recipientName: string;
+}
+
+/**
+ * #34: the public "lacak pesanan" projection. Every field here is safe to hand to anyone
+ * holding the link — no recipient name, phone, address or courier phone. `city` is the
+ * delivery city alone (the order's own snapshot), never the street address.
+ */
+export interface PublicTrackingRecord {
+  orderNumber: string;
+  status: OrderStatus;
+  city: string;
+  /** First name only — a public page shows who is coming, not how to reach them directly. */
+  driverFirstName: string | null;
+  estimatedArrivalAt: Date | null;
+  /** Oldest first. Internal fields (changedBy, note) are deliberately not part of this shape. */
+  statusHistory: { status: OrderStatus; changedAt: Date }[];
 }
 
 /**
@@ -446,6 +466,13 @@ export interface OrderRepository {
   nextOrderSequence(): Promise<number>;
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /**
+   * #34: the narrow read behind the public tracking page. Deliberately its own query, not
+   * `findById` plus a filter in the service — `OrderRecord` carries the recipient's name,
+   * phone and full address, and a public route must never be one missed field away from
+   * handing those to anyone who guesses, or is handed, the link.
+   */
+  findByTrackingToken(token: string): Promise<PublicTrackingRecord | null>;
   /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
   findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
   /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */

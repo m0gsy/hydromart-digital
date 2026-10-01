@@ -1256,6 +1256,7 @@ describe('OrderService.walkInSale', () => {
     it('refuses a delivery order — that is what the refund queue is for', async () => {
       const delivery = await orders.create({
         orderNumber: 'HM-DEL-1',
+        trackingToken: 'track-del-1',
         customerId: randomUUID(),
         depotId: DEPOT,
         status: OrderStatus.COMPLETED,

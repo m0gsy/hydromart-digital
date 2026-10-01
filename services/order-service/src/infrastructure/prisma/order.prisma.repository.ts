@@ -30,6 +30,7 @@ import {
   OrderValue,
   RatingSummary,
   ProductRevenue,
+  PublicTrackingRecord,
   RefillSplit,
   ReportRange,
   RetentionCell,
@@ -114,6 +115,7 @@ interface ReviewRow {
 interface OrderRow {
   id: string;
   orderNumber: string;
+  trackingToken: string | null;
   customerId: string;
   depotId: string | null;
   status: string;
@@ -217,6 +219,7 @@ export class OrderPrismaRepository implements OrderRepository {
     return {
       id: row.id,
       orderNumber: row.orderNumber,
+      trackingToken: row.trackingToken,
       customerId: row.customerId,
       depotId: row.depotId,
       status: row.status as OrderStatus,
@@ -426,6 +429,37 @@ export class OrderPrismaRepository implements OrderRepository {
   async findById(id: string): Promise<OrderRecord | null> {
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
     return row ? this.toRecord(row) : null;
+  }
+
+  /**
+   * #34. Its own `select`, not `findById` plus a filter: a public route is one missed field
+   * away from leaking a name, phone or address, and listing exactly the columns this is
+   * allowed to answer with is what makes that impossible rather than merely unintended.
+   */
+  async findByTrackingToken(token: string): Promise<PublicTrackingRecord | null> {
+    const row = await this.prisma.order.findUnique({
+      where: { trackingToken: token },
+      select: {
+        orderNumber: true,
+        status: true,
+        city: true,
+        driverName: true,
+        estimatedArrivalAt: true,
+        history: { select: { status: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!row) return null;
+    return {
+      orderNumber: row.orderNumber,
+      status: row.status as OrderStatus,
+      city: row.city,
+      driverFirstName: row.driverName ? row.driverName.split(' ')[0] : null,
+      estimatedArrivalAt: row.estimatedArrivalAt,
+      statusHistory: row.history.map((h) => ({
+        status: h.status as OrderStatus,
+        changedAt: h.createdAt,
+      })),
+    };
   }
 
   async findByIdempotencyKey(

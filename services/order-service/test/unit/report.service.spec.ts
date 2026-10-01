@@ -21,6 +21,7 @@ const DEPOT_B = randomUUID();
 function orderData(over: Partial<CreateOrderData>): CreateOrderData {
   return {
     orderNumber: `HM-${randomUUID().slice(0, 8)}`,
+    trackingToken: randomUUID(),
     customerId: over.customerId ?? CUST_A,
     depotId: over.depotId ?? null,
     subtotal: over.total ?? 10000,

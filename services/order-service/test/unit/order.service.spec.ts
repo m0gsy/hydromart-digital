@@ -91,7 +91,10 @@ const unpinnedAddress: DeliveryAddressSnapshot = { ...address, latitude: null, l
  * always: it fails on somebody else's pull request, months later, and reads as their bug.
  */
 const ALWAYS_OPEN = Object.fromEntries(
-  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '00:00', close: '24:00' }]),
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [
+    d,
+    { open: '00:00', close: '24:00' },
+  ]),
 );
 
 const homeDepot = {
@@ -1139,9 +1142,7 @@ describe('OrderService', () => {
 
     const result = await (
       service as unknown as {
-        findOrderValues(
-          ids: string[],
-        ): Promise<
+        findOrderValues(ids: string[]): Promise<
           {
             orderId: string;
             orderNumber: string;
@@ -1437,7 +1438,9 @@ describe('OrderService', () => {
       await addToCart(20000, 1);
       await service.checkout(customer, { deliveryAddress: address });
       notification.calls.length = 0;
-      await expect(service.requestReviews(new Date(Date.now() + 3 * 60 * 60_000))).resolves.toMatchObject({
+      await expect(
+        service.requestReviews(new Date(Date.now() + 3 * 60 * 60_000)),
+      ).resolves.toMatchObject({
         asked: 0,
       });
     });
@@ -2084,7 +2087,9 @@ describe('OrderService', () => {
     it('tells the customer which tier they moved into, right after the points message', async () => {
       loyalty.tierUpgradedTo = 'SILVER';
       const order = await complete();
-      const customerEvents = notification.calls.filter((c) => c.customerId !== null).map((c) => c.event);
+      const customerEvents = notification.calls
+        .filter((c) => c.customerId !== null)
+        .map((c) => c.event);
       expect(customerEvents.slice(-2)).toEqual(['POINTS_EARNED', 'MEMBERSHIP_TIER_UPGRADED']);
       const call = notification.calls.find((c) => c.event === 'MEMBERSHIP_TIER_UPGRADED');
       expect(call).toMatchObject({
@@ -2362,9 +2367,9 @@ describe('OrderService', () => {
           const id = await routed();
           inventory.reserveError = new Error('Insufficient stock at the fulfilling depot');
 
-          await expect(service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok')).rejects.toThrow(
-            'Insufficient stock',
-          );
+          await expect(
+            service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok'),
+          ).rejects.toThrow('Insufficient stock');
 
           expect(inventory.releaseCalls).toHaveLength(0);
           expect((await service.getForCustomer(customer, id)).depotId).toBe(homeDepot.id);
@@ -2376,9 +2381,9 @@ describe('OrderService', () => {
           await service.updateStatus(id, OrderStatus.PREPARING, 'staff-1');
           await service.updateStatus(id, OrderStatus.DRIVER_ASSIGNED, 'staff-1');
 
-          await expect(service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok')).rejects.toBeInstanceOf(
-            OrderNotReroutableError,
-          );
+          await expect(
+            service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok'),
+          ).rejects.toBeInstanceOf(OrderNotReroutableError);
           expect(inventory.reserveCalls).toHaveLength(0);
         });
 
@@ -2394,9 +2399,9 @@ describe('OrderService', () => {
         });
 
         it('404s an order that does not exist, and fails closed while the directory is down', async () => {
-          await expect(service.rerouteDepot(staff, randomUUID(), otherDepot.id)).rejects.toBeInstanceOf(
-            OrderNotFoundError,
-          );
+          await expect(
+            service.rerouteDepot(staff, randomUUID(), otherDepot.id),
+          ).rejects.toBeInstanceOf(OrderNotFoundError);
           const id = await routed();
           depots.unreachable = true;
           // Moving an order into a depot nobody can confirm is active would hand it to one
@@ -3221,6 +3226,71 @@ describe('OrderService', () => {
       await expect(service.assignDepot(routed.id, routed.depotId!)).rejects.toBeInstanceOf(
         OrderAlreadyRoutedError,
       );
+    });
+  });
+
+  // #34: the public "lacak pesanan" read. No depot, no customer — the token alone resolves it.
+  describe('publicTracking', () => {
+    it('refuses an unknown token, same as any other missing order', async () => {
+      await expect(service.publicTracking('nope')).rejects.toBeInstanceOf(OrderNotFoundError);
+    });
+
+    it('generates a real token on checkout, and answers from it without touching OrderRecord', async () => {
+      await addToCart(20_000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(order.trackingToken).toEqual(expect.any(String));
+      expect(order.trackingToken!.length).toBeGreaterThan(15); // 16 random bytes, base64url
+
+      const tracking = await service.publicTracking(order.trackingToken!);
+      expect(tracking).toEqual({
+        orderNumber: order.orderNumber,
+        status: order.status,
+        city: order.city,
+        driverFirstName: null,
+        estimatedArrivalAt: null,
+        statusHistory: expect.arrayContaining([expect.objectContaining({ status: order.status })]),
+      });
+    });
+
+    it('generates a different token for every order — never reused, never the order number', async () => {
+      await addToCart(20_000, 1);
+      const a = await service.checkout(customer, { deliveryAddress: address });
+      await addToCart(20_000, 1);
+      const b = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(a.trackingToken).not.toBe(b.trackingToken);
+      expect(a.trackingToken).not.toBe(a.orderNumber);
+    });
+
+    it('answers a walk-in sale the same way', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 10000 });
+      const walkIn = await service.walkInSale(
+        { sub: 'kd-1', role: 'KEPALA_DEPOT', phone: '08', depotId: homeDepot.id } as never,
+        { depotId: homeDepot.id, lines: [{ productId: p.id, quantity: 1 }] },
+      );
+      const tracking = await service.publicTracking(walkIn.trackingToken!);
+      expect(tracking.orderNumber).toBe(walkIn.orderNumber);
+    });
+
+    it('never carries the recipient name, phone or address — only what a stranger holding the link may see', async () => {
+      await addToCart(20_000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const tracking = (await service.publicTracking(order.trackingToken!)) as unknown as Record<
+        string,
+        unknown
+      >;
+
+      for (const field of [
+        'recipientName',
+        'phone',
+        'addressLine',
+        'postalCode',
+        'latitude',
+        'longitude',
+      ]) {
+        expect(tracking[field]).toBeUndefined();
+      }
     });
   });
 });

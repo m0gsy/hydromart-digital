@@ -23,6 +23,7 @@ function makeService(): Mocked {
   return {
     checkout: jest.fn().mockResolvedValue({ id: 'o1' }),
     walkInSale: jest.fn().mockResolvedValue({ id: 'w1', isWalkIn: true }),
+    publicTracking: jest.fn().mockResolvedValue({ orderNumber: 'HM-1', status: 'ON_DELIVERY' }),
     quoteCounterBasket: jest.fn().mockResolvedValue({
       subtotal: 60000,
       discount: 15000,
@@ -689,5 +690,19 @@ describe('OrderController', () => {
       expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
       expect(Reflect.getMetadata('__guards__', handler)).toContain(InternalAuthGuard);
     }
+  });
+
+  // #34: a stranger holding the link, not a service with the internal key.
+  it('track: truly public — no JWT, no internal key, and forwards the bare token', async () => {
+    await expect(controller.track('tok-123')).resolves.toMatchObject({ orderNumber: 'HM-1' });
+    expect(service.publicTracking).toHaveBeenCalledWith('tok-123');
+
+    const handler = OrderController.prototype.track;
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBe(true);
+    expect(Reflect.getMetadata(ROLES_KEY, handler)).toBeUndefined();
+    expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
+    // Unlike the internal sweeps above: no guard at all, because there is no internal
+    // caller here to hold a key — the token itself is the only credential this route has.
+    expect(Reflect.getMetadata('__guards__', handler) ?? []).not.toContain(InternalAuthGuard);
   });
 });

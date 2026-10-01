@@ -213,6 +213,11 @@ describe('endpoints', () => {
     expect(endpoints.depots.reopenDay('d1')).toBe('/depots/api/v1/depots/d1/daily-close/reopen');
   });
 
+  it('builds the public tracking path (#34), URL-encoding the token', () => {
+    expect(endpoints.orders.track('abc123')).toBe('/orders/api/v1/orders/track/abc123');
+    expect(endpoints.orders.track('a/b c')).toBe('/orders/api/v1/orders/track/a%2Fb%20c');
+  });
+
   it('builds the monthly-close paths (#17), one size up from the daily ones', () => {
     expect(endpoints.depots.monthlyClose('d1', '2026-07')).toBe(
       '/depots/api/v1/depots/d1/monthly-close?businessMonth=2026-07',

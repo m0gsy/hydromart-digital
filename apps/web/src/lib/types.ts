@@ -353,6 +353,8 @@ export interface DeliveryOptions {
 export interface Order extends DeliveryAddress {
   id: string;
   orderNumber: string;
+  /** #34: the public "lacak pesanan" link's key. Null for an order placed before it existed. */
+  trackingToken: string | null;
   customerId: string;
   depotId: string | null;
   status: OrderStatus;
@@ -2707,6 +2709,17 @@ export interface ReportProfitBreakdown {
   cogsIdr: number | null;
   opexIdr: number | null;
   payrollIdr: number | null;
+}
+
+// #34: the public "lacak pesanan" projection — deliberately minimal, nothing a stranger
+// holding the link should not see (no recipient name, phone, address, or courier phone).
+export interface PublicTracking {
+  orderNumber: string;
+  status: OrderStatus;
+  city: string;
+  driverFirstName: string | null;
+  estimatedArrivalAt: string | null;
+  statusHistory: { status: OrderStatus; changedAt: string }[];
 }
 
 // One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/

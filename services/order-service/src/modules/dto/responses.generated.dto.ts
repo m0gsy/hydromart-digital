@@ -143,9 +143,15 @@ export class DepotDailyReportResponseDto {
   failedDeliveries!: number;
   @ApiProperty({ type: [DepotCourierDailyResponseDto] })
   perCourier!: DepotCourierDailyResponseDto[];
-  @ApiProperty({ type: [HourBucketResponseDto], description: 'All 24 hours of the business day; empty hours are zeros.' })
+  @ApiProperty({
+    type: [HourBucketResponseDto],
+    description: 'All 24 hours of the business day; empty hours are zeros.',
+  })
   byHour!: HourBucketResponseDto[];
-  @ApiProperty({ type: [CashierDailyResponseDto], description: 'Counter sales by cashier, biggest first.' })
+  @ApiProperty({
+    type: [CashierDailyResponseDto],
+    description: 'Counter sales by cashier, biggest first.',
+  })
   perCashier!: CashierDailyResponseDto[];
 }
 
@@ -193,7 +199,10 @@ export class DepotWeeklyReportResponseDto {
   slaOnTimePct?: number;
   @ApiProperty({ type: [DepotWeeklyReportRevenueByDayResponseDto] })
   revenueByDay!: DepotWeeklyReportRevenueByDayResponseDto[];
-  @ApiProperty({ type: [HourBucketResponseDto], description: 'The window by hour of day; empty hours are zeros.' })
+  @ApiProperty({
+    type: [HourBucketResponseDto],
+    description: 'The window by hour of day; empty hours are zeros.',
+  })
   byHour!: HourBucketResponseDto[];
   @ApiProperty({ type: [DepotWeeklyReportTopProductsResponseDto] })
   topProducts!: DepotWeeklyReportTopProductsResponseDto[];
@@ -583,6 +592,55 @@ export class OrderStatusHistoryResponseDto {
   note!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+}
+
+/** #34: mirrors `PublicTrackingRecord` exactly — the whole point is that it carries nothing else. */
+export class PublicTrackingStatusResponseDto {
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
+  status!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  changedAt!: string;
+}
+
+export class PublicTrackingResponseDto {
+  @ApiProperty({ type: String })
+  orderNumber!: string;
+  @ApiProperty({
+    enum: [
+      'CREATED',
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'VOIDED',
+    ],
+  })
+  status!: string;
+  @ApiProperty({ type: String })
+  city!: string;
+  @ApiProperty({ type: String, nullable: true })
+  driverFirstName!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  estimatedArrivalAt!: string | null;
+  @ApiProperty({ type: PublicTrackingStatusResponseDto, isArray: true })
+  statusHistory!: PublicTrackingStatusResponseDto[];
 }
 
 /** Mirrors `OrderRecord` exactly — generated for audit D-6, no field added or removed. */

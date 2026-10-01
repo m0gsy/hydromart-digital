@@ -2,7 +2,8 @@
 // Bahasa Indonesia — source of truth for keys. en/order.ts mirrors this shape.
 export const order = {
   cart: {
-    clearConfirm: "Kosongkan {n} barang dari keranjang? Tidak ada undo — keranjangnya harus disusun ulang dari awal.",
+    clearConfirm:
+      'Kosongkan {n} barang dari keranjang? Tidak ada undo — keranjangnya harus disusun ulang dari awal.',
     title: 'Keranjang',
     itemCount: '— {n} item',
     emptyTitle: 'Keranjang masih kosong',
@@ -29,7 +30,8 @@ export const order = {
     trustSealed: 'Tersegel',
   },
   checkout: {
-    resellerNoVoucher: "Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.",
+    resellerNoVoucher:
+      'Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.',
     title: 'Checkout',
     deliveryAddress: 'Alamat pengiriman',
     newAddress: '+ Alamat baru',
@@ -127,6 +129,7 @@ export const order = {
     // Payment instruction sheets (spec 5e)
     copy: 'Salin',
     copied: 'Disalin',
+    shareTracking: 'Bagikan link lacak',
     nominal: 'Nominal',
     /*
      * CA-3-69. Panel gerbang di bawahnya sudah memakai `vaTitle`/`ewalletTitle` dalam
@@ -141,7 +144,8 @@ export const order = {
     vaTitle: 'Virtual account',
     ewalletTitle: 'E-wallet',
     proofTitle: 'Bukti bayar',
-    proofBody: 'Unggah foto bukti transfer atau struk QRIS-nya. Depot melihatnya saat mengecek pembayaran, jadi tidak perlu kirim lewat WhatsApp.',
+    proofBody:
+      'Unggah foto bukti transfer atau struk QRIS-nya. Depot melihatnya saat mengecek pembayaran, jadi tidak perlu kirim lewat WhatsApp.',
     proofPick: 'Pilih foto bukti',
     proofReplace: 'Ganti foto bukti',
     proofUploading: 'Mengunggah…',
@@ -155,9 +159,11 @@ export const order = {
     callDriver: 'Telepon kurir',
     // Cancel-with-reason (spec 10b)
     cancelTitle: 'Batalkan pesanan?',
-    cancelIntro: 'Masih bisa dibatalkan karena depot belum menyiapkan pesanan. Dana yang sudah dibayar akan direfund.',
+    cancelIntro:
+      'Masih bisa dibatalkan karena depot belum menyiapkan pesanan. Dana yang sudah dibayar akan direfund.',
     // H10: shown where the cancel button used to simply vanish.
-    cancelClosed: 'Kurir sudah ditugaskan, jadi pesanan tidak bisa lagi dibatalkan dari sini. Depot masih bisa menghentikannya.',
+    cancelClosed:
+      'Kurir sudah ditugaskan, jadi pesanan tidak bisa lagi dibatalkan dari sini. Depot masih bisa menghentikannya.',
     contactDepot: 'Hubungi depot',
     cancelReasonLabel: 'Alasan',
     cancelConfirm: 'Batalkan pesanan',

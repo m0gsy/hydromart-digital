@@ -365,6 +365,7 @@ describe('OrderPrismaRepository', () => {
 
   const createData: CreateOrderData = {
     orderNumber: 'ORD-0001',
+    trackingToken: 'track-token-0001',
     customerId: 'cust-1',
     depotId: 'depot-1',
     subtotal: 100000,
@@ -547,6 +548,66 @@ describe('OrderPrismaRepository', () => {
   it('returns null when no attempt has used that key', async () => {
     order.findUnique.mockResolvedValue(null);
     await expect(repo.findByIdempotencyKey('cust-1', 'key-1')).resolves.toBeNull();
+  });
+
+  // #34
+  it('answers the public tracking read from its own narrow select, no PII fields in it', async () => {
+    order.findUnique.mockResolvedValue({
+      orderNumber: 'HM-20261001-000001',
+      status: 'ON_DELIVERY',
+      city: 'Jakarta Selatan',
+      driverName: 'Agus Setiawan',
+      estimatedArrivalAt: new Date('2026-10-01T04:30:00.000Z'),
+      history: [
+        { status: 'CONFIRMED', createdAt: new Date('2026-10-01T02:00:00.000Z') },
+        { status: 'ON_DELIVERY', createdAt: new Date('2026-10-01T04:00:00.000Z') },
+      ],
+    });
+
+    const out = await repo.findByTrackingToken('tok-abc');
+
+    expect(out).toEqual({
+      orderNumber: 'HM-20261001-000001',
+      status: 'ON_DELIVERY',
+      city: 'Jakarta Selatan',
+      driverFirstName: 'Agus', // first name only — never the full name or the phone
+      estimatedArrivalAt: new Date('2026-10-01T04:30:00.000Z'),
+      statusHistory: [
+        { status: 'CONFIRMED', changedAt: new Date('2026-10-01T02:00:00.000Z') },
+        { status: 'ON_DELIVERY', changedAt: new Date('2026-10-01T04:00:00.000Z') },
+      ],
+    });
+    expect(order.findUnique).toHaveBeenCalledWith({
+      where: { trackingToken: 'tok-abc' },
+      select: expect.objectContaining({
+        orderNumber: true,
+        status: true,
+        city: true,
+        driverName: true,
+        estimatedArrivalAt: true,
+      }),
+    });
+    // The whole point of the narrow select: these never appear in the mocked call's shape.
+    const select = order.findUnique.mock.calls.at(-1)![0].select;
+    for (const field of ['recipientName', 'phone', 'addressLine', 'postalCode', 'driverPhone']) {
+      expect(select).not.toHaveProperty(field);
+    }
+  });
+
+  it('returns null, and null first-name, for an unknown token / no courier yet', async () => {
+    order.findUnique.mockResolvedValue(null);
+    await expect(repo.findByTrackingToken('nope')).resolves.toBeNull();
+
+    order.findUnique.mockResolvedValue({
+      orderNumber: 'HM-1',
+      status: 'CONFIRMED',
+      city: 'Bekasi',
+      driverName: null,
+      estimatedArrivalAt: null,
+      history: [],
+    });
+    const out = await repo.findByTrackingToken('tok-2');
+    expect(out?.driverFirstName).toBeNull();
   });
 
   it('finds an order by id, mapping reviewed=true when a review row exists', async () => {

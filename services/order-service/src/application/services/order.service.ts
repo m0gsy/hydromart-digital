@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
@@ -68,6 +68,7 @@ import {
   OrderRepository,
   OrderReviewRecord,
   OrderValue,
+  PublicTrackingRecord,
   RatingSummary,
 } from '../ports/order.repository';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
@@ -565,6 +566,7 @@ export class OrderService {
       depot.id,
       {
         orderNumber: await this.newOrderNumber(),
+        trackingToken: this.newTrackingToken(),
         customerId,
         depotId: depot.id,
         subtotal,
@@ -835,6 +837,7 @@ export class OrderService {
       depot.id,
       {
         orderNumber: await this.newOrderNumber(),
+        trackingToken: this.newTrackingToken(),
         customerId,
         depotId: depot.id,
         subtotal,
@@ -993,6 +996,7 @@ export class OrderService {
       input.depotId,
       {
         orderNumber: await this.newOrderNumber(),
+        trackingToken: this.newTrackingToken(),
         customerId,
         depotId: input.depotId,
         /*
@@ -1644,6 +1648,19 @@ export class OrderService {
       throw new OrderNotFoundError();
     }
     return order;
+  }
+
+  /**
+   * #34: the public "lacak pesanan" read. No auth, no depot scope — the token IS the
+   * credential, which is exactly why `findByTrackingToken` answers from its own narrow
+   * projection rather than `OrderRecord`.
+   */
+  async publicTracking(token: string): Promise<PublicTrackingRecord> {
+    const tracking = await this.orders.findByTrackingToken(token);
+    if (!tracking) {
+      throw new OrderNotFoundError();
+    }
+    return tracking;
   }
 
   /** BR-006: a customer may cancel only before a driver is assigned. */
@@ -2455,5 +2472,15 @@ export class OrderService {
     const ymd = localDayKey(now, this.config.businessTimeZone).replace(/-/g, '');
     const seq = await this.orders.nextOrderSequence();
     return `HM-${ymd}-${String(seq).padStart(6, '0')}`;
+  }
+
+  /**
+   * #34: the public tracking link's key. 16 random bytes (128 bits) is far past what an
+   * attacker could ever brute-force through a rate-limited public route — unlike
+   * `orderNumber`, which is sequential and exists to be read in order, this exists to never
+   * be guessed.
+   */
+  private newTrackingToken(): string {
+    return randomBytes(16).toString('base64url');
   }
 }

@@ -27,6 +27,7 @@ import {
   OrderValue,
   RatingSummary,
   ProductRevenue,
+  PublicTrackingRecord,
   RefillSplit,
   ReportRange,
   RetentionCell,
@@ -273,6 +274,19 @@ export class InMemoryOrderRepository implements OrderRepository {
     }
     return structuredClone(rec);
   }
+  async findByTrackingToken(token: string): Promise<PublicTrackingRecord | null> {
+    const row = this.rows.find((r) => r.trackingToken === token);
+    if (!row) return null;
+    return {
+      orderNumber: row.orderNumber,
+      status: row.status,
+      city: row.city,
+      driverFirstName: row.driverName ? row.driverName.split(' ')[0] : null,
+      estimatedArrivalAt: row.estimatedArrivalAt,
+      statusHistory: row.history.map((h) => ({ status: h.status, changedAt: h.createdAt })),
+    };
+  }
+
   async findById(id: string): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
