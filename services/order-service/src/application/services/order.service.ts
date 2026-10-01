@@ -18,6 +18,7 @@ import {
   CounterBasketChangedError,
   CounterDeliveryUnavailableError,
   DuplicateCheckoutError,
+  EmptiesReturnedExceedGallonsError,
   EmptyCartError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
@@ -158,6 +159,11 @@ export interface WalkInSaleInput {
    * ongkir was not "forgotten", the path did not exist.
    */
   deliveryAddress?: DeliveryAddressSnapshot | null;
+  /**
+   * #27: empty galon the buyer handed over AT this sale. Undefined/omitted = not asked;
+   * validated against the priced basket's own galon count once that is known.
+   */
+  emptiesReturned?: number | null;
 }
 
 export interface CheckoutInput {
@@ -971,6 +977,16 @@ export class OrderService {
         shippingFee,
       );
 
+    // #27: validated against the PRICED basket's own galon count, not the raw line
+    // quantities the DTO carried — a line priced down to 0 by stock or a catalogue miss
+    // must not let a stale empties count through.
+    if (input.emptiesReturned != null) {
+      const gallons = galonQuantity(items);
+      if (input.emptiesReturned > gallons) {
+        throw new EmptiesReturnedExceedGallonsError(input.emptiesReturned, gallons);
+      }
+    }
+
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
     const order = await this.reserveThenCreate(
@@ -994,6 +1010,7 @@ export class OrderService {
         // everywhere the two reports name them.
         cashierId: user.sub,
         cashierLabel: user.phone ?? user.sub,
+        emptiesReturned: input.emptiesReturned ?? null,
         idempotencyKey,
         // A pick-up is born COMPLETED, so it earns the fan-out at creation rather than at a
         // later transition. A DELIVERY has completed nothing yet: its stock, points and

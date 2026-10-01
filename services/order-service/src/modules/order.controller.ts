@@ -179,6 +179,7 @@ export class OrderController {
         customerPhone: dto.customerPhone ?? null,
         voucherCode: dto.voucherCode ?? null,
         idempotencyKey: idempotencyKey ?? null,
+        emptiesReturned: dto.emptiesReturned ?? null,
         // C11: present = deliver it, absent = the counter behaviour that was always here.
         // Mapped field by field like checkout, so an optional DTO field cannot arrive as
         // `undefined` in a column the snapshot declares as nullable-but-present.
@@ -809,7 +810,12 @@ export class OrderController {
   @ApiOperation({ summary: 'Read an order total for payment validation (internal service auth)' })
   async internalTotal(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ orderId: string; total: number; customerId: string | null; depotId: string | null }> {
+  ): Promise<{
+    orderId: string;
+    total: number;
+    customerId: string | null;
+    depotId: string | null;
+  }> {
     const order = await this.orders.getAny(id);
     /*
      * PAY-4: the owner travels with the total.

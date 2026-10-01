@@ -6,6 +6,7 @@ import { SettingRow, SettingsCache, localDayKey } from '@hydromart/platform';
 import { OrderConfigService } from '../../src/config/order-config.service';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
 import { OrderStatus } from '../../src/domain/order-status';
+import { galonQuantity } from '../../src/domain/pricing';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
   CashierSales,
@@ -26,6 +27,7 @@ import {
   OrderValue,
   RatingSummary,
   ProductRevenue,
+  RefillSplit,
   ReportRange,
   RetentionCell,
   ReviewRequestTarget,
@@ -712,6 +714,25 @@ export class InMemoryOrderRepository implements OrderRepository {
       by.set(key, cur);
     }
     return [...by.values()].sort((a, b) => b.revenue - a.revenue);
+  }
+
+  async refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit> {
+    type WithEmpties = OrderRecord & { emptiesReturned?: number | null };
+    const split: RefillSplit = { refill: 0, partial: 0, beli: 0, notAsked: 0 };
+    for (const row of this.rows) {
+      if (row.depotId !== depotId || !row.isWalkIn) continue;
+      if (row.status === OrderStatus.CANCELLED || row.status === OrderStatus.VOIDED) continue;
+      if (range.from && row.createdAt < range.from) continue;
+      if (range.to && row.createdAt >= range.to) continue;
+      const gallons = galonQuantity(row.items);
+      if (gallons === 0) continue;
+      const { emptiesReturned = null } = row as WithEmpties;
+      if (emptiesReturned === null) split.notAsked += 1;
+      else if (emptiesReturned >= gallons) split.refill += 1;
+      else if (emptiesReturned > 0) split.partial += 1;
+      else split.beli += 1;
+    }
+    return split;
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {

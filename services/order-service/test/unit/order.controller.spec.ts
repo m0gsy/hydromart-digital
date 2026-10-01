@@ -202,8 +202,15 @@ describe('OrderController', () => {
   // The one route that may mint an account, and it only runs when the cashier taps.
   it('identifies a buyer on request, and only on request', async () => {
     const dto = { depotId: 'depot-1', phone: '08123', name: 'Budi' } as never;
-    await expect(controller.walkInIdentify(dto, 'Bearer t')).resolves.toEqual({ customerId: 'buyer-9' });
-    expect(service.identifyCounterBuyer).toHaveBeenCalledWith('depot-1', '08123', 'Budi', 'Bearer t');
+    await expect(controller.walkInIdentify(dto, 'Bearer t')).resolves.toEqual({
+      customerId: 'buyer-9',
+    });
+    expect(service.identifyCounterBuyer).toHaveBeenCalledWith(
+      'depot-1',
+      '08123',
+      'Budi',
+      'Bearer t',
+    );
   });
 
   it('passes a null name rather than an empty one', async () => {
@@ -234,7 +241,20 @@ describe('OrderController', () => {
       deliveryAddress: null,
       voucherCode: null,
       idempotencyKey: null,
+      emptiesReturned: null,
     });
+  });
+
+  it('walk-in: forwards emptiesReturned (#27) when the cashier recorded one', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const dto = {
+      depotId: 'd1',
+      lines: [{ productId: 'p1', quantity: 2 }],
+      emptiesReturned: 2,
+    } as never;
+    await controller.walkIn(staff, dto, 'Bearer t');
+    const [, payload] = service.walkInSale.mock.calls[0];
+    expect(payload).toMatchObject({ emptiesReturned: 2 });
   });
 
   // `now` comes from the controller, not the client: a cashier who could name the moment
@@ -324,7 +344,11 @@ describe('OrderController', () => {
 
   it('listManaged: lets HQ read the unrouted tray but refuses a depot-scoped caller', async () => {
     await controller.listManaged(admin, { unrouted: true, limit: 10 } as never);
-    expect(service.listAll).toHaveBeenCalledWith({ unrouted: true, limit: 10, depotIds: undefined });
+    expect(service.listAll).toHaveBeenCalledWith({
+      unrouted: true,
+      limit: 10,
+      depotIds: undefined,
+    });
 
     const manager = { sub: 'mgr-1', role: Role.MANAGER, depotIds: ['depot-a'] } as never;
     await expect(

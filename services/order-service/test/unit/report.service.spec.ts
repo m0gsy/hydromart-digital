@@ -13,7 +13,6 @@ import { OrderConfigService } from '../../src/config/order-config.service';
 const reportTestConfig = (timeZone = 'Asia/Jakarta'): OrderConfigService =>
   ({ businessTimeZone: timeZone }) as OrderConfigService;
 
-
 const CUST_A = randomUUID();
 const CUST_B = randomUUID();
 const DEPOT_A = randomUUID();
@@ -78,7 +77,13 @@ describe('ReportService', () => {
     const live = await repo.create(orderData({ depotId: DEPOT_A, total: 40000 }));
     await repo.recordRefund(live.id, 40000);
     const cancelledRefunded = await repo.create(orderData({ depotId: DEPOT_B, total: 15000 }));
-    await repo.applyStatus(cancelledRefunded.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
+    await repo.applyStatus(
+      cancelledRefunded.id,
+      OrderStatus.CREATED,
+      OrderStatus.CANCELLED,
+      null,
+      null,
+    );
     await repo.recordRefund(cancelledRefunded.id, 15000);
 
     const { items } = await reports.refundsByDepot({});
@@ -424,13 +429,7 @@ describe('ReportService', () => {
         ),
         depotCash: jest.fn(async () => 25000),
       };
-      const svc = new ReportService(
-        r,
-        reportTestConfig(),
-        undefined,
-        undefined,
-        cash as never,
-      );
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, cash as never);
 
       const rep = await svc.depotDaily(depot, day);
 
@@ -519,13 +518,7 @@ describe('ReportService', () => {
         cashByOrder: jest.fn(async () => []),
         depotCash: jest.fn(async () => 0),
       };
-      const svc = new ReportService(
-        r,
-        reportTestConfig(),
-        undefined,
-        undefined,
-        cash as never,
-      );
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, cash as never);
 
       const rep = await svc.depotDaily(depot, day);
       expect(cash.cashByOrder).not.toHaveBeenCalled();
@@ -662,7 +655,15 @@ describe('ReportService', () => {
       ...over,
     });
     const svcWith = (r: InMemoryOrderRepository, port: unknown) =>
-      new ReportService(r, reportTestConfig(), undefined, undefined, undefined, undefined, port as never);
+      new ReportService(
+        r,
+        reportTestConfig(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        port as never,
+      );
 
     const withRevenue = async (r: InMemoryOrderRepository, depot: string, total: number) => {
       const o = await r.create({ ...orderData({ depotId: depot, total }) });
@@ -749,7 +750,10 @@ describe('ReportService', () => {
    * permanently "—" is a screen nobody opens.
    */
   describe('cross-depot compare — the three columns that were permanently "—"', () => {
-    const RANGE = { from: new Date('2026-06-30T17:00:00.000Z'), to: new Date('2026-07-31T17:00:00.000Z') };
+    const RANGE = {
+      from: new Date('2026-06-30T17:00:00.000Z'),
+      to: new Date('2026-07-31T17:00:00.000Z'),
+    };
 
     const build = (r: InMemoryOrderRepository) =>
       new ReportService(
@@ -1232,6 +1236,70 @@ describe('ReportService', () => {
     });
   });
 
+  describe('refill vs beli split (#27)', () => {
+    const day = '2026-07-15';
+    const at = new Date(`${day}T03:00:00.000Z`);
+    const galonLine = (quantity: number) => [
+      {
+        productId: randomUUID(),
+        productName: 'Galon 19L',
+        sku: 'G19',
+        unit: 'Galon',
+        volumeMl: 19000,
+        isGallon: true,
+        unitPrice: 20000,
+        quantity,
+        lineTotal: 20000 * quantity,
+      },
+    ];
+
+    const counterSale = async (
+      r: InMemoryOrderRepository,
+      depot: string,
+      quantity: number,
+      emptiesReturned: number | null,
+      status: OrderStatus = OrderStatus.COMPLETED,
+    ) => {
+      const o = await r.create({
+        ...orderData({ depotId: depot, total: 20000 * quantity }),
+        items: galonLine(quantity),
+        isWalkIn: true,
+        status,
+        emptiesReturned,
+      } as CreateOrderData);
+      r.rows.find((x) => x.id === o.id)!.createdAt = at;
+    };
+
+    it('separates full exchange, partial exchange, no exchange and not asked', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await counterSale(r, depot, 3, 3); // refill
+      await counterSale(r, depot, 3, 1); // partial
+      await counterSale(r, depot, 2, 0); // beli
+      await counterSale(r, depot, 1, null); // not asked
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.refillSplit).toEqual({ refill: 1, partial: 1, beli: 1, notAsked: 1 });
+    });
+
+    it('never counts a voided sale, the same rule every revenue figure here follows', async () => {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      await counterSale(r, depot, 2, 2, OrderStatus.VOIDED);
+
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.refillSplit).toEqual({ refill: 0, partial: 0, beli: 0, notAsked: 0 });
+    });
+
+    it('is all zeros for a depot that sold no galon at the till', async () => {
+      const svc = new ReportService(new InMemoryOrderRepository(), reportTestConfig());
+      const rep = await svc.depotDaily(randomUUID(), day);
+      expect(rep.refillSplit).toEqual({ refill: 0, partial: 0, beli: 0, notAsked: 0 });
+    });
+  });
+
   it('compares depots: real orders/revenue, zeroes for empty depots, cancelled excluded', async () => {
     const empty = randomUUID();
     const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {});
@@ -1360,7 +1428,8 @@ describe('ReportService', () => {
 // the empty/absent shapes a real depot hits on a quiet week, driven off a stubbed repository
 // so the exact aggregate rows can be dictated.
 describe('ReportService empty and absent shapes', () => {
-  const stub = (over: Record<string, unknown>): ReportService => new ReportService(over as never, reportTestConfig());
+  const stub = (over: Record<string, unknown>): ReportService =>
+    new ReportService(over as never, reportTestConfig());
 
   it('gives every product a zero share when nothing sold', async () => {
     const svc = stub({
@@ -1509,7 +1578,12 @@ describe('ReportService empty and absent shapes', () => {
     it('reports no percentage at all when last month sold nothing', async () => {
       const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 120)], []);
       const out = await svc.reportsDepotMonthly('d1', '2026-05');
-      expect(out).toMatchObject({ gallons: 120, prevGallons: 0, gallonsDelta: 120, growthPct: null });
+      expect(out).toMatchObject({
+        gallons: 120,
+        prevGallons: 0,
+        gallonsDelta: 120,
+        growthPct: null,
+      });
     });
 
     it('counts only delivered gallons — a cancelled or in-flight order is not a sale', async () => {
@@ -1760,7 +1834,12 @@ describe('ReportService.broadcastDailySales', () => {
       repo,
       paymentCash,
     });
-    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 0, ok: true });
+    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({
+      attempted: 1,
+      skipped: 0,
+      failed: 0,
+      ok: true,
+    });
     expect(notify).toHaveBeenCalledWith(
       'DEPOT_SALES_UPDATE',
       '0811',
@@ -1827,7 +1906,12 @@ describe('ReportService.broadcastDailySales', () => {
       ],
       { repo },
     );
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 1, ok: true });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({
+      attempted: 1,
+      skipped: 0,
+      failed: 1,
+      ok: true,
+    });
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0]?.[1]).toBe('0822');
   });
@@ -1836,7 +1920,12 @@ describe('ReportService.broadcastDailySales', () => {
   // it would make an unfilled field look like a depot that sold nothing.
   it('falls back to the ops number when the depot has none', async () => {
     const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: null }]);
-    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 0, ok: true });
+    await expect(svc.broadcastDailySales('sore')).resolves.toEqual({
+      attempted: 1,
+      skipped: 0,
+      failed: 0,
+      ok: true,
+    });
     expect(notify.mock.calls[0]?.[1]).toBe('0800-ops');
     expect(notify.mock.calls[0]?.[2]).toMatchObject({ slot: 'sore' });
   });
@@ -1845,7 +1934,12 @@ describe('ReportService.broadcastDailySales', () => {
     const { svc, notify } = build([{ id: 'd1', name: 'D', contactPhone: null }], {
       alertPhone: '',
     });
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 1, failed: 0, ok: true });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({
+      attempted: 0,
+      skipped: 1,
+      failed: 0,
+      ok: true,
+    });
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -1864,18 +1958,33 @@ describe('ReportService.broadcastDailySales', () => {
       ],
       { notify },
     );
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 1, skipped: 0, failed: 1, ok: true });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({
+      attempted: 1,
+      skipped: 0,
+      failed: 1,
+      ok: true,
+    });
   });
 
   it('does nothing when depot-service cannot answer', async () => {
     const { svc, notify } = build(null);
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0, failed: 0, ok: false });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({
+      attempted: 0,
+      skipped: 0,
+      failed: 0,
+      ok: false,
+    });
     expect(notify).not.toHaveBeenCalled();
   });
 
   // The ports are optional so every two-argument ReportService in these tests still builds.
   it('does nothing at all when the ports are not wired', async () => {
     const svc = new ReportService(new InMemoryOrderRepository(), config);
-    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({ attempted: 0, skipped: 0, failed: 0, ok: false });
+    await expect(svc.broadcastDailySales('siang')).resolves.toEqual({
+      attempted: 0,
+      skipped: 0,
+      failed: 0,
+      ok: false,
+    });
   });
 });

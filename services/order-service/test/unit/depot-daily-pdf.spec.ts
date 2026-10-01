@@ -60,6 +60,7 @@ const report = (over: Partial<DepotDailyReport> = {}): DepotDailyReport => ({
   perCourier: [],
   byHour: Array.from({ length: 24 }, (_, hour) => ({ hour, orders: 0, revenueIdr: 0 })),
   perCashier: [],
+  refillSplit: { refill: 0, partial: 0, beli: 0, notAsked: 0 },
   ...over,
 });
 
@@ -171,6 +172,19 @@ describe('depotDailyPdf', () => {
     expect(full).toEqual(expect.arrayContaining(['Ringkasan kurir', 'Agus', 'Dedi']));
     // 09:00 is the only hour with orders; the empty ones are not printed as rows.
     expect(full.filter((c) => /^\d\d:00$/.test(c))).toEqual(['09:00']);
+  });
+
+  // #27
+  it('adds the refill-vs-beli section only when there was a galon counter sale to classify', async () => {
+    const bare = cellsOf(await render(report(), [row(1)]));
+    expect(bare).not.toContain('Galon isi ulang vs beli baru');
+
+    const full = cellsOf(
+      await render(report({ refillSplit: { refill: 5, partial: 2, beli: 3, notAsked: 1 } }), [
+        row(1),
+      ]),
+    );
+    expect(full).toEqual(expect.arrayContaining(['Galon isi ulang vs beli baru', '5', '2', '3']));
   });
 
   it('breaks onto more pages, repeating the header, instead of running off the sheet', async () => {

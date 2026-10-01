@@ -1538,12 +1538,7 @@ export interface CashSettlement {
  * nothing saying what it was for.
  */
 export type CourierLedgerEntryType =
-  | 'EARNING'
-  | 'INCENTIVE'
-  | 'DEDUCTION'
-  | 'CASH_VARIANCE'
-  | 'WITHDRAWAL'
-  | 'ADJUSTMENT';
+  'EARNING' | 'INCENTIVE' | 'DEDUCTION' | 'CASH_VARIANCE' | 'WITHDRAWAL' | 'ADJUSTMENT';
 
 export interface CourierLedgerEntry {
   id: string;
@@ -2607,6 +2602,16 @@ export interface DepotDailyReport {
   byHour: DepotHourBucket[];
   /** Counter sales by the cashier who rang them, biggest first. `cashierId` null = not recorded. */
   perCashier: DepotDailyCashier[];
+  /** #27: counter galon sales split by whether an empty came back at the till. */
+  refillSplit: DepotRefillSplit;
+}
+
+/** #27: counter sales classified by whether the buyer exchanged an empty galon. */
+export interface DepotRefillSplit {
+  refill: number;
+  partial: number;
+  beli: number;
+  notAsked: number;
 }
 
 /** One hour (0..23, business time zone) of a depot report. */

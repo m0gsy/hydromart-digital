@@ -170,6 +170,24 @@ export function depotDailyPdf(
     rowOf(kv, [k, v]);
   }
 
+  const { refill, partial, beli } = report.refillSplit;
+  if (refill + partial + beli > 0) {
+    heading('Galon isi ulang vs beli baru');
+    const cols: Col[] = [
+      { x: left, w: 260 },
+      { x: left + 270, w: 110, right: true },
+    ];
+    table(
+      cols,
+      ['Jenis', 'Nota'],
+      [
+        ['Isi ulang (galon kosong ditukar penuh)', String(refill)],
+        ['Sebagian (galon kosong ditukar sebagian)', String(partial)],
+        ['Beli baru (tanpa galon kosong)', String(beli)],
+      ],
+    );
+  }
+
   if (report.perCashier.length > 0) {
     heading('Penjualan konter per kasir');
     const cols: Col[] = [

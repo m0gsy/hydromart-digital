@@ -158,6 +158,12 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   cashierId?: string | null;
   cashierLabel?: string | null;
   /**
+   * #27: empty galon the buyer handed over AT this counter sale. Written only by the
+   * walk-in path, same reasoning as `cashierId` above — read by exactly one report
+   * (`refillSplitForDepot`), not on `OrderRecord`.
+   */
+  emptiesReturned?: number | null;
+  /**
    * Side effects the order owes the moment it exists, written in the same transaction
    * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
    * fan-out at creation rather than at a later transition.
@@ -266,6 +272,22 @@ export interface CashierSales {
   cashierLabel: string | null;
   orderCount: number;
   revenue: number;
+}
+
+/**
+ * #27: counter sales split by whether the buyer exchanged an empty galon at the till.
+ * `notAsked` is sales where the cashier never recorded an answer — a delivery order, or a
+ * counter sale rung before this column existed — kept separate rather than folded into
+ * `beli`, which would read as "nobody brings their own gallon here" when nobody was asked.
+ */
+export interface RefillSplit {
+  /** Every galon in the sale was exchanged for an empty. */
+  refill: number;
+  /** Some but not all galons were exchanged. */
+  partial: number;
+  /** No empty was handed over. */
+  beli: number;
+  notAsked: number;
 }
 
 /** Shipping (ongkir) billed per depot over a range — reconciliation 22a. */
@@ -643,6 +665,13 @@ export interface OrderRepository {
    * shape the rest of this file already refuses.
    */
   cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]>;
+  /**
+   * #27: counter sales classified by whether the buyer handed over an empty galon AT the
+   * sale — refill (every galon exchanged), beli (none exchanged), or partial (some but not
+   * all). Only sales where the cashier was asked (`emptiesReturned` not null) count; a
+   * delivery order or a sale from before this column existed is neither, not "beli".
+   */
+  refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit>;
   /**
    * J12: a named set of customers' orders in a window, across every depot.
    *

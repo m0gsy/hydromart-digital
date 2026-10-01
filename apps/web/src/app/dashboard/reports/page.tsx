@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ChartBar, Drop, Export, Lock, Truck, Warning } from '@phosphor-icons/react';
 
 import { CashierSales } from '@/components/dashboard/cashier-sales';
+import { RefillSplit } from '@/components/dashboard/refill-split';
 import { HourChart } from '@/components/dashboard/hour-chart';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -20,7 +21,11 @@ import { useT } from '@/lib/locale-context';
 import type { DepotDailyReport, DepotWeeklyReport } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
 
-const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+const DAY_LABEL = new Intl.DateTimeFormat('id-ID', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});
 const today = () => todayWib();
 
 /** One order of the exported day, as order-service returns it. */
@@ -248,7 +253,10 @@ function CloseBooks({ depotId, date }: { depotId: string; date: string }) {
         </p>
       )}
       {error && (
-        <p className="max-w-[280px] text-right text-[11px] font-medium text-[color:var(--danger)]" role="alert">
+        <p
+          className="max-w-[280px] text-right text-[11px] font-medium text-[color:var(--danger)]"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -349,9 +357,15 @@ function Harian({ depotId, depotName }: { depotId: string; depotName?: string })
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wide text-muted">
                     <th className="px-4 py-2 font-semibold">{t('opsFix.reports.courier')}</th>
-                    <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.done')}</th>
-                    <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.failed')}</th>
-                    <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.cod')}</th>
+                    <th className="px-4 py-2 text-right font-semibold">
+                      {t('opsFix.reports.done')}
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold">
+                      {t('opsFix.reports.failed')}
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold">
+                      {t('opsFix.reports.cod')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -374,19 +388,26 @@ function Harian({ depotId, depotName }: { depotId: string; depotName?: string })
 
           <CashierSales rows={rep.data.perCashier} />
 
+          <RefillSplit split={rep.data.refillSplit} />
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex items-center gap-2 text-sm font-extrabold">
-                <Drop size={18} weight="fill" className="text-brand-500" /> {t('opsFix.reports.gallons')}
+                <Drop size={18} weight="fill" className="text-brand-500" />{' '}
+                {t('opsFix.reports.gallons')}
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                {([
-                  [t('opsFix.reports.gallonsIn'), rep.data.gallonsReturned],
-                  [t('opsFix.reports.gallonsOut'), rep.data.gallonsDelivered],
-                  [t('opsFix.reports.gallonsDamaged'), rep.data.gallonsDamaged],
-                ] as [string, number | null][]).map(([label, n]) => (
+                {(
+                  [
+                    [t('opsFix.reports.gallonsIn'), rep.data.gallonsReturned],
+                    [t('opsFix.reports.gallonsOut'), rep.data.gallonsDelivered],
+                    [t('opsFix.reports.gallonsDamaged'), rep.data.gallonsDamaged],
+                  ] as [string, number | null][]
+                ).map(([label, n]) => (
                   <div key={label} className="rounded-xl bg-[color:var(--surface-soft)] py-3">
-                    <div className="text-lg font-extrabold tabular-nums">{n === null ? '—' : n}</div>
+                    <div className="text-lg font-extrabold tabular-nums">
+                      {n === null ? '—' : n}
+                    </div>
                     <div className="text-[11px] text-muted">{label}</div>
                   </div>
                 ))}
@@ -397,9 +418,7 @@ function Harian({ depotId, depotName }: { depotId: string; depotName?: string })
               <Warning size={20} weight="fill" className="mt-0.5 text-[color:var(--warning)]" />
               <div>
                 <p className="text-sm font-extrabold">{t('opsFix.reports.lowStockTitle')}</p>
-                <p className="text-[12.5px] text-muted">
-                  {t('opsFix.reports.lowStockBody')}
-                </p>
+                <p className="text-[12.5px] text-muted">{t('opsFix.reports.lowStockBody')}</p>
               </div>
             </Card>
           </div>
@@ -439,10 +458,13 @@ function Mingguan({ depotId }: { depotId: string }) {
 
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-sm font-extrabold">
-          <ChartBar size={18} weight="fill" className="text-brand-500" /> {t('opsFix.reports.revenuePerDay')}
+          <ChartBar size={18} weight="fill" className="text-brand-500" />{' '}
+          {t('opsFix.reports.revenuePerDay')}
         </div>
         {rep.data.revenueByDay.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">{t('opsFix.reports.noRevenueThisWeek')}</p>
+          <p className="py-6 text-center text-sm text-muted">
+            {t('opsFix.reports.noRevenueThisWeek')}
+          </p>
         ) : (
           <div className="flex items-end gap-2" style={{ height: 160 }}>
             {rep.data.revenueByDay.map((d) => (
@@ -452,7 +474,9 @@ function Mingguan({ depotId }: { depotId: string }) {
                   style={{ height: `${Math.round((d.revenueIdr / peak) * 120) + 4}px` }}
                   title={formatIDR(d.revenueIdr)}
                 />
-                <span className="truncate text-[10px] text-muted">{DAY_LABEL.format(new Date(d.day))}</span>
+                <span className="truncate text-[10px] text-muted">
+                  {DAY_LABEL.format(new Date(d.day))}
+                </span>
               </div>
             ))}
           </div>
@@ -514,7 +538,10 @@ function Body() {
 
   if (!scopedId) {
     return (
-      <CenterState title={t('opsFix.reports.pickDepot')} icon={<ChartBar size={40} weight="fill" />}>
+      <CenterState
+        title={t('opsFix.reports.pickDepot')}
+        icon={<ChartBar size={40} weight="fill" />}
+      >
         {t('opsFix.reports.pickDepotBody')}
       </CenterState>
     );
@@ -556,7 +583,10 @@ function Gate() {
   // alongside the dashboard capability held by managers/HQ.
   if (!isStaff(customer?.role) && !canViewDashboard(customer?.role)) {
     return (
-      <CenterState title={t('hrFix.depotReports.staffOnly')} icon={<Lock size={40} weight="fill" />}>
+      <CenterState
+        title={t('hrFix.depotReports.staffOnly')}
+        icon={<Lock size={40} weight="fill" />}
+      >
         {t('opsFix.reports.gateBody2')}
       </CenterState>
     );

@@ -535,6 +535,18 @@ export class WalkInSaleDto {
   @IsString()
   @MaxLength(40)
   voucherCode?: string;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description:
+      '#27: empty galon the buyer handed over at this sale. Omit when not asked; the ' +
+      'service refuses a count above the galon lines actually sold.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  emptiesReturned?: number;
 }
 
 /** Reversing a counter sale. The reason is required: a short drawer needs its account. */

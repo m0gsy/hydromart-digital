@@ -4,6 +4,7 @@ import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platf
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { OrderStatus } from '../../domain/order-status';
+import { galonQuantity } from '../../domain/pricing';
 import {
   DuplicateCheckoutError,
   OrderAlreadyVoidedError,
@@ -29,6 +30,7 @@ import {
   OrderValue,
   RatingSummary,
   ProductRevenue,
+  RefillSplit,
   ReportRange,
   RetentionCell,
   ReviewRequestTarget,
@@ -816,7 +818,10 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async shippingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotShipping[]> {
+  async shippingByDepot(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<DepotShipping[]> {
     const rows = await this.prisma.order.groupBy({
       by: ['depotId'],
       where: { ...this.reportWhere(range), depotId: this.depotFilter(depotIds) },
@@ -1160,6 +1165,39 @@ export class OrderPrismaRepository implements OrderRepository {
       orderCount: r._count._all,
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
     }));
+  }
+
+  /**
+   * #27. Not a `groupBy`: the bucket a sale falls into depends on `emptiesReturned` against
+   * the gallon count on ITS OWN items, a per-row comparison Prisma cannot express as an
+   * aggregate. Only the two columns a classification needs are selected, so this stays a
+   * narrow read rather than `ordersForDepot` (full `OrderRecord`, every field, every item
+   * column) run through a filter.
+   */
+  async refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit> {
+    const rows = await this.prisma.order.findMany({
+      where: { ...this.reportWhere(range), depotId, isWalkIn: true },
+      select: {
+        emptiesReturned: true,
+        items: { where: { isGallon: true }, select: { isGallon: true, quantity: true } },
+      },
+    });
+    const split: RefillSplit = { refill: 0, partial: 0, beli: 0, notAsked: 0 };
+    for (const row of rows) {
+      const gallons = galonQuantity(row.items);
+      // A sale with no galon line has nothing to classify — not a galon sale at all.
+      if (gallons === 0) continue;
+      if (row.emptiesReturned === null) {
+        split.notAsked += 1;
+      } else if (row.emptiesReturned >= gallons) {
+        split.refill += 1;
+      } else if (row.emptiesReturned > 0) {
+        split.partial += 1;
+      } else {
+        split.beli += 1;
+      }
+    }
+    return split;
   }
 
   /**

@@ -88,6 +88,13 @@ model Order {
   cashierId      String?
   cashierLabel   String?
 
+  /// #27: empty galon the buyer handed over AT this counter sale, for the refill-vs-beli
+  /// split in the daily report. Null = not asked (a delivery order, or a counter sale
+  /// written before this column existed) — distinct from 0, which means asked and the
+  /// buyer brought none. Does NOT change the gallon-issue deposit ledger in depot-service;
+  /// that still nets an empty returned later through the existing return flow.
+  emptiesReturned Int?
+
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 
