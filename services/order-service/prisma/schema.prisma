@@ -216,6 +216,12 @@ model MeterReading {
   closingM3       Decimal?  @db.Decimal(12, 3)
   sourceOpeningM3 Decimal?  @db.Decimal(12, 3)
   sourceClosingM3 Decimal?  @db.Decimal(12, 3)
+  /// #24: how full the storage tank reads, 0..100, at the same two moments the dial is
+  /// read. Null until an operator types one — "unmeasured", never read as 0% full. The
+  /// litre capacity it is a percentage OF is a per-depot SETTING (meterTankCapacityLiters,
+  /// configured once), not on this row — a tank's size does not change day to day.
+  openingTankPct  Decimal?  @db.Decimal(5, 2)
+  closingTankPct  Decimal?  @db.Decimal(5, 2)
   openedBy        String    @db.Uuid
   openedAt        DateTime  @default(now())
   closedBy        String?   @db.Uuid

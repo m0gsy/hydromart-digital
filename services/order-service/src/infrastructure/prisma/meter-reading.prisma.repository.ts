@@ -18,6 +18,8 @@ interface MeterReadingRow {
   closingM3: Decimalish | null;
   sourceOpeningM3: Decimalish | null;
   sourceClosingM3: Decimalish | null;
+  openingTankPct: Decimalish | null;
+  closingTankPct: Decimalish | null;
   openedBy: string;
   openedAt: Date;
   closedBy: string | null;
@@ -49,6 +51,8 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
       closingM3: row.closingM3 ? row.closingM3.toNumber() : null,
       sourceOpeningM3: row.sourceOpeningM3 ? row.sourceOpeningM3.toNumber() : null,
       sourceClosingM3: row.sourceClosingM3 ? row.sourceClosingM3.toNumber() : null,
+      openingTankPct: row.openingTankPct ? row.openingTankPct.toNumber() : null,
+      closingTankPct: row.closingTankPct ? row.closingTankPct.toNumber() : null,
       openedBy: row.openedBy,
       openedAt: row.openedAt,
       closedBy: row.closedBy,
@@ -83,6 +87,8 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
           closingM3: data.closingM3 ?? null,
           sourceOpeningM3: data.sourceOpeningM3 ?? null,
           sourceClosingM3: data.sourceClosingM3 ?? null,
+          openingTankPct: data.openingTankPct ?? null,
+          closingTankPct: data.closingTankPct ?? null,
           openedBy: data.actorId,
           closedBy: data.closingM3 === undefined ? null : data.actorId,
           closedAt: data.closingM3 === undefined ? null : new Date(),
@@ -100,6 +106,8 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
         ...(data.closingM3 !== undefined ? { closingM3: data.closingM3 } : {}),
         ...(data.sourceOpeningM3 !== undefined ? { sourceOpeningM3: data.sourceOpeningM3 } : {}),
         ...(data.sourceClosingM3 !== undefined ? { sourceClosingM3: data.sourceClosingM3 } : {}),
+        ...(data.openingTankPct !== undefined ? { openingTankPct: data.openingTankPct } : {}),
+        ...(data.closingTankPct !== undefined ? { closingTankPct: data.closingTankPct } : {}),
         ...(data.note !== undefined ? { note: data.note } : {}),
         ...(closingFirstTime ? { closedBy: data.actorId, closedAt: new Date() } : {}),
       },

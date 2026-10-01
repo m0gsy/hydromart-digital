@@ -91,6 +91,14 @@ describe('OrderConfigService', () => {
     expect(cfg.meterVarianceToleranceLiters('depot-1')).toBe(200);
   });
 
+  // #24: 0 is the env default and reads as "no tank configured", the same honesty rule
+  // every reading beside it already follows — never a real tank sized at zero litres.
+  it('resolves the tank capacity, 0 meaning not configured, until a depot sets one', () => {
+    const cfg = buildTestConfig({ ORDER_METER_TANK_CAPACITY_LITERS: '0' });
+    expect(cfg.meterTankCapacityLiters()).toBe(0);
+    expect(cfg.meterTankCapacityLiters('depot-1')).toBe(0);
+  });
+
   // A1's kill switch. `SettingType` has no boolean, so it is an int pinned to 0/1 and the
   // getter is what turns it back into one — including the "off" reading, which is the only
   // reading anyone will reach for in an incident.

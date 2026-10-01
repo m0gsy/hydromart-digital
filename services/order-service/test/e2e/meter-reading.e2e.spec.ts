@@ -53,6 +53,8 @@ class InMemoryMeterReadings implements MeterReadingRepository {
         closingM3: data.closingM3 ?? null,
         sourceOpeningM3: data.sourceOpeningM3 ?? null,
         sourceClosingM3: data.sourceClosingM3 ?? null,
+        openingTankPct: data.openingTankPct ?? null,
+        closingTankPct: data.closingTankPct ?? null,
         openedBy: data.actorId,
         openedAt: new Date(),
         closedBy: data.closingM3 === undefined ? null : data.actorId,
@@ -73,6 +75,8 @@ class InMemoryMeterReadings implements MeterReadingRepository {
       ...(data.closingM3 !== undefined
         ? { closingM3: data.closingM3, closedBy: data.actorId, closedAt: new Date() }
         : {}),
+      ...(data.openingTankPct !== undefined ? { openingTankPct: data.openingTankPct } : {}),
+      ...(data.closingTankPct !== undefined ? { closingTankPct: data.closingTankPct } : {}),
       ...(data.note !== undefined ? { note: data.note } : {}),
     };
     this.rows.set(key, merged);
@@ -127,6 +131,7 @@ describe('Meter reading HTTP flows (e2e)', () => {
               ORDER_ABANDON_MINUTES: 60,
               ORDER_METER_REFERENCE_VOLUME_ML: 19000,
               ORDER_METER_VARIANCE_TOLERANCE_LITERS: 200,
+              ORDER_METER_TANK_CAPACITY_LITERS: 0,
               ORDER_ALERT_PHONE: '',
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,

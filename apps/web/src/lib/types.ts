@@ -2787,6 +2787,9 @@ export interface MeterReading {
   closingM3: number | null;
   sourceOpeningM3: number | null;
   sourceClosingM3: number | null;
+  /** #24: 0..100, read at the same two moments. Null = not measured, never 0% full. */
+  openingTankPct: number | null;
+  closingTankPct: number | null;
   openedBy: string;
   openedAt: string;
   closedBy: string | null;
@@ -2795,6 +2798,15 @@ export interface MeterReading {
   note: string | null;
   /** CA-2-53: the version a form edits against. */
   updatedAt: string;
+}
+
+/** #24: the tank read as litres and a rough time-to-empty, never a guessed rate. */
+export interface TankStatus {
+  levelPct: number | null;
+  liters: number | null;
+  capacityLiters: number;
+  avgDailyLiters: number | null;
+  hoursRemaining: number | null;
 }
 
 /**
@@ -2819,6 +2831,7 @@ export interface MeterReconciliation {
   referenceVolumeMl: number;
   toleranceLiters: number;
   overTolerance: boolean;
+  tank: TankStatus;
 }
 
 export interface MeterHistoryRow {

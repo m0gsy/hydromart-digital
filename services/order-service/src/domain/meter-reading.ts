@@ -21,6 +21,9 @@ export interface MeterReading {
   /** Raw-water intake meter. Only depots that meter their source fill these. */
   sourceOpeningM3: number | null;
   sourceClosingM3: number | null;
+  /** #24: 0..100, read at the same two moments. Null = not measured, never 0% full. */
+  openingTankPct: number | null;
+  closingTankPct: number | null;
   openedBy: string;
   openedAt: Date;
   closedBy: string | null;
@@ -57,6 +60,49 @@ export interface MeterReconciliation extends SoldTotals {
   referenceVolumeMl: number;
   toleranceLiters: number;
   overTolerance: boolean;
+}
+
+/**
+ * #24. `reconcile()` plus the one field it cannot compute itself: a tank's remaining time
+ * needs the depot's recent consumption HISTORY, an async read `reconcile()`'s pure
+ * signature has no room for. `MeterService` is the only place that builds one of these.
+ */
+export interface MeterReconciliationWithTank extends MeterReconciliation {
+  tank: TankStatus;
+}
+
+/**
+ * #24: the storage tank read as litres remaining and a rough time-to-empty, from a %
+ * reading and the depot's own settled consumption rate — never a guessed one.
+ */
+export interface TankStatus {
+  /** 0..100, the latest reading on file (closing, or opening if closing is not in yet). */
+  levelPct: number | null;
+  liters: number | null;
+  /** The depot's configured size. 0 = not configured. */
+  capacityLiters: number;
+  /** Average meter output per day over the window the caller measured it across. */
+  avgDailyLiters: number | null;
+  /** Null the moment any input is unknown — never a number built on a guess. */
+  hoursRemaining: number | null;
+}
+
+/**
+ * Pure arithmetic only: the service resolves which reading is "latest" and what the
+ * depot's recent daily consumption has actually been, and hands both in here.
+ */
+export function tankStatus(
+  levelPct: number | null,
+  capacityLiters: number,
+  avgDailyLiters: number | null,
+): TankStatus {
+  const liters =
+    capacityLiters > 0 && levelPct !== null ? round2((capacityLiters * levelPct) / 100) : null;
+  const hoursRemaining =
+    liters === null || avgDailyLiters === null || avgDailyLiters <= 0
+      ? null
+      : round2((liters / avgDailyLiters) * 24);
+  return { levelPct, liters, capacityLiters, avgDailyLiters, hoursRemaining };
 }
 
 export interface MeterHistoryRow {

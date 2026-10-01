@@ -73,6 +73,19 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 100000,
     envDefault: 200,
   },
+  // #24: a tank's physical size, so a % reading off the dial can be read as litres. Per-
+  // depot with no sensible shared default — tanks vary by a factor of 10 or more between
+  // depots — so 0 (the env default) is read as "not configured" rather than a real tank
+  // of zero litres, the same honesty rule the readings next to it already follow.
+  {
+    key: 'meterTankCapacityLiters',
+    label: 'Kapasitas tandon air',
+    type: 'int',
+    unit: 'liter',
+    min: 0,
+    max: 1000000,
+    envDefault: 0,
+  },
   // Delivery timing, which used to live in the checkout page as three constants: the
   // slot list, the express surcharge and its ETA. The surcharge in particular was shown
   // to the customer and never charged — order pricing had no express component at all —

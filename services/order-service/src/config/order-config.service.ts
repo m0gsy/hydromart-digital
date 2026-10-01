@@ -101,7 +101,10 @@ export class OrderConfigService {
   }
   /** Minutes after a delivery before the customer is asked to rate it. Global: the sweep has no depot scope. */
   get reviewRequestDelayMinutes(): number {
-    return this.tunable('reviewRequestDelayMinutes', this.num('ORDER_REVIEW_REQUEST_DELAY_MINUTES'));
+    return this.tunable(
+      'reviewRequestDelayMinutes',
+      this.num('ORDER_REVIEW_REQUEST_DELAY_MINUTES'),
+    );
   }
   /** Hours after a delivery beyond which it is too late to ask. */
   get reviewRequestWindowHours(): number {
@@ -216,6 +219,14 @@ export class OrderConfigService {
     return this.tunable(
       'meterVarianceToleranceLiters',
       this.num('ORDER_METER_VARIANCE_TOLERANCE_LITERS'),
+      depotId,
+    );
+  }
+  /** #24: the tank's litre capacity. 0 = not configured, never a real zero-litre tank. */
+  meterTankCapacityLiters(depotId: string | null = null): number {
+    return this.tunable(
+      'meterTankCapacityLiters',
+      this.num('ORDER_METER_TANK_CAPACITY_LITERS'),
       depotId,
     );
   }

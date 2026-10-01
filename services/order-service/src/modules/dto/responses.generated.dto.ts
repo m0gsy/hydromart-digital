@@ -481,6 +481,10 @@ export class MeterReadingResponseDto {
   sourceOpeningM3!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   sourceClosingM3!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  openingTankPct!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  closingTankPct!: number | null;
   @ApiProperty({ type: String })
   openedBy!: string;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -493,6 +497,20 @@ export class MeterReadingResponseDto {
   alertedAt!: string | null;
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
+}
+
+/** Mirrors `TankStatus` exactly — #24. */
+export class TankStatusResponseDto {
+  @ApiProperty({ type: Number, nullable: true })
+  levelPct!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  liters!: number | null;
+  @ApiProperty({ type: Number })
+  capacityLiters!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  avgDailyLiters!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  hoursRemaining!: number | null;
 }
 
 /** Mirrors `MeterReconciliation` exactly — generated for audit D-6, no field added or removed. */
@@ -527,6 +545,8 @@ export class MeterReconciliationResponseDto {
   toleranceLiters!: number;
   @ApiProperty({ type: Boolean })
   overTolerance!: boolean;
+  @ApiProperty({ type: TankStatusResponseDto })
+  tank!: TankStatusResponseDto;
 }
 
 /** Mirrors `MeterHistoryRow` exactly — generated for audit D-6, no field added or removed. */
