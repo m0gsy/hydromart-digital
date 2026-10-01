@@ -1282,6 +1282,46 @@ export class DailyCloseViewResponseDto {
   lateAmountIdr!: number;
 }
 
+/** Mirrors `MonthlyCloseRecord` exactly (#17 tutup bulan), same shape as DailyCloseRecordResponseDto one size up. */
+export class MonthlyCloseRecordResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: String })
+  businessMonth!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  closedAt!: Date;
+  @ApiProperty({ type: String })
+  closedBy!: string;
+  @ApiProperty({ type: Number })
+  cashInIdr!: number;
+  @ApiProperty({ type: Number })
+  cashOutIdr!: number;
+  @ApiProperty({ type: Number })
+  konterIdr!: number;
+  @ApiProperty({ type: Number })
+  codDepositedIdr!: number;
+  @ApiProperty({ type: Number })
+  codExpectedIdr!: number;
+  @ApiProperty({ type: Number })
+  daysClosed!: number;
+  @ApiProperty({ type: String, nullable: true })
+  note!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  reopenedAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true })
+  reopenedBy!: string | null;
+}
+
+/** Mirrors `MonthlyCloseView` exactly (#17 tutup bulan). */
+export class MonthlyCloseViewResponseDto {
+  @ApiProperty({ type: MonthlyCloseRecordResponseDto, nullable: true })
+  close!: MonthlyCloseRecordResponseDto | null;
+  @ApiProperty({ type: [String] })
+  missingDays!: string[];
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class InternalDescribeResponseDto {
   @ApiProperty({ type: String, nullable: true })
@@ -1318,13 +1358,19 @@ export class GallonReminderSweepResponseDto {
   attempted!: number;
   @ApiProperty({ type: Number, description: 'Reminders crm accepted.' })
   sent!: number;
-  @ApiProperty({ type: Number, description: 'Left alone: reminded recently, or no number on file.' })
+  @ApiProperty({
+    type: Number,
+    description: 'Left alone: reminded recently, or no number on file.',
+  })
   skipped!: number;
   @ApiProperty({ type: Number, description: 'Customers or depots that could not be processed.' })
   failed!: number;
   @ApiProperty({ type: Boolean, description: 'The per-round cap stopped the walk early.' })
   capped!: boolean;
-  @ApiProperty({ type: Boolean, description: 'False only when the round failed and accomplished nothing.' })
+  @ApiProperty({
+    type: Boolean,
+    description: 'False only when the round failed and accomplished nothing.',
+  })
   ok!: boolean;
 }
 

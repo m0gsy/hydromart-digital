@@ -35,8 +35,11 @@ import { CashbookService } from '../application/services/cashbook.service';
 import { CashierShiftService } from '../application/services/cashier-shift.service';
 import { DailyCloseService } from '../application/services/daily-close.service';
 import { DAILY_CLOSE_REPOSITORY } from '../application/ports/daily-close.repository';
+import { MonthlyCloseService } from '../application/services/monthly-close.service';
+import { MONTHLY_CLOSE_REPOSITORY } from '../application/ports/monthly-close.repository';
 import { COURIER_COD_PORT } from '../application/ports/courier-cod.port';
 import { DailyClosePrismaRepository } from '../infrastructure/prisma/daily-close.prisma.repository';
+import { MonthlyClosePrismaRepository } from '../infrastructure/prisma/monthly-close.prisma.repository';
 import { CourierCodHttpAdapter } from '../infrastructure/http/courier-cod.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../infrastructure/http/order-subscription.http.adapter';
 import { DisputeService } from '../application/services/dispute.service';
@@ -107,6 +110,7 @@ import { DepotTargetController } from './depot-target.controller';
 import { CashbookController } from './cashbook.controller';
 import { CashierShiftController } from './cashier-shift.controller';
 import { DailyCloseController } from './daily-close.controller';
+import { MonthlyCloseController } from './monthly-close.controller';
 import { DisputeController } from './dispute.controller';
 import { MaintenanceController } from './maintenance.controller';
 import { WholesaleTierController } from './wholesale-tier.controller';
@@ -149,6 +153,7 @@ const providers: Provider[] = [
   DepotGovernanceService,
   CashierShiftService,
   DailyCloseService,
+  MonthlyCloseService,
   DisputeService,
   // CA-2-39: resolving a dispute as REFUND queues the refund. Fails CLOSED — see the port.
   { provide: DEPOT_TOKENS.DisputeRefund, useClass: DisputeRefundHttpAdapter },
@@ -193,6 +198,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.CashbookRepository, useClass: CashbookPrismaRepository },
   { provide: DEPOT_TOKENS.CashierShiftRepository, useClass: CashierShiftPrismaRepository },
   { provide: DAILY_CLOSE_REPOSITORY, useClass: DailyClosePrismaRepository },
+  { provide: MONTHLY_CLOSE_REPOSITORY, useClass: MonthlyClosePrismaRepository },
   { provide: COURIER_COD_PORT, useClass: CourierCodHttpAdapter },
   { provide: DEPOT_TOKENS.DisputeRepository, useClass: DisputePrismaRepository },
   { provide: DEPOT_TOKENS.MaintenanceRepository, useClass: MaintenancePrismaRepository },
@@ -248,6 +254,7 @@ const providers: Provider[] = [
     CashbookController,
     CashierShiftController,
     DailyCloseController,
+    MonthlyCloseController,
     DisputeController,
     MaintenanceController,
     WholesaleTierController,

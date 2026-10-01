@@ -111,6 +111,7 @@ model Depot {
   cashbookEntries        CashbookEntry[]
   cashierShifts          CashierShift[]
   dailyCloses            DepotDailyClose[]
+  monthlyCloses          DepotMonthlyClose[]
   orderDisputes          OrderDispute[]
   maintenanceItems       MaintenanceItem[]
   wholesaleTiers         WholesaleTier[]
@@ -803,6 +804,37 @@ model DepotDailyClose {
 
   @@unique([depotId, businessDate])
   @@map("depot_daily_closes")
+}
+
+/// "Tutup bulan": a depot's month, sealed once every one of its days is already closed.
+/// Snapshotted like DepotDailyClose, and for the same reason — a later correction to one
+/// day must show up as a difference against a month HQ already signed off, not quietly
+/// rewrite the total underneath it.
+model DepotMonthlyClose {
+  id              String    @id @default(uuid()) @db.Uuid
+  depotId         String    @db.Uuid
+  depot           Depot     @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  /// The first day of the business month, e.g. 2026-09-01 for September — not an instant.
+  businessMonth   DateTime  @db.Date
+  closedAt        DateTime
+  closedBy        String    @db.Uuid
+  cashInIdr       Int
+  cashOutIdr      Int
+  konterIdr       Int
+  codDepositedIdr Int
+  codExpectedIdr  Int
+  /// Always every business day up to the end of the month (or today, mid-month) — sealing
+  /// refuses while any is still open.
+  daysClosed      Int
+  note            String?
+  /// Set when HQ reopens the month, cleared when it is sealed again.
+  reopenedAt      DateTime?
+  reopenedBy      String?   @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@unique([depotId, businessMonth])
+  @@map("depot_monthly_closes")
 }
 
 /// Kind of customer order dispute (design 15c).

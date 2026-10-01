@@ -19,6 +19,10 @@ import {
   DailyCloseRecord,
   DailyCloseRepository,
 } from '../ports/daily-close.repository';
+import {
+  MONTHLY_CLOSE_REPOSITORY,
+  MonthlyCloseRepository,
+} from '../ports/monthly-close.repository';
 import { DepotRepository } from '../ports/depot.repository';
 import { DEPOT_TOKENS } from '../tokens';
 
@@ -54,8 +58,19 @@ export class DailyCloseService {
     @Inject(DEPOT_TOKENS.CashierShiftRepository) private readonly shifts: CashierShiftRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     @Inject(COURIER_COD_PORT) private readonly cod: CourierCodPort,
+    @Inject(MONTHLY_CLOSE_REPOSITORY) private readonly monthlyCloses: MonthlyCloseRepository,
     private readonly config: DepotConfigService,
   ) {}
+
+  /** Refuses when `businessDate` falls inside a month this depot has already sealed. */
+  private async assertMonthOpen(depotId: string, businessDate: string): Promise<void> {
+    const sealing = await this.monthlyCloses.findSealing(depotId, businessDate);
+    if (sealing) {
+      throw new BadRequestException(
+        `Bulan ${sealing.businessMonth} sudah ditutup. Buka bulan itu dulu untuk mengubah hari ${businessDate}.`,
+      );
+    }
+  }
 
   /**
    * The day's window, in the business timezone (H-16).
@@ -118,6 +133,7 @@ export class DailyCloseService {
     if (existing && !existing.reopenedAt) {
       throw new BadRequestException('Hari ini sudah ditutup.');
     }
+    await this.assertMonthOpen(depotId, businessDate);
     const open = await this.shifts.listOpen(depotId);
     if (open.length > 0) {
       throw new BadRequestException(
@@ -160,6 +176,7 @@ export class DailyCloseService {
     if (existing.reopenedAt) {
       return existing;
     }
+    await this.assertMonthOpen(depotId, businessDate);
     return this.closes.reopen(depotId, businessDate, actorId);
   }
 }

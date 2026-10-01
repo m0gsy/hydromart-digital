@@ -796,7 +796,8 @@ export const hrFix = {
     refundAction: 'Ajukan refund',
     failAction: 'Tandai gagal',
     failTitle: 'Tandai pembayaran gagal?',
-    failMessage: 'Pembayaran untuk {order} ditandai GAGAL. Pesanannya tetap ada dan pelanggan masih bisa membayar lagi.',
+    failMessage:
+      'Pembayaran untuk {order} ditandai GAGAL. Pesanannya tetap ada dan pelanggan masih bisa membayar lagi.',
     failConfirm: 'Tandai gagal',
     refundTitle: 'Ajukan refund pembayaran',
     refundMessage:
@@ -917,7 +918,8 @@ export const hrFix = {
     rejectedReason: 'Alasan: {reason}',
     receipt: 'Foto struk',
     receiptHint: 'Wajib untuk persetujuan otomatis. Tanpa struk, klaim menunggu persetujuan depot.',
-    autoApprove: 'Klaim sampai {amount} disetujui otomatis; di atasnya menunggu persetujuan manajer.',
+    autoApprove:
+      'Klaim sampai {amount} disetujui otomatis; di atasnya menunggu persetujuan manajer.',
     autoApproveUnknown: 'Klaim kecil disetujui otomatis; sisanya menunggu persetujuan manajer.',
     receiptPicked: 'Struk siap diunggah.',
     submitClaim: 'Kirim klaim',
@@ -1021,7 +1023,8 @@ export const hrFix = {
     sealBroken: 'Segel rusak',
     discardTitle: 'Batalkan bukti serah?',
     cancel: 'Batal',
-    discardConfirm: 'Batalkan bukti serah ini? Foto, nama penerima, dan tanda tangan yang sudah diisi akan hilang.',
+    discardConfirm:
+      'Batalkan bukti serah ini? Foto, nama penerima, dan tanda tangan yang sudah diisi akan hilang.',
     sealIntact: 'Segel galon utuh & tidak bocor',
     // K2.8b: dibaca saat menyelidiki keluhan, bukan saat mengantar.
     sealLabel: 'Segel',
@@ -1211,7 +1214,8 @@ export const hrFix = {
     batchDepot: 'Depot',
     batchPickDepot: 'Pilih depot',
     batchGenerate: 'Buat sedepot',
-    batchHint: 'Menulis DRAFT untuk setiap karyawan aktif di depot itu. Menyetujui dan membayar tetap manual, satu per satu.',
+    batchHint:
+      'Menulis DRAFT untuk setiap karyawan aktif di depot itu. Menyetujui dan membayar tetap manual, satu per satu.',
     batchDone: '{n} draf ditulis',
     batchFailed: 'Pembuatan sedepot gagal',
     batchGenerated: '{n} draf ditulis',
@@ -1575,6 +1579,13 @@ export const hrFix = {
     topCourier: 'Kurir teratas',
     activeCustomers: 'Pelanggan aktif',
     winBack: 'Dipulihkan dari churn',
+    // #17 "Tutup bulan" — a month sealed once every one of its days is already closed.
+    closeMonth: 'Tutup bulan',
+    monthClosed: 'Bulan ditutup',
+    reopenMonth: 'Buka bulan',
+    closeMonthError: 'Gagal menutup bulan.',
+    monthCloseStateUnreadable: 'Status tutup bulan tidak bisa dibaca saat ini.',
+    missingDays: '{n} hari belum ditutup: {list}',
   },
   driverAnnouncements: {
     emptyBody2: 'Info operasional dari depot akan muncul di sini.',
@@ -1750,7 +1761,8 @@ export const hrFix = {
         'Untuk memindahkan kasbon yang masih berjalan dari sistem lama. Isi kolom principal dengan SISA yang belum dibayar per startPeriod, bukan nilai pinjaman awal — payroll menghitung maju dari angka itu, jadi nilai awal akan terpotong dua kali.',
     },
     gateTitle: 'Impor massal tidak tersedia untuk peran ini',
-    gateBody: 'Impor massal mengubah data banyak baris sekaligus, jadi izinnya sama dengan mengubahnya satu per satu. Minta ke atasan Anda kalau memang perlu.',
+    gateBody:
+      'Impor massal mengubah data banyak baris sekaligus, jadi izinnya sama dengan mengubahnya satu per satu. Minta ke atasan Anda kalau memang perlu.',
     resellers: 'Import Reseller / Agen',
     // J11: menyebut mode UPSERT, karena berkas kedua yang dikirim siapa pun adalah koreksi.
     resellersBody:
@@ -1858,8 +1870,10 @@ export const hrFix = {
   payrollDetail: {
     approvedAt: 'Disetujui',
     paidAt: 'Dibayar',
-    pendingWarning: 'Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui).',
-    approveConfirmPending: 'Setujui pembayaran {net}? Masih ada {n} hari kehadiran yang belum diputuskan; selisihnya harus dicatat di periode berikutnya.',
+    pendingWarning:
+      'Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui).',
+    approveConfirmPending:
+      'Setujui pembayaran {net}? Masih ada {n} hari kehadiran yang belum diputuskan; selisihnya harus dicatat di periode berikutnya.',
     failed: 'Gagal',
     downloadFailed: 'Gagal unduh',
     netPay: 'Gaji Bersih (Net)',
@@ -2020,7 +2034,8 @@ export const hrFix = {
   },
   faceCapture2: {
     retry: 'Coba lagi',
-    retryHint: 'Kalau izin kamera pernah ditolak, aktifkan lagi lewat setelan peramban, lalu tekan Coba lagi.',
+    retryHint:
+      'Kalau izin kamera pernah ditolak, aktifkan lagi lewat setelan peramban, lalu tekan Coba lagi.',
     cameraDenied: 'Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.',
   },
   nav: {

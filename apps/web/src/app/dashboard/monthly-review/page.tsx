@@ -1,17 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 import { BUSINESS_TZ, monthWib } from '@/lib/wib';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import { canViewDepotFinance } from '@/lib/roles';
+import { can, canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ReportDepotMonthly } from '@/lib/types';
 
@@ -48,6 +49,114 @@ function Panel({ title, rows }: { title: string; rows: Row[] }) {
           </div>
         ))}
       </dl>
+    </Card>
+  );
+}
+
+/** What depot-service reports about one depot's month (#17). */
+interface MonthlyCloseView {
+  close: { daysClosed: number; closedAt: string; reopenedAt: string | null } | null;
+  missingDays: string[];
+}
+
+/** How many missing dates to spell out before the message just counts the rest. */
+const MISSING_DAYS_SHOWN = 5;
+
+/**
+ * "Tutup bulan" (#17) — the month-level seal above daily close. Refuses on the server while
+ * any day in the month is still open; this panel reads that same list to say WHICH days,
+ * rather than a bare refusal the operator has to go find out about one day at a time.
+ */
+function MonthlyClose({ depotId }: { depotId: string }) {
+  const { t } = useT();
+  const { customer } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const state = useAsync<MonthlyCloseView>(
+    () => api.get(endpoints.depots.monthlyClose(depotId, MONTH_KEY), true),
+    [depotId],
+  );
+
+  const closed = state.data?.close && !state.data.close.reopenedAt;
+
+  async function run(reopen: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        reopen ? endpoints.depots.reopenMonth(depotId) : endpoints.depots.closeMonth(depotId),
+        { businessMonth: MONTH_KEY },
+        true,
+      );
+      state.reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hrFix.monthlyReview.closeMonthError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (state.loading) return <Skeleton className="h-14 w-full" />;
+  // A 403, or a depot-service outage, falling through to the button would invite an action
+  // whose precondition (every day closed) was never actually read — the same D-7 reasoning
+  // the daily close panel follows.
+  if (state.error) {
+    return (
+      <Card className="p-4 text-sm font-medium text-muted">
+        {t('hrFix.monthlyReview.monthCloseStateUnreadable')}
+      </Card>
+    );
+  }
+
+  const missing = state.data?.missingDays ?? [];
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-[color:var(--text-muted)]">
+          {t('hrFix.monthlyReview.closeMonth')}
+        </h2>
+        {closed ? (
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+              <Lock size={12} weight="bold" className="inline" />{' '}
+              {t('hrFix.monthlyReview.monthClosed')}
+            </span>
+            {/* Reopening is head office only — a depot that can reopen its own month can
+                rewrite a total it already signed off. */}
+            {can('dailyCloseReopen', customer?.role) && (
+              <Button variant="ghost" onClick={() => void run(true)} loading={busy}>
+                {t('hrFix.monthlyReview.reopenMonth')}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            onClick={() => void run(false)}
+            loading={busy}
+            disabled={missing.length > 0}
+          >
+            <Lock size={16} weight="bold" /> {t('hrFix.monthlyReview.closeMonth')}
+          </Button>
+        )}
+      </div>
+      {!closed && missing.length > 0 && (
+        <p className="text-[11px] font-semibold text-[color:var(--warning)]">
+          {t('hrFix.monthlyReview.missingDays', {
+            n: missing.length,
+            list:
+              missing.length > MISSING_DAYS_SHOWN
+                ? `${missing.slice(0, MISSING_DAYS_SHOWN).join(', ')} (+${missing.length - MISSING_DAYS_SHOWN})`
+                : missing.join(', '),
+          })}
+        </p>
+      )}
+      {error && (
+        <p className="text-[11px] font-medium text-[color:var(--danger)]" role="alert">
+          {error}
+        </p>
+      )}
     </Card>
   );
 }
@@ -238,14 +347,16 @@ function MonthlyReviewBody() {
             <Panel title={t('hrFix.monthlyReview.governance')} rows={governance} />
             <Panel title={t('hrFix.monthlyReview.teamCustomers')} rows={team} />
           </div>
+
+          {depot && <MonthlyClose depotId={depot.id} />}
         </>
       )}
 
-      {/* "Unduh PDF" and "Kirim ke head office" were two buttons with no onClick. Neither
-          has anything behind it: this repo has no PDF renderer (the scheduled-reports
-          executor refuses PDF outright rather than shipping an .xlsx under a .pdf name) and
-          no mail transport of any kind. A button that does nothing teaches an operator the
-          console ignores them, which is worse than not offering the action. */}
+      {/* "Unduh PDF" and "Kirim ke head office" were two buttons with no onClick. The PDF
+          half is real now (#16) but for the DAILY report at /dashboard/reports — a monthly
+          PDF has not been built, so this screen still has no download of its own. No mail
+          transport exists anywhere in the repo either. A button that does nothing teaches an
+          operator the console ignores them, which is worse than not offering the action. */}
     </div>
   );
 }
