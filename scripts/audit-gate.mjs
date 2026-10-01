@@ -35,48 +35,21 @@ const ALLOWLIST = {
   // sharp is bumped to 0.35.3 (patched); this entry is next's copy only.
   'GHSA-f88m-g3jw-g9cj': 'sharp libvips CVEs — next optional image-opt, local assets only; hr-service on 0.35.3',
 
-  /*
-   * DEP-1: the original entry here claimed onnx was "not the production driver" and
-   * pointed at FACE_VERIFIER_DRIVER=neo — but the default in env.validation.ts,
-   * docker-compose.prod.yml and .env.production.example is all `onnx`. Whether prod
-   * actually runs neo is an ops fact this repo cannot verify, and the honest reading is
-   * the opposite of what was written: onnx is what a deployment gets by saying nothing.
-   *
-   * adm-zip is reachable a different way, and it is a real one: onnxruntime-node's own
-   * `postinstall` (script/install-utils.js) uses adm-zip to unpack the prebuilt binary
-   * it downloads from Microsoft's NuGet CDN. That happens once, at `npm install` time,
-   * on a URL this repo controls (the package version), never at request time and never
-   * on attacker-supplied bytes — so the CVE is unreachable regardless of which face
-   * driver ends up selected in prod. Fix (adm-zip>=0.6.0) still needs a full `npm
-   * install` override; onnxruntime-node pins the range itself, so `overrides` cannot
-   * move it — deferred to the next dep refresh.
-   */
-  'GHSA-xcpc-8h2w-3j85': 'adm-zip 4GB-alloc — onnxruntime postinstall only (npm-controlled URL), no runtime path',
-
-  // js-yaml via @nestjs/swagger: parses the service's OWN decorator metadata to
-  // build the OpenAPI doc — never attacker-supplied YAML. Fix exists but is
-  // gated behind @nestjs/swagger's pin; deferred to the next dep refresh.
-  'GHSA-pm4m-ph32-ghv5': 'js-yaml flow-collection DoS — swagger doc-gen from own decorators, no user YAML',
-
   // ── 2026-09-09 advisory wave ──────────────────────────────────────────────
   // These four appeared overnight from the registry, with no repo change: `main`
   // itself went red on a commit whose CI had been green hours earlier. The two
   // CRITICAL `next` ids in the same wave were NOT allowlisted — they are fixed,
   // by 15.5.21 -> 15.5.25 in apps/web (a patch bump), which also drops `next`
   // from critical to moderate. What is left here is what has no fix to take.
-
-  // adm-zip symlink-overwrite, the SECOND advisory on the postinstall-only path
-  // GHSA-xcpc above documents: same `npm install`-time-only unpack, same npm-controlled
-  // URL, never attacker input. An `overrides` entry for adm-zip@^0.6.0 was tried and
-  // REMOVED again: npm will not apply it, because onnxruntime-node pins the range itself.
-  'GHSA-vwc7-r8mq-g2x9': 'adm-zip symlink overwrite — onnxruntime postinstall only, no runtime path',
-
-  // adm-zip, the THIRD advisory on that same path (2026-09-23). Same postinstall-only
-  // reachability answer as GHSA-xcpc/GHSA-vwc7 above. The `overrides` route was
-  // re-tested on this advisory before adding the line — npm still will not move it,
-  // because onnxruntime-node pins adm-zip's range itself, so the tree keeps 0.5.18
-  // whether or not the override is present.
-  'GHSA-7q85-xj36-vmfc': 'adm-zip declared-size DoS — onnxruntime postinstall only, no runtime path',
+  //
+  // adm-zip (GHSA-xcpc-8h2w-3j85, GHSA-vwc7-r8mq-g2x9, GHSA-7q85-xj36-vmfc) and js-yaml
+  // (GHSA-pm4m-ph32-ghv5) lived here until 2026-10-01, both "no fix without a parent
+  // bump" at the time. Both were wrong about that: onnxruntime-node 1.27.0 -> 1.30.0
+  // (still inside hr-service's own `^1.20.0`) widens its adm-zip pin from ^0.5.16 to
+  // ^0.6.0, which resolves to the fixed 0.6.1 — `npm update` inside the existing range
+  // did it, no override needed. @nestjs/swagger's 11.4.7 (still inside every service's
+  // own `^11.0.0`) carries js-yaml 5.3.0, past pm4m's <=5.2.1. Entries deleted rather
+  // than kept: an allowlist that outlives its vuln stops being a triage record.
 
   // sharp libheif, the SECOND advisory on the path GHSA-f88m above already
   // documents: next's OPTIONAL image-optimization engine. No images.remotePatterns
@@ -95,31 +68,11 @@ const ALLOWLIST = {
   'GHSA-fxqj-rqcc-2cmp': 'postcss sourceMappingURL (incomplete fix) — next-bundled build-time copy, our own CSS only',
   'GHSA-r28c-9q8g-f849': 'postcss source-map path traversal — next-bundled build-time copy, our own CSS only',
 
-  /*
-   * multer, all four — the one entry here that is NOT comfortable, recorded plainly.
-   *
-   * There is no fix to take: @nestjs/platform-express pins multer 2.2.0, and @12
-   * (a major bump) still pins 2.2.0. An `overrides` entry was tried and removed for
-   * the same reason as adm-zip's — npm will not apply it over a parent's pin.
-   *
-   * DEP-2: this used to claim "bodies are size-capped before multer sees them", which
-   * is not what the code does. hr-service's own `body-limits.ts` caps `express.json()`
-   * and `express.urlencoded()` — parsers that never run on a `multipart/form-data`
-   * request at all, so that cap gives multer nothing. What actually bounds these routes
-   * is multer's OWN `limits.fileSize` option, passed per-route to `FileInterceptor`
-   * (payment proof, HR documents, avatars, reseller photos) — real, but it is multer
-   * capping itself, not something upstream of it. Reachability is otherwise narrow: the
-   * only multipart routes are authenticated and capability-gated (hr document upload =
-   * hrAdmin, PoD = the assigned courier). Three of the four are DoS by a caller who
-   * already holds a staff token; the fourth is a file-size-limit bypass bounded by that
-   * same per-route option.
-   *
-   * REVISIT when platform-express moves off 2.2.0. This is a deferral, not a verdict.
-   */
-  'GHSA-wc9g-mqfw-jrwm': 'multer DoS via crafted field names — no upstream fix (platform-express@12 still pins 2.2.0); authenticated multipart only',
-  'GHSA-qfvm-cv95-jqjf': 'multer fd leak on aborted upload — no upstream fix; authenticated multipart only',
-  'GHSA-qvfw-j98x-7q72': 'multer fileFilter race size bypass — no upstream fix; per-route fileSize option, not a pre-multer cap',
-  'GHSA-535w-7cp7-47q4': 'multer oversized array index DoS — no upstream fix; authenticated multipart only',
+  // multer's four entries (GHSA-wc9g/qfvm/qvfw/535w) lived here until 2026-10-01 as
+  // "no fix to take: @nestjs/platform-express pins multer 2.2.0". That was checked
+  // against 11.1.28; 11.2.7 — still inside every service's own `^11.0.0`, a patch-level
+  // ask, not the major bump the old note assumed — pins multer 2.4.0, past every one of
+  // these ranges. `npm update` inside the existing range did it, no override needed.
 };
 
 function audit() {
