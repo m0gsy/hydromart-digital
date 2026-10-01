@@ -48,7 +48,24 @@ x-shared: &shared
   # rather than per-service precisely because the split is what caused the disagreement.
   PRICING_TZ: ${PRICING_TZ:-Asia/Jakarta}
 
+# N14 — the log cap lived ONLY in /etc/docker/daemon.json, and the daemon reads it once, when a
+# container is CREATED. Measured 2026-09-28: the file on the box was identical to the repo's,
+# live-restore was on, and the running gateway still carried `{}` — every container older than
+# the file was uncapped, and only a host restart or a redeploy of each one would ever fix it.
+# The alert (check-log-retention.sh) could say so; nothing could make it true.
+#
+# Declared here instead, on every service, so the cap travels WITH the container definition:
+# a `compose up` that recreates a service recreates it capped, whatever the daemon holds.
+# daemon.json stays as the default for anything started outside compose, and
+# scripts/check-compose-logging.mjs fails CI if this drifts from it or a service is missed.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "3"
+
 x-svc: &svc
+  logging: *logging
   restart: unless-stopped
   # H-34 — nothing bounded any of the 19 Node containers. One leaking or looping service
   # could take the whole box with it, and the four-hour outage was reconstructed without
@@ -73,6 +90,7 @@ services:
   # Postgres therefore stays on the host's published 5432 — lock it down
   # with a host firewall (see DEPLOY.md §1); the internet must not reach them.
   postgres:
+    logging: *logging
     # H-34: the one container that genuinely wants headroom — shared_buffers plus every
     # service's connections. Given the largest slice on purpose.
     mem_limit: 2g
@@ -736,6 +754,7 @@ services:
       retries: 12
 
   web:
+    logging: *logging
     image: ${IMAGE_PREFIX:-hydromart-}web:${IMAGE_TAG:-local}
     build:
       context: .
@@ -828,6 +847,7 @@ services:
   # Prometheus scrapes every service's /metrics (enableMetrics()). Bound to
   # loopback only — reach the UI via SSH tunnel, never expose to the internet.
   prometheus:
+    logging: *logging
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
     mem_limit: 512m
@@ -851,6 +871,7 @@ services:
   # Host: disk, memory, load, filesystem. The 2026-08-02 outage could not be attributed
   # because nothing recorded host state at the time it happened.
   node-exporter:
+    logging: *logging
     image: prom/node-exporter:v1.8.2
     restart: unless-stopped
     mem_limit: 128m
@@ -873,6 +894,7 @@ services:
   # Postgres: connection count against max_connections (B-12's ceiling is only useful if
   # someone can see it being approached), replication lag, slow-query and deadlock counts.
   postgres-exporter:
+    logging: *logging
     image: prometheuscommunity/postgres-exporter:v0.15.0
     restart: unless-stopped
     mem_limit: 128m
@@ -885,6 +907,7 @@ services:
   # Containers: per-container memory, CPU and — the one that matters here — the OOM kill
   # counter. H-34 gives every container a ceiling; this is what tells you one was hit.
   cadvisor:
+    logging: *logging
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     restart: unless-stopped
     mem_limit: 256m
@@ -903,6 +926,7 @@ services:
   # creates it, gitignored — see ops/alertmanager.yml header). No file → the
   # container fails to start, which is the honest signal that alerting is unset.
   alertmanager:
+    logging: *logging
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
     # N12: without --web.external-url Alertmanager builds notification links from the
@@ -932,6 +956,7 @@ services:
   # Loopback binding is a second lock, not a first one — anyone on the box, or on
   # any SSH tunnel, reached admin/admin. Generate one with scripts/generate-secrets.sh.
   grafana:
+    logging: *logging
     image: grafana/grafana:11.2.0
     restart: unless-stopped
     mem_limit: 384m
@@ -957,6 +982,7 @@ services:
   # web/gateway over the internal network — firewall off 3000/8080 (or bind them to
   # 127.0.0.1) so the public only hits Caddy. See DEPLOY.md §6.
   caddy:
+    logging: *logging
     image: caddy:2-alpine
     restart: unless-stopped
     mem_limit: 128m
