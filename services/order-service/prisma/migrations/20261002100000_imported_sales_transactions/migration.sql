@@ -21,14 +21,17 @@ CREATE TABLE "imported_sales_transactions" (
   CONSTRAINT "imported_sales_transactions_pkey" PRIMARY KEY ("id")
 );
 
--- Re-importing the same file is a no-op, not a duplicate: one receipt number per depot.
-CREATE UNIQUE INDEX "imported_sales_transactions_depotId_externalRef_key"
+-- H-39: deploy builds these CONCURRENTLY first (scripts/create-indexes.sh), so by the
+-- time this migration runs they already exist — IF NOT EXISTS makes that a no-op rather
+-- than an error. A fresh database (CI, a new environment) has no concurrent build to find,
+-- so the migration builds them itself here, where a lock on an empty table costs nothing.
+CREATE UNIQUE INDEX IF NOT EXISTS "imported_sales_transactions_depotId_externalRef_key"
   ON "imported_sales_transactions" ("depotId", "externalRef");
 
 -- The report-window read: one depot, a date range.
-CREATE INDEX "imported_sales_transactions_depotId_occurredAt_idx"
+CREATE INDEX IF NOT EXISTS "imported_sales_transactions_depotId_occurredAt_idx"
   ON "imported_sales_transactions" ("depotId", "occurredAt");
 
 -- Find every row one import run wrote.
-CREATE INDEX "imported_sales_transactions_batchId_idx"
+CREATE INDEX IF NOT EXISTS "imported_sales_transactions_batchId_idx"
   ON "imported_sales_transactions" ("batchId");
