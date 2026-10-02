@@ -40,8 +40,8 @@ FAIL=0
 # One statement against one service DB.
 psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -c "$2" 2>&1; }
 
-# TWO indexes are deliberately NOT in the table below yet: order_disputes_customerId_idx
-# and cashbook_entries_reversesId_key.
+# THREE indexes are deliberately NOT in the table below yet: order_disputes_customerId_idx,
+# cashbook_entries_reversesId_key, and orders_trackingToken_key.
 #
 # The deploy builds these indexes BEFORE it runs migrations, and the column they index has
 # to exist first. Registering it in the same release as the migration that adds
@@ -63,6 +63,14 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # operators pressing the button in the same instant could still post two reversals. That
 # window is why the index is coming back, and it is one release wide.
 #
+# orders_trackingToken_key (#34, 2026-10-01) hit the SAME wall on its FIRST attempt, before
+# ever reaching production: the registration below and the migration's own `ADD COLUMN
+# "trackingToken"` were in the SAME release, so this script tried to build an index on a
+# column that did not exist yet — "column does not exist" — and the deploy refused and
+# rolled back cleanly, exactly as designed. It goes in one release after the column is live,
+# same as the two above. Until then the token is 128 bits of randomness (randomBytes(16)),
+# not a 1-in-N identifier a near-term collision is realistic for.
+#
 # db|index name|CREATE INDEX CONCURRENTLY statement. One line per index; keep the index
 # name identical to the one the migration creates, or the migration will build a second
 # copy under Prisma's default name.
@@ -81,7 +89,6 @@ delivery|deliveries_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EX
 order|orders_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_customerId_createdAt_idx" ON "orders"("customerId", "createdAt")
 order|orders_subscriptionId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_subscriptionId_createdAt_idx" ON "orders"("subscriptionId", "createdAt")
 order|orders_status_statusChangedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_status_statusChangedAt_idx" ON "orders"("status", "statusChangedAt")
-order|orders_trackingToken_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "orders_trackingToken_key" ON "orders"("trackingToken")
 payment|payments_cashierShiftId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "payments_cashierShiftId_idx" ON "payments"("cashierShiftId")
 depot|stock_movements_itemId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_itemId_createdAt_idx" ON "stock_movements"("itemId", "createdAt")
 depot|stock_movements_type_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "stock_movements_type_createdAt_idx" ON "stock_movements"("type", "createdAt")

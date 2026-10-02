@@ -5,7 +5,11 @@
 -- every order placed before this column existed has no public link, not a broken one.
 ALTER TABLE "orders" ADD COLUMN "trackingToken" TEXT;
 
--- Plain, not CONCURRENTLY (Prisma runs this inside a transaction). `orders` is large and
--- live, so the concurrent build happens first in scripts/create-indexes.sh; this statement
--- then finds the index already there (H-39).
-CREATE UNIQUE INDEX IF NOT EXISTS "orders_trackingToken_key" ON "orders"("trackingToken");
+-- The unique index is NOT built here, and deliberately not registered in
+-- scripts/create-indexes.sh in this same release either — see that file's header comment
+-- (order_disputes_customerId_idx / cashbook_entries_reversesId_key) for why: that script
+-- runs BEFORE migrations, so an index on a column this same migration is adding fails with
+-- "column does not exist". It arrives in a later migration once `trackingToken` is
+-- confirmed live. Until then, the token is 128 bits of randomness (randomBytes(16) in
+-- OrderService.newTrackingToken) — a collision is not a realistic risk for one release.
+
