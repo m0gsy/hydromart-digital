@@ -148,5 +148,12 @@ describe('PromotionController', () => {
       const big = { buffer: png, size: 5 * 1024 * 1024 + 1 };
       await expect(controller.uploadImage(big)).rejects.toThrow('exceeds 5MB');
     });
+
+    it('turns a storage failure into a 503 rather than leaking the underlying error', async () => {
+      storage.put.mockRejectedValueOnce(new Error('bucket unreachable'));
+      await expect(controller.uploadImage({ buffer: png, size: png.length })).rejects.toThrow(
+        'Penyimpanan gambar sedang tidak tersedia',
+      );
+    });
   });
 });
