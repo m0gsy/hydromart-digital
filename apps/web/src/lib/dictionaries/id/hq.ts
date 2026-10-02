@@ -293,6 +293,7 @@ export const hq = {
       depotCrmWrite: 'Impor pelanggan depot',
       resellerView: 'Lihat agen / reseller',
       resellerAdmin: 'Kelola agen / reseller',
+      salesImportAdmin: 'Import riwayat transaksi penjualan',
       rewardHandover: 'Serah terima hadiah',
       pdpRequests: 'Permintaan data pribadi (UU PDP)',
       hrView: 'Lihat dashboard HR',
@@ -564,6 +565,8 @@ export const hq = {
         QRIS: 'QRIS',
         EWALLET: 'E-wallet',
         VA: 'Virtual account',
+        // A historical row whose metode pembayaran tidak cocok dengan lima metode nyata.
+        OTHER: 'Lainnya (riwayat)',
       },
     },
     release: {

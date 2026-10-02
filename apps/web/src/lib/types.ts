@@ -2006,8 +2006,13 @@ export interface RefundQueueItem {
 
 // HQ settlement dashboard (6a): one payment-method's unsettled (PENDING) total + count,
 // network-wide. Method is the raw enum; the console maps it to a display label.
+/**
+ * `revenue-by-method` widens this by one member vs `unsettled-by-method`: 'OTHER' is a
+ * historical row the server could not map onto a real payment method — see the
+ * RevenueMethodRow note in payment-service's payment.service.ts.
+ */
 export interface UnsettledMethodBucket {
-  method: PaymentMethod;
+  method: PaymentMethod | 'OTHER';
   amount: number;
   count: number;
 }

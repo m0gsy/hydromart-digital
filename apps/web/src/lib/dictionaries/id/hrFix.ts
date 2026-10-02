@@ -1775,6 +1775,9 @@ export const hrFix = {
     // J11: menyebut mode UPSERT, karena berkas kedua yang dikirim siapa pun adalah koreksi.
     resellersBody:
       'Nomor yang belum punya akun didaftarkan lebih dulu, lalu terdaftar sebagai agen depot ini. Agen yang sudah terdaftar akan DIPERBARUI dari berkas ini — diskon, target, dan harga rata galonnya. Tanggal bergabung tidak diubah.',
+    salesHistory: 'Import Riwayat Transaksi Penjualan',
+    salesHistoryBody:
+      'Untuk memindahkan riwayat penjualan dari sistem lama depot ini. Baris disimpan sebagai catatan historis, bukan pesanan hidup — tidak memicu poin loyalitas, notifikasi, atau potongan stok. Nomor nota (externalRef) yang sama diimpor dua kali akan dilewati, bukan digandakan.',
     staff: 'Impor Staf Massal',
     deductions: 'Import Potongan',
     allowances: 'Import Tunjangan',

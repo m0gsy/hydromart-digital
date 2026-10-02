@@ -282,6 +282,9 @@ export const CAPABILITIES = {
   // can show the roster without gaining the power to change discounts.
   resellerView: ['MANAGER', 'SUPERVISOR', 'HEAD_OFFICE', 'DIREKTUR', 'HR', 'SUPER_ADMIN'],
   resellerAdmin: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // order-service — bulk-import a depot's pre-Hydromart sales history (items 3/11, 2026
+  // evaluation list). Same tier as resellerAdmin: depot manager or above, never a line staffer.
+  salesImportAdmin: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // depot-service — operational incidents inbox (courier/vehicle/complaint reports)
   // and follow-up. Operators log & triage, managers resolve.
   incidents: ['KEPALA_DEPOT', 'MANAGER', 'SUPERVISOR', 'SUPER_ADMIN'],

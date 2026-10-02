@@ -65,4 +65,14 @@ export interface OrderCoordinationPort {
    * "not yours", exactly like `getOrderDepot`'s null.
    */
   getOrderDepots(orderIds: string[]): Promise<Map<string, string>>;
+  /**
+   * Owner decision, 2026-10-02: imported pre-Hydromart sales history counts toward the
+   * revenue-by-method report. The history lives in order-service's own database, not
+   * here, so this asks it the same way the depot/product groupings already do. Fails
+   * SOFT (empty array) — a report that cannot be enriched still shows the live totals,
+   * rather than the whole method breakdown failing over one unreachable call.
+   */
+  getHistoricalRevenueByMethod(
+    range: { from?: Date; to?: Date },
+  ): Promise<{ method: string; orders: number; revenue: number }[]>;
 }

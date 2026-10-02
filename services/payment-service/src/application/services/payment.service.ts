@@ -53,6 +53,15 @@ import { OrderCoordinationPort } from '../ports/order-coordination.port';
 import { CASHIER_SHIFT_PORT, CashierShiftPort } from '../ports/cashier-shift.port';
 import { PAYMENT_TOKENS } from '../tokens';
 
+/**
+ * `UnsettledMethodAggregate` widened by exactly one member for the revenue-by-method
+ * export: 'OTHER' is where a historical row's payment method normalised to (see
+ * order-service's `normalizeMethod`) when it matched none of the five real methods.
+ * Deliberately NOT added to the domain `PaymentMethod` enum — that enum also drives
+ * what a customer may select at checkout, and 'OTHER' is not a real payment method.
+ */
+export type RevenueMethodRow = { method: PaymentMethod | 'OTHER'; amount: number; count: number };
+
 export interface InitiatePaymentInput {
   orderId: string;
   method: PaymentMethod;
@@ -649,9 +658,31 @@ export class PaymentService {
   /**
    * Revenue-export grouping (design 10a): network-wide collected (PAID) revenue by
    * method with amount + transaction count, over a date range. Read-only aggregate.
+   *
+   * Owner decision, 2026-10-02: imported pre-Hydromart history counts here too.
+   * order-service already normalised the old system's free text onto the five real
+   * `PaymentMethod` values or 'OTHER' before answering, so the merge below is an exact
+   * string match — never a guess at which enum member a label meant.
    */
-  async revenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
-    return this.payments.aggregateRevenueByMethod(range);
+  async revenueByMethod(range: DateRange): Promise<RevenueMethodRow[]> {
+    const live = await this.payments.aggregateRevenueByMethod(range);
+    const historical = await this.orderCoordination.getHistoricalRevenueByMethod(range);
+    if (historical.length === 0) return live;
+    const byMethod = new Map<string, RevenueMethodRow>(live.map((r) => [r.method, { ...r }]));
+    for (const h of historical) {
+      const existing = byMethod.get(h.method);
+      if (existing) {
+        existing.amount += h.revenue;
+        existing.count += h.orders;
+      } else {
+        byMethod.set(h.method, {
+          method: h.method as PaymentMethod | 'OTHER',
+          amount: h.revenue,
+          count: h.orders,
+        });
+      }
+    }
+    return [...byMethod.values()];
   }
 
   /**

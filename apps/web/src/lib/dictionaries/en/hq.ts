@@ -290,6 +290,7 @@ export const hq = {
       depotCrmWrite: 'Import depot customers',
       resellerView: 'View resellers',
       resellerAdmin: 'Manage resellers',
+      salesImportAdmin: 'Sales history import',
       rewardHandover: 'Hand over a reward',
       pdpRequests: 'Data-subject requests (PDP)',
       hrView: 'View HR dashboards',
@@ -560,6 +561,8 @@ export const hq = {
         QRIS: 'QRIS',
         EWALLET: 'E-wallet',
         VA: 'Virtual account',
+        // A historical row whose payment method didn't match one of the five real ones.
+        OTHER: 'Other (historical)',
       },
     },
     release: {

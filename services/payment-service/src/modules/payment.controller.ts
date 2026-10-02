@@ -49,6 +49,7 @@ import {
   PaymentExpirySweepResult,
   PaymentService,
   RefundQueueRow,
+  RevenueMethodRow,
 } from '../application/services/payment.service';
 import {
   CashCollectedSummary,
@@ -432,11 +433,14 @@ export class PaymentController {
 
   // HQ report export (design 10a): network-wide collected (PAID) revenue grouped by
   // method. Declared before ':id' so the static segment wins. Read-only aggregate.
+  //
+  // Response type widened by one member ('OTHER') vs the Swagger doc below — see
+  // RevenueMethodRow — for an imported historical row the method text didn't recognise.
   @ApiOkResponse({ type: UnsettledMethodAggregateResponseDto, isArray: true })
   @Get('revenue-by-method')
   @Can('settlementRead')
   @ApiOperation({ summary: 'Network collected revenue grouped by method (finance/super-admin)' })
-  revenueByMethod(@Query() query: UnsettledByMethodQueryDto): Promise<UnsettledMethodAggregate[]> {
+  revenueByMethod(@Query() query: UnsettledByMethodQueryDto): Promise<RevenueMethodRow[]> {
     return this.payments.revenueByMethod({
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,

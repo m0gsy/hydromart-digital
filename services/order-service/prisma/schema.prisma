@@ -381,3 +381,44 @@ model OutboxMessage {
   @@index([status, nextAttemptAt])
   @@map("outbox_messages")
 }
+
+/// Historical sales transactions bulk-imported from a depot's old system — item 3/11 of
+/// the 2026 evaluation list. Deliberately NOT a row in `Order`: that table drives couriers,
+/// loyalty, inventory holds and franchise-revenue posting on every write, and a migration
+/// on it caused a production incident the same week this was built. A backdated receipt
+/// from before Hydromart existed must never walk through any of that machinery — it is a
+/// reference row for reporting, not a live order.
+model ImportedSalesTransaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  depotId     String   @db.Uuid
+
+  /// The old system's receipt/invoice number — the only thing that makes re-importing the
+  /// same file a no-op instead of a duplicate. Unique per depot, not globally: two depots'
+  /// old systems almost certainly numbered receipts independently.
+  externalRef String
+
+  /// When the original sale happened, not when it was imported.
+  occurredAt  DateTime
+
+  /// Free text from the old system. Deliberately NOT resolved to a live customerId/productId:
+  /// the old catalogue and customer book rarely map 1:1 onto the new ones, and guessing a
+  /// match for a historical row is how someone else's transaction ends up on your account.
+  customerLabel String?
+  productLabel  String
+
+  quantity      Int
+  unitPrice     Decimal @db.Decimal(12, 2)
+  lineTotal     Decimal @db.Decimal(12, 2)
+  paymentMethod String?
+
+  /// Groups every row of one import run, so a bad file can be found (and, for now,
+  /// identified for manual cleanup) without re-reading which rows came from which upload.
+  batchId    String   @db.Uuid
+  importedBy String?
+  importedAt DateTime @default(now())
+
+  @@unique([depotId, externalRef])
+  @@index([depotId, occurredAt])
+  @@index([batchId])
+  @@map("imported_sales_transactions")
+}

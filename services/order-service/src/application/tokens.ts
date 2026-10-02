@@ -24,4 +24,5 @@ export const ORDER_TOKENS = {
   Promo: Symbol('Promo'),
   Inventory: Symbol('Inventory'),
   MeterReadingRepository: Symbol('MeterReadingRepository'),
+  SalesImportRepository: Symbol('SalesImportRepository'),
 } as const;

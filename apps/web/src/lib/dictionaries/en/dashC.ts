@@ -184,6 +184,7 @@ export const dashC = {
       depotCrmWrite: 'Customer directory (edit)',
       resellerView: 'Resellers (view)',
       resellerAdmin: 'Resellers (manage)',
+      salesImportAdmin: 'Sales history import',
       depotHuddle: 'Daily huddle',
       depotHandover: 'Shift handover',
       depotMaintenance: 'Equipment maintenance',

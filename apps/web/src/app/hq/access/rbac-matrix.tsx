@@ -128,6 +128,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'rewardHandover',
       'resellerView',
       'resellerAdmin',
+      'salesImportAdmin',
     ],
   },
   {
