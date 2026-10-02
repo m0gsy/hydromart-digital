@@ -13,7 +13,11 @@ describe('PromotionController', () => {
     remove: jest.fn().mockResolvedValue(undefined),
     analytics: jest.fn().mockResolvedValue({ promotionId: 'p1', totalUses: 0 }),
   };
-  const controller = new PromotionController(promotions as unknown as PromotionService);
+  const storage = { put: jest.fn().mockResolvedValue({ url: 'https://cdn/promotions/x.png', key: 'promotions/x.png' }) };
+  const controller = new PromotionController(
+    promotions as unknown as PromotionService,
+    storage as never,
+  );
 
   afterEach(() => jest.clearAllMocks());
 
@@ -114,5 +118,42 @@ describe('PromotionController', () => {
   it('CreatePromotionDto coerces sortOrder via @Type', () => {
     const dto = plainToInstance(CreatePromotionDto, { title: 'Sale', sortOrder: '3' });
     expect(dto.sortOrder).toBe(3);
+  });
+
+  // Item 8 (2026 evaluation list): the banner image went from a plain URL text field
+  // to an upload, same trust-the-bytes rule depot/customer-service's uploads already follow.
+  describe('uploadImage', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+
+    it('sniffs the bytes and stores under promotions/, returning the URL', async () => {
+      const result = await controller.uploadImage({ buffer: png, size: png.length });
+      expect(storage.put).toHaveBeenCalledWith(
+        expect.objectContaining({ body: png, contentType: 'image/png', ext: 'png' }),
+      );
+      expect(result).toEqual({ url: 'https://cdn/promotions/x.png' });
+    });
+
+    it('refuses when no file was sent', async () => {
+      await expect(controller.uploadImage(undefined)).rejects.toThrow('file is required');
+    });
+
+    it('refuses a file whose bytes are not jpeg/png/webp, whatever its claimed type', async () => {
+      const notAnImage = Buffer.from('<script>alert(1)</script>          ');
+      await expect(
+        controller.uploadImage({ buffer: notAnImage, size: notAnImage.length }),
+      ).rejects.toThrow('unsupported file type');
+    });
+
+    it('refuses a file over 5MB before ever sniffing it', async () => {
+      const big = { buffer: png, size: 5 * 1024 * 1024 + 1 };
+      await expect(controller.uploadImage(big)).rejects.toThrow('exceeds 5MB');
+    });
+
+    it('turns a storage failure into a 503 rather than leaking the underlying error', async () => {
+      storage.put.mockRejectedValueOnce(new Error('bucket unreachable'));
+      await expect(controller.uploadImage({ buffer: png, size: png.length })).rejects.toThrow(
+        'Penyimpanan gambar sedang tidak tersedia',
+      );
+    });
   });
 });

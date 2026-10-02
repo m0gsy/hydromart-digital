@@ -5,4 +5,5 @@ export const PROMO_TOKENS = {
   CustomerLookup: Symbol('CustomerLookup'),
   Notification: Symbol('Notification'),
   AccountNames: Symbol('AccountNameResolver'),
+  Storage: Symbol('StoragePort'),
 } as const;
