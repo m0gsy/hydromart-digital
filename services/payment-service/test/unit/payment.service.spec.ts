@@ -705,6 +705,17 @@ describe('PaymentService', () => {
     ).rejects.toBeInstanceOf(InvalidWebhookSignatureError);
   });
 
+  it('rejects a webhook with no signature field at all, rather than throwing on undefined', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await expect(
+      service.handleWebhook({
+        reference: payment.reference!,
+        event: 'PAID',
+        timestamp: Date.now(),
+      } as never),
+    ).rejects.toBeInstanceOf(InvalidWebhookSignatureError);
+  });
+
   // Q-15: the old HMAC covered `${reference}.${event}` and nothing else, so a captured
   // PAID callback never went stale and any field the provider added later arrived
   // unauthenticated. Both halves are pinned here.

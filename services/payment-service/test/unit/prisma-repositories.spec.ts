@@ -7,7 +7,7 @@ import {
   PaymentStatus,
   RefundApproval,
 } from '../../src/domain/payment';
-import { TaxRounding } from '../../src/domain/tax';
+import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../src/domain/tax';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
 // Prisma returns Decimal instances for money columns; the repos only rely on toNumber().
@@ -507,7 +507,7 @@ describe('TaxSettingsPrismaRepository', () => {
   const prisma = { taxSettings: model } as unknown as PrismaService;
   const repo = new TaxSettingsPrismaRepository(prisma);
 
-  const taxRow = () => ({
+  const taxRow = (over: Record<string, unknown> = {}) => ({
     id: 'tax-1',
     ppnPercent: dec(11),
     priceIncludesTax: true,
@@ -517,6 +517,7 @@ describe('TaxSettingsPrismaRepository', () => {
     npwp: '00.000.000.0-000.000',
     address: 'Jakarta',
     updatedAt: new Date('2026-01-01'),
+    ...over,
   });
 
   const input = {
@@ -538,6 +539,12 @@ describe('TaxSettingsPrismaRepository', () => {
     expect(record?.taxRounding).toBe(TaxRounding.HALF_UP);
     expect(record?.companyName).toBe('Hydromart');
     expect(model.findFirst).toHaveBeenCalledWith({ orderBy: { updatedAt: 'desc' } });
+  });
+
+  it('get falls back to the legal default when the stored taxRounding is unknown', async () => {
+    model.findFirst.mockResolvedValue(taxRow({ taxRounding: 'HAND_EDITED_GARBAGE' }));
+    const record = await repo.get();
+    expect(record?.taxRounding).toBe(DEFAULT_TAX_ROUNDING);
   });
 
   it('get returns null when no settings exist', async () => {
