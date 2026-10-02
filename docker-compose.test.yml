@@ -282,6 +282,11 @@ services:
       PROMO_SERVICE_PORT: 3010
       PROMO_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_promo?schema=public
       ORDER_SERVICE_URL: http://order:3004
+      # Banner image upload (item 8). NODE_ENV here is production (see x-shared), so the
+      # env schema requires a non-localhost STORAGE_PUBLIC_BASE_URL — this service never
+      # had one set and crashed on boot before this. 'local' needs no bucket.
+      STORAGE_DRIVER: local
+      STORAGE_PUBLIC_BASE_URL: http://storage.test/promotions
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3010/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
