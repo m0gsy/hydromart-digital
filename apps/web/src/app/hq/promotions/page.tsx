@@ -6,7 +6,7 @@ import { Image as ImageIcon } from '@phosphor-icons/react';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -55,7 +55,26 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
   const [form, setForm] = useState<PromoForm>(promo ? formFrom(promo) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const set = (k: keyof PromoForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Item 8 (2026 evaluation list): upload-first, same field the old text input held — a
+  // chosen file replaces whatever was there, exactly like retyping the URL would.
+  async function pickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    setError(null);
+    try {
+      const { url } = await uploadFile(endpoints.promotions.uploadImage, file);
+      setForm((f) => ({ ...f, imageUrl: url }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hq.promotions.imageUploadFailed'));
+    } finally {
+      setImageBusy(false);
+    }
+  }
 
   async function submit() {
     if (!form.title.trim()) {
@@ -96,7 +115,20 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
           <Input value={form.subtitle} onChange={set('subtitle')} />
         </Field>
         <Field label={t('hq.promotions.fields.image')}>
-          <Input value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://…" />
+          <div className="flex items-center gap-2">
+            <Input value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://…" />
+            <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-app px-3 py-2.5 text-sm font-semibold hover:bg-brand-50">
+              <ImageIcon size={16} weight="bold" />
+              {imageBusy ? t('hq.promotions.imageUploading') : t('hq.promotions.imageUpload')}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                disabled={imageBusy}
+                onChange={pickImage}
+              />
+            </label>
+          </div>
         </Field>
         <Field label={t('hq.promotions.fields.voucher')}>
           <Input value={form.voucherCode} onChange={set('voucherCode')} />

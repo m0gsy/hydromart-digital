@@ -1052,6 +1052,9 @@ export const hq = {
     saveError: 'Could not save the banner.',
     edit: 'Edit',
     remove: 'Delete',
+    imageUpload: 'Upload',
+    imageUploading: 'Uploading…',
+    imageUploadFailed: 'Could not upload the image.',
   },
   customers: {
     title: 'Customer 360',

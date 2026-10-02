@@ -41,4 +41,31 @@ export const envValidationSchema = Joi.object({
     .allow('')
     .default('')
     .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  // Object storage for promo banner images (item 8, 2026 evaluation list) — same
+  // STORAGE_* contract as customer/depot/product/auth-service.
+  STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
+  STORAGE_PUBLIC_BASE_URL: Joi.string()
+    .uri()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
+      otherwise: Joi.string().uri().default('http://localhost:3010'),
+    }),
+  STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
+  STORAGE_S3_ENDPOINT: Joi.string()
+    .uri()
+    .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_REGION: Joi.string().default('auto'),
+  STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
+  STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
 });

@@ -1289,6 +1289,9 @@ export const hrFix = {
     create: 'Create promotion',
     inactive: 'Inactive',
     deleteFailed: 'Could not delete the promotion.',
+    imageUpload: 'Upload',
+    imageUploading: 'Uploading…',
+    imageUploadFailed: 'Could not upload the image.',
   },
   walkIn: {
     total: 'Total',

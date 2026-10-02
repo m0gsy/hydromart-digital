@@ -183,6 +183,9 @@ export const shop = {
     // PATCH to edit, DELETE to remove.
     detail: (id: string) => `/vouchers/api/v1/promotions/${id}`,
     analytics: (id: string) => `/vouchers/api/v1/promotions/${id}/analytics`,
+    // Item 8 (2026 evaluation list): upload-first — returns a URL to set on the form,
+    // same shape the old "image URL" text field held.
+    uploadImage: '/vouchers/api/v1/promotions/upload-image',
   },
 
   referrals: {

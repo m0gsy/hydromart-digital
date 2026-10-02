@@ -491,6 +491,16 @@ services:
       # comes from *shared; blank URLs → grant succeeds, notification is skipped (fail-open).
       CRM_SERVICE_URL: http://crm:3012
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # Object storage for promo banner images (item 8, 2026 evaluation list). No bucket
+      # of its own by default — reuses AUTH's unless PROMO_STORAGE_* overrides it, same
+      # fallback shape customer-service already uses.
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:?set STORAGE_S3_ENDPOINT (e.g. https://nos.jkt-1.neo.id)}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-jkt-1}
+      STORAGE_S3_BUCKET: ${PROMO_STORAGE_S3_BUCKET:-${AUTH_STORAGE_S3_BUCKET:?set AUTH_STORAGE_S3_BUCKET or PROMO_STORAGE_S3_BUCKET}}
+      STORAGE_S3_ACCESS_KEY_ID: ${PROMO_STORAGE_S3_ACCESS_KEY_ID:-${AUTH_STORAGE_S3_ACCESS_KEY_ID:?set AUTH_STORAGE_S3_ACCESS_KEY_ID or PROMO_STORAGE_S3_ACCESS_KEY_ID}}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${PROMO_STORAGE_S3_SECRET_ACCESS_KEY:-${AUTH_STORAGE_S3_SECRET_ACCESS_KEY:?set AUTH_STORAGE_S3_SECRET_ACCESS_KEY or PROMO_STORAGE_S3_SECRET_ACCESS_KEY}}
+      STORAGE_PUBLIC_BASE_URL: ${PROMO_STORAGE_PUBLIC_BASE_URL:-${AUTH_STORAGE_PUBLIC_BASE_URL:?set AUTH_STORAGE_PUBLIC_BASE_URL or PROMO_STORAGE_PUBLIC_BASE_URL}}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3010/api/v1/health"]
       interval: 30s

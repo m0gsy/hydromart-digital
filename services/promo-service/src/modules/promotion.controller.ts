@@ -1,23 +1,48 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   ParseUUIDPipe,
   Patch,
+  PayloadTooLargeException,
   Post,
+  ServiceUnavailableException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, Public, depotScopeIds } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  Public,
+  SNIFFED_MIME,
+  depotScopeIds,
+  sniffFileType,
+} from '@hydromart/platform';
 
 import { PromotionRecord } from '../application/ports/promotion.repository';
+import { StoragePort } from '../application/ports/storage.port';
 import { PromotionService } from '../application/services/promotion.service';
+import { PROMO_TOKENS } from '../application/tokens';
 import { CreatePromotionDto, PromotionAnalyticsDto, UpdatePromotionDto } from './dto/promotion.dto';
 import { PromotionResponseDto } from './dto/responses.generated.dto';
+
+// Minimal multipart file shape — the same trick depot/customer-service's upload routes
+// use to avoid a hard @types/multer dependency.
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+interface UploadedImage {
+  buffer: Buffer;
+  size: number;
+}
 
 // Promotions are authored by marketing/depot staff and shown to customers on Home.
 //
@@ -32,7 +57,43 @@ const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefi
 @ApiTags('Promotions')
 @Controller({ path: 'promotions', version: '1' })
 export class PromotionController {
-  constructor(private readonly promotions: PromotionService) {}
+  constructor(
+    private readonly promotions: PromotionService,
+    @Inject(PROMO_TOKENS.Storage) private readonly storage: StoragePort,
+  ) {}
+
+  /**
+   * Item 8 (2026 evaluation list): the admin form had a plain "image URL" text field —
+   * an external link whoever controlled it could swap or take down. Upload-first: the
+   * admin picks a file here, gets back a URL, and sets it on the form exactly like the
+   * old text field did. No promotion id needed — a NEW promo has none yet.
+   */
+  @ApiOkResponse({ description: 'The uploaded banner image, as an absolute URL.' })
+  @ApiBearerAuth()
+  @Can('promotionWrite')
+  @Post('upload-image')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: IMAGE_MAX_BYTES } }))
+  @ApiOperation({ summary: 'Upload a promo banner image; returns its URL' })
+  async uploadImage(@UploadedFile() file?: UploadedImage): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('file is required');
+    if (file.size > IMAGE_MAX_BYTES) throw new PayloadTooLargeException('file exceeds 5MB');
+    // H-20: trust the bytes, never the client-supplied mimetype — the bucket serves
+    // whatever lands there straight back to every customer's browser on Home.
+    const sniffed = sniffFileType(file.buffer);
+    const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
+    if (!ext) throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
+    try {
+      const { url } = await this.storage.put({
+        body: file.buffer,
+        contentType: SNIFFED_MIME[ext],
+        ext,
+      });
+      return { url };
+    } catch {
+      throw new ServiceUnavailableException('Penyimpanan gambar sedang tidak tersedia. Coba lagi.');
+    }
+  }
 
   @ApiOkResponse({ type: PromotionResponseDto, isArray: true })
   @Public()
