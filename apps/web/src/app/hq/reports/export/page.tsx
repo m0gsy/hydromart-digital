@@ -7,8 +7,8 @@ import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import type { ExportRow } from '@/lib/hq/stubs';
-import { api } from '@/lib/api';
-import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
+import { api, postBlob } from '@/lib/api';
+import { downloadBlob, downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
 import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -17,7 +17,7 @@ import type { NetworkDashboard, RevenueByProduct, UnsettledMethodBucket } from '
 
 type RangeKey = 'd7' | 'd30' | 'quarter' | 'custom';
 type GroupKey = 'depot' | 'product' | 'method';
-type FormatKey = 'xlsx' | 'csv';
+type FormatKey = 'xlsx' | 'csv' | 'pdf';
 
 const RANGE_DAYS: Record<Exclude<RangeKey, 'custom'>, number> = { d7: 7, d30: 30, quarter: 90 };
 const CHIP =
@@ -144,8 +144,18 @@ export default function HqReportsExportPage() {
     try {
       if (format === 'xlsx') {
         await downloadXlsx(`${name}.xlsx`, headers, body, 'Pendapatan');
-      } else {
+      } else if (format === 'csv') {
         downloadCsv(`${name}.csv`, toCsv(headers, body));
+      } else {
+        // Server-rendered from these SAME rows (see revenue-export-pdf.ts) — never a second
+        // fetch, so the PDF cannot show a different number than the preview above it.
+        const blob = await postBlob(endpoints.reports.revenueExportPdf, {
+          group,
+          from: fromIso,
+          to: toIso,
+          rows: rows.map((r) => ({ label: r.label, orders: r.orders, revenue: r.revenue })),
+        });
+        downloadBlob(`${name}.pdf`, blob);
       }
     } catch {
       toast(t('hrFix.reportsExport.fileFailed'), 'error');
@@ -154,10 +164,7 @@ export default function HqReportsExportPage() {
 
   const RANGES: RangeKey[] = ['d7', 'd30', 'quarter', 'custom'];
   const GROUPS: GroupKey[] = ['depot', 'product', 'method'];
-  // No PDF: nothing on this side of the wire renders one, and a third chip that only ever
-  // toasted "dijadwalkan" was a button pretending to have worked. Add it back with a real
-  // server-side renderer, not before.
-  const FORMATS: FormatKey[] = ['xlsx', 'csv'];
+  const FORMATS: FormatKey[] = ['xlsx', 'csv', 'pdf'];
 
   return (
     <div className="flex flex-col gap-6">

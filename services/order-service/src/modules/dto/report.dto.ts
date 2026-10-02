@@ -1,8 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsISO8601,
   IsString,
@@ -11,6 +14,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
@@ -260,4 +264,46 @@ export class TopReportQueryDto {
   @IsNotBefore('from')
   @IsWithinDays('from')
   to?: string;
+}
+
+/** One row of the /hq/reports/export preview table, exactly as the screen already renders it. */
+export class RevenueExportRowDto {
+  @ApiProperty({ maxLength: 120 })
+  @IsString()
+  @MaxLength(120)
+  label!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  orders!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  revenue!: number;
+}
+
+/**
+ * Body for the /hq/reports/export PDF button. The rows are the same ones the Excel/CSV
+ * buttons next to it already write (see revenue-export-pdf.ts for why this is rendered
+ * rather than recomputed), so the three formats can never disagree.
+ */
+export class RevenueExportPdfDto {
+  @ApiProperty({ enum: ['depot', 'product', 'method'] })
+  @IsIn(['depot', 'product', 'method'])
+  group!: 'depot' | 'product' | 'method';
+
+  @ApiProperty({ description: 'Inclusive lower bound (ISO 8601), for the sheet header only.' })
+  @IsISO8601()
+  from!: string;
+
+  @ApiProperty({ description: 'Upper bound (ISO 8601), for the sheet header only.' })
+  @IsISO8601()
+  to!: string;
+
+  @ApiProperty({ type: [RevenueExportRowDto] })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => RevenueExportRowDto)
+  rows!: RevenueExportRowDto[];
 }

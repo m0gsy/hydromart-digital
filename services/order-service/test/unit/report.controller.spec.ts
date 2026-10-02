@@ -34,6 +34,7 @@ function makeService(): Mocked {
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
     depotDailyPdf: jest.fn().mockResolvedValue({ file: Buffer.from('%PDF-fake'), day: '2026-08-04' }),
+    revenueExportPdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-revenue-fake')),
     depotDailyGallons: jest.fn().mockResolvedValue([]),
     broadcastDailySales: jest.fn().mockResolvedValue({ attempted: 2, skipped: 0 }),
   } as unknown as Mocked;
@@ -127,6 +128,30 @@ describe('ReportController', () => {
         res as never,
       );
       expect(service.depotDailyPdf).toHaveBeenCalledWith(DEPOT_B, '2026-08-04', undefined);
+    });
+  });
+
+  // The HQ revenue-export table as a PDF — renders the rows the screen already sent,
+  // never recomputing them server-side (see revenue-export-pdf.ts for why).
+  describe('revenue-export/pdf', () => {
+    const fakeRes = () => ({ setHeader: jest.fn(), send: jest.fn() });
+    const body = {
+      group: 'depot' as const,
+      from: '2026-09-01T00:00:00.000Z',
+      to: '2026-09-30T00:00:00.000Z',
+      rows: [{ label: 'Depot A', orders: 10, revenue: 400000 }],
+    };
+
+    it('sends the sheet as a PDF attachment named for the grouping', async () => {
+      const res = fakeRes();
+      await controller.revenueExportPdf(body as never, res as never);
+      expect(service.revenueExportPdf).toHaveBeenCalledWith(body);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        'attachment; filename="pendapatan-depot.pdf"',
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from('%PDF-revenue-fake'));
     });
   });
 

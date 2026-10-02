@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
@@ -36,6 +37,7 @@ import {
   ExportRowsQueryDto,
   RangeReportQueryDto,
   ResellerRollupQueryDto,
+  RevenueExportPdfDto,
   SalesReportQueryDto,
   SegmentEstimateQueryDto,
   TopReportQueryDto,
@@ -280,6 +282,24 @@ export class ReportController {
     const { file, day } = await this.reports.depotDailyPdf(q.depotId, q.date, q.label);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="laporan-harian-${day}.pdf"`);
+    res.send(file);
+  }
+
+  /**
+   * The /hq/reports/export table as a PDF. Same capability as the screen itself
+   * (`orderReports`) — this carries no row the caller could not already read as Excel/CSV.
+   */
+  @ApiOkResponse({
+    description: 'The revenue-export table as a PDF.',
+    content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Can('orderReports')
+  @Post('revenue-export/pdf')
+  @ApiOperation({ summary: 'The HQ revenue-export table as a printable PDF sheet' })
+  async revenueExportPdf(@Body() dto: RevenueExportPdfDto, @Res() res: Response): Promise<void> {
+    const file = await this.reports.revenueExportPdf(dto);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="pendapatan-${dto.group}.pdf"`);
     res.send(file);
   }
 
