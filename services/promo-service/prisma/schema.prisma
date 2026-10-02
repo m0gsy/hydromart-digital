@@ -66,6 +66,9 @@ model Voucher {
   redemptions VoucherRedemption[]
   grants      VoucherGrant[]
 
+  // Matches the raw-SQL index from migration 0008_voucher_depot_scope — declared here so
+  // `prisma migrate dev` stops proposing to drop it as drift.
+  @@index([depotId])
   @@map("vouchers")
 }
 

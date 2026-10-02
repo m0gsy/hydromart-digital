@@ -4,9 +4,6 @@ CREATE TYPE "PromoKind" AS ENUM ('SPECIAL_PRICE', 'BUY_X_GET_Y', 'SHIPPING_DISCO
 -- CreateEnum
 CREATE TYPE "SalesChannel" AS ENUM ('APP', 'COUNTER');
 
--- DropIndex
-DROP INDEX "vouchers_depotId_idx";
-
 -- CreateTable
 CREATE TABLE "promo_rules" (
     "id" TEXT NOT NULL,
