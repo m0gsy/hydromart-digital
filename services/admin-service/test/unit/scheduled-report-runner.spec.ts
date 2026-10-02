@@ -142,13 +142,49 @@ describe('renderReport', () => {
     expect(buf.subarray(0, 2).toString('utf8')).toBe('PK');
   }, 30_000);
 
-  /*
-   * There is no PDF renderer anywhere in this repo. Handing back an .xlsx under a .pdf
-   * name is exactly how a format option survives for years without anyone noticing it
-   * never worked, so the format is refused instead.
-   */
-  it('refuses PDF rather than silently handing back another format', async () => {
-    await expect(renderReport(rows, ExportFormat.PDF, 'x')).rejects.toThrow(/PDF/);
+  it('writes a real PDF', async () => {
+    const pdf = await renderReport(rows, ExportFormat.PDF, 'Laporan Harian');
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.toString('latin1')).toContain('%%EOF');
+  });
+
+  // pdfkit writes each text call as one `[<hex> kern <hex> …] TJ` operator — the same
+  // extraction order-service's PDF tests use, since there is no PDF parser dependency here.
+  it('prints the sheet title, every row, and a summed total', async () => {
+    const pdf = await renderReport(
+      [...rows, { label: 'Depot Pekayon', orders: 2, revenue: 60000 }],
+      ExportFormat.PDF,
+      'Laporan Harian',
+      { pdfCompress: false },
+    );
+    const cells: string[] = [];
+    for (const m of pdf.toString('latin1').matchAll(/\[([^\]]*)\]\s*TJ/g)) {
+      cells.push(
+        [...m[1].matchAll(/<([0-9a-f]*)>/g)]
+          .map((h) => Buffer.from(h[1], 'hex').toString('latin1'))
+          .join(''),
+      );
+    }
+    expect(cells).toContain('Laporan Harian');
+    expect(cells).toEqual(expect.arrayContaining(['Depot Cibubur', '3', 'Rp90.000']));
+    expect(cells).toEqual(expect.arrayContaining(['Depot Pekayon', '2', 'Rp60.000']));
+    expect(cells).toEqual(expect.arrayContaining(['Total', '5', 'Rp150.000']));
+  });
+
+  it('says so when there are no rows, rather than printing an empty table', async () => {
+    const pdf = await renderReport([], ExportFormat.PDF, 'Laporan Harian', {
+      pdfCompress: false,
+    });
+    const cells: string[] = [];
+    for (const m of pdf.toString('latin1').matchAll(/\[([^\]]*)\]\s*TJ/g)) {
+      cells.push(
+        [...m[1].matchAll(/<([0-9a-f]*)>/g)]
+          .map((h) => Buffer.from(h[1], 'hex').toString('latin1'))
+          .join(''),
+      );
+    }
+    expect(cells).toContain('Tidak ada data pada periode ini.');
+    expect(cells).not.toContain('Total');
   });
 
   it('names the file after the window, not the run time', () => {

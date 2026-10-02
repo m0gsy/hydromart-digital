@@ -58,6 +58,7 @@ function makeService(): Mocked {
     recordRefund: jest.fn().mockResolvedValue(undefined),
     ratingSummary: jest.fn().mockResolvedValue({ average: 4.5, count: 2 }),
     updateStatus: jest.fn().mockResolvedValue({ id: 'o1', status: 'DELIVERED' }),
+    deliveryOptions: jest.fn().mockResolvedValue({ slots: [], expressFee: 0 }),
   } as unknown as Mocked;
 }
 
@@ -704,5 +705,10 @@ describe('OrderController', () => {
     // Unlike the internal sweeps above: no guard at all, because there is no internal
     // caller here to hold a key — the token itself is the only credential this route has.
     expect(Reflect.getMetadata('__guards__', handler) ?? []).not.toContain(InternalAuthGuard);
+  });
+
+  it('deliveryOptions: a query with no depotId reaches the service as null, not undefined', async () => {
+    await controller.deliveryOptions(undefined);
+    expect(service.deliveryOptions).toHaveBeenCalledWith(null);
   });
 });

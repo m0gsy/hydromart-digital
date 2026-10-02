@@ -1753,6 +1753,9 @@ export const hrFix = {
     resellers: 'Import resellers / agents',
     resellersBody:
       'A phone with no account yet is pre-registered first, then listed as an agen of this depot. An agen already on the registry is UPDATED from this file — discount, target and flat gallon price. The join date is left alone.',
+    salesHistory: 'Import sales transaction history',
+    salesHistoryBody:
+      "For moving this depot's sales history over from the old system. Rows are stored as historical records, not live orders — no loyalty points, notifications, or stock deduction. The same receipt number (externalRef) imported twice is skipped, not duplicated.",
     staff: 'Bulk staff import',
     deductions: 'Import deductions',
     allowances: 'Import allowances',

@@ -189,6 +189,7 @@ export const dashC = {
       depotCrmWrite: 'Direktori pelanggan (ubah)',
       resellerView: 'Agen / reseller (lihat)',
       resellerAdmin: 'Agen / reseller (kelola)',
+      salesImportAdmin: 'Import riwayat transaksi',
       depotHuddle: 'Huddle harian',
       depotHandover: 'Serah terima shift',
       depotMaintenance: 'Perawatan alat',

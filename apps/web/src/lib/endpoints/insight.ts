@@ -91,6 +91,9 @@ export const insight = {
       if (label) p.set('label', label.slice(0, 80));
       return `/orders/api/v1/reports/depot-daily/pdf?${p}`;
     },
+    // The /hq/reports/export table as a printable PDF sheet. POST, not GET: the rows are
+    // the screen's own already-fetched preview, sent as a body rather than a query string.
+    revenueExportPdf: '/orders/api/v1/reports/revenue-export/pdf',
     // Depot water-meter reading. The SAME path serves the morning (openingM3) and the
     // evening (closingM3) write — one partial upsert, not two endpoints.
     meterSave: (depotId: string, date: string) => `/orders/api/v1/reports/meter/${depotId}/${date}`,
@@ -134,6 +137,13 @@ export const insight = {
         month: q.month,
         customerIds: q.customerIds.join(','),
       })}`,
+  },
+
+  // Historical sales-transaction bulk import (items 3/11) — order-service, not Order itself.
+  // Read-side (`GET /sales-import`) has no console screen yet, so no helper for it here —
+  // `test/endpoints.test.ts` refuses an entry with no caller anywhere in apps/web.
+  salesImport: {
+    import: '/orders/api/v1/sales-import',
   },
 
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;

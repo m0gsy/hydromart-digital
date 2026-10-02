@@ -14,6 +14,7 @@ import { MeterService } from '../application/services/meter.service';
 import { ReportService } from '../application/services/report.service';
 import { SubscriptionService } from '../application/services/subscription.service';
 import { SettingsService } from '../application/services/settings.service';
+import { SalesImportService } from '../application/services/sales-import.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { CartPrismaRepository } from '../infrastructure/prisma/cart.prisma.repository';
 import { MeterReadingPrismaRepository } from '../infrastructure/prisma/meter-reading.prisma.repository';
@@ -21,6 +22,7 @@ import { OrderPrismaRepository } from '../infrastructure/prisma/order.prisma.rep
 import { OutboxPrismaRepository } from '../infrastructure/prisma/outbox.prisma.repository';
 import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscription.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
+import { SalesImportPrismaRepository } from '../infrastructure/prisma/sales-import.prisma.repository';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
 import { DepotDirectoryHttpAdapter } from '../infrastructure/http/depot-directory.http.adapter';
 import { DepotPricingHttpAdapter } from '../infrastructure/http/depot-pricing.http.adapter';
@@ -47,6 +49,7 @@ import { MeterController } from './meter.controller';
 import { ReportController } from './report.controller';
 import { SubscriptionController } from './subscription.controller';
 import { SettingsController } from './settings.controller';
+import { SalesImportController } from './sales-import.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -64,6 +67,8 @@ const providers: Provider[] = [
   ReportService,
   SubscriptionService,
   SettingsService,
+  SalesImportService,
+  { provide: ORDER_TOKENS.SalesImportRepository, useClass: SalesImportPrismaRepository },
   { provide: ORDER_TOKENS.CartRepository, useClass: CartPrismaRepository },
   { provide: ORDER_TOKENS.OrderRepository, useClass: OrderPrismaRepository },
   { provide: ORDER_TOKENS.OutboxRepository, useClass: OutboxPrismaRepository },
@@ -106,6 +111,7 @@ const providers: Provider[] = [
     ReportController,
     SubscriptionController,
     SettingsController,
+    SalesImportController,
   ],
   providers,
   exports: [PrismaService, OrderConfigService],

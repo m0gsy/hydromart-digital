@@ -161,6 +161,34 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     return out;
   }
 
+  async getHistoricalRevenueByMethod(
+    range: { from?: Date; to?: Date },
+  ): Promise<{ method: string; orders: number; revenue: number }[]> {
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    if (!orderServiceUrl || !internalServiceKey) return [];
+    const p = new URLSearchParams();
+    if (range.from) p.set('from', range.from.toISOString());
+    if (range.to) p.set('to', range.to.toISOString());
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OrderCoordinationHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(
+        `${orderServiceUrl}/api/v1/sales-import/summary-by-method?${p}`,
+        { headers: { 'x-internal-key': internalServiceKey }, signal: controller.signal },
+      );
+      if (!res.ok) throw new Error(`order-service responded ${res.status}`);
+      const body = (await res.json()) as {
+        rows: { label: string; orders: number; revenue: number }[];
+      };
+      return body.rows.map((r) => ({ method: r.label, orders: r.orders, revenue: r.revenue }));
+    } catch (error) {
+      this.logger.warn(`Historical revenue-by-method unavailable: ${(error as Error).message}`);
+      return [];
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** POST to order-service over the internal-key path, failing open (logged, never thrown). */
   private async post(path: string, body: unknown, skipMsg: string): Promise<void> {
     const { orderServiceUrl, internalServiceKey } = this.config;

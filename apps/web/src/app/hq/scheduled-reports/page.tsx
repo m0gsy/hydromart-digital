@@ -26,12 +26,10 @@ import type { ExportFormat, ReportCadence, ReportDataset, ScheduledReport } from
 // `enabled` pauses a schedule without deleting it. `nextRunAt` is no longer advisory: the
 // hourly sweep reads it, produces the file and records it in hq/exports.
 //
-// PDF is gone from the picker on purpose — there is no PDF renderer anywhere in this repo,
-// and the server refuses the format rather than handing back an .xlsx under a .pdf name.
 // Delivery is NOT email yet: there is no mail transport here, so the file is downloaded
 // from hq/exports and the card says so rather than implying an inbox.
 const CADENCES: ReportCadence[] = ['DAILY', 'WEEKLY', 'MONTHLY'];
-const FORMATS: ExportFormat[] = ['XLSX', 'CSV'];
+const FORMATS: ExportFormat[] = ['XLSX', 'CSV', 'PDF'];
 const DATASETS: ReportDataset[] = ['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT', 'REVENUE_BY_METHOD'];
 
 export default function HqScheduledReportsPage() {

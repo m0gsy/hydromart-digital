@@ -478,6 +478,37 @@ export async function getBlob(path: string, _retry = false): Promise<Blob> {
   return res.blob();
 }
 
+/**
+ * Authenticated POST whose response is a file, not JSON — for a report PDF whose rows
+ * (already fetched for an on-screen table) are too many/too free-text-ish to fit a query
+ * string. Same guarantees as `getBlob`: deadline, 401 refresh-retry, bearer-or-cookie auth.
+ */
+export async function postBlob(path: string, body: unknown, _retry = false): Promise<Blob> {
+  if (missingPathSegment(path)) {
+    throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
+  }
+  const res = await fetchWithTimeout(
+    `${BASE_URL}${path}`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    FILE_TIMEOUT_MS,
+  );
+
+  if (res.status === 401 && !_retry && (await refreshSession())) {
+    return postBlob(path, body, true);
+  }
+
+  if (!res.ok) {
+    const data = parseBody(await res.text());
+    throw new ApiError(res.status, messageFrom(res.status, data), codeFrom(data));
+  }
+  return res.blob();
+}
+
 // DELETE overload: most callers take no body (`api.del(path, true)`); the settings
 // reset endpoint needs a JSON body too — kept backward-compatible by branching on
 // whether the second arg is a boolean (auth-only) or the body itself.

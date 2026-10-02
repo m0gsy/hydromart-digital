@@ -111,6 +111,9 @@ hr|loan_requests_employee_pending_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EX
 forecast|service_settings_scope_depot_id_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_scope_depot_id_idx" ON "service_settings"("scope", "depot_id")
 forecast|service_settings_global_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_global_key_key" ON "service_settings"("key") WHERE "scope" = 'GLOBAL'
 forecast|service_settings_depot_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_depot_key_key" ON "service_settings"("depot_id", "key") WHERE "scope" = 'DEPOT'
+order|imported_sales_transactions_depotId_externalRef_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_externalRef_key" ON "imported_sales_transactions"("depotId", "externalRef")
+order|imported_sales_transactions_depotId_occurredAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_occurredAt_idx" ON "imported_sales_transactions"("depotId", "occurredAt")
+order|imported_sales_transactions_batchId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_batchId_idx" ON "imported_sales_transactions"("batchId")
 '
 
 # One rule, one place. It lived in two places for exactly one deploy, and in that deploy the

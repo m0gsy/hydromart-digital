@@ -6,6 +6,7 @@ import {
   ConfirmPaymentDto,
   InitiatePaymentDto,
   ListPaymentsQueryDto,
+  RefundCountsQueryDto,
 } from '../../src/modules/dto/payment.dto';
 import { TaxSettingsDto, UpdateTaxSettingsDto } from '../../src/modules/dto/tax-settings.dto';
 import type { TaxSettingsRecord } from '../../src/application/ports/tax-settings.repository';
@@ -74,5 +75,16 @@ describe('TaxSettingsDto.from', () => {
   it('maps a null updatedAt to null', () => {
     const dto = TaxSettingsDto.from({ ...base, updatedAt: null });
     expect(dto.updatedAt).toBeNull();
+  });
+});
+
+describe('RefundCountsQueryDto', () => {
+  it('coerces minRefunds from a query-string number', () => {
+    const dto = plainToInstance(RefundCountsQueryDto, {
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-02-01T00:00:00.000Z',
+      minRefunds: '5',
+    });
+    expect(dto.minRefunds).toBe(5);
   });
 });

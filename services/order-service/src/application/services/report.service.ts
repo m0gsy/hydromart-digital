@@ -22,10 +22,12 @@ import {
   SalesBucket,
 } from '../ports/order.repository';
 import { depotDailyPdf } from './depot-daily-pdf';
+import { revenueExportPdf, type RevenueExportPdfInput } from './revenue-export-pdf';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PaymentCashPort } from '../ports/payment-cash.port';
 import { DeliverySlaPort } from '../ports/delivery-sla.port';
+import { SalesImportService } from './sales-import.service';
 import {
   DepotGovernanceFigures,
   DepotCostBreakdown,
@@ -374,6 +376,13 @@ export class ReportService {
     @Optional()
     @Inject(ORDER_TOKENS.DepotCosts)
     private readonly depotCosts?: DepotCostsPort,
+    /**
+     * Owner decision, 2026-10-02: imported pre-Hydromart history counts toward revenue-by-
+     * depot/product. Optional for the same reason as every other port above — a test double
+     * built with fewer args just sees live-only totals, not a crash.
+     */
+    @Optional()
+    private readonly salesImport?: SalesImportService,
   ) {}
 
   async sales(
@@ -399,13 +408,49 @@ export class ReportService {
     return { ...ReportService.rangeView(range), items };
   }
 
+  /**
+   * Owner decision, 2026-10-02: a depot's imported pre-Hydromart history counts toward its
+   * revenue here, merged by exact depotId (unambiguous — unlike the product merge below).
+   * `commissionBase` on a merged row is left at the LIVE figure only: nothing pays a
+   * franchise owner commission from this field (see the DepotSales doc), but a report that
+   * implied a commission base for a sale made before the owner's agreement existed would be
+   * the wrong kind of honest.
+   */
   async topDepots(
     range: ReportRange,
     limit: number,
     depotIds?: readonly string[],
   ): Promise<ReportRangeView & { items: DepotSales[] }> {
     const items = await this.orders.topDepots(range, ReportService.clampLimit(limit), depotIds);
-    return { ...ReportService.rangeView(range), items };
+    const merged = await this.mergeHistoricalDepots(items, range, depotIds);
+    return { ...ReportService.rangeView(range), items: merged };
+  }
+
+  private async mergeHistoricalDepots(
+    items: DepotSales[],
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<DepotSales[]> {
+    if (!this.salesImport) return items;
+    const historical = await this.salesImport.sumByDepot(range.from, range.to);
+    const scoped = depotIds ? historical.filter((h) => depotIds.includes(h.depotId)) : historical;
+    if (scoped.length === 0) return items;
+    const byDepot = new Map(items.map((i) => [i.depotId, { ...i }]));
+    for (const h of scoped) {
+      const existing = byDepot.get(h.depotId);
+      if (existing) {
+        existing.orderCount += h.orders;
+        existing.revenue += h.revenue;
+      } else {
+        byDepot.set(h.depotId, {
+          depotId: h.depotId,
+          orderCount: h.orders,
+          revenue: h.revenue,
+          commissionBase: 0,
+        });
+      }
+    }
+    return [...byDepot.values()].sort((a, b) => b.revenue - a.revenue);
   }
 
   async shippingByDepot(
@@ -453,14 +498,48 @@ export class ReportService {
     };
   }
 
+  /**
+   * Owner decision, 2026-10-02: imported pre-Hydromart history counts here too, merged by
+   * case-insensitive label match against the live catalogue's `productName` — the historical
+   * row carries free text, never a real `productId`, since the old catalogue rarely maps
+   * 1:1 onto this one. A label with no live match becomes its own row with `productId: ''`,
+   * which is not a real id and never resolves to a product page; it is a display label only.
+   */
   async revenueByProduct(range: ReportRange, limit: number): Promise<RevenueByProductReport> {
     const items = await this.orders.revenueByProduct(range, ReportService.clampLimit(limit));
-    const total = items.reduce((s, i) => s + i.revenue, 0);
+    const merged = await this.mergeHistoricalProducts(items, range);
+    const total = merged.reduce((s, i) => s + i.revenue, 0);
     return {
       grouping: 'product',
       ...ReportService.rangeView(range),
-      items: items.map((i) => ({ ...i, share: total > 0 ? i.revenue / total : 0 })),
+      items: merged.map((i) => ({ ...i, share: total > 0 ? i.revenue / total : 0 })),
     };
+  }
+
+  private async mergeHistoricalProducts(
+    items: ProductRevenue[],
+    range: ReportRange,
+  ): Promise<ProductRevenue[]> {
+    if (!this.salesImport) return items;
+    const historical = await this.salesImport.sumByProduct(range.from, range.to);
+    if (historical.length === 0) return items;
+    const byName = new Map(items.map((i) => [i.productName.trim().toLowerCase(), { ...i }]));
+    for (const h of historical) {
+      const key = h.productLabel.trim().toLowerCase();
+      const existing = byName.get(key);
+      if (existing) {
+        existing.orderCount += h.orders;
+        existing.revenue += h.revenue;
+      } else {
+        byName.set(key, {
+          productId: '',
+          productName: h.productLabel,
+          orderCount: h.orders,
+          revenue: h.revenue,
+        });
+      }
+    }
+    return [...byName.values()].sort((a, b) => b.revenue - a.revenue);
   }
 
   async retentionCohort(range: ReportRange): Promise<RetentionCohortReport> {
@@ -810,6 +889,11 @@ export class ReportService {
       timeZone: this.config.businessTimeZone,
     });
     return { file, day: report.date };
+  }
+
+  /** The /hq/reports/export table as a PDF, for the button beside its Excel and CSV siblings. */
+  revenueExportPdf(input: RevenueExportPdfInput): Promise<Buffer> {
+    return revenueExportPdf(input);
   }
 
   /**

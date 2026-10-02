@@ -280,6 +280,19 @@ describe('OrderCoordinationHttpAdapter.getOrderDepots', () => {
   });
 });
 
+describe('OrderCoordinationHttpAdapter.getOrderStatuses', () => {
+  // CA-2-34: the same `internal/values` round trip as getOrderNumbers/getOrderDepots,
+  // just read for the `status` field.
+  it('maps a batch of orders to their statuses off the same values read', async () => {
+    fetchMock.mockResolvedValue(
+      res({ body: [{ orderId: 'o1', status: 'CANCELLED' }, { orderId: 'o2' }] }),
+    );
+    const out = await new OrderCoordinationHttpAdapter(makeConfig()).getOrderStatuses(['o1', 'o2']);
+    expect([...out]).toEqual([['o1', 'CANCELLED']]);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://order:3002/api/v1/orders/internal/values');
+  });
+});
+
 describe('OrderCoordinationHttpAdapter.getOrderDepot', () => {
   it('reads the depot of exactly the order asked for', async () => {
     fetchMock.mockResolvedValue(

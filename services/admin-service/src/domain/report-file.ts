@@ -16,6 +16,26 @@ interface ExcelModule {
   Workbook: new () => ExcelWorkbook;
 }
 
+// pdfkit is a plain dependency (as in order-service/hr-service) but typed by hand below:
+// those two renderers do the same, and only a handful of calls are used.
+interface PdfDoc {
+  page: { height: number; width: number };
+  font(name: string): PdfDoc;
+  fontSize(n: number): PdfDoc;
+  text(s: string, x?: number, y?: number, opts?: Record<string, unknown>): PdfDoc;
+  moveTo(x: number, y: number): PdfDoc;
+  lineTo(x: number, y: number): PdfDoc;
+  strokeColor(c: string): PdfDoc;
+  stroke(): PdfDoc;
+  addPage(): PdfDoc;
+  on(event: string, cb: (chunk?: Buffer) => void): PdfDoc;
+  end(): void;
+}
+type PdfModule = new (opts?: Record<string, unknown>) => PdfDoc;
+
+const PDF_MARGIN = 40;
+const PDF_LINE = 14;
+
 const HEADERS = ['Label', 'Pesanan', 'Pendapatan'] as const;
 
 /**
@@ -37,17 +57,90 @@ export function csvCell(value: string | number): string {
   return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
+/** The same rows as the CSV/XLSX siblings, as a one-table printable PDF sheet. */
+function renderPdf(rows: ReportRow[], title: string, compress: boolean): Promise<Buffer> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const PDFDocument = require('pdfkit') as PdfModule;
+  const doc = new PDFDocument({ size: 'A4', margin: PDF_MARGIN, compress });
+  const chunks: Buffer[] = [];
+  const done = new Promise<Buffer>((resolve) => {
+    doc.on('data', (c) => c && chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+
+  const left = PDF_MARGIN;
+  const width = doc.page.width - PDF_MARGIN * 2;
+  const bottom = doc.page.height - PDF_MARGIN;
+  let y = PDF_MARGIN;
+
+  const room = (h: number, repeat?: () => void): void => {
+    if (y + h <= bottom) return;
+    doc.addPage();
+    y = PDF_MARGIN;
+    repeat?.();
+  };
+
+  const cols = [
+    { x: left, w: 300 },
+    { x: left + 310, w: 80, right: true },
+    { x: left + 400, w: 115, right: true },
+  ];
+  const rowOf = (values: string[], bold = false): void => {
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    cols.forEach((c, i) =>
+      doc.text(values[i] ?? '', c.x, y, {
+        width: c.w,
+        align: c.right ? 'right' : 'left',
+        lineBreak: false,
+      }),
+    );
+    y += PDF_LINE;
+  };
+  const rule = (): void => {
+    doc.strokeColor('#999999').moveTo(left, y).lineTo(left + width, y).stroke();
+    y += 4;
+  };
+  const head = (): void => {
+    rowOf([...HEADERS], true);
+    rule();
+  };
+
+  doc.font('Helvetica-Bold').fontSize(16).text(title, left, y, { width, align: 'center' });
+  y += 26;
+  rule();
+  y += 8;
+
+  room(PDF_LINE * 2);
+  head();
+  if (rows.length === 0) {
+    room(PDF_LINE);
+    rowOf(['Tidak ada data pada periode ini.', '', '']);
+  } else {
+    for (const r of rows) {
+      room(PDF_LINE, head);
+      rowOf([r.label, String(r.orders), `Rp${Math.round(r.revenue).toLocaleString('id-ID')}`]);
+    }
+    room(PDF_LINE * 2);
+    y += 6;
+    const totalOrders = rows.reduce((s, r) => s + r.orders, 0);
+    const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+    rowOf(['Total', String(totalOrders), `Rp${Math.round(totalRevenue).toLocaleString('id-ID')}`], true);
+  }
+
+  doc.end();
+  return done;
+}
+
 /**
- * Render report rows as the requested file.
- *
- * PDF is refused rather than silently downgraded: there is no PDF renderer anywhere in this
- * repo, and handing back an .xlsx under a .pdf name is how a format option survives for
- * years without anyone noticing it never worked.
+ * Render report rows as the requested file. The SAME rows the XLSX/CSV siblings write, so
+ * the three formats can never disagree — see revenue-export-pdf.ts in order-service for the
+ * identical reasoning.
  */
 export async function renderReport(
   rows: ReportRow[],
   format: ExportFormat,
   sheetName: string,
+  opts: { pdfCompress?: boolean } = {},
 ): Promise<Buffer> {
   const values = rows.map((r) => [r.label, r.orders, r.revenue] as (string | number)[]);
 
@@ -55,6 +148,9 @@ export async function renderReport(
     const lines = [HEADERS.join(','), ...values.map((row) => row.map(csvCell).join(','))];
     // BOM so Excel opens a UTF-8 file as UTF-8 rather than as the system codepage.
     return Buffer.from(`﻿${lines.join('\r\n')}\r\n`, 'utf8');
+  }
+  if (format === ExportFormat.PDF) {
+    return renderPdf(rows, sheetName.slice(0, 80), opts.pdfCompress ?? true);
   }
   if (format !== ExportFormat.XLSX) {
     throw new Error(`Format ${format} belum didukung — tidak ada renderer-nya di repo ini.`);

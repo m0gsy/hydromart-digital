@@ -1989,3 +1989,183 @@ describe('ReportService.broadcastDailySales', () => {
     });
   });
 });
+
+// Owner decision, 2026-10-02: imported historical sales count toward revenue-by-depot and
+// revenue-by-product. These drive the merge off a fake SalesImportService rather than real
+// rows, so the merge logic itself — not the import pipeline already covered elsewhere — is
+// what's under test.
+describe('ReportService historical-import merge', () => {
+  const fakeOrders = (topDepots: unknown, revenueByProduct: unknown) =>
+    ({ topDepots: async () => topDepots, revenueByProduct: async () => revenueByProduct }) as never;
+
+  it('adds a depot only present in imported history as its own row', async () => {
+    const DEPOT_LIVE = randomUUID();
+    const DEPOT_HISTORY_ONLY = randomUUID();
+    const salesImport = {
+      sumByDepot: async () => [{ depotId: DEPOT_HISTORY_ONLY, orders: 4, revenue: 160000 }],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([{ depotId: DEPOT_LIVE, orderCount: 2, revenue: 50000, commissionBase: 50000 }], []),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.topDepots({}, 10);
+    expect(items).toEqual(
+      expect.arrayContaining([
+        { depotId: DEPOT_LIVE, orderCount: 2, revenue: 50000, commissionBase: 50000 },
+        { depotId: DEPOT_HISTORY_ONLY, orderCount: 4, revenue: 160000, commissionBase: 0 },
+      ]),
+    );
+  });
+
+  it('sums into the SAME depot row rather than duplicating it, and never inflates commissionBase', async () => {
+    const DEPOT_A_ID = randomUUID();
+    const salesImport = {
+      sumByDepot: async () => [{ depotId: DEPOT_A_ID, orders: 3, revenue: 90000 }],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders(
+        [{ depotId: DEPOT_A_ID, orderCount: 2, revenue: 50000, commissionBase: 50000 }],
+        [],
+      ),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.topDepots({}, 10);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ depotId: DEPOT_A_ID, orderCount: 5, revenue: 140000 });
+    // The live figure, untouched — nothing here pays a franchise owner commission on a
+    // sale made before their agreement existed.
+    expect(items[0].commissionBase).toBe(50000);
+  });
+
+  it('merges a historical product into its live counterpart by case-insensitive label match', async () => {
+    const salesImport = {
+      sumByProduct: async () => [{ productLabel: 'galon 19l', orders: 10, revenue: 200000 }],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([], [{ productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 }]),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.revenueByProduct({}, 10);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ productId: 'p1', orderCount: 15, revenue: 300000 });
+  });
+
+  it('gives an unmatched historical label its own row with no real productId', async () => {
+    const salesImport = {
+      sumByProduct: async () => [{ productLabel: 'Galon Tua (sistem lama)', orders: 1, revenue: 15000 }],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([], []),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.revenueByProduct({}, 10);
+    expect(items).toEqual([
+      expect.objectContaining({ productId: '', productName: 'Galon Tua (sistem lama)', revenue: 15000 }),
+    ]);
+  });
+
+  it('leaves live-only totals untouched when no SalesImportService is wired', async () => {
+    const DEPOT_ID = randomUUID();
+    const svc = new ReportService(
+      fakeOrders([{ depotId: DEPOT_ID, orderCount: 1, revenue: 10000, commissionBase: 10000 }], []),
+      reportTestConfig(),
+    );
+    const { items } = await svc.topDepots({}, 10);
+    expect(items).toEqual([{ depotId: DEPOT_ID, orderCount: 1, revenue: 10000, commissionBase: 10000 }]);
+  });
+
+  it('scopes the historical merge to the given depotIds, excluding the rest', async () => {
+    const DEPOT_IN = randomUUID();
+    const DEPOT_OUT = randomUUID();
+    const salesImport = {
+      sumByDepot: async () => [
+        { depotId: DEPOT_IN, orders: 1, revenue: 10000 },
+        { depotId: DEPOT_OUT, orders: 9, revenue: 999999 },
+      ],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([], []),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.topDepots({}, 10, [DEPOT_IN]);
+    expect(items).toEqual([{ depotId: DEPOT_IN, orderCount: 1, revenue: 10000, commissionBase: 0 }]);
+  });
+
+  it('leaves depot totals untouched when the depotIds filter excludes every historical row', async () => {
+    const DEPOT_LIVE = randomUUID();
+    const salesImport = {
+      sumByDepot: async () => [{ depotId: randomUUID(), orders: 1, revenue: 10000 }],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([{ depotId: DEPOT_LIVE, orderCount: 1, revenue: 5000, commissionBase: 5000 }], []),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.topDepots({}, 10, [DEPOT_LIVE]);
+    expect(items).toEqual([{ depotId: DEPOT_LIVE, orderCount: 1, revenue: 5000, commissionBase: 5000 }]);
+  });
+
+  it('leaves product totals untouched when SalesImportService has no historical rows at all', async () => {
+    const salesImport = { sumByProduct: async () => [] } as never;
+    const svc = new ReportService(
+      fakeOrders([], [{ productId: 'p1', productName: 'Galon', orderCount: 1, revenue: 10000 }]),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.revenueByProduct({}, 10);
+    expect(items).toEqual([
+      expect.objectContaining({ productId: 'p1', orderCount: 1, revenue: 10000 }),
+    ]);
+  });
+
+  it('revenueExportPdf renders a real PDF from the given rows', async () => {
+    const svc = new ReportService(fakeOrders([], []), reportTestConfig());
+    const pdf = await svc.revenueExportPdf({
+      group: 'depot',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      rows: [{ label: 'Depot A', orders: 1, revenue: 10000 }],
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+});

@@ -127,6 +127,52 @@ describe('SaveMeterReadingDto — the optional intake pair', () => {
     const errors = await validate(dto);
     expect(errors.some((e) => e.property === 'sourceClosingM3')).toBe(true);
   });
+
+  // #24: tank level at opening/closing, 0..100%.
+  it('coerces both tank-level percentages and enforces the 0..100 bound', async () => {
+    const dto = plainToInstance(SaveMeterReadingDto, {
+      readingDate: '2026-08-14',
+      openingTankPct: '72.5',
+      closingTankPct: '65',
+    });
+    expect(dto.openingTankPct).toBeCloseTo(72.5);
+    expect(dto.closingTankPct).toBe(65);
+    const errors = await validate(dto);
+    expect(errors.filter((e) => e.property.endsWith('TankPct'))).toEqual([]);
+
+    const tooHigh = plainToInstance(SaveMeterReadingDto, {
+      readingDate: '2026-08-14',
+      openingTankPct: '101',
+    });
+    expect((await validate(tooHigh)).some((e) => e.property === 'openingTankPct')).toBe(true);
+  });
+});
+
+// C11: a counter sale (and its quote) MAY carry a delivery address — nested so a bad
+// street still reports on the field the cashier actually typed, not a vague top-level error.
+describe('deliveryAddress nesting (WalkInSaleDto / CounterQuoteDto)', () => {
+  const DEPOT = '00000000-0000-4000-8000-000000000009';
+  const badAddress = { recipientName: '', phone: '', addressLine: '', city: '' };
+
+  it('WalkInSaleDto validates a nested deliveryAddress, not just its presence', async () => {
+    const dto = plainToInstance(WalkInSaleDto, {
+      depotId: DEPOT,
+      lines: [],
+      deliveryAddress: badAddress,
+    });
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'deliveryAddress')).toBe(true);
+  });
+
+  it('CounterQuoteDto validates a nested deliveryAddress, not just its presence', async () => {
+    const dto = plainToInstance(CounterQuoteDto, {
+      depotId: DEPOT,
+      lines: [],
+      deliveryAddress: badAddress,
+    });
+    const errors = await validate(dto);
+    expect(errors.some((e) => e.property === 'deliveryAddress')).toBe(true);
+  });
 });
 
 /**

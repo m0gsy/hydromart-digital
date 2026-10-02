@@ -358,6 +358,13 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
         .map((id) => [id, this.orderStatuses.get(id)!]),
     );
   }
+  /** Empty = no imported history (or order-service unreachable) — fail-soft, like the rest. */
+  historicalByMethod: { method: string; orders: number; revenue: number }[] = [];
+  async getHistoricalRevenueByMethod(): Promise<
+    { method: string; orders: number; revenue: number }[]
+  > {
+    return this.historicalByMethod;
+  }
 }
 
 export const WEBHOOK_SECRET = 'test-webhook-secret-01';
