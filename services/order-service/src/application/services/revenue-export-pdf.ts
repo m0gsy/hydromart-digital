@@ -85,7 +85,7 @@ export function revenueExportPdf(
   const rowOf = (values: string[], bold = false): void => {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
     cols.forEach((c, i) =>
-      doc.text(values[i] ?? '', c.x, y, {
+      doc.text(values[i], c.x, y, {
         width: c.w,
         align: c.right ? 'right' : 'left',
         lineBreak: false,

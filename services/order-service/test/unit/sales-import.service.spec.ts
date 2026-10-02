@@ -66,4 +66,37 @@ describe('SalesImportService', () => {
     expect(listByDepot).toHaveBeenCalledWith(DEPOT_A, { from, to });
     expect(rows).toEqual([{ id: 'r1' }]);
   });
+
+  it('sumByDepot delegates to the repository with an optional window', async () => {
+    const sumByDepot = jest.fn().mockResolvedValue([{ depotId: DEPOT_A, orders: 2, revenue: 50000 }]);
+    const service = makeService({ sumByDepot });
+
+    const result = await service.sumByDepot();
+
+    expect(sumByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined });
+    expect(result).toEqual([{ depotId: DEPOT_A, orders: 2, revenue: 50000 }]);
+  });
+
+  it('sumByProduct delegates to the repository with an optional window', async () => {
+    const sumByProduct = jest.fn().mockResolvedValue([{ productLabel: 'Galon', orders: 1, revenue: 20000 }]);
+    const service = makeService({ sumByProduct });
+    const from = new Date('2026-01-01');
+
+    const result = await service.sumByProduct(from);
+
+    expect(sumByProduct).toHaveBeenCalledWith({ from, to: undefined });
+    expect(result).toEqual([{ productLabel: 'Galon', orders: 1, revenue: 20000 }]);
+  });
+
+  it('sumByMethod delegates to the repository with an optional window', async () => {
+    const sumByMethod = jest.fn().mockResolvedValue([{ method: 'CASH', orders: 1, revenue: 10000 }]);
+    const service = makeService({ sumByMethod });
+    const from = new Date('2026-01-01');
+    const to = new Date('2026-02-01');
+
+    const result = await service.sumByMethod(from, to);
+
+    expect(sumByMethod).toHaveBeenCalledWith({ from, to });
+    expect(result).toEqual([{ method: 'CASH', orders: 1, revenue: 10000 }]);
+  });
 });

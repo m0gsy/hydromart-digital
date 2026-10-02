@@ -2097,4 +2097,75 @@ describe('ReportService historical-import merge', () => {
     const { items } = await svc.topDepots({}, 10);
     expect(items).toEqual([{ depotId: DEPOT_ID, orderCount: 1, revenue: 10000, commissionBase: 10000 }]);
   });
+
+  it('scopes the historical merge to the given depotIds, excluding the rest', async () => {
+    const DEPOT_IN = randomUUID();
+    const DEPOT_OUT = randomUUID();
+    const salesImport = {
+      sumByDepot: async () => [
+        { depotId: DEPOT_IN, orders: 1, revenue: 10000 },
+        { depotId: DEPOT_OUT, orders: 9, revenue: 999999 },
+      ],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([], []),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.topDepots({}, 10, [DEPOT_IN]);
+    expect(items).toEqual([{ depotId: DEPOT_IN, orderCount: 1, revenue: 10000, commissionBase: 0 }]);
+  });
+
+  it('leaves depot totals untouched when the depotIds filter excludes every historical row', async () => {
+    const DEPOT_LIVE = randomUUID();
+    const salesImport = {
+      sumByDepot: async () => [{ depotId: randomUUID(), orders: 1, revenue: 10000 }],
+    } as never;
+    const svc = new ReportService(
+      fakeOrders([{ depotId: DEPOT_LIVE, orderCount: 1, revenue: 5000, commissionBase: 5000 }], []),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.topDepots({}, 10, [DEPOT_LIVE]);
+    expect(items).toEqual([{ depotId: DEPOT_LIVE, orderCount: 1, revenue: 5000, commissionBase: 5000 }]);
+  });
+
+  it('leaves product totals untouched when SalesImportService has no historical rows at all', async () => {
+    const salesImport = { sumByProduct: async () => [] } as never;
+    const svc = new ReportService(
+      fakeOrders([], [{ productId: 'p1', productName: 'Galon', orderCount: 1, revenue: 10000 }]),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      salesImport,
+    );
+    const { items } = await svc.revenueByProduct({}, 10);
+    expect(items).toEqual([
+      expect.objectContaining({ productId: 'p1', orderCount: 1, revenue: 10000 }),
+    ]);
+  });
+
+  it('revenueExportPdf renders a real PDF from the given rows', async () => {
+    const svc = new ReportService(fakeOrders([], []), reportTestConfig());
+    const pdf = await svc.revenueExportPdf({
+      group: 'depot',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      rows: [{ label: 'Depot A', orders: 1, revenue: 10000 }],
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
 });

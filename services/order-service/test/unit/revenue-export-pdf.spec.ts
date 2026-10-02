@@ -83,6 +83,16 @@ describe('revenueExportPdf', () => {
     expect(cells).not.toContain('Total');
   });
 
+  it('falls back to the raw group name when it names none of the three known groupings', async () => {
+    const cells = cellsOf(
+      await revenueExportPdf(
+        { group: 'depot-unmapped' as never, from: '2026-09-01', to: '2026-09-30', rows: [] },
+        { compress: false },
+      ),
+    );
+    expect(cells).toContain('Pendapatan depot-unmapped');
+  });
+
   it('breaks onto more pages, repeating the header, instead of running off the sheet', async () => {
     const pdf = await revenueExportPdf(
       {
