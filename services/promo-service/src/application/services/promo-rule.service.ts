@@ -57,7 +57,9 @@ export interface ApplyInput {
   /**
    * The total galon/unit count the shipping fee applies across — the same quantity the
    * caller used to compute the delivery fee itself (`deliveryFee × quantity`). Shipping fees
-   * here are PER-GALON, so the real discount is per-unit too. Defaults to 1 if omitted.
+   * here are PER-GALON, so the real discount is per-unit too. 0 is a legitimate value (a
+   * shipping-only order with no galon lines). No safe default: if `originalShippingFee` is
+   * set but this is missing, the shipping row is skipped entirely rather than guessed.
    */
   shippingUnits?: number;
 }
@@ -177,7 +179,15 @@ export class PromoRuleService {
       }
     }
 
-    if (input.quotedShipping.appliedRuleId && input.originalShippingFee != null) {
+    // D-1: shippingUnits has no safe default — the DTO requires it whenever
+    // originalShippingFee is sent, but a caller that bypasses DTO validation (direct service
+    // call, future integration) could still send one without the other. Rather than guess
+    // (and silently under/over-record the discount), skip the shipping row entirely.
+    if (
+      input.quotedShipping.appliedRuleId &&
+      input.originalShippingFee != null &&
+      input.shippingUnits != null
+    ) {
       const override = input.quotedShipping.shippingFeeOverride ?? 0;
       // I-2 (shipping sibling of the SPECIAL_PRICE price-raise guard): if the "override" is
       // actually higher than the original fee, this is not a discount — never write a
@@ -188,8 +198,10 @@ export class PromoRuleService {
           productId: null,
           // Per-galon fee × the unit count it applies across (C-1) — shippingFeeOverride and
           // originalShippingFee are both PER-GALON values, so without this multiplier an
-          // order with more than one galon under-records its real discount.
-          discountValue: (input.originalShippingFee - override) * (input.shippingUnits ?? 1),
+          // order with more than one galon under-records its real discount. shippingUnits
+          // may legitimately be 0 (shipping-only order, no galon lines), in which case this
+          // correctly records a 0 discount rather than skipping the row.
+          discountValue: (input.originalShippingFee - override) * input.shippingUnits,
         });
       }
     }
@@ -239,6 +251,14 @@ export class PromoRuleService {
         if ((data.minQty != null && data.minQty > 1) || data.maxQty != null) {
           throw new PromoRuleValidationError(
             'minQty/maxQty tidak didukung untuk SHIPPING_DISCOUNT — kuantitas galon tidak diperiksa pada level ini.',
+          );
+        }
+        // D-2 (same defect class as I-5): evaluateShipping's synthetic line also has
+        // productId: '' and categoryId: null, so a rule scoped to a product or category
+        // could never match it either — permanently dead on creation.
+        if (data.productId != null || data.categoryId != null) {
+          throw new PromoRuleValidationError(
+            'productId/categoryId tidak didukung untuk SHIPPING_DISCOUNT — berlaku di level pengiriman, bukan per produk.',
           );
         }
         break;

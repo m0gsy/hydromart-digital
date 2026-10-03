@@ -291,12 +291,13 @@ export class AutoApplyApplyDto {
     example: 5,
     description:
       'Total galon/unit count the shipping fee applies across (same quantity used to ' +
-      'compute the delivery fee). Only meaningful alongside originalShippingFee/' +
-      'shippingAppliedRuleId; defaults to 1 if omitted.',
+      'compute the delivery fee). Required whenever originalShippingFee is sent (0 is a ' +
+      'valid value — e.g. a shipping-only order with no galon lines); omit both fields ' +
+      'together when the order has no shipping-fee concept at all.',
   })
-  @IsOptional()
+  @ValidateIf((o) => o.originalShippingFee != null)
   @Type(() => Number)
   @IsInt()
-  @Min(1)
+  @Min(0)
   shippingUnits?: number;
 }

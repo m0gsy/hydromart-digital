@@ -173,6 +173,35 @@ describe('PromoRuleService', () => {
       ).rejects.toThrow(PromoRuleValidationError);
     });
 
+    // D-2 (same defect class as I-5): evaluateShipping's synthetic line has productId: ''
+    // and categoryId: null, so a rule scoped to a product or category could never match it —
+    // reject at create time instead of letting it silently never apply.
+    it('rejects SHIPPING_DISCOUNT with a productId set', async () => {
+      await expect(
+        service.create(
+          baseInput({
+            kind: 'SHIPPING_DISCOUNT',
+            specialPrice: null,
+            shippingFeeOverride: 1000,
+            productId: 'p1',
+          }),
+        ),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+
+    it('rejects SHIPPING_DISCOUNT with a categoryId set', async () => {
+      await expect(
+        service.create(
+          baseInput({
+            kind: 'SHIPPING_DISCOUNT',
+            specialPrice: null,
+            shippingFeeOverride: 1000,
+            categoryId: 'c1',
+          }),
+        ),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+
     it('accepts SHIPPING_DISCOUNT with default minQty (1) and no maxQty', async () => {
       const row = await service.create(
         baseInput({ kind: 'SHIPPING_DISCOUNT', specialPrice: null, shippingFeeOverride: 1000 }),
@@ -452,6 +481,7 @@ describe('PromoRuleService', () => {
         quotedLines: [],
         quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
         originalShippingFee: 2000,
+        shippingUnits: 1,
       });
       expect(repo.applications).toEqual([
         { orderId: 'order-5', promoRuleId: 'rule-ship', productId: null, discountValue: 1000 },
@@ -475,16 +505,35 @@ describe('PromoRuleService', () => {
       ]);
     });
 
-    it('defaults shippingUnits to 1 when omitted (single-unit order)', async () => {
+    // D-1: shippingUnits has no safe default. The DTO requires it whenever
+    // originalShippingFee is sent (see controller spec), but a direct service-level caller
+    // that skips DTO validation and sends originalShippingFee without shippingUnits must not
+    // get a silently-guessed discount — the shipping row is skipped entirely instead.
+    it('writes no shipping row when originalShippingFee is set but shippingUnits is missing', async () => {
       await service.apply({
         orderId: 'order-5c',
         originalLines: [],
         quotedLines: [],
         quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
         originalShippingFee: 2000,
+        // shippingUnits intentionally omitted
+      });
+      expect(repo.applications).toHaveLength(0);
+    });
+
+    // shippingUnits: 0 is legitimate (e.g. a shipping-only order with no galon lines) and
+    // must record a real discountValue of 0, not be treated as "missing" or an error.
+    it('accepts shippingUnits: 0 and records a zero discount', async () => {
+      await service.apply({
+        orderId: 'order-5e',
+        originalLines: [],
+        quotedLines: [],
+        quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
+        originalShippingFee: 2000,
+        shippingUnits: 0,
       });
       expect(repo.applications).toEqual([
-        { orderId: 'order-5c', promoRuleId: 'rule-ship', productId: null, discountValue: 1000 },
+        { orderId: 'order-5e', promoRuleId: 'rule-ship', productId: null, discountValue: 0 },
       ]);
     });
 
@@ -498,6 +547,7 @@ describe('PromoRuleService', () => {
         quotedLines: [],
         quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 3000 },
         originalShippingFee: 2000,
+        shippingUnits: 1,
       });
       expect(repo.applications).toHaveLength(0);
     });

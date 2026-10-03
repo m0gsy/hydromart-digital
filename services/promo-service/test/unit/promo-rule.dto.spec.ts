@@ -111,13 +111,49 @@ describe('AutoApplyApplyDto · shipping field coercion', () => {
     expect(dto.shippingUnits).toBe(5);
   });
 
-  it('rejects a shippingUnits below 1', async () => {
+  // D-1: shippingUnits: 0 is legitimate (a shipping-only order with no galon lines) — it
+  // must be accepted, not rejected the way a true "no units" sentinel like `null` would be.
+  it('accepts shippingUnits: 0 when originalShippingFee is set', async () => {
     const dto = plainToInstance(AutoApplyApplyDto, {
       orderId: '00000000-0000-4000-8000-000000000001',
       lines: [],
+      originalShippingFee: '2000',
       shippingUnits: '0',
     });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.shippingUnits).toBe(0);
+  });
+
+  it('rejects a negative shippingUnits', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: '00000000-0000-4000-8000-000000000001',
+      lines: [],
+      originalShippingFee: '2000',
+      shippingUnits: '-1',
+    });
     expect(await validate(dto)).not.toEqual([]);
+  });
+
+  // D-1: shippingUnits used to silently default to 1 when omitted — the exact bug class a
+  // prior round fixed for the multiplier itself (C-1). Now, whenever the caller is sending
+  // shipping-discount data at all (originalShippingFee present), shippingUnits is required.
+  it('rejects omitting shippingUnits when originalShippingFee is set', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: '00000000-0000-4000-8000-000000000001',
+      lines: [],
+      originalShippingFee: '2000',
+      // shippingUnits intentionally omitted
+    });
+    expect(await validate(dto)).not.toEqual([]);
+  });
+
+  it('allows omitting shippingUnits when there is no shipping data at all', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: '00000000-0000-4000-8000-000000000001',
+      lines: [],
+      // no originalShippingFee, no shippingUnits — order has no shipping-fee concept
+    });
+    expect(await validate(dto)).toEqual([]);
   });
 });
 

@@ -202,7 +202,7 @@ export class PromoRuleController {
         shippingFeeOverride: dto.shippingFeeOverride ?? null,
       },
       originalShippingFee: dto.originalShippingFee ?? null,
-      shippingUnits: dto.shippingUnits ?? 1,
+      shippingUnits: dto.shippingUnits,
     });
   }
 }

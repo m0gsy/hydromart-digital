@@ -160,7 +160,12 @@ export function evaluateShipping(
   ctx: EvaluationContext,
 ): ShippingResult {
   // Shipping rules have no product line to match against; reuse the schedule/channel/depot
-  // checks with a synthetic line that always passes product/category/qty scoping.
+  // checks with a synthetic line of productId: '', categoryId: null, quantity: 1. That line
+  // only ever satisfies product/category scoping when the rule itself has none — qty: 1
+  // is safe because validate() rejects minQty > 1 / any maxQty for SHIPPING_DISCOUNT (I-5),
+  // and product/category scope is safe because validate() separately rejects a non-null
+  // productId or categoryId on SHIPPING_DISCOUNT (D-2) — so any SHIPPING_DISCOUNT candidate
+  // reaching this function is guaranteed unscoped on all three axes already.
   const anyLine: CartLine = { productId: '', categoryId: null, quantity: 1, unitPrice: 0 };
   const matching = candidates.filter(
     (r) => r.kind === 'SHIPPING_DISCOUNT' && r.shippingFeeOverride !== null && ruleMatchesLine(r, anyLine, ctx),

@@ -337,6 +337,7 @@ describe('PromoRuleController', () => {
       shippingAppliedRuleId: 'rule-ship',
       shippingFeeOverride: 1000,
       originalShippingFee: 2000,
+      shippingUnits: 2,
     } as never);
     expect(service.apply).toHaveBeenCalledWith({
       orderId: 'order-1',
@@ -352,11 +353,15 @@ describe('PromoRuleController', () => {
       ],
       quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
       originalShippingFee: 2000,
-      shippingUnits: 1,
+      shippingUnits: 2,
     });
   });
 
-  it('apply() defaults omitted shipping fields to null, shippingUnits to 1', async () => {
+  // D-1: no safe default for shippingUnits any more — the controller now passes it through
+  // exactly as the (DTO-validated) caller sent it, undefined when there is no shipping data
+  // at all. The service's own D-1 guard is what turns a missing shippingUnits alongside a
+  // present originalShippingFee into "skip the row", not a controller-level fallback.
+  it('apply() defaults omitted shipping fields to null, leaves shippingUnits undefined', async () => {
     const service = makeService();
     const controller = new PromoRuleController(service);
     await controller.apply({
@@ -376,7 +381,7 @@ describe('PromoRuleController', () => {
       expect.objectContaining({
         quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
         originalShippingFee: null,
-        shippingUnits: 1,
+        shippingUnits: undefined,
       }),
     );
   });
