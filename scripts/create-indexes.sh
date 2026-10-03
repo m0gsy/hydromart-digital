@@ -79,6 +79,14 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # every new index for a concurrent path, and a table that is empty today will not be at the
 # next migration. The PENDING predicate is dollar-quoted: this block is a single-quoted
 # shell string, and one apostrophe in it would end the table right there.
+#
+# Item 5 fase 1 (2026-10-04): four indexes across three promo-service migrations, all
+# shipping in the same release — same PYO-2/PYO-3 situation. `promo_rules`/`promo_applications`
+# are created by the FIRST of the three (20261002144839_promo_rules), so at the moment this
+# script runs (before any migration in the release) every one of these tables is still
+# absent; `table_absent` skips all four correctly, and each owning migration builds its own
+# index under a lock that costs nothing on an empty table. They stay registered here for
+# whichever migration touches this table next.
 INDEXES='
 product|product_price_changes_productId_changedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "product_price_changes_productId_changedAt_idx" ON "product_price_changes"("productId", "changedAt")
 payout|hq_release_requests_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_status_createdAt_idx" ON "hq_release_requests"("status", "createdAt")
@@ -114,6 +122,10 @@ forecast|service_settings_depot_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT 
 order|imported_sales_transactions_depotId_externalRef_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_externalRef_key" ON "imported_sales_transactions"("depotId", "externalRef")
 order|imported_sales_transactions_depotId_occurredAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_occurredAt_idx" ON "imported_sales_transactions"("depotId", "occurredAt")
 order|imported_sales_transactions_batchId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_batchId_idx" ON "imported_sales_transactions"("batchId")
+promo|promo_rules_active_depotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "promo_rules_active_depotId_idx" ON "promo_rules"("active", "depotId")
+promo|promo_applications_orderId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_orderId_idx" ON "promo_applications"("orderId")
+promo|promo_applications_orderId_promoRuleId_productId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_orderId_promoRuleId_productId_key" ON "promo_applications"("orderId", "promoRuleId", "productId")
+promo|promo_applications_order_rule_shipping_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_order_rule_shipping_key" ON "promo_applications"("orderId", "promoRuleId") WHERE "productId" IS NULL
 '
 
 # One rule, one place. It lived in two places for exactly one deploy, and in that deploy the
