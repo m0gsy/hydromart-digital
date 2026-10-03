@@ -16,6 +16,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -130,6 +131,23 @@ export class CreatePromoRuleDto {
 }
 
 export class UpdatePromoRuleDto extends PartialType(CreatePromoRuleDto) {
+  // `name`/`kind` have no "clear to null" meaning (NOT NULL columns) — PartialType's
+  // auto-added @IsOptional() skips validation for `undefined` AND explicit `null` alike,
+  // so `PATCH {"name": null}` would sail past the DTO and crash Prisma with a raw 500
+  // instead of a clean 400. @ValidateIf(value !== undefined) still allows omitting the
+  // field (undefined = don't touch) but runs the full validator chain against `null`.
+  @ApiPropertyOptional({ example: 'Jumat Berkah' })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  name?: string;
+
+  @ApiPropertyOptional({ enum: KIND_VALUES })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsIn(KIND_VALUES)
+  kind?: (typeof KIND_VALUES)[number];
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
