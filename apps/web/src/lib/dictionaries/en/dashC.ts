@@ -147,6 +147,8 @@ export const dashC = {
       promotionWrite: 'Promotions (manage)',
       voucherRead: 'Vouchers (view)',
       voucherWrite: 'Vouchers (manage)',
+      promoRuleRead: 'Promo rules (view)',
+      promoRuleWrite: 'Promo rules (manage)',
       depotAdmin: 'Dynamic pricing / manage depot',
       franchise: 'Franchise reports',
       payout: 'Franchise payout',

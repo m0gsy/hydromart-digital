@@ -149,6 +149,8 @@ export const dashC = {
       promotionWrite: 'Promosi (kelola)',
       voucherRead: 'Voucher (lihat)',
       voucherWrite: 'Voucher (kelola)',
+      promoRuleRead: 'Aturan promo (lihat)',
+      promoRuleWrite: 'Aturan promo (kelola)',
       depotAdmin: 'Harga dinamis / kelola depot',
       franchise: 'Laporan waralaba',
       payout: 'Payout waralaba',
