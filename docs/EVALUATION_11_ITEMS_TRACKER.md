@@ -23,8 +23,9 @@ Browser-verify selesai 2026-10-02: upload CSV di `/dashboard/sales-import` (depo
 ## 4. Monitoring Progres Implementasi — ✅ (dokumen ini)
 Dokumen ini adalah deliverable item 4. Jangan buat file tracker lain — update yang ini.
 
-## 5. Pengembangan Sistem Promo dan Voucher — ⛔
-Belum dikerjakan sama sekali. Scope: hari/jam berlaku, scope produk/kategori, aturan kelipatan (BUY_X_GET_Y), channel app vs kasir, field stacking promo+voucher eksplisit, admin-managed tanpa ubah kode.
+## 5. Pengembangan Sistem Promo dan Voucher — 🟡
+Fase 1 dari 3: 3 plan ditulis (`docs/superpowers/plans/2026-10-02-promo-auto-apply-engine-plan{1,2,3}-*.md`), Plan 1 (promo-service backend: schema PromoRule/PromoApplication, algoritma matching/stacking SPECIAL_PRICE/BUY_X_GET_Y/SHIPPING_DISCOUNT, repo, service CRUD+quote+apply, endpoint admin + internal) **SELESAI dan merge-ready** di branch `feat/sales-import-report-parity` (26 commit, f40e9d69..ea4414d3) — 4 ronde whole-branch review, semua temuan Critical/Important sudah diverifikasi langsung dari kode (bukan cuma laporan subagent). Belum di-merge ke main (menunggu Plan 2+3 atau keputusan user). Plan 2 (integrasi order-service ke checkout()/walkInSale()) dan Plan 3 (admin UI `/hq/promo-rules` + `/dashboard/promo-rules`) **belum dimulai**.
+**Catatan untuk Plan 2:** dokumen Plan 2 masih mereferensikan signature lama `apply(orderId, depotId, channel, items)` — sudah diganti jadi `apply(ApplyInput)` yang percaya hasil quote() milik caller (keputusan user), dan Plan 2 belum punya `Math.min()` clamp untuk shipping fee override yang menaikkan harga. Update dokumen Plan 2 dulu sebelum mulai eksekusi tasknya.
 **Keputusan:** fase terbesar di daftar ini — dikerjakan di sesi terpisah (lihat Next Actions).
 
 ## 6. Pembatasan Akses Franchise Berdasarkan Depot — ✅
