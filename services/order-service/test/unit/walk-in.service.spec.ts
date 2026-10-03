@@ -242,6 +242,75 @@ describe('OrderService.walkInSale', () => {
 
       expect(again.id).toBe(first.id);
     });
+
+    /*
+     * Fix 2 (promo-order-integration review): a BOGO match splits one product into a paid
+     * row + a separate free row (`unitPrice: 0`) in the STORED order. The cashier's retry
+     * resends the ORIGINAL basket, with no concept of that free row — `sameBasket` must
+     * collapse the stored free row back onto its paired paid row before comparing, or a
+     * legitimate retry gets refused as `CounterBasketChangedError` (exactly the failure
+     * mode the replay guard exists to prevent).
+     */
+    it('still matches a BOGO-matched order against the ORIGINAL (no-free-row) retry basket', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000 });
+      promoAutoApply.quoteResult = {
+        lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+      const sale = { depotId: DEPOT, lines: [{ productId: p.id, quantity: 4 }] };
+
+      const first = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-3' });
+      expect(first.items).toHaveLength(2); // paid row + free row, stored
+
+      // The retry sends exactly what the till originally rang up — quantity 4, no free row.
+      const again = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-3' });
+
+      expect(again.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
+  });
+
+  /*
+   * Fix 1 + Fix 7 (promo-order-integration review): the first real round-trip test for a
+   * BUY_X_GET_Y match through walkInSale() — the free row must reach the order's `items`,
+   * inventory must be asked to reserve ONE summed line (not two), and the audit call must
+   * carry the correct `AutoApplyApplyInput`.
+   */
+  it('Fix 7: walkInSale() round-trips a BUY_X_GET_Y match (items, summed reserve, audit call)', async () => {
+    const p = catalog.seed({ id: randomUUID(), basePrice: 8000 });
+    promoAutoApply.quoteResult = {
+      lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+
+    const order = await service.walkInSale(operator, {
+      depotId: DEPOT,
+      lines: [{ productId: p.id, quantity: 4 }],
+    });
+
+    expect(order.items).toHaveLength(2);
+    expect(order.items[0]).toMatchObject({ productId: p.id, quantity: 4, unitPrice: 8000 });
+    expect(order.items[1]).toMatchObject({ productId: p.id, quantity: 1, unitPrice: 0 });
+
+    expect(inventory.reserveCalls).toHaveLength(1);
+    expect(inventory.reserveCalls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
+
+    expect(promoAutoApply.applyCalls).toHaveLength(1);
+    expect(promoAutoApply.applyCalls[0]).toMatchObject({
+      orderId: order.id,
+      lines: [
+        {
+          productId: p.id,
+          unitPrice: 8000,
+          quantity: 4,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+        },
+      ],
+    });
   });
 
   /**
@@ -329,6 +398,33 @@ describe('OrderService.walkInSale', () => {
       // price and would report as goods sold rather than as delivery.
       expect(order.items).toHaveLength(1);
       expect(order.items[0].productId).toBe(p.id);
+    });
+
+    /*
+     * Fix 4 (promo-order-integration review, owner decision): a free BOGO galon still takes
+     * a seat on the truck, so a counter DELIVERY must charge for it too — consistent with
+     * the app checkout path. `counterShippingFee` runs its own independent `applyPromoQuote`
+     * (a second `quote()` call, same trade-off `priceCounterBasket` already accepts) so it
+     * can count the free galon without duplicating `priceCounterBasket`'s own application.
+     */
+    it('Fix 4: charges delivery for the free galon too, on a BOGO-matched counter delivery', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000, isGallon: true });
+      promoAutoApply.quoteResult = {
+        lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 4 }],
+        deliveryAddress: ADDRESS,
+      });
+
+      // 4 paid + 1 free = 5 galon, at the depot's Rp5000/galon fee.
+      expect(order.deliveryFee).toBe(5 * 5000);
+      expect(order.items).toHaveLength(2);
+      expect(order.items[1]).toMatchObject({ productId: p.id, quantity: 1, unitPrice: 0 });
     });
 
     // #27: refill-vs-beli split, read back through the same aggregate the daily report uses.

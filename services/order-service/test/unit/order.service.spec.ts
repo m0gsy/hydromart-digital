@@ -2940,6 +2940,109 @@ describe('OrderService', () => {
     ).rejects.toThrow(BelowMinimumOrderError);
   });
 
+  /*
+   * Fix 6 (promo-order-integration review): a promo discount is applied AFTER the minimum
+   * is checked, per the owner's decision — a cart that cleared the minimum on the cart
+   * screen (priced before any promo ran) must never be rejected at checkout just because a
+   * promo then discounted it below that line.
+   */
+  it('Fix 6: a promo discount does not retroactively fail the minimum-order check', async () => {
+    const productId = await addToCart(20000, 1); // pre-promo subtotal: 20000
+    depots.depots = [
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 0,
+        minOrderAmount: 15000, // cleared by the PRE-promo subtotal, not the post-promo one
+      },
+    ];
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['r1'], unitPriceAfter: 5000, freeQty: 0, lineTotal: 5000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+
+    // Checkout succeeded (did not throw BelowMinimumOrderError) and still billed the
+    // customer the POST-promo amount — only the ELIGIBILITY check moved to pre-promo.
+    expect(order.subtotal).toBe(5000);
+  });
+
+  /*
+   * Fix 3 + Fix 7 (promo-order-integration review): promo-service has no way to learn a
+   * depot's own delivery fee, so nothing stops a SHIPPING_DISCOUNT rule's override from
+   * RAISING it. The audit call still reports the raw override (promo-service's own audit
+   * logic decides what to do with an override above the original fee) — only what the
+   * customer is actually billed gets capped.
+   */
+  it('Fix 3: a shippingFeeOverride above the depot fee is capped, and the audit call reports it correctly', async () => {
+    await addToCart(20000, 1); // 1 galon at depot-home (deliveryFee 5000)
+    promoAutoApply.quoteResult = {
+      lines: [],
+      shippingAppliedRuleId: 'rule-shipping',
+      shippingFeeOverride: 9000, // higher than depot-home's own 5000
+    };
+
+    const order = await service.checkout(customer, { deliveryAddress: address });
+
+    expect(order.deliveryFee).toBe(5000); // capped at the depot's own fee, never 9000
+    expect(promoAutoApply.applyCalls).toHaveLength(1);
+    expect(promoAutoApply.applyCalls[0]).toMatchObject({
+      orderId: order.id,
+      shippingAppliedRuleId: 'rule-shipping',
+      shippingFeeOverride: 9000,
+      originalShippingFee: 5000,
+      shippingUnits: 1,
+    });
+  });
+
+  /*
+   * Fix 1 + Fix 7 (promo-order-integration review): the first real round-trip test for a
+   * BUY_X_GET_Y match through checkout() — the free row must reach the order's `items`,
+   * inventory must be asked to reserve ONE summed line (not two, which would 1) send
+   * inventory-service a shape it has never had to handle and 2) double up once consumeStock
+   * runs against depot-service's `@@unique([itemId, orderId])`), and the audit call must
+   * carry the correct `AutoApplyApplyInput`.
+   */
+  it('Fix 7: checkout() round-trips a BUY_X_GET_Y match (items, summed reserve, audit call)', async () => {
+    const productId = await addToCart(8000, 4);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+
+    const order = await service.checkout(customer, { deliveryAddress: address });
+
+    expect(order.items).toHaveLength(2);
+    expect(order.items[0]).toMatchObject({ productId, quantity: 4, unitPrice: 8000 });
+    expect(order.items[1]).toMatchObject({ productId, quantity: 1, unitPrice: 0 });
+
+    // ONE summed reserve line (4 paid + 1 free), not two separate lines for the same product.
+    expect(inventory.reserveCalls).toHaveLength(1);
+    expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+
+    expect(promoAutoApply.applyCalls).toHaveLength(1);
+    expect(promoAutoApply.applyCalls[0]).toMatchObject({
+      orderId: order.id,
+      lines: [
+        {
+          productId,
+          unitPrice: 8000,
+          quantity: 4,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+        },
+      ],
+    });
+  });
+
   it('rejects checkout when depots exist but none covers the address (out of service area)', async () => {
     depots.depots = [
       {

@@ -453,7 +453,7 @@ export class OrderService {
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
     // wait out seven upstream calls end to end.
     const [
-      { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback },
+      { items: pricedItems, subtotal: pricedSubtotal, tierPricedTotal, tieredProductIds, catalogFallback },
       resellerLookup,
     ] = await Promise.all([
       this.priceLines(depot.id, lines),
@@ -475,13 +475,21 @@ export class OrderService {
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
 
-    if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
+    // Fix 6: the minimum-order check runs against the PRE-promo subtotal. A promo discount
+    // must never cause a cart that looked valid on the cart screen (priced before any
+    // promo ran) to get rejected at checkout.
+    if (depot.minOrderAmount !== null && pricedSubtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    // Item 5 fase 1: a SHIPPING_DISCOUNT promo replaces the depot's own per-galon fee.
-    const perGalonFee = autoPromoQuote.shippingFeeOverride ?? depot.deliveryFee;
+    // Item 5 fase 1: a SHIPPING_DISCOUNT promo replaces the depot's own per-galon fee —
+    // capped at the depot's own fee (Fix 3): promo-service never learns the depot's actual
+    // rate, so nothing else stops an override from RAISING the fee above it.
+    const perGalonFee =
+      autoPromoQuote.shippingFeeOverride != null
+        ? Math.min(autoPromoQuote.shippingFeeOverride, depot.deliveryFee)
+        : depot.deliveryFee;
     const shippingFee = money(perGalonFee * galonQuantity(items));
 
     // "Antar sekarang" is a paid speed upgrade the depot configures. The checkout screen
@@ -542,7 +550,17 @@ export class OrderService {
         ? // CA-2-65: the fulfilling depot. A voucher a depot manager requested for their
           // own area used to be spendable network-wide; the quote is where that gets
           // refused, because `redeem` fails open and an already-priced order would stand.
-          this.promo.quote(voucherCode, customerId, subtotal, shippingFee, authorization, depot.id)
+          // Fix 6: PRE-promo subtotal for the same reason as the minimum-order check above —
+          // a voucher's own minimum-purchase gate must not fire because of a discount the
+          // promo engine applied, not the customer.
+          this.promo.quote(
+            voucherCode,
+            customerId,
+            pricedSubtotal,
+            shippingFee,
+            authorization,
+            depot.id,
+          )
         : Promise.resolve(null);
       // A rejected voucher must still reject checkout, and a rejected quote must not leave
       // the membership call unhandled — allSettled, then rethrow the quote's failure.
@@ -1310,6 +1328,9 @@ export class OrderService {
     customerId: string,
     depotId: string,
     subtotal: number,
+    /** Fix 6: PRE-promo subtotal, used ONLY for the voucher's minimum-purchase gate — the
+     *  actual discount math below still runs against the POST-promo `subtotal` above. */
+    pricedSubtotal: number,
     /** C11: the ongkir this sale carries, 0 for a pick-up. Both promo calls must see it. */
     shippingFee: number,
     voucherCode: string | null,
@@ -1350,10 +1371,13 @@ export class OrderService {
     if (voucherCode) {
       // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
       // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
+      // Fix 6: PRE-promo subtotal, so the voucher's own minimum-purchase check runs against
+      // what the basket looked like before any promo discount — same reasoning as
+      // checkout()'s minimum-order check.
       const quote = await this.promo.quoteFor(
         voucherCode,
         customerId,
-        subtotal,
+        pricedSubtotal,
         shippingFee,
         depotId,
       );
@@ -2219,9 +2243,21 @@ export class OrderService {
       'COUNTER',
       items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
     );
-    const perGalonFee = autoPromoQuote.shippingFeeOverride ?? depot.deliveryFee;
+    // Fix 4: free galons pay delivery too (owner decision — a free BOGO galon still takes a
+    // seat on the truck), so the galon count here must include any BOGO free units. This
+    // method only sees `priceLines`' PRE-promo items otherwise, since it runs its OWN quote
+    // purely for the shipping decision. Applying the quote a second time, independently of
+    // `priceCounterBasket`'s own item-level application, is the accepted trade-off (Plan 2's
+    // Global Constraints: two `quote()` calls per counter delivery sale, not one).
+    const { items: promoItems } = applyPromoQuote(items, autoPromoQuote);
+    // Fix 3: never let a SHIPPING_DISCOUNT override RAISE the fee above the depot's own —
+    // promo-service has no way to guard this itself, since it never learns the depot's rate.
+    const perGalonFee =
+      autoPromoQuote.shippingFeeOverride != null
+        ? Math.min(autoPromoQuote.shippingFeeOverride, depot.deliveryFee)
+        : depot.deliveryFee;
     return {
-      shippingFee: money(perGalonFee * galonQuantity(items)),
+      shippingFee: money(perGalonFee * galonQuantity(promoItems)),
       shippingAppliedRuleId: autoPromoQuote.shippingAppliedRuleId,
       shippingFeeOverride: autoPromoQuote.shippingFeeOverride,
       originalShippingFee: depot.deliveryFee,
@@ -2243,7 +2279,7 @@ export class OrderService {
      */
     shippingFee = 0,
   ): Promise<CounterBasketQuote> {
-    const { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback } =
+    const { items: pricedItems, subtotal: pricedSubtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
       await this.priceLines(depotId, lines);
     // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
     // membership/voucher discounting (same ordering as the app checkout path — see Plan 2's
@@ -2260,6 +2296,7 @@ export class OrderService {
       customerId,
       depotId,
       subtotal,
+      pricedSubtotal,
       shippingFee,
       voucherCode,
       items,
@@ -2297,7 +2334,28 @@ export class OrderService {
         .map((r) => `${r.productId}:${r.quantity}`)
         .sort()
         .join('|');
-    return key(order.items) === key(lines);
+    return key(OrderService.collapsePromoFreeRows(order.items)) === key(lines);
+  }
+
+  /**
+   * C8 fix: undoes the paid+free split `applyPromoQuote` makes for a BUY_X_GET_Y match, so
+   * `sameBasket` compares against what the cashier's ORIGINAL `input.lines` actually looked
+   * like. Without this, a BOGO-matched order's STORED `items` carries an extra free row the
+   * retry's `input.lines` never had — the cashier re-sends the basket they rang up, which
+   * has no concept of a free row — and a legitimate retry was wrongly refused as
+   * `CounterBasketChangedError`, exactly the failure mode a replay guard exists to prevent.
+   *
+   * A promo-free row is `unitPrice === 0` AND shares its productId with another row that
+   * has `unitPrice > 0` — precisely the shape `applyPromoQuote` produces, and nothing else:
+   * a genuinely free catalog item with no paid sibling row is left alone. Free units are
+   * BONUS units added on top, not a split of what was ordered, so the paid row's `quantity`
+   * is unchanged by the promo and is exactly what the retry will send.
+   */
+  private static collapsePromoFreeRows(
+    items: { productId: string; quantity: number; unitPrice: number }[],
+  ): { productId: string; quantity: number }[] {
+    const paidProductIds = new Set(items.filter((i) => i.unitPrice > 0).map((i) => i.productId));
+    return items.filter((i) => !(i.unitPrice === 0 && paidProductIds.has(i.productId)));
   }
 
   private static idempotencyKeyOf(input: { idempotencyKey?: string | null }): string | null {
