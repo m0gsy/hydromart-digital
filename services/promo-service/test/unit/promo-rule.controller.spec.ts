@@ -352,10 +352,11 @@ describe('PromoRuleController', () => {
       ],
       quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
       originalShippingFee: 2000,
+      shippingUnits: 1,
     });
   });
 
-  it('apply() defaults omitted shipping fields to null', async () => {
+  it('apply() defaults omitted shipping fields to null, shippingUnits to 1', async () => {
     const service = makeService();
     const controller = new PromoRuleController(service);
     await controller.apply({
@@ -375,7 +376,24 @@ describe('PromoRuleController', () => {
       expect.objectContaining({
         quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
         originalShippingFee: null,
+        shippingUnits: 1,
       }),
+    );
+  });
+
+  it('apply() carries shippingUnits through when the caller supplies one > 1', async () => {
+    const service = makeService();
+    const controller = new PromoRuleController(service);
+    await controller.apply({
+      orderId: 'order-3',
+      lines: [],
+      shippingAppliedRuleId: 'rule-ship',
+      shippingFeeOverride: 1000,
+      originalShippingFee: 2000,
+      shippingUnits: 5,
+    } as never);
+    expect(service.apply).toHaveBeenCalledWith(
+      expect.objectContaining({ shippingUnits: 5 }),
     );
   });
 });

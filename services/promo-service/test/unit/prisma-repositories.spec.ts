@@ -134,11 +134,25 @@ describe('PromoRulePrismaRepository', () => {
     });
   });
 
-  it('recordApplications swallows a P2002 (already applied by a concurrent/retried call)', async () => {
+  // I-1b: a P2002 is only safe to swallow once read back confirms rows for THIS order
+  // actually exist — otherwise it means something other than "a concurrent/retried call for
+  // this order already won" (e.g. a different order's row colliding some other way).
+  it('recordApplications swallows a P2002 once a read-back confirms this order already has rows', async () => {
     $transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    promoApplication.count.mockResolvedValue(1);
     await expect(
       repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
     ).resolves.toBeUndefined();
+    expect(promoApplication.count).toHaveBeenCalledWith({ where: { orderId: 'o-1' } });
+  });
+
+  it('recordApplications rethrows a P2002 when the read-back finds nothing for this order', async () => {
+    const dup = Object.assign(new Error('dup'), { code: 'P2002' });
+    $transaction.mockRejectedValueOnce(dup);
+    promoApplication.count.mockResolvedValue(0);
+    await expect(
+      repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
+    ).rejects.toBe(dup);
   });
 
   it('recordApplications rethrows a non-P2002 error', async () => {

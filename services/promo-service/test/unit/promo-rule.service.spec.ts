@@ -11,7 +11,7 @@ import {
   PromoRuleService,
   PromoRuleValidationError,
 } from '../../src/application/services/promo-rule.service';
-import { PromoRuleNotFoundError } from '../../src/domain/errors';
+import { PromoRuleInUseError, PromoRuleNotFoundError } from '../../src/domain/errors';
 import { PromoConfigService } from '../../src/config/promo-config.service';
 
 class InMemoryPromoRuleRepository implements PromoRuleRepository {
@@ -132,6 +132,54 @@ describe('PromoRuleService', () => {
       ).rejects.toThrow(PromoRuleValidationError);
     });
 
+    // I-3: PromoRuleValidationError used to extend plain Error, so every validation failure
+    // hit AllExceptionsFilter's generic masked-500 path. It now extends DomainError with its
+    // own status/code — the filter (tested generically in packages/platform) reads those
+    // fields directly, so asserting them here is what proves this throws a 400, not a 500.
+    it('PromoRuleValidationError carries a 400 status and a stable code for the HTTP filter', async () => {
+      await expect(service.create(baseInput({ specialPrice: null }))).rejects.toMatchObject({
+        status: 400,
+        code: 'PROMO_RULE_VALIDATION',
+      });
+    });
+
+    // I-5: evaluateShipping always matches against a synthetic line with quantity: 1, so a
+    // SHIPPING_DISCOUNT rule with minQty > 1 could never fire — reject it at create time
+    // instead of letting it silently never apply.
+    it('rejects SHIPPING_DISCOUNT with minQty > 1', async () => {
+      await expect(
+        service.create(
+          baseInput({
+            kind: 'SHIPPING_DISCOUNT',
+            specialPrice: null,
+            shippingFeeOverride: 1000,
+            minQty: 5,
+          }),
+        ),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+
+    it('rejects SHIPPING_DISCOUNT with a maxQty set', async () => {
+      await expect(
+        service.create(
+          baseInput({
+            kind: 'SHIPPING_DISCOUNT',
+            specialPrice: null,
+            shippingFeeOverride: 1000,
+            minQty: 1,
+            maxQty: 10,
+          }),
+        ),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+
+    it('accepts SHIPPING_DISCOUNT with default minQty (1) and no maxQty', async () => {
+      const row = await service.create(
+        baseInput({ kind: 'SHIPPING_DISCOUNT', specialPrice: null, shippingFeeOverride: 1000 }),
+      );
+      expect(row.shippingFeeOverride).toBe(1000);
+    });
+
     it('rejects validFrom after validUntil', async () => {
       await expect(
         service.create(
@@ -220,6 +268,35 @@ describe('PromoRuleService', () => {
 
     it('throws PromoRuleNotFoundError when removing an unknown id', async () => {
       await expect(service.remove('missing')).rejects.toThrow(PromoRuleNotFoundError);
+    });
+
+    // I-4: PromoApplication.promoRule is onDelete: Restrict, so deleting a rule that has
+    // fired at least once throws a Postgres FK violation (P2003) from the repository — the
+    // service must turn that into a clean domain error, not let the raw Prisma error escape.
+    it('throws PromoRuleInUseError when the repository reports a P2003 FK violation', async () => {
+      const row = await service.create(baseInput());
+      jest.spyOn(repo, 'delete').mockRejectedValueOnce(
+        Object.assign(new Error('FK violation'), { code: 'P2003' }),
+      );
+      await expect(service.remove(row.id)).rejects.toThrow(PromoRuleInUseError);
+    });
+
+    it('PromoRuleInUseError carries a 409 status for the HTTP filter', async () => {
+      const row = await service.create(baseInput());
+      jest.spyOn(repo, 'delete').mockRejectedValueOnce(
+        Object.assign(new Error('FK violation'), { code: 'P2003' }),
+      );
+      await expect(service.remove(row.id)).rejects.toMatchObject({
+        status: 409,
+        code: 'PROMO_RULE_IN_USE',
+      });
+    });
+
+    it('rethrows a non-P2003 error from the repository unchanged', async () => {
+      const row = await service.create(baseInput());
+      const boom = new Error('boom');
+      jest.spyOn(repo, 'delete').mockRejectedValueOnce(boom);
+      await expect(service.remove(row.id)).rejects.toBe(boom);
     });
   });
 
@@ -378,6 +455,71 @@ describe('PromoRuleService', () => {
       });
       expect(repo.applications).toEqual([
         { orderId: 'order-5', promoRuleId: 'rule-ship', productId: null, discountValue: 1000 },
+      ]);
+    });
+
+    // C-1: shippingFeeOverride/originalShippingFee are PER-GALON values, and delivery fee is
+    // charged per-galon (deliveryFee × quantity) — so the real discount must be multiplied by
+    // the unit count, not just the raw per-unit difference.
+    it('multiplies the shipping discount by shippingUnits (per-galon fee, 5 galons)', async () => {
+      await service.apply({
+        orderId: 'order-5b',
+        originalLines: [],
+        quotedLines: [],
+        quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
+        originalShippingFee: 2000,
+        shippingUnits: 5,
+      });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-5b', promoRuleId: 'rule-ship', productId: null, discountValue: 5000 },
+      ]);
+    });
+
+    it('defaults shippingUnits to 1 when omitted (single-unit order)', async () => {
+      await service.apply({
+        orderId: 'order-5c',
+        originalLines: [],
+        quotedLines: [],
+        quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
+        originalShippingFee: 2000,
+      });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-5c', promoRuleId: 'rule-ship', productId: null, discountValue: 1000 },
+      ]);
+    });
+
+    // I-2: the shipping sibling of the SPECIAL_PRICE price-raise guard — if the "override"
+    // actually raised the fee above the original, this is not a discount at all; never write
+    // a negative discountValue.
+    it('skips the shipping row when the override raised the fee above the original', async () => {
+      await service.apply({
+        orderId: 'order-5d',
+        originalLines: [],
+        quotedLines: [],
+        quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 3000 },
+        originalShippingFee: 2000,
+      });
+      expect(repo.applications).toHaveLength(0);
+    });
+
+    // I-1a: a caller bug that produces two cart lines winning the same rule for the same
+    // product must not crash createMany with an in-batch P2002 — merge into one row with the
+    // summed discountValue instead.
+    it('merges two lines that win the same rule for the same product into one summed row', async () => {
+      await service.apply({
+        orderId: 'order-9',
+        originalLines: [
+          { productId: 'p1', unitPrice: 8000, quantity: 1 },
+          { productId: 'p1', unitPrice: 8000, quantity: 1 },
+        ],
+        quotedLines: [
+          { productId: 'p1', appliedRuleIds: ['rule-special'], unitPriceAfter: 6000, freeQty: 0, lineTotal: 6000 },
+          { productId: 'p1', appliedRuleIds: ['rule-special'], unitPriceAfter: 6000, freeQty: 0, lineTotal: 6000 },
+        ],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
+      });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-9', promoRuleId: 'rule-special', productId: 'p1', discountValue: 4000 },
       ]);
     });
 

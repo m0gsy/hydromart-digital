@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import {
+  AutoApplyApplyDto,
   AutoApplyQuoteDto,
   CreatePromoRuleDto,
   UpdatePromoRuleDto,
@@ -63,6 +64,60 @@ describe('UpdatePromoRuleDto · name/kind null guard', () => {
   it('still validates a provided name/kind normally', async () => {
     expect(await errors({ name: 'Baru', kind: 'SPECIAL_PRICE' })).toEqual([]);
     expect(await errors({ kind: 'NOT_A_KIND' })).toContain('kind');
+  });
+
+  // Same NOT NULL-at-the-DB-level guard, now applied to minQty/daysOfWeek/channels/active —
+  // these all have DB defaults and no "clear to null" meaning either.
+  it('rejects an explicit null minQty', async () => {
+    expect(await errors({ minQty: null })).toContain('minQty');
+  });
+
+  it('rejects an explicit null daysOfWeek', async () => {
+    expect(await errors({ daysOfWeek: null })).toContain('daysOfWeek');
+  });
+
+  it('rejects an explicit null channels', async () => {
+    expect(await errors({ channels: null })).toContain('channels');
+  });
+
+  it('rejects an explicit null active', async () => {
+    expect(await errors({ active: null })).toContain('active');
+  });
+
+  it('still allows omitting minQty/daysOfWeek/channels/active entirely', async () => {
+    expect(await errors({ name: 'Baru' })).toEqual([]);
+  });
+
+  it('still validates a provided minQty/daysOfWeek/channels/active normally', async () => {
+    expect(await errors({ minQty: 2, daysOfWeek: [5], channels: ['APP'], active: false })).toEqual([]);
+    expect(await errors({ minQty: 0 })).toContain('minQty');
+  });
+});
+
+describe('AutoApplyApplyDto · shipping field coercion', () => {
+  // C-1: shippingUnits is new; shippingFeeOverride/originalShippingFee were already here.
+  // Covers every numeric shipping field's string-to-number coercion end to end.
+  it('coerces shippingFeeOverride/originalShippingFee/shippingUnits from strings', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: '00000000-0000-4000-8000-000000000001',
+      lines: [],
+      shippingFeeOverride: '1000',
+      originalShippingFee: '2000',
+      shippingUnits: '5',
+    });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.shippingFeeOverride).toBe(1000);
+    expect(dto.originalShippingFee).toBe(2000);
+    expect(dto.shippingUnits).toBe(5);
+  });
+
+  it('rejects a shippingUnits below 1', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: '00000000-0000-4000-8000-000000000001',
+      lines: [],
+      shippingUnits: '0',
+    });
+    expect(await validate(dto)).not.toEqual([]);
   });
 });
 
