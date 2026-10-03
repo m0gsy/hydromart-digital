@@ -50,6 +50,7 @@ import {
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
+import { applyPromoQuote, stockLinesFor } from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -87,6 +88,7 @@ import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
+import { AutoApplyAppliedLine, PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
 import { OutboxTopic, OutboxWrite } from '../ports/outbox.repository';
@@ -138,6 +140,14 @@ export interface CounterBasketQuote {
    * item is about. The two used to disagree by exactly the delivery fee.
    */
   shippingFee: number;
+  /** Item 5 fase 1: original unitPrice/quantity + what the promo quote decided, one entry
+   *  per original line — what `PromoAutoApplyPort.apply()` needs for the audit trail. */
+  appliedLines: AutoApplyAppliedLine[];
+  /** I-3: the shipping-promo fields `walkInSale`'s audit call needs, carried out of the
+   *  single quote `priceCounterBasket` now runs — 0/null for a pick-up. */
+  shippingAppliedRuleId: string | null;
+  shippingFeeOverride: number | null;
+  originalShippingFee: number;
 }
 
 export interface WalkInSaleInput {
@@ -253,6 +263,7 @@ export class OrderService {
     private readonly customerDirectory: CustomerDirectoryPort,
     @Inject(ORDER_TOKENS.Notification) private readonly notification: NotificationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
+    @Inject(ORDER_TOKENS.PromoAutoApply) private readonly promoAutoApply: PromoAutoApplyPort,
     @Inject(ORDER_TOKENS.Inventory) private readonly inventory: InventoryPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
@@ -343,7 +354,7 @@ export class OrderService {
     await this.inventory.consume(
       order.depotId,
       order.id,
-      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      stockLinesFor(order.items),
       authorization,
     );
   }
@@ -447,7 +458,7 @@ export class OrderService {
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
     // wait out seven upstream calls end to end.
     const [
-      { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback },
+      { items: pricedItems, subtotal: pricedSubtotal, tierPricedTotal, tieredProductIds, catalogFallback },
       resellerLookup,
     ] = await Promise.all([
       this.priceLines(depot.id, lines),
@@ -459,12 +470,32 @@ export class OrderService {
     const reseller = resellerLookup.reseller;
     const resellerUnavailable = resellerLookup.unavailable;
 
-    if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
+    // Item 5 fase 1: auto-apply promo rules (SPECIAL_PRICE/BUY_X_GET_Y), computed BEFORE
+    // membership/voucher discounting — see Plan 2's Global Constraints for the stacking
+    // decision. Fails open by construction (the port never throws).
+    const autoPromoQuote = await this.promoAutoApply.quote(
+      depot.id,
+      'APP',
+      pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+    );
+    const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
+
+    // Fix 6: the minimum-order check runs against the PRE-promo subtotal. A promo discount
+    // must never cause a cart that looked valid on the cart screen (priced before any
+    // promo ran) to get rejected at checkout.
+    if (depot.minOrderAmount !== null && pricedSubtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    const shippingFee = money(depot.deliveryFee * galonQuantity(items));
+    // Item 5 fase 1: a SHIPPING_DISCOUNT promo replaces the depot's own per-galon fee —
+    // capped at the depot's own fee (Fix 3): promo-service never learns the depot's actual
+    // rate, so nothing else stops an override from RAISING the fee above it.
+    const perGalonFee =
+      autoPromoQuote.shippingFeeOverride != null
+        ? Math.min(autoPromoQuote.shippingFeeOverride, depot.deliveryFee)
+        : depot.deliveryFee;
+    const shippingFee = money(perGalonFee * galonQuantity(items));
 
     // "Antar sekarang" is a paid speed upgrade the depot configures. The checkout screen
     // used to show a flat Rp5.000 for it that no order ever included: the customer read a
@@ -524,7 +555,22 @@ export class OrderService {
         ? // CA-2-65: the fulfilling depot. A voucher a depot manager requested for their
           // own area used to be spendable network-wide; the quote is where that gets
           // refused, because `redeem` fails open and an already-priced order would stand.
-          this.promo.quote(voucherCode, customerId, subtotal, shippingFee, authorization, depot.id)
+          // C-1 (promo-order-integration review #2): POST-promo `subtotal`, not
+          // `pricedSubtotal`. A prior fix batch moved this to the pre-promo value "for the
+          // same reason as the minimum-order check" — but `redeem` below was never changed
+          // off `subtotal`, so that batch made quote and redeem price the SAME voucher
+          // against two DIFFERENT subtotals. `quoteFor`/`redeem` on the counter path have
+          // the identical symmetry requirement; the owner's call is that vouchers use the
+          // POST-promo subtotal everywhere (quote, quoteFor, redeem) and `pricedSubtotal`
+          // stays scoped to the minimum-ORDER check alone.
+          this.promo.quote(
+            voucherCode,
+            customerId,
+            subtotal,
+            shippingFee,
+            authorization,
+            depot.id,
+          )
         : Promise.resolve(null);
       // A rejected voucher must still reject checkout, and a rejected quote must not leave
       // the membership call unhandled — allSettled, then rethrow the quote's failure.
@@ -599,6 +645,20 @@ export class OrderService {
             )
         : undefined,
     );
+    // Item 5 fase 1: fire-and-forget audit record, same pattern as every other fail-open
+    // call on this path (notify, claimFavoriteDepot). The price was already locked in by
+    // the quote above — this call can never change what the customer was charged. Sends
+    // the exact `appliedLines` that quote produced (promo-service trusts this rather than
+    // re-deriving — see Global Constraints' 2026-10-04 correction) plus the depot's own
+    // per-galon fee/unit count so a SHIPPING_DISCOUNT's audit row is computed correctly.
+    await this.promoAutoApply.apply({
+      orderId: order.id,
+      lines: appliedLines,
+      shippingAppliedRuleId: autoPromoQuote.shippingAppliedRuleId,
+      shippingFeeOverride: autoPromoQuote.shippingFeeOverride,
+      originalShippingFee: depot.deliveryFee,
+      shippingUnits: galonQuantity(items),
+    });
     await this.cart.clear(customerId);
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     if (membershipUnavailable) await this.markMembershipUnavailable(order);
@@ -966,19 +1026,30 @@ export class OrderService {
       throw new CounterDeliveryUnavailableError();
     }
 
-    // Computed ONCE and threaded everywhere, because the two traps in this item are both
-    // about the same number reaching two places and disagreeing.
-    const shippingFee = wantsDelivery
-      ? await this.counterShippingFee(input.depotId, input.lines)
-      : 0;
-    const { items, subtotal, discount, voucherCode, catalogFallback } =
-      await this.priceCounterBasket(
-        customerId,
-        input.depotId,
-        input.lines,
-        input.voucherCode,
-        shippingFee,
-      );
+    // I-3 (promo-order-integration review #2): ONE call now produces the item-level price
+    // AND the shipping fee, from the SAME promo quote — `priceCounterBasket` used to be
+    // preceded by its own independent `counterShippingFee` quote, a leftover from before Fix
+    // 4 existed. Item 5 fase 1: also carries the promo quote's shipping fields forward for
+    // the audit call in Step 5's insertion below — nothing else in this method's scope can
+    // reconstruct them.
+    const {
+      items,
+      subtotal,
+      discount,
+      voucherCode,
+      catalogFallback,
+      appliedLines,
+      shippingFee,
+      shippingAppliedRuleId,
+      shippingFeeOverride,
+      originalShippingFee,
+    } = await this.priceCounterBasket(
+      customerId,
+      input.depotId,
+      input.lines,
+      input.voucherCode,
+      wantsDelivery,
+    );
 
     // #27: validated against the PRICED basket's own galon count, not the raw line
     // quantities the DTO carried — a line priced down to 0 by stock or a catalogue miss
@@ -1068,6 +1139,18 @@ export class OrderService {
         : undefined,
     );
 
+    // Item 5 fase 1: same fire-and-forget audit record as the app checkout path. Sends the
+    // exact `appliedLines` plus the shipping-quote fields, both out of the single
+    // `priceCounterBasket` call above (Fix I-3) — promo-service trusts them rather than
+    // re-deriving (see Global Constraints' 2026-10-04 correction).
+    await this.promoAutoApply.apply({
+      orderId: order.id,
+      lines: appliedLines,
+      shippingAppliedRuleId,
+      shippingFeeOverride,
+      originalShippingFee,
+      shippingUnits: galonQuantity(items),
+    });
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     if (wantsDelivery) {
       // C11: a live order now, not a finished one. It joins the dispatch queue and completes
@@ -1188,7 +1271,7 @@ export class OrderService {
         .restock(
           order.depotId,
           orderId,
-          order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          stockLinesFor(order.items),
           authorization,
         )
         .catch(() => {});
@@ -1303,6 +1386,10 @@ export class OrderService {
     if (voucherCode) {
       // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
       // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
+      // C-1 (promo-order-integration review #2): POST-promo `subtotal` — symmetric with
+      // `redeem` in walkInSale(), which was never moved off it. The counter path has no
+      // minimum-ORDER check (that only exists in checkout()'s depot.minOrderAmount gate),
+      // so nothing here needs the pre-promo value at all.
       const quote = await this.promo.quoteFor(
         voucherCode,
         customerId,
@@ -1541,7 +1628,7 @@ export class OrderService {
     await this.inventory.reserve(
       depotId,
       orderId,
-      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      stockLinesFor(order.items),
       authorization,
     );
     return this.orders.assignDepot(orderId, depotId);
@@ -1589,7 +1676,7 @@ export class OrderService {
     if (depots === null) throw new DepotUnavailableError();
     if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
 
-    const lines = order.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    const lines = stockLinesFor(order.items);
     await this.inventory.reserve(depotId, orderId, lines, authorization);
     await this.inventory.release(order.depotId, orderId, lines, authorization);
     return this.orders.assignDepot(orderId, depotId);
@@ -1988,7 +2075,7 @@ export class OrderService {
     burnVoucher?: (orderId: string) => Promise<void>,
   ): Promise<OrderRecord> {
     const id = randomUUID();
-    const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    const lines = stockLinesFor(data.items);
     await this.inventory.reserve(depotId, id, lines, authorization);
     let burned = false;
     try {
@@ -2100,13 +2187,15 @@ export class OrderService {
     if (wantsDelivery && !this.config.counterDelivery(depotId)) {
       throw new CounterDeliveryUnavailableError();
     }
-    const shippingFee = wantsDelivery ? await this.counterShippingFee(depotId, lines) : 0;
+    // I-3: one call now covers both the item-level price and the shipping fee (see
+    // `priceCounterBasket`'s doc) — this used to be a second, independent quote via
+    // `counterShippingFee`.
     return this.priceCounterBasket(
       customerId ?? ANONYMOUS_CUSTOMER_ID,
       depotId,
       lines,
       voucherCode,
-      shippingFee,
+      wantsDelivery,
     );
   }
 
@@ -2136,45 +2225,70 @@ export class OrderService {
   }
 
   /**
-   * C11: the ongkir a counter delivery is charged, from the depot that will carry it.
+   * C11 + I-3 (promo-order-integration review #2): prices a counter basket AND, in the same
+   * pass, the delivery fee for it — one `priceLines` call, one `promoAutoApply.quote()` call.
    *
-   * The same formula checkout uses — `depot.deliveryFee` per galon — read through the
-   * directory and FAIL-CLOSED. Quoting a delivery fee from a depot nobody could reach would
-   * be inventing a price at the till, with the buyer standing there.
+   * This used to be two independent methods (`counterShippingFee` + `priceCounterBasket`),
+   * each re-fetching the same depot's lines and re-running the same promo quote: a leftover
+   * from before Fix 4 (free galons pay delivery) existed, when the shipping math did not yet
+   * need the item-level promo result. A fail-open timeout on ONE of the two calls but not the
+   * other could make the billed delivery fee disagree with the item-level promo the order was
+   * actually built from. There is now exactly one `quote()` call to disagree with itself.
    *
-   * TRAP, and it is the reason this is a separate number rather than a basket line: ongkir
-   * must NEVER be smuggled in as a product. `resellerDiscountFor` cuts every galon line
-   * down to `flatGallonPriceIdr`, so an ongkir hidden as a galon would be discounted to
-   * Rp5.000 for an agen — and would report as goods sold rather than as delivery.
+   * Shipping is read through the depot directory and FAIL-CLOSED when `wantsDelivery` —
+   * quoting a delivery fee for a depot nobody could reach would be inventing a price at the
+   * till, with the buyer standing there. A pick-up skips the directory call entirely, exactly
+   * as before.
+   *
+   * TRAP: ongkir must never be smuggled in as a product line — `resellerDiscountFor` cuts
+   * every galon line down to `flatGallonPriceIdr`, so an ongkir hidden as a galon would be
+   * discounted to Rp5.000 for an agen and would report as goods sold rather than as delivery.
    */
-  private async counterShippingFee(
-    depotId: string,
-    lines: { productId: string; quantity: number }[],
-  ): Promise<number> {
-    const depots = await this.depotDirectory.listActiveDepots();
-    const depot = depots?.find((d) => d.id === depotId);
-    if (!depot) throw new DepotUnavailableError();
-    const { items } = await this.priceLines(depotId, lines);
-    return money(depot.deliveryFee * galonQuantity(items));
-  }
-
   async priceCounterBasket(
     customerId: string,
     depotId: string,
     lines: { productId: string; quantity: number }[],
     voucherCodeInput?: string | null,
-    /**
-     * C11: the ongkir this basket will be charged, 0 for a pick-up.
-     *
-     * TRAP, and it is why this is threaded rather than defaulted: `quoteFor` AND `redeem`
-     * must BOTH see the same fee. If only one does, the voucher book records a discount
-     * larger than the one actually given — the mirror of the defect already documented on
-     * the checkout path.
-     */
-    shippingFee = 0,
+    /** C11: the cashier ticked "antar" — present only to decide whether a shipping fee is
+     *  charged at all. The fee itself is computed below, from the SAME promo quote the
+     *  item-level pricing uses. */
+    wantsDelivery = false,
   ): Promise<CounterBasketQuote> {
-    const { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
+    const { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback } =
       await this.priceLines(depotId, lines);
+    // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
+    // membership/voucher discounting (same ordering as the app checkout path — see Plan 2's
+    // Global Constraints). `channel: 'COUNTER'` is how a Senin-Optimis-style counter-only
+    // rule distinguishes itself from an app order. ONE call for both the item-level discount
+    // below and the shipping-fee math (Fix I-3) — see the method doc.
+    const autoPromoQuote = await this.promoAutoApply.quote(
+      depotId,
+      'COUNTER',
+      pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+    );
+    const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
+
+    let shippingFee = 0;
+    let shippingAppliedRuleId: string | null = null;
+    let shippingFeeOverride: number | null = null;
+    let originalShippingFee = 0;
+    if (wantsDelivery) {
+      const depots = await this.depotDirectory.listActiveDepots();
+      const depot = depots?.find((d) => d.id === depotId);
+      if (!depot) throw new DepotUnavailableError();
+      originalShippingFee = depot.deliveryFee;
+      shippingAppliedRuleId = autoPromoQuote.shippingAppliedRuleId;
+      shippingFeeOverride = autoPromoQuote.shippingFeeOverride;
+      // Fix 4: free galons pay delivery too (owner decision — a free BOGO galon still takes a
+      // seat on the truck). `items` above already carries any BOGO free units from the SAME
+      // quote, so no second application is needed to count them.
+      // Fix 3: never let a SHIPPING_DISCOUNT override RAISE the fee above the depot's own —
+      // promo-service has no way to guard this itself, since it never learns the depot's rate.
+      const perGalonFee =
+        shippingFeeOverride != null ? Math.min(shippingFeeOverride, depot.deliveryFee) : depot.deliveryFee;
+      shippingFee = money(perGalonFee * galonQuantity(items));
+    }
+
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
     const { discount, agen } = await this.counterDiscount(
       customerId,
@@ -2198,6 +2312,10 @@ export class OrderService {
       voucherCode,
       catalogFallback,
       agen,
+      appliedLines,
+      shippingAppliedRuleId,
+      shippingFeeOverride,
+      originalShippingFee,
     };
   }
 
@@ -2216,7 +2334,28 @@ export class OrderService {
         .map((r) => `${r.productId}:${r.quantity}`)
         .sort()
         .join('|');
-    return key(order.items) === key(lines);
+    return key(OrderService.collapsePromoFreeRows(order.items)) === key(lines);
+  }
+
+  /**
+   * C8 fix: undoes the paid+free split `applyPromoQuote` makes for a BUY_X_GET_Y match, so
+   * `sameBasket` compares against what the cashier's ORIGINAL `input.lines` actually looked
+   * like. Without this, a BOGO-matched order's STORED `items` carries an extra free row the
+   * retry's `input.lines` never had — the cashier re-sends the basket they rang up, which
+   * has no concept of a free row — and a legitimate retry was wrongly refused as
+   * `CounterBasketChangedError`, exactly the failure mode a replay guard exists to prevent.
+   *
+   * A promo-free row is `unitPrice === 0` AND shares its productId with another row that
+   * has `unitPrice > 0` — precisely the shape `applyPromoQuote` produces, and nothing else:
+   * a genuinely free catalog item with no paid sibling row is left alone. Free units are
+   * BONUS units added on top, not a split of what was ordered, so the paid row's `quantity`
+   * is unchanged by the promo and is exactly what the retry will send.
+   */
+  private static collapsePromoFreeRows(
+    items: { productId: string; quantity: number; unitPrice: number }[],
+  ): { productId: string; quantity: number }[] {
+    const paidProductIds = new Set(items.filter((i) => i.unitPrice > 0).map((i) => i.productId));
+    return items.filter((i) => !(i.unitPrice === 0 && paidProductIds.has(i.productId)));
   }
 
   private static idempotencyKeyOf(input: { idempotencyKey?: string | null }): string | null {
@@ -2231,7 +2370,7 @@ export class OrderService {
     await this.inventory.release(
       order.depotId,
       order.id,
-      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      stockLinesFor(order.items),
       authorization,
     );
   }
@@ -2366,10 +2505,22 @@ export class OrderService {
     await this.orders.recordRefund(orderId, amount);
   }
 
-  /** Re-adds an order's still-available lines back into the customer's cart. */
+  /**
+   * Re-adds an order's still-available lines back into the customer's cart.
+   *
+   * I-2 (promo-order-integration review #2): a BOGO-matched order stores a paid row
+   * (`P×4`) and a separate free row (`P×1`) for the SAME product. `cart.upsert` SETS the
+   * quantity rather than adding to it, so replaying one `upsert` per STORED row left the
+   * cart holding whichever row's quantity happened to apply last — depending on row order,
+   * never the total the customer actually bought. `collapsePromoFreeRows` (already used by
+   * the replay guard, for the identical reason) drops the free row first: free units are
+   * bonus on top of what was ordered, not a split of it, so the paid row's own quantity is
+   * exactly what "pesan lagi" should put back in the cart.
+   */
   async repeat(customerId: string, orderId: string): Promise<CartView> {
     const order = await this.getForCustomer(customerId, orderId);
-    for (const item of order.items) {
+    const items = OrderService.collapsePromoFreeRows(order.items);
+    for (const item of items) {
       const product = await this.catalog.getProduct(item.productId);
       if (product && product.active) {
         await this.cart.upsert(customerId, item.productId, item.quantity);

@@ -21,6 +21,7 @@ import {
   FakeMembership,
   FakeNotification,
   FakePromo,
+  FakePromoAutoApply,
   FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -135,6 +136,14 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeNotification())
       .overrideProvider(ORDER_TOKENS.Promo)
       .useValue(new FakePromo())
+      // Same Inventory-port trap, same fix (promo-order-integration review, Fix 7): with no
+      // override here the real PromoAutoApplyHttpAdapter ran against a promo-service host
+      // that does not exist in this suite, silently relying on a network timeout/failure to
+      // resolve every single run. It never broke a test only because `quote()`/`apply()`
+      // are fail-open by contract — same shape as the Inventory gap below, before B-6b made
+      // Inventory fail closed and the override became load-bearing rather than cosmetic.
+      .overrideProvider(ORDER_TOKENS.PromoAutoApply)
+      .useValue(new FakePromoAutoApply())
       // Every other cross-service port had a Fake here; Inventory did not, so these flows
       // ran the real HTTP adapter against a depot-service that does not exist in this
       // suite. That passed only because reserve failed OPEN — the e2e was proving the

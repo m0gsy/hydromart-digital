@@ -38,6 +38,7 @@ import {
   FakeCustomerDirectory,
   FakeNotification,
   FakePromo,
+  FakePromoAutoApply,
   FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -63,6 +64,7 @@ describe('OrderService.walkInSale', () => {
   let inventory: FakeInventory;
   let membership: FakeMembership;
   let promo: FakePromo;
+  let promoAutoApply: FakePromoAutoApply;
   let shift: FakeCashierShift;
   let cart: InMemoryCartRepository;
   let paymentReversal: FakePaymentReversal;
@@ -96,6 +98,7 @@ describe('OrderService.walkInSale', () => {
     inventory = new FakeInventory();
     membership = new FakeMembership();
     promo = new FakePromo();
+    promoAutoApply = new FakePromoAutoApply();
     shift = new FakeCashierShift();
     paymentReversal = new FakePaymentReversal();
     depots.owners.set(DEPOT, 'owner-1');
@@ -112,6 +115,7 @@ describe('OrderService.walkInSale', () => {
       directory,
       notification,
       promo,
+      promoAutoApply,
       inventory,
       buildCartService(cart, catalog),
       buildTestConfig(),
@@ -238,6 +242,80 @@ describe('OrderService.walkInSale', () => {
 
       expect(again.id).toBe(first.id);
     });
+
+    /*
+     * Fix 2 (promo-order-integration review): a BOGO match splits one product into a paid
+     * row + a separate free row (`unitPrice: 0`) in the STORED order. The cashier's retry
+     * resends the ORIGINAL basket, with no concept of that free row — `sameBasket` must
+     * collapse the stored free row back onto its paired paid row before comparing, or a
+     * legitimate retry gets refused as `CounterBasketChangedError` (exactly the failure
+     * mode the replay guard exists to prevent).
+     */
+    it('still matches a BOGO-matched order against the ORIGINAL (no-free-row) retry basket', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000 });
+      promoAutoApply.quoteResult = {
+        lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+      const sale = { depotId: DEPOT, lines: [{ productId: p.id, quantity: 4 }] };
+
+      const first = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-3' });
+      expect(first.items).toHaveLength(2); // paid row + free row, stored
+
+      // The retry sends exactly what the till originally rang up — quantity 4, no free row.
+      const again = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-3' });
+
+      expect(again.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
+  });
+
+  /*
+   * Fix 1 + Fix 7 (promo-order-integration review): the first real round-trip test for a
+   * BUY_X_GET_Y match through walkInSale() — the free row must reach the order's `items`,
+   * inventory must be asked to reserve ONE summed line (not two), and the audit call must
+   * carry the correct `AutoApplyApplyInput`.
+   */
+  it('Fix 7: walkInSale() round-trips a BUY_X_GET_Y match (items, summed reserve, audit call)', async () => {
+    const p = catalog.seed({ id: randomUUID(), basePrice: 8000 });
+    promoAutoApply.quoteResult = {
+      lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+
+    const order = await service.walkInSale(operator, {
+      depotId: DEPOT,
+      lines: [{ productId: p.id, quantity: 4 }],
+    });
+
+    expect(order.items).toHaveLength(2);
+    expect(order.items[0]).toMatchObject({ productId: p.id, quantity: 4, unitPrice: 8000 });
+    expect(order.items[1]).toMatchObject({ productId: p.id, quantity: 1, unitPrice: 0 });
+
+    expect(inventory.reserveCalls).toHaveLength(1);
+    expect(inventory.reserveCalls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
+
+    // A pick-up is born COMPLETED, so its completion fan-out (consumeStock) fires at
+    // creation — this is pass 1's main C1 bug (free units never deducted), pinned here too.
+    expect(inventory.calls).toHaveLength(1);
+    expect(inventory.calls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
+
+    expect(promoAutoApply.applyCalls).toHaveLength(1);
+    expect(promoAutoApply.applyCalls[0]).toMatchObject({
+      orderId: order.id,
+      lines: [
+        {
+          productId: p.id,
+          unitPrice: 8000,
+          quantity: 4,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+        },
+      ],
+    });
   });
 
   /**
@@ -325,6 +403,40 @@ describe('OrderService.walkInSale', () => {
       // price and would report as goods sold rather than as delivery.
       expect(order.items).toHaveLength(1);
       expect(order.items[0].productId).toBe(p.id);
+    });
+
+    /*
+     * Fix 4 (promo-order-integration review, owner decision): a free BOGO galon still takes
+     * a seat on the truck, so a counter DELIVERY must charge for it too — consistent with
+     * the app checkout path.
+     *
+     * I-3 (promo-order-integration review #2): this used to need a SECOND, independent
+     * `quote()` call (`counterShippingFee` re-fetching and re-quoting the same depot/lines
+     * on its own) just to count the free galon without duplicating `priceCounterBasket`'s
+     * own application. `priceCounterBasket` now computes the shipping fee from the SAME
+     * quote it already runs for item-level pricing — one `quote()` call total, so a
+     * promo-service outage on one call can no longer disagree with the other.
+     */
+    it('Fix 4 + I-3: charges delivery for the free galon too, with exactly ONE quote() call', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000, isGallon: true });
+      promoAutoApply.quoteResult = {
+        lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 4 }],
+        deliveryAddress: ADDRESS,
+      });
+
+      // 4 paid + 1 free = 5 galon, at the depot's Rp5000/galon fee.
+      expect(order.deliveryFee).toBe(5 * 5000);
+      expect(order.items).toHaveLength(2);
+      expect(order.items[1]).toMatchObject({ productId: p.id, quantity: 1, unitPrice: 0 });
+      // I-3: ONE promo quote() call for the whole sale, not two independent ones.
+      expect(promoAutoApply.quoteCalls).toHaveLength(1);
     });
 
     // #27: refill-vs-beli split, read back through the same aggregate the daily report uses.
@@ -454,6 +566,7 @@ describe('OrderService.walkInSale', () => {
         directory,
         notification,
         promo,
+        promoAutoApply,
         inventory,
         buildCartService(cart, catalog),
         buildTestConfig({ ORDER_COUNTER_DELIVERY: '0' }),
@@ -1200,6 +1313,36 @@ describe('OrderService.walkInSale', () => {
         status: OrderStatus.VOIDED,
         note: 'Salah ukuran',
       });
+    });
+
+    /*
+     * I-1 (promo-order-integration review #2): the first fix batch fixed the void-path
+     * `restock` call to use `stockLinesFor` instead of a raw `.map()`, but added no test
+     * pinning it specifically for a BOGO-matched (two-rows-per-product) order — only
+     * `reserveThenCreate`'s own reserve call had one. Voiding a BOGO sale must ask
+     * inventory to restock ONE summed line, not two separate ones for the same product.
+     */
+    it('I-1: restocks ONE summed entry per product when voiding a BOGO-matched counter sale', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000 });
+      promoAutoApply.quoteResult = {
+        lines: [
+          { productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+        ],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 4 }],
+      });
+      expect(order.items).toHaveLength(2); // paid row (4) + free row (1), stored separately
+      const now = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+
+      const voided = await service.voidCounterSale(operator, order.id, 'Batal', now);
+
+      expect(voided.status).toBe(OrderStatus.VOIDED);
+      expect(inventory.restockCalls).toHaveLength(1);
+      expect(inventory.restockCalls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
     });
 
     it('asks loyalty nothing for an anonymous sale — it never earned anything', async () => {

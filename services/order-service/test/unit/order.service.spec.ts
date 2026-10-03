@@ -47,6 +47,7 @@ import {
   FakeCustomerDirectory,
   FakeNotification,
   FakePromo,
+  FakePromoAutoApply,
   FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -125,6 +126,7 @@ describe('OrderService', () => {
   let customerDirectory: FakeCustomerDirectory;
   let notification: FakeNotification;
   let promo: FakePromo;
+  let promoAutoApply: FakePromoAutoApply;
   let inventory: FakeInventory;
   let cartService: CartService;
   let service: OrderService;
@@ -153,6 +155,7 @@ describe('OrderService', () => {
     customerDirectory = new FakeCustomerDirectory();
     notification = new FakeNotification();
     promo = new FakePromo();
+    promoAutoApply = new FakePromoAutoApply();
     inventory = new FakeInventory();
     cartService = buildCartService(cart, catalog, pricing, resellerDiscount, config);
     outbox = buildOutbox(orders);
@@ -171,6 +174,7 @@ describe('OrderService', () => {
       customerDirectory,
       notification,
       promo,
+      promoAutoApply,
       inventory,
       cartService,
       config,
@@ -2212,6 +2216,34 @@ describe('OrderService', () => {
     expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 2 }]);
   });
 
+  describe('reserveThenCreate stock reservation', () => {
+    it('sums quantity across two items that share a productId (promo free-unit row)', async () => {
+      // The promo auto-apply merge (Task 2, `applyPromoQuote`) is not wired into checkout()
+      // yet — that is Task 4. Once it is, a BUY_X_GET_Y match turns one cart line into two
+      // CreateOrderItemData rows for the same product: a paid row and a zero-price free
+      // row. `cartService`/`upsert` dedupe by productId, so there is no way to reach that
+      // shape through the normal add-to-cart path yet; pushing a second row straight onto
+      // the fake cart's `rows` reproduces the exact two-rows-one-product shape
+      // `reserveThenCreate` must already handle correctly, without waiting on that wiring.
+      const productId = await addToCart(20000, 2); // paid row: 2 units
+      cart.rows.push({
+        id: randomUUID(),
+        customerId: customer,
+        productId,
+        quantity: 1, // free row: 1 more unit of the same product
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(inventory.reserveCalls).toHaveLength(1);
+      // One reserved line for the product, holding the SUMMED quantity (2 + 1) — not two
+      // separate lines that would double-reserve the same physical stock.
+      expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 3 }]);
+    });
+  });
+
   // An order with no depot is invisible to every depot queue and reserves no stock,
   // so checkout refuses one instead of placing it. These four cases are that contract.
   describe('an order always gets a depot', () => {
@@ -2359,6 +2391,38 @@ describe('OrderService', () => {
           expect(inventory.reserveCalls[0]).toMatchObject({ depotId: otherDepot.id, orderId: id });
           expect(inventory.releaseCalls).toHaveLength(1);
           expect(inventory.releaseCalls[0]).toMatchObject({ depotId: homeDepot.id, orderId: id });
+        });
+
+        /*
+         * I-1 (promo-order-integration review #2): the first fix batch fixed `rerouteDepot`
+         * to use `stockLinesFor` instead of a raw `.map()`, but added no test pinning it
+         * specifically for a BOGO-matched (two-rows-per-product) order. Both the reserve at
+         * the new depot and the release at the old one must see ONE summed line per
+         * product, not two.
+         */
+        it('I-1: reserves/releases ONE summed entry per product when rerouting a BOGO-matched order', async () => {
+          const productId = await addToCart(8000, 4);
+          promoAutoApply.quoteResult = {
+            lines: [
+              { productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+            ],
+            shippingAppliedRuleId: null,
+            shippingFeeOverride: null,
+          };
+          const order = await service.checkout(customer, { deliveryAddress: address });
+          expect(order.items).toHaveLength(2); // paid row (4) + free row (1)
+
+          depots.depots = [homeDepot, otherDepot];
+          inventory.reserveCalls.length = 0;
+          inventory.releaseCalls.length = 0;
+
+          const moved = await service.rerouteDepot(staff, order.id, otherDepot.id, 'Bearer tok');
+
+          expect(moved.depotId).toBe(otherDepot.id);
+          expect(inventory.reserveCalls).toHaveLength(1);
+          expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+          expect(inventory.releaseCalls).toHaveLength(1);
+          expect(inventory.releaseCalls[0].items).toEqual([{ productId, quantity: 5 }]);
         });
 
         // Reserve fails CLOSED, so a shortfall refuses the move while somebody is still on
@@ -2655,6 +2719,32 @@ describe('OrderService', () => {
     expect(view.items[0].quantity).toBe(2);
   });
 
+  /*
+   * I-2 (promo-order-integration review #2): `repeat()` calls `cart.upsert` once per STORED
+   * order row. `upsert` SETS the quantity rather than adding to it, so a BOGO order's paid
+   * row (P×4) and free row (P×1) for the SAME product left the cart holding whichever row's
+   * quantity happened to apply LAST — not the 4 the customer actually bought, and depending
+   * on row order rather than on anything the customer did. Free units are a bonus the
+   * customer did not ask for, not something "pesan lagi" should re-add; the fix collapses
+   * the free row first, the same heuristic the replay guard already uses.
+   */
+  it('I-2: reorders a BOGO-matched order at its PAID quantity, not a split or the free row', async () => {
+    const productId = await addToCart(8000, 4);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    expect(order.items).toHaveLength(2); // paid row (4) + free row (1), stored separately
+
+    const view = await service.repeat(customer, order.id);
+
+    expect(view.items).toHaveLength(1); // ONE cart line for the product, not two
+    expect(view.items[0].productId).toBe(productId);
+    expect(view.items[0].quantity).toBe(4); // the paid quantity — not 1, and not 5
+  });
+
   it("lists only the requesting customer's orders", async () => {
     await addToCart(20000, 1);
     await service.checkout(customer, { deliveryAddress: address });
@@ -2908,6 +2998,152 @@ describe('OrderService', () => {
     ).rejects.toThrow(BelowMinimumOrderError);
   });
 
+  /*
+   * Fix 6 (promo-order-integration review): a promo discount is applied AFTER the minimum
+   * is checked, per the owner's decision — a cart that cleared the minimum on the cart
+   * screen (priced before any promo ran) must never be rejected at checkout just because a
+   * promo then discounted it below that line.
+   */
+  it('Fix 6: a promo discount does not retroactively fail the minimum-order check', async () => {
+    const productId = await addToCart(20000, 1); // pre-promo subtotal: 20000
+    depots.depots = [
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 0,
+        minOrderAmount: 15000, // cleared by the PRE-promo subtotal, not the post-promo one
+      },
+    ];
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['r1'], unitPriceAfter: 5000, freeQty: 0, lineTotal: 5000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+
+    // Checkout succeeded (did not throw BelowMinimumOrderError) and still billed the
+    // customer the POST-promo amount — only the ELIGIBILITY check moved to pre-promo.
+    expect(order.subtotal).toBe(5000);
+  });
+
+  /*
+   * Fix 3 + Fix 7 (promo-order-integration review): promo-service has no way to learn a
+   * depot's own delivery fee, so nothing stops a SHIPPING_DISCOUNT rule's override from
+   * RAISING it. The audit call still reports the raw override (promo-service's own audit
+   * logic decides what to do with an override above the original fee) — only what the
+   * customer is actually billed gets capped.
+   */
+  it('Fix 3: a shippingFeeOverride above the depot fee is capped, and the audit call reports it correctly', async () => {
+    await addToCart(20000, 1); // 1 galon at depot-home (deliveryFee 5000)
+    promoAutoApply.quoteResult = {
+      lines: [],
+      shippingAppliedRuleId: 'rule-shipping',
+      shippingFeeOverride: 9000, // higher than depot-home's own 5000
+    };
+
+    const order = await service.checkout(customer, { deliveryAddress: address });
+
+    expect(order.deliveryFee).toBe(5000); // capped at the depot's own fee, never 9000
+    expect(promoAutoApply.applyCalls).toHaveLength(1);
+    expect(promoAutoApply.applyCalls[0]).toMatchObject({
+      orderId: order.id,
+      shippingAppliedRuleId: 'rule-shipping',
+      shippingFeeOverride: 9000,
+      originalShippingFee: 5000,
+      shippingUnits: 1,
+    });
+  });
+
+  /*
+   * Fix 1 + Fix 7 (promo-order-integration review): the first real round-trip test for a
+   * BUY_X_GET_Y match through checkout() — the free row must reach the order's `items`,
+   * inventory must be asked to reserve ONE summed line (not two, which would 1) send
+   * inventory-service a shape it has never had to handle and 2) double up once consumeStock
+   * runs against depot-service's `@@unique([itemId, orderId])`), and the audit call must
+   * carry the correct `AutoApplyApplyInput`.
+   */
+  it('Fix 7: checkout() round-trips a BUY_X_GET_Y match (items, summed reserve, audit call)', async () => {
+    const productId = await addToCart(8000, 4);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+
+    const order = await service.checkout(customer, { deliveryAddress: address });
+
+    expect(order.items).toHaveLength(2);
+    expect(order.items[0]).toMatchObject({ productId, quantity: 4, unitPrice: 8000 });
+    expect(order.items[1]).toMatchObject({ productId, quantity: 1, unitPrice: 0 });
+
+    // ONE summed reserve line (4 paid + 1 free), not two separate lines for the same product.
+    expect(inventory.reserveCalls).toHaveLength(1);
+    expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+
+    expect(promoAutoApply.applyCalls).toHaveLength(1);
+    expect(promoAutoApply.applyCalls[0]).toMatchObject({
+      orderId: order.id,
+      lines: [
+        {
+          productId,
+          unitPrice: 8000,
+          quantity: 4,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+        },
+      ],
+    });
+  });
+
+  /*
+   * C-1 (promo-order-integration review #2): the Critical regression the first fix batch
+   * introduced while fixing the minimum-ORDER check (Fix 6). That batch moved the voucher
+   * `quote()` call onto `pricedSubtotal` (PRE-promo) but left `redeem()` on `subtotal`
+   * (POST-promo) — so a voucher was quoted against one number and redeemed against a
+   * different one. The owner's call: vouchers use the POST-promo subtotal everywhere
+   * (quote, quoteFor, redeem); `pricedSubtotal` stays scoped to the minimum-ORDER check
+   * alone. A PERCENTAGE voucher's own minSpend gate (promo-service, not modelled by this
+   * suite's FakePromo) would sit between the two subtotals in a live system — met against
+   * the correct POST-promo value, unmet against the stale PRE-promo one — so this asserts
+   * the exact subtotal every call actually carried, not just that checkout succeeded.
+   */
+  it('C-1: quotes AND redeems a voucher on the POST-promo subtotal, never the pre-promo one', async () => {
+    const productId = await addToCart(10000, 10); // pre-promo (pricedSubtotal) = 100000
+    // A SPECIAL_PRICE-shaped match (freeQty: 0, no split row) cutting the subtotal to 80000
+    // — simpler than a BOGO for isolating "which subtotal did the voucher see".
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 80000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    promo.quoteDiscount = 8000; // 10% of the POST-promo subtotal (80000), not the pre-promo one
+    promo.quoteDiscountType = 'PERCENTAGE';
+
+    const order = await service.checkout(customer, {
+      deliveryAddress: address,
+      voucherCode: 'HEMAT10',
+    });
+
+    expect(order.subtotal).toBe(80000);
+    // The invariant: quote and redeem see the IDENTICAL subtotal, and it is the post-promo
+    // one — never `pricedSubtotal` (100000).
+    expect(promo.quoteCalls).toHaveLength(1);
+    expect(promo.quoteCalls[0].subtotal).toBe(80000);
+    expect(promo.redeemCalls).toHaveLength(1);
+    expect(promo.redeemCalls[0].subtotal).toBe(80000);
+    // The discount landed on the order is computed on the POST-promo subtotal.
+    expect(order.discount).toBe(8000);
+    // Per-galon delivery fee (10 galons @ homeDepot's Rp5000), not hardcoded here — the
+    // point of this test is the voucher's subtotal, not the shipping math.
+    expect(order.total).toBe(order.subtotal + order.deliveryFee - order.discount);
+  });
+
   it('rejects checkout when depots exist but none covers the address (out of service area)', async () => {
     depots.depots = [
       {
@@ -3098,6 +3334,7 @@ describe('OrderService', () => {
       customerDirectory,
       notification,
       promo,
+      promoAutoApply,
       inventory,
       cartService,
       config,
@@ -3341,6 +3578,7 @@ describe('OrderService franchise revenue on completion', () => {
       new FakeCustomerDirectory(),
       new FakeNotification(),
       new FakePromo(),
+      new FakePromoAutoApply(),
       new FakeInventory(),
       cartService,
       buildTestConfig(),

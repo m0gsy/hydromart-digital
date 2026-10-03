@@ -22,6 +22,7 @@ export const ORDER_TOKENS = {
   CustomerDirectory: Symbol('CustomerDirectory'),
   Notification: Symbol('Notification'),
   Promo: Symbol('Promo'),
+  PromoAutoApply: Symbol('PromoAutoApply'),
   Inventory: Symbol('Inventory'),
   MeterReadingRepository: Symbol('MeterReadingRepository'),
   SalesImportRepository: Symbol('SalesImportRepository'),

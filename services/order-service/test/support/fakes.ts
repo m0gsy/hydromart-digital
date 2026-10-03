@@ -80,6 +80,13 @@ import {
 import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
+import {
+  AutoApplyApplyInput,
+  AutoApplyCartLine,
+  AutoApplyChannel,
+  AutoApplyQuoteResult,
+  PromoAutoApplyPort,
+} from '../../src/application/ports/promo-auto-apply.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
 import {
   OutboxMessageRecord,
@@ -1393,6 +1400,34 @@ export class FakePromo implements PromoPort {
     _authorization: string,
   ): Promise<void> {
     this.redeemCalls.push({ code, orderId, subtotal, shippingFee });
+  }
+}
+
+/**
+ * No-op by default: `quote` resolves a neutral result (`applyPromoQuote` treats it as a
+ * pass-through), so every pre-existing test's pricing math is unaffected unless a test
+ * explicitly sets `quoteResult`.
+ */
+export class FakePromoAutoApply implements PromoAutoApplyPort {
+  quoteResult: AutoApplyQuoteResult = {
+    lines: [],
+    shippingAppliedRuleId: null,
+    shippingFeeOverride: null,
+  };
+  quoteCalls: { depotId: string | null; channel: AutoApplyChannel; lines: AutoApplyCartLine[] }[] = [];
+  applyCalls: AutoApplyApplyInput[] = [];
+
+  async quote(
+    depotId: string | null,
+    channel: AutoApplyChannel,
+    lines: AutoApplyCartLine[],
+  ): Promise<AutoApplyQuoteResult> {
+    this.quoteCalls.push({ depotId, channel, lines });
+    return this.quoteResult;
+  }
+
+  async apply(input: AutoApplyApplyInput): Promise<void> {
+    this.applyCalls.push(input);
   }
 }
 
