@@ -1,7 +1,45 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { AutoApplyQuoteDto, UpdatePromoRuleDto } from '../../src/modules/dto/promo-rule.dto';
+import {
+  AutoApplyQuoteDto,
+  CreatePromoRuleDto,
+  UpdatePromoRuleDto,
+} from '../../src/modules/dto/promo-rule.dto';
+
+describe('CreatePromoRuleDto', () => {
+  const FULL_PAYLOAD = {
+    name: 'Jumat Berkah',
+    kind: 'BUY_X_GET_Y',
+    depotId: '00000000-0000-4000-8000-000000000001',
+    productId: '00000000-0000-4000-8000-000000000002',
+    categoryId: '00000000-0000-4000-8000-000000000003',
+    specialPrice: '6000',
+    buyQty: '2',
+    getQty: '1',
+    shippingFeeOverride: '1000',
+    validFrom: '2026-01-01T00:00:00.000Z',
+    validUntil: '2026-12-31T00:00:00.000Z',
+    daysOfWeek: ['5'],
+    startTime: '09:00',
+    endTime: '18:00',
+    minQty: '2',
+    maxQty: '10',
+    channels: ['APP'],
+  };
+
+  it('accepts a fully-populated payload, coercing every numeric field', async () => {
+    const dto = plainToInstance(CreatePromoRuleDto, FULL_PAYLOAD);
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.specialPrice).toBe(6000);
+    expect(dto.buyQty).toBe(2);
+    expect(dto.getQty).toBe(1);
+    expect(dto.shippingFeeOverride).toBe(1000);
+    expect(dto.daysOfWeek).toEqual([5]);
+    expect(dto.minQty).toBe(2);
+    expect(dto.maxQty).toBe(10);
+  });
+});
 
 describe('UpdatePromoRuleDto · name/kind null guard', () => {
   const errors = async (body: Record<string, unknown>) =>

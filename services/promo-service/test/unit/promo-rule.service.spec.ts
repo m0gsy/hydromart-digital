@@ -196,6 +196,25 @@ describe('PromoRuleService', () => {
     });
   });
 
+  describe('findAll', () => {
+    it('delegates to the repository', async () => {
+      const row = await service.create(baseInput());
+      expect(await service.findAll()).toEqual([row]);
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes an existing rule', async () => {
+      const row = await service.create(baseInput());
+      await service.remove(row.id);
+      expect(await service.findAll()).toEqual([]);
+    });
+
+    it('throws PromoRuleNotFoundError when removing an unknown id', async () => {
+      await expect(service.remove('missing')).rejects.toThrow(PromoRuleNotFoundError);
+    });
+  });
+
   describe('findById', () => {
     it('throws PromoRuleNotFoundError for an unknown id', async () => {
       await expect(service.findById('missing')).rejects.toThrow(PromoRuleNotFoundError);
@@ -270,6 +289,30 @@ describe('PromoRuleService', () => {
         orderId: 'order-1',
         productId: 'p1',
         discountValue: 4000, // (8000-6000) * 2
+      });
+    });
+
+    it('records a PromoApplication for the winning shipping rule too', async () => {
+      await service.create(
+        baseInput({
+          kind: 'SHIPPING_DISCOUNT',
+          specialPrice: null,
+          shippingFeeOverride: 1500,
+          daysOfWeek: [5],
+        }),
+      );
+      await service.apply({
+        orderId: 'order-ship',
+        depotId: null,
+        channel: 'APP',
+        occurredAt: new Date('2026-10-02T03:00:00.000Z'),
+        lines: [{ productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000 }],
+      });
+      expect(repo.applications).toHaveLength(1);
+      expect(repo.applications[0]).toMatchObject({
+        orderId: 'order-ship',
+        productId: null,
+        discountValue: 1500,
       });
     });
 

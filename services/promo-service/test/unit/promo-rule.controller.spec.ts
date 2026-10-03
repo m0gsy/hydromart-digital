@@ -125,6 +125,53 @@ describe('PromoRuleController', () => {
       ).toThrow();
       expect(service.create).not.toHaveBeenCalled();
     });
+
+    it('maps every optional field through when fully populated', async () => {
+      const service = makeService();
+      (service.create as jest.Mock).mockResolvedValue(rule());
+      const controller = new PromoRuleController(service);
+      await controller.create(
+        {
+          name: 'Jumat Berkah',
+          kind: 'BUY_X_GET_Y',
+          depotId: 'depot-a',
+          productId: 'prod-1',
+          categoryId: 'cat-1',
+          specialPrice: 6000,
+          buyQty: 2,
+          getQty: 1,
+          shippingFeeOverride: 1000,
+          validFrom: '2026-01-01T00:00:00.000Z',
+          validUntil: '2026-12-31T00:00:00.000Z',
+          daysOfWeek: [5],
+          startTime: '09:00',
+          endTime: '18:00',
+          minQty: 2,
+          maxQty: 10,
+          channels: ['APP'],
+        } as never,
+        managerOwnDepot,
+      );
+      expect(service.create).toHaveBeenCalledWith({
+        name: 'Jumat Berkah',
+        kind: 'BUY_X_GET_Y',
+        depotId: 'depot-a',
+        productId: 'prod-1',
+        categoryId: 'cat-1',
+        specialPrice: 6000,
+        buyQty: 2,
+        getQty: 1,
+        shippingFeeOverride: 1000,
+        validFrom: new Date('2026-01-01T00:00:00.000Z'),
+        validUntil: new Date('2026-12-31T00:00:00.000Z'),
+        daysOfWeek: [5],
+        startTime: '09:00',
+        endTime: '18:00',
+        minQty: 2,
+        maxQty: 10,
+        channels: ['APP'],
+      });
+    });
   });
 
   describe('update()', () => {
@@ -174,6 +221,57 @@ describe('PromoRuleController', () => {
         controller.update('rule-1', { depotId: null } as never, managerOwnDepot),
       ).rejects.toThrow();
       expect(service.update).not.toHaveBeenCalled();
+    });
+
+    it('maps every optional field through when fully populated', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      (service.update as jest.Mock).mockResolvedValue(rule());
+      const controller = new PromoRuleController(service);
+      await controller.update(
+        'rule-1',
+        {
+          name: 'Baru',
+          kind: 'SHIPPING_DISCOUNT',
+          depotId: 'depot-a',
+          productId: 'prod-1',
+          categoryId: 'cat-1',
+          specialPrice: 6000,
+          buyQty: 2,
+          getQty: 1,
+          shippingFeeOverride: 1000,
+          validFrom: '2026-01-01T00:00:00.000Z',
+          validUntil: '2026-12-31T00:00:00.000Z',
+          daysOfWeek: [5],
+          startTime: '09:00',
+          endTime: '18:00',
+          minQty: 2,
+          maxQty: 10,
+          channels: ['APP'],
+          active: false,
+        } as never,
+        managerOwnDepot,
+      );
+      expect(service.update).toHaveBeenCalledWith('rule-1', {
+        name: 'Baru',
+        kind: 'SHIPPING_DISCOUNT',
+        depotId: 'depot-a',
+        productId: 'prod-1',
+        categoryId: 'cat-1',
+        specialPrice: 6000,
+        buyQty: 2,
+        getQty: 1,
+        shippingFeeOverride: 1000,
+        validFrom: new Date('2026-01-01T00:00:00.000Z'),
+        validUntil: new Date('2026-12-31T00:00:00.000Z'),
+        daysOfWeek: [5],
+        startTime: '09:00',
+        endTime: '18:00',
+        minQty: 2,
+        maxQty: 10,
+        channels: ['APP'],
+        active: false,
+      });
     });
   });
 
@@ -228,10 +326,15 @@ describe('PromoRuleController', () => {
       orderId: 'order-1',
       depotId: undefined,
       channel: 'COUNTER',
-      lines: [],
+      lines: [{ productId: 'p1', categoryId: undefined, quantity: 1, unitPrice: 8000 }],
     });
     expect(service.apply).toHaveBeenCalledWith(
-      expect.objectContaining({ orderId: 'order-1', depotId: null, channel: 'COUNTER' }),
+      expect.objectContaining({
+        orderId: 'order-1',
+        depotId: null,
+        channel: 'COUNTER',
+        lines: [{ productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000 }],
+      }),
     );
   });
 });

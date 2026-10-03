@@ -93,6 +93,12 @@ describe('ruleMatchesLine', () => {
     ).toBe(true);
   });
 
+  it('rejects a rule scoped to a different category when productId is null', () => {
+    expect(
+      ruleMatchesLine(specialPrice({ categoryId: 'other-cat' }), line(), ctx()),
+    ).toBe(false);
+  });
+
   it('matches a depot-scoped rule when the context\'s depot matches', () => {
     expect(
       ruleMatchesLine(specialPrice({ depotId: 'depot-a' }), line(), ctx({ depotId: 'depot-a' })),
@@ -110,6 +116,20 @@ describe('ruleMatchesLine', () => {
     expect(
       ruleMatchesLine(specialPrice({ validFrom: future }), line(), ctx()),
     ).toBe(false);
+  });
+
+  it('rejects a rule already past its validUntil', () => {
+    const past = new Date('2020-01-01T00:00:00.000Z');
+    expect(
+      ruleMatchesLine(specialPrice({ validUntil: past }), line(), ctx()),
+    ).toBe(false);
+  });
+
+  it('matches a rule whose validUntil is still ahead', () => {
+    const future = new Date('2099-01-01T00:00:00.000Z');
+    expect(
+      ruleMatchesLine(specialPrice({ validUntil: future }), line(), ctx()),
+    ).toBe(true);
   });
 
   it('matches a day-of-week rule on the right day (Friday = 5)', () => {
@@ -141,6 +161,14 @@ describe('ruleMatchesLine', () => {
         line(),
         ctx(),
       ),
+    ).toBe(false);
+  });
+
+  it('rejects an endTime-only window the hour has already passed', () => {
+    // Friday 10:00 WIB vs a window that closed at 09:00 — exercises endTime's branch
+    // independently of startTime (both are always null/set together in the tests above).
+    expect(
+      ruleMatchesLine(specialPrice({ endTime: '09:00' }), line(), ctx()),
     ).toBe(false);
   });
 
@@ -200,6 +228,20 @@ describe('evaluateLine', () => {
     expect(result.appliedRuleIds).toEqual(['cheaper']);
   });
 
+  it('keeps the running-cheapest SPECIAL_PRICE when the next candidate is pricier (reduce order reversed)', () => {
+    const cheaper = specialPrice({ id: 'cheaper', specialPrice: 6000 });
+    const pricier = specialPrice({ id: 'pricier', specialPrice: 7000 });
+    const result = evaluateLine([cheaper, pricier], line(), ctx());
+    expect(result.unitPriceAfter).toBe(6000);
+    expect(result.appliedRuleIds).toEqual(['cheaper']);
+  });
+
+  it('grants no free units when a BUY_X_GET_Y candidate is missing getQty (defensive: validate() should prevent this at creation)', () => {
+    const result = evaluateLine([bogo({ getQty: null })], line({ quantity: 3 }), ctx());
+    expect(result.freeQty).toBe(0);
+    expect(result.appliedRuleIds).toEqual([]);
+  });
+
   it('BUY_X_GET_Y doubles quantity for 1-for-1, buyer pays original qty', () => {
     const result = evaluateLine([bogo({ buyQty: 1, getQty: 1 })], line({ quantity: 3 }), ctx());
     expect(result.freeQty).toBe(3);
@@ -223,6 +265,14 @@ describe('evaluateLine', () => {
     const big = bogo({ id: 'big', buyQty: 1, getQty: 1 });
     const result = evaluateLine([small, big], line({ quantity: 2 }), ctx());
     // small: floor(2/2)*1=1 free. big: floor(2/1)*1=2 free. big wins.
+    expect(result.appliedRuleIds).toEqual(['big']);
+    expect(result.freeQty).toBe(2);
+  });
+
+  it('keeps the running-best BUY_X_GET_Y when the next candidate frees fewer units (reduce order reversed)', () => {
+    const small = bogo({ id: 'small', buyQty: 2, getQty: 1 });
+    const big = bogo({ id: 'big', buyQty: 1, getQty: 1 });
+    const result = evaluateLine([big, small], line({ quantity: 2 }), ctx());
     expect(result.appliedRuleIds).toEqual(['big']);
     expect(result.freeQty).toBe(2);
   });
@@ -267,6 +317,13 @@ describe('evaluateShipping', () => {
     const cheaper = shipping({ id: 'cheaper', shippingFeeOverride: 1000 });
     const pricier = shipping({ id: 'pricier', shippingFeeOverride: 2000 });
     const result = evaluateShipping([pricier, cheaper], ctx());
+    expect(result).toEqual({ appliedRuleId: 'cheaper', shippingFeeOverride: 1000 });
+  });
+
+  it('keeps the running-cheapest shipping candidate when the next one is pricier (reduce order reversed)', () => {
+    const cheaper = shipping({ id: 'cheaper', shippingFeeOverride: 1000 });
+    const pricier = shipping({ id: 'pricier', shippingFeeOverride: 2000 });
+    const result = evaluateShipping([cheaper, pricier], ctx());
     expect(result).toEqual({ appliedRuleId: 'cheaper', shippingFeeOverride: 1000 });
   });
 
