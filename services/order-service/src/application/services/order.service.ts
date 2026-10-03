@@ -89,6 +89,7 @@ import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
 import { PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
+import { AutoApplyAppliedLine } from '../ports/promo-auto-apply.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
 import { OutboxTopic, OutboxWrite } from '../ports/outbox.repository';
@@ -140,6 +141,9 @@ export interface CounterBasketQuote {
    * item is about. The two used to disagree by exactly the delivery fee.
    */
   shippingFee: number;
+  /** Item 5 fase 1: original unitPrice/quantity + what the promo quote decided, one entry
+   *  per original line — what `PromoAutoApplyPort.apply()` needs for the audit trail. */
+  appliedLines: AutoApplyAppliedLine[];
 }
 
 export interface WalkInSaleInput {
@@ -996,11 +1000,14 @@ export class OrderService {
     }
 
     // Computed ONCE and threaded everywhere, because the two traps in this item are both
-    // about the same number reaching two places and disagreeing.
-    const shippingFee = wantsDelivery
-      ? await this.counterShippingFee(input.depotId, input.lines)
-      : 0;
-    const { items, subtotal, discount, voucherCode, catalogFallback } =
+    // about the same number reaching two places and disagreeing. Item 5 fase 1: also carries
+    // the promo quote's shipping fields forward for the audit call in Step 5's insertion
+    // below — nothing else in this method's scope can reconstruct them.
+    const { shippingFee, shippingAppliedRuleId, shippingFeeOverride, originalShippingFee } =
+      wantsDelivery
+        ? await this.counterShippingFee(input.depotId, input.lines)
+        : { shippingFee: 0, shippingAppliedRuleId: null, shippingFeeOverride: null, originalShippingFee: 0 };
+    const { items, subtotal, discount, voucherCode, catalogFallback, appliedLines } =
       await this.priceCounterBasket(
         customerId,
         input.depotId,
@@ -1097,6 +1104,18 @@ export class OrderService {
         : undefined,
     );
 
+    // Item 5 fase 1: same fire-and-forget audit record as the app checkout path. Sends the
+    // exact `appliedLines` priceCounterBasket produced plus the shipping-quote fields
+    // counterShippingFee produced above — promo-service trusts both rather than re-deriving
+    // (see Global Constraints' 2026-10-04 correction).
+    await this.promoAutoApply.apply({
+      orderId: order.id,
+      lines: appliedLines,
+      shippingAppliedRuleId,
+      shippingFeeOverride,
+      originalShippingFee,
+      shippingUnits: galonQuantity(items),
+    });
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     if (wantsDelivery) {
       // C11: a live order now, not a finished one. It joins the dispatch queue and completes
@@ -2129,7 +2148,7 @@ export class OrderService {
     if (wantsDelivery && !this.config.counterDelivery(depotId)) {
       throw new CounterDeliveryUnavailableError();
     }
-    const shippingFee = wantsDelivery ? await this.counterShippingFee(depotId, lines) : 0;
+    const shippingFee = wantsDelivery ? (await this.counterShippingFee(depotId, lines)).shippingFee : 0;
     return this.priceCounterBasket(
       customerId ?? ANONYMOUS_CUSTOMER_ID,
       depotId,
@@ -2179,12 +2198,35 @@ export class OrderService {
   private async counterShippingFee(
     depotId: string,
     lines: { productId: string; quantity: number }[],
-  ): Promise<number> {
+  ): Promise<{
+    shippingFee: number;
+    shippingAppliedRuleId: string | null;
+    shippingFeeOverride: number | null;
+    originalShippingFee: number;
+  }> {
     const depots = await this.depotDirectory.listActiveDepots();
     const depot = depots?.find((d) => d.id === depotId);
     if (!depot) throw new DepotUnavailableError();
     const { items } = await this.priceLines(depotId, lines);
-    return money(depot.deliveryFee * galonQuantity(items));
+    // Item 5 fase 1: a SHIPPING_DISCOUNT promo replaces the depot's own per-galon fee at
+    // the counter too. Only the shipping-relevant quote is needed here; `priceCounterBasket`
+    // (below) runs its own quote for the item-level adjustments against its own `priceLines`
+    // call — see Plan 2's Global Constraints for why this is two calls, not one. The result
+    // is returned in full, not just the computed fee, because `walkInSale`'s audit call
+    // (Step 5) needs `shippingAppliedRuleId`/`shippingFeeOverride`/the depot's original fee
+    // and has no other way to obtain them.
+    const autoPromoQuote = await this.promoAutoApply.quote(
+      depotId,
+      'COUNTER',
+      items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+    );
+    const perGalonFee = autoPromoQuote.shippingFeeOverride ?? depot.deliveryFee;
+    return {
+      shippingFee: money(perGalonFee * galonQuantity(items)),
+      shippingAppliedRuleId: autoPromoQuote.shippingAppliedRuleId,
+      shippingFeeOverride: autoPromoQuote.shippingFeeOverride,
+      originalShippingFee: depot.deliveryFee,
+    };
   }
 
   async priceCounterBasket(
@@ -2202,8 +2244,18 @@ export class OrderService {
      */
     shippingFee = 0,
   ): Promise<CounterBasketQuote> {
-    const { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
+    const { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback } =
       await this.priceLines(depotId, lines);
+    // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
+    // membership/voucher discounting (same ordering as the app checkout path — see Plan 2's
+    // Global Constraints). `channel: 'COUNTER'` is how a Senin-Optimis-style counter-only
+    // rule distinguishes itself from an app order.
+    const autoPromoQuote = await this.promoAutoApply.quote(
+      depotId,
+      'COUNTER',
+      pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+    );
+    const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
     const { discount, agen } = await this.counterDiscount(
       customerId,
@@ -2227,6 +2279,7 @@ export class OrderService {
       voucherCode,
       catalogFallback,
       agen,
+      appliedLines,
     };
   }
 
