@@ -37,6 +37,20 @@ check already wired through this repo's nav/guard conventions.
 - Both pages gate on the `promoRuleRead`/`promoRuleWrite` capabilities added in Plan 1 — HQ
   via `hq-nav.ts`'s `cap` field (same mechanism `promotionRead` already uses), dashboard via
   a `can()`-wrapped predicate in `roles.ts` (same mechanism `canViewCampaigns` already uses).
+- **CORRECTION (2026-10-04), before any task below is executed:** a Plan 1 fix batch (after
+  this plan's text was originally written) added an optimistic-concurrency guard to
+  `PromoRuleService.update()` — every `PATCH` now REQUIRES a `seenUpdatedAt` field matching
+  the row's current `updatedAt`, or the server throws `StaleWriteError` (confirmed by reading
+  `promo-rule.service.ts`'s real `update()` and `assertFresh()` in `packages/platform` — there
+  is no decision-only-patch exemption for this entity, unlike `Promotion`'s toggle). Without
+  this field, EVERY edit through this plan's admin UI would fail every time, not just on a
+  real conflict. `/hq/promotions`' own editor (this plan's explicit template) already solves
+  the identical requirement for `Promotion` — mirror it exactly: `PromoRulePayload` gains
+  `seenUpdatedAt?: string` (Task 1), and Task 4/5's `RuleEditor.submit()` sends
+  `{ ...payload, seenUpdatedAt: rule.updatedAt }` on the `PATCH` call only (never on `POST`
+  create, which has no existing row to be stale against) — copy
+  `apps/web/src/app/hq/promotions/page.tsx`'s own `submit()` (around line 86-98) for the
+  exact shape.
 
 ---
 
@@ -106,6 +120,9 @@ export interface PromoRulePayload {
   maxQty?: number | null;
   channels?: PromoRuleChannel[];
   active?: boolean;
+  /** CA-2-53: sent only on PATCH, equal to the row's `updatedAt` as last read — the server
+   *  rejects the write (409) if the row moved since. Never sent on create. */
+  seenUpdatedAt?: string;
 }
 ```
 
@@ -551,7 +568,12 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
     try {
       const payload = toPayload(form);
       if (rule) {
-        await api.patch(endpoints.promoRules.detail(rule.id), payload, true);
+        await api.patch(
+          endpoints.promoRules.detail(rule.id),
+          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
+          { ...payload, seenUpdatedAt: rule.updatedAt },
+          true,
+        );
       } else {
         await api.post(endpoints.promoRules.create, payload, true);
       }
@@ -775,16 +797,18 @@ git commit -m "feat(web): /hq/promo-rules admin page"
   Bekasi · konteks aktif" in the sidebar during this session's browser-verify). Import and
   use that same hook; do not invent a second way to read the active depot.
 
-- [ ] **Step 1: Find the active-depot hook**
+- [ ] **Step 1: The active-depot hook (already confirmed, 2026-10-04 — no need to re-search)**
 
-```bash
-grep -rn "konteks aktif\|useActiveDepot\|useSelectedDepot\|useDepotContext" apps/web/src/app/dashboard/promotions/page.tsx apps/web/src/components/dashboard
-```
-
-Note the hook's import path and the shape of the value it returns (almost certainly at
-least `{ id: string }` or `depotId: string`) — Step 2 below assumes a hook called
-`useActiveDepot()` returning `{ id: string | null }`; **replace every reference to it with
-the real hook name, import path and return shape found here** before writing the page.
+This plan originally left this as a live-file grep for the implementer. It has since been
+confirmed directly against the real code: the hook is `useDepot()`, imported from
+`@/lib/depot-context` (NOT `useActiveDepot` — that name does not exist anywhere in this
+codebase). It returns a `DepotContextValue` with (among other fields) `selectedId: string |
+null` — exactly the plain id this task needs, already resolved to `depots[0]?.id` as a
+fallback when nothing is explicitly selected (read `depot-context.tsx`'s `selectedId`
+logic if you want the fallback's full reasoning; you don't need to re-derive it). Every
+reference to `useActiveDepot()` and `{ id: string | null }` in Step 2 below means
+`useDepot()` and `.selectedId` — the code block has already been corrected to use the real
+names.
 
 - [ ] **Step 2: Write the page**
 
@@ -797,8 +821,7 @@ Create `apps/web/src/app/dashboard/promo-rules/page.tsx` as a copy of Task 4's
    this key exists in `dashboard.ts` the same way it does in `hq.ts`; if the exact key name
    differs, use whatever this console's existing pages (`/dashboard/promotions`) already
    call for the same purpose.
-3. Import the active-depot hook found in Step 1 and read the current depot's id at the top
-   of `DashboardPromoRulesPage` (the renamed `HqPromoRulesPage`).
+3. Import `useDepot` from `'@/lib/depot-context'` and read `const { selectedId: activeDepotId } = useDepot();` at the top of `DashboardPromoRulesPage` (the renamed `HqPromoRulesPage`).
 4. The `RuleEditor`'s `depotId` field becomes **read-only, pre-filled with the active
    depot's id** (a depot-console user creates rules scoped to their own depot only — Plan 1's
    `promoRuleWrite` capability for `KEPALA_DEPOT` was granted on exactly this assumption, see
@@ -811,12 +834,11 @@ Create `apps/web/src/app/dashboard/promo-rules/page.tsx` as a copy of Task 4's
         </Field>
 ```
 
-   (where `activeDepotId` is whatever the Step 1 hook returns), and in `EMPTY`/`formFrom`/
-   `toPayload`, replace every use of `form.depotId` with the active depot id directly rather
-   than a form field — `toPayload` takes the active depot id as a second argument:
-   `toPayload(form: RuleForm, depotId: string | null): PromoRulePayload`, and both call
-   sites (`submit()` in `RuleEditor`) pass it through from a new `depotId` prop the page
-   passes down to `<RuleEditor depotId={activeDepotId} ... />`.
+   and in `EMPTY`/`formFrom`/`toPayload`, replace every use of `form.depotId` with the
+   active depot id directly rather than a form field — `toPayload` takes the active depot
+   id as a second argument: `toPayload(form: RuleForm, depotId: string | null):
+   PromoRulePayload`, and both call sites (`submit()` in `RuleEditor`) pass it through from
+   a new `depotId` prop the page passes down to `<RuleEditor depotId={activeDepotId} ... />`.
 5. The list endpoint call stays `endpoints.promoRules.manage` (unchanged — the backend
    already scopes the response by the caller's `depotScopeIds`, see Plan 1 Task 5's
    `list()` controller method; a depot-scoped caller only ever receives their own
