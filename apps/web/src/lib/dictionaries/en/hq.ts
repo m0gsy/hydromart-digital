@@ -248,6 +248,8 @@ export const hq = {
       promotionWrite: 'Manage promotions',
       voucherRead: 'View vouchers',
       voucherWrite: 'Manage vouchers',
+      promoRuleRead: 'View promo rules',
+      promoRuleWrite: 'Manage promo rules',
       depotAdmin: 'Manage depots & pricing',
       franchise: 'Franchise dashboard',
       payout: 'Payout & commission',
