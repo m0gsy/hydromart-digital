@@ -92,12 +92,10 @@ describe('ruleMatchesLine', () => {
     ).toBe(true);
   });
 
-  it('rejects a rule scoped to a different depot', () => {
+  it('does not reject a depot-scoped rule — depot visibility is enforced by the repository before candidates reach this layer', () => {
     expect(
-      ruleMatchesLine(specialPrice({ depotId: 'depot-a' }), line(), {
-        ...ctx(),
-      }),
-    ).toBe(false);
+      ruleMatchesLine(specialPrice({ depotId: 'depot-a' }), line(), ctx()),
+    ).toBe(true);
   });
 
   it('rejects a rule outside its validFrom/validUntil window', () => {

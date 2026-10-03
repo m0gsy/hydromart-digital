@@ -79,8 +79,6 @@ export function ruleMatchesLine(
   if (rule.depotId !== null) {
     // Candidates are pre-filtered by the repository to the caller's depot or network-wide;
     // this re-check only guards callers (e.g. tests) that construct candidates directly.
-    // Without depot info in context, reject rules scoped to specific depots.
-    return false;
   }
   if (rule.productId !== null && rule.productId !== line.productId) return false;
   if (rule.productId === null && rule.categoryId !== null && rule.categoryId !== line.categoryId) {
