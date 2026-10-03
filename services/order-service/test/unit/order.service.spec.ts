@@ -2212,6 +2212,34 @@ describe('OrderService', () => {
     expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 2 }]);
   });
 
+  describe('reserveThenCreate stock reservation', () => {
+    it('sums quantity across two items that share a productId (promo free-unit row)', async () => {
+      // The promo auto-apply merge (Task 2, `applyPromoQuote`) is not wired into checkout()
+      // yet — that is Task 4. Once it is, a BUY_X_GET_Y match turns one cart line into two
+      // CreateOrderItemData rows for the same product: a paid row and a zero-price free
+      // row. `cartService`/`upsert` dedupe by productId, so there is no way to reach that
+      // shape through the normal add-to-cart path yet; pushing a second row straight onto
+      // the fake cart's `rows` reproduces the exact two-rows-one-product shape
+      // `reserveThenCreate` must already handle correctly, without waiting on that wiring.
+      const productId = await addToCart(20000, 2); // paid row: 2 units
+      cart.rows.push({
+        id: randomUUID(),
+        customerId: customer,
+        productId,
+        quantity: 1, // free row: 1 more unit of the same product
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(inventory.reserveCalls).toHaveLength(1);
+      // One reserved line for the product, holding the SUMMED quantity (2 + 1) — not two
+      // separate lines that would double-reserve the same physical stock.
+      expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 3 }]);
+    });
+  });
+
   // An order with no depot is invisible to every depot queue and reserves no stock,
   // so checkout refuses one instead of placing it. These four cases are that contract.
   describe('an order always gets a depot', () => {

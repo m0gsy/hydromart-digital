@@ -50,6 +50,7 @@ import {
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
+import { reservationLinesFor } from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -1988,7 +1989,7 @@ export class OrderService {
     burnVoucher?: (orderId: string) => Promise<void>,
   ): Promise<OrderRecord> {
     const id = randomUUID();
-    const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    const lines = reservationLinesFor(data.items);
     await this.inventory.reserve(depotId, id, lines, authorization);
     let burned = false;
     try {
