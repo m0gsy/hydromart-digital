@@ -148,8 +148,36 @@ export class UpdatePromoRuleDto extends PartialType(CreatePromoRuleDto) {
   @IsIn(KIND_VALUES)
   kind?: (typeof KIND_VALUES)[number];
 
+  // Same NOT NULL-at-the-DB-level reasoning as name/kind above: minQty/daysOfWeek/channels/
+  // active all have DB defaults, never a "clear to null" meaning. @ValidateIf(!== undefined)
+  // still allows omitting the field (undefined = don't touch) but validates an explicit
+  // `null`, instead of PartialType's auto @IsOptional() letting it through to crash Prisma.
+  @ApiPropertyOptional({ example: 1, default: 1 })
+  @ValidateIf((_, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  minQty?: number;
+
+  @ApiPropertyOptional({ type: [Number], example: [5], description: '0=Minggu..6=Sabtu' })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsArray()
+  @ArrayUnique()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  daysOfWeek?: number[];
+
+  @ApiPropertyOptional({ enum: CHANNEL_VALUES, isArray: true })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(CHANNEL_VALUES, { each: true })
+  channels?: ('APP' | 'COUNTER')[];
+
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   active?: boolean;
 }
@@ -258,4 +286,17 @@ export class AutoApplyApplyDto {
   @IsInt()
   @Min(0)
   originalShippingFee?: number;
+
+  @ApiPropertyOptional({
+    example: 5,
+    description:
+      'Total galon/unit count the shipping fee applies across (same quantity used to ' +
+      'compute the delivery fee). Only meaningful alongside originalShippingFee/' +
+      'shippingAppliedRuleId; defaults to 1 if omitted.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  shippingUnits?: number;
 }

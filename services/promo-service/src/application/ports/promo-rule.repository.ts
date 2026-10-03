@@ -25,11 +25,10 @@ export interface PromoRuleRepository {
 
   /**
    * Active rules a checkout at `depotId` may match at `now`: `active=true`, depot-visible
-   * (network-wide or that depot), and not yet expired by `validUntil`/not yet started by
-   * `validFrom` is intentionally NOT filtered here — day-of-week/time-of-day/channel/qty
-   * matching happens in the pure domain layer, which needs the full candidate shape anyway.
-   * `depotIds` here is always a single-element array (the fulfilling depot) or undefined
-   * for a network-wide-only quote; see PromoRuleService.quote.
+   * (network-wide or that depot), and filtered by `validFrom`/`validUntil` against `now` —
+   * day-of-week/time-of-day/channel/qty matching happens in the pure domain layer, which
+   * needs the full candidate shape anyway. `depotIds` here is always a single-element array
+   * (the fulfilling depot) or `[]` for a network-wide-only quote; see PromoRuleService.quote.
    */
   findActiveCandidates(
     depotIds: readonly string[] | undefined,
