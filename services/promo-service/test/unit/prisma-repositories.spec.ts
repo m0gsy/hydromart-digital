@@ -1,8 +1,141 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promotion.prisma.repository';
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
+import { PromoRulePrismaRepository } from '../../src/infrastructure/prisma/promo-rule.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
 import { VoucherNotFoundError } from '../../src/domain/errors';
+
+describe('PromoRulePrismaRepository', () => {
+  const model = {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    findMany: jest.fn(),
+  };
+  const promoApplication = { create: jest.fn(), count: jest.fn() };
+  const prisma = { promoRule: model, promoApplication } as unknown as PrismaService;
+  const repo = new PromoRulePrismaRepository(prisma);
+  const row = { id: 'rule-1', name: 'Jumat Berkah', depotId: null, active: true };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('findById returns the row', async () => {
+    model.findUnique.mockResolvedValue(row);
+    expect(await repo.findById('rule-1')).toBe(row);
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { id: 'rule-1' } });
+  });
+
+  it('findById returns null when absent', async () => {
+    model.findUnique.mockResolvedValue(null);
+    expect(await repo.findById('nope')).toBeNull();
+  });
+
+  it('create passes data through', async () => {
+    model.create.mockResolvedValue(row);
+    const data = { name: 'Jumat Berkah' } as never;
+    expect(await repo.create(data)).toBe(row);
+    expect(model.create).toHaveBeenCalledWith({ data });
+  });
+
+  it('update targets the id with the patch', async () => {
+    model.update.mockResolvedValue(row);
+    const data = { name: 'Baru' } as never;
+    expect(await repo.update('rule-1', data)).toBe(row);
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'rule-1' }, data });
+  });
+
+  it('delete removes by id and resolves void', async () => {
+    model.delete.mockResolvedValue(row);
+    expect(await repo.delete('rule-1')).toBeUndefined();
+    expect(model.delete).toHaveBeenCalledWith({ where: { id: 'rule-1' } });
+  });
+
+  it('findAll with no depotIds sees every rule (unscoped caller)', async () => {
+    model.findMany.mockResolvedValue([row]);
+    expect(await repo.findAll()).toEqual([row]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: [{ createdAt: 'desc' }],
+    });
+  });
+
+  it('findAll with depotIds sees network-wide OR that depot', async () => {
+    model.findMany.mockResolvedValue([row]);
+    expect(await repo.findAll(['depot-a'])).toEqual([row]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ depotId: null }, { depotId: { in: ['depot-a'] } }] },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+  });
+
+  it('findActiveCandidates applies the active + live-at + depot-visible filter', async () => {
+    model.findMany.mockResolvedValue([row]);
+    const now = new Date('2026-10-02T00:00:00Z');
+    expect(await repo.findActiveCandidates(['depot-a'], now)).toEqual([row]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        active: true,
+        OR: [{ depotId: null }, { depotId: { in: ['depot-a'] } }],
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+        ],
+      },
+    });
+  });
+
+  // Fix 3: an empty depotIds array (a network-wide-only quote) must resolve to the
+  // depotId-IS-NULL case only — `in: []` matches nothing, so the OR collapses correctly.
+  it('findActiveCandidates with an empty depotIds array sees only network-wide rules', async () => {
+    model.findMany.mockResolvedValue([]);
+    const now = new Date('2026-10-02T00:00:00Z');
+    await repo.findActiveCandidates([], now);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        active: true,
+        OR: [{ depotId: null }, { depotId: { in: [] } }],
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+        ],
+      },
+    });
+  });
+
+  it('findActiveCandidates with undefined depotIds applies no depot filter', async () => {
+    model.findMany.mockResolvedValue([row]);
+    const now = new Date('2026-10-02T00:00:00Z');
+    await repo.findActiveCandidates(undefined, now);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        active: true,
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+        ],
+      },
+    });
+  });
+
+  it('recordApplication writes a PromoApplication row', async () => {
+    promoApplication.create.mockResolvedValue({});
+    const data = { orderId: 'o-1', promoRuleId: 'rule-1', productId: 'p-1', discountValue: 1000 };
+    await repo.recordApplication(data);
+    expect(promoApplication.create).toHaveBeenCalledWith({ data });
+  });
+
+  it('hasApplicationFor is true when at least one application exists', async () => {
+    promoApplication.count.mockResolvedValue(1);
+    expect(await repo.hasApplicationFor('o-1')).toBe(true);
+    expect(promoApplication.count).toHaveBeenCalledWith({ where: { orderId: 'o-1' } });
+  });
+
+  it('hasApplicationFor is false when none exist', async () => {
+    promoApplication.count.mockResolvedValue(0);
+    expect(await repo.hasApplicationFor('o-2')).toBe(false);
+  });
+});
 
 describe('PromotionPrismaRepository', () => {
   const model = {
