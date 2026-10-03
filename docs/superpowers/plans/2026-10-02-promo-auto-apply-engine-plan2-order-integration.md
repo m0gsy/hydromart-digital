@@ -465,7 +465,7 @@ cd services/order-service
 npx jest test/unit/promo-auto-apply.http.adapter.spec.ts
 ```
 
-Expected: PASS, all 10 tests green.
+Expected: PASS, all 9 tests green.
 
 - [ ] **Step 7: Wire the module**
 
