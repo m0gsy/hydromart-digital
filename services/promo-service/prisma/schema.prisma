@@ -239,5 +239,10 @@ model PromoApplication {
   createdAt     DateTime  @default(now())
 
   @@index([orderId])
+  // Idempotency guard for apply(): one row per (order, rule, product) at most. The service's
+  // hasApplicationFor() pre-check is the cheap common-case exit; this constraint is the real
+  // safety net under concurrent/retried calls (same two-layer discipline as Voucher's
+  // @@unique([orderId]) on VoucherRedemption).
+  @@unique([orderId, promoRuleId, productId])
   @@map("promo_applications")
 }
