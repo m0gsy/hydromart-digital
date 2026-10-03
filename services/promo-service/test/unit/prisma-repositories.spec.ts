@@ -3,7 +3,7 @@ import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promo
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
 import { PromoRulePrismaRepository } from '../../src/infrastructure/prisma/promo-rule.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
-import { VoucherNotFoundError } from '../../src/domain/errors';
+import { PromoRuleInUseError, VoucherNotFoundError } from '../../src/domain/errors';
 
 describe('PromoRulePrismaRepository', () => {
   const model = {
@@ -56,6 +56,20 @@ describe('PromoRulePrismaRepository', () => {
     model.delete.mockResolvedValue(row);
     expect(await repo.delete('rule-1')).toBeUndefined();
     expect(model.delete).toHaveBeenCalledWith({ where: { id: 'rule-1' } });
+  });
+
+  // Fix 5: PromoApplication.promoRule is onDelete: Restrict, so deleting a rule that has
+  // fired at least once throws Postgres FK violation P2003 — translate it to a clean 409
+  // here, at the repository boundary, same discipline as recordApplications' P2002 handling.
+  it('delete throws PromoRuleInUseError on a P2003 FK violation', async () => {
+    model.delete.mockRejectedValueOnce(Object.assign(new Error('FK violation'), { code: 'P2003' }));
+    await expect(repo.delete('rule-1')).rejects.toThrow(PromoRuleInUseError);
+  });
+
+  it('delete rethrows a non-P2003 error unchanged', async () => {
+    const boom = new Error('boom');
+    model.delete.mockRejectedValueOnce(boom);
+    await expect(repo.delete('rule-1')).rejects.toBe(boom);
   });
 
   it('findAll with no depotIds sees every rule (unscoped caller)', async () => {

@@ -6,6 +6,7 @@ import {
   PromoRuleRepository,
   UpdatePromoRuleData,
 } from '../../application/ports/promo-rule.repository';
+import { PromoRuleInUseError } from '../../domain/errors';
 import { PromoRuleCandidate } from '../../domain/promo-rule';
 import { PrismaService } from './prisma.service';
 
@@ -33,7 +34,15 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.promoRule.delete({ where: { id } });
+    try {
+      await this.prisma.promoRule.delete({ where: { id } });
+    } catch (error) {
+      // PromoApplication.promoRule is onDelete: Restrict (DB-10: an audit row must survive
+      // its rule), so deleting a rule that has fired at least once throws Postgres FK
+      // violation P2003. Surface it as a clean 409, not a raw 500.
+      if ((error as { code?: string })?.code === 'P2003') throw new PromoRuleInUseError();
+      throw error;
+    }
   }
 
   async findAll(depotIds?: readonly string[]): Promise<PromoRuleRecord[]> {
