@@ -80,9 +80,13 @@ describe('applyPromoQuote', () => {
     ]);
   });
 
-  it('leaves a line with no matching quote result untouched', () => {
+  it('leaves a line whose quote result matched no rule untouched', () => {
+    // Fix 5: matched to `items` BY POSITION. promo-service always returns one LineResult
+    // per request line (evaluateLine), so "nothing matched" is a neutral result at the SAME
+    // index — never a missing or differently-productId'd entry, which could not happen from
+    // a real quote() response and is no longer how this function decides a no-op.
     const quote: AutoApplyQuoteResult = {
-      lines: [{ productId: 'other-product', appliedRuleIds: ['r1'], unitPriceAfter: 1, freeQty: 0, lineTotal: 1 }],
+      lines: [{ productId: 'p1', appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0, lineTotal: 16000 }],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -121,5 +125,41 @@ describe('stockLinesFor', () => {
         { productId: 'p2', quantity: 1 },
       ]),
     );
+  });
+});
+
+describe('applyPromoQuote matches quote.lines to items BY POSITION', () => {
+  it('gives two separate lines for the same productId their OWN quote result, not a shared one', () => {
+    // Same product, two separate cart lines — nothing stops this at the DTO level. The
+    // first line qualifies for a minQty-gated BOGO (quantity 4), the second does not
+    // (quantity 1). A productId-keyed Map would collapse both onto whichever quote entry
+    // it saw last; matching by index must keep them apart.
+    const items = [
+      item({ quantity: 4, lineTotal: 32000 }),
+      item({ quantity: 1, lineTotal: 8000 }),
+    ];
+    const quote: AutoApplyQuoteResult = {
+      lines: [
+        // index 0 (quantity 4): qualifies, 1 free unit granted
+        { productId: 'p1', appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+        // index 1 (quantity 1): does not qualify, untouched
+        { productId: 'p1', appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 },
+      ],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    const result = applyPromoQuote(items, quote);
+
+    // Line 0: paid row unchanged + a separate free row for its own 1 free unit.
+    expect(result.items).toHaveLength(3);
+    expect(result.items[0]).toMatchObject({ quantity: 4, unitPrice: 8000, lineTotal: 32000 });
+    expect(result.items[1]).toMatchObject({ quantity: 1, unitPrice: 0, lineTotal: 0 });
+    // Line 1 (the non-qualifying one): untouched, no free row of its own.
+    expect(result.items[2]).toMatchObject({ quantity: 1, unitPrice: 8000, lineTotal: 8000 });
+
+    expect(result.appliedLines).toEqual([
+      { productId: 'p1', unitPrice: 8000, quantity: 4, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1 },
+      { productId: 'p1', unitPrice: 8000, quantity: 1, appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0 },
+    ]);
   });
 });

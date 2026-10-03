@@ -2,6 +2,8 @@
 // Pure — no I/O. Called right after `priceLines()` on both checkout paths, before any
 // voucher/membership discount logic, so `subtotal` downstream already reflects the promo.
 
+import { money } from '@hydromart/platform';
+
 import { CreateOrderItemData } from '../application/ports/order.repository';
 import { AutoApplyAppliedLine, AutoApplyQuoteResult } from '../application/ports/promo-auto-apply.port';
 
@@ -9,15 +11,17 @@ export function applyPromoQuote(
   items: CreateOrderItemData[],
   quote: AutoApplyQuoteResult,
 ): { items: CreateOrderItemData[]; subtotal: number; appliedLines: AutoApplyAppliedLine[] } {
-  const byProduct = new Map(quote.lines.map((l) => [l.productId, l]));
   const result: CreateOrderItemData[] = [];
 
-  // One entry per ORIGINAL line (never split, unlike `result` below) — this is exactly what
-  // `PromoAutoApplyPort.apply()` needs to send promo-service: the original unitPrice/quantity
-  // plus what this line's quote already decided. A line with no quote entry gets a harmless
-  // no-op shape (empty appliedRuleIds, unitPriceAfter == unitPrice, freeQty 0).
-  const appliedLines: AutoApplyAppliedLine[] = items.map((original) => {
-    const line = byProduct.get(original.productId);
+  // Matched to `items` BY POSITION, not by productId. promo-service's quote() returns
+  // `lines: input.lines.map((line) => evaluateLine(...))` — one entry per input line, same
+  // order, always (confirmed in promo-rule.service.ts) — and both call sites in
+  // order.service.ts build that request from the very same array they pass in here. A
+  // productId-keyed Map (the old approach) collapsed two separate cart lines for the same
+  // product (nothing stops a duplicate productId in `WalkInLineDto`) onto whichever quote
+  // entry the Map happened to keep last, cross-applying one line's promo match to the other.
+  const appliedLines: AutoApplyAppliedLine[] = items.map((original, i) => {
+    const line = quote.lines[i];
     return {
       productId: original.productId,
       unitPrice: original.unitPrice,
@@ -28,16 +32,16 @@ export function applyPromoQuote(
     };
   });
 
-  for (const original of items) {
-    const line = byProduct.get(original.productId);
+  items.forEach((original, i) => {
+    const line = quote.lines[i];
     if (!line) {
       result.push(original);
-      continue;
+      return;
     }
     result.push({
       ...original,
       unitPrice: line.unitPriceAfter,
-      lineTotal: line.unitPriceAfter * original.quantity,
+      lineTotal: money(line.unitPriceAfter * original.quantity),
     });
     if (line.freeQty > 0) {
       // A separate row, not a split within the same row — `CreateOrderItemData` carries one
@@ -48,12 +52,12 @@ export function applyPromoQuote(
         ...original,
         unitPrice: 0,
         quantity: line.freeQty,
-        lineTotal: 0,
+        lineTotal: money(0),
       });
     }
-  }
+  });
 
-  const subtotal = result.reduce((sum, i) => sum + i.lineTotal, 0);
+  const subtotal = money(result.reduce((sum, i) => sum + i.lineTotal, 0));
   return { items: result, subtotal, appliedLines };
 }
 
