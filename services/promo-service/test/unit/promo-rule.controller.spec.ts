@@ -324,16 +324,57 @@ describe('PromoRuleController', () => {
     const controller = new PromoRuleController(service);
     await controller.apply({
       orderId: 'order-1',
-      depotId: undefined,
-      channel: 'COUNTER',
-      lines: [{ productId: 'p1', categoryId: undefined, quantity: 1, unitPrice: 8000 }],
+      lines: [
+        {
+          productId: 'p1',
+          unitPrice: 8000,
+          quantity: 2,
+          appliedRuleIds: ['rule-special'],
+          unitPriceAfter: 6000,
+          freeQty: 0,
+        },
+      ],
+      shippingAppliedRuleId: 'rule-ship',
+      shippingFeeOverride: 1000,
+      originalShippingFee: 2000,
+    } as never);
+    expect(service.apply).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 2 }],
+      quotedLines: [
+        {
+          productId: 'p1',
+          appliedRuleIds: ['rule-special'],
+          unitPriceAfter: 6000,
+          freeQty: 0,
+          lineTotal: 12000,
+        },
+      ],
+      quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
+      originalShippingFee: 2000,
     });
+  });
+
+  it('apply() defaults omitted shipping fields to null', async () => {
+    const service = makeService();
+    const controller = new PromoRuleController(service);
+    await controller.apply({
+      orderId: 'order-2',
+      lines: [
+        {
+          productId: 'p1',
+          unitPrice: 8000,
+          quantity: 1,
+          appliedRuleIds: [],
+          unitPriceAfter: 8000,
+          freeQty: 0,
+        },
+      ],
+    } as never);
     expect(service.apply).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderId: 'order-1',
-        depotId: null,
-        channel: 'COUNTER',
-        lines: [{ productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000 }],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
+        originalShippingFee: null,
       }),
     );
   });

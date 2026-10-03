@@ -23,10 +23,8 @@ const INTERNAL_KEY = 'test-internal-service-key-0123456789';
  * actually sits in front of it. Mirrors the equivalent 401 test for the voucher redeem
  * route in voucher.e2e.spec.ts.
  *
- * Only `/auto-apply/quote` is covered here. `/auto-apply/apply`'s DTO shape is about to
- * change in the next fix batch (ApplyInput/AutoApplyApplyDto/apply() are explicitly
- * off-limits for this one) — the next agent should add the equivalent 401 test for it
- * once that redesign lands, instead of writing it against a contract that is about to move.
+ * `/auto-apply/apply`'s 401 coverage lands here now that its DTO (AutoApplyApplyDto/
+ * AppliedLineDto) is final — see the data-contract redesign fix batch.
  */
 describe('Promo rule auto-apply HTTP flows (e2e)', () => {
   let app: INestApplication;
@@ -61,11 +59,15 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
       .useValue(new InMemoryVoucherRepository())
       .overrideProvider(PROMO_TOKENS.PromotionRepository)
       .useValue(new InMemoryPromotionRepository())
-      // The 200 case below exercises PromoRuleService.quote() end to end through the HTTP
-      // pipeline; the stubbed PrismaService has no real `promoRule` model, so this fake
-      // stands in exactly like the other two repositories above.
+      // The 200/204 cases below exercise PromoRuleService.quote()/apply() end to end through
+      // the HTTP pipeline; the stubbed PrismaService has no real `promoRule` model, so this
+      // fake stands in exactly like the other two repositories above.
       .overrideProvider(PROMO_TOKENS.PromoRuleRepository)
-      .useValue({ findActiveCandidates: jest.fn().mockResolvedValue([]) })
+      .useValue({
+        findActiveCandidates: jest.fn().mockResolvedValue([]),
+        hasApplicationFor: jest.fn().mockResolvedValue(false),
+        recordApplications: jest.fn().mockResolvedValue(undefined),
+      })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -118,5 +120,50 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
       .set(internal(INTERNAL_KEY))
       .send(quoteBody)
       .expect(200);
+  });
+
+  const applyBody = {
+    orderId: '00000000-0000-4000-8000-000000000002',
+    lines: [
+      {
+        productId: '00000000-0000-4000-8000-000000000001',
+        unitPrice: 8000,
+        quantity: 1,
+        appliedRuleIds: [],
+        unitPriceAfter: 8000,
+        freeQty: 0,
+      },
+    ],
+  };
+
+  it('requires the internal service key for auto-apply/apply (401 without/wrong key)', async () => {
+    await request(server()).post('/api/v1/promotions/auto-apply/apply').send(applyBody).expect(401);
+
+    await request(server())
+      .post('/api/v1/promotions/auto-apply/apply')
+      .set(internal('wrong-key'))
+      .send(applyBody)
+      .expect(401);
+
+    // Even an otherwise-valid customer bearer token must not substitute for the internal key.
+    const jwt = app.get(JwtService);
+    const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
+    const customerToken = jwt.sign(
+      { sub: '00000000-0000-4000-8000-000000000099', role: Role.CUSTOMER, phone: '+62' },
+      { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+    );
+    await request(server())
+      .post('/api/v1/promotions/auto-apply/apply')
+      .set(auth(customerToken))
+      .send(applyBody)
+      .expect(401);
+  });
+
+  it('accepts an auto-apply/apply request with the correct internal key', async () => {
+    await request(server())
+      .post('/api/v1/promotions/auto-apply/apply')
+      .set(internal(INTERNAL_KEY))
+      .send(applyBody)
+      .expect(204);
   });
 });

@@ -13,8 +13,15 @@ describe('PromoRulePrismaRepository', () => {
     delete: jest.fn(),
     findMany: jest.fn(),
   };
-  const promoApplication = { create: jest.fn(), count: jest.fn() };
-  const prisma = { promoRule: model, promoApplication } as unknown as PrismaService;
+  const promoApplication = { createMany: jest.fn(), count: jest.fn() };
+  const $transaction: jest.Mock<Promise<unknown>, [(tx: unknown) => unknown]> = jest.fn((fn) =>
+    Promise.resolve(fn({ promoApplication })),
+  );
+  const prisma = {
+    promoRule: model,
+    promoApplication,
+    $transaction,
+  } as unknown as PrismaService;
   const repo = new PromoRulePrismaRepository(prisma);
   const row = { id: 'rule-1', name: 'Jumat Berkah', depotId: null, active: true };
 
@@ -118,11 +125,28 @@ describe('PromoRulePrismaRepository', () => {
     });
   });
 
-  it('recordApplication writes a PromoApplication row', async () => {
-    promoApplication.create.mockResolvedValue({});
-    const data = { orderId: 'o-1', promoRuleId: 'rule-1', productId: 'p-1', discountValue: 1000 };
-    await repo.recordApplication(data);
-    expect(promoApplication.create).toHaveBeenCalledWith({ data });
+  it('recordApplications writes every row in one createMany, inside a transaction', async () => {
+    promoApplication.createMany.mockResolvedValue({ count: 1 });
+    const rows = [{ promoRuleId: 'rule-1', productId: 'p-1', discountValue: 1000 }];
+    await repo.recordApplications('o-1', rows);
+    expect(promoApplication.createMany).toHaveBeenCalledWith({
+      data: [{ orderId: 'o-1', promoRuleId: 'rule-1', productId: 'p-1', discountValue: 1000 }],
+    });
+  });
+
+  it('recordApplications swallows a P2002 (already applied by a concurrent/retried call)', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+    await expect(
+      repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
+    ).resolves.toBeUndefined();
+  });
+
+  it('recordApplications rethrows a non-P2002 error', async () => {
+    const boom = new Error('boom');
+    $transaction.mockRejectedValueOnce(boom);
+    await expect(
+      repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
+    ).rejects.toBe(boom);
   });
 
   it('hasApplicationFor is true when at least one application exists', async () => {

@@ -53,13 +53,21 @@ class InMemoryPromoRuleRepository implements PromoRuleRepository {
   async findActiveCandidates(): Promise<PromoRuleCandidate[]> {
     return this.rows.filter((r) => r.active);
   }
-  async recordApplication(data: {
-    orderId: string;
-    promoRuleId: string;
-    productId: string | null;
-    discountValue: number;
-  }): Promise<void> {
-    this.applications.push(data);
+  async recordApplications(
+    orderId: string,
+    rows: { promoRuleId: string; productId: string | null; discountValue: number }[],
+  ): Promise<void> {
+    // Simulate the DB's unique (orderId, promoRuleId, productId) constraint for extra
+    // confidence beyond the service's hasApplicationFor() pre-check: a batch that collides
+    // with anything already recorded writes nothing, mirroring the Prisma repo's P2002-swallow.
+    const collides = rows.some((row) =>
+      this.applications.some(
+        (a) =>
+          a.orderId === orderId && a.promoRuleId === row.promoRuleId && a.productId === row.productId,
+      ),
+    );
+    if (collides) return;
+    for (const row of rows) this.applications.push({ orderId, ...row });
   }
   async hasApplicationFor(orderId: string): Promise<boolean> {
     return this.applications.some((a) => a.orderId === orderId);
@@ -275,69 +283,144 @@ describe('PromoRuleService', () => {
   });
 
   describe('apply', () => {
-    it('records one PromoApplication per winning line and the shipping winner', async () => {
-      await service.create(baseInput());
+    // apply() trusts a quote() result the caller already computed — it no longer re-matches
+    // anything. These tests build `quotedLines`/`quotedShipping` by hand to represent "what a
+    // prior quote() call already returned", exactly as order-service (Plan 2) will do.
+
+    it('records one row for a SPECIAL_PRICE-only win', async () => {
       await service.apply({
         orderId: 'order-1',
-        depotId: null,
-        channel: 'APP',
-        occurredAt: new Date('2026-10-02T03:00:00.000Z'),
-        lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 8000 }],
+        originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 2 }],
+        quotedLines: [
+          {
+            productId: 'p1',
+            appliedRuleIds: ['rule-special'],
+            unitPriceAfter: 6000,
+            freeQty: 0,
+            lineTotal: 12000,
+          },
+        ],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
       });
-      expect(repo.applications).toHaveLength(1);
-      expect(repo.applications[0]).toMatchObject({
-        orderId: 'order-1',
-        productId: 'p1',
-        discountValue: 4000, // (8000-6000) * 2
-      });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-1', promoRuleId: 'rule-special', productId: 'p1', discountValue: 4000 },
+      ]);
     });
 
-    it('records a PromoApplication for the winning shipping rule too', async () => {
-      await service.create(
-        baseInput({
-          kind: 'SHIPPING_DISCOUNT',
-          specialPrice: null,
-          shippingFeeOverride: 1500,
-          daysOfWeek: [5],
-        }),
-      );
+    // The specific bug the plan calls out: destructuring appliedRuleIds as [specialId, bogoId]
+    // would misattribute a pure-BOGO win to a nonexistent special-price id, because when only
+    // BOGO wins, appliedRuleIds[0] IS the BOGO id.
+    it('records one row for a BOGO-only win, attributed to the BOGO rule id (not misattributed)', async () => {
       await service.apply({
-        orderId: 'order-ship',
-        depotId: null,
-        channel: 'APP',
-        occurredAt: new Date('2026-10-02T03:00:00.000Z'),
-        lines: [{ productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000 }],
+        orderId: 'order-2',
+        originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 3 }],
+        quotedLines: [
+          {
+            productId: 'p1',
+            appliedRuleIds: ['rule-bogo'],
+            unitPriceAfter: 8000, // unchanged: no SPECIAL_PRICE won
+            freeQty: 3,
+            lineTotal: 24000,
+          },
+        ],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
       });
-      expect(repo.applications).toHaveLength(1);
-      expect(repo.applications[0]).toMatchObject({
-        orderId: 'order-ship',
-        productId: null,
-        discountValue: 1500,
+      expect(repo.applications).toEqual([
+        {
+          orderId: 'order-2',
+          promoRuleId: 'rule-bogo',
+          productId: 'p1',
+          discountValue: 24000, // 3 free * 8000 (line's price, unchanged here)
+        },
+      ]);
+    });
+
+    it('records two rows when SPECIAL_PRICE and BUY_X_GET_Y stack on one line', async () => {
+      await service.apply({
+        orderId: 'order-3',
+        originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 2 }],
+        quotedLines: [
+          {
+            productId: 'p1',
+            appliedRuleIds: ['rule-special', 'rule-bogo'],
+            unitPriceAfter: 7000,
+            freeQty: 2,
+            lineTotal: 14000,
+          },
+        ],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
       });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-3', promoRuleId: 'rule-special', productId: 'p1', discountValue: 2000 }, // (8000-7000)*2
+        { orderId: 'order-3', promoRuleId: 'rule-bogo', productId: 'p1', discountValue: 14000 }, // 2 free * 7000
+      ]);
+    });
+
+    it('writes no row for a line where nothing won', async () => {
+      await service.apply({
+        orderId: 'order-4',
+        originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 1 }],
+        quotedLines: [
+          { productId: 'p1', appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 },
+        ],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
+      });
+      expect(repo.applications).toHaveLength(0);
+    });
+
+    it('computes the shipping discount as originalShippingFee - shippingFeeOverride', async () => {
+      await service.apply({
+        orderId: 'order-5',
+        originalLines: [],
+        quotedLines: [],
+        quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
+        originalShippingFee: 2000,
+      });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-5', promoRuleId: 'rule-ship', productId: null, discountValue: 1000 },
+      ]);
+    });
+
+    it('writes no shipping row when shipping won but originalShippingFee was omitted', async () => {
+      await service.apply({
+        orderId: 'order-6',
+        originalLines: [],
+        quotedLines: [],
+        quotedShipping: { appliedRuleId: 'rule-ship', shippingFeeOverride: 1000 },
+        // originalShippingFee omitted
+      });
+      expect(repo.applications).toHaveLength(0);
     });
 
     it('is idempotent: calling apply twice for the same orderId records once', async () => {
-      await service.create(baseInput());
       const callApply = () =>
         service.apply({
-          orderId: 'order-1',
-          depotId: null,
-          channel: 'APP',
-          occurredAt: new Date('2026-10-02T03:00:00.000Z'),
-          lines: [{ productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000 }],
+          orderId: 'order-7',
+          originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 1 }],
+          quotedLines: [
+            {
+              productId: 'p1',
+              appliedRuleIds: ['rule-special'],
+              unitPriceAfter: 6000,
+              freeQty: 0,
+              lineTotal: 6000,
+            },
+          ],
+          quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
         });
       await callApply();
       await callApply();
-      expect(repo.applications.filter((a) => a.orderId === 'order-1')).toHaveLength(1);
+      expect(repo.applications.filter((a) => a.orderId === 'order-7')).toHaveLength(1);
     });
 
-    it('writes nothing when no rule matched', async () => {
+    it('writes nothing when quotedLines and quotedShipping both carry no winner', async () => {
       await service.apply({
-        orderId: 'order-2',
-        depotId: null,
-        channel: 'APP',
-        occurredAt: new Date('2026-10-02T03:00:00.000Z'),
-        lines: [{ productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000 }],
+        orderId: 'order-8',
+        originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 1 }],
+        quotedLines: [
+          { productId: 'p1', appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 },
+        ],
+        quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
       });
       expect(repo.applications).toHaveLength(0);
     });
