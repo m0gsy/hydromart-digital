@@ -550,13 +550,18 @@ export class OrderService {
         ? // CA-2-65: the fulfilling depot. A voucher a depot manager requested for their
           // own area used to be spendable network-wide; the quote is where that gets
           // refused, because `redeem` fails open and an already-priced order would stand.
-          // Fix 6: PRE-promo subtotal for the same reason as the minimum-order check above —
-          // a voucher's own minimum-purchase gate must not fire because of a discount the
-          // promo engine applied, not the customer.
+          // C-1 (promo-order-integration review #2): POST-promo `subtotal`, not
+          // `pricedSubtotal`. A prior fix batch moved this to the pre-promo value "for the
+          // same reason as the minimum-order check" — but `redeem` below was never changed
+          // off `subtotal`, so that batch made quote and redeem price the SAME voucher
+          // against two DIFFERENT subtotals. `quoteFor`/`redeem` on the counter path have
+          // the identical symmetry requirement; the owner's call is that vouchers use the
+          // POST-promo subtotal everywhere (quote, quoteFor, redeem) and `pricedSubtotal`
+          // stays scoped to the minimum-ORDER check alone.
           this.promo.quote(
             voucherCode,
             customerId,
-            pricedSubtotal,
+            subtotal,
             shippingFee,
             authorization,
             depot.id,
@@ -1328,9 +1333,6 @@ export class OrderService {
     customerId: string,
     depotId: string,
     subtotal: number,
-    /** Fix 6: PRE-promo subtotal, used ONLY for the voucher's minimum-purchase gate — the
-     *  actual discount math below still runs against the POST-promo `subtotal` above. */
-    pricedSubtotal: number,
     /** C11: the ongkir this sale carries, 0 for a pick-up. Both promo calls must see it. */
     shippingFee: number,
     voucherCode: string | null,
@@ -1371,13 +1373,14 @@ export class OrderService {
     if (voucherCode) {
       // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
       // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
-      // Fix 6: PRE-promo subtotal, so the voucher's own minimum-purchase check runs against
-      // what the basket looked like before any promo discount — same reasoning as
-      // checkout()'s minimum-order check.
+      // C-1 (promo-order-integration review #2): POST-promo `subtotal` — symmetric with
+      // `redeem` below, which was never moved off it. The counter path has no
+      // minimum-ORDER check (that only exists in checkout()'s depot.minOrderAmount gate),
+      // so nothing here needs the pre-promo value at all.
       const quote = await this.promo.quoteFor(
         voucherCode,
         customerId,
-        pricedSubtotal,
+        subtotal,
         shippingFee,
         depotId,
       );
@@ -2279,7 +2282,7 @@ export class OrderService {
      */
     shippingFee = 0,
   ): Promise<CounterBasketQuote> {
-    const { items: pricedItems, subtotal: pricedSubtotal, tierPricedTotal, tieredProductIds, catalogFallback } =
+    const { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback } =
       await this.priceLines(depotId, lines);
     // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
     // membership/voucher discounting (same ordering as the app checkout path — see Plan 2's
@@ -2292,11 +2295,14 @@ export class OrderService {
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
+    // C-1 (promo-order-integration review #2): `pricedSubtotal` (pre-promo) is no longer
+    // threaded into `counterDiscount` — the counter path has no minimum-ORDER check (only
+    // checkout()'s depot.minOrderAmount gate does), so nothing here ever needed it; the
+    // voucher's own quote always runs on the POST-promo `subtotal` below.
     const { discount, agen } = await this.counterDiscount(
       customerId,
       depotId,
       subtotal,
-      pricedSubtotal,
       shippingFee,
       voucherCode,
       items,

@@ -3043,6 +3043,49 @@ describe('OrderService', () => {
     });
   });
 
+  /*
+   * C-1 (promo-order-integration review #2): the Critical regression the first fix batch
+   * introduced while fixing the minimum-ORDER check (Fix 6). That batch moved the voucher
+   * `quote()` call onto `pricedSubtotal` (PRE-promo) but left `redeem()` on `subtotal`
+   * (POST-promo) — so a voucher was quoted against one number and redeemed against a
+   * different one. The owner's call: vouchers use the POST-promo subtotal everywhere
+   * (quote, quoteFor, redeem); `pricedSubtotal` stays scoped to the minimum-ORDER check
+   * alone. A PERCENTAGE voucher's own minSpend gate (promo-service, not modelled by this
+   * suite's FakePromo) would sit between the two subtotals in a live system — met against
+   * the correct POST-promo value, unmet against the stale PRE-promo one — so this asserts
+   * the exact subtotal every call actually carried, not just that checkout succeeded.
+   */
+  it('C-1: quotes AND redeems a voucher on the POST-promo subtotal, never the pre-promo one', async () => {
+    const productId = await addToCart(10000, 10); // pre-promo (pricedSubtotal) = 100000
+    // A SPECIAL_PRICE-shaped match (freeQty: 0, no split row) cutting the subtotal to 80000
+    // — simpler than a BOGO for isolating "which subtotal did the voucher see".
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 80000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    promo.quoteDiscount = 8000; // 10% of the POST-promo subtotal (80000), not the pre-promo one
+    promo.quoteDiscountType = 'PERCENTAGE';
+
+    const order = await service.checkout(customer, {
+      deliveryAddress: address,
+      voucherCode: 'HEMAT10',
+    });
+
+    expect(order.subtotal).toBe(80000);
+    // The invariant: quote and redeem see the IDENTICAL subtotal, and it is the post-promo
+    // one — never `pricedSubtotal` (100000).
+    expect(promo.quoteCalls).toHaveLength(1);
+    expect(promo.quoteCalls[0].subtotal).toBe(80000);
+    expect(promo.redeemCalls).toHaveLength(1);
+    expect(promo.redeemCalls[0].subtotal).toBe(80000);
+    // The discount landed on the order is computed on the POST-promo subtotal.
+    expect(order.discount).toBe(8000);
+    // Per-galon delivery fee (10 galons @ homeDepot's Rp5000), not hardcoded here — the
+    // point of this test is the voucher's subtotal, not the shipping math.
+    expect(order.total).toBe(order.subtotal + order.deliveryFee - order.discount);
+  });
+
   it('rejects checkout when depots exist but none covers the address (out of service area)', async () => {
     depots.depots = [
       {
