@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, CheckCircle, Lock, Megaphone } from '@phosphor-icons/react';
+import { ArrowLeft, CheckCircle, Image as ImageIcon, Lock, Megaphone } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
@@ -79,7 +79,25 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
   const [form, setForm] = useState<PromoForm>(promo ? formFrom(promo) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const set = (k: keyof PromoForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Item 8 (2026 evaluation list): upload-first, same field the old text input held.
+  async function pickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    setError(null);
+    try {
+      const { url } = await uploadFile(endpoints.promotions.uploadImage, file);
+      setForm((f) => ({ ...f, imageUrl: url }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hrFix.promotions.imageUploadFailed'));
+    } finally {
+      setImageBusy(false);
+    }
+  }
 
   async function submit() {
     if (!form.title.trim()) {
@@ -122,7 +140,20 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
           <Input value={form.subtitle} onChange={set('subtitle')} placeholder={t('hrFix.promotions.subheadHint')} />
         </Field>
         <Field label={t('hrFix.promotions.imageUrl')}>
-          <Input value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://…" />
+          <div className="flex items-center gap-2">
+            <Input value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://…" />
+            <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-app px-3 py-2.5 text-sm font-semibold hover:bg-brand-50">
+              <ImageIcon size={16} weight="bold" />
+              {imageBusy ? t('hrFix.promotions.imageUploading') : t('hrFix.promotions.imageUpload')}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                disabled={imageBusy}
+                onChange={pickImage}
+              />
+            </label>
+          </div>
         </Field>
         <Field label={t('hrFix.promotions.voucherCode')}>
           <Input value={form.voucherCode} onChange={set('voucherCode')} placeholder="ONGKIRGRATIS" />

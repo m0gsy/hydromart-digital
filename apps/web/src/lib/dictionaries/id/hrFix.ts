@@ -1306,6 +1306,9 @@ export const hrFix = {
     create: 'Buat promo',
     inactive: 'Nonaktif',
     deleteFailed: 'Gagal menghapus promo.',
+    imageUpload: 'Unggah',
+    imageUploading: 'Mengunggah…',
+    imageUploadFailed: 'Gagal mengunggah gambar.',
   },
   walkIn: {
     total: 'Total',

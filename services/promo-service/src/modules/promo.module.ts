@@ -21,6 +21,8 @@ import { PromoRulePrismaRepository } from '../infrastructure/prisma/promo-rule.p
 import { CustomerLookupHttpAdapter } from '../infrastructure/http/customer-lookup.http.adapter';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
 import { OrderValueHttpAdapter } from '../infrastructure/http/order-value.http.adapter';
+import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
+import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { VoucherController } from './voucher.controller';
 import { PromotionController } from './promotion.controller';
 import { PromoRuleController } from './promo-rule.controller';
@@ -39,6 +41,12 @@ export const providers: Provider[] = [
   { provide: PROMO_TOKENS.CustomerLookup, useClass: CustomerLookupHttpAdapter },
   { provide: PROMO_TOKENS.Notification, useClass: NotificationHttpAdapter },
   { provide: PROMO_TOKENS.OrderValues, useClass: OrderValueHttpAdapter },
+  {
+    provide: PROMO_TOKENS.Storage,
+    inject: [PromoConfigService],
+    useFactory: (config: PromoConfigService) =>
+      config.storageDriver === 's3' ? new S3StorageAdapter(config) : new LocalDiskStorageAdapter(config),
+  },
   {
     provide: PROMO_TOKENS.AccountNames,
     inject: [PromoConfigService],

@@ -36,6 +36,32 @@ export class PromoConfigService {
   get authServiceUrl(): string {
     return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  get storageLocalDir(): string {
+    return this.config.get<string>('STORAGE_LOCAL_DIR', './var/uploads');
+  }
+  get storagePublicBaseUrl(): string {
+    return this.config
+      .get<string>('STORAGE_PUBLIC_BASE_URL', 'http://localhost:3010')
+      .replace(/\/+$/, '');
+  }
+  get storageDriver(): 'local' | 's3' {
+    return this.config.get<string>('STORAGE_DRIVER', 'local') === 's3' ? 's3' : 'local';
+  }
+  get s3(): {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+  } {
+    return {
+      endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
+      region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
+      bucket: this.config.getOrThrow<string>('STORAGE_S3_BUCKET'),
+      accessKeyId: this.config.getOrThrow<string>('STORAGE_S3_ACCESS_KEY_ID'),
+      secretAccessKey: this.config.getOrThrow<string>('STORAGE_S3_SECRET_ACCESS_KEY'),
+    };
+  }
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '');
   }

@@ -1061,6 +1061,9 @@ export const hq = {
     saveError: 'Gagal menyimpan banner.',
     edit: 'Edit',
     remove: 'Hapus',
+    imageUpload: 'Unggah',
+    imageUploading: 'Mengunggah…',
+    imageUploadFailed: 'Gagal mengunggah gambar.',
   },
   customers: {
     title: 'Customer 360',
