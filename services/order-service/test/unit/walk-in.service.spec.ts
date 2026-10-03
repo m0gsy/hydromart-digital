@@ -297,6 +297,11 @@ describe('OrderService.walkInSale', () => {
     expect(inventory.reserveCalls).toHaveLength(1);
     expect(inventory.reserveCalls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
 
+    // A pick-up is born COMPLETED, so its completion fan-out (consumeStock) fires at
+    // creation — this is pass 1's main C1 bug (free units never deducted), pinned here too.
+    expect(inventory.calls).toHaveLength(1);
+    expect(inventory.calls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
+
     expect(promoAutoApply.applyCalls).toHaveLength(1);
     expect(promoAutoApply.applyCalls[0]).toMatchObject({
       orderId: order.id,

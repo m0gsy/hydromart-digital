@@ -1387,7 +1387,7 @@ export class OrderService {
       // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
       // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
       // C-1 (promo-order-integration review #2): POST-promo `subtotal` — symmetric with
-      // `redeem` below, which was never moved off it. The counter path has no
+      // `redeem` in walkInSale(), which was never moved off it. The counter path has no
       // minimum-ORDER check (that only exists in checkout()'s depot.minOrderAmount gate),
       // so nothing here needs the pre-promo value at all.
       const quote = await this.promo.quoteFor(
