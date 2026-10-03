@@ -66,6 +66,14 @@ export class PromotionNotFoundError extends DomainError {
   }
 }
 
+export class PromoRuleNotFoundError extends DomainError {
+  readonly code = 'PROMO_RULE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Aturan promo tidak ditemukan.');
+  }
+}
+
 export class VoucherInactiveError extends DomainError {
   readonly code = 'VOUCHER_INACTIVE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
