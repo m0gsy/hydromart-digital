@@ -13,7 +13,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public, depotScopeIds } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  assertDepotAccess,
+  depotScopeIds,
+} from '@hydromart/platform';
 
 import { PromoRuleRecord } from '../application/ports/promo-rule.repository';
 import { PromoRuleService } from '../application/services/promo-rule.service';
@@ -49,8 +57,13 @@ export class PromoRuleController {
   @Can('promoRuleRead')
   @Get('promo-rules/:id')
   @ApiOperation({ summary: 'Read one promo rule (admin)' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<PromoRuleRecord> {
-    return this.promoRules.findById(id);
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<PromoRuleRecord> {
+    const row = await this.promoRules.findById(id);
+    assertDepotAccess(user, row.depotId);
+    return row;
   }
 
   @ApiOkResponse({ type: PromoRuleResponseDto })
@@ -58,7 +71,11 @@ export class PromoRuleController {
   @Can('promoRuleWrite')
   @Post('promo-rules')
   @ApiOperation({ summary: 'Create a promo rule (admin)' })
-  create(@Body() dto: CreatePromoRuleDto): Promise<PromoRuleRecord> {
+  create(
+    @Body() dto: CreatePromoRuleDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<PromoRuleRecord> {
+    assertDepotAccess(user, dto.depotId ?? null);
     return this.promoRules.create({
       name: dto.name,
       kind: dto.kind,
@@ -85,10 +102,14 @@ export class PromoRuleController {
   @Can('promoRuleWrite')
   @Patch('promo-rules/:id')
   @ApiOperation({ summary: 'Update a promo rule (admin)' })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePromoRuleDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<PromoRuleRecord> {
+    const current = await this.promoRules.findById(id);
+    assertDepotAccess(user, current.depotId);
+    if (dto.depotId !== undefined) assertDepotAccess(user, dto.depotId ?? null);
     return this.promoRules.update(id, {
       name: dto.name,
       kind: dto.kind,
@@ -117,8 +138,13 @@ export class PromoRuleController {
   @Delete('promo-rules/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a promo rule (admin)' })
-  remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.promoRules.remove(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<void> {
+    const row = await this.promoRules.findById(id);
+    assertDepotAccess(user, row.depotId);
+    await this.promoRules.remove(id);
   }
 
   @ApiOkResponse({ type: AutoApplyQuoteResponseDto })

@@ -1,5 +1,25 @@
+import { AuthenticatedUser, Role } from '@hydromart/platform';
+
 import { PromoRuleController } from '../../src/modules/promo-rule.controller';
 import { PromoRuleService } from '../../src/application/services/promo-rule.service';
+
+const managerOwnDepot = {
+  sub: 'u-1',
+  role: Role.MANAGER,
+  phone: null,
+  depotId: 'depot-a',
+  depotIds: ['depot-a'],
+} as AuthenticatedUser;
+
+const managerOtherDepot = {
+  sub: 'u-2',
+  role: Role.MANAGER,
+  phone: null,
+  depotId: 'depot-b',
+  depotIds: ['depot-b'],
+} as AuthenticatedUser;
+
+const hqUser = { sub: 'hq-1', role: Role.SUPER_ADMIN, phone: null } as AuthenticatedUser;
 
 describe('PromoRuleController', () => {
   const makeService = () =>
@@ -16,12 +36,171 @@ describe('PromoRuleController', () => {
       apply: jest.fn().mockResolvedValue(undefined),
     }) as unknown as PromoRuleService;
 
+  const rule = (overrides: Partial<{ id: string; depotId: string | null }> = {}) => ({
+    id: 'rule-1',
+    name: 'Jumat Berkah',
+    depotId: 'depot-a',
+    ...overrides,
+  });
+
   it('list() returns whatever the service returns', async () => {
     const service = makeService();
     const controller = new PromoRuleController(service);
     const result = await controller.list();
     expect(result).toEqual([]);
     expect(service.findAll).toHaveBeenCalled();
+  });
+
+  describe('get()', () => {
+    it('returns the rule when the caller is unscoped (HQ)', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule());
+      const controller = new PromoRuleController(service);
+      const result = await controller.get('rule-1', hqUser);
+      expect(result).toEqual(rule());
+    });
+
+    it('returns the rule when the depot-scoped caller owns its depot', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      const result = await controller.get('rule-1', managerOwnDepot);
+      expect(result).toEqual(rule({ depotId: 'depot-a' }));
+    });
+
+    it('rejects a depot-scoped caller reading another depot\'s rule', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await expect(controller.get('rule-1', managerOtherDepot)).rejects.toThrow();
+    });
+
+    it('rejects a depot-scoped caller reading a network-wide rule', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: null }));
+      const controller = new PromoRuleController(service);
+      await expect(controller.get('rule-1', managerOwnDepot)).rejects.toThrow();
+    });
+  });
+
+  describe('create()', () => {
+    it('allows an unscoped (HQ) caller to create a network-wide rule', async () => {
+      const service = makeService();
+      (service.create as jest.Mock).mockResolvedValue(rule({ depotId: null }));
+      const controller = new PromoRuleController(service);
+      await controller.create({ name: 'x', kind: 'SPECIAL_PRICE', depotId: undefined } as never, hqUser);
+      expect(service.create).toHaveBeenCalled();
+    });
+
+    it('allows a depot-scoped caller to create a rule scoped to their own depot', async () => {
+      const service = makeService();
+      (service.create as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await controller.create(
+        { name: 'x', kind: 'SPECIAL_PRICE', depotId: 'depot-a' } as never,
+        managerOwnDepot,
+      );
+      expect(service.create).toHaveBeenCalled();
+    });
+
+    it('rejects a depot-scoped caller creating a rule for another depot', () => {
+      const service = makeService();
+      const controller = new PromoRuleController(service);
+      // create() is synchronous up to the assertDepotAccess call, so the guard throws
+      // before a Promise is even returned — not a rejection to await.
+      expect(() =>
+        controller.create(
+          { name: 'x', kind: 'SPECIAL_PRICE', depotId: 'depot-b' } as never,
+          managerOwnDepot,
+        ),
+      ).toThrow();
+      expect(service.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a depot-scoped caller omitting depotId (would become network-wide)', () => {
+      const service = makeService();
+      const controller = new PromoRuleController(service);
+      expect(() =>
+        controller.create({ name: 'x', kind: 'SPECIAL_PRICE', depotId: undefined } as never, managerOwnDepot),
+      ).toThrow();
+      expect(service.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update()', () => {
+    it('allows an unscoped (HQ) caller to move a rule to any depot', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      (service.update as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-b' }));
+      const controller = new PromoRuleController(service);
+      await controller.update('rule-1', { depotId: 'depot-b' } as never, hqUser);
+      expect(service.update).toHaveBeenCalled();
+    });
+
+    it('allows a depot-scoped caller to patch their own depot\'s rule without changing depotId', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      (service.update as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await controller.update('rule-1', { name: 'Baru', depotId: undefined } as never, managerOwnDepot);
+      expect(service.update).toHaveBeenCalled();
+    });
+
+    it('rejects a depot-scoped caller patching another depot\'s existing rule', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-b' }));
+      const controller = new PromoRuleController(service);
+      await expect(
+        controller.update('rule-1', { name: 'Baru', depotId: undefined } as never, managerOwnDepot),
+      ).rejects.toThrow();
+      expect(service.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a depot-scoped caller moving their own rule to another depot', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await expect(
+        controller.update('rule-1', { depotId: 'depot-b' } as never, managerOwnDepot),
+      ).rejects.toThrow();
+      expect(service.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a depot-scoped caller moving their own rule to network-wide', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await expect(
+        controller.update('rule-1', { depotId: null } as never, managerOwnDepot),
+      ).rejects.toThrow();
+      expect(service.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove()', () => {
+    it('allows an unscoped (HQ) caller to delete any rule', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await controller.remove('rule-1', hqUser);
+      expect(service.remove).toHaveBeenCalledWith('rule-1');
+    });
+
+    it('allows a depot-scoped caller to delete their own depot\'s rule', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-a' }));
+      const controller = new PromoRuleController(service);
+      await controller.remove('rule-1', managerOwnDepot);
+      expect(service.remove).toHaveBeenCalledWith('rule-1');
+    });
+
+    it('rejects a depot-scoped caller deleting another depot\'s rule', async () => {
+      const service = makeService();
+      (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: 'depot-b' }));
+      const controller = new PromoRuleController(service);
+      await expect(controller.remove('rule-1', managerOwnDepot)).rejects.toThrow();
+      expect(service.remove).not.toHaveBeenCalled();
+    });
   });
 
   it('quote() maps the DTO into the service call and flattens the shipping result', async () => {
