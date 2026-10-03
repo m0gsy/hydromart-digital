@@ -36,13 +36,16 @@ export interface PromoRuleRepository {
     now: Date,
   ): Promise<PromoRuleCandidate[]>;
 
-  /** Audit row for a rule that won a line at checkout (PromoApplication). */
-  recordApplication(data: {
-    orderId: string;
-    promoRuleId: string;
-    productId: string | null;
-    discountValue: number;
-  }): Promise<void>;
+  /**
+   * Atomically writes every audit row for one order's apply() call, or none at all. The
+   * unique constraint on (orderId, promoRuleId, productId) is the real idempotency guard
+   * under concurrency/retries — `hasApplicationFor`'s pre-check in the service is the cheap
+   * common-case exit, same two-layer discipline as VoucherRepository.redeemAtomic.
+   */
+  recordApplications(
+    orderId: string,
+    rows: { promoRuleId: string; productId: string | null; discountValue: number }[],
+  ): Promise<void>;
 
   /** True if any PromoApplication row already exists for this order (idempotency check). */
   hasApplicationFor(orderId: string): Promise<boolean>;

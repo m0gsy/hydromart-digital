@@ -59,13 +59,22 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
     });
   }
 
-  async recordApplication(data: {
-    orderId: string;
-    promoRuleId: string;
-    productId: string | null;
-    discountValue: number;
-  }): Promise<void> {
-    await this.prisma.promoApplication.create({ data });
+  async recordApplications(
+    orderId: string,
+    rows: { promoRuleId: string; productId: string | null; discountValue: number }[],
+  ): Promise<void> {
+    await this.prisma
+      .$transaction(async (tx) => {
+        await tx.promoApplication.createMany({
+          data: rows.map((r) => ({ orderId, ...r })),
+        });
+      })
+      .catch((error: unknown) => {
+        // Same discipline as VoucherRepository.redeemAtomic: a P2002 here means a
+        // concurrent/retried apply() call already won and wrote these exact rows —
+        // treat it as success. Anything else is a real failure, rethrow it.
+        if ((error as { code?: string })?.code !== 'P2002') throw error;
+      });
   }
 
   async hasApplicationFor(orderId: string): Promise<boolean> {

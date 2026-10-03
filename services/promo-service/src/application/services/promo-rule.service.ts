@@ -38,8 +38,27 @@ export interface QuoteOutput {
   shipping: ShippingResult;
 }
 
-export interface ApplyInput extends QuoteInput {
+export interface ApplyOriginalLine {
+  productId: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+export interface ApplyInput {
   orderId: string;
+  /** The exact cart lines the caller priced — same order/length as `quotedLines`. */
+  originalLines: ApplyOriginalLine[];
+  /** The exact `LineResult[]` the caller already computed via a prior `quote()` call. */
+  quotedLines: LineResult[];
+  /** The exact `ShippingResult` the caller already computed via that same `quote()` call. */
+  quotedShipping: ShippingResult;
+  /**
+   * The per-unit delivery fee that was in effect BEFORE any promo override — needed to
+   * compute the real shipping discount, since this service never learns it otherwise.
+   * Omit/null if the order has no shipping-fee concept, or if `quotedShipping.appliedRuleId`
+   * is null (no shipping rule won) — in either case no shipping audit row is written.
+   */
+  originalShippingFee?: number | null;
 }
 
 @Injectable()
@@ -106,45 +125,59 @@ export class PromoRuleService {
   }
 
   /**
-   * Re-evaluates and persists `PromoApplication` rows for an order already created.
-   * Idempotent per `orderId`: a second call for the same order is a no-op, mirroring how
-   * `VoucherService.redeem` is idempotent per order. Records one row per line whose
-   * `appliedRuleIds` is non-empty (attributed to the first rule id — SPECIAL_PRICE, if it
-   * won, is always first; see `evaluateLine`) and one row for the shipping winner, if any.
-   *
-   * `discountValue` is computed against the *original* cart line, not the quote result alone:
-   * `LineResult` carries `unitPriceAfter`/`lineTotal` but not the original `unitPrice`, so the
-   * saved-price portion is `(original.unitPrice - unitPriceAfter) * original.quantity`. Free
-   * units from a stacked BUY_X_GET_Y add `freeQty * original.unitPrice` — the giveaway's value
-   * at the line's normal price (never tested with a stacked rule; see the plan's Task 5 if this
-   * needs to change).
+   * Persists `PromoApplication` audit rows for an order, FROM a `quote()` result the caller
+   * already computed and acted on — this method does no matching of its own. Idempotent per
+   * `orderId`: a cheap pre-check short-circuits a repeat call, and a unique DB constraint
+   * (caught in the repository) is the real safety net under concurrent/retried calls, same
+   * two-layer discipline as `VoucherRepository.redeemAtomic`.
    */
   async apply(input: ApplyInput): Promise<void> {
     if (await this.repo.hasApplicationFor(input.orderId)) return;
 
-    const { lines, shipping } = await this.quote(input);
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    const rows: { promoRuleId: string; productId: string | null; discountValue: number }[] = [];
+
+    for (let i = 0; i < input.quotedLines.length; i++) {
+      const line = input.quotedLines[i];
+      const original = input.originalLines[i];
       if (line.appliedRuleIds.length === 0) continue;
-      const original = input.lines[i];
-      const discountValue =
-        (original.unitPrice - line.unitPriceAfter) * original.quantity +
-        line.freeQty * original.unitPrice;
-      await this.repo.recordApplication({
-        orderId: input.orderId,
-        promoRuleId: line.appliedRuleIds[0],
-        productId: line.productId,
-        discountValue,
-      });
+
+      // evaluateLine always pushes the SPECIAL_PRICE winner (if any) BEFORE the BUY_X_GET_Y
+      // winner (if any) — see domain/promo-rule.ts. So: a price reduction, if present, is
+      // ALWAYS appliedRuleIds[0]; a BOGO win, if present, is ALWAYS the LAST element — this
+      // holds whether one or both kinds won, so don't destructure positionally as [a, b].
+      const priceWon = original.unitPrice > line.unitPriceAfter;
+      const bogoWon = line.freeQty > 0;
+
+      if (priceWon) {
+        rows.push({
+          promoRuleId: line.appliedRuleIds[0],
+          productId: line.productId,
+          discountValue: (original.unitPrice - line.unitPriceAfter) * original.quantity,
+        });
+      }
+      if (bogoWon) {
+        rows.push({
+          promoRuleId: line.appliedRuleIds[line.appliedRuleIds.length - 1],
+          productId: line.productId,
+          // Giveaway units valued at the line's already-discounted price — the marginal cost
+          // to the business of handing over one more unit today, not the pre-discount list
+          // price. (Documented convention; the alternative — valuing at list price — is also
+          // defensible and was explicitly left to this implementation to pick.)
+          discountValue: line.freeQty * line.unitPriceAfter,
+        });
+      }
     }
-    if (shipping.appliedRuleId) {
-      await this.repo.recordApplication({
-        orderId: input.orderId,
-        promoRuleId: shipping.appliedRuleId,
+
+    if (input.quotedShipping.appliedRuleId && input.originalShippingFee != null) {
+      rows.push({
+        promoRuleId: input.quotedShipping.appliedRuleId,
         productId: null,
-        discountValue: shipping.shippingFeeOverride ?? 0,
+        discountValue: input.originalShippingFee - (input.quotedShipping.shippingFeeOverride ?? 0),
       });
     }
+
+    if (rows.length === 0) return;
+    await this.repo.recordApplications(input.orderId, rows);
   }
 
   private validate(data: Partial<CreatePromoRuleData>): void {
