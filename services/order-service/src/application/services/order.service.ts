@@ -2511,10 +2511,22 @@ export class OrderService {
     await this.orders.recordRefund(orderId, amount);
   }
 
-  /** Re-adds an order's still-available lines back into the customer's cart. */
+  /**
+   * Re-adds an order's still-available lines back into the customer's cart.
+   *
+   * I-2 (promo-order-integration review #2): a BOGO-matched order stores a paid row
+   * (`P×4`) and a separate free row (`P×1`) for the SAME product. `cart.upsert` SETS the
+   * quantity rather than adding to it, so replaying one `upsert` per STORED row left the
+   * cart holding whichever row's quantity happened to apply last — depending on row order,
+   * never the total the customer actually bought. `collapsePromoFreeRows` (already used by
+   * the replay guard, for the identical reason) drops the free row first: free units are
+   * bonus on top of what was ordered, not a split of it, so the paid row's own quantity is
+   * exactly what "pesan lagi" should put back in the cart.
+   */
   async repeat(customerId: string, orderId: string): Promise<CartView> {
     const order = await this.getForCustomer(customerId, orderId);
-    for (const item of order.items) {
+    const items = OrderService.collapsePromoFreeRows(order.items);
+    for (const item of items) {
       const product = await this.catalog.getProduct(item.productId);
       if (product && product.active) {
         await this.cart.upsert(customerId, item.productId, item.quantity);

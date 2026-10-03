@@ -2687,6 +2687,32 @@ describe('OrderService', () => {
     expect(view.items[0].quantity).toBe(2);
   });
 
+  /*
+   * I-2 (promo-order-integration review #2): `repeat()` calls `cart.upsert` once per STORED
+   * order row. `upsert` SETS the quantity rather than adding to it, so a BOGO order's paid
+   * row (P×4) and free row (P×1) for the SAME product left the cart holding whichever row's
+   * quantity happened to apply LAST — not the 4 the customer actually bought, and depending
+   * on row order rather than on anything the customer did. Free units are a bonus the
+   * customer did not ask for, not something "pesan lagi" should re-add; the fix collapses
+   * the free row first, the same heuristic the replay guard already uses.
+   */
+  it('I-2: reorders a BOGO-matched order at its PAID quantity, not a split or the free row', async () => {
+    const productId = await addToCart(8000, 4);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    expect(order.items).toHaveLength(2); // paid row (4) + free row (1), stored separately
+
+    const view = await service.repeat(customer, order.id);
+
+    expect(view.items).toHaveLength(1); // ONE cart line for the product, not two
+    expect(view.items[0].productId).toBe(productId);
+    expect(view.items[0].quantity).toBe(4); // the paid quantity — not 1, and not 5
+  });
+
   it("lists only the requesting customer's orders", async () => {
     await addToCart(20000, 1);
     await service.checkout(customer, { deliveryAddress: address });
