@@ -110,12 +110,12 @@ function KindFields({ form, set }: { form: RuleForm; set: (k: keyof RuleForm) =>
 }
 
 function RuleEditor({
-  depotId,
+  activeDepotId,
   rule,
   onDone,
   onCancel,
 }: {
-  depotId: string | null;
+  activeDepotId: string | null;
   rule: PromoRule | null;
   onDone: () => void;
   onCancel: () => void;
@@ -124,6 +124,10 @@ function RuleEditor({
   const [form, setForm] = useState<RuleForm>(rule ? formFrom(rule) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Editing an existing rule must never move it between depots: the effective depotId is
+  // always the rule's own depotId (including null/network-wide), not whatever depot the
+  // console's switcher currently has active. Only a brand-new rule defaults to the active depot.
+  const effectiveDepotId = rule ? rule.depotId : activeDepotId;
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const dayLabels = t('dashboard.promoRules.days') as unknown as string[];
 
@@ -149,7 +153,7 @@ function RuleEditor({
     setBusy(true);
     setError(null);
     try {
-      const payload = toPayload(form, depotId);
+      const payload = toPayload(form, effectiveDepotId);
       if (rule) {
         await api.patch(
           endpoints.promoRules.detail(rule.id),
@@ -187,7 +191,7 @@ function RuleEditor({
           </select>
         </Field>
         <Field label={t('dashboard.promoRules.fields.depotId')}>
-          <Input value={depotId ?? ''} disabled />
+          <Input value={effectiveDepotId ?? ''} disabled />
         </Field>
         <Field label={t('dashboard.promoRules.fields.productId')}>
           <Input value={form.productId} onChange={set('productId')} />
@@ -292,7 +296,7 @@ export default function DashboardPromoRulesPage() {
 
       {editing !== undefined && (
         <RuleEditor
-          depotId={activeDepotId}
+          activeDepotId={activeDepotId}
           rule={editing}
           onCancel={() => setEditing(undefined)}
           onDone={() => {
