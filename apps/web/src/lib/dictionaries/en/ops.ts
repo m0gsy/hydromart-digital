@@ -32,6 +32,7 @@ export const ops = {
     pricing: 'Dynamic pricing',
     staff: 'Staff & roles',
     promo: 'Promos',
+    promoRules: 'Promo rules',
     campaign: 'Campaigns',
     vouchers: 'Vouchers',
     churn: 'Churn risk',

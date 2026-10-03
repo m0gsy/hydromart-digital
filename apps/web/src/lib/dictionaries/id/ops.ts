@@ -34,6 +34,7 @@ export const ops = {
     pricing: 'Harga dinamis',
     staff: 'Staf & peran',
     promo: 'Promo',
+    promoRules: 'Aturan promo',
     campaign: 'Campaign',
     vouchers: 'Voucher',
     churn: 'Risiko churn',
