@@ -403,11 +403,16 @@ describe('OrderService.walkInSale', () => {
     /*
      * Fix 4 (promo-order-integration review, owner decision): a free BOGO galon still takes
      * a seat on the truck, so a counter DELIVERY must charge for it too — consistent with
-     * the app checkout path. `counterShippingFee` runs its own independent `applyPromoQuote`
-     * (a second `quote()` call, same trade-off `priceCounterBasket` already accepts) so it
-     * can count the free galon without duplicating `priceCounterBasket`'s own application.
+     * the app checkout path.
+     *
+     * I-3 (promo-order-integration review #2): this used to need a SECOND, independent
+     * `quote()` call (`counterShippingFee` re-fetching and re-quoting the same depot/lines
+     * on its own) just to count the free galon without duplicating `priceCounterBasket`'s
+     * own application. `priceCounterBasket` now computes the shipping fee from the SAME
+     * quote it already runs for item-level pricing — one `quote()` call total, so a
+     * promo-service outage on one call can no longer disagree with the other.
      */
-    it('Fix 4: charges delivery for the free galon too, on a BOGO-matched counter delivery', async () => {
+    it('Fix 4 + I-3: charges delivery for the free galon too, with exactly ONE quote() call', async () => {
       const p = catalog.seed({ id: randomUUID(), basePrice: 8000, isGallon: true });
       promoAutoApply.quoteResult = {
         lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
@@ -425,6 +430,8 @@ describe('OrderService.walkInSale', () => {
       expect(order.deliveryFee).toBe(5 * 5000);
       expect(order.items).toHaveLength(2);
       expect(order.items[1]).toMatchObject({ productId: p.id, quantity: 1, unitPrice: 0 });
+      // I-3: ONE promo quote() call for the whole sale, not two independent ones.
+      expect(promoAutoApply.quoteCalls).toHaveLength(1);
     });
 
     // #27: refill-vs-beli split, read back through the same aggregate the daily report uses.

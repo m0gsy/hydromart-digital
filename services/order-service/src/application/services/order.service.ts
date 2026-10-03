@@ -143,6 +143,11 @@ export interface CounterBasketQuote {
   /** Item 5 fase 1: original unitPrice/quantity + what the promo quote decided, one entry
    *  per original line — what `PromoAutoApplyPort.apply()` needs for the audit trail. */
   appliedLines: AutoApplyAppliedLine[];
+  /** I-3: the shipping-promo fields `walkInSale`'s audit call needs, carried out of the
+   *  single quote `priceCounterBasket` now runs — 0/null for a pick-up. */
+  shippingAppliedRuleId: string | null;
+  shippingFeeOverride: number | null;
+  originalShippingFee: number;
 }
 
 export interface WalkInSaleInput {
@@ -1021,22 +1026,30 @@ export class OrderService {
       throw new CounterDeliveryUnavailableError();
     }
 
-    // Computed ONCE and threaded everywhere, because the two traps in this item are both
-    // about the same number reaching two places and disagreeing. Item 5 fase 1: also carries
-    // the promo quote's shipping fields forward for the audit call in Step 5's insertion
-    // below — nothing else in this method's scope can reconstruct them.
-    const { shippingFee, shippingAppliedRuleId, shippingFeeOverride, originalShippingFee } =
-      wantsDelivery
-        ? await this.counterShippingFee(input.depotId, input.lines)
-        : { shippingFee: 0, shippingAppliedRuleId: null, shippingFeeOverride: null, originalShippingFee: 0 };
-    const { items, subtotal, discount, voucherCode, catalogFallback, appliedLines } =
-      await this.priceCounterBasket(
-        customerId,
-        input.depotId,
-        input.lines,
-        input.voucherCode,
-        shippingFee,
-      );
+    // I-3 (promo-order-integration review #2): ONE call now produces the item-level price
+    // AND the shipping fee, from the SAME promo quote — `priceCounterBasket` used to be
+    // preceded by its own independent `counterShippingFee` quote, a leftover from before Fix
+    // 4 existed. Item 5 fase 1: also carries the promo quote's shipping fields forward for
+    // the audit call in Step 5's insertion below — nothing else in this method's scope can
+    // reconstruct them.
+    const {
+      items,
+      subtotal,
+      discount,
+      voucherCode,
+      catalogFallback,
+      appliedLines,
+      shippingFee,
+      shippingAppliedRuleId,
+      shippingFeeOverride,
+      originalShippingFee,
+    } = await this.priceCounterBasket(
+      customerId,
+      input.depotId,
+      input.lines,
+      input.voucherCode,
+      wantsDelivery,
+    );
 
     // #27: validated against the PRICED basket's own galon count, not the raw line
     // quantities the DTO carried — a line priced down to 0 by stock or a catalogue miss
@@ -1127,9 +1140,9 @@ export class OrderService {
     );
 
     // Item 5 fase 1: same fire-and-forget audit record as the app checkout path. Sends the
-    // exact `appliedLines` priceCounterBasket produced plus the shipping-quote fields
-    // counterShippingFee produced above — promo-service trusts both rather than re-deriving
-    // (see Global Constraints' 2026-10-04 correction).
+    // exact `appliedLines` plus the shipping-quote fields, both out of the single
+    // `priceCounterBasket` call above (Fix I-3) — promo-service trusts them rather than
+    // re-deriving (see Global Constraints' 2026-10-04 correction).
     await this.promoAutoApply.apply({
       orderId: order.id,
       lines: appliedLines,
@@ -2174,13 +2187,15 @@ export class OrderService {
     if (wantsDelivery && !this.config.counterDelivery(depotId)) {
       throw new CounterDeliveryUnavailableError();
     }
-    const shippingFee = wantsDelivery ? (await this.counterShippingFee(depotId, lines)).shippingFee : 0;
+    // I-3: one call now covers both the item-level price and the shipping fee (see
+    // `priceCounterBasket`'s doc) — this used to be a second, independent quote via
+    // `counterShippingFee`.
     return this.priceCounterBasket(
       customerId ?? ANONYMOUS_CUSTOMER_ID,
       depotId,
       lines,
       voucherCode,
-      shippingFee,
+      wantsDelivery,
     );
   }
 
@@ -2210,95 +2225,71 @@ export class OrderService {
   }
 
   /**
-   * C11: the ongkir a counter delivery is charged, from the depot that will carry it.
+   * C11 + I-3 (promo-order-integration review #2): prices a counter basket AND, in the same
+   * pass, the delivery fee for it — one `priceLines` call, one `promoAutoApply.quote()` call.
    *
-   * The same formula checkout uses — `depot.deliveryFee` per galon — read through the
-   * directory and FAIL-CLOSED. Quoting a delivery fee from a depot nobody could reach would
-   * be inventing a price at the till, with the buyer standing there.
+   * This used to be two independent methods (`counterShippingFee` + `priceCounterBasket`),
+   * each re-fetching the same depot's lines and re-running the same promo quote: a leftover
+   * from before Fix 4 (free galons pay delivery) existed, when the shipping math did not yet
+   * need the item-level promo result. A fail-open timeout on ONE of the two calls but not the
+   * other could make the billed delivery fee disagree with the item-level promo the order was
+   * actually built from. There is now exactly one `quote()` call to disagree with itself.
    *
-   * TRAP, and it is the reason this is a separate number rather than a basket line: ongkir
-   * must NEVER be smuggled in as a product. `resellerDiscountFor` cuts every galon line
-   * down to `flatGallonPriceIdr`, so an ongkir hidden as a galon would be discounted to
-   * Rp5.000 for an agen — and would report as goods sold rather than as delivery.
+   * Shipping is read through the depot directory and FAIL-CLOSED when `wantsDelivery` —
+   * quoting a delivery fee for a depot nobody could reach would be inventing a price at the
+   * till, with the buyer standing there. A pick-up skips the directory call entirely, exactly
+   * as before.
+   *
+   * TRAP: ongkir must never be smuggled in as a product line — `resellerDiscountFor` cuts
+   * every galon line down to `flatGallonPriceIdr`, so an ongkir hidden as a galon would be
+   * discounted to Rp5.000 for an agen and would report as goods sold rather than as delivery.
    */
-  private async counterShippingFee(
-    depotId: string,
-    lines: { productId: string; quantity: number }[],
-  ): Promise<{
-    shippingFee: number;
-    shippingAppliedRuleId: string | null;
-    shippingFeeOverride: number | null;
-    originalShippingFee: number;
-  }> {
-    const depots = await this.depotDirectory.listActiveDepots();
-    const depot = depots?.find((d) => d.id === depotId);
-    if (!depot) throw new DepotUnavailableError();
-    const { items } = await this.priceLines(depotId, lines);
-    // Item 5 fase 1: a SHIPPING_DISCOUNT promo replaces the depot's own per-galon fee at
-    // the counter too. Only the shipping-relevant quote is needed here; `priceCounterBasket`
-    // (below) runs its own quote for the item-level adjustments against its own `priceLines`
-    // call — see Plan 2's Global Constraints for why this is two calls, not one. The result
-    // is returned in full, not just the computed fee, because `walkInSale`'s audit call
-    // (Step 5) needs `shippingAppliedRuleId`/`shippingFeeOverride`/the depot's original fee
-    // and has no other way to obtain them.
-    const autoPromoQuote = await this.promoAutoApply.quote(
-      depotId,
-      'COUNTER',
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
-    );
-    // Fix 4: free galons pay delivery too (owner decision — a free BOGO galon still takes a
-    // seat on the truck), so the galon count here must include any BOGO free units. This
-    // method only sees `priceLines`' PRE-promo items otherwise, since it runs its OWN quote
-    // purely for the shipping decision. Applying the quote a second time, independently of
-    // `priceCounterBasket`'s own item-level application, is the accepted trade-off (Plan 2's
-    // Global Constraints: two `quote()` calls per counter delivery sale, not one).
-    const { items: promoItems } = applyPromoQuote(items, autoPromoQuote);
-    // Fix 3: never let a SHIPPING_DISCOUNT override RAISE the fee above the depot's own —
-    // promo-service has no way to guard this itself, since it never learns the depot's rate.
-    const perGalonFee =
-      autoPromoQuote.shippingFeeOverride != null
-        ? Math.min(autoPromoQuote.shippingFeeOverride, depot.deliveryFee)
-        : depot.deliveryFee;
-    return {
-      shippingFee: money(perGalonFee * galonQuantity(promoItems)),
-      shippingAppliedRuleId: autoPromoQuote.shippingAppliedRuleId,
-      shippingFeeOverride: autoPromoQuote.shippingFeeOverride,
-      originalShippingFee: depot.deliveryFee,
-    };
-  }
-
   async priceCounterBasket(
     customerId: string,
     depotId: string,
     lines: { productId: string; quantity: number }[],
     voucherCodeInput?: string | null,
-    /**
-     * C11: the ongkir this basket will be charged, 0 for a pick-up.
-     *
-     * TRAP, and it is why this is threaded rather than defaulted: `quoteFor` AND `redeem`
-     * must BOTH see the same fee. If only one does, the voucher book records a discount
-     * larger than the one actually given — the mirror of the defect already documented on
-     * the checkout path.
-     */
-    shippingFee = 0,
+    /** C11: the cashier ticked "antar" — present only to decide whether a shipping fee is
+     *  charged at all. The fee itself is computed below, from the SAME promo quote the
+     *  item-level pricing uses. */
+    wantsDelivery = false,
   ): Promise<CounterBasketQuote> {
     const { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback } =
       await this.priceLines(depotId, lines);
     // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
     // membership/voucher discounting (same ordering as the app checkout path — see Plan 2's
     // Global Constraints). `channel: 'COUNTER'` is how a Senin-Optimis-style counter-only
-    // rule distinguishes itself from an app order.
+    // rule distinguishes itself from an app order. ONE call for both the item-level discount
+    // below and the shipping-fee math (Fix I-3) — see the method doc.
     const autoPromoQuote = await this.promoAutoApply.quote(
       depotId,
       'COUNTER',
       pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
+
+    let shippingFee = 0;
+    let shippingAppliedRuleId: string | null = null;
+    let shippingFeeOverride: number | null = null;
+    let originalShippingFee = 0;
+    if (wantsDelivery) {
+      const depots = await this.depotDirectory.listActiveDepots();
+      const depot = depots?.find((d) => d.id === depotId);
+      if (!depot) throw new DepotUnavailableError();
+      originalShippingFee = depot.deliveryFee;
+      shippingAppliedRuleId = autoPromoQuote.shippingAppliedRuleId;
+      shippingFeeOverride = autoPromoQuote.shippingFeeOverride;
+      // Fix 4: free galons pay delivery too (owner decision — a free BOGO galon still takes a
+      // seat on the truck). `items` above already carries any BOGO free units from the SAME
+      // quote, so no second application is needed to count them.
+      // Fix 3: never let a SHIPPING_DISCOUNT override RAISE the fee above the depot's own —
+      // promo-service has no way to guard this itself, since it never learns the depot's rate.
+      const perGalonFee =
+        shippingFeeOverride != null ? Math.min(shippingFeeOverride, depot.deliveryFee) : depot.deliveryFee;
+      shippingFee = money(perGalonFee * galonQuantity(items));
+    }
+
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
-    // C-1 (promo-order-integration review #2): `pricedSubtotal` (pre-promo) is no longer
-    // threaded into `counterDiscount` — the counter path has no minimum-ORDER check (only
-    // checkout()'s depot.minOrderAmount gate does), so nothing here ever needed it; the
-    // voucher's own quote always runs on the POST-promo `subtotal` below.
     const { discount, agen } = await this.counterDiscount(
       customerId,
       depotId,
@@ -2322,6 +2313,9 @@ export class OrderService {
       catalogFallback,
       agen,
       appliedLines,
+      shippingAppliedRuleId,
+      shippingFeeOverride,
+      originalShippingFee,
     };
   }
 
