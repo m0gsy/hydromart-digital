@@ -150,3 +150,73 @@ export class Grant3ResponseDto {
   @ApiProperty({ type: Boolean })
   granted!: boolean;
 }
+
+/** Mirrors `PromoRuleRecord` exactly. */
+export class PromoRuleResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  name!: string;
+  @ApiProperty({ type: String, enum: ['SPECIAL_PRICE', 'BUY_X_GET_Y', 'SHIPPING_DISCOUNT'] })
+  kind!: string;
+  @ApiProperty({ type: String, nullable: true })
+  depotId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  productId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  categoryId!: string | null;
+  @ApiProperty({ type: Number, nullable: true })
+  specialPrice!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  buyQty!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  getQty!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  shippingFeeOverride!: number | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  validFrom!: Date | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  validUntil!: Date | null;
+  @ApiProperty({ type: [Number] })
+  daysOfWeek!: number[];
+  @ApiProperty({ type: String, nullable: true })
+  startTime!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  endTime!: string | null;
+  @ApiProperty({ type: Number })
+  minQty!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  maxQty!: number | null;
+  @ApiProperty({ type: [String] })
+  channels!: string[];
+  @ApiProperty({ type: Boolean })
+  active!: boolean;
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: Date;
+}
+
+/** Mirrors `LineResult` exactly (src/domain/promo-rule.ts). */
+export class PromoLineResultDto {
+  @ApiProperty({ type: String })
+  productId!: string;
+  @ApiProperty({ type: [String] })
+  appliedRuleIds!: string[];
+  @ApiProperty({ type: Number })
+  unitPriceAfter!: number;
+  @ApiProperty({ type: Number })
+  freeQty!: number;
+  @ApiProperty({ type: Number })
+  lineTotal!: number;
+}
+
+/** Mirrors `QuoteOutput` exactly (src/application/services/promo-rule.service.ts). */
+export class AutoApplyQuoteResponseDto {
+  @ApiProperty({ type: [PromoLineResultDto] })
+  lines!: PromoLineResultDto[];
+  @ApiProperty({ type: String, nullable: true })
+  shippingAppliedRuleId!: string | null;
+  @ApiProperty({ type: Number, nullable: true })
+  shippingFeeOverride!: number | null;
+}
