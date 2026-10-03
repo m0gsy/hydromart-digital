@@ -50,7 +50,7 @@ import {
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
-import { reservationLinesFor } from '../../domain/promo-adjustment';
+import { applyPromoQuote, reservationLinesFor } from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -88,6 +88,7 @@ import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
+import { PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
 import { OutboxTopic, OutboxWrite } from '../ports/outbox.repository';
@@ -254,6 +255,7 @@ export class OrderService {
     private readonly customerDirectory: CustomerDirectoryPort,
     @Inject(ORDER_TOKENS.Notification) private readonly notification: NotificationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
+    @Inject(ORDER_TOKENS.PromoAutoApply) private readonly promoAutoApply: PromoAutoApplyPort,
     @Inject(ORDER_TOKENS.Inventory) private readonly inventory: InventoryPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
@@ -448,7 +450,7 @@ export class OrderService {
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
     // wait out seven upstream calls end to end.
     const [
-      { items, subtotal, tierPricedTotal, tieredProductIds, catalogFallback },
+      { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback },
       resellerLookup,
     ] = await Promise.all([
       this.priceLines(depot.id, lines),
@@ -460,12 +462,24 @@ export class OrderService {
     const reseller = resellerLookup.reseller;
     const resellerUnavailable = resellerLookup.unavailable;
 
+    // Item 5 fase 1: auto-apply promo rules (SPECIAL_PRICE/BUY_X_GET_Y), computed BEFORE
+    // membership/voucher discounting — see Plan 2's Global Constraints for the stacking
+    // decision. Fails open by construction (the port never throws).
+    const autoPromoQuote = await this.promoAutoApply.quote(
+      depot.id,
+      'APP',
+      pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+    );
+    const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
+
     if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    const shippingFee = money(depot.deliveryFee * galonQuantity(items));
+    // Item 5 fase 1: a SHIPPING_DISCOUNT promo replaces the depot's own per-galon fee.
+    const perGalonFee = autoPromoQuote.shippingFeeOverride ?? depot.deliveryFee;
+    const shippingFee = money(perGalonFee * galonQuantity(items));
 
     // "Antar sekarang" is a paid speed upgrade the depot configures. The checkout screen
     // used to show a flat Rp5.000 for it that no order ever included: the customer read a
@@ -600,6 +614,20 @@ export class OrderService {
             )
         : undefined,
     );
+    // Item 5 fase 1: fire-and-forget audit record, same pattern as every other fail-open
+    // call on this path (notify, claimFavoriteDepot). The price was already locked in by
+    // the quote above — this call can never change what the customer was charged. Sends
+    // the exact `appliedLines` that quote produced (promo-service trusts this rather than
+    // re-deriving — see Global Constraints' 2026-10-04 correction) plus the depot's own
+    // per-galon fee/unit count so a SHIPPING_DISCOUNT's audit row is computed correctly.
+    await this.promoAutoApply.apply({
+      orderId: order.id,
+      lines: appliedLines,
+      shippingAppliedRuleId: autoPromoQuote.shippingAppliedRuleId,
+      shippingFeeOverride: autoPromoQuote.shippingFeeOverride,
+      originalShippingFee: depot.deliveryFee,
+      shippingUnits: galonQuantity(items),
+    });
     await this.cart.clear(customerId);
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     if (membershipUnavailable) await this.markMembershipUnavailable(order);

@@ -47,6 +47,7 @@ import {
   FakeCustomerDirectory,
   FakeNotification,
   FakePromo,
+  FakePromoAutoApply,
   FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -125,6 +126,7 @@ describe('OrderService', () => {
   let customerDirectory: FakeCustomerDirectory;
   let notification: FakeNotification;
   let promo: FakePromo;
+  let promoAutoApply: FakePromoAutoApply;
   let inventory: FakeInventory;
   let cartService: CartService;
   let service: OrderService;
@@ -153,6 +155,7 @@ describe('OrderService', () => {
     customerDirectory = new FakeCustomerDirectory();
     notification = new FakeNotification();
     promo = new FakePromo();
+    promoAutoApply = new FakePromoAutoApply();
     inventory = new FakeInventory();
     cartService = buildCartService(cart, catalog, pricing, resellerDiscount, config);
     outbox = buildOutbox(orders);
@@ -171,6 +174,7 @@ describe('OrderService', () => {
       customerDirectory,
       notification,
       promo,
+      promoAutoApply,
       inventory,
       cartService,
       config,
@@ -3126,6 +3130,7 @@ describe('OrderService', () => {
       customerDirectory,
       notification,
       promo,
+      promoAutoApply,
       inventory,
       cartService,
       config,
@@ -3369,6 +3374,7 @@ describe('OrderService franchise revenue on completion', () => {
       new FakeCustomerDirectory(),
       new FakeNotification(),
       new FakePromo(),
+      new FakePromoAutoApply(),
       new FakeInventory(),
       cartService,
       buildTestConfig(),

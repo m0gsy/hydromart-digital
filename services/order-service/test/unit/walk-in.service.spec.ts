@@ -38,6 +38,7 @@ import {
   FakeCustomerDirectory,
   FakeNotification,
   FakePromo,
+  FakePromoAutoApply,
   FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -63,6 +64,7 @@ describe('OrderService.walkInSale', () => {
   let inventory: FakeInventory;
   let membership: FakeMembership;
   let promo: FakePromo;
+  let promoAutoApply: FakePromoAutoApply;
   let shift: FakeCashierShift;
   let cart: InMemoryCartRepository;
   let paymentReversal: FakePaymentReversal;
@@ -96,6 +98,7 @@ describe('OrderService.walkInSale', () => {
     inventory = new FakeInventory();
     membership = new FakeMembership();
     promo = new FakePromo();
+    promoAutoApply = new FakePromoAutoApply();
     shift = new FakeCashierShift();
     paymentReversal = new FakePaymentReversal();
     depots.owners.set(DEPOT, 'owner-1');
@@ -112,6 +115,7 @@ describe('OrderService.walkInSale', () => {
       directory,
       notification,
       promo,
+      promoAutoApply,
       inventory,
       buildCartService(cart, catalog),
       buildTestConfig(),
@@ -454,6 +458,7 @@ describe('OrderService.walkInSale', () => {
         directory,
         notification,
         promo,
+        promoAutoApply,
         inventory,
         buildCartService(cart, catalog),
         buildTestConfig({ ORDER_COUNTER_DELIVERY: '0' }),
