@@ -73,6 +73,21 @@ const ALLOWLIST = {
   // against 11.1.28; 11.2.7 — still inside every service's own `^11.0.0`, a patch-level
   // ask, not the major bump the old note assumed — pins multer 2.4.0, past every one of
   // these ranges. `npm update` inside the existing range did it, no override needed.
+
+  // ── 2026-10-03 ────────────────────────────────────────────────────────────
+  // braces (GHSA-vfj7-8cjw-p6xm, CWE-674 stack-exhaustion DoS, CVSS A:H/C:N/I:N):
+  // no fix to take. `npm view braces versions` tops out at 3.0.3, which IS the
+  // vulnerable "<=3.0.3" range — the advisory predates any patched release, so
+  // there is nothing to bump to yet (re-check and delete this entry the moment
+  // 3.0.4+ exists). Chain: gateway-service's http-proxy-middleware@3.0.7 ->
+  // micromatch@4.0.8 -> braces@3.0.3 (confirmed via `npm ls braces --all`).
+  // Not reachable: the only call site is `services/gateway-service/src/
+  // gateway.setup.ts`'s `createProxyMiddleware({ pathRewrite: { [`^/${segment}`]:
+  // '' } })`, where `segment` comes from `config.upstreams()` — server-configured
+  // route names, never request-derived. The DoS needs attacker CONTROL OF THE
+  // GLOB PATTERN itself (deeply nested `{...}`), not of the string being
+  // matched; no request data ever reaches a pattern argument in this gateway.
+  'GHSA-vfj7-8cjw-p6xm': 'braces stack-exhaustion DoS — no fix published yet; gateway only matches server-configured route segments, no attacker-controlled pattern',
 };
 
 function audit() {
