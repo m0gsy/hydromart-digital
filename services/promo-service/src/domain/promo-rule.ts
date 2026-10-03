@@ -39,6 +39,8 @@ export interface EvaluationContext {
   occurredAt: Date;
   /** IANA zone the depot's day/time-of-day fields are interpreted in. */
   timeZone: string;
+  /** The depot this cart is being priced for, or null for a network-wide (no-depot) quote. */
+  depotId: string | null;
 }
 
 export interface LineResult {
@@ -76,10 +78,10 @@ export function ruleMatchesLine(
   line: CartLine,
   ctx: EvaluationContext,
 ): boolean {
-  if (rule.depotId !== null) {
-    // Candidates are pre-filtered by the repository to the caller's depot or network-wide;
-    // this re-check only guards callers (e.g. tests) that construct candidates directly.
-  }
+  // Defense in depth: the repository is expected to pre-filter candidates to the caller's
+  // depot or network-wide, but this layer stays correct on its own rather than trusting that
+  // blindly (mirrors how Voucher's domain-level validation does its own checks).
+  if (rule.depotId !== null && rule.depotId !== ctx.depotId) return false;
   if (rule.productId !== null && rule.productId !== line.productId) return false;
   if (rule.productId === null && rule.categoryId !== null && rule.categoryId !== line.categoryId) {
     return false;
@@ -119,7 +121,7 @@ export function evaluateLine(
 
   const specialPriceCandidates = matching.filter(
     (r): r is PromoRuleCandidate & { specialPrice: number } =>
-      r.kind === 'SPECIAL_PRICE' && r.specialPrice !== null,
+      r.kind === 'SPECIAL_PRICE' && r.specialPrice !== null && r.specialPrice < line.unitPrice,
   );
   const bogoCandidates = matching.filter((r) => r.kind === 'BUY_X_GET_Y');
 

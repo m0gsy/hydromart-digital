@@ -72,6 +72,7 @@ const ctx = (overrides: Partial<EvaluationContext> = {}): EvaluationContext => (
   channel: 'APP',
   occurredAt: FRIDAY_10AM,
   timeZone: 'Asia/Jakarta',
+  depotId: null,
   ...overrides,
 });
 
@@ -92,10 +93,16 @@ describe('ruleMatchesLine', () => {
     ).toBe(true);
   });
 
-  it('does not reject a depot-scoped rule — depot visibility is enforced by the repository before candidates reach this layer', () => {
+  it('matches a depot-scoped rule when the context\'s depot matches', () => {
     expect(
-      ruleMatchesLine(specialPrice({ depotId: 'depot-a' }), line(), ctx()),
+      ruleMatchesLine(specialPrice({ depotId: 'depot-a' }), line(), ctx({ depotId: 'depot-a' })),
     ).toBe(true);
+  });
+
+  it('rejects a depot-scoped rule when the context is a different depot', () => {
+    expect(
+      ruleMatchesLine(specialPrice({ depotId: 'depot-a' }), line(), ctx({ depotId: 'depot-b' })),
+    ).toBe(false);
   });
 
   it('rejects a rule outside its validFrom/validUntil window', () => {
@@ -233,6 +240,12 @@ describe('evaluateLine', () => {
     );
     // Paid: 2 * 7000 = 14000. Free units cost nothing.
     expect(result.lineTotal).toBe(14000);
+  });
+
+  it('never applies a SPECIAL_PRICE that is higher than the line\'s current unitPrice', () => {
+    const result = evaluateLine([specialPrice({ specialPrice: 9000 })], line({ unitPrice: 8000 }), ctx());
+    expect(result.unitPriceAfter).toBe(8000);
+    expect(result.appliedRuleIds).toEqual([]);
   });
 
   it('ignores SHIPPING_DISCOUNT candidates when computing a product line', () => {
