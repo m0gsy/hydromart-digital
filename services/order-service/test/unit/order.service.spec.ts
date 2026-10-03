@@ -2393,6 +2393,38 @@ describe('OrderService', () => {
           expect(inventory.releaseCalls[0]).toMatchObject({ depotId: homeDepot.id, orderId: id });
         });
 
+        /*
+         * I-1 (promo-order-integration review #2): the first fix batch fixed `rerouteDepot`
+         * to use `stockLinesFor` instead of a raw `.map()`, but added no test pinning it
+         * specifically for a BOGO-matched (two-rows-per-product) order. Both the reserve at
+         * the new depot and the release at the old one must see ONE summed line per
+         * product, not two.
+         */
+        it('I-1: reserves/releases ONE summed entry per product when rerouting a BOGO-matched order', async () => {
+          const productId = await addToCart(8000, 4);
+          promoAutoApply.quoteResult = {
+            lines: [
+              { productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+            ],
+            shippingAppliedRuleId: null,
+            shippingFeeOverride: null,
+          };
+          const order = await service.checkout(customer, { deliveryAddress: address });
+          expect(order.items).toHaveLength(2); // paid row (4) + free row (1)
+
+          depots.depots = [homeDepot, otherDepot];
+          inventory.reserveCalls.length = 0;
+          inventory.releaseCalls.length = 0;
+
+          const moved = await service.rerouteDepot(staff, order.id, otherDepot.id, 'Bearer tok');
+
+          expect(moved.depotId).toBe(otherDepot.id);
+          expect(inventory.reserveCalls).toHaveLength(1);
+          expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+          expect(inventory.releaseCalls).toHaveLength(1);
+          expect(inventory.releaseCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+        });
+
         // Reserve fails CLOSED, so a shortfall refuses the move while somebody is still on
         // the screen — and the old depot's hold is untouched, because it was never released.
         it('leaves the order where it was when the new depot cannot cover it', async () => {

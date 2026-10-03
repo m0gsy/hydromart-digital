@@ -1303,6 +1303,36 @@ describe('OrderService.walkInSale', () => {
       });
     });
 
+    /*
+     * I-1 (promo-order-integration review #2): the first fix batch fixed the void-path
+     * `restock` call to use `stockLinesFor` instead of a raw `.map()`, but added no test
+     * pinning it specifically for a BOGO-matched (two-rows-per-product) order — only
+     * `reserveThenCreate`'s own reserve call had one. Voiding a BOGO sale must ask
+     * inventory to restock ONE summed line, not two separate ones for the same product.
+     */
+    it('I-1: restocks ONE summed entry per product when voiding a BOGO-matched counter sale', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 8000 });
+      promoAutoApply.quoteResult = {
+        lines: [
+          { productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+        ],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 4 }],
+      });
+      expect(order.items).toHaveLength(2); // paid row (4) + free row (1), stored separately
+      const now = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+
+      const voided = await service.voidCounterSale(operator, order.id, 'Batal', now);
+
+      expect(voided.status).toBe(OrderStatus.VOIDED);
+      expect(inventory.restockCalls).toHaveLength(1);
+      expect(inventory.restockCalls[0].items).toEqual([{ productId: p.id, quantity: 5 }]);
+    });
+
     it('asks loyalty nothing for an anonymous sale — it never earned anything', async () => {
       const { order, now } = await soldToday();
       await service.voidCounterSale(operator, order.id, 'Batal', now);
