@@ -738,7 +738,7 @@ export function reservationLinesFor(
 npx jest test/unit/promo-adjustment.spec.ts
 ```
 
-Expected: PASS, all 10 tests green.
+Expected: PASS, all 9 tests green.
 
 - [ ] **Step 5: Commit**
 
