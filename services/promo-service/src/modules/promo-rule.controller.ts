@@ -185,15 +185,23 @@ export class PromoRuleController {
   async apply(@Body() dto: AutoApplyApplyDto): Promise<void> {
     await this.promoRules.apply({
       orderId: dto.orderId,
-      depotId: dto.depotId ?? null,
-      channel: dto.channel,
-      occurredAt: new Date(),
-      lines: dto.lines.map((l) => ({
+      originalLines: dto.lines.map((l) => ({
         productId: l.productId,
-        categoryId: l.categoryId ?? null,
-        quantity: l.quantity,
         unitPrice: l.unitPrice,
+        quantity: l.quantity,
       })),
+      quotedLines: dto.lines.map((l) => ({
+        productId: l.productId,
+        appliedRuleIds: l.appliedRuleIds,
+        unitPriceAfter: l.unitPriceAfter,
+        freeQty: l.freeQty,
+        lineTotal: l.unitPriceAfter * l.quantity,
+      })),
+      quotedShipping: {
+        appliedRuleId: dto.shippingAppliedRuleId ?? null,
+        shippingFeeOverride: dto.shippingFeeOverride ?? null,
+      },
+      originalShippingFee: dto.originalShippingFee ?? null,
     });
   }
 }

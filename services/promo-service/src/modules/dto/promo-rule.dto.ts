@@ -194,8 +194,68 @@ export class AutoApplyQuoteDto {
   lines!: CartLineDto[];
 }
 
-export class AutoApplyApplyDto extends AutoApplyQuoteDto {
+export class AppliedLineDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ example: 8000, description: 'Original unit price before any promo.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  unitPrice!: number;
+
+  @ApiProperty({ example: 2 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+
+  @ApiProperty({ type: [String], description: "From the matching quote()'s LineResult." })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  appliedRuleIds!: string[];
+
+  @ApiProperty({ example: 6000 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  unitPriceAfter!: number;
+
+  @ApiProperty({ example: 0 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  freeQty!: number;
+}
+
+export class AutoApplyApplyDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   orderId!: string;
+
+  @ApiProperty({ type: [AppliedLineDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AppliedLineDto)
+  lines!: AppliedLineDto[];
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  shippingAppliedRuleId?: string;
+
+  @ApiPropertyOptional({ example: 1000 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  shippingFeeOverride?: number;
+
+  @ApiPropertyOptional({ example: 2000, description: 'Fee in effect before any override.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  originalShippingFee?: number;
 }
