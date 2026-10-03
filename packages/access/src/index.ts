@@ -126,6 +126,11 @@ export const CAPABILITIES = {
   // promo-service — voucher admin.
   voucherRead: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   voucherWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],
+  // promo-service — auto-apply promo rules (item 5 fase 1). Same authoring roles as the
+  // Promotion banner (KEPALA_DEPOT included: a depot manager creates their own depot-scoped
+  // promo rules directly, unlike Voucher which goes through VoucherRequest approval).
+  promoRuleRead: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  promoRuleWrite: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — depot admin (create/edit/deactivate) + dynamic pricing.
   depotAdmin: ['MANAGER', 'SUPER_ADMIN'],
   // dashboard-service franchise view + payout-service (FRANCHISE_OWNER-only).

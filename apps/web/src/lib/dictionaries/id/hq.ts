@@ -251,6 +251,8 @@ export const hq = {
       promotionWrite: 'Kelola promosi',
       voucherRead: 'Lihat voucher',
       voucherWrite: 'Kelola voucher',
+      promoRuleRead: 'Lihat aturan promo',
+      promoRuleWrite: 'Kelola aturan promo',
       depotAdmin: 'Kelola depot & harga',
       franchise: 'Dashboard waralaba',
       payout: 'Payout & komisi',

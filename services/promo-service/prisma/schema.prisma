@@ -66,6 +66,9 @@ model Voucher {
   redemptions VoucherRedemption[]
   grants      VoucherGrant[]
 
+  // Matches the raw-SQL index from migration 0008_voucher_depot_scope — declared here so
+  // `prisma migrate dev` stops proposing to drop it as drift.
+  @@index([depotId])
   @@map("vouchers")
 }
 
@@ -158,4 +161,97 @@ model VoucherRedemption {
   @@unique([orderId])
   @@index([voucherId, customerId])
   @@map("voucher_redemptions")
+}
+
+/// Item 5 (2026 evaluation list), Fase 1: auto-apply promo rules. Distinct from `Voucher`
+/// (customer types a code) — these match automatically against cart lines at checkout.
+enum PromoKind {
+  SPECIAL_PRICE
+  BUY_X_GET_Y
+  SHIPPING_DISCOUNT
+}
+
+/// APP = ordered through the customer app/web. COUNTER = a walk-in sale rung up at the
+/// depot (`Order.isWalkIn` in order-service). Empty `channels` on a rule means "both".
+enum SalesChannel {
+  APP
+  COUNTER
+}
+
+/// An auto-apply promo rule. Exactly one of the per-kind fields below is populated,
+/// matching `rule.kind` — enforced in the application layer (PromoRuleService), the same
+/// way `Voucher.discountType` already governs which of its optional fields are meaningful.
+model PromoRule {
+  id          String       @id @default(uuid())
+  /// Shown on invoices/reports when this rule wins a line, e.g. "Jumat Berkah".
+  name        String
+  kind        PromoKind
+  /// null = network-wide (HQ-authored). Same pattern as `Voucher.depotId` (CA-2-65).
+  depotId     String?
+  /// null + categoryId null = applies to every product.
+  productId   String?
+  categoryId  String?
+
+  /// SPECIAL_PRICE: the new per-unit price (rupiah).
+  specialPrice         Int?
+  /// BUY_X_GET_Y: buy this many...
+  buyQty                Int?
+  /// ...get this many of the SAME product free.
+  getQty                Int?
+  /// SHIPPING_DISCOUNT: the new per-galon delivery fee (rupiah), replaces `perUnitFee`.
+  shippingFeeOverride   Int?
+
+  validFrom   DateTime?
+  validUntil  DateTime?
+  /// 0=Minggu..6=Sabtu. Empty = every day.
+  daysOfWeek  Int[]        @default([])
+  /// "HH:mm" in the depot's local business time zone. null = no lower/upper bound.
+  startTime   String?
+  endTime     String?
+
+  minQty      Int          @default(1)
+  maxQty      Int?
+  /// Empty = both APP and COUNTER.
+  channels    SalesChannel[] @default([])
+
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  applications PromoApplication[]
+
+  @@index([active, depotId])
+  @@map("promo_rules")
+}
+
+/// Audit row: one per (order, rule, product) the rule actually won at checkout. Written by
+/// `/promotions/auto-apply/apply`, never by `/quote` (quote previews, apply commits — same
+/// split as Voucher's quote/redeem).
+model PromoApplication {
+  id            String    @id @default(uuid())
+  orderId       String
+  // Restrict: a financial audit row must survive its rule being deleted later (DB-10,
+  // same rule as VoucherRedemption -> Voucher).
+  promoRule     PromoRule @relation(fields: [promoRuleId], references: [id], onDelete: Restrict)
+  promoRuleId   String
+  productId     String?
+  discountValue Int
+  createdAt     DateTime  @default(now())
+
+  @@index([orderId])
+  // Idempotency guard for apply(): one row per (order, rule, product) at most. The service's
+  // hasApplicationFor() pre-check is the cheap common-case exit; this constraint is the real
+  // safety net under concurrent/retried calls (same two-layer discipline as Voucher's
+  // @@unique([orderId]) on VoucherRedemption).
+  //
+  // A shipping-discount row always has productId NULL, and Postgres treats every NULL as
+  // distinct from every other NULL in a unique index, so the composite unique above does NOT
+  // stop two concurrent apply() calls from both writing a shipping row for the same
+  // order+rule. Enforced instead by a partial unique index on (orderId, promoRuleId) WHERE
+  // productId IS NULL, added in migration 20261004080000_promo_application_shipping_unique
+  // (same defect class as DB-11 in depot-service/20260718170000_inventory_singleton_unique —
+  // same fix; Prisma's schema DSL can't express a WHERE-partial unique index, so it lives
+  // there as raw SQL, not here).
+  @@unique([orderId, promoRuleId, productId])
+  @@map("promo_applications")
 }
