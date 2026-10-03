@@ -16,10 +16,8 @@ import {
   PromoRuleRepository,
   UpdatePromoRuleData,
 } from '../ports/promo-rule.repository';
+import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
-
-/** Default business time zone for schedule matching until a per-depot override exists. */
-const TIME_ZONE = 'Asia/Jakarta';
 
 export class PromoRuleValidationError extends Error {
   constructor(message: string) {
@@ -48,6 +46,7 @@ export interface ApplyInput extends QuoteInput {
 export class PromoRuleService {
   constructor(
     @Inject(PROMO_TOKENS.PromoRuleRepository) private readonly repo: PromoRuleRepository,
+    private readonly config: PromoConfigService,
   ) {}
 
   findAll(depotIds?: readonly string[]): Promise<PromoRuleRecord[]> {
@@ -67,7 +66,16 @@ export class PromoRuleService {
 
   async update(id: string, patch: UpdatePromoRuleData): Promise<PromoRuleRecord> {
     const current = await this.findById(id);
-    this.validate({ ...current, ...patch });
+    // The controller always sends every DTO field explicitly, `undefined` for whatever the
+    // caller omitted from the PATCH body. Spreading that over `current` unfiltered would
+    // overwrite real stored values with `undefined` before validation ever sees them — e.g.
+    // a PATCH that only sets `validUntil` would wipe out the stored `validFrom` first and
+    // wrongly pass the validFrom>validUntil check. Strip undefined keys before merging so
+    // validation runs against what would actually end up stored.
+    const definedPatch = Object.fromEntries(
+      Object.entries(patch).filter(([, v]) => v !== undefined),
+    );
+    this.validate({ ...current, ...definedPatch });
     return this.repo.update(id, patch);
   }
 
@@ -77,14 +85,19 @@ export class PromoRuleService {
   }
 
   async quote(input: QuoteInput): Promise<QuoteOutput> {
+    // `undefined` here means "no filter at all" per the repository's own doc comment —
+    // correct for admin LISTING (findAll), but at checkout it would fetch every depot's
+    // candidates when `input.depotId` is null, instead of just network-wide (depotId-null)
+    // rules. An empty array narrows findActiveCandidates's `OR` to the null-only case.
     const candidates = await this.repo.findActiveCandidates(
-      input.depotId ? [input.depotId] : undefined,
+      input.depotId ? [input.depotId] : [],
       input.occurredAt,
     );
     const ctx: EvaluationContext = {
       channel: input.channel,
       occurredAt: input.occurredAt,
-      timeZone: TIME_ZONE,
+      timeZone: this.config.businessTimeZone,
+      depotId: input.depotId,
     };
     return {
       lines: input.lines.map((line) => evaluateLine(candidates, line, ctx)),
