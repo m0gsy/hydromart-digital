@@ -16,6 +16,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 const KIND_VALUES = ['SPECIAL_PRICE', 'BUY_X_GET_Y', 'SHIPPING_DISCOUNT'] as const;
@@ -170,6 +171,7 @@ export class AutoApplyQuoteDto {
 
   @ApiProperty({ type: [CartLineDto] })
   @IsArray()
+  @ValidateNested({ each: true })
   @Type(() => CartLineDto)
   lines!: CartLineDto[];
 }
