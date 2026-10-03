@@ -243,6 +243,15 @@ model PromoApplication {
   // hasApplicationFor() pre-check is the cheap common-case exit; this constraint is the real
   // safety net under concurrent/retried calls (same two-layer discipline as Voucher's
   // @@unique([orderId]) on VoucherRedemption).
+  //
+  // A shipping-discount row always has productId NULL, and Postgres treats every NULL as
+  // distinct from every other NULL in a unique index, so the composite unique above does NOT
+  // stop two concurrent apply() calls from both writing a shipping row for the same
+  // order+rule. Enforced instead by a partial unique index on (orderId, promoRuleId) WHERE
+  // productId IS NULL, added in migration 20261004080000_promo_application_shipping_unique
+  // (same defect class as DB-11 in depot-service/20260718170000_inventory_singleton_unique —
+  // same fix; Prisma's schema DSL can't express a WHERE-partial unique index, so it lives
+  // there as raw SQL, not here).
   @@unique([orderId, promoRuleId, productId])
   @@map("promo_applications")
 }
