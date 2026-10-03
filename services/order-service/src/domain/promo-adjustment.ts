@@ -58,13 +58,16 @@ export function applyPromoQuote(
 }
 
 /**
- * Stock to reserve, summed by productId. Needed because `applyPromoQuote` can produce two
- * `CreateOrderItemData` rows (paid + free) for one product — `reserveThenCreate`'s existing
- * `data.items.map(...)` would otherwise send inventory-service two separate reserve lines
- * for the same product, which this repo's inventory port has never had to handle and should
- * not be asked to guess about.
+ * Stock to move, summed by productId. Needed at every inventory-port call site because
+ * `applyPromoQuote` can produce two `CreateOrderItemData` rows (paid + free) for one
+ * product — a naive `.map()` would send inventory/depot-service two separate lines for the
+ * same product, which: (consume) collides with depot-service's `@@unique([itemId, orderId])`
+ * so the free units are never deducted; (restock on void) puts back BOTH quantities,
+ * inflating stock; (reserve on reroute) collides with `StockReservation`'s own unique
+ * constraint and fails the reroute outright. Used for reserve/release/consume/restock alike,
+ * not just reservation — hence the name.
  */
-export function reservationLinesFor(
+export function stockLinesFor(
   items: CreateOrderItemData[],
 ): { productId: string; quantity: number }[] {
   const totals = new Map<string, number>();

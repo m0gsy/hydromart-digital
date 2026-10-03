@@ -50,7 +50,7 @@ import {
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
-import { applyPromoQuote, reservationLinesFor } from '../../domain/promo-adjustment';
+import { applyPromoQuote, stockLinesFor } from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -88,8 +88,7 @@ import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
-import { PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
-import { AutoApplyAppliedLine } from '../ports/promo-auto-apply.port';
+import { AutoApplyAppliedLine, PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
 import { OutboxTopic, OutboxWrite } from '../ports/outbox.repository';
@@ -350,7 +349,7 @@ export class OrderService {
     await this.inventory.consume(
       order.depotId,
       order.id,
-      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      stockLinesFor(order.items),
       authorization,
     );
   }
@@ -1236,7 +1235,7 @@ export class OrderService {
         .restock(
           order.depotId,
           orderId,
-          order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          stockLinesFor(order.items),
           authorization,
         )
         .catch(() => {});
@@ -1589,7 +1588,7 @@ export class OrderService {
     await this.inventory.reserve(
       depotId,
       orderId,
-      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      stockLinesFor(order.items),
       authorization,
     );
     return this.orders.assignDepot(orderId, depotId);
@@ -1637,7 +1636,7 @@ export class OrderService {
     if (depots === null) throw new DepotUnavailableError();
     if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
 
-    const lines = order.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    const lines = stockLinesFor(order.items);
     await this.inventory.reserve(depotId, orderId, lines, authorization);
     await this.inventory.release(order.depotId, orderId, lines, authorization);
     return this.orders.assignDepot(orderId, depotId);
@@ -2036,7 +2035,7 @@ export class OrderService {
     burnVoucher?: (orderId: string) => Promise<void>,
   ): Promise<OrderRecord> {
     const id = randomUUID();
-    const lines = reservationLinesFor(data.items);
+    const lines = stockLinesFor(data.items);
     await this.inventory.reserve(depotId, id, lines, authorization);
     let burned = false;
     try {
@@ -2313,7 +2312,7 @@ export class OrderService {
     await this.inventory.release(
       order.depotId,
       order.id,
-      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      stockLinesFor(order.items),
       authorization,
     );
   }

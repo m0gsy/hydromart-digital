@@ -1,6 +1,6 @@
 import { CreateOrderItemData } from '../../src/application/ports/order.repository';
 import { AutoApplyQuoteResult } from '../../src/application/ports/promo-auto-apply.port';
-import { applyPromoQuote, reservationLinesFor } from '../../src/domain/promo-adjustment';
+import { applyPromoQuote, stockLinesFor } from '../../src/domain/promo-adjustment';
 
 const item = (overrides: Partial<CreateOrderItemData> = {}): CreateOrderItemData => ({
   productId: 'p1',
@@ -103,19 +103,19 @@ describe('applyPromoQuote', () => {
   });
 });
 
-describe('reservationLinesFor', () => {
+describe('stockLinesFor', () => {
   it('returns one line per distinct productId when there is no split', () => {
-    expect(reservationLinesFor([item()])).toEqual([{ productId: 'p1', quantity: 2 }]);
+    expect(stockLinesFor([item()])).toEqual([{ productId: 'p1', quantity: 2 }]);
   });
 
   it('sums quantity across a paid row and a free row for the same product', () => {
     const items = [item({ quantity: 2 }), item({ unitPrice: 0, quantity: 2, lineTotal: 0 })];
-    expect(reservationLinesFor(items)).toEqual([{ productId: 'p1', quantity: 4 }]);
+    expect(stockLinesFor(items)).toEqual([{ productId: 'p1', quantity: 4 }]);
   });
 
   it('keeps separate products separate', () => {
     const items = [item(), item({ productId: 'p2', quantity: 1 })];
-    expect(reservationLinesFor(items)).toEqual(
+    expect(stockLinesFor(items)).toEqual(
       expect.arrayContaining([
         { productId: 'p1', quantity: 2 },
         { productId: 'p2', quantity: 1 },
