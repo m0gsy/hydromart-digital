@@ -204,6 +204,57 @@ export interface PromotionAnalytics {
   orderValueSource: 'ok' | 'unavailable' | 'not_applicable';
 }
 
+export type PromoRuleKind = 'SPECIAL_PRICE' | 'BUY_X_GET_Y' | 'SHIPPING_DISCOUNT';
+export type PromoRuleChannel = 'APP' | 'COUNTER';
+
+export interface PromoRule {
+  id: string;
+  name: string;
+  kind: PromoRuleKind;
+  depotId: string | null;
+  productId: string | null;
+  categoryId: string | null;
+  specialPrice: number | null;
+  buyQty: number | null;
+  getQty: number | null;
+  shippingFeeOverride: number | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  daysOfWeek: number[];
+  startTime: string | null;
+  endTime: string | null;
+  minQty: number;
+  maxQty: number | null;
+  channels: PromoRuleChannel[];
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromoRulePayload {
+  name: string;
+  kind: PromoRuleKind;
+  depotId?: string | null;
+  productId?: string | null;
+  categoryId?: string | null;
+  specialPrice?: number | null;
+  buyQty?: number | null;
+  getQty?: number | null;
+  shippingFeeOverride?: number | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  daysOfWeek?: number[];
+  startTime?: string | null;
+  endTime?: string | null;
+  minQty?: number;
+  maxQty?: number | null;
+  channels?: PromoRuleChannel[];
+  active?: boolean;
+  /** CA-2-53: sent only on PATCH, equal to the row's `updatedAt` as last read — the server
+   *  rejects the write (409) if the row moved since. Never sent on create. */
+  seenUpdatedAt?: string;
+}
+
 /** A depot annotated with distance from the user's location (public /depots/nearby). */
 export interface NearbyDepot {
   id: string;
