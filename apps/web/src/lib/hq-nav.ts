@@ -116,6 +116,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/churn', labelKey: 'churn', cap: 'churn' },
       { href: '/hq/campaigns', labelKey: 'campaigns', cap: 'campaignRead' },
       { href: '/hq/promotions', labelKey: 'promotions', cap: 'promotionRead' },
+      { href: '/hq/promo-rules', labelKey: 'promoRules', cap: 'promoRuleRead' },
       { href: '/hq/customers', labelKey: 'customers', cap: 'customerPhoneLookup' },
       // ponytail: depot managers reach /resellers by direct URL for now — no manager-rail
       // entry yet (out of scope for this pass).

@@ -89,6 +89,8 @@ export const canWriteInventory = (role: string | null | undefined) => can('inven
 export const canViewReturns = (role: string | null | undefined) => can('returnsRead', role);
 export const canWriteReturns = (role: string | null | undefined) => can('returnsWrite', role);
 export const canViewCampaigns = (role: string | null | undefined) => can('campaignRead', role);
+export const canManagePromoRules = (role: string | null | undefined) =>
+  can('promoRuleRead', role);
 export const canManageCampaigns = (role: string | null | undefined) => can('campaignWrite', role);
 // Promotions are their own capability now, not CRM campaigns: /dashboard/promotions gated
 // on campaignRead (marketing-only) while promo-service answered a different list entirely,
