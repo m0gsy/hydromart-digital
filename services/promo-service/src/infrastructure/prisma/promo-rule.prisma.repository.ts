@@ -69,11 +69,16 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
           data: rows.map((r) => ({ orderId, ...r })),
         });
       })
-      .catch((error: unknown) => {
-        // Same discipline as VoucherRepository.redeemAtomic: a P2002 here means a
-        // concurrent/retried apply() call already won and wrote these exact rows —
-        // treat it as success. Anything else is a real failure, rethrow it.
+      .catch(async (error: unknown) => {
+        // Same discipline as VoucherRepository.redeemAtomic: read back before deciding what a
+        // P2002 means, never swallow it blind. A P2002 whose cause is a concurrent/retried
+        // apply() call for this SAME order means those rows already exist — safe to treat as
+        // success. A P2002 with nothing for this order to show (a different order's row
+        // colliding some other way, or an in-batch duplicate the service's merge missed) is a
+        // real failure; rethrow the original error rather than silently writing zero rows.
         if ((error as { code?: string })?.code !== 'P2002') throw error;
+        const count = await this.prisma.promoApplication.count({ where: { orderId } });
+        if (count === 0) throw error;
       });
   }
 

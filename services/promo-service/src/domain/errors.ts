@@ -74,6 +74,25 @@ export class PromoRuleNotFoundError extends DomainError {
   }
 }
 
+export class PromoRuleValidationError extends DomainError {
+  readonly code = 'PROMO_RULE_VALIDATION';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+/** Fix I-4: deleting a rule that has fired (PromoApplication.promoRule is onDelete: Restrict)
+ * threw a raw Prisma P2003 that surfaced as a 500. Nonactivate instead of deleting a rule
+ * with history. */
+export class PromoRuleInUseError extends DomainError {
+  readonly code = 'PROMO_RULE_IN_USE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Aturan promo ini sudah pernah dipakai — nonaktifkan saja, jangan hapus.');
+  }
+}
+
 export class VoucherInactiveError extends DomainError {
   readonly code = 'VOUCHER_INACTIVE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

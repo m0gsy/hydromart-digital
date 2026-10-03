@@ -9,7 +9,7 @@ import {
   evaluateLine,
   evaluateShipping,
 } from '../../domain/promo-rule';
-import { PromoRuleNotFoundError } from '../../domain/errors';
+import { PromoRuleInUseError, PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
 import {
   CreatePromoRuleData,
   PromoRuleRecord,
@@ -19,12 +19,7 @@ import {
 import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
 
-export class PromoRuleValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'PromoRuleValidationError';
-  }
-}
+export { PromoRuleValidationError } from '../../domain/errors';
 
 export interface QuoteInput {
   depotId: string | null;
@@ -59,6 +54,12 @@ export interface ApplyInput {
    * is null (no shipping rule won) — in either case no shipping audit row is written.
    */
   originalShippingFee?: number | null;
+  /**
+   * The total galon/unit count the shipping fee applies across — the same quantity the
+   * caller used to compute the delivery fee itself (`deliveryFee × quantity`). Shipping fees
+   * here are PER-GALON, so the real discount is per-unit too. Defaults to 1 if omitted.
+   */
+  shippingUnits?: number;
 }
 
 @Injectable()
@@ -100,7 +101,15 @@ export class PromoRuleService {
 
   async remove(id: string): Promise<void> {
     await this.findById(id);
-    await this.repo.delete(id);
+    try {
+      await this.repo.delete(id);
+    } catch (error) {
+      // PromoApplication.promoRule is onDelete: Restrict (DB-10: an audit row must survive
+      // its rule), so deleting a rule that has fired at least once throws Postgres FK
+      // violation P2003. Surface it as a clean 409, not a raw 500.
+      if ((error as { code?: string })?.code === 'P2003') throw new PromoRuleInUseError();
+      throw error;
+    }
   }
 
   async quote(input: QuoteInput): Promise<QuoteOutput> {
@@ -169,15 +178,39 @@ export class PromoRuleService {
     }
 
     if (input.quotedShipping.appliedRuleId && input.originalShippingFee != null) {
-      rows.push({
-        promoRuleId: input.quotedShipping.appliedRuleId,
-        productId: null,
-        discountValue: input.originalShippingFee - (input.quotedShipping.shippingFeeOverride ?? 0),
-      });
+      const override = input.quotedShipping.shippingFeeOverride ?? 0;
+      // I-2 (shipping sibling of the SPECIAL_PRICE price-raise guard): if the "override" is
+      // actually higher than the original fee, this is not a discount — never write a
+      // negative discountValue, just skip the row.
+      if (input.originalShippingFee >= override) {
+        rows.push({
+          promoRuleId: input.quotedShipping.appliedRuleId,
+          productId: null,
+          // Per-galon fee × the unit count it applies across (C-1) — shippingFeeOverride and
+          // originalShippingFee are both PER-GALON values, so without this multiplier an
+          // order with more than one galon under-records its real discount.
+          discountValue: (input.originalShippingFee - override) * (input.shippingUnits ?? 1),
+        });
+      }
     }
 
     if (rows.length === 0) return;
-    await this.repo.recordApplications(input.orderId, rows);
+
+    // I-1a: merge rows sharing the same (promoRuleId, productId) key by summing their
+    // discountValue. Without this, a caller bug that produces two cart lines winning the
+    // same rule for the same product would hand createMany two rows with the same key —
+    // createMany throws P2002 for a reason that has nothing to do with concurrency, and the
+    // repository would (correctly, per I-1b) treat that as "not this order's row" and
+    // rethrow, failing the whole audit for a cause unrelated to any real race.
+    const merged = new Map<string, { promoRuleId: string; productId: string | null; discountValue: number }>();
+    for (const row of rows) {
+      const key = `${row.promoRuleId}:${row.productId ?? ''}`;
+      const existing = merged.get(key);
+      if (existing) existing.discountValue += row.discountValue;
+      else merged.set(key, { ...row });
+    }
+
+    await this.repo.recordApplications(input.orderId, [...merged.values()]);
   }
 
   private validate(data: Partial<CreatePromoRuleData>): void {
@@ -199,6 +232,13 @@ export class PromoRuleService {
         if (data.shippingFeeOverride == null) {
           throw new PromoRuleValidationError(
             'shippingFeeOverride wajib diisi untuk SHIPPING_DISCOUNT.',
+          );
+        }
+        // I-5: evaluateShipping always matches against a synthetic line with quantity: 1, so
+        // any minQty > 1 (or a maxQty) could never fire and would silently disable the rule.
+        if ((data.minQty != null && data.minQty > 1) || data.maxQty != null) {
+          throw new PromoRuleValidationError(
+            'minQty/maxQty tidak didukung untuk SHIPPING_DISCOUNT — kuantitas galon tidak diperiksa pada level ini.',
           );
         }
         break;
