@@ -92,6 +92,8 @@ export function ruleMatchesLine(
   const { day, hhmm } = localDayAndTime(ctx.occurredAt, ctx.timeZone);
   if (rule.daysOfWeek.length > 0 && !rule.daysOfWeek.includes(day)) return false;
   if (rule.startTime !== null && hhmm < rule.startTime) return false;
+  // Inclusive of the end minute by design, not a bug: ctx only carries "HH:mm" (no seconds),
+  // so a rule ending at "12:00" matches any instant inside that minute, e.g. 12:00:59.
   if (rule.endTime !== null && hhmm > rule.endTime) return false;
 
   if (rule.channels.length > 0 && !rule.channels.includes(ctx.channel)) return false;

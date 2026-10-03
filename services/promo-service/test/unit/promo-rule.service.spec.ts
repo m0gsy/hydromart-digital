@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { StaleWriteError } from '@hydromart/platform';
+
 import {
   CreatePromoRuleData,
   PromoRuleRecord,
@@ -57,14 +59,26 @@ class InMemoryPromoRuleRepository implements PromoRuleRepository {
     orderId: string,
     rows: { promoRuleId: string; productId: string | null; discountValue: number }[],
   ): Promise<void> {
-    // Simulate the DB's unique (orderId, promoRuleId, productId) constraint for extra
-    // confidence beyond the service's hasApplicationFor() pre-check: a batch that collides
-    // with anything already recorded writes nothing, mirroring the Prisma repo's P2002-swallow.
+    // Simulate BOTH real unique indexes for extra confidence beyond the service's
+    // hasApplicationFor() pre-check: a batch that collides with anything already recorded
+    // writes nothing, mirroring the Prisma repo's P2002-swallow.
+    //  - base @@unique(orderId, promoRuleId, productId): Postgres treats every NULL as
+    //    DISTINCT from every other NULL, so on its own this one never fires when productId
+    //    is null on either side — only an exact non-null match collides.
+    //  - partial index on (orderId, promoRuleId) WHERE productId IS NULL (migration
+    //    20261004080000): added specifically because the base index above does NOT stop two
+    //    null-productId (shipping-discount) rows for the same order+rule from colliding.
     const collides = rows.some((row) =>
-      this.applications.some(
-        (a) =>
-          a.orderId === orderId && a.promoRuleId === row.promoRuleId && a.productId === row.productId,
-      ),
+      this.applications.some((a) => {
+        if (a.orderId !== orderId || a.promoRuleId !== row.promoRuleId) return false;
+        // Both sides null: only the partial index protects this — a base-check-alone
+        // comparison (a.productId === row.productId) would wrongly say "distinct" per real
+        // Postgres NULL semantics, but the partial index still makes it a real collision.
+        if (a.productId === null || row.productId === null) {
+          return a.productId === null && row.productId === null;
+        }
+        return a.productId === row.productId;
+      }),
     );
     if (collides) return;
     for (const row of rows) this.applications.push({ orderId, ...row });
@@ -209,6 +223,22 @@ describe('PromoRuleService', () => {
       expect(row.shippingFeeOverride).toBe(1000);
     });
 
+    // Fix 1: this repo has no overnight-window support — a rule with startTime >= endTime
+    // would silently never match (hhmm can never be both >= startTime and <= endTime across
+    // midnight), so reject it at creation instead of shipping a dead rule.
+    it('rejects a startTime that is not before endTime', async () => {
+      await expect(
+        service.create(baseInput({ startTime: '18:00', endTime: '09:00' })),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+
+    // Fix 1's sibling: minQty > maxQty makes the quantity window impossible to satisfy.
+    it('rejects a minQty greater than maxQty', async () => {
+      await expect(
+        service.create(baseInput({ minQty: 10, maxQty: 5 })),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+
     it('rejects validFrom after validUntil', async () => {
       await expect(
         service.create(
@@ -257,7 +287,11 @@ describe('PromoRuleService', () => {
         baseInput({ validFrom: new Date('2026-06-01'), validUntil: null, daysOfWeek: [] }),
       );
       await expect(
-        service.update(row.id, fullPatch({ validUntil: new Date('2026-01-01') })),
+        service.update(
+          row.id,
+          fullPatch({ validUntil: new Date('2026-01-01') }),
+          row.updatedAt.toISOString(),
+        ),
       ).rejects.toThrow(PromoRuleValidationError);
     });
 
@@ -267,7 +301,11 @@ describe('PromoRuleService', () => {
     // itself was wrong; a stricter kind (e.g. BUY_X_GET_Y, see the next test) exposes it.
     it('accepts a name-only patch on an existing SPECIAL_PRICE rule', async () => {
       const row = await service.create(baseInput());
-      const updated = await service.update(row.id, fullPatch({ name: 'Baru' }));
+      const updated = await service.update(
+        row.id,
+        fullPatch({ name: 'Baru' }),
+        row.updatedAt.toISOString(),
+      );
       expect(updated.name).toBe('Baru');
     });
 
@@ -275,9 +313,34 @@ describe('PromoRuleService', () => {
       const row = await service.create(
         baseInput({ kind: 'BUY_X_GET_Y', specialPrice: null, buyQty: 2, getQty: 1 }),
       );
-      const updated = await service.update(row.id, fullPatch({ name: 'Baru' }));
+      const updated = await service.update(
+        row.id,
+        fullPatch({ name: 'Baru' }),
+        row.updatedAt.toISOString(),
+      );
       expect(updated.name).toBe('Baru');
       expect(updated.kind).toBe('BUY_X_GET_Y');
+    });
+
+    // CA-2-53: the write is refused when the caller's copy is older than the stored rule.
+    it('rejects an update whose seenUpdatedAt is stale', async () => {
+      const row = await service.create(baseInput());
+      await expect(
+        service.update(row.id, fullPatch({ name: 'Baru' }), new Date(0).toISOString()),
+      ).rejects.toThrow(StaleWriteError);
+    });
+
+    // A current seenUpdatedAt (the exact value the record carries right now) must still go
+    // through — the guard exists to catch a STALE copy, not to demand a stamp that happens
+    // to equal nothing meaningful.
+    it('accepts an update whose seenUpdatedAt matches the stored row exactly', async () => {
+      const row = await service.create(baseInput());
+      const updated = await service.update(
+        row.id,
+        fullPatch({ name: 'Baru' }),
+        row.updatedAt.toISOString(),
+      );
+      expect(updated.name).toBe('Baru');
     });
   });
 
@@ -299,29 +362,20 @@ describe('PromoRuleService', () => {
       await expect(service.remove('missing')).rejects.toThrow(PromoRuleNotFoundError);
     });
 
-    // I-4: PromoApplication.promoRule is onDelete: Restrict, so deleting a rule that has
-    // fired at least once throws a Postgres FK violation (P2003) from the repository — the
-    // service must turn that into a clean domain error, not let the raw Prisma error escape.
-    it('throws PromoRuleInUseError when the repository reports a P2003 FK violation', async () => {
+    // Fix 5: the P2003→PromoRuleInUseError translation now lives in the repository (see
+    // prisma-repositories.spec.ts), same discipline as recordApplications' P2002 handling.
+    // remove() is a plain pass-through now — this proves it doesn't swallow or rewrap
+    // whatever the repository already decided to throw.
+    it('propagates a PromoRuleInUseError the repository already translated, unchanged', async () => {
       const row = await service.create(baseInput());
-      jest.spyOn(repo, 'delete').mockRejectedValueOnce(
-        Object.assign(new Error('FK violation'), { code: 'P2003' }),
-      );
-      await expect(service.remove(row.id)).rejects.toThrow(PromoRuleInUseError);
-    });
-
-    it('PromoRuleInUseError carries a 409 status for the HTTP filter', async () => {
-      const row = await service.create(baseInput());
-      jest.spyOn(repo, 'delete').mockRejectedValueOnce(
-        Object.assign(new Error('FK violation'), { code: 'P2003' }),
-      );
+      jest.spyOn(repo, 'delete').mockRejectedValueOnce(new PromoRuleInUseError());
       await expect(service.remove(row.id)).rejects.toMatchObject({
         status: 409,
         code: 'PROMO_RULE_IN_USE',
       });
     });
 
-    it('rethrows a non-P2003 error from the repository unchanged', async () => {
+    it('propagates any other repository error unchanged', async () => {
       const row = await service.create(baseInput());
       const boom = new Error('boom');
       jest.spyOn(repo, 'delete').mockRejectedValueOnce(boom);
@@ -362,7 +416,7 @@ describe('PromoRuleService', () => {
 
     it('ignores an inactive rule', async () => {
       const row = await service.create(baseInput());
-      await service.update(row.id, { active: false });
+      await service.update(row.id, { active: false }, row.updatedAt.toISOString());
       const result = await service.quote({
         depotId: null,
         channel: 'APP',
@@ -460,6 +514,30 @@ describe('PromoRuleService', () => {
         { orderId: 'order-3', promoRuleId: 'rule-special', productId: 'p1', discountValue: 2000 }, // (8000-7000)*2
         { orderId: 'order-3', promoRuleId: 'rule-bogo', productId: 'p1', discountValue: 14000 }, // 2 free * 7000
       ]);
+    });
+
+    // Fix 7: a caller claiming appliedRuleIds that don't agree with what priceWon/bogoWon
+    // actually say happened is inconsistent data — reject loudly rather than silently losing
+    // or inventing audit rows.
+    it('rejects a line whose appliedRuleIds count disagrees with priceWon/bogoWon', async () => {
+      await expect(
+        service.apply({
+          orderId: 'order-mismatch',
+          originalLines: [{ productId: 'p1', unitPrice: 8000, quantity: 1 }],
+          quotedLines: [
+            {
+              productId: 'p1',
+              // unitPriceAfter unchanged (no price win) and freeQty 0 (no BOGO win) means
+              // expectedRows is 0, but the caller claims one id anyway.
+              appliedRuleIds: ['rule-ghost'],
+              unitPriceAfter: 8000,
+              freeQty: 0,
+              lineTotal: 8000,
+            },
+          ],
+          quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
+        }),
+      ).rejects.toThrow(PromoRuleValidationError);
     });
 
     it('writes no row for a line where nothing won', async () => {
@@ -603,6 +681,42 @@ describe('PromoRuleService', () => {
       await callApply();
       await callApply();
       expect(repo.applications.filter((a) => a.orderId === 'order-7')).toHaveLength(1);
+    });
+
+    // Fix 9: apply() trusts quote()'s own return shape as its input (see ApplyInput's
+    // doc-comments: quotedLines IS LineResult[], quotedShipping IS ShippingResult) — prove
+    // the two compose end to end, feeding quote()'s real output into apply() rather than a
+    // hand-built fixture that could drift from what quote() actually returns.
+    it('round-trips: apply() accepts quote()\'s own return value unchanged', async () => {
+      const row = await service.create(baseInput());
+      const cartLines = [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 8000 }];
+      const quoted = await service.quote({
+        depotId: null,
+        channel: 'APP',
+        occurredAt: new Date('2026-10-02T03:00:00.000Z'), // Friday
+        lines: cartLines,
+      });
+      expect(quoted.lines[0].appliedRuleIds).toEqual([row.id]);
+
+      await service.apply({
+        orderId: 'order-roundtrip',
+        originalLines: cartLines.map((l) => ({
+          productId: l.productId,
+          unitPrice: l.unitPrice,
+          quantity: l.quantity,
+        })),
+        quotedLines: quoted.lines,
+        quotedShipping: quoted.shipping,
+      });
+
+      expect(repo.applications).toEqual([
+        {
+          orderId: 'order-roundtrip',
+          promoRuleId: row.id,
+          productId: 'p1',
+          discountValue: 4000, // (8000-6000) * 2
+        },
+      ]);
     });
 
     it('writes nothing when quotedLines and quotedShipping both carry no winner', async () => {

@@ -75,11 +75,16 @@ describe('PromoRuleController', () => {
       await expect(controller.get('rule-1', managerOtherDepot)).rejects.toThrow();
     });
 
-    it('rejects a depot-scoped caller reading a network-wide rule', async () => {
+    // Fix 3: list() already shows a depot-scoped reader every network-wide (depotId null)
+    // rule alongside their own depot's — get() used to gate on it too, which let list()
+    // promise a rule the detail page then refused to open. Only a depot-OWNED rule still
+    // needs the depot-access check.
+    it('allows a depot-scoped caller to read a network-wide rule', async () => {
       const service = makeService();
       (service.findById as jest.Mock).mockResolvedValue(rule({ depotId: null }));
       const controller = new PromoRuleController(service);
-      await expect(controller.get('rule-1', managerOwnDepot)).rejects.toThrow();
+      const result = await controller.get('rule-1', managerOwnDepot);
+      expect(result).toEqual(rule({ depotId: null }));
     });
   });
 
@@ -249,29 +254,34 @@ describe('PromoRuleController', () => {
           maxQty: 10,
           channels: ['APP'],
           active: false,
+          seenUpdatedAt: '2026-09-01T00:00:00.000Z',
         } as never,
         managerOwnDepot,
       );
-      expect(service.update).toHaveBeenCalledWith('rule-1', {
-        name: 'Baru',
-        kind: 'SHIPPING_DISCOUNT',
-        depotId: 'depot-a',
-        productId: 'prod-1',
-        categoryId: 'cat-1',
-        specialPrice: 6000,
-        buyQty: 2,
-        getQty: 1,
-        shippingFeeOverride: 1000,
-        validFrom: new Date('2026-01-01T00:00:00.000Z'),
-        validUntil: new Date('2026-12-31T00:00:00.000Z'),
-        daysOfWeek: [5],
-        startTime: '09:00',
-        endTime: '18:00',
-        minQty: 2,
-        maxQty: 10,
-        channels: ['APP'],
-        active: false,
-      });
+      expect(service.update).toHaveBeenCalledWith(
+        'rule-1',
+        {
+          name: 'Baru',
+          kind: 'SHIPPING_DISCOUNT',
+          depotId: 'depot-a',
+          productId: 'prod-1',
+          categoryId: 'cat-1',
+          specialPrice: 6000,
+          buyQty: 2,
+          getQty: 1,
+          shippingFeeOverride: 1000,
+          validFrom: new Date('2026-01-01T00:00:00.000Z'),
+          validUntil: new Date('2026-12-31T00:00:00.000Z'),
+          daysOfWeek: [5],
+          startTime: '09:00',
+          endTime: '18:00',
+          minQty: 2,
+          maxQty: 10,
+          channels: ['APP'],
+          active: false,
+        },
+        '2026-09-01T00:00:00.000Z',
+      );
     });
   });
 

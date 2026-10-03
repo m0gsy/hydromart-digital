@@ -8,6 +8,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -131,6 +132,15 @@ export class CreatePromoRuleDto {
 }
 
 export class UpdatePromoRuleDto extends PartialType(CreatePromoRuleDto) {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'CA-2-53: the `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+
   // `name`/`kind` have no "clear to null" meaning (NOT NULL columns) — PartialType's
   // auto-added @IsOptional() skips validation for `undefined` AND explicit `null` alike,
   // so `PATCH {"name": null}` would sail past the DTO and crash Prisma with a raw 500
@@ -241,7 +251,9 @@ export class AppliedLineDto {
 
   @ApiProperty({ type: [String], description: "From the matching quote()'s LineResult." })
   @IsArray()
-  @IsUUID('4', { each: true })
+  // 'all', not '4': every other IsUUID() in this file (depotId, productId,
+  // shippingAppliedRuleId, ...) accepts any UUID version, not just v4 — stay consistent.
+  @IsUUID('all', { each: true })
   appliedRuleIds!: string[];
 
   @ApiProperty({ example: 6000 })

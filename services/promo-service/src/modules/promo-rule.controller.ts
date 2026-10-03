@@ -62,7 +62,10 @@ export class PromoRuleController {
     @CurrentUser() user?: AuthenticatedUser,
   ): Promise<PromoRuleRecord> {
     const row = await this.promoRules.findById(id);
-    assertDepotAccess(user, row.depotId);
+    // A network-wide rule (depotId null) is already visible to every depot-scoped reader via
+    // list() — gating get() on it too would let list() show a rule the detail page then
+    // refuses to open.
+    if (row.depotId !== null) assertDepotAccess(user, row.depotId);
     return row;
   }
 
@@ -129,7 +132,7 @@ export class PromoRuleController {
       maxQty: dto.maxQty,
       channels: dto.channels,
       active: dto.active,
-    });
+    }, dto.seenUpdatedAt);
   }
 
   @ApiOkResponse({ description: 'No content.' })

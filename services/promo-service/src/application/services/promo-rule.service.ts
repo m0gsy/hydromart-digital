@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import {
   CartLine,
@@ -9,7 +10,7 @@ import {
   evaluateLine,
   evaluateShipping,
 } from '../../domain/promo-rule';
-import { PromoRuleInUseError, PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
+import { PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
 import {
   CreatePromoRuleData,
   PromoRuleRecord,
@@ -86,8 +87,17 @@ export class PromoRuleService {
     return this.repo.create(input);
   }
 
-  async update(id: string, patch: UpdatePromoRuleData): Promise<PromoRuleRecord> {
+  /**
+   * CA-2-53: refused when the caller's copy is older than the stored rule — same property
+   * as Promotion, a promo rule decides what a customer is charged.
+   */
+  async update(
+    id: string,
+    patch: UpdatePromoRuleData,
+    seenUpdatedAt?: string,
+  ): Promise<PromoRuleRecord> {
     const current = await this.findById(id);
+    assertFresh(current.updatedAt, seenUpdatedAt);
     // The controller always sends every DTO field explicitly, `undefined` for whatever the
     // caller omitted from the PATCH body. Spreading that over `current` unfiltered would
     // overwrite real stored values with `undefined` before validation ever sees them — e.g.
@@ -103,15 +113,9 @@ export class PromoRuleService {
 
   async remove(id: string): Promise<void> {
     await this.findById(id);
-    try {
-      await this.repo.delete(id);
-    } catch (error) {
-      // PromoApplication.promoRule is onDelete: Restrict (DB-10: an audit row must survive
-      // its rule), so deleting a rule that has fired at least once throws Postgres FK
-      // violation P2003. Surface it as a clean 409, not a raw 500.
-      if ((error as { code?: string })?.code === 'P2003') throw new PromoRuleInUseError();
-      throw error;
-    }
+    // Fix 5: the P2003→PromoRuleInUseError translation now lives in the repository (same
+    // discipline as recordApplications' P2002 handling) — this is a plain pass-through.
+    await this.repo.delete(id);
   }
 
   async quote(input: QuoteInput): Promise<QuoteOutput> {
@@ -150,7 +154,6 @@ export class PromoRuleService {
     for (let i = 0; i < input.quotedLines.length; i++) {
       const line = input.quotedLines[i];
       const original = input.originalLines[i];
-      if (line.appliedRuleIds.length === 0) continue;
 
       // evaluateLine always pushes the SPECIAL_PRICE winner (if any) BEFORE the BUY_X_GET_Y
       // winner (if any) — see domain/promo-rule.ts. So: a price reduction, if present, is
@@ -158,6 +161,20 @@ export class PromoRuleService {
       // holds whether one or both kinds won, so don't destructure positionally as [a, b].
       const priceWon = original.unitPrice > line.unitPriceAfter;
       const bogoWon = line.freeQty > 0;
+
+      // Fix 7: the caller's appliedRuleIds length must agree with what priceWon/bogoWon say
+      // actually happened — otherwise bad caller data would silently write fewer audit rows
+      // than it claims (or claim rows that never won anything), losing audit information
+      // with no signal. Reject loudly instead of reconciling best-effort.
+      const expectedRows = (priceWon ? 1 : 0) + (bogoWon ? 1 : 0);
+      if (expectedRows !== line.appliedRuleIds.length) {
+        throw new PromoRuleValidationError(
+          `apply(): productId ${line.productId} mengirim ${line.appliedRuleIds.length} ` +
+            `appliedRuleIds, tapi hasil kemenangan (priceWon=${priceWon}, bogoWon=${bogoWon}) ` +
+            `mengharapkan ${expectedRows} — data caller tidak konsisten.`,
+        );
+      }
+      if (line.appliedRuleIds.length === 0) continue;
 
       if (priceWon) {
         rows.push({
@@ -191,8 +208,10 @@ export class PromoRuleService {
       const override = input.quotedShipping.shippingFeeOverride ?? 0;
       // I-2 (shipping sibling of the SPECIAL_PRICE price-raise guard): if the "override" is
       // actually higher than the original fee, this is not a discount — never write a
-      // negative discountValue, just skip the row.
-      if (input.originalShippingFee >= override) {
+      // negative discountValue, just skip the row. Fix 4: strict `>`, matching the
+      // SPECIAL_PRICE path — an UNCHANGED fee is not a discount either, so no audit row
+      // (and no discountValue: 0 row) when the fee never actually moved.
+      if (input.originalShippingFee > override) {
         rows.push({
           promoRuleId: input.quotedShipping.appliedRuleId,
           productId: null,
@@ -228,6 +247,19 @@ export class PromoRuleService {
   private validate(data: Partial<CreatePromoRuleData>): void {
     if (data.validFrom && data.validUntil && data.validFrom > data.validUntil) {
       throw new PromoRuleValidationError('validFrom harus sebelum validUntil.');
+    }
+    // Fix 1: this repo has no overnight-window support yet (e.g. 22:00-02:00) — a rule
+    // created with startTime >= endTime would silently never match (hhmm can never be both
+    // >= startTime and <= endTime across midnight), so reject it loudly at creation instead.
+    if (data.startTime != null && data.endTime != null && data.startTime >= data.endTime) {
+      throw new PromoRuleValidationError(
+        'startTime harus sebelum endTime — jendela yang melewati tengah malam belum didukung.',
+      );
+    }
+    // Fix 1: minQty > maxQty would make the quantity window impossible to satisfy — reject
+    // at creation rather than ship a rule that can never fire.
+    if (data.minQty != null && data.maxQty != null && data.minQty > data.maxQty) {
+      throw new PromoRuleValidationError('minQty tidak boleh lebih besar dari maxQty.');
     }
     switch (data.kind) {
       case 'SPECIAL_PRICE':
