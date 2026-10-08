@@ -8,6 +8,7 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, 
 import { api, ApiError } from '@/lib/api';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
+import { CategorySelect, ProductSelect } from '@/components/catalog-select';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
@@ -199,10 +200,18 @@ function RuleEditor({
           <Input value={effectiveDepotId ?? '—'} disabled />
         </Field>
         <Field label={t('dashboard.promoRules.fields.productId')}>
-          <Input value={form.productId} onChange={set('productId')} />
+          <ProductSelect
+            value={form.productId}
+            onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
+            emptyLabel={t('dashboard.promoRules.fields.anyProduct')}
+          />
         </Field>
         <Field label={t('dashboard.promoRules.fields.categoryId')} hint={t('dashboard.promoRules.fields.categoryIdHint')}>
-          <Input value={form.categoryId} onChange={set('categoryId')} />
+          <CategorySelect
+            value={form.categoryId}
+            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+            emptyLabel={t('dashboard.promoRules.fields.anyCategory')}
+          />
         </Field>
         <KindFields form={form} set={set} />
         <Field label={t('dashboard.promoRules.fields.validFrom')}>

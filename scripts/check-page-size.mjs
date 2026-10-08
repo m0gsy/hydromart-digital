@@ -100,6 +100,9 @@ const KNOWN_CALLERS = {
   // bottle of mineral water — the picker is what makes that a choice rather than a default.
   'apps/web/src/app/dashboard/wholesale/page.tsx': 'product-service',
   'apps/web/src/app/dashboard/subscriptions/page.tsx': 'product-service',
+  // The product picker on the promo-rule and voucher forms (item 5 D): the full catalogue, so a
+  // rule can name ANY product. Depots go through all-depots.ts above; categories are unpaged.
+  'apps/web/src/components/catalog-select.tsx': 'product-service',
   // The whole depot directory — every network screen that COUNTS depots reads through it.
   'apps/web/src/lib/all-depots.ts': 'depot-service',
   // Courier load, counted over every active delivery rather than the first page of them.

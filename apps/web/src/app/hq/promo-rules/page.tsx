@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Tag as TagIcon } from '@phosphor-icons/react';
 
+import { CategorySelect, DepotSelect, ProductSelect } from '@/components/catalog-select';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
@@ -182,13 +183,25 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
           </select>
         </Field>
         <Field label={t('hq.promoRules.fields.depotId')} hint={t('hq.promoRules.fields.depotIdHint')}>
-          <Input value={form.depotId} onChange={set('depotId')} />
+          <DepotSelect
+            value={form.depotId}
+            onChange={(v) => setForm((f) => ({ ...f, depotId: v }))}
+            emptyLabel={t('hq.promoRules.fields.anyDepot')}
+          />
         </Field>
         <Field label={t('hq.promoRules.fields.productId')}>
-          <Input value={form.productId} onChange={set('productId')} />
+          <ProductSelect
+            value={form.productId}
+            onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
+            emptyLabel={t('hq.promoRules.fields.anyProduct')}
+          />
         </Field>
         <Field label={t('hq.promoRules.fields.categoryId')} hint={t('hq.promoRules.fields.categoryIdHint')}>
-          <Input value={form.categoryId} onChange={set('categoryId')} />
+          <CategorySelect
+            value={form.categoryId}
+            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+            emptyLabel={t('hq.promoRules.fields.anyCategory')}
+          />
         </Field>
         <KindFields form={form} set={set} />
         <Field label={t('hq.promoRules.fields.validFrom')}>
