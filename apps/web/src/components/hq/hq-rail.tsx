@@ -116,6 +116,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/churn': UsersThree,
   '/hq/campaigns': Megaphone,
   '/hq/promotions': ImageIcon,
+  '/hq/promo-rules': Tag,
   '/hq/customers': UserCircle,
   '/resellers': Handshake,
   '/hq/catalog': Package,

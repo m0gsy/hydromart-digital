@@ -188,6 +188,13 @@ export const shop = {
     uploadImage: '/vouchers/api/v1/promotions/upload-image',
   },
 
+  promoRules: {
+    // Item 5 fase 1. No public list — this is admin-only (promoRuleRead/promoRuleWrite).
+    manage: '/vouchers/api/v1/promotions/promo-rules',
+    create: '/vouchers/api/v1/promotions/promo-rules',
+    detail: (id: string) => `/vouchers/api/v1/promotions/promo-rules/${id}`,
+  },
+
   referrals: {
     me: '/referrals/api/v1/referrals/me',
     // CA-3-45: the points a qualifying referral pays each side, so /referral and /rewards

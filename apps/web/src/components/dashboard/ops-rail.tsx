@@ -67,6 +67,7 @@ import {
   canManagePricing,
   canManageStaff,
   canViewCampaigns,
+  canManagePromoRules,
   canViewChurn,
   canViewDashboard,
   canViewForecast,
@@ -191,6 +192,7 @@ export const GROUPS: RailGroup[] = [
     headKey: 'marketing',
     items: [
       { href: '/dashboard/promotions', labelKey: 'promo', icon: Megaphone, show: canViewCampaigns },
+      { href: '/dashboard/promo-rules', labelKey: 'promoRules', icon: Tag, show: canManagePromoRules },
       {
         href: '/dashboard/campaigns',
         labelKey: 'campaign',
