@@ -313,6 +313,8 @@ export interface CartLine {
   lineTotal: number;
   /** Catalog flag delivery is charged on — see `galonQuantity` in lib/pricing.ts. */
   isGallon: boolean;
+  /** Catalogue category, for pricing a category-scoped voucher. Absent on an older API. */
+  categoryId?: string | null;
   /** The catalogue photo, so the basket shows what the shop showed. Null = none. */
   imageUrl: string | null;
 }
@@ -729,6 +731,8 @@ export interface Voucher {
   validUntil: string | null;
   usageLimit: number | null;
   perCustomerLimit: number;
+  productId?: string | null;
+  categoryId?: string | null;
   usedCount: number;
   active: boolean;
   createdAt: string;
@@ -748,6 +752,9 @@ export interface VoucherPayload {
   usageLimit?: number | null;
   perCustomerLimit?: number;
   budgetCap?: number | null;
+  /** Item 5 (B): limit the discount to one product OR one category; null/absent = whole order. */
+  productId?: string | null;
+  categoryId?: string | null;
   active?: boolean;
 }
 

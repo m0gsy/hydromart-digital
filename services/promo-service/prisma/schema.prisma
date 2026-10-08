@@ -173,6 +173,9 @@ enum PromoKind {
   SPECIAL_PRICE
   BUY_X_GET_Y
   SHIPPING_DISCOUNT
+  PERCENTAGE_OFF
+  ORDER_DISCOUNT
+  BUNDLE_GIFT
 }
 
 /// APP = ordered through the customer app/web. COUNTER = a walk-in sale rung up at the
@@ -204,6 +207,17 @@ model PromoRule {
   getQty                Int?
   /// SHIPPING_DISCOUNT: the new per-galon delivery fee (rupiah), replaces `perUnitFee`.
   shippingFeeOverride   Int?
+  /// PERCENTAGE_OFF: percent (1..99) off the unit price. ORDER_DISCOUNT: percent off the order,
+  /// as an alternative to `discountAmount`.
+  percentOff            Int?
+  /// ORDER_DISCOUNT: the order subtotal (after item promos) at which the discount starts.
+  minSubtotal           Int?
+  /// ORDER_DISCOUNT: rupiah off the order. Exactly one of this and `percentOff`.
+  discountAmount        Int?
+  /// BUNDLE_GIFT: the DIFFERENT product handed over free (`buyQty`/`getQty` say how many).
+  giftProductId         String?
+  /// Any kind: only for a customer with no earlier active/completed order anywhere.
+  firstOrderOnly        Boolean @default(false)
 
   validFrom   DateTime?
   validUntil  DateTime?

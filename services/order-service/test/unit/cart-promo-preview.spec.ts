@@ -94,4 +94,9 @@ describe('CartService promo preview', () => {
     const v = await view();
     expect(v.reseller?.discount).toBe(3200); // 10% of 32000, not of 40000
   });
+
+  it('puts the catalog category on each line, for category-scoped vouchers', async () => {
+    const v = await view();
+    expect(v.items[0].categoryId).toBe('cat-air');
+  });
 });

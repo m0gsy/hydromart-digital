@@ -161,7 +161,17 @@ export class PromoRuleResponseDto {
   id!: string;
   @ApiProperty({ type: String })
   name!: string;
-  @ApiProperty({ type: String, enum: ['SPECIAL_PRICE', 'BUY_X_GET_Y', 'SHIPPING_DISCOUNT'] })
+  @ApiProperty({
+    type: String,
+    enum: [
+      'SPECIAL_PRICE',
+      'BUY_X_GET_Y',
+      'SHIPPING_DISCOUNT',
+      'PERCENTAGE_OFF',
+      'ORDER_DISCOUNT',
+      'BUNDLE_GIFT',
+    ],
+  })
   kind!: string;
   @ApiProperty({ type: String, nullable: true })
   depotId!: string | null;
@@ -177,6 +187,16 @@ export class PromoRuleResponseDto {
   getQty!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   shippingFeeOverride!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  percentOff!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  minSubtotal!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  discountAmount!: number | null;
+  @ApiProperty({ type: String, nullable: true })
+  giftProductId!: string | null;
+  @ApiProperty({ type: Boolean })
+  firstOrderOnly!: boolean;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   validFrom!: Date | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
@@ -215,6 +235,18 @@ export class PromoLineResultDto {
   lineTotal!: number;
 }
 
+/** Mirrors `GiftResult` exactly (src/domain/promo-rule.ts). */
+export class PromoGiftResultDto {
+  @ApiProperty({ type: String })
+  promoRuleId!: string;
+  @ApiProperty({ type: String })
+  productId!: string;
+  @ApiProperty({ type: Number })
+  quantity!: number;
+  @ApiProperty({ type: String })
+  triggerProductId!: string;
+}
+
 /** Mirrors `QuoteOutput` exactly (src/application/services/promo-rule.service.ts). */
 export class AutoApplyQuoteResponseDto {
   @ApiProperty({ type: [PromoLineResultDto] })
@@ -223,4 +255,10 @@ export class AutoApplyQuoteResponseDto {
   shippingAppliedRuleId!: string | null;
   @ApiProperty({ type: Number, nullable: true })
   shippingFeeOverride!: number | null;
+  @ApiProperty({ type: String, nullable: true })
+  orderDiscountRuleId!: string | null;
+  @ApiProperty({ type: Number, description: 'Rupiah off the order; 0 when none.' })
+  orderDiscountAmount!: number;
+  @ApiProperty({ type: [PromoGiftResultDto] })
+  gifts!: PromoGiftResultDto[];
 }

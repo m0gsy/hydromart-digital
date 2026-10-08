@@ -4,10 +4,14 @@ import { assertFresh } from '@hydromart/platform';
 import {
   CartLine,
   EvaluationContext,
+  GiftResult,
   LineResult,
+  OrderDiscountResult,
   PromoRuleChannel,
   ShippingResult,
+  evaluateGifts,
   evaluateLine,
+  evaluateOrderDiscount,
   evaluateShipping,
 } from '../../domain/promo-rule';
 import { PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
@@ -27,11 +31,17 @@ export interface QuoteInput {
   channel: PromoRuleChannel;
   occurredAt: Date;
   lines: CartLine[];
+  /** True when the caller knows the customer has no earlier active/completed order. */
+  firstOrder?: boolean;
 }
 
 export interface QuoteOutput {
   lines: LineResult[];
   shipping: ShippingResult;
+  /** Order-level discount (ORDER_DISCOUNT); amount 0 when none applied. */
+  orderDiscount: OrderDiscountResult;
+  /** Free products from BUNDLE_GIFT rules. The caller decides whether it can deliver them. */
+  gifts: GiftResult[];
 }
 
 export interface ApplyOriginalLine {
@@ -63,6 +73,10 @@ export interface ApplyInput {
    * set but this is missing, the shipping row is skipped entirely rather than guessed.
    */
   shippingUnits?: number;
+  /** The ORDER_DISCOUNT that was applied, with the rupiah actually taken off. */
+  orderDiscount?: { appliedRuleId: string | null; amount: number };
+  /** Gifts the caller actually put on the order (a gift it could not deliver is not listed). */
+  gifts?: { promoRuleId: string; productId: string; value: number }[];
 }
 
 @Injectable()
@@ -132,10 +146,17 @@ export class PromoRuleService {
       occurredAt: input.occurredAt,
       timeZone: this.config.businessTimeZone,
       depotId: input.depotId,
+      firstOrder: input.firstOrder === true,
     };
+    const lines = input.lines.map((line) => evaluateLine(candidates, line, ctx));
+    // The subtotal an ORDER_DISCOUNT is judged on: every line after its item promos (a
+    // wholesale line comes back untouched, at its own price).
+    const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
     return {
-      lines: input.lines.map((line) => evaluateLine(candidates, line, ctx)),
+      lines,
       shipping: evaluateShipping(candidates, ctx),
+      orderDiscount: evaluateOrderDiscount(candidates, ctx, subtotal),
+      gifts: evaluateGifts(candidates, input.lines, ctx),
     };
   }
 
@@ -225,6 +246,22 @@ export class PromoRuleService {
       }
     }
 
+    // ORDER_DISCOUNT: one row for the order, no product (the same shape as the shipping row; the
+    // unique index on (orderId, promoRuleId) WHERE productId IS NULL guards a replay).
+    if (input.orderDiscount?.appliedRuleId && input.orderDiscount.amount > 0) {
+      rows.push({
+        promoRuleId: input.orderDiscount.appliedRuleId,
+        productId: null,
+        discountValue: input.orderDiscount.amount,
+      });
+    }
+    // BUNDLE_GIFT: one row per gift product, valued at what the caller says it was worth.
+    for (const gift of input.gifts ?? []) {
+      if (gift.value > 0) {
+        rows.push({ promoRuleId: gift.promoRuleId, productId: gift.productId, discountValue: gift.value });
+      }
+    }
+
     if (rows.length === 0) return;
 
     // I-1a: merge rows sharing the same (promoRuleId, productId) key by summing their
@@ -291,6 +328,55 @@ export class PromoRuleService {
         if (data.productId != null || data.categoryId != null) {
           throw new PromoRuleValidationError(
             'productId/categoryId tidak didukung untuk SHIPPING_DISCOUNT — berlaku di level pengiriman, bukan per produk.',
+          );
+        }
+        break;
+      case 'PERCENTAGE_OFF':
+        if (data.percentOff == null || data.percentOff < 1 || data.percentOff > 99) {
+          throw new PromoRuleValidationError('percentOff wajib diisi (1-99) untuk PERCENTAGE_OFF.');
+        }
+        break;
+      case 'ORDER_DISCOUNT': {
+        if (data.minSubtotal == null || data.minSubtotal < 0) {
+          throw new PromoRuleValidationError('minSubtotal wajib diisi untuk ORDER_DISCOUNT.');
+        }
+        const hasAmount = data.discountAmount != null;
+        const hasPercent = data.percentOff != null;
+        if (hasAmount === hasPercent) {
+          throw new PromoRuleValidationError(
+            'ORDER_DISCOUNT butuh tepat satu: discountAmount ATAU percentOff.',
+          );
+        }
+        if (hasAmount && (data.discountAmount as number) < 1) {
+          throw new PromoRuleValidationError('discountAmount harus lebih dari 0.');
+        }
+        if (hasPercent && ((data.percentOff as number) < 1 || (data.percentOff as number) > 99)) {
+          throw new PromoRuleValidationError('percentOff harus 1-99.');
+        }
+        // Order level, like SHIPPING_DISCOUNT: evaluateOrderDiscount matches a synthetic line of
+        // quantity 1 with no product, so these could never fire and would silently disable it.
+        if ((data.minQty != null && data.minQty > 1) || data.maxQty != null) {
+          throw new PromoRuleValidationError('minQty/maxQty tidak didukung untuk ORDER_DISCOUNT.');
+        }
+        if (data.productId != null || data.categoryId != null) {
+          throw new PromoRuleValidationError(
+            'productId/categoryId tidak didukung untuk ORDER_DISCOUNT — berlaku untuk seluruh pesanan.',
+          );
+        }
+        break;
+      }
+      case 'BUNDLE_GIFT':
+        if (data.buyQty == null || data.getQty == null || data.buyQty < 1 || data.getQty < 1) {
+          throw new PromoRuleValidationError('buyQty dan getQty (minimal 1) wajib diisi untuk BUNDLE_GIFT.');
+        }
+        if (data.giftProductId == null) {
+          throw new PromoRuleValidationError('giftProductId wajib diisi untuk BUNDLE_GIFT.');
+        }
+        // Same product as the one bought is BUY_X_GET_Y, and keeping the two apart keeps the
+        // stock arithmetic (and the receipt) honest about which is which.
+        if (data.productId != null && data.productId === data.giftProductId) {
+          throw new PromoRuleValidationError(
+            'Hadiah harus produk yang berbeda — untuk produk yang sama pakai BUY_X_GET_Y.',
           );
         }
         break;

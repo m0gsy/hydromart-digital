@@ -98,6 +98,11 @@ const baseInput = (overrides: Partial<CreatePromoRuleData> = {}): CreatePromoRul
   buyQty: null,
   getQty: null,
   shippingFeeOverride: null,
+  percentOff: null,
+  minSubtotal: null,
+  discountAmount: null,
+  giftProductId: null,
+  firstOrderOnly: false,
   validFrom: null,
   validUntil: null,
   daysOfWeek: [5],
@@ -729,6 +734,138 @@ describe('PromoRuleService', () => {
         quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
       });
       expect(repo.applications).toHaveLength(0);
+    });
+  });
+
+  describe('item 5 kinds · validation', () => {
+    const reject = (overrides: Parameters<typeof baseInput>[0]) =>
+      expect(service.create(baseInput({ specialPrice: null, ...overrides }))).rejects.toThrow(
+        PromoRuleValidationError,
+      );
+
+    it('PERCENTAGE_OFF needs a percent in 1..99', async () => {
+      await reject({ kind: 'PERCENTAGE_OFF' });
+      await reject({ kind: 'PERCENTAGE_OFF', percentOff: 0 });
+      await reject({ kind: 'PERCENTAGE_OFF', percentOff: 100 });
+      await expect(service.create(baseInput({ kind: 'PERCENTAGE_OFF', specialPrice: null, percentOff: 15 }))).resolves.toBeDefined();
+    });
+
+    it('ORDER_DISCOUNT needs a minimum and exactly one of amount / percent', async () => {
+      await reject({ kind: 'ORDER_DISCOUNT', discountAmount: 10000 }); // no minSubtotal
+      await reject({ kind: 'ORDER_DISCOUNT', minSubtotal: 100000 }); // neither
+      await reject({ kind: 'ORDER_DISCOUNT', minSubtotal: 100000, discountAmount: 10000, percentOff: 5 }); // both
+      await reject({ kind: 'ORDER_DISCOUNT', minSubtotal: 100000, discountAmount: 0 });
+      await reject({ kind: 'ORDER_DISCOUNT', minSubtotal: 100000, percentOff: 100 });
+      await expect(
+        service.create(baseInput({ kind: 'ORDER_DISCOUNT', specialPrice: null, minSubtotal: 100000, discountAmount: 10000 })),
+      ).resolves.toBeDefined();
+      await expect(
+        service.create(baseInput({ kind: 'ORDER_DISCOUNT', specialPrice: null, minSubtotal: 0, percentOff: 5 })),
+      ).resolves.toBeDefined();
+    });
+
+    it('ORDER_DISCOUNT is order-level: no product, category or quantity limits (they could never match)', async () => {
+      const ok = { kind: 'ORDER_DISCOUNT' as const, minSubtotal: 1, discountAmount: 1000 };
+      await reject({ ...ok, productId: 'p1' });
+      await reject({ ...ok, categoryId: 'c1' });
+      await reject({ ...ok, minQty: 2 });
+      await reject({ ...ok, maxQty: 9 });
+    });
+
+    it('BUNDLE_GIFT needs buy, get and a gift product that is not the bought one', async () => {
+      const ok = { kind: 'BUNDLE_GIFT' as const, buyQty: 2, getQty: 1, giftProductId: 'gift' };
+      await reject({ ...ok, buyQty: null });
+      await reject({ ...ok, getQty: null });
+      await reject({ ...ok, giftProductId: null });
+      await reject({ ...ok, productId: 'gift' });
+      await expect(service.create(baseInput({ ...ok, specialPrice: null, productId: 'p1' }))).resolves.toBeDefined();
+    });
+
+    it('a patch that switches kind is judged against the merged row', async () => {
+      const row = await service.create(baseInput());
+      await expect(
+        service.update(row.id, { kind: 'PERCENTAGE_OFF', specialPrice: null }, row.updatedAt.toISOString()),
+      ).rejects.toThrow(PromoRuleValidationError);
+    });
+  });
+
+  describe('item 5 kinds · quote', () => {
+    const FRI = new Date('2026-10-02T03:00:00.000Z');
+    const quote = (over: Partial<Parameters<PromoRuleService['quote']>[0]> = {}) =>
+      service.quote({
+        depotId: null,
+        channel: 'APP',
+        occurredAt: FRI,
+        lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 50000 }],
+        ...over,
+      });
+
+    it('judges ORDER_DISCOUNT on the subtotal AFTER item promos', async () => {
+      await service.create(baseInput({ kind: 'PERCENTAGE_OFF', specialPrice: null, percentOff: 20, daysOfWeek: [] }));
+      await service.create(
+        baseInput({ kind: 'ORDER_DISCOUNT', specialPrice: null, minSubtotal: 90000, discountAmount: 5000, daysOfWeek: [] }),
+      );
+      // 2 x 50000 = 100000 before, 2 x 40000 = 80000 after the 20%: below the 90000 minimum.
+      expect((await quote()).orderDiscount).toEqual({ appliedRuleId: null, amount: 0 });
+      // Three units: 120000 after the 20%, which clears it.
+      const three = await quote({ lines: [{ productId: 'p1', categoryId: null, quantity: 3, unitPrice: 50000 }] });
+      expect(three.orderDiscount.amount).toBe(5000);
+    });
+
+    it('counts a wholesale (skipPromo) line at its own price in the order subtotal, with no promo on it', async () => {
+      await service.create(baseInput({ kind: 'PERCENTAGE_OFF', specialPrice: null, percentOff: 50, daysOfWeek: [] }));
+      await service.create(
+        baseInput({ kind: 'ORDER_DISCOUNT', specialPrice: null, minSubtotal: 100000, discountAmount: 5000, daysOfWeek: [] }),
+      );
+      const r = await quote({
+        lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 50000, skipPromo: true }],
+      });
+      expect(r.lines[0]).toMatchObject({ unitPriceAfter: 50000, appliedRuleIds: [] });
+      expect(r.orderDiscount.amount).toBe(5000); // 100000 reached only because the line was NOT halved
+    });
+
+    it('honours firstOrder for a first-order-only rule', async () => {
+      await service.create(baseInput({ firstOrderOnly: true, daysOfWeek: [] }));
+      expect((await quote()).lines[0].unitPriceAfter).toBe(50000);
+      expect((await quote({ firstOrder: true })).lines[0].unitPriceAfter).toBe(6000);
+    });
+
+    it('returns the gifts a BUNDLE_GIFT earns', async () => {
+      await service.create(
+        baseInput({ kind: 'BUNDLE_GIFT', specialPrice: null, buyQty: 2, getQty: 1, giftProductId: 'gift', daysOfWeek: [] }),
+      );
+      const r = await quote({ lines: [{ productId: 'p1', categoryId: null, quantity: 5, unitPrice: 50000 }] });
+      expect(r.gifts).toMatchObject([{ productId: 'gift', quantity: 2, triggerProductId: 'p1' }]);
+    });
+  });
+
+  describe('item 5 kinds · apply audit', () => {
+    const noLines = { orderId: 'order-9', originalLines: [], quotedLines: [], quotedShipping: { appliedRuleId: null, shippingFeeOverride: null } };
+
+    it('records the order discount as one row with no product', async () => {
+      await service.apply({ ...noLines, orderDiscount: { appliedRuleId: 'rule-order', amount: 10000 } });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-9', promoRuleId: 'rule-order', productId: null, discountValue: 10000 },
+      ]);
+    });
+
+    it('records one row per gift product, valued as the caller says', async () => {
+      await service.apply({
+        ...noLines,
+        gifts: [
+          { promoRuleId: 'rule-gift', productId: 'g1', value: 16000 },
+          { promoRuleId: 'rule-gift', productId: 'g2', value: 0 },
+        ],
+      });
+      expect(repo.applications).toEqual([
+        { orderId: 'order-9', promoRuleId: 'rule-gift', productId: 'g1', discountValue: 16000 },
+      ]);
+    });
+
+    it('records nothing for a zero or absent order discount', async () => {
+      await service.apply({ ...noLines, orderDiscount: { appliedRuleId: 'rule-order', amount: 0 } });
+      await service.apply({ ...noLines, orderId: 'order-10', orderDiscount: { appliedRuleId: null, amount: 5 } });
+      expect(repo.applications).toEqual([]);
     });
   });
 });

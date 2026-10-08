@@ -21,6 +21,8 @@ export interface CartLineView {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  /** Catalogue category, so the checkout can price a category-scoped voucher on this line. */
+  categoryId: string | null;
   /**
    * The catalog flag delivery is charged on, exposed so the checkout preview can count
    * galons the way `galonQuantity` in domain/pricing.ts does. Without it the web client had
@@ -233,6 +235,7 @@ export class CartService {
       quantity: i.quantity,
       lineTotal: i.lineTotal,
       isGallon: i.isGallon,
+      categoryId: priced.categoryIdByProductId.get(i.productId) ?? null,
       imageUrl: products.get(i.productId)?.imageUrl ?? null,
     }));
 

@@ -42,6 +42,88 @@ describe('CreatePromoRuleDto', () => {
   });
 });
 
+describe('item 5 kind fields', () => {
+  const base = { name: 'x', kind: 'PERCENTAGE_OFF' };
+  const errorsFor = async (cls: new () => object, body: Record<string, unknown>) =>
+    (await validate(plainToInstance(cls, body))).map((e) => e.property);
+
+  it('percentOff must be 1..99', async () => {
+    expect(await errorsFor(CreatePromoRuleDto, { ...base, percentOff: 0 })).toContain('percentOff');
+    expect(await errorsFor(CreatePromoRuleDto, { ...base, percentOff: 100 })).toContain('percentOff');
+    expect(await errorsFor(CreatePromoRuleDto, { ...base, percentOff: 99 })).not.toContain('percentOff');
+  });
+
+  it('accepts the new kinds and rejects an unknown one', async () => {
+    for (const kind of ['PERCENTAGE_OFF', 'ORDER_DISCOUNT', 'BUNDLE_GIFT']) {
+      expect(await errorsFor(CreatePromoRuleDto, { name: 'x', kind })).not.toContain('kind');
+    }
+    expect(await errorsFor(CreatePromoRuleDto, { name: 'x', kind: 'TIERED' })).toContain('kind');
+  });
+
+  it('coerces the order-discount numbers and needs a UUID gift product', async () => {
+    const dto = plainToInstance(CreatePromoRuleDto, {
+      name: 'x',
+      kind: 'ORDER_DISCOUNT',
+      minSubtotal: '100000',
+      discountAmount: '10000',
+      firstOrderOnly: true,
+    });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.minSubtotal).toBe(100000);
+    expect(dto.discountAmount).toBe(10000);
+    expect(await errorsFor(CreatePromoRuleDto, { name: 'x', kind: 'BUNDLE_GIFT', giftProductId: 'nope' })).toContain(
+      'giftProductId',
+    );
+  });
+
+  it('an explicit null firstOrderOnly on update is a 400, not a Prisma crash', async () => {
+    expect(await errorsFor(UpdatePromoRuleDto, { firstOrderOnly: null })).toContain('firstOrderOnly');
+    expect(await errorsFor(UpdatePromoRuleDto, { active: false })).toEqual([]);
+  });
+
+  it('quote lines accept skipPromo and the quote accepts firstOrder', async () => {
+    const dto = plainToInstance(AutoApplyQuoteDto, {
+      channel: 'APP',
+      firstOrder: true,
+      lines: [{ productId: '00000000-0000-4000-8000-000000000001', quantity: 1, unitPrice: 8000, skipPromo: true }],
+    });
+    expect(await validate(dto)).toEqual([]);
+    const bad = plainToInstance(AutoApplyQuoteDto, {
+      channel: 'APP',
+      lines: [{ productId: '00000000-0000-4000-8000-000000000001', quantity: 1, unitPrice: 8000, skipPromo: 'yes' }],
+    });
+    expect(await validate(bad)).not.toEqual([]);
+  });
+});
+
+describe('AutoApplyApplyDto · order discount and gifts (item 5)', () => {
+  const ORDER = '00000000-0000-4000-8000-000000000001';
+  const RULE = '00000000-0000-4000-8000-000000000002';
+  const GIFT = '00000000-0000-4000-8000-000000000003';
+
+  it('accepts and coerces an order discount and gift list', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: ORDER,
+      lines: [],
+      orderDiscountRuleId: RULE,
+      orderDiscountAmount: '10000',
+      gifts: [{ promoRuleId: RULE, productId: GIFT, value: '16000' }],
+    });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.orderDiscountAmount).toBe(10000);
+    expect(dto.gifts?.[0].value).toBe(16000);
+  });
+
+  it('rejects a malformed gift', async () => {
+    const dto = plainToInstance(AutoApplyApplyDto, {
+      orderId: ORDER,
+      lines: [],
+      gifts: [{ promoRuleId: 'nope', productId: GIFT, value: -1 }],
+    });
+    expect(await validate(dto)).not.toEqual([]);
+  });
+});
+
 describe('specialPrice lower bound (>= 1)', () => {
   // A SPECIAL_PRICE of 0 would be indistinguishable from a BOGO free row to order-service's
   // collapsePromoFreeRows (unitPrice === 0), which would break the C8 replay guard.
