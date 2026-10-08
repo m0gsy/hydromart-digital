@@ -768,6 +768,7 @@ export const hq = {
       error: 'Gagal menyimpan voucher.',
       needCode: 'Kode voucher wajib diisi.',
       scopeProduct: 'Hanya untuk produk',
+      scopedBadge: 'Terbatas ke produk/kategori',
       scopeNone: 'Seluruh pesanan',
       scopeCategory: 'Hanya untuk kategori',
       scopeHint: 'Pilih salah satu; biarkan keduanya "Seluruh pesanan" untuk semua barang.',

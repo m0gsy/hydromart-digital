@@ -764,6 +764,7 @@ export const hq = {
       error: 'Could not save the voucher.',
       needCode: 'Voucher code is required.',
       scopeProduct: 'Only for product',
+      scopedBadge: 'Limited to a product/category',
       scopeNone: 'Whole order',
       scopeCategory: 'Only for category',
       scopeHint: "Pick one; leave both on 'Whole order' for everything.",

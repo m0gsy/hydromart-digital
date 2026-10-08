@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import { Lock, Ticket } from '@phosphor-icons/react';
 
+import { CategorySelect, ProductSelect } from '@/components/catalog-select';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
@@ -28,6 +29,9 @@ interface VoucherForm {
   validUntil: string;
   usageLimit: string;
   perCustomerLimit: string;
+  /** Item 5 (B): limit the discount to one product OR one category; empty = the whole order. */
+  productId: string;
+  categoryId: string;
   active: boolean;
 }
 
@@ -42,6 +46,8 @@ const EMPTY: VoucherForm = {
   validUntil: '',
   usageLimit: '',
   perCustomerLimit: '1',
+  productId: '',
+  categoryId: '',
   active: true,
 };
 
@@ -59,6 +65,8 @@ function formFrom(v: Voucher): VoucherForm {
     validUntil: day(v.validUntil),
     usageLimit: num(v.usageLimit),
     perCustomerLimit: String(v.perCustomerLimit),
+    productId: v.productId ?? '',
+    categoryId: v.categoryId ?? '',
     active: v.active,
   };
 }
@@ -78,6 +86,8 @@ function toPayload(f: VoucherForm, mode: 'create' | 'edit'): VoucherPayload {
     validUntil: dateOrNull(f.validUntil),
     usageLimit: int(f.usageLimit) ?? null,
     perCustomerLimit: int(f.perCustomerLimit) ?? 1,
+    productId: f.productId || null,
+    categoryId: f.categoryId || null,
   };
   if (mode === 'create') payload.code = f.code.trim().toUpperCase();
   else payload.active = f.active;
@@ -121,6 +131,10 @@ function VoucherEditor({
     }
     if (!form.value.trim() || Number(form.value) <= 0) {
       setError(t('hrFix.vouchers.valuePositive'));
+      return;
+    }
+    if (form.productId && form.categoryId) {
+      setError(t('hq.forms.voucher.scopeBoth'));
       return;
     }
     setBusy(true);
@@ -173,6 +187,20 @@ function VoucherEditor({
             <Input type="number" value={form.maxDiscount} onChange={set('maxDiscount')} placeholder="20000" />
           </Field>
         )}
+        <Field label={t('hq.forms.voucher.scopeProduct')} hint={t('hq.forms.voucher.scopeHint')}>
+          <ProductSelect
+            value={form.productId}
+            onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
+            emptyLabel={t('hq.forms.voucher.scopeNone')}
+          />
+        </Field>
+        <Field label={t('hq.forms.voucher.scopeCategory')}>
+          <CategorySelect
+            value={form.categoryId}
+            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+            emptyLabel={t('hq.forms.voucher.scopeNone')}
+          />
+        </Field>
         <Field label={t('hrFix.vouchers.minSpend')} hint={t('hrFix.vouchers.minSpendHint')}>
           <Input type="number" value={form.minSpend} onChange={set('minSpend')} placeholder="50000" />
         </Field>
@@ -397,6 +425,7 @@ function VouchersAdmin() {
                     {' · '}
                     {v.usedCount}
                     {v.usageLimit != null ? `/${v.usageLimit}` : ''} terpakai
+                    {(v.productId || v.categoryId) && ` · ${t('hq.forms.voucher.scopedBadge')}`}
                   </span>
                 </div>
                 {canWrite && (
