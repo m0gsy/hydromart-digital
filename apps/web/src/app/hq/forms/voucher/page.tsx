@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Ticket } from '@phosphor-icons/react';
 
+import { CategorySelect, ProductSelect } from '@/components/catalog-select';
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -89,10 +90,6 @@ export default function HqVoucherFormPage() {
     }
     if (kind !== 'freeShip') {
       if (productId.trim() && categoryId.trim()) return setError(t('hq.forms.voucher.scopeBoth'));
-      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if ((productId.trim() && !uuid.test(productId.trim())) || (categoryId.trim() && !uuid.test(categoryId.trim()))) {
-        return setError(t('hq.forms.voucher.scopeBadId'));
-      }
     }
     if (validFrom && validUntil && validUntil < validFrom) {
       return setError(t('hq.forms.voucher.endBeforeStart'));
@@ -174,10 +171,20 @@ export default function HqVoucherFormPage() {
         {kind !== 'freeShip' && (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t('hq.forms.voucher.scopeProduct')} htmlFor="v-product" hint={t('hq.forms.voucher.scopeHint')}>
-              <Input id="v-product" value={productId} onChange={(e) => setProductId(e.target.value)} />
+              <ProductSelect
+                id="v-product"
+                value={productId}
+                onChange={setProductId}
+                emptyLabel={t('hq.forms.voucher.scopeNone')}
+              />
             </Field>
             <Field label={t('hq.forms.voucher.scopeCategory')} htmlFor="v-category">
-              <Input id="v-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} />
+              <CategorySelect
+                id="v-category"
+                value={categoryId}
+                onChange={setCategoryId}
+                emptyLabel={t('hq.forms.voucher.scopeNone')}
+              />
             </Field>
           </div>
         )}

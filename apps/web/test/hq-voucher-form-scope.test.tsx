@@ -3,10 +3,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { post, toast } = vi.hoisted(() => ({ post: vi.fn(), toast: vi.fn() }));
+const { post, get, toast } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn(), toast: vi.fn() }));
 
 vi.mock('@/lib/api', () => ({
-  api: { post },
+  api: { post, get, getCached: get },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
@@ -32,7 +32,14 @@ async function fillBasics(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(T.value), '20');
 }
 
-beforeEach(() => post.mockReset().mockResolvedValue({}));
+beforeEach(() => {
+  post.mockReset().mockResolvedValue({});
+  get.mockReset().mockImplementation(async (path: string) =>
+    String(path).includes('categories')
+      ? [{ id: CATEGORY, name: 'Air' }]
+      : { items: [{ id: PRODUCT, name: 'Galon 19L' }], total: 1, page: 1, limit: 100 },
+  );
+});
 afterEach(() => vi.clearAllMocks());
 
 describe('hq voucher form · item scope (item 5 B)', () => {
@@ -40,7 +47,8 @@ describe('hq voucher form · item scope (item 5 B)', () => {
     const user = userEvent.setup();
     draw();
     await fillBasics(user);
-    await user.type(screen.getByLabelText(T.scopeProduct), PRODUCT);
+    await screen.findByRole('option', { name: 'Galon 19L' });
+    await user.selectOptions(screen.getByLabelText(T.scopeProduct), PRODUCT);
     await user.click(screen.getByRole('button', { name: T.publish }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0]![1]).toMatchObject({ productId: PRODUCT, categoryId: null });
@@ -55,20 +63,16 @@ describe('hq voucher form · item scope (item 5 B)', () => {
     expect(post.mock.calls[0]![1]).toMatchObject({ productId: null, categoryId: null });
   });
 
-  it('refuses both a product and a category, and a malformed id, before calling the server', async () => {
+  it('refuses both a product and a category before calling the server', async () => {
     const user = userEvent.setup();
     draw();
     await fillBasics(user);
-    await user.type(screen.getByLabelText(T.scopeProduct), PRODUCT);
-    await user.type(screen.getByLabelText(T.scopeCategory), CATEGORY);
+    await screen.findByRole('option', { name: 'Galon 19L' });
+    await screen.findByRole('option', { name: 'Air' });
+    await user.selectOptions(screen.getByLabelText(T.scopeProduct), PRODUCT);
+    await user.selectOptions(screen.getByLabelText(T.scopeCategory), CATEGORY);
     await user.click(screen.getByRole('button', { name: T.publish }));
     expect(await screen.findByText(T.scopeBoth)).toBeTruthy();
-
-    await user.clear(screen.getByLabelText(T.scopeCategory));
-    await user.clear(screen.getByLabelText(T.scopeProduct));
-    await user.type(screen.getByLabelText(T.scopeProduct), 'not-an-id');
-    await user.click(screen.getByRole('button', { name: T.publish }));
-    expect(await screen.findByText(T.scopeBadId)).toBeTruthy();
     expect(post).not.toHaveBeenCalled();
   });
 
