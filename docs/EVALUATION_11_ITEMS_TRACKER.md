@@ -23,11 +23,12 @@ Browser-verify selesai 2026-10-02: upload CSV di `/dashboard/sales-import` (depo
 ## 4. Monitoring Progres Implementasi — ✅ (dokumen ini)
 Dokumen ini adalah deliverable item 4. Jangan buat file tracker lain — update yang ini.
 
-## 5. Pengembangan Sistem Promo dan Voucher — 🟡
-Fase 2 dari 3 selesai. 3 plan ditulis (`docs/superpowers/plans/2026-10-02-promo-auto-apply-engine-plan{1,2,3}-*.md`).
+## 5. Pengembangan Sistem Promo dan Voucher — 🟡 (kode selesai, belum diverifikasi di produksi)
+Fase 1 (mesin promo auto-apply) selesai di kode: ketiga plan sudah merge ke main. 3 plan ditulis (`docs/superpowers/plans/2026-10-02-promo-auto-apply-engine-plan{1,2,3}-*.md`).
 - **Plan 1** (promo-service backend: schema PromoRule/PromoApplication, algoritma matching/stacking SPECIAL_PRICE/BUY_X_GET_Y/SHIPPING_DISCOUNT, repo, service CRUD+quote+apply, endpoint admin + internal) — **MERGED** ke main (PR #610, `2fd7a250`). 4 ronde whole-branch review.
 - **Plan 2** (integrasi order-service ke `checkout()`/`walkInSale()` — stok BOGO disumkan di 6 titik inventory, replay guard counter diperbaiki, shipping override di-cap ke tarif depot, voucher quote/redeem simetris pakai subtotal post-promo, minimum-order pakai subtotal pre-promo) — **MERGED** ke main (PR #611, `ce6197dc`). 3 ronde whole-branch review — ini kali pertama mesin promo menyentuh uang/stok sungguhan, dan terbukti: setiap task lolos review-nya sendiri, tapi baca keseluruhan branch menemukan bug Critical nyata di 2 ronde pertama (stok BOGO tidak pernah dikonsumsi di 5 titik, replay guard menolak retry sah, shipping override tanpa batas atas, lalu fix voucher-subtotal yang pertama justru salah hitung diskon). Ronde ke-3 tidak menemukan apa-apa lagi.
-- **Plan 3** (admin UI `/hq/promo-rules` + `/dashboard/promo-rules`) — **belum dimulai**. Satu-satunya cara buat PromoRule sekarang: `POST /promotions/promo-rules` langsung (curl/Swagger).
+- **Plan 3** (admin UI `/hq/promo-rules` + `/dashboard/promo-rules`) — **MERGED** ke main (PR #613, `e0ded7fb`). Bug nyata yang tertangkap CI sebelum merge: label hari disimpan sebagai array padahal `t()` hanya mengembalikan string (editor akan crash begitu dibuka), dan PATCH tanpa `seenUpdatedAt` akan selalu ditolak. Sisa PR: #614 (test regresi + `specialPrice >= 1`), #615 (patch advisory proxy-addr CRITICAL / source-map-js).
+**Belum dikerjakan:** (1) deploy + verifikasi browser manual per role (buat 1 rule tiap jenis, cek scope depot); (2) `scripts/screen-services.json` perlu di-record ulang (`--update-services`) pada browser pass berikutnya; (3) forecast-service menghitung ganda `orders` untuk baris gratis BOGO; (4) temuan UX yang diwarisi dari halaman Promotion: tombol Edit/Hapus tampil untuk rule network-wide di konsol depot (selalu 403), dan role read-only (HEAD_OFFICE/DIREKTUR) melihat tombol tulis.
 **Keputusan:** fase terbesar di daftar ini — dikerjakan di sesi terpisah (lihat Next Actions).
 
 ## 6. Pembatasan Akses Franchise Berdasarkan Depot — ✅
