@@ -87,6 +87,10 @@ export class VoucherResponseDto {
   perCustomerLimit!: number;
   @ApiProperty({ type: Number, nullable: true })
   budgetCap!: number | null;
+  @ApiProperty({ type: String, nullable: true })
+  productId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  categoryId!: string | null;
   @ApiProperty({ type: Number })
   usedCount!: number;
   @ApiProperty({ type: Boolean })

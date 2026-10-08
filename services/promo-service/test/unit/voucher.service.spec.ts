@@ -413,3 +413,72 @@ describe('VoucherService percentage bound (CA-2-65)', () => {
     ).resolves.toBeTruthy();
   });
 });
+
+describe('VoucherService · item scope (item 5 B)', () => {
+  let repo: InMemoryVoucherRepository;
+  let service: VoucherService;
+  const P1 = '00000000-0000-4000-8000-000000000001';
+  const P2 = '00000000-0000-4000-8000-000000000002';
+  const lines = [
+    { productId: P1, categoryId: null, lineTotal: 40000 },
+    { productId: P2, categoryId: null, lineTotal: 10000 },
+  ];
+
+  beforeEach(() => {
+    repo = new InMemoryVoucherRepository();
+    service = new VoucherService(repo, new FakeCustomerLookup(), new FakeNotification());
+  });
+
+  it('quotes a product-scoped voucher on that product only, but judges minimum spend on the whole basket', async () => {
+    await service.create(baseVoucher({ code: 'GALON', productId: P1, minSpend: 50000 }));
+    const quote = await service.quote('GALON', 'cust-1', 50000, 0, null, lines);
+    expect(quote.discount).toBe(4000); // 10% of 40000, not of 50000
+    await expect(service.quote('GALON', 'cust-1', 50000, 0, null, [lines[1]])).rejects.toThrow(
+      /produk tertentu/,
+    );
+  });
+
+  it('refuses to quote or redeem a scoped voucher without lines', async () => {
+    await service.create(baseVoucher({ code: 'GALON', productId: P1 }));
+    await expect(service.quote('GALON', 'cust-1', 50000)).rejects.toThrow(/rincian keranjang/);
+    await expect(service.redeem('GALON', 'cust-1', randomUUID(), 50000)).rejects.toThrow(
+      /rincian keranjang/,
+    );
+  });
+
+  it('redeem burns the scoped discount, the same figure quote showed', async () => {
+    await service.create(baseVoucher({ code: 'GALON', productId: P1 }));
+    const orderId = randomUUID();
+    const quote = await service.quote('GALON', 'cust-1', 50000, 0, null, lines);
+    const redeemed = await service.redeem('GALON', 'cust-1', orderId, 50000, 0, null, lines);
+    expect(redeemed.discountApplied).toBe(quote.discount);
+  });
+
+  it('an unscoped voucher ignores lines entirely', async () => {
+    await service.create(baseVoucher({ code: 'SEMUA' }));
+    expect((await service.quote('SEMUA', 'cust-1', 50000, 0, null, lines)).discount).toBe(5000);
+  });
+
+  it('refuses a voucher scoped to both a product and a category', async () => {
+    await expect(
+      service.create(baseVoucher({ code: 'DUA', productId: P1, categoryId: P2 })),
+    ).rejects.toBeInstanceOf(InvalidVoucherValueError);
+  });
+
+  it('refuses a scoped FREE_SHIPPING voucher on create and on patch', async () => {
+    await expect(
+      service.create(baseVoucher({ code: 'ONGKIR', discountType: DiscountType.FREE_SHIPPING, productId: P1 })),
+    ).rejects.toBeInstanceOf(InvalidVoucherValueError);
+    const v = await service.create(baseVoucher({ code: 'PCT', productId: P1 }));
+    await expect(service.update(v.id, { discountType: DiscountType.FREE_SHIPPING }, v.updatedAt.toISOString())).rejects.toBeInstanceOf(
+      InvalidVoucherValueError,
+    );
+  });
+
+  it('a patch is judged against the scope the voucher already has, and null clears it', async () => {
+    const v = await service.create(baseVoucher({ code: 'PCT', productId: P1 }));
+    await expect(service.update(v.id, { categoryId: P2 }, v.updatedAt.toISOString())).rejects.toBeInstanceOf(InvalidVoucherValueError);
+    const cleared = await service.update(v.id, { productId: null }, v.updatedAt.toISOString());
+    expect(cleared.productId).toBeNull();
+  });
+});

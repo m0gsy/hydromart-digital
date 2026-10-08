@@ -15,6 +15,9 @@ export interface VoucherRecord {
   budgetCap: number | null;
   /** CA-2-65: the depot this voucher belongs to; null = network-wide. */
   depotId: string | null;
+  /** Item 5 (B): limit the discount to this product / category's lines; both null = whole order. */
+  productId: string | null;
+  categoryId: string | null;
   /** PRM-4: 'PUBLIC' (any code-holder) or 'GRANTED' (only the customers it was given to). */
   audience: string;
   usedCount: number;
@@ -60,6 +63,9 @@ export interface CreateVoucherData {
    * form is network-wide, which is what it has always been and what the column defaults to.
    */
   depotId?: string | null;
+  /** Item 5 (B): at most one of these; omitted = whole order. */
+  productId?: string | null;
+  categoryId?: string | null;
   /** PRM-4: who may spend it. Omitted = PUBLIC, which is what every voucher used to be. */
   audience?: VoucherAudience;
 }
@@ -76,6 +82,8 @@ export interface UpdateVoucherData {
   usageLimit?: number | null;
   perCustomerLimit?: number;
   budgetCap?: number | null;
+  productId?: string | null;
+  categoryId?: string | null;
   active?: boolean;
 }
 
