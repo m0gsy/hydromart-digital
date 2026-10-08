@@ -10,6 +10,13 @@ import { AutoApplyAppliedLine, AutoApplyQuoteResult } from '../application/ports
 export function applyPromoQuote(
   items: CreateOrderItemData[],
   quote: AutoApplyQuoteResult,
+  /**
+   * Products priced by a wholesale band. They are already at the depot's lowest price, so a
+   * promo never touches them (the same rule that keeps reseller and membership discounts off
+   * them) — and a promo that did would also leave `tierPricedTotal` stale against `subtotal`,
+   * understating the reseller percentage base.
+   */
+  skipProductIds: ReadonlySet<string> = new Set(),
 ): { items: CreateOrderItemData[]; subtotal: number; appliedLines: AutoApplyAppliedLine[] } {
   const result: CreateOrderItemData[] = [];
 
@@ -21,7 +28,7 @@ export function applyPromoQuote(
   // product (nothing stops a duplicate productId in `WalkInLineDto`) onto whichever quote
   // entry the Map happened to keep last, cross-applying one line's promo match to the other.
   const appliedLines: AutoApplyAppliedLine[] = items.map((original, i) => {
-    const line = quote.lines[i];
+    const line = skipProductIds.has(original.productId) ? undefined : quote.lines[i];
     return {
       productId: original.productId,
       unitPrice: original.unitPrice,
@@ -33,7 +40,7 @@ export function applyPromoQuote(
   });
 
   items.forEach((original, i) => {
-    const line = quote.lines[i];
+    const line = skipProductIds.has(original.productId) ? undefined : quote.lines[i];
     if (!line) {
       result.push(original);
       return;
