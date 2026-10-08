@@ -39,11 +39,9 @@ export class PromoAutoApplyHttpAdapter implements PromoAutoApplyPort {
         body: JSON.stringify({
           depotId,
           channel,
-          // Fase 1 scope limitation: no categoryId plumbing yet (see Plan 2's Global
-          // Constraints). Category-scoped PromoRules never match from this call.
           lines: lines.map((l) => ({
             productId: l.productId,
-            categoryId: null,
+            categoryId: l.categoryId,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
           })),

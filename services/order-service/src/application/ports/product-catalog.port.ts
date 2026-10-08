@@ -9,6 +9,8 @@ export interface CatalogProduct {
   /** Refillable galon line — drives the per-galon delivery fee. */
   isGallon: boolean;
   basePrice: number;
+  /** Catalogue category, for category-scoped promo rules. Null when uncategorised. */
+  categoryId: string | null;
   /**
    * Primary catalogue photo, or null for a product that has none.
    *

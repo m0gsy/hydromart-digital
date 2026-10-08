@@ -458,7 +458,14 @@ export class OrderService {
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
     // wait out seven upstream calls end to end.
     const [
-      { items: pricedItems, subtotal: pricedSubtotal, tierPricedTotal, tieredProductIds, catalogFallback },
+      {
+        items: pricedItems,
+        subtotal: pricedSubtotal,
+        tierPricedTotal,
+        tieredProductIds,
+        categoryIdByProductId,
+        catalogFallback,
+      },
       resellerLookup,
     ] = await Promise.all([
       this.priceLines(depot.id, lines),
@@ -476,7 +483,12 @@ export class OrderService {
     const autoPromoQuote = await this.promoAutoApply.quote(
       depot.id,
       'APP',
-      pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+      pricedItems.map((i) => ({
+        productId: i.productId,
+        categoryId: categoryIdByProductId.get(i.productId) ?? null,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
 
@@ -743,6 +755,7 @@ export class OrderService {
     subtotal: number;
     tierPricedTotal: number;
     tieredProductIds: Set<string>;
+    categoryIdByProductId: Map<string, string | null>;
     /** Set when these are catalog prices standing in for the depot's own. */
     catalogFallback: 'DEPOT_UNREACHABLE' | 'NO_DEPOT' | null;
   }> {
@@ -2254,7 +2267,7 @@ export class OrderService {
      *  item-level pricing uses. */
     wantsDelivery = false,
   ): Promise<CounterBasketQuote> {
-    const { items: pricedItems, tierPricedTotal, tieredProductIds, catalogFallback } =
+    const { items: pricedItems, tierPricedTotal, tieredProductIds, categoryIdByProductId, catalogFallback } =
       await this.priceLines(depotId, lines);
     // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
     // membership/voucher discounting (same ordering as the app checkout path — see Plan 2's
@@ -2264,7 +2277,12 @@ export class OrderService {
     const autoPromoQuote = await this.promoAutoApply.quote(
       depotId,
       'COUNTER',
-      pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+      pricedItems.map((i) => ({
+        productId: i.productId,
+        categoryId: categoryIdByProductId.get(i.productId) ?? null,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
 

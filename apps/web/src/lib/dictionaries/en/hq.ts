@@ -1088,7 +1088,7 @@ export const hq = {
       depotIdHint: 'Leave blank for network-wide (all depots).',
       productId: 'Product (ID)',
       categoryId: 'Category (ID)',
-      categoryIdHint: "Does not match at checkout yet this phase — use Product (ID) for now.",
+      categoryIdHint: "Applies to every product in this category. Leave Product (ID) empty.",
       specialPrice: 'New price (Rp per unit)',
       buyQty: 'Buy (qty)',
       getQty: 'Free (qty)',

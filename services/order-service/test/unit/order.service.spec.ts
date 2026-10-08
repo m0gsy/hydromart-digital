@@ -3072,6 +3072,17 @@ describe('OrderService', () => {
     expect(order.subtotal).toBe(5000);
   });
 
+  it('sends the catalog categoryId of each cart line to the promo quote (category-scoped rules can match)', async () => {
+    const p = catalog.seed({ id: randomUUID(), basePrice: 20000, categoryId: 'cat-air' });
+    await cartService.setItem(customer, p.id, 1, false);
+
+    await service.checkout(customer, { deliveryAddress: address });
+
+    expect(promoAutoApply.quoteCalls[0].lines).toEqual([
+      { productId: p.id, categoryId: 'cat-air', quantity: 1, unitPrice: 20000 },
+    ]);
+  });
+
   /*
    * Fix 3 + Fix 7 (promo-order-integration review): promo-service has no way to learn a
    * depot's own delivery fee, so nothing stops a SHIPPING_DISCOUNT rule's override from
