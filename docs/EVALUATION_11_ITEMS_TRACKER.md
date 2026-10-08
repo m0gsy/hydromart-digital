@@ -1,6 +1,6 @@
 # Tracker: 11 Poin Evaluasi, Perbaikan & Pengembangan HYDROMART
 
-Status per 2026-10-02. Update dokumen ini setiap ada perubahan status, jangan buat dokumen baru.
+Status per 2026-10-09. Update dokumen ini setiap ada perubahan status, jangan buat dokumen baru.
 
 Legenda: ✅ Selesai (kode live di `main`) · 🟡 Sebagian · ⛔ Belum dimulai · 🧑‍💼 Blocked di aksi pemilik (bukan bug)
 
@@ -23,13 +23,23 @@ Browser-verify selesai 2026-10-02: upload CSV di `/dashboard/sales-import` (depo
 ## 4. Monitoring Progres Implementasi — ✅ (dokumen ini)
 Dokumen ini adalah deliverable item 4. Jangan buat file tracker lain — update yang ini.
 
-## 5. Pengembangan Sistem Promo dan Voucher — 🟡 (kode selesai, belum diverifikasi di produksi)
+## 5. Pengembangan Sistem Promo dan Voucher — 🟡 (semua kode selesai dan ter-deploy; menunggu verifikasi browser pemilik)
 Fase 1 (mesin promo auto-apply) selesai di kode: ketiga plan sudah merge ke main. 3 plan ditulis (`docs/superpowers/plans/2026-10-02-promo-auto-apply-engine-plan{1,2,3}-*.md`).
 - **Plan 1** (promo-service backend: schema PromoRule/PromoApplication, algoritma matching/stacking SPECIAL_PRICE/BUY_X_GET_Y/SHIPPING_DISCOUNT, repo, service CRUD+quote+apply, endpoint admin + internal) — **MERGED** ke main (PR #610, `2fd7a250`). 4 ronde whole-branch review.
 - **Plan 2** (integrasi order-service ke `checkout()`/`walkInSale()` — stok BOGO disumkan di 6 titik inventory, replay guard counter diperbaiki, shipping override di-cap ke tarif depot, voucher quote/redeem simetris pakai subtotal post-promo, minimum-order pakai subtotal pre-promo) — **MERGED** ke main (PR #611, `ce6197dc`). 3 ronde whole-branch review — ini kali pertama mesin promo menyentuh uang/stok sungguhan, dan terbukti: setiap task lolos review-nya sendiri, tapi baca keseluruhan branch menemukan bug Critical nyata di 2 ronde pertama (stok BOGO tidak pernah dikonsumsi di 5 titik, replay guard menolak retry sah, shipping override tanpa batas atas, lalu fix voucher-subtotal yang pertama justru salah hitung diskon). Ronde ke-3 tidak menemukan apa-apa lagi.
 - **Plan 3** (admin UI `/hq/promo-rules` + `/dashboard/promo-rules`) — **MERGED** ke main (PR #613, `e0ded7fb`). Bug nyata yang tertangkap CI sebelum merge: label hari disimpan sebagai array padahal `t()` hanya mengembalikan string (editor akan crash begitu dibuka), dan PATCH tanpa `seenUpdatedAt` akan selalu ditolak. Sisa PR: #614 (test regresi + `specialPrice >= 1`), #615 (patch advisory proxy-addr CRITICAL / source-map-js).
-**Belum dikerjakan:** (1) deploy + verifikasi browser manual per role (buat 1 rule tiap jenis, cek scope depot); (2) `scripts/screen-services.json` perlu di-record ulang (`--update-services`) pada browser pass berikutnya; (3) forecast-service menghitung ganda `orders` untuk baris gratis BOGO; (4) temuan UX yang diwarisi dari halaman Promotion: tombol Edit/Hapus tampil untuk rule network-wide di konsol depot (selalu 403), dan role read-only (HEAD_OFFICE/DIREKTUR) melihat tombol tulis.
-**Keputusan:** fase terbesar di daftar ini — dikerjakan di sesi terpisah (lihat Next Actions).
+**Lanjutan 2026-10-08/09 (semua merged + ter-deploy; tiap PR lolos CI, tes, lint, tsc dan semua `scripts/check-*`):**
+- Bug/UX lama ditutup: forecast tidak lagi menghitung ganda baris gratis BOGO (#617); tombol tulis disembunyikan untuk role read-only dan rule network-wide di konsol depot (#618); promo per kategori kini berlaku saat checkout (#619, `categoryId` sebelumnya selalu `null`).
+- **C. Stacking** promo + member + voucher dikunci dengan tes, tanpa ubah perilaku (#620).
+- **E. Audit diskon** — `docs/DISCOUNT_AUDIT_2026-10.md` (#621). E-2: keranjang kini menampilkan promo yang sama dengan checkout (#623). E-3: promo melewati baris harga grosir sehingga basis diskon reseller benar (#622). E-4: langganan sengaja tanpa promo otomatis.
+- **B. Voucher per produk/kategori** (satu produk ATAU satu kategori, tidak untuk gratis ongkir; voucher lama tetap whole-order; min. belanja tetap dinilai dari seluruh keranjang): promo-service + migration `voucher_item_scope` (#624), order-service mengirim baris keranjang pasca-promo di quote/redeem (#625), form HQ + checkout (#626), form voucher depot (#634), label "Khusus …" di dompet (#633 + #636).
+- **D. Admin UI promo**: picker produk/kategori/depot (#627), backend simulate + pemakaian (#628), pencarian/filter, duplikat, kolom pemakaian dan simulator "Coba rule" (#632). Editor form bersama HQ dan konsol depot.
+- **11. Jenis promo baru** (migration `promo_rule_kinds`): `PERCENTAGE_OFF`, `ORDER_DISCOUNT` (min. belanja → potongan nominal atau persen, dinilai dari subtotal pasca-promo barang, menumpuk dengan member + voucher dan di-cap ke subtotal), `BUNDLE_GIFT` (hadiah produk lain; kalau stok hadiah kurang, hadiah dilewati dan order tetap jalan), dan syarat `firstOrderOnly` untuk semua jenis (belum punya order aktif/selesai di mana pun; tidak diketahui = bukan baru). Harga bertingkat tidak butuh jenis baru — cukup beberapa rule `SPECIAL_PRICE` dengan `minQty`/`maxQty` (dikunci tes). promo-service #629, order-service #630, web #631.
+- Perbaikan tes: e2e order-service kini punya `CUSTOMER_SERVICE_URL` (#635); timeout `findBy`/`waitFor` web 5 dtk karena tes tak terkait gagal acak saat beban tinggi.
+- **Disengaja tidak dilakukan:** ongkir galon hadiah `BUNDLE_GIFT` tidak dihitung (ongkir diputuskan sebelum hadiah diketahui). Pengajuan voucher depot → persetujuan HQ tidak ada (rutenya dihapus CA-2-42); depot membuat voucher langsung di `/dashboard/vouchers`.
+- **Yang hanya bisa pemilik:** (1) verifikasi browser per role di produksi — satu rule tiap jenis baru, voucher berscope, simulator, filter/duplikat, kolom pemakaian, hadiah saat stok habis; (2) `scripts/screen-services.json` perlu di-record ulang (`--update-services`) pada browser pass berikutnya.
+**Catatan deploy:** `GlobalValidationPipe` menolak field tak dikenal, jadi perubahan kontrak selalu dipecah: promo-service dulu → tunggu deploy → order-service → web. Deploy "gagal" yang bertanda `not-shipped` berarti CI `main`-nya dibatalkan oleh merge berikutnya (tip terakhir yang di-deploy membawa semuanya), bukan error.
+
 
 ## 6. Pembatasan Akses Franchise Berdasarkan Depot — ✅
 `packages/platform/src/nest/depot-scope.ts:106` — `assertDepotOwnership()`: FRANCHISE_OWNER dicocokkan ke `Depot.ownerId` milik baris itu sendiri (bukan resolved-set, lebih kuat), fail-closed kalau `ownerId` null/unknown.
@@ -63,10 +73,12 @@ Bagian dari PR #608 — keputusan pemilik: merge penuh (bukan referensi saja) ke
 2. ~~Merge PR #608 dan #609~~ — done 2026-10-02.
 3. ~~Terapkan migration `imported_sales_transactions` ke PG produksi~~ — done, ter-apply otomatis oleh deploy #608 2026-10-02 10:02 UTC.
 4. ~~Browser-verify manual~~ — done 2026-10-02, semua 4 titik PASS (lihat item 3/8/10/11).
-5. Item 5 (promo/voucher overhaul) — sesi terpisah, scope besar. **NEXT.**
+5. ~~Item 5 (promo/voucher overhaul)~~ — kode selesai dan ter-deploy 2026-10-09 (lihat item 5). Sisa: verifikasi browser pemilik.
 6. ~~Item 7~~ — keputusan diambil 2026-10-02: ditunda (YAGNI), tidak perlu implementasi sekarang.
 
 ## Aksi Pemilik yang Masih Terbuka (bukan kode)
+- Item 5: verifikasi browser per role di produksi + re-record `scripts/screen-services.json`.
+- Depot BKS-GALAXY dan BKS-Pekayon belum punya tujuan pembayaran (pelanggan hanya ditawari tunai); depot waralaba BKS-JATIWARINGIN belum punya `commission_schemes` (komisi jatuh ke 0%) — peringatan dari probe deploy.
 - Zenziva: perpanjang kredit SMS OTP.
 - Isi data rekening/QRIS untuk 2 depot yang belum punya di PG produksi.
 - `PROMO_STORAGE_S3_*`: putuskan reuse bucket AUTH atau bucket promo sendiri, isi env produksi.
