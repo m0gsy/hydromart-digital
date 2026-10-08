@@ -11,6 +11,8 @@ import {
   VoucherCustomerLimitReachedError,
   VoucherExpiredError,
   VoucherInactiveError,
+  VoucherLinesRequiredError,
+  VoucherNotApplicableError,
   VoucherNotStartedError,
   VoucherNotYoursError,
   VoucherUsageExceededError,
@@ -37,8 +39,42 @@ export interface VoucherRules {
   active: boolean;
   /** CA-2-65: the depot this voucher belongs to; null = network-wide. */
   depotId?: string | null;
+  /** Item 5 (B): the one product / category the discount is limited to; both null = whole order. */
+  productId?: string | null;
+  categoryId?: string | null;
   /** PRM-4: 'PUBLIC' (anybody who types the code) or 'GRANTED' (only its grantees). */
   audience?: string;
+}
+
+/** One basket line, as far as a scoped voucher cares: what it is and what it costs. */
+export interface VoucherLine {
+  productId: string;
+  categoryId: string | null;
+  lineTotal: number;
+}
+
+/**
+ * The part of the basket a voucher's discount is worked out on.
+ *
+ * An unscoped voucher takes the whole subtotal, as every voucher always did. A scoped one takes
+ * only the matching lines (product wins if somehow both are set; creation forbids it). Without
+ * line items the answer is an error, never the whole subtotal: guessing "whole order" for a
+ * voucher that promised one product is exactly the over-discount this exists to stop.
+ * Minimum spend is still judged on the whole basket by the caller.
+ */
+export function eligibleSubtotal(
+  v: Pick<VoucherRules, 'productId' | 'categoryId'>,
+  subtotal: number,
+  lines?: readonly VoucherLine[],
+): number {
+  if (!v.productId && !v.categoryId) return subtotal;
+  if (!lines) throw new VoucherLinesRequiredError();
+  const matching = lines.filter((l) =>
+    v.productId ? l.productId === v.productId : l.categoryId === v.categoryId,
+  );
+  const sum = matching.reduce((total, l) => total + l.lineTotal, 0);
+  if (sum <= 0) throw new VoucherNotApplicableError();
+  return Math.min(sum, subtotal);
 }
 
 /**

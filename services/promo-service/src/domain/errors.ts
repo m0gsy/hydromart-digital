@@ -44,6 +44,32 @@ export class VoucherWrongDepotError extends DomainError {
 }
 
 /**
+ * Item 5 (B): the voucher is limited to one product or category and the basket has none of it.
+ *
+ * Refused at QUOTE for the same reason the depot check is: `redeem` fails OPEN, so a rule that
+ * only ran there would price the discount in and then let it stand.
+ */
+export class VoucherNotApplicableError extends DomainError {
+  readonly code = 'VOUCHER_NOT_APPLICABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Voucher ini hanya berlaku untuk produk tertentu yang tidak ada di keranjang.');
+  }
+}
+
+/**
+ * Item 5 (B): a scoped voucher was quoted with no line items. The caller cannot say which part
+ * of the basket qualifies, so the safe answer is no discount rather than the whole order's.
+ */
+export class VoucherLinesRequiredError extends DomainError {
+  readonly code = 'VOUCHER_LINES_REQUIRED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Voucher ini berlaku untuk produk tertentu; rincian keranjang diperlukan.');
+  }
+}
+
+/**
  * PRM-4: the code is real, but it was given to somebody else.
  *
  * A voucher granted to one customer used to be spendable by every customer who learned the

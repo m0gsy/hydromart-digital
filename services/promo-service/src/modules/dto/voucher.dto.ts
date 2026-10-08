@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  ValidateNested,
   IsISO8601,
   IsBoolean,
   IsDateString,
@@ -118,6 +121,20 @@ export class CreateVoucherDto {
   @IsOptional()
   @IsIn(['PUBLIC', 'GRANTED'])
   audience?: 'PUBLIC' | 'GRANTED';
+
+  /**
+   * Item 5 (B): limit the discount to ONE product or ONE category (never both; the service
+   * refuses that). Omitted = the whole order, as every voucher always was.
+   */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  productId?: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string | null;
 }
 
 export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {
@@ -134,6 +151,24 @@ export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+/** One basket line, so a product/category-scoped voucher can price only what it covers. */
+export class VoucherLineDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string | null;
+
+  @ApiProperty({ example: 40000, description: 'Line total in IDR, after any automatic promo.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lineTotal!: number;
 }
 
 export class QuoteVoucherDto {
@@ -169,6 +204,17 @@ export class QuoteVoucherDto {
   @IsOptional()
   @IsString()
   depotId?: string;
+
+  @ApiPropertyOptional({
+    type: [VoucherLineDto],
+    description: 'Basket lines. Required for a voucher limited to a product or category.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => VoucherLineDto)
+  lines?: VoucherLineDto[];
 }
 
 /**
@@ -229,6 +275,17 @@ export class RedeemVoucherDto {
   @IsOptional()
   @IsString()
   depotId?: string;
+
+  @ApiPropertyOptional({
+    type: [VoucherLineDto],
+    description: 'Basket lines. Required for a voucher limited to a product or category.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => VoucherLineDto)
+  lines?: VoucherLineDto[];
 }
 
 /* ---------- Responses ---------- */

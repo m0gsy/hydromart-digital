@@ -87,6 +87,8 @@ export class InMemoryVoucherRepository implements VoucherRepository {
       maxDiscount: data.maxDiscount,
       // CA-2-65: absent means network-wide, the same thing the column's null means.
       depotId: data.depotId ?? null,
+      productId: data.productId ?? null,
+      categoryId: data.categoryId ?? null,
       validFrom: data.validFrom,
       validUntil: data.validUntil,
       usageLimit: data.usageLimit,

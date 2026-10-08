@@ -79,7 +79,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as QuoteVoucherDto);
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 5000, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 5000, undefined, undefined);
   });
 
   // Counter sale: the caller is the cashier, so the wallet being quoted must be named
@@ -90,7 +90,7 @@ describe('VoucherController', () => {
       customerId: 'buyer-9',
       subtotal: 100000,
     } as unknown as QuoteVoucherDto & { customerId: string });
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 0, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 0, undefined, undefined);
   });
 
   it('quoteFor passes the shippingFee through when provided', async () => {
@@ -100,7 +100,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as QuoteVoucherDto & { customerId: string });
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 5000, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 5000, undefined, undefined);
   });
 
   it('quote defaults shippingFee to 0 when omitted', async () => {
@@ -108,7 +108,7 @@ describe('VoucherController', () => {
       code: 'HEMAT',
       subtotal: 100000,
     } as unknown as QuoteVoucherDto);
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 0, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 0, undefined, undefined);
   });
 
   it('redeem passes the shippingFee through when provided', async () => {
@@ -119,7 +119,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as RedeemVoucherDto);
-    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 5000, undefined);
+    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 5000, undefined, undefined);
   });
 
   it('redeem defaults shippingFee to 0 when omitted', async () => {
@@ -129,7 +129,7 @@ describe('VoucherController', () => {
       orderId: 'o1',
       subtotal: 100000,
     } as unknown as RedeemVoucherDto);
-    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 0, undefined);
+    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 0, undefined, undefined);
   });
 
   /*
@@ -142,7 +142,7 @@ describe('VoucherController', () => {
       subtotal: 100000,
       depotId: 'd-1',
     } as unknown as QuoteVoucherDto);
-    expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'user-1', 100000, 0, 'd-1');
+    expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'user-1', 100000, 0, 'd-1', undefined);
 
     await controller.redeem({
       code: 'HEMAT',
@@ -151,7 +151,23 @@ describe('VoucherController', () => {
       subtotal: 100000,
       depotId: 'd-1',
     } as never);
-    expect(vouchers.redeem).toHaveBeenLastCalledWith('HEMAT', 'c1', 'o1', 100000, 0, 'd-1');
+    expect(vouchers.redeem).toHaveBeenLastCalledWith('HEMAT', 'c1', 'o1', 100000, 0, 'd-1', undefined);
+  });
+
+  it('passes basket lines through on quote, quoteFor and redeem, defaulting a missing categoryId to null', async () => {
+    const lines = [{ productId: 'p-1', lineTotal: 40000 }, { productId: 'p-2', categoryId: 'c-1', lineTotal: 10000 }];
+    const mapped = [
+      { productId: 'p-1', categoryId: null, lineTotal: 40000 },
+      { productId: 'p-2', categoryId: 'c-1', lineTotal: 10000 },
+    ];
+    await controller.quote(user, { code: 'HEMAT', subtotal: 50000, lines } as unknown as QuoteVoucherDto);
+    expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'user-1', 50000, 0, undefined, mapped);
+
+    await controller.quoteFor({ code: 'HEMAT', customerId: 'b-1', subtotal: 50000, lines } as never);
+    expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'b-1', 50000, 0, undefined, mapped);
+
+    await controller.redeem({ code: 'HEMAT', customerId: 'c1', orderId: 'o1', subtotal: 50000, lines } as never);
+    expect(vouchers.redeem).toHaveBeenLastCalledWith('HEMAT', 'c1', 'o1', 50000, 0, undefined, mapped);
   });
 
   it('create maps full dto and parses dates', async () => {

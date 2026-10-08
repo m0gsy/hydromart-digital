@@ -31,6 +31,8 @@ interface VoucherRow {
   budgetCap: number | null;
   /** CA-2-65: null = network-wide, which is every row written before 0008. */
   depotId: string | null;
+  productId: string | null;
+  categoryId: string | null;
   /** PRM-4: 'PUBLIC' or 'GRANTED'; every row written before this column is PUBLIC. */
   audience: string;
   usedCount: number;

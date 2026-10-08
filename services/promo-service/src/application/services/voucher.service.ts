@@ -7,9 +7,11 @@ import {
 } from '../../domain/errors';
 import {
   DiscountType,
+  VoucherLine,
   VoucherStatus,
   classifyVoucherStatus,
   computeDiscount,
+  eligibleSubtotal,
   validateVoucher,
 } from '../../domain/voucher';
 import { Page, buildPage } from '../pagination';
@@ -112,6 +114,24 @@ export class VoucherService {
     }
   }
 
+  /**
+   * Item 5 (B): the item scope rules, whichever door the voucher came through. One product OR
+   * one category, never both (which one would win is a question nobody should have to ask),
+   * and never a FREE_SHIPPING voucher, which waives delivery and has no goods to scope.
+   */
+  private assertScopeSane(
+    discountType: DiscountType,
+    productId: string | null | undefined,
+    categoryId: string | null | undefined,
+  ): void {
+    if (productId && categoryId) {
+      throw new InvalidVoucherValueError('Pilih produk ATAU kategori, tidak keduanya.');
+    }
+    if ((productId || categoryId) && discountType === DiscountType.FREE_SHIPPING) {
+      throw new InvalidVoucherValueError('Voucher gratis ongkir tidak bisa dibatasi ke produk.');
+    }
+  }
+
   /** Create a voucher (admin). Code is stored UPPERCASE and must be unique. */
   async create(input: CreateVoucherData): Promise<VoucherRecord> {
     const code = input.code.toUpperCase();
@@ -122,6 +142,7 @@ export class VoucherService {
      * runs too.
      */
     this.assertMoneySane(input.discountType, input.value);
+    this.assertScopeSane(input.discountType, input.productId, input.categoryId);
     if (await this.repo.findByCode(code)) throw new DuplicateVoucherCodeError(code);
     return this.repo.create({ ...input, code });
   }
@@ -142,6 +163,11 @@ export class VoucherService {
     // PRM-6: the same money rules `create` enforces. A patch that changes only the value
     // is judged against the type the voucher already has.
     this.assertMoneySane(patch.discountType ?? current.discountType, patch.value ?? current.value);
+    this.assertScopeSane(
+      patch.discountType ?? current.discountType,
+      patch.productId === undefined ? current.productId : patch.productId,
+      patch.categoryId === undefined ? current.categoryId : patch.categoryId,
+    );
     return this.repo.update(id, patch);
   }
 
@@ -230,6 +256,7 @@ export class VoucherService {
     subtotal: number,
     shippingFee = 0,
     depotId?: string | null,
+    lines?: readonly VoucherLine[],
   ): Promise<QuoteResult> {
     const voucher = await this.getByCode(code);
     // PRM-4: a GRANTED voucher is only spendable by the people it was given to.
@@ -238,7 +265,7 @@ export class VoucherService {
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
     // computeDiscount is pure and never throws, so it can run before validation — the
     // budget rule needs this order's own discount to enforce a hard cap.
-    const discount = computeDiscount(voucher, subtotal, shippingFee);
+    const discount = computeDiscount(voucher, eligibleSubtotal(voucher, subtotal, lines), shippingFee);
     validateVoucher(
       voucher,
       subtotal,
@@ -284,6 +311,7 @@ export class VoucherService {
     subtotal: number,
     shippingFee = 0,
     depotId?: string | null,
+    lines?: readonly VoucherLine[],
   ): Promise<RedeemResult> {
     const existing = await this.repo.findRedemptionByOrder(orderId);
     if (existing) {
@@ -301,7 +329,7 @@ export class VoucherService {
     const redemption = await this.repo.redeemAtomic(
       { voucherId: voucher.id, voucherCode: voucher.code, customerId, orderId },
       ({ usedCount, customerRedemptions, burned }) => {
-        const discount = computeDiscount(voucher, subtotal, shippingFee);
+        const discount = computeDiscount(voucher, eligibleSubtotal(voucher, subtotal, lines), shippingFee);
         // Throws on a cap violation, which rolls the transaction back — so a voucher that
         // ran out between quote and redeem burns nothing.
         validateVoucher(

@@ -4,6 +4,8 @@ import {
   VoucherCustomerLimitReachedError,
   VoucherExpiredError,
   VoucherInactiveError,
+  VoucherLinesRequiredError,
+  VoucherNotApplicableError,
   VoucherNotStartedError,
   VoucherUsageExceededError,
   VoucherWrongDepotError,
@@ -12,6 +14,7 @@ import {
   DiscountType,
   VoucherRules,
   computeDiscount,
+  eligibleSubtotal,
   validateVoucher,
 } from '../../src/domain/voucher';
 
@@ -191,5 +194,51 @@ describe('validateVoucher depot scope (CA-2-65)', () => {
     expect(() => validateVoucher(rules({ depotId: 'd-1' }), 60000, now, 0, 0, 0, null)).toThrow(
       VoucherWrongDepotError,
     );
+  });
+});
+
+describe('eligibleSubtotal (item 5 B: product / category scoped vouchers)', () => {
+  const lines = [
+    { productId: 'p-1', categoryId: 'c-air', lineTotal: 40000 },
+    { productId: 'p-2', categoryId: 'c-air', lineTotal: 10000 },
+    { productId: 'p-3', categoryId: 'c-snack', lineTotal: 5000 },
+  ];
+
+  it('an unscoped voucher takes the whole subtotal and needs no lines', () => {
+    expect(eligibleSubtotal(rules(), 55000)).toBe(55000);
+    expect(eligibleSubtotal(rules(), 55000, lines)).toBe(55000);
+  });
+
+  it('a product-scoped voucher takes only that product', () => {
+    expect(eligibleSubtotal(rules({ productId: 'p-1' }), 55000, lines)).toBe(40000);
+  });
+
+  it('a category-scoped voucher takes every line in the category', () => {
+    expect(eligibleSubtotal(rules({ categoryId: 'c-air' }), 55000, lines)).toBe(50000);
+  });
+
+  it('refuses a scoped voucher when the basket has none of it', () => {
+    expect(() => eligibleSubtotal(rules({ productId: 'p-9' }), 55000, lines)).toThrow(
+      VoucherNotApplicableError,
+    );
+  });
+
+  it('a BOGO free row (line total 0) alone does not qualify', () => {
+    expect(() =>
+      eligibleSubtotal(rules({ productId: 'p-1' }), 0, [{ productId: 'p-1', categoryId: null, lineTotal: 0 }]),
+    ).toThrow(VoucherNotApplicableError);
+  });
+
+  it('refuses a scoped voucher when no lines were sent, never falling back to the whole order', () => {
+    expect(() => eligibleSubtotal(rules({ productId: 'p-1' }), 55000)).toThrow(VoucherLinesRequiredError);
+  });
+
+  it('never exceeds the subtotal', () => {
+    expect(eligibleSubtotal(rules({ categoryId: 'c-air' }), 30000, lines)).toBe(30000);
+  });
+
+  it('a percentage voucher then discounts only the eligible part', () => {
+    const v = rules({ value: 10, categoryId: 'c-snack' });
+    expect(computeDiscount(v, eligibleSubtotal(v, 55000, lines))).toBe(500); // 10% of 5000, not of 55000
   });
 });
