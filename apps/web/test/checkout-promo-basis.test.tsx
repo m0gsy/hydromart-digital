@@ -62,7 +62,7 @@ const line = (unitPrice: number) => ({
 });
 
 const CART = {
-  items: [line(10_000)],
+  items: [{ ...line(10_000), categoryId: 'cat-air' }],
   subtotal: 10_000,
   depotId: 'd-1',
   pricingBasis: 'DEPOT',
@@ -116,5 +116,8 @@ describe('checkout prices on the post-promo basket (item 5)', () => {
 
     // 10.000 less the 2.000 promo; ongkir = min(promo 1.000, depot 5.000) x (1 paid + 1 free) galons.
     expect(quoteCalls()[0]![1]).toMatchObject({ subtotal: 8_000, shippingFee: 2_000 });
+    // A product/category-scoped voucher is priced on these lines, so they ride along: the paid
+    // line with its category, post-promo (the free unit is 0 and not listed).
+    expect(quoteCalls()[0]![1].lines).toEqual([{ productId: 'p1', categoryId: 'cat-air', lineTotal: 10_000 }]);
   });
 });

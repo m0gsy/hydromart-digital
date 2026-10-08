@@ -1,7 +1,7 @@
 // Pure helpers for the dynamic-pricing console. Covered by test/pricing.test.ts.
 // Client-side pre-validation mirrors depot-service's DTO; the server stays authority.
 
-import type { CartLine, PricingAdjustType, PricingRulePayload, ResolvedPrice } from './types';
+import type { Cart, CartLine, PricingAdjustType, PricingRulePayload, ResolvedPrice } from './types';
 
 /**
  * Galons in a cart. Delivery is charged per galon (fee × this), so bottled dus and
@@ -50,6 +50,24 @@ export function memberDiscount(subtotal: number, rate: number): number {
  * voucher quote sends it to promo-service, whose DTO takes an `@IsInt()` — a fractional fee
  * would come back 400 and read on screen as "voucher ditolak".
  */
+/**
+ * The basket as a voucher limited to a product or category sees it: one entry per line at its
+ * POST-promo total, because that is what the server prices the voucher on (free BOGO units are
+ * 0 and add nothing, so they are not listed). A line a promo did not touch keeps its own total.
+ */
+export function voucherLinesFor(
+  cart: Pick<Cart, 'items' | 'promo'>,
+): { productId: string; categoryId: string | null; lineTotal: number }[] {
+  return cart.items.map((item) => {
+    const promoLine = cart.promo?.lines.find((l) => l.productId === item.productId);
+    return {
+      productId: item.productId,
+      categoryId: item.categoryId ?? null,
+      lineTotal: promoLine ? promoLine.unitPriceAfter * item.quantity : item.lineTotal,
+    };
+  });
+}
+
 export function shippingFeeFor(perGalonFee: number, items: CartLine[]): number {
   return money(perGalonFee * galonQuantity(items));
 }

@@ -145,4 +145,9 @@ describe('CartService promo preview', () => {
     await svc.view(customer, depot, 'Bearer t');
     expect(promo.quoteCalls[0].lines[0]).toMatchObject({ productId, skipPromo: true });
   });
+
+  it('puts the catalog category on each line, for category-scoped vouchers', async () => {
+    const v = await view();
+    expect(v.items[0].categoryId).toBe('cat-air');
+  });
 });
