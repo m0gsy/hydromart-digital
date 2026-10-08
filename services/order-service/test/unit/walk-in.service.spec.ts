@@ -1231,6 +1231,40 @@ describe('OrderService.walkInSale', () => {
       expect(promo.redeemCalls[0]).toMatchObject({ code: 'HEMAT10', orderId: order.id });
     });
 
+    /*
+     * Plan 2 minors: checkout() has a test that the voucher is quoted AND redeemed on the
+     * same POST-promo subtotal. The counter path reaches the same two promo calls through a
+     * different route (priceCounterBasket → counterDiscount → quoteFor, then walkInSale →
+     * redeem) and had no equivalent — and "quote and redeem disagree on the subtotal" is
+     * exactly the money bug an earlier fix batch introduced and then had to revert.
+     */
+    it('quotes AND redeems a voucher on the POST-promo subtotal, never the pre-promo one', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      // 5 × 20000 = 100000 pre-promo; a special price of 16000 cuts it to 80000.
+      promoAutoApply.quoteResult = {
+        lines: [
+          { productId: product.id, appliedRuleIds: ['special-1'], unitPriceAfter: 16000, freeQty: 0, lineTotal: 80000 },
+        ],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+      };
+      promo.quoteDiscount = 8000;
+
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: product.id, quantity: 5 }],
+        customerId: randomUUID(),
+        customerPhone: '0812',
+        voucherCode: 'HEMAT10',
+      });
+
+      expect(order.subtotal).toBe(80000);
+      expect(promo.quoteForCalls).toHaveLength(1);
+      expect(promo.redeemCalls).toHaveLength(1);
+      expect(promo.quoteForCalls[0].subtotal).toBe(80000);
+      expect(promo.redeemCalls[0].subtotal).toBe(promo.quoteForCalls[0].subtotal);
+    });
+
     it('stacks the tier and the voucher, capped at the goods', async () => {
       membership.rate = 0.5;
       promo.quoteDiscount = 30000;

@@ -42,6 +42,30 @@ describe('CreatePromoRuleDto', () => {
   });
 });
 
+describe('specialPrice lower bound (>= 1)', () => {
+  // A SPECIAL_PRICE of 0 would be indistinguishable from a BOGO free row to order-service's
+  // collapsePromoFreeRows (unitPrice === 0), which would break the C8 replay guard.
+  const base = { name: 'x', kind: 'SPECIAL_PRICE' };
+  const errorsFor = async (cls: new () => object, body: Record<string, unknown>) =>
+    (await validate(plainToInstance(cls, body))).map((e) => e.property);
+
+  it('rejects specialPrice 0 on create', async () => {
+    expect(await errorsFor(CreatePromoRuleDto, { ...base, specialPrice: 0 })).toContain(
+      'specialPrice',
+    );
+  });
+
+  it('rejects specialPrice 0 on update (inherited from the create DTO)', async () => {
+    expect(await errorsFor(UpdatePromoRuleDto, { specialPrice: 0 })).toContain('specialPrice');
+  });
+
+  it('still accepts specialPrice 1', async () => {
+    expect(await errorsFor(CreatePromoRuleDto, { ...base, specialPrice: 1 })).not.toContain(
+      'specialPrice',
+    );
+  });
+});
+
 describe('UpdatePromoRuleDto · name/kind null guard', () => {
   const errors = async (body: Record<string, unknown>) =>
     (await validate(plainToInstance(UpdatePromoRuleDto, body))).map((e) => e.property);
