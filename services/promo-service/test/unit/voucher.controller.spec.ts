@@ -54,6 +54,8 @@ describe('VoucherController', () => {
           minSpend: 50000,
           maxDiscount: 20000,
           validUntil: new Date('2026-02-01T00:00:00.000Z'),
+          productId: 'p-1',
+          categoryId: null,
         },
       },
     ]);
@@ -68,6 +70,8 @@ describe('VoucherController', () => {
         minSpend: 50000,
         maxDiscount: 20000,
         validUntil: new Date('2026-02-01T00:00:00.000Z'),
+        productId: 'p-1',
+        categoryId: null,
         status: 'ACTIVE',
       },
     ]);

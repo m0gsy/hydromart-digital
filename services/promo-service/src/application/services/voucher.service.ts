@@ -50,6 +50,9 @@ export interface PublicVoucherPreview {
   minSpend: number;
   maxDiscount: number | null;
   validUntil: Date | null;
+  /** Item 5 (B): the one product / category this code is limited to; both null = whole order. */
+  productId: string | null;
+  categoryId: string | null;
 }
 
 export interface WalletVoucher {
@@ -214,6 +217,8 @@ export class VoucherService {
       minSpend: voucher.minSpend,
       maxDiscount: voucher.maxDiscount,
       validUntil: voucher.validUntil,
+      productId: voucher.productId,
+      categoryId: voucher.categoryId,
     };
   }
 
