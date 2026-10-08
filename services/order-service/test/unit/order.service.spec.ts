@@ -2307,6 +2307,47 @@ describe('OrderService', () => {
       });
 
       /*
+       * Plan 2 minors: `assignDepot` and `releaseStock` both route through `stockLinesFor`,
+       * but unlike reserveThenCreate / void-restock / reroute / consume they had no test
+       * pinning that for a BOGO-matched (two-rows-per-product) order — a raw `.map()` would
+       * send inventory two lines for one product and trip its unique-per-order constraint.
+       */
+      const bogoOrder = async (): Promise<{ id: string; productId: string }> => {
+        const productId = await addToCart(8000, 4);
+        promoAutoApply.quoteResult = {
+          lines: [
+            { productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+          ],
+          shippingAppliedRuleId: null,
+          shippingFeeOverride: null,
+        };
+        const order = await service.checkout(customer, { deliveryAddress: address });
+        expect(order.items).toHaveLength(2); // paid row (4) + free row (1)
+        return { id: order.id, productId };
+      };
+
+      it('reserves ONE summed entry per product when assigning a depot to a BOGO-matched order', async () => {
+        const { id, productId } = await bogoOrder();
+        orders.rows.find((r) => r.id === id)!.depotId = null;
+        inventory.reserveCalls.length = 0;
+
+        await service.assignDepot(id, homeDepot.id, 'Bearer tok');
+
+        expect(inventory.reserveCalls).toHaveLength(1);
+        expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+      });
+
+      it('releases ONE summed entry per product when cancelling a BOGO-matched order', async () => {
+        const { id, productId } = await bogoOrder();
+        inventory.releaseCalls.length = 0;
+
+        await service.cancel(customer, id, 'changed mind', 'Bearer tok');
+
+        expect(inventory.releaseCalls).toHaveLength(1);
+        expect(inventory.releaseCalls[0].items).toEqual([{ productId, quantity: 5 }]);
+      });
+
+      /*
        * K2.7 — routing an order to a depot IS the promise that the depot will fill it, so
        * the stock is held when the promise is made.
        *
