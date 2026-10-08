@@ -9,6 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { effectiveDepotIdFor } from '@/lib/promo-rule-depot';
 import { useAsync } from '@/lib/use-async';
 import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRulePayload } from '@/lib/types';
 
@@ -53,20 +54,6 @@ function formFrom(r: PromoRule): RuleForm {
     minQty: String(r.minQty), maxQty: r.maxQty != null ? String(r.maxQty) : '',
     channels: r.channels, active: r.active,
   };
-}
-
-/**
- * Editing an existing rule must preserve its OWN depotId (never the console's currently
- * active depot, which a multi-depot-scoped caller could have pointed anywhere) — only a
- * brand-new rule defaults to the active depot. Exported so this one branch, which already
- * regressed once (silently moving a rule between depots on save), has a test that doesn't
- * need to render the page.
- */
-export function effectiveDepotIdFor(
-  rule: PromoRule | null,
-  activeDepotId: string | null,
-): string | null {
-  return rule ? rule.depotId : activeDepotId;
 }
 
 function toPayload(f: RuleForm, depotId: string | null): PromoRulePayload {

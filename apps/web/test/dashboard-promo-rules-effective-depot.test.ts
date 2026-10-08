@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { effectiveDepotIdFor } from '@/app/dashboard/promo-rules/page';
+import { effectiveDepotIdFor } from '@/lib/promo-rule-depot';
 import type { PromoRule } from '@/lib/types';
 
 const rule = (overrides: Partial<PromoRule> = {}): PromoRule => ({
