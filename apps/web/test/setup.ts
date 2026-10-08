@@ -1,10 +1,17 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
 // Vitest doesn't auto-register RTL cleanup (no globals) — do it once here so
 // mounted trees don't leak across tests.
 afterEach(cleanup);
+
+// `findBy*` and `waitFor` give up after 1s by default. Under `--coverage` on a busy machine (and
+// on the shared CI runner) a render that fetches before it draws can take longer than that, and
+// the test fails with "Unable to find …" although nothing is wrong: two unrelated files did
+// exactly that in the same run. A longer ceiling costs nothing when the element appears, and a
+// genuinely missing one still fails, five seconds later (see also `testTimeout` in vitest.config).
+configure({ asyncUtilTimeout: 5000 });
 
 // Vitest's jsdom environment hands over `window.localStorage` as a bare object with none
 // of Storage's methods on it, so any code that persists something throws `setItem is not

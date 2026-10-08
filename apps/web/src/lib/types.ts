@@ -204,7 +204,13 @@ export interface PromotionAnalytics {
   orderValueSource: 'ok' | 'unavailable' | 'not_applicable';
 }
 
-export type PromoRuleKind = 'SPECIAL_PRICE' | 'BUY_X_GET_Y' | 'SHIPPING_DISCOUNT';
+export type PromoRuleKind =
+  | 'SPECIAL_PRICE'
+  | 'BUY_X_GET_Y'
+  | 'SHIPPING_DISCOUNT'
+  | 'PERCENTAGE_OFF'
+  | 'ORDER_DISCOUNT'
+  | 'BUNDLE_GIFT';
 export type PromoRuleChannel = 'APP' | 'COUNTER';
 
 export interface PromoRule {
@@ -218,6 +224,11 @@ export interface PromoRule {
   buyQty: number | null;
   getQty: number | null;
   shippingFeeOverride: number | null;
+  percentOff: number | null;
+  minSubtotal: number | null;
+  discountAmount: number | null;
+  giftProductId: string | null;
+  firstOrderOnly: boolean;
   validFrom: string | null;
   validUntil: string | null;
   daysOfWeek: number[];
@@ -241,6 +252,11 @@ export interface PromoRulePayload {
   buyQty?: number | null;
   getQty?: number | null;
   shippingFeeOverride?: number | null;
+  percentOff?: number | null;
+  minSubtotal?: number | null;
+  discountAmount?: number | null;
+  giftProductId?: string | null;
+  firstOrderOnly?: boolean;
   validFrom?: string | null;
   validUntil?: string | null;
   daysOfWeek?: number[];
@@ -326,6 +342,10 @@ export interface CartPromo {
   savings: number;
   lines: { productId: string; unitPriceAfter: number; freeQty: number }[];
   shippingFeeOverride: number | null;
+  /** ORDER_DISCOUNT: rupiah off the goods, on top of `savings`. Absent on an older API. */
+  orderDiscount?: number;
+  /** BUNDLE_GIFT: free products the basket earns (named, summed per product). */
+  gifts?: { productId: string; productName: string; quantity: number }[];
 }
 
 export interface Cart {

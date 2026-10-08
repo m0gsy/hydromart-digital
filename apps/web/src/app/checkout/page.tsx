@@ -433,6 +433,9 @@ function CheckoutInner() {
   // pre-promo subtotal — the same two bases order.service.ts uses.
   const promoSavings = cart?.promo?.savings ?? 0;
   const goodsSubtotal = cart ? cart.subtotal - promoSavings : 0;
+  // ORDER_DISCOUNT joins the goods discount below; BUNDLE_GIFT is shown, not priced.
+  const promoOrderDiscount = cart?.promo?.orderDiscount ?? 0;
+  const promoGifts = cart?.promo?.gifts ?? [];
   // A SHIPPING_DISCOUNT replaces the per-galon fee (never above the depot's own), and the free
   // BOGO units are delivered too, so they count as galons — as in order.service.ts.
   const promoShippingOverride = cart?.promo?.shippingFeeOverride ?? null;
@@ -802,7 +805,7 @@ function CheckoutInner() {
   // never eat into the delivery fee. The shipping waiver is applied separately below.
   const goodsDiscount = Math.min(
     goodsSubtotal,
-    membershipDiscount + voucherValueDiscount + (resellerDiscount ?? 0),
+    membershipDiscount + voucherValueDiscount + (resellerDiscount ?? 0) + promoOrderDiscount,
   );
   const estimatedTotal = goodsSubtotal - goodsDiscount;
   const displayedTotal = estimatedTotal + deliveryFee + expressFee - shippingDiscount;
@@ -1458,6 +1461,24 @@ function CheckoutInner() {
             <span className="font-bold">
               −<Money amount={promoSavings} />
             </span>
+          </div>
+        )}
+        {promoOrderDiscount > 0 && (
+          <div className="flex justify-between text-[color:var(--success)]">
+            <span>{t('order.cart.orderDiscount')}</span>
+            <span className="font-bold">
+              −<Money amount={promoOrderDiscount} />
+            </span>
+          </div>
+        )}
+        {promoGifts.length > 0 && (
+          <div className="flex flex-col gap-0.5 text-xs text-[color:var(--success)]">
+            {promoGifts.map((g) => (
+              <span key={g.productId} className="font-semibold">
+                {t('order.cart.giftLine', { qty: g.quantity, name: g.productName })}
+              </span>
+            ))}
+            <span className="text-muted">{t('order.cart.giftNote')}</span>
           </div>
         )}
         {/* A1: catalog prices are labelled, never passed off as the depot's. */}

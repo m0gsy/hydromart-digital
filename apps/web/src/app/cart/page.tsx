@@ -107,6 +107,9 @@ function CartInner() {
     lines.length === data.items.length &&
     lines.every((l) => data.items.some((d) => d.productId === l.productId && d.quantity === l.quantity));
   const promoOff = promoMatches ? data!.promo!.savings : 0;
+  // ORDER_DISCOUNT and BUNDLE_GIFT ride the same preview and are trusted on the same terms.
+  const orderOff = promoMatches ? (data!.promo!.orderDiscount ?? 0) : 0;
+  const promoGifts = promoMatches ? (data!.promo!.gifts ?? []) : [];
   const memberOff = memberDiscount(subtotal - promoOff, rate);
   /*
    * `reseller.discount` is null when these are catalogue prices, and null is not zero: it
@@ -115,7 +118,9 @@ function CartInner() {
    */
   const resellerOff = resellerApplies ? data!.reseller!.discount : null;
   const discount = resellerApplies ? (resellerOff ?? 0) : memberOff;
-  const total = subtotal - promoOff - discount;
+  // Capped at the goods the way the server caps the whole stack: never into the delivery fee.
+  const goods = subtotal - promoOff;
+  const total = goods - Math.min(goods, discount + orderOff);
 
   async function setQuantity(productId: string, quantity: number) {
     const prev = lines;
@@ -261,6 +266,24 @@ function CartInner() {
           <span className="font-bold text-[color:var(--success)]">
             −<Money amount={promoOff} />
           </span>
+        </div>
+      )}
+      {orderOff > 0 && (
+        <div className="flex justify-between text-[14px]">
+          <span className="text-muted">{t('order.cart.orderDiscount')}</span>
+          <span className="font-bold text-[color:var(--success)]">
+            −<Money amount={orderOff} />
+          </span>
+        </div>
+      )}
+      {promoGifts.length > 0 && (
+        <div className="flex flex-col gap-0.5 text-[13.5px]">
+          {promoGifts.map((g) => (
+            <span key={g.productId} className="font-semibold text-[color:var(--success)]">
+              {t('order.cart.giftLine', { qty: g.quantity, name: g.productName })}
+            </span>
+          ))}
+          <span className="text-[12px] text-muted">{t('order.cart.giftNote')}</span>
         </div>
       )}
       {rate > 0 && (

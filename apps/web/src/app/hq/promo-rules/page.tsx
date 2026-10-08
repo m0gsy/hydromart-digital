@@ -13,109 +13,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRulePayload } from '@/lib/types';
-
-interface RuleForm {
-  name: string;
-  kind: PromoRuleKind;
-  depotId: string;
-  productId: string;
-  categoryId: string;
-  specialPrice: string;
-  buyQty: string;
-  getQty: string;
-  shippingFeeOverride: string;
-  validFrom: string;
-  validUntil: string;
-  daysOfWeek: number[];
-  startTime: string;
-  endTime: string;
-  minQty: string;
-  maxQty: string;
-  channels: PromoRuleChannel[];
-  active: boolean;
-}
-
-const EMPTY: RuleForm = {
-  name: '', kind: 'SPECIAL_PRICE', depotId: '', productId: '', categoryId: '',
-  specialPrice: '', buyQty: '', getQty: '', shippingFeeOverride: '',
-  validFrom: '', validUntil: '', daysOfWeek: [], startTime: '', endTime: '',
-  minQty: '1', maxQty: '', channels: [], active: true,
-};
-
-function formFrom(r: PromoRule): RuleForm {
-  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
-  return {
-    name: r.name, kind: r.kind, depotId: r.depotId ?? '', productId: r.productId ?? '',
-    categoryId: r.categoryId ?? '',
-    specialPrice: r.specialPrice != null ? String(r.specialPrice) : '',
-    buyQty: r.buyQty != null ? String(r.buyQty) : '',
-    getQty: r.getQty != null ? String(r.getQty) : '',
-    shippingFeeOverride: r.shippingFeeOverride != null ? String(r.shippingFeeOverride) : '',
-    validFrom: day(r.validFrom), validUntil: day(r.validUntil),
-    daysOfWeek: r.daysOfWeek, startTime: r.startTime ?? '', endTime: r.endTime ?? '',
-    minQty: String(r.minQty), maxQty: r.maxQty != null ? String(r.maxQty) : '',
-    channels: r.channels, active: r.active,
-  };
-}
-
-function toPayload(f: RuleForm): PromoRulePayload {
-  const orNull = (s: string) => (s.trim() ? s.trim() : null);
-  const numOrNull = (s: string) => (s.trim() ? Number(s) : null);
-  const dateOrNull = (s: string) => (s ? new Date(s).toISOString() : null);
-  return {
-    name: f.name.trim(),
-    kind: f.kind,
-    depotId: orNull(f.depotId),
-    productId: orNull(f.productId),
-    categoryId: orNull(f.categoryId),
-    specialPrice: f.kind === 'SPECIAL_PRICE' ? numOrNull(f.specialPrice) : null,
-    buyQty: f.kind === 'BUY_X_GET_Y' ? numOrNull(f.buyQty) : null,
-    getQty: f.kind === 'BUY_X_GET_Y' ? numOrNull(f.getQty) : null,
-    shippingFeeOverride: f.kind === 'SHIPPING_DISCOUNT' ? numOrNull(f.shippingFeeOverride) : null,
-    validFrom: dateOrNull(f.validFrom),
-    validUntil: dateOrNull(f.validUntil),
-    daysOfWeek: f.daysOfWeek,
-    startTime: orNull(f.startTime),
-    endTime: orNull(f.endTime),
-    minQty: Number(f.minQty) || 1,
-    maxQty: numOrNull(f.maxQty),
-    channels: f.channels,
-    active: f.active,
-  };
-}
-
-function KindFields({ form, set }: { form: RuleForm; set: (k: keyof RuleForm) => (e: { target: { value: string } }) => void }) {
-  const { t } = useT();
-  if (form.kind === 'SPECIAL_PRICE') {
-    return (
-      <Field label={t('hq.promoRules.fields.specialPrice')}>
-        <Input type="number" value={form.specialPrice} onChange={set('specialPrice')} />
-      </Field>
-    );
-  }
-  if (form.kind === 'BUY_X_GET_Y') {
-    return (
-      <>
-        <Field label={t('hq.promoRules.fields.buyQty')}>
-          <Input type="number" value={form.buyQty} onChange={set('buyQty')} />
-        </Field>
-        <Field label={t('hq.promoRules.fields.getQty')}>
-          <Input type="number" value={form.getQty} onChange={set('getQty')} />
-        </Field>
-      </>
-    );
-  }
-  return (
-    <Field label={t('hq.promoRules.fields.shippingFeeOverride')}>
-      <Input type="number" value={form.shippingFeeOverride} onChange={set('shippingFeeOverride')} />
-    </Field>
-  );
-}
+import { PromoFirstOrderField, PromoKindFields, PromoKindSelect } from '@/components/promo-rule-kind-fields';
+import { EMPTY_RULE_FORM, type RuleForm, isOrderLevelKind, ruleFormFrom, ruleFormToPayload, validateRuleForm } from '@/lib/promo-rule-form';
+import type { PromoRule, PromoRuleChannel } from '@/lib/types';
 
 function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone: () => void; onCancel: () => void }) {
   const { t } = useT();
-  const [form, setForm] = useState<RuleForm>(rule ? formFrom(rule) : EMPTY);
+  const [form, setForm] = useState<RuleForm>(rule ? ruleFormFrom(rule) : EMPTY_RULE_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -138,14 +42,15 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
   }
 
   async function submit() {
-    if (!form.name.trim()) {
-      setError(t('hq.promoRules.needName'));
+    const problem = validateRuleForm(form);
+    if (problem) {
+      setError(t(`hq.promoRules.${problem}`));
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const payload = toPayload(form);
+      const payload = ruleFormToPayload(form, form.depotId.trim() || null);
       if (rule) {
         await api.patch(
           endpoints.promoRules.detail(rule.id),
@@ -171,17 +76,7 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
         <Field label={t('hq.promoRules.fields.name')}>
           <Input value={form.name} onChange={set('name')} />
         </Field>
-        <Field label={t('hq.promoRules.fields.kind')}>
-          <select
-            className="w-full rounded-lg border border-app bg-surface px-3 py-2.5 text-sm"
-            value={form.kind}
-            onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as PromoRuleKind }))}
-          >
-            <option value="SPECIAL_PRICE">{t('hq.promoRules.fields.kindSpecialPrice')}</option>
-            <option value="BUY_X_GET_Y">{t('hq.promoRules.fields.kindBogo')}</option>
-            <option value="SHIPPING_DISCOUNT">{t('hq.promoRules.fields.kindShipping')}</option>
-          </select>
-        </Field>
+        <PromoKindSelect ns="hq" form={form} setForm={setForm} />
         <Field label={t('hq.promoRules.fields.depotId')} hint={t('hq.promoRules.fields.depotIdHint')}>
           <DepotSelect
             value={form.depotId}
@@ -189,21 +84,26 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
             emptyLabel={t('hq.promoRules.fields.anyDepot')}
           />
         </Field>
-        <Field label={t('hq.promoRules.fields.productId')}>
-          <ProductSelect
-            value={form.productId}
-            onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
-            emptyLabel={t('hq.promoRules.fields.anyProduct')}
-          />
-        </Field>
-        <Field label={t('hq.promoRules.fields.categoryId')} hint={t('hq.promoRules.fields.categoryIdHint')}>
-          <CategorySelect
-            value={form.categoryId}
-            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
-            emptyLabel={t('hq.promoRules.fields.anyCategory')}
-          />
-        </Field>
-        <KindFields form={form} set={set} />
+        {!isOrderLevelKind(form.kind) && (
+          <>
+            <Field label={t('hq.promoRules.fields.productId')}>
+              <ProductSelect
+                value={form.productId}
+                onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
+                emptyLabel={t('hq.promoRules.fields.anyProduct')}
+              />
+            </Field>
+            <Field label={t('hq.promoRules.fields.categoryId')} hint={t('hq.promoRules.fields.categoryIdHint')}>
+              <CategorySelect
+                value={form.categoryId}
+                onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+                emptyLabel={t('hq.promoRules.fields.anyCategory')}
+              />
+            </Field>
+          </>
+        )}
+        <PromoKindFields ns="hq" form={form} setForm={setForm} />
+        <PromoFirstOrderField ns="hq" form={form} setForm={setForm} />
         <Field label={t('hq.promoRules.fields.validFrom')}>
           <Input type="date" value={form.validFrom} onChange={set('validFrom')} />
         </Field>
@@ -216,12 +116,16 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
         <Field label={t('hq.promoRules.fields.endTime')}>
           <Input type="time" value={form.endTime} onChange={set('endTime')} />
         </Field>
-        <Field label={t('hq.promoRules.fields.minQty')}>
-          <Input type="number" value={form.minQty} onChange={set('minQty')} />
-        </Field>
-        <Field label={t('hq.promoRules.fields.maxQty')}>
-          <Input type="number" value={form.maxQty} onChange={set('maxQty')} />
-        </Field>
+        {!isOrderLevelKind(form.kind) && (
+          <>
+            <Field label={t('hq.promoRules.fields.minQty')}>
+              <Input type="number" value={form.minQty} onChange={set('minQty')} />
+            </Field>
+            <Field label={t('hq.promoRules.fields.maxQty')}>
+              <Input type="number" value={form.maxQty} onChange={set('maxQty')} />
+            </Field>
+          </>
+        )}
         <Field label={t('hq.promoRules.fields.daysOfWeek')}>
           <div className="flex flex-wrap gap-2">
             {dayLabels.map((label, day) => (
