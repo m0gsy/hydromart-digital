@@ -55,7 +55,10 @@ export class CreatePromoRuleDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(0)
+  // >= 1, not 0: order-service's collapsePromoFreeRows tells a BOGO free row apart from a
+  // paid row by `unitPrice === 0`, so a SPECIAL_PRICE of exactly 0 would be misread as one.
+  // A "free" product is a BUY_X_GET_Y, not a zero special price.
+  @Min(1)
   specialPrice?: number;
 
   @ApiPropertyOptional({ example: 1 })
