@@ -3185,6 +3185,63 @@ describe('OrderService', () => {
     expect(order.total).toBe(order.subtotal + order.deliveryFee - order.discount);
   });
 
+  /*
+   * Item 5 fase C — the stacking policy, locked. An automatic promo, a membership tier and
+   * ONE voucher code all compose on a checkout (BR-015 forbids stacking vouchers, not a
+   * voucher with a promo or a tier). These pin the three ways that composition could
+   * silently over-discount.
+   */
+  it('stacking: a value voucher larger than the post-promo subtotal is capped there, never eating the delivery fee', async () => {
+    const productId = await addToCart(10000, 1);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    promo.quoteDiscount = 50000; // far above the 8000 post-promo subtotal
+    promo.quoteDiscountType = 'FIXED';
+
+    const order = await service.checkout(customer, { deliveryAddress: address, voucherCode: 'BESAR' });
+
+    expect(order.subtotal).toBe(8000);
+    expect(order.discount).toBe(8000); // capped at the subtotal
+    expect(order.total).toBe(order.deliveryFee); // goods free, delivery still paid
+  });
+
+  it('stacking: a FREE_SHIPPING voucher is quoted on, and capped by, the promo-reduced shipping fee', async () => {
+    await addToCart(20000, 1); // 1 galon at depot-home (deliveryFee 5000)
+    promoAutoApply.quoteResult = {
+      lines: [],
+      shippingAppliedRuleId: 'rule-shipping',
+      shippingFeeOverride: 1000,
+    };
+    promo.quoteDiscount = 5000; // promo-service would cap this against the fee it was shown
+    promo.quoteDiscountType = 'FREE_SHIPPING';
+
+    const order = await service.checkout(customer, { deliveryAddress: address, voucherCode: 'ONGKIR' });
+
+    expect(promo.quoteCalls[0].shippingFee).toBe(1000); // the promo-reduced fee, not 5000
+    expect(promo.redeemCalls[0].shippingFee).toBe(1000);
+    expect(order.deliveryFee).toBe(1000);
+    expect(order.discount).toBe(1000); // never more than the shipping it waives
+    expect(order.total).toBe(order.subtotal);
+  });
+
+  it('stacking: a rejected voucher rejects checkout even though a promo matched, and records no promo', async () => {
+    const productId = await addToCart(10000, 1);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    promo.rejectQuote = true;
+
+    await expect(
+      service.checkout(customer, { deliveryAddress: address, voucherCode: 'BASI' }),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
+    expect(promoAutoApply.applyCalls).toHaveLength(0);
+  });
+
   it('rejects checkout when depots exist but none covers the address (out of service area)', async () => {
     depots.depots = [
       {
