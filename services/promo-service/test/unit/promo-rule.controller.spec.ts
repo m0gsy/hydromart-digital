@@ -32,6 +32,8 @@ describe('PromoRuleController', () => {
       quote: jest.fn().mockResolvedValue({
         lines: [],
         shipping: { appliedRuleId: null, shippingFeeOverride: null },
+        orderDiscount: { appliedRuleId: null, amount: 0 },
+        gifts: [],
       }),
       apply: jest.fn().mockResolvedValue(undefined),
       usage: jest.fn().mockResolvedValue([]),
@@ -168,6 +170,11 @@ describe('PromoRuleController', () => {
         buyQty: 2,
         getQty: 1,
         shippingFeeOverride: 1000,
+        percentOff: null,
+        minSubtotal: null,
+        discountAmount: null,
+        giftProductId: null,
+        firstOrderOnly: false,
         validFrom: new Date('2026-01-01T00:00:00.000Z'),
         validUntil: new Date('2026-12-31T00:00:00.000Z'),
         daysOfWeek: [5],
@@ -177,6 +184,33 @@ describe('PromoRuleController', () => {
         maxQty: 10,
         channels: ['APP'],
       });
+    });
+
+    it('maps the item-5 kind fields through', async () => {
+      const service = makeService();
+      (service.create as jest.Mock).mockResolvedValue(rule());
+      await new PromoRuleController(service).create(
+        {
+          name: 'Belanja 100rb',
+          kind: 'ORDER_DISCOUNT',
+          minSubtotal: 100000,
+          discountAmount: 10000,
+          percentOff: 5,
+          giftProductId: 'gift-1',
+          firstOrderOnly: true,
+        } as never,
+        hqUser,
+      );
+      expect(service.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'ORDER_DISCOUNT',
+          minSubtotal: 100000,
+          discountAmount: 10000,
+          percentOff: 5,
+          giftProductId: 'gift-1',
+          firstOrderOnly: true,
+        }),
+      );
     });
   });
 
@@ -327,7 +361,67 @@ describe('PromoRuleController', () => {
       lines: [],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
+      orderDiscountRuleId: null,
+      orderDiscountAmount: 0,
+      gifts: [],
     });
+  });
+
+  it('quote() passes skipPromo and firstOrder through and returns the order discount and gifts', async () => {
+    const service = makeService();
+    (service.quote as jest.Mock).mockResolvedValue({
+      lines: [],
+      shipping: { appliedRuleId: null, shippingFeeOverride: null },
+      orderDiscount: { appliedRuleId: 'r-order', amount: 10000 },
+      gifts: [{ promoRuleId: 'r-gift', productId: 'g1', quantity: 2, triggerProductId: 'p1' }],
+    });
+    const result = await new PromoRuleController(service).quote({
+      channel: 'APP',
+      firstOrder: true,
+      lines: [
+        { productId: 'p1', quantity: 1, unitPrice: 8000, skipPromo: true },
+        { productId: 'p2', quantity: 1, unitPrice: 8000 },
+      ],
+    } as never);
+    expect(service.quote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstOrder: true,
+        lines: [
+          expect.objectContaining({ productId: 'p1', skipPromo: true }),
+          expect.objectContaining({ productId: 'p2', skipPromo: false }),
+        ],
+      }),
+    );
+    expect(result).toMatchObject({
+      orderDiscountRuleId: 'r-order',
+      orderDiscountAmount: 10000,
+      gifts: [{ promoRuleId: 'r-gift', productId: 'g1', quantity: 2, triggerProductId: 'p1' }],
+    });
+  });
+
+  it('apply() passes the order discount and gifts through', async () => {
+    const service = makeService();
+    await new PromoRuleController(service).apply({
+      orderId: 'order-1',
+      lines: [],
+      orderDiscountRuleId: 'r-order',
+      orderDiscountAmount: 10000,
+      gifts: [{ promoRuleId: 'r-gift', productId: 'g1', value: 16000 }],
+    } as never);
+    expect(service.apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderDiscount: { appliedRuleId: 'r-order', amount: 10000 },
+        gifts: [{ promoRuleId: 'r-gift', productId: 'g1', value: 16000 }],
+      }),
+    );
+  });
+
+  it('apply() sends no order discount when none applied', async () => {
+    const service = makeService();
+    await new PromoRuleController(service).apply({ orderId: 'order-1', lines: [] } as never);
+    expect(service.apply).toHaveBeenCalledWith(
+      expect.objectContaining({ orderDiscount: undefined, gifts: undefined }),
+    );
   });
 
   it('apply() maps the DTO into the service call and returns nothing', async () => {
@@ -450,9 +544,16 @@ describe('PromoRuleController', () => {
         depotId: 'depot-a',
         channel: 'APP',
         occurredAt: new Date('2026-10-09T02:30:00.000Z'),
-        lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 8000 }],
+        lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 8000, skipPromo: false }],
+        firstOrder: false,
       });
       expect(result).toMatchObject({ shippingAppliedRuleId: 'r2', shippingFeeOverride: 1000 });
+    });
+
+    it('lets an admin try the new-customer scenario', async () => {
+      const service = makeService();
+      await new PromoRuleController(service).simulate({ ...body, firstOrder: true } as never, managerOwnDepot);
+      expect((service.quote as jest.Mock).mock.calls[0][0].firstOrder).toBe(true);
     });
 
     it('defaults the moment to now and lets an unscoped caller try the network-wide rules', async () => {

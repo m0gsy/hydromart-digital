@@ -24,7 +24,7 @@ import {
 } from '@hydromart/platform';
 
 import { PromoRuleRecord } from '../application/ports/promo-rule.repository';
-import { PromoRuleService } from '../application/services/promo-rule.service';
+import { PromoRuleService, QuoteOutput } from '../application/services/promo-rule.service';
 import {
   AutoApplyApplyDto,
   AutoApplyQuoteDto,
@@ -39,6 +39,24 @@ import {
 } from './dto/responses.generated.dto';
 
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
+
+const toQuoteLines = (dto: AutoApplyQuoteDto) =>
+  dto.lines.map((l) => ({
+    productId: l.productId,
+    categoryId: l.categoryId ?? null,
+    quantity: l.quantity,
+    unitPrice: l.unitPrice,
+    skipPromo: l.skipPromo === true,
+  }));
+
+const toQuoteResponse = (result: QuoteOutput): AutoApplyQuoteResponseDto => ({
+  lines: result.lines,
+  shippingAppliedRuleId: result.shipping.appliedRuleId,
+  shippingFeeOverride: result.shipping.shippingFeeOverride,
+  orderDiscountRuleId: result.orderDiscount.appliedRuleId,
+  orderDiscountAmount: result.orderDiscount.amount,
+  gifts: result.gifts,
+});
 
 @ApiTags('Promo Rules')
 @Controller({ path: 'promotions', version: '1' })
@@ -87,18 +105,10 @@ export class PromoRuleController {
       depotId: dto.depotId ?? null,
       channel: dto.channel,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
-      lines: dto.lines.map((l) => ({
-        productId: l.productId,
-        categoryId: l.categoryId ?? null,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-      })),
+      lines: toQuoteLines(dto),
+      firstOrder: dto.firstOrder === true,
     });
-    return {
-      lines: result.lines,
-      shippingAppliedRuleId: result.shipping.appliedRuleId,
-      shippingFeeOverride: result.shipping.shippingFeeOverride,
-    };
+    return toQuoteResponse(result);
   }
 
   @ApiOkResponse({ type: PromoRuleResponseDto })
@@ -138,6 +148,11 @@ export class PromoRuleController {
       buyQty: dto.buyQty ?? null,
       getQty: dto.getQty ?? null,
       shippingFeeOverride: dto.shippingFeeOverride ?? null,
+      percentOff: dto.percentOff ?? null,
+      minSubtotal: dto.minSubtotal ?? null,
+      discountAmount: dto.discountAmount ?? null,
+      giftProductId: dto.giftProductId ?? null,
+      firstOrderOnly: dto.firstOrderOnly ?? false,
       validFrom: toDate(dto.validFrom) ?? null,
       validUntil: toDate(dto.validUntil) ?? null,
       daysOfWeek: dto.daysOfWeek ?? [],
@@ -172,6 +187,11 @@ export class PromoRuleController {
       buyQty: dto.buyQty,
       getQty: dto.getQty,
       shippingFeeOverride: dto.shippingFeeOverride,
+      percentOff: dto.percentOff,
+      minSubtotal: dto.minSubtotal,
+      discountAmount: dto.discountAmount,
+      giftProductId: dto.giftProductId,
+      firstOrderOnly: dto.firstOrderOnly,
       validFrom: toDate(dto.validFrom),
       validUntil: toDate(dto.validUntil),
       daysOfWeek: dto.daysOfWeek,
@@ -211,18 +231,10 @@ export class PromoRuleController {
       depotId: dto.depotId ?? null,
       channel: dto.channel,
       occurredAt: new Date(),
-      lines: dto.lines.map((l) => ({
-        productId: l.productId,
-        categoryId: l.categoryId ?? null,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-      })),
+      lines: toQuoteLines(dto),
+      firstOrder: dto.firstOrder === true,
     });
-    return {
-      lines: result.lines,
-      shippingAppliedRuleId: result.shipping.appliedRuleId,
-      shippingFeeOverride: result.shipping.shippingFeeOverride,
-    };
+    return toQuoteResponse(result);
   }
 
   @ApiOkResponse({ description: 'No content.' })
@@ -255,6 +267,10 @@ export class PromoRuleController {
       },
       originalShippingFee: dto.originalShippingFee ?? null,
       shippingUnits: dto.shippingUnits,
+      orderDiscount: dto.orderDiscountRuleId
+        ? { appliedRuleId: dto.orderDiscountRuleId, amount: dto.orderDiscountAmount ?? 0 }
+        : undefined,
+      gifts: dto.gifts,
     });
   }
 }

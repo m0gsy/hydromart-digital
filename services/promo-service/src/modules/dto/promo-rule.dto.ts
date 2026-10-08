@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
@@ -21,7 +22,14 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-const KIND_VALUES = ['SPECIAL_PRICE', 'BUY_X_GET_Y', 'SHIPPING_DISCOUNT'] as const;
+const KIND_VALUES = [
+  'SPECIAL_PRICE',
+  'BUY_X_GET_Y',
+  'SHIPPING_DISCOUNT',
+  'PERCENTAGE_OFF',
+  'ORDER_DISCOUNT',
+  'BUNDLE_GIFT',
+] as const;
 const CHANNEL_VALUES = ['APP', 'COUNTER'] as const;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -81,6 +89,38 @@ export class CreatePromoRuleDto {
   @IsInt()
   @Min(0)
   shippingFeeOverride?: number;
+
+  @ApiPropertyOptional({ example: 10, description: 'PERCENTAGE_OFF / ORDER_DISCOUNT: 1..99.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  percentOff?: number;
+
+  @ApiPropertyOptional({ example: 100000, description: 'ORDER_DISCOUNT: subtotal at which it starts.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minSubtotal?: number;
+
+  @ApiPropertyOptional({ example: 10000, description: 'ORDER_DISCOUNT: rupiah off (or percentOff).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  discountAmount?: number;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'BUNDLE_GIFT: the free (different) product.' })
+  @IsOptional()
+  @IsUUID()
+  giftProductId?: string;
+
+  @ApiPropertyOptional({ default: false, description: 'Only for a customer with no earlier order.' })
+  @IsOptional()
+  @IsBoolean()
+  firstOrderOnly?: boolean;
 
   @ApiPropertyOptional({ type: String, format: 'date-time' })
   @IsOptional()
@@ -161,6 +201,12 @@ export class UpdatePromoRuleDto extends PartialType(CreatePromoRuleDto) {
   @IsIn(KIND_VALUES)
   kind?: (typeof KIND_VALUES)[number];
 
+  // NOT NULL with a default, like minQty/active below: an explicit null must be a 400.
+  @ApiPropertyOptional({ default: false })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  firstOrderOnly?: boolean;
+
   // Same NOT NULL-at-the-DB-level reasoning as name/kind above: minQty/daysOfWeek/channels/
   // active all have DB defaults, never a "clear to null" meaning. @ValidateIf(!== undefined)
   // still allows omitting the field (undefined = don't touch) but validates an explicit
@@ -216,6 +262,11 @@ export class CartLineDto {
   @IsInt()
   @Min(0)
   unitPrice!: number;
+
+  @ApiPropertyOptional({ description: 'A wholesale-band line: no promo applies, but it counts to the subtotal.' })
+  @IsOptional()
+  @IsBoolean()
+  skipPromo?: boolean;
 }
 
 export class AutoApplyQuoteDto {
@@ -233,6 +284,11 @@ export class AutoApplyQuoteDto {
   @ValidateNested({ each: true })
   @Type(() => CartLineDto)
   lines!: CartLineDto[];
+
+  @ApiPropertyOptional({ description: 'The customer has no earlier active/completed order.' })
+  @IsOptional()
+  @IsBoolean()
+  firstOrder?: boolean;
 }
 
 /**
@@ -284,6 +340,23 @@ export class AppliedLineDto {
   freeQty!: number;
 }
 
+/** A gift the order actually carries, with what it was worth. */
+export class AppliedGiftDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  promoRuleId!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'The gift product.' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ example: 8000, description: 'Quantity x unit price of the gift, in IDR.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  value!: number;
+}
+
 export class AutoApplyApplyDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
@@ -327,4 +400,24 @@ export class AutoApplyApplyDto {
   @IsInt()
   @Min(0)
   shippingUnits?: number;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'ORDER_DISCOUNT rule that applied.' })
+  @IsOptional()
+  @IsUUID()
+  orderDiscountRuleId?: string;
+
+  @ApiPropertyOptional({ example: 10000, description: 'Rupiah the order discount took off.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  orderDiscountAmount?: number;
+
+  @ApiPropertyOptional({ type: [AppliedGiftDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => AppliedGiftDto)
+  gifts?: AppliedGiftDto[];
 }

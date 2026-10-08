@@ -1265,6 +1265,23 @@ describe('OrderService.walkInSale', () => {
       expect(promo.redeemCalls[0].subtotal).toBe(promo.quoteForCalls[0].subtotal);
     });
 
+    it('item 5 B: quoteFor and redeem both get the post-promo lines with their categories', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000, categoryId: 'cat-air' });
+      promo.quoteDiscount = 1000;
+
+      await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: product.id, quantity: 2 }],
+        customerId: randomUUID(),
+        customerPhone: '0812',
+        voucherCode: 'GALON10',
+      });
+
+      const expected = [{ productId: product.id, categoryId: 'cat-air', lineTotal: 40000 }];
+      expect(promo.quoteForCalls[0].lines).toEqual(expected);
+      expect(promo.redeemCalls[0].lines).toEqual(expected);
+    });
+
     it('stacks the tier and the voucher, capped at the goods', async () => {
       membership.rate = 0.5;
       promo.quoteDiscount = 30000;

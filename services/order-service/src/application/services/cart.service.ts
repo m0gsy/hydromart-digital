@@ -1,11 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { money } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import { ProductUnavailableError } from '../../domain/errors';
+import { applyPromoQuote } from '../../domain/promo-adjustment';
 import { DepotPrice, priceLines, resellerApplies, resellerDiscountFor } from '../../domain/pricing';
 import { CartItemRecord, CartRepository } from '../ports/cart.repository';
 import { DepotPricingPort } from '../ports/depot-pricing.port';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
+import { PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -18,6 +21,8 @@ export interface CartLineView {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  /** Catalogue category, so the checkout can price a category-scoped voucher on this line. */
+  categoryId: string | null;
   /**
    * The catalog flag delivery is charged on, exposed so the checkout preview can count
    * galons the way `galonQuantity` in domain/pricing.ts does. Without it the web client had
@@ -80,6 +85,24 @@ export interface CartView {
    * Empty on the overwhelming majority of reads, so this costs nothing to carry.
    */
   removed: CartRemovedLineView[];
+  /** Null when no promo applies, no depot was named, or promo-service could not be reached. */
+  promo: CartPromoView | null;
+}
+
+/**
+ * What the automatic promo rules would take off this basket (item 5). Checkout applies them
+ * regardless; this exists so the cart shows the SAME total instead of a higher one that
+ * quietly drops at the button. Lines in `items` stay at their pre-promo price.
+ */
+export interface CartPromoView {
+  /** Basket subtotal after promos — what checkout will bill for the goods. */
+  subtotal: number;
+  /** Rupiah the promos take off (pre-promo subtotal minus `subtotal`). */
+  savings: number;
+  /** Only the lines a promo touched. */
+  lines: { productId: string; unitPriceAfter: number; freeQty: number }[];
+  /** A SHIPPING_DISCOUNT's per-galon fee, before checkout caps it at the depot's own. */
+  shippingFeeOverride: number | null;
 }
 
 /** A cart line that can no longer be sold, named so the customer can be told which. */
@@ -114,6 +137,7 @@ export class CartService {
     @Inject(ORDER_TOKENS.DepotPricing) private readonly depotPricing: DepotPricingPort,
     @Inject(ORDER_TOKENS.ResellerDiscount) private readonly reseller: ResellerDiscountPort,
     private readonly config: OrderConfigService,
+    @Inject(ORDER_TOKENS.PromoAutoApply) private readonly promoAutoApply: PromoAutoApplyPort,
   ) {}
 
   /** Add `quantity` to the line, or set it when `absolute` is true. */
@@ -211,17 +235,53 @@ export class CartService {
       quantity: i.quantity,
       lineTotal: i.lineTotal,
       isGallon: i.isGallon,
+      categoryId: priced.categoryIdByProductId.get(i.productId) ?? null,
       imageUrl: products.get(i.productId)?.imageUrl ?? null,
     }));
 
     // A9 asks the DEPOT question, not the pricing-switch question: turning the switch off
     // must not hand cross-depot agen badges back, so this reads `depotId`, not the one the
     // switch may have blanked.
+    // Same quote, same skip rules and same fail-open as checkout, so the preview cannot
+    // promise a price checkout then disagrees with. Needs a depot: rules are depot-scoped.
+    let promo: CartPromoView | null = null;
+    // What the discounts below are computed ON. Checkout takes the reseller percentage off
+    // the POST-promo basket, so the preview must too or the two screens disagree.
+    let billed: { items: typeof priced.items; subtotal: number } = priced;
+    if (depotId && priced.items.length > 0) {
+      const quote = await this.promoAutoApply.quote(
+        depotId,
+        'APP',
+        priced.items.map((i) => ({
+          productId: i.productId,
+          categoryId: priced.categoryIdByProductId.get(i.productId) ?? null,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+      );
+      const after = applyPromoQuote(priced.items, quote, priced.tieredProductIds);
+      billed = after;
+      const touched = after.appliedLines.filter((l) => l.appliedRuleIds.length > 0 || l.freeQty > 0);
+      if (touched.length > 0 || quote.shippingFeeOverride != null) {
+        promo = {
+          subtotal: after.subtotal,
+          savings: money(priced.subtotal - after.subtotal),
+          lines: touched.map((l) => ({
+            productId: l.productId,
+            unitPriceAfter: l.unitPriceAfter,
+            freeQty: l.freeQty,
+          })),
+          shippingFeeOverride: quote.shippingFeeOverride ?? null,
+        };
+      }
+    }
+
     const applies = resellerApplies(reseller, depotId);
     const basis: PricingBasis = pricingDepotId && !lookup.unavailable ? 'DEPOT' : 'CATALOG';
     return {
       items,
       removed,
+      promo,
       subtotal: priced.subtotal,
       depotId,
       pricingBasis: basis,
@@ -236,8 +296,8 @@ export class CartService {
                 : applies
                   ? resellerDiscountFor(
                       reseller,
-                      priced.items,
-                      priced.subtotal,
+                      billed.items,
+                      billed.subtotal,
                       priced.tieredProductIds,
                       priced.tierPricedTotal,
                     )

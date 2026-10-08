@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Ticket } from '@phosphor-icons/react';
 
+import { CategorySelect, ProductSelect } from '@/components/catalog-select';
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -29,6 +30,9 @@ export default function HqVoucherFormPage() {
   const [quota, setQuota] = useState('');
   const [perUser, setPerUser] = useState('1');
   const [budget, setBudget] = useState('');
+  // Item 5 (B): limit the discount to one product or category. Empty = the whole order.
+  const [productId, setProductId] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   /*
    * CA-2-65: every HQ voucher was born immortal.
    *
@@ -68,6 +72,9 @@ export default function HqVoucherFormPage() {
       usageLimit: num(quota) ?? null,
       perCustomerLimit: num(perUser) ?? 1,
       budgetCap: num(budget) ?? null,
+      // FREE_SHIPPING has no goods to scope; the server refuses it, so it is never sent.
+      productId: kind === 'freeShip' ? null : productId.trim() || null,
+      categoryId: kind === 'freeShip' ? null : categoryId.trim() || null,
       active,
     };
   }
@@ -80,6 +87,9 @@ export default function HqVoucherFormPage() {
     // The server refuses this too (CA-2-65). Saying so here names the field.
     if (kind === 'percent' && Number(value) > 100) {
       return setError(t('hq.forms.voucher.percentTooHigh'));
+    }
+    if (kind !== 'freeShip') {
+      if (productId.trim() && categoryId.trim()) return setError(t('hq.forms.voucher.scopeBoth'));
     }
     if (validFrom && validUntil && validUntil < validFrom) {
       return setError(t('hq.forms.voucher.endBeforeStart'));
@@ -155,6 +165,27 @@ export default function HqVoucherFormPage() {
                 />
               </Field>
             )}
+          </div>
+        )}
+
+        {kind !== 'freeShip' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={t('hq.forms.voucher.scopeProduct')} htmlFor="v-product" hint={t('hq.forms.voucher.scopeHint')}>
+              <ProductSelect
+                id="v-product"
+                value={productId}
+                onChange={setProductId}
+                emptyLabel={t('hq.forms.voucher.scopeNone')}
+              />
+            </Field>
+            <Field label={t('hq.forms.voucher.scopeCategory')} htmlFor="v-category">
+              <CategorySelect
+                id="v-category"
+                value={categoryId}
+                onChange={setCategoryId}
+                emptyLabel={t('hq.forms.voucher.scopeNone')}
+              />
+            </Field>
           </div>
         )}
 

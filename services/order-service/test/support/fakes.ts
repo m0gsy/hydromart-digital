@@ -79,7 +79,7 @@ import {
 } from '../../src/application/ports/reseller-discount.port';
 import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
-import { PromoPort } from '../../src/application/ports/promo.port';
+import { PromoPort, VoucherLine } from '../../src/application/ports/promo.port';
 import {
   AutoApplyApplyInput,
   AutoApplyCartLine,
@@ -1356,10 +1356,22 @@ export class FakePromo implements PromoPort {
   /** Mirrors promo-service's DiscountType; FREE_SHIPPING is capped against the fee. */
   quoteDiscountType: string | undefined = undefined;
   rejectQuote = false;
-  quoteCalls: { code: string; subtotal: number; shippingFee: number }[] = [];
+  quoteCalls: { code: string; subtotal: number; shippingFee: number; lines?: VoucherLine[] }[] = [];
   /** Counter-sale quotes, which name the buyer instead of riding the caller's token. */
-  quoteForCalls: { code: string; customerId: string; subtotal: number; shippingFee: number }[] = [];
-  redeemCalls: { code: string; orderId: string; subtotal: number; shippingFee: number }[] = [];
+  quoteForCalls: {
+    code: string;
+    customerId: string;
+    subtotal: number;
+    shippingFee: number;
+    lines?: VoucherLine[];
+  }[] = [];
+  redeemCalls: {
+    code: string;
+    orderId: string;
+    subtotal: number;
+    shippingFee: number;
+    lines?: VoucherLine[];
+  }[] = [];
   /** C4: orders whose voucher was handed back on a void. */
   releaseCalls: string[] = [];
   /** Set to make the release fail — the void must still complete (fail-open). */
@@ -1371,9 +1383,11 @@ export class FakePromo implements PromoPort {
     subtotal: number,
     shippingFee: number,
     _authorization: string,
+    _depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<{ discount: number; discountType?: string }> {
     if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
-    this.quoteCalls.push({ code, subtotal, shippingFee });
+    this.quoteCalls.push({ code, subtotal, shippingFee, lines });
     return { discount: this.quoteDiscount, discountType: this.quoteDiscountType };
   }
   async quoteFor(
@@ -1381,9 +1395,11 @@ export class FakePromo implements PromoPort {
     customerId: string,
     subtotal: number,
     shippingFee: number,
+    _depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<{ discount: number; discountType?: string }> {
     if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
-    this.quoteForCalls.push({ code, customerId, subtotal, shippingFee });
+    this.quoteForCalls.push({ code, customerId, subtotal, shippingFee, lines });
     return { discount: this.quoteDiscount, discountType: this.quoteDiscountType };
   }
   async release(orderId: string): Promise<void> {
@@ -1398,8 +1414,10 @@ export class FakePromo implements PromoPort {
     subtotal: number,
     shippingFee: number,
     _authorization: string,
+    _depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<void> {
-    this.redeemCalls.push({ code, orderId, subtotal, shippingFee });
+    this.redeemCalls.push({ code, orderId, subtotal, shippingFee, lines });
   }
 }
 
@@ -1486,8 +1504,9 @@ export function buildCartService(
   pricing: DepotPricingPort = new FakeDepotPricing(),
   reseller: ResellerDiscountPort = new FakeResellerDiscount(),
   config: OrderConfigService = buildTestConfig(),
+  promoAutoApply: PromoAutoApplyPort = new FakePromoAutoApply(),
 ): CartService {
-  return new CartService(cart, catalog, pricing, reseller, config);
+  return new CartService(cart, catalog, pricing, reseller, config, promoAutoApply);
 }
 
 export function buildTestConfig(overrides: Record<string, string> = {}): OrderConfigService {
