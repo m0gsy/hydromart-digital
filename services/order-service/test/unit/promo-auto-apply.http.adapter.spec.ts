@@ -31,6 +31,7 @@ describe('PromoAutoApplyHttpAdapter', () => {
         categoryId: 'cat-1',
         quantity: 2,
         unitPrice: 8000,
+        skipPromo: false,
       });
       expect(body.depotId).toBe('depot-1');
       expect(body.channel).toBe('APP');
@@ -45,21 +46,71 @@ describe('PromoAutoApplyHttpAdapter', () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => expected }) as unknown as typeof fetch;
       const adapter = new PromoAutoApplyHttpAdapter(config());
       const result = await adapter.quote('depot-1', 'APP', []);
-      expect(result).toEqual(expected);
+      expect(result).toEqual({ ...expected, orderDiscountRuleId: null, orderDiscountAmount: 0, gifts: [] });
+    });
+
+    it('sends firstOrder and per-line skipPromo, and parses the order discount and gifts', async () => {
+      const gift = { promoRuleId: 'r-gift', productId: 'g1', quantity: 2, triggerProductId: 'p1' };
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          lines: [],
+          shippingAppliedRuleId: null,
+          shippingFeeOverride: null,
+          orderDiscountRuleId: 'r-order',
+          orderDiscountAmount: 10000,
+          gifts: [gift],
+        }),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      const result = await new PromoAutoApplyHttpAdapter(config()).quote(
+        'depot-1',
+        'APP',
+        [
+          { productId: 'p1', categoryId: null, quantity: 1, unitPrice: 8000, skipPromo: true },
+          { productId: 'p2', categoryId: null, quantity: 1, unitPrice: 8000 },
+        ],
+        true,
+      );
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.firstOrder).toBe(true);
+      expect(body.lines.map((l: { skipPromo: boolean }) => l.skipPromo)).toEqual([true, false]);
+      expect(result).toMatchObject({ orderDiscountRuleId: 'r-order', orderDiscountAmount: 10000, gifts: [gift] });
+    });
+
+    it('defaults firstOrder to false on the wire', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ lines: [] }) });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      await new PromoAutoApplyHttpAdapter(config()).quote('depot-1', 'APP', []);
+      expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string).firstOrder).toBe(false);
     });
 
     it('fails open (empty result) when fetch rejects', async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('network down')) as unknown as typeof fetch;
       const adapter = new PromoAutoApplyHttpAdapter(config());
       const result = await adapter.quote('depot-1', 'APP', []);
-      expect(result).toEqual({ lines: [], shippingAppliedRuleId: null, shippingFeeOverride: null });
+      expect(result).toEqual({
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        orderDiscountRuleId: null,
+        orderDiscountAmount: 0,
+        gifts: [],
+      });
     });
 
     it('fails open when the response is not ok', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, json: async () => ({}) }) as unknown as typeof fetch;
       const adapter = new PromoAutoApplyHttpAdapter(config());
       const result = await adapter.quote('depot-1', 'APP', []);
-      expect(result).toEqual({ lines: [], shippingAppliedRuleId: null, shippingFeeOverride: null });
+      expect(result).toEqual({
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        orderDiscountRuleId: null,
+        orderDiscountAmount: 0,
+        gifts: [],
+      });
     });
 
     it('fails open when internalServiceKey is missing', async () => {
@@ -67,7 +118,14 @@ describe('PromoAutoApplyHttpAdapter', () => {
       global.fetch = fetchMock as unknown as typeof fetch;
       const adapter = new PromoAutoApplyHttpAdapter(config({ internalServiceKey: '' }));
       const result = await adapter.quote('depot-1', 'APP', []);
-      expect(result).toEqual({ lines: [], shippingAppliedRuleId: null, shippingFeeOverride: null });
+      expect(result).toEqual({
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        orderDiscountRuleId: null,
+        orderDiscountAmount: 0,
+        gifts: [],
+      });
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
@@ -119,6 +177,28 @@ describe('PromoAutoApplyHttpAdapter', () => {
       expect(body.shippingFeeOverride).toBe(1000);
       expect(body.originalShippingFee).toBe(2000);
       expect(body.shippingUnits).toBe(5);
+    });
+
+    it('includes the order discount and gifts only when supplied', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      const adapter = new PromoAutoApplyHttpAdapter(config());
+      await adapter.apply({
+        orderId: 'order-1',
+        lines: [appliedLine()],
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 10000,
+        gifts: [{ promoRuleId: 'r-gift', productId: 'g1', value: 16000 }],
+      });
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body.orderDiscountRuleId).toBe('r-order');
+      expect(body.orderDiscountAmount).toBe(10000);
+      expect(body.gifts).toEqual([{ promoRuleId: 'r-gift', productId: 'g1', value: 16000 }]);
+
+      await adapter.apply({ orderId: 'order-2', lines: [appliedLine()], gifts: [] });
+      const bare = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      expect(bare.orderDiscountRuleId).toBeUndefined();
+      expect(bare.gifts).toBeUndefined();
     });
 
     it('fails open (resolves) when fetch rejects', async () => {

@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import {
   buildCartService,
+  FakeDepotPricing,
   FakeProductCatalog,
   FakePromoAutoApply,
   FakeResellerDiscount,
   InMemoryCartRepository,
+  InMemoryOrderRepository,
 } from '../support/fakes';
 
 describe('CartService promo preview', () => {
@@ -52,6 +54,8 @@ describe('CartService promo preview', () => {
       savings: 8000,
       lines: [{ productId, unitPriceAfter: 8000, freeQty: 0 }],
       shippingFeeOverride: null,
+      orderDiscount: 0,
+      gifts: [],
     });
   });
 
@@ -93,6 +97,53 @@ describe('CartService promo preview', () => {
     };
     const v = await view();
     expect(v.reseller?.discount).toBe(3200); // 10% of 32000, not of 40000
+  });
+
+  it('shows an order discount, capped at the post-promo goods', async () => {
+    promo.quoteResult = {
+      lines: [],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+      orderDiscountRuleId: 'r-order',
+      orderDiscountAmount: 5000,
+    };
+    expect((await view()).promo).toMatchObject({ orderDiscount: 5000, savings: 0 });
+    promo.quoteResult = { ...promo.quoteResult, orderDiscountAmount: 90000 };
+    expect((await view()).promo?.orderDiscount).toBe(40000);
+  });
+
+  it('names the gifts the basket earns, and leaves out one it cannot read', async () => {
+    const gift = catalog.seed({ id: randomUUID(), basePrice: 5000, name: 'Botol 600ml' });
+    promo.quoteResult = {
+      lines: [],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+      gifts: [
+        { promoRuleId: 'r-gift', productId: gift.id, quantity: 1, triggerProductId: productId },
+        { promoRuleId: 'r-gift', productId: gift.id, quantity: 2, triggerProductId: productId },
+        { promoRuleId: 'r-gift', productId: randomUUID(), quantity: 1, triggerProductId: productId },
+      ],
+    };
+    expect((await view()).promo?.gifts).toEqual([{ productId: gift.id, productName: 'Botol 600ml', quantity: 3 }]);
+  });
+
+  it('tells promo-service the customer is new until they have an order, and the cart still works if the lookup fails', async () => {
+    await view();
+    expect(promo.quoteCalls[0].firstOrder).toBe(true);
+
+    const orders = new InMemoryOrderRepository();
+    jest.spyOn(orders, 'customerLifetime').mockRejectedValue(new Error('db down'));
+    const svc = buildCartService(cart, catalog, undefined, reseller, undefined, promo, orders);
+    await svc.view(customer, depot, 'Bearer t');
+    expect(promo.quoteCalls[1].firstOrder).toBe(false);
+  });
+
+  it('flags wholesale lines skipPromo so the order subtotal still counts them', async () => {
+    const pricing = new FakeDepotPricing();
+    pricing.setTier(depot, productId, 4, 9000);
+    const svc = buildCartService(cart, catalog, pricing, reseller, undefined, promo);
+    await svc.view(customer, depot, 'Bearer t');
+    expect(promo.quoteCalls[0].lines[0]).toMatchObject({ productId, skipPromo: true });
   });
 
   it('puts the catalog category on each line, for category-scoped vouchers', async () => {

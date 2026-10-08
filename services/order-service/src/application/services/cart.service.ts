@@ -6,9 +6,10 @@ import { ProductUnavailableError } from '../../domain/errors';
 import { applyPromoQuote } from '../../domain/promo-adjustment';
 import { DepotPrice, priceLines, resellerApplies, resellerDiscountFor } from '../../domain/pricing';
 import { CartItemRecord, CartRepository } from '../ports/cart.repository';
+import { OrderRepository } from '../ports/order.repository';
 import { DepotPricingPort } from '../ports/depot-pricing.port';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
-import { PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
+import { AutoApplyGift, PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { ORDER_TOKENS } from '../tokens';
 
@@ -103,6 +104,13 @@ export interface CartPromoView {
   lines: { productId: string; unitPriceAfter: number; freeQty: number }[];
   /** A SHIPPING_DISCOUNT's per-galon fee, before checkout caps it at the depot's own. */
   shippingFeeOverride: number | null;
+  /** ORDER_DISCOUNT: rupiah off the goods once the post-promo subtotal reaches its minimum. */
+  orderDiscount: number;
+  /**
+   * BUNDLE_GIFT: free products the basket earns. Whether the depot has them in stock is only
+   * known at checkout, where a gift it cannot cover is dropped rather than failing the order.
+   */
+  gifts: { productId: string; productName: string; quantity: number }[];
 }
 
 /** A cart line that can no longer be sold, named so the customer can be told which. */
@@ -138,6 +146,7 @@ export class CartService {
     @Inject(ORDER_TOKENS.ResellerDiscount) private readonly reseller: ResellerDiscountPort,
     private readonly config: OrderConfigService,
     @Inject(ORDER_TOKENS.PromoAutoApply) private readonly promoAutoApply: PromoAutoApplyPort,
+    @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
   ) {}
 
   /** Add `quantity` to the line, or set it when `absolute` is true. */
@@ -249,6 +258,7 @@ export class CartService {
     // the POST-promo basket, so the preview must too or the two screens disagree.
     let billed: { items: typeof priced.items; subtotal: number } = priced;
     if (depotId && priced.items.length > 0) {
+      const firstOrder = await this.isFirstOrder(customerId);
       const quote = await this.promoAutoApply.quote(
         depotId,
         'APP',
@@ -257,12 +267,16 @@ export class CartService {
           categoryId: priced.categoryIdByProductId.get(i.productId) ?? null,
           quantity: i.quantity,
           unitPrice: i.unitPrice,
+          skipPromo: priced.tieredProductIds.has(i.productId),
         })),
+        firstOrder,
       );
       const after = applyPromoQuote(priced.items, quote, priced.tieredProductIds);
       billed = after;
       const touched = after.appliedLines.filter((l) => l.appliedRuleIds.length > 0 || l.freeQty > 0);
-      if (touched.length > 0 || quote.shippingFeeOverride != null) {
+      const orderDiscount = Math.min(Math.max(0, quote.orderDiscountAmount ?? 0), after.subtotal);
+      const gifts = await this.resolveGifts(quote.gifts ?? []);
+      if (touched.length > 0 || quote.shippingFeeOverride != null || orderDiscount > 0 || gifts.length > 0) {
         promo = {
           subtotal: after.subtotal,
           savings: money(priced.subtotal - after.subtotal),
@@ -272,6 +286,8 @@ export class CartService {
             freeQty: l.freeQty,
           })),
           shippingFeeOverride: quote.shippingFeeOverride ?? null,
+          orderDiscount,
+          gifts,
         };
       }
     }
@@ -345,6 +361,33 @@ export class CartService {
       basis: pricingDepotId && !lookup.unavailable ? 'DEPOT' : 'CATALOG',
       prices: priced.items.map((i) => ({ productId: i.productId, unitPrice: i.unitPrice })),
     };
+  }
+
+  /** Same definition as checkout's: no earlier active/completed order; unknown means not new. */
+  private async isFirstOrder(customerId: string): Promise<boolean> {
+    try {
+      return (await this.orders.customerLifetime(customerId)).orderCount === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Gift products the customer can see by name; one that cannot be read is simply not shown. */
+  private async resolveGifts(
+    gifts: AutoApplyGift[],
+  ): Promise<{ productId: string; productName: string; quantity: number }[]> {
+    if (gifts.length === 0) return [];
+    const quantity = new Map<string, number>();
+    for (const g of gifts) quantity.set(g.productId, (quantity.get(g.productId) ?? 0) + g.quantity);
+    try {
+      const products = await this.catalog.getProducts([...quantity.keys()]);
+      return [...quantity].flatMap(([productId, qty]) => {
+        const product = products.get(productId);
+        return product && product.active ? [{ productId, productName: product.name, quantity: qty }] : [];
+      });
+    } catch {
+      return [];
+    }
   }
 
   private async resolveAll(rows: CartItemRecord[]): Promise<Map<string, CatalogProduct>> {

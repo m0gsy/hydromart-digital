@@ -91,6 +91,7 @@ describe('cart pricing agrees with checkout (A1/A2/A4)', () => {
       resellerDiscount,
       config,
       new FakePromoAutoApply(),
+      orders,
     );
     service = new OrderService(
       orders,

@@ -13,6 +13,8 @@ export interface AutoApplyCartLine {
   categoryId: string | null;
   quantity: number;
   unitPrice: number;
+  /** A wholesale-band line: no promo touches it, but it counts to the order subtotal. */
+  skipPromo?: boolean;
 }
 
 export interface AutoApplyLineResult {
@@ -23,10 +25,25 @@ export interface AutoApplyLineResult {
   lineTotal: number;
 }
 
+/** A free product a BUNDLE_GIFT rule earned. Whether it can be delivered is the caller's call. */
+export interface AutoApplyGift {
+  promoRuleId: string;
+  productId: string;
+  quantity: number;
+  triggerProductId: string;
+}
+
 export interface AutoApplyQuoteResult {
   lines: AutoApplyLineResult[];
   shippingAppliedRuleId: string | null;
   shippingFeeOverride: number | null;
+  /**
+   * ORDER_DISCOUNT: rupiah off the order, judged on the subtotal after item promos. Optional
+   * so an older promo-service (which sends neither field) reads as "none".
+   */
+  orderDiscountRuleId?: string | null;
+  orderDiscountAmount?: number;
+  gifts?: AutoApplyGift[];
 }
 
 /** One cart line as it was ORIGINALLY priced, plus what a prior `quote()` call decided for it. */
@@ -50,6 +67,11 @@ export interface AutoApplyApplyInput {
   /** Galon count the shipping fee applies across. Required whenever `originalShippingFee`
    *  is set — promo-service rejects the shipping row rather than guess a default. */
   shippingUnits?: number | null;
+  /** The ORDER_DISCOUNT that applied, and the rupiah actually taken off. */
+  orderDiscountRuleId?: string | null;
+  orderDiscountAmount?: number;
+  /** Gifts the order really carries (a gift that could not be delivered is not listed). */
+  gifts?: { promoRuleId: string; productId: string; value: number }[];
 }
 
 export interface PromoAutoApplyPort {
@@ -58,6 +80,8 @@ export interface PromoAutoApplyPort {
     depotId: string | null,
     channel: AutoApplyChannel,
     lines: AutoApplyCartLine[],
+    /** True when the customer has no earlier active/completed order ("pelanggan baru"). */
+    firstOrder?: boolean,
   ): Promise<AutoApplyQuoteResult>;
 
   /**
