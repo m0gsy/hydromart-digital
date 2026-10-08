@@ -54,6 +54,32 @@ const day = dayToDate(toBusinessDay(at, DAY_TZ));
     expect(await repo.hasIngested('ord-2')).toBe(false);
   });
 
+  it('counts a product listed twice (BOGO priced + free row) as ONE order, summing quantity', async () => {
+    tx.ingestedOrder.findUnique.mockResolvedValue(null);
+    tx.productDailyDemand.findMany.mockResolvedValue([]);
+    tx.depotDailyRevenue.findFirst.mockResolvedValue(null);
+    tx.customerActivity.findUnique.mockResolvedValue(null);
+
+    await repo.applyIngest(
+      {
+        orderId: 'ord-bogo',
+        customerId: 'cust-1',
+        depotId: 'depot-1',
+        total: 30000,
+        at,
+        items: [
+          { productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon', quantity: 2 },
+          { productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon', quantity: 1 },
+        ],
+      },
+      toBusinessDay(at, DAY_TZ),
+    );
+
+    expect(tx.productDailyDemand.createMany).toHaveBeenCalledWith({
+      data: [{ productId: 'p-1', depotId: 'depot-1', day, quantity: 3, orderCount: 1 }],
+    });
+  });
+
   it('applies an ingest atomically (create branches) and increments revenue/activity', async () => {
     const cmd: IngestCommand = {
       orderId: 'ord-1',
