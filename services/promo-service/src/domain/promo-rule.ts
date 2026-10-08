@@ -1,7 +1,13 @@
 // Pure matching/stacking logic for auto-apply promo rules (item 5 fase 1). No database, no
 // I/O — PromoRuleService (application layer) supplies the candidate rows and calls these.
 
-export type PromoRuleKind = 'SPECIAL_PRICE' | 'BUY_X_GET_Y' | 'SHIPPING_DISCOUNT';
+export type PromoRuleKind =
+  | 'SPECIAL_PRICE'
+  | 'BUY_X_GET_Y'
+  | 'SHIPPING_DISCOUNT'
+  | 'PERCENTAGE_OFF'
+  | 'ORDER_DISCOUNT'
+  | 'BUNDLE_GIFT';
 export type PromoRuleChannel = 'APP' | 'COUNTER';
 
 /** The subset of a `PromoRule` row the matching/stacking algorithm needs. */
@@ -16,6 +22,16 @@ export interface PromoRuleCandidate {
   buyQty: number | null;
   getQty: number | null;
   shippingFeeOverride: number | null;
+  /** PERCENTAGE_OFF: percent (1..99) off the unit price. ORDER_DISCOUNT: alternative to discountAmount. */
+  percentOff: number | null;
+  /** ORDER_DISCOUNT: the post-item-promo subtotal at which the discount starts. */
+  minSubtotal: number | null;
+  /** ORDER_DISCOUNT: rupiah off the order. */
+  discountAmount: number | null;
+  /** BUNDLE_GIFT: the different product handed over free. */
+  giftProductId: string | null;
+  /** Any kind: only for a customer with no earlier active/completed order. */
+  firstOrderOnly: boolean;
   validFrom: Date | null;
   validUntil: Date | null;
   daysOfWeek: number[];
@@ -31,6 +47,11 @@ export interface CartLine {
   categoryId: string | null;
   quantity: number;
   unitPrice: number;
+  /**
+   * A wholesale-band line: already the depot's lowest price, so no promo touches it, but it
+   * still counts towards the order subtotal an ORDER_DISCOUNT is judged on.
+   */
+  skipPromo?: boolean;
 }
 
 export interface EvaluationContext {
@@ -41,6 +62,8 @@ export interface EvaluationContext {
   timeZone: string;
   /** The depot this cart is being priced for, or null for a network-wide (no-depot) quote. */
   depotId: string | null;
+  /** True when the customer has no earlier active/completed order. Absent = false. */
+  firstOrder?: boolean;
 }
 
 export interface LineResult {
@@ -49,6 +72,21 @@ export interface LineResult {
   unitPriceAfter: number;
   freeQty: number;
   lineTotal: number;
+}
+
+/** A free product handed over because a BUNDLE_GIFT rule matched the line that triggers it. */
+export interface GiftResult {
+  promoRuleId: string;
+  /** The gift product (NOT the product that triggered it). */
+  productId: string;
+  quantity: number;
+  triggerProductId: string;
+}
+
+export interface OrderDiscountResult {
+  appliedRuleId: string | null;
+  /** Rupiah off the order; 0 when no rule applied. */
+  amount: number;
 }
 
 export interface ShippingResult {
@@ -97,6 +135,8 @@ export function ruleMatchesLine(
   if (rule.endTime !== null && hhmm > rule.endTime) return false;
 
   if (rule.channels.length > 0 && !rule.channels.includes(ctx.channel)) return false;
+  // "Pelanggan baru": a customer we cannot show to be new is treated as not new.
+  if (rule.firstOrderOnly && ctx.firstOrder !== true) return false;
 
   if (line.quantity < rule.minQty) return false;
   if (rule.maxQty !== null && line.quantity > rule.maxQty) return false;
@@ -119,22 +159,38 @@ export function evaluateLine(
   line: CartLine,
   ctx: EvaluationContext,
 ): LineResult {
+  if (line.skipPromo) {
+    return {
+      productId: line.productId,
+      appliedRuleIds: [],
+      unitPriceAfter: line.unitPrice,
+      freeQty: 0,
+      lineTotal: line.unitPrice * line.quantity,
+    };
+  }
   const matching = candidates.filter((r) => ruleMatchesLine(r, line, ctx));
 
-  const specialPriceCandidates = matching.filter(
-    (r): r is PromoRuleCandidate & { specialPrice: number } =>
-      r.kind === 'SPECIAL_PRICE' && r.specialPrice !== null && r.specialPrice < line.unitPrice,
-  );
+  // SPECIAL_PRICE and PERCENTAGE_OFF are the same thing to the customer (a lower unit price),
+  // so they compete in one group and the lowest resulting price wins.
+  const priceOffers: { id: string; price: number }[] = [];
+  for (const r of matching) {
+    if (r.kind === 'SPECIAL_PRICE' && r.specialPrice !== null && r.specialPrice < line.unitPrice) {
+      priceOffers.push({ id: r.id, price: r.specialPrice });
+    } else if (r.kind === 'PERCENTAGE_OFF' && r.percentOff !== null) {
+      // Never below Rp1: order-service reads unitPrice 0 as a free BOGO row. A rule that
+      // cannot lower the price (a Rp1 item) is simply not an offer.
+      const price = Math.max(1, Math.round((line.unitPrice * (100 - r.percentOff)) / 100));
+      if (price < line.unitPrice) priceOffers.push({ id: r.id, price });
+    }
+  }
   const bogoCandidates = matching.filter((r) => r.kind === 'BUY_X_GET_Y');
 
   let unitPriceAfter = line.unitPrice;
   const appliedRuleIds: string[] = [];
 
-  if (specialPriceCandidates.length > 0) {
-    const winner = specialPriceCandidates.reduce((best, r) =>
-      r.specialPrice < best.specialPrice ? r : best,
-    );
-    unitPriceAfter = winner.specialPrice;
+  if (priceOffers.length > 0) {
+    const winner = priceOffers.reduce((best, o) => (o.price < best.price ? o : best));
+    unitPriceAfter = winner.price;
     appliedRuleIds.push(winner.id);
   }
 
@@ -154,6 +210,67 @@ export function evaluateLine(
     freeQty,
     lineTotal: unitPriceAfter * line.quantity,
   };
+}
+
+/**
+ * BUNDLE_GIFT: the line that triggers a bundle hands over `floor(quantity / buyQty) * getQty`
+ * of a DIFFERENT product. One winner per line (the biggest gift); several lines can each win
+ * their own. A gift is a separate delivery, so it is returned beside the line results rather
+ * than inside them: the positional line contract `apply()` relies on stays untouched.
+ */
+export function evaluateGifts(
+  candidates: PromoRuleCandidate[],
+  lines: CartLine[],
+  ctx: EvaluationContext,
+): GiftResult[] {
+  const gifts: GiftResult[] = [];
+  for (const line of lines) {
+    if (line.skipPromo) continue;
+    const offers = candidates
+      .filter(
+        (r) => r.kind === 'BUNDLE_GIFT' && r.giftProductId !== null && ruleMatchesLine(r, line, ctx),
+      )
+      .map((r) => ({ rule: r, quantity: freeQtyFor(r, line.quantity) }))
+      .filter((o) => o.quantity > 0);
+    if (offers.length === 0) continue;
+    const winner = offers.reduce((best, o) => (o.quantity > best.quantity ? o : best));
+    gifts.push({
+      promoRuleId: winner.rule.id,
+      productId: winner.rule.giftProductId as string,
+      quantity: winner.quantity,
+      triggerProductId: line.productId,
+    });
+  }
+  return gifts;
+}
+
+/**
+ * ORDER_DISCOUNT: once the order subtotal (after item promos) reaches `minSubtotal`, take a
+ * fixed amount or a percent off it. The biggest discount wins; never more than the subtotal.
+ */
+export function evaluateOrderDiscount(
+  candidates: PromoRuleCandidate[],
+  ctx: EvaluationContext,
+  subtotal: number,
+): OrderDiscountResult {
+  // Same trick as evaluateShipping: schedule / channel / depot / first-order checks reuse
+  // ruleMatchesLine with a synthetic line. validate() rejects product, category and quantity
+  // limits on ORDER_DISCOUNT, so the synthetic line can never be the thing that fails.
+  const anyLine: CartLine = { productId: '', categoryId: null, quantity: 1, unitPrice: 0 };
+  let best: { id: string; amount: number } | null = null;
+  for (const r of candidates) {
+    if (r.kind !== 'ORDER_DISCOUNT' || !ruleMatchesLine(r, anyLine, ctx)) continue;
+    if (r.minSubtotal === null || subtotal < r.minSubtotal) continue;
+    const raw =
+      r.discountAmount !== null
+        ? r.discountAmount
+        : r.percentOff !== null
+          ? Math.round((subtotal * r.percentOff) / 100)
+          : 0;
+    const amount = Math.min(raw, subtotal);
+    if (amount > 0 && (best === null || amount > best.amount)) best = { id: r.id, amount };
+  }
+  return best ? { appliedRuleId: best.id, amount: best.amount } : { appliedRuleId: null, amount: 0 };
 }
 
 /** Resolves the order-level shipping override: lowest `shippingFeeOverride` wins. */
