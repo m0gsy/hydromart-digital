@@ -84,7 +84,14 @@ describe('cart pricing agrees with checkout (A1/A2/A4)', () => {
     const depots = new FakeDepotDirectory();
     depots.depots = [homeDepot];
     config = buildTestConfig(configOverrides);
-    cartService = new CartService(cartRepo, catalog, pricing, resellerDiscount, config);
+    cartService = new CartService(
+      cartRepo,
+      catalog,
+      pricing,
+      resellerDiscount,
+      config,
+      new FakePromoAutoApply(),
+    );
     service = new OrderService(
       orders,
       cartRepo,
