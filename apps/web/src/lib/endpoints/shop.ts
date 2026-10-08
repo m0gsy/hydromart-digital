@@ -193,6 +193,10 @@ export const shop = {
     manage: '/vouchers/api/v1/promotions/promo-rules',
     create: '/vouchers/api/v1/promotions/promo-rules',
     detail: (id: string) => `/vouchers/api/v1/promotions/promo-rules/${id}`,
+    // How often each visible rule has fired, from the audit trail.
+    usage: '/vouchers/api/v1/promotions/promo-rules/usage',
+    // Try a basket against the active rules; records nothing.
+    simulate: '/vouchers/api/v1/promotions/promo-rules/simulate',
   },
 
   referrals: {

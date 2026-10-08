@@ -27,7 +27,8 @@ export const PROMO_KINDS: PromoRuleKind[] = [
   'SHIPPING_DISCOUNT',
 ];
 
-const KIND_KEY: Record<PromoRuleKind, string> = {
+/** The dictionary key (under `<ns>.promoRules.fields`) of a kind's display name. */
+export const KIND_KEY: Record<PromoRuleKind, string> = {
   SPECIAL_PRICE: 'kindSpecialPrice',
   PERCENTAGE_OFF: 'kindPercentOff',
   BUY_X_GET_Y: 'kindBogo',

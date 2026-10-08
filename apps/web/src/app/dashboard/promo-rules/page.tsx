@@ -13,6 +13,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
 import { effectiveDepotIdFor } from '@/lib/promo-rule-depot';
+import { PromoSimulator, RuleFilterBar, RuleUsageLine, useRuleUsage } from '@/components/promo-rule-tools';
+import { EMPTY_RULE_FILTER, duplicateRule, filterRules } from '@/lib/promo-rule-filter';
 import { useAsync } from '@/lib/use-async';
 import { PromoFirstOrderField, PromoKindFields, PromoKindSelect } from '@/components/promo-rule-kind-fields';
 import { EMPTY_RULE_FORM, type RuleForm, isOrderLevelKind, ruleFormFrom, ruleFormToPayload, validateRuleForm } from '@/lib/promo-rule-form';
@@ -21,16 +23,21 @@ import type { PromoRule, PromoRuleChannel } from '@/lib/types';
 function RuleEditor({
   activeDepotId,
   rule,
+  template,
   onDone,
   onCancel,
 }: {
   activeDepotId: string | null;
   rule: PromoRule | null;
+  /** A copy to start a NEW rule from (duplicate); ignored when editing. */
+  template?: PromoRule | null;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const { t } = useT();
-  const [form, setForm] = useState<RuleForm>(rule ? ruleFormFrom(rule) : EMPTY_RULE_FORM);
+  const [form, setForm] = useState<RuleForm>(
+    rule ? ruleFormFrom(rule) : template ? ruleFormFrom(template) : EMPTY_RULE_FORM,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Editing an existing rule must never move it between depots: the effective depotId is
@@ -187,10 +194,15 @@ export default function DashboardPromoRulesPage() {
   const { selectedId: activeDepotId } = useDepot();
   const role = useAuth().customer?.role;
   const [editing, setEditing] = useState<PromoRule | null | undefined>(undefined);
+  const [template, setTemplate] = useState<PromoRule | null>(null);
+  const [filter, setFilter] = useState(EMPTY_RULE_FILTER);
+  const usages = useRuleUsage();
   const { data, error, loading, reload } = useAsync<PromoRule[]>(
     () => api.get<PromoRule[]>(endpoints.promoRules.manage, true),
     [],
   );
+
+  const visible = filterRules(data ?? [], filter);
 
   async function remove(id: string) {
     try {
@@ -214,13 +226,20 @@ export default function DashboardPromoRulesPage() {
         {editing === undefined && canWritePromoRules(role) && <Button onClick={() => setEditing(null)}>{t('dashboard.promoRules.newRule')}</Button>}
       </div>
 
+      <PromoSimulator rules={data ?? []} fixedDepotId={activeDepotId} />
+
       {editing !== undefined && (
         <RuleEditor
           activeDepotId={activeDepotId}
           rule={editing}
-          onCancel={() => setEditing(undefined)}
+          template={template}
+          onCancel={() => {
+            setEditing(undefined);
+            setTemplate(null);
+          }}
           onDone={() => {
             setEditing(undefined);
+            setTemplate(null);
             reload();
           }}
         />
@@ -233,8 +252,13 @@ export default function DashboardPromoRulesPage() {
       ) : !data || data.length === 0 ? (
         <CenterState icon={<TagIcon size={48} weight="thin" />} title={t('dashboard.promoRules.empty')} />
       ) : (
+        <>
+        <RuleFilterBar value={filter} onChange={setFilter} />
+        {visible.length === 0 ? (
+          <CenterState icon={<TagIcon size={48} weight="thin" />} title={t('hq.promoTools.noMatch')} />
+        ) : (
         <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">
-          {data.map((r) => (
+          {visible.map((r) => (
             <div key={r.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-2 font-semibold">
@@ -247,9 +271,19 @@ export default function DashboardPromoRulesPage() {
                 <span className="truncate text-sm text-muted">
                   {r.depotId ?? '—'} · {r.productId ?? r.categoryId ?? '—'}
                 </span>
+                <RuleUsageLine usages={usages} ruleId={r.id} />
               </div>
               {canWritePromoRule(role, r) && (
                 <>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setTemplate(duplicateRule(r, t('hq.promoTools.copySuffix')));
+                      setEditing(null);
+                    }}
+                  >
+                    {t('hq.promoTools.duplicate')}
+                  </Button>
                   <Button variant="ghost" onClick={() => setEditing(r)}>
                     {t('dashboard.promoRules.edit')}
                   </Button>
@@ -261,6 +295,8 @@ export default function DashboardPromoRulesPage() {
             </div>
           ))}
         </Card>
+        )}
+        </>
       )}
     </div>
   );

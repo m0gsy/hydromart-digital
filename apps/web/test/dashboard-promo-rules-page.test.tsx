@@ -89,11 +89,14 @@ const BARE: PromoRule = {
 };
 
 /** The pickers read the catalogue, categories and depots; everything else is the rule list. */
-const serve = (rules: PromoRule[]) =>
+const serve = (rules: PromoRule[], usage: unknown[] = []) =>
   get.mockReset().mockImplementation(async (path: string) => {
     const p = String(path);
+    if (p === endpoints.promoRules.usage) return usage;
     const page = (items: unknown[]) => ({ items, total: items.length, page: 1, limit: 100 });
-    if (p.includes('/products/api/v1/products')) return page([{ id: 'prod-9', name: 'Galon 19L' }]);
+    if (p.includes('/products/api/v1/products')) {
+      return page([{ id: 'prod-9', name: 'Galon 19L', basePrice: 8000, categoryId: 'cat-1' }]);
+    }
     if (p.includes('/products/api/v1/categories')) return [{ id: 'cat-1', name: 'Air' }];
     if (p.includes('/depots/api/v1/depots')) return page([{ id: 'depot-z', name: 'Depot Z' }]);
     return rules;
@@ -149,13 +152,21 @@ describe('dashboard/promo-rules list', () => {
   });
 
   it('shows the error state when the read fails, and retry reloads', async () => {
-    get.mockRejectedValueOnce(new ApiError(500, 'kaput'));
+    const base = get.getMockImplementation()!;
+    let failed = false;
+    get.mockImplementation(async (path: string) => {
+      if (path === endpoints.promoRules.manage && !failed) {
+        failed = true;
+        throw new ApiError(500, 'kaput');
+      }
+      return base(path);
+    });
     const user = userEvent.setup();
     renderPage();
     expect(await screen.findByText('kaput')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Coba lagi' }));
     expect(await screen.findByText(RULE.name)).toBeTruthy();
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls.filter(([path]) => path === endpoints.promoRules.manage)).toHaveLength(2);
   });
 });
 
@@ -422,7 +433,9 @@ describe('dashboard/promo-rules delete', () => {
     renderPage();
     await screen.findByText(RULE.name);
     await user.click(screen.getAllByRole('button', { name: T.remove })[0]!);
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(get.mock.calls.filter(([path]) => path === endpoints.promoRules.manage)).toHaveLength(2),
+    );
     expect(del).toHaveBeenCalledWith(endpoints.promoRules.detail('r-1'), true);
     expect(toast).not.toHaveBeenCalled();
   });
@@ -594,5 +607,171 @@ describe('dashboard/promo-rules · new kinds (item 5 #11)', () => {
     await user.click(screen.getByRole('button', { name: T.save }));
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
     expect(patch.mock.calls[0]?.[1]).toMatchObject({ kind: 'BUNDLE_GIFT', giftProductId: 'prod-9', buyQty: 2, getQty: 1 });
+  });
+});
+
+describe('dashboard/promo-rules · admin tools (item 5 D)', () => {
+  const P = idDict.hq.promoTools;
+
+  it('searches by name, narrows by kind and status, says when nothing matches, and resets', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(RULE.name);
+    expect(screen.getByText(BARE.name)).toBeTruthy();
+
+    await user.type(screen.getByLabelText(P.search), 'ongkir');
+    expect(screen.queryByText(RULE.name)).toBeNull();
+    expect(screen.getByText(BARE.name)).toBeTruthy();
+
+    await user.clear(screen.getByLabelText(P.search));
+    await user.selectOptions(screen.getByLabelText(P.statusFilter), 'active');
+    expect(screen.getByText(RULE.name)).toBeTruthy();
+    expect(screen.queryByText(BARE.name)).toBeNull(); // BARE is inactive
+
+    await user.type(screen.getByLabelText(P.search), 'zzz-tidak-ada');
+    expect(await screen.findByText(P.noMatch)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: P.clear }));
+    expect(screen.getByText(RULE.name)).toBeTruthy();
+    expect(screen.getByText(BARE.name)).toBeTruthy();
+  });
+
+  it('shows how often each rule fired, and "never used" for one that did not', async () => {
+    serve([RULE, BARE], [{ promoRuleId: 'r-1', orders: 3, totalDiscount: 12000, lastAppliedAt: '2026-10-08T01:00:00.000Z' }]);
+    renderPage();
+    await screen.findByText(RULE.name);
+    expect(await screen.findByText(/Dipakai di 3 pesanan/)).toBeTruthy();
+    expect(screen.getByText(P.neverUsed)).toBeTruthy();
+  });
+
+  it('shows no usage at all when the usage read fails, and still lists the rules', async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation(async (path: string) => {
+      if (path === endpoints.promoRules.usage) throw new Error('usage down');
+      return base(path);
+    });
+    renderPage();
+    expect(await screen.findByText(RULE.name)).toBeTruthy();
+    expect(screen.queryByText(P.neverUsed)).toBeNull();
+  });
+
+  it('duplicates a rule into the editor as a NEW rule: copy name, create not patch', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(RULE.name);
+    await user.click(screen.getAllByRole('button', { name: P.duplicate })[0]!);
+    expect((screen.getByLabelText(T.fields.name) as HTMLInputElement).value).toBe(`${RULE.name} ${P.copySuffix}`);
+    expect(screen.getByRole('heading', { name: T.editorNew })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: T.create }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(patch).not.toHaveBeenCalled();
+    expect(post.mock.calls[0]?.[1]).toMatchObject({
+      name: `${RULE.name} ${P.copySuffix}`,
+      kind: 'SPECIAL_PRICE',
+      specialPrice: 4000,
+      active: true,
+    });
+    expect(post.mock.calls[0]?.[1]).not.toHaveProperty('seenUpdatedAt');
+  });
+
+  it('cancelling a duplicate leaves no template behind for the next "new rule"', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(RULE.name);
+    await user.click(screen.getAllByRole('button', { name: P.duplicate })[0]!);
+    await user.click(screen.getByRole('button', { name: T.cancel }));
+    await user.click(screen.getByRole('button', { name: T.newRule }));
+    expect((screen.getByLabelText(T.fields.name) as HTMLInputElement).value).toBe('');
+  });
+
+  describe('simulator', () => {
+    const SIM = {
+      lines: [{ productId: 'prod-9', appliedRuleIds: ['r-1'], unitPriceAfter: 6000, freeQty: 1, lineTotal: 18000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+      orderDiscountRuleId: 'r-2',
+      orderDiscountAmount: 2500,
+      gifts: [{ promoRuleId: 'r-2', productId: 'prod-9', quantity: 2, triggerProductId: 'prod-9' }],
+    };
+
+    async function openAndFill(user: ReturnType<typeof userEvent.setup>) {
+      renderPage();
+      await screen.findByText(RULE.name);
+      await user.click(screen.getByRole('button', { name: P.openSimulator }));
+      await screen.findAllByRole('option', { name: 'Galon 19L' });
+      await user.selectOptions(screen.getByLabelText(P.product), 'prod-9');
+      const qty = screen.getByLabelText(P.qty);
+      await user.clear(qty);
+      await user.type(qty, '3');
+    }
+
+    it('sends the basket to the simulate endpoint and shows what won, with rule names', async () => {
+      const user = userEvent.setup();
+      post.mockResolvedValueOnce(SIM);
+      await openAndFill(user);
+      await user.click(screen.getByRole('button', { name: P.run }));
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+
+      const [path, body] = post.mock.calls[0] as [string, Record<string, unknown>];
+      expect(path).toBe(endpoints.promoRules.simulate);
+      expect(body).toMatchObject({
+        channel: 'APP',
+        firstOrder: false,
+        lines: [{ productId: 'prod-9', categoryId: 'cat-1', quantity: 3, unitPrice: 8000 }],
+      });
+      expect(body.depotId).toBe('depot-a'); // the depot console pins its active depot
+      // The rule's name is in the list row AND on the result badge that names the winner.
+      await waitFor(() => expect(screen.getAllByText(RULE.name).length).toBeGreaterThan(1));
+      expect(screen.getByText('6.000', { exact: false })).toBeTruthy();
+      expect(screen.getAllByText(P.orderDiscount).length).toBeGreaterThan(0);
+      expect(screen.getByText(P.gift)).toBeTruthy();
+    });
+
+    it('sends the chosen channel, moment and new-customer flag', async () => {
+      const user = userEvent.setup();
+      post.mockResolvedValueOnce({ ...SIM, lines: [], orderDiscountAmount: 0, orderDiscountRuleId: null, gifts: [] });
+      await openAndFill(user);
+      await user.selectOptions(screen.getByLabelText(P.channel), 'COUNTER');
+      await user.type(screen.getByLabelText(P.when), '2026-10-09T09:30');
+      await user.click(screen.getByRole('checkbox', { name: P.newCustomer }));
+      await user.click(screen.getByRole('button', { name: P.run }));
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+      const body = post.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(body).toMatchObject({ channel: 'COUNTER', firstOrder: true });
+      expect(new Date(body.occurredAt as string).getTime()).toBe(new Date('2026-10-09T09:30').getTime());
+      expect(await screen.findByText(P.nothingApplied)).toBeTruthy();
+    });
+
+    it('asks for a product before calling the server', async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText(RULE.name);
+      await user.click(screen.getByRole('button', { name: P.openSimulator }));
+      await user.click(screen.getByRole('button', { name: P.run }));
+      expect(await screen.findByText(P.needLines)).toBeTruthy();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it('shows the server message when the simulation fails', async () => {
+      const user = userEvent.setup();
+      post.mockRejectedValueOnce(new ApiError(403, 'Tidak boleh'));
+      await openAndFill(user);
+      await user.click(screen.getByRole('button', { name: P.run }));
+      expect(await screen.findByText('Tidak boleh')).toBeTruthy();
+    });
+
+    it('adds and removes basket lines, and closes', async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText(RULE.name);
+      await user.click(screen.getByRole('button', { name: P.openSimulator }));
+      expect(screen.getAllByLabelText(P.product)).toHaveLength(1);
+      await user.click(screen.getByRole('button', { name: P.addLine }));
+      expect(screen.getAllByLabelText(P.product)).toHaveLength(2);
+      await user.click(screen.getAllByRole('button', { name: P.removeLine })[0]!);
+      expect(screen.getAllByLabelText(P.product)).toHaveLength(1);
+      await user.click(screen.getByRole('button', { name: P.close }));
+      expect(screen.getByRole('button', { name: P.openSimulator })).toBeTruthy();
+    });
   });
 });

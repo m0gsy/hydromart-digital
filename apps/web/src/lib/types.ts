@@ -242,6 +242,26 @@ export interface PromoRule {
   updatedAt: string;
 }
 
+/** How often a promo rule has actually fired (promo-rules/usage). A rule that never did is absent. */
+export interface PromoRuleUsage {
+  promoRuleId: string;
+  /** Distinct orders the rule applied to. */
+  orders: number;
+  /** Rupiah the rule took off. */
+  totalDiscount: number;
+  lastAppliedAt: string | null;
+}
+
+/** The answer to promo-rules/simulate: the same shape the checkout's promo quote uses. */
+export interface PromoSimulation {
+  lines: { productId: string; appliedRuleIds: string[]; unitPriceAfter: number; freeQty: number; lineTotal: number }[];
+  shippingAppliedRuleId: string | null;
+  shippingFeeOverride: number | null;
+  orderDiscountRuleId: string | null;
+  orderDiscountAmount: number;
+  gifts: { promoRuleId: string; productId: string; quantity: number; triggerProductId: string }[];
+}
+
 export interface PromoRulePayload {
   name: string;
   kind: PromoRuleKind;

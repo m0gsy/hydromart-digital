@@ -63,11 +63,16 @@ interface PickerProps {
   emptyLabel: ReactNode;
 }
 
-export function ProductSelect(props: PickerProps) {
-  const { data } = useAsync<Product[]>(
+/** The whole catalogue (never a silent first page), for pickers and for tools that need prices. */
+export function useProductList() {
+  return useAsync<Product[]>(
     () => fetchAllPages<Product>(({ page, limit }) => api.get(endpoints.products.browse({ page, limit }))),
     [],
   );
+}
+
+export function ProductSelect(props: PickerProps) {
+  const { data } = useProductList();
   return <OptionSelect {...props} options={(data ?? []).map((p) => ({ id: p.id, label: p.name }))} />;
 }
 
