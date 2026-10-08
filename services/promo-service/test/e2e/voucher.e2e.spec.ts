@@ -117,6 +117,34 @@ describe('Voucher HTTP flows (e2e)', () => {
     expect(res.body).toMatchObject({ code: 'HEMAT10', discount: 6000, valid: true });
   });
 
+  it('item-scoped voucher: priced on the matching lines, 422 without lines, 400 on a malformed line', async () => {
+    const productId = randomUUID();
+    const other = randomUUID();
+    await request(server())
+      .post('/api/v1/vouchers')
+      .set(auth(marketingToken))
+      .send({ code: 'GALON20', discountType: 'PERCENTAGE', value: 20, productId })
+      .expect(201);
+
+    const quote = (body: object) =>
+      request(server()).post('/api/v1/vouchers/quote').set(auth(customerToken)).send(body);
+    const lines = [
+      { productId, lineTotal: 30000 },
+      { productId: other, categoryId: randomUUID(), lineTotal: 30000 },
+    ];
+
+    const ok = await quote({ code: 'GALON20', subtotal: 60000, lines }).expect(200);
+    expect(ok.body.discount).toBe(6000); // 20% of the 30000 galon line, not of 60000
+    await quote({ code: 'GALON20', subtotal: 60000 }).expect(422);
+    await quote({ code: 'GALON20', subtotal: 60000, lines: [{ productId: 'nope', lineTotal: -1 }] }).expect(400);
+
+    await request(server())
+      .post('/api/v1/vouchers')
+      .set(auth(marketingToken))
+      .send({ code: 'DUAJENIS20', discountType: 'PERCENTAGE', value: 20, productId, categoryId: randomUUID() })
+      .expect(422);
+  });
+
   it('requires the internal service key to redeem (401 without/wrong key)', async () => {
     const body = {
       code: 'HEMAT10',

@@ -50,7 +50,7 @@ import {
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
-import { applyPromoQuote, stockLinesFor } from '../../domain/promo-adjustment';
+import { applyPromoQuote, stockLinesFor, voucherLinesFor } from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -87,7 +87,7 @@ import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
-import { PromoPort } from '../ports/promo.port';
+import { PromoPort, VoucherLine } from '../ports/promo.port';
 import { AutoApplyAppliedLine, PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
@@ -143,6 +143,8 @@ export interface CounterBasketQuote {
   /** Item 5 fase 1: original unitPrice/quantity + what the promo quote decided, one entry
    *  per original line — what `PromoAutoApplyPort.apply()` needs for the audit trail. */
   appliedLines: AutoApplyAppliedLine[];
+  /** Item 5 (B): the post-promo lines a product/category-scoped voucher is priced on. */
+  voucherLines: VoucherLine[];
   /** I-3: the shipping-promo fields `walkInSale`'s audit call needs, carried out of the
    *  single quote `priceCounterBasket` now runs — 0/null for a pick-up. */
   shippingAppliedRuleId: string | null;
@@ -495,6 +497,7 @@ export class OrderService {
       autoPromoQuote,
       tieredProductIds,
     );
+    const voucherLines = voucherLinesFor(items, categoryIdByProductId);
 
     // Fix 6: the minimum-order check runs against the PRE-promo subtotal. A promo discount
     // must never cause a cart that looked valid on the cart screen (priced before any
@@ -586,6 +589,7 @@ export class OrderService {
             shippingFee,
             authorization,
             depot.id,
+            voucherLines,
           )
         : Promise.resolve(null);
       // A rejected voucher must still reject checkout, and a rejected quote must not leave
@@ -658,6 +662,7 @@ export class OrderService {
               shippingFee,
               authorization,
               depot.id,
+              voucherLines,
             )
         : undefined,
     );
@@ -1060,6 +1065,7 @@ export class OrderService {
       shippingAppliedRuleId,
       shippingFeeOverride,
       originalShippingFee,
+      voucherLines,
     } = await this.priceCounterBasket(
       customerId,
       input.depotId,
@@ -1152,6 +1158,7 @@ export class OrderService {
               shippingFee,
               authorization,
               input.depotId,
+              voucherLines,
             )
         : undefined,
     );
@@ -1369,6 +1376,7 @@ export class OrderService {
     items: CreateOrderItemData[],
     tieredProductIds: Set<string>,
     tierPricedTotal: number,
+    voucherLines: VoucherLine[],
   ): Promise<{ discount: number; agen: boolean }> {
     if (customerId === ANONYMOUS_CUSTOMER_ID) {
       if (voucherCode) throw new AnonymousVoucherNotAllowedError();
@@ -1413,6 +1421,7 @@ export class OrderService {
         subtotal,
         shippingFee,
         depotId,
+        voucherLines,
       );
       if (quote.discountType === 'FREE_SHIPPING') {
         // C11: a free-shipping voucher is only meaningless when there is no shipping. On a
@@ -2293,6 +2302,7 @@ export class OrderService {
       autoPromoQuote,
       tieredProductIds,
     );
+    const voucherLines = voucherLinesFor(items, categoryIdByProductId);
 
     let shippingFee = 0;
     let shippingAppliedRuleId: string | null = null;
@@ -2325,6 +2335,7 @@ export class OrderService {
       items,
       tieredProductIds,
       tierPricedTotal,
+      voucherLines,
     );
     return {
       items,
@@ -2339,6 +2350,7 @@ export class OrderService {
       catalogFallback,
       agen,
       appliedLines,
+      voucherLines,
       shippingAppliedRuleId,
       shippingFeeOverride,
       originalShippingFee,

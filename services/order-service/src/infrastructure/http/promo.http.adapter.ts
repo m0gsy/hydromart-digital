@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import { VoucherRejectedError } from '../../domain/errors';
-import { PromoPort } from '../../application/ports/promo.port';
+import { PromoPort, VoucherLine } from '../../application/ports/promo.port';
 
 /**
  * Talks to the promo-service. `quote` fails CLOSED (rejects checkout if the voucher
@@ -24,6 +24,7 @@ export class PromoHttpAdapter implements PromoPort {
     shippingFee: number,
     authorization: string,
     depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<{ discount: number; discountType?: string }> {
     return this.postQuote(
       `${this.config.promoServiceUrl}/api/v1/vouchers/quote`,
@@ -32,7 +33,7 @@ export class PromoHttpAdapter implements PromoPort {
       // parameter is optional, so nothing in the type system would have noticed it being
       // dropped here — and a depot-scoped voucher would have gone on spending everywhere
       // while every layer above looked correct.
-      { code, subtotal, shippingFee, depotId },
+      { code, subtotal, shippingFee, depotId, lines },
       code,
     );
   }
@@ -43,6 +44,7 @@ export class PromoHttpAdapter implements PromoPort {
     subtotal: number,
     shippingFee: number,
     depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<{ discount: number; discountType?: string }> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
@@ -54,7 +56,7 @@ export class PromoHttpAdapter implements PromoPort {
     return this.postQuote(
       `${this.config.promoServiceUrl}/api/v1/vouchers/quote/internal`,
       { 'x-internal-key': internalServiceKey },
-      { code, customerId, subtotal, shippingFee, depotId },
+      { code, customerId, subtotal, shippingFee, depotId, lines },
       code,
     );
   }
@@ -115,6 +117,7 @@ export class PromoHttpAdapter implements PromoPort {
     shippingFee: number,
     _authorization: string,
     depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<void> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
@@ -128,7 +131,7 @@ export class PromoHttpAdapter implements PromoPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-        body: JSON.stringify({ code, customerId, orderId, subtotal, shippingFee, depotId }),
+        body: JSON.stringify({ code, customerId, orderId, subtotal, shippingFee, depotId, lines }),
         signal: controller.signal,
       });
       if (!res.ok) {

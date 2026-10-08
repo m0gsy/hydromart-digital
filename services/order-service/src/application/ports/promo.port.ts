@@ -9,6 +9,16 @@
  * idempotent per order on the promo side, so a failure only risks under-counting
  * usage, never blocking a paid order.
  */
+/**
+ * One post-promo basket line, for vouchers limited to a product or category (item 5 B).
+ * Sent with every quote and redeem so promo-service can price only the lines a voucher covers.
+ */
+export interface VoucherLine {
+  productId: string;
+  categoryId: string | null;
+  lineTotal: number;
+}
+
 export interface PromoPort {
   quote(
     code: string,
@@ -27,6 +37,8 @@ export interface PromoPort {
      * caller could not say which depot — the unknown case is not the permissive one.
      */
     depotId?: string | null,
+    /** Item 5 (B): the basket lines, so a product/category-scoped voucher prices only its own. */
+    lines?: VoucherLine[],
   ): Promise<{ discount: number; discountType?: string }>;
 
   /**
@@ -42,6 +54,7 @@ export interface PromoPort {
     shippingFee: number,
     /** CA-2-65: the depot the counter sale is rung up at. See `quote`. */
     depotId?: string | null,
+    lines?: VoucherLine[],
   ): Promise<{ discount: number; discountType?: string }>;
 
   redeem(
@@ -53,6 +66,8 @@ export interface PromoPort {
     authorization: string,
     /** CA-2-65: recorded with the redemption; the gate is `quote`. */
     depotId?: string | null,
+    /** Item 5 (B): the SAME lines the quote saw, so redeem burns the figure the quote showed. */
+    lines?: VoucherLine[],
   ): Promise<void>;
 
   /**

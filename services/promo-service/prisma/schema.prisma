@@ -48,6 +48,10 @@ model Voucher {
   /// column the approval produced a code every customer in the network could spend. Null is
   /// what every HQ-created voucher is, and what every row predating this migration is.
   depotId     String?
+  /// Item 5 (B): limit the voucher to one product OR one category (never both). The discount
+  /// is worked out on the matching lines only. Both null = the whole order, as before.
+  productId   String?
+  categoryId  String?
   /// PRM-4: who may spend this code.
   ///
   /// `PUBLIC` is a campaign code — printed on a banner, spendable by anybody who types it,

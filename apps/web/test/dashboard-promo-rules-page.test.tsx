@@ -78,6 +78,17 @@ const BARE: PromoRule = {
   active: false,
 };
 
+/** The pickers read the catalogue, categories and depots; everything else is the rule list. */
+const serve = (rules: PromoRule[]) =>
+  get.mockReset().mockImplementation(async (path: string) => {
+    const p = String(path);
+    const page = (items: unknown[]) => ({ items, total: items.length, page: 1, limit: 100 });
+    if (p.includes('/products/api/v1/products')) return page([{ id: 'prod-9', name: 'Galon 19L' }]);
+    if (p.includes('/products/api/v1/categories')) return [{ id: 'cat-1', name: 'Air' }];
+    if (p.includes('/depots/api/v1/depots')) return page([{ id: 'depot-z', name: 'Depot Z' }]);
+    return rules;
+  });
+
 function renderPage(): void {
   render(
     <LocaleProvider>
@@ -88,7 +99,7 @@ function renderPage(): void {
 
 beforeEach(() => {
   auth.role = 'SUPER_ADMIN';
-  get.mockReset().mockResolvedValue([RULE, BARE]);
+  serve([RULE, BARE]);
   post.mockReset().mockResolvedValue({});
   patch.mockReset().mockResolvedValue({});
   del.mockReset().mockResolvedValue({});
@@ -183,8 +194,10 @@ describe('dashboard/promo-rules editor', () => {
     const depotField = screen.getByLabelText(T.fields.depotId) as HTMLInputElement;
     expect(depotField.disabled).toBe(true);
     expect(depotField.value).toBe('depot-a');
-    await user.type(screen.getByLabelText(T.fields.productId), 'prod-9');
-    await user.type(screen.getByLabelText(T.fields.categoryId), 'cat-1');
+    await screen.findByRole('option', { name: 'Galon 19L' });
+    await user.selectOptions(screen.getByLabelText(T.fields.productId), 'prod-9');
+    await screen.findByRole('option', { name: 'Air' });
+    await user.selectOptions(screen.getByLabelText(T.fields.categoryId), 'cat-1');
     await user.type(screen.getByLabelText(T.fields.validFrom), '2026-03-01');
     await user.type(screen.getByLabelText(T.fields.validUntil), '2026-03-31');
     await user.type(screen.getByLabelText(T.fields.startTime), '09:30');
@@ -229,7 +242,8 @@ describe('dashboard/promo-rules editor', () => {
     expect(patch).not.toHaveBeenCalled();
     // editor closes and list reloads
     await waitFor(() => expect(screen.queryByRole('heading', { name: T.editorNew })).toBeNull());
-    expect(get).toHaveBeenCalledTimes(2);
+    // The pickers read other endpoints too; only the rule list is reloaded.
+    expect(get.mock.calls.filter(([path]) => path === endpoints.promoRules.manage)).toHaveLength(2);
   });
 
   it('creates SPECIAL_PRICE and SHIPPING_DISCOUNT rules with only their own field set', async () => {

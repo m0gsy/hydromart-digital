@@ -44,7 +44,9 @@ import {
   ReleaseResponseDto,
   ReleaseVoucherDto,
   UpdateVoucherDto,
+  VoucherLineDto,
 } from './dto/voucher.dto';
+import { VoucherLine } from '../domain/voucher';
 import {
   BurnSummary3ResponseDto,
   Grant3ResponseDto,
@@ -57,6 +59,8 @@ import {
 // Vouchers are authored by marketing/depot staff and previewed/redeemed by customers.
 // RBAC role groups come from the shared @hydromart/access capability map (voucherRead/voucherWrite).
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
+const toLines = (lines?: VoucherLineDto[]): VoucherLine[] | undefined =>
+  lines?.map((l) => ({ productId: l.productId, categoryId: l.categoryId ?? null, lineTotal: l.lineTotal }));
 
 @ApiTags('Vouchers')
 @Controller({ path: 'vouchers', version: '1' })
@@ -104,7 +108,14 @@ export class VoucherController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: QuoteVoucherDto,
   ): Promise<QuoteResult> {
-    return this.vouchers.quote(dto.code, user.sub, dto.subtotal, dto.shippingFee ?? 0, dto.depotId);
+    return this.vouchers.quote(
+      dto.code,
+      user.sub,
+      dto.subtotal,
+      dto.shippingFee ?? 0,
+      dto.depotId,
+      toLines(dto.lines),
+    );
   }
 
   // Same preview, for an order the buyer is not the caller of: a counter sale is rung up on
@@ -124,6 +135,7 @@ export class VoucherController {
       dto.subtotal,
       dto.shippingFee ?? 0,
       dto.depotId,
+      toLines(dto.lines),
     );
   }
 
@@ -147,6 +159,7 @@ export class VoucherController {
       dto.subtotal,
       dto.shippingFee ?? 0,
       dto.depotId,
+      toLines(dto.lines),
     );
   }
 
@@ -194,6 +207,8 @@ export class VoucherController {
       budgetCap: dto.budgetCap ?? null,
       active: dto.active,
       audience: dto.audience,
+      productId: dto.productId,
+      categoryId: dto.categoryId,
     });
   }
 
@@ -232,6 +247,8 @@ export class VoucherController {
       // cap saw the form accept it and the cap never move — the voucher kept burning to the
       // old ceiling, which is the one number on this screen that is literally money.
       budgetCap: dto.budgetCap,
+      productId: dto.productId,
+      categoryId: dto.categoryId,
       active: dto.active,
     };
     return this.vouchers.update(id, patch, dto.seenUpdatedAt);
