@@ -6,6 +6,7 @@ import {
   computeEffective,
   galonQuantity,
   toRulePayload,
+  voucherLinesFor,
   type RuleForm,
 } from '@/lib/pricing';
 import type { CartLine, ResolvedPrice } from '@/lib/types';
@@ -248,5 +249,32 @@ describe('computeEffective ABSOLUTE (CA-2-35)', () => {
   it('accepts ABSOLUTE from the rule form', () => {
     const form: RuleForm = { ...EMPTY_RULE_FORM, adjustType: 'ABSOLUTE', value: '18000' };
     expect(toRulePayload(form).ok).toBe(true);
+  });
+});
+
+describe('voucherLinesFor (item 5 B)', () => {
+  const item = (productId: string, quantity: number, lineTotal: number, categoryId?: string | null) =>
+    ({ ...line('Galon 19L', quantity), productId, lineTotal, categoryId }) as CartLine;
+
+  it('uses the post-promo price where a promo touched the line, and the plain total elsewhere', () => {
+    const lines = voucherLinesFor({
+      items: [item('p1', 4, 40000, 'c1'), item('p2', 1, 5000)],
+      promo: {
+        subtotal: 37000,
+        savings: 8000,
+        lines: [{ productId: 'p1', unitPriceAfter: 8000, freeQty: 1 }],
+        shippingFeeOverride: null,
+      },
+    });
+    expect(lines).toEqual([
+      { productId: 'p1', categoryId: 'c1', lineTotal: 32000 },
+      { productId: 'p2', categoryId: null, lineTotal: 5000 },
+    ]);
+  });
+
+  it('is just the line totals when there is no promo', () => {
+    expect(voucherLinesFor({ items: [item('p1', 2, 40000, 'c1')] })).toEqual([
+      { productId: 'p1', categoryId: 'c1', lineTotal: 40000 },
+    ]);
   });
 });

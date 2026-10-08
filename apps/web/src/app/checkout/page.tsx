@@ -51,7 +51,7 @@ import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { offeredMethods, PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
-import { memberDiscount, shippingFeeFor } from '@/lib/pricing';
+import { memberDiscount, shippingFeeFor, voucherLinesFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -549,7 +549,7 @@ function CheckoutInner() {
     try {
       const result = await api.post<VoucherQuote>(
         endpoints.vouchers.quote,
-        { code, subtotal: goodsSubtotal, shippingFee: shippingFeeEstimate },
+        { code, subtotal: goodsSubtotal, shippingFee: shippingFeeEstimate, lines: voucherLinesFor(cart) },
         true,
       );
       setQuote(result);

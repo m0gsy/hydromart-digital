@@ -763,6 +763,11 @@ export const hq = {
       draftSaved: 'Voucher draft saved.',
       error: 'Could not save the voucher.',
       needCode: 'Voucher code is required.',
+      scopeProduct: 'Only for product (ID)',
+      scopeCategory: 'Only for category (ID)',
+      scopeHint: 'Leave both empty for the whole order. Fill in one only.',
+      scopeBoth: 'Choose a product OR a category, not both.',
+      scopeBadId: 'A product or category ID looks like 0a1b2c3d-… (copy it from the catalogue).',
       needValue: 'Discount value must be greater than 0.',
     },
     commission: {

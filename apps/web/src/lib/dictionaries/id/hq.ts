@@ -767,6 +767,11 @@ export const hq = {
       draftSaved: 'Draf voucher disimpan.',
       error: 'Gagal menyimpan voucher.',
       needCode: 'Kode voucher wajib diisi.',
+      scopeProduct: 'Hanya untuk produk (ID)',
+      scopeCategory: 'Hanya untuk kategori (ID)',
+      scopeHint: 'Kosongkan keduanya untuk seluruh pesanan. Isi salah satu saja.',
+      scopeBoth: 'Pilih produk ATAU kategori, tidak keduanya.',
+      scopeBadId: 'ID produk atau kategori berbentuk 0a1b2c3d-… (salin dari katalog).',
       needValue: 'Nilai diskon harus lebih dari 0.',
     },
     commission: {
