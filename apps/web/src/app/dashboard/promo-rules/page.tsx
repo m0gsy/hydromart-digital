@@ -130,7 +130,9 @@ function RuleEditor({
   // console's switcher currently has active. Only a brand-new rule defaults to the active depot.
   const effectiveDepotId = effectiveDepotIdFor(rule, activeDepotId);
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const dayLabels = t('dashboard.promoRules.days') as unknown as string[];
+  // Per-day string keys: t() only returns string leaves (a non-string value comes back as the
+  // key itself), so the weekday names are an object keyed 0-6, not an array.
+  const dayLabels = [0, 1, 2, 3, 4, 5, 6].map((day) => t(`dashboard.promoRules.days.${day}`));
 
   function toggleDay(day: number) {
     setForm((f) => ({

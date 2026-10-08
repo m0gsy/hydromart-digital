@@ -111,7 +111,7 @@ const HQ = R(`
 /hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
 /hq/forms/segment /hq/forms/voucher /hq/franchise /hq/fraud /hq/health /hq/hierarchy
 /hq/incidents /hq/inventory /hq/invoice-template /hq/loyalty /hq/notifications
-/hq/onboarding /hq/orders /hq/payments /hq/pdp /hq/pricing /hq/profile /hq/promotions
+/hq/onboarding /hq/orders /hq/payments /hq/pdp /hq/pricing /hq/profile /hq/promo-rules /hq/promotions
 /hq/reconciliation /hq/refunds /hq/reports/export /hq/retention /hq/returns /hq/roster
 /hq/scheduled-reports /hq/scorecard /hq/search /hq/security /hq/sitemap /hq/sla-policy
 /hq/staff /hq/staff/import /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
@@ -135,7 +135,7 @@ const OPS = R(`
 /dashboard/monthly-review /dashboard/notifications /dashboard/onboarding
 /dashboard/operator-settings /dashboard/orders /dashboard/payment-recon
 /dashboard/payments /dashboard/payout /dashboard/pricing /dashboard/pricing/import
-/dashboard/products/manage /dashboard/profile /dashboard/promotions
+/dashboard/products/manage /dashboard/profile /dashboard/promo-rules /dashboard/promotions
 /dashboard/purchase-orders /dashboard/purchase-orders/detail
 /dashboard/ratings /dashboard/recommendations /dashboard/redemptions /dashboard/referral
 /dashboard/reports /dashboard/resellers/import /dashboard/returns /dashboard/roles

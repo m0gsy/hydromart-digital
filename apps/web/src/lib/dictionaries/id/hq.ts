@@ -1109,7 +1109,7 @@ export const hq = {
       channelCounter: 'Kasir',
       active: 'Aktif',
     },
-    days: ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'],
+    days: { 0: 'Minggu', 1: 'Senin', 2: 'Selasa', 3: 'Rabu', 4: 'Kamis', 5: 'Jumat', 6: 'Sabtu' },
   },
   customers: {
     title: 'Customer 360',

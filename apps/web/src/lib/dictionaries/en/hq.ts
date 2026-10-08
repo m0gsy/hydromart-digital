@@ -1105,7 +1105,7 @@ export const hq = {
       channelCounter: 'Counter',
       active: 'Active',
     },
-    days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    days: { 0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat' },
   },
   customers: {
     title: 'Customer 360',

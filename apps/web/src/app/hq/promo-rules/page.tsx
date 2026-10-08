@@ -116,7 +116,9 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const dayLabels = t('hq.promoRules.days') as unknown as string[];
+  // Per-day string keys: t() only returns string leaves (a non-string value comes back as the
+  // key itself), so the weekday names are an object keyed 0-6, not an array.
+  const dayLabels = [0, 1, 2, 3, 4, 5, 6].map((day) => t(`hq.promoRules.days.${day}`));
 
   function toggleDay(day: number) {
     setForm((f) => ({
