@@ -535,6 +535,8 @@ describe('PromoRuleController', () => {
       (service.quote as jest.Mock).mockResolvedValue({
         lines: [{ productId: 'p1', appliedRuleIds: ['r1'], unitPriceAfter: 6000, freeQty: 0, lineTotal: 12000 }],
         shipping: { appliedRuleId: 'r2', shippingFeeOverride: 1000 },
+        orderDiscount: { appliedRuleId: 'r3', amount: 2500 },
+        gifts: [],
       });
       const result = await new PromoRuleController(service).simulate(
         { ...body, occurredAt: '2026-10-09T02:30:00.000Z' } as never,
@@ -547,7 +549,12 @@ describe('PromoRuleController', () => {
         lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 8000, skipPromo: false }],
         firstOrder: false,
       });
-      expect(result).toMatchObject({ shippingAppliedRuleId: 'r2', shippingFeeOverride: 1000 });
+      expect(result).toMatchObject({
+        shippingAppliedRuleId: 'r2',
+        shippingFeeOverride: 1000,
+        orderDiscountRuleId: 'r3',
+        orderDiscountAmount: 2500,
+      });
     });
 
     it('lets an admin try the new-customer scenario', async () => {
