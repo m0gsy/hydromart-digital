@@ -29,11 +29,13 @@ import {
   AutoApplyApplyDto,
   AutoApplyQuoteDto,
   CreatePromoRuleDto,
+  SimulatePromoRulesDto,
   UpdatePromoRuleDto,
 } from './dto/promo-rule.dto';
 import {
   AutoApplyQuoteResponseDto,
   PromoRuleResponseDto,
+  PromoRuleUsageResponseDto,
 } from './dto/responses.generated.dto';
 
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
@@ -50,6 +52,53 @@ export class PromoRuleController {
   @ApiOperation({ summary: 'List promo rules visible to the caller (admin)' })
   list(@CurrentUser() user?: AuthenticatedUser): Promise<PromoRuleRecord[]> {
     return this.promoRules.findAll(depotScopeIds(user));
+  }
+
+  // Declared BEFORE `promo-rules/:id`, or "usage" would be read as an id and refused by the
+  // UUID pipe.
+  @ApiOkResponse({ type: PromoRuleUsageResponseDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('promoRuleRead')
+  @Get('promo-rules/usage')
+  @ApiOperation({ summary: 'How often each visible promo rule has fired (admin)' })
+  async usage(@CurrentUser() user?: AuthenticatedUser): Promise<PromoRuleUsageResponseDto[]> {
+    const rows = await this.promoRules.usage(depotScopeIds(user));
+    return rows.map((r) => ({
+      promoRuleId: r.promoRuleId,
+      orders: r.orders,
+      totalDiscount: r.totalDiscount,
+      lastAppliedAt: r.lastAppliedAt ? r.lastAppliedAt.toISOString() : null,
+    }));
+  }
+
+  @ApiOkResponse({ type: AutoApplyQuoteResponseDto })
+  @ApiBearerAuth()
+  @Can('promoRuleRead')
+  @Post('promo-rules/simulate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Try a basket against the active rules, recording nothing (admin)' })
+  async simulate(
+    @Body() dto: SimulatePromoRulesDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<AutoApplyQuoteResponseDto> {
+    // A depot-scoped reader may only try their own depot (and must name it).
+    assertDepotAccess(user, dto.depotId ?? null);
+    const result = await this.promoRules.quote({
+      depotId: dto.depotId ?? null,
+      channel: dto.channel,
+      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+      lines: dto.lines.map((l) => ({
+        productId: l.productId,
+        categoryId: l.categoryId ?? null,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+      })),
+    });
+    return {
+      lines: result.lines,
+      shippingAppliedRuleId: result.shipping.appliedRuleId,
+      shippingFeeOverride: result.shipping.shippingFeeOverride,
+    };
   }
 
   @ApiOkResponse({ type: PromoRuleResponseDto })

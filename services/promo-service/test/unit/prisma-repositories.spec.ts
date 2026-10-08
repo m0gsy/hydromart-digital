@@ -17,10 +17,12 @@ describe('PromoRulePrismaRepository', () => {
   const $transaction: jest.Mock<Promise<unknown>, [(tx: unknown) => unknown]> = jest.fn((fn) =>
     Promise.resolve(fn({ promoApplication })),
   );
+  const $queryRaw = jest.fn();
   const prisma = {
     promoRule: model,
     promoApplication,
     $transaction,
+    $queryRaw,
   } as unknown as PrismaService;
   const repo = new PromoRulePrismaRepository(prisma);
   const row = { id: 'rule-1', name: 'Jumat Berkah', depotId: null, active: true };
@@ -70,6 +72,27 @@ describe('PromoRulePrismaRepository', () => {
     const boom = new Error('boom');
     model.delete.mockRejectedValueOnce(boom);
     await expect(repo.delete('rule-1')).rejects.toBe(boom);
+  });
+
+  it('usageByRule returns nothing without touching the audit table when no rule is visible', async () => {
+    model.findMany.mockResolvedValue([]);
+    expect(await repo.usageByRule(['depot-a'])).toEqual([]);
+    expect($queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('usageByRule maps bigint counts to numbers, scoped to the visible rules', async () => {
+    model.findMany.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }]);
+    const at = new Date('2026-10-08T00:00:00Z');
+    $queryRaw.mockResolvedValue([
+      { promoRuleId: 'r1', orders: BigInt(3), discount: BigInt(4500), lastAppliedAt: at },
+    ]);
+    expect(await repo.usageByRule(['depot-a'])).toEqual([
+      { promoRuleId: 'r1', orders: 3, totalDiscount: 4500, lastAppliedAt: at },
+    ]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ depotId: null }, { depotId: { in: ['depot-a'] } }] },
+      select: { id: true },
+    });
   });
 
   it('findAll with no depotIds sees every rule (unscoped caller)', async () => {

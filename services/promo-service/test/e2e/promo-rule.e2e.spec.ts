@@ -67,6 +67,11 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
         findActiveCandidates: jest.fn().mockResolvedValue([]),
         hasApplicationFor: jest.fn().mockResolvedValue(false),
         recordApplications: jest.fn().mockResolvedValue(undefined),
+        usageByRule: jest
+          .fn()
+          .mockResolvedValue([
+            { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: new Date('2026-10-08T01:00:00Z') },
+          ]),
       })
       .compile();
 
@@ -90,6 +95,50 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
     channel: 'APP',
     lines: [{ productId: '00000000-0000-4000-8000-000000000001', quantity: 1, unitPrice: 8000 }],
   };
+
+  describe('admin usage + simulate', () => {
+    const token = (role: Role) => {
+      const jwt = app.get(JwtService);
+      const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
+      return jwt.sign(
+        { sub: '00000000-0000-4000-8000-000000000098', role, phone: '+62' },
+        { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+      );
+    };
+
+    it('GET promo-rules/usage is reachable (not read as an id) and serialises the date', async () => {
+      const res = await request(server())
+        .get('/api/v1/promotions/promo-rules/usage')
+        .set(auth(token(Role.SUPER_ADMIN)))
+        .expect(200);
+      expect(res.body).toEqual([
+        { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: '2026-10-08T01:00:00.000Z' },
+      ]);
+    });
+
+    it('both routes refuse a customer', async () => {
+      await request(server()).get('/api/v1/promotions/promo-rules/usage').set(auth(token(Role.CUSTOMER))).expect(403);
+      await request(server())
+        .post('/api/v1/promotions/promo-rules/simulate')
+        .set(auth(token(Role.CUSTOMER)))
+        .send(quoteBody)
+        .expect(403);
+    });
+
+    it('simulate answers with the quote shape and validates the body', async () => {
+      const ok = await request(server())
+        .post('/api/v1/promotions/promo-rules/simulate')
+        .set(auth(token(Role.SUPER_ADMIN)))
+        .send({ ...quoteBody, occurredAt: '2026-10-09T02:30:00.000Z' })
+        .expect(200);
+      expect(ok.body).toMatchObject({ lines: [expect.any(Object)], shippingFeeOverride: null });
+      await request(server())
+        .post('/api/v1/promotions/promo-rules/simulate')
+        .set(auth(token(Role.SUPER_ADMIN)))
+        .send({ ...quoteBody, channel: 'WEB' })
+        .expect(400);
+    });
+  });
 
   it('requires the internal service key for auto-apply/quote (401 without/wrong key)', async () => {
     await request(server()).post('/api/v1/promotions/auto-apply/quote').send(quoteBody).expect(401);

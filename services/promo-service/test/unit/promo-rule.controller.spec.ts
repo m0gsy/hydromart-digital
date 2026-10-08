@@ -34,6 +34,7 @@ describe('PromoRuleController', () => {
         shipping: { appliedRuleId: null, shippingFeeOverride: null },
       }),
       apply: jest.fn().mockResolvedValue(undefined),
+      usage: jest.fn().mockResolvedValue([]),
     }) as unknown as PromoRuleService;
 
   const rule = (overrides: Partial<{ id: string; depotId: string | null }> = {}) => ({
@@ -410,5 +411,65 @@ describe('PromoRuleController', () => {
     expect(service.apply).toHaveBeenCalledWith(
       expect.objectContaining({ shippingUnits: 5 }),
     );
+  });
+
+  describe('usage', () => {
+    it('is scoped to the caller and serialises the date', async () => {
+      const service = makeService();
+      (service.usage as jest.Mock).mockResolvedValue([
+        { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: new Date('2026-10-08T01:00:00Z') },
+        { promoRuleId: 'r2', orders: 0, totalDiscount: 0, lastAppliedAt: null },
+      ]);
+      const result = await new PromoRuleController(service).usage(managerOwnDepot);
+      expect(service.usage).toHaveBeenCalledWith(['depot-a']);
+      expect(result).toEqual([
+        { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: '2026-10-08T01:00:00.000Z' },
+        { promoRuleId: 'r2', orders: 0, totalDiscount: 0, lastAppliedAt: null },
+      ]);
+    });
+  });
+
+  describe('simulate', () => {
+    const body = {
+      depotId: 'depot-a',
+      channel: 'APP' as const,
+      lines: [{ productId: 'p1', quantity: 2, unitPrice: 8000 }],
+    };
+
+    it('quotes at the requested moment and returns the quote shape', async () => {
+      const service = makeService();
+      (service.quote as jest.Mock).mockResolvedValue({
+        lines: [{ productId: 'p1', appliedRuleIds: ['r1'], unitPriceAfter: 6000, freeQty: 0, lineTotal: 12000 }],
+        shipping: { appliedRuleId: 'r2', shippingFeeOverride: 1000 },
+      });
+      const result = await new PromoRuleController(service).simulate(
+        { ...body, occurredAt: '2026-10-09T02:30:00.000Z' } as never,
+        managerOwnDepot,
+      );
+      expect(service.quote).toHaveBeenCalledWith({
+        depotId: 'depot-a',
+        channel: 'APP',
+        occurredAt: new Date('2026-10-09T02:30:00.000Z'),
+        lines: [{ productId: 'p1', categoryId: null, quantity: 2, unitPrice: 8000 }],
+      });
+      expect(result).toMatchObject({ shippingAppliedRuleId: 'r2', shippingFeeOverride: 1000 });
+    });
+
+    it('defaults the moment to now and lets an unscoped caller try the network-wide rules', async () => {
+      const service = makeService();
+      const before = Date.now();
+      await new PromoRuleController(service).simulate({ ...body, depotId: undefined } as never, hqUser);
+      const call = (service.quote as jest.Mock).mock.calls[0][0];
+      expect(call.depotId).toBeNull();
+      expect(call.occurredAt.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('refuses a depot-scoped caller trying another depot, or naming none', async () => {
+      const service = makeService();
+      const controller = new PromoRuleController(service);
+      await expect(controller.simulate(body as never, managerOtherDepot)).rejects.toThrow();
+      await expect(controller.simulate({ ...body, depotId: undefined } as never, managerOwnDepot)).rejects.toThrow();
+      expect(service.quote).not.toHaveBeenCalled();
+    });
   });
 });
