@@ -94,6 +94,7 @@ describe('Order HTTP flows (e2e)', () => {
               PROMO_SERVICE_URL: 'http://localhost:3010',
               REFERRAL_SERVICE_URL: 'http://localhost:3011',
               CRM_SERVICE_URL: 'http://localhost:3012',
+              CUSTOMER_SERVICE_URL: 'http://localhost:3002',
               INTERNAL_SERVICE_KEY: INTERNAL_KEY,
               ORDER_DELIVERY_FEE: 5000,
               ORDER_EXPRESS_ENABLED: 1,
