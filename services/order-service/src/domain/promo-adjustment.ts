@@ -5,7 +5,23 @@
 import { money } from '@hydromart/platform';
 
 import { CreateOrderItemData } from '../application/ports/order.repository';
+import { VoucherLine } from '../application/ports/promo.port';
 import { AutoApplyAppliedLine, AutoApplyQuoteResult } from '../application/ports/promo-auto-apply.port';
+
+/**
+ * The post-promo basket as a voucher sees it. Built from the FINAL items (free BOGO rows
+ * included, at 0), so a scoped voucher is priced on what the customer is actually billed.
+ */
+export function voucherLinesFor(
+  items: readonly { productId: string; lineTotal: number }[],
+  categoryIdByProductId: ReadonlyMap<string, string | null>,
+): VoucherLine[] {
+  return items.map((i) => ({
+    productId: i.productId,
+    categoryId: categoryIdByProductId.get(i.productId) ?? null,
+    lineTotal: i.lineTotal,
+  }));
+}
 
 export function applyPromoQuote(
   items: CreateOrderItemData[],

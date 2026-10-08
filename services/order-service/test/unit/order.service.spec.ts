@@ -3083,6 +3083,26 @@ describe('OrderService', () => {
     ]);
   });
 
+  it('item 5 B: quotes AND redeems the voucher with the same post-promo lines, free BOGO row included at 0', async () => {
+    const p = catalog.seed({ id: randomUUID(), basePrice: 8000, categoryId: 'cat-air' });
+    await cartService.setItem(customer, p.id, 4, false);
+    promoAutoApply.quoteResult = {
+      lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    promo.quoteDiscount = 3200;
+
+    await service.checkout(customer, { deliveryAddress: address, voucherCode: 'GALON10' });
+
+    const expected = [
+      { productId: p.id, categoryId: 'cat-air', lineTotal: 32000 },
+      { productId: p.id, categoryId: 'cat-air', lineTotal: 0 },
+    ];
+    expect(promo.quoteCalls[0].lines).toEqual(expected);
+    expect(promo.redeemCalls[0].lines).toEqual(expected);
+  });
+
   /*
    * Fix 3 + Fix 7 (promo-order-integration review): promo-service has no way to learn a
    * depot's own delivery fee, so nothing stops a SHIPPING_DISCOUNT rule's override from
