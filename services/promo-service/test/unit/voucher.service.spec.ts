@@ -135,6 +135,12 @@ describe('VoucherService.previewByCode (PRM-7)', () => {
     );
   });
 
+  it('tells the customer which product or category a scoped code is limited to', async () => {
+    const P = '00000000-0000-4000-8000-000000000001';
+    await service.create(baseVoucher({ code: 'GALON10', productId: P }));
+    expect(await service.previewByCode('galon10')).toMatchObject({ productId: P, categoryId: null });
+  });
+
   it('returns only what a customer needs to decide', async () => {
     await service.create(baseVoucher({ budgetCap: 5_000_000 }));
     const preview = await service.previewByCode('hemat10');
@@ -146,6 +152,8 @@ describe('VoucherService.previewByCode (PRM-7)', () => {
       minSpend: 0,
       maxDiscount: null,
       validUntil: null,
+      productId: null,
+      categoryId: null,
     });
     expect(preview).not.toHaveProperty('budgetCap');
     expect(preview).not.toHaveProperty('usedCount');

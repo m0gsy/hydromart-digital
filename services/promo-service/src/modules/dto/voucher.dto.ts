@@ -310,6 +310,10 @@ export class PublicVoucherPreviewDto {
   maxDiscount!: number | null;
   @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
   validUntil!: Date | null;
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'uuid', description: 'Limited to this product.' })
+  productId!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'uuid', description: 'Limited to this category.' })
+  categoryId!: string | null;
 }
 
 export class MyVoucherDto {
@@ -327,6 +331,10 @@ export class MyVoucherDto {
   maxDiscount!: number | null;
   @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
   validUntil!: Date | null;
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'uuid', description: 'Limited to this product.' })
+  productId!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'uuid', description: 'Limited to this category.' })
+  categoryId!: string | null;
   @ApiProperty({ enum: ['AVAILABLE', 'USED', 'EXPIRED', 'UPCOMING', 'SOLD_OUT'] })
   status!: VoucherStatus;
 
@@ -339,6 +347,8 @@ export class MyVoucherDto {
       minSpend: w.voucher.minSpend,
       maxDiscount: w.voucher.maxDiscount,
       validUntil: w.voucher.validUntil,
+      productId: w.voucher.productId,
+      categoryId: w.voucher.categoryId,
       status: w.status,
     };
   }
