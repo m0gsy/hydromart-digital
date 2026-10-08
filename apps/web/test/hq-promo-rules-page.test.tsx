@@ -47,6 +47,11 @@ const RULE: PromoRule = {
   buyQty: null,
   getQty: null,
   shippingFeeOverride: null,
+  percentOff: null,
+  minSubtotal: null,
+  discountAmount: null,
+  giftProductId: null,
+  firstOrderOnly: false,
   validFrom: '2026-01-05T00:00:00.000Z',
   validUntil: null,
   daysOfWeek: [1],
@@ -68,6 +73,11 @@ const BARE: PromoRule = {
   productId: null,
   specialPrice: null,
   shippingFeeOverride: 0,
+  percentOff: null,
+  minSubtotal: null,
+  discountAmount: null,
+  giftProductId: null,
+  firstOrderOnly: false,
   validFrom: null,
   daysOfWeek: [],
   startTime: null,
@@ -224,6 +234,11 @@ describe('hq/promo-rules editor', () => {
         buyQty: 5,
         getQty: 1,
         shippingFeeOverride: null,
+        percentOff: null,
+        minSubtotal: null,
+        discountAmount: null,
+        giftProductId: null,
+        firstOrderOnly: false,
         validFrom: '2026-03-01T00:00:00.000Z',
         validUntil: '2026-03-31T00:00:00.000Z',
         daysOfWeek: [1, 5],
@@ -339,6 +354,11 @@ describe('hq/promo-rules editor', () => {
         buyQty: null,
         getQty: null,
         shippingFeeOverride: null,
+        percentOff: null,
+        minSubtotal: null,
+        discountAmount: null,
+        giftProductId: null,
+        firstOrderOnly: false,
         validFrom: '2026-01-05T00:00:00.000Z',
         validUntil: null,
         daysOfWeek: [1],
@@ -420,5 +440,131 @@ describe('hq/promo-rules write gating', () => {
     await screen.findByText(BARE.name);
     expect(screen.getByRole('button', { name: T.edit })).toBeTruthy();
     expect(screen.getByRole('button', { name: T.remove })).toBeTruthy();
+  });
+});
+
+describe('hq/promo-rules · new kinds (item 5 #11)', () => {
+  it('PERCENTAGE_OFF: asks for the percent and posts it', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openNew(user);
+    await user.type(screen.getByLabelText(T.fields.name), 'Diskon 20');
+    await user.selectOptions(screen.getByLabelText(T.fields.kind), 'PERCENTAGE_OFF');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    expect(await screen.findByText(T.needPercent)).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText(T.fields.percentOff), '20');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]?.[1]).toMatchObject({ kind: 'PERCENTAGE_OFF', percentOff: 20, specialPrice: null });
+  });
+
+  it('ORDER_DISCOUNT: no product / category / quantity fields, amount or percent mode', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openNew(user);
+    await user.type(screen.getByLabelText(T.fields.name), 'Belanja 100rb');
+    await user.selectOptions(screen.getByLabelText(T.fields.kind), 'ORDER_DISCOUNT');
+    expect(screen.queryByLabelText(T.fields.productId)).toBeNull();
+    expect(screen.queryByLabelText(T.fields.categoryId)).toBeNull();
+    expect(screen.queryByLabelText(T.fields.minQty)).toBeNull();
+    expect(screen.queryByLabelText(T.fields.maxQty)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: T.create }));
+    expect(await screen.findByText(T.needOrderDiscount)).toBeTruthy();
+
+    await user.type(screen.getByLabelText(T.fields.minSubtotal), '100000');
+    await user.type(screen.getByLabelText(T.fields.discountAmount), '10000');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]?.[1]).toMatchObject({
+      kind: 'ORDER_DISCOUNT',
+      minSubtotal: 100000,
+      discountAmount: 10000,
+      percentOff: null,
+      productId: null,
+      minQty: 1,
+      maxQty: null,
+    });
+
+    await openNew(user);
+    await user.type(screen.getByLabelText(T.fields.name), 'Belanja 100rb persen');
+    await user.selectOptions(screen.getByLabelText(T.fields.kind), 'ORDER_DISCOUNT');
+    await user.selectOptions(screen.getByLabelText(T.fields.orderMode), 'PERCENT');
+    expect(screen.queryByLabelText(T.fields.discountAmount)).toBeNull();
+    await user.type(screen.getByLabelText(T.fields.minSubtotal), '50000');
+    await user.type(screen.getByLabelText(T.fields.percentOff), '5');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(post.mock.calls[1]?.[1]).toMatchObject({ discountAmount: null, percentOff: 5, minSubtotal: 50000 });
+  });
+
+  it('BUNDLE_GIFT: needs a gift product, refuses the bought product as the gift, then posts', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openNew(user);
+    await user.type(screen.getByLabelText(T.fields.name), 'Beli 2 gratis botol');
+    await user.selectOptions(screen.getByLabelText(T.fields.kind), 'BUNDLE_GIFT');
+    await user.type(screen.getByLabelText(T.fields.buyQty), '2');
+    await user.type(screen.getByLabelText(T.fields.giftQty), '1');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    expect(await screen.findByText(T.needGift)).toBeTruthy();
+
+    await screen.findAllByRole('option', { name: 'Galon 19L' });
+    await user.selectOptions(screen.getByLabelText(T.fields.productId), 'prod-9');
+    await user.selectOptions(screen.getByLabelText(T.fields.giftProductId), 'prod-9');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    expect(await screen.findByText(T.giftSameProduct)).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText(T.fields.productId), '');
+    await user.click(screen.getByRole('button', { name: T.create }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]?.[1]).toMatchObject({
+      kind: 'BUNDLE_GIFT',
+      buyQty: 2,
+      getQty: 1,
+      giftProductId: 'prod-9',
+      productId: null,
+    });
+  });
+
+  it('firstOrderOnly: unchecked by default, sent when ticked', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openNew(user);
+    await user.type(screen.getByLabelText(T.fields.name), 'Pelanggan baru');
+    await user.type(screen.getByLabelText(T.fields.specialPrice), '5000');
+    const box = screen.getByRole('checkbox', { name: T.fields.firstOrderOnly }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await user.click(box);
+    await user.click(screen.getByRole('button', { name: T.create }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]?.[1]).toMatchObject({ firstOrderOnly: true });
+  });
+
+  it('editing a gift rule opens with its gift product and sends it back', async () => {
+    const user = userEvent.setup();
+    const gift = {
+      ...RULE,
+      id: 'r-gift',
+      name: 'Hadiah',
+      kind: 'BUNDLE_GIFT' as const,
+      specialPrice: null,
+      buyQty: 2,
+      getQty: 1,
+      giftProductId: 'prod-9',
+      productId: null,
+    };
+    serve([gift]);
+    renderPage();
+    await screen.findByText('Hadiah');
+    await user.click(screen.getByRole('button', { name: T.edit }));
+    await screen.findAllByRole('option', { name: 'Galon 19L' });
+    expect((screen.getByLabelText(T.fields.giftProductId) as HTMLSelectElement).value).toBe('prod-9');
+    await user.click(screen.getByRole('button', { name: T.save }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch.mock.calls[0]?.[1]).toMatchObject({ kind: 'BUNDLE_GIFT', giftProductId: 'prod-9', buyQty: 2, getQty: 1 });
   });
 });

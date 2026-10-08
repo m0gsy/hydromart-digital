@@ -61,7 +61,7 @@ const line = (unitPrice: number) => ({
   isGallon: true,
 });
 
-const CART = {
+const CART: Record<string, unknown> = {
   items: [line(10_000)],
   subtotal: 10_000,
   depotId: 'd-1',
@@ -116,5 +116,39 @@ describe('checkout prices on the post-promo basket (item 5)', () => {
 
     // 10.000 less the 2.000 promo; ongkir = min(promo 1.000, depot 5.000) x (1 paid + 1 free) galons.
     expect(quoteCalls()[0]![1]).toMatchObject({ subtotal: 8_000, shippingFee: 2_000 });
+  });
+
+  it('shows the order discount and the gifts the basket earns', async () => {
+    get.mockReset().mockImplementation(async (path: string) => {
+      const p = String(path);
+      if (p.includes('/cart')) {
+        return {
+          ...CART,
+          promo: {
+            subtotal: 8_000,
+            savings: 2_000,
+            lines: [],
+            shippingFeeOverride: null,
+            orderDiscount: 1_000,
+            gifts: [{ productId: 'g1', productName: 'Botol 600ml', quantity: 2 }],
+          },
+        };
+      }
+      if (p.includes('/depots/api/v1/depots?')) {
+        return { items: [depotRow('d-1', 'Depot Satu', 5_000)], total: 1, page: 1, limit: 100 };
+      }
+      if (p.includes('delivery-options')) return { expressEnabled: false, expressFee: 0, slots: [] };
+      if (p.includes('/loyalty/')) return { tier: 'REGULAR', discountRate: 0, pointsBalance: 0 };
+      return [];
+    });
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          <CheckoutPage />
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+    expect((await screen.findAllByText('Diskon belanja')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Gratis 2× Botol 600ml').length).toBeGreaterThan(0);
   });
 });
