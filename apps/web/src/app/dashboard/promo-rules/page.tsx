@@ -8,7 +8,9 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, 
 import { api, ApiError } from '@/lib/api';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
 import { effectiveDepotIdFor } from '@/lib/promo-rule-depot';
 import { useAsync } from '@/lib/use-async';
 import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRulePayload } from '@/lib/types';
@@ -269,6 +271,7 @@ export default function DashboardPromoRulesPage() {
   const { t } = useT();
   const { toast } = useToast();
   const { selectedId: activeDepotId } = useDepot();
+  const role = useAuth().customer?.role;
   const [editing, setEditing] = useState<PromoRule | null | undefined>(undefined);
   const { data, error, loading, reload } = useAsync<PromoRule[]>(
     () => api.get<PromoRule[]>(endpoints.promoRules.manage, true),
@@ -294,7 +297,7 @@ export default function DashboardPromoRulesPage() {
             <p className="text-sm text-muted">{t('dashboard.promoRules.subtitle')}</p>
           </div>
         </div>
-        {editing === undefined && <Button onClick={() => setEditing(null)}>{t('dashboard.promoRules.newRule')}</Button>}
+        {editing === undefined && canWritePromoRules(role) && <Button onClick={() => setEditing(null)}>{t('dashboard.promoRules.newRule')}</Button>}
       </div>
 
       {editing !== undefined && (
@@ -331,12 +334,16 @@ export default function DashboardPromoRulesPage() {
                   {r.depotId ?? '—'} · {r.productId ?? r.categoryId ?? '—'}
                 </span>
               </div>
-              <Button variant="ghost" onClick={() => setEditing(r)}>
-                {t('dashboard.promoRules.edit')}
-              </Button>
-              <Button variant="danger" onClick={() => remove(r.id)}>
-                {t('dashboard.promoRules.remove')}
-              </Button>
+              {canWritePromoRule(role, r) && (
+                <>
+                  <Button variant="ghost" onClick={() => setEditing(r)}>
+                    {t('dashboard.promoRules.edit')}
+                  </Button>
+                  <Button variant="danger" onClick={() => remove(r.id)}>
+                    {t('dashboard.promoRules.remove')}
+                  </Button>
+                </>
+              )}
             </div>
           ))}
         </Card>
