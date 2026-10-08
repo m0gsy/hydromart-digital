@@ -55,6 +55,20 @@ function formFrom(r: PromoRule): RuleForm {
   };
 }
 
+/**
+ * Editing an existing rule must preserve its OWN depotId (never the console's currently
+ * active depot, which a multi-depot-scoped caller could have pointed anywhere) — only a
+ * brand-new rule defaults to the active depot. Exported so this one branch, which already
+ * regressed once (silently moving a rule between depots on save), has a test that doesn't
+ * need to render the page.
+ */
+export function effectiveDepotIdFor(
+  rule: PromoRule | null,
+  activeDepotId: string | null,
+): string | null {
+  return rule ? rule.depotId : activeDepotId;
+}
+
 function toPayload(f: RuleForm, depotId: string | null): PromoRulePayload {
   const orNull = (s: string) => (s.trim() ? s.trim() : null);
   const numOrNull = (s: string) => (s.trim() ? Number(s) : null);
@@ -127,7 +141,7 @@ function RuleEditor({
   // Editing an existing rule must never move it between depots: the effective depotId is
   // always the rule's own depotId (including null/network-wide), not whatever depot the
   // console's switcher currently has active. Only a brand-new rule defaults to the active depot.
-  const effectiveDepotId = rule ? rule.depotId : activeDepotId;
+  const effectiveDepotId = effectiveDepotIdFor(rule, activeDepotId);
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const dayLabels = t('dashboard.promoRules.days') as unknown as string[];
 
@@ -191,7 +205,7 @@ function RuleEditor({
           </select>
         </Field>
         <Field label={t('dashboard.promoRules.fields.depotId')}>
-          <Input value={effectiveDepotId ?? ''} disabled />
+          <Input value={effectiveDepotId ?? '—'} disabled />
         </Field>
         <Field label={t('dashboard.promoRules.fields.productId')}>
           <Input value={form.productId} onChange={set('productId')} />
