@@ -3,7 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, patch, del, toast } = vi.hoisted(() => ({
+const { get, post, patch, del, toast, auth } = vi.hoisted(() => ({
+  auth: { role: 'SUPER_ADMIN' as string },
   get: vi.fn(),
   post: vi.fn(),
   patch: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('@/lib/api', () => ({
     }
   },
 }));
+vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: auth.role } }) }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/depot-context', () => ({ useDepot: () => ({ selectedId: 'depot-a' }) }));
 
@@ -85,6 +87,7 @@ function renderPage(): void {
 }
 
 beforeEach(() => {
+  auth.role = 'SUPER_ADMIN';
   get.mockReset().mockResolvedValue([RULE, BARE]);
   post.mockReset().mockResolvedValue({});
   patch.mockReset().mockResolvedValue({});
@@ -401,5 +404,35 @@ describe('dashboard/promo-rules delete', () => {
     del.mockRejectedValueOnce(new Error('x'));
     await user.click(screen.getAllByRole('button', { name: T.remove })[0]!);
     await waitFor(() => expect(toast).toHaveBeenCalledWith(idDict.common.error, 'error'));
+  });
+});
+
+describe('dashboard/promo-rules write gating', () => {
+  it('hides new/edit/remove for a read-only role', async () => {
+    auth.role = 'HEAD_OFFICE';
+    renderPage();
+    await screen.findByText(RULE.name);
+    expect(screen.queryByRole('button', { name: T.newRule })).toBeNull();
+    expect(screen.queryByRole('button', { name: T.edit })).toBeNull();
+    expect(screen.queryByRole('button', { name: T.remove })).toBeNull();
+  });
+
+  it('hides edit/remove on a network-wide rule for a depot-scoped writer only', async () => {
+    get.mockResolvedValue([BARE]);
+    auth.role = 'KEPALA_DEPOT';
+    renderPage();
+    await screen.findByText(BARE.name);
+    expect(screen.getByRole('button', { name: T.newRule })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: T.edit })).toBeNull();
+    expect(screen.queryByRole('button', { name: T.remove })).toBeNull();
+  });
+
+  it('keeps edit/remove on a network-wide rule for an unscoped writer', async () => {
+    get.mockResolvedValue([BARE]);
+    auth.role = 'MARKETING';
+    renderPage();
+    await screen.findByText(BARE.name);
+    expect(screen.getByRole('button', { name: T.edit })).toBeTruthy();
+    expect(screen.getByRole('button', { name: T.remove })).toBeTruthy();
   });
 });

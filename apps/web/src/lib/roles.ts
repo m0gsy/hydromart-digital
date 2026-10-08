@@ -91,6 +91,13 @@ export const canWriteReturns = (role: string | null | undefined) => can('returns
 export const canViewCampaigns = (role: string | null | undefined) => can('campaignRead', role);
 export const canManagePromoRules = (role: string | null | undefined) =>
   can('promoRuleRead', role);
+export const canWritePromoRules = (role: string | null | undefined) => can('promoRuleWrite', role);
+// Mirrors DEPOT_LOCKED_ROLES + DEPOT_SCOPED_ROLES in @hydromart/platform (a Nest package the web
+// cannot import). promo-service answers 403 to a scoped role touching a network-wide rule
+// (depotId null), so the row's Edit/Remove are hidden instead of offered and refused.
+const DEPOT_SCOPED = ['STAFF_DEPOT', 'KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'MANAGER'];
+export const canWritePromoRule = (role: string | null | undefined, rule: { depotId: string | null }) =>
+  canWritePromoRules(role) && (rule.depotId !== null || !DEPOT_SCOPED.includes(role ?? ''));
 export const canManageCampaigns = (role: string | null | undefined) => can('campaignWrite', role);
 // Promotions are their own capability now, not CRM campaigns: /dashboard/promotions gated
 // on campaignRead (marketing-only) while promo-service answered a different list entirely,
