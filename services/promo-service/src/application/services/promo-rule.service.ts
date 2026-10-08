@@ -19,6 +19,7 @@ import {
   CreatePromoRuleData,
   PromoRuleRecord,
   PromoRuleRepository,
+  PromoRuleUsage,
   UpdatePromoRuleData,
 } from '../ports/promo-rule.repository';
 import { PromoConfigService } from '../../config/promo-config.service';
@@ -130,6 +131,11 @@ export class PromoRuleService {
     // Fix 5: the P2003→PromoRuleInUseError translation now lives in the repository (same
     // discipline as recordApplications' P2002 handling) — this is a plain pass-through.
     await this.repo.delete(id);
+  }
+
+  /** How often each visible rule has fired. Rules that never fired are simply absent. */
+  usage(depotIds?: readonly string[]): Promise<PromoRuleUsage[]> {
+    return this.repo.usageByRule(depotIds);
   }
 
   async quote(input: QuoteInput): Promise<QuoteOutput> {

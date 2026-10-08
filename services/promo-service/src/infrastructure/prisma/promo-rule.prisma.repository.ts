@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 
 import {
   CreatePromoRuleData,
   PromoRuleRecord,
   PromoRuleRepository,
+  PromoRuleUsage,
   UpdatePromoRuleData,
 } from '../../application/ports/promo-rule.repository';
 import { PromoRuleInUseError } from '../../domain/errors';
@@ -50,6 +52,32 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
       where: depotVisibleWhere(depotIds),
       orderBy: ORDER_BY,
     });
+  }
+
+  async usageByRule(depotIds?: readonly string[]): Promise<PromoRuleUsage[]> {
+    const visible = await this.prisma.promoRule.findMany({
+      where: depotVisibleWhere(depotIds),
+      select: { id: true },
+    });
+    if (visible.length === 0) return [];
+    // Raw, because Prisma's groupBy counts ROWS and one order can write several audit rows for
+    // the same rule (one per product). bigint so a busy rule's rupiah sum cannot overflow int4.
+    const rows = await this.prisma.$queryRaw<
+      { promoRuleId: string; orders: bigint; discount: bigint; lastAppliedAt: Date | null }[]
+    >(Prisma.sql`
+      SELECT a."promoRuleId",
+             COUNT(DISTINCT a."orderId") AS "orders",
+             COALESCE(SUM(a."discountValue"), 0) AS "discount",
+             MAX(a."createdAt") AS "lastAppliedAt"
+      FROM "promo_applications" a
+      WHERE a."promoRuleId" IN (${Prisma.join(visible.map((v) => v.id))})
+      GROUP BY a."promoRuleId"`);
+    return rows.map((r) => ({
+      promoRuleId: r.promoRuleId,
+      orders: Number(r.orders),
+      totalDiscount: Number(r.discount),
+      lastAppliedAt: r.lastAppliedAt,
+    }));
   }
 
   async findActiveCandidates(

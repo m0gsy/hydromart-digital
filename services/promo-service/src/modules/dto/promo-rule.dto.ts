@@ -291,6 +291,18 @@ export class AutoApplyQuoteDto {
   firstOrder?: boolean;
 }
 
+/**
+ * Admin "try it" for a basket: which rules would fire for this depot, channel and moment.
+ * Same lines and answer as the internal quote, plus an optional moment to test a schedule at
+ * (Friday 09:30 next week). Nothing is recorded.
+ */
+export class SimulatePromoRulesDto extends AutoApplyQuoteDto {
+  @ApiPropertyOptional({ format: 'date-time', description: 'Moment to evaluate at; default now.' })
+  @IsOptional()
+  @IsISO8601()
+  occurredAt?: string;
+}
+
 export class AppliedLineDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()

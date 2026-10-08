@@ -10,6 +10,16 @@ export type CreatePromoRuleData = Omit<PromoRuleRecord, 'id' | 'active' | 'creat
 
 export type UpdatePromoRuleData = Partial<CreatePromoRuleData> & { active?: boolean };
 
+/** How often a rule has actually fired, from the PromoApplication audit trail. */
+export interface PromoRuleUsage {
+  promoRuleId: string;
+  /** Distinct orders the rule applied to. */
+  orders: number;
+  /** Rupiah the rule took off, summed over its audit rows. */
+  totalDiscount: number;
+  lastAppliedAt: Date | null;
+}
+
 export interface PromoRuleRepository {
   findById(id: string): Promise<PromoRuleRecord | null>;
   create(data: CreatePromoRuleData): Promise<PromoRuleRecord>;
@@ -22,6 +32,12 @@ export interface PromoRuleRepository {
    * scoped to one of `depotIds`.
    */
   findAll(depotIds?: readonly string[]): Promise<PromoRuleRecord[]>;
+
+  /**
+   * Usage for every rule visible to the caller (same visibility as `findAll`). A rule that
+   * has never fired has no row here: absence means zero, and the caller fills it in.
+   */
+  usageByRule(depotIds?: readonly string[]): Promise<PromoRuleUsage[]>;
 
   /**
    * Active rules a checkout at `depotId` may match at `now`: `active=true`, depot-visible

@@ -6,6 +6,7 @@ import {
   CreatePromoRuleData,
   PromoRuleRecord,
   PromoRuleRepository,
+  PromoRuleUsage,
   UpdatePromoRuleData,
 } from '../../src/application/ports/promo-rule.repository';
 import { PromoRuleCandidate } from '../../src/domain/promo-rule';
@@ -51,6 +52,27 @@ class InMemoryPromoRuleRepository implements PromoRuleRepository {
   }
   async findAll(): Promise<PromoRuleRecord[]> {
     return this.rows;
+  }
+  async usageByRule(depotIds?: readonly string[]): Promise<PromoRuleUsage[]> {
+    const visible = new Set(
+      this.rows
+        .filter((r) => !depotIds || r.depotId === null || depotIds.includes(r.depotId))
+        .map((r) => r.id),
+    );
+    const byRule = new Map<string, { orders: Set<string>; total: number }>();
+    for (const a of this.applications) {
+      if (!visible.has(a.promoRuleId)) continue;
+      const entry = byRule.get(a.promoRuleId) ?? { orders: new Set<string>(), total: 0 };
+      entry.orders.add(a.orderId);
+      entry.total += a.discountValue;
+      byRule.set(a.promoRuleId, entry);
+    }
+    return [...byRule].map(([promoRuleId, e]) => ({
+      promoRuleId,
+      orders: e.orders.size,
+      totalDiscount: e.total,
+      lastAppliedAt: null,
+    }));
   }
   async findActiveCandidates(): Promise<PromoRuleCandidate[]> {
     return this.rows.filter((r) => r.active);
@@ -734,6 +756,23 @@ describe('PromoRuleService', () => {
         quotedShipping: { appliedRuleId: null, shippingFeeOverride: null },
       });
       expect(repo.applications).toHaveLength(0);
+    });
+  });
+
+  describe('usage', () => {
+    it('counts distinct orders and sums the discount per rule, only for visible rules', async () => {
+      const mine = await repo.create(baseInput({ depotId: 'depot-a' }));
+      const theirs = await repo.create(baseInput({ depotId: 'depot-b' }));
+      repo.applications.push(
+        { orderId: 'o1', promoRuleId: mine.id, productId: 'p1', discountValue: 2000 },
+        { orderId: 'o1', promoRuleId: mine.id, productId: 'p2', discountValue: 1000 },
+        { orderId: 'o2', promoRuleId: mine.id, productId: 'p1', discountValue: 2000 },
+        { orderId: 'o3', promoRuleId: theirs.id, productId: 'p1', discountValue: 9000 },
+      );
+      expect(await service.usage(['depot-a'])).toEqual([
+        { promoRuleId: mine.id, orders: 2, totalDiscount: 5000, lastAppliedAt: null },
+      ]);
+      expect(await service.usage()).toHaveLength(2);
     });
   });
 

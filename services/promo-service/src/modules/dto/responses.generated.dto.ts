@@ -101,6 +101,18 @@ export class VoucherResponseDto {
   updatedAt!: string;
 }
 
+/** One promo rule's usage, from the PromoApplication audit trail. */
+export class PromoRuleUsageResponseDto {
+  @ApiProperty({ type: String })
+  promoRuleId!: string;
+  @ApiProperty({ type: Number, description: 'Distinct orders the rule applied to.' })
+  orders!: number;
+  @ApiProperty({ type: Number, description: 'Rupiah the rule took off.' })
+  totalDiscount!: number;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  lastAppliedAt!: string | null;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class GrantResponseDto {
   @ApiProperty({ type: VoucherResponseDto })
