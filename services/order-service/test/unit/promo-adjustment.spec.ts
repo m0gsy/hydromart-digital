@@ -107,6 +107,27 @@ describe('applyPromoQuote', () => {
   });
 });
 
+describe('applyPromoQuote skips wholesale-priced products', () => {
+  it('leaves a skipped product at its band price, with no rule and no free row, while others still match', () => {
+    const items = [item({ quantity: 4, lineTotal: 32000 }), item({ productId: 'p2', unitPrice: 5000, quantity: 2, lineTotal: 10000 })];
+    const quote: AutoApplyQuoteResult = {
+      lines: [
+        { productId: 'p1', appliedRuleIds: ['bogo-1'], unitPriceAfter: 6000, freeQty: 1, lineTotal: 24000 },
+        { productId: 'p2', appliedRuleIds: ['special-1'], unitPriceAfter: 4000, freeQty: 0, lineTotal: 8000 },
+      ],
+      shippingAppliedRuleId: null,
+      shippingFeeOverride: null,
+    };
+    const result = applyPromoQuote(items, quote, new Set(['p1']));
+
+    expect(result.items).toHaveLength(2); // no free row for the wholesale line
+    expect(result.items[0]).toMatchObject({ productId: 'p1', unitPrice: 8000, quantity: 4 });
+    expect(result.items[1]).toMatchObject({ productId: 'p2', unitPrice: 4000 });
+    expect(result.subtotal).toBe(32000 + 8000);
+    expect(result.appliedLines[0]).toMatchObject({ appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0 });
+  });
+});
+
 describe('stockLinesFor', () => {
   it('returns one line per distinct productId when there is no split', () => {
     expect(stockLinesFor([item()])).toEqual([{ productId: 'p1', quantity: 2 }]);

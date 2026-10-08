@@ -478,7 +478,11 @@ export class OrderService {
       'APP',
       pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
     );
-    const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
+    const { items, subtotal, appliedLines } = applyPromoQuote(
+      pricedItems,
+      autoPromoQuote,
+      tieredProductIds,
+    );
 
     // Fix 6: the minimum-order check runs against the PRE-promo subtotal. A promo discount
     // must never cause a cart that looked valid on the cart screen (priced before any
@@ -2266,7 +2270,11 @@ export class OrderService {
       'COUNTER',
       pricedItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
     );
-    const { items, subtotal, appliedLines } = applyPromoQuote(pricedItems, autoPromoQuote);
+    const { items, subtotal, appliedLines } = applyPromoQuote(
+      pricedItems,
+      autoPromoQuote,
+      tieredProductIds,
+    );
 
     let shippingFee = 0;
     let shippingAppliedRuleId: string | null = null;
