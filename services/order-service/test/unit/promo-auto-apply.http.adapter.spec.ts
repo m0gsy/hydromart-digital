@@ -17,18 +17,18 @@ describe('PromoAutoApplyHttpAdapter', () => {
   });
 
   describe('quote', () => {
-    it('sends categoryId: null for every line (fase 1 scope limitation)', async () => {
+    it('forwards each line categoryId to the promo quote', async () => {
       const fetchMock = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ lines: [], shippingAppliedRuleId: null, shippingFeeOverride: null }),
       });
       global.fetch = fetchMock as unknown as typeof fetch;
       const adapter = new PromoAutoApplyHttpAdapter(config());
-      await adapter.quote('depot-1', 'APP', [{ productId: 'p1', quantity: 2, unitPrice: 8000 }]);
+      await adapter.quote('depot-1', 'APP', [{ productId: 'p1', categoryId: 'cat-1', quantity: 2, unitPrice: 8000 }]);
       const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
       expect(body.lines[0]).toEqual({
         productId: 'p1',
-        categoryId: null,
+        categoryId: 'cat-1',
         quantity: 2,
         unitPrice: 8000,
       });

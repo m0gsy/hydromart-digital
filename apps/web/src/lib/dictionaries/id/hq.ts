@@ -1092,7 +1092,7 @@ export const hq = {
       depotIdHint: 'Kosongkan untuk berlaku network-wide (semua depot).',
       productId: 'Produk (ID)',
       categoryId: 'Kategori (ID)',
-      categoryIdHint: 'Belum berlaku saat checkout di fase ini — gunakan Produk (ID) dulu.',
+      categoryIdHint: 'Berlaku untuk semua produk di kategori ini. Kosongkan Produk (ID).',
       specialPrice: 'Harga baru (Rp per unit)',
       buyQty: 'Beli (qty)',
       getQty: 'Gratis (qty)',

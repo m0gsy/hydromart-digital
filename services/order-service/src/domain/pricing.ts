@@ -56,6 +56,8 @@ export interface PriceableProduct {
   volumeMl: number | null;
   isGallon: boolean;
   basePrice: number;
+  /** Catalogue category — read only to let category-scoped promo rules match. */
+  categoryId?: string | null;
 }
 
 /** One priced line, snapshotted. Identical in shape to an order line, on purpose. */
@@ -78,6 +80,11 @@ export interface PricedLines {
   tierPricedTotal: number;
   /** The same exclusion per line, which the flat galon price needs (it reprices per line). */
   tieredProductIds: Set<string>;
+  /**
+   * Category per product, for the promo quote. Kept OUT of the line items on purpose: they
+   * are spread straight into a Prisma create, which would reject an unknown column.
+   */
+  categoryIdByProductId: Map<string, string | null>;
 }
 
 /**
@@ -102,12 +109,14 @@ export function priceLines(
   const items: PricedLine[] = [];
   let tierPricedTotal = 0;
   const tieredProductIds = new Set<string>();
+  const categoryIdByProductId = new Map<string, string | null>();
   for (const line of lines) {
     // Every line is resolved before it gets here, and the assertion says so rather than
     // hiding a miss: checkout rejects an unresolvable product outright (`pricedAll`), and
     // the cart drops the delisted line before pricing. A silent `continue` would have
     // dropped a line the customer put in their basket and still charged them a subtotal.
     const product = productById.get(line.productId)!;
+    categoryIdByProductId.set(product.id, product.categoryId ?? null);
     const priceRow = prices.get(product.id);
     const base = priceRow?.sellPrice ?? product.basePrice;
     const adj = priceRow?.adjustType
@@ -139,6 +148,7 @@ export function priceLines(
     subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)),
     tierPricedTotal,
     tieredProductIds,
+    categoryIdByProductId,
   };
 }
 

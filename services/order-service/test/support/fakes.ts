@@ -1443,6 +1443,7 @@ export class FakeProductCatalog implements ProductCatalogPort {
       volumeMl: 19000,
       isGallon: true,
       basePrice: 20000,
+      categoryId: null,
       imageUrl: null,
       active: true,
       ...product,

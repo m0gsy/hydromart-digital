@@ -10,6 +10,7 @@ export type AutoApplyChannel = 'APP' | 'COUNTER';
 
 export interface AutoApplyCartLine {
   productId: string;
+  categoryId: string | null;
   quantity: number;
   unitPrice: number;
 }
