@@ -1486,8 +1486,9 @@ export function buildCartService(
   pricing: DepotPricingPort = new FakeDepotPricing(),
   reseller: ResellerDiscountPort = new FakeResellerDiscount(),
   config: OrderConfigService = buildTestConfig(),
+  promoAutoApply: PromoAutoApplyPort = new FakePromoAutoApply(),
 ): CartService {
-  return new CartService(cart, catalog, pricing, reseller, config);
+  return new CartService(cart, catalog, pricing, reseller, config, promoAutoApply);
 }
 
 export function buildTestConfig(overrides: Record<string, string> = {}): OrderConfigService {

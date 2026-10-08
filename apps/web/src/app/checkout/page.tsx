@@ -428,7 +428,23 @@ function CheckoutInner() {
   // because the voucher quote below needs it too: a FREE_SHIPPING voucher is priced against
   // the shipping fee, and quoting it without one made promo-service compute the waiver against
   // 0 — the screen showed "diskon Rp0" for a voucher the order then honoured in full.
-  const shippingFeeEstimate = shippingFeeFor(depot?.deliveryFee ?? 0, cart?.items ?? []);
+  // Automatic promos (item 5), from the server that bills them. Vouchers and the tier discount
+  // are priced on the POST-promo goods, while the minimum-order test above stays on the
+  // pre-promo subtotal — the same two bases order.service.ts uses.
+  const promoSavings = cart?.promo?.savings ?? 0;
+  const goodsSubtotal = cart ? cart.subtotal - promoSavings : 0;
+  // A SHIPPING_DISCOUNT replaces the per-galon fee (never above the depot's own), and the free
+  // BOGO units are delivered too, so they count as galons — as in order.service.ts.
+  const promoShippingOverride = cart?.promo?.shippingFeeOverride ?? null;
+  const perGalonFee =
+    promoShippingOverride !== null
+      ? Math.min(promoShippingOverride, depot?.deliveryFee ?? 0)
+      : (depot?.deliveryFee ?? 0);
+  const freeUnits = (cart?.promo?.lines ?? []).flatMap((l) => {
+    const item = cart?.items.find((i) => i.productId === l.productId);
+    return item && l.freeQty > 0 ? [{ ...item, quantity: l.freeQty }] : [];
+  });
+  const shippingFeeEstimate = shippingFeeFor(perGalonFee, [...(cart?.items ?? []), ...freeUnits]);
 
   // A depot that stops offering express while this screen is open must not leave a
   // selection that checkout would now reject.
@@ -533,7 +549,7 @@ function CheckoutInner() {
     try {
       const result = await api.post<VoucherQuote>(
         endpoints.vouchers.quote,
-        { code, subtotal: cart.subtotal, shippingFee: shippingFeeEstimate },
+        { code, subtotal: goodsSubtotal, shippingFee: shippingFeeEstimate },
         true,
       );
       setQuote(result);
@@ -564,7 +580,7 @@ function CheckoutInner() {
    */
   const priceKey =
     cart && cart.depotId === (depot?.id ?? null)
-      ? `${depot?.id ?? ''}|${cart.subtotal}|${shippingFeeEstimate}`
+      ? `${depot?.id ?? ''}|${goodsSubtotal}|${shippingFeeEstimate}`
       : '';
   const quotedAgainst = useRef<string>('');
   useEffect(() => {
@@ -751,7 +767,7 @@ function CheckoutInner() {
   // server's `money()`. Flooring showed Rp4.999 for a discount the order stored as Rp5.000 —
   // a preview that contradicts the bill, which is the defect the express fee taught us once.
   // Pinned by "membership discount rounds exactly like the server" in test/pricing.test.ts.
-  const membershipDiscount = isReseller ? 0 : memberDiscount(cart.subtotal, membershipRate);
+  const membershipDiscount = isReseller ? 0 : memberDiscount(goodsSubtotal, membershipRate);
   /*
    * A4. The agen discount, computed server-side off the same priced lines the order bills
    * — the flat SOP price applies per galon line and excludes wholesale-band lines, and
@@ -785,10 +801,10 @@ function CheckoutInner() {
   // Capped at the goods, exactly as order.service.ts caps it: a discount on what was bought may
   // never eat into the delivery fee. The shipping waiver is applied separately below.
   const goodsDiscount = Math.min(
-    cart.subtotal,
+    goodsSubtotal,
     membershipDiscount + voucherValueDiscount + (resellerDiscount ?? 0),
   );
-  const estimatedTotal = cart.subtotal - goodsDiscount;
+  const estimatedTotal = goodsSubtotal - goodsDiscount;
   const displayedTotal = estimatedTotal + deliveryFee + expressFee - shippingDiscount;
 
   // 13n — when a voucher fails, surface how far the cart is from eligibility. minSpend
@@ -798,11 +814,11 @@ function CheckoutInner() {
       ? (myVouchers?.find((v) => v.code === voucherCode.trim().toUpperCase()) ?? null)
       : null;
   const voucherShortfall =
-    failedVoucher && failedVoucher.minSpend > cart.subtotal
-      ? failedVoucher.minSpend - cart.subtotal
+    failedVoucher && failedVoucher.minSpend > goodsSubtotal
+      ? failedVoucher.minSpend - goodsSubtotal
       : 0;
   const voucherProgressPct = failedVoucher
-    ? Math.min(100, Math.round((cart.subtotal / failedVoucher.minSpend) * 100))
+    ? Math.min(100, Math.round((goodsSubtotal / failedVoucher.minSpend) * 100))
     : 0;
   /*
    * G7. Wallet vouchers that already clear this cart, offered as one-tap swaps.
@@ -816,7 +832,7 @@ function CheckoutInner() {
     (v) =>
       v.status === 'AVAILABLE' &&
       v.code !== voucherCode.trim().toUpperCase() &&
-      v.minSpend <= cart.subtotal,
+      v.minSpend <= goodsSubtotal,
   );
 
   const addressSection = (
@@ -1436,6 +1452,14 @@ function CheckoutInner() {
           <span className="text-muted">{t('order.checkout.subtotal')}</span>
           <Money amount={cart.subtotal} className="font-bold" />
         </div>
+        {promoSavings > 0 && (
+          <div className="flex justify-between text-[color:var(--success)]">
+            <span>{t('order.cart.promoDiscount')}</span>
+            <span className="font-bold">
+              −<Money amount={promoSavings} />
+            </span>
+          </div>
+        )}
         {/* A1: catalog prices are labelled, never passed off as the depot's. */}
         {cart.pricingBasis === 'CATALOG' && (
           <p className="text-xs text-muted">{t('customerFix.checkout.catalogPricing')}</p>

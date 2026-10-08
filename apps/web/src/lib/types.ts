@@ -316,6 +316,16 @@ export interface CartReseller {
   discount: number | null;
 }
 
+/** What the automatic promo rules take off this basket; checkout applies the same ones. */
+export interface CartPromo {
+  /** Subtotal after promos. */
+  subtotal: number;
+  /** Rupiah off, already reflected in `subtotal`. */
+  savings: number;
+  lines: { productId: string; unitPriceAfter: number; freeQty: number }[];
+  shippingFeeOverride: number | null;
+}
+
 export interface Cart {
   items: CartLine[];
   subtotal: number;
@@ -329,6 +339,8 @@ export interface Cart {
    * almost always. Optional here because an older API answers without it.
    */
   removed?: CartRemovedLine[];
+  /** Null/absent when no promo applies (or an older API answers without it). */
+  promo?: CartPromo | null;
 }
 
 /** A cart line that can no longer be sold. `productName` is null when the product is gone. */

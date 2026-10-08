@@ -97,7 +97,17 @@ function CartInner() {
   const rate = resellerApplies ? 0 : (account?.discountRate ?? 0);
   // A7: floored here and rounded everywhere else, so this screen quoted Rp1 less than
   // the bill on ordinary baskets. One formula now, shared with checkout and the server.
-  const memberOff = memberDiscount(subtotal, rate);
+  /*
+   * Auto-promos, from the server that bills them. Only trusted while the lines on screen are
+   * the lines it priced: an optimistic quantity change would otherwise pair a new subtotal
+   * with the old savings until the reply lands.
+   */
+  const promoMatches =
+    data?.promo != null &&
+    lines.length === data.items.length &&
+    lines.every((l) => data.items.some((d) => d.productId === l.productId && d.quantity === l.quantity));
+  const promoOff = promoMatches ? data!.promo!.savings : 0;
+  const memberOff = memberDiscount(subtotal - promoOff, rate);
   /*
    * `reseller.discount` is null when these are catalogue prices, and null is not zero: it
    * means "no honest number exists yet", which is exactly what the A4 comment on the type
@@ -105,7 +115,7 @@ function CartInner() {
    */
   const resellerOff = resellerApplies ? data!.reseller!.discount : null;
   const discount = resellerApplies ? (resellerOff ?? 0) : memberOff;
-  const total = subtotal - discount;
+  const total = subtotal - promoOff - discount;
 
   async function setQuantity(productId: string, quantity: number) {
     const prev = lines;
@@ -245,6 +255,14 @@ function CartInner() {
         <span className="text-muted">{t('order.cart.subtotal')}</span>
         <Money amount={subtotal} className="font-bold" />
       </div>
+      {promoOff > 0 && (
+        <div className="flex justify-between text-[14px]">
+          <span className="text-muted">{t('order.cart.promoDiscount')}</span>
+          <span className="font-bold text-[color:var(--success)]">
+            −<Money amount={promoOff} />
+          </span>
+        </div>
+      )}
       {rate > 0 && (
         <div className="flex justify-between text-[14px]">
           <span className="text-muted">
