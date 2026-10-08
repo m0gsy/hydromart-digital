@@ -43,7 +43,7 @@ export interface VoucherRules {
 
 /**
  * Discount (rupiah) this voucher grants. PERCENTAGE takes `value`% of the
- * subtotal, floored, capped by `maxDiscount` when set, never above the subtotal.
+ * subtotal, rounded half-up by `money()`, capped by `maxDiscount` when set, never above the subtotal.
  * FIXED takes `value` rupiah off the subtotal. FREE_SHIPPING waives the delivery
  * fee (capped by `maxDiscount` when set) — it does not touch the subtotal, so the
  * caller must supply `shippingFee`. Never negative.

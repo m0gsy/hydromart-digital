@@ -8,7 +8,9 @@ import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRulePayload } from '@/lib/types';
 
@@ -254,6 +256,7 @@ function RuleEditor({ rule, onDone, onCancel }: { rule: PromoRule | null; onDone
 export default function HqPromoRulesPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const role = useAuth().customer?.role;
   const [editing, setEditing] = useState<PromoRule | null | undefined>(undefined);
   const { data, error, loading, reload } = useAsync<PromoRule[]>(
     () => api.get<PromoRule[]>(endpoints.promoRules.manage, true),
@@ -277,7 +280,7 @@ export default function HqPromoRulesPage() {
         subtitle={t('hq.promoRules.subtitle')}
         action={
           <>
-            {editing === undefined && <Button onClick={() => setEditing(null)}>{t('hq.promoRules.newRule')}</Button>}
+            {editing === undefined && canWritePromoRules(role) && <Button onClick={() => setEditing(null)}>{t('hq.promoRules.newRule')}</Button>}
           </>
         }
       />
@@ -315,12 +318,16 @@ export default function HqPromoRulesPage() {
                   {r.depotId ?? '—'} · {r.productId ?? r.categoryId ?? '—'}
                 </span>
               </div>
-              <Button variant="ghost" onClick={() => setEditing(r)}>
-                {t('hq.promoRules.edit')}
-              </Button>
-              <Button variant="danger" onClick={() => remove(r.id)}>
-                {t('hq.promoRules.remove')}
-              </Button>
+              {canWritePromoRule(role, r) && (
+                <>
+                  <Button variant="ghost" onClick={() => setEditing(r)}>
+                    {t('hq.promoRules.edit')}
+                  </Button>
+                  <Button variant="danger" onClick={() => remove(r.id)}>
+                    {t('hq.promoRules.remove')}
+                  </Button>
+                </>
+              )}
             </div>
           ))}
         </Card>

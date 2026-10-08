@@ -38,18 +38,19 @@ export class ForecastPrismaRepository implements ForecastRepository {
       // Audit S-20: three statements per item inside an interactive transaction, so a
       // ten-line order held its locks across thirty round-trips. Three statements for the
       // whole order now. A product listed twice is folded into one row first — an INSERT
-      // cannot touch the same conflicting row twice, and two increments are one sum.
+      // cannot touch the same conflicting row twice, and two increments are one sum. Quantity
+      // adds up; the ORDER count does not — one order is one order for that product, even when
+      // a BOGO promo splits it into a priced row and a free (unitPrice 0) row.
       const perProduct = new Map<
         string,
-        { item: IngestCommand['items'][number]; quantity: number; orders: number }
+        { item: IngestCommand['items'][number]; quantity: number }
       >();
       for (const item of cmd.items) {
         const current = perProduct.get(item.productId);
         if (current) {
           current.quantity += item.quantity;
-          current.orders += 1;
         } else {
-          perProduct.set(item.productId, { item, quantity: item.quantity, orders: 1 });
+          perProduct.set(item.productId, { item, quantity: item.quantity });
         }
       }
       const products = [...perProduct.values()];
@@ -96,7 +97,7 @@ export class ForecastPrismaRepository implements ForecastRepository {
             FROM (VALUES ${Prisma.join(
               updates.map(
                 (p) =>
-                  Prisma.sql`(${idByProduct.get(p.item.productId)!}::uuid, ${p.quantity}::int, ${p.orders}::int)`,
+                  Prisma.sql`(${idByProduct.get(p.item.productId)!}::uuid, ${p.quantity}::int, 1::int)`,
               ),
             )}) AS v("id", "q", "c")
             WHERE d."id" = v."id"`);
@@ -109,7 +110,7 @@ export class ForecastPrismaRepository implements ForecastRepository {
               depotId: cmd.depotId,
               day,
               quantity: p.quantity,
-              orderCount: p.orders,
+              orderCount: 1,
             })),
           });
         }
