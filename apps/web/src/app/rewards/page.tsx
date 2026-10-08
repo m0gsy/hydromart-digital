@@ -21,6 +21,7 @@ import {
 
 import { RequireAuth } from '@/components/require-auth';
 import { Sheet } from '@/components/overlay';
+import { VoucherScopeNote } from '@/components/voucher-scope-note';
 import { Button, Card, ErrorState, Field, Input, Segmented, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -219,6 +220,7 @@ function VoucherWallet({ onHistory }: { onHistory: () => void }) {
                   <div className="mt-0.5 truncate text-xs text-muted">
                     {v.description ?? t('profile.rewards.wallet.minSpend', { amount: formatIDR(v.minSpend) })}
                   </div>
+                  <VoucherScopeNote productId={v.productId} categoryId={v.categoryId} />
                   <div className="mt-2 flex items-center gap-2">
                     <code className="rounded-[7px] border border-dashed border-app px-[9px] py-[3px] font-mono text-xs font-bold tracking-wide">
                       {v.code}

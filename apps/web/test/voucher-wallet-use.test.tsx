@@ -101,3 +101,21 @@ describe('K1.2 · a voucher you own is usable from the screen that shows it', ()
     expect(screen.getAllByText(/10%/).length).toBeGreaterThan(0);
   });
 });
+
+describe('a scoped voucher says what it is limited to (item 5 B)', () => {
+  it('shows the product name on the card, and nothing extra on a whole-order voucher', async () => {
+    get.mockReset().mockImplementation(async (path: string) =>
+      String(path).includes('/vouchers/me')
+        ? [VOUCHER, { ...VOUCHER, code: 'GALON10', productId: 'p-1' }]
+        : { id: 'p-1', name: 'Galon 19L' },
+    );
+    render(
+      <LocaleProvider>
+        <VouchersPage />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByText('Khusus Galon 19L')).toBeTruthy();
+    expect(screen.getAllByText(/Khusus/)).toHaveLength(1);
+  });
+});
+
