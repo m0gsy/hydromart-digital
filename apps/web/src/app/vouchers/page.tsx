@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle, Copy, Ticket } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { VoucherScopeNote } from '@/components/voucher-scope-note';
 import { ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -141,6 +142,7 @@ function VouchersInner() {
                   <div className="mt-0.5 truncate text-xs text-muted">
                     {v.description ?? t('profile.rewards.wallet.minSpend', { amount: formatIDR(v.minSpend) })}
                   </div>
+                  <VoucherScopeNote productId={v.productId} categoryId={v.categoryId} />
                   <div className="mt-2 flex items-center gap-2">
                     <code className="rounded-[7px] border border-dashed border-app px-[9px] py-[3px] font-mono text-xs font-bold tracking-wide">
                       {v.code}

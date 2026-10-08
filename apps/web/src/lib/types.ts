@@ -789,6 +789,9 @@ export interface MyVoucher {
   minSpend: number;
   maxDiscount: number | null;
   validUntil: string | null;
+  /** Limited to this product / category; both null or absent = the whole order. */
+  productId?: string | null;
+  categoryId?: string | null;
   status: VoucherStatus;
 }
 
