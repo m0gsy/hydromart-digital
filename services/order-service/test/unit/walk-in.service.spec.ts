@@ -1282,6 +1282,69 @@ describe('OrderService.walkInSale', () => {
       expect(promo.redeemCalls[0].lines).toEqual(expected);
     });
 
+    it('item 5 #11: an order discount applies at the till, even to a walk-in with no account', async () => {
+      promoAutoApply.quoteResult = {
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 7000,
+      };
+      const order = await sell(2); // 40000
+
+      expect(order.discount).toBe(7000);
+      expect(order.total).toBe(33000);
+      expect(promoAutoApply.applyCalls[0]).toMatchObject({
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 7000,
+      });
+    });
+
+    it('item 5 #11: an order discount is capped at the goods', async () => {
+      promoAutoApply.quoteResult = {
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 90000,
+      };
+      const order = await sell(1); // 20000
+      expect(order.discount).toBe(20000);
+      expect(order.total).toBe(0);
+    });
+
+    it('item 5 #11: a gift becomes a free row, is reserved, and is dropped if its stock is short', async () => {
+      const gift = catalog.seed({ id: randomUUID(), basePrice: 5000, name: 'Botol', isGallon: false });
+      const trigger = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      promoAutoApply.quoteResult = {
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        gifts: [{ promoRuleId: 'r-gift', productId: gift.id, quantity: 3, triggerProductId: trigger.id }],
+      };
+      const input = { depotId: DEPOT, lines: [{ productId: trigger.id, quantity: 2 }] };
+
+      const order = await service.walkInSale(operator, input);
+      expect(order.items.find((i) => i.productId === gift.id)).toMatchObject({ quantity: 3, unitPrice: 0 });
+      expect(order.subtotal).toBe(40000);
+      expect(promoAutoApply.applyCalls[0].gifts).toEqual([
+        { promoRuleId: 'r-gift', productId: gift.id, value: 15000 },
+      ]);
+
+      inventory.reserveErrorWhen = (items) =>
+        items.some((i) => i.productId === gift.id) ? new InsufficientStockError() : null;
+      const short = await service.walkInSale(operator, { ...input, idempotencyKey: randomUUID() });
+      expect(short.items.some((i) => i.productId === gift.id)).toBe(false);
+      expect(promoAutoApply.applyCalls[1].gifts).toEqual([]);
+    });
+
+    it('item 5 #11: first order is true for a new named buyer, false for the anonymous walk-in', async () => {
+      await sell(1, { customerId: randomUUID(), customerPhone: '0812' });
+      expect(promoAutoApply.quoteCalls[0].firstOrder).toBe(true);
+      await sell(1);
+      expect(promoAutoApply.quoteCalls[1].firstOrder).toBe(false);
+    });
+
     it('stacks the tier and the voucher, capped at the goods', async () => {
       membership.rate = 0.5;
       promo.quoteDiscount = 30000;

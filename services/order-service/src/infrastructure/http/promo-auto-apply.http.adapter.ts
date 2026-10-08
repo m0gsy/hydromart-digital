@@ -13,6 +13,9 @@ const EMPTY_QUOTE: AutoApplyQuoteResult = {
   lines: [],
   shippingAppliedRuleId: null,
   shippingFeeOverride: null,
+  orderDiscountRuleId: null,
+  orderDiscountAmount: 0,
+  gifts: [],
 };
 
 @Injectable()
@@ -26,6 +29,7 @@ export class PromoAutoApplyHttpAdapter implements PromoAutoApplyPort {
     depotId: string | null,
     channel: AutoApplyChannel,
     lines: AutoApplyCartLine[],
+    firstOrder = false,
   ): Promise<AutoApplyQuoteResult> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
@@ -39,11 +43,13 @@ export class PromoAutoApplyHttpAdapter implements PromoAutoApplyPort {
         body: JSON.stringify({
           depotId,
           channel,
+          firstOrder,
           lines: lines.map((l) => ({
             productId: l.productId,
             categoryId: l.categoryId,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
+            skipPromo: l.skipPromo === true,
           })),
         }),
         signal: AbortSignal.timeout(PromoAutoApplyHttpAdapter.TIMEOUT_MS),
@@ -57,6 +63,9 @@ export class PromoAutoApplyHttpAdapter implements PromoAutoApplyPort {
         lines: body.lines ?? [],
         shippingAppliedRuleId: body.shippingAppliedRuleId ?? null,
         shippingFeeOverride: body.shippingFeeOverride ?? null,
+        orderDiscountRuleId: body.orderDiscountRuleId ?? null,
+        orderDiscountAmount: body.orderDiscountAmount ?? 0,
+        gifts: body.gifts ?? [],
       };
     } catch (error) {
       this.logger.warn(`Auto-apply promo quote unreachable: ${(error as Error).message}`);
@@ -90,6 +99,9 @@ export class PromoAutoApplyHttpAdapter implements PromoAutoApplyPort {
           shippingFeeOverride: input.shippingFeeOverride ?? undefined,
           originalShippingFee: input.originalShippingFee ?? undefined,
           shippingUnits: input.shippingUnits ?? undefined,
+          orderDiscountRuleId: input.orderDiscountRuleId ?? undefined,
+          orderDiscountAmount: input.orderDiscountAmount ?? undefined,
+          gifts: input.gifts && input.gifts.length > 0 ? input.gifts : undefined,
         }),
         signal: AbortSignal.timeout(PromoAutoApplyHttpAdapter.TIMEOUT_MS),
       });

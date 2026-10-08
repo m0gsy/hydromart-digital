@@ -1206,6 +1206,8 @@ export class FakeInventory implements InventoryPort {
     [];
   /** When set, reserve() throws it (simulates a stock shortfall reject). */
   reserveError: Error | null = null;
+  /** Throws only for a reserve that matches (e.g. one carrying a given product). */
+  reserveErrorWhen: ((items: SoldLine[]) => Error | null) | null = null;
   /** When set, consume() throws it — depot-service down while completion effects run. */
   consumeError: Error | null = null;
   async consume(
@@ -1226,6 +1228,8 @@ export class FakeInventory implements InventoryPort {
     if (this.reserveError) {
       throw this.reserveError;
     }
+    const conditional = this.reserveErrorWhen?.(items) ?? null;
+    if (conditional) throw conditional;
     this.reserveCalls.push({ depotId, orderId, items, authorization });
   }
   async release(
@@ -1432,15 +1436,21 @@ export class FakePromoAutoApply implements PromoAutoApplyPort {
     shippingAppliedRuleId: null,
     shippingFeeOverride: null,
   };
-  quoteCalls: { depotId: string | null; channel: AutoApplyChannel; lines: AutoApplyCartLine[] }[] = [];
+  quoteCalls: {
+    depotId: string | null;
+    channel: AutoApplyChannel;
+    lines: AutoApplyCartLine[];
+    firstOrder?: boolean;
+  }[] = [];
   applyCalls: AutoApplyApplyInput[] = [];
 
   async quote(
     depotId: string | null,
     channel: AutoApplyChannel,
     lines: AutoApplyCartLine[],
+    firstOrder?: boolean,
   ): Promise<AutoApplyQuoteResult> {
-    this.quoteCalls.push({ depotId, channel, lines });
+    this.quoteCalls.push({ depotId, channel, lines, firstOrder });
     return this.quoteResult;
   }
 
@@ -1505,8 +1515,9 @@ export function buildCartService(
   reseller: ResellerDiscountPort = new FakeResellerDiscount(),
   config: OrderConfigService = buildTestConfig(),
   promoAutoApply: PromoAutoApplyPort = new FakePromoAutoApply(),
+  orders: OrderRepository = new InMemoryOrderRepository(),
 ): CartService {
-  return new CartService(cart, catalog, pricing, reseller, config, promoAutoApply);
+  return new CartService(cart, catalog, pricing, reseller, config, promoAutoApply, orders);
 }
 
 export function buildTestConfig(overrides: Record<string, string> = {}): OrderConfigService {

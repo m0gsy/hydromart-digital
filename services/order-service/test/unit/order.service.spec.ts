@@ -3079,7 +3079,7 @@ describe('OrderService', () => {
     await service.checkout(customer, { deliveryAddress: address });
 
     expect(promoAutoApply.quoteCalls[0].lines).toEqual([
-      { productId: p.id, categoryId: 'cat-air', quantity: 1, unitPrice: 20000 },
+      { productId: p.id, categoryId: 'cat-air', quantity: 1, unitPrice: 20000, skipPromo: false },
     ]);
   });
 
@@ -3101,6 +3101,163 @@ describe('OrderService', () => {
     ];
     expect(promo.quoteCalls[0].lines).toEqual(expected);
     expect(promo.redeemCalls[0].lines).toEqual(expected);
+  });
+
+  describe('item 5 #11 · order discount, gifts, first order', () => {
+    const noLines = { lines: [], shippingAppliedRuleId: null, shippingFeeOverride: null };
+
+    it('takes an ORDER_DISCOUNT off the goods, and records it in the audit call', async () => {
+      await addToCart(20000, 2); // subtotal 40000
+      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 5000 };
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(order.discount).toBe(5000);
+      expect(order.total).toBe(order.subtotal + order.deliveryFee - 5000);
+      expect(promoAutoApply.applyCalls[0]).toMatchObject({
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 5000,
+      });
+    });
+
+    it('never lets membership + voucher + order discount together eat past the goods', async () => {
+      await addToCart(20000, 1); // subtotal 20000
+      membership.rate = 0.5; // 10000
+      promo.quoteDiscount = 5000;
+      promo.quoteDiscountType = 'FIXED';
+      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 10000 };
+
+      const order = await service.checkout(customer, { deliveryAddress: address, voucherCode: 'HEMAT' });
+
+      expect(order.discount).toBe(20000); // capped at the goods, 25000 asked for
+      expect(order.total).toBe(order.deliveryFee); // delivery is still paid
+    });
+
+    it('also applies to an agen, on top of the agen price', async () => {
+      await addToCart(20000, 1);
+      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
+      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 3000 };
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(order.discount).toBe(2000 + 3000);
+    });
+
+    it('does not record an order discount that is zero', async () => {
+      await addToCart(20000, 1);
+      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 0 };
+      await service.checkout(customer, { deliveryAddress: address });
+      expect(promoAutoApply.applyCalls[0].orderDiscountRuleId).toBeNull();
+    });
+
+    const giftSetup = async () => {
+      const trigger = await addToCart(8000, 4);
+      const gift = catalog.seed({ id: randomUUID(), basePrice: 8000, name: 'Botol 600ml', isGallon: true });
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        gifts: [{ promoRuleId: 'r-gift', productId: gift.id, quantity: 2, triggerProductId: trigger }],
+      };
+      return { trigger, gift };
+    };
+
+    it('adds a BUNDLE_GIFT as a free row, reserves it, audits its value and does not charge delivery for it', async () => {
+      const { trigger, gift } = await giftSetup();
+      const withoutGift = (await service.checkout(customer, { deliveryAddress: address })).deliveryFee;
+      // 4 paid galons at 5000 each; the 2 free galons of the GIFT are not counted.
+      expect(withoutGift).toBe(20000);
+
+      // second customer so the replay guard does not return the first order
+      const other = randomUUID();
+      await cartService.setItem(other, trigger, 4, false);
+      const order = await service.checkout(other, { deliveryAddress: address });
+
+      expect(order.items).toHaveLength(2);
+      expect(order.items[1]).toMatchObject({ productId: gift.id, quantity: 2, unitPrice: 0, lineTotal: 0 });
+      expect(order.subtotal).toBe(32000); // the gift adds nothing
+      expect(order.deliveryFee).toBe(20000);
+      const reserved = inventory.reserveCalls[inventory.reserveCalls.length - 1].items;
+      expect(reserved).toEqual(expect.arrayContaining([{ productId: gift.id, quantity: 2 }]));
+      expect(promoAutoApply.applyCalls[promoAutoApply.applyCalls.length - 1].gifts).toEqual([
+        { promoRuleId: 'r-gift', productId: gift.id, value: 16000 },
+      ]);
+    });
+
+    it('drops the gift, not the order, when only the gift is out of stock', async () => {
+      const { gift } = await giftSetup();
+      inventory.reserveErrorWhen = (items) =>
+        items.some((i) => i.productId === gift.id) ? new InsufficientStockError() : null;
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(order.items).toHaveLength(1);
+      expect(order.items[0].productId).not.toBe(gift.id);
+      expect(inventory.reserveCalls).toHaveLength(1);
+      expect(promoAutoApply.applyCalls[0].gifts).toEqual([]);
+    });
+
+    it('still rejects the order when the paid goods are short, gift or no gift', async () => {
+      await giftSetup();
+      inventory.reserveError = new InsufficientStockError();
+      await expect(service.checkout(customer, { deliveryAddress: address })).rejects.toBeInstanceOf(
+        InsufficientStockError,
+      );
+      expect(orders.rows).toHaveLength(0);
+    });
+
+    it('leaves a gift out when its product cannot be read, and carries on', async () => {
+      const trigger = await addToCart(8000, 4);
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        gifts: [{ promoRuleId: 'r-gift', productId: randomUUID(), quantity: 1, triggerProductId: trigger }],
+      };
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.items).toHaveLength(1);
+      expect(promoAutoApply.applyCalls[0].gifts).toEqual([]);
+    });
+
+    it('merges gifts for the same product from two rules into one row but audits each rule', async () => {
+      const trigger = await addToCart(8000, 4);
+      const gift = catalog.seed({ id: randomUUID(), basePrice: 5000 });
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        gifts: [
+          { promoRuleId: 'r-a', productId: gift.id, quantity: 1, triggerProductId: trigger },
+          { promoRuleId: 'r-b', productId: gift.id, quantity: 2, triggerProductId: trigger },
+        ],
+      };
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.items.filter((i) => i.productId === gift.id)).toHaveLength(1);
+      expect(order.items.find((i) => i.productId === gift.id)).toMatchObject({ quantity: 3, unitPrice: 0 });
+      expect(promoAutoApply.applyCalls[0].gifts).toEqual([
+        { promoRuleId: 'r-a', productId: gift.id, value: 5000 },
+        { promoRuleId: 'r-b', productId: gift.id, value: 10000 },
+      ]);
+    });
+
+    it('tells promo-service the customer is new only until they have an order', async () => {
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+      expect(promoAutoApply.quoteCalls[0].firstOrder).toBe(true);
+
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+      expect(promoAutoApply.quoteCalls[1].firstOrder).toBe(false);
+    });
+
+    it('treats a customer it cannot look up as not new', async () => {
+      await addToCart(20000, 1);
+      jest.spyOn(orders, 'customerLifetime').mockRejectedValueOnce(new Error('db down'));
+      await service.checkout(customer, { deliveryAddress: address });
+      expect(promoAutoApply.quoteCalls[0].firstOrder).toBe(false);
+    });
+
+    it('marks wholesale-priced lines skipPromo so a promo never touches them', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 10000 });
+      await cartService.setItem(customer, p.id, 10, false);
+      pricing.setTier('depot-home', p.id, 10, 8000);
+      await service.checkout(customer, { deliveryAddress: address });
+      expect(promoAutoApply.quoteCalls[0].lines[0]).toMatchObject({ productId: p.id, skipPromo: true });
+    });
   });
 
   /*

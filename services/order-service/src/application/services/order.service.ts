@@ -20,6 +20,7 @@ import {
   DuplicateCheckoutError,
   EmptiesReturnedExceedGallonsError,
   EmptyCartError,
+  InsufficientStockError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
   OrderAlreadyRoutedError,
@@ -87,6 +88,7 @@ import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
+import { AutoApplyGift } from '../ports/promo-auto-apply.port';
 import { PromoPort, VoucherLine } from '../ports/promo.port';
 import { AutoApplyAppliedLine, PromoAutoApplyPort } from '../ports/promo-auto-apply.port';
 import { InventoryPort } from '../ports/inventory.port';
@@ -145,6 +147,11 @@ export interface CounterBasketQuote {
   appliedLines: AutoApplyAppliedLine[];
   /** Item 5 (B): the post-promo lines a product/category-scoped voucher is priced on. */
   voucherLines: VoucherLine[];
+  /** Item 5 (#11): gift rows (price 0) and their audit values, kept off `items` until reserve. */
+  promoGifts: { items: CreateOrderItemData[]; audit: { promoRuleId: string; productId: string; value: number }[] };
+  /** Item 5 (#11): the order discount already inside `discount`, and the rule that gave it. */
+  promoOrderDiscount: number;
+  orderDiscountRuleId: string | null;
   /** I-3: the shipping-promo fields `walkInSale`'s audit call needs, carried out of the
    *  single quote `priceCounterBasket` now runs — 0/null for a pick-up. */
   shippingAppliedRuleId: string | null;
@@ -482,6 +489,7 @@ export class OrderService {
     // Item 5 fase 1: auto-apply promo rules (SPECIAL_PRICE/BUY_X_GET_Y), computed BEFORE
     // membership/voucher discounting — see Plan 2's Global Constraints for the stacking
     // decision. Fails open by construction (the port never throws).
+    const firstOrder = await this.isFirstOrder(customerId);
     const autoPromoQuote = await this.promoAutoApply.quote(
       depot.id,
       'APP',
@@ -490,7 +498,9 @@ export class OrderService {
         categoryId: categoryIdByProductId.get(i.productId) ?? null,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
+        skipPromo: tieredProductIds.has(i.productId),
       })),
+      firstOrder,
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(
       pricedItems,
@@ -498,6 +508,12 @@ export class OrderService {
       tieredProductIds,
     );
     const voucherLines = voucherLinesFor(items, categoryIdByProductId);
+    // Item 5 (#11): an ORDER_DISCOUNT is worked out on the subtotal after item promos; it joins
+    // the goods discount below, capped at the subtotal like the rest of the stack. Gifts are
+    // free products from BUNDLE_GIFT rules; whether they can be delivered is settled at
+    // reserve time (they are dropped, the order is not, if their stock is short).
+    const promoOrderDiscount = Math.min(Math.max(0, autoPromoQuote.orderDiscountAmount ?? 0), subtotal);
+    const promoGifts = await this.buildPromoGifts(depot.id, autoPromoQuote.gifts ?? []);
 
     // Fix 6: the minimum-order check runs against the PRE-promo subtotal. A promo discount
     // must never cause a cart that looked valid on the cart screen (priced before any
@@ -549,7 +565,13 @@ export class OrderService {
     let membershipUnavailable = false;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      discount = resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal);
+      discount = money(
+        Math.min(
+          subtotal,
+          resellerDiscountFor(reseller!, items, subtotal, tieredProductIds, tierPricedTotal) +
+            promoOrderDiscount,
+        ),
+      );
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -618,7 +640,10 @@ export class OrderService {
       // stacking multiple vouchers, not a voucher with a tier benefit). A FREE_SHIPPING
       // voucher is capped separately against the delivery fee it exists to waive, so a
       // small order with a large fee still gets its shipping fully covered.
-      const valueDiscount = Math.min(subtotal, membershipDiscount + voucherValueDiscount);
+      const valueDiscount = Math.min(
+        subtotal,
+        membershipDiscount + voucherValueDiscount + promoOrderDiscount,
+      );
       const shippingDiscount = Math.min(shippingFee, voucherShippingDiscount);
       discount = money(valueDiscount + shippingDiscount);
     }
@@ -628,7 +653,7 @@ export class OrderService {
     const deliveryFee = money(shippingFee + expressFee);
     const total = money(subtotal + deliveryFee - discount);
 
-    const order = await this.reserveThenCreate(
+    const { order, gifts: keptGifts } = await this.reserveThenCreateWithGifts(
       depot.id,
       {
         orderNumber: await this.newOrderNumber(),
@@ -644,6 +669,7 @@ export class OrderService {
         ...input.deliveryAddress,
         items,
       },
+      promoGifts.items,
       authorization,
       // Burned before the order row is written — see reserveThenCreate. A rejected or
       // failed burn aborts the checkout instead of handing out an unpaid discount.
@@ -679,6 +705,9 @@ export class OrderService {
       shippingFeeOverride: autoPromoQuote.shippingFeeOverride,
       originalShippingFee: depot.deliveryFee,
       shippingUnits: galonQuantity(items),
+      orderDiscountRuleId: promoOrderDiscount > 0 ? autoPromoQuote.orderDiscountRuleId : null,
+      orderDiscountAmount: promoOrderDiscount,
+      gifts: promoGifts.audit.filter((g) => keptGifts.some((k) => k.productId === g.productId)),
     });
     await this.cart.clear(customerId);
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
@@ -1066,6 +1095,9 @@ export class OrderService {
       shippingFeeOverride,
       originalShippingFee,
       voucherLines,
+      promoGifts,
+      promoOrderDiscount,
+      orderDiscountRuleId,
     } = await this.priceCounterBasket(
       customerId,
       input.depotId,
@@ -1086,7 +1118,7 @@ export class OrderService {
 
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
-    const order = await this.reserveThenCreate(
+    const { order, gifts: keptGifts } = await this.reserveThenCreateWithGifts(
       input.depotId,
       {
         orderNumber: await this.newOrderNumber(),
@@ -1143,6 +1175,7 @@ export class OrderService {
             }),
         items,
       },
+      promoGifts.items,
       authorization,
       // Burned before the order row is written, exactly as at checkout (B-6). The counter
       // path had the same fail-open shape, and the same consequence.
@@ -1174,6 +1207,9 @@ export class OrderService {
       shippingFeeOverride,
       originalShippingFee,
       shippingUnits: galonQuantity(items),
+      orderDiscountRuleId: promoOrderDiscount > 0 ? orderDiscountRuleId : null,
+      orderDiscountAmount: promoOrderDiscount,
+      gifts: promoGifts.audit.filter((g) => keptGifts.some((k) => k.productId === g.productId)),
     });
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     if (wantsDelivery) {
@@ -2079,6 +2115,95 @@ export class OrderService {
    * opname. The compensating release only ever undoes a hold this call itself placed.
    */
   /**
+   * Item 5 (#11): "pelanggan baru" means no active or completed order yet, anywhere. A
+   * customer we cannot look up, and the anonymous counter buyer, are treated as NOT new: a
+   * first-order discount handed to a repeat customer by mistake costs more than one withheld
+   * from a new customer by a failed read.
+   */
+  private async isFirstOrder(customerId: string): Promise<boolean> {
+    if (customerId === ANONYMOUS_CUSTOMER_ID) return false;
+    try {
+      return (await this.orders.customerLifetime(customerId)).orderCount === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Item 5 (#11): turns the gifts promo-service earned into order rows. Free (price 0), at the
+   * depot's own product data; a product that cannot be read or sold is simply left out, since
+   * a gift is a bonus and never a reason to fail a checkout. The audit value is what the gift
+   * would have cost at the depot's price. Gifts are not counted for delivery: the fee is
+   * decided from the goods the customer pays for (and BOGO units), before gifts are known.
+   */
+  private async buildPromoGifts(
+    depotId: string,
+    gifts: AutoApplyGift[],
+  ): Promise<{
+    items: CreateOrderItemData[];
+    audit: { promoRuleId: string; productId: string; value: number }[];
+  }> {
+    const byProduct = new Map<string, number>();
+    const byRuleAndProduct = new Map<string, { promoRuleId: string; productId: string; quantity: number }>();
+    for (const g of gifts) {
+      byProduct.set(g.productId, (byProduct.get(g.productId) ?? 0) + g.quantity);
+      const key = `${g.promoRuleId}:${g.productId}`;
+      const entry = byRuleAndProduct.get(key) ?? { promoRuleId: g.promoRuleId, productId: g.productId, quantity: 0 };
+      entry.quantity += g.quantity;
+      byRuleAndProduct.set(key, entry);
+    }
+    const items: CreateOrderItemData[] = [];
+    const unitPriceOf = new Map<string, number>();
+    for (const [productId, quantity] of byProduct) {
+      try {
+        const priced = await this.priceLines(depotId, [{ productId, quantity }]);
+        const row = priced.items[0];
+        unitPriceOf.set(productId, row.unitPrice);
+        items.push({ ...row, unitPrice: 0, quantity, lineTotal: 0 });
+      } catch {
+        // Unreadable or not for sale: no gift.
+      }
+    }
+    const audit = [...byRuleAndProduct.values()]
+      .filter((e) => unitPriceOf.has(e.productId))
+      .map((e) => ({
+        promoRuleId: e.promoRuleId,
+        productId: e.productId,
+        value: money((unitPriceOf.get(e.productId) as number) * e.quantity),
+      }));
+    return { items, audit };
+  }
+
+  /**
+   * Item 5 (#11): reserve and create with the gifts on the order, or without them if their
+   * stock is what is short. The reserve is the first thing `reserveThenCreate` does, before
+   * any voucher burn or row, so a shortfall leaves nothing behind and the retry is clean. If
+   * the order cannot be filled even without the gifts the original error surfaces.
+   */
+  private async reserveThenCreateWithGifts(
+    depotId: string,
+    data: Omit<CreateOrderData, 'id'>,
+    gifts: CreateOrderItemData[],
+    authorization: string,
+    burnVoucher?: (orderId: string) => Promise<void>,
+  ): Promise<{ order: OrderRecord; gifts: CreateOrderItemData[] }> {
+    if (gifts.length > 0) {
+      try {
+        const order = await this.reserveThenCreate(
+          depotId,
+          { ...data, items: [...data.items, ...gifts] },
+          authorization,
+          burnVoucher,
+        );
+        return { order, gifts };
+      } catch (error) {
+        if (!(error instanceof InsufficientStockError)) throw error;
+      }
+    }
+    return { order: await this.reserveThenCreate(depotId, data, authorization, burnVoucher), gifts: [] };
+  }
+
+  /**
    * Reserve stock, burn the voucher, then write the order — in that order, and all three
    * abort the checkout if they fail.
    *
@@ -2287,6 +2412,7 @@ export class OrderService {
     // Global Constraints). `channel: 'COUNTER'` is how a Senin-Optimis-style counter-only
     // rule distinguishes itself from an app order. ONE call for both the item-level discount
     // below and the shipping-fee math (Fix I-3) — see the method doc.
+    const firstOrder = await this.isFirstOrder(customerId);
     const autoPromoQuote = await this.promoAutoApply.quote(
       depotId,
       'COUNTER',
@@ -2295,7 +2421,9 @@ export class OrderService {
         categoryId: categoryIdByProductId.get(i.productId) ?? null,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
+        skipPromo: tieredProductIds.has(i.productId),
       })),
+      firstOrder,
     );
     const { items, subtotal, appliedLines } = applyPromoQuote(
       pricedItems,
@@ -2303,6 +2431,8 @@ export class OrderService {
       tieredProductIds,
     );
     const voucherLines = voucherLinesFor(items, categoryIdByProductId);
+    const promoOrderDiscount = Math.min(Math.max(0, autoPromoQuote.orderDiscountAmount ?? 0), subtotal);
+    const promoGifts = await this.buildPromoGifts(depotId, autoPromoQuote.gifts ?? []);
 
     let shippingFee = 0;
     let shippingAppliedRuleId: string | null = null;
@@ -2326,7 +2456,7 @@ export class OrderService {
     }
 
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
-    const { discount, agen } = await this.counterDiscount(
+    const { discount: personalDiscount, agen } = await this.counterDiscount(
       customerId,
       depotId,
       subtotal,
@@ -2337,6 +2467,8 @@ export class OrderService {
       tierPricedTotal,
       voucherLines,
     );
+    // The order discount is the till's too, and applies to a walk-in with no account as well.
+    const discount = money(Math.min(subtotal, personalDiscount + promoOrderDiscount));
     return {
       items,
       subtotal,
@@ -2351,6 +2483,9 @@ export class OrderService {
       agen,
       appliedLines,
       voucherLines,
+      promoGifts,
+      promoOrderDiscount,
+      orderDiscountRuleId: autoPromoQuote.orderDiscountRuleId ?? null,
       shippingAppliedRuleId,
       shippingFeeOverride,
       originalShippingFee,
