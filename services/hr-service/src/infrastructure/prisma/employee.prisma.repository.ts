@@ -5,6 +5,7 @@ import { Employee, EmploymentHistory, Prisma } from '../../../prisma/generated/c
 
 
 import {
+  DepotMoveWrite,
   EmployeeListFilter,
   EmployeeRepository,
 } from '../../application/ports/employee.repository';
@@ -275,6 +276,11 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     data: Prisma.EmployeeCreateInput,
     history?: Prisma.EmploymentHistoryCreateWithoutEmployeeInput,
   ): Promise<Employee> {
+    // Born at a depot means born HOME at that depot; a mismatch would give payroll two
+    // answers to "where does this person belong" from day one.
+    if (data.depotId != null && data.homeDepotId !== data.depotId) {
+      throw new Error('depot: an employee created at a depot must carry homeDepotId = depotId');
+    }
     return this.prisma.employee.create({
       data: history ? { ...data, history: { create: history } } : data,
     });
@@ -284,10 +290,22 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     id: string,
     data: Prisma.EmployeeUpdateInput,
     history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[],
+    move?: DepotMoveWrite,
   ): Promise<Employee> {
+    // The depot gate: depotId / homeDepotId only ever change together with a ledger row, in
+    // this one statement. A caller that forgets the move would silently rewrite where
+    // yesterday's punch and last month's payslip belong.
+    const touchesDepot = data.depotId !== undefined || data.homeDepotId !== undefined;
+    if (touchesDepot && !move) {
+      throw new Error('depot: depotId/homeDepotId must be written with a ledger move');
+    }
     return this.prisma.employee.update({
       where: { id },
-      data: history.length ? { ...data, history: { create: history } } : data,
+      data: {
+        ...data,
+        ...(history.length ? { history: { create: history } } : {}),
+        ...(move ? { depotMoves: { create: move } } : {}),
+      },
     });
   }
 }
