@@ -21,7 +21,10 @@ import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRuleUsage, PromoS
 const SELECT_CLASS = 'w-full rounded-lg border border-app bg-surface px-3 py-2.5 text-sm';
 // The filter row sits beside the search box, so its selects are content-width (a `w-auto` next to
 // `w-full` is decided by stylesheet order, and full width won: three stacked full-width rows).
-const FILTER_SELECT_CLASS = 'w-auto rounded-lg border border-app bg-surface px-3 py-2.5 text-sm';
+// Full width on a phone (a content-width select with a long option label pushed the page 52px
+// past a 320px screen), content width from `sm` up.
+const FILTER_SELECT_CLASS =
+  'w-full max-w-full rounded-lg border border-app bg-surface px-3 py-2.5 text-sm sm:w-auto';
 
 export function RuleFilterBar({ value, onChange }: { value: RuleFilter; onChange: (next: RuleFilter) => void }) {
   const { t } = useT();
