@@ -36,12 +36,15 @@ import {
 } from '../infrastructure/prisma/adjustment.prisma.repository';
 import { BONUS_RULE_REPOSITORY } from '../application/ports/bonus-rule.repository';
 import { LOAN_REPOSITORY } from '../application/ports/loan.repository';
+import { DEPOT_ASSIGNMENT_REPOSITORY } from '../application/ports/depot-assignment.repository';
 import { LOAN_REQUEST_REPOSITORY } from '../application/ports/loan-request.repository';
 import { BonusRuleService } from '../application/services/bonus-rule.service';
 import { LoanService } from '../application/services/loan.service';
+import { DepotAssignmentService } from '../application/services/depot-assignment.service';
 import { LoanRequestService } from '../application/services/loan-request.service';
 import { BonusRulePrismaRepository } from '../infrastructure/prisma/bonus-rule.prisma.repository';
 import { LoanPrismaRepository } from '../infrastructure/prisma/loan.prisma.repository';
+import { DepotAssignmentPrismaRepository } from '../infrastructure/prisma/depot-assignment.prisma.repository';
 import { LoanRequestPrismaRepository } from '../infrastructure/prisma/loan-request.prisma.repository';
 import { SALES_PORT } from '../application/ports/sales.port';
 import { OrderSalesHttpAdapter } from '../infrastructure/http/order-sales.http.adapter';
@@ -99,6 +102,7 @@ import { AttendanceController } from './attendance.controller';
 import { PayrollController } from './payroll.controller';
 import { BonusController, DeductionController } from './adjustment.controller';
 import { BonusRuleController, LoanController } from './rules.controller';
+import { DepotAssignmentController } from './depot-assignment.controller';
 import { LoanRequestController, SelfLoanRequestController } from './loan-request.controller';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
@@ -159,6 +163,8 @@ const providers: Provider[] = [
   BonusRuleService,
   LoanService,
   LoanRequestService,
+  { provide: DEPOT_ASSIGNMENT_REPOSITORY, useClass: DepotAssignmentPrismaRepository },
+  DepotAssignmentService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
   // Outbound HR notifications (leave decisions, announcements) via crm-service.
   { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
@@ -205,6 +211,7 @@ const providers: Provider[] = [
     LoanController,
     SelfLoanRequestController,
     LoanRequestController,
+    DepotAssignmentController,
     PerformanceController,
     AuditController,
     ReportsController,

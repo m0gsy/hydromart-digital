@@ -69,6 +69,21 @@ function ordinalOf(key: string): number {
   throw new RangeError(`Tanggal lokal tidak valid: "${key}" (harus YYYY-MM-DD)`);
 }
 
+/** True for a real calendar day written YYYY-MM-DD (rejects 2026-02-30, month 13...). */
+export function isLocalDay(key: string): boolean {
+  try {
+    ordinalOf(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whole days from `from` to `to` (negative when `to` is earlier). */
+export function daysBetween(from: string, to: string): number {
+  return ordinalOf(to) - ordinalOf(from);
+}
+
 interface Event {
   date: string;
   /** Virtual returns sort before real moves of the same day. */

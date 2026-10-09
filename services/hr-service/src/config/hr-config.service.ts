@@ -51,6 +51,10 @@ export class HrConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  /** Master switch for cross-depot assignments (default off): routes 404, the sweep is a no-op. */
+  get depotAssignmentEnabled(): boolean {
+    return this.config.get<boolean>('DEPOT_ASSIGNMENT_ENABLED', false) === true;
+  }
   get timeZone(): string {
     return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
   }

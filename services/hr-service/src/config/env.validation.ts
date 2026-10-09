@@ -12,6 +12,8 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
+  // Cross-depot assignments. Off = the routes answer 404 and nothing is applied.
+  DEPOT_ASSIGNMENT_ENABLED: Joi.boolean().default(false),
   // Attendance / payroll boot-time defaults (business-tunable per depot via /settings).
   HR_WORK_START_TIME: Joi.string()
     .pattern(/^\d{2}:\d{2}$/)
