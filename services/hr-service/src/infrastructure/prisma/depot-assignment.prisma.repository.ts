@@ -79,6 +79,34 @@ export class DepotAssignmentPrismaRepository implements DepotAssignmentRepositor
     return { rows, total };
   }
 
+  findDue(today: string, limit: number): Promise<EmployeeDepotAssignment[]> {
+    return this.prisma.employeeDepotAssignment.findMany({
+      where: {
+        OR: [
+          { status: 'PLANNED', startDate: { lte: asDate(today) } },
+          { status: 'ACTIVE', kind: 'LOAN', endDate: { lt: asDate(today) } },
+        ],
+      },
+      orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }],
+      take: limit,
+    });
+  }
+
+  async recordFailure(id: string, reason: string, maxAttempts: number): Promise<void> {
+    const row = await this.prisma.employeeDepotAssignment.update({
+      where: { id },
+      data: { attempts: { increment: 1 }, failReason: reason.slice(0, 500) },
+    });
+    // Only a row that was still waiting to start gives up; a running loan that cannot be
+    // returned keeps being retried, because leaving it ACTIVE is the safe state.
+    if (row.status === 'PLANNED' && row.attempts >= maxAttempts) {
+      await this.prisma.employeeDepotAssignment.updateMany({
+        where: { id, status: 'PLANNED' },
+        data: { status: 'FAILED' },
+      });
+    }
+  }
+
   async cancelPlanned(id: string): Promise<EmployeeDepotAssignment | null> {
     const { count } = await this.prisma.employeeDepotAssignment.updateMany({
       where: { id, status: 'PLANNED' },

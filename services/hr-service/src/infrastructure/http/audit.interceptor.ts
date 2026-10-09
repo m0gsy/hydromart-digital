@@ -9,6 +9,12 @@ import { AuditService } from '../../application/services/audit.service';
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
 /**
+ * Scheduler routes that would write a row every tick saying nothing happened. The depot
+ * assignment sweep records its own audit row for each assignment it actually applies.
+ */
+const QUIET_PATHS = ['/employees/internal/depot-moves/apply-due'];
+
+/**
  * Writes an AuditLog row for every successful mutating HR request (who did what to which
  * entity, from where). Read requests are skipped. The write is fire-and-forget and swallows
  * its own errors, so audit never breaks the request it trails.
@@ -22,7 +28,7 @@ export class AuditInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
-    if (!MUTATING.has(request.method)) {
+    if (!MUTATING.has(request.method) || QUIET_PATHS.some((p) => request.path.endsWith(p))) {
       return next.handle();
     }
 

@@ -1,6 +1,7 @@
 {
   "orphans": [
     "GET customer: /profile/directory",
-    "PATCH hr: /depot-assignments/:/cancel"
+    "PATCH hr: /depot-assignments/:/cancel",
+    "POST hr: /depot-assignments/:/apply-now"
   ]
 }

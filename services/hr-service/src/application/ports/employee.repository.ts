@@ -34,6 +34,17 @@ export interface DepotMoveWrite {
   createdBy: string | null;
 }
 
+/**
+ * Writes that must land in the SAME statement as a depot flip: the assignment's new state
+ * (so "moved" and "marked applied" cannot disagree), and the employee's still-open requests
+ * (so a kasbon or leave nobody has answered follows the person to the depot that now answers).
+ */
+export interface DepotFlipExtras {
+  assignment?: { id: string; data: Prisma.EmployeeDepotAssignmentUpdateInput };
+  /** Re-home this employee's PENDING kasbon and leave requests to this depot. */
+  movePendingRequestsTo?: string;
+}
+
 export interface EmployeeRepository {
   /** Row count, used to mint the next sequential employeeCode. */
   count(): Promise<number>;
@@ -134,5 +145,6 @@ export interface EmployeeRepository {
     history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[],
     /** Required whenever `data` touches `depotId` or `homeDepotId`; the repository enforces it. */
     move?: DepotMoveWrite,
+    extras?: DepotFlipExtras,
   ): Promise<Employee>;
 }

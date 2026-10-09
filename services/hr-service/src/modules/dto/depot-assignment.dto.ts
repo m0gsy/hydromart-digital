@@ -57,3 +57,11 @@ export class PagedDepotAssignmentResponseDto {
   @ApiProperty({ type: [DepotAssignmentResponseDto] }) rows!: DepotAssignmentResponseDto[];
   @ApiProperty() total!: number;
 }
+
+export class ApplyDueResponseDto {
+  @ApiProperty() due!: number;
+  @ApiProperty() applied!: number;
+  @ApiProperty() failed!: number;
+  @ApiPropertyOptional() disabled?: boolean;
+  @ApiPropertyOptional() ok?: boolean;
+}

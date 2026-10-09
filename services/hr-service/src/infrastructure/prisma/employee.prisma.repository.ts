@@ -5,6 +5,7 @@ import { Employee, EmploymentHistory, Prisma } from '../../../prisma/generated/c
 
 
 import {
+  DepotFlipExtras,
   DepotMoveWrite,
   EmployeeListFilter,
   EmployeeRepository,
@@ -291,6 +292,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     data: Prisma.EmployeeUpdateInput,
     history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[],
     move?: DepotMoveWrite,
+    extras?: DepotFlipExtras,
   ): Promise<Employee> {
     // The depot gate: depotId / homeDepotId only ever change together with a ledger row, in
     // this one statement. A caller that forgets the move would silently rewrite where
@@ -305,6 +307,25 @@ export class EmployeePrismaRepository implements EmployeeRepository {
         ...data,
         ...(history.length ? { history: { create: history } } : {}),
         ...(move ? { depotMoves: { create: move } } : {}),
+        ...(extras?.assignment
+          ? { depotAssignments: { update: { where: { id: extras.assignment.id }, data: extras.assignment.data } } }
+          : {}),
+        ...(extras?.movePendingRequestsTo
+          ? {
+              loanRequests: {
+                updateMany: {
+                  where: { status: 'PENDING' },
+                  data: { depotId: extras.movePendingRequestsTo },
+                },
+              },
+              leaveRequests: {
+                updateMany: {
+                  where: { status: { in: ['PENDING_MANAGER', 'PENDING_HR'] } },
+                  data: { depotId: extras.movePendingRequestsTo },
+                },
+              },
+            }
+          : {}),
       },
     });
   }

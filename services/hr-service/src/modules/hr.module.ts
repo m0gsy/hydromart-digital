@@ -40,6 +40,7 @@ import { DEPOT_ASSIGNMENT_REPOSITORY } from '../application/ports/depot-assignme
 import { LOAN_REQUEST_REPOSITORY } from '../application/ports/loan-request.repository';
 import { BonusRuleService } from '../application/services/bonus-rule.service';
 import { LoanService } from '../application/services/loan.service';
+import { DepotAssignmentApplier } from '../application/services/depot-assignment-applier.service';
 import { DepotAssignmentService } from '../application/services/depot-assignment.service';
 import { LoanRequestService } from '../application/services/loan-request.service';
 import { BonusRulePrismaRepository } from '../infrastructure/prisma/bonus-rule.prisma.repository';
@@ -103,6 +104,7 @@ import { PayrollController } from './payroll.controller';
 import { BonusController, DeductionController } from './adjustment.controller';
 import { BonusRuleController, LoanController } from './rules.controller';
 import { DepotAssignmentController } from './depot-assignment.controller';
+import { DepotMovesInternalController } from './depot-moves-internal.controller';
 import { LoanRequestController, SelfLoanRequestController } from './loan-request.controller';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
@@ -165,6 +167,7 @@ const providers: Provider[] = [
   LoanRequestService,
   { provide: DEPOT_ASSIGNMENT_REPOSITORY, useClass: DepotAssignmentPrismaRepository },
   DepotAssignmentService,
+  DepotAssignmentApplier,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
   // Outbound HR notifications (leave decisions, announcements) via crm-service.
   { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
@@ -212,6 +215,7 @@ const providers: Provider[] = [
     SelfLoanRequestController,
     LoanRequestController,
     DepotAssignmentController,
+    DepotMovesInternalController,
     PerformanceController,
     AuditController,
     ReportsController,
