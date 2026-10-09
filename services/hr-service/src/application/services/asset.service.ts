@@ -187,7 +187,8 @@ export class AssetService {
 
     if (recipient) {
       const employee = await this.employees.getById(user, recipient);
-      if (employee.depotId !== asset.depotId) {
+      // At the depot the asset belongs to - either where they work today or where they belong.
+      if (employee.depotId !== asset.depotId && employee.homeDepotId !== asset.depotId) {
         // An asset belongs to a depot's books. Handing it across depots without moving the
         // asset itself would leave one depot short of an item it is still accountable for.
         throw new BadRequestException('Karyawan penerima berada di depot lain');

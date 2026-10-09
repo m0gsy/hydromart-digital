@@ -5,6 +5,8 @@ export interface AudienceEmployee {
   id: string;
   /** Null for staff above a single depot — a DEPOT-dimension target never matches them. */
   depotId: string | null;
+  /** Where they belong when lent out; a DEPOT target reaches them there too. */
+  homeDepotId?: string | null;
   departmentId: string | null;
   position: string;
 }
@@ -25,7 +27,10 @@ export function targetCovers(target: AudienceTarget, employee: AudienceEmployee)
     case 'COMPANY':
       return true;
     case 'DEPOT':
-      return !!target.value && employee.depotId === target.value;
+      return (
+        !!target.value &&
+        (employee.depotId === target.value || employee.homeDepotId === target.value)
+      );
     case 'DEPARTMENT':
       return !!target.value && employee.departmentId === target.value;
     case 'POSITION':

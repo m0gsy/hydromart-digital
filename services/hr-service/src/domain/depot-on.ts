@@ -151,6 +151,14 @@ export function depotTimeline(
   };
 }
 
+/**
+ * The depot an employee BELONGS to, whoever they are lent to today. Rows that predate the
+ * `homeDepotId` column fall back to the live depot, which for them is the same thing.
+ */
+export function homeDepotOf(employee: DepotOnEmployee): string | null {
+  return employee.homeDepotId ?? employee.depotId;
+}
+
 /** The depot the employee worked at on `localDate`. Total: never throws on a valid date. */
 export function depotOn(
   employee: DepotOnEmployee,

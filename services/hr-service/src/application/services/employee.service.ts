@@ -35,6 +35,8 @@ import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { HrConfigService } from '../../config/hr-config.service';
+import { homeDepotOf } from '../../domain/depot-on';
+import { redactForLendingDepot } from '../../domain/employee-redaction';
 import {
   DEPOT_ASSIGNMENT_REPOSITORY,
   DepotAssignmentRepository,
@@ -277,17 +279,46 @@ export class EmployeeService {
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
-    return { rows, total, page: query.page, pageSize: query.pageSize };
+    // A depot that only BORROWS someone sees them without their pay and papers.
+    return {
+      rows: rows.map((row) => (this.reaches(user, homeDepotOf(row)) ? row : redactForLendingDepot(row))),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
+  private reaches(user: AuthenticatedUser, depotId: string | null): boolean {
+    try {
+      assertDepotAccess(user, depotId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Dual access: the depot the person BELONGS to sees the whole row; a depot they are merely
+   * lent to sees it with pay and papers blanked (it runs their days, it does not run their
+   * file). Anyone who is not lent out has one depot, so nothing changes for them.
+   *
+   * Everything that WRITES the employee's own record asks `assertHomeAccess` on top of this,
+   * because a blanked copy passing this gate must never become a way to edit the real one.
+   */
   async getById(user: AuthenticatedUser, id: string): Promise<Employee> {
     const employee = await this.repo.findById(id);
     if (!employee) {
       throw new NotFoundException('Karyawan tidak ditemukan');
     }
     // By-id endpoints carry no depotIds for the guard to see — enforce here (see DepotScopeGuard note).
-    assertDepotAccess(user, employee.depotId);
-    return employee;
+    if (this.reaches(user, homeDepotOf(employee))) return employee;
+    assertDepotAccess(user, employee.depotId); // neither depot: the usual Forbidden
+    return redactForLendingDepot(employee);
+  }
+
+  /** Strict: only the depot the person belongs to (or head office) may edit their record. */
+  private assertHomeAccess(user: AuthenticatedUser, employee: Employee): void {
+    assertDepotAccess(user, homeDepotOf(employee));
   }
 
   /**
@@ -434,6 +465,7 @@ export class EmployeeService {
    */
   async createAccountFor(user: AuthenticatedUser, id: string): Promise<Employee> {
     const employee = await this.getById(user, id); // 404 + depot check
+    this.assertHomeAccess(user, employee);
     if (employee.authSubjectId) {
       return employee;
     }
@@ -797,6 +829,7 @@ export class EmployeeService {
 
   async update(user: AuthenticatedUser, id: string, input: UpdateEmployeeInput): Promise<Employee> {
     const current = await this.getById(user, id); // 404 + depot check
+    this.assertHomeAccess(user, current);
     // Block moving an employee into a depot the caller can't touch.
     if (input.depotId) {
       assertDepotAccess(user, input.depotId);
