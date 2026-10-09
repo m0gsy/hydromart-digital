@@ -1,6 +1,7 @@
 {
   "/": [
     "auth",
+    "crm",
     "loyalty",
     "orders",
     "products",
@@ -9,30 +10,45 @@
   ],
   "/account": [
     "auth",
+    "crm",
+    "customers",
     "loyalty",
     "orders"
   ],
   "/account/edit": [
     "auth",
+    "crm",
+    "customers",
     "orders"
   ],
   "/addresses": [
     "auth",
+    "crm",
     "customers",
+    "orders"
+  ],
+  "/agen": [
+    "auth",
+    "crm",
+    "customers",
+    "depots",
     "orders"
   ],
   "/cart": [
     "auth",
+    "crm",
     "loyalty",
     "orders",
     "recommendations"
   ],
   "/checkout": [
     "auth",
+    "crm",
     "customers",
     "depots",
     "loyalty",
     "orders",
+    "payments",
     "vouchers"
   ],
   "/dashboard": [
@@ -108,7 +124,6 @@
   "/dashboard/customers/detail": [
     "auth",
     "crm",
-    "customers",
     "depots"
   ],
   "/dashboard/customers/import": [
@@ -165,6 +180,7 @@
   "/dashboard/incidents": [
     "auth",
     "crm",
+    "deliveries",
     "depots",
     "incidents"
   ],
@@ -263,6 +279,13 @@
     "crm",
     "depots"
   ],
+  "/dashboard/promo-rules": [
+    "auth",
+    "crm",
+    "depots",
+    "products",
+    "vouchers"
+  ],
   "/dashboard/promotions": [
     "auth",
     "crm",
@@ -317,6 +340,11 @@
     "depots"
   ],
   "/dashboard/roles": [
+    "auth",
+    "crm",
+    "depots"
+  ],
+  "/dashboard/sales-import": [
     "auth",
     "crm",
     "depots"
@@ -384,6 +412,7 @@
     "auth",
     "crm",
     "depots",
+    "orders",
     "products"
   ],
   "/dashboard/wastage": [
@@ -410,10 +439,12 @@
     "deliveries"
   ],
   "/driver/deliveries/detail/fail": [
-    "auth"
+    "auth",
+    "deliveries"
   ],
   "/driver/deliveries/detail/no-show": [
-    "auth"
+    "auth",
+    "deliveries"
   ],
   "/driver/deliveries/detail/pay": [
     "auth",
@@ -421,7 +452,8 @@
     "payments"
   ],
   "/driver/deliveries/detail/reschedule": [
-    "auth"
+    "auth",
+    "deliveries"
   ],
   "/driver/deliveries/detail/returns": [
     "auth",
@@ -432,6 +464,10 @@
     "deliveries"
   ],
   "/driver/earnings": [
+    "auth",
+    "payout"
+  ],
+  "/driver/earnings/history": [
     "auth",
     "payout"
   ],
@@ -462,15 +498,15 @@
     "deliveries"
   ],
   "/driver/profile": [
-    "auth"
+    "auth",
+    "depots"
   ],
   "/driver/route": [
     "auth",
     "deliveries"
   ],
   "/driver/settings": [
-    "auth",
-    "customers"
+    "auth"
   ],
   "/driver/settlement": [
     "auth",
@@ -491,15 +527,21 @@
   ],
   "/favorites": [
     "auth",
+    "crm",
     "customers",
     "orders"
   ],
   "/hapus-akun": [
     "auth",
+    "crm",
     "orders"
   ],
   "/help": [
+    "admin",
     "auth",
+    "crm",
+    "customers",
+    "loyalty",
     "orders"
   ],
   "/hq": [
@@ -508,6 +550,9 @@
     "depots"
   ],
   "/hq/access": [
+    "auth"
+  ],
+  "/hq/access/detail": [
     "auth"
   ],
   "/hq/access/landing": [
@@ -519,28 +564,27 @@
     "orders"
   ],
   "/hq/api-keys": [
-    "admin",
     "auth"
   ],
   "/hq/applications": [
     "auth",
     "depots"
   ],
+  "/hq/applications/detail": [
+    "auth"
+  ],
   "/hq/audit": [
     "auth"
   ],
   "/hq/broadcast": [
-    "auth",
-    "depots",
-    "orders"
+    "auth"
   ],
   "/hq/campaigns": [
     "auth",
     "orders"
   ],
   "/hq/catalog": [
-    "auth",
-    "products"
+    "auth"
   ],
   "/hq/churn": [
     "auth",
@@ -561,12 +605,17 @@
     "auth",
     "depots"
   ],
+  "/hq/depots/detail": [
+    "auth",
+    "dashboard",
+    "depots",
+    "orders"
+  ],
   "/hq/exports": [
     "admin",
     "auth"
   ],
   "/hq/flags": [
-    "admin",
     "auth"
   ],
   "/hq/forecast": [
@@ -574,20 +623,20 @@
     "forecast",
     "products"
   ],
+  "/hq/forecast-models": [
+    "auth",
+    "forecast"
+  ],
   "/hq/forms/commission": [
     "auth",
     "depots",
     "payout"
   ],
   "/hq/forms/pricing-rule": [
-    "auth",
-    "depots",
-    "products"
+    "auth"
   ],
   "/hq/forms/segment": [
-    "auth",
-    "crm",
-    "orders"
+    "auth"
   ],
   "/hq/forms/voucher": [
     "auth"
@@ -606,8 +655,7 @@
     "auth"
   ],
   "/hq/hierarchy": [
-    "auth",
-    "depots"
+    "auth"
   ],
   "/hq/incidents": [
     "admin",
@@ -618,13 +666,10 @@
     "depots"
   ],
   "/hq/invoice-template": [
-    "auth",
-    "orders",
-    "payments"
+    "auth"
   ],
   "/hq/loyalty": [
-    "auth",
-    "loyalty"
+    "auth"
   ],
   "/hq/notifications": [
     "auth",
@@ -639,6 +684,11 @@
     "depots",
     "orders"
   ],
+  "/hq/orders/detail": [
+    "auth",
+    "orders",
+    "payments"
+  ],
   "/hq/payments": [
     "auth",
     "dashboard",
@@ -648,6 +698,10 @@
   "/hq/pdp": [
     "auth"
   ],
+  "/hq/pnl": [
+    "auth",
+    "dashboard"
+  ],
   "/hq/pricing": [
     "auth",
     "depots",
@@ -656,6 +710,11 @@
   "/hq/profile": [
     "admin",
     "auth"
+  ],
+  "/hq/promo-rules": [
+    "auth",
+    "products",
+    "vouchers"
   ],
   "/hq/promotions": [
     "auth",
@@ -675,12 +734,10 @@
   "/hq/reports/export": [
     "auth",
     "dashboard",
-    "depots",
     "orders",
     "payments"
   ],
   "/hq/retention": [
-    "admin",
     "auth"
   ],
   "/hq/returns": [
@@ -698,55 +755,173 @@
   ],
   "/hq/scorecard": [
     "auth",
-    "dashboard"
+    "dashboard",
+    "payout"
   ],
   "/hq/search": [
     "auth"
   ],
   "/hq/security": [
-    "admin",
     "auth"
   ],
   "/hq/sitemap": [
     "auth"
   ],
   "/hq/sla-policy": [
-    "admin",
-    "auth",
-    "deliveries"
+    "auth"
   ],
   "/hq/staff": [
-    "auth",
-    "depots",
-    "employees"
+    "auth"
   ],
   "/hq/staff/import": [
-    "auth",
-    "depots"
+    "auth"
   ],
   "/hq/subscriptions": [
     "auth",
+    "depots",
     "orders"
   ],
   "/hq/tax": [
-    "auth",
-    "payments"
+    "auth"
   ],
   "/hq/tickets": [
     "admin",
-    "auth"
+    "auth",
+    "depots"
   ],
   "/hq/vouchers": [
     "auth",
     "vouchers"
   ],
   "/hq/webhooks": [
-    "admin",
     "auth"
   ],
   "/hq/wizard": [
-    "admin",
     "auth"
+  ],
+  "/hr": [
+    "auth",
+    "depots",
+    "hr-reports"
+  ],
+  "/hr/adjustments": [
+    "auth",
+    "depots",
+    "employees"
+  ],
+  "/hr/adjustments/import": [
+    "auth",
+    "depots"
+  ],
+  "/hr/allowances": [
+    "auth",
+    "depots",
+    "employees"
+  ],
+  "/hr/allowances/import": [
+    "auth",
+    "depots"
+  ],
+  "/hr/announcements": [
+    "announcements",
+    "auth",
+    "departments",
+    "depots",
+    "employees"
+  ],
+  "/hr/assets": [
+    "auth",
+    "depots",
+    "employee-assets",
+    "employees"
+  ],
+  "/hr/assets/import": [
+    "auth",
+    "depots"
+  ],
+  "/hr/attendance": [
+    "attendance",
+    "auth",
+    "depots",
+    "employees"
+  ],
+  "/hr/audit": [
+    "auth",
+    "depots",
+    "hr-audit"
+  ],
+  "/hr/calendar": [
+    "auth",
+    "depots",
+    "holidays",
+    "hr",
+    "hr-shifts"
+  ],
+  "/hr/customers": [
+    "auth",
+    "customers",
+    "depots"
+  ],
+  "/hr/departments": [
+    "auth",
+    "departments",
+    "depots"
+  ],
+  "/hr/employees": [
+    "auth",
+    "departments",
+    "depots",
+    "employees"
+  ],
+  "/hr/employees/detail": [
+    "allowances",
+    "auth",
+    "departments",
+    "depots",
+    "employee-assets",
+    "employee-documents",
+    "employees",
+    "loans"
+  ],
+  "/hr/employees/detail/edit": [
+    "auth",
+    "departments",
+    "depots",
+    "employees"
+  ],
+  "/hr/employees/import": [
+    "auth",
+    "departments",
+    "depots",
+    "hr-shifts"
+  ],
+  "/hr/employees/new": [
+    "auth",
+    "departments",
+    "depots"
+  ],
+  "/hr/leave": [
+    "auth",
+    "depots",
+    "leave"
+  ],
+  "/hr/leave/balances-import": [
+    "auth",
+    "depots"
+  ],
+  "/hr/loans": [
+    "auth",
+    "depots",
+    "loans"
+  ],
+  "/hr/loans/import": [
+    "auth",
+    "depots"
+  ],
+  "/hr/loans/requests": [
+    "auth",
+    "depots",
+    "loan-requests"
   ],
   "/hr/me": [
     "auth"
@@ -765,6 +940,10 @@
   "/hr/me/enroll": [
     "auth"
   ],
+  "/hr/me/kasbon": [
+    "auth",
+    "loan-requests"
+  ],
   "/hr/me/leave": [
     "auth",
     "leave"
@@ -777,12 +956,57 @@
     "auth",
     "payroll"
   ],
+  "/hr/payroll": [
+    "auth",
+    "depots",
+    "employees",
+    "payroll"
+  ],
+  "/hr/payroll/detail": [
+    "auth",
+    "depots",
+    "payroll"
+  ],
+  "/hr/performance": [
+    "auth",
+    "depots",
+    "employees",
+    "performance"
+  ],
+  "/hr/reports": [
+    "auth",
+    "depots"
+  ],
+  "/hr/resellers": [
+    "auth",
+    "customers",
+    "depots"
+  ],
+  "/hr/rules": [
+    "auth",
+    "bonus-rules",
+    "depots"
+  ],
+  "/hr/settings": [
+    "auth",
+    "depots",
+    "hr"
+  ],
+  "/hr/shift": [
+    "auth",
+    "depots",
+    "employees",
+    "hr-shifts",
+    "shift-rotations"
+  ],
   "/kebijakan-privasi": [
     "auth",
+    "crm",
     "orders"
   ],
   "/login": [
     "auth",
+    "crm",
     "orders"
   ],
   "/m/manager": [
@@ -802,7 +1026,6 @@
     "depots"
   ],
   "/m/manager/approvals/detail": [
-    "approvals",
     "auth",
     "depots"
   ],
@@ -829,27 +1052,33 @@
   ],
   "/orders": [
     "auth",
+    "crm",
     "orders",
+    "products",
     "recommendations"
   ],
   "/orders/detail": [
     "auth",
+    "crm",
     "depots",
     "orders",
     "payments"
   ],
   "/orders/detail/review": [
     "auth",
+    "crm",
     "orders"
   ],
   "/products": [
     "auth",
+    "crm",
     "loyalty",
     "orders",
     "products"
   ],
   "/products/detail": [
     "auth",
+    "crm",
     "customers",
     "loyalty",
     "orders",
@@ -858,6 +1087,7 @@
   ],
   "/promo": [
     "auth",
+    "crm",
     "loyalty",
     "orders",
     "products",
@@ -865,42 +1095,62 @@
   ],
   "/referral": [
     "auth",
+    "crm",
     "orders",
     "referrals"
   ],
   "/register": [
     "auth",
+    "crm",
     "orders"
   ],
   "/resellers": [
     "auth",
+    "crm",
     "orders"
   ],
   "/rewards": [
     "auth",
+    "crm",
     "depots",
     "loyalty",
     "orders",
+    "products",
     "referrals",
     "vouchers"
   ],
   "/subscriptions": [
     "auth",
+    "crm",
     "customers",
     "orders",
     "products"
   ],
+  "/syarat-ketentuan": [
+    "auth",
+    "crm",
+    "orders"
+  ],
+  "/track": [
+    "auth",
+    "crm",
+    "orders"
+  ],
   "/verify": [
     "auth",
+    "crm",
     "orders"
   ],
   "/vouchers": [
     "auth",
+    "crm",
     "orders",
+    "products",
     "vouchers"
   ],
   "/waralaba": [
     "auth",
+    "crm",
     "orders"
   ]
 }
