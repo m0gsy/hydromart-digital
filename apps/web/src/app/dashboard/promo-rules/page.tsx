@@ -72,7 +72,7 @@ function RuleEditor({
     setBusy(true);
     setError(null);
     try {
-      const payload = ruleFormToPayload(form, effectiveDepotId);
+      const payload = ruleFormToPayload(form, effectiveDepotId, rule ? 'edit' : 'create');
       if (rule) {
         await api.patch(
           endpoints.promoRules.detail(rule.id),
@@ -191,7 +191,12 @@ function RuleEditor({
 export default function DashboardPromoRulesPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const { selectedId: activeDepotId } = useDepot();
+  // `scopedId`, not `selectedId`: a depot-scoped account whose switcher sits on "Semua depot"
+  // has selectedId null while the header already names a concrete depot. A new rule created
+  // from null is network-wide, which the API refuses for that account ("hanya boleh mengakses
+  // depot yang menjadi tanggung jawabnya") — so the form could not be used at all. This is the
+  // depot console: a rule here is always for ONE depot, the one the header shows.
+  const { scopedId: activeDepotId } = useDepot();
   const role = useAuth().customer?.role;
   const [editing, setEditing] = useState<PromoRule | null | undefined>(undefined);
   const [template, setTemplate] = useState<PromoRule | null>(null);

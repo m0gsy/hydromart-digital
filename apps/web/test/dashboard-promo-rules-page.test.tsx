@@ -25,7 +25,9 @@ vi.mock('@/lib/api', () => ({
 }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: auth.role } }) }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
-vi.mock('@/lib/depot-context', () => ({ useDepot: () => ({ selectedId: 'depot-a' }) }));
+// selectedId null on purpose: the account's switcher is on "Semua depot" while the header names a
+// concrete depot (scopedId). A new rule must be created for that depot, never network-wide.
+vi.mock('@/lib/depot-context', () => ({ useDepot: () => ({ selectedId: null, scopedId: 'depot-a' }) }));
 
 import { ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -261,10 +263,12 @@ describe('dashboard/promo-rules editor', () => {
         minQty: 3,
         maxQty: 20,
         channels: ['APP'],
-        active: true,
       },
       true,
     );
+    // promo-service's create DTO forbids `active` (a 400 "property active should not exist");
+    // only PATCH may carry it.
+    expect(post.mock.calls[0]?.[1]).not.toHaveProperty('active');
     expect(patch).not.toHaveBeenCalled();
     // editor closes and list reloads
     await waitFor(() => expect(screen.queryByRole('heading', { name: T.editorNew })).toBeNull());
@@ -669,9 +673,9 @@ describe('dashboard/promo-rules · admin tools (item 5 D)', () => {
       name: `${RULE.name} ${P.copySuffix}`,
       kind: 'SPECIAL_PRICE',
       specialPrice: 4000,
-      active: true,
     });
     expect(post.mock.calls[0]?.[1]).not.toHaveProperty('seenUpdatedAt');
+    expect(post.mock.calls[0]?.[1]).not.toHaveProperty('active');
   });
 
   it('cancelling a duplicate leaves no template behind for the next "new rule"', async () => {
