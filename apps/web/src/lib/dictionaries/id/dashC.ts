@@ -200,6 +200,7 @@ export const dashC = {
       depotSubscriptions: 'Langganan depot',
       depotDisputes: 'Sengketa pesanan',
       hrAdmin: 'HRIS (kelola karyawan)',
+      employeeAssign: 'Tugaskan karyawan lintas depot',
       hrPayroll: 'Payroll',
       leaveApprove: 'Setujui cuti',
       kasbonApprove: 'Setujui kasbon',
