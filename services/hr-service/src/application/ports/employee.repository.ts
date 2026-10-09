@@ -19,6 +19,21 @@ export interface EmployeeListFilter {
   take: number;
 }
 
+/**
+ * One row of the depot ledger (`EmployeeDepotMove`), written in the SAME statement as the
+ * employee update that changes the depot - never on its own. This is the single door through
+ * which `Employee.depotId` and `homeDepotId` change after birth.
+ */
+export interface DepotMoveWrite {
+  fromDepotId: string | null;
+  toDepotId: string | null;
+  /** Local day the move takes effect, as UTC midnight (`@db.Date`). */
+  effectiveDate: Date;
+  kind: 'PERMANENT' | 'LOAN_START' | 'LOAN_END';
+  assignmentId?: string | null;
+  createdBy: string | null;
+}
+
 export interface EmployeeRepository {
   /** Row count, used to mint the next sequential employeeCode. */
   count(): Promise<number>;
@@ -117,5 +132,7 @@ export interface EmployeeRepository {
     id: string,
     data: Prisma.EmployeeUpdateInput,
     history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[],
+    /** Required whenever `data` touches `depotId` or `homeDepotId`; the repository enforces it. */
+    move?: DepotMoveWrite,
   ): Promise<Employee>;
 }

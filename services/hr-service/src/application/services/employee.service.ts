@@ -7,7 +7,14 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeIds,
+  localDayKey,
+  runImport,
+} from '@hydromart/platform';
 
 import {
   Employee,
@@ -18,10 +25,15 @@ import {
   SalaryType,
 } from '../../../prisma/generated/client';
 import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
-import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
+import {
+  DepotMoveWrite,
+  EMPLOYEE_REPOSITORY,
+  EmployeeRepository,
+} from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
+import { HrConfigService } from '../../config/hr-config.service';
 import { hrStorageKey } from '../storage-key';
 import { STAFF_IMPORT_ROLES, type EmployableRole, type HrManagedRole } from '@hydromart/access';
 
@@ -158,7 +170,13 @@ export class EmployeeService {
     @Optional() @Inject(SUPERVISION_PORT) private readonly supervision?: SupervisionPort,
     // HR-1: optional for the same reason; absent (dev, CI) there are no objects to delete.
     @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
+    // Last again. Absent (specs), the day is cut in Jakarta, the platform default.
+    @Optional() private readonly config?: HrConfigService,
   ) {}
+
+  private get timeZone(): string {
+    return this.config?.timeZone ?? 'Asia/Jakarta';
+  }
 
   /**
    * HR-1 — the photo OBJECTS behind a scrub: faces, attendance frames, profile photos.
@@ -331,6 +349,8 @@ export class EmployeeService {
       phone: input.phone,
       email: input.email ?? null,
       depotId: input.depotId ?? null,
+      // Born at a depot = home at that depot (the repository refuses a mismatch).
+      homeDepotId: input.depotId ?? null,
       position: input.position,
       role: input.role ?? null,
       employmentStatus: input.employmentStatus,
@@ -822,7 +842,6 @@ export class EmployeeService {
       'position',
       'role',
       'employmentStatus',
-      'depotId',
       'bankName',
       'bankAccount',
       'emergencyName',
@@ -853,6 +872,12 @@ export class EmployeeService {
     if (input.contractEndDate !== undefined) {
       data.contractEndDate = new Date(input.contractEndDate);
     }
+    // The depot never goes through the plain field loop above: it travels with a ledger move.
+    const depotMove =
+      input.depotId !== undefined && input.depotId !== current.depotId
+        ? this.depotChange(current, input.depotId, actorId(user.sub))
+        : null;
+    if (depotMove) Object.assign(data, depotMove.fields);
     if (input.salaryType !== undefined) data.salaryType = input.salaryType;
     if (rates) {
       data.dailyRate = rates.dailyRate;
@@ -927,7 +952,7 @@ export class EmployeeService {
     }
 
     const history = this.diffHistory(current, data, actorId(user.sub));
-    return this.repo.update(id, data, history);
+    return this.repo.update(id, data, history, depotMove?.move);
   }
 
   /**
@@ -991,13 +1016,39 @@ export class EmployeeService {
       return { updated: false };
     }
     await this.assertDepartmentFits(employee.departmentId ?? undefined, depotId);
+    const { fields, move } = this.depotChange(employee, depotId, null);
     await this.repo.update(
       employee.id,
-      { depotId },
+      fields,
       // Actor is the staff console via auth-service, not a person this service can name.
-      this.diffHistory(employee, { depotId } as Prisma.EmployeeUpdateInput, null),
+      this.diffHistory(employee, fields, null),
+      move,
     );
     return { updated: true };
+  }
+
+  /**
+   * The one place a permanent depot change is shaped: the new depot AND home, plus the ledger
+   * row that makes the change dated history instead of an overwrite. Every writer
+   * (`update`, the import's UPSERT through it, `setDepotInternal`) calls this, and the
+   * repository refuses a depot write that arrives without the move it returns.
+   */
+  private depotChange(
+    current: Employee,
+    toDepotId: string | null,
+    actor: string | null,
+  ): { fields: Prisma.EmployeeUpdateInput; move: DepotMoveWrite } {
+    return {
+      fields: { depotId: toDepotId, homeDepotId: toDepotId },
+      move: {
+        fromDepotId: current.depotId,
+        toDepotId,
+        // The local day it was decided, as UTC midnight: the shape of every @db.Date here.
+        effectiveDate: new Date(`${localDayKey(new Date(), this.timeZone)}T00:00:00.000Z`),
+        kind: 'PERMANENT',
+        createdBy: actor,
+      },
+    };
   }
 
   /**
