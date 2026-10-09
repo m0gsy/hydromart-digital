@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeIds, localMonthKey } from '@hydromart/platform';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localMonthKey } from '@hydromart/platform';
 
-import { Employee, Payroll } from '../../../prisma/generated/client';
+import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { calendarDayWeights, homeDepotOf } from '../../domain/depot-on';
 import { allocatePayroll, type DepotWeight } from '../../domain/payroll-allocation';
@@ -64,6 +64,7 @@ import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
   PayrollRepository,
+  PayrollShareRow,
   PayrollShareWrite,
   PayrollWithEmployee,
   PayrollWithItems,
@@ -628,7 +629,7 @@ export class PayrollService {
   }
 
   async approve(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
-    const payroll = await this.load(user, id);
+    const payroll = await this.load(user, id, { forWrite: true });
     if (payroll.status !== 'DRAFT') {
       throw new ConflictException(
         `Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`,
@@ -641,7 +642,7 @@ export class PayrollService {
   }
 
   async markPaid(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
-    const payroll = await this.load(user, id);
+    const payroll = await this.load(user, id, { forWrite: true });
     if (payroll.status !== 'APPROVED') {
       throw new ConflictException(
         `Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`,
@@ -758,7 +759,21 @@ export class PayrollService {
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
-    return { rows, total, page: query.page, pageSize: query.pageSize };
+    if (!this.config.depotAssignmentEnabled) {
+      return { rows, total, page: query.page, pageSize: query.pageSize };
+    }
+    // A depot that only borrowed someone sees its share of their slip, not the whole of it; the
+    // helper fields the repository added for that decision do not leave this method.
+    const mine = new Set(depotScopeIds(user) ?? []);
+    const shaped = rows.map((row) => {
+      const { homeDepotId, shares, ...payroll } = row;
+      const borrowed =
+        mine.size > 0 && !!shares?.length && !(homeDepotId && mine.has(homeDepotId));
+      if (!borrowed) return payroll as Payroll;
+      const own = shares!.filter((s) => mine.has(s.depotId));
+      return PayrollService.withShareTotals(payroll as Payroll, own, []) as unknown as Payroll;
+    });
+    return { rows: shaped, total, page: query.page, pageSize: query.pageSize };
   }
 
   /** The caller's OWN payroll history (self-service PWA). Scoped by the linked employee. */
@@ -777,11 +792,59 @@ export class PayrollService {
     return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 
-  private async load(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
+  private async load(
+    user: AuthenticatedUser,
+    id: string,
+    opts: { forWrite?: boolean } = {},
+  ): Promise<PayrollWithItems> {
     const payroll = await this.repo.findById(id);
     if (!payroll) throw new NotFoundException('Payroll tidak ditemukan');
-    await this.employees.getById(user, payroll.employeeId); // depot check on the owning employee
-    return payroll;
+    // depot check on the owning employee (a borrowing depot passes this with a blanked copy)
+    const employee = await this.employees.getById(user, payroll.employeeId);
+    if (!this.config.depotAssignmentEnabled || this.reachesHome(user, employee)) return payroll;
+
+    /*
+     * A depot that only BORROWED this person holds `hrView` like any manager, and the full
+     * slip - every line, the whole net, what was withheld for tax - belongs to the depot that
+     * employs them. It gets its own share and nothing else, and it can never act on it.
+     */
+    if (opts.forWrite) {
+      throw new ForbiddenException('Slip ini milik depot asal karyawan; hanya depot asal atau pusat yang bisa memprosesnya.');
+    }
+    return this.shareOnly(user, payroll);
+  }
+
+  private reachesHome(user: AuthenticatedUser, employee: Pick<Employee, 'depotId' | 'homeDepotId'>): boolean {
+    try {
+      assertDepotAccess(user, homeDepotOf(employee));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** The caller's own depots' part of a slip, in the shape of the whole one (no lines). */
+  async shareOnly(user: AuthenticatedUser, payroll: PayrollWithItems): Promise<PayrollWithItems> {
+    const mine = new Set(depotScopeIds(user) ?? []);
+    const rows = ((await this.repo.findShares?.(payroll.id)) ?? []).filter((s) => mine.has(s.depotId));
+    if (rows.length === 0) {
+      throw new ForbiddenException('Akun ini tidak menanggung bagian dari slip ini.');
+    }
+    return PayrollService.withShareTotals(payroll, rows, []);
+  }
+
+  /** The slip with its money replaced by the sum of the given shares. */
+  static withShareTotals<T extends Payroll>(payroll: T, rows: PayrollShareRow[], items: PayrollItemInput[] | never[]): T & { items: never[] } {
+    const total = (pick: (r: PayrollShareRow) => number) => new Prisma.Decimal(rows.reduce((a, r) => a + pick(r), 0));
+    return {
+      ...payroll,
+      gross: total((r) => r.gross),
+      totalBonus: total((r) => r.bonus),
+      totalDeduction: total((r) => r.deduction + r.shortfall),
+      net: total((r) => r.net),
+      presentDays: rows.reduce((a, r) => a + r.days, 0),
+      items: items as never[],
+    };
   }
 
 

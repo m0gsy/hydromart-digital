@@ -66,7 +66,23 @@ export type PayrollWithEmployee = PayrollWithItems & {
    */
   pendingDays: number;
 };
-export type PayrollListRow = Payroll & { employeeName: string | null };
+/** A stored per-depot part of a payslip, as plain numbers. */
+export interface PayrollShareRow {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+  net: number;
+}
+
+export type PayrollListRow = Payroll & {
+  employeeName: string | null;
+  /** Only with the feature on: where the person belongs, and how the slip is split. */
+  homeDepotId?: string | null;
+  shares?: PayrollShareRow[];
+};
 
 export interface PayrollRepository {
   findByEmployeeAndPeriod(
@@ -131,6 +147,12 @@ export interface PayrollRepository {
     year: number,
     beforePeriodMonth: string,
   ): Promise<{ grossIdr: number; bpjsIdr: number; withheldIdr: number; months: number }>;
+  /**
+   * The per-depot split of one slip (empty for a slip written before the split existed).
+   * Optional so a repository that predates the split need not know about it; the service only
+   * asks with the feature on.
+   */
+  findShares?(payrollId: string): Promise<PayrollShareRow[]>;
   list(filter: {
     periodMonth?: string;
     employeeId?: string;

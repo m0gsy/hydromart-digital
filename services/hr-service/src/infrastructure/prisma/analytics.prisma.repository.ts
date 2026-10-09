@@ -1,4 +1,4 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, Optional, UnprocessableEntityException } from '@nestjs/common';
 import { depotWhere, readAllPages } from '@hydromart/platform';
 
 import { Employee, Prisma } from '../../../prisma/generated/client';
@@ -16,6 +16,7 @@ import {
   PayrollWithEmployee,
   ReviewWithEmployee,
 } from '../../application/ports/analytics.repository';
+import { HrConfigService } from '../../config/hr-config.service';
 import { PrismaService } from './prisma.service';
 
 const EMPLOYEE_SUMMARY = { select: { employeeCode: true, fullName: true } } as const;
@@ -29,9 +30,34 @@ const MAX_EXPORT_ROWS = 50_000;
 const fromCursor = (cursor?: string): { cursor?: { id: string }; skip?: number } =>
   cursor ? { cursor: { id: cursor }, skip: 1 } : {};
 
+/**
+ * Which payslips a set of depots answers for, once payslips can be split across depots.
+ *
+ * A payslip belongs to every depot that carries a share of it; one written before the split
+ * existed has no shares and belongs to its employee's live depot, exactly as before. Reading
+ * `employee.depotId` alone would hand the whole slip to whichever depot the person happens to
+ * be lent to - and count it twice if two depots shared it.
+ *
+ * `s` is the share joined to the slip, `e` the employee, `x` the existence probe.
+ */
+const sharedScope = (ids: readonly string[]): Prisma.Sql => {
+  const list = Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`));
+  return Prisma.sql`(s."id" IS NOT NULL OR (NOT EXISTS (SELECT 1 FROM "payroll_depot_shares" x WHERE x."payrollId" = p."id") AND e."depotId" IN (${list})))`;
+};
+const shareJoin = (ids: readonly string[]): Prisma.Sql =>
+  Prisma.sql`LEFT JOIN "payroll_depot_shares" s ON s."payrollId" = p."id" AND s."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})`;
+
 @Injectable()
 export class AnalyticsPrismaRepository implements AnalyticsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Optional: absent (specs) every depot read is by the employee's live depot, as before.
+    @Optional() private readonly config?: HrConfigService,
+  ) {}
+
+  private get byShare(): boolean {
+    return this.config?.depotAssignmentEnabled === true;
+  }
 
   async headcountByStatus(depotIds?: readonly string[]): Promise<GroupCount[]> {
     const groups = await this.prisma.employee.groupBy({
@@ -61,6 +87,35 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
   }
 
   async payrollTotals(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollTotals> {
+    if (this.byShare && depotIds) {
+      const [row] = await this.prisma.$queryRaw<
+        {
+          gross: Prisma.Decimal | null;
+          bonus: Prisma.Decimal | null;
+          deduction: Prisma.Decimal | null;
+          net: Prisma.Decimal | null;
+          count: bigint;
+        }[]
+      >`
+        SELECT SUM(COALESCE(s."gross", p."gross")) AS "gross",
+               SUM(COALESCE(s."bonus", p."totalBonus")) AS "bonus",
+               SUM(COALESCE(s."deduction" + s."shortfall", p."totalDeduction")) AS "deduction",
+               SUM(COALESCE(s."net", p."net")) AS "net",
+               COUNT(DISTINCT p."id") AS "count"
+        FROM "payrolls" p
+        JOIN "employees" e ON e."id" = p."employeeId"
+        ${shareJoin(depotIds)}
+        WHERE p."periodMonth" = ${periodMonth} AND ${sharedScope(depotIds)}
+      `;
+      const n = (d: Prisma.Decimal | null | undefined): number => (d ? Number(d) : 0);
+      return {
+        gross: n(row?.gross),
+        totalBonus: n(row?.bonus),
+        totalDeduction: n(row?.deduction),
+        net: n(row?.net),
+        count: Number(row?.count ?? 0),
+      };
+    }
     const agg = await this.prisma.payroll.aggregate({
       where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
       _sum: { gross: true, totalBonus: true, totalDeduction: true, net: true },
@@ -77,6 +132,17 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
   }
 
   async payrollByStatus(periodMonth: string, depotIds?: readonly string[]): Promise<GroupCount[]> {
+    if (this.byShare && depotIds) {
+      const rows = await this.prisma.$queryRaw<{ status: string; count: bigint }[]>`
+        SELECT p."status"::text AS "status", COUNT(DISTINCT p."id") AS "count"
+        FROM "payrolls" p
+        JOIN "employees" e ON e."id" = p."employeeId"
+        ${shareJoin(depotIds)}
+        WHERE p."periodMonth" = ${periodMonth} AND ${sharedScope(depotIds)}
+        GROUP BY p."status"
+      `;
+      return rows.map((r) => ({ key: r.status, count: Number(r.count) }));
+    }
     const groups = await this.prisma.payroll.groupBy({
       by: ['status'],
       where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
@@ -128,9 +194,22 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
         where: { depotId: { in: ids }, status: 'ACTIVE' },
         _count: { _all: true },
       }),
-      this.prisma.$queryRaw<
-        { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null }[]
-      >`
+      this.byShare
+        ? this.prisma.$queryRaw<
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null }[]
+          >`
+            SELECT COALESCE(s."depotId", e."depotId") AS "depotId",
+                   SUM(COALESCE(s."net", p."net")) AS "net",
+                   SUM(COALESCE(s."gross", p."gross")) AS "gross"
+            FROM "payrolls" p
+            JOIN "employees" e ON e."id" = p."employeeId"
+            ${shareJoin(ids)}
+            WHERE p."periodMonth" = ${periodMonth} AND ${sharedScope(ids)}
+            GROUP BY COALESCE(s."depotId", e."depotId")
+          `
+        : this.prisma.$queryRaw<
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null }[]
+          >`
         SELECT e."depotId" AS "depotId", SUM(p."net") AS "net", SUM(p."gross") AS "gross"
         FROM "payrolls" p
         JOIN "employees" e ON e."id" = p."employeeId"
@@ -301,6 +380,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
   }
 
   payrollForReport(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollWithEmployee[]> {
+    if (this.byShare && depotIds) return this.payrollForReportByShare(periodMonth, depotIds);
     return this.allPages(({ take, cursor }) =>
       this.prisma.payroll.findMany({
         where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
@@ -392,5 +472,44 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
         ...fromCursor(cursor),
       }),
     );
+  }
+
+  /**
+   * The payroll export for a set of depots, each slip showing only what THOSE depots carry.
+   * A slip split across two depots appears in both exports, once each, with its own part.
+   */
+  private async payrollForReportByShare(
+    periodMonth: string,
+    depotIds: readonly string[],
+  ): Promise<PayrollWithEmployee[]> {
+    const ids = [...depotIds];
+    const rows = await this.allPages(({ take, cursor }) =>
+      this.prisma.payroll.findMany({
+        where: {
+          periodMonth,
+          OR: [
+            { shares: { some: { depotId: { in: ids } } } },
+            { shares: { none: {} }, employee: { depotId: { in: ids } } },
+          ],
+        },
+        include: { employee: EMPLOYEE_SUMMARY, shares: { where: { depotId: { in: ids } } } },
+        orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
+        take,
+        ...fromCursor(cursor),
+      }),
+    );
+    return rows.map(({ shares, ...payroll }) => {
+      if (shares.length === 0) return payroll;
+      const sum = (pick: (s: (typeof shares)[number]) => Prisma.Decimal) =>
+        shares.reduce((a, s) => a.add(pick(s)), new Prisma.Decimal(0));
+      return {
+        ...payroll,
+        gross: sum((s) => s.gross),
+        totalBonus: sum((s) => s.bonus),
+        totalDeduction: sum((s) => s.deduction.add(s.shortfall)),
+        net: sum((s) => s.net),
+        presentDays: shares.reduce((a, s) => a + s.days, 0),
+      };
+    });
   }
 }

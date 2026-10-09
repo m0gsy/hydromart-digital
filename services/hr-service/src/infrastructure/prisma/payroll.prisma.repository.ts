@@ -1,10 +1,13 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { depotWhere } from '@hydromart/platform';
-import { PayrollStatus } from '../../../prisma/generated/client';
+import { Optional } from '@nestjs/common';
+import { PayrollStatus, Prisma } from '../../../prisma/generated/client';
+import { HrConfigService } from '../../config/hr-config.service';
 
 import {
   PayrollListRow,
   PayrollRepository,
+  PayrollShareRow,
   PayrollWithItems,
   PayrollWrite,
 } from '../../application/ports/payroll.repository';
@@ -46,7 +49,11 @@ function rejectDuplicatePayroll(error: unknown): never {
 
 @Injectable()
 export class PayrollPrismaRepository implements PayrollRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Optional: absent (specs) the depot scope is the employee's live depot, as it always was.
+    @Optional() private readonly config?: HrConfigService,
+  ) {}
 
   findByEmployeeAndPeriod(
     employeeId: string,
@@ -175,6 +182,15 @@ export class PayrollPrismaRepository implements PayrollRepository {
     };
   }
 
+  async findShares(payrollId: string): Promise<PayrollShareRow[]> {
+    const rows = await this.prisma.payrollDepotShare.findMany({
+      where: { payrollId },
+      orderBy: { depotId: 'asc' },
+      take: 100,
+    });
+    return rows.map(toShareRow);
+  }
+
   async list(filter: {
     periodMonth?: string;
     employeeId?: string;
@@ -183,6 +199,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
     skip: number;
     take: number;
   }): Promise<{ rows: PayrollListRow[]; total: number }> {
+    if (this.config?.depotAssignmentEnabled && filter.depotIds) return this.listByShare(filter);
     const where = {
       ...(filter.periodMonth ? { periodMonth: filter.periodMonth } : {}),
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
@@ -213,4 +230,72 @@ export class PayrollPrismaRepository implements PayrollRepository {
       total,
     };
   }
+
+  /**
+   * The depot-scoped list once payslips can be split. A payslip belongs to every depot that
+   * carries a share of it; one written before the split existed (no shares) belongs to the
+   * employee's live depot, exactly as before. The home depot is returned so the service can
+   * tell a caller who only borrowed the person from the depot that employs them.
+   */
+  private async listByShare(filter: {
+    periodMonth?: string;
+    employeeId?: string;
+    status?: PayrollStatus;
+    depotIds?: readonly string[];
+    skip: number;
+    take: number;
+  }): Promise<{ rows: PayrollListRow[]; total: number }> {
+    const ids = [...(filter.depotIds ?? [])];
+    const where: Prisma.PayrollWhereInput = {
+      ...(filter.periodMonth ? { periodMonth: filter.periodMonth } : {}),
+      ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
+      ...(filter.status ? { status: filter.status } : {}),
+      OR: [
+        { shares: { some: { depotId: { in: ids } } } },
+        { shares: { none: {} }, employee: { depotId: { in: ids } } },
+      ],
+    };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.payroll.findMany({
+        where,
+        include: {
+          employee: { select: { fullName: true, homeDepotId: true, depotId: true } },
+          shares: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: filter.skip,
+        take: filter.take,
+      }),
+      this.prisma.payroll.count({ where }),
+    ]);
+    return {
+      rows: rows.map(({ employee, shares, ...payroll }) => ({
+        ...payroll,
+        employeeName: employee?.fullName ?? null,
+        homeDepotId: employee ? (employee.homeDepotId ?? employee.depotId) : null,
+        shares: shares.map(toShareRow),
+      })),
+      total,
+    };
+  }
+}
+
+function toShareRow(r: {
+  depotId: string;
+  days: number;
+  gross: Prisma.Decimal;
+  bonus: Prisma.Decimal;
+  deduction: Prisma.Decimal;
+  shortfall: Prisma.Decimal;
+  net: Prisma.Decimal;
+}): PayrollShareRow {
+  return {
+    depotId: r.depotId,
+    days: r.days,
+    gross: Number(r.gross),
+    bonus: Number(r.bonus),
+    deduction: Number(r.deduction),
+    shortfall: Number(r.shortfall),
+    net: Number(r.net),
+  };
 }
