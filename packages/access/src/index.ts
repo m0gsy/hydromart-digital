@@ -348,6 +348,11 @@ export const CAPABILITIES = {
   // hr-service (HRIS Lite). Manage employees, face enrollment, attendance edits, and the
   // SalaryConfiguration tunables. HR desk + head office; SUPER_ADMIN always.
   hrAdmin: ['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // hr-service - plan or cancel a dated cross-depot assignment (lend an employee to another
+  // depot, or schedule a permanent move). HR and head office ONLY, and deliberately not
+  // depot-scoped: a depot manager holding this could pull another depot's staff. A manager
+  // who wants to borrow someone asks HR instead.
+  employeeAssign: ['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // hr-service — generate/approve/pay payroll. HR desk + the office finance team.
   hrPayroll: ['HR', 'FINANCE', 'SUPER_ADMIN'],
   // hr-service — stage 1 of a leave application. The depot manager decides for their own

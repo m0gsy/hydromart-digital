@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -34,6 +35,10 @@ import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { HrConfigService } from '../../config/hr-config.service';
+import {
+  DEPOT_ASSIGNMENT_REPOSITORY,
+  DepotAssignmentRepository,
+} from '../ports/depot-assignment.repository';
 import { hrStorageKey } from '../storage-key';
 import { STAFF_IMPORT_ROLES, type EmployableRole, type HrManagedRole } from '@hydromart/access';
 
@@ -172,6 +177,10 @@ export class EmployeeService {
     @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
     // Last again. Absent (specs), the day is cut in Jakarta, the platform default.
     @Optional() private readonly config?: HrConfigService,
+    // Last again: absent (specs), nobody is ever "on assignment".
+    @Optional()
+    @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
+    private readonly assignments?: DepotAssignmentRepository,
   ) {}
 
   private get timeZone(): string {
@@ -877,6 +886,7 @@ export class EmployeeService {
       input.depotId !== undefined && input.depotId !== current.depotId
         ? this.depotChange(current, input.depotId, actorId(user.sub))
         : null;
+    if (depotMove) await this.assertNoOpenAssignment(current.id);
     if (depotMove) Object.assign(data, depotMove.fields);
     if (input.salaryType !== undefined) data.salaryType = input.salaryType;
     if (rates) {
@@ -1016,6 +1026,7 @@ export class EmployeeService {
       return { updated: false };
     }
     await this.assertDepartmentFits(employee.departmentId ?? undefined, depotId);
+    await this.assertNoOpenAssignment(employee.id);
     const { fields, move } = this.depotChange(employee, depotId, null);
     await this.repo.update(
       employee.id,
@@ -1025,6 +1036,19 @@ export class EmployeeService {
       move,
     );
     return { updated: true };
+  }
+
+  /**
+   * A permanent move while a dated assignment is planned or running would silently fight it:
+   * the sweep would later "return" the employee to a home that was just changed. Cancel the
+   * assignment first, then move.
+   */
+  private async assertNoOpenAssignment(employeeId: string): Promise<void> {
+    if (this.assignments && (await this.assignments.hasOpen(employeeId))) {
+      throw new ConflictException(
+        'Karyawan ini punya penugasan depot yang terjadwal atau berjalan. Batalkan penugasannya dulu.',
+      );
+    }
   }
 
   /**

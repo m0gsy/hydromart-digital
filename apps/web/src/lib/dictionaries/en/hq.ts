@@ -298,6 +298,7 @@ export const hq = {
       pdpRequests: 'Data-subject requests (PDP)',
       hrView: 'View HR dashboards',
       hrAdmin: 'Manage employees & attendance',
+      employeeAssign: 'Assign employees across depots',
       hrPayroll: 'Payroll',
       leaveApprove: 'Approve leave (stage 1)',
       kasbonApprove: 'Approve cash advance (the depot’s assistant SPV)',
