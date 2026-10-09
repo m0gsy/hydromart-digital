@@ -8,6 +8,7 @@ import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { api, ApiError, getBlob } from '@/lib/api';
 import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
@@ -27,6 +28,7 @@ export default function PayrollDetailPage() {
   const { t } = useT();
   const id = useQueryParam('id');
   const { customer } = useAuth();
+  const { depots } = useDepot();
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
@@ -75,6 +77,7 @@ export default function PayrollDetailPage() {
   const p = data!;
   const canRun = canRunPayroll(customer?.role);
 
+
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       {/* PG-01: the slip named nobody, and the Approve / Mark paid buttons below act on
@@ -117,6 +120,24 @@ export default function PayrollDetailPage() {
           </tfoot>
         </table>
       </Card>
+
+      {(p.shares ?? []).length > 1 && (
+        <Card className="space-y-2 p-4">
+          <h2 className="text-sm font-semibold">{t('hrFix.payrollDetail.allocation')}</h2>
+          <p className="text-xs text-muted">{t('hrFix.payrollDetail.allocationHint')}</p>
+          <ul className="divide-y divide-[color:var(--border)] text-sm">
+            {(p.shares ?? []).map((sh) => (
+              <li key={sh.depotId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="font-medium">
+                  {depots.find((d) => d.id === sh.depotId)?.name ?? sh.depotId.slice(0, 8)}
+                  <span className="text-muted"> · {t('hrFix.payrollDetail.allocationDays', { days: sh.days })}</span>
+                </span>
+                <Money amount={sh.net} className="font-bold" />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/*
         * CA-1-56 — `grid-cols-3` at every width. Three money cards side by side on a 360pt

@@ -90,6 +90,13 @@ export const hr = {
       return `/loan-requests/api/v1/loan-requests${qs ? `?${qs}` : ''}`;
     },
     decideLoanRequest: (id: string) => `/loan-requests/api/v1/loan-requests/${id}/decide`,
+    depotAssignments: (employeeId: string) =>
+      `/depot-assignments/api/v1/depot-assignments?employeeId=${employeeId}`,
+    planDepotAssignment: '/depot-assignments/api/v1/depot-assignments',
+    cancelDepotAssignment: (id: string) =>
+      `/depot-assignments/api/v1/depot-assignments/${id}/cancel`,
+    applyDepotAssignmentNow: (id: string) =>
+      `/depot-assignments/api/v1/depot-assignments/${id}/apply-now`,
     createLoan: '/loans/api/v1/loans',
     importLoans: '/loans/api/v1/loans/import',
     deactivateLoan: (id: string) => `/loans/api/v1/loans/${id}/deactivate`,

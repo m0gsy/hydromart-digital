@@ -673,7 +673,18 @@ export class PayrollService {
      */
     const { from, to } = this.monthRange(payroll.periodMonth);
     const { pendingDays } = await this.attendance.summary(payroll.employeeId, from, to);
-    return { ...payroll, employeeName: employee.fullName ?? null, pendingDays };
+    // The home depot and head office also see HOW the slip is split; a borrowing depot's
+    // copy is already its own share, so it is told nothing about the rest.
+    const shares =
+      this.config.depotAssignmentEnabled && this.reachesHome(user, employee)
+        ? ((await this.repo.findShares?.(payroll.id)) ?? [])
+        : [];
+    return {
+      ...payroll,
+      employeeName: employee.fullName ?? null,
+      pendingDays,
+      ...(shares.length > 0 ? { shares } : {}),
+    };
   }
 
   /**

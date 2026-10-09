@@ -83,6 +83,18 @@ describe('a slip as the depot that only borrowed the person sees it', () => {
     await expect(svc.shareOnly(manager(OTHER), slip as never)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('the home depot and head office are also told how the slip is split; the borrowing depot is not', async () => {
+    const { svc } = build();
+    expect((await svc.getById(manager(HOME), 'pay_1')).shares).toEqual(SHARES);
+    expect((await svc.getById(hq, 'pay_1')).shares).toEqual(SHARES);
+    expect(await svc.getById(manager(AWAY), 'pay_1')).not.toHaveProperty('shares');
+  });
+
+  it('an unsplit slip carries no shares field at all', async () => {
+    const { svc } = build({ shares: [] });
+    expect(await svc.getById(manager(HOME), 'pay_1')).not.toHaveProperty('shares');
+  });
+
   it('the borrowing depot can never approve or pay it', async () => {
     const { svc, repo } = build();
     await expect(svc.approve(manager(AWAY), 'pay_1')).rejects.toBeInstanceOf(ForbiddenException);
@@ -92,7 +104,9 @@ describe('a slip as the depot that only borrowed the person sees it', () => {
 
   it('with the feature off nothing is hidden or looked up', async () => {
     const { svc, repo } = build({ enabled: false });
-    expect((await svc.getById(manager(AWAY), 'pay_1')).items).toHaveLength(1);
+    const seen = await svc.getById(manager(AWAY), 'pay_1');
+    expect(seen.items).toHaveLength(1);
+    expect(seen).not.toHaveProperty('shares');
     expect(repo.findShares).not.toHaveBeenCalled();
   });
 

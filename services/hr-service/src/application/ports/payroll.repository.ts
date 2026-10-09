@@ -65,6 +65,8 @@ export type PayrollWithEmployee = PayrollWithItems & {
    * DAILY one, so it moves money in opposite directions depending on who it belongs to.
    */
   pendingDays: number;
+  /** The per-depot split, for a reader who may see the whole slip (feature on, and split). */
+  shares?: PayrollShareRow[];
 };
 /** A stored per-depot part of a payslip, as plain numbers. */
 export interface PayrollShareRow {
