@@ -64,6 +64,15 @@ describe('ruleFormToPayload · every kind sends only its own fields', () => {
   });
 });
 
+describe('ruleFormToPayload · the active flag', () => {
+  it('a CREATE never carries `active` (promo-service refuses it), an EDIT always does', () => {
+    expect(ruleFormToPayload(form({ active: true }), null)).not.toHaveProperty('active');
+    expect(ruleFormToPayload(form({ active: true }), null, 'create')).not.toHaveProperty('active');
+    expect(ruleFormToPayload(form({ active: false }), null, 'edit')).toMatchObject({ active: false });
+    expect(ruleFormToPayload(form({ active: true }), null, 'edit')).toMatchObject({ active: true });
+  });
+});
+
 describe('validateRuleForm', () => {
   it.each([
     [form({ name: ' ' }), 'needName'],

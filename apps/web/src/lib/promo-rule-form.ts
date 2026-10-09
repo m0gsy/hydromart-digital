@@ -111,7 +111,11 @@ export function ruleFormFrom(r: PromoRule): RuleForm {
  * The create / patch body. A field that does not belong to the chosen kind is sent as null, so
  * switching a rule's kind in the editor cannot leave the old kind's number behind.
  */
-export function ruleFormToPayload(f: RuleForm, depotId: string | null): PromoRulePayload {
+export function ruleFormToPayload(
+  f: RuleForm,
+  depotId: string | null,
+  mode: 'create' | 'edit' = 'create',
+): PromoRulePayload {
   const orNull = (s: string) => (s.trim() ? s.trim() : null);
   const numOrNull = (s: string) => (s.trim() ? Number(s) : null);
   const dateOrNull = (s: string) => (s ? new Date(s).toISOString() : null);
@@ -142,7 +146,11 @@ export function ruleFormToPayload(f: RuleForm, depotId: string | null): PromoRul
     minQty: orderLevel ? 1 : Number(f.minQty) || 1,
     maxQty: orderLevel ? null : numOrNull(f.maxQty),
     channels: f.channels,
-    active: f.active,
+    // `active` is a PATCH field only: promo-service's create DTO forbids it (a new rule is born
+    // active), and the validation pipe turns an unknown property into a 400. The editor sent it
+    // on create from the day it shipped, so no rule could ever be created through the form; every
+    // test mocked the API, which does not run the DTO.
+    ...(mode === 'edit' ? { active: f.active } : {}),
   };
 }
 

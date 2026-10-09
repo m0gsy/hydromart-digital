@@ -65,7 +65,7 @@ function RuleEditor({
     setBusy(true);
     setError(null);
     try {
-      const payload = ruleFormToPayload(form, form.depotId.trim() || null);
+      const payload = ruleFormToPayload(form, form.depotId.trim() || null, rule ? 'edit' : 'create');
       if (rule) {
         await api.patch(
           endpoints.promoRules.detail(rule.id),
