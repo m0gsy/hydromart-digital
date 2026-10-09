@@ -4,6 +4,7 @@ import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localMonthKey } fr
 import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { calendarDayWeights, homeDepotOf } from '../../domain/depot-on';
+import { redactForLendingDepot } from '../../domain/employee-redaction';
 import { allocatePayroll, type DepotWeight } from '../../domain/payroll-allocation';
 import { parseWeeklyOffDays, workingDaysInMonth, workingDaysInRange } from '../../domain/calendar';
 import {
@@ -655,7 +656,7 @@ export class PayrollService {
     const payroll = await this.load(user, id);
     // PG-01: `load` already reads the owning employee for the depot check and used to throw
     // the answer away, leaving a slip that named nobody.
-    const employee = await this.employees.getById(user, payroll.employeeId);
+    const employee = await this.ownerOf(user, payroll.employeeId);
     /*
      * CA-1-42 — how many of this period's days HR has still not decided.
      *
@@ -722,8 +723,12 @@ export class PayrollService {
   /** Render a salary-slip PDF for one payroll. */
   async slip(user: AuthenticatedUser, id: string): Promise<Buffer> {
     const payroll = await this.load(user, id); // 404 + depot check
-    const employee = await this.employees.getById(user, payroll.employeeId);
-    return PayrollService.renderSlip(payroll, employee);
+    const employee = await this.ownerOf(user, payroll.employeeId);
+    // A borrowing depot prints its share; the person's papers are not the slip's business.
+    return PayrollService.renderSlip(
+      payroll,
+      this.reachesHome(user, employee) ? employee : redactForLendingDepot(employee),
+    );
   }
 
   /** One slip layout, shared by the staff route and the employee's own. */
@@ -810,9 +815,20 @@ export class PayrollService {
   ): Promise<PayrollWithItems> {
     const payroll = await this.repo.findById(id);
     if (!payroll) throw new NotFoundException('Payroll tidak ditemukan');
-    // depot check on the owning employee (a borrowing depot passes this with a blanked copy)
-    const employee = await this.employees.getById(user, payroll.employeeId);
-    if (!this.config.depotAssignmentEnabled || this.reachesHome(user, employee)) return payroll;
+    if (!this.config.depotAssignmentEnabled) {
+      await this.employees.getById(user, payroll.employeeId); // depot check on the owning employee
+      return payroll;
+    }
+    /*
+     * With the feature on the decision cannot ask where the person lives TODAY. A loan that has
+     * ended leaves the employee at the home depot again, and the depot they were lent to still
+     * carries a share of last month's slip and has every right to read exactly that share -
+     * `getById` would refuse it as a stranger. So: the home depot (or head office) reads the
+     * whole slip; anyone else reads their own share, and a depot with no share gets a 403.
+     */
+    const employee = await this.employees.findByIdInternal(payroll.employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    if (this.reachesHome(user, employee)) return payroll;
 
     /*
      * A depot that only BORROWED this person holds `hrView` like any manager, and the full
@@ -823,6 +839,18 @@ export class PayrollService {
       throw new ForbiddenException('Slip ini milik depot asal karyawan; hanya depot asal atau pusat yang bisa memprosesnya.');
     }
     return this.shareOnly(user, payroll);
+  }
+
+  /**
+   * The employee a slip pays. Switched off, the usual gated read. On, `load` has already made
+   * the access decision (home, or a share), so this is a plain read: asking `getById` again
+   * would refuse the very depot `load` just admitted.
+   */
+  private async ownerOf(user: AuthenticatedUser, employeeId: string): Promise<Employee> {
+    if (!this.config.depotAssignmentEnabled) return this.employees.getById(user, employeeId);
+    const employee = await this.employees.findByIdInternal(employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    return employee;
   }
 
   private reachesHome(user: AuthenticatedUser, employee: Pick<Employee, 'depotId' | 'homeDepotId'>): boolean {

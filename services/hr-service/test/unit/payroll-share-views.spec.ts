@@ -31,15 +31,19 @@ const SHARES = [
   { depotId: AWAY, days: 10, gross: 1_000_000, bonus: 40_000, deduction: 20_000, shortfall: 0, net: 1_020_000 },
 ];
 
-function build(opts: { enabled?: boolean; shares?: typeof SHARES } = {}) {
+function build(opts: { enabled?: boolean; shares?: typeof SHARES; employeeAtHome?: boolean; missing?: boolean } = {}) {
   const repo = {
     findById: async () => slip,
     findShares: jest.fn(async () => opts.shares ?? SHARES),
     setStatus: jest.fn(async () => slip),
     list: jest.fn(),
   };
-  const employee = { id: 'emp_1', fullName: 'Budi', depotId: AWAY, homeDepotId: HOME };
-  const employees = { getById: async () => employee };
+  // After a loan has ended the person lives at the home depot again.
+  const employee = { id: 'emp_1', fullName: 'Budi', employeeCode: 'E1', depotId: opts.employeeAtHome ? HOME : AWAY, homeDepotId: HOME };
+  const employees = {
+    getById: async () => employee,
+    findByIdInternal: async () => (opts.missing ? null : employee),
+  };
   const svc = new PayrollService(
     repo as never,
     { summary: async () => ({ presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 }) } as never,
@@ -95,6 +99,28 @@ describe('a slip as the depot that only borrowed the person sees it', () => {
     expect(await svc.getById(manager(HOME), 'pay_1')).not.toHaveProperty('shares');
   });
 
+  it('after the loan has ended, the depot it was lent to still reads the share it carries', async () => {
+    const { svc } = build({ employeeAtHome: true });
+    const seen = await svc.getById(manager(AWAY), 'pay_1');
+    expect(seen.items).toEqual([]);
+    expect(Number(seen.net)).toBe(1_020_000);
+    // ...and a depot that carries nothing is still refused, wherever the person lives.
+    await expect(svc.getById(manager(OTHER), 'pay_1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('the slip PDF follows the same rule, and prints a share for the borrower', async () => {
+    const { svc } = build({ employeeAtHome: true });
+    const pdf = await svc.slip(manager(AWAY), 'pay_1');
+    expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
+    await expect(svc.slip(manager(OTHER), 'pay_1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect((await svc.slip(manager(HOME), 'pay_1')).subarray(0, 4).toString()).toBe('%PDF');
+  });
+
+  it('a slip whose employee has vanished is a 404, not a crash', async () => {
+    const { svc } = build({ missing: true });
+    await expect(svc.getById(manager(AWAY), 'pay_1')).rejects.toThrow(/tidak ditemukan/);
+  });
+
   it('the borrowing depot can never approve or pay it', async () => {
     const { svc, repo } = build();
     await expect(svc.approve(manager(AWAY), 'pay_1')).rejects.toBeInstanceOf(ForbiddenException);
@@ -113,6 +139,22 @@ describe('a slip as the depot that only borrowed the person sees it', () => {
   it('the share a slip carries adds back to the slip (the invariant the report relies on)', () => {
     const total = SHARES.reduce((a, s) => a + s.net, 0);
     expect(total).toBe(slip.net);
+  });
+});
+
+describe('a repository that predates the split', () => {
+  it('reads as an unsplit slip: no shares to show, none to share out', async () => {
+    const repo = { findById: async () => slip, list: jest.fn() }; // no findShares at all
+    const employee = { id: 'emp_1', fullName: 'Budi', employeeCode: 'E1', depotId: HOME, homeDepotId: HOME };
+    const svc = new PayrollService(
+      repo as never,
+      { summary: async () => ({ presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 }) } as never,
+      {} as never, {} as never,
+      { getById: async () => employee, findByIdInternal: async () => employee } as never,
+      { depotAssignmentEnabled: true, timeZone: 'Asia/Jakarta' } as never,
+    );
+    expect(await svc.getById(manager(HOME), 'pay_1')).not.toHaveProperty('shares');
+    await expect(svc.shareOnly(manager(AWAY), slip as never)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 
@@ -201,6 +243,13 @@ describe('PayrollPrismaRepository by share', () => {
     expect(rows[0]).toMatchObject({ employeeName: 'Budi', homeDepotId: HOME, shares: [{ depotId: HOME, gross: 5, net: 4 }] });
     expect(rows[1]).toMatchObject({ homeDepotId: AWAY });
     expect(rows[2]).toMatchObject({ employeeName: null, homeDepotId: null });
+  });
+
+  it('carries every filter into the share-aware query', async () => {
+    const { prisma, repo } = build(true);
+    await repo.list({ depotIds: [HOME], periodMonth: '2026-09', employeeId: 'e1', status: 'DRAFT', skip: 0, take: 10 });
+    const where = prisma.payroll.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ periodMonth: '2026-09', employeeId: 'e1', status: 'DRAFT' });
   });
 
   it('findShares returns numbers, ordered', async () => {
