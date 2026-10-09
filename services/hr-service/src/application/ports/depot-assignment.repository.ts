@@ -1,3 +1,4 @@
+import type { DepotMove } from '../../domain/depot-on';
 import { DepotAssignmentKind, DepotAssignmentStatus, EmployeeDepotAssignment } from '../../../prisma/generated/client';
 
 export const DEPOT_ASSIGNMENT_REPOSITORY = Symbol('DEPOT_ASSIGNMENT_REPOSITORY');
@@ -40,6 +41,12 @@ export interface DepotAssignmentRepository {
     check: (open: EmployeeDepotAssignment[]) => void,
   ): Promise<EmployeeDepotAssignment>;
   findById(id: string): Promise<EmployeeDepotAssignment | null>;
+  /**
+   * The employee's whole depot ledger in `depotOn` shape: each LOAN_START carries the last day
+   * of its assignment, so a sweep that never wrote LOAN_END cannot leave someone "on loan"
+   * for ever. Ordered by `seq`.
+   */
+  timelineFor(employeeId: string): Promise<DepotMove[]>;
   /** True when the employee has any PLANNED or ACTIVE assignment. */
   hasOpen(employeeId: string): Promise<boolean>;
   list(

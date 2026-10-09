@@ -7,6 +7,7 @@ import {
   DepotAssignmentWrite,
   OPEN_STATUSES,
 } from '../../application/ports/depot-assignment.repository';
+import type { DepotMove } from '../../domain/depot-on';
 import { PrismaService } from './prisma.service';
 
 const asDate = (key: string): Date => new Date(`${key}T00:00:00.000Z`);
@@ -38,6 +39,40 @@ export class DepotAssignmentPrismaRepository implements DepotAssignmentRepositor
           note: data.note,
         },
       });
+    });
+  }
+
+  async timelineFor(employeeId: string): Promise<DepotMove[]> {
+    const moves = await this.prisma.employeeDepotMove.findMany({
+      where: { employeeId },
+      orderBy: { seq: 'asc' },
+      take: 1000,
+    });
+    const loanIds = moves
+      .filter((m) => m.kind === 'LOAN_START' && m.assignmentId)
+      .map((m) => m.assignmentId as string);
+    const ends = new Map<string, Date | null>();
+    if (loanIds.length > 0) {
+      const rows = await this.prisma.employeeDepotAssignment.findMany({
+        where: { id: { in: loanIds } },
+        select: { id: true, endDate: true },
+        take: loanIds.length,
+      });
+      for (const r of rows) ends.set(r.id, r.endDate);
+    }
+    return moves.map((m) => {
+      const end = m.assignmentId ? ends.get(m.assignmentId) : null;
+      return {
+        kind: m.kind,
+        // @db.Date is UTC midnight, so its first ten characters ARE the local day.
+        // tz-ok: @db.Date - the UTC slice IS the local day
+        effectiveDate: m.effectiveDate.toISOString().slice(0, 10),
+        seq: m.seq,
+        fromDepotId: m.fromDepotId,
+        toDepotId: m.toDepotId,
+        // tz-ok: @db.Date - the UTC slice IS the local day
+        loanEndDate: end ? end.toISOString().slice(0, 10) : null,
+      };
     });
   }
 
