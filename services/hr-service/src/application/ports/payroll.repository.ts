@@ -14,6 +14,17 @@ export interface PayrollItemInput {
   sourceRef?: string | null;
 }
 
+/** One depot's part of a payslip (see domain/payroll-allocation.ts). */
+export interface PayrollShareWrite {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+  net: number;
+}
+
 export interface PayrollWrite {
   employeeId: string;
   periodMonth: string;
@@ -24,6 +35,12 @@ export interface PayrollWrite {
   presentDays: number;
   createdBy: string | null;
   items: PayrollItemInput[];
+  /**
+   * Per-depot split. Absent = the feature is off and the row is written exactly as it always
+   * was. On `regenerate`, an EMPTY array means "drop whatever shares were there" (the switch
+   * was turned off since); absent leaves them alone.
+   */
+  shares?: PayrollShareWrite[];
 }
 
 export type PayrollWithItems = Payroll & { items: PayrollItem[] };

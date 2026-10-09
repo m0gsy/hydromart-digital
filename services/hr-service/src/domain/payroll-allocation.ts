@@ -27,6 +27,11 @@ export interface AllocationInput {
   grossWeights: readonly DepotWeight[];
   /** Per-depot bonus weights (galon / sales earned where the day was worked). Defaults to grossWeights. */
   bonusWeights?: readonly DepotWeight[];
+  /**
+   * Bonus already known to belong to a depot (the daily gallon bonus earned on a day worked
+   * THERE). Taken off the top; only the rest of `totalBonus` is split by `bonusWeights`.
+   */
+  bonusDirect?: readonly { depotId: string; amount: number }[];
 }
 
 export interface DepotShare {
@@ -142,7 +147,17 @@ export function allocatePayroll(input: AllocationInput): DepotShare[] {
   const wBonus = input.bonusWeights ? normalise(input.bonusWeights) : wGross;
 
   const grossBy = split(gross, wGross, homeDepotId);
-  const bonusBy = split(totalBonus, wBonus, homeDepotId);
+  const bonusBy = new Map<string, number>();
+  let direct = 0;
+  for (const { depotId, amount } of input.bonusDirect ?? []) {
+    assertWhole(`bonus ${depotId}`, amount);
+    bonusBy.set(depotId, (bonusBy.get(depotId) ?? 0) + amount);
+    direct += amount;
+  }
+  if (direct > totalBonus) throw new RangeError('Bonus per depot melebihi total bonus');
+  for (const [id, part] of split(totalBonus - direct, wBonus, homeDepotId)) {
+    bonusBy.set(id, (bonusBy.get(id) ?? 0) + part);
+  }
   const room = new Map<string, number>();
   for (const id of new Set([...grossBy.keys(), ...bonusBy.keys()])) {
     room.set(id, (grossBy.get(id) ?? 0) + (bonusBy.get(id) ?? 0));

@@ -3,6 +3,8 @@ import { AuthenticatedUser, depotScopeIds, localMonthKey } from '@hydromart/plat
 
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { calendarDayWeights, homeDepotOf } from '../../domain/depot-on';
+import { allocatePayroll, type DepotWeight } from '../../domain/payroll-allocation';
 import { parseWeeklyOffDays, workingDaysInMonth, workingDaysInRange } from '../../domain/calendar';
 import {
   parseRaiseLadder,
@@ -55,9 +57,14 @@ import {
 import { ALLOWANCE_REPOSITORY, AllowanceRepository } from '../ports/allowance.repository';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 import {
+  DEPOT_ASSIGNMENT_REPOSITORY,
+  DepotAssignmentRepository,
+} from '../ports/depot-assignment.repository';
+import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
   PayrollRepository,
+  PayrollShareWrite,
   PayrollWithEmployee,
   PayrollWithItems,
 } from '../ports/payroll.repository';
@@ -100,6 +107,10 @@ export class PayrollService {
     @Optional() @Inject(SALES_PORT) private readonly sales?: SalesPort,
     @Optional() @Inject(ALLOWANCE_REPOSITORY) private readonly allowances?: AllowanceRepository,
     @Optional() @Inject(SHIFT_REPOSITORY) private readonly shifts?: ShiftRepository,
+    // Last: absent (specs), or with the feature off, a payslip is not split at all.
+    @Optional()
+    @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
+    private readonly depotLedger?: DepotAssignmentRepository,
   ) {}
 
   /**
@@ -115,7 +126,16 @@ export class PayrollService {
       throw new BadRequestException('periodMonth harus format YYYY-MM');
     }
     this.assertPeriodClosed(periodMonth);
-    const employee = await this.employees.getById(user, employeeId); // 404 + depot check
+    const loaded = await this.employees.getById(user, employeeId); // 404 + depot check
+    /*
+     * Every RULE on a payslip - fines, tolerance, tax table, BPJS, THR, holidays, the rota,
+     * the tenure raise - belongs to the depot the person BELONGS to, however they were lent
+     * out this month. Presenting the home depot as `depotId` to everything below is what
+     * makes that true in one place instead of forty. Only with the feature on: switched off,
+     * the live depot is used exactly as it always was.
+     */
+    const split = this.config.depotAssignmentEnabled;
+    const employee = split ? ({ ...loaded, depotId: homeDepotOf(loaded) } as Employee) : loaded;
 
     const existing = await this.repo.findByEmployeeAndPeriod(employeeId, periodMonth);
     if (existing && existing.status !== 'DRAFT') {
@@ -170,6 +190,21 @@ export class PayrollService {
           this.sales!.depotDailyGallons(employee.depotId!, dayKey(from), dayKey(to))
         : null,
     ]);
+
+    // The daily gallon bonus is earned on the day the depot hit its tier - and a lent employee
+    // worked some days at another depot. Those days are judged by THAT depot's gallons (the
+    // tiers stay the home depot's), so fetch each other depot they stood in, once.
+    const gallonsByDepot = new Map<string, Map<string, number> | null>();
+    if (employee.depotId) gallonsByDepot.set(employee.depotId, dailyGallons);
+    if (split && wantsDailyBonus) {
+      const others = new Set<string>();
+      for (const row of workedDays) {
+        if (row.depotId && row.depotId !== employee.depotId) others.add(row.depotId);
+      }
+      for (const depot of others) {
+        gallonsByDepot.set(depot, await this.sales!.depotDailyGallons(depot, dayKey(from), dayKey(to)));
+      }
+    }
 
     // CA-1-38 — the expected working days are the ones the ROTA expects, so both of these
     // now take the rota's off-weekdays rather than reading the depot CSV a second time.
@@ -302,14 +337,19 @@ export class PayrollService {
     // Depot SOP: daily gallon-target bonus, paid IN FULL to each attending staff member for
     // every day the depot hit a tier. `dailyGallons` null (order-service down, or no ladder)
     // pays nothing — same rule as the SALES_TOTAL bonus, never a fabricated zero-day.
+    const dailyGallonDirect = new Map<string, number>();
     if (dailyGallons) {
       let total = 0;
       let days = 0;
       for (const row of workedDays) {
-        const amount = bonusForDay(gallonTiers, dailyGallons.get(dayKey(row.workDate)) ?? 0);
+        const depot = (split ? row.depotId : null) ?? employee.depotId ?? '';
+        const gallons = gallonsByDepot.get(depot);
+        if (!gallons) continue; // that depot's gallons are unknown: nothing is invented
+        const amount = bonusForDay(gallonTiers, gallons.get(dayKey(row.workDate)) ?? 0);
         if (amount > 0) {
           total += amount;
           days++;
+          dailyGallonDirect.set(depot, (dailyGallonDirect.get(depot) ?? 0) + amount);
         }
       }
       if (total > 0) {
@@ -497,18 +537,94 @@ export class PayrollService {
       gross + totalBonus - sum(items, 'DEDUCTION'),
     );
     const totalDeduction = sum(items, 'DEDUCTION');
+    const net = Math.max(0, netBeforeFloor);
+    const shares = split
+      ? await this.sharesFor(loaded, {
+          gross,
+          totalBonus,
+          totalDeduction,
+          net,
+          from,
+          to,
+          workedDays,
+          bonusDirect: [...dailyGallonDirect].map(([depotId, amount]) => ({ depotId, amount })),
+        })
+      : // Switched off since this draft was first written: drop the split it still carries.
+        existing
+        ? []
+        : undefined;
     const write = {
       employeeId,
       periodMonth,
       gross,
       totalBonus,
       totalDeduction,
-      net: Math.max(0, netBeforeFloor),
+      net,
       presentDays,
       createdBy: user.sub,
       items,
+      ...(shares !== undefined ? { shares } : {}),
     };
     return existing ? this.repo.regenerate(existing.id, write) : this.repo.create(write);
+  }
+
+  /**
+   * Which depot owes which part of this payslip.
+   *
+   * Weights are integers and never normalised to the month length: calendar days from the
+   * ledger for a MONTHLY wage (the pay is for the month, wherever they stood), days actually
+   * worked per depot for a DAILY one. No weight at all means everything stays with the home
+   * depot - there is no division by zero to guard, the allocator has none.
+   *
+   * A slip must never fail to generate because it could not be split: on any error it falls
+   * back to the home depot owning all of it and says so loudly, which HQ can correct.
+   */
+  private async sharesFor(
+    employee: Employee,
+    t: {
+      gross: number;
+      totalBonus: number;
+      totalDeduction: number;
+      net: number;
+      from: Date;
+      to: Date;
+      workedDays: { depotId?: string | null }[];
+      bonusDirect: { depotId: string; amount: number }[];
+    },
+  ): Promise<PayrollShareWrite[]> {
+    const home = homeDepotOf(employee);
+    if (!home) return [];
+    const base = { homeDepotId: home, gross: t.gross, totalBonus: t.totalBonus, totalDeduction: t.totalDeduction, net: t.net };
+    try {
+      let weights: DepotWeight[] = [];
+      if (employee.salaryType === 'DAILY') {
+        const days = new Map<string, number>();
+        for (const row of t.workedDays) {
+          const depot = row.depotId ?? home;
+          days.set(depot, (days.get(depot) ?? 0) + 1);
+        }
+        weights = [...days].map(([depotId, weight]) => ({ depotId, weight }));
+      } else if (this.depotLedger) {
+        const moves = await this.depotLedger.timelineFor(employee.id);
+        const calendar = calendarDayWeights(
+          { homeDepotId: employee.homeDepotId, depotId: employee.depotId },
+          moves,
+          {
+            from: dayKey(t.from),
+            to: dayKey(t.to),
+            windowFrom: dayKey(employee.joinDate),
+            windowTo: employee.exitDate ? dayKey(employee.exitDate) : null,
+          },
+        );
+        weights = [...calendar].map(([depotId, weight]) => ({ depotId, weight }));
+      }
+      return allocatePayroll({ ...base, grossWeights: weights, bonusDirect: t.bonusDirect });
+    } catch (err) {
+      this.logger.error(
+        `payroll split failed for ${employee.id}; the home depot carries the whole slip: ${String(err)}`,
+      );
+      return allocatePayroll({ ...base, grossWeights: [] });
+    }
   }
 
   async approve(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
@@ -930,6 +1046,8 @@ export class PayrollService {
     const { rows } = await this.employees.list(user, {
       depotId,
       status: 'ACTIVE',
+      // A lent employee is paid by the depot they belong to, so they belong in ITS batch.
+      byHome: this.config.depotAssignmentEnabled,
       page: 1,
       pageSize: 500,
     });

@@ -176,7 +176,20 @@ export class EmployeePrismaRepository implements EmployeeRepository {
 
   async list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }> {
     const where: Prisma.EmployeeWhereInput = {
-      ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
+      ...(filter.depotIds
+        ? filter.byHome
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { homeDepotId: depotWhere(filter.depotIds) },
+                    { homeDepotId: null, depotId: depotWhere(filter.depotIds) },
+                  ],
+                },
+              ],
+            }
+          : { depotId: depotWhere(filter.depotIds) }
+        : {}),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.departmentId ? { departmentId: filter.departmentId } : {}),
       ...(filter.search

@@ -173,7 +173,7 @@ export class AttendancePrismaRepository implements AttendanceRepository {
   listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]> {
     return this.prisma.attendance.findMany({
       where: { employeeId, workDate: { gte: from, lte: to }, status: { in: ['PRESENT', 'LATE'] } },
-      select: { workDate: true, workingMinutes: true, lateMinutes: true },
+      select: { workDate: true, workingMinutes: true, lateMinutes: true, depotId: true },
       orderBy: { workDate: 'asc' },
     });
   }

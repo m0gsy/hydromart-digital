@@ -63,10 +63,14 @@ export class PayrollPrismaRepository implements PayrollRepository {
   }
 
   create(data: PayrollWrite): Promise<PayrollWithItems> {
-    const { items, ...fields } = data;
+    const { items, shares, ...fields } = data;
     return this.prisma.payroll
       .create({
-        data: { ...fields, items: { create: items } },
+        data: {
+          ...fields,
+          items: { create: items },
+          ...(shares && shares.length > 0 ? { shares: { create: shares } } : {}),
+        },
         ...withItems,
       })
       .catch(rejectDuplicatePayroll);
@@ -77,6 +81,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
     return this.prisma
       .$transaction(async (tx) => {
         await tx.payrollItem.deleteMany({ where: { payrollId: id } });
+        if (data.shares !== undefined) await tx.payrollDepotShare.deleteMany({ where: { payrollId: id } });
         return tx.payroll.update({
           where: { id, status: 'DRAFT' },
           data: {
@@ -86,6 +91,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
             net: data.net,
             presentDays: data.presentDays,
             items: { create: data.items },
+            ...(data.shares && data.shares.length > 0 ? { shares: { create: data.shares } } : {}),
           },
           ...withItems,
         });

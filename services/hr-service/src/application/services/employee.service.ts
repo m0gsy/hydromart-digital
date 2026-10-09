@@ -265,6 +265,8 @@ export class EmployeeService {
       status?: Employee['status'];
       departmentId?: string;
       search?: string;
+      /** List by the depot people belong to, not the one they are lent to (payroll batch). */
+      byHome?: boolean;
       page: number;
       pageSize: number;
     },
@@ -273,6 +275,7 @@ export class EmployeeService {
     const depotIds = depotScopeIds(user, query.depotId);
     const { rows, total } = await this.repo.list({
       depotIds,
+      byHome: query.byHome,
       status: query.status,
       departmentId: query.departmentId,
       search: query.search,
