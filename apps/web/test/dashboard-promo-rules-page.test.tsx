@@ -25,7 +25,9 @@ vi.mock('@/lib/api', () => ({
 }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: auth.role } }) }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
-vi.mock('@/lib/depot-context', () => ({ useDepot: () => ({ selectedId: 'depot-a' }) }));
+// selectedId null on purpose: the account's switcher is on "Semua depot" while the header names a
+// concrete depot (scopedId). A new rule must be created for that depot, never network-wide.
+vi.mock('@/lib/depot-context', () => ({ useDepot: () => ({ selectedId: null, scopedId: 'depot-a' }) }));
 
 import { ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';

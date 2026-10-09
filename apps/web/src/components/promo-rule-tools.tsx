@@ -19,6 +19,9 @@ import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRuleUsage, PromoS
  * customer does. Their copy lives under `hq.promoTools` for both consoles.
  */
 const SELECT_CLASS = 'w-full rounded-lg border border-app bg-surface px-3 py-2.5 text-sm';
+// The filter row sits beside the search box, so its selects are content-width (a `w-auto` next to
+// `w-full` is decided by stylesheet order, and full width won: three stacked full-width rows).
+const FILTER_SELECT_CLASS = 'w-auto rounded-lg border border-app bg-surface px-3 py-2.5 text-sm';
 
 export function RuleFilterBar({ value, onChange }: { value: RuleFilter; onChange: (next: RuleFilter) => void }) {
   const { t } = useT();
@@ -34,7 +37,7 @@ export function RuleFilterBar({ value, onChange }: { value: RuleFilter; onChange
       </div>
       <select
         aria-label={t('hq.promoTools.kindFilter')}
-        className={`${SELECT_CLASS} w-auto`}
+        className={FILTER_SELECT_CLASS}
         value={value.kind}
         onChange={(e) => onChange({ ...value, kind: e.target.value as PromoRuleKind | '' })}
       >
@@ -47,7 +50,7 @@ export function RuleFilterBar({ value, onChange }: { value: RuleFilter; onChange
       </select>
       <select
         aria-label={t('hq.promoTools.statusFilter')}
-        className={`${SELECT_CLASS} w-auto`}
+        className={FILTER_SELECT_CLASS}
         value={value.status}
         onChange={(e) => onChange({ ...value, status: e.target.value as RuleFilter['status'] })}
       >
