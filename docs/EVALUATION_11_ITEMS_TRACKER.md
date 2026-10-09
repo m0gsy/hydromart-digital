@@ -84,5 +84,5 @@ Bagian dari PR #608 — keputusan pemilik: merge penuh (bukan referensi saja) ke
 - Depot BKS-GALAXY dan BKS-Pekayon belum punya tujuan pembayaran (pelanggan hanya ditawari tunai); depot waralaba BKS-JATIWARINGIN belum punya `commission_schemes` (komisi jatuh ke 0%) — peringatan dari probe deploy.
 - Zenziva: perpanjang kredit SMS OTP.
 - Isi data rekening/QRIS untuk 2 depot yang belum punya di PG produksi.
-- `PROMO_STORAGE_S3_*`: putuskan reuse bucket AUTH atau bucket promo sendiri, isi env produksi.
+- ~~`PROMO_STORAGE_S3_*`~~ — **diputuskan pemilik 2026-10-09: tetap memakai bucket AUTH** (default; env `PROMO_STORAGE_S3_*` dibiarkan kosong, gambar promo di awalan `promotions/`). Syarat di sisi hosting: bucket harus menyajikan `promotions/*` secara publik. Pindah ke bucket sendiri hanya kalau ada kebijakan satu-kredensial-per-layanan atau audit yang mensyaratkannya (isi keempat variabel sekaligus; gambar lama harus disalin dan URL di database ditulis ulang).
 - Item 7: putuskan perlu sub-role franchise baru atau tidak.
