@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { useDepot } from '@/lib/depot-context';
 
 import { FaceCapture } from '@/components/hr/face-capture';
 import { OfflineQueueBanner } from '@/components/offline-queue-banner';
@@ -54,6 +55,10 @@ const RESULT_TONE: Partial<Record<AttendanceStatus, string>> = {
 export default function MeCheckInPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { selected, depots, scopedId } = useDepot();
+  // Who you punch for is the depot you work at TODAY, which for someone lent out is not the one
+  // on their contract. Saying it here is what makes a lent employee notice before they punch.
+  const workDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
   const [mode, setMode] = useState<Mode>('in');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Attendance | null>(null);
@@ -102,6 +107,11 @@ export default function MeCheckInPage() {
   return (
     <div className="mx-auto max-w-md space-y-5 px-4 py-6">
       <SectionHeader title={t('hrFix.checkIn.title')} />
+      {workDepot && (
+        <p className="text-sm text-muted" data-testid="work-depot">
+          {t('hrFix.checkIn.todayDepot', { name: workDepot.name })}
+        </p>
+      )}
 
       <OfflineQueueBanner />
 
