@@ -116,6 +116,12 @@ admin|scheduled_reports_enabled_nextRunAt_idx|CREATE INDEX CONCURRENTLY IF NOT E
 hr|loan_requests_employeeId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "loan_requests_employeeId_createdAt_idx" ON "loan_requests"("employeeId", "createdAt")
 hr|loan_requests_depotId_status_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "loan_requests_depotId_status_idx" ON "loan_requests"("depotId", "status")
 hr|loan_requests_employee_pending_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "loan_requests_employee_pending_key" ON "loan_requests"("employeeId") WHERE "status" = 'PENDING'
+hr|employee_depot_moves_employeeId_effectiveDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_moves_employeeId_effectiveDate_idx" ON "employee_depot_moves"("employeeId", "effectiveDate")
+hr|employee_depot_assignments_employeeId_startDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_assignments_employeeId_startDate_idx" ON "employee_depot_assignments"("employeeId", "startDate")
+hr|employee_depot_assignments_status_startDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_assignments_status_startDate_idx" ON "employee_depot_assignments"("status", "startDate")
+hr|employee_depot_assignments_status_endDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_assignments_status_endDate_idx" ON "employee_depot_assignments"("status", "endDate")
+hr|payroll_depot_shares_payrollId_depotId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "payroll_depot_shares_payrollId_depotId_key" ON "payroll_depot_shares"("payrollId", "depotId")
+hr|payroll_depot_shares_depotId_payrollId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "payroll_depot_shares_depotId_payrollId_idx" ON "payroll_depot_shares"("depotId", "payrollId")
 forecast|service_settings_scope_depot_id_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_scope_depot_id_idx" ON "service_settings"("scope", "depot_id")
 forecast|service_settings_global_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_global_key_key" ON "service_settings"("key") WHERE "scope" = 'GLOBAL'
 forecast|service_settings_depot_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_depot_key_key" ON "service_settings"("depot_id", "key") WHERE "scope" = 'DEPOT'
