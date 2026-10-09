@@ -253,6 +253,10 @@ model Employee {
   /// any single depot. Null means network-wide, never "every depot" — depot-scoped queries
   /// filter these rows OUT rather than matching them everywhere.
   depotId          String?          @db.Uuid
+  /// The depot this person BELONGS to. `depotId` follows them when they are lent out; this
+  /// does not. Payroll rules (fines, tax table, tenure raise...) read `homeDepotId ?? depotId`
+  /// so a row that predates the column behaves exactly as before. Null = not backfilled.
+  homeDepotId       String?          @db.Uuid
   position         String
   /// Login role (jabatan). Nullable for employees with no account, and for rows imported
   /// before this column existed. Payroll reads it for the depot-head tenure raise.
@@ -307,6 +311,8 @@ model Employee {
   documents        EmployeeDocument[]
   announcementReads AnnouncementRead[]
   shiftAssignments  ShiftAssignment[]
+  depotMoves        EmployeeDepotMove[]
+  depotAssignments  EmployeeDepotAssignment[]
 
   @@index([depotId])
   @@index([status])
@@ -715,6 +721,7 @@ model Payroll {
 
   employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   items           PayrollItem[]
+  shares   PayrollDepotShare[]
 
   @@unique([employeeId, periodMonth])
   @@index([periodMonth, status])
@@ -928,4 +935,97 @@ model ServiceSetting {
   // as distinct. The repository upserts against them by catching the violation.
   @@index([scope, depotId])
   @@map("service_settings")
+}
+
+enum DepotMoveKind {
+  PERMANENT
+  LOAN_START
+  LOAN_END
+}
+
+enum DepotAssignmentKind {
+  LOAN
+  PERMANENT
+}
+
+enum DepotAssignmentStatus {
+  PLANNED
+  ACTIVE
+  DONE
+  CANCELLED
+  FAILED
+}
+
+/// Append-only ledger of where an employee was sent and when. `depotOn()` (domain/depot-on.ts)
+/// reads it to answer "which depot on day D"; nothing here is ever updated - a trigger refuses
+/// it - because a corrected past is a new row, not an edit of the old one.
+model EmployeeDepotMove {
+  id            String        @id @default(uuid()) @db.Uuid
+  employeeId    String        @db.Uuid
+  fromDepotId   String?       @db.Uuid
+  toDepotId     String?       @db.Uuid
+  /// Local day the move takes effect (first day AT toDepotId).
+  effectiveDate DateTime      @db.Date
+  kind          DepotMoveKind
+  /// Orders moves that share a day (a back-to-back loan flips B->C without a stop at home).
+  seq           Int           @default(autoincrement())
+  assignmentId  String?       @db.Uuid
+  createdBy     String?       @db.Uuid
+  createdAt     DateTime      @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, effectiveDate])
+  @@map("employee_depot_moves")
+}
+
+/// A dated plan to send an employee to another depot: a LOAN that returns by itself, or a
+/// PERMANENT move that is just scheduled. A sweep applies it; nothing here moves anyone.
+model EmployeeDepotAssignment {
+  id             String                @id @default(uuid()) @db.Uuid
+  employeeId     String                @db.Uuid
+  kind           DepotAssignmentKind   @default(LOAN)
+  /// The depot they are sent TO.
+  depotId        String                @db.Uuid
+  startDate      DateTime              @db.Date
+  /// Inclusive last day. Required for a LOAN, null for a PERMANENT move.
+  endDate        DateTime?             @db.Date
+  status         DepotAssignmentStatus @default(PLANNED)
+  appliedStartAt DateTime?
+  appliedEndAt   DateTime?
+  attempts       Int                   @default(0)
+  failReason     String?
+  createdByRole  String?
+  createdBy      String?               @db.Uuid
+  note           String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, startDate])
+  @@index([status, startDate])
+  @@index([status, endDate])
+  @@map("employee_depot_assignments")
+}
+
+/// One depot's part of a payslip. The slip total is unchanged; these rows say which depot
+/// owes which part (largest-remainder, domain/payroll-allocation.ts), and always add back to
+/// the `payrolls` row exactly.
+model PayrollDepotShare {
+  id        String  @id @default(uuid()) @db.Uuid
+  payrollId String  @db.Uuid
+  depotId   String  @db.Uuid
+  days      Int     @default(0)
+  gross     Decimal @default(0) @db.Decimal(12, 2)
+  bonus     Decimal @default(0) @db.Decimal(12, 2)
+  deduction Decimal @default(0) @db.Decimal(12, 2)
+  shortfall Decimal @default(0) @db.Decimal(12, 2)
+  net       Decimal @default(0) @db.Decimal(12, 2)
+
+  payroll Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollId, depotId])
+  @@index([depotId, payrollId])
+  @@map("payroll_depot_shares")
 }
