@@ -11,8 +11,10 @@ import { DepotAssignmentService } from '../../src/application/services/depot-ass
 import { EmployeeService } from '../../src/application/services/employee.service';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { DepotAssignmentController } from '../../src/modules/depot-assignment.controller';
+import { DepotMovesInternalController } from '../../src/modules/depot-moves-internal.controller';
 import { DepotAssignmentPrismaRepository } from '../../src/infrastructure/prisma/depot-assignment.prisma.repository';
 import { envValidationSchema } from '../../src/config/env.validation';
+import { AuditInterceptor } from '../../src/infrastructure/http/audit.interceptor';
 import { fakeIdentity } from './support/identity';
 
 const GALAKSI = '11111111-1111-1111-1111-111111111111';
@@ -66,6 +68,12 @@ class FakeAssignments implements DepotAssignmentRepository {
   async list() {
     return { rows: this.rows, total: this.rows.length };
   }
+  async findDue() {
+    return [];
+  }
+  async recordFailure() {
+    return;
+  }
   async cancelPlanned(id: string) {
     if (this.raceOnCancel) return null;
     const row = this.rows.find((r) => r.id === id && r.status === 'PLANNED');
@@ -89,7 +97,16 @@ function make(opts: { enabled?: boolean; emp?: Employee | null; today?: string }
     timeZone: 'Asia/Jakarta',
   } as HrConfigService;
   jest.useFakeTimers({ now: new Date(`${opts.today ?? '2026-10-10'}T03:00:00.000Z`) });
-  return { repo, employees, svc: new DepotAssignmentService(repo, employees, config) };
+  const applier = {
+    cutActive: jest.fn(async (row: EmployeeDepotAssignment) => void (row.status = 'DONE')),
+    applyOne: jest.fn(async (row: EmployeeDepotAssignment) => void (row.status = 'ACTIVE')),
+  };
+  return {
+    repo,
+    employees,
+    applier,
+    svc: new DepotAssignmentService(repo, employees, config, applier as never),
+  };
 }
 
 afterEach(() => jest.useRealTimers());
@@ -192,8 +209,8 @@ describe('DepotAssignmentService', () => {
     await expect(svc.cancel(hr, row.id)).resolves.toMatchObject({ status: 'CANCELLED' });
     await expect(svc.cancel(hr, row.id)).rejects.toThrow(/CANCELLED/);
 
-    repo.rows.push({ id: 'as-run', employeeId: 'emp-1', status: 'ACTIVE' } as EmployeeDepotAssignment);
-    await expect(svc.cancel(hr, 'as-run')).rejects.toThrow(/sudah berjalan/);
+    repo.rows.push({ id: 'as-done', employeeId: 'emp-1', status: 'DONE' } as EmployeeDepotAssignment);
+    await expect(svc.cancel(hr, 'as-done')).rejects.toThrow(/DONE/);
 
     repo.rows.push({ id: 'as-race', employeeId: 'emp-1', status: 'PLANNED' } as EmployeeDepotAssignment);
     repo.raceOnCancel = true;
@@ -220,10 +237,13 @@ describe('DepotAssignmentController', () => {
       plan: jest.fn().mockResolvedValue('P'),
       cancel: jest.fn().mockResolvedValue('C'),
     };
-    const c = new DepotAssignmentController(svc as never);
+    const c = new DepotAssignmentController({ ...svc, applyNow: jest.fn().mockResolvedValue('A') } as never);
     await expect(c.list({} as never, hr)).resolves.toBe('L');
     await expect(c.plan(loan as never, hr)).resolves.toBe('P');
     await expect(c.cancel('as-1', hr)).resolves.toBe('C');
+    await expect(c.applyNow('as-1', hr)).resolves.toBe('A');
+    const sweep = new DepotMovesInternalController({ applyDue: jest.fn().mockResolvedValue({ due: 0 }) } as never);
+    await expect(sweep.applyDue()).resolves.toEqual({ due: 0 });
   });
 });
 
@@ -245,6 +265,7 @@ describe('DepotAssignmentPrismaRepository', () => {
         count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({ status: 'PLANNED', attempts: 1 }),
       },
     };
     return { tx, prisma, repo: new DepotAssignmentPrismaRepository(prisma as never) };
@@ -307,6 +328,45 @@ describe('DepotAssignmentPrismaRepository', () => {
   });
 });
 
+describe('sweep queries and failure bookkeeping', () => {
+  function build() {
+    const model = {
+      findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({ status: 'PLANNED', attempts: 5 }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    };
+    return { model, repo: new DepotAssignmentPrismaRepository({ employeeDepotAssignment: model } as never) };
+  }
+
+  it('findDue asks for started PLANNED rows and finished ACTIVE loans, oldest first, bounded', async () => {
+    const { model, repo } = build();
+    await repo.findDue('2026-10-26', 100);
+    const arg = model.findMany.mock.calls[0][0];
+    expect(arg.take).toBe(100);
+    expect(arg.where.OR).toEqual([
+      { status: 'PLANNED', startDate: { lte: new Date('2026-10-26T00:00:00.000Z') } },
+      { status: 'ACTIVE', kind: 'LOAN', endDate: { lt: new Date('2026-10-26T00:00:00.000Z') } },
+    ]);
+    expect(arg.orderBy[0]).toEqual({ startDate: 'asc' });
+  });
+
+  it('recordFailure counts the attempt and only a PLANNED row past the limit becomes FAILED', async () => {
+    const { model, repo } = build();
+    await repo.recordFailure('a', 'x'.repeat(900), 5);
+    expect(model.update.mock.calls[0][0].data.failReason).toHaveLength(500);
+    expect(model.updateMany).toHaveBeenCalledWith({ where: { id: 'a', status: 'PLANNED' }, data: { status: 'FAILED' } });
+
+    model.updateMany.mockClear();
+    model.update.mockResolvedValue({ status: 'PLANNED', attempts: 2 });
+    await repo.recordFailure('a', 'again', 5);
+    expect(model.updateMany).not.toHaveBeenCalled();
+
+    model.update.mockResolvedValue({ status: 'ACTIVE', attempts: 99 });
+    await repo.recordFailure('a', 'cannot return', 5);
+    expect(model.updateMany).not.toHaveBeenCalled(); // a running loan keeps being retried
+  });
+});
+
 describe('DEPOT_ASSIGNMENT_ENABLED', () => {
   it('defaults to off in the env schema and the config getter', () => {
     const { value } = envValidationSchema.validate({
@@ -350,5 +410,70 @@ describe('a permanent depot change while an assignment is open', () => {
     const open = emps(true);
     await open.svc.update(hr, 'emp-1', { fullName: 'Budi S' });
     expect(open.repo.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('cutting and applying by hand', () => {
+  it('cancelling a running LOAN cuts it short through the applier instead of refusing', async () => {
+    const { svc, repo, applier } = make();
+    repo.rows.push({
+      id: 'as-run',
+      employeeId: 'emp-1',
+      kind: 'LOAN',
+      status: 'ACTIVE',
+    } as EmployeeDepotAssignment);
+    await expect(svc.cancel(hr, 'as-run')).resolves.toMatchObject({ status: 'DONE' });
+    expect(applier.cutActive).toHaveBeenCalledTimes(1);
+  });
+
+  it('applyNow applies a due PLANNED row, refuses one that is not due, and stays dark when off', async () => {
+    const { svc, repo, applier } = make();
+    repo.rows.push({
+      id: 'due',
+      employeeId: 'emp-1',
+      kind: 'LOAN',
+      status: 'PLANNED',
+      startDate: day('2026-10-10'),
+      endDate: day('2026-10-20'),
+    } as EmployeeDepotAssignment);
+    repo.rows.push({
+      id: 'later',
+      employeeId: 'emp-1',
+      kind: 'LOAN',
+      status: 'PLANNED',
+      startDate: day('2026-10-30'),
+      endDate: day('2026-11-02'),
+    } as EmployeeDepotAssignment);
+    repo.rows.push({
+      id: 'ended',
+      employeeId: 'emp-1',
+      kind: 'LOAN',
+      status: 'ACTIVE',
+      startDate: day('2026-10-01'),
+      endDate: day('2026-10-05'),
+    } as EmployeeDepotAssignment);
+    await expect(svc.applyNow(hr, 'due')).resolves.toMatchObject({ status: 'ACTIVE' });
+    await expect(svc.applyNow(hr, 'later')).rejects.toBeInstanceOf(ConflictException);
+    await svc.applyNow(hr, 'ended');
+    expect(applier.applyOne).toHaveBeenCalledTimes(2);
+    await expect(svc.applyNow(hr, 'nope')).rejects.toBeInstanceOf(NotFoundException);
+    const off = make({ enabled: false });
+    await expect(off.svc.applyNow(hr, 'due')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('the audit interceptor and the sweep route', () => {
+  it('is silent for the scheduler tick, so ninety-six idle rows a day are not written', async () => {
+    const { of } = await import('rxjs');
+    const recorded: unknown[] = [];
+    const interceptor = new AuditInterceptor({ record: async (e: unknown) => void recorded.push(e) } as never);
+    const mk = (path: string) => ({
+      switchToHttp: () => ({ getRequest: () => ({ method: 'POST', path, url: path, headers: {}, socket: {}, ip: '1.1.1.1' }) }),
+    });
+    const handler = { handle: () => of({}) };
+    await new Promise((r) => interceptor.intercept(mk('/api/v1/employees/internal/depot-moves/apply-due') as never, handler as never).subscribe({ complete: () => r(null) }));
+    expect(recorded).toHaveLength(0);
+    await new Promise((r) => interceptor.intercept(mk('/api/v1/depot-assignments') as never, handler as never).subscribe({ complete: () => r(null) }));
+    expect(recorded).toHaveLength(1);
   });
 });

@@ -15,6 +15,7 @@ import {
   DEPOT_ASSIGNMENT_REPOSITORY,
   DepotAssignmentRepository,
 } from '../ports/depot-assignment.repository';
+import { DepotAssignmentApplier } from './depot-assignment-applier.service';
 import { EmployeeService } from './employee.service';
 
 export interface PlanAssignmentInput {
@@ -43,6 +44,7 @@ export class DepotAssignmentService {
     @Inject(DEPOT_ASSIGNMENT_REPOSITORY) private readonly repo: DepotAssignmentRepository,
     private readonly employees: EmployeeService,
     private readonly config: HrConfigService,
+    private readonly applier: DepotAssignmentApplier,
   ) {}
 
   private assertEnabled(): void {
@@ -106,17 +108,36 @@ export class DepotAssignmentService {
     const found = await this.repo.findById(id);
     if (!found) throw new NotFoundException('Penugasan tidak ditemukan');
     await this.employees.getById(user, found.employeeId); // depot check on the employee
+    if (found.status === 'ACTIVE' && found.kind === 'LOAN') {
+      // Cutting a running loan short: the person goes home today, past days stay the
+      // destination's. The same flip as the sweep's return, with today as its date.
+      await this.applier.cutActive(found);
+      return (await this.repo.findById(id)) as EmployeeDepotAssignment;
+    }
     if (found.status !== 'PLANNED') {
-      throw new ConflictException(
-        found.status === 'ACTIVE'
-          ? 'Penugasan sudah berjalan; memotongnya belum didukung.'
-          : `Penugasan sudah ${found.status} dan tidak bisa dibatalkan.`,
-      );
+      throw new ConflictException(`Penugasan sudah ${found.status} dan tidak bisa dibatalkan.`);
     }
     const cancelled = await this.repo.cancelPlanned(id);
     // Lost the race: the sweep (or another tab) moved it between the read and the write.
     if (!cancelled) throw new ConflictException('Status penugasan berubah; muat ulang lalu coba lagi.');
     return cancelled;
+  }
+
+  /** "Terapkan sekarang": what the sweep would do for this one row, without waiting for the tick. */
+  async applyNow(user: AuthenticatedUser, id: string): Promise<EmployeeDepotAssignment> {
+    this.assertEnabled();
+    const found = await this.repo.findById(id);
+    if (!found) throw new NotFoundException('Penugasan tidak ditemukan');
+    await this.employees.getById(user, found.employeeId);
+    const today = localDayKey(new Date(), this.config.timeZone);
+    const due =
+      (found.status === 'PLANNED' && dayOf(found.startDate) <= today) ||
+      (found.status === 'ACTIVE' && !!found.endDate && dayOf(found.endDate) < today);
+    if (!due) {
+      throw new ConflictException('Penugasan ini belum jatuh tempo, atau sudah selesai.');
+    }
+    await this.applier.applyOne(found);
+    return (await this.repo.findById(id)) as EmployeeDepotAssignment;
   }
 
   async list(

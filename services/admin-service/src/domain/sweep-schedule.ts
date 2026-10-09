@@ -45,6 +45,11 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   },
   { job: 'retention/internal/purge', everyMinutes: 1440, label: 'Penghapusan data UU PDP' },
   { job: 'announcements/publish-due', everyMinutes: 15, label: 'Pengumuman terbit' },
+  {
+    job: 'employees/internal/depot-moves/apply-due',
+    everyMinutes: 15,
+    label: 'Penugasan lintas depot',
+  },
   { job: 'campaigns/internal/process-sending', everyMinutes: 2, label: 'Kampanye terkirim' },
   { job: 'webhooks/deliveries/process', everyMinutes: 5, label: 'Webhook mitra' },
   {

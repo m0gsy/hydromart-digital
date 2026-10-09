@@ -155,6 +155,33 @@ describe('the repository refuses a depot write that skipped the gate', () => {
     expect(arg.data.depotMoves).toEqual({ create: move });
   });
 
+  it('update with extras nests the assignment state and re-homes pending kasbon and leave', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const repo = repoWith({ employee: { update } });
+    const move: DepotMoveWrite = {
+      fromDepotId: GALAKSI,
+      toDepotId: PEKAYON,
+      effectiveDate: new Date('2026-10-16T00:00:00.000Z'),
+      kind: 'LOAN_START',
+      createdBy: null,
+    };
+    await repo.update('e1', { depotId: PEKAYON }, [], move, {
+      assignment: { id: 'as-1', data: { status: 'ACTIVE' } },
+      movePendingRequestsTo: PEKAYON,
+    });
+    const data = update.mock.calls[0][0].data;
+    expect(data.depotAssignments).toEqual({ update: { where: { id: 'as-1' }, data: { status: 'ACTIVE' } } });
+    expect(data.loanRequests.updateMany).toEqual({ where: { status: 'PENDING' }, data: { depotId: PEKAYON } });
+    expect(data.leaveRequests.updateMany.where.status.in).toEqual(['PENDING_MANAGER', 'PENDING_HR']);
+  });
+
+  it('an assignment-only update (already at the destination) needs no ledger move', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const repo = repoWith({ employee: { update } });
+    await repo.update('e1', {}, [], undefined, { assignment: { id: 'as-1', data: { status: 'DONE' } } });
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it('create with a depot but a different home is rejected', () => {
     const repo = repoWith({ employee: { create: jest.fn() } });
     expect(() => repo.create({ depotId: PEKAYON, homeDepotId: GALAKSI } as never)).toThrow(/depot/i);
@@ -186,13 +213,15 @@ describe('no other code writes employees directly', () => {
     expect(writers).toEqual(['infrastructure/prisma/employee.prisma.repository.ts']);
   });
 
-  it('only the employee service and its repository know the depot ledger', () => {
+  it('only the employee service, the assignment applier and the repository know the depot ledger', () => {
     const users = walk(SRC)
       .filter((f) => /depotMoves|employeeDepotMove|DepotMoveWrite/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(SRC, f).split(sep).join('/'))
       .sort();
     expect(users).toEqual([
       'application/ports/employee.repository.ts',
+      // The sweep that applies assignments writes the ledger through the same repository door.
+      'application/services/depot-assignment-applier.service.ts',
       'application/services/employee.service.ts',
       'infrastructure/prisma/employee.prisma.repository.ts',
     ]);

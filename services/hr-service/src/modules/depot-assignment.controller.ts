@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
@@ -39,6 +49,18 @@ export class DepotAssignmentController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<EmployeeDepotAssignment> {
     return this.assignments.plan(user, dto);
+  }
+
+  @ApiOkResponse({ type: DepotAssignmentResponseDto })
+  @Can('employeeAssign')
+  @Post(':id/apply-now')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Apply a due assignment now instead of waiting for the next sweep' })
+  applyNow(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<EmployeeDepotAssignment> {
+    return this.assignments.applyNow(user, id);
   }
 
   @ApiOkResponse({ type: DepotAssignmentResponseDto })

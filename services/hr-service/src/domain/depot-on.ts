@@ -69,6 +69,11 @@ function ordinalOf(key: string): number {
   throw new RangeError(`Tanggal lokal tidak valid: "${key}" (harus YYYY-MM-DD)`);
 }
 
+/** The local day `n` days after (or before, when negative) `key`. */
+export function addDays(key: string, n: number): string {
+  return fromOrdinal(ordinalOf(key) + n);
+}
+
 /** True for a real calendar day written YYYY-MM-DD (rejects 2026-02-30, month 13...). */
 export function isLocalDay(key: string): boolean {
   try {

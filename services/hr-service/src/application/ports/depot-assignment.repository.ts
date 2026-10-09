@@ -45,6 +45,16 @@ export interface DepotAssignmentRepository {
   list(
     filter: DepotAssignmentListFilter,
   ): Promise<{ rows: EmployeeDepotAssignment[]; total: number }>;
+  /**
+   * What the sweep should act on today: PLANNED rows whose start day has come, and ACTIVE
+   * loans whose last day is behind us. Oldest first, bounded.
+   */
+  findDue(today: string, limit: number): Promise<EmployeeDepotAssignment[]>;
+  /**
+   * One failed attempt. Past `maxAttempts` the row becomes FAILED with the reason, so it
+   * stops being retried and a human can read why on the screen.
+   */
+  recordFailure(id: string, reason: string, maxAttempts: number): Promise<void>;
   /** PLANNED -> CANCELLED. Returns null when the row was no longer PLANNED. */
   cancelPlanned(id: string): Promise<EmployeeDepotAssignment | null>;
 }

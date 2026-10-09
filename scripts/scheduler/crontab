@@ -135,3 +135,10 @@
 # point is to ask while the delivery is still fresh; each order is claimed before the message
 # goes out, so a double run or an overlapping tick asks nobody twice. Bounded at 200 per round.
 */10 * * * * sh /scripts/sweep.sh orders/reminders/review
+
+# Cross-depot assignments: lend an employee to another depot on the planned day, bring them
+# back the day after the last one, and run scheduled permanent moves. Every 15 minutes so a
+# move lands within a quarter hour of 00:00 WIB. A no-op until DEPOT_ASSIGNMENT_ENABLED is set
+# on hr (the response then says `disabled: true`). Catch-up after downtime keeps the original
+# dates, so a late round writes the same ledger a punctual one would have.
+*/15 * * * * sh /scripts/sweep.sh employees/internal/depot-moves/apply-due hr:3018
