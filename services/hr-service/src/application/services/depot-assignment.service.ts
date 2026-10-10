@@ -6,17 +6,24 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localDayKey } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  assertDepotAccess,
+  depotScopeIds,
+  localDayKey,
+} from '@hydromart/platform';
 
 import { EmployeeDepotAssignment } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
-import { OpenAssignment, planProblems } from '../../domain/depot-assignment';
-import { isLocalDay } from '../../domain/depot-on';
+import { BackdateFacts, OpenAssignment, planProblems } from '../../domain/depot-assignment';
+import { addDays, isLocalDay } from '../../domain/depot-on';
 import {
   DEPOT_ASSIGNMENT_REPOSITORY,
   DepotAssignmentRepository,
 } from '../ports/depot-assignment.repository';
+import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
+import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.repository';
 import { DepotAssignmentApplier } from './depot-assignment-applier.service';
 import { EmployeeService } from './employee.service';
 
@@ -32,6 +39,12 @@ export interface PlanAssignmentInput {
 // A @db.Date comes back as UTC midnight, so its first ten characters ARE the local day.
 // tz-ok: @db.Date - the UTC slice IS the local day
 const dayOf = (d: Date): string => d.toISOString().slice(0, 10);
+
+/** The month after `YYYY-MM`. */
+function nextMonth(m: string): string {
+  const [y, mm] = m.split('-').map(Number);
+  return mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,6 +62,9 @@ export class DepotAssignmentService {
     private readonly applier: DepotAssignmentApplier,
     // Optional so a stack without depot-service wired (specs, a bare dev box) still plans.
     @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
+    // Needed only to start a plan in the past; absent, the past stays closed.
+    @Optional() @Inject(PAYROLL_REPOSITORY) private readonly payrolls?: PayrollRepository,
+    @Optional() @Inject(ATTENDANCE_REPOSITORY) private readonly attendance?: AttendanceRepository,
   ) {}
 
   private assertEnabled(): void {
@@ -59,7 +75,10 @@ export class DepotAssignmentService {
     }
   }
 
-  async plan(user: AuthenticatedUser, input: PlanAssignmentInput): Promise<EmployeeDepotAssignment> {
+  async plan(
+    user: AuthenticatedUser,
+    input: PlanAssignmentInput,
+  ): Promise<EmployeeDepotAssignment> {
     this.assertEnabled();
     for (const key of [input.startDate, input.endDate]) {
       if (key != null && !isLocalDay(key)) {
@@ -72,6 +91,10 @@ export class DepotAssignmentService {
     // An unreachable depot-service is a 503 (try again), never a silent yes.
     const destinationOpen = this.directory ? await this.directory.isActive(input.depotId) : true;
     const today = localDayKey(new Date(), this.config.timeZone);
+    const backdate =
+      input.startDate < today
+        ? await this.backdateFacts(user, employee.id, input, today)
+        : undefined;
     const toPlan = {
       kind: input.kind,
       depotId: input.depotId,
@@ -104,11 +127,46 @@ export class DepotAssignmentService {
           startDate: dayOf(o.startDate),
           endDate: o.endDate ? dayOf(o.endDate) : null,
         }));
-        const problems = planProblems(toPlan, subject, asOpen, today);
+        const problems = planProblems(toPlan, subject, asOpen, today, backdate);
         if (!destinationOpen) problems.push('Depot tujuan tidak aktif (sedang ditutup).');
         if (problems.length > 0) throw new BadRequestException(problems);
       },
     );
+  }
+
+  /**
+   * What the past looks like for a plan that wants to start in it. A missing reader is read as
+   * "locked": without payroll and attendance to ask, nobody may rewrite history.
+   */
+  private async backdateFacts(
+    user: AuthenticatedUser,
+    employeeId: string,
+    input: PlanAssignmentInput,
+    today: string,
+  ): Promise<BackdateFacts> {
+    const mayBackdate = ['HR', 'SUPER_ADMIN'].includes(String(user.role));
+    if (!mayBackdate || !this.payrolls || !this.attendance) {
+      return {
+        actorMayBackdate: false,
+        lockedMonths: [],
+        stampConflicts: 0,
+      };
+    }
+    const lockedMonths: string[] = [];
+    for (let m = input.startDate.slice(0, 7); m <= today.slice(0, 7); m = nextMonth(m)) {
+      const slip = await this.payrolls.findByEmployeeAndPeriod(employeeId, m);
+      if (slip && slip.status !== 'DRAFT') lockedMonths.push(m);
+    }
+    const last = input.endDate && input.endDate < today ? input.endDate : addDays(today, -1);
+    const { rows } = await this.attendance.list({
+      employeeId,
+      from: new Date(`${input.startDate}T00:00:00.000Z`),
+      to: new Date(`${last}T00:00:00.000Z`),
+      skip: 0,
+      take: 500,
+    });
+    const stampConflicts = rows.filter((r) => r.depotId && r.depotId !== input.depotId).length;
+    return { actorMayBackdate: true, lockedMonths, stampConflicts };
   }
 
   async cancel(user: AuthenticatedUser, id: string): Promise<EmployeeDepotAssignment> {
@@ -127,7 +185,8 @@ export class DepotAssignmentService {
     }
     const cancelled = await this.repo.cancelPlanned(id);
     // Lost the race: the sweep (or another tab) moved it between the read and the write.
-    if (!cancelled) throw new ConflictException('Status penugasan berubah; muat ulang lalu coba lagi.');
+    if (!cancelled)
+      throw new ConflictException('Status penugasan berubah; muat ulang lalu coba lagi.');
     return cancelled;
   }
 

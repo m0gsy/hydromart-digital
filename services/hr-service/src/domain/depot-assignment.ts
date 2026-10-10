@@ -37,6 +37,22 @@ export interface OpenAssignment {
   endDate: string | null;
 }
 
+/** How far back a plan may start. Past a quarter the books are closed in every way that matters. */
+export const MAX_BACKDATE_DAYS = 92;
+
+/**
+ * What has to be known about the past before a plan may start in it. Gathered by the caller
+ * (it takes reads of other tables); this module only decides.
+ */
+export interface BackdateFacts {
+  /** Only HR (and the superuser) may rewrite where somebody worked. */
+  actorMayBackdate: boolean;
+  /** `YYYY-MM` months in the window whose payslip is already APPROVED or PAID. */
+  lockedMonths: readonly string[];
+  /** Attendance days in the window already stamped with a depot other than the destination. */
+  stampConflicts: number;
+}
+
 /** A permanent move never ends, so for overlap purposes it runs to the far future. */
 const FOREVER = '9999-12-31';
 
@@ -45,11 +61,14 @@ export function planProblems(
   subject: PlanSubject,
   open: readonly OpenAssignment[],
   today: string,
+  backdate?: BackdateFacts,
 ): string[] {
   const out: string[] = [];
 
   if (!subject.role || !(HR_MANAGED_ROLES as readonly string[]).includes(subject.role)) {
-    out.push('Jabatan karyawan ini tidak bisa ditugaskan lintas depot (hanya staf depot sampai manajer).');
+    out.push(
+      'Jabatan karyawan ini tidak bisa ditugaskan lintas depot (hanya staf depot sampai manajer).',
+    );
   }
   if (!subject.hasAccount) out.push('Karyawan ini belum punya akun login; buatkan akunnya dulu.');
   if (subject.status !== 'ACTIVE') out.push('Hanya karyawan aktif yang bisa ditugaskan.');
@@ -68,7 +87,27 @@ export function planProblems(
   }
 
   if (input.startDate < today) {
-    out.push('Penugasan tidak bisa dimulai di masa lampau; atur tanggal mulai hari ini atau sesudahnya.');
+    if (!backdate?.actorMayBackdate) {
+      out.push(
+        'Penugasan tidak bisa dimulai di masa lampau; atur tanggal mulai hari ini atau sesudahnya.',
+      );
+    } else {
+      if (daysBetween(input.startDate, today) > MAX_BACKDATE_DAYS) {
+        out.push(`Tanggal mulai terlalu lampau (maksimal ${MAX_BACKDATE_DAYS} hari ke belakang).`);
+      }
+      if (backdate.lockedMonths.length > 0) {
+        out.push(
+          `Payroll ${backdate.lockedMonths.join(', ')} sudah disetujui atau dibayar; ` +
+            'koreksi pembagian depotnya lewat pusat, bukan dengan menggeser tanggal.',
+        );
+      }
+      if (backdate.stampConflicts > 0) {
+        out.push(
+          `${backdate.stampConflicts} hari absensi pada rentang itu tercatat di depot lain; ` +
+            'koreksi stempel absensinya dulu.',
+        );
+      }
+    }
   } else if (daysBetween(today, input.startDate) > MAX_HORIZON_DAYS) {
     out.push(`Tanggal mulai terlalu jauh (maksimal ${MAX_HORIZON_DAYS} hari ke depan).`);
   }
@@ -76,7 +115,10 @@ export function planProblems(
   if (input.startDate < subject.joinDate) {
     out.push('Tanggal mulai sebelum karyawan masuk kerja.');
   }
-  if (subject.exitDate && (input.startDate > subject.exitDate || (end ?? input.startDate) > subject.exitDate)) {
+  if (
+    subject.exitDate &&
+    (input.startDate > subject.exitDate || (end ?? input.startDate) > subject.exitDate)
+  ) {
     out.push('Penugasan melewati tanggal keluar karyawan.');
   }
 
