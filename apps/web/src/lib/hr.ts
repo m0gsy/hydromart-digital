@@ -620,7 +620,7 @@ export interface DepotAssignment {
   depotId: string;
   startDate: string;
   endDate: string | null;
-  status: 'PLANNED' | 'ACTIVE' | 'DONE' | 'CANCELLED' | 'FAILED';
+  status: 'REQUESTED' | 'PLANNED' | 'ACTIVE' | 'DONE' | 'CANCELLED' | 'FAILED';
   failReason: string | null;
   note: string | null;
 }

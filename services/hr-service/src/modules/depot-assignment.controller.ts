@@ -20,6 +20,8 @@ import {
   ListDepotAssignmentDto,
   PagedDepotAssignmentResponseDto,
   PlanDepotAssignmentDto,
+  RejectDepotRequestDto,
+  RequestDepotAssignmentDto,
 } from './dto/depot-assignment.dto';
 
 /**
@@ -72,5 +74,49 @@ export class DepotAssignmentController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<EmployeeDepotAssignment> {
     return this.assignments.cancel(user, id);
+  }
+
+  @ApiOkResponse({ type: DepotAssignmentResponseDto })
+  @Can('employeeAssignRequest')
+  @Post('requests')
+  @ApiOperation({ summary: 'A depot manager asks to borrow an employee for their depot' })
+  request(
+    @Body() dto: RequestDepotAssignmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<EmployeeDepotAssignment> {
+    return this.assignments.request(user, dto);
+  }
+
+  @ApiOkResponse({ type: PagedDepotAssignmentResponseDto })
+  @Can('employeeAssignRequest')
+  @Get('requests/mine')
+  @ApiOperation({ summary: "The caller's own requests and what became of them" })
+  myRequests(@Query() q: ListDepotAssignmentDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.assignments.myRequests(user, q);
+  }
+
+  @ApiOkResponse({ type: DepotAssignmentResponseDto })
+  @Can('employeeAssign')
+  @Post(':id/approve')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Approve a manager request: it becomes a PLANNED assignment' })
+  approve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<EmployeeDepotAssignment> {
+    return this.assignments.approveRequest(user, id);
+  }
+
+  @ApiOkResponse({ type: DepotAssignmentResponseDto })
+  @Can('employeeAssign')
+  @Post(':id/reject')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Reject a manager request, with the reason' })
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectDepotRequestDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<EmployeeDepotAssignment> {
+    return this.assignments.rejectRequest(user, id, dto.reason);
   }
 }

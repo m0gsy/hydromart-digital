@@ -299,6 +299,7 @@ export const hq = {
       hrView: 'View HR dashboards',
       hrAdmin: 'Manage employees & attendance',
       employeeAssign: 'Assign employees across depots',
+      employeeAssignRequest: 'Request to borrow an employee for a depot',
       hrPayroll: 'Payroll',
       leaveApprove: 'Approve leave (stage 1)',
       kasbonApprove: 'Approve cash advance (the depot’s assistant SPV)',

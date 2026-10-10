@@ -333,6 +333,11 @@ export class EmployeeService {
     return this.repo.findById(id);
   }
 
+  /** Same, keyed by the employee code - how a manager names somebody from another depot. */
+  findByCodeInternal(employeeCode: string): Promise<Employee | null> {
+    return this.repo.findByEmployeeCode(employeeCode);
+  }
+
   /** Same, keyed by the login account — how a reporting line resolves now (see Fase 4). */
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.repo.findByAuthSubjectId(authSubjectId);

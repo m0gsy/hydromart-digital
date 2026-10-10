@@ -93,6 +93,12 @@ export const hr = {
     depotAssignments: (employeeId: string) =>
       `/depot-assignments/api/v1/depot-assignments?employeeId=${employeeId}`,
     planDepotAssignment: '/depot-assignments/api/v1/depot-assignments',
+    requestDepotAssignment: '/depot-assignments/api/v1/depot-assignments/requests',
+    myDepotRequests: '/depot-assignments/api/v1/depot-assignments/requests/mine',
+    approveDepotRequest: (id: string) =>
+      `/depot-assignments/api/v1/depot-assignments/${id}/approve`,
+    rejectDepotRequest: (id: string) =>
+      `/depot-assignments/api/v1/depot-assignments/${id}/reject`,
     cancelDepotAssignment: (id: string) =>
       `/depot-assignments/api/v1/depot-assignments/${id}/cancel`,
     applyDepotAssignmentNow: (id: string) =>

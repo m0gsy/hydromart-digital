@@ -37,8 +37,35 @@ export class DepotAssignmentPrismaRepository implements DepotAssignmentRepositor
           createdByRole: data.createdByRole,
           createdBy: data.createdBy,
           note: data.note,
+          ...(data.status ? { status: data.status } : {}),
         },
       });
+    });
+  }
+
+  async decideRequested(
+    id: string,
+    to: 'PLANNED' | 'CANCELLED',
+    check: ((open: EmployeeDepotAssignment[]) => void) | null,
+    patch: { failReason?: string | null },
+  ): Promise<EmployeeDepotAssignment | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.employeeDepotAssignment.findUnique({ where: { id } });
+      if (!row || row.status !== 'REQUESTED') return null;
+      await tx.$queryRaw`SELECT id FROM employees WHERE id = ${row.employeeId}::uuid FOR UPDATE`;
+      if (check) {
+        const open = await tx.employeeDepotAssignment.findMany({
+          where: { employeeId: row.employeeId, status: { in: [...OPEN_STATUSES] } },
+        });
+        check(open);
+      }
+      // The status guard repeats the read: a concurrent decision that slipped in between
+      // leaves zero rows touched and the caller a clean "decided already".
+      const done = await tx.employeeDepotAssignment.updateMany({
+        where: { id, status: 'REQUESTED' },
+        data: { status: to, ...(patch.failReason !== undefined ? { failReason: patch.failReason } : {}) },
+      });
+      return done.count === 1 ? tx.employeeDepotAssignment.findUnique({ where: { id } }) : null;
     });
   }
 
@@ -93,6 +120,7 @@ export class DepotAssignmentPrismaRepository implements DepotAssignmentRepositor
     const where: Prisma.EmployeeDepotAssignmentWhereInput = {
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
       ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.createdBy ? { createdBy: filter.createdBy } : {}),
       ...(filter.depotIds
         ? {
             OR: [

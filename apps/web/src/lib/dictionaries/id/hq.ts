@@ -302,6 +302,7 @@ export const hq = {
       hrView: 'Lihat dashboard HR',
       hrAdmin: 'Kelola karyawan & absensi',
       employeeAssign: 'Tugaskan karyawan lintas depot',
+      employeeAssignRequest: 'Ajukan peminjaman karyawan untuk depot',
       hrPayroll: 'Payroll',
       leaveApprove: 'Setujui cuti (tahap 1)',
       kasbonApprove: 'Setujui kasbon (asisten SPV depotnya)',

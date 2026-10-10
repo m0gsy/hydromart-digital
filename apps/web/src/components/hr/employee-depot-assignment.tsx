@@ -13,6 +13,7 @@ import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 
 const TONE = {
+  REQUESTED: 'neutral',
   PLANNED: 'brand',
   ACTIVE: 'success',
   DONE: 'neutral',
@@ -93,12 +94,27 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
     }
   }
 
-  async function act(id: string, what: 'cancel' | 'apply') {
+  async function act(id: string, what: 'cancel' | 'apply' | 'approve' | 'reject') {
     setBusy(id);
     try {
       if (what === 'cancel') await api.patch(endpoints.hr.cancelDepotAssignment(id), {}, true);
-      else await api.post(endpoints.hr.applyDepotAssignmentNow(id), {}, true);
-      toast(t(what === 'cancel' ? 'hrFix.depotAssignment.cancelled' : 'hrFix.depotAssignment.applied'));
+      else if (what === 'approve') await api.post(endpoints.hr.approveDepotRequest(id), {}, true);
+      else if (what === 'reject') {
+        const reason = window.prompt(t('hrFix.depotAssignment.rejectReason'))?.trim();
+        if (!reason) return;
+        await api.post(endpoints.hr.rejectDepotRequest(id), { reason }, true);
+      } else await api.post(endpoints.hr.applyDepotAssignmentNow(id), {}, true);
+      toast(
+        t(
+          what === 'cancel'
+            ? 'hrFix.depotAssignment.cancelled'
+            : what === 'approve'
+              ? 'hrFix.depotAssignment.approved'
+              : what === 'reject'
+                ? 'hrFix.depotAssignment.rejected'
+                : 'hrFix.depotAssignment.applied',
+        ),
+      );
       list.reload();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : t('hrFix.depotAssignment.failed'), 'error');
@@ -135,13 +151,23 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
                     {a.endDate ? ` – ${fmtDate(a.endDate)}` : ''}
                     {a.note ? ` · ${a.note}` : ''}
                   </p>
-                  {a.status === 'FAILED' && a.failReason && (
+                  {(a.status === 'FAILED' || a.status === 'CANCELLED') && a.failReason && (
                     <p className="text-sm text-[color:var(--danger)]" role="alert">
                       {a.failReason}
                     </p>
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {a.status === 'REQUESTED' && (
+                    <>
+                      <Button loading={busy === a.id} onClick={() => act(a.id, 'approve')}>
+                        {t('hrFix.depotAssignment.approve')}
+                      </Button>
+                      <Button variant="secondary" loading={busy === a.id} onClick={() => act(a.id, 'reject')}>
+                        {t('hrFix.depotAssignment.reject')}
+                      </Button>
+                    </>
+                  )}
                   {due && (
                     <Button variant="secondary" loading={busy === a.id} onClick={() => act(a.id, 'apply')}>
                       {t('hrFix.depotAssignment.applyNow')}

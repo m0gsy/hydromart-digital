@@ -65,3 +65,16 @@ export class ApplyDueResponseDto {
   @ApiPropertyOptional() disabled?: boolean;
   @ApiPropertyOptional() ok?: boolean;
 }
+
+export class RejectDepotRequestDto {
+  @IsString() @MaxLength(300) reason!: string;
+}
+
+/** A manager names the employee by code: they cannot browse another depot's staff. */
+export class RequestDepotAssignmentDto {
+  @IsString() @MaxLength(40) employeeCode!: string;
+  @IsUUID() depotId!: string;
+  @Matches(DAY, { message: 'startDate harus format YYYY-MM-DD' }) startDate!: string;
+  @Matches(DAY, { message: 'endDate harus format YYYY-MM-DD' }) endDate!: string;
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+}

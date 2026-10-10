@@ -949,6 +949,8 @@ enum DepotAssignmentKind {
 }
 
 enum DepotAssignmentStatus {
+  /// Asked for by a depot manager; HR has not decided. Claims no days, is never swept.
+  REQUESTED
   PLANNED
   ACTIVE
   DONE
