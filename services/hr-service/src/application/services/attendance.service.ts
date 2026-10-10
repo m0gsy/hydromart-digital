@@ -19,6 +19,7 @@ import {
 
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { addDays, depotOn } from '../../domain/depot-on';
 import { withinGeofence } from '../../domain/geofence';
 import { latenessFor } from '../../domain/lateness';
 import {
@@ -38,6 +39,10 @@ import {
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
+import {
+  DEPOT_ASSIGNMENT_REPOSITORY,
+  DepotAssignmentRepository,
+} from '../ports/depot-assignment.repository';
 
 export interface FacePunch {
   image: Buffer;
@@ -60,7 +65,61 @@ export class AttendanceService {
     private readonly config: HrConfigService,
     @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
     @Optional() @Inject(SHIFT_REPOSITORY) private readonly shifts?: ShiftRepository,
+    // Last: absent (specs, or the feature off) every punch is judged at the live depot.
+    @Optional()
+    @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
+    private readonly depotLedger?: DepotAssignmentRepository,
   ) {}
+
+  /**
+   * The depot an employee worked at on a local day.
+   *
+   * The sweep moves the live depot within a quarter hour of midnight, so a punch in those
+   * minutes - or one queued offline and synced after the loan ended - would otherwise be
+   * stamped, fenced and judged at the wrong depot. Off, or with no ledger, this is exactly
+   * the live depot: nothing changes until the feature is switched on.
+   */
+  private async workDepotOn(employee: Employee, localDay: string): Promise<string | null> {
+    if (!this.config.depotAssignmentEnabled || !this.depotLedger) return employee.depotId;
+    const moves = await this.depotLedger.timelineFor(employee.id);
+    if (moves.length === 0) return employee.depotId;
+    return depotOn({ homeDepotId: employee.homeDepotId, depotId: employee.depotId }, moves, localDay);
+  }
+
+  /**
+   * Who may touch a stored attendance row. With the feature on, the depot the day was
+   * WORKED at decides (the destination's manager runs a lent employee's days); off, the live
+   * depot decides as it always did.
+   */
+  private assertRowAccess(user: AuthenticatedUser, employee: Employee, row: Attendance): void {
+    const depot = this.config.depotAssignmentEnabled ? (row.depotId ?? employee.depotId) : employee.depotId;
+    assertDepotAccess(user, depot);
+  }
+
+  /**
+   * The newest check-in still waiting for its check-out, no more than a day old: what a
+   * night shift closes after midnight, when today's date holds no row at all.
+   */
+  private async openRowBefore(employeeId: string, at: Date): Promise<Attendance | null> {
+    const today = localDayKey(at, this.config.timeZone);
+    const { rows } = await this.repo.list({
+      employeeId,
+      from: new Date(`${addDays(today, -1)}T00:00:00.000Z`),
+      to: new Date(`${today}T00:00:00.000Z`),
+      skip: 0,
+      take: 5,
+    });
+    const open = rows
+      .filter(
+        (r) =>
+          r.checkInAt &&
+          !r.checkOutAt &&
+          r.checkInAt.getTime() <= at.getTime() &&
+          at.getTime() - r.checkInAt.getTime() <= 24 * 3_600_000,
+      )
+      .sort((a, b) => (b.checkInAt as Date).getTime() - (a.checkInAt as Date).getTime());
+    return open[0] ?? null;
+  }
 
   async checkIn(
     user: AuthenticatedUser,
@@ -69,11 +128,14 @@ export class AttendanceService {
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
-    const { holdForReview } = this.geofenceOutcome(employee, user, punch);
 
+    // The moment of the punch comes first now: the geofence is the one of the depot worked at
+    // on THAT day, and that cannot be known before the day is.
     const offlineAt = this.offlineAt(punch, now, employee.depotId);
     const at = offlineAt ?? now;
     const { workDate, minutesOfDay } = this.localParts(at, this.config.timeZone);
+    const workDepotId = await this.workDepotOn(employee, localDayKey(at, this.config.timeZone));
+    const { holdForReview } = this.geofenceOutcome({ depotId: workDepotId }, user, punch);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
     if (existing?.checkInAt) {
       /*
@@ -98,11 +160,11 @@ export class AttendanceService {
     // Late is measured against THIS employee's shift for THIS day (C3), falling back to the
     // depot's shift and then config — so anyone HR has not assigned is judged exactly as
     // before this existed.
-    const startMinutes = this.parseHHMM(await this.shiftStartFor(employee, workDate));
+    const startMinutes = this.parseHHMM(await this.shiftStartFor(employee, workDate, workDepotId));
     const { late, lateMinutes } = latenessFor({
       minutesOfDay,
       startMinutes,
-      toleranceMinutes: this.config.lateToleranceMinutes(employee.depotId),
+      toleranceMinutes: this.config.lateToleranceMinutes(workDepotId),
     });
     const photoUrl =
       punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
@@ -113,11 +175,11 @@ export class AttendanceService {
     const stale =
       offlineAt !== null &&
       now.getTime() - offlineAt.getTime() >
-        this.config.offlineAutoAcceptMinutes(employee.depotId) * 60_000;
+        this.config.offlineAutoAcceptMinutes(workDepotId) * 60_000;
 
     return this.repo.create({
       employeeId: employee.id,
-      depotId: employee.depotId,
+      depotId: workDepotId,
       workDate,
       checkInAt: at,
       checkInPhotoUrl: photoUrl,
@@ -136,14 +198,24 @@ export class AttendanceService {
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
-    const { holdForReview } = this.geofenceOutcome(employee, user, punch);
 
     const offlineAt = this.offlineAt(punch, now, employee.depotId);
     const { workDate } = this.localParts(offlineAt ?? now, this.config.timeZone);
-    const row = await this.repo.findByEmployeeAndDate(employee.id, workDate);
+    // Today's row first (the ordinary day shift). Failing that, the open row from the
+    // evening before: a night shift closes after midnight, and looking only at today's date
+    // answered "Belum check-in" to everyone who worked past it.
+    const todays = await this.repo.findByEmployeeAndDate(employee.id, workDate);
+    const row = todays?.checkInAt ? todays : await this.openRowBefore(employee.id, offlineAt ?? now);
     if (!row?.checkInAt) {
       throw new BadRequestException('Belum check-in hari ini');
     }
+    // Fenced by the depot the shift was STAMPED with at check-in, not whatever the live row
+    // says now: closing a shift that began before the sweep moved someone is that shift's depot.
+    const { holdForReview } = this.geofenceOutcome(
+      { depotId: row.depotId ?? employee.depotId },
+      user,
+      punch,
+    );
     // Floored at check-in and capped at server time by offlineAt(), so an offline check-out can
     // only ever report a shorter shift than the reconnect moment — it needs no HR approval.
     const at = offlineAt ? new Date(Math.max(offlineAt.getTime(), row.checkInAt.getTime())) : now;
@@ -337,7 +409,7 @@ export class AttendanceService {
     if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
     const employee = await this.employees.findById(row.employeeId);
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
-    assertDepotAccess(user, employee.depotId);
+    this.assertRowAccess(user, employee, row);
     return this.repo.listAdjustments(id);
   }
 
@@ -397,7 +469,7 @@ export class AttendanceService {
     if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
     const employee = await this.employees.findById(row.employeeId);
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
-    assertDepotAccess(user, employee.depotId);
+    this.assertRowAccess(user, employee, row);
 
     const key = this.storageKeyOf(which === 'in' ? row.checkInPhotoUrl : row.checkOutPhotoUrl);
     if (!key || !this.storage) throw new NotFoundException('Foto absensi tidak tersedia');
@@ -452,7 +524,7 @@ export class AttendanceService {
     if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
     const employee = await this.employees.findById(row.employeeId);
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
-    assertDepotAccess(user, employee.depotId);
+    this.assertRowAccess(user, employee, row);
 
     const before = snapshot(row);
     const updated = await this.repo.upsertManual({
@@ -493,7 +565,9 @@ export class AttendanceService {
   ): Promise<Attendance> {
     const employee = await this.employees.findById(input.employeeId);
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
-    assertDepotAccess(user, employee.depotId);
+    // The day is stamped, and gated, by the depot it was worked at - not where the person is now.
+    const workDepotId = await this.workDepotOn(employee, input.workDate.slice(0, 10));
+    assertDepotAccess(user, workDepotId);
 
     const workDate = new Date(`${input.workDate.slice(0, 10)}T00:00:00.000Z`);
     const existing = await this.repo.findByEmployeeAndDate(input.employeeId, workDate);
@@ -504,7 +578,7 @@ export class AttendanceService {
     }
     const updated = await this.repo.upsertManual({
       employeeId: input.employeeId,
-      depotId: employee.depotId,
+      depotId: workDepotId,
       workDate,
       status: input.status,
     });
@@ -584,7 +658,20 @@ export class AttendanceService {
    * The last two rungs are what the service did before rotations existed, so an employee
    * with neither an assignment nor a shiftId sees no change in how their day is marked.
    */
-  private async shiftStartFor(employee: Employee, workDate: Date): Promise<string> {
+  private async shiftStartFor(
+    employee: Employee,
+    workDate: Date,
+    workDepotId: string | null,
+  ): Promise<string> {
+    // While lent, the roster of the depot WORKED at decides: a shift that belongs to the home
+    // depot must not set the start time at the destination. Not lent, nothing is filtered.
+    const home = employee.homeDepotId ?? employee.depotId;
+    const lent = home !== null && workDepotId !== home;
+    const startOf = async (shiftId: string): Promise<string | null> => {
+      const shift = await this.shifts?.findById(shiftId);
+      if (!shift || (lent && shift.depotId && shift.depotId !== workDepotId)) return null;
+      return shift.startTime;
+    };
     let assignedShiftStart: string | null = null;
     if (this.shifts) {
       const assignments = await this.shifts.listAssignmentsUpTo(employee.id, workDate);
@@ -597,23 +684,23 @@ export class AttendanceService {
         rotation ? parseRotationPattern(rotation.pattern) : null,
         workDate,
       );
-      if (shiftId) assignedShiftStart = (await this.shifts.findById(shiftId))?.startTime ?? null;
+      if (shiftId) assignedShiftStart = await startOf(shiftId);
     }
 
     const employeeShiftStart =
       !assignedShiftStart && this.shifts && employee.shiftId
-        ? ((await this.shifts.findById(employee.shiftId))?.startTime ?? null)
+        ? await startOf(employee.shiftId)
         : null;
     const depotShiftStart =
       !assignedShiftStart && !employeeShiftStart && this.shifts
-        ? ((await this.shifts.findActiveForDepot(employee.depotId))?.startTime ?? null)
+        ? ((await this.shifts.findActiveForDepot(workDepotId))?.startTime ?? null)
         : null;
 
     return resolveShiftStart({
       assignedShiftStart,
       employeeShiftStart,
       depotShiftStart,
-      configStartTime: this.config.workStartTime(employee.depotId),
+      configStartTime: this.config.workStartTime(workDepotId),
     }).startTime;
   }
 }

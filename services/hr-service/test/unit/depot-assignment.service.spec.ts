@@ -71,6 +71,9 @@ class FakeAssignments implements DepotAssignmentRepository {
   async findDue() {
     return [];
   }
+  async timelineFor() {
+    return [];
+  }
   async recordFailure() {
     return;
   }
@@ -325,6 +328,39 @@ describe('DepotAssignmentPrismaRepository', () => {
     expect(await repo.cancelPlanned('a')).toEqual({ id: 'a' });
     prisma.employeeDepotAssignment.updateMany.mockResolvedValue({ count: 0 });
     expect(await repo.cancelPlanned('a')).toBeNull();
+  });
+});
+
+describe('timelineFor', () => {
+  it('returns the ledger in depotOn shape, with each loan carrying its assignment end day', async () => {
+    const move = (over: Record<string, unknown>) => ({
+      id: 'm', employeeId: 'e', assignmentId: null, createdBy: null, createdAt: new Date(), ...over,
+    });
+    const moves = [
+      move({ kind: 'LOAN_START', effectiveDate: day('2026-10-16'), seq: 1, fromDepotId: GALAKSI, toDepotId: PEKAYON, assignmentId: 'as-1' }),
+      move({ kind: 'LOAN_END', effectiveDate: day('2026-10-26'), seq: 2, fromDepotId: PEKAYON, toDepotId: GALAKSI }),
+      move({ kind: 'PERMANENT', effectiveDate: day('2026-11-01'), seq: 3, fromDepotId: GALAKSI, toDepotId: PEKAYON, assignmentId: 'gone' }),
+    ];
+    const prisma = {
+      employeeDepotMove: { findMany: jest.fn().mockResolvedValue(moves) },
+      employeeDepotAssignment: { findMany: jest.fn().mockResolvedValue([{ id: 'as-1', endDate: day('2026-10-25') }]) },
+    };
+    const out = await new DepotAssignmentPrismaRepository(prisma as never).timelineFor('e');
+    expect(out).toEqual([
+      { kind: 'LOAN_START', effectiveDate: '2026-10-16', seq: 1, fromDepotId: GALAKSI, toDepotId: PEKAYON, loanEndDate: '2026-10-25' },
+      { kind: 'LOAN_END', effectiveDate: '2026-10-26', seq: 2, fromDepotId: PEKAYON, toDepotId: GALAKSI, loanEndDate: null },
+      { kind: 'PERMANENT', effectiveDate: '2026-11-01', seq: 3, fromDepotId: GALAKSI, toDepotId: PEKAYON, loanEndDate: null },
+    ]);
+    expect(prisma.employeeDepotAssignment.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['as-1'] } });
+  });
+
+  it('skips the assignment lookup when there is no loan, and returns nothing for no moves', async () => {
+    const prisma = {
+      employeeDepotMove: { findMany: jest.fn().mockResolvedValue([]) },
+      employeeDepotAssignment: { findMany: jest.fn() },
+    };
+    expect(await new DepotAssignmentPrismaRepository(prisma as never).timelineFor('e')).toEqual([]);
+    expect(prisma.employeeDepotAssignment.findMany).not.toHaveBeenCalled();
   });
 });
 

@@ -213,7 +213,7 @@ describe('no other code writes employees directly', () => {
     expect(writers).toEqual(['infrastructure/prisma/employee.prisma.repository.ts']);
   });
 
-  it('only the employee service, the assignment applier and the repository know the depot ledger', () => {
+  it('only the employee service, the applier and the two repositories know the depot ledger', () => {
     const users = walk(SRC)
       .filter((f) => /depotMoves|employeeDepotMove|DepotMoveWrite/.test(readFileSync(f, 'utf8')))
       .map((f) => relative(SRC, f).split(sep).join('/'))
@@ -223,6 +223,8 @@ describe('no other code writes employees directly', () => {
       // The sweep that applies assignments writes the ledger through the same repository door.
       'application/services/depot-assignment-applier.service.ts',
       'application/services/employee.service.ts',
+      // Reads the ledger back (never writes it) so attendance can ask "which depot that day".
+      'infrastructure/prisma/depot-assignment.prisma.repository.ts',
       'infrastructure/prisma/employee.prisma.repository.ts',
     ]);
   });
