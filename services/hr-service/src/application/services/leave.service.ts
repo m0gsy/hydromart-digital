@@ -8,6 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
+import { homeDepotOf } from '../../domain/depot-on';
 
 import {
   Employee,
@@ -97,7 +98,9 @@ export class LeaveService {
     const end = ISO_DAY(input.endDate);
     if (end < start) throw new BadRequestException('Tanggal selesai sebelum tanggal mulai');
 
-    const days = await this.workingDaysFor(employee.depotId, start, end);
+    // Working days and quota are the HOME depot's rules; only the queue it lands in is the
+    // depot the person is working at.
+    const days = await this.workingDaysFor(homeDepotOf(employee), start, end);
     if (days.length === 0) {
       throw new BadRequestException('Rentang tanggal tidak memuat hari kerja');
     }
@@ -374,7 +377,7 @@ export class LeaveService {
       employee.id,
       year,
       annualLeaveQuotaFor(
-        this.config.annualLeaveQuotaDays(employee.depotId),
+        this.config.annualLeaveQuotaDays(homeDepotOf(employee)),
         employee.joinDate,
         year,
       ),

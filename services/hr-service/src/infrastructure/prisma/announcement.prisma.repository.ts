@@ -84,6 +84,9 @@ export class AnnouncementPrismaRepository implements AnnouncementRepository {
               { dimension: 'COMPANY' },
               { dimension: 'EMPLOYEE', value: audience.employeeId },
               ...(audience.depotId ? [{ dimension: 'DEPOT' as const, value: audience.depotId }] : []),
+              ...(audience.homeDepotId && audience.homeDepotId !== audience.depotId
+                ? [{ dimension: 'DEPOT' as const, value: audience.homeDepotId }]
+                : []),
               ...(audience.departmentId
                 ? [{ dimension: 'DEPARTMENT' as const, value: audience.departmentId }]
                 : []),

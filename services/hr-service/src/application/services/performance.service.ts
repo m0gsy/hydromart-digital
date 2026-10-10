@@ -230,16 +230,19 @@ export class PerformanceService {
     perDepot: DepotLoaders,
   ): Promise<ScoredEmployee> {
     const [year, month] = periodMonth.split('-').map(Number);
+    // Performance rules (calendar, weights, target) are the HOME depot's, however the
+    // person was lent out this month.
+    const home = employee.homeDepotId ?? employee.depotId;
     const [holidayDates, salesTotal] = await Promise.all([
-      perDepot.holidayDates(employee.depotId),
+      perDepot.holidayDates(home),
       // No home depot ⇒ no depot sales to attribute, so the component stays unmeasurable.
-      perDepot.depotSales(employee.depotId),
+      perDepot.depotSales(home),
     ]);
     const workingDays = workingDaysInMonth(
       year,
       month,
       new Set(holidayDates),
-      parseWeeklyOffDays(this.config.weeklyOffDays(employee.depotId)),
+      parseWeeklyOffDays(this.config.weeklyOffDays(home)),
     );
 
     const inputs: ScoreInputs = {
@@ -247,7 +250,7 @@ export class PerformanceService {
       lateDays: summary.lateDays,
       workingDays,
       salesTotal,
-      salesTarget: this.config.performanceSalesTarget(employee.depotId),
+      salesTarget: this.config.performanceSalesTarget(home),
     };
 
     return {
@@ -257,7 +260,7 @@ export class PerformanceService {
       depotId: employee.depotId,
       position: employee.position,
       inputs,
-      score: computePerformanceScore(inputs, this.config.performanceWeights(employee.depotId)),
+      score: computePerformanceScore(inputs, this.config.performanceWeights(home)),
     };
   }
 }

@@ -43,6 +43,8 @@ export type AnnouncementWithTargets = Announcement & { targets: AnnouncementTarg
 export interface FeedAudience {
   employeeId: string;
   depotId: string | null;
+  /** Where they belong when lent out: a notice for that depot reaches them there too. */
+  homeDepotId?: string | null;
   departmentId: string | null;
   position: string;
 }

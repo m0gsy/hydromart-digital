@@ -190,6 +190,7 @@ export class AnnouncementService {
       {
         employeeId: employee.id,
         depotId: employee.depotId,
+        homeDepotId: employee.homeDepotId,
         departmentId: employee.departmentId,
         position: employee.position,
       },
