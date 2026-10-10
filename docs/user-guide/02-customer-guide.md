@@ -489,7 +489,7 @@ Poin diberikan setelah pesanan pertama teman selesai: pengundang 500 poin dan te
 | 4 | Datang ke depot dan tunjukkan kode: "Tunjukkan kode ini ke petugas depot saat mengambil hadiah." | Petugas menyerahkan hadiah; status menjadi "Sudah diambil". |
 | 5 | (Bila batal) Tekan **Batalkan** sebelum diambil. | "Penukaran dibatalkan, poin sudah dikembalikan." |
 
-Pembatalan hanya bisa selama belum diserahkan. Setelah diambil: "Hadiah ini sudah diambil, jadi penukaran-nya tidak bisa dibatalkan." (teks persis: "Hadiah ini sudah diambil, jadi penukarannya tidak bisa dibatalkan."). Tidak ada batas waktu lain. **[V]**
+Pembatalan hanya bisa selama belum diserahkan. Setelah diambil muncul pesan "Hadiah ini sudah diambil, jadi penukarannya tidak bisa dibatalkan." Tidak ada batas waktu lain. **[V]**
 
 Pesan Inggris: "This reward is out of stock." (hadiah habis), "You do not have enough points to redeem this reward." (poin tidak cukup), "This reward is not available." (hadiah tidak tersedia). Layar menampilkan "Gagal menukar poin. Coba lagi." untuk kegagalan lain. **[V]**
 
@@ -523,3 +523,240 @@ Push bisa dimatikan di Akun. Kesalahan terkait: "Perangkat ini tidak mendukung n
 
 > **[SCREENSHOT REQUIRED: SS-customer-09 — Halaman `/notifications` berisi beberapa notifikasi, sebagian belum dibaca.]**
 > *Gambar 6.6 — Kotak masuk notifikasi.*
+
+### Prosedur: Membatalkan pesanan dan refund
+
+**Tujuan:** Membatalkan pesanan yang belum dikirim. **Prasyarat:** Status Dipesan, Dikonfirmasi, atau Disiapkan, dan kurir belum pernah ditugaskan untuk pesanan itu. **Titik awal:** Rincian pesanan.
+
+| Langkah | Tindakan pengguna | Respons sistem |
+|---|---|---|
+| 1 | Buka rincian pesanan, tekan **Batalkan pesanan**. | Dialog "Batalkan pesanan?" |
+| 2 | Pilih alasan: "Salah alamat / pesanan", "Berubah pikiran", "Terlalu lama", atau "Lainnya". | Alasan bersifat opsional (maks. 255 huruf). |
+| 3 | Tekan **Batalkan pesanan** untuk konfirmasi. | Toast "Pesanan dibatalkan". Status menjadi Dibatalkan. |
+
+Yang terjadi di belakang layar **[V]**: pembayaran dibatalkan atau di-refund lebih dulu, baru pesanan dibatalkan, lalu stok dikembalikan. Pembayaran yang belum lunas (PENDING) langsung menjadi gagal dan tidak ada yang perlu dikembalikan. Pembayaran yang sudah lunas masuk proses refund.
+
+Setelah kurir ditugaskan, tombol hilang dan layar menampilkan: "Kurir sudah ditugaskan, jadi pesanan tidak bisa lagi dibatalkan dari sini. Depot masih bisa menghentikannya." dengan tombol **Hubungi depot** (WhatsApp ke depot bila ada nomor). Aturan ini juga berlaku bila pesanan dijadwalkan ulang setelah kurir sempat ditugaskan. **[V]**
+
+Teks dialog menyebut "depot belum menyiapkan pesanan", padahal sistem mengizinkan pembatalan juga saat status Disiapkan. Syarat & Ketentuan Pasal 8 berbunyi lain (sebelum depot mulai menyiapkan). Jika ragu, hubungi depot sebelum membatalkan. **[B]**
+
+| Pesan | Arti | Solusi |
+|---|---|---|
+| Tidak bisa membatalkan pesanan. | Gagal umum | Coba lagi, atau hubungi depot |
+| An order in status {status} can no longer be cancelled. (arti: pesanan berstatus itu tidak bisa dibatalkan lagi) | Sudah lewat batas | Hubungi depot |
+
+Pesanan juga bisa dibatalkan **otomatis** oleh sistem: bila belum dikonfirmasi lebih dari batas waktu (bawaan 60 menit **[K]**), atau tertahan di depot lebih dari 24 jam (bawaan **[K]**). Anda lalu menerima notifikasi "Pesanan dibatalkan". **[V]**
+
+**Refund — yang perlu Anda ketahui:**
+- Anda tidak bisa mengajukan refund sendiri; refund mengikuti pembatalan atau diproses petugas. **[V]**
+- Refund sampai Rp100.000 (bawaan) diproses langsung; di atas itu perlu persetujuan kantor pusat lebih dulu. **[V][K]**
+- Cara dan waktu uang kembali **tidak terdokumentasi pasti**. QRIS dan transfer dibayar langsung ke depot, sehingga pengembalian dilakukan depot secara manual. FAQ menyebut "1–3 hari kerja ke sumber dana yang sama", tetapi tidak ada aturan kode yang menjamin itu. **[B][K]**
+- Status refund tidak tampil di layar pelanggan dan tidak ada notifikasi saat refund selesai. Hubungi depot atau ajukan komplain untuk menanyakan. **[B]**
+
+> **[SCREENSHOT REQUIRED: SS-customer-10 — Dialog "Batalkan pesanan?" dengan empat pilihan alasan.]**
+> *Gambar 6.7 — Pembatalan pesanan.*
+
+### Prosedur: Mengelola perangkat dan persetujuan
+
+**Titik awal:** **Akun** (`/account`).
+
+| Bagian | Yang bisa dilakukan |
+|---|---|
+| **Perangkat & sesi** | Lihat perangkat yang sedang masuk (tampil jenis perangkat atau "Perangkat tidak dikenali", "Masuk {tanggal}", tanda "Perangkat ini"). Tekan **Keluarkan** untuk perangkat lain atau **Keluar dari sini** untuk perangkat ini. **Keluar dari semua perangkat** meminta konfirmasi: "Semua perangkat, termasuk yang ini, akan diminta masuk lagi. Lanjutkan?" |
+| **Persetujuan** | **Syarat & ketentuan layanan** dan **Kebijakan privasi & pemrosesan data** bersifat wajib dan tidak bisa dicabut selama akun aktif; hentikan sepenuhnya dengan menghapus akun. **Promo dan penawaran** bisa dinyalakan atau dimatikan kapan saja ("Persetujuan diperbarui."). **Riwayat persetujuan** menampilkan catatannya. |
+| **Keluar** | Tombol **Keluar** menutup sesi perangkat ini. |
+
+Bila teks syarat diperbarui, muncul banner "Syarat & kebijakan sudah diperbarui" dengan tombol **Setujui teks terbaru**. Itu pemberitahuan saja; akun tetap aktif. **[V]**
+
+Pesan: "Perangkat dikeluarkan.", "Semua perangkat dikeluarkan.", "Gagal mengeluarkan perangkat.", "Gagal keluar dari semua perangkat.", "Gagal memuat daftar perangkat.", "Tidak ada sesi aktif." "Persetujuan {tujuan} tidak dapat dicabut selama akun aktif. Ajukan penghapusan akun bila ingin berhenti sepenuhnya."
+
+**Deposit galon:** Kartu "Deposit galon" di Akun menampilkan per depot jumlah galon yang Anda pegang dan deposit yang ditahan ("Deposit kembali saat galon dikembalikan ke depot yang sama."). Bila kosong: "Belum ada galon yang Anda pegang." **[V]** Nilai deposit bawaan Rp20.000 per galon **[K]**. Layar keranjang dan checkout tidak menampilkan baris deposit, walaupun Syarat & Ketentuan menyatakan nilainya ditampilkan sebelum membayar; cara pembayaran deposit belum jelas. **[B][K]**
+
+### Prosedur: Meminta salinan data atau menghapus akun (UU PDP)
+
+**Tujuan:** Menggunakan hak data pribadi. **Prasyarat:** Sudah masuk. **Titik awal:** **Akun** → bagian **Data pribadi saya**.
+
+| Langkah | Tindakan pengguna | Respons sistem |
+|---|---|---|
+| 1 | Pilih **Minta salinan data** atau **Minta hapus akun**. | Untuk hapus akun muncul dialog: "Akun dan identitasmu dihapus permanen setelah disetujui. Riwayat pembayaran tetap disimpan tanpa identitas karena kewajiban pajak. Lanjutkan?" |
+| 2 | Konfirmasi. | "Permintaan terkirim. Kantor pusat akan meninjau." Status: "Menunggu ditinjau". |
+| 3 | Pantau status di bagian yang sama. | Tenggat tampil: "Dijawab paling lambat {tanggal}" atau "Lewat batas 3x24 jam". |
+| 4 | Untuk salinan data yang disetujui: tekan **Unduh salinan data**. | Berkas JSON berisi akun, profil, alamat, dan riwayat persetujuan. |
+
+Aturan penting **[V]**:
+- Setiap jenis permintaan hanya boleh satu yang terbuka: "Permintaan sejenis masih diproses."
+- Keputusan dibuat manual oleh kantor pusat (Disetujui atau Ditolak dengan alasan). Status akhir: Selesai atau Ditolak. Tidak ada notifikasi saat diputuskan. **[B]**
+- Unduhan hanya berlaku **7 hari** sejak disetujui. Sebelum disetujui: "Ekspor data belum disetujui. Kirim permintaan dulu, kantor pusat akan meninjau." Setelah 7 hari: "Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini."
+- Penghapusan akun **tidak dapat dibatalkan**. Data pribadi (nama, nomor, email, foto, tanggal lahir, metode bayar tersimpan, favorit, nama dan nomor di alamat) dihapus atau disamarkan. Langganan dibatalkan. Catatan pesanan dan pembayaran tetap disimpan 10 tahun untuk kewajiban pajak, termasuk salinan nama dan nomor penerima di pesanan. Foto bukti antar disimpan paling lama 12 bulan.
+- Sebelum menghapus akun, pastikan tidak ada pesanan yang sedang berjalan atau refund yang ditunggu. Sistem tidak memeriksa pesanan aktif sebelum penghapusan. **[B]**
+- Kesalahan: "Gagal mengirim permintaan." dan "Gagal mengunduh salinan data."
+
+Halaman publik `/hapus-akun` menjelaskan kebijakan ini. Halaman itu masih menyebut "tautan akun Google" padahal masuk dengan Google sudah dihapus, dan menghitung 3x24 jam sejak verifikasi, sementara aplikasi menghitung sejak permintaan dikirim. **[B]** Alamat surel privasi di halaman itu belum tentu dapat menerima surat (lihat bagian 8).
+
+> **[SCREENSHOT REQUIRED: SS-customer-11 — Bagian "Data pribadi saya" di Akun dengan dua tombol dan chip status permintaan.]**
+> *Gambar 6.8 — Data pribadi saya.*
+
+### Prosedur: Meminta bantuan dan mengajukan komplain
+
+**Titik awal:** **Bantuan** (`/help`).
+
+| Langkah | Tindakan pengguna | Respons sistem |
+|---|---|---|
+| 1 | Pilih topik: "Lacak & masalah pengiriman", "Pembayaran & refund", "Galon, deposit & tukar", atau "Akun & keamanan". Atau cari di FAQ. | Jawaban singkat tampil. |
+| 2 | Tekan **Chat dengan CS** atau ikon telepon. | WhatsApp ke nomor depot Anda. Tombol hanya muncul bila depot punya nomor. |
+| 3 | Untuk komplain tercatat, tekan **Ajukan komplain** (harus masuk). Isi **Ringkasan masalah** (wajib, 3–200 huruf), **Nomor pesanan (opsional)**, **Ceritakan yang terjadi** (wajib). | Pesan validasi: "Isi ringkasan masalahnya dulu.", "Ceritakan dulu yang terjadi." |
+| 4 | Tekan **Kirim komplain**. | "Komplain terkirim. Kami menghubungimu lewat nomor akunmu." |
+| 5 | Pantau di daftar komplain. | Status: Menunggu ditangani, Sedang ditangani, Selesai. Balasan tampil sebagai "Balasan Hydromart". |
+
+**Izin dan batasan:** Komplain tidak memicu notifikasi balasan. Periksa daftar komplain secara berkala. **[B]** Jawaban FAQ "Bisakah ubah alamat setelah pesan?" yang menyebut mengubah alamat dari halaman Lacak pesanan tidak sesuai kenyataan (lihat bagian 15). **[B]**
+
+### Prosedur: Mengajukan waralaba (opsional)
+
+Siapa pun dapat membuka `/waralaba` untuk mengajukan calon depot. Isian utama: data pemohon (Nama lengkap, Nomor WhatsApp), calon depot (Kode depot usulan, Nama depot, Kota, Provinsi, titik lokasi), rencana keuangan (Nilai investasi, Proyeksi omzet per bulan), dan persetujuan data wajib. Setelah **Kirim pengajuan** Anda mendapat "Nomor tanda terima". Tim akan menghubungi lewat WhatsApp; tidak ada batas waktu respons yang terdokumentasi. **[V][K]**
+
+## 7. Kolom Wajib dan Aturan Validasi (Ringkasan)
+
+| Formulir | Kolom wajib | Batas dan format |
+|---|---|---|
+| Daftar | Nomor telepon; persetujuan privasi dan ketentuan | Nomor seluler Indonesia; nama maks. 120; email valid maks. 160; kode referral 8 karakter |
+| Masuk / verifikasi | Nomor telepon; kode 6 digit | Kode hanya angka; berlaku 5 menit; maks. 5 salah; kirim ulang tiap 60 detik |
+| Alamat (buku alamat) | Label, Nama penerima, Telepon, Alamat, Kota, titik peta | Label ≤50; nama ≤120; telepon ≤20; alamat ≤255; kota ≤100; kode pos ≤10; catatan ≤255; maks. 20 alamat |
+| Alamat (checkout) | Nama penerima, Telepon, Alamat, Kota | Titik peta wajib bila ingin dirutekan otomatis; bila tidak, pilih depot |
+| Keranjang | — | Jumlah 1–999 per barang |
+| Voucher | — | Satu kode per pesanan; maks. 40 karakter |
+| Bukti bayar | Foto | jpeg/png/webp; maks. 5 MB |
+| Pembatalan | — | Alasan opsional, maks. 255 |
+| Ulasan | Bintang 1–5 | Komentar ≤500; satu ulasan per pesanan |
+| Langganan | Produk, Jumlah, Frekuensi, Pengiriman pertama, Alamat | Jumlah min. 1; tanggal tidak lampau; alamat bertitik peta |
+| Profil | — | Nama ≤120; email ≤160; foto ≤5 MB |
+| Ganti nomor | Nomor baru; kode | Kode dikirim ke nomor baru |
+| Komplain | Ringkasan (3–200), Cerita | Nomor pesanan opsional |
+
+Sumber: DTO layanan dan kamus bahasa. **[V]**
+
+## 8. Kesalahan Umum dan Solusi
+
+| Situasi | Penyebab | Solusi |
+|---|---|---|
+| SMS kode tidak datang | Gangguan atau kredit SMS penyedia | Tunggu 60 detik, **Kirim ulang kode**; bila terus gagal hubungi depot lewat **Bantuan** |
+| Tidak bisa checkout karena "di luar radius" | Alamat di luar jangkauan depot (bawaan 5 km **[K]**) | Pilih alamat lain atau geser titik peta |
+| Hanya "Bayar di tempat" yang tersedia | Depot belum mengatur rekening atau QRIS **[K]** | Pakai tunai atau hubungi depot |
+| Pembayaran masih "PENDING" setelah transfer | Menunggu staf depot mengonfirmasi | Pastikan bukti diunggah; hubungi depot bila lama |
+| Pembayaran tiba-tiba "FAILED" | Tidak dikonfirmasi dalam 24 jam | Gunakan **Coba bayar lagi** |
+| Tombol **Batalkan pesanan** hilang | Kurir sudah ditugaskan | **Hubungi depot** |
+| Pesan error berbahasa Inggris | Server belum diterjemahkan **[B]** | Gunakan terjemahan di panduan ini |
+| Kode referral tidak bisa dipakai | Salah satu syarat tidak terpenuhi | Pastikan Anda pelanggan baru dan kodenya benar |
+| Layar notifikasi kosong padahal ada pesanan | Notifikasi tertentu memang tidak dikirim | Periksa **Pesanan** |
+
+Dukungan: lihat bagian 14 dan Panduan Umum bagian 15.
+
+## 9. Batasan Peran
+
+Sebagai pelanggan, Anda **tidak dapat**:
+- Mengubah status pesanan selain membatalkannya (sebelum kurir ditugaskan) dan menilainya.
+- Mengajukan refund sendiri, atau menyetujui pembayaran sendiri. Pelunasan non-tunai dikonfirmasi staf depot; tunai dikonfirmasi kurir.
+- Memakai lebih dari satu voucher per pesanan, atau voucher bersama harga agen.
+- Menyetujui atau menolak permintaan data pribadi Anda sendiri; keputusan di kantor pusat.
+- Membuka halaman petugas (`/dashboard`, `/hq`, `/hr`, `/driver`, `/resellers`). Layar akses ditolak akan tampil.
+- Mengubah alamat pesanan yang sudah dibuat (Tidak tersedia).
+- Mencabut persetujuan syarat dan privasi selama akun aktif.
+
+## 10. Pertimbangan Keamanan
+
+- Jangan membagikan kode OTP. Hydromart tidak meminta kode lewat telepon atau chat. **[D]**
+- Periksa nomor tujuan SMS: kode resmi memuat "HYDROMART" dan masa berlaku 5 menit. **[V]**
+- Bila ponsel hilang atau dipinjam: masuk dari perangkat lain lalu **Keluar dari semua perangkat**.
+- Tautan lacak bersifat rahasia kecil: siapa pun yang punya tautan dapat melihat status pesanan. Bagikan hanya kepada yang perlu. **[V]**
+- Unggahan bukti bayar: tutup informasi yang tidak perlu (misalnya saldo) sebelum difoto.
+- Jika menerima SMS penggantian nomor padahal bukan Anda: "Bukan kamu yang melakukannya? Segera hubungi depot." **[V]**
+- Persetujuan promo tidak pernah tercentang otomatis dan bisa dicabut di Akun. **[V]**
+
+## 11. Kegiatan Akhir Hari / Berkala
+
+Untuk pelanggan, kegiatan berkala yang disarankan:
+- Periksa status pesanan yang masih aktif di **Pesanan**.
+- Kembalikan galon kosong ke depot bila sudah tidak dipakai agar deposit kembali (pengingat "Galon belum dikembalikan" akan dikirim).
+- Periksa masa berlaku voucher di `/vouchers`.
+- Periksa saldo poin dan tier di `/rewards`.
+- Periksa langganan yang dijeda otomatis di `/subscriptions`.
+- Tinjau perangkat yang masuk dan persetujuan di **Akun** secara berkala.
+
+## 12. Skenario Praktis
+
+**Skenario 1 — Pesan galon pertama kali.** (1) Buka situs, atur lokasi dengan **Gunakan lokasi saya**. (2) Buka **Belanja**, pilih galon, tekan **Tambah ke keranjang —**. (3) Masuk dengan nomor dan kode SMS; barang otomatis masuk keranjang. (4) Di **Keranjang** tekan **Checkout**. (5) Isi alamat, titik lokasi, pilih **Bayar di tempat (COD)**. (6) Tekan **Buat pesanan**. (7) Pantau di **Pesanan** sampai "Tiba". (8) Bayar tunai ke kurir, lalu **Nilai pesanan**.
+
+**Skenario 2 — Salah alamat.** Pesanan masih berstatus "Dikonfirmasi" dan kurir belum ditugaskan. Alamat pesanan tidak dapat diubah, jadi buka rincian pesanan, tekan **Batalkan pesanan**, pilih "Salah alamat / pesanan", lalu pesan ulang dengan alamat benar (atau **Pesan lagi**). Jika pesanan sudah dibayar, tanyakan refund ke depot.
+
+**Skenario 3 — Transfer sudah dilakukan tetapi status belum lunas.** Buka rincian pesanan, tekan **Pilih foto bukti**, unggah foto bukti. Tunggu staf depot. Bila lebih dari yang wajar, tekan **Chat dengan CS** di **Bantuan**.
+
+**Skenario 4 — Langganan galon rutin.** Buka **Langganan**, pilih produk, jumlah 2, frekuensi Mingguan, tanggal besok, alamat bertitik peta, **Mulai langganan**. Jika bepergian, tekan **Jeda**; **Lanjutkan** saat kembali.
+
+**Skenario 5 — Menutup akun.** Buka **Akun** → **Data pribadi saya** → **Minta salinan data** dahulu bila perlu; setelah disetujui, **Unduh salinan data** dalam 7 hari. Pastikan tidak ada pesanan atau refund tertunda, lalu **Minta hapus akun**.
+
+## 13. Daftar Periksa Penyelesaian
+
+- [ ] Akun terdaftar dan nomor telepon terverifikasi
+- [ ] Setidaknya satu alamat tersimpan dengan titik peta
+- [ ] Preferensi notifikasi sesuai keinginan
+- [ ] Pesanan pertama dibuat dan dilacak sampai selesai
+- [ ] Pesanan dinilai
+- [ ] Kode referral dibagikan (opsional)
+- [ ] Persetujuan promo ditinjau
+- [ ] Perangkat lama dikeluarkan bila tidak dipakai
+
+## 14. Inventaris Screenshot Bab Ini
+
+| ID | Layar | Kondisi | Status |
+|---|---|---|---|
+| SS-customer-01 | `/register` | Semua kolom, dua kotak centang | Belum diambil |
+| SS-customer-02 | `/verify` | Kotak kode dan hitung mundur | Belum diambil |
+| SS-customer-03 | `/addresses` | Formulir alamat dengan tombol lokasi | Belum diambil |
+| SS-customer-04 | `/products` | Pencarian, kategori, daftar produk | Belum diambil |
+| SS-customer-05 | `/checkout` | Semua bagian terisi | Belum diambil |
+| SS-customer-06 | Rincian pesanan | Banner "Pesanan berhasil dibuat!" | Belum diambil |
+| SS-customer-07 | Panel pembayaran | Transfer/QRIS dengan unggah bukti | Belum diambil |
+| SS-customer-08 | Rincian pesanan | Bilah kemajuan dan kartu kurir | Belum diambil |
+| SS-customer-09 | `/notifications` | Beberapa notifikasi | Belum diambil |
+| SS-customer-10 | Dialog pembatalan | Empat alasan | Belum diambil |
+| SS-customer-11 | Data pribadi saya | Tombol dan chip status | Belum diambil |
+
+Gunakan akun dan nomor telepon contoh (sintetis) untuk semua tangkapan layar.
+
+## 15. Catatan Celah dan Hal yang Perlu Dikonfirmasi
+
+### Hal yang perlu diketahui (fitur yang tidak tersedia atau tidak sesuai teks di layar)
+
+| Hal | Yang tertulis di layar atau dokumen | Kenyataan | Tag |
+|---|---|---|---|
+| Lupa kata sandi | Tidak ada | Tidak ada kata sandi; masuk dengan OTP | Tidak tersedia |
+| Pelacakan kurir real-time di peta | Tur: "Pantau kurir real-time" | Tidak tersedia. Yang ada: status, nama dan nomor kurir, perkiraan tiba, segar tiap 15 detik | [B] |
+| Mengubah alamat setelah memesan | FAQ: bisa dari halaman Lacak pesanan | Tidak tersedia. Batalkan lalu pesan ulang bila kurir belum ditugaskan | [B] |
+| Melewati (skip) satu jadwal langganan | Syarat & Ketentuan Pasal 10 | Tidak tersedia. Pakai **Jeda** dan **Lanjutkan** | [B] |
+| Melihat status refund | FAQ menyebut refund 1–3 hari kerja | Tidak ada tampilan status refund dan tidak ada notifikasi selesai | [B] |
+| Baris deposit galon di checkout | Syarat & Ketentuan Pasal 6: nilai deposit ditampilkan sebelum membayar | Tidak tampil di keranjang dan checkout | [B][K] |
+| Batas pesan "sebelum 16.00, tiba hari ini" | Teks halaman produk | Tidak ada aturan batas jam di sistem; teks tetap | [B] |
+| Estimasi "±30 mnt" / "±30–45 menit" | Beranda, keranjang, sukses pesanan | Teks tetap, bukan hitungan | [B] |
+| Jam jadwal pengiriman tersimpan sebagai tanggal | Pilihan tanggal di checkout | Tanggal tidak disimpan; hanya teks jam | [B] |
+| Tip untuk kurir | Pernah ada | Dihapus dari tampilan | Tidak tersedia |
+| Pembayaran e-wallet dan virtual account | Teks pemasaran menyebut | Kemungkinan belum aktif di produksi | [D][K] |
+| Metode bayar tersimpan dipakai di checkout | Menu Akun | Tampaknya hanya label | [D] |
+| Notifikasi WhatsApp dan email | PRD | Tidak ada; hanya SMS, push, dan kotak masuk | Tidak tersedia |
+| Notifikasi pembayaran, refund, balasan komplain, keputusan PDP | — | Tidak ada | [B] |
+| Bonus "+50 poin" saat daftar | Lencana di formulir | Bonus kode referral sebenarnya 250 poin (bawaan) dan baru masuk setelah pesanan pertama selesai | [B] |
+| Hadiah ulang tahun | Teks tanggal lahir | Belum ada kode yang diverifikasi | [D] |
+| Masa berlaku poin | "Hangus setelah 12 bulan tanpa aktivitas" | Kode: 12 bulan sejak diperoleh, dan penyapuan otomatis mati secara bawaan | [B][K] |
+| Belanja sebagai tamu | — | Tidak tersedia; masuk wajib untuk keranjang dan checkout | Tidak tersedia |
+
+### Hal yang perlu dikonfirmasi (rujuk ke 17-open-questions)
+
+1. Nilai per depot: minimum pesanan, ongkir per galon, biaya antar sekarang, jam jadwal, radius layanan, diskon langganan. **[K]**
+2. Cara dan waktu refund untuk tunai, transfer, dan QRIS. **[K]**
+3. Cara pelanggan membayar dan mendapatkan kembali deposit galon. **[K]**
+4. Ketersediaan e-wallet dan virtual account di produksi. **[K]**
+5. Apakah penghapusan akun perlu diblokir bila ada pesanan aktif. **[B]**
+6. Surel `privacy@hydromart-digital.com`: per 2026-09-25 domain tidak memiliki catatan MX sehingga surat berisiko tidak sampai. Cek ulang sebelum mencantumkannya ke pelanggan. **[B]**
+7. Pesan Inggris yang masih tampil ke pelanggan (checkout, voucher, hadiah, langganan, alamat) perlu diterjemahkan. **[B]**
+8. Daftar browser dan perangkat resmi. **[K]**
+9. Nomor atau kanal dukungan pusat dan jam layanan. **[K]**
+
+*Hak akses pelanggan tetap (satu peran). Catatan bahwa Super admin dapat mengubah hak akses saat berjalan berlaku untuk peran internal dan dijelaskan di Panduan Umum bagian 12.*

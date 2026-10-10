@@ -713,3 +713,203 @@ Dua pengaturan ini dimiliki Head office, tetapi **tidak ada di /hq**; letaknya d
 | Insiden | Berlangsung → Selesai | Head office, Direktur | — |
 | Fraud | Terbuka → Ditinjau → Diblokir / Aman | Head office, Direktur | Tidak |
 | Permintaan UU PDP | Menunggu → Selesai / Ditolak | Head office | Ya |
+
+---
+
+## 7. Kolom wajib dan aturan validasi (ringkasan)
+
+| Layar | Kolom wajib | Aturan penting |
+|---|---|---|
+| Masuk | Nomor telepon; Kode OTP | OTP 6 digit; berlaku 300 detik; maksimal 5 salah; jeda kirim ulang 60 detik (bawaan). **[V]** |
+| Onboard depot | Kode, Nama depot, Alamat, Kota, Provinsi, Latitude, Longitude, Ongkir; Pemilik waralaba bila Waralaba | Latitude −90..90; Longitude −180..180; Ongkir ≥ 0; Radius > 0 bila diisi; WhatsApp 8–15 digit. **[V]** |
+| Undang staf | Nomor telepon, Peran; Posisi, Gaji (selain Pemilik waralaba); Depot untuk Staf depot dan Kepala depot | Gaji > 0; peran sesuai hak pemberi. **[V]** |
+| Impor staf | phone, role, position, joinDate, employmentStatus, salaryType | Maksimal 500 baris; tanggal YYYY-MM-DD. **[V]** |
+| Tolak refund | Alasan penolakan | Wajib; tercatat atas nama pengambil keputusan. **[V]** |
+| Tolak permintaan UU PDP | Alasan penolakan | Wajib; dibaca pelanggan. **[V]** |
+| Tangguhkan depot | Ketik kode depot persis | Tombol aktif hanya bila cocok. **[V]** |
+| Jadwal laporan | Nama, Penerima (≥1) | Penerima tidak divalidasi sebagai email. **[V]** |
+| Pajak | — (semua opsional) | PPN 0–100; format faktur ≤64; NPWP ≤64. **[V]** |
+| Insiden | Judul, Layanan terdampak | Judul ≤200; layanan ≤120. **[V]** |
+| Tiket baru | Ringkasan, Nama pelanggan, Nomor HP, Isi | Isi ≤2000. **[V]** |
+| Produk | Nama produk | Harga dasar ≥ 0; foto ≤5 MB. **[V]** |
+
+Aksi **tanpa konfirmasi dan tanpa alasan** **[B]**: menyetujui atau menolak lamaran waralaba, menyetujui atau menolak override harga, menyetujui refund, Blokir/Tinjau/Tandai aman pada fraud, mengaktifkan depot, menonaktifkan atau mengaktifkan akun staf, memilih depot pesanan, "Re-engage". Periksa dua kali sebelum menekan.
+
+---
+
+## 8. Kesalahan umum dan solusi
+
+| Gejala atau pesan | Arti | Solusi |
+|---|---|---|
+| "Khusus HQ" | Peran Anda tidak memegang hak halaman itu. | Gunakan Indeks layar HQ untuk melihat apa yang boleh; minta Admin bila perlu akses. |
+| Tombol ditekan lalu muncul penolakan atau "Gagal …" | Tombol tampil tetapi hak tulis tidak ada di peran Anda **[B]**. | Lihat tabel bagian 9.2; serahkan ke peran yang berwenang. |
+| Layar galat penuh pada Pembayaran, Waralaba, Rekonsiliasi, Skema komisi (Finance) | Halaman memuat data dari layanan yang menolak Finance **[B][D]**. | Catat dan laporkan ke Admin (bagian 15.1). Jangan berbagi akun Admin sebagai jalan keluar. |
+| "—" di kartu atau tabel | Data tidak terbaca, BUKAN nol. | Muat ulang; bila berulang, laporkan. |
+| "Net payout ke pemilik" selalu "—" | Biaya platform tidak terbaca untuk peran Anda **[B]**. | Minta Manajer atau Admin membaca angka itu. |
+| "Orang lain sudah mengubah data ini sejak Anda membukanya…" | Dua orang menyimpan bersamaan. | Periksa data baru lalu simpan ulang. |
+| "This application has already been approved or rejected." | Lamaran sudah final. | Tidak ada tindakan; keputusan tidak bisa diubah. |
+| "Pengaju pencairan tidak boleh menyetujui pengajuannya sendiri." | Maker-checker. | Minta Direktur atau Super admin lain. |
+| "Peran {ROLE} hanya boleh diberikan oleh …" | Peran terbatas. | Minta Super admin (atau HR untuk Manajer). |
+| "Gagal memuat …" / "Sebagian data gagal dimuat" | Satu layanan sumber gagal. | Muat ulang; lihat /hq/health. |
+| Aktifkan depot tidak berefek | Server menolak dan layar tidak menampilkan pesan **[B]**. | Minta Manajer atau Super admin. |
+
+---
+
+## 9. Batasan peran
+
+### 9.1 Yang TIDAK bisa dilakukan menurut nilai bawaan
+
+| Peran | Tidak bisa | Butuh |
+|---|---|---|
+| Head office | Membuat, mengubah, menangguhkan depot | Manajer atau Super admin |
+| Head office | Memberikan peran Super admin, Direktur, Finance, HR, Marketing, Manajer | Super admin (Manajer juga oleh HR) |
+| Head office | Ajukan rilis payout, verifikasi rekening, Lunas/Gagal, putuskan refund, terapkan komisi | Finance atau Super admin |
+| Head office | Setujui rilis payout | Direktur atau Super admin |
+| Head office | Mengubah ambang persetujuan (praktis) | Super admin |
+| Direktur | Mengelola staf, katalog, pajak, menjawab permintaan UU PDP | Head office atau Super admin |
+| Direktur | Mengajukan rilis payout | Finance |
+| Finance | Membuka Ringkasan jaringan, Pencarian, Direktori depot, Harga, Voucher, Operasi harian, Analitik, Audit, Kesehatan | Head office, Direktur |
+| Semua | Mengubah matriks hak akses, hierarki, kunci API, webhook, feature flag, retensi, keamanan | Super admin (Bab 10) |
+| Semua | Membuat voucher, aturan harga, kampanye, banner, program loyalti | Marketing, Manajer, atau Super admin |
+
+### 9.2 Tombol yang tampil tetapi ditolak server **[B][V]**
+
+| Layar | Tombol | Hak yang dibutuhkan | Ditolak untuk |
+|---|---|---|---|
+| Direktori depot | "＋ Onboard depot", "Edit", "Tangguhkan", "Aktifkan" | depotAdmin | Head office, Direktur |
+| Pembayaran | "Ajukan rilis", "Verifikasi"/"Tolak" rekening, "Lunas"/"Gagal" | hqPayout | Head office, Direktur |
+| Refund | "Setujui", "Tolak" | refundQueue | Head office, Direktur |
+| Skema komisi | "Terapkan skema baru" | commissionRuns | Head office, Direktur |
+| Churn | "Re-engage" | campaignWrite | Head office, Direktur |
+| Kampanye | Buat dan kirim | campaignWrite | Head office, Direktur |
+| Promosi & banner | Simpan, hapus | promotionWrite | Head office, Direktur |
+| Customer 360 | "Beri poin" | loyaltyAdjust | Head office, Direktur |
+| Aksi cepat (⌘K) | "Buat aturan harga", "Buat voucher", "Broadcast notifikasi" | berbagai | tampil "Khusus HQ" |
+| Harga jaringan | "＋ Aturan baru" | depotAdmin | tampil "Khusus HQ" |
+| Voucher | "＋ Voucher baru" | voucherWrite | tampil "Khusus HQ" |
+
+Tidak ada data yang berubah ketika server menolak.
+
+---
+
+## 10. Pertimbangan keamanan
+
+1. **Satu akun satu orang.** Jangan berbagi akun HQ atau meminjam akun Admin. Semua tindakan keuangan dan pengelolaan staf dicatat atas nama pemegang akun; berbagi akun menghapus akuntabilitas.
+2. **Pemisahan tugas uang.** Payout: Finance mengajukan, Direktur menyetujui, Finance menutup (Lunas/Gagal). Server melarang pengaju menyetujui sendiri. Refund: pemisahan hanya lewat peran dan Finance memegang kedua sisi; tinjau berkala di log audit. **[B]**
+3. **Verifikasi rekening dengan teliti.** Cocokkan nama pemilik dan nomor rekening sebelum "Verifikasi". Uang hanya mengalir ke rekening terverifikasi.
+4. **Aksi tanpa konfirmasi.** Lihat bagian 7. Periksa dua kali.
+5. **Data pribadi.** Customer 360, Pencarian, dan UU PDP menampilkan data pelanggan. Gunakan hanya untuk keperluan kerja; jangan menyalin ke aplikasi pribadi.
+6. **Sesi.** Keluar ("Keluar") dari perangkat bersama. Batas menganggur bawaan 15 menit, ditegakkan saat token diperbarui. Akun yang dinonaktifkan masih dapat bertindak hingga sekitar 15 menit. **[V]**
+7. **Tidak ada 2FA.** OTP telepon adalah satu-satunya faktor. Layar "Keamanan & 2FA" milik Admin tidak menambah faktor kedua. **[V]**
+8. **Tidak ada rahasia di dokumen.** Jangan menuliskan OTP, kata sandi, atau kunci API di tiket, catatan insiden, atau chat.
+9. **Hak dapat berubah.** Super admin dapat mengubah matriks; hak nyata dapat berbeda dari tabel.
+10. **Laporan terjadwal tidak dikirim lewat email**; unduh dari /hq/exports dan simpan di tempat yang aman.
+
+---
+
+## 11. Kegiatan akhir hari dan berkala
+
+| Frekuensi | Kegiatan | Bagian |
+|---|---|---|
+| Harian | Periksa Ringkasan jaringan: "Perlu perhatian", SLA di bawah ambang. | 6.1 |
+| Harian | Antrean lamaran waralaba (umur ≥5 hari ditandai merah). | 6.8 |
+| Harian | Antrean override harga menunggu. | 6.10 |
+| Harian (Finance) | Antrean refund; rekening menunggu verifikasi; penarikan menunggu jawaban bank (Lunas/Gagal). | 6.6, 6.7 |
+| Harian (Direktur) | Pengajuan rilis payout menunggu persetujuan. | 6.6 |
+| Harian | Permintaan UU PDP: pastikan tidak ada "LEWAT BATAS 3x24 jam". | 6.29 |
+| Harian | Insiden berlangsung, tiket terbuka, item fraud terbuka. | 6.23–6.25 |
+| Mingguan | Kesehatan sistem: sapuan "Gagal"/"Terlambat". | 6.28 |
+| Mingguan | Log ekspor data dan laporan terjadwal: cari "GAGAL". | 6.15 |
+| Bulanan | Peringkat depot, laba rugi jaringan (pilih bulan), rekonsiliasi per depot. | 6.13, 6.12, 6.18 |
+| Bulanan | Tinjau skema komisi dan depot waralaba "tanpa pemilik". | 6.22, 6.9 |
+| Berkala | Tinjau log audit untuk aksi sensitif (refund, payout, peran staf). | 6.27 |
+| Berkala | Pastikan tutup buku harian depot dilakukan; buka kembali hanya dengan alasan tercatat. | 6.30 |
+
+---
+
+## 12. Skenario praktis
+
+**Skenario 1 — Mencairkan saldo satu pemilik waralaba.** Pemilik mendaftarkan rekening. Finance mencocokkan nama dan nomor lalu menekan "Verifikasi". Finance menekan "Ajukan rilis" pada pemilik tersebut. Direktur (bukan Finance) membuka Pembayaran, memeriksa "Diajukan oleh", lalu menekan "Setujui & rilis". Finance melakukan transfer di luar sistem, lalu menekan "Lunas" setelah dana masuk. Bila transfer gagal, tekan "Gagal" sehingga saldo kembali.
+
+**Skenario 2 — Melayani lamaran waralaba.** Buka lamaran tertua. Klik tiap butir dokumen sampai "Terverifikasi". Ubah tahap sesuai proses. Tekan "Setujui & provision". Undang akun Pemilik waralaba di Direktori staf. Minta Manajer atau Admin menyelesaikan form "Onboard depot" (Head office dan Direktur akan ditolak server).
+
+**Skenario 3 — Refund besar.** Manajer depot mengajukan refund melebihi ambang. Finance membuka Refund, membaca alasan, lalu "Setujui" atau "Tolak" dengan alasan tertulis. Untuk pesanan yang dibatalkan, refund harus dikembalikan; tombol "Tolak" tidak tersedia.
+
+**Skenario 4 — Permintaan hapus akun pelanggan.** Head office membuka Permintaan data, melihat batas jawab, memeriksa pelanggan, menekan "Setujui" dan membaca peringatan permanen. Data keuangan tetap disimpan tanpa pemilik selama 10 tahun.
+
+**Skenario 5 — Direktur ingin mengubah harga satu depot.** Direktur tidak dapat membuat aturan harga (butuh Manajer atau Super admin). Direktur menunggu usulan override dari Manajer depot, lalu menyetujui di "Harga jaringan".
+
+**Skenario 6 — Hari depot salah ditutup.** Head office membuka /dashboard/reports, memilih depot, tab "harian", menekan "Buka kembali", memperbaiki, lalu depot menutup buku kembali.
+
+---
+
+## 13. Daftar periksa penyelesaian
+
+- [ ] Saya dapat masuk dan melihat peran yang benar di kaki rail.
+- [ ] Saya tahu layar mana yang boleh saya buka (Indeks layar HQ).
+- [ ] Saya paham tombol yang tampil belum tentu boleh dipakai (bagian 9.2).
+- [ ] Saya dapat mengundang staf dan tahu peran apa yang tidak boleh saya berikan (Head office).
+- [ ] Saya paham alur payout empat mata dan siapa pada tiap langkah.
+- [ ] Saya tahu refund yang dibatalkan tidak boleh ditolak.
+- [ ] Saya tahu keputusan lamaran waralaba tidak bisa dibatalkan.
+- [ ] Saya tahu letak "Buka kembali" (/dashboard/reports) dan "Batas auto-pass approval" (/dashboard/settings).
+- [ ] Saya tahu batas jawab permintaan UU PDP adalah 3x24 jam.
+- [ ] (Finance) Saya tahu alur saya perlu verifikasi di lingkungan nyata dan siapa yang dilapori bila layar galat.
+
+---
+
+## 14. Inventaris screenshot bab ini
+
+| ID | Layar | Kondisi | Status |
+|---|---|---|---|
+| SS-hq-01 | /hq/login langkah 1 dan 2 | Nomor sintetis; kode OTP tidak ditampilkan | Belum diambil |
+| SS-hq-02 | /hq Ringkasan jaringan, tampilan "Utama" | Data sampel | Belum diambil |
+| SS-hq-03 | Detail depot dan dialog "Tangguhkan Depot?" | Kode depot sampel terisi | Belum diambil |
+| SS-hq-04 | /hq/payments rilis payout dan pengajuan menunggu | Akun Direktur; data sampel | Belum diambil |
+| SS-hq-05 | /hq/payments "Penarikan menunggu jawaban bank" + konfirmasi | Rekening tersamar | Belum diambil |
+| SS-hq-06 | /hq/refunds + dialog "Tolak refund ini?" | Alasan sampel | Belum diambil |
+| SS-hq-07 | /hq/applications/detail | Checklist sebagian terverifikasi | Belum diambil |
+| SS-hq-08 | /hq/pricing "Override menunggu" | Satu usulan sampel | Belum diambil |
+| SS-hq-09 | /hq/pdp "Menunggu" + dialog hapus akun | Satu permintaan melewati batas | Belum diambil |
+| SS-hq-10 | /dashboard/reports tab harian "Buku ditutup" | Depot sampel | Belum diambil |
+| SS-hq-11 | /dashboard/settings "Batas auto-pass approval" | Cakupan Default jaringan | Belum diambil |
+
+Seluruh gambar harus memakai data sintetis; samarkan nomor telepon dan rekening.
+
+---
+
+## 15. Catatan celah dan hal yang perlu dikonfirmasi
+
+Rujuk juga ke `17-open-questions`.
+
+### 15.1 Finance (temuan terbesar, dari pembacaan kode, belum diuji di browser) **[B][D]**
+
+Finance lolos pintu /hq dan melihat Waralaba, Pembayaran, Refund, Rekonsiliasi, Pajak & faktur, Skema komisi, Template faktur, Profil, Indeks layar, dan HR (SDM). Namun:
+
+- Pembayaran memuat ringkasan eksekutif yang butuh hak `dashboard` (tidak dimiliki Finance) dan kegagalannya menjadi layar galat penuh. Kartu Lunas/Gagal dan rilis mungkin tak terjangkau.
+- Waralaba (pendaratan Finance), Skema komisi memuat daftar depot lewat hak `depotDirectory` (tidak dimiliki Finance): kemungkinan galat penuh.
+- Rekonsiliasi memuat data jaringan lewat hak `dashboard`: kemungkinan galat penuh.
+- Kemungkinan berfungsi: Refund, Pajak & faktur, Template faktur (data contoh), Profil, Indeks layar, HR.
+- Komentar kode menyatakan Finance menjalankan refund, payout, dan komisi dari /hq. Dua dari tiga alur itu bergantung pada halaman di atas. **Semua alur Finance (payout Lunas/Gagal, skema komisi, rekonsiliasi) perlu verifikasi di lingkungan nyata** sebelum panduan ini dipakai melatih Finance.
+
+### 15.2 Celah lain
+
+| No | Celah | Tag |
+|---|---|---|
+| 1 | Head office dan Direktur melihat tombol tulis depot, payout, refund, komisi, kampanye yang ditolak server. | [B] |
+| 2 | Lamaran waralaba dapat disetujui tanpa checklist lengkap; tanpa konfirmasi atau alasan; keputusan final. | [B] |
+| 3 | Menyetujui lamaran tidak membuat akun pemilik atau depot; Head office tidak dapat menuntaskan depot sendiri. | [B] |
+| 4 | "Net payout ke pemilik" selalu "—" bagi Head office, Direktur, Finance. | [B] |
+| 5 | Kebijakan SLA tak terjangkau Head office dan Direktur walau server mengizinkan. | [B] |
+| 6 | Log audit tanpa saringan; pesan ekspor menyarankan menyaring. | [B] |
+| 7 | Pencarian: baris Pesanan tidak bisa diklik; pelanggan hanya via nomor telepon. | [B] |
+| 8 | Refund: tidak ada pengecekan pemohon berbeda dari penyetuju; Finance memegang dua sisi. | [B] |
+| 9 | Beberapa pesan dan label berbahasa Inggris (status pesanan, validasi depot, disclaimer L/R). | [B] |
+| 10 | Teks skor komposit tetap "70% pendapatan + 30% SLA" walau bobot dapat diubah. | [B] |
+| 11 | Format nomor faktur hanya memengaruhi pratinjau; token `{NNNN}` vs `{SEQ}`. | [B] |
+| 12 | Daftar terbatas diam-diam: harga jaringan 50 produk, voucher 50, retur galon dan bandingkan depot dan komisi 100 depot. | [B] |
+| 13 | Penutupan bulan (/dashboard/monthly-review) tampaknya tidak dapat dibuka Head office. | [B][D] |
+| 14 | Ambang persetujuan: Head office memegang hak tetapi tidak punya pintu; praktis hanya Super admin. | [B] |
+| 15 | Apakah balasan tiket sampai ke pelanggan, apakah pemindaian fraud berjalan terjadwal di produksi, apakah ada rilis payout otomatis tanggal 15. | [K] |
+| 16 | Nilai bawaan (ambang refund Rp100.000, batas auto-pass Rp100.000, PPN 0) berasal dari pengaturan dan dapat berubah. | [K] |
+| 17 | Kunjungi Bab 10 untuk celah akun, sesi, dan keamanan yang dikelola Admin. | — |

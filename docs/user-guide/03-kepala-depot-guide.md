@@ -777,3 +777,478 @@ Total COD yang tidak terbaca membuat penutupan gagal dengan aman (tidak jadi dit
 
 > **[SCREENSHOT REQUIRED: SS-kepala-depot-15 — Laporan harian dengan tombol "Tutup buku" dan, pada kondisi kedua, lencana "Buku ditutup"]**
 > *Gambar 3.15 — Tutup buku harian.*
+
+---
+
+### 6.10 Promo dan aturan promo
+
+#### Tab Promo (hanya baca secara server)
+
+**Titik awal:** tab **Promo** (`/dashboard/promotions`). Anda bisa melihat daftar promo dan tombol **Analitik**. Halaman juga menampilkan **Promo baru**, **Edit**, dan **Hapus**, tetapi server hanya mengizinkan Marketing, Manajer, dan Super admin menulis. Jika Anda menekannya, server menjawab 403 "You do not have permission to perform this action." (artinya: Anda tidak punya izin melakukan tindakan ini). Pesan di layar bisa berupa "Gagal menyimpan promo." atau "Gagal menghapus promo." **[B]** **[V]** (`promotions/page.tsx:340-415`; `access/index.ts:125`)
+
+Untuk membuat atau mengubah promo spanduk, minta Manajer atau Marketing. Voucher tidak punya halaman untuk Anda.
+
+#### Prosedur: Membuat aturan promo otomatis untuk depot sendiri
+
+**Tujuan:** Membuat promo otomatis saat checkout (jadwal, produk, kelipatan) untuk depot Anda. **Peran:** Kepala depot (`promoRuleWrite`). **Prasyarat:** hak `promoRuleRead`/`promoRuleWrite`. **Titik awal:** alamat `/dashboard/promo-rules` (diketik langsung — **tidak ada tab**, **[B]**).
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Buka `/dashboard/promo-rules`. | Judul "Aturan promo" — "Promo otomatis saat checkout — jadwal, produk, kelipatan". |
+| 2 | Tekan **＋ Aturan baru**. Isi **Nama**. | — |
+| 3 | Pilih **Jenis**: "Harga khusus (SPECIAL_PRICE)", "Beli X dapat Y (BUY_X_GET_Y)", "Potongan ongkir (SHIPPING_DISCOUNT)", "Diskon persen per produk (PERCENTAGE_OFF)", "Gratis produk lain (BUNDLE_GIFT)", "Diskon minimum belanja (ORDER_DISCOUNT)". | Kolom menyesuaikan jenis. |
+| 4 | Isi **Depot (ID)** = depot Anda. Atur Produk/Semua produk, Kategori, Mulai, Berakhir, Hari, Jam mulai, Jam berakhir, Qty minimum/maksimum, Channel (Aplikasi, Kasir), Aktif, "Hanya pelanggan baru". | Kosongkan Depot (berlaku jaringan) **tidak** bisa untuk Anda. |
+| 5 | Simpan. | Aturan tampil dengan lencana "Aktif"/"Nonaktif" dan tombol **Edit**, **Hapus**, **Duplikat**. |
+
+**Pesan validasi:** "Nama wajib diisi." · "Isi diskon persen dengan bilangan 1-99." · "Isi minimum belanja dan potongannya (nominal, atau persen 1-99)." · "Isi jumlah beli, jumlah gratis, dan pilih produk hadiah." · "Hadiah harus produk yang berbeda — untuk produk yang sama pakai Beli X Gratis Y." · "Gagal menyimpan aturan promo." · "Aturan promo ini sudah pernah dipakai — nonaktifkan saja, jangan hapus." (aturan terpakai tidak boleh dihapus). **[V]**
+
+**Izin & batasan:** Aturan **jaringan** (tanpa depot) terlihat tetapi **Edit/Hapus disembunyikan**. Anda hanya bisa mengubah aturan depot Anda. Tidak ada persetujuan atas aturan depot. Dampaknya langsung ke harga pelanggan, jadi koordinasikan dengan Manajer. **[V]**
+
+**Daftar periksa:**
+- [ ] Rentang tanggal dan jam benar.
+- [ ] Aturan dicoba pada contoh keranjang.
+
+> **[SCREENSHOT REQUIRED: SS-kepala-depot-16 — Halaman Aturan promo dengan daftar aturan dan formulir "＋ Aturan baru"]**
+> *Gambar 3.16 — Aturan promo depot.*
+
+---
+
+### 6.11 Broadcast
+
+#### Prosedur: Mengirim pengumuman ke kurir atau pelanggan depot
+
+**Tujuan:** Menyampaikan info ke kurir aktif atau ke segmen pelanggan depot. **Peran:** Kepala depot (`depotBroadcast`; pelanggan memakai `depotCampaign`). **Titik awal:** tab **Broadcast** (`/dashboard/broadcast`).
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Buka **Broadcast**, tekan **Pesan baru**. Pilih **Kirim ke**: "Kurir aktif", "Semua pelanggan", "Berisiko churn" (tidak order ≥60 hari), atau "Pelanggan baru" (≤30 hari). | Untuk pelanggan tampil "Kirim ke {n} pelanggan". Catatan: "Broadcast pelanggan hanya ke pelanggan depot Anda. Kampanye lintas depot & email/SMS dikelola tim marketing." |
+| 2 | Untuk kurir: pilih **Level** (Info, Mendesak, Terjadwal). | — |
+| 3 | Isi **Judul** (maks 120; contoh "Stok galon 19L menipis") dan **Pesan** (maks 2000). | — |
+| 4 | Tekan **Kirim broadcast**. | Untuk kurir: pemberitahuan di aplikasi kurir, daftar "Terkirim". Untuk pelanggan: kampanye dibuat lalu dikirim bertahap oleh penjadwal (sapuan tiap 2 menit). |
+
+**Masalah umum:** "Isi judul dan pesan dulu." · "Gagal mengirim broadcast." · "A campaign needs at least one recipient." (kampanye butuh minimal satu penerima). Kosong: "Belum ada broadcast terkirim."
+
+**Izin & batasan:** Tidak ada persetujuan atas blast pelanggan di kode. Anda bertanggung jawab atas isi dan jumlah penerima. Kampanye lintas depot dan email/SMS bukan wewenang Anda. Saluran pesan pelanggan adalah kotak masuk aplikasi dan notifikasi dorong; WhatsApp tidak lagi menjadi saluran kirim. **[V]** (temuan I) Beberapa teks di UI atau komentar kode masih menyebut WhatsApp. **[B]**
+
+**Daftar periksa:**
+- [ ] Segmen penerima benar sebelum menekan kirim.
+- [ ] Pesan ke kurir pakai level "Mendesak" hanya untuk hal darurat.
+
+---
+
+### 6.12 Penukaran hadiah
+
+#### Prosedur: Menyerahkan hadiah yang ditukar poin
+
+**Tujuan:** Menyerahkan hadiah kepada pelanggan lalu menandainya. **Peran:** Kepala depot (`rewardHandover`). **Titik awal:** tab **Hadiah** (`/dashboard/redemptions`).
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Buka **Hadiah**. | Judul "Penukaran hadiah" — "Hadiah yang sudah ditukar poin dan menunggu diambil pelanggan." Baris: "Kode", "{n} poin", "Menunggu sejak {waktu}", "Depot mana pun" bila tanpa depot pengambilan. |
+| 2 | Minta pelanggan menunjukkan kode di layar. **Cocokkan kode.** | Petunjuk: "Cocokkan kode di layar pelanggan sebelum menyerahkan hadiah. Setelah ditandai, pelanggan tidak bisa membatalkan lagi." |
+| 3 | Serahkan hadiah, tekan **Sudah diambil**. | Toast "Hadiah ditandai sudah diambil." |
+
+**Pesan:** "Gagal menandai hadiah." · "Penukaran ini sudah dibatalkan." · "Hadiah ini baru saja diserahkan oleh depot lain." · "Penukaran hadiah tidak ditemukan." Kosong: "Tidak ada hadiah yang menunggu diambil." Klik berulang tidak berbahaya (idempoten). **[V]**
+
+---
+
+### 6.13 Jadwal shift kurir
+
+#### Prosedur: Mengatur jadwal shift mingguan kurir
+
+**Tujuan:** Menjadwalkan kurir Pagi/Sore/Libur per hari. **Peran:** Kepala depot (`driverRoster`; semua staf boleh membaca). **Titik awal:** tab **Shift** (`/dashboard/shift`).
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Buka **Shift**. Pilih pekan dengan "Pekan sebelumnya"/"Pekan {rentang}"/"Pekan berikutnya". | "Jadwal shift kurir" + nama depot. Legenda Pagi/Sore/Libur. |
+| 2 | Tekan **Atur shift**. | Tombol menjadi "Selesai atur". |
+| 3 | Tekan sel kurir × hari untuk berganti: Libur → Pagi → Sore → Libur. | Sel kosong dianggap Libur. |
+| 4 | (Opsional) tekan **Salin minggu lalu**. | Bila kosong: "Minggu lalu kosong, tidak ada yang disalin." Gagal: "Gagal menyalin jadwal minggu lalu." |
+| 5 | Tekan **Selesai atur**. | Perubahan tersimpan. Gagal: "Gagal menyimpan shift." |
+| 6 | (Opsional) **Ekspor Excel** atau **CSV**. | Gagal Excel: "Gagal membuat file Excel. Coba ekspor CSV." |
+
+Kosong: "Belum ada kurir" — "Belum ada kurir aktif untuk dijadwalkan di depot ini." Ini jadwal **kurir**. Absen Anda sendiri ada di **Absen saya**. **[V]**
+
+> Jadwal ini tidak otomatis mengunci kurir. Penugasan memeriksa kurir yang sudah check-in shift, bukan jadwal. **[D]**
+
+---
+
+### 6.14 Huddle, serah terima shift, dan perawatan alat
+
+> **[B]** Tiga halaman ini menampilkan pesan penolakan "Khusus Manajer depot" untuk peran yang tidak berwenang. Kepala depot **berwenang** (`depotHuddle`, `depotHandover`, `depotMaintenance`). Pesan itu hanya muncul bila hak Anda dicabut Admin. **[V]**
+
+#### Huddle mingguan (tab Huddle)
+
+| Langkah | Tindakan | Respons |
+|---|---|---|
+| 1 | Buka **Huddle**. Bila belum ada: "Belum ada huddle minggu ini" — tekan **Mulai huddle**. | Minggu dihitung mulai Senin. |
+| 2 | **Kehadiran**: tekan **Catat kehadiran**/**Ubah kehadiran**, ketik (contoh "8 dari 9 hadir"), **Simpan**. | — |
+| 3 | **Agenda & catatan**: **Tambah agenda**, isi **Judul agenda** dan **Catatan**, **Tambah**. | Kosong: "Belum ada agenda." |
+| 4 | **Action item · {selesai}/{total} selesai**: **Tambah action item**, isi **Action item** dan **Penanggung jawab**, **Tambah**. | — |
+
+Error: "Gagal menyimpan huddle." Bentrok edit dijaga (versi terakhir yang dilihat).
+
+#### Prosedur: Serah terima shift
+
+**Tujuan:** Memindahkan tanggung jawab shift dengan daftar periksa. **Titik awal:** tab **Serah terima**.
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Tekan "Serah terima baru". Atur **Shift dari** (bawaan Pagi) dan **Shift ke** (bawaan Sore). | — |
+| 2 | Isi **Staf serah** dan **Staf terima** (**wajib**). | Kosong: "Isi nama staf serah dan terima." |
+| 3 | Tandai **Checklist**: ketuk item untuk berganti kosong → sebagian → selesai. Bawaan: "Hitung kas laci", "Cek stok galon & segel", "Order tertunda dialihkan", "Insiden terbuka diberi tahu", "Setoran COD diverifikasi". | — |
+| 4 | Isi **Catatan (opsional)**, tekan **Buat serah terima**. | Gagal: "Gagal membuat serah terima." |
+| 5 | Buka detail ("{selesai} dari {total} selesai"), tekan **Tandatangani serah terima**. | Berubah menjadi "Sudah ditandatangani" + waktu. Gagal: "Gagal menandatangani serah terima." |
+
+> **[B]** Layar menyuruh melengkapi sisa item sebelum menandatangani, tetapi tombol **tidak dikunci** dan server tidak memeriksa checklist. Tanda tangan bisa diberikan walau checklist belum selesai. Disiplin ada pada Anda. **[V]** (`handover.service.ts:66-69`)
+
+#### Perawatan alat (tab Perawatan)
+
+| Langkah | Tindakan | Respons |
+|---|---|---|
+| 1 | Buka **Perawatan**. | Judul "Perawatan alat", "{depot} · {n} jatuh tempo". Lencana: "Jatuh tempo", "{n} hari lagi", "Baru", "Sehat". Kosong: "Belum ada jadwal". |
+| 2 | Tekan **Jadwalkan**. Isi **Nama alat** (contoh "Filter RO membran"), **Kategori** (contoh "Filtrasi"), **Interval (hari)**, **Servis berikutnya** (tanggal). | Semua **wajib**: "Nama, kategori, interval, dan tanggal berikutnya wajib diisi." |
+| 3 | Tekan **Simpan jadwal**. | Gagal: "Gagal menjadwalkan." |
+| 4 | Setelah alat diservis, tekan **Tandai servis** pada barisnya. | Tanggal berikutnya dihitung dari interval. Gagal: "Gagal menandai servis." |
+
+Teks interval: "Servis tiap {n} hari" atau "Servis tiap {n} bln". **[V]**
+
+**Daftar periksa:**
+- [ ] Huddle mingguan dicatat.
+- [ ] Serah terima shift ditandatangani kedua pihak.
+- [ ] Alat jatuh tempo dijadwalkan servis.
+
+---
+
+### 6.15 Insiden
+
+#### Prosedur: Melaporkan dan menyelesaikan insiden depot
+
+**Tujuan:** Mencatat kejadian operasional dan menutupnya. **Peran:** Kepala depot (`incidents`). **Titik awal:** tab **Insiden** (`/dashboard/incidents`).
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Buka **Insiden**. Filter: "Semua", "Baru" (OPEN), "Ditangani" (IN_PROGRESS), "Selesai" (RESOLVED). | Judul "Insiden" dan "{n} terbuka". Kosong: "Tidak ada insiden". |
+| 2 | Tekan **Laporkan insiden**. Pilih **Jenis**: Kurir terjatuh, Kendaraan mogok, Konflik pelanggan, Listrik padam, Galon bocor / rusak, Lainnya. | — |
+| 3 | Pilih **Tingkat**: BERAT, SEDANG, RINGAN. | — |
+| 4 | (Opsional) **Kurir (opsional)**, **Nomor pesanan (opsional)** (contoh HM-260902-001), **Nomor HP pelanggan**. | Dengan nomor HP, keluhan "Konflik pelanggan" juga masuk antrean pusat; kartu bertanda "Diteruskan ke pusat" atau "Tidak diteruskan". |
+| 5 | Isi **Judul** ("Ringkas dalam satu kalimat"; 3–120 karakter) dan **Keterangan** (maks 1000). | — |
+| 6 | Tekan **Kirim laporan**. | Gagal: "Judul terlalu pendek — tulis apa yang terjadi." / "Laporan gagal dikirim." |
+| 7 | Untuk menutup: pada kartu tekan **Tindak lanjut** atau **Tandai selesai**, isi **Catatan penyelesaian** (min 3 karakter; contoh "Sudah ditangani manajer, pelanggan dihubungi"). | Gagal: "Tulis catatan penyelesaian minimal 3 karakter." / "Gagal menyelesaikan insiden." Hasil: "Diselesaikan {waktu}". |
+
+Daftar kedua **Laporan insiden kurir** (hanya baca): "Dilaporkan kurir dari jalan. Yang HIGH sudah masuk feed ops; sisanya dibaca di sini." Kosong: "Belum ada laporan insiden dari kurir depot ini." Ada tautan "Lihat foto". **[V]**
+
+**Izin & batasan:** Kode mengizinkan Kepala depot menyelesaikan insiden, walau komentar hak akses menyebut Manajer yang menyelesaikan. **[V]** (`access/index.ts:293-295`) Hanya laporan kurir tingkat Darurat (HIGH) yang diteruskan ke tim operasional. **[V]**
+
+---
+
+### 6.16 Sengketa order
+
+#### Prosedur: Mencatat dan menyelesaikan sengketa pelanggan
+
+**Tujuan:** Menangani klaim pelanggan atas pesanan. **Peran:** Kepala depot (`depotDisputes`). **Titik awal:** alamat `/dashboard/disputes` (**tidak ada tab**, **[B]**).
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Ketik `/dashboard/disputes`. | "Sengketa order" — "{n} terbuka · klaim pelanggan". Chip: Semua, Terbuka, Selesai, Ditolak. |
+| 2 | Tekan "Catat sengketa". Isi **Nomor order** (contoh ORD-2418), **Nama pelanggan**, **Kategori** (Salah item, Tidak diterima, Lebih bayar, Kualitas, Lainnya), **Nilai (Rp, opsional)**, **Kurir (opsional)**, **Keterangan**. | Wajib: nomor order, nama pelanggan, keterangan. Pesan: "Nomor order, nama pelanggan, dan keterangan wajib diisi." |
+| 3 | Tekan **Simpan sengketa**. | Sengketa berstatus OPEN. |
+| 4 | Untuk menutup, isi **Catatan (opsional)** lalu pilih **Refund ({nominal})**, **Kirim ulang**, atau **Tolak**. | **Tolak** → Ditolak. **Kirim ulang** hanya menandai selesai; **tidak membuat pesanan pengganti**. |
+
+> **[B] Refund tidak dapat dijalankan oleh Kepala depot.** Tombol **Refund** meminta refund dengan hak akses Anda, sedangkan hak `refundIssue` hanya milik Finance, Manajer, Super admin. Permintaan ditolak, sengketa tetap OPEN, dan muncul "Refund tidak bisa diminta: {alasan}". Teruskan sengketa bernilai uang ke Manajer. Refund bernilai besar tetap butuh persetujuan Kantor pusat/Finance. **[V]** (`dispute.service.ts:100-124`; teks penolakan **[D]**)
+
+Alasan tidak-bisa-refund yang mungkin: "integrasi refund belum dikonfigurasi", "sesi tidak terbaca, refund tidak diminta", "pesanan {ref} tidak ditemukan", "nomor {ref} cocok dengan {n} pesanan". Pesan lain: "This dispute has already been resolved or rejected." (sengketa sudah selesai/ditolak) · "Gagal menyelesaikan sengketa." Teks penolakan akses "Khusus Manajer depot" menyesatkan; Kepala depot berwenang. **[B]**
+
+---
+
+### 6.17 Pelanggan, CRM, dan impor
+
+#### Direktori pelanggan (tab Pelanggan)
+
+| Langkah | Tindakan | Respons |
+|---|---|---|
+| 1 | Buka **Pelanggan**. Cari lewat **Cari nama atau telepon**. | Kolom: Pelanggan, Pesanan, Galon dipinjam, Terakhir, Detail. Lencana "Langganan"; "Tanpa nama"; "Data galon depot belum tersambung". |
+| 2 | Tekan baris untuk detail. | Statistik: Total pesanan, Nilai belanja, Galon dipinjam; "Risiko churn" (dengan saran retensi); "Deposit galon"; "Pesanan terakhir"; "Alamat" ("Utama", "Dalam jangkauan"/"Luar jangkauan"). |
+| 3 | Tombol **Hubungi** membuka panggilan telepon. | — |
+
+> **[B]** Tombol **Buatkan pesanan** pada detail pelanggan **tidak membuat pesanan**; hanya membuka antrean pesanan. Foto pendaftaran agen tidak tampil untuk Kepala depot. **[V]** (`customers/detail/page.tsx:276-280`)
+
+#### Prosedur: Impor pelanggan atau alamat dari Excel
+
+**Tujuan:** Memasukkan banyak pelanggan sekaligus. **Peran:** Kepala depot (`depotCrmWrite`). **Titik awal:** **Pelanggan** > **Import Excel** atau **Import Alamat Pelanggan**.
+
+| Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
+|---|---|---|
+| 1 | Pastikan satu depot terpilih. | Jika tidak: "Pilih satu depot dulu di pemilih depot". Untuk Kepala depot, depot Anda otomatis satu. |
+| 2 | Tekan **Unduh template Excel**. Isi kolom: **fullName*** (≤120), **phone*** (≤32, nomor HP Indonesia), addressLine (≤255), city, province, landmark. | Mengisi alamat berarti kota wajib. |
+| 3 | Tekan **Pilih file** (.xlsx atau .csv saja, maks 500 baris). | Ringkasan "{n} baris siap" / "{n} baris bermasalah". |
+| 4 | Unduh baris bermasalah (**Unduh baris bermasalah** / **Unduh baris gagal**), perbaiki, unggah ulang. | — |
+
+Pesan: "Maksimal {max} baris per file (file ini {count})." · "bukan nomor HP Indonesia yang sah" · "Format lama (.xls / .ods) tidak bisa dibaca..." · "File kosong atau tidak punya baris data." · "Kolom wajib hilang: {kolom}." · "Impor gagal, coba lagi." Pelanggan yang diimpor tetap mendaftar lewat OTP dan otomatis tertaut. **[V]**
+
+#### CRM & follow-up (hanya URL)
+
+Alamat `/dashboard/crm`, hanya baca. Kartu: "Baru" (order pertama ≤30 hari), "Aktif" (order ≤30 hari terakhir), "Tidak aktif" (tidak order >30 hari), "Total pelanggan", "Repeat rate". "Antrean follow-up" berisi pelanggan tanpa order >60 hari dengan tombol **WhatsApp** (membuka tautan wa.me dengan templat sapaan). Ini membuka aplikasi WhatsApp Anda sendiri, bukan kirim sistem. **[V]** **[B]** karena tidak ada tab.
+
+---
+
+### 6.18 Halaman pendukung lain
+
+| Halaman | Rute | Apa yang Anda lihat/lakukan | Catatan |
+|---|---|---|---|
+| Notifikasi | `/dashboard/notifications` (tab Notifikasi + lonceng) | "Riwayat notifikasi"; kelompok "Hari ini"/"Kemarin"; tombol **Tandai semua dibaca**; filter Semua, Belum dibaca, Pesanan, Stok, Kurir, Penjualan, HR; lencana "Gagal kirim". Kosong: "Tidak ada peringatan". | Teks "dari seluruh jaringan depot" **[B]**; umpan sebenarnya hanya depot Anda. Status baca tersimpan per akun. Hanya "Stok menipis" dan "Insiden kurir" berjudul Indonesia; event lain tampil sebagai kode mentah. |
+| Audit | `/dashboard/audit` | "Jejak audit" depot Anda, chip Semua, Harga, Pengembalian dana, Staf. Hanya baca. | Kosong: "Belum ada aktivitas" |
+| Perkiraan | `/dashboard/forecast` (URL) | "Perkiraan permintaan", pilihan "Rentang prediksi" dan "Jendela riwayat", tabel produk dan "Prediksi pendapatan". Hanya baca. | Kosong: "Belum ada perkiraan" |
+| Kelola depot | tab **Kelola depot** | Daftar/Peta, detail depot (Profil, Alamat, Koordinat, Radius layanan, Ongkir, Min. order, Hari libur, Ringkasan stok). | **Hanya baca.** Tombol "Depot baru", "Ubah", "Jam & libur", "Nonaktifkan/Aktifkan" disembunyikan untuk Anda. |
+| Pembayaran | tab **Pembayaran** | Kosong | **[B]** Tab tampil tetapi ditolak: "Akses manajer depot" — "Pengaturan pembayaran hanya untuk manajer depot dan super admin." QRIS/rekening diatur Manajer. |
+| Pengaturan depot | `/dashboard/depot-settings` | Ditolak: "Khusus Manajer depot" — "Pengaturan depot butuh hak depotAdmin." | **[V]** |
+| Peran & akses | `/dashboard/roles` | Matriks hak akses hanya baca ("Read-only"). | Hanya Super admin dapat mengubahnya. Daftar tampil adalah nilai bawaan. |
+| Akun saya | `/dashboard/account` | "Pengaturan": "Alert yang dikirim", "Bahasa", "PIN persetujuan", "Perangkat masuk". | — |
+
+---
+
+### 6.19 HRIS mandiri untuk Kepala depot (/hr/me)
+
+**Titik awal:** tab **Absen saya** (`/hr/me`). Layar bersih tanpa tab; tautan "← Kembali ke konsol" kembali ke dasbor. Prasyarat: akun tertaut ke karyawan aktif. **[V]**
+
+Menu: "Halo, {nama}" — "Layanan mandiri karyawan". Kartu: "Absen Sekarang", "Absensi Saya", "Slip Gaji Saya", "Cuti Saya", kasbon, "Pengumuman", "Daftar / Perbarui Wajah". Prosedur lengkapnya sama dengan yang dipakai kurir dan dijelaskan terperinci di Bab 4, bagian 6.15–6.20. Ringkasan khusus Kepala depot:
+
+| Tugas | Langkah singkat | Catatan |
+|---|---|---|
+| Daftar wajah (sekali) | **Daftar / Perbarui Wajah** > **Ambil Foto** (1–3 foto) > centang persetujuan > **Simpan** | Wajib sebelum absen pertama. |
+| Absen | **Absen Sekarang** > pilih Check-in/Check-out > **Ambil Foto** | Perlu kamera dan GPS. Geofence depot hanya berlaku bila depot mengaturnya. |
+| Cuti | **Cuti Saya** > isi Jenis, Mulai, Selesai, Alasan > **Ajukan Cuti** | Tahap 1: **Manajer** (atau HR); tahap 2: HR. Anda tidak menyetujui cuti. |
+| Kasbon | **Kasbon Saya** > Nominal, Alasan > **Ajukan Kasbon** | Diputuskan Asisten SPV depot bila ada; bila tidak ada, Manajer/HR. Anda tidak memutuskan kasbon. Cicilan ditentukan penyetuju. |
+| Slip gaji | **Slip Gaji Saya** > pilih periode > **Unduh PDF** | Slip berstatus Draft juga terlihat sebelum HR menyetujui; angka bisa berubah. **[B]** |
+
+**Waktu absen vs shift kasir:** absen wajah (HRIS) dan shift kasir (konter) adalah dua hal terpisah. Absen wajah tidak membuka shift kasir. **[V]**
+
+---
+
+## 7. Kolom wajib & aturan validasi (ringkasan)
+
+| Formulir | Kolom wajib | Batas/format | Bukti |
+|---|---|---|---|
+| Buka shift kasir | — (kosong = 0) | Angka bulat 0..batas | **[V]** |
+| Tutup shift kasir | Uang tunai dihitung | Bulat 0..batas; catatan ≤500 | **[V]** |
+| Penjualan konter | Produk/jumlah; metode bayar; tunai ≥ total | Voucher butuh nomor HP; galon kosong ≤ galon isi | **[V]** |
+| Batalkan penjualan | Alasan | ≤255 karakter | **[V]** |
+| Konfirmasi pembayaran | — | Uang tunai diterima opsional | **[V]** |
+| Tarik/Batalkan pengiriman | Alasan | Teks bebas | **[V]** |
+| Verifikasi setoran | Catatan bila sengketa atau setoran lebih >Rp5.000 | — | **[V]** |
+| Terima/Sesuaikan stok | Jumlah bulat | Alasan ≤300; hasil tidak <0 | **[V]** |
+| Opname | Jumlah hitung ≥0 | Alasan ≤300 | **[V]** |
+| Tambah baris stok | Jenis, produk/nama, satuan | Stok awal & minimum bulat ≥0 | **[V]** |
+| Retur galon | Jumlah >0 | Deposit ≥0; refund ≤ deposit ditahan | **[V]** |
+| Meteran | Pagi dulu, sore ≥ pagi | ≥0, 3 desimal | **[V]** |
+| Tutup buku | Tanggal | YYYY-MM-DD; catatan ≤500 | **[V]** |
+| Broadcast | Judul, pesan | Judul ≤120, pesan ≤2000 | **[V]** |
+| Insiden | Judul 3–120, keterangan ≤1000 | Catatan selesai 3–1000 | **[V]** |
+| Sengketa | Nomor order, nama, keterangan | — | **[V]** |
+| Serah terima | Staf serah, staf terima | Shift 1–60; staf 1–120 karakter | **[V]** |
+| Perawatan | Nama, kategori, interval, tanggal | — | **[V]** |
+| Impor pelanggan | fullName, phone | ≤500 baris; .xlsx/.csv | **[V]** |
+
+---
+
+## 8. Kesalahan umum & solusi
+
+| Gejala | Penyebab | Solusi |
+|---|---|---|
+| Tab **Pembayaran** menolak akses | Hak `depotAdmin` hanya Manajer/Super admin | Minta Manajer mengisi QRIS/rekening **[B]** |
+| Tombol di **Promo** menghasilkan error 403 | Server hanya baca untuk Anda | Minta Manajer/Marketing **[B]** |
+| Halaman meteran, aturan promo, sengketa, CRM tidak ada di tab | Halaman hanya lewat URL | Simpan alamatnya sebagai bookmark **[B]** |
+| Badge status berbahasa Inggris | Terjemahan belum terpasang | Lihat padanan di 6.2 **[B]** |
+| Tidak bisa membatalkan pesanan Preparing | Tidak ada tombol di UI | Minta Manajer atau gunakan "Batalkan pengiriman" bila sudah ditugaskan **[B]** |
+| Tidak bisa melihat status persetujuan opname/galon | Halaman persetujuan hanya Manajer | Tanya Manajer **[B]** |
+| Setoran Sengketa tidak bisa diselesaikan | Tombol tidak ada di UI | Hubungi Manajer/Kantor pusat **[B]** |
+| "Pesanan masuk" tidak sama dengan jumlah hari ini | Memakai 100 pesanan terbaru | Pakai **Laporan** > harian untuk angka resmi **[B]** |
+| Pesan error server berbahasa Inggris | Server belum menerjemahkan | Lihat terjemahan di tabel masalah tiap prosedur |
+| "Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya." | Anda menyentuh data depot lain | Wajar; depot Anda terkunci **[V]** |
+| "You do not have permission to perform this action." | Hak akses tidak ada (artinya: tidak punya izin) | Minta peran yang berwenang atau Admin |
+
+---
+
+## 9. Batasan peran (apa yang TIDAK bisa; butuh persetujuan siapa)
+
+### 9.1 Batas wewenang Kepala depot, Manajer, dan Kantor pusat
+
+| Situasi | Kepala depot dapat | Butuh |
+|---|---|---|
+| Opname dengan nilai selisih **> Rp100.000** (bawaan, `approvalAutoPassIdr`) | Menyimpan hitungan (stok langsung berubah) | **Manajer** memutuskan di Antrean approval (Setujui/Tolak/Tahan) |
+| Opname ≤ Rp100.000 | Selesai sendiri | Tidak ada persetujuan sama sekali |
+| Stok kurang dari pesanan setelah opname | Menyimpan hitungan | Persetujuan Manajer "Stok kurang dari pesanan: {item}" |
+| Retur galon melebihi saldo beredar; retur rusak; retur tanpa pelanggan | Mencatat retur | Persetujuan Manajer (GALLON_VARIANCE / DEPOSIT_REFUND) |
+| Mengubah batas auto-pass Rp100.000 | **Tidak bisa** | **Kantor pusat** atau Super admin (`approvalThresholdWrite`) |
+| Kekurangan setoran COD | Memutuskan sendiri: bebankan ke kurir atau tidak, atau sengketakan | Tidak ada persetujuan (jenis COD_VARIANCE tidak dipakai) |
+| Selisih laci kas saat tutup shift | Hanya tercatat | Tidak ada persetujuan |
+| Refund pesanan ("Ajukan refund", tombol Refund pada sengketa) | **Tidak bisa** | Manajer/Finance mengajukan; Finance memutuskan; nilai besar (>Rp100.000 bawaan `REFUND_HQ_THRESHOLD`) menunggu persetujuan Kantor pusat/Finance |
+| Membuka kembali hari yang sudah ditutup | **Tidak bisa** | **Kantor pusat** atau Super admin |
+| Membuat/mengubah/menghapus promo spanduk | Hanya melihat | Marketing atau Manajer |
+| Voucher | Tidak punya halaman | Marketing atau Manajer |
+| Aturan promo | **Bisa**, hanya depot sendiri | Aturan jaringan oleh pusat |
+| Data depot, jam buka, hari libur, QRIS/rekening, ongkir, radius, harga katalog | **Tidak bisa** | **Manajer** (`depotAdmin`) |
+| Harga jual per baris stok ("Harga") | **Bisa**, langsung berlaku | Impor harga massal masuk persetujuan Kantor pusat |
+| Akun staf dan peran | **Tidak bisa** | Kantor pusat (`staffAdmin`), Super admin |
+| Pesanan pembelian dan pemasok | **Tidak bisa** | Manajer |
+| Susut, loyalty, referral, rating, langganan, target, harga borongan, buku kas, rekonsiliasi pembayaran, komisi, ulasan bulanan | **Tidak punya menu** | Manajer dan peran keuangan |
+| Menutup shift kasir orang lain | **Tidak bisa** | Manajer/SPV/Finance/Direktur/Super admin |
+| Menyetor COD atas nama kurir | **Tidak bisa** | Kurir sendiri |
+| Menyetujui klaim pengeluaran kurir | **Tidak bisa** (`expenseApprove`) | Manajer (sampai Rp500.000 bawaan), Finance di atasnya |
+| Menyetujui cuti | **Tidak bisa** | Tahap 1 Manajer/HR, tahap 2 HR |
+| Menyetujui kasbon | **Tidak bisa** | Asisten SPV (jika ada), Manajer, HR |
+| Membatalkan pesanan yang belum dikirim | Tidak ada tombol | Manajer/Kantor pusat |
+| Data depot lain | **Terkunci** | — |
+
+> Seluruh nilai ambang di atas adalah bawaan kode. Pengaturan depot atau Kantor pusat dapat berbeda. **[K]**
+
+### 9.2 Terkunci pada satu depot
+
+Peran Kepala depot dan kurir terkunci pada satu depot yang tercantum di token akses. Nama depot lain dalam permintaan ditolak dengan "Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya." Akun tanpa depot ditolak dengan "Akun ini belum diberi tanggung jawab depot manapun." Karena itu tidak ada pemilih depot di header Anda. Penempatan diubah HR. **[V]**
+
+### 9.3 Masalah UI yang diketahui
+
+1. **[B]** Tab ditolak server: **Pembayaran** tampil di bilah tab tetapi ditolak.
+2. **[B]** Halaman hanya lewat URL (tanpa tab): Meteran air, Aturan promo, Sengketa order, CRM & follow-up, Perkiraan, Peran & akses, Akun saya, Pencarian.
+3. **[B]** Status berbahasa Inggris: status pesanan; status pembayaran/pengiriman tampil sebagai kode mentah.
+4. **[B]** Tombol tampil tetapi server menolak: **Promo baru**, **Edit**, **Hapus** pada tab Promo.
+5. **[B]** Pesan penolakan menyesatkan ("Khusus Manajer depot") pada halaman yang Kepala depot berwenang atasnya.
+6. **[B]** Tombol tidak ada di UI walau server mendukung: batalkan pesanan, selesaikan setoran Sengketa.
+7. **[B]** "Data akun", "Ubah PIN", dan "Ambang low-stock default" pada Pengaturan tidak berfungsi.
+
+---
+
+## 10. Pertimbangan keamanan
+
+- **Keluar setelah selesai.** Tombol **Keluar** ada di tab **Pengaturan**. Jangan meninggalkan konsol terbuka di komputer bersama.
+- **Satu orang, satu akun.** Shift kasir melekat pada akun. Jangan bergantian memakai satu akun; selisih kas akan ditagih kepada pemilik shift.
+- **Kode OTP rahasia.** Jangan bagikan kode ke siapa pun, termasuk yang mengaku dari pusat.
+- **Alasan jujur.** Alasan pembatalan, penarikan, dan sengketa tersimpan di jejak audit.
+- **Data pelanggan.** Nomor HP pelanggan dilindungi UU PDP. Jangan menyalin ke luar sistem. Bukti antar disimpan 12 bulan lalu dihapus otomatis. **[V]**
+- **Data wajah.** Anda bisa menarik persetujuan dan menghapus data wajah sendiri dari menu Daftar Wajah.
+- **Struk dan popup.** Izinkan popup hanya untuk situs Hydromart.
+- **Pembagian tugas (maker-checker).** Pengaju tidak boleh memutuskan pengajuannya sendiri ("Pengaju tidak boleh memutuskan pengajuannya sendiri — teruskan ke atasan."). Jangan mencoba meminta Manajer menyetujui item Anda secara tidak tercatat.
+- Hak akses di bab ini adalah nilai bawaan; Super admin dapat mengubahnya dan perubahan berlaku sekitar 30 detik.
+
+---
+
+## 11. Kegiatan akhir hari/berkala
+
+### Pembukaan (urutan yang disarankan **[D]**)
+
+1. Masuk, baca **Ringkasan** dan lonceng notifikasi.
+2. **Meteran air**: catat "Meteran pagi (m³)" (`/dashboard/meter`).
+3. **Absen saya** > **Absen Sekarang** (check-in wajah).
+4. **Penjualan** > **Buka shift** dengan modal awal.
+5. Cek **Shift** (jadwal) dan **Kurir** (siapa yang sudah check-in; penugasan menolak kurir yang belum check-in).
+6. **Serah terima** dari shift sebelumnya; **Inventory** > "Stok menipis".
+
+### Sepanjang hari
+
+- **Antrean**: proses Order placed/Confirmed, konfirmasi pembayaran, tugaskan kurir.
+- **Kurir**: pantau; tarik/batalkan pengiriman macet.
+- **Penjualan**: penjualan konter; batalkan salah input.
+- **Retur** dan **Inventory** sesuai kejadian; **Setoran** saat kurir check-out; **Insiden**, **Hadiah**, **Pelanggan**, **Broadcast** bila perlu.
+
+### Akhir hari (urutan wajib karena ketergantungan)
+
+1. Pastikan setiap setoran COD terverifikasi; "COD belum disetor" = 0 (tidak dipaksa sistem).
+2. **Inventory** > **Opname** / **Opname massal**.
+3. **Meteran air**: "Meteran sore (m³)".
+4. **Penjualan** > **Tutup shift** > hitung laci.
+5. **Serah terima**: buat dan tandatangani untuk shift berikutnya.
+6. **Laporan** > harian > **Tutup buku**.
+7. **Absen saya** > Check-out.
+
+### Berkala
+
+- **Mingguan:** Huddle, jadwal shift kurir, perawatan alat, laporan mingguan.
+- **Bulanan:** tinjau kinerja bersama Manajer; Kepala depot tidak punya menu laporan bulanan.
+
+### Tugas terjadwal sistem yang berdampak pada depot Anda (WIB)
+
+| Jam | Kegiatan otomatis | Dampak |
+|---|---|---|
+| Tiap jam :05 | Pesanan status Order placed lebih dari 60 menit dibatalkan otomatis; Confirmed/Preparing lebih dari 24 jam dibatalkan ("stalled at the depot"). Stok dilepas, pembayaran dibalik | Proses pesanan tepat waktu agar tidak batal sendiri **[K]** |
+| Tiap jam :25 | Pembayaran non-tunai PENDING lebih dari 24 jam digagalkan | Konfirmasi pembayaran cepat |
+| Tiap 10 menit | Peringatan sekali per pengiriman yang terlambat dari batas SLA depot | Hanya melapor, tidak mengalihkan |
+| 09:00 | Pengingat galon belum kembali ke pelanggan | — |
+| 13:00 dan 21:00 | Laporan penjualan depot ("Penjualan depot hari ini") | Masuk ke notifikasi depot |
+| Tiap 2 menit | Kampanye pelanggan yang sedang terkirim diproses bertahap | — |
+
+**[V]** (`scripts/scheduler/crontab`; temuan I bagian 3)
+
+---
+
+## 12. Skenario praktis
+
+**Skenario A — Kurir kekurangan setoran.** Kurir menyetor Rp475.000 dari wajib Rp500.000. Buka **Setoran** > **Hitung & verifikasi**. Panel menunjukkan "kurang Rp 25.000". Hitung uang fisik. Bila benar kurang, biarkan **Bebankan selisih** tercentang dan isi catatan, lalu **Verifikasi**. Bila kurir menyangkal dan perlu diselidiki, pilih **Sengketakan** dengan alasan. Tidak ada Manajer yang perlu menyetujui; Anda yang bertanggung jawab.
+
+**Skenario B — Selisih opname galon.** Hitung fisik 48, sistem 50, harga jual Rp20.000: nilai selisih Rp40.000, di bawah batas Rp100.000. Simpan opname; tidak ada persetujuan. Bila selisih 8 galon (Rp160.000), simpan opname lalu beri tahu Manajer karena persetujuan "Selisih opname" masuk antrean mereka.
+
+**Skenario C — Pelanggan meminta refund.** Anda tidak melihat **Ajukan refund**. Catat kasus di **Sengketa order** bila perlu dan teruskan ke Manajer atau Finance. Jangan menekan Refund pada sengketa karena akan ditolak.
+
+**Skenario D — Lupa tutup shift.** Tutup buku ditolak "Masih ada {n} shift kasir terbuka." Tutup shift Anda. Jika shift milik kasir lain, minta Manajer menutupnya (pesan "This shift belongs to another cashier." bila Anda mencoba).
+
+**Skenario E — Pembeli konter salah pilih ukuran.** Pada hari dan shift yang sama, tekan **Batalkan penjualan** dengan alasan, lalu input ulang. Bila sudah lewat hari, minta Manajer mengajukan refund.
+
+**Skenario F — Kurir tidak bisa dihubungi, pesanan tertahan.** Di tab **Kurir**, tekan **Tarik ke antrean** dengan alasan. Pesanan kembali ke "Perlu ditugaskan" lalu tugaskan kurir lain.
+
+---
+
+## 13. Daftar periksa penyelesaian
+
+- [ ] Saya masuk dan melihat nama depot yang benar.
+- [ ] Bisa memproses pesanan, mengonfirmasi pembayaran, dan menugaskan kurir.
+- [ ] Bisa membuka dan menutup shift kasir dengan hitungan laci yang benar.
+- [ ] Bisa memverifikasi setoran COD dan memahami keputusan beban selisih.
+- [ ] Bisa opname dan memahami ambang Rp100.000.
+- [ ] Tahu halaman yang hanya lewat URL (meteran, aturan promo, sengketa, CRM).
+- [ ] Tahu apa yang butuh Manajer atau Kantor pusat (bagian 9).
+- [ ] Bisa tutup buku harian setelah semua shift kasir tutup.
+- [ ] Sudah mendaftarkan wajah dan bisa absen.
+
+---
+
+## 14. Inventaris screenshot bab ini
+
+| ID | Layar | Kondisi | Status |
+|---|---|---|---|
+| SS-kepala-depot-01 | Halaman masuk `/login` | Nomor sintetis terisi | Belum diambil |
+| SS-kepala-depot-02 | Ringkasan hari ini + header + bilah tab | Setelah masuk | Belum diambil |
+| SS-kepala-depot-03 | Ringkasan: empat penghitung dan tiga kartu | Ada data contoh | Belum diambil |
+| SS-kepala-depot-04 | Antrean pesanan, empat chip | Beberapa pesanan | Belum diambil |
+| SS-kepala-depot-05 | Lembar detail pesanan Order placed | Tombol Lanjut ke Confirmed | Belum diambil |
+| SS-kepala-depot-06 | Panel "Tugaskan kurir" | Satu kurir Tersedia, satu Sibuk | Belum diambil |
+| SS-kepala-depot-07 | Live tracking | Satu pengiriman aktif | Belum diambil |
+| SS-kepala-depot-08 | Penjualan: "Belum ada shift terbuka" | Belum ada shift | Belum diambil |
+| SS-kepala-depot-09 | Form penjualan konter | Keranjang terisi, tunai | Belum diambil |
+| SS-kepala-depot-10 | Tutup shift dan hasil selisih | Selisih negatif | Belum diambil |
+| SS-kepala-depot-11 | Panel verifikasi setoran | Setoran kurang | Belum diambil |
+| SS-kepala-depot-12 | Lembar opname massal | Sebagian baris berubah | Belum diambil |
+| SS-kepala-depot-13 | Retur galon | Kartu + formulir | Belum diambil |
+| SS-kepala-depot-14 | Meteran air | Form + kartu hasil | Belum diambil |
+| SS-kepala-depot-15 | Laporan harian dengan Tutup buku | Sebelum dan sesudah tutup | Belum diambil |
+| SS-kepala-depot-16 | Aturan promo | Daftar + form | Belum diambil |
+
+---
+
+## 15. Catatan celah & hal yang perlu dikonfirmasi
+
+Rujuk ke berkas `17-open-questions` untuk daftar terpadu.
+
+**Celah teknis ([B]) yang perlu diputuskan tim produk:**
+1. Pemetaan peran "Staff Depot" = kurir, bukan petugas konsol.
+2. Tab Pembayaran ditolak, tab Promo menampilkan tombol tulis, halaman hanya via URL.
+3. Tidak ada tombol batal pesanan dan tidak ada penyelesaian setoran Sengketa di UI.
+4. Setoran COD diputuskan satu orang tanpa persetujuan; tutup buku tidak mensyaratkan setoran terverifikasi.
+5. Kepala depot tidak bisa melihat status persetujuan yang dipicunya.
+6. Halaman Persetujuan menampilkan jumlah Rp0 untuk sebagian tipe (dugaan **[D]**, cek visual oleh Manajer).
+
+**Perlu konfirmasi bisnis ([K]):**
+1. Batas auto-pass approval Rp100.000 per depot di produksi, tarif deposit galon Rp20.000, ambang selisih meteran 200 liter, batas pengantaran aktif per kurir, pengaturan `staffCanComplete`.
+2. Kebijakan pembebanan kekurangan setoran COD: kapan dibebankan.
+3. Tenggat setoran COD kurir dan tenggat tutup buku harian.
+4. Siapa yang menyetujui pembatalan pesanan yang belum dikirim bila Kepala depot tidak dapat membatalkannya.
+5. Apakah Kepala depot sebaiknya memegang tab untuk Meteran air, Sengketa, dan Aturan promo.
+6. Isi halaman `/dashboard/search` belum dibaca penulis.
