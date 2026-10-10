@@ -11,6 +11,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
@@ -105,11 +106,13 @@ export class AdjustmentQueryDto {
 
 export class ShareCorrectionDto {
   @IsUUID() depotId!: string;
-  @IsInt() @Min(0) days!: number;
-  @IsInt() @Min(0) gross!: number;
-  @IsInt() @Min(0) bonus!: number;
-  @IsInt() @Min(0) deduction!: number;
-  @IsInt() @Min(0) shortfall!: number;
+  // Bounds: a column is Decimal(12,2) and `days` an Int32 - an absurd number must be a 400
+  // here, not a 500 from the database after the sums already agreed.
+  @IsInt() @Min(0) @Max(366) days!: number;
+  @IsInt() @Min(0) @Max(9_999_999_999) gross!: number;
+  @IsInt() @Min(0) @Max(9_999_999_999) bonus!: number;
+  @IsInt() @Min(0) @Max(9_999_999_999) deduction!: number;
+  @IsInt() @Min(0) @Max(9_999_999_999) shortfall!: number;
 }
 
 export class ReallocatePayrollDto {

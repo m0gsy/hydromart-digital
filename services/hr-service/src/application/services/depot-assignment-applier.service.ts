@@ -216,23 +216,39 @@ export class DepotAssignmentApplier {
             fromValue: from == null ? Prisma.JsonNull : { value: from },
             toValue: { value: target },
             effectiveDate: asDate(effective),
-            note: permanent ? 'Mutasi permanen terjadwal' : phase === 'START' ? 'Dipinjamkan' : 'Kembali ke depot asal',
+            note: permanent
+              ? 'Mutasi permanen terjadwal'
+              : phase === 'START'
+                ? 'Dipinjamkan'
+                : 'Kembali ke depot asal',
             createdBy: null,
           },
         ];
 
-    await this.employees.update(employee.id, data, history, move, {
-      assignment: {
-        id: row.id,
-        data:
-          phase === 'START' && !permanent
-            ? { status: 'ACTIVE', appliedStartAt: now, failReason: null, ...assignmentExtra }
-            : permanent
-              ? { status: 'DONE', appliedStartAt: now, failReason: null, ...assignmentExtra }
-              : { status: 'DONE', appliedEndAt: now, failReason: null, ...assignmentExtra },
-      },
-      movePendingRequestsTo: alreadyThere ? undefined : target,
-    });
+    try {
+      await this.employees.update(employee.id, data, history, move, {
+        assignment: {
+          id: row.id,
+          data:
+            phase === 'START' && !permanent
+              ? { status: 'ACTIVE', appliedStartAt: now, failReason: null, ...assignmentExtra }
+              : permanent
+                ? { status: 'DONE', appliedStartAt: now, failReason: null, ...assignmentExtra }
+                : { status: 'DONE', appliedEndAt: now, failReason: null, ...assignmentExtra },
+        },
+        movePendingRequestsTo: alreadyThere ? undefined : target,
+      });
+    } catch (err) {
+      // Another sweep (the cron and the button can overlap) wrote this step a moment ago: the
+      // ledger refuses a second LOAN_START/LOAN_END for one assignment. The work IS done, by
+      // them, and that statement rolled back whole - so this is success, not a failure to
+      // count against the row's attempts.
+      if ((err as { code?: string })?.code === 'P2002') {
+        this.logger.log(`depot assignment ${row.id} ${phase} was applied by a concurrent run`);
+        return;
+      }
+      throw err;
+    }
 
     // Explicit, because the global interceptor deliberately skips the sweep's own route
     // (it would write ninety-six rows a day saying nothing happened).

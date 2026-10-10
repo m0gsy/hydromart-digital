@@ -137,9 +137,21 @@ export class GallonIssueService {
     if (!this.contacts?.resolveByPhone || !this.issues.hasOpeningBalance) {
       throw new Error('Impor saldo galon belum bisa dipakai di lingkungan ini.');
     }
+    // A dead customer-service times out at 5 s PER ROW; five hundred rows would hold the request
+    // open for most of an hour. After a few misses in a row the rest fail at once - the rows
+    // are safe to re-send, a done row is skipped by its opening-balance marker.
+    let misses = 0;
+    const GIVE_UP_AFTER = 3;
     return runImport(rows, async (row) => {
+      if (misses >= GIVE_UP_AFTER) {
+        throw new Error('Layanan pelanggan tidak terjangkau; kirim ulang file ini nanti');
+      }
       const resolved = await this.contacts!.resolveByPhone!(row.customerPhone, row.customerName, depotId);
-      if (!resolved) throw new Error('Pelanggan tidak bisa diselesaikan dari nomor telepon');
+      if (!resolved) {
+        misses += 1;
+        throw new Error('Pelanggan tidak bisa diselesaikan dari nomor telepon');
+      }
+      misses = 0;
       const { customerId, status } = resolved;
       if (await this.issues.hasOpeningBalance!(depotId, customerId)) {
         return { status: 'skipped', id: customerId, message: 'Saldo awal pelanggan ini sudah pernah diimpor' };

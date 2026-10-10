@@ -51,6 +51,13 @@ export interface DepotAssignmentRepository {
    * for ever. Ordered by `seq`.
    */
   timelineFor(employeeId: string): Promise<DepotMove[]>;
+  /**
+   * Whether the employee's depot ledger learned something that affects days up to `through`
+   * after `since` - a loan backdated into the month, a sweep that applied late. A slip
+   * generated before that holds a split the ledger no longer agrees with. Optional: a
+   * repository that predates the guard simply does not offer it.
+   */
+  movedSince?(employeeId: string, since: Date, through: Date): Promise<boolean>;
   /** True when the employee has any PLANNED or ACTIVE assignment. */
   hasOpen(employeeId: string): Promise<boolean>;
   list(

@@ -977,6 +977,7 @@ model EmployeeDepotMove {
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@unique([assignmentId, kind])
   @@index([employeeId, effectiveDate])
   @@map("employee_depot_moves")
 }

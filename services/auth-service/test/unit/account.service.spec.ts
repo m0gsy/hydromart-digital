@@ -667,6 +667,28 @@ describe('AccountService', () => {
       ).rejects.toBeInstanceOf(RoleEscalationError);
     });
 
+    /*
+     * Lending a depot MANAGER to another depot re-asserts the role they already hold; only the
+     * depot moves. The grant rule guards ESCALATION, so it must not fire when nothing is
+     * granted. The cross-depot sweep passes the role of whoever planned the loan, and that is
+     * HEAD_OFFICE or DIREKTUR as often as HR - without this, a loan of a manager failed five
+     * times and ended FAILED, and so did the return trip.
+     */
+    it('lets anyone who may plan a loan move a MANAGER between depots without re-granting MANAGER', async () => {
+      const mgr = await service.inviteStaff('+628990003020', Role.MANAGER, 'Mgr', 'depot-1', undefined, Role.HR);
+      for (const planner of [Role.HEAD_OFFICE, Role.DIREKTUR, Role.MANAGER, undefined]) {
+        const moved = await service.setStaffRole(mgr.id, Role.MANAGER, 'depot-2', planner as Role | undefined);
+        expect(moved).toMatchObject({ role: Role.MANAGER, assignedDepotId: 'depot-2' });
+      }
+    });
+
+    it('still refuses to MAKE a MANAGER out of a supervisor on the same actors', async () => {
+      const spv = await service.inviteStaff('+628990003021', Role.SUPERVISOR, 'Spv2');
+      await expect(
+        service.setStaffRole(spv.id, Role.MANAGER, 'depot-2', Role.DIREKTUR),
+      ).rejects.toBeInstanceOf(RoleEscalationError);
+    });
+
     it('lets HR promote to MANAGER', async () => {
       const staff = await service.inviteStaff('+628990003008', Role.SUPERVISOR, 'Spv');
       const moved = await service.setStaffRole(staff.id, Role.MANAGER, undefined, Role.HR);

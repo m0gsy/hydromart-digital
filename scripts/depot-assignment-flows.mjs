@@ -585,6 +585,66 @@ async function hardening() {
   check('and they are home again', lateDepot === G);
   void lateAid;
 
+  // ---- 8e. lending a MANAGER, planned by head office (the grant rule must not fire: no role changes)
+  seq += 1;
+  const mgrRes = await api('POST', '/employees/api/v1/employees', {
+    fullName: `DAPR MGR ${stamp}`, phone: `0897${stamp}${seq}`.slice(0, 13), depotId: G, position: 'Manajer',
+    role: 'MANAGER', employmentStatus: 'PERMANENT', joinDate: '2024-01-01', salaryType: 'MONTHLY', monthlyRate: 6_000_000,
+    nik: `34${stamp}${seq}`.padEnd(16, '3'), bankName: 'BCA', bankAccount: '1234567890',
+  }, HR_TOKEN);
+  check('a MANAGER employee exists', mgrRes.status === 201, JSON.stringify(mgrRes.body).slice(0, 160));
+  const mgrPlan = await api('POST', '/depot-assignments/api/v1/depot-assignments',
+    { employeeId: mgrRes.body?.id, kind: 'LOAN', depotId: P, startDate: TODAY, endDate: day(addDays(today, 4)) }, tokenFor('HEAD_OFFICE'));
+  check('head office plans the loan of a manager', mgrPlan.status === 201, JSON.stringify(mgrPlan.body).slice(0, 160));
+  const mgrSweep = sweep();
+  check('the sweep flips a MANAGER planned by head office (was: refused as a role escalation)', mgrSweep.status === 200 && mgrSweep.body.failed === 0 && mgrSweep.body.applied >= 1, JSON.stringify(mgrSweep));
+  const [[mgrDepot, mgrState]] = rows(`SELECT e."depotId", a.status FROM employees e JOIN employee_depot_assignments a ON a."employeeId" = e.id WHERE e.id = '${mgrRes.body?.id}'`);
+  check('and they are at the destination with the loan ACTIVE', mgrDepot === P && mgrState === 'ACTIVE', `${mgrDepot} ${mgrState}`);
+
+  // ---- 8f. the ledger refuses a second step for the same assignment (two sweeps at once)
+  const [[someAid]] = rows(`SELECT id FROM employee_depot_assignments WHERE "employeeId" = '${mgrRes.body?.id}'`);
+  let dupRefused = false;
+  try {
+    sql(`INSERT INTO employee_depot_moves (id, "employeeId", "fromDepotId", "toDepotId", "effectiveDate", kind, "assignmentId") VALUES (gen_random_uuid(), '${mgrRes.body?.id}', '${G}', '${P}', '${TODAY}', 'LOAN_START', '${someAid}')`);
+  } catch (e) {
+    dupRefused = /duplicate key|employee_depot_moves_assignmentId_kind_key/.test(String(e.stderr ?? e.message));
+  }
+  check('the database refuses a second LOAN_START for one assignment', dupRefused);
+  const [[loanStarts]] = rows(`SELECT count(*) FROM employee_depot_moves WHERE "assignmentId" = '${someAid}' AND kind = 'LOAN_START'`);
+  check('so the ledger still holds exactly one', loanStarts === '1', loanStarts);
+
+  // ---- 8g. a slip generated BEFORE a loan was backdated into its month cannot be approved as is
+  const stale = await newEmployee('STALE', G);
+  const pm = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const stalePeriod = `${pm.getUTCFullYear()}-${String(pm.getUTCMonth() + 1).padStart(2, '0')}`;
+  const staleSlip = await api('POST', '/payroll/api/v1/payroll/generate', { employeeId: stale.body.id, periodMonth: stalePeriod }, HR_TOKEN);
+  check('a DRAFT slip for last month exists', staleSlip.status === 201, JSON.stringify(staleSlip.body).slice(0, 120));
+  await new Promise((r) => setTimeout(r, 1100)); // updatedAt and the ledger row must be distinguishable
+  const monthStart = `${stalePeriod}-10`;
+  const lateLoan = await api('POST', '/depot-assignments/api/v1/depot-assignments', { employeeId: stale.body.id, kind: 'LOAN', depotId: P, startDate: monthStart, endDate: `${stalePeriod}-12` }, HR_TOKEN);
+  check('HR backdates a loan into that month', lateLoan.status === 201, JSON.stringify(lateLoan.body).slice(0, 160));
+  sweep(); // applies the loan and its end in one round, with the ORIGINAL dates
+  const stale409 = await api('POST', `/payroll/api/v1/payroll/${staleSlip.body.id}/approve`, {}, HR_TOKEN);
+  check('approving the stale slip is refused (409, regenerate first)', stale409.status === 409 && /Hitung ulang/.test(JSON.stringify(stale409.body)), `${stale409.status} ${JSON.stringify(stale409.body).slice(0, 160)}`);
+  const regen2 = await api('POST', `/payroll/api/v1/payroll/${staleSlip.body.id}/regenerate`, {}, HR_TOKEN);
+  const staleParts = rows(`SELECT count(*), coalesce(sum(days),0) FROM payroll_depot_shares WHERE "payrollId" = '${staleSlip.body.id}'`)[0];
+  check('regenerating picks the loan up: two depots, 3 days away', [200, 201].includes(regen2.status) && staleParts[0] === '2', `${regen2.status} ${staleParts}`);
+  const ok2 = await api('POST', `/payroll/api/v1/payroll/${staleSlip.body.id}/approve`, {}, HR_TOKEN);
+  check('and now it can be approved', [200, 201].includes(ok2.status), `${ok2.status} ${JSON.stringify(ok2.body).slice(0, 120)}`);
+
+  // ---- 8d. the company's own BPJS cost is a report, never a payslip line
+  const prevM = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const costPeriod = `${prevM.getUTCFullYear()}-${String(prevM.getUTCMonth() + 1).padStart(2, '0')}`;
+  const costUrl = `${GATEWAY}/hr-reports/api/v1/hr-reports/payroll-employer-cost?periodMonth=${costPeriod}`;
+  const costRes = await fetch(costUrl, { headers: { authorization: `Bearer ${HR_TOKEN}` } });
+  const costCsv = await costRes.text();
+  const costHead = costCsv.split('\u000a')[0] ?? '';
+  check('employer BPJS cost report answers with its columns and a TOTAL row', costRes.status === 200 && /totalBebanPerusahaan/.test(costHead) && /TOTAL/.test(costCsv), `${costRes.status} ${costCsv.slice(0, 160)}`);
+  const costMgr = await fetch(costUrl, { headers: { authorization: `Bearer ${manager(G)}` } });
+  check('a depot manager cannot read the company cost (403)', costMgr.status === 403, String(costMgr.status));
+  const noLine = rows(`SELECT count(*) FROM payroll_items WHERE label ILIKE '%perusahaan%'`)[0][0];
+  check('and no payslip line carries an employer share', noLine === '0', noLine);
+
   // ---- 8c. a stale UPSERT import must not drag a lent employee back
   const lent = await newEmployee('UPS', G);
   await api('POST', '/depot-assignments/api/v1/depot-assignments', { employeeId: lent.body.id, kind: 'LOAN', depotId: P, startDate: TODAY, endDate: day(addDays(today, 5)) }, HR_TOKEN);
