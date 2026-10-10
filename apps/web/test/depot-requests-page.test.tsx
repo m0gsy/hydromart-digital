@@ -65,7 +65,7 @@ describe('/hr/depot-requests', () => {
     fireEvent.change(end, { target: { value: '2099-01-02' } });
     fireEvent.submit(document.querySelector('form') as HTMLFormElement);
     await waitFor(() => expect(post).toHaveBeenCalled());
-    const [url, body] = post.mock.calls[0];
+    const [url, body] = post.mock.calls[0] as [string, Record<string, unknown>];
     expect(String(url)).toMatch(/depot-assignments\/requests$/);
     expect(body).toMatchObject({ employeeCode: 'EMP-0042', depotId: 'd1', endDate: '2099-01-02' });
     expect(body).not.toHaveProperty('employeeId');

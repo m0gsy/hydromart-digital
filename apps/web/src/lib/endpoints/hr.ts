@@ -193,6 +193,8 @@ export const hr = {
     // per-employee failure list. Built with that report and called by nothing until now.
     generateBatchPayroll: '/payroll/api/v1/payroll/generate-batch',
     approvePayroll: (id: string) => `/payroll/api/v1/payroll/${id}/approve`,
+    reallocatePayrollShares: (id: string) =>
+      `/payroll/api/v1/payroll/${id}/reallocate-shares`,
     payPayroll: (id: string) => `/payroll/api/v1/payroll/${id}/pay`,
     bonuses: (employeeId: string, periodMonth: string) =>
       `/bonuses/api/v1/bonuses?employeeId=${encodeURIComponent(employeeId)}&periodMonth=${encodeURIComponent(periodMonth)}`,

@@ -5,6 +5,7 @@ import { useT } from '@/lib/locale-context';
 import { WarningCircle } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
+import { PayrollShareEditor } from '@/components/hr/payroll-share-editor';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -137,6 +138,10 @@ export default function PayrollDetailPage() {
             ))}
           </ul>
         </Card>
+      )}
+
+      {canRun && p.status !== 'PAID' && (p.shares ?? []).length > 0 && (
+        <PayrollShareEditor key={`${p.id}-${p.status}`} payroll={p} onSaved={reload} />
       )}
 
       {/*
