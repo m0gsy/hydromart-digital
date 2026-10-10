@@ -4,6 +4,8 @@ import { AuthenticatedUser, depotScopeIds, localDayKey } from '@hydromart/platfo
 import { Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { CsvCell, toCsv } from '../../domain/csv';
+import { allocatePayroll } from '../../domain/payroll-allocation';
+import { bpjsEmployerCosts } from '../../domain/statutory';
 import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import {
   ANALYTICS_REPOSITORY,
@@ -385,6 +387,99 @@ export class AnalyticsService {
         p.presentDays,
         ...(split ? [alloc(p.id)] : []),
       ]),
+    };
+  }
+
+  /**
+   * What the company pays in BPJS on top of the wages for a month: Kesehatan, JHT, JP, JKK and
+   * JKM, the employer's half. A COST report - nothing here is on a payslip or in anyone's net.
+   *
+   * Computed on the whole slip's gross (the wage ceilings belong to the person, not to a depot),
+   * then divided between the depots in proportion to the gross each carries, by the same
+   * largest-remainder rule the payroll split uses. A slip with no stored split is the home
+   * depot's alone. Head-office and finance only: a depot reader would see a share-narrowed
+   * gross, and a ceiling applied to a fragment is the wrong number.
+   */
+  async employerCostReport(
+    _user: AuthenticatedUser,
+    query: { periodMonth: string },
+  ): Promise<ReportData> {
+    const rates = { ...this.config.statutoryRates(null), ...this.config.employerRates(null) };
+    const rows = await this.repo.payrollForReport(query.periodMonth, undefined);
+    const ids = rows.map((p) => p.employeeId);
+    const enrolled = (await this.repo.enrollmentFor?.(ids)) ?? new Map();
+    const split =
+      this.config.depotAssignmentEnabled && this.repo.sharesForPayrolls
+        ? await this.repo.sharesForPayrolls(rows.map((p) => p.id))
+        : new Map<string, { depotId: string; days: number; net: number; gross?: number }[]>();
+    const names = (await this.directory?.names([...split.values()].flat().map((s) => s.depotId))) ?? new Map();
+
+    const lineLabels = [
+      'BPJS Kesehatan (perusahaan)',
+      'BPJS JHT (perusahaan)',
+      'BPJS Jaminan Pensiun (perusahaan)',
+      'BPJS JKK (perusahaan)',
+      'BPJS JKM (perusahaan)',
+    ];
+    const out: CsvCell[][] = [];
+    let grand = 0;
+    for (const p of rows) {
+      const e = enrolled.get(p.employeeId) ?? { kes: false, tk: false };
+      const gross = dec(p.gross);
+      const lines = bpjsEmployerCosts(
+        {
+          grossIdr: gross,
+          ptkpStatus: null,
+          hasNpwp: true,
+          enrolledHealth: e.kes,
+          enrolledEmployment: e.tk,
+        },
+        rates,
+      );
+      const total = lines.reduce((a, l) => a + l.amountIdr, 0);
+      grand += total;
+      const parts = split.get(p.id) ?? [];
+      let byDepot = '';
+      if (parts.length > 1 && total > 0) {
+        const home = parts[0]!.depotId;
+        const alloc = allocatePayroll({
+          homeDepotId: home,
+          gross: total,
+          totalBonus: 0,
+          totalDeduction: 0,
+          net: total,
+          grossWeights: parts.map((s) => ({ depotId: s.depotId, weight: Math.max(0, s.gross ?? 0) })),
+        });
+        byDepot = alloc
+          .map((a) => `${names.get(a.depotId) ?? a.depotId.slice(0, 8)}: ${a.gross}`)
+          .join('; ');
+      }
+      out.push([
+        p.periodMonth,
+        p.employee.employeeCode,
+        p.employee.fullName,
+        gross,
+        ...lineLabels.map((l) => lines.find((x) => x.label === l)?.amountIdr ?? 0),
+        total,
+        byDepot,
+      ]);
+    }
+    out.push(['', '', 'TOTAL', '', '', '', '', '', '', grand, '']);
+    return {
+      headers: [
+        'periodMonth',
+        'employeeCode',
+        'fullName',
+        'gross',
+        'kesehatan',
+        'jht',
+        'jaminanPensiun',
+        'jkk',
+        'jkm',
+        'totalBebanPerusahaan',
+        'bebanPerDepot',
+      ],
+      rows: out,
     };
   }
 

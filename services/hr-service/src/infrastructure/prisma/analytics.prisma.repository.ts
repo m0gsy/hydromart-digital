@@ -395,8 +395,8 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
   async sharesForPayrolls(
     payrollIds: readonly string[],
     depotIds?: readonly string[],
-  ): Promise<Map<string, { depotId: string; days: number; net: number }[]>> {
-    const out = new Map<string, { depotId: string; days: number; net: number }[]>();
+  ): Promise<Map<string, { depotId: string; days: number; net: number; gross: number }[]>> {
+    const out = new Map<string, { depotId: string; days: number; net: number; gross: number }[]>();
     // Chunked: a month of payroll is a few thousand ids, and `IN` lists should stay bounded.
     for (let i = 0; i < payrollIds.length; i += 500) {
       const rows = await this.prisma.payrollDepotShare.findMany({
@@ -409,8 +409,25 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       });
       for (const r of rows) {
         const list = out.get(r.payrollId) ?? [];
-        list.push({ depotId: r.depotId, days: r.days, net: Number(r.net) });
+        list.push({ depotId: r.depotId, days: r.days, net: Number(r.net), gross: Number(r.gross) });
         out.set(r.payrollId, list);
+      }
+    }
+    return out;
+  }
+
+  async enrollmentFor(
+    employeeIds: readonly string[],
+  ): Promise<Map<string, { kes: boolean; tk: boolean }>> {
+    const out = new Map<string, { kes: boolean; tk: boolean }>();
+    for (let i = 0; i < employeeIds.length; i += 500) {
+      const rows = await this.prisma.employee.findMany({
+        where: { id: { in: employeeIds.slice(i, i + 500) as string[] } },
+        select: { id: true, bpjsKes: true, bpjsTk: true },
+        take: 500,
+      });
+      for (const r of rows) {
+        out.set(r.id, { kes: !!r.bpjsKes?.trim(), tk: !!r.bpjsTk?.trim() });
       }
     }
     return out;

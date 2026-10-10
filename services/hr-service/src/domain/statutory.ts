@@ -41,6 +41,19 @@ export interface StatutoryRates {
   jpEmployeePct: number;
   /** Wage ceiling for JP, IDR/month — re-issued annually by BPJS. */
   jpCeilingIdr: number;
+  /**
+   * The EMPLOYER's side, for the company-cost report only - none of it touches a payslip.
+   * Optional so a caller that only deducts (every payslip path) need not know about them; an
+   * absent value reads as "not modelled" and contributes nothing.
+   *
+   * Statutory: Kesehatan 4%, JHT 3,7%, JP 2%, JKM 0,30%, JKK 0,24-1,74% by the risk class of
+   * the business (0,24% is the lowest class and the default - set the real one in settings).
+   */
+  healthEmployerPct?: number;
+  jhtEmployerPct?: number;
+  jpEmployerPct?: number;
+  jkkPct?: number;
+  jkmPct?: number;
   /** Biaya jabatan: percent of gross, and its monthly cap (statutory 5% / Rp 500.000). */
   occupationalCostPct: number;
   occupationalCostCapIdr: number;
@@ -216,6 +229,40 @@ export function bpjsEmployeeDeductions(
     if (jht > 0) out.push({ label: 'BPJS JHT (karyawan)', amountIdr: jht });
     const jp = contribution(input.grossIdr, rates.jpEmployeePct, rates.jpCeilingIdr);
     if (jp > 0) out.push({ label: 'BPJS Jaminan Pensiun (karyawan)', amountIdr: jp });
+  }
+  return out;
+}
+
+/**
+ * What the company pays on top of the wage for one month of one employee's BPJS cover.
+ *
+ * The same enrolment gates as the employee side: a person not registered for a scheme has
+ * nothing remitted for them, so there is no cost to show. JKK and JKM are Ketenagakerjaan
+ * programmes, so they follow `enrolledEmployment`, and have no wage ceiling. This is a COST,
+ * not a deduction: it is never subtracted from net and never appears on the payslip.
+ */
+export function bpjsEmployerCosts(
+  input: StatutoryInput,
+  rates: StatutoryRates,
+): StatutoryDeduction[] {
+  const out: StatutoryDeduction[] = [];
+  const add = (label: string, amountIdr: number) => {
+    if (amountIdr > 0) out.push({ label, amountIdr });
+  };
+  if (input.enrolledHealth) {
+    add(
+      'BPJS Kesehatan (perusahaan)',
+      contribution(input.grossIdr, rates.healthEmployerPct ?? 0, rates.healthCeilingIdr),
+    );
+  }
+  if (input.enrolledEmployment) {
+    add('BPJS JHT (perusahaan)', contribution(input.grossIdr, rates.jhtEmployerPct ?? 0, 0));
+    add(
+      'BPJS Jaminan Pensiun (perusahaan)',
+      contribution(input.grossIdr, rates.jpEmployerPct ?? 0, rates.jpCeilingIdr),
+    );
+    add('BPJS JKK (perusahaan)', contribution(input.grossIdr, rates.jkkPct ?? 0, 0));
+    add('BPJS JKM (perusahaan)', contribution(input.grossIdr, rates.jkmPct ?? 0, 0));
   }
   return out;
 }

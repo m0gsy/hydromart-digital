@@ -26,6 +26,12 @@ export const envValidationSchema = Joi.object({
   HR_BPJS_JHT_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(200),
   HR_BPJS_JP_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(100),
   HR_BPJS_JP_CEILING_IDR: Joi.number().integer().min(0).default(10_547_400),
+  // Employer side (company-cost report only; never on a payslip).
+  HR_BPJS_HEALTH_EMPLOYER_PCT_X100: Joi.number().integer().min(0).default(400),
+  HR_BPJS_JHT_EMPLOYER_PCT_X100: Joi.number().integer().min(0).default(370),
+  HR_BPJS_JP_EMPLOYER_PCT_X100: Joi.number().integer().min(0).default(200),
+  HR_BPJS_JKK_PCT_X100: Joi.number().integer().min(0).default(24),
+  HR_BPJS_JKM_PCT_X100: Joi.number().integer().min(0).default(30),
   HR_OCCUPATIONAL_COST_PCT_X100: Joi.number().integer().min(0).default(500),
   HR_OCCUPATIONAL_COST_CAP_IDR: Joi.number().integer().min(0).default(500_000),
   HR_NO_NPWP_SURCHARGE_PCT: Joi.number().integer().min(0).max(100).default(20),

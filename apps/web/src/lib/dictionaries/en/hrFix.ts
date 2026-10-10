@@ -508,6 +508,8 @@ export const hrFix = {
     directoryBody: 'Every employee within your depot scope.',
     payroll: 'Payroll',
     payrollBody: 'Pay per period, with bonuses and deductions.',
+    employerCost: 'Employer BPJS cost',
+    employerCostBody: 'The BPJS share the company pays on top of wages (Kesehatan, JHT, JP, JKK, JKM), per employee and per depot. A company cost only: not on any payslip and never deducted from anybody. Only employees with a BPJS number on file are counted.',
     performance: 'Performance',
     assets: 'Assets',
     assetsBody: 'Every asset and who currently holds it.',

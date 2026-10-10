@@ -141,6 +141,26 @@ export class HrConfigService {
   }
 
   /**
+   * The employer's BPJS rates, for the company-cost report. A separate method (not more keys
+   * on `statutoryRates`) because every payslip path reads that one, and nothing on a payslip
+   * may depend on a cost that is not deducted from anybody.
+   */
+  employerRates(depotId: string | null = null): Pick<
+    StatutoryRates,
+    'healthEmployerPct' | 'jhtEmployerPct' | 'jpEmployerPct' | 'jkkPct' | 'jkmPct'
+  > {
+    const pct = (key: string, env: string, fallback: string): number =>
+      this.tunableNum(key, Number(this.config.get<string>(env, fallback)), depotId) / 100;
+    return {
+      healthEmployerPct: pct('bpjsHealthEmployerPctX100', 'HR_BPJS_HEALTH_EMPLOYER_PCT_X100', '400'),
+      jhtEmployerPct: pct('bpjsJhtEmployerPctX100', 'HR_BPJS_JHT_EMPLOYER_PCT_X100', '370'),
+      jpEmployerPct: pct('bpjsJpEmployerPctX100', 'HR_BPJS_JP_EMPLOYER_PCT_X100', '200'),
+      jkkPct: pct('bpjsJkkPctX100', 'HR_BPJS_JKK_PCT_X100', '24'),
+      jkmPct: pct('bpjsJkmPctX100', 'HR_BPJS_JKM_PCT_X100', '30'),
+    };
+  }
+
+  /**
    * The TER table for this depot, or `{}` when none is loaded.
    *
    * Parsed and VALIDATED on every read rather than trusted: the value is typed into a
