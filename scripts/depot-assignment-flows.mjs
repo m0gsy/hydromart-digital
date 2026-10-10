@@ -327,8 +327,8 @@ async function followUps({ emp, e2, pid, period }) {
   check('the manager reads their own request back', mine.status === 200 && (mine.body?.rows ?? []).some((r) => r.id === rid), JSON.stringify(mine.body).slice(0, 160));
   const intoOther = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: X, startDate: dayIn(7), endDate: dayIn(9) }, mgrP);
   check('a request into a depot that is not theirs is refused (403)', intoOther.status === 403, String(intoOther.status));
-  const spv = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: P, startDate: dayIn(7), endDate: dayIn(9) }, tokenFor('SUPERVISOR', P));
-  check('only a MANAGER may ask (403 for a supervisor)', spv.status === 403, String(spv.status));
+  const asst = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: P, startDate: dayIn(7), endDate: dayIn(9) }, tokenFor('ASSISTANT_SUPERVISOR', P));
+  check('an assistant supervisor may not ask (403)', asst.status === 403, String(asst.status));
   const approveByMgr = await api('POST', `${BASE}/${rid}/approve`, {}, mgrP);
   check('a manager cannot approve their own request (403)', approveByMgr.status === 403, String(approveByMgr.status));
   const approve = await api('POST', `${BASE}/${rid}/approve`, {}, HR_TOKEN);
