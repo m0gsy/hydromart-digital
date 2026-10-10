@@ -355,7 +355,9 @@ export const CAPABILITIES = {
   employeeAssign: ['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // hr-service - ASK to borrow an employee for a depot of one's own. Only a proposal: it claims
   // no days and moves nobody until an `employeeAssign` holder approves it.
-  employeeAssignRequest: ['MANAGER'],
+  // Owner decision 2026-10-10: MANAGER and SUPERVISOR (the one who sees many depots and knows
+  // which one is short). Not ASSISTANT_SUPERVISOR, not KEPALA_DEPOT.
+  employeeAssignRequest: ['MANAGER', 'SUPERVISOR'],
   // hr-service — generate/approve/pay payroll. HR desk + the office finance team.
   hrPayroll: ['HR', 'FINANCE', 'SUPER_ADMIN'],
   // hr-service — stage 1 of a leave application. The depot manager decides for their own
