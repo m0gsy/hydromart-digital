@@ -100,6 +100,17 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
     // change which depots the caller may see.
   }, [attempt, accountId]);
 
+  // A selection that is not in the list we hold means the scope changed under us (an
+  // employee lent to another depot): fetch the list again rather than keep offering the old
+  // one. Keyed on the selection alone, so a stale id that never resolves retries once per
+  // change instead of looping.
+  useEffect(() => {
+    if (ready && selectedId && !depots.some((d) => d.id === selectedId)) {
+      setAttempt((n) => n + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const value = useMemo<DepotContextValue>(() => {
     const selected = depots.find((d) => d.id === selectedId) ?? null;
     const inScope = selectedId !== null && selected !== null;

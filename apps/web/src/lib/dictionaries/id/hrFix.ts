@@ -1702,6 +1702,7 @@ export const hrFix = {
     subtitle: 'Kode HR-#### dibuat otomatis',
   },
   checkIn: {
+    todayDepot: 'Hari ini: depot {name}',
     inOk: 'Check-in berhasil',
     outOk: 'Check-out berhasil',
     inAt: 'Masuk {at}',

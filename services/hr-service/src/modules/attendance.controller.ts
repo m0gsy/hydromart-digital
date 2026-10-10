@@ -64,16 +64,28 @@ export class AttendanceController {
   @SelfScoped()
   @Post('check-in')
   @ApiOperation({ summary: 'Face check-in (self)' })
-  checkIn(@Body() dto: FacePunchDto, @CurrentUser() user: AuthenticatedUser): Promise<Attendance> {
-    return this.attendance.checkIn(user, this.toPunch(dto));
+  async checkIn(
+    @Body() dto: FacePunchDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res?: Response,
+  ): Promise<Attendance> {
+    const row = await this.attendance.checkIn(user, this.toPunch(dto));
+    await this.flagDepotDrift(user, res);
+    return row;
   }
 
   @ApiOkResponse({ type: AttendanceResponseDto })
   @SelfScoped()
   @Post('check-out')
   @ApiOperation({ summary: 'Face check-out (self)' })
-  checkOut(@Body() dto: FacePunchDto, @CurrentUser() user: AuthenticatedUser): Promise<Attendance> {
-    return this.attendance.checkOut(user, this.toPunch(dto));
+  async checkOut(
+    @Body() dto: FacePunchDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res?: Response,
+  ): Promise<Attendance> {
+    const row = await this.attendance.checkOut(user, this.toPunch(dto));
+    await this.flagDepotDrift(user, res);
+    return row;
   }
 
   @ApiOkResponse({ type: ListSelf3ResponseDto })
@@ -169,6 +181,13 @@ export class AttendanceController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Attendance> {
     return this.attendance.decide(user, id, dto.decision, dto.note);
+  }
+
+  /** Header the app listens for: its token names a depot the person no longer works at. */
+  private async flagDepotDrift(user: AuthenticatedUser, res?: Response): Promise<void> {
+    if (!res) return;
+    const drift = await this.attendance.depotDrift(user);
+    if (drift) res.setHeader('x-hm-depot-changed', drift);
   }
 
   private toPunch(dto: FacePunchDto): FacePunch {

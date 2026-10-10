@@ -592,6 +592,20 @@ export class AttendanceService {
     return updated;
   }
 
+  /**
+   * The depot this person works at now, when their TOKEN still names another one.
+   *
+   * The sweep moves the login's depot but a token already issued keeps its claim until it is
+   * refreshed (fifteen minutes at most). The self-service routes hand this back as a header
+   * so the app can refresh and re-scope straight away instead of failing with 403s until it
+   * happens to. Null whenever there is nothing to say.
+   */
+  async depotDrift(user: AuthenticatedUser): Promise<string | null> {
+    const employee = await this.employees.findByAuthSubjectId(user.sub);
+    if (!employee?.depotId || !user.depotId) return null;
+    return employee.depotId !== user.depotId ? employee.depotId : null;
+  }
+
   private async resolveSelf(user: AuthenticatedUser): Promise<Employee> {
     const employee = await this.employees.findByAuthSubjectId(user.sub);
     if (!employee) {

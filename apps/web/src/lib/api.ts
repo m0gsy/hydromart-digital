@@ -1,6 +1,7 @@
 'use client';
 
 import { askPlugin } from './capacitor';
+import { notifyDepotChanged, registerRefresher } from './depot-signal';
 import { endpoints } from './endpoints';
 import { translate } from './locale-context';
 import { isNativeShell } from './platform';
@@ -276,6 +277,10 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
     return rawRequest<T>(path, { ...options, _rateRetry: true });
   }
 
+  // The self-service routes flag a token that still names the depot someone has since left.
+  const moved = res.headers?.get?.('x-hm-depot-changed');
+  if (moved) notifyDepotChanged(moved);
+
   if (res.status === 204) return undefined as T;
 
   const data = parseBody(await res.text());
@@ -294,6 +299,9 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
   if (captureTokens(data)) await tokensPersisted();
   return data as T;
 }
+
+// Lets the auth context ask for a fresh token without importing this module.
+registerRefresher(refreshSession);
 
 /** Authenticated request with transparent refresh-and-retry on 401. */
 /*

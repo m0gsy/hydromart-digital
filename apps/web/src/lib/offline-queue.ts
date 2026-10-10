@@ -2,6 +2,7 @@
 
 import { api, ApiError, uploadFile } from './api';
 import { onResume } from './app-lifecycle';
+import { queuedDepotIsStale } from './depot-follow';
 import { endpoints } from './endpoints';
 import { getSession } from './session-store';
 
@@ -181,6 +182,9 @@ export const MAX_ATTEMPTS = 6;
  * become useful; the image staying on that phone forever is the part that can still do
  * harm. So the retention rule is about the payload, not about the punch.
  */
+export const STALE_DEPOT_MESSAGE =
+  'Anda sudah dipindahkan ke depot lain. Catatan ini dibuat untuk depot sebelumnya dan tidak bisa dikirim; hapus lalu catat ulang.';
+
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** 30s, 1m, 2m, 4m, 8m, capped at 15m — the shape of a deploy, then of an outage. */
@@ -453,6 +457,16 @@ export async function flush(ignoreBackoff = false): Promise<void> {
         continue;
       }
       if (job.error) continue;
+      // A job captured at one depot cannot be sent by someone who now belongs to another: it
+      // would be refused (403), or filed against the wrong depot. Say so plainly and leave it
+      // for the person to discard, instead of retrying it into a silent failure.
+      if (
+        (job.kind === 'shiftCheckIn' || job.kind === 'gallonReturn') &&
+        queuedDepotIsStale(job.payload.depotId)
+      ) {
+        await put({ ...job, error: STALE_DEPOT_MESSAGE });
+        continue;
+      }
       // Waiting out its backoff. Skipped rather than returned: a later job may be due.
       if (!ignoreBackoff && job.nextAttemptAt && Date.parse(job.nextAttemptAt) > now) continue;
       try {

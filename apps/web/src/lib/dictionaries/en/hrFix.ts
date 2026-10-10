@@ -1681,6 +1681,7 @@ export const hrFix = {
     subtitle: 'The HR-#### code is generated automatically',
   },
   checkIn: {
+    todayDepot: 'Today: depot {name}',
     inOk: 'Checked in',
     outOk: 'Checked out',
     inAt: 'In {at}',

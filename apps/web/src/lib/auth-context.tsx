@@ -3,6 +3,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api } from './api';
+import { onDepotChanged, refreshNow } from './depot-signal';
+import { reconcileDepot } from './depot-follow';
+import { setDepot } from './depot-store';
 import { endpoints } from './endpoints';
 import { unsubscribeFromPush } from './push';
 import { forgetNotificationsSeen } from './unread';
@@ -21,6 +24,9 @@ interface AuthValue {
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
+
+/** At most one background re-check of the account per minute. */
+const REVALIDATE_MIN_MS = 60_000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setLocal] = useState<Session | null>(null);
@@ -44,6 +50,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // request goes out with the bearer already attached instead of 401ing into a
     // sign-out.
     let cancelled = false;
+
+    /*
+     * Re-ask the server who this account is, and follow it if it has moved depot.
+     *
+     * The login's depot changes server-side (an employee lent to another depot flips within
+     * a quarter hour of midnight), but this client only read `/auth/me` once, at mount - so a
+     * phone left open kept scoping every screen, and every request, to the depot the person
+     * had already left. Now it re-asks when the app comes back to the foreground, and when a
+     * self-service response says the token is out of date. Rate-limited: a flapping focus
+     * event must not become a request storm against a rate-limited gateway.
+     */
+    let lastCheck = 0;
+    const revalidate = async (force = false): Promise<void> => {
+      const now = Date.now();
+      if (!force && now - lastCheck < REVALIDATE_MIN_MS) return;
+      if (!getSession() && !hasTokens()) return;
+      lastCheck = now;
+      try {
+        const before = getSession()?.customer?.assignedDepotId ?? null;
+        const customer = await api.get<Customer>(endpoints.auth.me, true);
+        const after = customer.assignedDepotId ?? null;
+        // The token carries the depot too: take a fresh one so requests stop being scoped to
+        // the old depot, not only the screens.
+        if (before !== null && after !== before) await refreshNow();
+        if (!cancelled) setSession({ customer });
+        reconcileDepot(customer);
+      } catch {
+        /* a transient failure changes nothing; the next focus tries again */
+      }
+    };
+    const onVisible = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') void revalidate();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    onDepotChanged(() => void revalidate(true));
+
     void unlockTokens().then(() => {
       if (cancelled) return;
       if (getSession() || hasTokens()) {
@@ -61,6 +104,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       unsub();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      onDepotChanged(null);
     };
   }, []);
 
@@ -109,6 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         forgetNotificationsSeen();
         forgetSessionFamily();
         setLocation(null);
+        // The depot picked in the console is the PERSON's, not the phone's: the next account to
+        // sign in here must not inherit it (it was a depot their own token is refused for).
+        setDepot(null);
         // Safe on this line: the request above has already been issued with its bearer
         // attached — `api` builds headers before it awaits anything.
         clearTokens();
