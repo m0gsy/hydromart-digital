@@ -1253,6 +1253,7 @@ export const hrFix = {
     stopped: 'Dihentikan',
   },
   depotRequests: {
+    gateBody: 'Hanya manajer depot yang bisa mengajukan peminjaman karyawan. HR merencanakannya langsung dari kartu karyawan.',
     title: 'Permintaan pinjam karyawan',
     hint: 'Ajukan peminjaman karyawan dari depot lain untuk depot Anda. HR yang memutuskan; karyawan baru berpindah setelah disetujui.',
     code: 'Kode karyawan',

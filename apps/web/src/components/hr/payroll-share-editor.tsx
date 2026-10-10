@@ -125,6 +125,7 @@ export function PayrollShareEditor({ payroll, onSaved }: { payroll: Payroll; onS
       </div>
       {free.length > 0 && (
         <select
+          aria-label={t('hrFix.payrollDetail.addDepot')}
           className="surface-elevated w-full rounded-lg border border-app px-3 py-2 text-sm"
           value=""
           onChange={(e) => {

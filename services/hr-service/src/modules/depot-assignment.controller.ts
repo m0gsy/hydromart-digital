@@ -90,7 +90,7 @@ export class DepotAssignmentController {
   @ApiOkResponse({ type: PagedDepotAssignmentResponseDto })
   @Can('employeeAssignRequest')
   @Get('requests/mine')
-  @ApiOperation({ summary: "The caller's own requests and what became of them" })
+  @ApiOperation({ summary: 'Own requests and what became of them' })
   myRequests(@Query() q: ListDepotAssignmentDto, @CurrentUser() user: AuthenticatedUser) {
     return this.assignments.myRequests(user, q);
   }

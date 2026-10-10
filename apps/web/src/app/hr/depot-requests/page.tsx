@@ -3,13 +3,17 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, Field, Input, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import { Lock } from '@phosphor-icons/react';
+
+import { Badge, Button, Card, CenterState, Field, Input, LoadError, SectionHeader, Skeleton } from '@/components/ui';
 import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { api, ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { fmtDate, type DepotAssignment } from '@/lib/hr';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
 /** The local day, `YYYY-MM-DD`, in the browser own zone - what a date input speaks. */
@@ -23,7 +27,24 @@ function today(): string {
  * A depot manager asks to borrow an employee of another depot. They cannot browse that depot's
  * staff, so the person is named by employee code; HR decides on the employee card.
  */
+/*
+ * The route answers 403 to anybody but a depot manager, so the screen says so up front instead of
+ * rendering a form that can only fail (and instead of calling the API at all).
+ */
 export default function DepotRequestsPage() {
+  const { t } = useT();
+  const { customer } = useAuth();
+  if (!can('employeeAssignRequest', customer?.role)) {
+    return (
+      <CenterState title={t('hrFix.imports.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('hrFix.depotRequests.gateBody')}
+      </CenterState>
+    );
+  }
+  return <DepotRequestsBody />;
+}
+
+function DepotRequestsBody() {
   const { t } = useT();
   const { toast } = useToast();
   const { depots } = useDepot();

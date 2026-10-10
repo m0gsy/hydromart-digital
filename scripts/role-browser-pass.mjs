@@ -114,7 +114,7 @@ const HQ = R(`
 /hq/onboarding /hq/orders /hq/payments /hq/pdp /hq/pricing /hq/profile /hq/promo-rules /hq/promotions
 /hq/reconciliation /hq/refunds /hq/reports/export /hq/retention /hq/returns /hq/roster
 /hq/scheduled-reports /hq/scorecard /hq/search /hq/security /hq/sitemap /hq/sla-policy
-/hq/staff /hq/staff/import /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
+/hq/staff /hq/staff/import /hq/catalog/import /hq/catalog/import-categories /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
 /hq/webhooks /hq/wizard /hq/access/landing
 /hq/access/detail /hq/applications/detail /hq/depots/detail /hq/forecast-models
 /hq/orders/detail /hq/pnl
@@ -128,6 +128,7 @@ const OPS = R(`
 /dashboard/audit /dashboard/broadcast /dashboard/campaigns /dashboard/cashbook
 /dashboard/churn /dashboard/commission /dashboard/compare /dashboard/crm
 /dashboard/customers /dashboard/customers/detail /dashboard/customers/import
+/dashboard/customers/import-addresses /dashboard/returns/import
 /dashboard/depot-settings /dashboard/depots /dashboard/disputes /dashboard/earning-rules
 /dashboard/expense-claims /dashboard/forecast /dashboard/franchise /dashboard/handover
 /dashboard/huddle /dashboard/incidents /dashboard/inventory /dashboard/inventory/import
@@ -159,6 +160,7 @@ const HR = R(`
 /hr/employees/import /hr/employees/new /hr/leave /hr/leave/balances-import /hr/loans
 /hr/loans/import /hr/loans/requests /hr/me/kasbon /hr/payroll /hr/payroll/detail
 /hr/performance /hr/reports /hr/resellers /hr/rules /hr/settings /hr/shift
+/hr/attendance/import /hr/payroll/import /hr/shift/import /hr/depot-requests
 `);
 
 // All 8 `/m/manager` screens — including the two nobody had ever loaded.

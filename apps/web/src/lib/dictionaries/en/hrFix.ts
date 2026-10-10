@@ -1236,6 +1236,7 @@ export const hrFix = {
     stopped: 'Stopped',
   },
   depotRequests: {
+    gateBody: 'Only a depot manager can ask to borrow an employee. HR plans it directly from the employee card.',
     title: 'Borrow an employee',
     hint: 'Ask to borrow an employee from another depot for your depot. HR decides; nobody moves until it is approved.',
     code: 'Employee code',

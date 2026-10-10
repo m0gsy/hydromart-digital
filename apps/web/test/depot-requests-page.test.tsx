@@ -9,6 +9,7 @@ vi.mock('@/lib/api', () => ({
   api: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) },
   ApiError: class ApiError extends Error {},
 }));
+vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: 'MANAGER' } }) }));
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [{ id: 'd1', name: 'Pekayon' }], scopedId: 'd1', selected: null }),
 }));
@@ -69,5 +70,22 @@ describe('/hr/depot-requests', () => {
     expect(String(url)).toMatch(/depot-assignments\/requests$/);
     expect(body).toMatchObject({ employeeCode: 'EMP-0042', depotId: 'd1', endDate: '2099-01-02' });
     expect(body).not.toHaveProperty('employeeId');
+  });
+});
+
+describe('/hr/depot-requests gate', () => {
+  it('a role that cannot ask sees the explanation and never calls the API', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: 'HR' } }) }));
+    const { default: Page } = await import('@/app/hr/depot-requests/page');
+    const { LocaleProvider: Provider } = await import('@/lib/locale-context');
+    get.mockClear();
+    render(
+      <Provider>
+        <Page />
+      </Provider>,
+    );
+    expect(await screen.findByText(/Hanya manajer depot/)).toBeTruthy();
+    expect(get).not.toHaveBeenCalled();
   });
 });
