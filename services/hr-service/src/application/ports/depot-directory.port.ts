@@ -12,4 +12,9 @@ export interface DepotDirectoryPort {
    * failed lookup means; a plan asks the person to try again, the sweep retries next tick.
    */
   isActive(depotId: string): Promise<boolean>;
+  /**
+   * Depot names for printing. Best effort by design: a document must never fail because a
+   * depot could not be named, so an unknown id is simply absent from the map.
+   */
+  names(depotIds: readonly string[]): Promise<Map<string, string>>;
 }

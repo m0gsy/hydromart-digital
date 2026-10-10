@@ -9,6 +9,25 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
   constructor(private readonly config: HrConfigService) {}
 
   async isActive(depotId: string): Promise<boolean> {
+    return (await this.describe(depotId)).active;
+  }
+
+  async names(depotIds: readonly string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    await Promise.all(
+      [...new Set(depotIds)].map(async (id) => {
+        try {
+          const { name } = await this.describe(id);
+          if (name) out.set(id, name);
+        } catch {
+          /* unnamed: the caller falls back to a short id */
+        }
+      }),
+    );
+    return out;
+  }
+
+  private async describe(depotId: string): Promise<{ active: boolean; name?: string }> {
     const { url, internalKey } = this.config.depotService;
     if (!url || !internalKey) {
       throw new ServiceUnavailableException('DEPOT_SERVICE_URL/INTERNAL_SERVICE_KEY belum diset');
@@ -28,7 +47,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
     if (!res.ok) {
       throw new ServiceUnavailableException(`depot-service tidak bisa menyebut status depot (${res.status})`);
     }
-    const body = (await res.json()) as { active?: boolean };
-    return body.active === true;
+    const body = (await res.json()) as { active?: boolean; name?: string };
+    return { active: body.active === true, name: body.name };
   }
 }

@@ -232,6 +232,7 @@ export class InternalOwnerResponseDto {
 
 export class InternalActiveResponseDto {
   @ApiProperty() active!: boolean;
+  @ApiProperty() name!: string;
 }
 
 export class InternalAssistantResponseDto {

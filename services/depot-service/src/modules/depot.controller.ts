@@ -176,10 +176,13 @@ export class DepotController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @Get('internal/:id/active')
-  @ApiOperation({ summary: 'Whether one depot is open (internal service auth)' })
-  async internalActive(@Param('id', ParseUUIDPipe) id: string): Promise<{ active: boolean }> {
+  @ApiOperation({ summary: 'Whether one depot is open, and its name (internal service auth)' })
+  async internalActive(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ active: boolean; name: string }> {
     const depot = await this.depots.get(id, false);
-    return { active: depot.active };
+    // The name rides along so a payslip can print where the pay was split to.
+    return { active: depot.active, name: depot.name };
   }
 
   /**

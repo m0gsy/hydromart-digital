@@ -4,6 +4,7 @@ import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localMonthKey } fr
 import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { AuditService } from './audit.service';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import { calendarDayWeights, homeDepotOf } from '../../domain/depot-on';
 import { redactForLendingDepot } from '../../domain/employee-redaction';
 import {
@@ -43,7 +44,7 @@ import {
   pph21December,
   pph21Monthly,
 } from '../../domain/statutory';
-import { payrollSlipPdf } from '../../domain/payroll-pdf';
+import { payrollSlipPdf, type SlipData } from '../../domain/payroll-pdf';
 import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
 import { parseFines, tierOf } from '../../domain/late-fine';
 import {
@@ -120,6 +121,7 @@ export class PayrollService {
     @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
     private readonly depotLedger?: DepotAssignmentRepository,
     @Optional() private readonly audit?: AuditService,
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   /**
@@ -759,7 +761,7 @@ export class PayrollService {
   /** The same slip PDF as `slip`, for the employee's own payroll only. */
   async selfSlip(user: AuthenticatedUser, id: string): Promise<Buffer> {
     const { payroll, employee } = await this.loadSelf(user, id);
-    return PayrollService.renderSlip(payroll, employee);
+    return PayrollService.renderSlip(payroll, employee, await this.depotBlock(payroll));
   }
 
   private async loadSelf(
@@ -779,15 +781,42 @@ export class PayrollService {
     const payroll = await this.load(user, id); // 404 + depot check
     const employee = await this.ownerOf(user, payroll.employeeId);
     // A borrowing depot prints its share; the person's papers are not the slip's business.
+    const whole = this.reachesHome(user, employee);
     return PayrollService.renderSlip(
       payroll,
-      this.reachesHome(user, employee) ? employee : redactForLendingDepot(employee),
+      whole ? employee : redactForLendingDepot(employee),
+      // A borrowing depot already holds only its own share as the whole slip; a split block
+      // would repeat that one line, so only the home depot and head office get it.
+      whole ? await this.depotBlock(payroll) : undefined,
     );
   }
 
+  /**
+   * "Pembagian per depot" for a slip print: names and amounts of each part. Empty (no block)
+   * with the feature off, for an unsplit slip, or when the split is just the home depot.
+   */
+  private async depotBlock(payroll: PayrollWithItems): Promise<SlipData['depotShares'] | undefined> {
+    if (!this.config.depotAssignmentEnabled || !this.repo.findShares) return undefined;
+    const shares = await this.repo.findShares(payroll.id);
+    if (shares.length < 2) return undefined;
+    const names = (await this.directory?.names(shares.map((s) => s.depotId))) ?? new Map();
+    return shares.map((s) => ({
+      name: names.get(s.depotId) ?? s.depotId.slice(0, 8),
+      days: s.days,
+      gross: s.gross,
+      deduction: s.deduction,
+      net: s.net,
+    }));
+  }
+
   /** One slip layout, shared by the staff route and the employee's own. */
-  private static renderSlip(payroll: PayrollWithItems, employee: Employee): Promise<Buffer> {
+  private static renderSlip(
+    payroll: PayrollWithItems,
+    employee: Employee,
+    depotShares?: SlipData['depotShares'],
+  ): Promise<Buffer> {
     return payrollSlipPdf({
+      ...(depotShares ? { depotShares } : {}),
       employeeName: employee.fullName,
       employeeCode: employee.employeeCode,
       periodMonth: payroll.periodMonth,

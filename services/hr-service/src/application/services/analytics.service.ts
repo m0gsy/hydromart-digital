@@ -1,9 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthenticatedUser, depotScopeIds, localDayKey } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { CsvCell, toCsv } from '../../domain/csv';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import {
   ANALYTICS_REPOSITORY,
   AnalyticsRepository,
@@ -77,6 +78,7 @@ export class AnalyticsService {
   constructor(
     @Inject(ANALYTICS_REPOSITORY) private readonly repo: AnalyticsRepository,
     private readonly config: HrConfigService,
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   async dashboard(
@@ -342,6 +344,22 @@ export class AnalyticsService {
   ): Promise<ReportData> {
     const depotIds = depotScopeIds(user, query.depotId);
     const rows = await this.repo.payrollForReport(query.periodMonth, depotIds);
+    // With the split on, one more column says which depot carries what - a slip lent across
+    // depots would otherwise export as a single line that looks like one depot's cost.
+    let split: Map<string, { depotId: string; days: number; net: number }[]> | null = null;
+    let names = new Map<string, string>();
+    if (this.config.depotAssignmentEnabled && this.repo.sharesForPayrolls) {
+      split = await this.repo.sharesForPayrolls(
+        rows.map((p) => p.id),
+        depotIds,
+      );
+      const ids = [...split.values()].flat().map((s) => s.depotId);
+      names = (await this.directory?.names(ids)) ?? names;
+    }
+    const alloc = (id: string): string =>
+      (split?.get(id) ?? [])
+        .map((s) => `${names.get(s.depotId) ?? s.depotId.slice(0, 8)}: ${s.net} (${s.days} hari)`)
+        .join('; ');
     return {
       headers: [
         'periodMonth',
@@ -353,6 +371,7 @@ export class AnalyticsService {
         'totalDeduction',
         'net',
         'presentDays',
+        ...(split ? ['alokasiDepot'] : []),
       ],
       rows: rows.map((p) => [
         p.periodMonth,
@@ -364,6 +383,7 @@ export class AnalyticsService {
         dec(p.totalDeduction),
         dec(p.net),
         p.presentDays,
+        ...(split ? [alloc(p.id)] : []),
       ]),
     };
   }

@@ -392,6 +392,30 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     );
   }
 
+  async sharesForPayrolls(
+    payrollIds: readonly string[],
+    depotIds?: readonly string[],
+  ): Promise<Map<string, { depotId: string; days: number; net: number }[]>> {
+    const out = new Map<string, { depotId: string; days: number; net: number }[]>();
+    // Chunked: a month of payroll is a few thousand ids, and `IN` lists should stay bounded.
+    for (let i = 0; i < payrollIds.length; i += 500) {
+      const rows = await this.prisma.payrollDepotShare.findMany({
+        where: {
+          payrollId: { in: payrollIds.slice(i, i + 500) },
+          ...(depotIds ? { depotId: { in: [...depotIds] } } : {}),
+        },
+        orderBy: [{ payrollId: 'asc' }, { depotId: 'asc' }],
+        take: 5000,
+      });
+      for (const r of rows) {
+        const list = out.get(r.payrollId) ?? [];
+        list.push({ depotId: r.depotId, days: r.days, net: Number(r.net) });
+        out.set(r.payrollId, list);
+      }
+    }
+    return out;
+  }
+
   // ── C4 reports ──────────────────────────────────────────────────────
 
   lateForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]> {
