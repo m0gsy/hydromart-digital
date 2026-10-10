@@ -1,5 +1,7 @@
 import {
+  MAX_BACKDATE_DAYS,
   MAX_HORIZON_DAYS,
+  type BackdateFacts,
   planProblems,
   type OpenAssignment,
   type PlanInput,
@@ -113,13 +115,56 @@ describe('planProblems', () => {
     const open: OpenAssignment[] = [
       { id: 'l1', kind: 'LOAN', startDate: '2026-12-01', endDate: '2026-12-05' },
     ];
-    expect(problems({ kind: 'PERMANENT', endDate: null, startDate: '2026-11-01' }, {}, open)).toEqual([
-      expect.stringMatching(/bertabrakan/i),
-    ]);
+    expect(
+      problems({ kind: 'PERMANENT', endDate: null, startDate: '2026-11-01' }, {}, open),
+    ).toEqual([expect.stringMatching(/bertabrakan/i)]);
   });
 
   it('reports every problem at once instead of one per attempt', () => {
     const r = problems({ endDate: null }, { hasAccount: false, status: 'RESIGNED' });
     expect(r.length).toBe(3);
+  });
+});
+
+describe('planProblems: starting in the past', () => {
+  const clean: BackdateFacts = { actorMayBackdate: true, lockedMonths: [], stampConflicts: 0 };
+  const past = (input: Partial<PlanInput>, facts?: Partial<BackdateFacts>) =>
+    planProblems(
+      { ...loan, startDate: '2026-10-05', endDate: '2026-10-25', ...input },
+      subject,
+      [],
+      TODAY,
+      facts === undefined ? undefined : { ...clean, ...facts },
+    );
+
+  it('stays closed without the facts, and for anybody who may not backdate', () => {
+    expect(past({})).toEqual([expect.stringMatching(/lampau/i)]);
+    expect(past({}, { actorMayBackdate: false })).toEqual([expect.stringMatching(/lampau/i)]);
+  });
+
+  it('opens for a permitted actor when the books are clean', () => {
+    expect(past({}, {})).toEqual([]);
+  });
+
+  it('refuses beyond the cap but allows exactly the cap', () => {
+    expect(past({ startDate: '2026-07-10' }, {})).toEqual([]); // 92 days back
+    expect(MAX_BACKDATE_DAYS).toBe(92);
+    expect(past({ startDate: '2026-07-09' }, {})).toEqual([
+      expect.stringMatching(/terlalu lampau/i),
+    ]);
+  });
+
+  it('names the locked months and the conflicting stamps', () => {
+    const r = past({}, { lockedMonths: ['2026-09', '2026-10'], stampConflicts: 2 });
+    expect(r).toEqual([
+      expect.stringMatching(/2026-09, 2026-10.*disetujui atau dibayar/),
+      expect.stringMatching(/2 hari absensi/),
+    ]);
+  });
+
+  it('a start today or later never asks for the facts', () => {
+    expect(
+      past({ startDate: TODAY }, { actorMayBackdate: false, lockedMonths: ['2026-10'] }),
+    ).toEqual([]);
   });
 });

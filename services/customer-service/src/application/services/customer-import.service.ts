@@ -25,6 +25,18 @@ export interface ImportCustomerRow {
   landmark?: string;
 }
 
+export interface ImportAddressRow {
+  /** Names the customer; an account that is already ACTIVE is left alone. */
+  phone: string;
+  label?: string;
+  recipientName: string;
+  addressLine: string;
+  city: string;
+  province?: string;
+  postalCode?: string;
+  landmark?: string;
+}
+
 export interface ImportResellerRow {
   fullName: string;
   phone: string;
@@ -164,6 +176,51 @@ export class CustomerImportService {
       }
 
       return { status: 'created', id: customerId };
+    });
+  }
+
+  /**
+   * Extra delivery addresses for customers a depot already holds - a second shop, a family
+   * home - one row per address, the customer named by phone.
+   *
+   * The same rules the customer import follows, for the same reasons: an ACTIVE account
+   * belongs to that person and is skipped, an address already in the book (same line and
+   * city, normalised) is skipped so the file can be re-uploaded, and the per-customer address
+   * cap fails the row instead of silently dropping it. The first address a customer gets
+   * becomes their primary through the normal create path; this never promotes one.
+   */
+  async importAddresses(
+    user: AuthenticatedUser,
+    depotId: string,
+    rows: readonly ImportAddressRow[],
+  ): Promise<ImportSummary> {
+    assertDepotAccess(user, depotId);
+    const same = (a: string) => a.trim().toLowerCase().replace(/\s+/g, ' ');
+
+    return runImport(rows, async (row) => {
+      const { customerId, status } = await this.identity.preRegisterCustomer(row.phone);
+      if (status === 'active') {
+        return { status: 'skipped', id: customerId, message: 'Nomor sudah punya akun aktif' };
+      }
+      const existing = await this.addresses.list(customerId);
+      const already = existing.some(
+        (a: { addressLine: string; city: string }) =>
+          same(a.addressLine) === same(row.addressLine) && same(a.city) === same(row.city),
+      );
+      if (already) {
+        return { status: 'skipped', id: customerId, message: 'Alamat ini sudah ada' };
+      }
+      const created = await this.addresses.create(customerId, {
+        label: row.label?.trim() || 'Rumah',
+        recipientName: row.recipientName,
+        phone: row.phone,
+        addressLine: row.addressLine,
+        city: row.city,
+        province: row.province,
+        postalCode: row.postalCode,
+        notes: row.landmark,
+      });
+      return { status: 'created', id: created.id };
     });
   }
 

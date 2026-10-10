@@ -53,6 +53,8 @@ const SEGMENT_ENV: Record<string, string> = {
   // `loans`, because `loans` is money payroll is already deducting and a request is not
   // that yet — the two have different readers and different capabilities.
   'loan-requests': 'HR_SERVICE_URL',
+  // Lend an employee to another depot, or schedule a permanent move (HR console).
+  'depot-assignments': 'HR_SERVICE_URL',
   'bonus-rules': 'HR_SERVICE_URL',
   performance: 'HR_SERVICE_URL',
   'hr-reports': 'HR_SERVICE_URL',

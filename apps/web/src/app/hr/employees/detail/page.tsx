@@ -8,6 +8,7 @@ import { FaceCapture } from '@/components/hr/face-capture';
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
 import { EmployeeAssets } from '@/components/hr/employee-assets';
 import { EmployeeDocuments } from '@/components/hr/employee-documents';
+import { EmployeeDepotAssignment } from '@/components/hr/employee-depot-assignment';
 import { EmployeeLoans } from '@/components/hr/employee-loans';
 import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
@@ -39,7 +40,7 @@ import {
   type Employee,
   type EmploymentHistory,
 } from '@/lib/hr';
-import { canManageHr } from '@/lib/roles';
+import { can, canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -221,6 +222,8 @@ export default function EmployeeDetailPage() {
       <EmployeeAssets employeeId={id} />
 
       <EmployeeLoans employeeId={id} isAdmin={isAdmin} />
+
+      {can('employeeAssign', customer?.role) && <EmployeeDepotAssignment employeeId={id} />}
 
       <div className="flex flex-wrap gap-3">
         <Link

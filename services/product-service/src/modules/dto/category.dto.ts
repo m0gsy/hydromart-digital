@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsISO8601,
   IsBoolean,
   IsInt,
@@ -9,6 +11,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateCategoryDto {
@@ -45,4 +48,21 @@ export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+export class ImportCategoryRowDto {
+  @IsString() @MaxLength(100) name!: string;
+  @IsString()
+  @MaxLength(120)
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { message: 'slug must be lowercase alphanumeric with hyphens' })
+  slug!: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) sortOrder?: number;
+}
+
+export class ImportCategoriesDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportCategoryRowDto)
+  rows!: ImportCategoryRowDto[];
 }

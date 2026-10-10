@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { Can, AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, ImportSummary, SelfScoped } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
 import {
@@ -10,8 +10,12 @@ import {
   GenerateBatchResultDto,
   GeneratePayrollDto,
   ListPayrollDto,
+  PayrollShareResponseDto,
+  ReallocatePayrollDto,
 } from './dto/payroll.dto';
-import { PayrollWithItems } from '../application/ports/payroll.repository';
+import { ImportPayrollDto } from './dto/history-import.dto';
+import { ImportResponseDto } from './dto/responses.generated.dto';
+import { PayrollShareRow, PayrollWithItems } from '../application/ports/payroll.repository';
 import { PayrollWithItemsResponseDto } from './dto/responses.generated.dto';
 
 /** Monthly payroll: generate (DRAFT) → approve → mark paid. Read = hrView; write = hrPayroll. */
@@ -124,6 +128,27 @@ export class PayrollController {
     return this.payroll.generateBatch(user, dto.depotId, dto.periodMonth);
   }
 
+  @ApiOkResponse({ type: ImportResponseDto })
+  @Post('import')
+  @HttpCode(200)
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Load closed payslips from before the app as PAID history' })
+  import(@Body() dto: ImportPayrollDto, @CurrentUser() user: AuthenticatedUser): Promise<ImportSummary> {
+    return this.payroll.importHistory(user, dto.rows);
+  }
+
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
+  @Post(':id/regenerate')
+  @HttpCode(200)
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Recompute a DRAFT payroll (lines and per-depot split) from the ledger' })
+  regenerate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PayrollWithItems> {
+    return this.payroll.regenerate(user, id);
+  }
+
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Post(':id/approve')
   @Can('hrPayroll')
@@ -138,5 +163,17 @@ export class PayrollController {
   @ApiOperation({ summary: 'Mark an APPROVED payroll as paid' })
   pay(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.markPaid(user, id);
+  }
+
+  @ApiOkResponse({ type: PayrollShareResponseDto, isArray: true })
+  @Post(':id/reallocate-shares')
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Correct how a DRAFT/APPROVED slip is divided between depots (HQ)' })
+  reallocate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReallocatePayrollDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PayrollShareRow[]> {
+    return this.payroll.reallocate(user, id, dto);
   }
 }

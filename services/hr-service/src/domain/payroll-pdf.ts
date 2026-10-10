@@ -45,6 +45,8 @@ export interface SlipData {
   status: string;
   lines: { label: string; amount: number; deduction: boolean }[];
   net: number;
+  /** Only with the per-depot split on and a whole slip: who carries which part. */
+  depotShares?: { name: string; days: number; gross: number; deduction: number; net: number }[];
 }
 
 const idr = (n: number): string => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
@@ -68,6 +70,14 @@ export function payrollSlipPdf(data: SlipData): Promise<Buffer> {
   doc.moveDown();
   doc.fontSize(13).text('Gaji Bersih (Net)', { continued: true });
   doc.text(idr(data.net), { align: 'right' });
+  if (data.depotShares && data.depotShares.length > 0) {
+    doc.moveDown();
+    doc.fontSize(11).text('Pembagian per depot');
+    for (const s of data.depotShares) {
+      doc.fontSize(10).text(`${s.name} · ${s.days} hari`, { continued: true });
+      doc.text(`${idr(s.net)} (gaji ${idr(s.gross)}, potongan ${idr(s.deduction)})`, { align: 'right' });
+    }
+  }
   doc.end();
   return done;
 }

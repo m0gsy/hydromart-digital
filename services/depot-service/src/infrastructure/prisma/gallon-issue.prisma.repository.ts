@@ -11,6 +11,7 @@ import {
   GallonIssueRecord,
   GallonIssueRepository,
   GallonIssueSummary,
+  OPENING_BALANCE_NOTE,
 } from '../../application/ports/gallon-issue.repository';
 import { PrismaService } from './prisma.service';
 
@@ -26,6 +27,14 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
    */
   private toRecord(row: { depositHeld: unknown }): GallonIssueRecord {
     return { ...(row as GallonIssueRecord), depositHeld: Number(row.depositHeld) };
+  }
+
+  async hasOpeningBalance(depotId: string, customerId: string): Promise<boolean> {
+    const row = await this.prisma.gallonIssue.findFirst({
+      where: { depotId, customerId, note: OPENING_BALANCE_NOTE },
+      select: { id: true },
+    });
+    return row !== null;
   }
 
   async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {

@@ -12,11 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, Public } from '@hydromart/platform';
+import { Can, ImportSummary, Public } from '@hydromart/platform';
 
 import { CategoryService } from '../application/services/category.service';
 import { CategoryRecord } from '../application/ports/category.repository';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { CreateCategoryDto, ImportCategoriesDto, UpdateCategoryDto } from './dto/category.dto';
+import { ImportSummaryResponseDto } from './dto/product.dto';
 import { CategoryResponseDto } from './dto/responses.generated.dto';
 
 
@@ -43,6 +44,16 @@ export class CategoryController {
   @ApiOperation({ summary: 'List every category, active or not (admin)' })
   listAll(): Promise<CategoryRecord[]> {
     return this.categories.list(false);
+  }
+
+  @ApiOkResponse({ type: ImportSummaryResponseDto })
+  @ApiBearerAuth()
+  @Can('catalogWrite')
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk-import categories from a spreadsheet (admin)' })
+  import(@Body() dto: ImportCategoriesDto): Promise<ImportSummary> {
+    return this.categories.importRows(dto.rows);
   }
 
   @ApiOkResponse({ type: CategoryResponseDto })

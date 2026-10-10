@@ -146,10 +146,15 @@ function CustomersBody() {
             />
           </div>
           {canWriteDepotCrm(customer?.role) && (
-            <LinkButton href="/dashboard/customers/import" variant="secondary">
-              <UserPlus size={16} />
-              Import Excel
-            </LinkButton>
+            <>
+              <LinkButton href="/dashboard/customers/import" variant="secondary">
+                <UserPlus size={16} />
+                Import Excel
+              </LinkButton>
+              <LinkButton href="/dashboard/customers/import-addresses" variant="secondary">
+                {t('hrFix.imports.addressesTitle')}
+              </LinkButton>
+            </>
           )}
         </div>
       </div>

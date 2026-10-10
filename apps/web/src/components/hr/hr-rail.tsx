@@ -73,6 +73,8 @@ export const HR_ITEMS: NavItem[] = [
   { href: '/hr/allowances', label: 'hrFix.nav.allowances', icon: CurrencyCircleDollar },
   // CA-1-34: the kasbon ledger. It had an import wizard and no list.
   { href: '/hr/loans', label: 'hrFix.nav.loans', icon: CurrencyCircleDollar },
+  // A depot manager asks to borrow somebody; HR (who plans directly) has no use for it.
+  { href: '/hr/depot-requests', label: 'hrFix.nav.depotRequests', icon: Users, can: 'employeeAssignRequest' },
   { href: '/hr/assets', label: 'hrFix.nav.assets', icon: Package },
   { href: '/hr/announcements', label: 'hrFix.nav.announcements', icon: Megaphone },
   { href: '/hr/rules', label: 'hrFix.nav.rules', icon: Sparkle, adminOnly: true },

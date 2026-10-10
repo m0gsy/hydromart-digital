@@ -1235,6 +1235,51 @@ export const hrFix = {
     running: 'Running',
     stopped: 'Stopped',
   },
+  depotRequests: {
+    gateBody: 'Only a depot manager can ask to borrow an employee. HR plans it directly from the employee card.',
+    title: 'Borrow an employee',
+    hint: 'Ask to borrow an employee from another depot for your depot. HR decides; nobody moves until it is approved.',
+    code: 'Employee code',
+    codeHint: 'e.g. EMP-0012',
+    sent: 'Request sent to HR',
+    mine: 'Your requests',
+    none: 'No requests yet.',
+    submit: 'Request',
+    failed: 'Could not send the request.',
+  },
+  depotAssignment: {
+    approve: 'Approve',
+    reject: 'Reject',
+    approved: 'Request approved',
+    rejected: 'Request rejected',
+    rejectReason: 'Reason for rejecting?',
+    title: 'Cross-depot assignment',
+    hint: 'Lend an employee to another depot for set days, or schedule a permanent move. The system moves them on the day.',
+    empty: 'No assignments yet.',
+    kindLabel: 'Type',
+    toDepot: 'Destination depot',
+    pickDepot: 'Pick a destination depot',
+    start: 'Start',
+    end: 'Until (last day)',
+    noteOpt: 'Note (optional)',
+    plan: 'Plan',
+    planned: 'Assignment planned',
+    cancel: 'Cancel',
+    cutShort: 'End today',
+    cancelled: 'Assignment cancelled',
+    applyNow: 'Apply now',
+    applied: 'Assignment applied',
+    failed: 'Could not save the assignment.',
+    kind: { LOAN: 'On loan', PERMANENT: 'Permanent move' },
+    status: {
+      REQUESTED: 'Requested',
+      PLANNED: 'Scheduled',
+      ACTIVE: 'Running',
+      DONE: 'Done',
+      CANCELLED: 'Cancelled',
+      FAILED: 'Failed',
+    },
+  },
   loans: {
     stopFailed: 'Could not stop the advance',
     title: 'Loans & advances',
@@ -1727,9 +1772,30 @@ export const hrFix = {
     hint: 'Move your head slightly or blink while the photo is taken.',
   },
   imports: {
+    productsTitle: 'Import product catalogue',
+    categoriesTitle: 'Import product categories',
+    gallonBalancesTitle: 'Import customer gallon balances',
+    addressesTitle: 'Import customer addresses',
+    attendanceTitle: 'Import attendance history',
+    payrollTitle: 'Import payslip history',
+    shiftsTitle: 'Import shift history',
     loansTitle: 'Import outstanding advances',
     // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
     desc: {
+      products:
+        'Each row becomes one product in the network catalogue. An existing SKU is skipped (prices change on the product screen, which records who changed them). categorySlug must be an existing category; isGallon is yes/no.',
+      categories:
+        'Each row becomes one category. An existing slug is skipped. Slug: lowercase letters, digits and hyphens.',
+      gallonBalances:
+        'Opening gallon balances still out with customers when the depot moves onto the app. One row per customer (found by phone number). A number we do not know is REGISTERED as a PENDING account (the customer claims it with an OTP) and the row is flagged in the result. Physical gallon stock does NOT change - load stock through the stock import. A customer who already has an opening balance is skipped, so the same file is safe to upload again.',
+      addresses:
+        'Extra delivery addresses for this depot customers, one row per address. Customers are found by phone number; an active account and an address already on file are skipped.',
+      attendance:
+        'Attendance history from records kept before the app. Only days that are over, and only days with no record yet - correct an existing day on the correction screen. lateMinutes only counts for status LATE.',
+      payroll:
+        'Payslips of months closed before the app, stored as PAID. Past months only; a month that already has a slip is skipped. net must equal gross + bonus - deduction, or be left empty.',
+      shifts:
+        'Each employee shift history: the shift name (must match a name on the Shift screen) and the start date. A repeated row is skipped.',
       customers:
         'Imported numbers are registered first. Customers still sign up themselves by OTP with the same number — their account links straight to this record. If you fill in an address, the city is required; the province is optional.',
       inventory:
@@ -1862,6 +1928,22 @@ export const hrFix = {
     empty: 'No attendance yet',
   },
   payrollDetail: {
+    regenerate: 'Recalculate',
+    regenerated: 'Slip recalculated',
+    regenerateConfirm: 'Recalculate this slip from the latest data (attendance, assignments, rules)? Its lines and depot split are rewritten.',
+    reallocate: 'Correct depot split',
+    removeShare: 'Remove',
+    addDepot: '+ Add depot',
+    balanced: 'Totals match the slip.',
+    unbalanced: 'Not balanced (gross {gross}, bonus {bonus}, deduction {deduction} off).',
+    reason: 'Reason for the correction',
+    saveAllocation: 'Save split',
+    cancelEdit: 'Cancel',
+    reallocated: 'Depot split updated',
+    col: { days: 'Days', gross: 'Gross', bonus: 'Bonus', deduction: 'Deduction', shortfall: 'Shortfall' },
+    allocation: 'Allocation by depot',
+    allocationHint: 'This payslip is carried by several depots, by the days the employee worked at each.',
+    allocationDays: '{days} days',
     approvedAt: 'Approved',
     paidAt: 'Paid',
     pendingWarning:
@@ -2048,6 +2130,7 @@ export const hrFix = {
     adjustments: 'Bonuses & deductions',
     allowances: 'Allowances',
     loans: 'Loans',
+    depotRequests: 'Borrow requests',
     assets: 'Assets',
     announcements: 'Announcements',
     rules: 'Bonus rules',

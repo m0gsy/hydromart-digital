@@ -13,14 +13,19 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, Public } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, ImportSummary, Public } from '@hydromart/platform';
 
 import { ProductService } from '../application/services/product.service';
 import { PriceChangeRecord, ProductRecord } from '../application/ports/product.repository';
 import { Page } from '../application/pagination';
-import { BrowseProductsQueryDto, CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import {
+  BrowseProductsQueryDto,
+  CreateProductDto,
+  ImportProductsDto,
+  UpdateProductDto,
+} from './dto/product.dto';
 import { PagedProductResponseDto, ProductResponseDto } from './dto/responses.generated.dto';
-import { PriceChangeResponseDto } from './dto/product.dto';
+import { ImportSummaryResponseDto, PriceChangeResponseDto } from './dto/product.dto';
 
 
 @ApiTags('Products')
@@ -72,6 +77,16 @@ export class ProductController {
   @ApiOkResponse()
   get(@Param('id', ParseUUIDPipe) id: string): Promise<ProductRecord> {
     return this.products.get(id, true);
+  }
+
+  @ApiOkResponse({ type: ImportSummaryResponseDto })
+  @ApiBearerAuth()
+  @Can('catalogWrite')
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk-import products from a spreadsheet (admin)' })
+  import(@Body() dto: ImportProductsDto): Promise<ImportSummary> {
+    return this.products.importRows(dto.rows);
   }
 
   @ApiOkResponse({ type: ProductResponseDto })

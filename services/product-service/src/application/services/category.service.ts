@@ -8,7 +8,7 @@ import {
   UpdateCategoryData,
 } from '../ports/category.repository';
 import { PRODUCT_TOKENS } from '../tokens';
-import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
+import { ImportSummary, assertFresh, isDecisionOnlyPatch, runImport } from '@hydromart/platform';
 
 /** Category catalog. Public list is active-only; admin sees all. Delete = soft (active:false). */
 @Injectable()
@@ -34,6 +34,22 @@ export class CategoryService {
       throw new DuplicateSlugError();
     }
     return this.categories.create(data);
+  }
+
+  /** Bulk category import; an existing slug is skipped, never overwritten. */
+  importRows(rows: { name: string; slug: string; sortOrder?: number }[]): Promise<ImportSummary> {
+    return runImport(
+      rows,
+      async (row) => {
+        const created = await this.create({
+          name: row.name,
+          slug: row.slug,
+          sortOrder: row.sortOrder ?? 0,
+        });
+        return { status: 'created', id: created.id };
+      },
+      (err) => err instanceof DuplicateSlugError,
+    );
   }
 
   /** CA-2-53: refused when the caller's copy is older than the stored category. */

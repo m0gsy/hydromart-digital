@@ -10,6 +10,12 @@ export const EMPLOYEE_REPOSITORY = Symbol('EMPLOYEE_REPOSITORY');
 export interface EmployeeListFilter {
   /** Restrict to one depot (tenant isolation). Undefined = all depots (HQ view). */
   depotIds?: readonly string[];
+  /**
+   * Match `depotIds` against the depot each person BELONGS to rather than the one they work
+   * at today - what a payroll batch means by "this depot's staff". Rows that predate the
+   * home column fall back to their live depot.
+   */
+  byHome?: boolean;
   status?: EmployeeStatus;
   /** Restrict to one org unit. Undefined = every department, including the unassigned. */
   departmentId?: string;

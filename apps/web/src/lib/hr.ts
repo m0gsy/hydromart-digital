@@ -149,6 +149,17 @@ export interface PayrollItem {
   amount: string;
 }
 
+/** One depot's part of a split payslip. */
+export interface PayrollShare {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+  net: number;
+}
+
 export interface Payroll {
   id: string;
   employeeId: string;
@@ -165,6 +176,8 @@ export interface Payroll {
   totalDeduction: string;
   net: string;
   presentDays: number;
+  /** How the slip is split across depots; present only on the detail read, and only when split. */
+  shares?: PayrollShare[];
   /**
    * CA-1-42: days in this period HR has still not decided, read live when the slip opens.
    *
@@ -596,6 +609,20 @@ export interface Announcement {
 
 export interface AnnouncementDetail extends Announcement {
   readCount: number;
+}
+
+/** A dated cross-depot assignment (hr-service `EmployeeDepotAssignment`). */
+export interface DepotAssignment {
+  id: string;
+  employeeId: string;
+  kind: 'LOAN' | 'PERMANENT';
+  /** The depot they are sent TO. */
+  depotId: string;
+  startDate: string;
+  endDate: string | null;
+  status: 'REQUESTED' | 'PLANNED' | 'ACTIVE' | 'DONE' | 'CANCELLED' | 'FAILED';
+  failReason: string | null;
+  note: string | null;
 }
 
 /** Loan + computed outstanding balance (server-derived, as of a period). */

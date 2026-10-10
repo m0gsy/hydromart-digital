@@ -53,6 +53,65 @@ export class ImportCustomerRowDto {
   landmark?: string;
 }
 
+export class ImportAddressRowDto {
+  @ApiProperty({ example: '081234567890' })
+  @IsString()
+  @MaxLength(32)
+  phone!: string;
+
+  @ApiPropertyOptional({ example: 'Kios' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  label?: string;
+
+  @ApiProperty({ example: 'Siti Aminah' })
+  @IsString()
+  @MaxLength(120)
+  recipientName!: string;
+
+  @ApiProperty({ example: 'Jl. Melati 3 No. 7 RT 04' })
+  @IsString()
+  @MaxLength(255)
+  addressLine!: string;
+
+  @ApiProperty({ example: 'Bekasi' })
+  @IsString()
+  @MaxLength(80)
+  city!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  province?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  postalCode?: string;
+
+  @ApiPropertyOptional({ description: 'Patokan - reaches the courier through the order note.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  landmark?: string;
+}
+
+export class ImportAddressesDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot whose customers these addresses belong to.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ type: [ImportAddressRowDto], description: 'Max 500 rows per file.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportAddressRowDto)
+  rows!: ImportAddressRowDto[];
+}
+
 export class ImportResellerRowDto {
   @ApiProperty({ example: 'Toko Berkah' })
   @IsString()

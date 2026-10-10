@@ -13,6 +13,8 @@ export interface DepotAssignmentWrite {
   createdByRole: string | null;
   createdBy: string | null;
   note: string | null;
+  /** Defaults to PLANNED; a manager's request is written as REQUESTED. */
+  status?: DepotAssignmentStatus;
 }
 
 /** The statuses that still claim days on the calendar. */
@@ -21,6 +23,8 @@ export const OPEN_STATUSES: readonly DepotAssignmentStatus[] = ['PLANNED', 'ACTI
 export interface DepotAssignmentListFilter {
   employeeId?: string;
   status?: DepotAssignmentStatus;
+  /** Only rows this account created (a manager reading back their own requests). */
+  createdBy?: string;
   /** Undefined for a reader above depots. Matches the destination depot OR the employee's home. */
   depotIds?: readonly string[];
   skip: number;
@@ -62,6 +66,17 @@ export interface DepotAssignmentRepository {
    * stops being retried and a human can read why on the screen.
    */
   recordFailure(id: string, reason: string, maxAttempts: number): Promise<void>;
+  /**
+   * Decide a REQUESTED row: to PLANNED (after `check` has seen the employee's open assignments,
+   * under the same row lock as `createChecked`) or to CANCELLED with the reason. Returns null
+   * when the row was no longer REQUESTED - somebody decided first.
+   */
+  decideRequested?(
+    id: string,
+    to: 'PLANNED' | 'CANCELLED',
+    check: ((open: EmployeeDepotAssignment[]) => void) | null,
+    patch: { failReason?: string | null },
+  ): Promise<EmployeeDepotAssignment | null>;
   /** PLANNED -> CANCELLED. Returns null when the row was no longer PLANNED. */
   cancelPlanned(id: string): Promise<EmployeeDepotAssignment | null>;
 }

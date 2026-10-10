@@ -198,6 +198,7 @@ gallonIssues: {
   // posts `create` when a galon goes out. Nothing has ever paged the raw issues.)
   summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues/summary`,
   create: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues`,
+  import: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues/import`,
 },
 
 // Network gallon rollup (HQ compare 14d + reconciliation 22a): per-depot outstanding

@@ -16,6 +16,7 @@ import {
   ListFooter,
   SectionHeader,
   Skeleton,
+  LinkButton,
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError, getBlob } from '@/lib/api';
@@ -308,6 +309,13 @@ function AttendanceInner() {
       <SectionHeader
         title={t('hrFix.attendance.title')}
         subtitle={list.rows.length > 0 ? `${list.total} catatan` : undefined}
+        action={
+          isAdmin ? (
+            <LinkButton href="/hr/attendance/import" variant="secondary">
+              {t('hrFix.imports.attendanceTitle')}
+            </LinkButton>
+          ) : undefined
+        }
       />
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">

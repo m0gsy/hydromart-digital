@@ -1,8 +1,25 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeIds, localMonthKey } from '@hydromart/platform';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeIds,
+  localMonthKey,
+  runImport,
+} from '@hydromart/platform';
 
-import { Employee, Payroll } from '../../../prisma/generated/client';
+import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { AuditService } from './audit.service';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
+import { calendarDayWeights, homeDepotOf } from '../../domain/depot-on';
+import { redactForLendingDepot } from '../../domain/employee-redaction';
+import {
+  allocatePayroll,
+  reallocationProblems,
+  type DepotWeight,
+  type ShareCorrection,
+} from '../../domain/payroll-allocation';
 import { parseWeeklyOffDays, workingDaysInMonth, workingDaysInRange } from '../../domain/calendar';
 import {
   parseRaiseLadder,
@@ -34,7 +51,7 @@ import {
   pph21December,
   pph21Monthly,
 } from '../../domain/statutory';
-import { payrollSlipPdf } from '../../domain/payroll-pdf';
+import { payrollSlipPdf, type SlipData } from '../../domain/payroll-pdf';
 import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
 import { parseFines, tierOf } from '../../domain/late-fine';
 import {
@@ -55,9 +72,15 @@ import {
 import { ALLOWANCE_REPOSITORY, AllowanceRepository } from '../ports/allowance.repository';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 import {
+  DEPOT_ASSIGNMENT_REPOSITORY,
+  DepotAssignmentRepository,
+} from '../ports/depot-assignment.repository';
+import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
   PayrollRepository,
+  PayrollShareRow,
+  PayrollShareWrite,
   PayrollWithEmployee,
   PayrollWithItems,
 } from '../ports/payroll.repository';
@@ -100,6 +123,12 @@ export class PayrollService {
     @Optional() @Inject(SALES_PORT) private readonly sales?: SalesPort,
     @Optional() @Inject(ALLOWANCE_REPOSITORY) private readonly allowances?: AllowanceRepository,
     @Optional() @Inject(SHIFT_REPOSITORY) private readonly shifts?: ShiftRepository,
+    // Last: absent (specs), or with the feature off, a payslip is not split at all.
+    @Optional()
+    @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
+    private readonly depotLedger?: DepotAssignmentRepository,
+    @Optional() private readonly audit?: AuditService,
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   /**
@@ -115,7 +144,16 @@ export class PayrollService {
       throw new BadRequestException('periodMonth harus format YYYY-MM');
     }
     this.assertPeriodClosed(periodMonth);
-    const employee = await this.employees.getById(user, employeeId); // 404 + depot check
+    const loaded = await this.employees.getById(user, employeeId); // 404 + depot check
+    /*
+     * Every RULE on a payslip - fines, tolerance, tax table, BPJS, THR, holidays, the rota,
+     * the tenure raise - belongs to the depot the person BELONGS to, however they were lent
+     * out this month. Presenting the home depot as `depotId` to everything below is what
+     * makes that true in one place instead of forty. Only with the feature on: switched off,
+     * the live depot is used exactly as it always was.
+     */
+    const split = this.config.depotAssignmentEnabled;
+    const employee = split ? ({ ...loaded, depotId: homeDepotOf(loaded) } as Employee) : loaded;
 
     const existing = await this.repo.findByEmployeeAndPeriod(employeeId, periodMonth);
     if (existing && existing.status !== 'DRAFT') {
@@ -170,6 +208,21 @@ export class PayrollService {
           this.sales!.depotDailyGallons(employee.depotId!, dayKey(from), dayKey(to))
         : null,
     ]);
+
+    // The daily gallon bonus is earned on the day the depot hit its tier - and a lent employee
+    // worked some days at another depot. Those days are judged by THAT depot's gallons (the
+    // tiers stay the home depot's), so fetch each other depot they stood in, once.
+    const gallonsByDepot = new Map<string, Map<string, number> | null>();
+    if (employee.depotId) gallonsByDepot.set(employee.depotId, dailyGallons);
+    if (split && wantsDailyBonus) {
+      const others = new Set<string>();
+      for (const row of workedDays) {
+        if (row.depotId && row.depotId !== employee.depotId) others.add(row.depotId);
+      }
+      for (const depot of others) {
+        gallonsByDepot.set(depot, await this.sales!.depotDailyGallons(depot, dayKey(from), dayKey(to)));
+      }
+    }
 
     // CA-1-38 — the expected working days are the ones the ROTA expects, so both of these
     // now take the rota's off-weekdays rather than reading the depot CSV a second time.
@@ -302,14 +355,19 @@ export class PayrollService {
     // Depot SOP: daily gallon-target bonus, paid IN FULL to each attending staff member for
     // every day the depot hit a tier. `dailyGallons` null (order-service down, or no ladder)
     // pays nothing — same rule as the SALES_TOTAL bonus, never a fabricated zero-day.
+    const dailyGallonDirect = new Map<string, number>();
     if (dailyGallons) {
       let total = 0;
       let days = 0;
       for (const row of workedDays) {
-        const amount = bonusForDay(gallonTiers, dailyGallons.get(dayKey(row.workDate)) ?? 0);
+        const depot = (split ? row.depotId : null) ?? employee.depotId ?? '';
+        const gallons = gallonsByDepot.get(depot);
+        if (!gallons) continue; // that depot's gallons are unknown: nothing is invented
+        const amount = bonusForDay(gallonTiers, gallons.get(dayKey(row.workDate)) ?? 0);
         if (amount > 0) {
           total += amount;
           days++;
+          dailyGallonDirect.set(depot, (dailyGallonDirect.get(depot) ?? 0) + amount);
         }
       }
       if (total > 0) {
@@ -497,22 +555,185 @@ export class PayrollService {
       gross + totalBonus - sum(items, 'DEDUCTION'),
     );
     const totalDeduction = sum(items, 'DEDUCTION');
+    const net = Math.max(0, netBeforeFloor);
+    const shares = split
+      ? await this.sharesFor(loaded, {
+          gross,
+          totalBonus,
+          totalDeduction,
+          net,
+          from,
+          to,
+          workedDays,
+          bonusDirect: [...dailyGallonDirect].map(([depotId, amount]) => ({ depotId, amount })),
+        })
+      : // Switched off since this draft was first written: drop the split it still carries.
+        existing
+        ? []
+        : undefined;
     const write = {
       employeeId,
       periodMonth,
       gross,
       totalBonus,
       totalDeduction,
-      net: Math.max(0, netBeforeFloor),
+      net,
       presentDays,
       createdBy: user.sub,
       items,
+      ...(shares !== undefined ? { shares } : {}),
     };
     return existing ? this.repo.regenerate(existing.id, write) : this.repo.create(write);
   }
 
+  /**
+   * Which depot owes which part of this payslip.
+   *
+   * Weights are integers and never normalised to the month length: calendar days from the
+   * ledger for a MONTHLY wage (the pay is for the month, wherever they stood), days actually
+   * worked per depot for a DAILY one. No weight at all means everything stays with the home
+   * depot - there is no division by zero to guard, the allocator has none.
+   *
+   * A slip must never fail to generate because it could not be split: on any error it falls
+   * back to the home depot owning all of it and says so loudly, which HQ can correct.
+   */
+  private async sharesFor(
+    employee: Employee,
+    t: {
+      gross: number;
+      totalBonus: number;
+      totalDeduction: number;
+      net: number;
+      from: Date;
+      to: Date;
+      workedDays: { depotId?: string | null }[];
+      bonusDirect: { depotId: string; amount: number }[];
+    },
+  ): Promise<PayrollShareWrite[]> {
+    const home = homeDepotOf(employee);
+    if (!home) return [];
+    const base = { homeDepotId: home, gross: t.gross, totalBonus: t.totalBonus, totalDeduction: t.totalDeduction, net: t.net };
+    try {
+      let weights: DepotWeight[] = [];
+      if (employee.salaryType === 'DAILY') {
+        const days = new Map<string, number>();
+        for (const row of t.workedDays) {
+          const depot = row.depotId ?? home;
+          days.set(depot, (days.get(depot) ?? 0) + 1);
+        }
+        weights = [...days].map(([depotId, weight]) => ({ depotId, weight }));
+      } else if (this.depotLedger) {
+        const moves = await this.depotLedger.timelineFor(employee.id);
+        const calendar = calendarDayWeights(
+          { homeDepotId: employee.homeDepotId, depotId: employee.depotId },
+          moves,
+          {
+            from: dayKey(t.from),
+            to: dayKey(t.to),
+            windowFrom: dayKey(employee.joinDate),
+            windowTo: employee.exitDate ? dayKey(employee.exitDate) : null,
+          },
+        );
+        weights = [...calendar].map(([depotId, weight]) => ({ depotId, weight }));
+      }
+      return allocatePayroll({ ...base, grossWeights: weights, bonusDirect: t.bonusDirect });
+    } catch (err) {
+      this.logger.error(
+        `payroll split failed for ${employee.id}; the home depot carries the whole slip: ${String(err)}`,
+      );
+      return allocatePayroll({ ...base, grossWeights: [] });
+    }
+  }
+
+  /**
+   * Closed payslips from before the app, loaded as history (PAID).
+   *
+   * Never the current or a future month: those are computed, not typed. A slip that already
+   * exists for the (employee, month) is skipped - history never overwrites a computed slip.
+   * The totals must add up (`net = gross + bonus - deduction`), checked per row, and the slip
+   * carries three plain lines so it reads like any other. It has NO per-depot split: it
+   * predates the split, and reports fall back to the person's own depot for it.
+   */
+  async importHistory(
+    user: AuthenticatedUser,
+    rows: {
+      employeeCode: string;
+      periodMonth: string;
+      gross: number;
+      totalBonus?: number;
+      totalDeduction?: number;
+      net?: number;
+      presentDays?: number;
+    }[],
+  ): Promise<ImportSummary> {
+    const thisMonth = localMonthKey(new Date(), this.config.timeZone);
+    return runImport(rows, async (row) => {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(row.periodMonth)) {
+        throw new Error('periodMonth harus format YYYY-MM');
+      }
+      if (row.periodMonth >= thisMonth) {
+        throw new Error('Hanya bulan yang sudah lewat yang bisa diimpor sebagai riwayat');
+      }
+      const bonus = row.totalBonus ?? 0;
+      const deduction = row.totalDeduction ?? 0;
+      const net = row.gross + bonus - deduction;
+      if (row.net !== undefined && row.net !== net) {
+        throw new Error(`net ${row.net} tidak sama dengan gross + bonus - potongan (${net})`);
+      }
+      const employee = await this.employees.getByCode(user, row.employeeCode); // depot gate
+      if (await this.repo.findByEmployeeAndPeriod(employee.id, row.periodMonth)) {
+        return { status: 'skipped', message: 'Slip bulan itu sudah ada' };
+      }
+      const items: PayrollItemInput[] = [
+        { kind: 'BASE', label: 'Gaji (riwayat impor)', amount: row.gross },
+        ...(bonus > 0 ? [{ kind: 'BONUS' as const, label: 'Bonus (riwayat impor)', amount: bonus }] : []),
+        ...(deduction > 0
+          ? [{ kind: 'DEDUCTION' as const, label: 'Potongan (riwayat impor)', amount: deduction }]
+          : []),
+      ];
+      // With the split on, a slip carries its parts. History has exactly one: the depot the
+      // person belongs to carries all of it (we do not know where they stood that month).
+      const home = this.config.depotAssignmentEnabled ? homeDepotOf(employee) : null;
+      const draft = await this.repo.create({
+        employeeId: employee.id,
+        periodMonth: row.periodMonth,
+        gross: row.gross,
+        totalBonus: bonus,
+        totalDeduction: deduction,
+        net,
+        presentDays: row.presentDays ?? 0,
+        createdBy: user.sub,
+        items,
+        ...(home
+          ? { shares: [{ depotId: home, days: row.presentDays ?? 0, gross: row.gross, bonus, deduction, shortfall: 0, net }] }
+          : {}),
+      });
+      const approved = await this.repo.setStatus(draft.id, 'DRAFT', 'APPROVED', {
+        approvedBy: user.sub,
+        approvedAt: new Date(),
+      });
+      await this.repo.setStatus(approved.id, 'APPROVED', 'PAID', { paidAt: new Date() });
+      return { status: 'created', id: draft.id };
+    });
+  }
+
+  /**
+   * Recompute a DRAFT slip - lines AND per-depot split - from today's ledger, attendance and
+   * rules. What to press after a backdated assignment or a corrected attendance day. An
+   * approved slip is not touched: that goes through the audited HQ reallocation instead.
+   */
+  async regenerate(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
+    const payroll = await this.load(user, id, { forWrite: true });
+    if (payroll.status !== 'DRAFT') {
+      throw new ConflictException(
+        `Hanya payroll DRAFT yang bisa dihitung ulang (saat ini ${payroll.status})`,
+      );
+    }
+    return this.generate(user, payroll.employeeId, payroll.periodMonth);
+  }
+
   async approve(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
-    const payroll = await this.load(user, id);
+    const payroll = await this.load(user, id, { forWrite: true });
     if (payroll.status !== 'DRAFT') {
       throw new ConflictException(
         `Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`,
@@ -525,7 +746,7 @@ export class PayrollService {
   }
 
   async markPaid(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
-    const payroll = await this.load(user, id);
+    const payroll = await this.load(user, id, { forWrite: true });
     if (payroll.status !== 'APPROVED') {
       throw new ConflictException(
         `Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`,
@@ -534,11 +755,58 @@ export class PayrollService {
     return this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
   }
 
+  /**
+   * HQ corrects who carries what on a slip whose split is wrong (a transfer entered late, a
+   * loan nobody recorded). DRAFT and APPROVED only - PAID is history - and the slip's own
+   * totals never change: only the division between depots does. The change is written to
+   * the audit log with the old and the new split and the reason.
+   */
+  async reallocate(
+    user: AuthenticatedUser,
+    id: string,
+    input: { reason: string; shares: ShareCorrection[] },
+  ): Promise<PayrollShareRow[]> {
+    if (!this.config.depotAssignmentEnabled || !this.repo.replaceShares || !this.repo.findShares) {
+      throw new ConflictException('Pembagian per depot belum diaktifkan.');
+    }
+    const payroll = await this.load(user, id, { forWrite: true });
+    if (payroll.status === 'PAID') {
+      throw new ConflictException('Payroll yang sudah dibayar tidak bisa dialokasikan ulang.');
+    }
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('Alasan wajib diisi.');
+    const problems = reallocationProblems(
+      {
+        gross: Number(payroll.gross),
+        totalBonus: Number(payroll.totalBonus),
+        totalDeduction: Number(payroll.totalDeduction),
+      },
+      input.shares,
+    );
+    if (problems.length > 0) throw new BadRequestException(problems);
+    const before = await this.repo.findShares(id);
+    const after = await this.repo.replaceShares(
+      id,
+      input.shares.map((s) => ({ ...s, net: s.gross + s.bonus - s.deduction })),
+      ['DRAFT', 'APPROVED'],
+    );
+    await this.audit?.record({
+      actorId: user.sub,
+      action: 'PAYROLL_REALLOCATE',
+      entity: 'payroll',
+      entityId: id,
+      before: { shares: before },
+      after: { shares: after, reason },
+      ip: null,
+    });
+    return after;
+  }
+
   async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithEmployee> {
     const payroll = await this.load(user, id);
     // PG-01: `load` already reads the owning employee for the depot check and used to throw
     // the answer away, leaving a slip that named nobody.
-    const employee = await this.employees.getById(user, payroll.employeeId);
+    const employee = await this.ownerOf(user, payroll.employeeId);
     /*
      * CA-1-42 — how many of this period's days HR has still not decided.
      *
@@ -556,7 +824,18 @@ export class PayrollService {
      */
     const { from, to } = this.monthRange(payroll.periodMonth);
     const { pendingDays } = await this.attendance.summary(payroll.employeeId, from, to);
-    return { ...payroll, employeeName: employee.fullName ?? null, pendingDays };
+    // The home depot and head office also see HOW the slip is split; a borrowing depot's
+    // copy is already its own share, so it is told nothing about the rest.
+    const shares =
+      this.config.depotAssignmentEnabled && this.reachesHome(user, employee)
+        ? ((await this.repo.findShares?.(payroll.id)) ?? [])
+        : [];
+    return {
+      ...payroll,
+      employeeName: employee.fullName ?? null,
+      pendingDays,
+      ...(shares.length > 0 ? { shares } : {}),
+    };
   }
 
   /**
@@ -576,7 +855,7 @@ export class PayrollService {
   /** The same slip PDF as `slip`, for the employee's own payroll only. */
   async selfSlip(user: AuthenticatedUser, id: string): Promise<Buffer> {
     const { payroll, employee } = await this.loadSelf(user, id);
-    return PayrollService.renderSlip(payroll, employee);
+    return PayrollService.renderSlip(payroll, employee, await this.depotBlock(payroll));
   }
 
   private async loadSelf(
@@ -594,13 +873,44 @@ export class PayrollService {
   /** Render a salary-slip PDF for one payroll. */
   async slip(user: AuthenticatedUser, id: string): Promise<Buffer> {
     const payroll = await this.load(user, id); // 404 + depot check
-    const employee = await this.employees.getById(user, payroll.employeeId);
-    return PayrollService.renderSlip(payroll, employee);
+    const employee = await this.ownerOf(user, payroll.employeeId);
+    // A borrowing depot prints its share; the person's papers are not the slip's business.
+    const whole = this.reachesHome(user, employee);
+    return PayrollService.renderSlip(
+      payroll,
+      whole ? employee : redactForLendingDepot(employee),
+      // A borrowing depot already holds only its own share as the whole slip; a split block
+      // would repeat that one line, so only the home depot and head office get it.
+      whole ? await this.depotBlock(payroll) : undefined,
+    );
+  }
+
+  /**
+   * "Pembagian per depot" for a slip print: names and amounts of each part. Empty (no block)
+   * with the feature off, for an unsplit slip, or when the split is just the home depot.
+   */
+  private async depotBlock(payroll: PayrollWithItems): Promise<SlipData['depotShares'] | undefined> {
+    if (!this.config.depotAssignmentEnabled || !this.repo.findShares) return undefined;
+    const shares = await this.repo.findShares(payroll.id);
+    if (shares.length < 2) return undefined;
+    const names = (await this.directory?.names(shares.map((s) => s.depotId))) ?? new Map();
+    return shares.map((s) => ({
+      name: names.get(s.depotId) ?? s.depotId.slice(0, 8),
+      days: s.days,
+      gross: s.gross,
+      deduction: s.deduction,
+      net: s.net,
+    }));
   }
 
   /** One slip layout, shared by the staff route and the employee's own. */
-  private static renderSlip(payroll: PayrollWithItems, employee: Employee): Promise<Buffer> {
+  private static renderSlip(
+    payroll: PayrollWithItems,
+    employee: Employee,
+    depotShares?: SlipData['depotShares'],
+  ): Promise<Buffer> {
     return payrollSlipPdf({
+      ...(depotShares ? { depotShares } : {}),
       employeeName: employee.fullName,
       employeeCode: employee.employeeCode,
       periodMonth: payroll.periodMonth,
@@ -642,7 +952,21 @@ export class PayrollService {
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     });
-    return { rows, total, page: query.page, pageSize: query.pageSize };
+    if (!this.config.depotAssignmentEnabled) {
+      return { rows, total, page: query.page, pageSize: query.pageSize };
+    }
+    // A depot that only borrowed someone sees its share of their slip, not the whole of it; the
+    // helper fields the repository added for that decision do not leave this method.
+    const mine = new Set(depotScopeIds(user) ?? []);
+    const shaped = rows.map((row) => {
+      const { homeDepotId, shares, ...payroll } = row;
+      const borrowed =
+        mine.size > 0 && !!shares?.length && !(homeDepotId && mine.has(homeDepotId));
+      if (!borrowed) return payroll as Payroll;
+      const own = shares!.filter((s) => mine.has(s.depotId));
+      return PayrollService.withShareTotals(payroll as Payroll, own, []) as unknown as Payroll;
+    });
+    return { rows: shaped, total, page: query.page, pageSize: query.pageSize };
   }
 
   /** The caller's OWN payroll history (self-service PWA). Scoped by the linked employee. */
@@ -661,11 +985,82 @@ export class PayrollService {
     return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 
-  private async load(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
+  private async load(
+    user: AuthenticatedUser,
+    id: string,
+    opts: { forWrite?: boolean } = {},
+  ): Promise<PayrollWithItems> {
     const payroll = await this.repo.findById(id);
     if (!payroll) throw new NotFoundException('Payroll tidak ditemukan');
-    await this.employees.getById(user, payroll.employeeId); // depot check on the owning employee
-    return payroll;
+    if (!this.config.depotAssignmentEnabled) {
+      await this.employees.getById(user, payroll.employeeId); // depot check on the owning employee
+      return payroll;
+    }
+    /*
+     * With the feature on the decision cannot ask where the person lives TODAY. A loan that has
+     * ended leaves the employee at the home depot again, and the depot they were lent to still
+     * carries a share of last month's slip and has every right to read exactly that share -
+     * `getById` would refuse it as a stranger. So: the home depot (or head office) reads the
+     * whole slip; anyone else reads their own share, and a depot with no share gets a 403.
+     */
+    const employee = await this.employees.findByIdInternal(payroll.employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    if (this.reachesHome(user, employee)) return payroll;
+
+    /*
+     * A depot that only BORROWED this person holds `hrView` like any manager, and the full
+     * slip - every line, the whole net, what was withheld for tax - belongs to the depot that
+     * employs them. It gets its own share and nothing else, and it can never act on it.
+     */
+    if (opts.forWrite) {
+      throw new ForbiddenException('Slip ini milik depot asal karyawan; hanya depot asal atau pusat yang bisa memprosesnya.');
+    }
+    return this.shareOnly(user, payroll);
+  }
+
+  /**
+   * The employee a slip pays. Switched off, the usual gated read. On, `load` has already made
+   * the access decision (home, or a share), so this is a plain read: asking `getById` again
+   * would refuse the very depot `load` just admitted.
+   */
+  private async ownerOf(user: AuthenticatedUser, employeeId: string): Promise<Employee> {
+    if (!this.config.depotAssignmentEnabled) return this.employees.getById(user, employeeId);
+    const employee = await this.employees.findByIdInternal(employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    return employee;
+  }
+
+  private reachesHome(user: AuthenticatedUser, employee: Pick<Employee, 'depotId' | 'homeDepotId'>): boolean {
+    try {
+      assertDepotAccess(user, homeDepotOf(employee));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** The caller's own depots' part of a slip, in the shape of the whole one (no lines). */
+  async shareOnly(user: AuthenticatedUser, payroll: PayrollWithItems): Promise<PayrollWithItems> {
+    const mine = new Set(depotScopeIds(user) ?? []);
+    const rows = ((await this.repo.findShares?.(payroll.id)) ?? []).filter((s) => mine.has(s.depotId));
+    if (rows.length === 0) {
+      throw new ForbiddenException('Akun ini tidak menanggung bagian dari slip ini.');
+    }
+    return PayrollService.withShareTotals(payroll, rows, []);
+  }
+
+  /** The slip with its money replaced by the sum of the given shares. */
+  static withShareTotals<T extends Payroll>(payroll: T, rows: PayrollShareRow[], items: PayrollItemInput[] | never[]): T & { items: never[] } {
+    const total = (pick: (r: PayrollShareRow) => number) => new Prisma.Decimal(rows.reduce((a, r) => a + pick(r), 0));
+    return {
+      ...payroll,
+      gross: total((r) => r.gross),
+      totalBonus: total((r) => r.bonus),
+      totalDeduction: total((r) => r.deduction + r.shortfall),
+      net: total((r) => r.net),
+      presentDays: rows.reduce((a, r) => a + r.days, 0),
+      items: items as never[],
+    };
   }
 
 
@@ -930,6 +1325,8 @@ export class PayrollService {
     const { rows } = await this.employees.list(user, {
       depotId,
       status: 'ACTIVE',
+      // A lent employee is paid by the depot they belong to, so they belong in ITS batch.
+      byHome: this.config.depotAssignmentEnabled,
       page: 1,
       pageSize: 500,
     });

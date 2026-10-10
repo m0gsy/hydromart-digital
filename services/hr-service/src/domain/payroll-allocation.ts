@@ -27,6 +27,11 @@ export interface AllocationInput {
   grossWeights: readonly DepotWeight[];
   /** Per-depot bonus weights (galon / sales earned where the day was worked). Defaults to grossWeights. */
   bonusWeights?: readonly DepotWeight[];
+  /**
+   * Bonus already known to belong to a depot (the daily gallon bonus earned on a day worked
+   * THERE). Taken off the top; only the rest of `totalBonus` is split by `bonusWeights`.
+   */
+  bonusDirect?: readonly { depotId: string; amount: number }[];
 }
 
 export interface DepotShare {
@@ -142,7 +147,17 @@ export function allocatePayroll(input: AllocationInput): DepotShare[] {
   const wBonus = input.bonusWeights ? normalise(input.bonusWeights) : wGross;
 
   const grossBy = split(gross, wGross, homeDepotId);
-  const bonusBy = split(totalBonus, wBonus, homeDepotId);
+  const bonusBy = new Map<string, number>();
+  let direct = 0;
+  for (const { depotId, amount } of input.bonusDirect ?? []) {
+    assertWhole(`bonus ${depotId}`, amount);
+    bonusBy.set(depotId, (bonusBy.get(depotId) ?? 0) + amount);
+    direct += amount;
+  }
+  if (direct > totalBonus) throw new RangeError('Bonus per depot melebihi total bonus');
+  for (const [id, part] of split(totalBonus - direct, wBonus, homeDepotId)) {
+    bonusBy.set(id, (bonusBy.get(id) ?? 0) + part);
+  }
   const room = new Map<string, number>();
   for (const id of new Set([...grossBy.keys(), ...bonusBy.keys()])) {
     room.set(id, (grossBy.get(id) ?? 0) + (bonusBy.get(id) ?? 0));
@@ -167,4 +182,48 @@ export function allocatePayroll(input: AllocationInput): DepotShare[] {
         net: g + b - d,
       };
     });
+}
+
+/** One depot's part as HQ states it when it corrects a split by hand. */
+export interface ShareCorrection {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+}
+
+/**
+ * Whether a hand-made split is a faithful division of the slip: whole non-negative numbers,
+ * one row per depot, and each column adding up to exactly what the slip says. Net is not
+ * asked for - it is always gross + bonus - deduction, so a person cannot state one that
+ * disagrees with its parts. Returns every problem, empty when the split may be stored.
+ */
+export function reallocationProblems(
+  slip: { gross: number; totalBonus: number; totalDeduction: number },
+  shares: readonly ShareCorrection[],
+): string[] {
+  const out: string[] = [];
+  if (shares.length === 0) return ['Pembagian depot tidak boleh kosong.'];
+  const ids = new Set(shares.map((s) => s.depotId));
+  if (ids.size !== shares.length) out.push('Satu depot hanya boleh muncul sekali.');
+  const cols = ['days', 'gross', 'bonus', 'deduction', 'shortfall'] as const;
+  for (const s of shares) {
+    for (const c of cols) {
+      if (!Number.isInteger(s[c]) || s[c] < 0) {
+        out.push(`Nilai ${c} untuk depot ${s.depotId} harus bilangan bulat tidak negatif.`);
+      }
+    }
+  }
+  const sum = (c: (typeof cols)[number]) => shares.reduce((t, s) => t + s[c], 0);
+  const expect: [string, number, number][] = [
+    ['gross', sum('gross'), slip.gross],
+    ['bonus', sum('bonus'), slip.totalBonus],
+    ['potongan', sum('deduction'), slip.totalDeduction],
+  ];
+  for (const [label, got, want] of expect) {
+    if (got !== want) out.push(`Jumlah ${label} ${got} tidak sama dengan slip (${want}).`);
+  }
+  return out;
 }

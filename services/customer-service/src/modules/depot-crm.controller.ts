@@ -13,7 +13,7 @@ import {
   DepotCustomerQueryDto,
   DepotDetailQueryDto,
 } from './dto/depot-crm.dto';
-import { ImportCustomersDto } from './dto/customer-import.dto';
+import { ImportAddressesDto, ImportCustomersDto } from './dto/customer-import.dto';
 import { ImportResponseDto } from './dto/responses.generated.dto';
 
 /** Depot CRM — customer directory scoped to a depot (Depot Operator 6a/7a, Manager 12b). */
@@ -38,6 +38,17 @@ export class DepotCrmController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<ImportSummary> {
     return this.imports.importCustomers(user, dto.depotId, dto.rows);
+  }
+
+  @ApiOkResponse({ type: ImportResponseDto })
+  @Post('import-addresses')
+  @Can('depotCrmWrite')
+  @ApiOperation({ summary: "Bulk-add delivery addresses to a depot's customers (CSV wizard)" })
+  importAddresses(
+    @Body() dto: ImportAddressesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ImportSummary> {
+    return this.imports.importAddresses(user, dto.depotId, dto.rows);
   }
 
   // Still a bare array, not a `{ items, total }` envelope: three consoles read this route

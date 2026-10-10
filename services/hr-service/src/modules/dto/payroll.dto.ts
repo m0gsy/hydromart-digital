@@ -2,6 +2,7 @@ import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsEnum,
   IsInt,
@@ -12,6 +13,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -99,4 +101,31 @@ export class ImportDeductionsDto {
 export class AdjustmentQueryDto {
   @IsUUID() employeeId!: string;
   @Matches(PERIOD) periodMonth!: string;
+}
+
+export class ShareCorrectionDto {
+  @IsUUID() depotId!: string;
+  @IsInt() @Min(0) days!: number;
+  @IsInt() @Min(0) gross!: number;
+  @IsInt() @Min(0) bonus!: number;
+  @IsInt() @Min(0) deduction!: number;
+  @IsInt() @Min(0) shortfall!: number;
+}
+
+export class ReallocatePayrollDto {
+  @IsString() @MinLength(3) @MaxLength(500) reason!: string;
+
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => ShareCorrectionDto)
+  shares!: ShareCorrectionDto[];
+}
+
+/** One depot's stored part of a payslip, as returned after a reallocation. */
+export class PayrollShareResponseDto {
+  @ApiProperty() depotId!: string;
+  @ApiProperty() days!: number;
+  @ApiProperty() gross!: number;
+  @ApiProperty() bonus!: number;
+  @ApiProperty() deduction!: number;
+  @ApiProperty() shortfall!: number;
+  @ApiProperty() net!: number;
 }

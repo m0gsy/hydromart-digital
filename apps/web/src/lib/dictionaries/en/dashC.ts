@@ -196,6 +196,7 @@ export const dashC = {
       depotDisputes: 'Order disputes',
       hrAdmin: 'HRIS (manage employees)',
       employeeAssign: 'Assign employees across depots',
+      employeeAssignRequest: 'Request to borrow an employee for a depot',
       hrPayroll: 'Payroll',
       leaveApprove: 'Approve leave',
       kasbonApprove: 'Approve cash advance',

@@ -142,6 +142,14 @@ export interface AnalyticsRepository {
   shiftNamesByIds(ids: readonly string[]): Promise<Map<string, string>>;
   attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]>;
   payrollForReport(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollWithEmployee[]>;
+  /**
+   * The stored per-depot parts of these slips, by payroll id; narrowed to `depotIds` for a
+   * depot-scoped reader. Optional: only a repository that knows the split provides it.
+   */
+  sharesForPayrolls?(
+    payrollIds: readonly string[],
+    depotIds?: readonly string[],
+  ): Promise<Map<string, { depotId: string; days: number; net: number }[]>>;
 
   // --- C4 reports ---
   /** Only the days somebody actually arrived late; an absence is not a lateness. */

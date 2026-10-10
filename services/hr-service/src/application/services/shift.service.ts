@@ -5,7 +5,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeIds,
+  runImport,
+} from '@hydromart/platform';
 
 import { Prisma, Shift, ShiftAssignment, ShiftRotation } from '../../../prisma/generated/client';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
@@ -167,6 +173,44 @@ export class ShiftService {
       effectiveFrom,
       note: input.note ?? null,
       createdBy: user.sub,
+    });
+  }
+
+  /**
+   * Which shift somebody worked, from when - loaded from the sheets kept before the app.
+   * The shift is named (not its id) and must be usable by the employee depot; an assignment
+   * the employee already has for that shift and date is skipped, so a file can be re-sent.
+   * Append-only like every assignment: this adds history, it never edits one.
+   */
+  async importAssignments(
+    user: AuthenticatedUser,
+    rows: { employeeCode: string; shiftName: string; effectiveFrom: string; note?: string }[],
+  ): Promise<ImportSummary> {
+    return runImport(rows, async (row) => {
+      const employee = await this.employees.getByCode(user, row.employeeCode); // depot gate
+      const day = row.effectiveFrom.slice(0, 10);
+      const effectiveFrom = new Date(`${day}T00:00:00.000Z`);
+      if (Number.isNaN(effectiveFrom.getTime())) throw new Error('effectiveFrom bukan tanggal yang sah');
+      const wanted = row.shiftName.trim().toLowerCase();
+      const usable = (await this.repo.list(employee.depotId ? [employee.depotId] : undefined)).filter(
+        (s) => s.active && s.name.trim().toLowerCase() === wanted,
+      );
+      if (usable.length === 0) throw new Error(`Shift "${row.shiftName}" tidak ditemukan`);
+      // A depot's own shift beats a network-wide one of the same name.
+      const found = usable.find((s) => s.depotId === employee.depotId) ?? usable[0];
+      const existing = await this.repo.listAssignments(employee.id);
+      if (existing.some((a) => a.shiftId === found.id && a.effectiveFrom.getTime() === effectiveFrom.getTime())) {
+        return { status: 'skipped', message: 'Penugasan shift ini sudah ada' };
+      }
+      const created = await this.repo.assign({
+        employeeId: employee.id,
+        shiftId: found.id,
+        rotationId: null,
+        effectiveFrom,
+        note: row.note ?? 'Impor riwayat shift',
+        createdBy: user.sub,
+      });
+      return { status: 'created', id: created.id };
     });
   }
 

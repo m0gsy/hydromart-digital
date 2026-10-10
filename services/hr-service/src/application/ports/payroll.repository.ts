@@ -14,6 +14,17 @@ export interface PayrollItemInput {
   sourceRef?: string | null;
 }
 
+/** One depot's part of a payslip (see domain/payroll-allocation.ts). */
+export interface PayrollShareWrite {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+  net: number;
+}
+
 export interface PayrollWrite {
   employeeId: string;
   periodMonth: string;
@@ -24,6 +35,12 @@ export interface PayrollWrite {
   presentDays: number;
   createdBy: string | null;
   items: PayrollItemInput[];
+  /**
+   * Per-depot split. Absent = the feature is off and the row is written exactly as it always
+   * was. On `regenerate`, an EMPTY array means "drop whatever shares were there" (the switch
+   * was turned off since); absent leaves them alone.
+   */
+  shares?: PayrollShareWrite[];
 }
 
 export type PayrollWithItems = Payroll & { items: PayrollItem[] };
@@ -48,8 +65,26 @@ export type PayrollWithEmployee = PayrollWithItems & {
    * DAILY one, so it moves money in opposite directions depending on who it belongs to.
    */
   pendingDays: number;
+  /** The per-depot split, for a reader who may see the whole slip (feature on, and split). */
+  shares?: PayrollShareRow[];
 };
-export type PayrollListRow = Payroll & { employeeName: string | null };
+/** A stored per-depot part of a payslip, as plain numbers. */
+export interface PayrollShareRow {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+  net: number;
+}
+
+export type PayrollListRow = Payroll & {
+  employeeName: string | null;
+  /** Only with the feature on: where the person belongs, and how the slip is split. */
+  homeDepotId?: string | null;
+  shares?: PayrollShareRow[];
+};
 
 export interface PayrollRepository {
   findByEmployeeAndPeriod(
@@ -114,6 +149,22 @@ export interface PayrollRepository {
     year: number,
     beforePeriodMonth: string,
   ): Promise<{ grossIdr: number; bpjsIdr: number; withheldIdr: number; months: number }>;
+  /**
+   * The per-depot split of one slip (empty for a slip written before the split existed).
+   * Optional so a repository that predates the split need not know about it; the service only
+   * asks with the feature on.
+   */
+  findShares?(payrollId: string): Promise<PayrollShareRow[]>;
+  /**
+   * Replace a slip's split in ONE statement, only while it is DRAFT or APPROVED (a PAID slip is
+   * history). A stale status is a 409. Totals on the slip are untouched: HQ moves money between
+   * depots, never in or out of the slip.
+   */
+  replaceShares?(
+    payrollId: string,
+    shares: PayrollShareWrite[],
+    allowed: readonly PayrollStatus[],
+  ): Promise<PayrollShareRow[]>;
   list(filter: {
     periodMonth?: string;
     employeeId?: string;

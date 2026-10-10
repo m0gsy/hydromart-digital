@@ -75,6 +75,8 @@ export interface WorkedMinutesRow {
    * tiered late fine — the flat one only ever needed a COUNT of late days.
    */
   lateMinutes: number;
+  /** The depot the day was worked at (stamped at check-in). Optional: old rows and fakes omit it. */
+  depotId?: string | null;
 }
 
 export interface ManualAttendanceInput {

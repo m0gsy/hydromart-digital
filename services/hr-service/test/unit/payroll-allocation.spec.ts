@@ -149,6 +149,28 @@ describe('allocatePayroll', () => {
     expect(r.find((s) => s.depotId === B)).toMatchObject({ bonus: 50, deduction: 50, net: 0 });
   });
 
+  it('takes bonus already known to belong to a depot off the top; only the rest follows the weights', () => {
+    const r = allocatePayroll(
+      base({
+        totalBonus: 100,
+        net: 3_100_100,
+        bonusDirect: [{ depotId: B, amount: 60 }],
+      }),
+    );
+    // 40 left over splits 21:10 -> 27/13 (largest remainder), then B gets its 60 on top.
+    const a = r.find((s) => s.depotId === A)!;
+    const b = r.find((s) => s.depotId === B)!;
+    expect(a.bonus + b.bonus).toBe(100);
+    expect(b.bonus).toBeGreaterThanOrEqual(60);
+    expect(a.bonus).toBeLessThan(b.bonus + 40);
+  });
+
+  it('refuses direct bonus that exceeds the total bonus', () => {
+    expect(() =>
+      allocatePayroll(base({ totalBonus: 10, net: 3_100_010, bonusDirect: [{ depotId: A, amount: 11 }] })),
+    ).toThrow(RangeError);
+  });
+
   it('refuses inputs that no real payslip can produce', () => {
     expect(() => allocatePayroll(base({ gross: -1 }))).toThrow(RangeError);
     expect(() => allocatePayroll(base({ gross: 10.5 }))).toThrow(RangeError);

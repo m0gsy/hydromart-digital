@@ -11,10 +11,12 @@ import {
 } from '@nestjs/common';
 import {
   AuthenticatedUser,
+  ImportSummary,
   assertDepotAccess,
   depotScopeIds,
   localDayKey,
   localMinutesOfDay,
+  runImport,
 } from '@hydromart/platform';
 
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
@@ -37,6 +39,7 @@ import {
   FaceEmbeddingRepository,
 } from '../ports/face-embedding.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
+import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.repository';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 import {
@@ -69,6 +72,8 @@ export class AttendanceService {
     @Optional()
     @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
     private readonly depotLedger?: DepotAssignmentRepository,
+    // Only the history import asks it: a month whose slip is closed is not rewritten.
+    @Optional() @Inject(PAYROLL_REPOSITORY) private readonly payrolls?: PayrollRepository,
   ) {}
 
   /**
@@ -590,6 +595,62 @@ export class AttendanceService {
       approvedBy: user.sub,
     });
     return updated;
+  }
+
+  /**
+   * Past attendance loaded from the spreadsheets a depot kept before the app.
+   *
+   * Only days that are over, only statuses somebody decided (never PENDING), and only days with
+   * NO record yet: a day that already has one is skipped, because changing it is a correction
+   * with a reason and an approver (`adjust`), not a bulk load. Each row files an adjustment
+   * line saying it came from the import, so the trail still answers "where did this day come
+   * from". Stamped with the depot the person worked at THAT day, like a manual entry.
+   */
+  async importHistory(
+    user: AuthenticatedUser,
+    rows: { employeeCode: string; workDate: string; status: AttendanceStatus; lateMinutes?: number }[],
+  ): Promise<ImportSummary> {
+    const today = localDayKey(new Date(), this.config.timeZone);
+    // One lookup per (employee, month), not per day: a month of history is thirty rows.
+    const closed = new Map<string, boolean>();
+    return runImport(rows, async (row) => {
+      if (row.status === 'PENDING') throw new Error('Status PENDING tidak boleh diimpor');
+      const day = row.workDate.slice(0, 10);
+      if (day >= today) throw new Error('Hanya hari yang sudah lewat yang bisa diimpor');
+      const employee = await this.employees.findByEmployeeCode(row.employeeCode);
+      if (!employee) throw new Error(`Karyawan ${row.employeeCode} tidak ditemukan`);
+      const workDepotId = await this.workDepotOn(employee, day);
+      assertDepotAccess(user, workDepotId);
+      if (this.payrolls) {
+        const key = `${employee.id}|${day.slice(0, 7)}`;
+        if (!closed.has(key)) {
+          const slip = await this.payrolls.findByEmployeeAndPeriod(employee.id, day.slice(0, 7));
+          closed.set(key, !!slip && slip.status !== 'DRAFT');
+        }
+        if (closed.get(key)) {
+          throw new Error(`Slip ${day.slice(0, 7)} sudah disetujui atau dibayar; absensinya tidak diubah lewat impor`);
+        }
+      }
+      const workDate = new Date(`${day}T00:00:00.000Z`);
+      if (await this.repo.findByEmployeeAndDate(employee.id, workDate)) {
+        return { status: 'skipped', message: 'Hari itu sudah punya catatan kehadiran' };
+      }
+      const created = await this.repo.upsertManual({
+        employeeId: employee.id,
+        depotId: workDepotId,
+        workDate,
+        status: row.status,
+        lateMinutes: row.status === 'LATE' ? (row.lateMinutes ?? 0) : 0,
+      });
+      await this.repo.recordAdjustment({
+        attendanceId: created.id,
+        reason: 'Impor riwayat absensi',
+        before: null,
+        after: snapshot(created),
+        approvedBy: user.sub,
+      });
+      return { status: 'created', id: created.id };
+    });
   }
 
   /**

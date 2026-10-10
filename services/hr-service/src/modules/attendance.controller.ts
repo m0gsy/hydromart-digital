@@ -28,6 +28,7 @@ import {
   AuthenticatedUser,
   Can,
   CurrentUser,
+  ImportSummary,
   InternalAuthGuard,
   Public,
   SelfScoped,
@@ -42,10 +43,12 @@ import {
   ManualAttendanceDto,
 } from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
+import { ImportAttendanceDto } from './dto/history-import.dto';
 import { Attendance } from '../../prisma/generated/client';
 import {
   AttendanceAdjustmentResponseDto,
   AttendanceResponseDto,
+  ImportResponseDto,
   ListSelf3ResponseDto,
 } from './dto/responses.generated.dto';
 import { AttendanceAdjustmentRecord } from '../application/ports/attendance.repository';
@@ -102,6 +105,15 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Attendance log (depot-scoped for depot roles)' })
   list(@Query() query: ListAttendanceDto, @CurrentUser() user: AuthenticatedUser): Promise<{ rows: Attendance[]; total: number; page: number; pageSize: number }> {
     return this.attendance.list(user, query);
+  }
+
+  @ApiOkResponse({ type: ImportResponseDto })
+  @Post('import')
+  @HttpCode(200)
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Bulk-load past attendance from a spreadsheet (HR)' })
+  import(@Body() dto: ImportAttendanceDto, @CurrentUser() user: AuthenticatedUser): Promise<ImportSummary> {
+    return this.attendance.importHistory(user, dto.rows);
   }
 
   @ApiOkResponse({ type: AttendanceResponseDto })

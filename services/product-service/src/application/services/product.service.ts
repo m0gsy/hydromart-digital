@@ -6,7 +6,7 @@ import { CreateProductData, PriceChangeRecord, ProductRecord, ProductRepository,
 import { CategoryRepository } from '../ports/category.repository';
 import { StockNotifierPort } from '../ports/stock-notifier.port';
 import { PRODUCT_TOKENS } from '../tokens';
-import { assertFresh } from '@hydromart/platform';
+import { ImportSummary, assertFresh, runImport } from '@hydromart/platform';
 
 export interface BrowseInput {
   page?: number;
@@ -57,6 +57,52 @@ export class ProductService {
   async byIds(ids: string[]): Promise<ProductRecord[]> {
     if (ids.length === 0) return [];
     return this.products.findActiveByIds(ids);
+  }
+
+  /**
+   * Bulk catalogue import. One row, one product, no cross-row transaction (the shared runner's
+   * contract): an unknown category slug or a SKU that already exists fails or skips THAT row
+   * and the rest still go in, so a half-wrong file can simply be corrected and re-uploaded.
+   * Existing SKUs are skipped, never overwritten - a price edit belongs to the audited
+   * PATCH route, which records who moved it.
+   */
+  async importRows(
+    rows: {
+      sku: string;
+      name: string;
+      unit: string;
+      basePrice: number;
+      categorySlug?: string;
+      description?: string;
+      volumeMl?: number;
+      isGallon?: boolean;
+    }[],
+  ): Promise<ImportSummary> {
+    return runImport(
+      rows,
+      async (row) => {
+        let categoryId: string | null = null;
+        if (row.categorySlug) {
+          const category = await this.categories.findBySlug(row.categorySlug);
+          if (!category) throw new Error(`Kategori "${row.categorySlug}" tidak ditemukan`);
+          categoryId = category.id;
+        }
+        const created = await this.create({
+          categoryId,
+          name: row.name,
+          sku: row.sku,
+          description: row.description ?? null,
+          unit: row.unit,
+          volumeMl: row.volumeMl ?? null,
+          isGallon: row.isGallon ?? false,
+          basePrice: row.basePrice,
+          imageUrl: null,
+          images: [],
+        });
+        return { status: 'created', id: created.id };
+      },
+      (err) => err instanceof DuplicateSkuError,
+    );
   }
 
   async create(data: CreateProductData): Promise<ProductRecord> {

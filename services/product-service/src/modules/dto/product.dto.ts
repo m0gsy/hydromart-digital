@@ -13,6 +13,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class BrowseProductsQueryDto {
@@ -164,4 +165,40 @@ export class PriceChangeResponseDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   changedAt!: Date;
+}
+
+/** One spreadsheet row of the product import. The category is named by its slug, not an id. */
+export class ImportProductRowDto {
+  @IsString() @MaxLength(60) sku!: string;
+  @IsString() @MaxLength(150) name!: string;
+  @IsString() @MaxLength(50) unit!: string;
+  @Type(() => Number) @IsInt() @Min(0) basePrice!: number;
+  @IsOptional() @IsString() @MaxLength(120) categorySlug?: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) volumeMl?: number;
+  @IsOptional() @IsBoolean() isGallon?: boolean;
+}
+
+export class ImportProductsDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportProductRowDto)
+  rows!: ImportProductRowDto[];
+}
+
+export class ImportRowResultResponseDto {
+  @ApiProperty() row!: number;
+  @ApiProperty({ enum: ['created', 'updated', 'skipped', 'failed'] }) status!: string;
+  @ApiPropertyOptional() message?: string;
+  @ApiPropertyOptional() id?: string;
+}
+
+/** What every bulk import answers: counts plus a verdict per row. */
+export class ImportSummaryResponseDto {
+  @ApiProperty() created!: number;
+  @ApiProperty() updated!: number;
+  @ApiProperty() skipped!: number;
+  @ApiProperty() failed!: number;
+  @ApiProperty({ type: [ImportRowResultResponseDto] }) results!: ImportRowResultResponseDto[];
 }

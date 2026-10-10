@@ -222,6 +222,9 @@ services:
       DEPOT_SERVICE_PORT: 3007
       DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_depot?schema=public
       CRM_SERVICE_URL: http://crm:3012
+      # The opening-balance import resolves a customer by phone through customer-service (the
+      # prod compose has had this line for the reminder sweep; the test stack had no need until now).
+      CUSTOMER_SERVICE_URL: http://customer:3002
       DEPOT_ALERT_PHONE: ""
       # Shift close reads the depot's takings from payment-service.
       PAYMENT_SERVICE_URL: http://payment:3005

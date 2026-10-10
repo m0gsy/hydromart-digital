@@ -24,6 +24,9 @@ export interface GallonIssueRecord {
   createdAt: Date;
 }
 
+/** The note every imported opening balance carries; also how a re-upload is recognised. */
+export const OPENING_BALANCE_NOTE = 'Saldo awal (impor)';
+
 export interface CreateGallonIssueData {
   depotId: string;
   customerId: string | null;
@@ -83,6 +86,12 @@ export interface GallonIssueDepotRow {
 
 export interface GallonIssueRepository {
   create(data: CreateGallonIssueData): Promise<GallonIssueRecord>;
+  /**
+   * Whether this customer already has an imported opening balance at this depot. Optional so a
+   * repository that predates the import need not know about it; the import refuses to run
+   * without it (a re-upload would double the balance).
+   */
+  hasOpeningBalance?(depotId: string, customerId: string): Promise<boolean>;
   /**
    * I1: idempotent on `orderId`. A completion fan-out is at-least-once, so this WILL be
    * called twice for the same order; the second call must return the row the first wrote

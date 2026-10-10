@@ -23,6 +23,33 @@ export class CustomerContactHttpAdapter implements CustomerContactPort {
 
   constructor(private readonly config: DepotConfigService) {}
 
+  async resolveByPhone(
+    phone: string,
+    fullName?: string,
+    depotId?: string,
+  ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' } | null> {
+    const base = this.config.customerServiceUrl;
+    const key = this.config.internalServiceKey;
+    if (!base || !key) return null;
+    try {
+      const res = await fetch(`${base}/api/v1/customers/internal/resolve-by-phone`, {
+        method: 'POST',
+        headers: { 'x-internal-key': key, 'content-type': 'application/json' },
+        body: JSON.stringify({ phone, ...(fullName ? { fullName } : {}), ...(depotId ? { depotId } : {}) }),
+        signal: AbortSignal.timeout(CustomerContactHttpAdapter.TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`customer-service responded ${res.status}`);
+      const body = (await res.json()) as {
+        customerId?: string;
+        status?: 'created' | 'pending' | 'active';
+      } | null;
+      return body?.customerId ? { customerId: body.customerId, status: body.status ?? 'pending' } : null;
+    } catch (error) {
+      this.logger.warn(`customer resolve-by-phone failed: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
   async resolve(customerId: string): Promise<CustomerContact | null> {
     const base = this.config.customerServiceUrl;
     const key = this.config.internalServiceKey;

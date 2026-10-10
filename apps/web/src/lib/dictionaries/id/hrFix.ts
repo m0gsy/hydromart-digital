@@ -1252,6 +1252,51 @@ export const hrFix = {
     running: 'Berjalan',
     stopped: 'Dihentikan',
   },
+  depotRequests: {
+    gateBody: 'Hanya manajer depot yang bisa mengajukan peminjaman karyawan. HR merencanakannya langsung dari kartu karyawan.',
+    title: 'Permintaan pinjam karyawan',
+    hint: 'Ajukan peminjaman karyawan dari depot lain untuk depot Anda. HR yang memutuskan; karyawan baru berpindah setelah disetujui.',
+    code: 'Kode karyawan',
+    codeHint: 'mis. EMP-0012',
+    sent: 'Permintaan terkirim ke HR',
+    mine: 'Permintaan Anda',
+    none: 'Belum ada permintaan.',
+    submit: 'Ajukan',
+    failed: 'Gagal mengirim permintaan.',
+  },
+  depotAssignment: {
+    approve: 'Setujui',
+    reject: 'Tolak',
+    approved: 'Permintaan disetujui',
+    rejected: 'Permintaan ditolak',
+    rejectReason: 'Alasan penolakan?',
+    title: 'Penugasan lintas depot',
+    hint: 'Pinjamkan karyawan ke depot lain untuk hari-hari tertentu, atau jadwalkan mutasi permanen. Sistem memindahkannya sendiri pada hari yang ditentukan.',
+    empty: 'Belum ada penugasan.',
+    kindLabel: 'Jenis',
+    toDepot: 'Depot tujuan',
+    pickDepot: 'Pilih depot tujuan',
+    start: 'Mulai',
+    end: 'Sampai (hari terakhir)',
+    noteOpt: 'Catatan (opsional)',
+    plan: 'Rencanakan',
+    planned: 'Penugasan direncanakan',
+    cancel: 'Batalkan',
+    cutShort: 'Akhiri hari ini',
+    cancelled: 'Penugasan dibatalkan',
+    applyNow: 'Terapkan sekarang',
+    applied: 'Penugasan diterapkan',
+    failed: 'Gagal menyimpan penugasan.',
+    kind: { LOAN: 'Dipinjamkan', PERMANENT: 'Mutasi permanen' },
+    status: {
+      REQUESTED: 'Diajukan',
+      PLANNED: 'Terjadwal',
+      ACTIVE: 'Berjalan',
+      DONE: 'Selesai',
+      CANCELLED: 'Dibatalkan',
+      FAILED: 'Gagal',
+    },
+  },
   loans: {
     stopFailed: 'Gagal menghentikan pinjaman',
     title: 'Pinjaman / Kasbon',
@@ -1748,9 +1793,30 @@ export const hrFix = {
     hint: 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
   },
   imports: {
+    productsTitle: 'Import Katalog Produk',
+    categoriesTitle: 'Import Kategori Produk',
+    gallonBalancesTitle: 'Import Saldo Galon Pelanggan',
+    addressesTitle: 'Import Alamat Pelanggan',
+    attendanceTitle: 'Import Riwayat Absensi',
+    payrollTitle: 'Import Riwayat Slip Gaji',
+    shiftsTitle: 'Import Riwayat Shift',
     loansTitle: 'Import Kasbon Berjalan',
     // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
     desc: {
+      products:
+        'Setiap baris menjadi satu produk di katalog jaringan. SKU yang sudah ada dilewati (harga diubah lewat layar produk, yang mencatat siapa yang mengubahnya). Kolom categorySlug harus kategori yang sudah ada; isGallon diisi ya/tidak.',
+      categories:
+        'Setiap baris menjadi satu kategori. Slug yang sudah ada dilewati. Slug: huruf kecil, angka, dan tanda hubung.',
+      gallonBalances:
+        'Saldo awal galon yang masih ada di pelanggan saat depot pindah ke aplikasi. Satu baris per pelanggan (dikenali dari nomor telepon). Nomor yang belum dikenal DIDAFTARKAN sebagai akun PENDING (pelanggan mengklaimnya lewat OTP), dan barisnya ditandai di hasil. Stok galon fisik TIDAK berubah — muat stok lewat impor stok. Pelanggan yang sudah punya saldo awal dilewati, jadi file yang sama aman diunggah ulang.',
+      addresses:
+        'Alamat pengantaran tambahan untuk pelanggan depot ini, satu baris per alamat. Pelanggan dikenali dari nomor telepon; akun yang sudah aktif dan alamat yang sudah ada dilewati.',
+      attendance:
+        'Riwayat absensi dari catatan sebelum aplikasi. Hanya hari yang sudah lewat, dan hanya hari yang belum punya catatan — koreksi hari yang sudah ada lewat layar koreksi. lateMinutes hanya dipakai untuk status LATE.',
+      payroll:
+        'Slip gaji bulan-bulan yang sudah ditutup sebelum aplikasi, disimpan sebagai LUNAS. Hanya bulan yang sudah lewat; bulan yang sudah punya slip dilewati. net harus sama dengan gross + bonus - potongan, atau dikosongkan.',
+      shifts:
+        'Riwayat shift tiap karyawan: nama shift (harus sama dengan nama di Shift) dan tanggal mulai. Baris yang sama dilewati.',
       customers:
         'Nomor yang diimpor didaftarkan lebih dulu. Pelanggan tetap mendaftar sendiri lewat OTP dengan nomor yang sama — akunnya langsung terhubung ke data ini. Isi alamat berarti kota wajib diisi; provinsi opsional.',
       inventory:
@@ -1883,6 +1949,22 @@ export const hrFix = {
     empty: 'Belum ada absensi',
   },
   payrollDetail: {
+    regenerate: 'Hitung ulang',
+    regenerated: 'Slip dihitung ulang',
+    regenerateConfirm: 'Hitung ulang slip ini dari data terbaru (absensi, penugasan, aturan)? Baris dan pembagian depotnya ditulis ulang.',
+    reallocate: 'Koreksi pembagian depot',
+    removeShare: 'Hapus',
+    addDepot: '+ Tambah depot',
+    balanced: 'Jumlah sudah sama dengan slip.',
+    unbalanced: 'Belum seimbang (selisih gross {gross}, bonus {bonus}, potongan {deduction}).',
+    reason: 'Alasan koreksi',
+    saveAllocation: 'Simpan pembagian',
+    cancelEdit: 'Batal',
+    reallocated: 'Pembagian depot diperbarui',
+    col: { days: 'Hari', gross: 'Gross', bonus: 'Bonus', deduction: 'Potongan', shortfall: 'Kekurangan' },
+    allocation: 'Alokasi per depot',
+    allocationHint: 'Slip ini ditanggung beberapa depot menurut hari karyawan bekerja di masing-masing.',
+    allocationDays: '{days} hari',
     approvedAt: 'Disetujui',
     paidAt: 'Dibayar',
     pendingWarning:
@@ -2069,6 +2151,7 @@ export const hrFix = {
     adjustments: 'Bonus & Potongan',
     allowances: 'Tunjangan',
     loans: 'Kasbon',
+    depotRequests: 'Permintaan pinjam karyawan',
     assets: 'Aset',
     announcements: 'Pengumuman',
     rules: 'Rule Bonus',
