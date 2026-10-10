@@ -28,7 +28,11 @@ export default function HrLayout({ children }: { children: React.ReactNode }) {
   if (pathname.startsWith('/hr/me'))
     return (
       <RequireAuth>
-        <div className="mx-auto w-full max-w-[1216px] px-4 pb-10 pt-6 sm:px-8">{children}</div>
+        {/* The check-in page names the depot you punch for today (useDepot); a failed list fetch
+            only hides that line. */}
+        <DepotProvider>
+          <div className="mx-auto w-full max-w-[1216px] px-4 pb-10 pt-6 sm:px-8">{children}</div>
+        </DepotProvider>
       </RequireAuth>
     );
 
@@ -36,7 +40,7 @@ export default function HrLayout({ children }: { children: React.ReactNode }) {
   // pelanggan, reseller, pengumuman, kinerja, aset) read the depot list to turn a depot
   // CODE in a spreadsheet into an id. Without it useDepot() throws and the page never
   // renders — HR is network-wide, but it still has to NAME depots.
-  // Not on /hr/me above: self-service carries no depot picker and would only pay for the fetch.
+  // /hr/me above has its own provider, for the one line that names today's depot.
   return (
     <RequireAuth>
       <HrGate>
