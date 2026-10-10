@@ -168,11 +168,6 @@ export const hrFix = {
     all: 'Semua',
     allDepots: 'Semua depot',
     save: 'Simpan',
-    approve: 'Setujui',
-    reject: 'Tolak',
-    approved: 'Permintaan disetujui',
-    rejected: 'Permintaan ditolak',
-    rejectReason: 'Alasan penolakan?',
     cancel: 'Batal',
     delete: 'Hapus',
     edit: 'Ubah',
@@ -1269,6 +1264,11 @@ export const hrFix = {
     failed: 'Gagal mengirim permintaan.',
   },
   depotAssignment: {
+    approve: 'Setujui',
+    reject: 'Tolak',
+    approved: 'Permintaan disetujui',
+    rejected: 'Permintaan ditolak',
+    rejectReason: 'Alasan penolakan?',
     title: 'Penugasan lintas depot',
     hint: 'Pinjamkan karyawan ke depot lain untuk hari-hari tertentu, atau jadwalkan mutasi permanen. Sistem memindahkannya sendiri pada hari yang ditentukan.',
     empty: 'Belum ada penugasan.',
@@ -1807,7 +1807,7 @@ export const hrFix = {
       categories:
         'Setiap baris menjadi satu kategori. Slug yang sudah ada dilewati. Slug: huruf kecil, angka, dan tanda hubung.',
       gallonBalances:
-        'Saldo awal galon yang masih ada di pelanggan saat depot pindah ke aplikasi. Satu baris per pelanggan (dikenali dari nomor telepon). Stok galon fisik TIDAK berubah — muat stok lewat impor stok. Pelanggan yang sudah punya saldo awal dilewati, jadi file yang sama aman diunggah ulang.',
+        'Saldo awal galon yang masih ada di pelanggan saat depot pindah ke aplikasi. Satu baris per pelanggan (dikenali dari nomor telepon). Nomor yang belum dikenal DIDAFTARKAN sebagai akun PENDING (pelanggan mengklaimnya lewat OTP), dan barisnya ditandai di hasil. Stok galon fisik TIDAK berubah — muat stok lewat impor stok. Pelanggan yang sudah punya saldo awal dilewati, jadi file yang sama aman diunggah ulang.',
       addresses:
         'Alamat pengantaran tambahan untuk pelanggan depot ini, satu baris per alamat. Pelanggan dikenali dari nomor telepon; akun yang sudah aktif dan alamat yang sudah ada dilewati.',
       attendance:
@@ -1948,6 +1948,9 @@ export const hrFix = {
     empty: 'Belum ada absensi',
   },
   payrollDetail: {
+    regenerate: 'Hitung ulang',
+    regenerated: 'Slip dihitung ulang',
+    regenerateConfirm: 'Hitung ulang slip ini dari data terbaru (absensi, penugasan, aturan)? Baris dan pembagian depotnya ditulis ulang.',
     reallocate: 'Koreksi pembagian depot',
     removeShare: 'Hapus',
     addDepot: '+ Tambah depot',

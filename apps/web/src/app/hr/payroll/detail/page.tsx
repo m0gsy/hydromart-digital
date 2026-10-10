@@ -210,6 +210,22 @@ export default function PayrollDetailPage() {
         <div className="flex gap-3">
           {p.status === 'DRAFT' && (
             <Button
+              variant="secondary"
+              onClick={() =>
+                act(
+                  endpoints.hr.regeneratePayroll(id),
+                  t('hrFix.payrollDetail.regenerated'),
+                  t('hrFix.payrollDetail.regenerateConfirm'),
+                  t('hrFix.payrollDetail.regenerate'),
+                )
+              }
+              loading={busy}
+            >
+              {t('hrFix.payrollDetail.regenerate')}
+            </Button>
+          )}
+          {p.status === 'DRAFT' && (
+            <Button
               onClick={() =>
                 act(
                   endpoints.hr.approvePayroll(id),

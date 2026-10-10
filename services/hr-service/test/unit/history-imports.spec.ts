@@ -21,15 +21,26 @@ const config = { timeZone: 'Asia/Jakarta', depotAssignmentEnabled: false } as ne
 
 describe('attendance history import', () => {
   const employee = { id: 'e1', employeeCode: 'E-1', depotId: DEPOT, homeDepotId: DEPOT };
-  function build(opts: { existing?: boolean; unknown?: boolean } = {}) {
+  function build(opts: { existing?: boolean; unknown?: boolean; slip?: string } = {}) {
     const repo = {
       findByEmployeeAndDate: jest.fn(async () => (opts.existing ? { id: 'old' } : null)),
       upsertManual: jest.fn(async (i: Record<string, unknown>) => ({ id: 'a1', ...i })),
       recordAdjustment: jest.fn(async () => undefined),
     };
     const employees = { findByEmployeeCode: jest.fn(async () => (opts.unknown ? null : employee)) };
-    const svc = new AttendanceService(repo as never, {} as never, {} as never, employees as never, config);
-    return { svc, repo };
+    const payrolls = { findByEmployeeAndPeriod: jest.fn(async () => (opts.slip ? { status: opts.slip } : null)) };
+    const svc = new AttendanceService(
+      repo as never,
+      {} as never,
+      {} as never,
+      employees as never,
+      config,
+      undefined,
+      undefined,
+      undefined,
+      payrolls as never,
+    );
+    return { svc, repo, payrolls };
   }
   beforeEach(() => jest.useFakeTimers({ now: new Date('2026-10-10T03:00:00.000Z') }));
   afterEach(() => jest.useRealTimers());
@@ -62,6 +73,24 @@ describe('attendance history import', () => {
       { employeeCode: 'E-1', workDate: '2026-09-01', status: 'PRESENT' },
     ]);
     expect(dup.results[0]).toMatchObject({ status: 'skipped' });
+  });
+
+  it('refuses a month whose slip is already approved or paid, asking once per month', async () => {
+    const { svc, repo, payrolls } = build({ slip: 'APPROVED' });
+    const r = await svc.importHistory(hr, [
+      { employeeCode: 'E-1', workDate: '2026-09-01', status: 'PRESENT' },
+      { employeeCode: 'E-1', workDate: '2026-09-02', status: 'PRESENT' },
+    ]);
+    expect(r.results.map((x) => x.status)).toEqual(['failed', 'failed']);
+    expect(r.results[0].message).toMatch(/2026-09 sudah disetujui/);
+    expect(payrolls.findByEmployeeAndPeriod).toHaveBeenCalledTimes(1);
+    expect(repo.upsertManual).not.toHaveBeenCalled();
+  });
+
+  it('a DRAFT slip does not block the import', async () => {
+    const { svc } = build({ slip: 'DRAFT' });
+    const r = await svc.importHistory(hr, [{ employeeCode: 'E-1', workDate: '2026-09-01', status: 'PRESENT' }]);
+    expect(r).toMatchObject({ created: 1 });
   });
 
   it('a non-late day never carries late minutes', async () => {
@@ -97,6 +126,25 @@ describe('payroll history import', () => {
     expect(repo.setStatus.mock.calls.map((c) => [c[1], c[2]])).toEqual([
       ['DRAFT', 'APPROVED'],
       ['APPROVED', 'PAID'],
+    ]);
+  });
+
+  it('carries its single home-depot part when the split is on', async () => {
+    const repo = {
+      findByEmployeeAndPeriod: async () => null,
+      create: jest.fn(async (d: Record<string, unknown>) => ({ id: 'p1', ...d })),
+      setStatus: jest.fn(async (id: string) => ({ id })),
+    };
+    const employees = { getByCode: async () => ({ id: 'e1', depotId: DEPOT, homeDepotId: DEPOT }) };
+    const svc = new PayrollService(
+      repo as never, {} as never, {} as never, {} as never, employees as never,
+      { timeZone: 'Asia/Jakarta', depotAssignmentEnabled: true } as never,
+    );
+    await svc.importHistory(hr, [
+      { employeeCode: 'E-1', periodMonth: '2026-08', gross: 1000, totalBonus: 100, totalDeduction: 50, presentDays: 20 },
+    ]);
+    expect((repo.create.mock.calls[0][0] as { shares: unknown[] }).shares).toEqual([
+      { depotId: DEPOT, days: 20, gross: 1000, bonus: 100, deduction: 50, shortfall: 0, net: 1050 },
     ]);
   });
 
@@ -196,5 +244,33 @@ describe('routes and DTOs', () => {
     expect(p.rows[0].net).toBe(99);
     const s = plainToInstance(ImportShiftsDto, { rows: [{}] });
     expect(s.rows[0]).toBeInstanceOf(ImportShiftRowDto);
+  });
+});
+
+describe('PayrollService.regenerate', () => {
+  function build(status: string) {
+    const payroll = { id: 'p1', employeeId: 'e1', periodMonth: '2026-09', status };
+    const repo = { findById: async () => payroll };
+    const svc = new PayrollService(
+      repo as never, {} as never, {} as never, {} as never,
+      { getById: async () => ({ id: 'e1' }) } as never,
+      config,
+    );
+    const generate = jest.spyOn(svc, 'generate').mockResolvedValue({ id: 'p1' } as never);
+    return { svc, generate };
+  }
+
+  it('recomputes a DRAFT by its employee and month', async () => {
+    const { svc, generate } = build('DRAFT');
+    await svc.regenerate(hr, 'p1');
+    expect(generate).toHaveBeenCalledWith(hr, 'e1', '2026-09');
+  });
+
+  it('leaves an approved or paid slip alone', async () => {
+    for (const status of ['APPROVED', 'PAID']) {
+      const { svc, generate } = build(status);
+      await expect(svc.regenerate(hr, 'p1')).rejects.toThrow(/Hanya payroll DRAFT/);
+      expect(generate).not.toHaveBeenCalled();
+    }
   });
 });

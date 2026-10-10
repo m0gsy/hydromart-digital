@@ -23,7 +23,11 @@ export class CustomerContactHttpAdapter implements CustomerContactPort {
 
   constructor(private readonly config: DepotConfigService) {}
 
-  async resolveByPhone(phone: string, fullName?: string, depotId?: string): Promise<string | null> {
+  async resolveByPhone(
+    phone: string,
+    fullName?: string,
+    depotId?: string,
+  ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' } | null> {
     const base = this.config.customerServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) return null;
@@ -35,8 +39,11 @@ export class CustomerContactHttpAdapter implements CustomerContactPort {
         signal: AbortSignal.timeout(CustomerContactHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`customer-service responded ${res.status}`);
-      const body = (await res.json()) as { customerId?: string } | null;
-      return body?.customerId ?? null;
+      const body = (await res.json()) as {
+        customerId?: string;
+        status?: 'created' | 'pending' | 'active';
+      } | null;
+      return body?.customerId ? { customerId: body.customerId, status: body.status ?? 'pending' } : null;
     } catch (error) {
       this.logger.warn(`customer resolve-by-phone failed: ${(error as Error).message}`);
       return null;

@@ -138,8 +138,9 @@ export class GallonIssueService {
       throw new Error('Impor saldo galon belum bisa dipakai di lingkungan ini.');
     }
     return runImport(rows, async (row) => {
-      const customerId = await this.contacts!.resolveByPhone!(row.customerPhone, row.customerName, depotId);
-      if (!customerId) throw new Error('Pelanggan tidak bisa diselesaikan dari nomor telepon');
+      const resolved = await this.contacts!.resolveByPhone!(row.customerPhone, row.customerName, depotId);
+      if (!resolved) throw new Error('Pelanggan tidak bisa diselesaikan dari nomor telepon');
+      const { customerId, status } = resolved;
       if (await this.issues.hasOpeningBalance!(depotId, customerId)) {
         return { status: 'skipped', id: customerId, message: 'Saldo awal pelanggan ini sudah pernah diimpor' };
       }
@@ -151,7 +152,14 @@ export class GallonIssueService {
         note: OPENING_BALANCE_NOTE,
         actorId,
       });
-      return { status: 'created', id: record.id };
+      return {
+        status: 'created',
+        id: record.id,
+        // The number was new: say so, because an account was opened for it.
+        ...(status === 'created'
+          ? { message: 'Nomor baru: akun PENDING dibuat, pelanggan mengklaimnya lewat OTP' }
+          : {}),
+      };
     });
   }
 

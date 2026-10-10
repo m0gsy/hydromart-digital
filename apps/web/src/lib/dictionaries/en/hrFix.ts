@@ -157,11 +157,6 @@ export const hrFix = {
     all: 'All',
     allDepots: 'All depots',
     save: 'Save',
-    approve: 'Approve',
-    reject: 'Reject',
-    approved: 'Request approved',
-    rejected: 'Request rejected',
-    rejectReason: 'Reason for rejecting?',
     cancel: 'Cancel',
     delete: 'Delete',
     edit: 'Edit',
@@ -1252,6 +1247,11 @@ export const hrFix = {
     failed: 'Could not send the request.',
   },
   depotAssignment: {
+    approve: 'Approve',
+    reject: 'Reject',
+    approved: 'Request approved',
+    rejected: 'Request rejected',
+    rejectReason: 'Reason for rejecting?',
     title: 'Cross-depot assignment',
     hint: 'Lend an employee to another depot for set days, or schedule a permanent move. The system moves them on the day.',
     empty: 'No assignments yet.',
@@ -1786,7 +1786,7 @@ export const hrFix = {
       categories:
         'Each row becomes one category. An existing slug is skipped. Slug: lowercase letters, digits and hyphens.',
       gallonBalances:
-        'Opening gallon balances still out with customers when the depot moves onto the app. One row per customer (found by phone number). Physical gallon stock does NOT change - load stock through the stock import. A customer who already has an opening balance is skipped, so the same file is safe to upload again.',
+        'Opening gallon balances still out with customers when the depot moves onto the app. One row per customer (found by phone number). A number we do not know is REGISTERED as a PENDING account (the customer claims it with an OTP) and the row is flagged in the result. Physical gallon stock does NOT change - load stock through the stock import. A customer who already has an opening balance is skipped, so the same file is safe to upload again.',
       addresses:
         'Extra delivery addresses for this depot customers, one row per address. Customers are found by phone number; an active account and an address already on file are skipped.',
       attendance:
@@ -1927,6 +1927,9 @@ export const hrFix = {
     empty: 'No attendance yet',
   },
   payrollDetail: {
+    regenerate: 'Recalculate',
+    regenerated: 'Slip recalculated',
+    regenerateConfirm: 'Recalculate this slip from the latest data (attendance, assignments, rules)? Its lines and depot split are rewritten.',
     reallocate: 'Correct depot split',
     removeShare: 'Remove',
     addDepot: '+ Add depot',

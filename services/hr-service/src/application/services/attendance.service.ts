@@ -39,6 +39,7 @@ import {
   FaceEmbeddingRepository,
 } from '../ports/face-embedding.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
+import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.repository';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 import {
@@ -71,6 +72,8 @@ export class AttendanceService {
     @Optional()
     @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
     private readonly depotLedger?: DepotAssignmentRepository,
+    // Only the history import asks it: a month whose slip is closed is not rewritten.
+    @Optional() @Inject(PAYROLL_REPOSITORY) private readonly payrolls?: PayrollRepository,
   ) {}
 
   /**
@@ -608,6 +611,8 @@ export class AttendanceService {
     rows: { employeeCode: string; workDate: string; status: AttendanceStatus; lateMinutes?: number }[],
   ): Promise<ImportSummary> {
     const today = localDayKey(new Date(), this.config.timeZone);
+    // One lookup per (employee, month), not per day: a month of history is thirty rows.
+    const closed = new Map<string, boolean>();
     return runImport(rows, async (row) => {
       if (row.status === 'PENDING') throw new Error('Status PENDING tidak boleh diimpor');
       const day = row.workDate.slice(0, 10);
@@ -616,6 +621,16 @@ export class AttendanceService {
       if (!employee) throw new Error(`Karyawan ${row.employeeCode} tidak ditemukan`);
       const workDepotId = await this.workDepotOn(employee, day);
       assertDepotAccess(user, workDepotId);
+      if (this.payrolls) {
+        const key = `${employee.id}|${day.slice(0, 7)}`;
+        if (!closed.has(key)) {
+          const slip = await this.payrolls.findByEmployeeAndPeriod(employee.id, day.slice(0, 7));
+          closed.set(key, !!slip && slip.status !== 'DRAFT');
+        }
+        if (closed.get(key)) {
+          throw new Error(`Slip ${day.slice(0, 7)} sudah disetujui atau dibayar; absensinya tidak diubah lewat impor`);
+        }
+      }
       const workDate = new Date(`${day}T00:00:00.000Z`);
       if (await this.repo.findByEmployeeAndDate(employee.id, workDate)) {
         return { status: 'skipped', message: 'Hari itu sudah punya catatan kehadiran' };

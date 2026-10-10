@@ -8,7 +8,9 @@ import { GallonIssuePrismaRepository } from '../../src/infrastructure/prisma/gal
 
 const DEPOT = '11111111-1111-1111-1111-111111111111';
 
-function build(opts: { known?: Record<string, string>; openedFor?: string[]; noResolver?: boolean; noGuard?: boolean } = {}) {
+function build(
+  opts: { known?: Record<string, string>; openedFor?: string[]; noResolver?: boolean; noGuard?: boolean; fresh?: boolean } = {},
+) {
   const created: Record<string, unknown>[] = [];
   const issues: Record<string, unknown> = {
     create: jest.fn(async (d: Record<string, unknown>) => {
@@ -19,7 +21,10 @@ function build(opts: { known?: Record<string, string>; openedFor?: string[]; noR
   };
   if (opts.noGuard) delete issues.hasOpeningBalance;
   const contacts: Record<string, unknown> = {
-    resolveByPhone: jest.fn(async (phone: string) => (opts.known ?? {})[phone] ?? null),
+    resolveByPhone: jest.fn(async (phone: string) => {
+      const id = (opts.known ?? {})[phone];
+      return id ? { customerId: id, status: opts.fresh ? 'created' : 'pending' } : null;
+    }),
   };
   if (opts.noResolver) delete contacts.resolveByPhone;
   const inventory = { moveRawLine: jest.fn() };
@@ -48,6 +53,14 @@ describe('GallonIssueService.importOpening', () => {
       actorId: 'actor-1',
     });
     expect(inventory.moveRawLine).not.toHaveBeenCalled();
+  });
+
+  it('says so when the number was new and an account had to be opened', async () => {
+    const { svc } = build({ known: { '0811': 'c-1' }, fresh: true });
+    const r = await svc.importOpening(DEPOT, [{ customerPhone: '0811', quantity: 1 }], 'a');
+    expect(r.results[0].message).toMatch(/akun PENDING dibuat/);
+    const known = await build({ known: { '0811': 'c-1' } }).svc.importOpening(DEPOT, [{ customerPhone: '0811', quantity: 1 }], 'a');
+    expect(known.results[0].message).toBeUndefined();
   });
 
   it('a customer with an opening row is skipped, so a re-upload cannot double the balance', async () => {
@@ -102,7 +115,7 @@ describe('customer-service adapter and repository', () => {
       .spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ customerId: 'c-9', status: 'pending' })));
     const a = new CustomerContactHttpAdapter(cfg());
-    await expect(a.resolveByPhone('0811', 'Budi', DEPOT)).resolves.toBe('c-9');
+    await expect(a.resolveByPhone('0811', 'Budi', DEPOT)).resolves.toEqual({ customerId: 'c-9', status: 'pending' });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://c/api/v1/customers/internal/resolve-by-phone');
     expect(JSON.parse(String(init.body))).toEqual({ phone: '0811', fullName: 'Budi', depotId: DEPOT });

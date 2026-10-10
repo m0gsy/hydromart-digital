@@ -691,6 +691,9 @@ export class PayrollService {
           ? [{ kind: 'DEDUCTION' as const, label: 'Potongan (riwayat impor)', amount: deduction }]
           : []),
       ];
+      // With the split on, a slip carries its parts. History has exactly one: the depot the
+      // person belongs to carries all of it (we do not know where they stood that month).
+      const home = this.config.depotAssignmentEnabled ? homeDepotOf(employee) : null;
       const draft = await this.repo.create({
         employeeId: employee.id,
         periodMonth: row.periodMonth,
@@ -701,6 +704,9 @@ export class PayrollService {
         presentDays: row.presentDays ?? 0,
         createdBy: user.sub,
         items,
+        ...(home
+          ? { shares: [{ depotId: home, days: row.presentDays ?? 0, gross: row.gross, bonus, deduction, shortfall: 0, net }] }
+          : {}),
       });
       const approved = await this.repo.setStatus(draft.id, 'DRAFT', 'APPROVED', {
         approvedBy: user.sub,
@@ -709,6 +715,21 @@ export class PayrollService {
       await this.repo.setStatus(approved.id, 'APPROVED', 'PAID', { paidAt: new Date() });
       return { status: 'created', id: draft.id };
     });
+  }
+
+  /**
+   * Recompute a DRAFT slip - lines AND per-depot split - from today's ledger, attendance and
+   * rules. What to press after a backdated assignment or a corrected attendance day. An
+   * approved slip is not touched: that goes through the audited HQ reallocation instead.
+   */
+  async regenerate(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
+    const payroll = await this.load(user, id, { forWrite: true });
+    if (payroll.status !== 'DRAFT') {
+      throw new ConflictException(
+        `Hanya payroll DRAFT yang bisa dihitung ulang (saat ini ${payroll.status})`,
+      );
+    }
+    return this.generate(user, payroll.employeeId, payroll.periodMonth);
   }
 
   async approve(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {

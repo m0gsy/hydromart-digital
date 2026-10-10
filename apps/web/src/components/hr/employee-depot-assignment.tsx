@@ -47,6 +47,9 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
   const [saving, setSaving] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  // The request being rejected, and the reason typed so far (an inline form, not a browser prompt).
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
 
   const list = useAsync<{ rows: DepotAssignment[]; total: number; hidden?: boolean }>(
     () =>
@@ -100,9 +103,9 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
       if (what === 'cancel') await api.patch(endpoints.hr.cancelDepotAssignment(id), {}, true);
       else if (what === 'approve') await api.post(endpoints.hr.approveDepotRequest(id), {}, true);
       else if (what === 'reject') {
-        const reason = window.prompt(t('hrFix.depotAssignment.rejectReason'))?.trim();
-        if (!reason) return;
-        await api.post(endpoints.hr.rejectDepotRequest(id), { reason }, true);
+        await api.post(endpoints.hr.rejectDepotRequest(id), { reason: reason.trim() }, true);
+        setRejecting(null);
+        setReason('');
       } else await api.post(endpoints.hr.applyDepotAssignmentNow(id), {}, true);
       toast(
         t(
@@ -151,7 +154,25 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
                     {a.endDate ? ` – ${fmtDate(a.endDate)}` : ''}
                     {a.note ? ` · ${a.note}` : ''}
                   </p>
-                  {(a.status === 'FAILED' || a.status === 'CANCELLED') && a.failReason && (
+                  {rejecting === a.id && (
+                    <form
+                      className="flex w-full flex-wrap items-end gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (reason.trim().length >= 3) void act(a.id, 'reject');
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <Field label={t('hrFix.depotAssignment.rejectReason')}>
+                          <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
+                        </Field>
+                      </div>
+                      <Button type="submit" loading={busy === a.id} disabled={reason.trim().length < 3}>
+                        {t('hrFix.depotAssignment.reject')}
+                      </Button>
+                    </form>
+                  )}
+                {(a.status === 'FAILED' || a.status === 'CANCELLED') && a.failReason && (
                     <p className="text-sm text-[color:var(--danger)]" role="alert">
                       {a.failReason}
                     </p>
@@ -163,7 +184,7 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
                       <Button loading={busy === a.id} onClick={() => act(a.id, 'approve')}>
                         {t('hrFix.depotAssignment.approve')}
                       </Button>
-                      <Button variant="secondary" loading={busy === a.id} onClick={() => act(a.id, 'reject')}>
+                      <Button variant="secondary" onClick={() => setRejecting(rejecting === a.id ? null : a.id)}>
                         {t('hrFix.depotAssignment.reject')}
                       </Button>
                     </>

@@ -138,6 +138,18 @@ export class PayrollController {
   }
 
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })
+  @Post(':id/regenerate')
+  @HttpCode(200)
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Recompute a DRAFT payroll (lines and per-depot split) from the ledger' })
+  regenerate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PayrollWithItems> {
+    return this.payroll.regenerate(user, id);
+  }
+
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Post(':id/approve')
   @Can('hrPayroll')
   @ApiOperation({ summary: 'Approve a DRAFT payroll' })

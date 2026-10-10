@@ -17,5 +17,9 @@ export interface CustomerContactPort {
    * none (the same door the counter sale and the customer import use). `null` when
    * customer-service cannot be asked: an import row must FAIL then, never guess a customer.
    */
-  resolveByPhone?(phone: string, fullName?: string, depotId?: string): Promise<string | null>;
+  resolveByPhone?(
+    phone: string,
+    fullName?: string,
+    depotId?: string,
+  ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' } | null>;
 }
