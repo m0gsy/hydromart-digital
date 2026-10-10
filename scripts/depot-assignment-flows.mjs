@@ -585,6 +585,19 @@ async function hardening() {
   check('and they are home again', lateDepot === G);
   void lateAid;
 
+  // ---- 8d. the company's own BPJS cost is a report, never a payslip line
+  const prevM = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const costPeriod = `${prevM.getUTCFullYear()}-${String(prevM.getUTCMonth() + 1).padStart(2, '0')}`;
+  const costUrl = `${GATEWAY}/hr-reports/api/v1/hr-reports/payroll-employer-cost?periodMonth=${costPeriod}`;
+  const costRes = await fetch(costUrl, { headers: { authorization: `Bearer ${HR_TOKEN}` } });
+  const costCsv = await costRes.text();
+  const costHead = costCsv.split('\u000a')[0] ?? '';
+  check('employer BPJS cost report answers with its columns and a TOTAL row', costRes.status === 200 && /totalBebanPerusahaan/.test(costHead) && /TOTAL/.test(costCsv), `${costRes.status} ${costCsv.slice(0, 160)}`);
+  const costMgr = await fetch(costUrl, { headers: { authorization: `Bearer ${manager(G)}` } });
+  check('a depot manager cannot read the company cost (403)', costMgr.status === 403, String(costMgr.status));
+  const noLine = rows(`SELECT count(*) FROM payroll_items WHERE label ILIKE '%perusahaan%'`)[0][0];
+  check('and no payslip line carries an employer share', noLine === '0', noLine);
+
   // ---- 8c. a stale UPSERT import must not drag a lent employee back
   const lent = await newEmployee('UPS', G);
   await api('POST', '/depot-assignments/api/v1/depot-assignments', { employeeId: lent.body.id, kind: 'LOAN', depotId: P, startDate: TODAY, endDate: day(addDays(today, 5)) }, HR_TOKEN);
