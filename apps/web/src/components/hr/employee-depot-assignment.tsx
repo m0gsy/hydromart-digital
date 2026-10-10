@@ -157,7 +157,7 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {a.status === 'REQUESTED' && (
                     <>
                       <Button loading={busy === a.id} onClick={() => act(a.id, 'approve')}>
@@ -185,7 +185,7 @@ export function EmployeeDepotAssignment({ employeeId }: { employeeId: string }) 
         </div>
       )}
 
-      <form onSubmit={plan} className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2">
+      <form onSubmit={plan} className="grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2">
         <Field label={t('hrFix.depotAssignment.kindLabel')}>
           <select
             value={kind}

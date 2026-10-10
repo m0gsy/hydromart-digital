@@ -87,7 +87,7 @@ export default function PayrollDetailPage() {
         title={p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
         subtitle={`${t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })} · ${t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={downloadSlip}>
               {t('hrFix.payrollDetail.downloadPdf')}
             </Button>

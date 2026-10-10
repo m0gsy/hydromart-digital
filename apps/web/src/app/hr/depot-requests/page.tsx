@@ -75,7 +75,7 @@ export default function DepotRequestsPage() {
       <SectionHeader title={t('hrFix.depotRequests.title')} subtitle={t('hrFix.depotRequests.hint')} />
 
       <Card className="p-5">
-        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+        <form onSubmit={submit} className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
           <Field label={t('hrFix.depotRequests.code')}>
             <Input
               value={employeeCode}
