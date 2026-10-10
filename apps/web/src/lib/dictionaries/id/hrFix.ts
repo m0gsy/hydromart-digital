@@ -1792,9 +1792,30 @@ export const hrFix = {
     hint: 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
   },
   imports: {
+    productsTitle: 'Import Katalog Produk',
+    categoriesTitle: 'Import Kategori Produk',
+    gallonBalancesTitle: 'Import Saldo Galon Pelanggan',
+    addressesTitle: 'Import Alamat Pelanggan',
+    attendanceTitle: 'Import Riwayat Absensi',
+    payrollTitle: 'Import Riwayat Slip Gaji',
+    shiftsTitle: 'Import Riwayat Shift',
     loansTitle: 'Import Kasbon Berjalan',
     // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
     desc: {
+      products:
+        'Setiap baris menjadi satu produk di katalog jaringan. SKU yang sudah ada dilewati (harga diubah lewat layar produk, yang mencatat siapa yang mengubahnya). Kolom categorySlug harus kategori yang sudah ada; isGallon diisi ya/tidak.',
+      categories:
+        'Setiap baris menjadi satu kategori. Slug yang sudah ada dilewati. Slug: huruf kecil, angka, dan tanda hubung.',
+      gallonBalances:
+        'Saldo awal galon yang masih ada di pelanggan saat depot pindah ke aplikasi. Satu baris per pelanggan (dikenali dari nomor telepon). Stok galon fisik TIDAK berubah — muat stok lewat impor stok. Pelanggan yang sudah punya saldo awal dilewati, jadi file yang sama aman diunggah ulang.',
+      addresses:
+        'Alamat pengantaran tambahan untuk pelanggan depot ini, satu baris per alamat. Pelanggan dikenali dari nomor telepon; akun yang sudah aktif dan alamat yang sudah ada dilewati.',
+      attendance:
+        'Riwayat absensi dari catatan sebelum aplikasi. Hanya hari yang sudah lewat, dan hanya hari yang belum punya catatan — koreksi hari yang sudah ada lewat layar koreksi. lateMinutes hanya dipakai untuk status LATE.',
+      payroll:
+        'Slip gaji bulan-bulan yang sudah ditutup sebelum aplikasi, disimpan sebagai LUNAS. Hanya bulan yang sudah lewat; bulan yang sudah punya slip dilewati. net harus sama dengan gross + bonus - potongan, atau dikosongkan.',
+      shifts:
+        'Riwayat shift tiap karyawan: nama shift (harus sama dengan nama di Shift) dan tanggal mulai. Baris yang sama dilewati.',
       customers:
         'Nomor yang diimpor didaftarkan lebih dulu. Pelanggan tetap mendaftar sendiri lewat OTP dengan nomor yang sama — akunnya langsung terhubung ke data ini. Isi alamat berarti kota wajib diisi; provinsi opsional.',
       inventory:

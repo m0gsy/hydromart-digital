@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -15,6 +16,7 @@ import {
   CurrentUser,
   AuthenticatedUser,
   assertDepotOwnership,
+  ImportSummary,
   InternalAuthGuard,
   Public,
 } from '@hydromart/platform';
@@ -29,9 +31,14 @@ import { Page } from '../application/pagination';
 import {
   CreateGallonIssueDto,
   CreateGallonIssueFromOrderDto,
+  ImportGallonBalancesDto,
   ListIssuesQueryDto,
 } from './dto/gallon-issue.dto';
-import { GallonIssueResponseDto, PagedGallonIssueResponseDto } from './dto/responses.generated.dto';
+import {
+  GallonIssueResponseDto,
+  ImportResponseDto,
+  PagedGallonIssueResponseDto,
+} from './dto/responses.generated.dto';
 
 /** Empty-gallon issues / deposit held nested under a depot (PRD Module 11c). */
 @ApiTags('Gallon issues')
@@ -42,6 +49,19 @@ export class GallonIssueController {
     private readonly issues: GallonIssueService,
     private readonly depots: DepotService,
   ) {}
+
+  @ApiOkResponse({ type: ImportResponseDto })
+  @Can('returnsWrite')
+  @Post('import')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Import opening gallon balances per customer (staff)' })
+  importOpening(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ImportGallonBalancesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ImportSummary> {
+    return this.issues.importOpening(depotId, dto.rows, user.sub);
+  }
 
   @ApiOkResponse({ type: GallonIssueResponseDto })
   @Can('returnsWrite')

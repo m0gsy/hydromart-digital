@@ -14,6 +14,7 @@ import {
   LoadError,
   SectionHeader,
   Skeleton,
+  LinkButton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -50,7 +51,17 @@ export default function ShiftPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <SectionHeader title={t('hrFix.shift.title')} subtitle={t('hrFix.shift.subtitle')} />
+      <SectionHeader
+        title={t('hrFix.shift.title')}
+        subtitle={t('hrFix.shift.subtitle')}
+        action={
+          isAdmin ? (
+            <LinkButton href="/hr/shift/import" variant="secondary">
+              {t('hrFix.imports.shiftsTitle')}
+            </LinkButton>
+          ) : undefined
+        }
+      />
 
       {/* Both panels below take their shift list from here, and every shift dropdown in
           them is empty without it — which reads as a depot that defined no shifts, the

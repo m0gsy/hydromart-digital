@@ -6,7 +6,18 @@ import { Package } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { ProductImageInput } from '@/components/product-image-input';
-import { Badge, Button, Card, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  FormError,
+  Input,
+  LinkButton,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -450,7 +461,15 @@ export default function HqCatalogPage() {
         action={
           <>
             {editing === undefined && (
-              <Button onClick={() => setEditing(null)}>{t('hq.catalog.newProduct')}</Button>
+              <>
+                <LinkButton href="/hq/catalog/import" variant="secondary">
+                  {t('hrFix.imports.productsTitle')}
+                </LinkButton>
+                <LinkButton href="/hq/catalog/import-categories" variant="secondary">
+                  {t('hrFix.imports.categoriesTitle')}
+                </LinkButton>
+                <Button onClick={() => setEditing(null)}>{t('hq.catalog.newProduct')}</Button>
+              </>
             )}
           </>
         }

@@ -16,6 +16,7 @@ import {
   LoadError,
   Money,
   Skeleton,
+  LinkButton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -366,6 +367,9 @@ function ReturnsBody() {
         </div>
         {canWrite && scopedId && (
           <div className="flex flex-wrap gap-2">
+            <LinkButton href="/dashboard/returns/import" variant="secondary">
+              {t('hrFix.imports.gallonBalancesTitle')}
+            </LinkButton>
             <IssueForm depotId={scopedId} onSaved={reload} />
             <RecordForm depotId={scopedId} onSaved={reload} />
           </div>

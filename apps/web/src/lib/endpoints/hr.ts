@@ -104,6 +104,9 @@ export const hr = {
     applyDepotAssignmentNow: (id: string) =>
       `/depot-assignments/api/v1/depot-assignments/${id}/apply-now`,
     createLoan: '/loans/api/v1/loans',
+    importAttendanceHistory: '/attendance/api/v1/attendance/import',
+    importPayrollHistory: '/payroll/api/v1/payroll/import',
+    importShiftAssignments: '/shift-rotations/api/v1/shift-rotations/assignments/import',
     importLoans: '/loans/api/v1/loans/import',
     deactivateLoan: (id: string) => `/loans/api/v1/loans/${id}/deactivate`,
     importLeaveBalances: '/leave/api/v1/leave/balances/import',

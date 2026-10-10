@@ -1,5 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localMonthKey } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeIds,
+  localMonthKey,
+  runImport,
+} from '@hydromart/platform';
 
 import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -636,6 +643,72 @@ export class PayrollService {
       );
       return allocatePayroll({ ...base, grossWeights: [] });
     }
+  }
+
+  /**
+   * Closed payslips from before the app, loaded as history (PAID).
+   *
+   * Never the current or a future month: those are computed, not typed. A slip that already
+   * exists for the (employee, month) is skipped - history never overwrites a computed slip.
+   * The totals must add up (`net = gross + bonus - deduction`), checked per row, and the slip
+   * carries three plain lines so it reads like any other. It has NO per-depot split: it
+   * predates the split, and reports fall back to the person's own depot for it.
+   */
+  async importHistory(
+    user: AuthenticatedUser,
+    rows: {
+      employeeCode: string;
+      periodMonth: string;
+      gross: number;
+      totalBonus?: number;
+      totalDeduction?: number;
+      net?: number;
+      presentDays?: number;
+    }[],
+  ): Promise<ImportSummary> {
+    const thisMonth = localMonthKey(new Date(), this.config.timeZone);
+    return runImport(rows, async (row) => {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(row.periodMonth)) {
+        throw new Error('periodMonth harus format YYYY-MM');
+      }
+      if (row.periodMonth >= thisMonth) {
+        throw new Error('Hanya bulan yang sudah lewat yang bisa diimpor sebagai riwayat');
+      }
+      const bonus = row.totalBonus ?? 0;
+      const deduction = row.totalDeduction ?? 0;
+      const net = row.gross + bonus - deduction;
+      if (row.net !== undefined && row.net !== net) {
+        throw new Error(`net ${row.net} tidak sama dengan gross + bonus - potongan (${net})`);
+      }
+      const employee = await this.employees.getByCode(user, row.employeeCode); // depot gate
+      if (await this.repo.findByEmployeeAndPeriod(employee.id, row.periodMonth)) {
+        return { status: 'skipped', message: 'Slip bulan itu sudah ada' };
+      }
+      const items: PayrollItemInput[] = [
+        { kind: 'BASE', label: 'Gaji (riwayat impor)', amount: row.gross },
+        ...(bonus > 0 ? [{ kind: 'BONUS' as const, label: 'Bonus (riwayat impor)', amount: bonus }] : []),
+        ...(deduction > 0
+          ? [{ kind: 'DEDUCTION' as const, label: 'Potongan (riwayat impor)', amount: deduction }]
+          : []),
+      ];
+      const draft = await this.repo.create({
+        employeeId: employee.id,
+        periodMonth: row.periodMonth,
+        gross: row.gross,
+        totalBonus: bonus,
+        totalDeduction: deduction,
+        net,
+        presentDays: row.presentDays ?? 0,
+        createdBy: user.sub,
+        items,
+      });
+      const approved = await this.repo.setStatus(draft.id, 'DRAFT', 'APPROVED', {
+        approvedBy: user.sub,
+        approvedAt: new Date(),
+      });
+      await this.repo.setStatus(approved.id, 'APPROVED', 'PAID', { paidAt: new Date() });
+      return { status: 'created', id: draft.id };
+    });
   }
 
   async approve(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {

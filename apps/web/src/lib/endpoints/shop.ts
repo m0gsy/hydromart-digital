@@ -39,6 +39,8 @@ export const shop = {
     get: (id: string) => `/products/api/v1/products/${id}`,
     // Admin CRUD (MANAGER / SUPER_ADMIN).
     create: '/products/api/v1/products',
+    import: '/products/api/v1/products/import',
+    categoriesImport: '/products/api/v1/categories/import',
     update: (id: string) => `/products/api/v1/products/${id}`,
     // PRD-1: what this product's base price has been, and who moved it.
     priceHistory: (id: string) => `/products/api/v1/products/${id}/price-history`,

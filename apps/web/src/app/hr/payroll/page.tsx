@@ -17,6 +17,7 @@ import {
   Money,
   SectionHeader,
   Skeleton,
+  LinkButton,
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -144,6 +145,13 @@ function PayrollInner() {
       <SectionHeader
         title={t('hrFix.payroll.title')}
         subtitle={t('hrFix.common.periodLabel', { period })}
+        action={
+          canRunPayroll(customer?.role) ? (
+            <LinkButton href="/hr/payroll/import" variant="secondary">
+              {t('hrFix.imports.payrollTitle')}
+            </LinkButton>
+          ) : undefined
+        }
       />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">

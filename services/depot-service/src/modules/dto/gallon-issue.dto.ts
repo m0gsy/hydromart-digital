@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsInt,
   IsOptional,
   IsPositive,
@@ -9,6 +11,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateGallonIssueDto {
@@ -81,4 +84,19 @@ export class ListIssuesQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class ImportGallonBalanceRowDto {
+  @IsString() @MaxLength(20) customerPhone!: string;
+  @IsOptional() @IsString() @MaxLength(120) customerName?: string;
+  @Type(() => Number) @IsInt() @IsPositive() quantity!: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) depositHeld?: number;
+}
+
+export class ImportGallonBalancesDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportGallonBalanceRowDto)
+  rows!: ImportGallonBalanceRowDto[];
 }

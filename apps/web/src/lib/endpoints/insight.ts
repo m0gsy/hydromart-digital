@@ -289,6 +289,7 @@ export const insight = {
     crmDashboard: (depotId: string) =>
       `/customers/api/v1/customers/crm/dashboard?depotId=${encodeURIComponent(depotId)}`,
     import: '/customers/api/v1/customers/import',
+    importAddresses: '/customers/api/v1/customers/import-addresses',
   },
 
   // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.

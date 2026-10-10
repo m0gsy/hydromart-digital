@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, ImportSummary } from '@hydromart/platform';
 
 import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
@@ -27,8 +27,9 @@ import {
   UpdateRotationDto,
   UpdateShiftDto,
 } from './dto/calendar.dto';
+import { ImportShiftsDto } from './dto/history-import.dto';
 import { Holiday, Shift, ShiftAssignment, ShiftRotation } from '../../prisma/generated/client';
-import { HolidayResponseDto, ShiftAssignmentResponseDto, ShiftResponseDto, ShiftRotationResponseDto } from './dto/responses.generated.dto';
+import { HolidayResponseDto, ImportResponseDto, ShiftAssignmentResponseDto, ShiftResponseDto, ShiftRotationResponseDto } from './dto/responses.generated.dto';
 
 /** National/depot holidays that drive the working-day calendar. Read hrView, write hrAdmin. */
 @ApiTags('HR Holidays')
@@ -152,6 +153,15 @@ export class ShiftRotationController {
   @ApiOperation({ summary: 'One employee’s shift assignment history, newest first' })
   listAssignments(@Query() q: ListAssignmentDto, @CurrentUser() user: AuthenticatedUser): Promise<ShiftAssignment[]> {
     return this.shifts.listAssignments(user, q.employeeId);
+  }
+
+  @ApiOkResponse({ type: ImportResponseDto })
+  @Post('assignments/import')
+  @HttpCode(200)
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Bulk-load past shift assignments from a spreadsheet (HR)' })
+  importAssignments(@Body() dto: ImportShiftsDto, @CurrentUser() user: AuthenticatedUser): Promise<ImportSummary> {
+    return this.shifts.importAssignments(user, dto.rows);
   }
 
   @ApiOkResponse({ type: ShiftAssignmentResponseDto })

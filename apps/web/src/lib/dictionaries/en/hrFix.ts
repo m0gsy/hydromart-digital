@@ -1771,9 +1771,30 @@ export const hrFix = {
     hint: 'Move your head slightly or blink while the photo is taken.',
   },
   imports: {
+    productsTitle: 'Import product catalogue',
+    categoriesTitle: 'Import product categories',
+    gallonBalancesTitle: 'Import customer gallon balances',
+    addressesTitle: 'Import customer addresses',
+    attendanceTitle: 'Import attendance history',
+    payrollTitle: 'Import payslip history',
+    shiftsTitle: 'Import shift history',
     loansTitle: 'Import outstanding advances',
     // CA-1-49: `CsvImport` renders `description` through `t()` now, like `title`.
     desc: {
+      products:
+        'Each row becomes one product in the network catalogue. An existing SKU is skipped (prices change on the product screen, which records who changed them). categorySlug must be an existing category; isGallon is yes/no.',
+      categories:
+        'Each row becomes one category. An existing slug is skipped. Slug: lowercase letters, digits and hyphens.',
+      gallonBalances:
+        'Opening gallon balances still out with customers when the depot moves onto the app. One row per customer (found by phone number). Physical gallon stock does NOT change - load stock through the stock import. A customer who already has an opening balance is skipped, so the same file is safe to upload again.',
+      addresses:
+        'Extra delivery addresses for this depot customers, one row per address. Customers are found by phone number; an active account and an address already on file are skipped.',
+      attendance:
+        'Attendance history from records kept before the app. Only days that are over, and only days with no record yet - correct an existing day on the correction screen. lateMinutes only counts for status LATE.',
+      payroll:
+        'Payslips of months closed before the app, stored as PAID. Past months only; a month that already has a slip is skipped. net must equal gross + bonus - deduction, or be left empty.',
+      shifts:
+        'Each employee shift history: the shift name (must match a name on the Shift screen) and the start date. A repeated row is skipped.',
       customers:
         'Imported numbers are registered first. Customers still sign up themselves by OTP with the same number — their account links straight to this record. If you fill in an address, the city is required; the province is optional.',
       inventory:

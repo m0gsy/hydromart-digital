@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { ApprovalType } from '../../domain/approval';
 import { InventoryItemType } from '../../domain/inventory';
@@ -12,8 +12,11 @@ import {
   GallonIssueRecord,
   GallonIssueRepository,
   GallonIssueSummary,
+  OPENING_BALANCE_NOTE,
 } from '../ports/gallon-issue.repository';
+import { CustomerContactPort } from '../ports/customer-contact.port';
 import { DEPOT_TOKENS } from '../tokens';
+import { ImportSummary, runImport } from '@hydromart/platform';
 
 export interface RecordIssueInput {
   customerId?: string | null;
@@ -60,6 +63,7 @@ export class GallonIssueService {
     // InventoryService injects ApprovalService, not the other way and not this service.
     private readonly inventory: InventoryService,
     private readonly approvals: ApprovalService,
+    @Optional() @Inject(DEPOT_TOKENS.CustomerContact) private readonly contacts?: CustomerContactPort,
   ) {}
 
   private readonly logger = new Logger(GallonIssueService.name);
@@ -113,6 +117,42 @@ export class GallonIssueService {
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
+  }
+
+  /**
+   * Opening balances: the empties already out with customers when a depot moves onto the app.
+   *
+   * One ledger row per customer (named by phone), written WITHOUT touching the physical GALON
+   * stock - those gallons left the building long ago, and the stock count is loaded by its own
+   * import. A customer who already has an opening row at this depot is SKIPPED, so uploading
+   * the same file twice cannot double what they owe. Customer-service being unreachable fails
+   * the row; it never books against a guessed customer.
+   */
+  async importOpening(
+    depotId: string,
+    rows: { customerPhone: string; customerName?: string; quantity: number; depositHeld?: number }[],
+    actorId: string,
+  ): Promise<ImportSummary> {
+    await this.requireDepot(depotId);
+    if (!this.contacts?.resolveByPhone || !this.issues.hasOpeningBalance) {
+      throw new Error('Impor saldo galon belum bisa dipakai di lingkungan ini.');
+    }
+    return runImport(rows, async (row) => {
+      const customerId = await this.contacts!.resolveByPhone!(row.customerPhone, row.customerName, depotId);
+      if (!customerId) throw new Error('Pelanggan tidak bisa diselesaikan dari nomor telepon');
+      if (await this.issues.hasOpeningBalance!(depotId, customerId)) {
+        return { status: 'skipped', id: customerId, message: 'Saldo awal pelanggan ini sudah pernah diimpor' };
+      }
+      const record = await this.issues.create({
+        depotId,
+        customerId,
+        quantity: row.quantity,
+        depositHeld: row.depositHeld ?? 0,
+        note: OPENING_BALANCE_NOTE,
+        actorId,
+      });
+      return { status: 'created', id: record.id };
+    });
   }
 
   async record(

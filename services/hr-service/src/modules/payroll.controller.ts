@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { Can, AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, ImportSummary, SelfScoped } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
 import {
@@ -13,6 +13,8 @@ import {
   PayrollShareResponseDto,
   ReallocatePayrollDto,
 } from './dto/payroll.dto';
+import { ImportPayrollDto } from './dto/history-import.dto';
+import { ImportResponseDto } from './dto/responses.generated.dto';
 import { PayrollShareRow, PayrollWithItems } from '../application/ports/payroll.repository';
 import { PayrollWithItemsResponseDto } from './dto/responses.generated.dto';
 
@@ -124,6 +126,15 @@ export class PayrollController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GenerateBatchResultDto> {
     return this.payroll.generateBatch(user, dto.depotId, dto.periodMonth);
+  }
+
+  @ApiOkResponse({ type: ImportResponseDto })
+  @Post('import')
+  @HttpCode(200)
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Load closed payslips from before the app as PAID history' })
+  import(@Body() dto: ImportPayrollDto, @CurrentUser() user: AuthenticatedUser): Promise<ImportSummary> {
+    return this.payroll.importHistory(user, dto.rows);
   }
 
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })

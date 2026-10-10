@@ -59,8 +59,8 @@ describe('PayrollShareEditor', () => {
   it('posts the corrected split with the reason once balanced', async () => {
     const onSaved = view();
     const inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[];
-    fireEvent.change(inputs[1], { target: { value: '60' } }); // a gross 70 -> 60
-    fireEvent.change(inputs[6], { target: { value: '40' } }); // b gross 30 -> 40
+    fireEvent.change(inputs[1] as HTMLInputElement, { target: { value: '60' } }); // a gross 70 -> 60
+    fireEvent.change(inputs[6] as HTMLInputElement, { target: { value: '40' } }); // b gross 30 -> 40
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'koreksi mutasi' } });
     fireEvent.click(screen.getByText(/Simpan pembagian/));
     await waitFor(() => expect(post).toHaveBeenCalled());
@@ -78,7 +78,7 @@ describe('PayrollShareEditor', () => {
     view();
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'c' } });
     expect(screen.getByText('Bekasi')).toBeTruthy();
-    fireEvent.click(screen.getAllByText('Hapus')[0]);
+    fireEvent.click(screen.getAllByText('Hapus')[0] as HTMLElement);
     // gone from the split, and offered again in the add list
     expect(screen.getAllByText('Galaksi').map((e) => e.tagName)).toEqual(['OPTION']);
   });
