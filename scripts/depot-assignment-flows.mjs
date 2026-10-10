@@ -132,7 +132,9 @@ async function newEmployee(label, depotId) {
       joinDate: '2024-01-01',
       salaryType: 'MONTHLY',
       monthlyRate: 3_000_000,
-      nik: `32${stamp}${seq}`.padEnd(16, '1'),
+      // seq padded: `32<stamp>1` and `32<stamp>11` both padded with '1' were the SAME nik once
+      // the run created more than ten employees.
+      nik: `32${stamp}${String(seq).padStart(3, '0')}`.padEnd(16, '0'),
       bankName: 'BCA',
       bankAccount: '1234567890',
     },
@@ -304,6 +306,7 @@ async function main() {
 
   await followUps({ emp, e2, pid, period });
   await hardening();
+  await customerAndOps();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
@@ -663,6 +666,110 @@ async function hardening() {
   check('the stale import row does not move a lent employee (live depot unchanged)', liveBefore === P && liveAfter === P && homeAfter === G, `before ${liveBefore} after ${liveAfter}/${homeAfter}; import: ${JSON.stringify(up.body).slice(0, 200)}`);
   check('and the import answered per row, not with a 500', up.status === 200 || up.status === 201, String(up.status));
   void nameAfter;
+}
+
+// ---------------------------------------------------------------- 9. what the customer and the ops desk SEE
+// The features above write data; this section reads it back the way the people it is for do:
+// the customer in the shop and in their own address book, the depot staff at the depot they were
+// sent to. Everything over HTTP, with real OTP sessions.
+async function otpFlow(phone, purpose, origin) {
+  const e = e164(phone);
+  const headers = { 'content-type': 'application/json', ...(origin ? { origin } : {}) };
+  const start = await fetch(`${GATEWAY}/auth/api/v1/auth/${purpose === 'REGISTRATION' ? 'register' : 'login'}`, {
+    method: 'POST', headers, body: JSON.stringify({ phone: e, ...(purpose === 'REGISTRATION' ? { fullName: 'E2E Pelanggan' } : {}) }),
+  });
+  let code;
+  for (let i = 0; i < 14 && !code; i += 1) {
+    const re = new RegExp(`\\[DEV OTP\\]\\s+${purpose} code for ${e.replace('+', '\\+')}:\\s*(\\d{4,8})`, 'g');
+    let last;
+    for (const m of dockerLogs().matchAll(re)) last = m[1];
+    code = last;
+    if (!code) await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!code) return { start: start.status, error: 'no OTP in the auth log' };
+  const res = await fetch(`${GATEWAY}/auth/api/v1/auth/otp/verify`, { method: 'POST', headers, body: JSON.stringify({ phone: e, code, purpose }) });
+  const setCookie = res.headers.getSetCookie?.() ?? [];
+  return { status: res.status, setCookie, body: await res.json().catch(() => ({})) };
+}
+
+async function customerAndOps() {
+  const NATIVE = 'https://localhost';
+  const depotId = await makeDepot('C');
+  const sku = `CUS-${stamp}`;
+  const slug = `cus-${stamp}`;
+
+  // ---- the customer in the shop: what an importer loaded is what a customer can buy
+  const cat = await api('POST', '/products/api/v1/categories/import', { rows: [{ name: `Kategori ${stamp}`, slug }] }, ADMIN);
+  const prod = await api('POST', '/products/api/v1/products/import', {
+    rows: [{ sku, name: `Air Uji ${stamp}`, unit: 'Galon 19L', basePrice: 21000, categorySlug: slug, volumeMl: 19000, isGallon: true }],
+  }, ADMIN);
+  check('catalogue import created the category and the product', cat.body?.created === 1 && prod.body?.created === 1, JSON.stringify([cat.body, prod.body]).slice(0, 200));
+  const shop = await fetch(`${GATEWAY}/products/api/v1/products?search=${sku}`);
+  const shopBody = await shop.json().catch(() => ({}));
+  const item = (shopBody.items ?? shopBody.data ?? [])[0];
+  check('a customer browsing the shop (no login) finds the imported product at its price', shop.status === 200 && item?.sku === sku && Number(item?.basePrice) === 21000 && item?.isGallon === true, JSON.stringify(shopBody).slice(0, 220));
+  const cats = await (await fetch(`${GATEWAY}/products/api/v1/categories`)).json().catch(() => []);
+  check('and the category shows in the public category list', Array.isArray(cats) && cats.some((c) => c.slug === slug));
+
+  // ---- the customer in their own account: addresses a depot loaded, claimed through the OTP signup
+  const phone = `0896${stamp}9`.slice(0, 13);
+  const bal = await api('POST', `/depots/api/v1/depots/${depotId}/gallon-issues/import`, { rows: [{ customerPhone: phone, customerName: 'E2E Pelanggan', quantity: 4, depositHeld: 80000 }] }, ADMIN);
+  check('opening gallon balance loaded for a number nobody had registered', bal.status === 200 && bal.body?.created === 1, JSON.stringify(bal.body).slice(0, 200));
+  const adr = await api('POST', '/customers/api/v1/customers/import-addresses', {
+    depotId, rows: [
+      { phone, label: 'Kios', recipientName: 'E2E Pelanggan', addressLine: 'Jl. Melati 3', city: 'Bekasi', landmark: 'pagar hijau' },
+      { phone, label: 'Rumah', recipientName: 'E2E Pelanggan', addressLine: 'Jl. Mawar 9', city: 'Bekasi' },
+    ],
+  }, tokenFor('KEPALA_DEPOT', depotId));
+  check('two addresses loaded for the same number', [200, 201].includes(adr.status) && adr.body?.created === 2, JSON.stringify(adr.body).slice(0, 200));
+
+  const signup = await otpFlow(phone, 'REGISTRATION');
+  check('the customer claims the account with a real OTP signup', signup.status === 200, JSON.stringify(signup).slice(0, 200));
+  const access = cookieValue(signup.setCookie ?? [], 'hm_at') ?? findTokens(signup.body).access;
+  if (access) {
+    const mine = await fetch(`${GATEWAY}/customers/api/v1/addresses`, { headers: { authorization: `Bearer ${access}` } });
+    const list = await mine.json().catch(() => []);
+    const arr = Array.isArray(list) ? list : (list.items ?? []);
+    check('their address book already holds both addresses, one primary', mine.status === 200 && arr.length === 2 && arr.filter((a) => a.isPrimary).length === 1, JSON.stringify(arr).slice(0, 240));
+    check('the landmark travelled with the address (the courier reads it)', arr.some((a) => a.label === 'Kios' && a.notes === 'pagar hijau'), JSON.stringify(arr.map((a) => [a.label, a.notes])));
+  } else {
+    check('the signup returned a session', false, JSON.stringify(signup.body).slice(0, 160));
+  }
+
+  // ---- the ops desk: the same balance, as the depot reads it
+  const sum = await api('GET', `/depots/api/v1/depots/${depotId}/gallon-issues/summary`, undefined, tokenFor('KEPALA_DEPOT', depotId));
+  const gallons = Number(sum.body?.gallons ?? sum.body?.outstanding ?? NaN);
+  check('the depot sees 4 gallons / Rp80.000 deposit held against the customer', sum.status === 200 && gallons === 4 && Number(sum.body?.depositHeld ?? NaN) === 80000, JSON.stringify(sum.body).slice(0, 200));
+  const stockLines = await api('GET', `/depots/api/v1/depots/${depotId}/inventory`, undefined, tokenFor('KEPALA_DEPOT', depotId));
+  const galonLine = (stockLines.body?.items ?? stockLines.body ?? []).find?.((l) => l.itemType === 'GALON');
+  check('and the physical gallon stock was NOT touched by the opening balance', stockLines.status === 200 && (!galonLine || Number(galonLine.quantity) === 0), JSON.stringify(galonLine ?? null));
+
+  // ---- the ops desk: a lent employee works at the depot they were sent to, with a real session
+  const staff = await newEmployee('OPS', G);
+  check('an employee to lend exists', staff.status === 201 && !!staff.body?.phone, JSON.stringify(staff.body).slice(0, 200));
+  const sess = await otpLogin(staff.body.phone);
+  const oldAccess = cookieValue(sess.setCookie ?? [], 'hm_at') ?? findTokens(sess.body).access;
+  const oldRefresh = cookieValue(sess.setCookie ?? [], 'hm_rt') ?? findTokens(sess.body).refresh;
+  // The depots a staff token may work in, as the console asks for it: the picker, and every screen
+  // that scopes itself to "my depot". A depot-locked login must list exactly one.
+  const scopeOf = async (tok) => {
+    const r = await fetch(`${GATEWAY}/depots/api/v1/depots/scope`, { headers: { authorization: `Bearer ${tok}` } });
+    const body = await r.json().catch(() => []);
+    const list = Array.isArray(body) ? body : (body.items ?? []);
+    return { status: r.status, ids: list.map((d) => d.id) };
+  };
+  const before = await scopeOf(oldAccess);
+  check('before the loan the depot picker lists only the home depot', before.status === 200 && before.ids.length === 1 && before.ids[0] === G, JSON.stringify(before));
+  await api('POST', '/depot-assignments/api/v1/depot-assignments', { employeeId: staff.body.id, kind: 'LOAN', depotId: P, startDate: TODAY, endDate: day(addDays(today, 2)) }, HR_TOKEN);
+  sweep();
+  const rf = await fetch(`${GATEWAY}/auth/api/v1/auth/token/refresh`, {
+    method: 'POST', headers: { 'content-type': 'application/json', cookie: `hm_rt=${oldRefresh}` }, body: '{}',
+  });
+  const fresh = cookieValue(rf.headers.getSetCookie?.() ?? [], 'hm_at');
+  const after = fresh ? await scopeOf(fresh) : { status: 0, ids: [] };
+  check('after the loan and one refresh the picker lists only the destination depot', after.status === 200 && after.ids.length === 1 && after.ids[0] === P, JSON.stringify(after));
+  const still = await scopeOf(oldAccess);
+  check('the old token still works until it expires and still lists the old depot (no surprise logout)', still.status === 200 && still.ids[0] === G, JSON.stringify(still));
 }
 
 async function flagOff() {
