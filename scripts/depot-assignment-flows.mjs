@@ -16,6 +16,8 @@
 //             reports add up to the network and nothing is counted twice.
 //   7. More   manager requests, backdating, HQ reallocation, slip PDF/Excel, DRAFT regenerate and
 //             the seven bulk imports (needs depot, customer and product behind the gateway).
+//   8. Real    sessions (web cookies + native bearer) follow a lend and refresh to the new depot;
+//             the push roster; a sweep that was down three days; a stale UPSERT import.
 //   6. Off    with the switch off the routes are dark, the sweep reports `disabled`, and a slip
 //             is written without any split.
 //
@@ -301,6 +303,7 @@ async function main() {
   check('regenerating the draft replaces the split rather than doubling it', regen.status === 201 && Number(rows(`SELECT count(*) FROM payroll_depot_shares WHERE "payrollId" = '${pid}'`)[0][0]) === 2);
 
   await followUps({ emp, e2, pid, period });
+  await hardening();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
@@ -467,6 +470,139 @@ async function followUps({ emp, e2, pid, period }) {
     const adr3 = await imp('/customers/api/v1/customers/import-addresses', [{ phone, recipientName: 'x', addressLine: 'y', city: 'z' }], tokenFor('KEPALA_DEPOT', G), { depotId });
     check("customer addresses: another depot's staff cannot fill this depot's book", adr3.status === 403, String(adr3.status));
   }
+}
+
+// ---------------------------------------------------------------- 8. what the plan listed as unproven
+// Real sessions through the gateway (web cookies AND the native bearer body), the push roster,
+// a sweep that was down for three days, and a stale UPSERT import.
+const dockerLogs = () =>
+  execFileSync('docker', ['logs', '--tail', '3000', process.env.AUTH_CONTAINER ?? 'dapr-auth-1'], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024,
+  });
+const e164 = (p) => (p.startsWith('+') ? p : p.startsWith('0') ? `+62${p.slice(1)}` : `+62${p}`);
+const jwtPayload = (t) => JSON.parse(Buffer.from(t.split('.')[1], 'base64url').toString());
+const authInternal = (path) =>
+  execFileSync('docker', ['exec', 'dapr-auth-1', 'node', '-e',
+    `fetch('http://localhost:3001/api/v1/${path}',{headers:{'x-internal-key':process.env.INTERNAL_SERVICE_KEY}}).then(async r=>console.log(await r.text()))`], { encoding: 'utf8' }).trim();
+
+async function otpLogin(phone, origin) {
+  const e = e164(phone);
+  const headers = { 'content-type': 'application/json', ...(origin ? { origin } : {}) };
+  const start = await fetch(`${GATEWAY}/auth/api/v1/auth/login`, { method: 'POST', headers, body: JSON.stringify({ phone: e }) });
+  let code;
+  for (let i = 0; i < 12 && !code; i += 1) {
+    const re = new RegExp(`\\[DEV OTP\\]\\s+LOGIN code for ${e.replace('+', '\\+')}:\\s*(\\d{4,8})`, 'g');
+    let last;
+    for (const m of dockerLogs().matchAll(re)) last = m[1];
+    code = last;
+    if (!code) await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!code) return { start: start.status, error: 'no OTP in the auth log' };
+  const res = await fetch(`${GATEWAY}/auth/api/v1/auth/otp/verify`, {
+    method: 'POST', headers, body: JSON.stringify({ phone: e, code, purpose: 'LOGIN' }),
+  });
+  const setCookie = res.headers.getSetCookie?.() ?? [];
+  const body = await res.json().catch(() => ({}));
+  return { status: res.status, setCookie, body };
+}
+const cookieValue = (setCookie, name) => {
+  const hit = setCookie.find((c) => c.startsWith(`${name}=`));
+  return hit ? hit.split(';')[0].slice(name.length + 1) : undefined;
+};
+const findTokens = (o) => {
+  const out = {};
+  for (const [k, v] of Object.entries(o ?? {})) {
+    if (typeof v === 'string' && /^eyJ/.test(v) && /access/i.test(k)) out.access = v;
+    if (typeof v === 'string' && /refresh/i.test(k)) out.refresh = v;
+    if (v && typeof v === 'object') Object.assign(out, findTokens(v));
+  }
+  return out;
+};
+
+async function hardening() {
+  const NATIVE = 'https://localhost';
+
+  // ---- 8a. real sessions follow a lend: web (httpOnly cookies) and native (bearer in the body)
+  for (const mode of ['web', 'native']) {
+    const e = await newEmployee(`S-${mode}`, G);
+    check(`[${mode}] employee with a login account`, e.status === 201 && !!e.body?.authSubjectId, JSON.stringify(e.body).slice(0, 120));
+    const phone = e.body.phone;
+    const sess = await otpLogin(phone, mode === 'native' ? NATIVE : undefined);
+    check(`[${mode}] real OTP login through the gateway (200)`, sess.status === 200, JSON.stringify(sess).slice(0, 200));
+    let access;
+    let refresh;
+    if (mode === 'web') {
+      access = cookieValue(sess.setCookie, 'hm_at');
+      refresh = cookieValue(sess.setCookie, 'hm_rt');
+      check('[web] tokens arrive as cookies, not in the body', !!access && !!refresh && !findTokens(sess.body).access, JSON.stringify(Object.keys(sess.body ?? {})));
+    } else {
+      const t = findTokens(sess.body);
+      access = t.access;
+      refresh = t.refresh;
+      check('[native] tokens arrive in the body', !!access && !!refresh);
+    }
+    if (!access || !refresh) continue;
+    check(`[${mode}] the issued token names the home depot`, jwtPayload(access).depotId === G, JSON.stringify(jwtPayload(access)).slice(0, 160));
+
+    const planned = await api('POST', '/depot-assignments/api/v1/depot-assignments', { employeeId: e.body.id, kind: 'LOAN', depotId: P, startDate: TODAY, endDate: day(addDays(today, 3)) }, HR_TOKEN);
+    check(`[${mode}] HR lends them`, planned.status === 201, JSON.stringify(planned.body).slice(0, 160));
+    const s = sweep();
+    check(`[${mode}] the sweep flips them`, s.status === 200 && s.body.applied >= 1, JSON.stringify(s));
+
+    const meOld = await fetch(`${GATEWAY}/auth/api/v1/auth/me`, {
+      headers: { authorization: `Bearer ${access}`, ...(mode === 'native' ? { origin: NATIVE } : {}) },
+    });
+    const meBody = await meOld.json().catch(() => ({}));
+    check(`[${mode}] the OLD token still works (no session revoked) and the account already says the new depot`, meOld.status === 200 && meBody.assignedDepotId === P, `${meOld.status} ${JSON.stringify(meBody).slice(0, 120)}`);
+    check(`[${mode}] ...while the old token itself still carries the old depot (at most one token lifetime)`, jwtPayload(access).depotId === G);
+
+    const rf = await fetch(`${GATEWAY}/auth/api/v1/auth/token/refresh`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(mode === 'native' ? { origin: NATIVE } : { cookie: `hm_rt=${refresh}` }),
+      },
+      body: JSON.stringify(mode === 'native' ? { refreshToken: refresh } : {}),
+    });
+    const rfBody = await rf.json().catch(() => ({}));
+    const fresh = mode === 'web' ? cookieValue(rf.headers.getSetCookie?.() ?? [], 'hm_at') : findTokens(rfBody).access;
+    check(`[${mode}] refresh issues a token for the NEW depot`, rf.status === 200 && !!fresh && jwtPayload(fresh).depotId === P, `${rf.status} ${fresh ? JSON.stringify(jwtPayload(fresh)).slice(0, 140) : JSON.stringify(rfBody).slice(0, 140)}`);
+
+    // push roster: the people an alert about a depot reaches
+    const gRoster = JSON.parse(authInternal(`auth/internal/staff/depot/${G}`)).ids ?? [];
+    const pRoster = JSON.parse(authInternal(`auth/internal/staff/depot/${P}`)).ids ?? [];
+    check(`[${mode}] alerts for the depot they work at reach them now, and not the one they left`, pRoster.includes(e.body.authSubjectId) && !gRoster.includes(e.body.authSubjectId), `P=${pRoster.length} G=${gRoster.length}`);
+  }
+
+  // ---- 8b. the sweep was down for three days
+  const late = await newEmployee('LATE', G);
+  const [[lateAid]] = rows(`INSERT INTO employee_depot_assignments (id, "employeeId", kind, "depotId", "startDate", "endDate", status, "updatedAt") VALUES (gen_random_uuid(), '${late.body.id}', 'LOAN', '${P}', '${day(addDays(today, -3))}', '${day(addDays(today, -1))}', 'PLANNED', now()) RETURNING id`);
+  const catchUp = sweep();
+  check('a loan that started AND ended while the sweep was down is applied in one round', catchUp.status === 200 && catchUp.body.applied >= 2 && catchUp.body.failed === 0, JSON.stringify(catchUp));
+  const moves = rows(`SELECT kind, "effectiveDate"::text FROM employee_depot_moves WHERE "employeeId" = '${late.body.id}' ORDER BY seq`);
+  check('the ledger keeps the ORIGINAL dates (start 3 days ago, back the day after the last day)', moves.length === 2 && moves[0][0] === 'LOAN_START' && moves[0][1] === day(addDays(today, -3)) && moves[1][0] === 'LOAN_END' && moves[1][1] === TODAY, JSON.stringify(moves));
+  const [[lateDepot]] = rows(`SELECT "depotId" FROM employees WHERE id = '${late.body.id}'`);
+  check('and they are home again', lateDepot === G);
+  void lateAid;
+
+  // ---- 8c. a stale UPSERT import must not drag a lent employee back
+  const lent = await newEmployee('UPS', G);
+  await api('POST', '/depot-assignments/api/v1/depot-assignments', { employeeId: lent.body.id, kind: 'LOAN', depotId: P, startDate: TODAY, endDate: day(addDays(today, 5)) }, HR_TOKEN);
+  sweep();
+  const [[liveBefore]] = rows(`SELECT "depotId" FROM employees WHERE id = '${lent.body.id}'`);
+  const nik = rows(`SELECT nik FROM employees WHERE id = '${lent.body.id}'`)[0][0];
+  const up = await api('POST', '/employees/api/v1/employees/import', {
+    mode: 'UPSERT',
+    rows: [{
+      fullName: `${lent.body.fullName} (diperbarui)`, phone: lent.body.phone, depotId: G, position: 'Staf',
+      role: 'STAFF_DEPOT', employmentStatus: 'PERMANENT', joinDate: '2024-01-01', salaryType: 'MONTHLY', monthlyRate: 3_000_000, nik,
+      bankName: 'BCA', bankAccount: '1234567890',
+    }],
+  }, HR_TOKEN);
+  const [[liveAfter, homeAfter, nameAfter]] = rows(`SELECT "depotId", "homeDepotId", "fullName" FROM employees WHERE id = '${lent.body.id}'`);
+  check('the stale import row does not move a lent employee (live depot unchanged)', liveBefore === P && liveAfter === P && homeAfter === G, `before ${liveBefore} after ${liveAfter}/${homeAfter}; import: ${JSON.stringify(up.body).slice(0, 200)}`);
+  check('and the import answered per row, not with a 500', up.status === 200 || up.status === 201, String(up.status));
+  void nameAfter;
 }
 
 async function flagOff() {

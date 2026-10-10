@@ -165,14 +165,17 @@ describe('payroll export alokasiDepot column', () => {
 describe('AnalyticsPrismaRepository.sharesForPayrolls', () => {
   it('groups by slip, narrows to the reader depots and chunks long id lists', async () => {
     const findMany = jest.fn().mockResolvedValue([
-      { payrollId: 'p1', depotId: HOME, days: 2, net: { toString: () => '5' } },
+      { payrollId: 'p1', depotId: HOME, days: 2, net: { toString: () => '5' }, gross: { toString: () => '7' } },
     ]);
     const repo = new AnalyticsPrismaRepository({ payrollDepotShare: { findMany } } as never, {} as never);
     const ids = Array.from({ length: 501 }, (_, i) => `p${i}`);
     const out = await repo.sharesForPayrolls(ids, [HOME]);
     expect(findMany).toHaveBeenCalledTimes(2);
     expect(findMany.mock.calls[0][0].where).toMatchObject({ depotId: { in: [HOME] } });
-    expect(out.get('p1')).toEqual([{ depotId: HOME, days: 2, net: 5 }, { depotId: HOME, days: 2, net: 5 }]);
+    expect(out.get('p1')).toEqual([
+      { depotId: HOME, days: 2, net: 5, gross: 7 },
+      { depotId: HOME, days: 2, net: 5, gross: 7 },
+    ]);
     await repo.sharesForPayrolls(['p1']);
     expect(findMany.mock.calls[2][0].where).not.toHaveProperty('depotId');
   });

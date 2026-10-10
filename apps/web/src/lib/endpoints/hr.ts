@@ -235,6 +235,8 @@ export const hr = {
       if (format) p.set('format', format);
       return `/hr-reports/api/v1/hr-reports/attendance?${p}`;
     },
+    reportEmployerCost: (periodMonth: string, format?: string) =>
+      `/hr-reports/api/v1/hr-reports/payroll-employer-cost?${new URLSearchParams({ periodMonth, ...(format ? { format } : {}) })}`,
     reportPayroll: (periodMonth: string, depotId?: string, format?: string) => {
       const p = new URLSearchParams({ periodMonth });
       if (depotId) p.set('depotId', depotId);

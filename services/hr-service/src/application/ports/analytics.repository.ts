@@ -149,7 +149,12 @@ export interface AnalyticsRepository {
   sharesForPayrolls?(
     payrollIds: readonly string[],
     depotIds?: readonly string[],
-  ): Promise<Map<string, { depotId: string; days: number; net: number }[]>>;
+  ): Promise<Map<string, { depotId: string; days: number; net: number; gross?: number }[]>>;
+  /**
+   * Which BPJS schemes each employee is registered for (a number on file IS the enrolment).
+   * Optional: only the employer-cost report asks.
+   */
+  enrollmentFor?(employeeIds: readonly string[]): Promise<Map<string, { kes: boolean; tk: boolean }>>;
 
   // --- C4 reports ---
   /** Only the days somebody actually arrived late; an absence is not a lateness. */

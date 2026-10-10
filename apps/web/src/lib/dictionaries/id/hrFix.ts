@@ -521,6 +521,8 @@ export const hrFix = {
     directoryBody: 'Semua karyawan (sesuai cakupan depot).',
     payroll: 'Payroll',
     payrollBody: 'Gaji per periode beserta bonus dan potongan.',
+    employerCost: 'Beban BPJS perusahaan',
+    employerCostBody: 'Porsi BPJS yang dibayar perusahaan di atas gaji (Kesehatan, JHT, JP, JKK, JKM), per karyawan dan per depot. Biaya perusahaan saja: tidak masuk slip dan tidak mengurangi gaji siapa pun. Hanya karyawan yang punya nomor BPJS yang dihitung.',
     performance: 'Kinerja',
     assets: 'Aset',
     assetsBody: 'Daftar aset beserta pemegangnya saat ini.',

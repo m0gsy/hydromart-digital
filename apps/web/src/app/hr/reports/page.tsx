@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth-context';
+import { canRunPayroll } from '@/lib/roles';
 import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
@@ -26,6 +28,7 @@ async function download(path: string, filename: string): Promise<void> {
 
 export default function ReportsPage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { toast } = useToast();
   const [period, setPeriod] = useState(currentPeriod());
   const [from, setFrom] = useState('');
@@ -168,6 +171,22 @@ export default function ReportsPage() {
           }
         />
       </Card>
+
+      {canRunPayroll(customer?.role) && (
+        <Card className="space-y-3 p-4">
+          <div>
+            <p className="font-semibold">{t('hrFix.reports.employerCost')}</p>
+            <p className="text-xs text-muted">{t('hrFix.reports.employerCostBody')}</p>
+          </div>
+          <Formats
+            busy={busy}
+            prefix="emp"
+            onPick={(f) =>
+              run(`emp-${f}`, endpoints.hr.reportEmployerCost(period, f), `beban-bpjs-${period}.${f}`)
+            }
+          />
+        </Card>
+      )}
 
       <Card className="space-y-3 p-4">
         <div>

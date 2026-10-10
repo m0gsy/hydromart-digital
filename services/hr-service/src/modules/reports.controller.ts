@@ -110,6 +110,30 @@ export class ReportsController {
     );
   }
 
+  @ApiOkResponse({
+    description: 'The report as a CSV, xlsx or PDF file.',
+    content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Get('payroll-employer-cost')
+  @Can('hrPayroll')
+  @ApiOperation({
+    summary: 'BPJS the company pays on top of wages for a month, per employee and per depot (CSV, xlsx, pdf)',
+  })
+  async payrollEmployerCost(
+    @Query() q: PayrollReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `beban-bpjs-perusahaan-${q.periodMonth}`,
+      await this.analytics.employerCostReport(user, q),
+      q.format,
+      'Beban BPJS perusahaan',
+      q.periodMonth,
+    );
+  }
+
   @Get('payroll')
   @Can('hrView')
   @ApiOperation({ summary: 'Payroll export for a period (CSV or ?format=xlsx)' })
