@@ -533,12 +533,16 @@ export class AccountService {
     // SEC-AUDIT CORE-1. The invite path asked this question and this one did not, so a
     // jabatan edit in hr-service — whose `hrAdmin` head office also holds — was a second
     // door to MANAGER. hr-service now names the human actor.
-    if (!canGrantRole(grantedBy, role)) {
-      throw new RoleEscalationError(role);
-    }
     const customer = await this.customers.findById(customerId);
     if (!customer) {
       throw new CustomerNotFoundError();
+    }
+    // The rule guards ESCALATION. Re-asserting the role the account already holds - which is
+    // what moving someone to another depot does, the cross-depot sweep included - grants
+    // nothing, so it must not ask who is "granting" (a lent MANAGER planned by head office
+    // failed five times and ended FAILED). A different role is still checked exactly as before.
+    if (customer.role !== (role as unknown) && !canGrantRole(grantedBy, role)) {
+      throw new RoleEscalationError(role);
     }
     const depot = depotId === undefined ? customer.assignedDepotId : depotId;
     if (isDepotLocked(role as unknown as PlatformRole) && (depot ?? '') === '') {

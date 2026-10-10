@@ -739,6 +739,21 @@ export class PayrollService {
         `Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`,
       );
     }
+    /*
+     * A slip is approved against the split it was GENERATED with. Backdate a loan into the month
+     * (or let a late sweep apply one) after generating, and that split no longer matches the
+     * ledger - approving it would lock the wrong depot costs in, and from there only the audited
+     * HQ reallocation can move them. Make the person look at it once: regenerate, then approve.
+     */
+    if (this.config.depotAssignmentEnabled && this.depotLedger?.movedSince) {
+      const [y, m] = payroll.periodMonth.split('-').map(Number);
+      const monthEnd = new Date(Date.UTC(y as number, m as number, 0));
+      if (await this.depotLedger.movedSince(payroll.employeeId, payroll.updatedAt, monthEnd)) {
+        throw new ConflictException(
+          'Penugasan depot karyawan ini berubah setelah slip dihitung. Hitung ulang slip dulu, lalu setujui.',
+        );
+      }
+    }
     return this.repo.setStatus(id, payroll.status, 'APPROVED', {
       approvedBy: user.sub,
       approvedAt: new Date(),

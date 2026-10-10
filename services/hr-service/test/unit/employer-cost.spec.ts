@@ -101,19 +101,20 @@ describe('AnalyticsService.employerCostReport', () => {
     const { svc } = build();
     const r = await svc.employerCostReport(user, { periodMonth: '2026-09' });
     expect(r.headers.at(-1)).toBe('bebanPerDepot');
-    const total = (row: unknown[]) => row[9];
+    expect(r.headers[3]).toBe('status');
+    const total = (row: unknown[]) => row[10];
     expect(total(r.rows[0]!)).toBe(512_000); // 5jt: 200.000+185.000+100.000+12.000+15.000
     expect(total(r.rows[2]!)).toBe(0); // not enrolled: nothing remitted
-    const sum = (r.rows[0]![9] as number) + (r.rows[1]![9] as number) + (r.rows[2]![9] as number);
-    expect(r.rows.at(-1)).toEqual(['', '', 'TOTAL', '', '', '', '', '', '', sum, '']);
+    const sum = (r.rows[0]![10] as number) + (r.rows[1]![10] as number) + (r.rows[2]![10] as number);
+    expect(r.rows.at(-1)).toEqual(['', '', 'TOTAL', '', '', '', '', '', '', '', sum, '']);
   });
 
   it('divides a split slip between its depots by the gross each carries, exactly', async () => {
     const { svc } = build();
     const r = await svc.employerCostReport(user, { periodMonth: '2026-09' });
     const row = r.rows[1]!;
-    const cost = row[9] as number;
-    const text = row[10] as string;
+    const cost = row[10] as number;
+    const text = row[11] as string;
     expect(text).toMatch(/^Galaksi: \d+; [0-9a-f]{0,8}|d2: \d+/);
     const parts = text.split('; ').map((p) => Number(p.split(': ')[1]));
     expect(parts.reduce((a, b) => a + b, 0)).toBe(cost);
@@ -122,9 +123,9 @@ describe('AnalyticsService.employerCostReport', () => {
 
   it('flag off or no reader: no per-depot column content, and nobody is called enrolled', async () => {
     const off = await build({ flag: false }).svc.employerCostReport(user, { periodMonth: '2026-09' });
-    expect(off.rows[1]![10]).toBe('');
+    expect(off.rows[1]![11]).toBe('');
     const none = await build({ noEnrol: true }).svc.employerCostReport(user, { periodMonth: '2026-09' });
-    expect(none.rows.at(-1)![9]).toBe(0);
+    expect(none.rows.at(-1)![10]).toBe(0);
   });
 });
 

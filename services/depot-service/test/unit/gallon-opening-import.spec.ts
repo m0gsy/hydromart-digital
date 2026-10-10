@@ -84,6 +84,23 @@ describe('GallonIssueService.importOpening', () => {
     expect(created[0]).toMatchObject({ depositHeld: 0 });
   });
 
+  it('gives up fast when customer-service is down instead of waiting 5 s per row', async () => {
+    const { svc, contacts } = build({ known: {} }); // every lookup comes back null
+    const rows = Array.from({ length: 10 }, (_, i) => ({ customerPhone: `08${i}`, quantity: 1 }));
+    const r = await svc.importOpening(DEPOT, rows, 'a');
+    expect(r.failed).toBe(10);
+    expect((contacts.resolveByPhone as jest.Mock).mock.calls).toHaveLength(3); // then it stops asking
+    expect(r.results[9]!.message).toMatch(/tidak terjangkau/);
+  });
+
+  it('one miss does not stop the file: a good row resets the count', async () => {
+    const { svc, contacts } = build({ known: { '1': 'c-1', '3': 'c-3', '5': 'c-5' } });
+    const rows = ['0', '1', '2', '3', '4', '5'].map((p) => ({ customerPhone: p, quantity: 1 }));
+    const r = await svc.importOpening(DEPOT, rows, 'a');
+    expect(r.results.map((x) => x.status)).toEqual(['failed', 'created', 'failed', 'created', 'failed', 'created']);
+    expect((contacts.resolveByPhone as jest.Mock).mock.calls).toHaveLength(6);
+  });
+
   it('refuses to run without the resolver or the double-booking guard', async () => {
     await expect(build({ noResolver: true }).svc.importOpening(DEPOT, [], 'a')).rejects.toThrow(/belum bisa/);
     await expect(build({ noGuard: true }).svc.importOpening(DEPOT, [], 'a')).rejects.toThrow(/belum bisa/);

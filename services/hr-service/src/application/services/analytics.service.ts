@@ -458,18 +458,20 @@ export class AnalyticsService {
         p.periodMonth,
         p.employee.employeeCode,
         p.employee.fullName,
+        p.status,
         gross,
         ...lineLabels.map((l) => lines.find((x) => x.label === l)?.amountIdr ?? 0),
         total,
         byDepot,
       ]);
     }
-    out.push(['', '', 'TOTAL', '', '', '', '', '', '', grand, '']);
+    out.push(['', '', 'TOTAL', '', '', '', '', '', '', '', grand, '']);
     return {
       headers: [
         'periodMonth',
         'employeeCode',
         'fullName',
+        'status',
         'gross',
         'kesehatan',
         'jht',

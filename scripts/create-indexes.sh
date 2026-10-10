@@ -117,6 +117,7 @@ hr|loan_requests_employeeId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXIST
 hr|loan_requests_depotId_status_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "loan_requests_depotId_status_idx" ON "loan_requests"("depotId", "status")
 hr|loan_requests_employee_pending_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "loan_requests_employee_pending_key" ON "loan_requests"("employeeId") WHERE "status" = 'PENDING'
 hr|employee_depot_moves_employeeId_effectiveDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_moves_employeeId_effectiveDate_idx" ON "employee_depot_moves"("employeeId", "effectiveDate")
+hr|employee_depot_moves_assignmentId_kind_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_moves_assignmentId_kind_key" ON "employee_depot_moves"("assignmentId", "kind")
 hr|employee_depot_assignments_employeeId_startDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_assignments_employeeId_startDate_idx" ON "employee_depot_assignments"("employeeId", "startDate")
 hr|employee_depot_assignments_status_startDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_assignments_status_startDate_idx" ON "employee_depot_assignments"("status", "startDate")
 hr|employee_depot_assignments_status_endDate_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "employee_depot_assignments_status_endDate_idx" ON "employee_depot_assignments"("status", "endDate")

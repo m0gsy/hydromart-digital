@@ -130,3 +130,17 @@ describe('POST payroll/:id/reallocate-shares', () => {
     expect(reallocate).toHaveBeenCalledWith(user, 'p1', dto);
   });
 });
+
+describe('ShareCorrectionDto bounds', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { validateSync } = require('class-validator');
+  const make = (o: Record<string, unknown>) =>
+    Object.assign(new ShareCorrectionDto(), { depotId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', days: 10, gross: 1, bonus: 0, deduction: 0, shortfall: 0, ...o });
+
+  it('an absurd number is a validation error, not a database overflow', () => {
+    expect(validateSync(make({}))).toHaveLength(0);
+    expect(validateSync(make({ days: 400 })).length).toBeGreaterThan(0);
+    expect(validateSync(make({ gross: 1e12 })).length).toBeGreaterThan(0);
+    expect(validateSync(make({ shortfall: 1e12 })).length).toBeGreaterThan(0);
+  });
+});

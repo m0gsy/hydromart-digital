@@ -103,6 +103,13 @@ export class DepotAssignmentPrismaRepository implements DepotAssignmentRepositor
     });
   }
 
+  async movedSince(employeeId: string, since: Date, through: Date): Promise<boolean> {
+    const n = await this.prisma.employeeDepotMove.count({
+      where: { employeeId, createdAt: { gt: since }, effectiveDate: { lte: through } },
+    });
+    return n > 0;
+  }
+
   findById(id: string): Promise<EmployeeDepotAssignment | null> {
     return this.prisma.employeeDepotAssignment.findUnique({ where: { id } });
   }
