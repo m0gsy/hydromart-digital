@@ -8,6 +8,7 @@ import {
   PayrollListRow,
   PayrollRepository,
   PayrollShareRow,
+  PayrollShareWrite,
   PayrollWithItems,
   PayrollWrite,
 } from '../../application/ports/payroll.repository';
@@ -180,6 +181,21 @@ export class PayrollPrismaRepository implements PayrollRepository {
       withheldIdr,
       months: payrolls.length,
     };
+  }
+
+  async replaceShares(
+    payrollId: string,
+    shares: PayrollShareWrite[],
+    allowed: readonly PayrollStatus[],
+  ): Promise<PayrollShareRow[]> {
+    const row = await this.prisma.payroll
+      .update({
+        where: { id: payrollId, status: { in: [...allowed] } },
+        data: { shares: { deleteMany: {}, create: shares } },
+        include: { shares: { orderBy: { depotId: 'asc' } } },
+      })
+      .catch(rejectStalePayroll);
+    return row.shares.map(toShareRow);
   }
 
   async findShares(payrollId: string): Promise<PayrollShareRow[]> {

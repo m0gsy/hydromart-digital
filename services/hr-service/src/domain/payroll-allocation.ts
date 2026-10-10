@@ -183,3 +183,47 @@ export function allocatePayroll(input: AllocationInput): DepotShare[] {
       };
     });
 }
+
+/** One depot's part as HQ states it when it corrects a split by hand. */
+export interface ShareCorrection {
+  depotId: string;
+  days: number;
+  gross: number;
+  bonus: number;
+  deduction: number;
+  shortfall: number;
+}
+
+/**
+ * Whether a hand-made split is a faithful division of the slip: whole non-negative numbers,
+ * one row per depot, and each column adding up to exactly what the slip says. Net is not
+ * asked for - it is always gross + bonus - deduction, so a person cannot state one that
+ * disagrees with its parts. Returns every problem, empty when the split may be stored.
+ */
+export function reallocationProblems(
+  slip: { gross: number; totalBonus: number; totalDeduction: number },
+  shares: readonly ShareCorrection[],
+): string[] {
+  const out: string[] = [];
+  if (shares.length === 0) return ['Pembagian depot tidak boleh kosong.'];
+  const ids = new Set(shares.map((s) => s.depotId));
+  if (ids.size !== shares.length) out.push('Satu depot hanya boleh muncul sekali.');
+  const cols = ['days', 'gross', 'bonus', 'deduction', 'shortfall'] as const;
+  for (const s of shares) {
+    for (const c of cols) {
+      if (!Number.isInteger(s[c]) || s[c] < 0) {
+        out.push(`Nilai ${c} untuk depot ${s.depotId} harus bilangan bulat tidak negatif.`);
+      }
+    }
+  }
+  const sum = (c: (typeof cols)[number]) => shares.reduce((t, s) => t + s[c], 0);
+  const expect: [string, number, number][] = [
+    ['gross', sum('gross'), slip.gross],
+    ['bonus', sum('bonus'), slip.totalBonus],
+    ['potongan', sum('deduction'), slip.totalDeduction],
+  ];
+  for (const [label, got, want] of expect) {
+    if (got !== want) out.push(`Jumlah ${label} ${got} tidak sama dengan slip (${want}).`);
+  }
+  return out;
+}

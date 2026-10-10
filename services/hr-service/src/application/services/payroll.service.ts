@@ -3,9 +3,15 @@ import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localMonthKey } fr
 
 import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { AuditService } from './audit.service';
 import { calendarDayWeights, homeDepotOf } from '../../domain/depot-on';
 import { redactForLendingDepot } from '../../domain/employee-redaction';
-import { allocatePayroll, type DepotWeight } from '../../domain/payroll-allocation';
+import {
+  allocatePayroll,
+  reallocationProblems,
+  type DepotWeight,
+  type ShareCorrection,
+} from '../../domain/payroll-allocation';
 import { parseWeeklyOffDays, workingDaysInMonth, workingDaysInRange } from '../../domain/calendar';
 import {
   parseRaiseLadder,
@@ -113,6 +119,7 @@ export class PayrollService {
     @Optional()
     @Inject(DEPOT_ASSIGNMENT_REPOSITORY)
     private readonly depotLedger?: DepotAssignmentRepository,
+    @Optional() private readonly audit?: AuditService,
   ) {}
 
   /**
@@ -650,6 +657,53 @@ export class PayrollService {
       );
     }
     return this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
+  }
+
+  /**
+   * HQ corrects who carries what on a slip whose split is wrong (a transfer entered late, a
+   * loan nobody recorded). DRAFT and APPROVED only - PAID is history - and the slip's own
+   * totals never change: only the division between depots does. The change is written to
+   * the audit log with the old and the new split and the reason.
+   */
+  async reallocate(
+    user: AuthenticatedUser,
+    id: string,
+    input: { reason: string; shares: ShareCorrection[] },
+  ): Promise<PayrollShareRow[]> {
+    if (!this.config.depotAssignmentEnabled || !this.repo.replaceShares || !this.repo.findShares) {
+      throw new ConflictException('Pembagian per depot belum diaktifkan.');
+    }
+    const payroll = await this.load(user, id, { forWrite: true });
+    if (payroll.status === 'PAID') {
+      throw new ConflictException('Payroll yang sudah dibayar tidak bisa dialokasikan ulang.');
+    }
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('Alasan wajib diisi.');
+    const problems = reallocationProblems(
+      {
+        gross: Number(payroll.gross),
+        totalBonus: Number(payroll.totalBonus),
+        totalDeduction: Number(payroll.totalDeduction),
+      },
+      input.shares,
+    );
+    if (problems.length > 0) throw new BadRequestException(problems);
+    const before = await this.repo.findShares(id);
+    const after = await this.repo.replaceShares(
+      id,
+      input.shares.map((s) => ({ ...s, net: s.gross + s.bonus - s.deduction })),
+      ['DRAFT', 'APPROVED'],
+    );
+    await this.audit?.record({
+      actorId: user.sub,
+      action: 'PAYROLL_REALLOCATE',
+      entity: 'payroll',
+      entityId: id,
+      before: { shares: before },
+      after: { shares: after, reason },
+      ip: null,
+    });
+    return after;
   }
 
   async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithEmployee> {

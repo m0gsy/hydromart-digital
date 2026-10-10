@@ -10,8 +10,10 @@ import {
   GenerateBatchResultDto,
   GeneratePayrollDto,
   ListPayrollDto,
+  PayrollShareResponseDto,
+  ReallocatePayrollDto,
 } from './dto/payroll.dto';
-import { PayrollWithItems } from '../application/ports/payroll.repository';
+import { PayrollShareRow, PayrollWithItems } from '../application/ports/payroll.repository';
 import { PayrollWithItemsResponseDto } from './dto/responses.generated.dto';
 
 /** Monthly payroll: generate (DRAFT) → approve → mark paid. Read = hrView; write = hrPayroll. */
@@ -138,5 +140,17 @@ export class PayrollController {
   @ApiOperation({ summary: 'Mark an APPROVED payroll as paid' })
   pay(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.markPaid(user, id);
+  }
+
+  @ApiOkResponse({ type: PayrollShareResponseDto, isArray: true })
+  @Post(':id/reallocate-shares')
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Correct how a DRAFT/APPROVED slip is divided between depots (HQ)' })
+  reallocate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReallocatePayrollDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PayrollShareRow[]> {
+    return this.payroll.reallocate(user, id, dto);
   }
 }

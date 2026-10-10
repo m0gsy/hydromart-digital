@@ -155,6 +155,16 @@ export interface PayrollRepository {
    * asks with the feature on.
    */
   findShares?(payrollId: string): Promise<PayrollShareRow[]>;
+  /**
+   * Replace a slip's split in ONE statement, only while it is DRAFT or APPROVED (a PAID slip is
+   * history). A stale status is a 409. Totals on the slip are untouched: HQ moves money between
+   * depots, never in or out of the slip.
+   */
+  replaceShares?(
+    payrollId: string,
+    shares: PayrollShareWrite[],
+    allowed: readonly PayrollStatus[],
+  ): Promise<PayrollShareRow[]>;
   list(filter: {
     periodMonth?: string;
     employeeId?: string;
