@@ -1,6 +1,6 @@
 // Cross-depot assignment, driven over real HTTP against the production-shaped Docker stack.
 //
-//   docker compose -p dapr -f docker-compose.yml -f docker-compose.test.yml up -d --build postgres auth hr gateway
+//   docker compose -p dapr -f docker-compose.yml -f docker-compose.test.yml up -d --build postgres auth customer product depot hr gateway
 //   node scripts/depot-assignment-flows.mjs
 //
 // What it proves, in the order a lent employee lives it:
@@ -14,6 +14,8 @@
 //   5. Slip   a payslip for a month with a loan is split 20:10 by calendar days; the home depot
 //             sees every line, the borrowing depot only its share, and cannot approve it;
 //             reports add up to the network and nothing is counted twice.
+//   7. More   manager requests, backdating, HQ reallocation, slip PDF/Excel, DRAFT regenerate and
+//             the seven bulk imports (needs depot, customer and product behind the gateway).
 //   6. Off    with the switch off the routes are dark, the sweep reports `disabled`, and a slip
 //             is written without any split.
 //
@@ -93,9 +95,21 @@ function check(label, ok, detail = '') {
 const day = (d) => d.toISOString().slice(0, 10);
 const addDays = (d, n) => new Date(d.getTime() + n * 86_400_000);
 const stamp = Date.now().toString().slice(-7);
-const G = crypto.randomUUID(); // home depot
-const P = crypto.randomUUID(); // depot lent to
-const X = crypto.randomUUID(); // a depot with no part in this
+// Real depots, created through depot-service: planning now asks it whether the destination
+// exists and is open, so a random UUID is (correctly) a 404.
+let G; // home depot
+let P; // depot lent to
+let X; // a depot with no part in this
+const ADMIN_FOR_SETUP = tokenFor('SUPER_ADMIN');
+async function makeDepot(label) {
+  const code = `${label}${stamp}`.slice(0, 12);
+  const r = await api('POST', '/depots/api/v1/depots', {
+    code, name: `DAPR ${label} ${stamp}`, ownershipType: 'HKP', address: 'Jl. Uji 1',
+    city: 'Bekasi', province: 'Jawa Barat', lat: -6.2, lng: 106.9, deliveryFee: 5000,
+  }, ADMIN_FOR_SETUP);
+  if (r.status !== 201) throw new Error(`depot ${label} not created: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+  return r.body.id;
+}
 const HR_TOKEN = tokenFor('HR');
 const ADMIN = tokenFor('SUPER_ADMIN');
 const manager = (depotId) => tokenFor('MANAGER', depotId);
@@ -137,6 +151,12 @@ async function main() {
     process.exit(2);
   }
 
+  // A previous run on this throwaway stack leaves planned loans behind; the sweep would apply
+  // them in THIS run and the counts below would no longer be ours.
+  sql(`UPDATE employee_depot_assignments SET status = 'CANCELLED' WHERE status IN ('PLANNED', 'ACTIVE')`);
+  G = await makeDepot('G');
+  P = await makeDepot('P');
+  X = await makeDepot('X');
   if (process.env.FLAG_OFF === '1') return flagOff();
 
   // ---------------------------------------------------------------- 1. plan
@@ -171,7 +191,9 @@ async function main() {
     HR_TOKEN,
   );
   const reasons = Array.isArray(bad.body?.message) ? bad.body.message.length : 1;
-  check('a bad plan lists every reason at once', bad.status === 400 && reasons >= 3, `reasons=${reasons}`);
+  // HR may backdate, so the past start is no longer one of the reasons: end-before-start and
+  // "to the depot they are already at" still are.
+  check('a bad plan lists every reason at once', bad.status === 400 && reasons >= 2, `reasons=${reasons}`);
 
   const forbidden = await api('GET', '/depot-assignments/api/v1/depot-assignments', undefined, manager(G));
   check('a depot manager cannot use the HR-only routes (403)', forbidden.status === 403, String(forbidden.status));
@@ -278,8 +300,173 @@ async function main() {
   const regen = await api('POST', '/payroll/api/v1/payroll/generate', { employeeId: e2.id, periodMonth: period }, HR_TOKEN);
   check('regenerating the draft replaces the split rather than doubling it', regen.status === 201 && Number(rows(`SELECT count(*) FROM payroll_depot_shares WHERE "payrollId" = '${pid}'`)[0][0]) === 2);
 
+  await followUps({ emp, e2, pid, period });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
+}
+
+// ---------------------------------------------------------------- 7+. the rest of the stack
+// Manager requests, backdating, HQ reallocation, slip print/export, regenerate, and the bulk
+// imports - everything PR6a..PR6f added. Needs depot, customer and product behind the gateway.
+const sqlIn = (db, query) =>
+  execFileSync('docker', ['exec', '-i', PG, 'psql', '-U', 'hydromart', '-d', db, '-qtAXF|', '-c', query], { encoding: 'utf8' }).trim();
+
+async function followUps({ emp, e2, pid, period }) {
+  const dayIn = (n) => day(addDays(today, n));
+  const BASE = '/depot-assignments/api/v1/depot-assignments';
+
+  // ---- manager requests
+  const mgrP = manager(P);
+  const req = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: P, startDate: dayIn(7), endDate: dayIn(9), note: 'e2e request' }, mgrP);
+  check('a depot manager asks to borrow somebody by employee code (201 REQUESTED)', req.status === 201 && req.body?.status === 'REQUESTED', JSON.stringify(req.body).slice(0, 200));
+  const rid = req.body?.id;
+  const sw = sweep();
+  check('the sweep never touches a request', sw.status === 200 && sw.body.due === 0, JSON.stringify(sw));
+  const mine = await api('GET', `${BASE}/requests/mine`, undefined, mgrP);
+  check('the manager reads their own request back', mine.status === 200 && (mine.body?.rows ?? []).some((r) => r.id === rid), JSON.stringify(mine.body).slice(0, 160));
+  const intoOther = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: X, startDate: dayIn(7), endDate: dayIn(9) }, mgrP);
+  check('a request into a depot that is not theirs is refused (403)', intoOther.status === 403, String(intoOther.status));
+  const spv = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: P, startDate: dayIn(7), endDate: dayIn(9) }, tokenFor('SUPERVISOR', P));
+  check('only a MANAGER may ask (403 for a supervisor)', spv.status === 403, String(spv.status));
+  const approveByMgr = await api('POST', `${BASE}/${rid}/approve`, {}, mgrP);
+  check('a manager cannot approve their own request (403)', approveByMgr.status === 403, String(approveByMgr.status));
+  const approve = await api('POST', `${BASE}/${rid}/approve`, {}, HR_TOKEN);
+  check('HR approves it: the row becomes PLANNED', approve.status === 200 && approve.body?.status === 'PLANNED', JSON.stringify(approve.body).slice(0, 160));
+  const again = await api('POST', `${BASE}/${rid}/approve`, {}, HR_TOKEN);
+  check('a second decision is refused (404)', again.status === 404, String(again.status));
+  const req2 = await api('POST', `${BASE}/requests`, { employeeCode: emp.employeeCode, depotId: P, startDate: dayIn(15), endDate: dayIn(17) }, mgrP);
+  const rej = await api('POST', `${BASE}/${req2.body?.id}/reject`, { reason: 'stok orang kurang' }, HR_TOKEN);
+  check('HR rejects another with a reason (CANCELLED + reason kept)', rej.status === 200 && rej.body?.status === 'CANCELLED' && rej.body?.failReason === 'stok orang kurang', JSON.stringify(rej.body).slice(0, 200));
+  await api('PATCH', `${BASE}/${rid}/cancel`, {}, HR_TOKEN); // leave the employee free for later steps
+
+  // ---- backdating
+  const old = await newEmployee('C', G);
+  const back = await api('POST', BASE, { employeeId: old.body.id, kind: 'LOAN', depotId: P, startDate: dayIn(-3), endDate: dayIn(-1) }, HR_TOKEN);
+  check('HR may start a loan in the past (201)', back.status === 201, JSON.stringify(back.body).slice(0, 200));
+  const farBack = await api('POST', BASE, { employeeId: old.body.id, kind: 'LOAN', depotId: P, startDate: dayIn(-200), endDate: dayIn(-190) }, HR_TOKEN);
+  check('more than 92 days back is refused (400)', farBack.status === 400 && /terlalu lampau/.test(JSON.stringify(farBack.body)), JSON.stringify(farBack.body).slice(0, 200));
+  const ap = await api('POST', `/payroll/api/v1/payroll/${pid}/approve`, {}, HR_TOKEN);
+  check('HR approves the split slip', ap.status === 201 || ap.status === 200, String(ap.status));
+  const [[y, mo]] = rows(`SELECT split_part('${period}', '-', 1), split_part('${period}', '-', 2)`);
+  const closedDay = `${y}-${mo}-05`;
+  const closed = await api('POST', BASE, { employeeId: e2.id, kind: 'LOAN', depotId: X, startDate: closedDay, endDate: `${y}-${mo}-07` }, HR_TOKEN);
+  check('backdating into a month whose slip is approved is refused (400)', closed.status === 400 && /disetujui atau dibayar/.test(JSON.stringify(closed.body)), JSON.stringify(closed.body).slice(0, 200));
+
+  // ---- HQ reallocation of an APPROVED slip
+  const before = rows(`SELECT "depotId", days, gross, bonus, deduction, shortfall, net FROM payroll_depot_shares WHERE "payrollId" = '${pid}' ORDER BY "depotId"`);
+  const mk = (r, g) => ({ depotId: r[0], days: Number(r[1]), gross: g, bonus: Number(r[3]), deduction: Number(r[4]), shortfall: Number(r[5]) });
+  const totalGross = before.reduce((a, r) => a + Number(r[2]), 0);
+  const moved = [mk(before[0], Number(before[0][2]) + 1000), mk(before[1], Number(before[1][2]) - 1000)];
+  const unbal = [mk(before[0], Number(before[0][2]) + 1000), mk(before[1], Number(before[1][2]))];
+  const bad = await api('POST', `/payroll/api/v1/payroll/${pid}/reallocate-shares`, { reason: 'uji', shares: unbal }, HR_TOKEN);
+  check('a split that does not add up to the slip is refused (400)', bad.status === 400, JSON.stringify(bad.body).slice(0, 200));
+  const mgrTry = await api('POST', `/payroll/api/v1/payroll/${pid}/reallocate-shares`, { reason: 'uji', shares: moved }, manager(G));
+  check('a depot manager cannot reallocate (403)', mgrTry.status === 403, String(mgrTry.status));
+  const ok = await api('POST', `/payroll/api/v1/payroll/${pid}/reallocate-shares`, { reason: 'koreksi e2e', shares: moved }, HR_TOKEN);
+  check('HQ reallocates an APPROVED slip (200)', ok.status === 200 || ok.status === 201, JSON.stringify(ok.body).slice(0, 200));
+  const after = rows(`SELECT "depotId", gross, net FROM payroll_depot_shares WHERE "payrollId" = '${pid}' ORDER BY "depotId"`);
+  check('stored shares moved by Rp1.000 and still add to the slip', Number(after[0][1]) === Number(before[0][2]) + 1000 && after.reduce((a, r) => a + Number(r[1]), 0) === totalGross);
+  const [[sumOk]] = rows(`SELECT count(*) FROM payrolls p WHERE p.id = '${pid}' AND (SELECT sum(net) FROM payroll_depot_shares s WHERE s."payrollId" = p.id) <> p.net`);
+  check('Sum(share net) = payroll net still holds after the correction', sumOk === '0');
+  const audited = rows(`SELECT count(*) FROM audit_logs WHERE action = 'PAYROLL_REALLOCATE' AND "entityId" = '${pid}'`)[0][0];
+  check('the correction is in the audit log', Number(audited) >= 1, audited);
+  const paid = await api('POST', `/payroll/api/v1/payroll/${pid}/pay`, {}, HR_TOKEN);
+  check('mark paid', paid.status === 201 || paid.status === 200, String(paid.status));
+  const late = await api('POST', `/payroll/api/v1/payroll/${pid}/reallocate-shares`, { reason: 'terlambat', shares: moved }, HR_TOKEN);
+  check('a PAID slip can no longer be reallocated (409)', late.status === 409, String(late.status));
+
+  // ---- print and export
+  const pdfRes = await fetch(`${GATEWAY}/payroll/api/v1/payroll/${pid}/slip`, { headers: { authorization: `Bearer ${HR_TOKEN}` } });
+  const pdfHead = Buffer.from(await pdfRes.arrayBuffer()).subarray(0, 4).toString();
+  check('the slip PDF renders for the home side', pdfRes.status === 200 && pdfHead === '%PDF', `${pdfRes.status} ${pdfHead}`);
+  const csv = await fetch(`${GATEWAY}/hr-reports/api/v1/hr-reports/payroll?periodMonth=${period}`, { headers: { authorization: `Bearer ${HR_TOKEN}` } });
+  const csvText = await csv.text();
+  check('the payroll export carries the alokasiDepot column', csv.status === 200 && /alokasiDepot/.test(csvText.split('\n')[0] ?? ''), `${csv.status} ${csvText.slice(0, 120)}`);
+
+  // ---- regenerate a DRAFT
+  const dr = await newEmployee('D', G);
+  const dgen = await api('POST', '/payroll/api/v1/payroll/generate', { employeeId: dr.body.id, periodMonth: period }, HR_TOKEN);
+  const rg = await api('POST', `/payroll/api/v1/payroll/${dgen.body?.id}/regenerate`, {}, HR_TOKEN);
+  check('a DRAFT slip is recomputed by id (200)', rg.status === 200 || rg.status === 201, JSON.stringify(rg.body).slice(0, 160));
+  const rgPaid = await api('POST', `/payroll/api/v1/payroll/${pid}/regenerate`, {}, HR_TOKEN);
+  check('a paid slip is not recomputed (409)', rgPaid.status === 409, String(rgPaid.status));
+
+  // ---- bulk imports
+  const imp = async (path, rowsIn, token = HR_TOKEN, extra = {}) => api('POST', path, { ...extra, rows: rowsIn }, token);
+  const yday = dayIn(-1);
+  const att1 = await imp('/attendance/api/v1/attendance/import', [{ employeeCode: emp.employeeCode, workDate: yday, status: 'PRESENT' }]);
+  check('attendance history: a past day is created', att1.status === 200 && att1.body?.created === 1, JSON.stringify(att1.body).slice(0, 200));
+  const att2 = await imp('/attendance/api/v1/attendance/import', [{ employeeCode: emp.employeeCode, workDate: yday, status: 'PRESENT' }]);
+  check('attendance history: the same file again is skipped', att2.body?.skipped === 1 && att2.body?.created === 0, JSON.stringify(att2.body).slice(0, 200));
+  const att3 = await imp('/attendance/api/v1/attendance/import', [{ employeeCode: emp.employeeCode, workDate: TODAY, status: 'PRESENT' }]);
+  check('attendance history: today is refused', att3.body?.failed === 1, JSON.stringify(att3.body).slice(0, 200));
+  const att4 = await imp('/attendance/api/v1/attendance/import', [{ employeeCode: e2.employeeCode, workDate: closedDay, status: 'PRESENT' }]);
+  check('attendance history: a month with an approved slip is refused', att4.body?.failed === 1 && /disetujui/.test(JSON.stringify(att4.body)), JSON.stringify(att4.body).slice(0, 200));
+
+  const oldMonth = (() => {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 4, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  })();
+  const ph1 = await imp('/payroll/api/v1/payroll/import', [{ employeeCode: emp.employeeCode, periodMonth: oldMonth, gross: 2_500_000, totalBonus: 100_000, totalDeduction: 50_000, presentDays: 24 }]);
+  check('payroll history: a closed month is created as PAID', ph1.status === 200 && ph1.body?.created === 1, JSON.stringify(ph1.body).slice(0, 200));
+  const [[phStatus]] = rows(`SELECT status FROM payrolls WHERE "employeeId" = '${emp.id}' AND "periodMonth" = '${oldMonth}'`);
+  const [[phShares]] = rows(`SELECT count(*) FROM payroll_depot_shares s JOIN payrolls p ON p.id = s."payrollId" WHERE p."employeeId" = '${emp.id}' AND p."periodMonth" = '${oldMonth}'`);
+  check('payroll history: stored PAID with its single home share', phStatus === 'PAID' && phShares === '1', `${phStatus}/${phShares}`);
+  const ph2 = await imp('/payroll/api/v1/payroll/import', [{ employeeCode: emp.employeeCode, periodMonth: oldMonth, gross: 1 }]);
+  check('payroll history: an existing slip is never overwritten', ph2.body?.skipped === 1, JSON.stringify(ph2.body).slice(0, 200));
+  const ph3 = await imp('/payroll/api/v1/payroll/import', [
+    { employeeCode: emp.employeeCode, periodMonth: TODAY.slice(0, 7), gross: 1 },
+    { employeeCode: emp.employeeCode, periodMonth: dayIn(-200).slice(0, 7), gross: 100, net: 999 },
+  ]);
+  check('payroll history: this month and a wrong net are refused', ph3.body?.failed === 2, JSON.stringify(ph3.body).slice(0, 200));
+
+  const shiftName = `E2E Pagi ${stamp}`;
+  const shiftMade = await api('POST', '/hr-shifts/api/v1/hr-shifts', { name: shiftName, startTime: '08:00', endTime: '16:00' }, HR_TOKEN);
+  check('a shift exists to import against', shiftMade.status === 201, JSON.stringify(shiftMade.body).slice(0, 160));
+  const sh1 = await imp('/shift-rotations/api/v1/shift-rotations/assignments/import', [{ employeeCode: emp.employeeCode, shiftName, effectiveFrom: '2026-01-05' }]);
+  check('shift history: an assignment is created', sh1.status === 200 && sh1.body?.created === 1, JSON.stringify(sh1.body).slice(0, 200));
+  const sh2 = await imp('/shift-rotations/api/v1/shift-rotations/assignments/import', [{ employeeCode: emp.employeeCode, shiftName, effectiveFrom: '2026-01-05' }]);
+  check('shift history: the same row again is skipped', sh2.body?.skipped === 1, JSON.stringify(sh2.body).slice(0, 200));
+
+  const slug = `e2e-${stamp}`;
+  const cat1 = await imp('/products/api/v1/categories/import', [{ name: `E2E ${stamp}`, slug }], ADMIN);
+  check('category import: created', cat1.status === 200 && cat1.body?.created === 1, JSON.stringify(cat1.body).slice(0, 200));
+  const cat2 = await imp('/products/api/v1/categories/import', [{ name: `E2E ${stamp}`, slug }], ADMIN);
+  check('category import: an existing slug is skipped', cat2.body?.skipped === 1, JSON.stringify(cat2.body).slice(0, 200));
+  const pr1 = await imp('/products/api/v1/products/import', [
+    { sku: `E2E-${stamp}`, name: 'E2E Galon', unit: 'Galon 19L', basePrice: 18000, categorySlug: slug, volumeMl: 19000, isGallon: true },
+    { sku: `E2E-${stamp}-X`, name: 'E2E Salah', unit: 'pcs', basePrice: 100, categorySlug: 'tidak-ada' },
+  ], ADMIN);
+  check('product import: one created, one with an unknown category failed', pr1.body?.created === 1 && pr1.body?.failed === 1, JSON.stringify(pr1.body).slice(0, 240));
+  const pr2 = await imp('/products/api/v1/products/import', [{ sku: `E2E-${stamp}`, name: 'E2E Galon', unit: 'Galon 19L', basePrice: 99999 }], ADMIN);
+  check('product import: an existing SKU is skipped, not repriced', pr2.body?.skipped === 1, JSON.stringify(pr2.body).slice(0, 200));
+  const priced = sqlIn('hydromart_product', `SELECT "basePrice"::int FROM products WHERE sku = 'E2E-${stamp}'`);
+  check('and its price is still the first one', priced === '18000', priced);
+  const cmgr = await imp('/products/api/v1/products/import', [{ sku: `E2E-${stamp}-M`, name: 'm', unit: 'u', basePrice: 1 }], manager(G));
+  check('product import: a depot manager may edit the catalogue (owner decision) - answer recorded', [200, 403].includes(cmgr.status), String(cmgr.status));
+
+  // gallon balances + addresses need a real depot and a customer identity
+  const depotMade = await api('POST', '/depots/api/v1/depots', {
+    code: `E2E${stamp}`.slice(0, 12), name: `E2E Depot ${stamp}`, ownershipType: 'HKP', address: 'Jl. Uji 1', city: 'Bekasi', province: 'Jawa Barat', lat: -6.2, lng: 106.9, deliveryFee: 5000,
+  }, ADMIN);
+  check('a depot is created for the customer-facing imports', depotMade.status === 201, JSON.stringify(depotMade.body).slice(0, 200));
+  const depotId = depotMade.body?.id;
+  if (depotId) {
+    const phone = `0898${stamp}1`.slice(0, 13);
+    const gb1 = await imp(`/depots/api/v1/depots/${depotId}/gallon-issues/import`, [{ customerPhone: phone, customerName: 'E2E Pelanggan', quantity: 3, depositHeld: 60000 }], ADMIN);
+    check('gallon balances: created (and the new number is flagged)', gb1.status === 200 && gb1.body?.created === 1 && /PENDING/.test(JSON.stringify(gb1.body)), JSON.stringify(gb1.body).slice(0, 240));
+    const gb2 = await imp(`/depots/api/v1/depots/${depotId}/gallon-issues/import`, [{ customerPhone: phone, quantity: 3 }], ADMIN);
+    check('gallon balances: the same customer again is skipped (no double balance)', gb2.body?.skipped === 1, JSON.stringify(gb2.body).slice(0, 200));
+    const held = sqlIn('hydromart_depot', `SELECT coalesce(sum(quantity),0) FROM gallon_issues WHERE "depotId" = '${depotId}'`);
+    check('the ledger holds exactly 3 gallons', held === '3', held);
+    const adr1 = await imp('/customers/api/v1/customers/import-addresses', [{ phone, label: 'Kios', recipientName: 'E2E Pelanggan', addressLine: 'Jl. Melati 3', city: 'Bekasi' }], tokenFor('KEPALA_DEPOT', depotId), { depotId });
+    check('customer addresses: created', [200, 201].includes(adr1.status) && adr1.body?.created === 1, JSON.stringify(adr1.body).slice(0, 240));
+    const adr2 = await imp('/customers/api/v1/customers/import-addresses', [{ phone, label: 'Kios', recipientName: 'E2E Pelanggan', addressLine: ' jl. MELATI 3 ', city: 'bekasi' }], tokenFor('KEPALA_DEPOT', depotId), { depotId });
+    check('customer addresses: the same address again is skipped', adr2.body?.skipped === 1, JSON.stringify(adr2.body).slice(0, 200));
+    const adr3 = await imp('/customers/api/v1/customers/import-addresses', [{ phone, recipientName: 'x', addressLine: 'y', city: 'z' }], tokenFor('KEPALA_DEPOT', G), { depotId });
+    check("customer addresses: another depot's staff cannot fill this depot's book", adr3.status === 403, String(adr3.status));
+  }
 }
 
 async function flagOff() {
