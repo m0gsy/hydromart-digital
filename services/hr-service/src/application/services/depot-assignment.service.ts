@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeIds, localDayKey } from '@hydromart/platform';
 
@@ -15,6 +16,7 @@ import {
   DEPOT_ASSIGNMENT_REPOSITORY,
   DepotAssignmentRepository,
 } from '../ports/depot-assignment.repository';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import { DepotAssignmentApplier } from './depot-assignment-applier.service';
 import { EmployeeService } from './employee.service';
 
@@ -45,6 +47,8 @@ export class DepotAssignmentService {
     private readonly employees: EmployeeService,
     private readonly config: HrConfigService,
     private readonly applier: DepotAssignmentApplier,
+    // Optional so a stack without depot-service wired (specs, a bare dev box) still plans.
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   private assertEnabled(): void {
@@ -64,6 +68,9 @@ export class DepotAssignmentService {
     }
     const employee = await this.employees.getById(user, input.employeeId); // 404 + depot check
     assertDepotAccess(user, input.depotId);
+    // Asked BEFORE the lock: a network call has no business inside a row-locked transaction.
+    // An unreachable depot-service is a 503 (try again), never a silent yes.
+    const destinationOpen = this.directory ? await this.directory.isActive(input.depotId) : true;
     const today = localDayKey(new Date(), this.config.timeZone);
     const toPlan = {
       kind: input.kind,
@@ -98,6 +105,7 @@ export class DepotAssignmentService {
           endDate: o.endDate ? dayOf(o.endDate) : null,
         }));
         const problems = planProblems(toPlan, subject, asOpen, today);
+        if (!destinationOpen) problems.push('Depot tujuan tidak aktif (sedang ditutup).');
         if (problems.length > 0) throw new BadRequestException(problems);
       },
     );

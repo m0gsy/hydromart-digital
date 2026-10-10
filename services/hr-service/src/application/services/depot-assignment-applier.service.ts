@@ -15,6 +15,7 @@ import {
   EMPLOYEE_REPOSITORY,
   EmployeeRepository,
 } from '../ports/employee.repository';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import { IDENTITY_PORT, IdentityPort } from '../ports/identity.port';
 import { AuditService } from './audit.service';
 
@@ -64,6 +65,7 @@ export class DepotAssignmentApplier {
     private readonly config: HrConfigService,
     private readonly audit: AuditService,
     @Optional() @Inject(DEPARTMENT_REPOSITORY) private readonly departments?: DepartmentRepository,
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   today(now: Date): string {
@@ -166,6 +168,12 @@ export class DepotAssignmentApplier {
     const home = employee.homeDepotId ?? null;
     const target = phase === 'START' ? row.depotId : home;
     if (!target) throw new Error('Depot tujuan tidak diketahui');
+    // Going TO a depot, it must still be open: it may have closed since the plan was made.
+    // Closed is final (give up, say why); unreachable throws and is retried next tick. Coming
+    // HOME is never blocked - the person has to be able to leave a depot that closed.
+    if (phase === 'START' && this.directory && !(await this.directory.isActive(target))) {
+      throw new GiveUp('Depot tujuan tidak aktif lagi');
+    }
     const permanent = row.kind === 'PERMANENT';
 
     // The login first. KEPALA_DEPOT lent out signs in as STAFF_DEPOT at the destination - the

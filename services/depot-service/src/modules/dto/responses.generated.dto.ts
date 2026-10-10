@@ -230,6 +230,10 @@ export class InternalOwnerResponseDto {
   ownershipType!: string;
 }
 
+export class InternalActiveResponseDto {
+  @ApiProperty() active!: boolean;
+}
+
 export class InternalAssistantResponseDto {
   @ApiProperty({ type: String, nullable: true })
   assistantSupervisorId!: string | null;

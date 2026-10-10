@@ -57,6 +57,7 @@ import {
   DepotResponseDto,
   InternalContactsResponseDto,
   InternalOwnedResponseDto,
+  InternalActiveResponseDto,
   InternalAssistantResponseDto,
   InternalOwnerResponseDto,
   NearbyDepotResponseDto,
@@ -162,6 +163,23 @@ export class DepotController {
   ): Promise<{ assistantSupervisorId: string | null }> {
     const depot = await this.depots.get(id, false);
     return { assistantSupervisorId: depot.assistantSupervisorId };
+  }
+
+  /**
+   * Service-to-service: hr-service asks whether a depot is open before sending anybody to it
+   * (a loan or a permanent move to a closed depot would strand the person at a counter that
+   * does not exist). A depot that does not exist is a 404, which is its own answer.
+   *
+   * Declared before `:id` so that param route does not swallow it.
+   */
+  @ApiOkResponse({ type: InternalActiveResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/:id/active')
+  @ApiOperation({ summary: 'Whether one depot is open (internal service auth)' })
+  async internalActive(@Param('id', ParseUUIDPipe) id: string): Promise<{ active: boolean }> {
+    const depot = await this.depots.get(id, false);
+    return { active: depot.active };
   }
 
   /**
