@@ -604,3 +604,20 @@ Berdasarkan judul tes (bukan hasil menjalankan), area berikut **tidak tampak** p
 | T6 | Hasil perilaku yang diberi tanda [B] (mis. Head office menekan tombol yang ditolak server) sebaiknya dicatat sebagai temuan, bukan sekadar Pass/Fail | [B] |
 | T7 | Pengujian peramban dan perangkat selain Chromium desktop belum ada bukti otomatis; Android WebView lama dapat kehilangan tema (rekomendasi uji perangkat nyata) | [D] |
 | T8 | Hasil UAT 398/36/5 adalah klaim repo, bukan hasil dokumen ini | [V] |
+
+
+## Pengamatan lingkungan uji lokal (2026-10-11)
+
+Bagian ini mencatat apa yang **benar-benar dijalankan** saat mengambil screenshot di stack uji lokal (data sintetis, bukan produksi). Ini **bukan** pengujian terstruktur dan tidak mengubah status skenario di atas menjadi Pass. Tujuannya hanya membedakan hal yang sempat diamati dari hal yang murni dibaca dari kode.
+
+| Yang dijalankan | Hasil yang teramati | Skenario terkait | Status |
+|---|---|---|---|
+| Pelanggan mendaftar, menambah alamat (geolokasi browser), mengisi keranjang, checkout COD | Pesanan terbuat dan tampil di daftar pesanan. Nama yang diisi saat mendaftar tidak tampil di Akun ("—") [B] | TS-AUTH, TS-ORD | Observed, bukan Pass |
+| Kepala depot memajukan status Order placed → Confirmed → Preparing lewat detail pesanan | Berhasil satu langkah per pembukaan detail; tombol "Proses" hanya memilih pesanan [B] | TS-ORD, TS-STF | Observed, bukan Pass |
+| Kepala depot menugaskan kurir | Kurir yang belum check-in ditolak dengan pesan berbahasa Inggris "This courier is not checked in and available." [B] | TS-DEL | Observed, bukan Pass |
+| Kurir check-in, ambil barang, mulai antar, terima COD, isi bukti antar (foto sintetis), selesai | Pengantaran selesai dan halaman sukses tampil; teks retensi bukti kacau [B] | TS-DEL, TS-COD | Observed, bukan Pass |
+| Pelanggan membuka detail pesanan dan halaman lacak publik | Detail pesanan berbahasa Indonesia; halaman lacak memakai label status Inggris [B] | TS-ORD | Observed, bukan Pass |
+| Kepala depot membuka shift kasir dengan kolom modal awal kosong | Shift terbuka dengan "Modal awal Rp 0" (tidak ada validasi wajib isi) [B] | TS-KAS, TS-POS | Observed, bukan Pass |
+| Login OTP per peran (pelanggan, kurir, kepala depot, SPV, Asisten SPV, waralaba, HR, Kantor pusat, Admin; plus Finance, Marketing, Manajer, Direktur untuk sesi) | Semua sesi berhasil dibuat; layar tiap peran terbuka | TS-AUTH | Observed, bukan Pass |
+
+Tidak dijalankan: pembatalan dan refund, setoran COD, opname dan antrean approval, pengadaan, langganan, voucher dan poin, payout waralaba, payroll, cuti, kasbon, absensi (hanya halaman dibuka), PDP, impor CSV, ekspor, kegagalan layanan, kedaluwarsa sesi, dan penonaktifan pengguna. Dua bug lingkungan uji yang ditemukan agen (`seed-hierarchy.mjs` gagal 400 pada stack baru; Dockerfile bergantung pada `apk add openssl` yang diblokir proxy) adalah masalah penyiapan, bukan masalah pengguna, dan dicatat di berkas temuan J.

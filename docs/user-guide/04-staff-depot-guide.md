@@ -7,7 +7,7 @@
 | Klasifikasi | Internal — Terbatas |
 | Peran di UI | Kurir (aplikasi "Hydromart Kurir") |
 | Peran di kode | `STAFF_DEPOT` |
-| Status pengujian | Belum ada pengujian yang dijalankan oleh penulis dokumen ini. Isi bab disusun dari pembacaan kode dan berkas temuan. |
+| Status pengujian | Belum ada pengujian terstruktur (pengamatan terbatas di lingkungan uji lokal dicatat di dokumen 15). Isi bab disusun dari pembacaan kode dan berkas temuan. |
 
 **Legenda bukti.** **[V]** terverifikasi di kode · **[D]** disimpulkan, perlu konfirmasi · **[K]** perlu konfirmasi bisnis (nilai berasal dari data/pengaturan) · **[B]** diketahui bermasalah/tidak konsisten.
 

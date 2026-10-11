@@ -5,7 +5,7 @@
 | Versi | 0.1 draf |
 | Tanggal | 2026-10-10 |
 | Klasifikasi | Internal — Rahasia |
-| Status pengujian | Belum ada pengujian yang dijalankan oleh penulis dokumen ini. Isi bab disusun dari pembacaan kode, berkas temuan, dan Bab 2–10. |
+| Status pengujian | Belum ada pengujian terstruktur (pengamatan terbatas di lingkungan uji lokal dicatat di dokumen 15). Isi bab disusun dari pembacaan kode, berkas temuan, dan Bab 2–10. |
 | Dokumen pasangan | Bab 15 (Matriks Uji & Validasi) memuat skenario uji untuk tiap alur di bab ini. |
 
 **Legenda bukti.** **[V]** terverifikasi di kode · **[D]** disimpulkan, perlu konfirmasi · **[K]** perlu konfirmasi bisnis (nilai berasal dari data/pengaturan) · **[B]** diketahui bermasalah/tidak konsisten. Fitur yang tidak ada ditulis "Tidak tersedia".

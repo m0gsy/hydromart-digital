@@ -9,8 +9,8 @@ Hydromart adalah platform operasional depot air minum isi ulang di Indonesia (de
 | Hal | Status |
 |---|---|
 | Sumber isi | Pembacaan kode (`packages/access`, `apps/web`, `services/*`), kamus UI, dan dokumen proyek. Tiap klaim penting diberi tag bukti. |
-| Pengujian di aplikasi | **Belum ada.** Tidak satu pun alur dijalankan oleh tim dokumentasi. Semua skenario di dokumen 15 berstatus *Not Tested*. |
-| Screenshot | **Belum ada gambar asli** kecuali jika tercatat di `assets/screenshots/`. Setiap bab memiliki placeholder `[SCREENSHOT REQUIRED: SS-…]` dan inventaris SS. |
+| Pengujian di aplikasi | **Belum ada pengujian terstruktur.** Semua skenario di dokumen 15 berstatus *Not Tested*. Satu alur pesanan (pelanggan → depot → kurir → COD → selesai) memang dijalankan sekali di lingkungan uji lokal pada 2026-10-11 untuk mengambil screenshot; itu dicatat sebagai *pengamatan* di dokumen 15 bagian 'Pengamatan lingkungan uji lokal', bukan hasil Pass. |
+| Screenshot | **74 gambar asli** dari lingkungan uji lokal (data sintetis, nomor telepon tersamar, 2026-10-11) sudah dipasang di bab 01–10 dan tersimpan di `assets/screenshots/`. Sekitar 70 slot masih berupa placeholder `[SCREENSHOT REQUIRED: SS-…]` (dialog, status lain, dan peran Finance/Marketing/Manajer/Direktur belum difoto). Banyak layar menunjukkan keadaan kosong karena data uji minim. Status tiap gambar ada di inventaris di akhir bab. |
 | Hak akses | Nilai **bawaan** dari kode. Super Admin dapat mengubahnya saat aplikasi berjalan (sekitar 30 detik), jadi lingkungan nyata bisa berbeda. |
 | PDF/DOCX gabungan | Dibuat dari berkas Markdown ini bila perangkat tersedia; lihat bagian "Membuat PDF/DOCX". |
 

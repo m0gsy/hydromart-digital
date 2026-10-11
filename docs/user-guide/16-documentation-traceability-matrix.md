@@ -69,9 +69,9 @@ Matriks ini menghubungkan setiap modul/kebutuhan dengan bukti sumber, peran, bag
 | Aplikasi mobile Manajer `/m/manager` | `app/m/manager/*` | Manajer | Bab 5 Lamp. A | — | Not Verified (rilis aplikasi Ops tidak pasti) |
 | Pencarian depot `/dashboard/search` | `app/dashboard/search` | Beberapa peran | — | — | Not Verified (isi belum dibaca) |
 | Responsif desktop/tablet/mobile | `apps/web` (uji 320 px di CI) | Semua | Bab 1 | — | Blocked (belum diperiksa visual) |
-| Screenshot semua prosedur | Lihat inventaris SS di tiap bab | Semua | tiap bab | — | Blocked (lihat README § Screenshot) |
+| Screenshot semua prosedur | `assets/screenshots/` (74 gambar); inventaris SS di tiap bab | Semua | tiap bab | — | Partial (74 gambar terpasang; ± 70 slot masih placeholder; Finance/Marketing/Manajer/Direktur belum difoto) |
 | Dukungan & eskalasi | `docs/GO_LIVE.md`, `docs/RUNBOOK_ONCALL.md` | Semua | Bab 1; dok. 14 | — | Partial (tidak ada kanal dukungan staf/pelanggan terdokumentasi [K]) |
 
 ## Ringkasan
 
-Dari 55 baris modul/kebutuhan: **Complete 11 · Partial 35 · Blocked 6 · Not Verified 3**. Tidak ada baris Not Applicable. Baris Partial dan Blocked menjadi daftar kerja verifikasi berikutnya; rincian tiap celah ada di dokumen 17.
+Dari 55 baris modul/kebutuhan: **Complete 11 · Partial 36 · Blocked 5 · Not Verified 3**. Tidak ada baris Not Applicable. Baris Partial dan Blocked menjadi daftar kerja verifikasi berikutnya; rincian tiap celah ada di dokumen 17.

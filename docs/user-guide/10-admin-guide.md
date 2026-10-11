@@ -119,7 +119,7 @@ Layar Marketing dan Manajer yang juga hanya terbuka bagi Admin dari kelompok HQ:
 
 **Tujuan:** Memberi atau mencabut kapabilitas untuk peran tertentu. **Peran:** Admin saja (`accessMatrixWrite`). Layar ini tidak tampil di rail Head office (rail memakai `accessMatrixWrite`); di server, pembacaan matriks terbuka bagi pemegang `staffAdmin`, tetapi menyimpan hanya `accessMatrixWrite`. **Prasyarat:** Anda tahu kapabilitas apa yang dimaksud dan peran mana yang terdampak. Catat alasan perubahan di luar sistem. **Titik awal:** Rail "Ringkasan & tata kelola" > "Peran & hak akses". Subjudul layar: "Sumber kebenaran tunggal untuk RBAC — modul yang sama yang ditegakkan guard server. Klik sel untuk memberi/mencabut hak."
 
-**Tata letak:** baris = kapabilitas, dikelompokkan: Operasi, Kurir & COD, Tim & shift depot, Jaringan & admin, Keputusan head office, Pemasaran, Keuangan, HR (SDM), Lainnya. Kolom = 13 peran, disingkat Cus, Stf, Kep, Asv, Spv, Mgr, Dir, Fr, HO, Fin, Mkt, HR, SA. **[V]**
+**Tata letak:** baris = kapabilitas, dikelompokkan: Operasi, Kurir & COD, Tim & shift depot, Jaringan & admin, Keputusan head office, Pemasaran, Keuangan, HR (SDM), Lainnya. Kolom = **12 peran staf**, disingkat Stf, Kep, Asv, Spv, Mgr, Dir, Fr, HO, Fin, HR, Mkt, SA (urutan persis seperti pada Gambar 10.2a); peran pelanggan (Cus) tidak pernah ada di matriks. Setiap judul kolom punya tautan kecil "rincian" ke layar rincian peran, dan di kanan atas ada tautan "Tampilan per peran →". **[V]** (kode `rbac-matrix.tsx`, dan terlihat pada gambar). *Koreksi: draf awal bab ini menulis 13 peran termasuk "Cus" dan urutan "Mkt, HR".*
 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
@@ -156,7 +156,10 @@ Seluruh kiriman diperiksa dulu dan ditulis dalam satu transaksi; bila satu perub
 5. **Sumber tidak terjangkau.** Bila layanan kehilangan kontak dengan sumber matriks, ia memakai matriks terakhir yang diketahui; setelah 5 menit gagal berturut-turut ia membuang snapshot dan kembali ke **nilai bawaan kode**. Ini dapat menarik hak yang Anda berikan. **[V]**
 6. **Perubahan mempengaruhi Bab lain.** Panduan peran lain menyebut nilai bawaan; setelah Anda mengubah matriks, beri tahu pemilik proses.
 
-> **[SCREENSHOT REQUIRED: SS-admin-02 — /hq/access dengan grid kapabilitas × 13 peran, satu sel diubah, banner "{n} kapabilitas diubah", tombol Batalkan, Lihat diff / Salin, Simpan]**
+![Gambar 10.2a — Editor matriks hak akses, kondisi awal](assets/screenshots/admin-01-akses.png)
+> *Gambar 10.2a — "Peran & hak akses" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Sumber kebenaran tunggal untuk RBAC — modul yang sama yang ditegakkan guard server. Klik sel untuk memberi/mencabut hak.", tautan "Tampilan per peran →", 12 kolom peran (Stf, Kep, Asv, Spv, Mgr, Dir, Fr, HO, Fin, HR, Mkt, SA) masing-masing dengan tautan "rincian", dan baris kapabilitas grup "OPERASI" (Antrean pesanan, Penjualan di konter, Lihat inventori, Ubah inventori, Lihat meteran air, Catat meteran air, Lihat retur galon, Catat retur galon, Live tracking & dispatch) dengan sel bercentang. Catatan kondisi: belum ada sel yang diubah, sehingga banner "{n} kapabilitas diubah" dan tombol "Batalkan", "Lihat diff / Salin", "Simpan" belum terlihat; grid terpotong di tepi bawah.*
+
+> **[SCREENSHOT REQUIRED: SS-admin-02 — /hq/access dengan grid kapabilitas × 12 peran staf, satu sel diubah, banner "{n} kapabilitas diubah", tombol Batalkan, Lihat diff / Salin, Simpan]**
 > *Gambar 10.2 — Editor matriks hak akses.*
 
 > **[SCREENSHOT REQUIRED: SS-admin-03 — panel "Ringkasan perubahan" dari Lihat diff / Salin]**
@@ -191,8 +194,8 @@ Seluruh kiriman diperiksa dulu dan ditulis dalam satu transaksi; bila satu perub
 - [ ] Depot terisi untuk Staf depot dan Kepala depot.
 - [ ] Peran bernilai tinggi (Super admin, Direktur, Finance, HR) disetujui pemilik secara tertulis.
 
-> **[SCREENSHOT REQUIRED: SS-admin-04 — kartu "Undang / tetapkan peran staf" pada akun Super admin dengan 12 tombol peran dan kolom Posisi, Tanggal masuk, Status kepegawaian, Gaji]**
-> *Gambar 10.4 — Formulir undang staf.*
+![Gambar 10.4 — Formulir undang staf](assets/screenshots/admin-07-undang-staf.png)
+> *Gambar 10.4 — Kartu "Undang / tetapkan peran staf" pada akun Super admin (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat teks pengantar "Nomor terdaftar akan dipromosikan; nomor baru dibuatkan akun staf aktif (login via OTP). Data kepegawaian di bawah ikut membuat kartu karyawan di HR.", kolom "Nomor telepon" (petunjuk "+62812…") dan "Nama (untuk akun baru)", 12 tombol "Peran" (Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin) dengan "Kepala depot" sudah terpilih, "Depot penempatan (opsional)" (bawaan "Tanpa depot"), "Posisi" (petunjuk "mis. Kurir"), "Tanggal masuk" (terisi hari uji, 10/11/2026), "Status kepegawaian" (bawaan "Percobaan"), "Gaji" (pilihan "Bulanan" dan angka 0), serta tombol "Batal" dan "Kirim undangan". Catatan kondisi: formulir belum disimpan; tidak ada nomor telepon nyata pada gambar.*
 
 **Celah penting: /dashboard/staff [B][V code, D runtime].** Layar Konsol depot > Staf (`/dashboard/staff`, gerbang "Khusus admin": "Manajemen staf & peran tersedia untuk head office dan super admin.") memuat formulir undangan yang **tidak mengirim kolom wajib** pada DTO server (position, joinDate, employmentStatus, salaryType). Kodenya tidak menandai kolom-kolom itu opsional, sehingga undangan dari layar itu hampir pasti ditolak dengan galat validasi 400. Hasil di browser belum diuji. **Gunakan /hq/staff untuk mengundang.** Formulir /dashboard/staff memiliki kolom kendaraan (jenis dan plat), sedangkan formulir HQ tidak; kolom itu hanya disimpan untuk Staf depot.
 
@@ -240,8 +243,8 @@ Jadi akses residual bisa bertahan sekitar 15 menit setelah dinonaktifkan. Untuk 
 
 **Pelindung yang TIDAK ada [B][V]:** menonaktifkan akun sendiri atau Super admin terakhir **tidak dijaga** oleh kode. Jangan menonaktifkan akun Admin Anda sendiri dan jangan menonaktifkan Admin terakhir; tidak ada jalur pulih lewat layar (bagian 6.18). Penghapusan dijaga, penonaktifan tidak.
 
-> **[SCREENSHOT REQUIRED: SS-admin-05 — /hq/staff daftar akun dengan lencana Aktif/Nonaktif, tombol Nonaktifkan, Hapus (hanya Super admin), dan pemilih Depot penempatan]**
-> *Gambar 10.5 — Daftar staf dengan aksi baris.*
+![Gambar 10.5 — Daftar staf dengan aksi baris](assets/screenshots/admin-03-staf.png)
+> *Gambar 10.5 — "Direktori staf" pada akun Super admin (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "+ Undang staf", penyaring peran, dan baris akun dengan nomor tersamar "08xx-xxxx-xxxx", pemilih depot (misalnya "Depot Hierarki 1" untuk Staf depot dan Kepala depot), lencana peran, lencana "Aktif", tombol "Nonaktifkan", dan tombol merah "Hapus". Catatan kondisi: seluruh baris berstatus Aktif (belum ada lencana "Nonaktif"). Tombol "Hapus" dan "Nonaktifkan" juga tampil pada baris "Super Admin E2E" (akun yang sedang dipakai); penjaga "Akun sendiri tidak bisa dihapus." ada di sisi server (bagian 6.6), sedangkan menonaktifkan akun sendiri tidak dijaga (bagian 6.5).*
 
 ### 6.6 Menghapus akun staf
 
@@ -295,7 +298,7 @@ Aturan siapa boleh memberi peran apa adalah **konstanta di kode** dan tidak beru
 
 ### 6.8 Hierarki pembinaan (/hq/hierarchy)
 
-**Tujuan:** Menentukan rantai Depot → Asisten SPV → SPV → Manajer, yang menentukan **depot mana terlihat oleh siapa**. **Peran:** Admin saja (`hierarchyAdmin`). **Titik awal:** Rail "Jaringan depot" > "Hierarki pembinaan". Subjudul: "Depot → Asisten SPV → SPV → Manager. Peta ini yang menentukan depot mana terlihat oleh siapa." **[V]**
+**Tujuan:** Menentukan rantai Depot → Asisten SPV → SPV → Manajer, yang menentukan **depot mana terlihat oleh siapa**. **Peran:** Admin saja (`hierarchyAdmin`). **Titik awal:** Rail "Jaringan depot" > "Hierarki pembinaan". Subjudul: "Depot → Asisten SPV → SPV → Manajer. Peta ini yang menentukan depot mana terlihat oleh siapa." **[V]**
 
 **Cara kerja cakupan depot [V]:**
 
@@ -328,8 +331,8 @@ Catatan layar: "Depot tanpa asisten hanya terlihat oleh HQ ke atas. Ini anak tan
 
 **Propagasi:** cache cakupan depot di semua layanan 60 detik. **[V]** Atasan di kartu karyawan HR sudah dihapus; garis pelaporan hanya dicatat di sini.
 
-> **[SCREENSHOT REQUIRED: SS-admin-06 — /hq/hierarchy bagian "Asisten SPV tiap depot" dan panel "Posisi satu akun di rantai" dengan atasan, bawahan, depot binaan]**
-> *Gambar 10.6 — Hierarki pembinaan.*
+![Gambar 10.6 — Hierarki pembinaan](assets/screenshots/admin-02-hierarki.png)
+> *Gambar 10.6 — "Hierarki pembinaan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Depot → Asisten SPV → SPV → Manajer. Peta ini yang menentukan depot mana terlihat oleh siapa.", kartu "Asisten SPV tiap depot" dengan catatan "Depot tanpa asisten hanya terlihat HQ ke atas…", dan baris `{kode} · {nama depot}` dengan pemilih: "BDG-01 · Depot Dago" = "Belum ditugaskan", "HIER-01 · Depot Hierarki 1" dst. = "Asisten SPV Wilayah A". Catatan kondisi: hanya bagian atas halaman; panel "Posisi satu akun di rantai" (atasan, bawahan, depot binaan) berada di bawah dan belum terlihat.*
 
 ### 6.9 Kunci API (/hq/api-keys)
 
@@ -381,7 +384,7 @@ Kutipan layar: "Endpoint yang berlangganan menerima POST bertanda tangan per eve
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Pilih status flag: ROLLOUT, AKTIF, BETA, MATI. | Toast: `Status "{name}" diubah ke {state}`. |
-| 2 | Perhatikan banner "Belum ditegakkan" pada flag tertentu. | "Tidak ada layanan yang membaca flag ini. Mengubahnya menyimpan status di sini, tapi tidak menyalakan atau mematikan apa pun di aplikasi — sampai layanan yang bersangkutan dibuat membacanya." |
+| 2 | Perhatikan banner "Belum ditegakkan" di atas daftar flag. Pada tampilan uji (Gambar 10.11) ini satu banner untuk seluruh halaman, bukan per flag; kode `apps/web/src/app/hq/flags/page.tsx` hanya merender satu banner. **[V]** | "Tidak ada layanan yang membaca flag ini. Mengubahnya menyimpan status di sini, tapi tidak menyalakan atau mematikan apa pun di aplikasi — sampai layanan yang bersangkutan dibuat membacanya." |
 
 **Penting:** sebagian flag belum dibaca layanan mana pun; mengubahnya hanya menyimpan status. Daftar flag yang belum ditegakkan belum ditentukan **[K]**. Jangan menjanjikan efek bisnis dari flag bertanda "Belum ditegakkan".
 
@@ -463,7 +466,7 @@ Editor kamus ID/EN ("Editor kamus ID/EN dengan status terjemahan"): "Cari kunci 
 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
-| 1 | Buka halaman. | Tabel Pelaku, Peran, Objek, Aksi, Waktu; 100 baris per halaman + muat lagi; "Sistem" untuk aksi otomatis. |
+| 1 | Buka halaman. | Tabel Pelaku, Peran, Objek, Aksi, Waktu; 100 baris per halaman + muat lagi; "Sistem" untuk aksi otomatis. Pada tampilan uji (Gambar 10.12) kolom Peran memakai kode sistem (mis. "SUPER_ADMIN"), kolom Aksi memakai kunci teknis (mis. "auth.login.succeeded"), dan Waktu berbentuk relatif ("14 mnt lalu") **[B]**. |
 | 2 | Tekan "Ekspor". | `audit-{YYYY-MM-DD}.xlsx` (sheet "Audit"; kolom Pelaku, Peran, Objek, Aksi, Waktu) berisi seluruh jejak. Bila terlalu besar: "Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas." Kosong: "Belum ada aktivitas." |
 
 **Yang dicatat [V]:** (1) kejadian masuk: permintaan daftar, OTP terverifikasi atau gagal, kirim ulang, token disegarkan atau dipakai ulang, keluar, keluar dari semua perangkat, penggantian nomor (nomor disamarkan); (2) mutasi berhak istimewa lewat pencatat di tiap layanan (aksi diturunkan dari rute dan kata kerja "created", "changed", "deleted"; target dari ID di jalur; isi permintaan disamarkan untuk kunci yang cocok secret, token, password, apikey, signature, otp, pin); (3) UU PDP: permintaan dibuat, diekspor, dianonimkan, ditolak, dan `staff.account.deleted`; (4) kejadian lintas layanan seperti `depot.suspend`.
@@ -668,16 +671,17 @@ Ada hal yang butuh pihak lain: peran Manajer boleh diberikan HR juga; keputusan 
 |---|---|---|---|
 | SS-admin-01 | Rail /hq akun Super admin | Semua grup terlihat | Belum diambil |
 | SS-admin-02 | /hq/access grid | Satu sel diubah; banner dan tombol terlihat | Belum diambil |
+| SS-admin-13 | /hq/access grid | Kondisi awal (12 kolom peran, belum ada perubahan) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-admin-03 | Panel "Ringkasan perubahan" | Contoh satu kapabilitas | Belum diambil |
-| SS-admin-04 | Formulir undang staf | 12 peran terlihat; data sintetis | Belum diambil |
-| SS-admin-05 | /hq/staff daftar akun | Tombol Nonaktifkan dan Hapus; nomor disamarkan | Belum diambil |
-| SS-admin-06 | /hq/hierarchy | Asisten SPV tiap depot dan posisi akun | Belum diambil |
+| SS-admin-04 | Formulir undang staf | 12 peran terlihat; data sintetis | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-admin-05 | /hq/staff daftar akun | Tombol Nonaktifkan dan Hapus; nomor disamarkan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-admin-06 | /hq/hierarchy | Asisten SPV tiap depot dan posisi akun (pada tangkapan: hanya bagian "Asisten SPV tiap depot") | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-admin-07 | /hq/retention | Pratinjau dan Status backup | Belum diambil |
 | SS-admin-08 | /hq/api-keys | Dialog secret (isi disamarkan) | Belum diambil |
 | SS-admin-09 | /hq/webhooks | Riwayat pengiriman dengan satu gagal | Belum diambil |
-| SS-admin-10 | /hq/security | Kebijakan sesi dan Sesi aktif | Belum diambil |
-| SS-admin-11 | /hq/flags | Banner "Belum ditegakkan" dan Pengaturan platform | Belum diambil |
-| SS-admin-12 | /hq/audit | Tabel dan tombol Ekspor | Belum diambil |
+| SS-admin-10 | /hq/security | Kebijakan sesi dan Sesi aktif (IP internal Docker uji) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-admin-11 | /hq/flags | Banner "Belum ditegakkan" dan Pengaturan platform | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-admin-12 | /hq/audit | Tabel dan tombol Ekspor | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 
 Samarkan secret, nomor telepon, dan alamat IP. Tempatkan SS-admin-08 sampai SS-admin-12 di prosedur terkait (6.9–6.13, 6.17) saat gambar diambil; placeholder tambahan berikut mewakili layar tersebut:
 
@@ -687,14 +691,14 @@ Samarkan secret, nomor telepon, dan alamat IP. Tempatkan SS-admin-08 sampai SS-a
 > **[SCREENSHOT REQUIRED: SS-admin-09 — /hq/webhooks daftar endpoint dan "Riwayat pengiriman" dengan satu pengiriman gagal dan tombol Kirim ulang]**
 > *Gambar 10.9 — Riwayat pengiriman webhook.*
 
-> **[SCREENSHOT REQUIRED: SS-admin-10 — /hq/security kolom "Sesi berakhir otomatis", IP allowlist dengan peringatan "DITEGAKKAN SEBAGIAN", dan daftar Sesi aktif]**
-> *Gambar 10.10 — Kebijakan keamanan dan sesi aktif.*
+![Gambar 10.10 — Keamanan & 2FA](assets/screenshots/admin-06-keamanan.png)
+> *Gambar 10.10 — Halaman "Keamanan & 2FA", subjudul "Kebijakan sesi, 2FA, dan sesi aktif" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat kartu "Kebijakan sesi": "Sesi berakhir otomatis" bernilai 15 "menit idle" dengan teks hijau "Ditegakkan: sesi yang menganggur lebih lama dari ini harus masuk ulang."; kolom "IP allowlist" (kosong; "Satu CIDR per baris. Kosong = akses dari mana saja."); peringatan kuning "DITEGAKKAN SEBAGIAN. Daftar ini sekarang menolak permintaan API mitra (x-api-key) dari alamat di luarnya. Konsol HQ ini TIDAK ditegakkan: permintaannya masuk lewat gateway, dan admin-service tidak bisa melihat menembusnya."; tombol "Simpan pengaturan"; dan kartu "Sesi aktif" ("Perangkat yang sedang masuk. Akhiri yang tidak Anda kenali.") berisi satu baris perangkat "node", alamat "[alamat IP uji disamarkan] · 14 mnt lalu", dan tombol "Akhiri". Catatan kondisi: alamat [alamat IP uji disamarkan] adalah alamat internal jaringan Docker uji, bukan alamat pribadi seseorang; baris sesi tidak memperlihatkan label "Sesi ini" maupun "Lokasi" [D]. Tidak ada saklar 2FA pada layar, sesuai bagian 6.13.*
 
-> **[SCREENSHOT REQUIRED: SS-admin-11 — /hq/flags daftar flag dengan banner "Belum ditegakkan" dan kartu "Pengaturan platform"]**
-> *Gambar 10.11 — Feature flag dan pengaturan platform.*
+![Gambar 10.11 — Feature flags](assets/screenshots/admin-04-flag.png)
+> *Gambar 10.11 — Halaman "Feature flags", subjudul "Rollout fitur jaringan & pengaturan platform" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat satu banner jingga "Belum ditegakkan" di atas daftar ("Tidak ada layanan yang membaca flag ini. Mengubahnya menyimpan status di sini, tapi tidak menyalakan atau mematikan apa pun di aplikasi — sampai layanan yang bersangkutan dibuat membacanya."); lima flag dengan pilihan ROLLOUT / AKTIF / BETA / MATI: "Siaran kurir" (BETA), "Portal franchise" (ROLLOUT), "Poin & hadiah" (AKTIF), "Harga reseller" (AKTIF), "Langganan" (AKTIF); dan awal kartu "Pengaturan platform" ("Zona waktu" = "Asia/Jakarta"). Catatan kondisi: baris lain pada kartu "Pengaturan platform" terpotong di tepi bawah.*
 
-> **[SCREENSHOT REQUIRED: SS-admin-12 — /hq/audit tabel Pelaku, Peran, Objek, Aksi, Waktu dan tombol Ekspor]**
-> *Gambar 10.12 — Log audit.*
+![Gambar 10.12 — Log audit](assets/screenshots/admin-05-audit.png)
+> *Gambar 10.12 — Halaman "Log audit", subjudul "Jejak tak terubah lintas layanan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "Ekspor" dan tabel kolom Pelaku, Peran, Objek, Aksi, Waktu. Baris berisi nama akun uji (misalnya "Direktur Hydromart", "Admin Hydromart"), peran dalam kode sistem berbahasa Inggris ("DIREKTUR", "MANAGER", "SUPER_ADMIN", "HEAD_OFFICE"), Objek "—", Aksi berupa kunci teknis ("auth.login.succeeded", "auth.otp.verified", "auth.login.requested"), dan Waktu relatif ("14 mnt lalu"). Catatan kondisi: pada tampilan ini kolom Peran dan Aksi tidak diterjemahkan ke label Indonesia **[B]**; tidak ada nomor telepon atau kode OTP pada baris-baris ini.*
 
 ---
 
