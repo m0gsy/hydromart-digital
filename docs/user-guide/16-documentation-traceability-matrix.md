@@ -74,4 +74,6 @@ Matriks ini menghubungkan setiap modul/kebutuhan dengan bukti sumber, peran, bag
 
 ## Ringkasan
 
-Dari 55 baris modul/kebutuhan: **Complete 11 · Partial 36 · Blocked 5 · Not Verified 3**. Tidak ada baris Not Applicable. Baris Partial dan Blocked menjadi daftar kerja verifikasi berikutnya; rincian tiap celah ada di dokumen 17.
+Dari 51 baris modul/kebutuhan: **Complete 10 · Partial 35 · Blocked 4 · Not Verified 2**. Tidak ada baris Not Applicable. Baris Partial dan Blocked menjadi daftar kerja verifikasi berikutnya; rincian tiap celah ada di dokumen 17.
+
+*Koreksi 2026-10-11:* versi awal ringkasan ini menyebut 55 baris (11/36/5/3) karena ikut menghitung baris legenda status di bagian atas dokumen. Angka di atas dihitung ulang dari tabel itu sendiri.
