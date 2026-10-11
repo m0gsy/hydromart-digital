@@ -873,7 +873,27 @@ Di kode, `STAFF_DEPOT` adalah kurir dan **tidak** punya konsol `/dashboard` seba
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-PLACEHOLDER
+| SS-staff-depot-01 | Slide perkenalan 4 | Tombol "Mulai shift · check-in" | Belum diambil (yang ada baru slide 1, lihat SS-staff-depot-14) |
+| SS-staff-depot-02 | Check-in shift | Daftar periksa tampil | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-02-check-in.png` |
+| SS-staff-depot-03 | Status ketersediaan | Mode Istirahat dengan hitung mundur | Belum diambil |
+| SS-staff-depot-04 | Tugas | Satu kartu Ditugaskan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-01-beranda-kurir.png` |
+| SS-staff-depot-05 | Detail pengantaran | Status Diantar | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-05-detail-diantar.png` |
+| SS-staff-depot-06 | Pembayaran tunai COD | Uang diterima > total | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-06-terima-pembayaran.png` |
+| SS-staff-depot-07 | Bukti pengantaran | Semua kolom terisi | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-07-bukti-pengantaran.png`; foto dan tanda tangan sintetis |
+| SS-staff-depot-08 | Setoran akhir shift | Peringatan kurang | Belum diambil (yang ada baru keadaan sebelum check-out, lihat SS-staff-depot-18) |
+| SS-staff-depot-09 | Pendapatan | Saldo + panel rekening | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-10-penghasilan.png`; panel rekening tidak terlihat |
+| SS-staff-depot-10 | Antrean offline | Spanduk + dialog buang | Belum diambil |
+| SS-staff-depot-11 | Lapor insiden | Formulir terisi | Belum diambil |
+| SS-staff-depot-12 | Menu /hr/me | Semua kartu | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-11-hr-me.png` |
+| SS-staff-depot-13 | Absen wajah | Hasil check-in | Belum diambil |
+| SS-staff-depot-14 | Perkenalan kurir, slide 1 | Slide "Selamat datang, kurir Hydromart!" | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-00-onboarding.png` (Gambar 4.14) |
+| SS-staff-depot-15 | Detail pengantaran | Status Ditugaskan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-03-detail-pengantaran.png` (Gambar 4.15) |
+| SS-staff-depot-16 | Detail pengantaran | Status Diambil | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-04-detail-diambil.png` (Gambar 4.16) |
+| SS-staff-depot-17 | Layar sukses "Pengantaran selesai" | Setelah bukti terkirim | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-08-selesai.png` (Gambar 4.17) |
+| SS-staff-depot-18 | Setoran tunai | Keadaan "Tidak ada shift untuk disetor" | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-09-setoran.png` (Gambar 4.18) |
+| SS-staff-depot-19 | Riwayat | Satu pengantaran selesai | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-12-riwayat.png` (Gambar 4.19) |
+| SS-staff-depot-20 | Profil kurir | Bagian atas | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-13-profil.png` (Gambar 4.20) |
+| SS-staff-depot-21 | Tugas setelah pengantaran selesai | Keadaan kosong, TEPAT 100% | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `staff-depot-14-beranda-setelah-selesai.png` (Gambar 4.21) |
 
 ---
 

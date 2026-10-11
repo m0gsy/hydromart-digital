@@ -214,8 +214,8 @@ Setiap prosedur menyebut peran yang berwenang menurut nilai bawaan. Bila peran A
 - Kartu "Perlu perhatian" memuat depot dengan SLA di bawah 88% ("SLA {v}% di bawah ambang"; ambang 88% tertanam di kode, bukan pengaturan **[V]**) dan sumber data yang mati ("Sumber {name} tidak tersedia"). Kosong: "Semua depot dalam kondisi sehat."
 - Galat sebagian: "Sebagian data gagal dimuat ({sources}). Menampilkan yang tersedia." Jangan menyimpulkan nol dari tanda "—".
 
-> **[SCREENSHOT REQUIRED: SS-hq-02 — /hq tampilan "Utama" dengan enam kartu KPI, tabel Performa depot, dan kartu Perlu perhatian]**
-> *Gambar 9.2 — Ringkasan jaringan.*
+![Gambar 9.2 — Ringkasan jaringan](assets/screenshots/hq-01-beranda.png)
+> *Gambar 9.2 — "Ringkasan jaringan" tampilan "Utama" pada akun Head office (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat header rail "HYDROMART · HQ / Konsol pusat · seluruh depot"; enam kartu: Pendapatan "Rp 84.000 / 1 pesanan", Pesanan "1", SLA tepat waktu "100% / 1/1 tepat waktu", Depot aktif "28 / dari 28 depot", Pelanggan baru "1 / 30 hari terakhir", Menunggu persetujuan "0 / menunggu tinjauan"; pilihan tampilan "Utama / Peta / Ringkas"; tabel "Performa depot" (Depot Cikini Rp 84.000, SLA 100%, 1 pesanan; depot lain Rp 0, SLA "—"); dan kartu "Perlu perhatian" berisi "Semua depot dalam kondisi sehat." Catatan kondisi: data hanya satu pesanan uji; depot Hierarki 1–9 dan seterusnya semua kosong, dan daftar tabel terpotong di tepi bawah.*
 
 ### 6.2 Pencarian (/hq/search)
 
@@ -282,6 +282,9 @@ Kosong: "Belum ada depot. Onboard depot pertama." / "Tidak ada depot yang cocok.
 
 **Catatan:** Dua baris "Perkiraan" dalam dialog hanya perkiraan teks; mekanisme pencabutan akses sesi staf belum ditelusuri **[D]**. Penangguhan depot waralaba tidak membekukan saldo pemilik (tidak ada kode yang mengaitkannya) **[D]**.
 
+![Gambar 9.3a — Direktori depot](assets/screenshots/hq-02-depot.png)
+> *Gambar 9.3a — "Direktori depot" pada akun Head office (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Seluruh depot jaringan", kolom "Cari depot, kota, atau kode…", tombol "+ Onboard depot" (tampil bagi Head office walau simpan ditolak server, lihat catatan [B] di atas), dan kartu depot: "Depot Dago BDG-01 · Bandung · Jawa Barat" berlencana "Aktif", "Waralaba", "6 km"; depot Hierarki berlencana "Milik pusat", "7 km". Catatan kondisi: ini daftar, bukan detail depot; dialog "Tangguhkan Depot?" belum terlihat.*
+
 > **[SCREENSHOT REQUIRED: SS-hq-03 — detail depot dengan tombol Edit dan Tangguhkan, serta dialog "Tangguhkan Depot?" dengan blok Dampak penangguhan dan kolom ketik kode]**
 > *Gambar 9.3 — Menangguhkan depot.*
 
@@ -296,7 +299,7 @@ Kosong: "Belum ada depot. Onboard depot pertama." / "Tidak ada depot yang cocok.
 | 1 | Tekan "＋ Undang staf". | Kartu "Undang / tetapkan peran staf". |
 | 2 | Isi "Nomor telepon" (wajib). Format 0812…, +62…, atau 62… diterima. | Kosong: "Masukkan nomor telepon." Nomor tidak sah: pesan server `"X" is not a valid Indonesian mobile number.` |
 | 3 | Isi "Nama (untuk akun baru)". | Dipakai hanya untuk akun baru. |
-| 4 | Pilih "Peran" (tombol). | Hanya peran yang boleh Anda berikan yang ditawarkan (lihat tabel di bawah). |
+| 4 | Pilih "Peran" (tombol). | Hanya peran yang boleh Anda berikan yang ditawarkan (lihat tabel di bawah). **[B]** Pada gambar form (akun Super admin, lihat Bab 10) terlihat 12 tombol peran dengan urutan Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin, dan "Kepala depot" sudah terpilih sebelum Anda memilih apa pun: periksa peran sebelum menekan "Kirim undangan". |
 | 5 | Pilih "Depot penempatan (opsional)" (bawaan "Tanpa depot"). | Wajib untuk Staf depot dan Kepala depot. |
 | 6 | Untuk selain Pemilik waralaba: isi "Posisi" (wajib), "Tanggal masuk" (bawaan hari ini), "Status kepegawaian" (Training / Percobaan / Tetap; bawaan Percobaan), "Gaji" (Bulanan atau Harian + angka lebih dari 0, wajib). | Bila kosong: "Posisi dan gaji wajib diisi — datanya dipakai membuat kartu karyawan." |
 | 7 | Tekan "Kirim undangan". "Batal" menutup. | Form menutup dan daftar dimuat ulang. Gagal: pesan server atau "Gagal mengundang staf." |
@@ -318,6 +321,9 @@ Penolakan server: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." (contoh:
 - Tautan kuning "Belum ada data karyawan — buatkan" bila akun belum punya kartu karyawan di HR.
 
 **Tidak ada tombol "ubah peran".** Untuk mengubah peran, undang ulang nomor yang sama dengan peran baru. **[V]**
+
+![Gambar 9.4a — Direktori staf akun Head office](assets/screenshots/hq-03-staf.png)
+> *Gambar 9.4a — "Direktori staf" pada akun Head office (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Seluruh akun staf jaringan", tombol "+ Undang staf", penyaring peran (Semua, Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin), dan baris akun dengan inisial, nomor tersamar "08xx-xxxx-xxxx", pemilih depot (untuk Staf depot dan Kepala depot), lencana peran, lencana "Aktif", dan tombol "Nonaktifkan". Catatan kondisi: pada akun Head office tidak ada tombol "Hapus" (hanya tampil bagi Super admin, lihat Bab 10). Nomor telepon pada gambar sudah disamarkan.*
 
 ### 6.5 Impor staf massal (/hq/staff/import)
 
@@ -382,6 +388,9 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 - Super admin memegang kedua hak, tetapi server tetap melarang pengaju menyetujui pengajuannya sendiri. **[V]**
 - Bila Finance membuka halaman ini, kemungkinan tampil layar galat penuh karena halaman memuat ringkasan eksekutif yang butuh hak `dashboard`. **[B][D]** Perlu verifikasi di lingkungan nyata.
 
+![Gambar 9.4b — Pembayaran & payout, kondisi kosong](assets/screenshots/hq-06-pembayaran.png)
+> *Gambar 9.4b — Halaman "Pembayaran & payout", subjudul "Rekonsiliasi lintas depot · 30 hari terakhir" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat empat kartu: Terkumpul "Rp 84.000", Belum settle "Rp 0", Payout tertunda "Rp 0", Refund perlu disetujui "0"; kartu "Belum settle per metode" ("Tidak ada pembayaran belum settle."), "Rilis payout waralaba" ("Tidak ada payout menunggu."), "Rekening tujuan menunggu verifikasi" ("Tidak ada rekening menunggu."; petunjuk "Cocokkan nama dan nomor rekening sebelum memverifikasi…"), "Pengajuan rilis menunggu persetujuan" ("Tidak ada pengajuan menunggu."; petunjuk "Pengaju tidak boleh menyetujui pengajuannya sendiri…"), dan "Penarikan menunggu jawaban bank" dengan dua kelompok "PEMILIK WARALABA" dan "KURIR" (keduanya "Tidak ada penarikan menunggu."). Catatan kondisi: akun Head office, semua daftar kosong; tombol "Ajukan rilis", "Setujui & rilis", "Lunas", dan "Gagal" belum terlihat.*
+
 > **[SCREENSHOT REQUIRED: SS-hq-04 — /hq/payments memperlihatkan kartu "Rilis payout waralaba" (tombol Ajukan rilis) dan "Pengajuan rilis menunggu persetujuan" (tombol Setujui & rilis dan Tolak) pada akun Direktur]**
 > *Gambar 9.4 — Rilis payout dan persetujuan.*
 
@@ -403,6 +412,11 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 **Siapa boleh apa:** Memulai refund (`refundIssue`) = Finance, Manajer, Super admin (tombol "Ajukan refund" di detail pesanan konsol depot). Memutuskan (`refundQueue`) = Finance dan Super admin saja. Head office dan Direktur melihat tombol "Setujui"/"Tolak" tetapi server menolak **[B]**. Pesan bila sudah diputuskan: "This refund is not awaiting approval." (belum ada keputusan baru diperlukan).
 
 **Maker-checker refund [B]:** pemisahan hanya lewat peran. Tidak ada pengecekan "pemohon berbeda dari penyetuju" di kode. Finance memegang kedua hak sehingga dapat memulai lalu menyetujui refund yang sama. **Kendalikan lewat kebiasaan kerja**: Finance tidak menyetujui refund yang ia mulai sendiri; Direktur atau pimpinan meninjau berkala di log audit.
+
+![Gambar 9.6a — Persetujuan refund, antrean kosong](assets/screenshots/hq-05-refund.png)
+> *Gambar 9.6a — "Persetujuan refund" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Di atas Rp 100.000 butuh persetujuan HQ", lencana "0 menunggu", dan pesan "Tidak ada refund menunggu persetujuan." Di bawah kartu ada catatan layar: "Nama depot & nomor pesanan belum ditampilkan (dimiliki layanan lain); nilai, metode, alasan & keputusan sudah nyata." Catatan kondisi: antrean kosong sehingga baris refund, tombol "Setujui"/"Tolak", dan dialog penolakan belum terlihat.*
+
+> **[B] Nomor pesanan dan depot belum tampil.** Catatan di dasar layar menyatakan nama depot dan nomor pesanan belum ditampilkan, sehingga baris "Pesanan {nomor}" pada langkah 1 di atas dapat tampil tanpa nomor itu. Periksa pesanan lewat "Pesanan" sebelum memutuskan **[D]**.
 
 > **[SCREENSHOT REQUIRED: SS-hq-06 — /hq/refunds dengan satu baris refund, dan dialog "Tolak refund ini?" berisi kolom Alasan penolakan]**
 > *Gambar 9.6 — Antrean refund.*
@@ -426,6 +440,9 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 - Cara pelamar diberi tahu keputusan tidak ditemukan di kode (diduga manual lewat WhatsApp). **[K]**
 - Formulir publik pelamar (/waralaba) tidak mengunggah dokumen; cara pelamar menyerahkan bukti belum diketahui. **[K]**
 
+![Gambar 9.7a — Lamaran waralaba, antrean kosong](assets/screenshots/hq-08-aplikasi.png)
+> *Gambar 9.7a — "Lamaran waralaba" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Antrean persetujuan mitra baru · terlama dulu", lencana "0 menunggu", dan pesan "Tidak ada lamaran menunggu." Catatan kondisi: antrean kosong; detail lamaran, checklist "Kelengkapan dokumen", dan tombol "Setujui & provision" belum terlihat.*
+
 > **[SCREENSHOT REQUIRED: SS-hq-07 — /hq/applications/detail dengan checklist "Kelengkapan dokumen", panel "Ubah tahap", tombol "Setujui & provision" dan "Tolak"]**
 > *Gambar 9.7 — Meninjau lamaran waralaba.*
 
@@ -448,6 +465,9 @@ Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang but
 **Aturan empat mata:** Bila penyetuju adalah pengusul sendiri DAN dampak melebihi batas auto-pass depot (bawaan Rp100.000), server menolak: "Usulan ini Anda sendiri yang mengajukan dan nilainya di atas batas auto-pass. Persetujuan harus dari HQ." Usulan tetap menunggu. Keputusan ulang: "This price-override proposal has already been approved or rejected." **[V]** Catatan layar: "Prioritas tertinggi menang saat aturan tumpang tindih."
 
 **Batasan:** Tombol "＋ Aturan baru" membuka /hq/forms/pricing-rule yang butuh hak Manajer atau Super admin; bagi Head office dan Direktur tampil "Khusus HQ". Usulan override dibuat Manajer depot di konsol depot atau lewat impor harga CSV ("Setiap baris menjadi usulan override harga dan tetap menunggu persetujuan HQ — tidak langsung berlaku.").
+
+![Gambar 9.8a — Tata kelola harga, tanpa override menunggu](assets/screenshots/hq-04-harga.png)
+> *Gambar 9.8a — "Tata kelola harga" (Harga jaringan) (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "+ Aturan baru", catatan "Prioritas tertinggi menang saat aturan tumpang tindih.", kartu "Harga dasar jaringan" (enam produk, misalnya "Air Galon 19L (Isi Ulang) AIR-GALON-19L Rp 20.000", masing-masing "0 override"), dan kartu "Override menunggu" berisi "Tidak ada usulan menunggu." Catatan kondisi: tidak ada usulan sehingga harga "Sekarang"/"Usulan" dan tombol "Setujui"/"Tolak" belum terlihat.*
 
 > **[SCREENSHOT REQUIRED: SS-hq-08 — /hq/pricing kartu "Override menunggu" dengan harga Sekarang dan Usulan serta tombol Setujui dan Tolak]**
 > *Gambar 9.8 — Keputusan override harga.*
@@ -493,6 +513,9 @@ Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang but
 | 3 | Pilih "Format": XLSX, CSV, atau PDF. Tekan "Ekspor laporan". | Berkas `pendapatan-{depot atau product atau method}-{dari}_{sampai}.{ext}`; sheet XLSX "Pendapatan". Produk: maksimal 50 teratas. |
 
 **Pesan:** "Tidak ada data pada rentang ini." (toast); untuk kelompok Depot bila sumber tidak lengkap: "Laporan pendapatan per depot belum lengkap: sebagian depot tidak masuk laporan sumbernya, jadi angkanya akan salah. Ekspor ditahan sampai sumbernya utuh." (ekspor ditolak, bukan dipotong); "Gagal membuat berkas." Ekspor manual dari layar ini tidak tercatat di "Log ekspor data". **[D]**
+
+![Gambar 9.14 — Ekspor laporan pendapatan](assets/screenshots/hq-07-ekspor.png)
+> *Gambar 9.14 — "Ekspor laporan pendapatan", subjudul "Pilih rentang, pengelompokan, dan format" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat pilihan rentang "7 hari / 30 hari (terpilih) / Kuartal / Kustom", kolom "Dari" (09/11/2026) dan "Sampai" (10/11/2026) dengan format tanggal mengikuti peramban, "Kelompokkan per" ("Depot" terpilih; "Produk", "Metode"), dan tabel "Pratinjau" kolom Nama / Pesanan / Pendapatan (depot uji bernilai 0). Catatan kondisi: bagian "Format" dan tombol "Ekspor laporan" berada di bawah dan terpotong.*
 
 ### 6.15 Laporan terjadwal dan Log ekspor data (/hq/scheduled-reports, /hq/exports)
 
@@ -863,7 +886,7 @@ Tidak ada data yang berubah ketika server menolak.
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
 | SS-hq-01 | /hq/login langkah 1 dan 2 | Nomor sintetis; kode OTP tidak ditampilkan | Belum diambil |
-| SS-hq-02 | /hq Ringkasan jaringan, tampilan "Utama" | Data sampel | Belum diambil |
+| SS-hq-02 | /hq Ringkasan jaringan, tampilan "Utama" | Data sampel (satu pesanan uji) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-hq-03 | Detail depot dan dialog "Tangguhkan Depot?" | Kode depot sampel terisi | Belum diambil |
 | SS-hq-04 | /hq/payments rilis payout dan pengajuan menunggu | Akun Direktur; data sampel | Belum diambil |
 | SS-hq-05 | /hq/payments "Penarikan menunggu jawaban bank" + konfirmasi | Rekening tersamar | Belum diambil |
@@ -873,6 +896,13 @@ Tidak ada data yang berubah ketika server menolak.
 | SS-hq-09 | /hq/pdp "Menunggu" + dialog hapus akun | Satu permintaan melewati batas | Belum diambil |
 | SS-hq-10 | /dashboard/reports tab harian "Buku ditutup" | Depot sampel | Belum diambil |
 | SS-hq-11 | /dashboard/settings "Batas auto-pass approval" | Cakupan Default jaringan | Belum diambil |
+| SS-hq-12 | /hq/depots Direktori depot | Akun Head office; tombol "+ Onboard depot" | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hq-13 | /hq/staff Direktori staf | Akun Head office; tanpa tombol "Hapus"; nomor tersamar | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hq-14 | /hq/pricing Tata kelola harga | Tanpa override menunggu | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hq-15 | /hq/refunds Persetujuan refund | Antrean kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hq-16 | /hq/payments Pembayaran & payout | Akun Head office; semua daftar kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hq-17 | /hq/reports/export Ekspor laporan | Rentang 30 hari, kelompok Depot | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hq-18 | /hq/applications Lamaran waralaba | Antrean kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 
 Seluruh gambar harus memakai data sintetis; samarkan nomor telepon dan rekening.
 
