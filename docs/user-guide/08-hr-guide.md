@@ -95,13 +95,15 @@ Menu di rel HR (desktop). Di ponsel, 3 tab pertama tampil di bilah bawah; sisany
 
 > **[B]** Label string untuk pintu "Konsol HQ" di rel HR belum ditemukan di kamus; kemungkinan hilang. **[D]**
 
-> **[SCREENSHOT REQUIRED: SS-hr-01 — Rel menu konsol HR lengkap (22 item) saat masuk sebagai HR, dengan "Dashboard" aktif]**
+> **[SCREENSHOT REQUIRED: SS-hr-01 — Rel menu konsol HR lengkap (21 item bagi HR; no. 12 tidak tampil) saat masuk sebagai HR, dengan "Dashboard" aktif, termasuk dua item paling bawah]**
 > *Gambar 8.1 — Menu konsol HR.*
 
-**Dashboard HR** (`/hr`, "HR Dashboard", subjudul "Periode {YYYY-MM}"): kartu "Total Karyawan", "Payroll (net)", "Run Payroll" (jumlah slip), "Hadir Hari Ini"; "Komposisi Karyawan Aktif"; "Absensi Hari Ini ({tanggal})"; "Payroll {periode}" (Gross/Bonus/Potongan/Net); "Dokumen Kedaluwarsa & Akan Habis (30 hari)" ("Sudah lewat" / "{n} hari lagi"; kosong "Tidak ada dokumen yang perlu diperpanjang."); "Kontrak & Masa Percobaan yang Berakhir (30 hari)" ("Sudah berakhir"); tautan "Kelola Karyawan →", "Jalankan Payroll →", "Unduh Laporan →". Kosong: "Belum ada karyawan" / "Tambahkan karyawan pertama di menu Karyawan." **[V]**
+**Dashboard HR** (`/hr`, "HR Dashboard", subjudul "Periode {YYYY-MM}"): kartu "Total Karyawan", "Payroll (net)", "Run Payroll" (jumlah slip), "Hadir Hari Ini"; "Komposisi Karyawan Aktif"; "Absensi Hari Ini ({tanggal})"; "Payroll {periode}" (Gross/Bonus/Potongan/Net); "Dokumen Kedaluwarsa & Akan Habis (30 hari)" ("Sudah lewat" / "{n} hari lagi"; **bagian ini disembunyikan seluruhnya bila tidak ada dokumen**, bukan menampilkan pesan kosong — terlihat pada Gambar 8.2 dan sesuai kode `apps/web/src/app/hr/page.tsx`; teks kamus "Tidak ada dokumen yang perlu diperpanjang." tidak dipakai di halaman); "Kontrak & Masa Percobaan yang Berakhir (30 hari)" ("Sudah berakhir"; juga disembunyikan bila kosong); tautan "Kelola Karyawan →", "Jalankan Payroll →", "Unduh Laporan →". Kosong: "Belum ada karyawan" / "Tambahkan karyawan pertama di menu Karyawan." **[V]**
 
-> **[SCREENSHOT REQUIRED: SS-hr-02 — "HR Dashboard" dengan kartu angka, komposisi karyawan, dan daftar dokumen kedaluwarsa (data sintetis)]**
-> *Gambar 8.2 — Dashboard HR.*
+![Gambar 8.2 — Dashboard HR dan rel menu](assets/screenshots/hr-01-beranda.png)
+> *Gambar 8.2 — "HR Dashboard", subjudul "Periode 2026-10" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat kartu "Total Karyawan 24", "Payroll (net) Rp 0", "Run Payroll 0", "Hadir Hari Ini 0"; "Komposisi Karyawan Aktif" ("Training: 1", "Tetap: 23"); "Absensi Hari Ini (2026-10-11)" dan "Payroll 2026-10" (Gross/Bonus/Potongan/Net semuanya Rp 0), keduanya "Belum ada data."; serta tautan "Kelola Karyawan →", "Jalankan Payroll →", "Unduh Laporan →". Catatan kondisi yang berbeda dari deskripsi: bagian dokumen kedaluwarsa dan kontrak berakhir tidak tampil karena tidak ada datanya. Rel menu kiri (judul "HR", "Dashboard" aktif) terlihat dari Dashboard sampai "Konfigurasi Gaji"; item di bawahnya terpotong. Pada rel ini tidak ada "Permintaan pinjam karyawan", sesuai tabel di atas.*
+
+> **[B] Jumlah item rel HR.** Karena menu no. 12 ("Permintaan pinjam karyawan") tidak tampil untuk HR, rel HR berisi 21 item, bukan 22, dan urutannya pada Gambar 8.2 sama dengan tabel (kecuali no. 12). Dua item terakhir ("Log Audit", "Data saya") belum terlihat pada gambar karena terpotong.
 
 ---
 
@@ -149,8 +151,8 @@ Menu di rel HR (desktop). Di ponsel, 3 tab pertama tampil di bilah bawah; sisany
 | Depot penempatan | * (kecuali jabatan Asisten Supervisor, Supervisor, Manager) | Placeholder "Pilih depot…". Staf Depot dan Kepala Depot wajib terikat satu depot. |
 | Tanggal masuk | * | |
 | Jabatan (peran login) | * | Placeholder "Pilih jabatan…". Pilihan: Staf Depot / Kurir, Kepala Depot, Asisten Supervisor, Supervisor, Manager. |
-| Status kepegawaian | | Training / Percobaan / Tetap |
-| Tipe gaji | | Harian / Bulanan |
+| Status kepegawaian | | Training / Percobaan / Tetap (bawaan terlihat pada formulir kosong: "Training") |
+| Tipe gaji | | Harian / Bulanan (bawaan terlihat: "Harian", sehingga kolom bernama "Gaji harian (Rp)") |
 | Gaji harian (Rp) atau Gaji bulanan (Rp) | * sesuai tipe | harus lebih dari 0 |
 | Nama bank (opsional), No. rekening (opsional) | | |
 | Kontak darurat (opsional), No. kontak darurat (opsional) | | |
@@ -210,6 +212,12 @@ Kolom "Tanggal keluar (kosongkan bila masih bekerja)" dan "Status" (Aktif/Nonakt
 - [ ] Gaji sesuai tipe.
 - [ ] NIK 16 angka bila diisi.
 
+![Gambar 8.2a — Daftar Karyawan](assets/screenshots/hr-02-karyawan.png)
+> *Gambar 8.2a — Daftar "Karyawan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "24 karyawan", kolom pencarian "Cari nama / kode / posisi…", filter "Semua status" dan "Semua departemen", tombol "Import Excel" dan "+ Tambah", serta baris karyawan sintetis (misalnya "HR-0024 · Staf · Tetap · Belum diatur", lencana "Aktif"). Catatan kondisi: berisi 24 akun uji hasil seed; semua departemen "Belum diatur".*
+
+![Gambar 8.3a — Formulir Tambah Karyawan, kosong](assets/screenshots/hr-03-karyawan-baru.png)
+> *Gambar 8.3a — Formulir "Tambah Karyawan" belum diisi (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Kode HR-#### dibuat otomatis", kolom Nama lengkap, Posisi, No. HP, Email (opsional), Depot penempatan ("Pilih depot…"), Tanggal masuk, Jabatan (peran login) ("Pilih jabatan…"), Status kepegawaian (terpilih "Training"), Tipe gaji (terpilih "Harian"), Gaji harian (Rp), Nama bank, No. rekening, Kontak darurat, No. kontak darurat, Departemen (opsional) (nonaktif, "Pilih depot dulu…"), NPWP; kolom BPJS terpotong di tepi bawah. Catatan kondisi: formulir kosong; dropdown "Jabatan" belum dibuka sehingga lima pilihan belum terlihat.*
+
 > **[SCREENSHOT REQUIRED: SS-hr-03 — Formulir "Tambah Karyawan" terisi (data sintetis), dropdown "Jabatan (peran login)" terbuka menampilkan lima pilihan]**
 > *Gambar 8.3 — Formulir karyawan baru.*
 
@@ -228,7 +236,7 @@ Halaman detail karyawan (dapat dibaca `hrView`) menampilkan: No. HP, Email, Depa
 
 | Langkah | Tindakan pengguna | Respons sistem |
 |---|---|---|
-| 1 | Buka daftar "Karyawan"; cari dengan "Cari nama / kode / posisi…" dan filter "Semua status", "Semua departemen". | Daftar 100 per halaman; filter tersimpan di alamat. Kosong: "Tidak ada karyawan." |
+| 1 | Buka daftar "Karyawan"; cari dengan "Cari nama / kode / posisi…" dan filter "Semua status", "Semua departemen". | Daftar 100 per halaman; filter tersimpan di alamat. Kosong: "Tidak ada karyawan." Subjudul menampilkan "{n} karyawan"; tombol "Import Excel" dan "+ Tambah" ada di kanan atas. Tiap baris: nama, lalu "{kode} · {posisi} · {status kepegawaian} · {departemen}" dan lencana "Aktif". "Belum diatur" pada baris berarti departemen belum diisi **[D]** (terlihat pada Gambar 8.2a). |
 | 2 | Pilih karyawan, tekan "Edit". | Formulir terisi. |
 | 3 | Ubah kolom yang perlu. | |
 | 4 | Tekan "Simpan Perubahan". | Toast "Karyawan diperbarui". Gagal: "Gagal menyimpan." |
@@ -522,6 +530,9 @@ Hari libur dan libur mingguan dikeluarkan dari hari kerja cuti dan hitungan abse
 
 **Impor saldo cuti** (tombol "Import Saldo Cuti" → `/hr/leave/balances-import`, "Import Saldo Cuti Awal"): kolom employeeCode*, year* (2000–2100), quotaDays* (0–365), usedDays (0–365, tidak boleh melebihi quotaDays: "usedDays tidak boleh melebihi quotaDays"). Tahun yang sudah ada ditimpa dan dilaporkan "diperbarui". Maks 500 baris.
 
+![Gambar 8.8a — Pengajuan Cuti, antrean kosong](assets/screenshots/hr-04-cuti.png)
+> *Gambar 8.8a — Halaman "Pengajuan Cuti" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti.", tombol "Import Saldo Cuti" dan "Ajukan cuti untuk karyawan", penyaring status yang sudah terpilih "Menunggu atasan" (bawaan), dan pesan "Tidak ada pengajuan." Catatan kondisi: tidak ada data cuti pada lingkungan uji sehingga baris pengajuan dan tombol "Setujui"/"Tolak" belum terlihat.*
+
 > **[SCREENSHOT REQUIRED: SS-hr-08 — Halaman "Pengajuan Cuti" penyaring "Menunggu atasan" dengan baris pengajuan dan tombol "Setujui"/"Tolak"]**
 > *Gambar 8.8 — Antrean cuti.*
 
@@ -663,8 +674,10 @@ Kolom: employeeCode*, periodMonth* (YYYY-MM), gross* (bulat), totalBonus, totalD
 - [ ] Transfer bank selesai, baru "Tandai Dibayar".
 - [ ] Cek laporan beban BPJS perusahaan (Prosedur 6.17).
 
-> **[SCREENSHOT REQUIRED: SS-hr-09 — Daftar "Payroll" dengan penyaring periode dan kartu batch "Buat sedepot" (data sintetis)]**
-> *Gambar 8.9 — Daftar dan pembuatan payroll.*
+![Gambar 8.9 — Daftar dan pembuatan payroll](assets/screenshots/hr-05-penggajian.png)
+> *Gambar 8.9 — Halaman "Payroll", subjudul "Periode 2026-10" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "Import Riwayat Slip Gaji"; kartu penyaring "Periode" (kolom bulan, tampil "October 2026" mengikuti bahasa peramban), "Karyawan (opsional)" (petunjuk "Semua karyawan"), "Status" ("Semua status") dan tombol "Generate"; kartu batch "Depot" ("Pilih depot") dengan tombol "Buat sedepot" dan petunjuk "Menulis DRAFT untuk setiap karyawan aktif di depot itu. Menyetujui dan membayar tetap manual, satu per satu."; serta pesan "Belum ada payroll periode ini." Catatan kondisi: daftar slip kosong pada lingkungan uji.*
+
+> **[B] Periode bawaan = bulan berjalan.** Pada gambar, "Periode" terisi bulan berjalan (2026-10), padahal slip hanya dapat dibuat untuk bulan yang sudah berakhir. Memilih "Generate" untuk periode itu diperkirakan ditolak dengan "Periode {YYYY-MM} belum selesai…" **[D]** (belum dicoba). Ganti "Periode" ke bulan lalu sebelum menghasilkan slip.
 
 > **[SCREENSHOT REQUIRED: SS-hr-10 — Detail slip gaji berstatus Draft: baris komponen, "Gaji Bersih (Net)", tombol "Hitung ulang" dan "Setujui"]**
 > *Gambar 8.10 — Slip gaji Draft.*
@@ -1035,19 +1048,22 @@ Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-hr-01 | Rel menu konsol HR | 22 item, masuk sebagai HR | Belum diambil |
-| SS-hr-02 | HR Dashboard | Kartu angka + dokumen kedaluwarsa | Belum diambil |
+| SS-hr-01 | Rel menu konsol HR | 21 item bagi HR, masuk sebagai HR (rel terlihat sebagian pada SS-hr-02) | Belum diambil |
+| SS-hr-02 | HR Dashboard | Kartu angka + dokumen kedaluwarsa (pada tangkapan: tanpa dokumen kedaluwarsa, bagian disembunyikan; rel menu ikut terlihat) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-hr-03 | Formulir "Tambah Karyawan" | Dropdown jabatan terbuka | Belum diambil |
 | SS-hr-04 | Peringatan nomor sudah dipakai | Kartu kuning + "Ya, gunakan akun itu" | Belum diambil |
 | SS-hr-05 | Impor karyawan | Pratinjau + tombol impor | Belum diambil |
 | SS-hr-06 | Kartu "Enroll Wajah" | Tiga foto + persetujuan | Belum diambil |
 | SS-hr-07 | Absensi | Absen menunggu persetujuan + dialog koreksi | Belum diambil |
 | SS-hr-08 | Pengajuan Cuti | Filter "Menunggu atasan" | Belum diambil |
-| SS-hr-09 | Daftar Payroll | Filter periode + "Buat sedepot" | Belum diambil |
+| SS-hr-09 | Daftar Payroll | Filter periode + "Buat sedepot" (pada tangkapan: daftar kosong) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-hr-10 | Slip gaji Draft | "Hitung ulang" dan "Setujui" | Belum diambil |
 | SS-hr-11 | Konfirmasi "Tandai Dibayar" | Slip Disetujui | Belum diambil |
 | SS-hr-12 | Laporan | Kartu laporan + CSV/Excel/PDF | Belum diambil |
 | SS-hr-13 | Penugasan lintas depot | Baris Diajukan (fitur aktif) | Belum diambil |
+| SS-hr-14 | Daftar "Karyawan" (`/hr/employees`) | 24 karyawan seed | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hr-15 | Formulir "Tambah Karyawan" (`/hr/employees/new`) | Kosong, dropdown tertutup | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hr-16 | "Pengajuan Cuti" (`/hr/leave`) | Penyaring "Menunggu atasan", daftar kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 
 ## 15. Catatan celah & hal yang perlu dikonfirmasi
 

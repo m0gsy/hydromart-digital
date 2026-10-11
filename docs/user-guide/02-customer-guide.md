@@ -44,7 +44,7 @@ Yang bisa dilakukan **tanpa masuk**: melihat beranda, menelusuri produk, membuka
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Isi **Nomor telepon** (wajib). Awalan +62 sudah ada; ketik misalnya `81234567890`. | Kolom menerima nomor Indonesia. Format `08…`, `62…`, `+62…` juga diterima. |
-| 2 | Isi **Nama lengkap** (opsional, maksimal 120 huruf). | — |
+| 2 | Isi **Nama lengkap** (opsional, maksimal 120 huruf). | — **[B]** Pada uji di lingkungan lokal (2026-10-11), nama yang diketik di `/register` tidak terlihat sesudahnya: halaman Akun menampilkan "—" sebagai nama dan "?" sebagai avatar (Gambar 4.2a). Isi ulang nama lewat **Ubah** di Akun bila perlu. |
 | 3 | Isi **Email** (opsional, harus berformat email, maksimal 160 huruf, belum dipakai akun lain). | — |
 | 4 | Isi **Kode referral** (opsional; tertulis "Punya kode teman?"). | — |
 | 5 | Centang **"Saya menyetujui Kebijakan Privasi dan Ketentuan Layanan Hydromart."** (wajib). Tautan membuka kebijakan di lembar yang tampil di tempat. | Tombol **Kirim kode verifikasi** aktif hanya setelah dicentang. |
@@ -85,12 +85,12 @@ Bila nomor sudah punya akun aktif, Anda dialihkan ke halaman masuk dengan nomor 
 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
-| 1 | Isi **Nomor telepon** ("Nomor yang kamu daftarkan"). | — |
-| 2 | Tekan **Kirim kode**. | Layar verifikasi muncul: "Verifikasi nomormu", "Masukkan kode yang kami kirim ke {nomor}." |
+| 1 | Isi **Nomor telepon**. Pada layar uji terlihat subjudul "Masuk dengan nomor teleponmu — kami kirim kode sekali pakai.", awalan +62, dan contoh isian 81234567890. (Teks "Nomor yang kamu daftarkan" tidak terlihat pada layar uji.) | — |
+| 2 | Tekan **Kirim kode**. | Layar verifikasi muncul: "Verifikasi nomormu", "Masuk ke akunmu. Masukkan kode yang kami kirim ke {nomor}." disertai tautan **Kembali ke masuk**. |
 | 3 | Ketik 6 digit kode dari SMS. | Verifikasi otomatis. Tombol **Verifikasi & lanjut** juga tersedia. |
 | 4 | Tunggu. | Anda masuk dan diarahkan ke halaman tujuan atau toko. |
 
-Hitung mundur "Kode berlaku {m:ss} lagi." menunjukkan sisa waktu (awal 5:00). Setelah habis: "Kode kedaluwarsa. Minta kode baru." **[V]**
+Hitung mundur "Kode berlaku {m:ss} lagi." menunjukkan sisa waktu (awal 5:00; terlihat pada Gambar 4.2). Setelah habis: "Kode kedaluwarsa. Minta kode baru." **[V]** **[B]** Tombol kirim ulang tampil sebagai "Kirim ulang dalam 1d": "d" berarti detik, tetapi singkatannya tidak dijelaskan di layar. Menurut catatan uji, nomor di halaman verifikasi juga tampil tanpa +62 atau 0 (tidak terlihat pada gambar karena disamarkan).
 
 **Masalah umum:**
 
@@ -106,8 +106,11 @@ Bila Anda memasukkan nomor yang belum terdaftar di halaman masuk, sistem menjala
 
 **Hasil akhir:** Anda masuk. **Catatan:** Tidak ada "lupa kata sandi" karena tidak ada kata sandi. **[V]**
 
-> **[SCREENSHOT REQUIRED: SS-customer-02 — Halaman `/verify` dengan kotak kode dan hitung mundur.]**
-> *Gambar 4.2 — Verifikasi kode.*
+![Gambar 4.1a — Halaman masuk](assets/screenshots/umum-01-login.png)
+*Gambar 4.1a — Halaman `/login` (ponsel): "Selamat datang kembali", kolom Nomor telepon kosong dengan awalan +62, tombol "Kirim kode", tautan "Daftar sekarang". Gambar yang sama dengan Gambar 6.1 di Panduan Umum (SS-umum-02). Lingkungan uji lokal, 2026-10-11.*
+
+![Gambar 4.2 — Verifikasi kode](assets/screenshots/umum-02-verify.png)
+*Gambar 4.2 — Halaman `/verify` untuk alur masuk: enam kotak kode (sengaja diburamkan), "Kode berlaku 5:00 lagi.", tombol "Verifikasi & lanjut", dan "Kirim ulang dalam 1d". Nomor tersamar. Ini alur masuk ("Masuk ke akunmu."), bukan alur pendaftaran ("Selesaikan pendaftaran." tidak terlihat di gambar ini). Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
 ### Prosedur: Mengelola profil
 
@@ -118,6 +121,11 @@ Bila Anda memasukkan nomor yang belum terdaftar di halaman masuk, sistem menjala
 | 1 | Buka **Akun** lalu ubah profil. | Formulir profil muncul. |
 | 2 | Ubah **Nama** (maks. 120), **Email** (valid, maks. 160; dapat dikosongkan), **Foto** (maks. 5 MB), **Tanggal lahir** (opsional). | Teks bantu: "Opsional. Dipakai untuk hadiah ulang tahun; bisa dikosongkan kapan saja." |
 | 3 | Simpan. | "Profil diperbarui." |
+
+Pada layar **Akun** tombol untuk membuka formulir ini berlabel **Ubah** (di kartu profil bagian atas). Kartu profil menampilkan nama, avatar, dan tingkat keanggotaan ("Regular member"). **[V]** (tangkapan layar nyata)
+
+![Gambar 4.2a — Halaman Akun](assets/screenshots/customer-10-akun.png)
+*Gambar 4.2a — Halaman `/account` pelanggan baru: kartu profil dengan nama "—", avatar "?", teks "Regular member", dan tombol **Ubah**; kartu "Deposit galon" berisi "Belum ada galon yang Anda pegang."; menu Pesanan, Alamat, Rewards, Voucher kamu, Favorit, Langganan, Ajak teman. Bagian "Data pribadi saya", perangkat, dan persetujuan berada di bawah dan tidak terlihat pada gambar ini. Nama kosong adalah temuan uji (lihat catatan [B] di prosedur pendaftaran). Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
 Kesalahan: "Gagal menyimpan profil." atau "Foto melebihi 5MB." **[V]** Hadiah ulang tahun dijanjikan teks di layar; belum ada kode yang diverifikasi untuk itu. **[D]**
 
@@ -153,12 +161,15 @@ Nomor lama menerima SMS pemberitahuan bahwa nomor akun berubah. **[V]**
 | 3 | Tekan **Gunakan lokasi saya** untuk mengisi titik peta (wajib). | Titik terisi. Tanpa titik: "Titik peta wajib diisi — tekan "Gunakan lokasi saya"." |
 | 4 | Simpan. | Alamat tersimpan. Alamat pertama otomatis menjadi utama. |
 
-Tindakan lain: **Ubah**, **Jadikan utama**, **Hapus** ("Hapus alamat?" / "Alamat "{label}" akan dihapus permanen."). Maksimal 20 alamat; lebih dari itu ditolak dengan pesan Inggris "You can save at most 20 addresses." (artinya: maksimal 20 alamat). **[V][B]** Bila alamat utama dihapus, alamat terbaru menjadi utama.
+Pada daftar alamat (Gambar 4.3a), kartu alamat utama menampilkan lencana **Utama** dan **Tersemat** (ikon pin; artinya belum dikonfirmasi, kemungkinan alamat sudah bertitik peta **[D]**) serta tombol **Ubah** dan **Hapus**; tombol **Jadikan utama** tidak terlihat pada alamat utama. Tindakan lain: **Ubah**, **Jadikan utama**, **Hapus** ("Hapus alamat?" / "Alamat "{label}" akan dihapus permanen."). Maksimal 20 alamat; lebih dari itu ditolak dengan pesan Inggris "You can save at most 20 addresses." (artinya: maksimal 20 alamat). **[V][B]** Bila alamat utama dihapus, alamat terbaru menjadi utama.
 
 Kesalahan lain: "Gagal menyimpan alamat.", "Gagal memperbarui alamat. Coba lagi.", "Lengkapi semua kolom yang wajib diisi.", "Titik peta tidak valid: lintang harus antara -90 dan 90.", "… bujur harus antara -180 dan 180."
 
 > **[SCREENSHOT REQUIRED: SS-customer-03 — Halaman `/addresses` dengan formulir alamat dan tombol "Gunakan lokasi saya".]**
 > *Gambar 4.3 — Buku alamat.*
+
+![Gambar 4.3a — Daftar alamat](assets/screenshots/customer-11-alamat.png)
+*Gambar 4.3a — Halaman `/addresses` ("Alamat saya") berisi satu alamat contoh berlabel "Rumah": penerima "Budi Contoh" (nama contoh sintetis), nomor telepon tersamar, "Jl. Contoh No. 12, RT 03/RW 05, Jakarta Pusat", tombol **Tambah alamat**. Formulir alamat dan tombol "Gunakan lokasi saya" tidak terlihat pada gambar ini, sehingga placeholder Gambar 4.3 dipertahankan. Lingkungan uji lokal, 2026-10-11.*
 
 ### Pengaturan awal lain
 
@@ -215,8 +226,16 @@ Bila depot tutup: "Depot sedang tutup. Pesanan diproses saat depot buka lagi." B
 
 Harga di daftar bisa berupa perkiraan: "Harga perkiraan — harga depot dipakai saat pesanan dibuat". **[V]**
 
-> **[SCREENSHOT REQUIRED: SS-customer-04 — Halaman `/products` dengan kolom pencarian, chip kategori, dan daftar produk.]**
-> *Gambar 6.1 — Katalog produk.*
+![Gambar 6.1 — Katalog produk](assets/screenshots/customer-02-produk.png)
+*Gambar 6.1 — Halaman `/products` pada ponsel: kolom "Cari produk…", chip kategori "Semua", "Air Galon", "Air Kemasan", "Aksesoris", dan kartu produk (mis. "Pompa Galon Manual" Rp 25.000, "Air Gelas 240ml (Dus isi 48)" Rp 22.000) dengan tombol + dan lencana "Member Rp …". Foto produk berupa gambar pengganti (ikon tetes) pada lingkungan uji. Subjudul yang terlihat berbunyi "Galon isi ulang dan air botol, diantar dari depot terdekat." tanpa nama depot dan jarak, dan judul "Pesan air" tidak terlihat di bagian atas gambar. Lingkungan uji lokal, data sintetis, 2026-10-11.*
+
+**[D][K]** Lencana "Member Rp 24.500" (sekitar 2% di bawah harga Rp 25.000) tampil pada akun berstatus REGULAR, padahal tabel tier di bawah menyebut diskon REGULAR 0%. Arti lencana ini belum terkonfirmasi.
+
+![Gambar 6.1a — Beranda pelanggan](assets/screenshots/customer-01-beranda.png)
+*Gambar 6.1a — Beranda `/` setelah masuk: pemilih "Pilih lokasi pengiriman", lonceng, keranjang berlencana jumlah, judul "Air minum, diantar ke rumah.", kolom pencarian "Cari galon, boto…" dengan tombol **Cari**, chip kategori, daftar "Kategori" (Air Galon, Air Kemasan), dan bilah bawah Beranda, Belanja, Pesanan, Akun. Teks "kurir antar hari ini juga" tertulis tetap di layar dan tidak dijamin sistem **[D]**. Ini beranda setelah masuk, bukan tampilan tamu. Lingkungan uji lokal, 2026-10-11.*
+
+![Gambar 6.1b — Detail produk](assets/screenshots/customer-03-detail-produk.png)
+*Gambar 6.1b — Detail produk "Air Galon 19L (Isi Ulang)": jejak "Belanja > Air Galon", keterangan "per Galon 19L · SKU AIR-GALON-19L", pemilih jumlah (1), tombol **Tambah ke keranjang — Rp 20.000**, dan ikon hati (favorit). Harga, "Dikirim dari {depot}", status depot, dan "Sering dibeli bersama" tidak terlihat pada gambar (tertutup bilah bawah atau di bawah layar). Lingkungan uji lokal, 2026-10-11.*
 
 ### Prosedur: Memasukkan ke keranjang
 
@@ -240,6 +259,11 @@ Hal yang perlu dipahami di keranjang:
 
 Kesalahan: "Gagal menambah ke keranjang." **[V]**
 
+![Gambar 6.1c — Keranjang](assets/screenshots/customer-04-keranjang.png)
+*Gambar 6.1c — Halaman `/cart` ("Keranjang"): satu baris "Air Galon 19L (Isi Ulang)" Rp 20.000, jumlah 4 (Rp 80.000), ikon hapus, tautan **Kosongkan keranjang** dan **Lanjut belanja**, bilah bawah "Ringkasan Rp 80.000" dan tombol **Checkout**. Rincian ringkasan (Subtotal, Estimasi total) tertutup pada gambar. Lingkungan uji lokal, 2026-10-11.*
+
+**[B]** Pada uji, jumlah di keranjang menjadi 4 galon setelah penambahan berulang pada dua sesi (catatan temuan runtime: penambahan dari halaman detail bersifat menambah jumlah di sisi server). Periksa jumlah di keranjang sebelum **Checkout**.
+
 ### Prosedur: Checkout (membuat pesanan)
 
 **Tujuan:** Mengubah keranjang menjadi pesanan. **Peran:** Pelanggan. **Prasyarat:** Sudah masuk; keranjang berisi; alamat dengan titik lokasi atau depot yang dipilih. **Titik awal:** **Checkout** di keranjang (`/checkout`).
@@ -249,10 +273,10 @@ Kesalahan: "Gagal menambah ke keranjang." **[V]**
 | 1 | Di **Alamat pengiriman**, pilih alamat tersimpan atau **+ Alamat baru**. Alamat baru: **Nama penerima**, **Telepon**, **Alamat** ("Jalan, nomor, RT/RW"), **Kota** (semuanya wajib), titik lokasi lewat **Gunakan lokasi saya**, dan opsional **Catatan untuk kurir**. Centang **Simpan alamat ini ke buku alamat** dan isi **Label alamat** bila mau. | Bila ada yang kurang: "Lengkapi alamat pengiriman dulu." |
 | 2 | Bila alamat tidak punya titik peta, pilih **Pilih depot pengantar**. | Wajib bila tanpa titik: "Pilih depot dulu untuk melanjutkan." |
 | 3 | Pilih **Waktu pengiriman**: **Antar sekarang** atau **Atau jadwalkan**. Antar sekarang menampilkan "Estimasi {min}–{maks} menit" dan biaya tambahan (bawaan Rp5.000, bisa berbeda per depot **[K]**). Jadwal: pilih tanggal (Hari ini, Besok, dan dua hari berikutnya) lalu jam; bawaan 09.00-11.00, 11.00-13.00, 13.00-15.00, 15.00-17.00, 17.00-19.00 (bisa berbeda per depot **[K]**). | Antar sekarang tidak tersedia saat depot tutup atau istirahat: "Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa." |
-| 4 | Pilih **Metode pembayaran** (lihat prosedur Pembayaran). | Metode yang tidak tersedia di depot diganti otomatis dengan pesan "Metode bayar diganti — periksa sebelum memesan." |
+| 4 | Pilih **Metode pembayaran** (lihat prosedur Pembayaran). Baris ini membuka lembar "Metode pembayaran" dengan tombol **Selesai** (Gambar 6.2a). | Metode yang tidak tersedia di depot diganti otomatis dengan pesan "Metode bayar diganti — periksa sebelum memesan." |
 | 5 | (Opsional) Isi **Voucher** lalu **Terapkan**, atau pilih dari "Bisa dipakai sekarang". | Potongan harga tampil di ringkasan. |
 | 6 | Periksa ringkasan: subtotal, diskon, ongkir, total. | "Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih." |
-| 7 | Tekan **Buat pesanan — Rp…**. | Pesanan dibuat dan Anda dibawa ke rincian pesanan. |
+| 7 | Tekan **Buat pesanan**. Total tampil di sisi kiri bilah bawah ("Ringkasan pesanan", mis. Rp 84.000); tombolnya sendiri berlabel "Buat pesanan" tanpa angka. | Pesanan dibuat dan Anda dibawa ke rincian pesanan. |
 
 **Cara mengenali sukses:** banner "Pesanan berhasil dibuat!" dan "Depot sedang menyiapkan pesananmu. Kami kabari saat kurir berangkat." Halaman juga menampilkan "Estimasi tiba ±30–45 menit". Itu teks tetap, bukan hitungan sistem. **[B]** Aplikasi bisa meminta izin notifikasi setelah pesanan pertama.
 
@@ -302,11 +326,16 @@ Pesan Inggris di atas ditampilkan apa adanya dari server. **[B]** Tombol checkou
 - [ ] Metode bayar sesuai
 - [ ] Total diperiksa
 
-> **[SCREENSHOT REQUIRED: SS-customer-05 — Halaman `/checkout` lengkap: Alamat pengiriman, Waktu pengiriman, Metode pembayaran, Voucher, tombol "Buat pesanan".]**
-> *Gambar 6.2 — Checkout.*
+![Gambar 6.2 — Checkout](assets/screenshots/customer-05-checkout.png)
+*Gambar 6.2 — Halaman `/checkout`: empat baris berpanah — "Alamat pengiriman" (Rumah · Jl. Contoh No. 12, RT 03/RW 05), "Waktu pengiriman" (Secepatnya), "Metode pembayaran" (Bayar di tempat (COD)), "Voucher" (kosong) — dan bilah bawah "Ringkasan pesanan Rp 84.000" dengan tombol **Buat pesanan**. Layar dalam keadaan ringkas; rincian tiap baris tidak terlihat. Total Rp 84.000 = barang Rp 80.000 + ongkir Rp 4.000 (angka ini terlihat pada rincian pesanan, Gambar 6.5). Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
-> **[SCREENSHOT REQUIRED: SS-customer-06 — Banner "Pesanan berhasil dibuat!" di rincian pesanan.]**
-> *Gambar 6.3 — Pesanan berhasil dibuat.*
+![Gambar 6.2a — Lembar metode pembayaran](assets/screenshots/customer-05b-checkout-pembayaran.png)
+*Gambar 6.2a — Lembar "Metode pembayaran" di checkout: **Bayar di tempat (COD)** ("Bayar ke kurir saat pesanan tiba.", terpilih), **Transfer bank** ("Transfer manual, dikonfirmasi oleh depot."), **E-wallet** ("GoPay, OVO, DANA, dan lainnya."), **Virtual account** ("Bayar ke nomor rekening sekali pakai."), dan tombol **Selesai**. Opsi **QRIS** tidak tampil pada depot uji ini. Lingkungan uji lokal, 2026-10-11.*
+
+**[K]** Daftar metode bergantung pada depot. Pada depot uji, E-wallet dan Virtual account tampil sebagai pilihan dan QRIS tidak; ini tidak membuktikan ketersediaan di produksi.
+
+![Gambar 6.3 — Pesanan berhasil dibuat](assets/screenshots/customer-06-pesanan-dibuat.png)
+*Gambar 6.3 — Rincian pesanan sesaat setelah **Buat pesanan**: banner "Pesanan berhasil dibuat!" dengan "Depot sedang menyiapkan pesananmu. Kami kabari saat kurir berangkat.", "Estimasi tiba ±30–45 menit" (teks tetap), nomor pesanan #HM-20261011-1000000, "Dipesan 11 Okt 2026, 10.47 · 1 item · Total Rp 84.000", chip status **Dipesan**, tombol **Bagikan link lacak**, bilah kemajuan (Dipesan, Disiapkan, Diambil, Diantar, Tiba), banner "Pesananmu sedang diproses", daftar Item (4× Air Galon 19L (Isi Ulang) Rp 80.000), dan tombol **Pesan lagi**. "1 item" tampaknya menghitung baris produk, bukan jumlah galon **[D]**. Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
 ### Prosedur: Memakai voucher dan poin
 
@@ -414,8 +443,13 @@ Pengantaran bisa dijadwalkan ulang oleh depot; status kembali ke Disiapkan dan A
 
 Kartu "sedang diantar" di beranda tampil untuk semua pesanan terbuka, termasuk yang baru dibuat. **[B]** Peta kurir langsung: Tidak tersedia (lihat bagian 15).
 
-> **[SCREENSHOT REQUIRED: SS-customer-08 — Rincian pesanan dengan bilah kemajuan dan kartu kurir.]**
-> *Gambar 6.5 — Pelacakan pesanan.*
+![Gambar 6.5 — Pelacakan pesanan](assets/screenshots/customer-08-detail-pesanan.png)
+*Gambar 6.5 — Rincian pesanan dalam status **Selesai**: bilah kemajuan penuh (Dipesan, Disiapkan, Diambil, Diantar, Tiba), kartu kurir "Staf Depot Satu" dengan teks "Pesanan selesai — terima kasih!" dan tombol telepon, lalu Item, Subtotal Rp 80.000, Ongkir Rp 4.000, Total Rp 84.000. Kondisi berbeda dari keterangan placeholder: gambar menunjukkan pesanan yang sudah selesai, bukan sedang diantar. Nama kurir adalah data contoh sintetis. Lingkungan uji lokal, 2026-10-11.*
+
+![Gambar 6.5a — Lacak pesanan lewat tautan publik](assets/screenshots/customer-09-lacak.png)
+*Gambar 6.5a — Halaman `/track` (tanpa masuk) untuk pesanan selesai: judul "Lacak Pesanan", nomor HM-20261011-1000000, status "Completed", kota "Jakarta Pusat", dan "Riwayat status": Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed (dengan jam). Token pada tautan tidak terlihat di gambar. Lingkungan uji lokal, data sintetis, 2026-10-11.*
+
+**[B]** Terkonfirmasi pada uji: seluruh label status di `/track` berbahasa Inggris, sedangkan rincian pesanan (Gambar 6.5) berbahasa Indonesia. Arti: Order placed = Dipesan, Confirmed = Dikonfirmasi, Preparing = Disiapkan, Driver assigned = Kurir ditugaskan, Picked up = Diambil kurir, On the way = Dalam perjalanan, Delivered = Tiba, Completed = Selesai.
 
 ### Prosedur: Melihat riwayat dan memesan lagi
 
@@ -426,7 +460,10 @@ Kartu "sedang diantar" di beranda tampil untuk semua pesanan terbuka, termasuk y
 | 1 | Buka **Pesanan**; geser untuk halaman berikutnya. | Daftar pesanan dan rel "Beli lagi". |
 | 2 | Buka pesanan, tekan **Pesan lagi**. | Barang yang masih dijual masuk ke keranjang. |
 
-Pesan: "Tidak ada barang pesanan ini yang masih dijual." atau "{n} barang tidak lagi dijual dan tidak ikut ditambahkan." Bonus gratis dari promo tidak ikut ditambahkan. **[V]**
+![Gambar 6.5b — Daftar pesanan](assets/screenshots/customer-07-daftar-pesanan.png)
+*Gambar 6.5b — Halaman `/orders` ("Pesanan"): rel "Beli lagi" dengan tautan **Semua produk** dan satu produk (Air Galon 19L (Isi Ulang)), lalu satu kartu pesanan HM-20261011-1000000, "11 Okt 2026, 10.47", "1 item", chip **Selesai**, Rp 84.000. Lingkungan uji lokal, data sintetis, 2026-10-11.*
+
+Pesan: "Tidak ada barang pesanan ini yang masih dijual. atau "{n} barang tidak lagi dijual dan tidak ikut ditambahkan." Bonus gratis dari promo tidak ikut ditambahkan. **[V]**
 
 ### Prosedur: Menilai pesanan
 
@@ -455,7 +492,10 @@ Satu ulasan per pesanan. Pesan: "Pesanan ini sudah dinilai.", "Pesanan bisa dini
 | 5 | Pilih **Antar ke** (alamat tersimpan). | Alamat harus punya titik peta, kalau tidak: "Alamat ini belum punya titik peta, jadi langganan tidak bisa dijadwalkan. Buka alamat itu dan tekan "Gunakan lokasi saya" dulu." |
 | 6 | Tekan **Mulai langganan**. | "Langganan dibuat." |
 
-Diskon langganan: "Hemat {persen}% tiap pengiriman langganan." (bawaan 5%, berbeda per depot, maksimal 50%). **[K]** Tiap jadwal, sistem membuat pesanan otomatis dengan harga depot dan ongkir per galon, dan Anda menerima notifikasi "Pesanan diterima". Pembayaran pesanan langganan tidak dimulai otomatis; bayar dari rincian pesanan atau lewat tunai. **[D]**
+![Gambar 6.5c — Formulir langganan](assets/screenshots/customer-12-langganan.png)
+*Gambar 6.5c — Halaman `/subscriptions` ("Langganan", "Galon rutin, tanpa perlu ingat"): kolom Produk ("Pilih produk"), Jumlah (2), Pengiriman pertama (10/12/2026), pilihan Frekuensi (Mingguan terpilih; 2 minggu; Bulanan), Antar ke (alamat Rumah), teks "Langganan menyimpan alamatnya sendiri, jadi mengubah alamat utama tidak memindahkannya.", "Hemat 5% tiap pengiriman langganan.", dan tombol **Mulai langganan** yang tampak nonaktif karena produk belum dipilih **[D]**. Hanya formulir pembuatan yang terlihat; belum ada langganan tersimpan pada akun uji. Format tanggal mengikuti browser uji (10/12/2026 dibaca 12 Okt 2026, besok **[D]**). Lingkungan uji lokal, 2026-10-11.*
+
+Diskon langganan: "Hemat {persen}% tiap pengiriman langganan. (bawaan 5%, berbeda per depot, maksimal 50%). **[K]** Tiap jadwal, sistem membuat pesanan otomatis dengan harga depot dan ongkir per galon, dan Anda menerima notifikasi "Pesanan diterima". Pembayaran pesanan langganan tidak dimulai otomatis; bayar dari rincian pesanan atau lewat tunai. **[D]**
 
 Tindakan: **Jeda**, **Lanjutkan**, **Batalkan** ("Batalkan langganan ini?"; tidak bisa dibuka kembali), **Ganti alamat**. Setelah dibatalkan, langganan tidak bisa diubah: "A cancelled subscription can no longer be changed." (arti: langganan yang dibatalkan tidak bisa diubah lagi). **[V]** Bila tiga pembuatan pesanan berturut-turut gagal, langganan dijeda otomatis dan Anda diberi tahu; tidak ada tagihan saat dijeda. **[V]**
 
@@ -488,6 +528,9 @@ Poin diberikan setelah pesanan pertama teman selesai: pengundang 500 poin dan te
 | 3 | Pilih depot di "Ambil hadiah di mana?". | "{nama} berhasil ditukar!" Penukaran muncul di "Penukaran saya" berstatus "Menunggu diambil" dengan kode. |
 | 4 | Datang ke depot dan tunjukkan kode: "Tunjukkan kode ini ke petugas depot saat mengambil hadiah." | Petugas menyerahkan hadiah; status menjadi "Sudah diambil". |
 | 5 | (Bila batal) Tekan **Batalkan** sebelum diambil. | "Penukaran dibatalkan, poin sudah dikembalikan." |
+
+![Gambar 6.5d — Rewards dan poin](assets/screenshots/customer-13-hadiah.png)
+*Gambar 6.5d — Halaman `/rewards` ("Rewards & poin") akun baru: kartu keanggotaan "REGULAR" dengan "Menuju SILVER 0 / 1.000 poin", kartu "Poin kamu 0 poin" dengan tombol **Tukar poin**, tab **Tukar poin**, **Voucher**, **Riwayat**, daftar hadiah kosong ("Belum ada hadiah yang bisa ditukar saat ini."), dan "Cara kerja poin" ("Belanja, dapat poin — 1 poin setiap Rp 1.000 belanja." dan "Pesan ulang rutin — Bonus poin untuk langganan mingguan."). Saldo 0 berasal dari akun uji baru dan tidak membuktikan perilaku pemberian poin. Aturan bonus langganan mingguan hanya tertulis di layar dan belum diverifikasi **[D]**. Lingkungan uji lokal, 2026-10-11.*
 
 Pembatalan hanya bisa selama belum diserahkan. Setelah diambil muncul pesan "Hadiah ini sudah diambil, jadi penukarannya tidak bisa dibatalkan." Tidak ada batas waktu lain. **[V]**
 
@@ -709,16 +752,30 @@ Untuk pelanggan, kegiatan berkala yang disarankan:
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
 | SS-customer-01 | `/register` | Semua kolom, dua kotak centang | Belum diambil |
-| SS-customer-02 | `/verify` | Kotak kode dan hitung mundur | Belum diambil |
-| SS-customer-03 | `/addresses` | Formulir alamat dengan tombol lokasi | Belum diambil |
-| SS-customer-04 | `/products` | Pencarian, kategori, daftar produk | Belum diambil |
-| SS-customer-05 | `/checkout` | Semua bagian terisi | Belum diambil |
-| SS-customer-06 | Rincian pesanan | Banner "Pesanan berhasil dibuat!" | Belum diambil |
-| SS-customer-07 | Panel pembayaran | Transfer/QRIS dengan unggah bukti | Belum diambil |
-| SS-customer-08 | Rincian pesanan | Bilah kemajuan dan kartu kurir | Belum diambil |
+| SS-customer-02 | `/verify` | Kotak kode dan hitung mundur | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-02-verify.png`; alur masuk, kotak kode diburamkan, nomor disamarkan |
+| SS-customer-03 | `/addresses` | Formulir alamat dengan tombol lokasi | Belum diambil (hanya daftar alamat yang ada: SS-customer-13) |
+| SS-customer-04 | `/products` | Pencarian, kategori, daftar produk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-02-produk.png`; foto produk berupa gambar pengganti |
+| SS-customer-05 | `/checkout` | Semua bagian terisi | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-05-checkout.png`; keadaan ringkas, rincian baris tidak terlihat |
+| SS-customer-06 | Rincian pesanan | Banner "Pesanan berhasil dibuat!" | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-06-pesanan-dibuat.png` |
+| SS-customer-07 | Panel pembayaran | Transfer/QRIS dengan unggah bukti | Belum diambil (pesanan uji memakai COD) |
+| SS-customer-08 | Rincian pesanan | Bilah kemajuan dan kartu kurir | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-08-detail-pesanan.png`; pesanan berstatus Selesai, bukan sedang diantar |
 | SS-customer-09 | `/notifications` | Beberapa notifikasi | Belum diambil |
 | SS-customer-10 | Dialog pembatalan | Empat alasan | Belum diambil |
-| SS-customer-11 | Data pribadi saya | Tombol dan chip status | Belum diambil |
+| SS-customer-11 | Data pribadi saya | Tombol dan chip status | Belum diambil (bagian ini tidak terlihat pada gambar Akun) |
+| SS-customer-12 | `/account` | Halaman Akun, pelanggan baru | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-10-akun.png`; nama "—" dan avatar "?" |
+| SS-customer-13 | `/addresses` | Daftar alamat dengan satu alamat | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-11-alamat.png`; nomor telepon disamarkan, nama contoh "Budi Contoh" |
+| SS-customer-14 | `/` | Beranda setelah masuk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-01-beranda.png` |
+| SS-customer-15 | `/products/detail?id=…` | Detail produk Air Galon 19L | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-03-detail-produk.png` |
+| SS-customer-16 | `/cart` | Keranjang berisi 4 galon | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-04-keranjang.png`; jumlah 4 (bukan 2) akibat penambahan berulang |
+| SS-customer-17 | `/checkout` | Lembar Metode pembayaran terbuka | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-05b-checkout-pembayaran.png`; tanpa opsi QRIS |
+| SS-customer-18 | `/track?token=…` | Pelacakan publik, pesanan selesai | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-09-lacak.png`; token tidak terlihat; label status Inggris |
+| SS-customer-19 | `/orders` | Daftar pesanan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-07-daftar-pesanan.png` |
+| SS-customer-20 | `/subscriptions` | Formulir langganan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-12-langganan.png`; hanya formulir, tanpa langganan tersimpan |
+| SS-customer-21 | `/rewards` | Poin dan hadiah, akun baru | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-13-hadiah.png`; 0 poin, daftar hadiah kosong |
+
+Gambar `umum-01-login.png` (SS-umum-02 di Panduan Umum) juga dipakai sebagai Gambar 4.1a.
+
+Hasil pemeriksaan privasi: seluruh gambar `customer-*` dan `umum-*` yang dipasang diperiksa secara visual. Tidak ditemukan nomor telepon lengkap, kode OTP terbaca, token, surel, kunci, atau nama orang nyata (nomor disamarkan, kotak OTP diburamkan; "Budi Contoh" dan "Staf Depot Satu" adalah data sintetis).
 
 Gunakan akun dan nomor telepon contoh (sintetis) untuk semua tangkapan layar.
 
@@ -746,6 +803,12 @@ Gunakan akun dan nomor telepon contoh (sintetis) untuk semua tangkapan layar.
 | Hadiah ulang tahun | Teks tanggal lahir | Belum ada kode yang diverifikasi | [D] |
 | Masa berlaku poin | "Hangus setelah 12 bulan tanpa aktivitas" | Kode: 12 bulan sejak diperoleh, dan penyapuan otomatis mati secara bawaan | [B][K] |
 | Belanja sebagai tamu | — | Tidak tersedia; masuk wajib untuk keranjang dan checkout | Tidak tersedia |
+| Nama pendaftaran | Formulir `/register` memiliki kolom Nama lengkap | Pada uji 2026-10-11 nama tidak tersimpan/tampil: Akun menampilkan "—" dan avatar "?" | [B] |
+| Label status di `/track` | Rincian pesanan berbahasa Indonesia | `/track` berbahasa Inggris (Completed, Order placed, dst.) | [B] |
+| Hitung mundur kirim ulang | "Kirim ulang dalam {n}d" | Singkatan "d" (detik) tidak dijelaskan | [B] |
+| Jumlah di keranjang | Tombol Tambah ke keranjang | Penambahan berulang menumpuk jumlah (4 galon pada uji) | [B] |
+| Lencana "Member Rp …" di katalog | Tier REGULAR diskon 0% | Lencana tampil pada akun REGULAR dengan potongan sekitar 2% | [D][K] |
+| Metode bayar di checkout | QRIS, e-wallet, virtual account disebut | Depot uji menampilkan COD, Transfer bank, E-wallet, Virtual account; tanpa QRIS | [K] |
 
 ### Hal yang perlu dikonfirmasi (rujuk ke 17-open-questions)
 

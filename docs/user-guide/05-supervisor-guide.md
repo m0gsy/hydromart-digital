@@ -103,8 +103,8 @@ Aturan penting:
 - [ ] Daftar depot di pemilih sesuai wilayah binaan
 - [ ] Layar "Operasi" menampilkan angka, bukan pesan "Khusus staf"
 
-> **[SCREENSHOT REQUIRED: SS-supervisor-01 — Halaman "Operasi" SPV dengan menu kiri terbuka, pemilih depot terbuka menampilkan beberapa depot, dan teks "Peran: SPV" di bagian bawah menu]**
-> *Gambar 5.1 — Menu kiri dan pemilih depot SPV.*
+![Gambar 5.1 — Pemilih depot SPV terbuka](assets/screenshots/supervisor-03-pilih-depot.png)
+> *Gambar 5.1 — Pemilih depot SPV terbuka di atas halaman "Operasi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Semua depot — 23 lokasi · gabungan" (bertanda centang) dan baris depot berformat nama dengan `{kode} · {kota}`, misalnya "Depot Hierarki 4 / HIER-04 · Jakarta". Catatan kondisi: daftar depot terpotong di tepi bawah layar, dan teks "Peran: SPV" di dasar menu tidak tampak pada tangkapan ini. Semua angka Rp 0 karena depot uji belum punya pesanan.*
 
 ### 4.1 Arti "Semua depot" (penting)
 
@@ -190,8 +190,8 @@ Bila sebagian data gagal dimuat, muncul "Sebagian data gagal dimuat{which}. Mena
 
 SPV **tidak** mendapat widget aksi khas Manajer ("Antrean approval", "Stok kritis", "Kurir aktif") **[V]**.
 
-> **[SCREENSHOT REQUIRED: SS-supervisor-02 — Halaman "Operasi" tampilan eksekutif SPV: kartu Pendapatan, SLA tepat waktu, Rata-rata antar, Terlewat / gagal, grafik Tren penjualan, daftar Pelanggan teratas dan Depot teratas]**
-> *Gambar 5.2 — Landing eksekutif SPV.*
+![Gambar 5.2 — Landing eksekutif SPV](assets/screenshots/supervisor-01-ringkasan.png)
+> *Gambar 5.2 — Landing "Operasi" SPV (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat empat kartu: Pendapatan "Rp 0 / 0 pesanan", SLA tepat waktu "0% / 0/0 terkirim", Rata-rata antar "— / ambang 120 mnt", Terlewat / gagal "0 / 0"; serta "Tren penjualan" ("Tidak ada penjualan pada periode ini.") dan "Pelanggan teratas" / "Depot teratas" ("Belum ada pesanan pada periode ini."). Catatan kondisi: seluruh data kosong karena depot uji SPV tidak punya pesanan; pemilih depot menunjukkan "Semua depot / 23 lokasi". Menu kiri tampil sampai "Jadwal shift"; bagian bawah menu terpotong.*
 
 ## 6. Prosedur langkah demi langkah
 
@@ -240,7 +240,7 @@ SPV **tidak** mendapat widget aksi khas Manajer ("Antrean approval", "Stok kriti
 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
-| 1 | Buka "Antrean pesanan" | Daftar pesanan lintas pelanggan pada depot dalam cakupan |
+| 1 | Buka "Antrean pesanan" | Daftar pesanan lintas pelanggan pada depot dalam cakupan, dibagi tab "Perlu ditugaskan", "Diproses", "Dikirim", "Ditutup" (masing-masing dengan jumlah), dan panel "Tugaskan kurir" di kanan (terlihat pada Gambar 5.4a). Bila antrean kosong tampil "Antrean kosong" |
 | 2 | Buka satu pesanan untuk melihat rincian | Panel rincian, termasuk panel pembayaran |
 | 3 | Bila perlu, ubah status pesanan | Status maju; aksi ini memakai kemampuan `orderFulfilment` **[V]** |
 | 4 | Untuk pesanan berstatus menyiapkan (PREPARING), tugaskan kurir | Pengiriman dibuat (kemampuan `tracking`) **[V]** |
@@ -262,6 +262,9 @@ SPV **tidak** mendapat widget aksi khas Manajer ("Antrean approval", "Stok kriti
 **Daftar periksa:**
 - [ ] Pesanan macet sudah ditelusuri sampai ke kurir atau depot
 - [ ] Saya tidak mencoba mengonfirmasi pembayaran; itu tugas Kepala depot, Staff depot, Manajer, atau Finance
+
+![Gambar 5.4a — Antrean pesanan SPV, antrean kosong](assets/screenshots/supervisor-02-pesanan.png)
+> *Gambar 5.4a — "Antrean pesanan" SPV pada "Semua depot" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Semua depot. Pilih satu depot dari switcher untuk memfilter.", empat tab "Perlu ditugaskan · 0", "Diproses · 0", "Dikirim · 0", "Ditutup · 0", pesan "Antrean kosong / Tidak ada pesanan yang menunggu penugasan kurir." dan panel kanan "Tugaskan kurir / Pilih pesanan dari antrean untuk menugaskan kurir." Catatan kondisi: antrean kosong karena depot uji SPV tidak punya pesanan, sehingga rincian pesanan dan panel pembayaran belum dapat ditampilkan.*
 
 > **[SCREENSHOT REQUIRED: SS-supervisor-04 — "Antrean pesanan" dengan satu pesanan terbuka, panel pembayaran tampil tanpa tombol "Konfirmasi lunas" dan tanpa "Ajukan refund"]**
 > *Gambar 5.4 — Rincian pesanan sudut pandang SPV.*
@@ -513,7 +516,7 @@ Beberapa masalah muncul sebagai daftar bertitik merah sekaligus.
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Buka "Absen saya" | Halaman layanan mandiri karyawan |
-| 2 | Lakukan absen wajah dan lokasi | Absen tercatat |
+| 2 | Lakukan absen wajah dan lokasi | Layar "Absensi Wajah" (`/hr/me/check-in`) dengan tab "Check-in" / "Check-out", pratinjau kamera, tombol "Ambil Foto", dan petunjuk "Gerakkan kepala sedikit / kedipkan mata saat mengambil foto." (terlihat pada Gambar 5.9). Absen tercatat setelah foto diambil |
 | 3 | Untuk cuti, ajukan lewat bagian cuti | Pengajuan masuk tahap 1 (Manajer) |
 | 4 | Untuk kasbon, buka `/hr/me/kasbon` ("Kasbon Saya") | Lihat bagian peringatan di bawah |
 
@@ -527,8 +530,8 @@ Beberapa masalah muncul sebagai daftar bertitik merah sekaligus.
 - [ ] Absen dilakukan di dalam jangkauan depot
 - [ ] Kasbon diajukan lewat HR
 
-> **[SCREENSHOT REQUIRED: SS-supervisor-09 — Halaman "Absen saya" SPV menampilkan tombol absen dan status hari ini]**
-> *Gambar 5.9 — HRIS mandiri SPV.*
+![Gambar 5.9 — Layar Absensi Wajah SPV](assets/screenshots/supervisor-04-absen.png)
+> *Gambar 5.9 — Layar "Absensi Wajah" (`/hr/me/check-in`) yang dibuka dari "Absen saya", tampilan ponsel 390x844 (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat teks "Hari ini: depot Depot Hierarki 4", dua tab "Check-in" (aktif) dan "Check-out", tombol "Ambil Foto", dan petunjuk "Gerakkan kepala sedikit / kedipkan mata saat mengambil foto." Catatan kondisi: ini bukan halaman utama "Absen saya" (`/hr/me`), melainkan layar absen wajahnya; pratinjau hijau adalah kamera uji sintetis, bukan wajah asli.*
 
 ---
 
@@ -641,16 +644,17 @@ SPV tidak boleh meminjam hak orang lain dengan membagi akun. Lihat bagian 10.
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-supervisor-01 | Menu kiri dan pemilih depot | Beberapa depot, "Peran: SPV" | Belum diambil |
-| SS-supervisor-02 | Landing "Operasi" eksekutif | Data 30 hari | Belum diambil |
+| SS-supervisor-01 | Menu kiri dan pemilih depot | Beberapa depot, "Peran: SPV" (teks Peran tidak tampak di tangkapan) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-supervisor-02 | Landing "Operasi" eksekutif | Data 30 hari (pada tangkapan: semua kosong/Rp 0) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-supervisor-03 | Laporan L/R | Satu depot terpilih | Belum diambil |
 | SS-supervisor-04 | Rincian pesanan | Tanpa tombol konfirmasi/refund | Belum diambil |
 | SS-supervisor-05 | Insiden | Formulir dan daftar | Belum diambil |
 | SS-supervisor-06 | Sengketa order | Sengketa "Terbuka" | Belum diambil |
 | SS-supervisor-07 | Buku kas | Entri dan dialog koreksi | Belum diambil |
 | SS-supervisor-08 | Permintaan pinjam karyawan | Formulir terisi + riwayat | Belum diambil |
-| SS-supervisor-09 | Absen saya | Hari berjalan | Belum diambil |
+| SS-supervisor-09 | Absen saya | Hari berjalan (pada tangkapan: layar Absensi Wajah `/hr/me/check-in`, kamera uji) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-supervisor-10 | (Lampiran A) Antrean approval Manajer | Satu item PENDING | Belum diambil |
+| SS-supervisor-11 | "Antrean pesanan" (`/dashboard/orders`) | Semua depot, antrean kosong, tab Perlu ditugaskan/Diproses/Dikirim/Ditutup | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 
 ## 15. Catatan celah dan hal yang perlu dikonfirmasi
 

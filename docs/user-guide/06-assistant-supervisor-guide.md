@@ -95,8 +95,8 @@ Konsekuensi penting:
 - [ ] Peran tertulis "Asisten SPV"
 - [ ] Depot di pemilih sesuai depot binaan saya
 
-> **[SCREENSHOT REQUIRED: SS-asisten-supervisor-01 — Menu kiri Asisten SPV dengan pemilih depot terbuka dan teks "Peran: Asisten SPV" di bagian bawah]**
-> *Gambar 6.1 — Menu kiri dan pemilih depot Asisten SPV.*
+![Gambar 6.1 — Pemilih depot Asisten SPV terbuka](assets/screenshots/asisten-supervisor-03-pilih-depot.png)
+> *Gambar 6.1 — Pemilih depot Asisten SPV terbuka di atas halaman "Operasi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Semua depot — 11 lokasi · gabungan" (bertanda centang) dan 11 baris depot berformat nama dengan `{kode} · {kota}`, misalnya "Depot Hierarki 4 / HIER-04 · Jakarta". Catatan kondisi: teks "Peran: Asisten SPV" di dasar menu tidak tampak pada tangkapan ini (di luar bingkai). Semua angka Rp 0 karena depot uji belum punya pesanan.*
 
 ## 5. Tabel perbandingan: Asisten SPV, SPV, dan Manajer
 
@@ -203,8 +203,8 @@ Antrean kasbon ada di `/hr/loans/requests` ("Antrean Kasbon"). **Tidak ada menu 
 
 Konsol `/hr` dapat dibuka karena Asisten SPV memegang `hrView` **[V]**.
 
-> **[SCREENSHOT REQUIRED: SS-asisten-supervisor-02 — Halaman "Operasi" Asisten SPV (tampilan eksekutif) dengan menu kiri: perhatikan tidak ada Insiden, Sengketa, Buku kas, Target]**
-> *Gambar 6.2 — Landing dan menu Asisten SPV.*
+![Gambar 6.2 — Landing dan menu Asisten SPV](assets/screenshots/asisten-supervisor-01-ringkasan.png)
+> *Gambar 6.2 — Landing "Operasi" Asisten SPV (lingkungan uji lokal, data sintetis, 2026-10-11). Menu kiri terlihat berisi Operasi; Antrean pesanan, Live tracking, Inventori, Retur galon, Meteran air, Perkiraan; Absen saya, Jadwal shift; Pelanggan, CRM & follow-up; Laporan L/R, Performa tim. Tidak tampak kelompok "Approval & supervisi" (Insiden, Sengketa order), "Notifikasi ops", "Reseller / Agen", "Target & goals", maupun "Buku kas", sesuai bagian 6.2. Catatan kondisi: menu terpotong di bawah "Performa tim" (item Referensi tidak terlihat); semua kartu kosong (Rp 0, SLA 0%, "ambang 120 mnt") karena depot uji tanpa pesanan; pemilih depot menunjukkan "Semua depot / 11 lokasi".*
 
 ## 7. Prosedur langkah demi langkah
 
@@ -343,7 +343,7 @@ Tidak ada batas atas nominal kasbon di sistem; batas itu masih keputusan bisnis 
 | 1 | Buka "Live tracking" dan pilih pengiriman | Rincian pengiriman |
 | 2 | Tekan "Tarik ke antrean" atau "Batalkan pengiriman" | Kotak alasan ("Alasan menarik pengiriman ini dari kurir?" atau "Alasan membatalkan pengiriman ini?") |
 | 3 | Tulis alasan dan konfirmasi | Pengiriman ditarik atau dibatalkan |
-| 4 | Di "Antrean pesanan", buka pesanan berstatus menyiapkan dan tugaskan kurir lain | Pengiriman baru dibuat |
+| 4 | Di "Antrean pesanan", buka pesanan berstatus menyiapkan dan tugaskan kurir lain | Pengiriman baru dibuat. "Antrean pesanan" memuat tab "Perlu ditugaskan", "Diproses", "Dikirim", "Ditutup" (dengan jumlah) dan panel "Tugaskan kurir" di kanan; bila kosong tampil "Antrean kosong / Tidak ada pesanan yang menunggu penugasan kurir." (Gambar 6.7) |
 
 **Hasil akhir:** Pengiriman kembali bergerak atau dibatalkan dengan alasan tercatat.
 **Izin & batasan:** Aksi ini mengubah data nyata **[V]**. Hubungi Kepala depot terlebih dahulu. Anda tidak dapat mengonfirmasi pembayaran atau mengajukan refund **[V]**.
@@ -374,8 +374,11 @@ Tidak ada batas atas nominal kasbon di sistem; batas itu masih keputusan bisnis 
 - [ ] Absen dilakukan di dalam jangkauan depot
 - [ ] Kasbon pribadi diajukan lewat HR
 
-> **[SCREENSHOT REQUIRED: SS-asisten-supervisor-06 — Halaman "Absen saya" Asisten SPV]**
-> *Gambar 6.6 — HRIS mandiri.*
+![Gambar 6.7 — Antrean pesanan Asisten SPV, antrean kosong](assets/screenshots/asisten-supervisor-02-pesanan.png)
+> *Gambar 6.7 — "Antrean pesanan" Asisten SPV pada "Semua depot" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Semua depot. Pilih satu depot dari switcher untuk memfilter.", tab "Perlu ditugaskan · 0", "Diproses · 0", "Dikirim · 0", "Ditutup · 0", pesan "Antrean kosong", dan panel "Tugaskan kurir". Catatan kondisi: antrean kosong karena depot uji tanpa pesanan.*
+
+![Gambar 6.6 — Layar Absensi Wajah Asisten SPV](assets/screenshots/asisten-supervisor-04-absen.png)
+> *Gambar 6.6 — Layar "Absensi Wajah" (`/hr/me/check-in`) yang dibuka dari "Absen saya", tampilan ponsel 390x844 (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Hari ini: depot Depot Hierarki 4", tab "Check-in" (aktif) dan "Check-out", tombol "Ambil Foto", dan petunjuk "Gerakkan kepala sedikit / kedipkan mata saat mengambil foto." Catatan kondisi: ini layar absen wajah, bukan halaman utama "Absen saya" (`/hr/me`); pratinjau hijau adalah kamera uji sintetis.*
 
 ## 8. Kolom wajib dan aturan validasi (ringkasan)
 
@@ -460,12 +463,13 @@ Tidak ada batas atas nominal kasbon di sistem; batas itu masih keputusan bisnis 
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-asisten-supervisor-01 | Menu kiri dan pemilih depot | "Peran: Asisten SPV" | Belum diambil |
-| SS-asisten-supervisor-02 | Landing "Operasi" dan menu | Tanpa Insiden/Sengketa/Buku kas/Target | Belum diambil |
+| SS-asisten-supervisor-01 | Menu kiri dan pemilih depot | "Peran: Asisten SPV" (teks Peran tidak tampak di tangkapan) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-asisten-supervisor-02 | Landing "Operasi" dan menu | Tanpa Insiden/Sengketa/Buku kas/Target (menu terpotong di bawah) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-asisten-supervisor-03 | Antrean Kasbon | Satu pengajuan menunggu keputusan | Belum diambil |
 | SS-asisten-supervisor-04 | Toast hasil keputusan | "Kasbon disetujui." / "Kasbon ditolak." | Belum diambil |
 | SS-asisten-supervisor-05 | Inventori baca saja | "Hanya lihat" | Belum diambil |
-| SS-asisten-supervisor-06 | Absen saya | Hari berjalan | Belum diambil |
+| SS-asisten-supervisor-07 | "Antrean pesanan" (`/dashboard/orders`) | Semua depot, antrean kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-asisten-supervisor-06 | Absen saya | Hari berjalan (pada tangkapan: layar Absensi Wajah `/hr/me/check-in`, kamera uji) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 
 ## 16. Catatan celah dan hal yang perlu dikonfirmasi
 

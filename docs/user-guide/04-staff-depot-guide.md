@@ -69,7 +69,7 @@ Yang menyiapkan akses: Kantor pusat/Admin membuat akun dan peran; HR menempatkan
 |---|---|---|
 | 1 | Masukkan nomor telepon akun kurir Anda. | Kode sekali pakai dikirim lewat SMS. |
 | 2 | Ketik 6 digit kode di halaman verifikasi. | Otomatis terkirim pada digit ke-6. Hitung mundur "Kode berlaku {m:ss} lagi." |
-| 3 | Pertama kali: baca 4 slide perkenalan. Tombol "Lewati" ada pada slide 1–3. | Slide 1 "Selamat datang, kurir Hydromart!" · 2 "Selalu ambil bukti antar" · 3 "Kelola uang COD dengan rapi" · 4 "Kamu siap jalan!" dengan tombol "Mulai shift · check-in". |
+| 3 | Pertama kali: baca 4 slide perkenalan. Tombol "Lewati" ada pada slide 1–3. | Slide 1 "Selamat datang, kurir Hydromart!" (tombol "Mulai kenalan", keterangan "Langkah 1 dari 4") · 2 "Selalu ambil bukti antar" · 3 "Kelola uang COD dengan rapi" · 4 "Kamu siap jalan!" dengan tombol "Mulai shift · check-in". |
 | 4 | Tekan "Mulai shift · check-in". | Anda menuju layar check-in (6.1). |
 
 Perkenalan hanya tampil sekali per perangkat (disimpan di peramban). **[V]** Aplikasi dirancang untuk layar ponsel selebar sekitar 384 px.
@@ -89,9 +89,13 @@ Perkenalan hanya tampil sekali per perangkat (disimpan di peramban). **[V]** Apl
 > **[SCREENSHOT REQUIRED: SS-staff-depot-01 — Slide perkenalan nomor 4 "Kamu siap jalan!" dengan tombol "Mulai shift · check-in"]**
 > *Gambar 4.1 — Perkenalan kurir.*
 
+![Gambar 4.14 — Perkenalan kurir, slide 1](assets/screenshots/staff-depot-00-onboarding.png)
+
+*Gambar 4.14 — Slide perkenalan nomor 1 (bukan slide 4 seperti pada Gambar 4.1): "Selamat datang, kurir Hydromart!", tombol **Mulai kenalan**, "Langkah 1 dari 4", tautan **Lewati** di kanan atas, dan empat penanda kemajuan. Lingkungan uji lokal, data sintetis. Slide 4 belum tertangkap.*
+
 ### Layar utama dan tab bawah
 
-Navigasi bawah memiliki tiga tab: **Tugas** (`/driver`), **Riwayat** (`/driver/history`), **Profil** (`/driver/profile`). Tab keempat "Dompet" (`/driver/earnings`) dirancang muncul di halaman dompet, tetapi karena halaman dompet menyembunyikan navigasi, tab itu praktis tidak pernah terlihat. Buka dompet lewat **Profil**. **[B]** **[D]**
+Navigasi bawah memiliki tiga tab: **Tugas** (`/driver`), **Riwayat** (`/driver/history`), **Profil** (`/driver/profile`). Tab keempat "Dompet" (`/driver/earnings`) dirancang muncul di halaman dompet, tetapi karena halaman dompet menyembunyikan navigasi, tab itu praktis tidak pernah terlihat. Buka dompet lewat **Profil**. **[B]** **[D]** Pada tangkapan layar uji, layar Tugas, Riwayat, Profil, dan Check-in memang hanya menampilkan tiga tab, sedangkan layar Pendapatan tidak menampilkan navigasi bawah sama sekali (Gambar 4.9).
 
 Spanduk "{n} data belum terkirim" dengan tombol "Kirim sekarang" tampil di semua layar kurir bila ada data tertunda karena sinyal (lihat 6.14).
 
@@ -124,6 +128,10 @@ Spanduk "{n} data belum terkirim" dengan tombol "Kirim sekarang" tampil di semua
 | Absen & slip gaji | `/hr/me` | HRIS mandiri | **[V]** |
 
 **Baris Profil:** "Kendaraan" (Motor/Mobil/"Belum diatur"; diatur HR, tidak bisa diubah di sini), "Depot penempatan" (diatur HR), "Absen & slip gaji", "Performa mingguan", "Pendapatan", "Setoran tunai (COD)", "Klaim pengeluaran", "Pengumuman", "Lapor insiden", "Pengaturan", "Bantuan & FAQ", "Keluar". Footer "Hydromart Kurir · v1.0.0". **[V]**
+
+![Gambar 4.20 — Profil kurir](assets/screenshots/staff-depot-13-profil.png)
+
+*Gambar 4.20 — Layar **Profil** (bagian atas): inisial "SD", nama "Staf Depot Satu", lencana "Aktif", nomor telepon tersamar (08xx-xxxx-xxxx), "Kendaraan — Belum diatur", "Depot penempatan — Depot Cikini" (dengan keterangan "…Diatur oleh HR."), lalu baris "Absen & slip gaji", "Performa mingguan", "Pendapatan", "Setoran tunai (COD)", "Klaim pengeluaran". Baris lain (Pengumuman, Lapor insiden, Pengaturan, Bantuan & FAQ, Keluar, footer) berada di bawah batas tangkapan. Lingkungan uji lokal, data sintetis.*
 
 **Tidak tersedia untuk kurir:** konsol `/dashboard`, pembayaran QRIS/transfer (aplikasi kurir hanya menangani **tunai**), pengisian meteran air lewat aplikasi kurir (hak akses `meterWrite` ada, tetapi tidak ada tautan; halaman `/dashboard/meter` terbuka lewat URL; belum jelas apakah kurir diminta memakainya **[K]**).
 
@@ -178,8 +186,9 @@ Catatan di layar: "Lokasi terekam sebagai bukti mulai shift."
 - [ ] Baterai cukup (>50%).
 - [ ] Status "Online" setelah check-in.
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-02 — Layar check-in: daftar periksa dan tombol "Mulai shift · check-in"]**
-> *Gambar 4.2 — Check-in shift.*
+![Gambar 4.2 — Check-in shift](assets/screenshots/staff-depot-02-check-in.png)
+
+*Gambar 4.2 — Layar check-in shift: "Selamat datang, Staf Depot Satu", tiga baris daftar periksa ("Depot penempatan — Lokasi terverifikasi", "Kendaraan — Kondisi baik · siap jalan", "Baterai HP 100% — Daya cukup untuk shift"), tombol **Mulai shift · check-in**, dan catatan "Lokasi terekam sebagai bukti mulai shift." Navigasi bawah (Tugas, Riwayat, Profil) tetap tampil. Ketiga baris bertanda centang hijau pada layar ini, sesuai catatan **[B]** bahwa dua baris pertama hanya tampilan tetap. Tidak ada baris antrean pesanan karena belum ada pesanan menunggu. Lingkungan uji lokal, data sintetis.*
 
 > **[B] Dua "check-in" yang berbeda.** Check-in shift (layanan pengiriman, radius depot 200 m) **tidak terhubung** ke absen wajah karyawan (layanan HR, geofence hanya bila depot mengaturnya). Anda wajib melakukan keduanya. Mana yang dipakai perusahaan untuk menghitung gaji belum diketahui **[K]**. Absen karyawan memengaruhi gaji; check-in shift memengaruhi penugasan dan jendela setoran. **[V]**
 
@@ -268,11 +277,21 @@ Kosong: "Tidak ada pesanan yang menunggu." Pesan server: "Ambil pesanan sendiri 
 - [ ] Barang cocok dengan rincian pesanan sebelum berangkat.
 - [ ] Nomor telepon penerima terlihat.
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-04 — Layar Tugas dengan satu kartu pengantaran berstatus Ditugaskan dan tombol "Konfirmasi barang diambil"]**
-> *Gambar 4.4 — Daftar tugas.*
+![Gambar 4.4 — Daftar tugas](assets/screenshots/staff-depot-01-beranda-kurir.png)
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-05 — Detail pengantaran berstatus Diantar: Navigasi, Telepon, Rincian pesanan, Riwayat status, dan baris tombol Tidak di tempat/Jadwal ulang/Gagal]**
-> *Gambar 4.5 — Detail pengantaran.*
+*Gambar 4.4 — Layar **Tugas** ("Pengantaran saya", "Bertugas di depot"): pil hijau "Online", penghitung AKTIF 1 · SELESAI 0 · TEPAT 0%, baris pintasan "Rute multi-stop — Lihat", dan satu kartu pesanan HM-20261011-1000000 berstatus "Ditugaskan" dengan alamat dan tombol **Konfirmasi barang diambil**. Navigasi bawah: Tugas, Riwayat, Profil. Lingkungan uji lokal, data sintetis.*
+
+![Gambar 4.5 — Detail pengantaran berstatus Diantar](assets/screenshots/staff-depot-05-detail-diantar.png)
+
+*Gambar 4.5 — Detail pengantaran berstatus "Diantar" untuk pesanan COD: **Navigasi** dan **Telepon**, "Patokan: Pagar hijau", "Rincian pesanan" dengan chip "COD Rp 84.000", "Riwayat status" (Ditugaskan, Diambil, Diantar bertanda hijau, Selesai belum), tombol **Sampai tujuan · ambil bukti** yang pudar (nonaktif) di atas tombol **Terima uang Rp 84.000** dengan petunjuk "Terima uangnya dulu — Selesai aktif setelah pembayaran tercatat.", tombol **Retur galon kosong**, serta baris **Tidak di tempat** / **Jadwal ulang** / **Gagal**. Lingkungan uji lokal, data sintetis.*
+
+![Gambar 4.15 — Detail pengantaran berstatus Ditugaskan](assets/screenshots/staff-depot-03-detail-pengantaran.png)
+
+*Gambar 4.15 — Detail pengantaran berstatus "Ditugaskan": tombol utama **Konfirmasi barang diambil**, dan tombol **Jadwal ulang** serta **Gagal** (belum ada **Tidak di tempat**, sesuai aturan bahwa tombol itu hanya muncul saat Diantar). Riwayat status baru "Ditugaskan" yang bertanda hijau.*
+
+![Gambar 4.16 — Detail pengantaran berstatus Diambil](assets/screenshots/staff-depot-04-detail-diambil.png)
+
+*Gambar 4.16 — Detail pengantaran berstatus "Diambil": tombol utama **Mulai antar**, serta **Jadwal ulang** dan **Gagal**. Riwayat status: Ditugaskan dan Diambil bertanda hijau.*
 
 ---
 
@@ -288,7 +307,7 @@ Kosong: "Tidak ada pesanan yang menunggu." Pesan server: "Ambil pesanan sendiri 
 | 2 | Tekan **Terima uang Rp...**. | Layar "Pembayaran tunai (COD)" dengan nomor pesanan dan "Total tagihan". |
 | 3 | Terima uang. Isi **Uang diterima dari pelanggan** (angka saja) atau tekan chip "Uang pas" atau pecahan 50.000/100.000/150.000/200.000 (hanya pecahan yang ≥ total). | "Kembalian" dihitung langsung. |
 | 4 | Tekan **Konfirmasi pembayaran** (aktif bila uang ≥ total). | "Pembayaran diterima" dan "Kembalian yang harus diberikan" Rp. |
-| 5 | Berikan kembalian. Tekan **Lanjut ke bukti serah terima**. | Kembali ke detail; tombol "Uang sudah diterima" dan "Sampai tujuan · ambil bukti" aktif. Tombol "Retur galon kosong" tersedia. |
+| 5 | Berikan kembalian. Tekan **Lanjut ke bukti serah terima**. | Kembali ke detail; tombol "Uang sudah diterima" dan "Sampai tujuan · ambil bukti" aktif. Tombol "Retur galon kosong" tersedia. Catatan: pada tangkapan layar uji, tombol "Retur galon kosong" sudah tampil sejak status Diantar, sebelum uang diterima (Gambar 4.5). |
 
 **Offline:** "Tunai tersimpan di perangkat" — "Tidak ada sinyal. Uang yang Anda terima sudah dicatat di HP dan dikirim otomatis begitu sinyal kembali. Kembaliannya dihitung server setelah itu." **[V]**
 
@@ -308,8 +327,9 @@ Kosong: "Tidak ada pesanan yang menunggu." Pesan server: "Ambil pesanan sendiri 
 - [ ] Uang dihitung di depan pelanggan.
 - [ ] Kembalian benar sesuai layar.
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-06 — Layar Pembayaran tunai (COD): total tagihan, uang diterima, chip pecahan, kembalian]**
-> *Gambar 4.6 — Pembayaran tunai COD.*
+![Gambar 4.6 — Pembayaran tunai COD](assets/screenshots/staff-depot-06-terima-pembayaran.png)
+
+*Gambar 4.6 — Layar "Pembayaran tunai (COD)": "Total tagihan Rp 84.000", kolom "Uang diterima dari pelanggan" berisi 100000, chip **Uang pas**, **100.000**, **150.000**, **200.000** (pecahan 50.000 tidak tampil karena kurang dari total), "Kembalian Rp 16.000", dan tombol **Konfirmasi pembayaran**. Lingkungan uji lokal, data sintetis.*
 
 ---
 
@@ -324,7 +344,7 @@ Kosong: "Tidak ada pesanan yang menunggu." Pesan server: "Ambil pesanan sendiri 
 | 1 | Pada kartu "Bukti pengantaran · {pesanan}" ambil foto: **Foto pengantaran** > **Ambil foto** (atau **Ganti foto**). **Wajib.** | Foto dikompresi. |
 | 2 | Pilih **Kondisi segel galon**: "Segel galon utuh & tidak bocor" atau "Segel rusak". **Wajib memilih salah satu.** | — |
 | 3 | Isi **Nama penerima** (contoh "Budi Santoso"; maks 120). **Wajib.** | — |
-| 4 | (Opsional) minta penerima menandatangani di kotak **Tanda tangan penerima**; **Hapus tanda tangan** untuk mengulang. | Ada catatan privasi UU PDP. |
+| 4 | (Opsional) minta penerima menandatangani di kotak **Tanda tangan penerima** (label di layar memuat kata "opsional"); **Hapus tanda tangan** untuk mengulang. | Ada catatan privasi yang menyebut "Kebijakan Privasi" (tautan): foto bukti disimpan sesuai Kebijakan Privasi, dan dengan menandatangani penerima menyetujui tanda tangan disimpan sesuai kebijakan itu. |
 | 5 | (Opsional) **Catatan (opsional)** (maks 255). | — |
 | 6 | Tekan **Selesaikan pengantaran**. | Aplikasi membaca GPS lalu mengirim. Layar "Pengantaran selesai": Penerima, Waktu, Lokasi GPS, Bukti. |
 | 7 | Tekan **Tugas berikutnya** atau **Kembali ke daftar**. | — |
@@ -339,7 +359,8 @@ Tombol **Batal** menanyakan "Batalkan bukti serah ini? Foto, nama penerima, dan 
 - Jarak lokasi bukti ke alamat selalu diukur. Ditolak hanya bila depot menyalakan `proofRadiusEnforced` (bawaan **mati**) dan jarak melebihi batas (bawaan 500 m): "Bukti antar diambil {m} m dari alamat tujuan (batas {r} m). Pastikan Anda di alamat pelanggan." **[K]**
 - Bukti disimpan lebih dulu, lalu pesanan menjadi Delivered lalu Completed. Upah antar dikirim ke layanan penghasilan.
 - Mengirim ulang bukti yang sudah selesai mengembalikan hasil sukses (tidak error).
-- Bukti disimpan 12 bulan lalu dihapus otomatis sesuai UU PDP.
+- Bukti disimpan selama 12 bulan, lalu dihapus otomatis sesuai UU PDP.
+- **[B]** Pada layar sukses, kalimat ini tertulis "Bukti disimpan 12 bulan lalu dihapus otomatis sesuai kebijakan retensi UU PDP." Tanpa tanda baca, kalimat itu terbaca seolah bukti disimpan "12 bulan yang lalu". Maksudnya (disimpulkan **[D]**): disimpan 12 bulan, lalu dihapus.
 
 **Offline:** bukti masuk antrean; layar sukses menampilkan "Tersimpan di HP, menunggu sinyal" dan spanduk "Tersimpan di HP dan akan dikirim otomatis begitu ada sinyal. Serah-terimanya sudah selesai — jangan diulang." Jangan mengulang pengantaran.
 
@@ -348,8 +369,13 @@ Tombol **Batal** menanyakan "Batalkan bukti serah ini? Foto, nama penerima, dan 
 - [ ] Segel dicek sebelum memilih kondisi.
 - [ ] Nama penerima dieja benar.
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-07 — Kartu "Bukti pengantaran": foto, kondisi segel, nama penerima, kotak tanda tangan, tombol "Selesaikan pengantaran"]**
-> *Gambar 4.7 — Bukti pengantaran.*
+![Gambar 4.7 — Bukti pengantaran](assets/screenshots/staff-depot-07-bukti-pengantaran.png)
+
+*Gambar 4.7 — Kartu "Bukti pengantaran · HM-20261011-1000000" yang sudah terisi: **Foto pengantaran** (tombol berubah menjadi "Ganti foto"; gambar berupa foto contoh sintetis berlabel "Foto contoh (sintetis)"), "Kondisi segel galon" dengan "Segel galon utuh & tidak bocor" terpilih, "Nama penerima" berisi "Budi Contoh" (nama sintetis), "Tanda tangan penerima (opsional)" dengan coretan contoh dan tautan **Hapus tanda tangan**, "Catatan (opsional)", dan tombol **Selesaikan pengantaran**. Tombol **Batal** di kanan atas kartu. Tangkapan layar panjang (seluruh halaman) dari lingkungan uji lokal.*
+
+![Gambar 4.17 — Layar sukses pengantaran](assets/screenshots/staff-depot-08-selesai.png)
+
+*Gambar 4.17 — Layar "Pengantaran selesai": Penerima "Budi Contoh", Waktu "11 Okt 2026, 03.56", Lokasi GPS (koordinat uji), Bukti "Foto & tanda tangan", tombol **Tugas berikutnya** dan **Kembali ke daftar**. Kalimat retensi di bawah kartu tertulis "Bukti disimpan 12 bulan lalu dihapus otomatis sesuai kebijakan retensi UU PDP." (kalimat membingungkan, lihat **[B]** di atas). Data sintetis.*
 
 ---
 
@@ -468,6 +494,10 @@ Nominal deposit dihitung server dari tarif deposit depot. Kata "deposit dikembal
 > **[SCREENSHOT REQUIRED: SS-staff-depot-08 — Layar setoran: "Seharusnya disetor", kolom jumlah, peringatan kurang, tombol "Setor ke kasir"]**
 > *Gambar 4.8 — Setoran tunai akhir shift.*
 
+![Gambar 4.18 — Setoran tunai sebelum check-out](assets/screenshots/staff-depot-09-setoran.png)
+
+*Gambar 4.18 — Layar "Setoran tunai (COD)" ketika shift belum di-check-out: kartu "Tidak ada shift untuk disetor — Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out." dengan tautan **Lihat riwayat setoran** (ikon riwayat juga ada di kanan atas). Ini keadaan yang diuraikan pada langkah 2 prosedur di atas, bukan formulir setoran (Gambar 4.8 belum tertangkap). Lingkungan uji lokal, data sintetis.*
+
 ---
 
 ### 6.12 Penghasilan dan penarikan saldo
@@ -502,9 +532,9 @@ Daftar "Riwayat penarikan" menampilkan 5 terakhir.
 
 **Target shift** (`/driver/goal`): progres pekan ini terhadap target mingguan (bawaan 45 pesanan **[K]**), "Penghasilan bulan ini", "Insentif berjenjang" ("Bonus {nominal} · diterima/kurang {n} antar/terkunci", "Dihitung per bulan berjalan di depotmu").
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-09 — Layar Pendapatan: Saldo tersedia, Bulan ini, tombol Tarik saldo, panel rekening]**
-> *Gambar 4.9 — Pendapatan dan penarikan.*
+![Gambar 4.9 — Pendapatan dan penarikan](assets/screenshots/staff-depot-10-penghasilan.png)
 
+*Gambar 4.9 — Layar "Pendapatan": kartu biru "Saldo tersedia Rp 6.000" dengan "Bulan ini Rp 6.000", baris tautan **Target shift** dan **Setor uang tunai**, tautan **Tarik saldo**, dan "Rincian" dengan satu catatan "Ongkos antar (tepat waktu)" +Rp 6.000 (11 Okt., 03.56) serta tautan **Lihat semua**. Halaman ini tidak memiliki navigasi bawah. Panel rekening tujuan pencairan tidak terlihat pada tangkapan ini (belum dibuka). Nilai uang adalah data uji sintetis, bukan tarif resmi.*
 ---
 
 ### 6.13 Klaim pengeluaran
@@ -550,9 +580,17 @@ Hanya laporan **Darurat** yang diteruskan ke operasional; Ringan dan Sedang hany
 
 **Riwayat** (`/driver/history`): penghitung "Selesai" dan "Gagal", baris nomor pesanan, alamat/alasan gagal, waktu; ketuk untuk detail. Kosong "Belum ada riwayat". Pengantaran Dijadwalkan ulang tidak tampil. **[B]**
 
+![Gambar 4.19 — Riwayat pengantaran](assets/screenshots/staff-depot-12-riwayat.png)
+
+*Gambar 4.19 — Layar **Riwayat**: penghitung "SELESAI 1" (hijau) dan "GAGAL 0" (merah), satu baris pesanan HM-20261011-1000000 dengan ikon centang dan alamat terpotong. Lingkungan uji lokal, data sintetis.*
+
+![Gambar 4.21 — Tugas setelah satu pengantaran selesai](assets/screenshots/staff-depot-14-beranda-setelah-selesai.png)
+
+*Gambar 4.21 — Layar **Tugas** setelah pengantaran selesai: AKTIF 0 · SELESAI 1 · TEPAT 100%, dan keadaan kosong "Belum ada tugas aktif — Tugas baru akan muncul di sini saat admin depot menugaskan pesanan kepada kamu." Lingkungan uji lokal, data sintetis.*
+
 **Performa mingguan** (`/driver/performance`): navigasi pekan, "Peringkat depot minggu ini" (naik/turun), "Antar selesai", "Rating", "Antar per hari", "Tepat waktu (SLA)", "Gagal antar", "Target mingguan".
 
-**Rute multi-stop** (`/driver/route`): urutan stop, jarak, "Mulai rute · stop 1"; kosong "Belum ada rute aktif". Muncul bila Anda punya beberapa pengantaran aktif, yang hanya mungkin jika depot menaikkan batas aktif (bawaan 1). **[D]**
+**Rute multi-stop** (`/driver/route`): urutan stop, jarak, "Mulai rute · stop 1"; kosong "Belum ada rute aktif". Muncul bila Anda punya beberapa pengantaran aktif, yang hanya mungkin jika depot menaikkan batas aktif (bawaan 1). **[D]** Baris pintasan "Rute multi-stop — Lihat" sendiri tampil di layar **Tugas** walau hanya ada satu pengantaran aktif (Gambar 4.4); isi halaman rutenya belum tertangkap.
 
 **Pengaturan** (`/driver/settings`): Notifikasi (Tugas baru, Pesan pelanggan, Payout & insentif, Promo & pengumuman, Jangan ganggu "Di luar shift · 22.00 – 05.00"); Tampilan (Terang/Gelap/Sistem); Bahasa (Indonesia/English). Preferensi notifikasi tersimpan per akun; bahasa dan tema per perangkat.
 
@@ -574,10 +612,11 @@ Bagian 6.15–6.20 membahas HRIS mandiri. Gerbangnya: `canPunchAttendance` (Staf
 
 ### 6.15 Menu /hr/me
 
-Masuk dari **Profil** > "Absen & slip gaji". Sapaan "Halo, {nama}" — "Layanan mandiri karyawan". Kartu: **Absen Sekarang** ("Check-in / check-out dengan verifikasi wajah"), **Absensi Saya**, **Slip Gaji Saya**, **Cuti Saya** ("Ajukan cuti & lihat sisa kuota"), **Kasbon**, **Pengumuman** ("Kabar dari HR untuk Anda"), **Daftar / Perbarui Wajah**, dan "← Kembali ke konsol". **[V]**
+Masuk dari **Profil** > "Absen & slip gaji". Sapaan "Halo, {nama}" — "Layanan mandiri karyawan". Kartu: **Absen Sekarang** ("Check-in / check-out dengan verifikasi wajah"), **Absensi Saya**, **Slip Gaji Saya**, **Cuti Saya** ("Ajukan cuti & lihat sisa kuota"), **Kasbon Saya** ("Ajukan kasbon dan ikuti keputusannya."), **Pengumuman** ("Kabar dari HR untuk Anda"), **Daftar / Perbarui Wajah**, dan "← Kembali ke konsol". **[V]**
 
-> **[SCREENSHOT REQUIRED: SS-staff-depot-12 — Menu /hr/me dengan semua kartu]**
-> *Gambar 4.12 — Menu layanan mandiri karyawan.*
+![Gambar 4.12 — Menu layanan mandiri karyawan](assets/screenshots/staff-depot-11-hr-me.png)
+
+*Gambar 4.12 — Menu `/hr/me`: "Halo, Staf Depot Satu — Layanan mandiri karyawan" dengan kartu **Absen Sekarang** ("Check-in / check-out dengan verifikasi wajah"), **Absensi Saya**, **Slip Gaji Saya**, **Cuti Saya** ("Ajukan cuti & lihat sisa kuota"), **Kasbon Saya** ("Ajukan kasbon dan ikuti keputusannya."), **Pengumuman** ("Kabar dari HR untuk Anda"), tautan **Daftar / Perbarui Wajah**, dan "← Kembali ke konsol". Lingkungan uji lokal, data sintetis.*
 
 ### 6.16 Daftar wajah (wajib sebelum absen pertama)
 
@@ -772,7 +811,7 @@ Di kode, `STAFF_DEPOT` adalah kurir dan **tidak** punya konsol `/dashboard` seba
 - **Uang tunai.** Uang COD adalah tanggung jawab Anda sampai diverifikasi kasir. Setor di akhir shift dan jangan menunda.
 - **Jangan membuang antrean offline** tanpa tahu isinya (konfirmasi COD hilang selamanya).
 - **Jangan berbagi kode OTP** atau meminjamkan ponsel yang sedang masuk.
-- **Privasi pelanggan.** Nomor dan alamat pelanggan hanya untuk mengantar. Jangan menyimpan atau membagikan. Bukti antar disimpan 12 bulan lalu dihapus sesuai UU PDP.
+- **Privasi pelanggan.** Nomor dan alamat pelanggan hanya untuk mengantar. Jangan menyimpan atau membagikan. Bukti antar disimpan selama 12 bulan, lalu dihapus sesuai UU PDP.
 - **Keluar** dari aplikasi (Profil > Keluar) bila ponsel dipakai bersama.
 - Hak akses di bab ini adalah nilai bawaan; Super admin dapat mengubahnya (±30 detik).
 
@@ -834,19 +873,7 @@ Di kode, `STAFF_DEPOT` adalah kurir dan **tidak** punya konsol `/dashboard` seba
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-staff-depot-01 | Slide perkenalan 4 | Tombol "Mulai shift · check-in" | Belum diambil |
-| SS-staff-depot-02 | Check-in shift | Daftar periksa tampil | Belum diambil |
-| SS-staff-depot-03 | Status ketersediaan | Mode Istirahat dengan hitung mundur | Belum diambil |
-| SS-staff-depot-04 | Tugas | Satu kartu Ditugaskan | Belum diambil |
-| SS-staff-depot-05 | Detail pengantaran | Status Diantar | Belum diambil |
-| SS-staff-depot-06 | Pembayaran tunai COD | Uang diterima > total | Belum diambil |
-| SS-staff-depot-07 | Bukti pengantaran | Semua kolom terisi | Belum diambil |
-| SS-staff-depot-08 | Setoran akhir shift | Peringatan kurang | Belum diambil |
-| SS-staff-depot-09 | Pendapatan | Saldo + panel rekening | Belum diambil |
-| SS-staff-depot-10 | Antrean offline | Spanduk + dialog buang | Belum diambil |
-| SS-staff-depot-11 | Lapor insiden | Formulir terisi | Belum diambil |
-| SS-staff-depot-12 | Menu /hr/me | Semua kartu | Belum diambil |
-| SS-staff-depot-13 | Absen wajah | Hasil check-in | Belum diambil |
+PLACEHOLDER
 
 ---
 

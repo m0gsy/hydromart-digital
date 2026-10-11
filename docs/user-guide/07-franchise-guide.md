@@ -113,8 +113,8 @@ Tidak ada pintu "Konsol HQ". Pemilik tidak bisa membuka `/hq/*`. **[V]**
 
 **Pengalih depot.** Di rel ada pengalih depot dengan label "Semua depot", "konteks aktif", "{n} lokasi", dan "{n} lokasi · gabungan". Server hanya mengembalikan depot yang `ownerId`-nya adalah akun Anda. **[V]**
 
-> **[SCREENSHOT REQUIRED: SS-waralaba-01 — Rel menu kiri konsol pemilik dengan 8 item menu terlihat dan pengalih depot menampilkan jumlah lokasi milik pemilik]**
-> *Gambar 7.1 — Menu konsol pemilik waralaba.*
+![Gambar 7.1 — Menu konsol pemilik waralaba](assets/screenshots/waralaba-01-ringkasan.png)
+> *Gambar 7.1 — Rel menu konsol pemilik waralaba (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat 8 item menu: Waralabaku, Pencarian (Ringkasan); Retur galon, Perkiraan (Operasi harian); Jadwal shift (Tim & jadwal); Payout & komisi (Keuangan · usulan); Peran & akses, Akun saya (Referensi). Pengalih depot menunjukkan "Semua depot / 1 lokasi". Di dasar menu terlihat pilihan "Bahasa" (ID / EN), "Peran: Pemilik waralaba", dan "Keluar". Catatan kondisi: akun uji hanya memiliki satu depot (Depot Dago, BDG-01).*
 
 ---
 
@@ -288,11 +288,13 @@ Bila sebagian sumber data gagal dimuat, muncul: "Sebagian data gagal dimuat ({wh
 
 Jika Anda bukan pemilik: "Khusus pemilik waralaba" / "Dashboard ini tersedia untuk pemilik waralaba."
 
+> **[B] Banner "hr, crm" pada lingkungan uji.** Pada akun pemilik di lingkungan uji lokal (2026-10-11), halaman "Waralabaku" langsung menampilkan "Sebagian data gagal dimuat (hr, crm). Menampilkan yang tersedia." dan kartu "SDM hari ini" serta "CRM pelanggan" tidak muncul (lihat Gambar 7.5). Penyebab belum diverifikasi; dugaan: kemampuan pemilik tidak mencakup data SDM dan CRM **[D]**. Bila Anda melihat banner yang sama, itu mungkin bukan gangguan sementara; dua kartu itu tidak dapat diandalkan untuk pemilik sampai dikonfirmasi tim produk **[K]**.
+
 **Hasil akhir:** Anda tahu kondisi usaha 30 hari terakhir.
 **Masalah umum:** angka 0 di depot baru = belum ada pesanan selesai; "nonaktif" = depot ditangguhkan HQ.
 
-> **[SCREENSHOT REQUIRED: SS-waralaba-05 — Halaman "Waralabaku" dengan empat kartu angka, kartu "SDM hari ini", "CRM pelanggan", dan daftar "Depot" (data sintetis)]**
-> *Gambar 7.5 — Ringkasan Waralabaku.*
+![Gambar 7.5 — Ringkasan Waralabaku dengan banner sebagian data gagal dimuat](assets/screenshots/waralaba-02-waralaba.png)
+> *Gambar 7.5 — Halaman "Waralabaku" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat empat kartu: Pendapatan "Rp 0 / 0 pesanan", Depot "1", Stok kritis "0 / stok aman", SLA tepat waktu "0% / 0/0 terkirim", lalu kartu "Depot" berisi "Depot Dago BDG-01 / 0 pesanan / Rp 0". Catatan kondisi yang berbeda dari deskripsi: kartu "SDM hari ini" dan "CRM pelanggan" TIDAK tampil, dan di atas kartu "Depot" muncul banner "Sebagian data gagal dimuat (hr, crm). Menampilkan yang tersedia." Semua angka 0 karena depot uji belum punya pesanan.*
 
 ---
 
@@ -400,8 +402,8 @@ Status rekening:
 - [ ] Nomor "Ref" dicatat.
 - [ ] Buku kas dicek setelahnya.
 
-> **[SCREENSHOT REQUIRED: SS-waralaba-07 — Kartu "Saldo tersedia" dengan kolom "Jumlah pencairan (IDR)", tombol cepat Rp 2.000.000 / Rp 5.000.000 / "Semua" dan tombol "Cairkan saldo"]**
-> *Gambar 7.7 — Formulir pencairan saldo.*
+![Gambar 7.7 — Halaman Payout & komisi pemilik](assets/screenshots/waralaba-03-pencairan.png)
+> *Gambar 7.7 — Kartu "Saldo tersedia" di sisi kanan halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Saldo tersedia Rp 0", chip "Menunggu verifikasi kantor pusat / a.n. akun terdaftar", kolom "Jumlah pencairan (IDR)" (petunjuk "0"), tombol "Semua", dan tombol "Cairkan saldo" yang nonaktif (pudar). Catatan kondisi: karena saldo Rp 0, tombol cepat Rp 2.000.000 dan Rp 5.000.000 tidak tampil (sesuai aturan: hanya muncul bila tidak melebihi saldo). Di bawah kartu terlihat "Rekening tujuan pencairan" dengan teks "Belum ada rekening terdaftar." dan kolom "Nama bank". [B] Chip tetap bertuliskan "Menunggu verifikasi kantor pusat" walau belum ada rekening terdaftar; arti chip pada kondisi ini belum dikonfirmasi.*
 
 > **[SCREENSHOT REQUIRED: SS-waralaba-08 — Layar sukses "Pencairan diproses" dengan "Ref" WD-… dan "Status" Diproses (data sintetis)]**
 > *Gambar 7.8 — Hasil pencairan berstatus Diproses.*
@@ -455,8 +457,8 @@ Pembatalan penjualan kasir (void) menulis baris koreksi "Pembatalan: …" dengan
 
 > **[B]** Label HQ "Skema komisi" memakai kata "Persentase payout per depot", padahal kode **memotong** persentase itu sebagai komisi HQ. Bab ini memakai arti kode: persentase adalah bagian HQ. **[V][B]**
 
-> **[SCREENSHOT REQUIRED: SS-waralaba-09 — Halaman "Payout & komisi" bagian atas: lencana "Usulan", empat kartu angka, dan kartu "Buku kas" berisi baris kredit hijau dan debit merah (data sintetis)]**
-> *Gambar 7.9 — Kartu angka dan buku kas.*
+![Gambar 7.9 — Halaman Payout & komisi pemilik](assets/screenshots/waralaba-03-pencairan.png)
+> *Gambar 7.9 — Bagian atas halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat lencana "Usulan" di samping judul, subjudul "Buku kas depot, komisi HQ, dan pencairan untuk pemilik waralaba.", empat kartu: Saldo tersedia "Rp 0", Pendapatan bulan ini "Rp 0", Komisi HQ "Rp 0", Payout berikutnya "14 Okt"; serta kartu "Buku kas". Catatan kondisi: buku kas kosong ("Belum ada transaksi."), sehingga baris kredit hijau dan debit merah belum terlihat. Gambar yang sama dengan Gambar 7.7.*
 
 ---
 
@@ -699,15 +701,15 @@ Detail penting:
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-waralaba-01 | Rel menu konsol pemilik | 8 item menu, pengalih depot | Belum diambil |
+| SS-waralaba-01 | Rel menu konsol pemilik | 8 item menu, pengalih depot | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-waralaba-02 | Formulir `/waralaba` | Terisi sebagian | Belum diambil |
 | SS-waralaba-03 | "Pengajuan terkirim" | Tanda terima tampil | Belum diambil |
 | SS-waralaba-04 | "Onboard depot" (HQ) | Kepemilikan Waralaba, pilihan pemilik terbuka | Belum diambil |
-| SS-waralaba-05 | "Waralabaku" | Empat kartu + daftar depot | Belum diambil |
+| SS-waralaba-05 | "Waralabaku" | Empat kartu + daftar depot (pada tangkapan: tanpa kartu SDM/CRM, ada banner "hr, crm") | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-waralaba-06 | Kartu "Rekening tujuan pencairan" | Status menunggu verifikasi | Belum diambil |
-| SS-waralaba-07 | Kartu "Saldo tersedia" | Kolom jumlah + tombol cepat | Belum diambil |
+| SS-waralaba-07 | Kartu "Saldo tersedia" | Kolom jumlah + tombol cepat (pada tangkapan: hanya "Semua", tombol nonaktif, saldo Rp 0) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-waralaba-08 | "Pencairan diproses" | Ref WD-… dan Status Diproses | Belum diambil |
-| SS-waralaba-09 | "Payout & komisi" | Kartu angka + Buku kas | Belum diambil |
+| SS-waralaba-09 | "Payout & komisi" | Kartu angka + Buku kas (pada tangkapan: buku kas kosong) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-waralaba-10 | "Pembayaran & payout" (HQ) | Ajukan rilis / Setujui & rilis | Belum diambil |
 
 ## 15. Catatan celah & hal yang perlu dikonfirmasi

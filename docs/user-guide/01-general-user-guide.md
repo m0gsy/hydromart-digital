@@ -158,22 +158,24 @@ Nilai bawaan dapat diubah lewat konfigurasi server. **[K]** Konfirmasi nilai pro
 
 ### Prosedur: Masuk ke akun
 
-**Tujuan:** Membuka akun dengan nomor telepon. **Peran:** Semua peran. **Prasyarat:** Nomor seluler aktif yang bisa menerima SMS. **Titik awal:** Halaman `/login` (pelanggan) atau `/hq/login` (pintu staf; hasilnya sama).
+**Tujuan:** Membuka akun dengan nomor telepon. **Peran:** Semua peran. **Prasyarat:** Nomor seluler aktif yang bisa menerima SMS. **Titik awal:** Halaman `/login` (pelanggan) atau `/hq/login` (pintu staf). Tampilan keduanya berbeda (lihat Gambar 6.1 dan 6.4): `/hq/login` berjudul "Masuk konsol staf" dan tidak punya tautan "Daftar sekarang". Alur kode OTP-nya dianggap sama **[D]**.
 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
-| 1 | Buka halaman masuk. Isi kolom **Nomor telepon** (wajib). Awalan "🇮🇩 +62" sudah tersedia; contoh isian `81234567890`. | Kolom menerima angka. |
+| 1 | Buka halaman masuk. Isi kolom **Nomor telepon** (wajib). Awalan "🇮🇩 +62" sudah tersedia; contoh isian `81234567890` (tampil sebagai teks contoh abu-abu di kolom). | Kolom menerima angka. |
 | 2 | Tekan **Kirim kode**. | Pindah ke halaman `/verify`. SMS berisi kode 6 digit dikirim. |
 | 3 | Ketik 6 digit kode di kotak yang tersedia. | Setelah digit ke-6, layar otomatis memverifikasi. Tombol **Verifikasi & lanjut** juga tersedia. |
 | 4 | Tunggu pengalihan. | Anda masuk. Pelanggan diarahkan ke halaman tujuan atau toko; staf diarahkan ke konsolnya (lihat bagian 9). |
 
 **Isi SMS** (login): "Kode Login HYDROMART … Masukkan kode OTP {kode} untuk melanjutkan login. Kode berlaku selama 5 menit. Abaikan pesan ini jika Anda tidak melakukan permintaan login." **[V]** (`zenziva-otp-delivery.adapter.ts`)
 
+**Yang terlihat di layar uji (2026-10-11):** halaman `/login` berjudul "Selamat datang kembali" dengan subjudul "Masuk dengan nomor teleponmu — kami kirim kode sekali pakai.", kolom **Nomor telepon**, tombol **Kirim kode**, tautan "Belum punya akun? **Daftar sekarang**", dan teks "Dengan mendaftar, kamu menyetujui Ketentuan Layanan dan Kebijakan Privasi Hydromart." Halaman `/verify` berjudul "Verifikasi nomormu" dengan tautan **Kembali ke masuk** dan tombol panah kembali. Nomor tampil tersamar. **[V]** (tangkapan layar nyata)
+
 **Cara mengenali sukses:** halaman berpindah dari `/verify` ke beranda, toko, atau konsol. Hitung mundur "Kode berlaku {m:ss} lagi." hanya tampil selama menunggu.
 
 **Bila nomor belum terdaftar:** sistem tidak menolak. Nomor baru otomatis menjadi pendaftaran dan layar verifikasi menampilkan "Selesaikan pendaftaran." **[V]** (anti-enumerasi). Pelanggan baru sebaiknya memakai `/register` agar bisa mengisi nama, email, kode referral, dan persetujuan.
 
-**Bila kode tidak datang:** tombol berubah dari "Kirim ulang dalam {n}d" menjadi **Kirim ulang kode** setelah 60 detik. Setelah dikirim ulang: "Kode baru dikirim ke {nomor tersamar}."
+**Bila kode tidak datang:** tombol berubah dari "Kirim ulang dalam {n}d" menjadi **Kirim ulang kode** setelah 60 detik. Setelah dikirim ulang: "Kode baru dikirim ke {nomor tersamar}." **[B]** Pada layar uji singkatan "d" (artinya detik) tidak dijelaskan, jadi "Kirim ulang dalam 1d" mudah terbaca keliru. Menurut catatan uji, nomor di halaman verifikasi juga ditampilkan tanpa awalan +62 atau 0 (tidak terlihat pada gambar karena nomor disamarkan).
 
 **Hasil akhir:** Sesi aktif di perangkat ini.
 
@@ -204,11 +206,19 @@ Semua pesan di atas dikutip dari kamus bahasa (`auth.ts`, `errors.ts`). **[V]**
 - [ ] Sinyal cukup; SMS belum terblokir pemblokir SMS.
 - [ ] Kode dimasukkan dalam 5 menit.
 
-> **[SCREENSHOT REQUIRED: SS-umum-02 — Halaman `/login` dengan kolom Nomor telepon dan tombol "Kirim kode".]**
-> *Gambar 6.1 — Halaman masuk.*
+![Gambar 6.1 — Halaman masuk](assets/screenshots/umum-01-login.png)
+*Gambar 6.1 — Halaman `/login` pada ponsel (lebar 390 px): judul "Selamat datang kembali", kolom Nomor telepon dengan awalan +62 dan contoh isian 81234567890, tombol "Kirim kode", tautan "Daftar sekarang". Kolom masih kosong. Lingkungan uji lokal, 2026-10-11.*
 
-> **[SCREENSHOT REQUIRED: SS-umum-03 — Halaman `/verify` dengan 6 kotak kode, hitung mundur "Kode berlaku", dan tombol "Kirim ulang dalam {n}d".]**
-> *Gambar 6.2 — Halaman verifikasi kode.*
+![Gambar 6.2 — Halaman verifikasi kode](assets/screenshots/umum-02-verify.png)
+*Gambar 6.2 — Halaman `/verify`: enam kotak kode (sengaja diburamkan), "Kode berlaku 5:00 lagi.", tombol "Verifikasi & lanjut", dan "Tidak menerima kode? Kirim ulang dalam 1d". Nomor tersamar (08×x-xxxx-xxxx). Ini alur masuk ("Masuk ke akunmu."), bukan pendaftaran. Lingkungan uji lokal, data sintetis, 2026-10-11.*
+
+![Gambar 6.3 — Halaman masuk dengan nomor terisi (disamarkan)](assets/screenshots/umum-01b-login-terisi.png)
+*Gambar 6.3 — Halaman `/login` dengan nomor telepon terisi. Nomor sengaja diganti 8×x-xxxx-xxxx; nomor asli tidak ditampilkan. Lingkungan uji lokal, 2026-10-11.*
+
+![Gambar 6.4 — Halaman masuk konsol staf `/hq/login`](assets/screenshots/umum-03-hq-login.png)
+*Gambar 6.4 — Halaman `/hq/login` pada layar desktop (1366x800): merek "HYDROMART · HQ", judul "Masuk konsol staf", teks "Pintu masuk konsol staf · pakai nomor yang terdaftar", kolom Nomor telepon, tombol "Kirim kode", dan teks "Sesi berakhir otomatis 15 menit · dicatat di log audit". Tidak ada tautan "Daftar sekarang". Lingkungan uji lokal, 2026-10-11.*
+
+**[K]** Teks "Sesi berakhir otomatis 15 menit" pada Gambar 6.4 adalah teks layar. Nilai batas diam sebenarnya di produksi belum dikonfirmasi (lihat bagian 6.3).
 
 ### 6.2 Keluar
 
@@ -226,7 +236,7 @@ Di konsol staf, tombol **Keluar** ada di rel menu dan bilah bawah konsol depot, 
 |---|---|---|
 | Token akses | 15 menit, diperbarui otomatis | **[V]** (`JWT_ACCESS_TTL` 900 detik) |
 | Token penyegar | 30 hari | **[V]** (`JWT_REFRESH_TTL` 2.592.000 detik) |
-| Batas diam (idle) | Diatur kantor pusat. Komentar kode menyebut bawaan 15 menit. Nol atau kosong berarti tanpa batas | **[K]** Nilai produksi belum diketahui |
+| Batas diam (idle) | Diatur kantor pusat. Komentar kode menyebut bawaan 15 menit. Nol atau kosong berarti tanpa batas. Halaman `/hq/login` menampilkan teks "Sesi berakhir otomatis 15 menit" | **[K]** Nilai produksi belum diketahui; teks layar belum tentu sama dengan pengaturan |
 | Penggunaan ulang token lama | Seluruh keluarga sesi dicabut demi keamanan | **[V]** |
 
 Bila sesi habis, Anda akan diminta masuk lagi. Sesi staf yang habis dikembalikan ke pintu masuk staf (`/hq/login`, atau `/login` bila pintu itu tidak ada di aplikasi). **[V]** (`staffDoor`)
@@ -247,7 +257,7 @@ Aplikasi Android: bila sesi masih tersimpan, layar menawarkan "Buka dengan sidik
 | Area | Isi |
 |---|---|
 | **Aplikasi pelanggan, web** | Bilah atas: Belanja, Pesanan, ikon keranjang (dengan jumlah), lonceng notifikasi (dengan jumlah belum dibaca), Akun atau Masuk **[V]** (`nav.tsx`) |
-| **Aplikasi pelanggan, ponsel** | Bilah bawah: Beranda, Belanja, Pesanan, Akun **[V]** (`bottom-nav.tsx`) |
+| **Aplikasi pelanggan, ponsel** | Bilah bawah: Beranda, Belanja, Pesanan, Akun **[V]** (`bottom-nav.tsx`). Terkonfirmasi pada tangkapan layar uji 2026-10-11: bilah atas ponsel menampilkan pemilih lokasi ("Pilih lokasi pengiriman") di beranda, lonceng, dan ikon keranjang berlencana jumlah |
 | **Pemilih lokasi** | Di header: "Pilih lokasi pengiriman", "Gunakan lokasi saya", "Atau pilih kota depot" **[V]** |
 | **Aplikasi kurir** | Bilah bawah: tab Tugas, Riwayat, Profil; tab Dompet muncul di layar penghasilan, setoran, dan klaim biaya **[V]** (`driver-shell.tsx`) |
 | **Konsol depot** | Rel menu di kiri (grup menu menurut hak akses) dan bilah bawah di ponsel. Kepala depot memakai tampilan tab di atas (konsol operator) **[V]** |
@@ -378,7 +388,7 @@ PENDING (menunggu), PAID (lunas), FAILED (gagal), CANCELLED (dibatalkan), REFUND
 
 Semua label dikutip dari kamus bahasa (`profile.ts`, `help.ts`, `subscriptions.ts`, `hrFix.ts`, `hq.ts`). **[V]**
 
-Halaman pelacakan publik `/track` menampilkan label status berbahasa Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled). **[B]**
+Halaman pelacakan publik `/track` menampilkan label status berbahasa Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled). **[B]** Terlihat langsung pada lingkungan uji 2026-10-11 (judul "Lacak Pesanan", status "Completed", riwayat "Order placed" sampai "Completed"; lihat Gambar 6.5a di Panduan Pelanggan), sedangkan rincian pesanan pelanggan berbahasa Indonesia (Dipesan, Disiapkan, Diambil, Diantar, Tiba, Selesai). Di konsol staf, label status dan pembayaran juga sempat tampil dalam bahasa Inggris pada uji yang sama (mis. "Order placed", "Confirmed", "PENDING", "CASH"). **[B]**
 
 ## 12. Tabel 13 Peran dan Konsol yang Dapat Dimasuki
 
@@ -479,13 +489,17 @@ Tidak ada nomor telepon pusat atau jam layanan pusat yang terdokumentasi. **[K]*
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-umum-01 | Beranda pelanggan (tamu) | Belum masuk; hero, promo, kategori, depot terdekat tampil | Belum diambil |
-| SS-umum-02 | Halaman `/login` | Kolom Nomor telepon kosong, tombol Kirim kode | Belum diambil |
-| SS-umum-03 | Halaman `/verify` | 6 kotak, hitung mundur, tombol Kirim ulang dalam {n}d | Belum diambil |
+| SS-umum-01 | Beranda pelanggan (tamu) | Belum masuk; hero, promo, kategori, depot terdekat tampil | Belum diambil (berkas `customer-01-beranda.png` adalah beranda setelah masuk, bukan tamu, sehingga tidak dipakai di sini) |
+| SS-umum-02 | Halaman `/login` | Kolom Nomor telepon kosong, tombol Kirim kode | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-01-login.png` |
+| SS-umum-03 | Halaman `/verify` | 6 kotak, hitung mundur, tombol Kirim ulang dalam {n}d | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-02-verify.png`; kotak kode diburamkan, nomor disamarkan |
 | SS-umum-04 | Konsol depot `/dashboard` | Peran Manajer, rel menu terlihat | Belum diambil |
 | SS-umum-05 | Layar akses ditolak | Tombol Kembali ke halaman saya | Belum diambil |
 | SS-umum-06 | Konsol HQ `/hq` | Peran Head office | Belum diambil |
 | SS-umum-07 | Aplikasi kurir `/driver` | Tab Tugas, peran Staf depot | Belum diambil |
+| SS-umum-08 | Halaman `/login` | Nomor telepon terisi (disamarkan) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-01b-login-terisi.png` |
+| SS-umum-09 | Halaman `/hq/login` | Pintu masuk konsol staf, kolom kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-03-hq-login.png` |
+
+Hasil pemeriksaan privasi gambar Bab ini: tidak ada nomor telepon lengkap, kode OTP terbaca, token, surel, kunci, atau nama orang nyata pada keempat gambar `umum-*`.
 
 Gunakan data contoh sintetis dan nomor telepon palsu pada semua tangkapan layar.
 
@@ -505,3 +519,5 @@ Daftar lengkap dirujuk ke `17-open-questions`. Yang terkait bab ini:
 | 8 | Isi menu `/dashboard` per peran ("Sebagian") perlu dipetakan per peran | [D] |
 | 9 | Jam layanan dan nomor dukungan pusat tidak terdokumentasi | [K] |
 | 10 | PRD menyebut WhatsApp dan email sebagai saluran; kode hanya SMS, push, dan kotak masuk | [B] |
+| 11 | `/hq/login` menampilkan "Sesi berakhir otomatis 15 menit"; nilai produksi batas diam belum dikonfirmasi | [K] |
+| 12 | Hitung mundur kirim ulang memakai singkatan "d" (detik) yang tidak jelas; nomor di halaman verifikasi tampil tanpa +62/0 (catatan uji) | [B] |
