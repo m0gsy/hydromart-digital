@@ -197,3 +197,410 @@ Kolom: **ID · Skenario bisnis · Aktor/peran · Prasyarat · Data uji · Langka
 | TS-PO-07 | Terima PO yang masih Draft | Manajer | PO Draft | — | Terima | "Only a SENT purchase order can be received." | Belum diuji oleh tim dokumentasi | Not Tested | F06 |
 | TS-PO-08 | Kepala depot / SPV membuka PO (akses tak sah) | Kepala depot | — | — | Buka `/dashboard/purchase-orders` | Ditolak; gerbang "Khusus manajer depot" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 Lampiran A.4 |
 | TS-PO-09 | Hapus pemasok yang dipakai PO | Manajer | Pemasok punya PO | — | Hapus | Ditolak oleh server | Belum diuji oleh tim dokumentasi | Not Tested | F06 |
+
+### 3.5 Insiden dan sengketa (INC), langganan (SUB), voucher/poin/hadiah (LOY)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-INC-01 | Lapor insiden depot lalu selesaikan | Kepala depot/SPV | Depot terpilih | Judul sintetis | **Laporkan insiden** → **Kirim laporan** → catatan ≥ 3 karakter → **Tandai selesai** | Status Baru → Selesai | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 (Insiden), F07 |
+| TS-INC-02 | Judul terlalu pendek | SPV | — | "Ab" | Kirim | "Judul terlalu pendek — tulis apa yang terjadi." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-INC-03 | Selesaikan tanpa catatan | SPV | Insiden Baru | Catatan 2 huruf | Tandai selesai | "Tulis catatan penyelesaian minimal 3 karakter." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-INC-04 | Asisten SPV membuka insiden (akses tak sah) | Asisten SPV | — | — | Buka `/dashboard/incidents` | Tidak tampil/ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 6 §5 |
+| TS-INC-05 | Kurir lapor insiden Darurat | Kurir | Masuk di aplikasi | Jenis Kecelakaan, tingkat Darurat | **Kirim laporan** | "Insiden darurat diteruskan ke tim operasional."; notifikasi "Insiden kurir" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.14 |
+| TS-INC-06 | Kurir lapor kronologi terlalu pendek | Kurir | — | 2 huruf | Kirim | Tombol/validasi menolak (3–1000 karakter) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.14 |
+| TS-INC-07 | Catat sengketa dengan kolom wajib kosong | Manajer/Kepala depot/SPV | — | Nomor order kosong | **Simpan sengketa** | "Nomor order, nama pelanggan, dan keterangan wajib diisi." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 (Sengketa) |
+| TS-INC-08 | Tolak sengketa tanpa catatan | SPV | Sengketa Terbuka | Catatan kosong | **Tolak** | Catatan wajib | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-INC-09 | Selesaikan sengketa dengan Kirim ulang | Kepala depot | Sengketa Terbuka | — | **Kirim ulang** | Status Selesai | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.16 |
+| TS-INC-10 | Resolusi sengketa yang sudah final | SPV | Sengketa Selesai | — | Selesaikan lagi | Ditolak (hanya Terbuka) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-INC-11 | Pelanggan ajukan komplain | Pelanggan | Masuk | Ringkasan 10 huruf | **Ajukan komplain** → **Kirim komplain** | "Komplain terkirim…"; status "Menunggu ditangani" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 (bantuan) |
+| TS-INC-12 | Komplain kolom wajib kosong | Pelanggan | — | Ringkasan kosong | Kirim | "Isi ringkasan masalahnya dulu." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-INC-13 | HQ tugaskan, balas, selesaikan tiket | Head office | Tiket Terbuka | Balasan sintetis | **Assign ke saya** → **Kirim** → **Tandai selesai** | Terbuka → Ditugaskan → Selesai; pelanggan melihat "Balasan Hydromart"; tidak ada notifikasi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.24 |
+| TS-INC-14 | Buka dan selesaikan insiden platform | Head office | — | Judul, layanan | **＋ Insiden baru** → tambah pembaruan → selesai | Berlangsung → Selesai | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.23 |
+| TS-INC-15 | Insiden platform kolom wajib kosong | Head office | — | Judul kosong | Buka insiden | Tidak bisa disimpan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.23 |
+| TS-SUB-01 | Buat langganan | Pelanggan | Alamat bertitik | Galon ×2 mingguan | **Mulai langganan** | "Langganan dibuat."; status Aktif | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 (Langganan), F08 |
+| TS-SUB-02 | Alamat tanpa titik peta | Pelanggan | Alamat tanpa lokasi | — | Mulai | "Alamat ini belum punya titik peta…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-SUB-03 | Tanggal pertama lampau | Pelanggan | — | Kemarin | Mulai | Ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-SUB-04 | Jeda dan lanjutkan | Pelanggan | Aktif | — | **Jeda** → **Lanjutkan** | Dijeda → Aktif; tidak ada pesanan saat dijeda | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-SUB-05 | Batalkan lalu ubah | Pelanggan | — | — | **Batalkan** → ganti alamat | "A cancelled subscription can no longer be changed." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-SUB-06 | Jeda otomatis setelah 3 kegagalan | Sistem | Skenario gagal buat pesanan (stok kosong) | 3 siklus | Jalankan sapuan | Status Dijeda; notifikasi jeda | Belum diuji oleh tim dokumentasi | Not Tested | F08 |
+| TS-SUB-07 | Pesanan langganan jatuh tempo | Sistem | Aktif, jatuh tempo | — | Sapuan jam :00 | Pesanan dibuat, notifikasi "Pesanan diterima" | Belum diuji oleh tim dokumentasi | Not Tested | F08, F22 |
+| TS-SUB-08 | Pelanggan B mengubah langganan A (akses tak sah) | Pelanggan B | Langganan milik A | ID | Jeda via API | Ditolak (bukan pemilik) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-01 | Voucher valid persen | Pelanggan | U-VCH | Kode | **Terapkan** di checkout | Potongan tampil sesuai batas maksimum | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 (voucher) |
+| TS-LOY-02 | Voucher kedaluwarsa | Pelanggan | — | Kode kedaluwarsa | Terapkan | "This voucher has expired." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-03 | Voucher kuota habis | Pelanggan | — | Kode kuota habis | Terapkan | "This voucher has reached its usage limit." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-04 | Voucher di bawah minimal belanja | Pelanggan | — | Subtotal kecil | Terapkan | "Your order must be at least {angka} to use this voucher." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-05 | Voucher milik pelanggan lain | Pelanggan B | Voucher khusus A | Kode | Terapkan | "Voucher ini khusus untuk pelanggan yang menerimanya." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-06 | Voucher bersama harga agen | Pelanggan agen | Akun agen | Kode | Terapkan | "Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-07 | Poin masuk setelah Selesai | Pelanggan | Pesanan Selesai | Subtotal Rp 45.000 | Cek saldo | Poin = subtotal ÷ 1.000 dibulatkan ke bawah (nilai bawaan **[K]**) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-08 | Referral berhasil | Pelanggan A, B baru | Kode A | B daftar dengan kode; B selesaikan pesanan pertama | Cek poin | A +500, B +250 (bawaan **[K]**) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 (referral) |
+| TS-LOY-09 | Kode referral sendiri atau pelanggan lama | Pelanggan | — | Kode sendiri | Pakai | "Kode tidak dapat digunakan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-10 | Tukar poin hadiah | Pelanggan | Poin cukup | Hadiah uji | **Tukar** → pilih depot | "{nama} berhasil ditukar!"; status "Menunggu diambil" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-11 | Poin tidak cukup / hadiah habis | Pelanggan | — | Poin kecil | Tukar | Tombol "Kurang"/"Habis"; "You do not have enough points…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-12 | Serah hadiah di depot | Kepala depot | Penukaran ACTIVE | Kode | `/dashboard/redemptions` → **Sudah diambil** | Toast "Hadiah ditandai sudah diambil."; pelanggan tidak bisa membatalkan lagi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.12 |
+| TS-LOY-13 | Serah hadiah dua kali | Kepala depot A, B | — | — | Tekan bersamaan | "Hadiah ini baru saja diserahkan oleh depot lain." (satu berhasil) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.12 |
+| TS-LOY-14 | Batalkan penukaran setelah diambil | Pelanggan | Status USED | — | **Batalkan** | "Hadiah ini sudah diambil, jadi penukarannya tidak bisa dibatalkan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-15 | Batalkan penukaran sebelum diambil | Pelanggan | ACTIVE | — | **Batalkan** | Poin kembali | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-LOY-16 | Kepala depot membuat voucher (akses tak sah) | Kepala depot | — | — | Cari halaman voucher | Tidak ada halaman; API menolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.10 |
+| TS-LOY-17 | Kepala depot kirim broadcast ke segmen | Kepala depot | — | Judul, pesan | **Kirim broadcast** | Kampanye dibuat; sapuan 2 menit mengirim ke kotak masuk | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.11 |
+| TS-LOY-18 | Broadcast tanpa judul | Kepala depot | — | Kosong | Kirim | "Isi judul dan pesan dulu." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.11 |
+
+### 3.6 Waralaba (FRA) dan harga (PRC)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-FRA-01 | Kirim lamaran waralaba lengkap | Calon mitra | — | Data sintetis | `/waralaba` → **Kirim pengajuan** | Layar "Pengajuan terkirim" dengan Nomor tanda terima | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.1, F10 |
+| TS-FRA-02 | Persetujuan data tidak dicentang | Calon mitra | — | — | Kirim | "Persetujuan pemrosesan data wajib dicentang sebelum mengirim." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.1 |
+| TS-FRA-03 | WhatsApp salah format | Calon mitra | — | `0812` | Kirim | "Nomor WhatsApp belum benar. Contoh: 081234567890." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.1 |
+| TS-FRA-04 | Investasi desimal | Calon mitra | — | 1500000.5 | Kirim | Ditolak server (harus bilangan bulat) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.1 |
+| TS-FRA-05 | Kode depot usulan sudah dipakai | Calon mitra | Depot aktif berkode sama | Kode ada | Kirim | "A depot with this code already exists." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.1 |
+| TS-FRA-06 | Kirim lebih dari 3 kali per jam | Calon mitra | — | 4 pengiriman | Kirim berulang | Dibatasi (pesan batas kirim) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.1 |
+| TS-FRA-07 | HQ meninjau dan setujui lamaran | Head office | Lamaran Baru | — | `/hq/applications` → Tinjau → **Setujui & provision** | Tahap Disetujui; form onboarding terisi sebagian | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.8 |
+| TS-FRA-08 | Tolak lamaran | Head office | — | — | **Tolak** | Tahap Ditolak (tanpa alasan, tanpa konfirmasi) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.8 |
+| TS-FRA-09 | Putuskan lamaran yang sudah final | Head office | Lamaran Disetujui | — | Ubah/tolak | "This application has already been approved or rejected." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.8 |
+| TS-FRA-10 | Setujui tanpa checklist lengkap | Head office | Checklist belum lengkap | — | Setujui | Disetujui (checklist tidak wajib) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.8 |
+| TS-FRA-11 | Keuangan membuka lamaran (akses tak sah) | Finance | — | — | Buka `/hq/applications` | "Khusus HQ" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.8 |
+| TS-FRA-12 | Undang Pemilik waralaba | Head office | — | Nomor sintetis | **＋ Undang staf**, peran Pemilik waralaba | Akun aktif tanpa kartu karyawan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.4 |
+| TS-FRA-13 | Onboard depot Waralaba tanpa pemilik | Manajer/Super admin | — | Pemilik kosong | **Buat depot** | "A franchise (WARALABA) depot must have an owner." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.3 |
+| TS-FRA-14 | Head office mencoba onboard depot (akses tak sah) | Head office | — | — | Buat depot | Ditolak server (403) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.3 [B] |
+| TS-FRA-15 | Kode depot ganda | Manajer | — | Kode ada | Buat | "A depot with this code already exists." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.3 |
+| TS-FRA-16 | Tangguhkan depot dengan konfirmasi kode | Manajer/Super admin | Depot uji | Kode persis | **Tangguhkan** → ketik kode | Depot "Ditangguhkan"; tombol aktif hanya bila kode cocok | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.3 |
+| TS-FRA-17 | Daftar rekening tujuan pencairan | Pemilik | Masuk | Data U-BANK | **Daftarkan rekening** | Status "Menunggu verifikasi kantor pusat" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.5 |
+| TS-FRA-18 | Nomor rekening tidak sah | Pemilik | — | 123 | Daftarkan | Validasi 6–30 karakter menolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.5 |
+| TS-FRA-19 | Finance verifikasi rekening | Finance | Rekening PENDING | — | **Verifikasi** | Toast "Rekening diverifikasi" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-20 | Finance tolak rekening | Finance | — | — | **Tolak** | Pemilik melihat "Ditolak: tanpa alasan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-21 | Pemilik cairkan saldo | Pemilik | Rekening terverifikasi, saldo > 0 | Rp 100.000 | **Cairkan saldo** | "Pencairan diproses"; Ref `WD-…`; saldo berkurang; status PROCESSING | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.6 |
+| TS-FRA-22 | Cairkan melebihi saldo | Pemilik | — | Jumlah > saldo | Cairkan | "Withdrawal of {requested} exceeds available balance {available}." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.6 |
+| TS-FRA-23 | Cairkan tanpa rekening terverifikasi | Pemilik | Rekening PENDING | — | Cairkan | Tombol nonaktif / "Belum ada rekening tujuan yang terverifikasi…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.6 |
+| TS-FRA-24 | Cairkan dua kali cepat (kirim ganda) | Pemilik | Saldo cukup untuk satu | — | Klik dua kali | Tidak potong ganda atau pesan melebihi saldo | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.6 |
+| TS-FRA-25 | Ajukan rilis | Finance | Pemilik punya saldo | — | **Ajukan rilis** | Pengajuan PENDING untuk seluruh saldo | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-26 | Ajukan rilis kedua untuk pemilik sama | Finance | Pengajuan PENDING | — | Ajukan lagi | "Pencairan untuk pemilik ini sudah diajukan dan menunggu persetujuan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-27 | Pengaju menyetujui sendiri | Super admin (pengaju) | Pengajuan miliknya | — | **Setujui & rilis** | "Pengaju pencairan tidak boleh menyetujui pengajuannya sendiri." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-28 | Direktur setujui rilis | Direktur | Pengajuan Finance | — | **Setujui & rilis** | Penarikan PROCESSING; saldo dipotong | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-29 | Direktur tolak rilis | Direktur | — | — | **Tolak** | Toast "Pengajuan ditolak"; saldo tidak bergerak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-30 | Head office tekan Setujui & rilis (akses tak sah) | Head office | — | — | Tekan | Tombol tidak tampil/ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-31 | Finance tandai Lunas | Finance | Penarikan PROCESSING | — | **Lunas** | Status Lunas, final | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-32 | Finance tandai Gagal | Finance | — | — | **Gagal** | Saldo dikembalikan "Pencairan gagal, saldo dikembalikan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-33 | Tandai penarikan yang sudah final | Finance | Penarikan PAID | — | Gagal | "Withdrawal is already PAID; only a PROCESSING withdrawal can be settled." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.6 |
+| TS-FRA-34 | Pemilik A melihat data depot pemilik B (batas lintas waralaba) | Pemilik A | Depot milik B | ID depot B | Buka via URL/API | Data B tidak tampil; hanya depot sendiri | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §9 |
+| TS-FRA-35 | Pesanan Selesai mengkredit saldo pemilik | Sistem | Depot waralaba dengan skema komisi | Pesanan Selesai | Cek buku kas pemilik | Kredit penjualan dan potongan komisi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 7 §6.7 |
+| TS-FRA-36 | Depot tanpa skema komisi | Sistem | Skema belum ada | — | Cek komisi | Komisi 0% (perilaku yang didokumentasikan **[K]**) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.22 |
+| TS-FRA-37 | Terapkan skema komisi | Finance | — | 10% | `/hq/forms/commission` → **Terapkan skema baru** | "Skema komisi baru diterapkan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.22 |
+| TS-FRA-38 | Skema komisi di luar rentang | Finance | — | 120 | Terapkan | Diabaikan/ditolak ("Commission percentage must be between 0 and 100.") | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.22 |
+| TS-PRC-01 | Setujui usulan override harga | Head office | Usulan PENDING | — | `/hq/pricing` → **Setujui** | Aturan harga aktif prioritas 100 | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.10 |
+| TS-PRC-02 | Tolak usulan | Direktur | — | — | **Tolak** | Harga tidak berubah | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.10 |
+| TS-PRC-03 | Pengusul menyetujui sendiri (di atas ambang) | Super admin pengusul | Dampak > Rp100.000 | — | Setujui | "Usulan ini Anda sendiri yang mengajukan dan nilainya di atas batas auto-pass…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.10 |
+| TS-PRC-04 | Putuskan usulan yang sudah final | Head office | — | — | Setujui lagi | "This price-override proposal has already been approved or rejected." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.10 |
+| TS-PRC-05 | Impor CSV harga menjadi usulan | Manajer | — | CSV sintetis | Impor | Tiap baris menjadi usulan menunggu | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.10 |
+| TS-PRC-06 | Kepala depot mengisi harga khusus depot | Kepala depot | Baris PRODUK | Rp 21.000 | **Harga** → **Simpan harga** | Berlaku langsung tanpa persetujuan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.6 |
+| TS-PRC-07 | Finance membuka Tata kelola harga (akses tak sah) | Finance | — | — | Buka `/hq/pricing` | "Khusus HQ" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.10 |
+
+### 3.7 Staf dan akses (STF), karyawan (HRM)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-STF-01 | Undang Kepala depot | Super admin | Depot uji | Nomor sintetis, posisi, gaji | `/hq/staff` → **＋ Undang staf** | Akun aktif; kartu karyawan di HR | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.2, F12 |
+| TS-STF-02 | Undang tanpa depot untuk Staf depot | Super admin | — | Depot kosong | Kirim | "Peran staf depot wajib terikat ke satu depot." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.2 |
+| TS-STF-03 | Nomor tidak sah | Super admin | — | `123` | Kirim | `"X" is not a valid Indonesian mobile number.` | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.2 |
+| TS-STF-04 | Posisi/gaji kosong | Super admin | — | Posisi kosong | Kirim | "Posisi dan gaji wajib diisi…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.2 |
+| TS-STF-05 | Undang ulang nomor sama dengan peran baru | Super admin | Akun ada | Peran berbeda | Undang | Akun dipromosikan, bukan ganda; akun nonaktif ikut aktif | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.3 |
+| TS-STF-06 | Head office memberi peran Direktur (akses tak sah) | Head office | — | Peran Direktur | Undang | Pilihan tidak ditawarkan; server "Peran DIREKTUR hanya boleh diberikan oleh SUPER_ADMIN" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.7 |
+| TS-STF-07 | HR memberi Manajer; Head office memberi Manajer | HR; Head office | — | Peran Manajer | Beri lewat jabatan | HR berhasil; Head office ditolak "Peran MANAGER hanya boleh diberikan oleh SUPER_ADMIN atau HR." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.7 |
+| TS-STF-08 | Nonaktifkan akun | Super admin | Akun aktif | — | **Nonaktifkan** | Lencana Nonaktif; masuk baru ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.5 |
+| TS-STF-09 | Akses sisa setelah nonaktif (jeda token) | Staf yang dinonaktifkan | Sesi aktif | Token < 15 menit | Dinonaktifkan; lakukan aksi dengan sesi lama | Aksi masih bisa sampai ±15 menit; gagal saat penyegaran | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.5, F13 |
+| TS-STF-10 | Aktifkan kembali | Super admin | Nonaktif | — | **Aktifkan** | Masuk lagi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.5 |
+| TS-STF-11 | Hapus akun staf | Super admin | Admin lain ada | Nama persis | **Hapus** → ketik nama | Akun DELETED, kartu HR dianonimkan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.6 |
+| TS-STF-12 | Hapus akun sendiri | Super admin | — | — | Hapus diri | "Akun sendiri tidak bisa dihapus." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.6 |
+| TS-STF-13 | Hapus Super admin terakhir | Super admin | Hanya satu | — | Hapus | "Ini super admin terakhir…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.6 |
+| TS-STF-14 | Head office mencoba Hapus (akses tak sah) | Head office | — | — | Cari tombol | Tombol Hapus tidak tampil | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.6 |
+| TS-STF-15 | Impor staf massal dengan baris bermasalah | Head office | — | 5 baris, 1 peran terbatas | Unggah → Import | Baris peran terbatas gagal dengan pesan; lainnya dibuat | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.5 |
+| TS-STF-16 | Ubah matriks hak akses | Super admin | Ada peran uji | Satu kapabilitas | `/hq/access` klik sel → **Simpan** | Berlaku ±30–45 detik; tercatat | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.1 |
+| TS-STF-17 | Cabut Super admin dari accessMatrixWrite | Super admin | — | — | Cabut → Simpan | "SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.1 |
+| TS-STF-18 | Non-admin membuka editor matriks (akses tak sah) | Head office | — | — | Buka `/hq/access` | Tidak ada di menu; simpan ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.1 |
+| TS-STF-19 | Hierarki: tugaskan Asisten SPV ke depot | Super admin | — | Depot uji | `/hq/hierarchy` → pilih asisten | "Tersimpan. Berlaku di seluruh service dalam 60 detik." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.8 |
+| TS-STF-20 | Atasan melingkar | Super admin | — | A atasan B, B atasan A | Simpan | "Penugasan ini membentuk lingkaran atasan-bawahan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.8 |
+| TS-STF-21 | Manajer melihat depot di luar hierarki (batas lintas depot) | Manajer | Depot bukan binaan | — | Buka data depot via URL | Ditolak "Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 Lampiran A.1 |
+| TS-STF-22 | Kepala depot pada depot lain (batas lintas depot) | Kepala depot A | Pesanan depot B | ID | Buka `/dashboard/orders?order=<id>` | Ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.2 |
+| TS-HRM-01 | Tambah karyawan | HR | — | Data sintetis | `/hr/employees/new` → **Tambah Karyawan** | Toast "Karyawan ditambahkan"; kode `HR-####`; akun login dibuat | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.1, F13 |
+| TS-HRM-02 | Nomor sudah dipakai akun lain | HR | Nomor milik akun X | Nomor X | Simpan | Kartu kuning; tombol "Ya, gunakan akun itu" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.1 |
+| TS-HRM-03 | Gaji 0 / NIK 15 digit | HR | — | Gaji 0; NIK pendek | Simpan | "Gaji harian (dailyRate) wajib > 0."; "NIK harus 16 digit angka." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.1 |
+| TS-HRM-04 | Head office memberi Manajer lewat HR | Head office | — | Jabatan Manager | Simpan | Ditolak server (pesan auth tidak jelas **[B]**) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.1 |
+| TS-HRM-05 | Offboarding: Resign dengan tanggal keluar | HR | Karyawan aktif | Tanggal keluar | Edit → Resign → Simpan | Akun login ditangguhkan; slip terakhir bisa dibuat | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.6 |
+| TS-HRM-06 | Resign tanpa tanggal keluar lalu payroll | HR | — | Tanggal kosong | Generate payroll | "Karyawan berstatus RESIGNED tanpa tanggal keluar…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.6 |
+| TS-HRM-07 | Ubah depot dengan penugasan terbuka | HR | Ada penugasan | — | Edit depot | 409 "Karyawan ini punya penugasan depot yang terjadwal atau berjalan…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.2 |
+| TS-HRM-08 | Enroll wajah tanpa persetujuan | HR | — | — | **Simpan Enroll** tanpa centang | Tombol nonaktif | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.5 |
+| TS-HRM-09 | Unggah dokumen format salah / > 5 MB | HR | — | .exe; 8 MB | Unggah | "Tipe file tidak didukung…"; "Ukuran file melebihi 5MB" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.5 |
+| TS-HRM-10 | HR depot lain mengubah karyawan (batas lintas depot) | HR terkunci depot | Karyawan depot lain | — | Edit | Ditolak/dibatasi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.1 [D] |
+
+### 3.8 Absensi (ATT), cuti (LEV), kasbon (KAS)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-ATT-01 | Enroll wajah sendiri | Karyawan | Akun tertaut karyawan | U-FACE | `/hr/me/enroll` → 1–3 foto → centang persetujuan → **Simpan** | "Wajah berhasil didaftarkan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.16, F14 |
+| TS-ATT-02 | Enroll tanpa persetujuan | Karyawan | — | Tanpa centang | Simpan | Tombol nonaktif atau pesan persetujuan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.16 |
+| TS-ATT-03 | Check-in tepat waktu | Karyawan | Wajah terdaftar; GPS | U-FACE | **Absen Sekarang** → Check-in | "Check-in berhasil"; status Hadir | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-04 | Check-in terlambat | Karyawan | Shift mulai + toleransi lewat | — | Check-in | Status Terlambat dengan menit | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-05 | Check-in dua kali | Karyawan | Sudah check-in | — | Check-in lagi | "Sudah check-in hari ini" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-06 | Check-out tanpa check-in | Karyawan | Belum check-in | — | Check-out | "Belum check-in hari ini" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-07 | Wajah orang lain (akses tak sah) | Karyawan B | Wajah A terdaftar | Wajah B | Check-in sebagai A | "Wajah tidak cocok" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-08 | Di luar geofence | Karyawan | Geofence aktif **[K]** | GPS jauh | Check-in | "Di luar area absen depot ({m} m dari titik)…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-09 | Absen offline lalu sambung | Karyawan | Putuskan jaringan | — | Check-in offline; sambung dalam 10 menit | Diterima normal; > 10 menit menjadi "Menunggu persetujuan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-10 | Absen offline > 24 jam | Karyawan | — | Antrean tua | Kirim | "Absen offline sudah terlalu lama. Minta entri manual ke HR." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.17 |
+| TS-ATT-11 | HR setujui absen tertahan | HR | Ada absen Menunggu | — | Setujui | Hadir atau Terlambat | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.8 |
+| TS-ATT-12 | HR tolak absen tertahan | HR | — | — | Tolak | Status Absen | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.8 |
+| TS-ATT-13 | Koreksi status tanpa alasan | HR | Catatan ada | Alasan kosong | **Koreksi** | Alasan wajib | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.8 |
+| TS-ATT-14 | Entri manual pada hari yang sudah punya catatan | HR | Catatan ada | — | Simpan | 409 "Hari itu sudah punya catatan kehadiran…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.8 |
+| TS-ATT-15 | Kamera ditolak | Karyawan | Izin kamera ditolak | — | Buka absen | Pesan izin kamera dan tombol "Coba lagi" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.16 |
+| TS-LEV-01 | Ajukan cuti tahunan | Karyawan | Kuota cukup | 2 hari kerja | `/hr/me/leave` → **Ajukan Cuti** | "Pengajuan cuti terkirim"; Menunggu atasan; penyetuju diberi tahu | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18, F15 |
+| TS-LEV-02 | Kolom wajib kosong | Karyawan | — | Alasan kosong | Ajukan | "Alasan wajib diisi." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-03 | Kuota tidak cukup | Karyawan | Sisa 1 hari | 3 hari | Ajukan | "Sisa kuota cuti {x} hari, pengajuan {y} hari" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-04 | Rentang bentrok | Karyawan | Ada pengajuan pada rentang | — | Ajukan | "Sudah ada pengajuan cuti pada rentang tanggal tersebut" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-05 | Rentang tanpa hari kerja | Karyawan | — | Sabtu–Minggu | Ajukan | "Rentang tanggal tidak memuat hari kerja" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-06 | Persetujuan dua tahap lengkap | Manajer lalu HR | Pengajuan Menunggu atasan | Dua akun berbeda | Manajer setujui; HR setujui | Disetujui; absensi Cuti ditulis; kuota terpotong | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.10 |
+| TS-LEV-07 | Tolak tanpa catatan | Manajer | — | Catatan kosong | Tolak | "Alasan penolakan wajib diisi" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.10 |
+| TS-LEV-08 | Pemohon memutuskan cuti sendiri | HR sebagai pemohon | HR mengajukan cuti sendiri | — | Setujui | 403 "Tidak bisa memutuskan pengajuan cuti Anda sendiri" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.10 |
+| TS-LEV-09 | Orang yang sama memutuskan kedua tahap | HR | Tahap 1 diputuskan HR itu | — | Putuskan tahap 2 | 403 "Tahap kedua harus diputuskan orang lain…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.10 |
+| TS-LEV-10 | Batalkan saat menunggu | Karyawan | Menunggu | — | **Batalkan** | Dibatalkan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-11 | Batalkan cuti yang sudah disetujui | Karyawan | Disetujui | — | Batalkan | 409 "Pengajuan berstatus APPROVED tidak bisa cancel" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-12 | Kepala depot memutuskan cuti kurir (akses tak sah) | Kepala depot | — | — | Cari antrean cuti | Tidak ada akses (`leaveApprove`) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.18 |
+| TS-LEV-13 | Manajer depot lain memutuskan (lintas depot) | Manajer | Karyawan depot di luar cakupan | — | Setujui | Ditolak akses depot | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.10 |
+| TS-KAS-01 | Ajukan kasbon | Karyawan | Depot punya Asisten SPV | Rp 500.000 | `/hr/me/kasbon` → **Ajukan Kasbon** | "Pengajuan kasbon terkirim."; Asisten SPV diberi tahu | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.19, F16 |
+| TS-KAS-02 | Dua pengajuan terbuka | Karyawan | Ada pengajuan PENDING | — | Ajukan lagi | 409 "Masih ada pengajuan kasbon yang belum diputuskan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.19 |
+| TS-KAS-03 | Nominal 0 atau alasan kosong | Karyawan | — | 0 | Ajukan | "Nominal harus lebih dari 0."; "Alasan wajib diisi." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.19 |
+| TS-KAS-04 | Asisten SPV setujui dengan cicilan | Asisten SPV | Pengajuan di depotnya | Cicilan Rp 100.000; mulai 2026-11 | Setujui | "Kasbon disetujui."; pinjaman dibuat; potongan di slip | Belum diuji oleh tim dokumentasi | Not Tested | Bab 6 (Kasbon), F16 |
+| TS-KAS-05 | Setujui tanpa cicilan | Asisten SPV | — | Kosong | Setujui | "Cicilan dan bulan mulai wajib diisi untuk menyetujui." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.11 |
+| TS-KAS-06 | Tolak tanpa alasan | Asisten SPV | — | — | Tolak | "Alasan penolakan wajib diisi." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.11 |
+| TS-KAS-07 | Manajer/HR memutuskan padahal ada Asisten SPV | Manajer | Depot punya asisten | — | Setujui | 403 "Kasbon ini diputuskan oleh asisten supervisor depotnya." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.11 |
+| TS-KAS-08 | Eskalasi saat depot tanpa asisten | Manajer | Depot tanpa asisten | — | Setujui | Berhasil | Belum diuji oleh tim dokumentasi | Not Tested | Bab 6 (Eskalasi kasbon) |
+| TS-KAS-09 | Memutuskan kasbon sendiri | Asisten SPV pemohon | Kasbon miliknya | — | Setujui | "Kasbon sendiri tidak bisa Anda setujui." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.11 |
+| TS-KAS-10 | Dua penyetuju bersamaan | Asisten SPV A, B | Pengajuan sama | — | Keduanya setujui | "Pengajuan ini sudah dijawab orang lain. Muat ulang daftarnya." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.11 |
+| TS-KAS-11 | Kepala depot / SPV memutuskan (akses tak sah) | SPV | — | — | Buka `/hr/loans/requests` | Server menolak (`kasbonApprove`) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 6 §10 |
+
+### 3.9 Payroll (PRL), lintas depot (ASG)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-PRL-01 | Generate slip bulan lalu | HR | Bulan sudah berakhir | Karyawan uji | `/hr/payroll` → **Generate** | "Payroll digenerate"; status Draft | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12, F17 |
+| TS-PRL-02 | Generate bulan berjalan | HR | — | Bulan ini | Generate | "Periode {YYYY-MM} belum selesai…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-03 | Generate tanpa memilih karyawan | HR | — | — | Generate | "Isi employeeId untuk generate" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-04 | Batch sedepot | HR | Depot dengan karyawan Aktif | U-DEPOT1 | **Buat sedepot** | "{n} draf ditulis"; karyawan Resign tidak ikut | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-05 | Hitung ulang Draft | HR | Slip Draft; data berubah | — | **Hitung ulang** | "Slip dihitung ulang" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-06 | Setujui Draft | HR | — | — | **Setujui** → konfirmasi | "Payroll disetujui"; status Disetujui | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-07 | Hitung ulang slip Disetujui | HR | — | — | Hitung ulang | "Hanya payroll DRAFT yang bisa dihitung ulang (saat ini APPROVED)" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-08 | Tandai dibayar sebelum disetujui | HR | Slip Draft | — | Bayar | "Hanya payroll APPROVED yang bisa dibayar (saat ini DRAFT)" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-09 | Tandai dibayar | Finance | Disetujui | — | **Tandai Dibayar** | Dibayar; final; sistem tidak memindahkan uang | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-10 | Akun yang sama membuat, menyetujui, membayar | HR | — | — | Jalankan ketiganya | Diterima (tidak ada maker-checker); catat sebagai temuan kebijakan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 [K] |
+| TS-PRL-11 | Manajer/SPV menekan Setujui (akses tak sah) | Manajer | — | — | Cari tombol | Tombol tidak tampil (`hrPayroll`) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-12 | Karyawan membaca slip sendiri dan slip orang lain | Karyawan | — | ID slip lain | Buka `/hr/me/payroll`; ubah ID | Slip sendiri tampil; orang lain 404 "Payroll tidak ditemukan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.20 |
+| TS-PRL-13 | Kasbon dipotong di slip | HR | Kasbon disetujui | — | Generate | Baris "Cicilan pinjaman" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-14 | Impor slip riwayat bulan berjalan | HR | — | Baris bulan ini | Impor | "Hanya bulan yang sudah lewat yang bisa diimpor sebagai riwayat" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.12 |
+| TS-PRL-15 | Unduh PDF slip | Karyawan | Slip ada | — | **Unduh PDF** | Berkas terunduh; gagal: "Gagal unduh" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.20 |
+| TS-ASG-01 | Fitur mati: halaman permintaan pinjam | Manajer | `DEPOT_ASSIGNMENT_ENABLED` mati | — | Buka `/hr/depot-requests` | "Penugasan lintas depot belum diaktifkan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.19, F18 |
+| TS-ASG-02 | Ajukan pinjam (fitur aktif) | Manajer | Fitur aktif; karyawan memenuhi syarat | Kode `HR-0012` (sintetis) | Isi form → **Ajukan** | "Permintaan terkirim ke HR"; status Diajukan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 (pinjam karyawan) |
+| TS-ASG-03 | Kode karyawan salah | Manajer | — | `XX-1` | Ajukan | "Karyawan tidak ditemukan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-ASG-04 | Depot tujuan di luar cakupan | Manajer | — | Depot lain | Ajukan | "Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-ASG-05 | Tanggal akhir kosong | Manajer | — | — | Ajukan | "Tanggal akhir peminjaman wajib diisi…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-ASG-06 | Kepala depot / Asisten SPV mengajukan (akses tak sah) | Kepala depot | — | — | Buka halaman | Ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 |
+| TS-ASG-07 | HR setujui permintaan | HR | Status Diajukan | — | **Setujui** | Terjadwal; berpindah pada tanggal mulai | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.19 |
+| TS-ASG-08 | HR tolak tanpa alasan | HR | — | Alasan 2 huruf | **Tolak** | "Alasan penolakan wajib diisi." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.19 |
+| TS-ASG-09 | Penugasan bertabrakan | HR | Penugasan lain berjalan | — | Rencanakan | "Penugasan bertabrakan dengan penugasan lain yang masih berjalan atau terjadwal." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.19 |
+| TS-ASG-10 | Mundur tanggal pada bulan payroll terkunci | HR | Slip bulan itu Dibayar | — | Rencanakan mundur | Ditolak dengan pesan payroll sudah disetujui/dibayar | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.19 |
+| TS-ASG-11 | Penugasan mulai dan berakhir otomatis | Sistem | Terjadwal | — | Sapuan 15 menit pada tanggal mulai; hari terakhir | Berjalan lalu Selesai; kembali ke depot asal | Belum diuji oleh tim dokumentasi | Not Tested | F18, F22 |
+
+### 3.10 UU PDP (PDP), klaim kurir (CLM), tarik saldo kurir (WDR)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-PDP-01 | Minta salinan data | Pelanggan | Masuk | — | Akun → **Minta salinan data** | "Permintaan terkirim. Kantor pusat akan meninjau."; Menunggu ditinjau | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 (UU PDP), F19 |
+| TS-PDP-02 | Permintaan sejenis ganda | Pelanggan | Permintaan terbuka | — | Kirim lagi | "Permintaan sejenis masih diproses." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-PDP-03 | HQ setujui salinan | Head office | Permintaan Menunggu | — | `/hq/pdp` → **Setujui** | JSON terunduh; pelanggan dapat mengunduh dalam 7 hari | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.29 |
+| TS-PDP-04 | Unduh sebelum disetujui | Pelanggan | Menunggu | — | **Unduh salinan data** | "Ekspor data belum disetujui…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-PDP-05 | Unduh setelah 7 hari | Pelanggan | Disetujui > 7 hari | — | Unduh | "Persetujuan ekspor sudah lewat 7 hari…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-PDP-06 | Minta hapus akun lalu HQ setujui | Pelanggan, Head office | Akun uji tanpa pesanan aktif | — | Minta hapus → konfirmasi; HQ setujui | Akun dianonimkan; pesanan/pembayaran disimpan tanpa identitas; langganan batal | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2, Bab 9 §6.29 |
+| TS-PDP-07 | HQ tolak tanpa alasan | Head office | — | Alasan kosong | **Tolak** | Alasan wajib | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.29 |
+| TS-PDP-08 | Direktur/Finance membuka PDP (akses tak sah) | Direktur | — | — | Buka `/hq/pdp` | "Khusus HQ" / ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.29 |
+| TS-PDP-09 | Permintaan melewati 72 jam | Head office | Permintaan > 3 hari | — | Buka antrean | Lencana merah "LEWAT BATAS 3x24 jam"; urut terlama dulu | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.29 |
+| TS-PDP-10 | Putuskan dua kali | Head office | Sudah diputuskan | — | Setujui lagi | "Permintaan ini sudah diputuskan." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.29 |
+| TS-PDP-11 | Masuk setelah akun dihapus | Pelanggan | Akun DELETED | — | Masuk | Ditolak "Akun ini tidak aktif…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 |
+| TS-PDP-12 | Hapus akun staf lewat layar PDP | Super admin | Akun staf | — | Hapus lewat HQ staf | Layar PDP tidak untuk staf; gunakan Hapus staf | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.19 |
+| TS-CLM-01 | Klaim ≤ Rp50.000 dengan struk | Kurir | `courierPayout` | Rp 30.000, foto struk | `/driver/expenses` → **Kirim klaim** | Disetujui otomatis; saldo bertambah | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.13, F20 |
+| TS-CLM-02 | Klaim tanpa struk | Kurir | — | Rp 30.000 tanpa foto | Kirim | Menunggu persetujuan Manajer/Finance | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.13 |
+| TS-CLM-03 | Klaim kolom wajib kosong | Kurir | — | Keterangan kosong | Kirim | Tombol nonaktif | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.13 |
+| TS-CLM-04 | Manajer setujui klaim ≤ Rp500.000 | Manajer | Klaim Menunggu | Rp 200.000 | Setujui | Disetujui; saldo kurir bertambah | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 Lampiran A.5 |
+| TS-CLM-05 | Manajer setujui klaim di atas batas | Manajer | Klaim Rp 800.000 | — | Setujui | "Klaim di atas Rp{limit} harus disetujui FINANCE." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 5 Lampiran A.5 |
+| TS-CLM-06 | Tolak klaim | Manajer | — | Catatan | Tolak | Ditolak; kurir melihat alasan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.13 |
+| TS-CLM-07 | Putuskan klaim yang sudah final | Finance | Klaim Disetujui | — | Setujui | "Only a pending expense claim can be approved or rejected." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.13 |
+| TS-CLM-08 | Kepala depot menyetujui klaim (akses tak sah) | Kepala depot | — | — | Cari antrean | Tidak ada (`expenseApprove`) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.13 |
+| TS-WDR-01 | Daftar rekening kurir lalu tarik | Kurir, Finance | Saldo > 0 | U-BANK | Daftar → Finance verifikasi → **Tarik** | Saldo langsung berkurang; Diproses; kemudian Terkirim | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.12, F21 |
+| TS-WDR-02 | Tarik melebihi saldo | Kurir | — | Jumlah > saldo | Tarik | "Jumlah melebihi saldo tersedia." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.12 |
+| TS-WDR-03 | Tarik tanpa rekening terverifikasi | Kurir | Rekening PENDING | — | Tarik | "Daftarkan rekening dan tunggu verifikasi sebelum menarik saldo." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.12 |
+| TS-WDR-04 | Penarikan gagal mengembalikan saldo | Finance | Penarikan PROCESSING | — | **Gagal** | Saldo kembali; catatan "Penarikan gagal, saldo dikembalikan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.12 |
+
+### 3.11 Pekerjaan otomatis (JOB), keamanan dan pembatasan (SEC), laporan dan ekspor (RPT), pemulihan error (ERR)
+
+| ID | Skenario bisnis | Aktor | Prasyarat | Data uji | Langkah | Hasil diharapkan | Hasil aktual | Status | Bagian dokumen |
+|---|---|---|---|---|---|---|---|---|---|
+| TS-JOB-01 | Kesehatan sapuan terjadwal | Head office | Penjadwal berjalan | — | `/hq/health` | Kartu "Sapuan terjadwal" menampilkan status tiap sapuan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.28, F22 |
+| TS-JOB-02 | Sapuan "Belum pernah jalan" | Admin | Sapuan baru | — | Cek kartu | Ditandai "Belum pernah jalan" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.28 |
+| TS-JOB-03 | Antrean efek pesanan dicoba ulang | Sistem | Pesanan Selesai; layanan loyalti terganggu lalu pulih | — | Tunggu sapuan 10 menit | Poin akhirnya masuk sekali | Belum diuji oleh tim dokumentasi | Not Tested | F01, F22 |
+| TS-JOB-04 | Peringatan SLA terlambat | Sistem | Pengiriman melewati jendela SLA | — | Sapuan 10 menit | Satu peringatan per pengiriman; tidak mengganti kurir | Belum diuji oleh tim dokumentasi | Not Tested | F22 |
+| TS-JOB-05 | Pengingat isi ulang | Sistem | Pelanggan 14 hari tanpa pesanan | — | Sapuan 08:00 | Notifikasi "Saatnya isi ulang?" | Belum diuji oleh tim dokumentasi | Not Tested | F22 |
+| TS-JOB-06 | Permintaan ulasan | Sistem | Pesanan Tiba | — | Tunggu 30 menit | Satu notifikasi "Beri penilaian" | Belum diuji oleh tim dokumentasi | Not Tested | F22 |
+| TS-JOB-07 | Laporan terjadwal | Head office | Jadwal dibuat | — | Tunggu sapuan jam :17 | Berkas di `/hq/exports`; tidak ada email | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.15 |
+| TS-JOB-08 | Pemindaian fraud | Sistem | 3 refund selesai dalam 30 hari | — | Sapuan 11:10 | Item Terbuka; akun tidak diblokir otomatis | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.25 |
+| TS-JOB-09 | Blokir akun lewat fraud | Head office | Item Ditinjau | — | **Blokir** | Akun pelanggan tidak bisa masuk; **Tandai aman** mengaktifkan lagi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.25 |
+| TS-JOB-10 | Sapuan retensi dengan pratinjau | Admin | Dataset uji | — | `/hq/retention` → Pratinjau → Jalankan | Jumlah baris cocok pratinjau; data keuangan tidak dihapus | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.12 |
+| TS-JOB-11 | Retensi di bawah batas bawah | Admin | — | Audit 30 hari | Ubah | Ditolak dengan alasan (batas 365 hari) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.12 |
+| TS-JOB-12 | Kedaluwarsa poin mati bawaan | Sistem | `pointExpirySweepEnabled` belum diisi | — | Sapuan 03:45 | Poin tidak kedaluwarsa | Belum diuji oleh tim dokumentasi | Not Tested | F22 [K] |
+| TS-SEC-01 | Pelanggan membuka halaman staf | Pelanggan | — | URL `/dashboard`, `/hq` | Buka | Ditolak/diarahkan; tidak ada data staf | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 §9 |
+| TS-SEC-02 | Pelanggan B membuka pesanan pelanggan A | Pelanggan B | Pesanan A | ID | Buka `/orders/detail?id=` | 404/403 | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 §9 |
+| TS-SEC-03 | Pelanggan B mengunggah bukti bayar pesanan A | Pelanggan B | — | ID | Unggah via API | Ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 §9 [D] |
+| TS-SEC-04 | Kurir membuka konsol depot | Kurir | — | `/dashboard` | Buka | Diarahkan ke `/driver` atau ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §9 |
+| TS-SEC-05 | Matriks hak akses diubah, efek 30 detik | Admin, Head office | Peran uji | Cabut satu hak | Ubah; uji sebelum dan sesudah 45 detik | Berlaku setelah ±30–45 detik | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.1 |
+| TS-SEC-06 | Tombol tampil tetapi server menolak | Direktur | — | Tombol "Ajukan rilis" | Tekan | Server menolak (403); catat sebagai temuan UI **[B]** | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §1.2 |
+| TS-SEC-07 | Kunci API dan webhook | Admin | — | Cakupan webhooks:read | Buat kunci; panggil rute di luar cakupan | Ditolak per cakupan; kunci tampil sekali | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.9 |
+| TS-SEC-08 | IP allowlist hanya API mitra | Admin | Allowlist diisi | IP lain | Akses konsol HQ dari IP lain | Konsol HQ tetap terbuka (tidak ditegakkan); API mitra ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.13 [B] |
+| TS-SEC-09 | Token penyegar dipakai ulang | Pengguna | Dua penyegaran | Token lama | Pakai token lama | Seluruh sesi dicabut ("This session was terminated for security reasons.") | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.13 |
+| TS-RPT-01 | Ekspor laporan harian depot | Kepala depot | Ada pesanan | — | Laporan → **Ekspor Excel/CSV/PDF** | Berkas "laporan-harian" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.9 |
+| TS-RPT-02 | Ekspor laporan pendapatan HQ | Head office | — | 30 hari, per Depot, XLSX | `/hq/reports/export` | Berkas `pendapatan-depot-…xlsx`; bila data parsial, ekspor ditahan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.14 |
+| TS-RPT-03 | Ekspor tanpa hak (izin ekspor) | Finance | — | — | Buka `/hq/reports/export` | "Khusus HQ" / ditolak | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.14 |
+| TS-RPT-04 | Ekspor log audit | Head office | — | — | `/hq/audit` → **Ekspor** | `audit-{tanggal}.xlsx`; bila terlalu besar pesan penolakan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.27 |
+| TS-RPT-05 | Rekonsiliasi dan Net payout "—" | Finance | — | Depot waralaba | `/hq/reconciliation` | Net payout "—" (nilai tak terbaca bukan nol) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.12 [B] |
+| TS-RPT-06 | Laporan HR beban BPJS | HR | Slip ada | — | Laporan | Angka cocok dengan slip | Belum diuji oleh tim dokumentasi | Not Tested | Bab 8 §6.17 |
+| TS-ERR-01 | Jaringan putus saat checkout | Pelanggan | — | Matikan jaringan | Checkout | Pesan gagal; pesanan tidak ganda saat dicoba lagi | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 §6 |
+| TS-ERR-02 | Pembayaran gagal dimulai setelah pesanan dibuat | Pelanggan | Gangguan penyedia (simulasi) | — | Tekan lagi | Pesanan yang sama dipakai | Belum diuji oleh tim dokumentasi | Not Tested | Bab 2 §6 |
+| TS-ERR-03 | Penjualan tersimpan tetapi pembayaran belum tercatat | Kepala depot | Gangguan pembayaran (simulasi) | — | **Coba lagi catat pembayaran** | "Pembayaran {pesanan} tercatat." | Belum diuji oleh tim dokumentasi | Not Tested | Bab 3 §6.4 |
+| TS-ERR-04 | Antrean offline kurir: membuang konfirmasi COD | Kurir | Antrean berisi konfirmasi COD | — | Tekan buang | Dialog "Buang data ini?" dengan peringatan uang tidak tercatat | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.14 |
+| TS-ERR-05 | Penolakan bisnis 4xx tetap di antrean | Kurir | Aksi offline ditolak server | — | Sambung jaringan | Tetap di antrean dengan pesan server | Belum diuji oleh tim dokumentasi | Not Tested | Bab 4 §6.14 |
+| TS-ERR-06 | Edit bentrok dua pengguna | Head office | Data depot sama | — | Dua tab simpan | "Orang lain sudah mengubah data ini sejak Anda membukanya…" | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.3 |
+| TS-ERR-07 | Layanan sumber gagal sebagian | Head office | Satu layanan dimatikan (lingkungan uji) | — | Buka `/hq` | "Sebagian data gagal dimuat…"; "—" bukan nol | Belum diuji oleh tim dokumentasi | Not Tested | Bab 9 §6.1 |
+| TS-ERR-08 | Matriks gagal dimuat tampil bawaan | Admin | Layanan matriks terganggu (simulasi) | — | Buka `/hq/access` | Grid menampilkan nilai bawaan; muat ulang sebelum simpan | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.1 [B] |
+| TS-ERR-09 | Sesi kedaluwarsa di tengah formulir | Staf | Sesi habis | — | Kirim formulir | Diminta masuk lagi; data formulir tidak hilang atau hilang (catat) | Belum diuji oleh tim dokumentasi | Not Tested | Bab 1 |
+| TS-ERR-10 | Webhook mitra gagal berulang | Admin | Endpoint uji mati | — | Picu peristiwa | Percobaan ulang 1m, 5m, 25m… lalu DEAD | Belum diuji oleh tim dokumentasi | Not Tested | Bab 10 §6.10 |
+
+---
+
+## 4. Bukti uji otomatis yang SUDAH ADA di repo (bukan dijalankan oleh dokumentasi ini)
+
+> **Peringatan.** Seluruh isi bagian ini adalah **klaim dari repo**, dibaca dari berkas sumber dan `.uat/STATE.md`. Tim dokumentasi **tidak menjalankan ulang** satu pun tes ini. Tanggal dan commit hasil yang tercatat **tidak diverifikasi ulang**. Jangan menyalin angka ini sebagai hasil Pass untuk skenario di bagian 3.
+
+### 4.1 Playwright e2e (`apps/web/e2e/*.spec.ts`)
+
+Konfigurasi: `apps/web/playwright.config.ts` (proyek `chromium`, Desktop Chrome saja); perintah `npm run test:e2e` (`apps/web/package.json`); pembantu masuk OTP: `apps/web/e2e/helpers/auth.ts`, `otp.ts`. Pengujian peramban lain tidak ada di CI.
+
+| ID turunan | Skenario menurut judul tes | Berkas | Skenario Bab 15 terkait |
+|---|---|---|---|
+| E2E-SMOKE-1 | landing page renders | `apps/web/e2e/smoke.spec.ts:8` | — |
+| E2E-SMOKE-2 | catalog page loads its shell | `smoke.spec.ts:14` | — |
+| E2E-SMOKE-3 | login submits a phone and routes to OTP verify | `smoke.spec.ts:21` | TS-AUTH-05 |
+| E2E-AUTH-1 | OTP login establishes an authenticated cookie session | `apps/web/e2e/authed.spec.ts:14` | TS-AUTH-05 |
+| E2E-AUTH-2 | a protected page loads over the cookie session | `authed.spec.ts:31` | TS-SEC-01 |
+| E2E-AUTH-3 | authenticated customer can add a seeded product to cart | `authed.spec.ts:45` | TS-ORD-01 |
+| E2E-CHK-1 | authenticated customer places an order through manual checkout | `apps/web/e2e/checkout.spec.ts:17` | TS-ORD-01 |
+| E2E-POS-1 | records a cash sale at the counter and prints a receipt (walk-in) | `apps/web/e2e/walk-in.spec.ts:10` | TS-POS-04 |
+| E2E-HR-1 | face check-in captures a frame and posts through the cookie session | `apps/web/e2e/hr-checkin.spec.ts:12` | TS-ATT-03 |
+| E2E-HR-2 | a full-size face frame survives the whole ingress path | `hr-checkin.spec.ts:86` | TS-ATT-03 |
+| E2E-HR-3 | a punch taken offline is queued on device and flushed on reconnect (melewati sendiri bila uji kehidupan klien menolak bingkai, `:163`) | `hr-checkin.spec.ts:105` | TS-ATT-09 |
+| E2E-PERF-1 | `/hq` dalam anggaran 15 permintaan API (diukur pada 12 depot) | `apps/web/e2e/request-budget.spec.ts` (sekitar baris 120–141) | TS-ERR-07 (tidak langsung) |
+| E2E-PERF-2 | `/products` dalam anggaran 15 permintaan API | `request-budget.spec.ts` | — |
+| Ekspor statis | jalur APK terekspor terselesaikan, tanpa backend | `apps/web/e2e-static/export.spec.ts`, `apps/web/playwright.static.config.ts`; skrip `run-export-tests.mjs customer|ops` | — |
+
+### 4.2 Alur integrasi API (`test/integration/flow.mjs`)
+
+Pengendali: `test/integration/run.mjs`; stub gerbang: `test/integration/gateway-stub.mjs`; perintah `npm run test:integration` (menjalankan `docker-compose.yml` dan `docker-compose.test.yml`).
+
+| ID | Skenario menurut berkas | Berkas | Skenario Bab 15 terkait |
+|---|---|---|---|
+| INT-1 coreLoop | daftarkan pelanggan → checkout → bayar tunai/konfirmasi → maju sampai Selesai → poin loyalti diberikan lintas layanan | `test/integration/flow.mjs:276-338` | TS-ORD-01, TS-LOY-07 |
+| INT-1b stampedEdits | edit produk dengan cap kesegaran masuk ke DB (konkurensi optimistik) | `flow.mjs:997-1041` | TS-ERR-06 |
+| INT-2 depotRoutedLoop | checkout diarahkan ke depot yang mencakup, ongkir per depot, stok dicadangkan lalu dikurangi | `flow.mjs:340-410` | TS-ORD-01 |
+| INT-3 onlineWebhookLoop | EWALLET lewat gerbang stub → webhook PAID bertanda tangan → pesanan Dikonfirmasi | `flow.mjs:412-483` | TS-PAY-07 |
+| INT-4 failurePaths | di bawah minimum, di luar area, stok tidak cukup ditolak 422 | `flow.mjs:485-630` | TS-ORD-02, TS-ORD-03, TS-ORD-07 |
+| INT-5 qrisLoop | QRIS tetap PENDING sampai staf konfirmasi, tanpa gerbang | `flow.mjs:713-798` | TS-PAY-01 |
+| INT-6 deliveryLeg | check-in shift (geofence) → tugaskan → ambil → mulai → konfirmasi tunai COD → bukti → Selesai → setoran diajukan dan diverifikasi → upah kurir dikredit | `flow.mjs:800-995` | TS-DEL-05, TS-COD-01, TS-COD-03 |
+
+### 4.3 Harness UAT (`.uat/`)
+
+Naskah sumber `UAT_Script_Hydromart_v2.1.xlsx` berada **di luar repo** (439 kasus, 29 modul, ditambah lembar cakupan 199 halaman). Pengendali: `.uat/run.mjs` (hasil ke `results.json`), `.uat/lib.mjs`, `otp-sink.mjs`, `seed-queues.mjs`, `pages.mjs` (smoke 199 halaman — menurut `STATE.md` **belum dikerjakan**), `rebuild.sh`; CI `.github/workflows/uat.yml` (hanya melapor karena lima kasus naskah bertentangan dengan keputusan desain yang disengaja, `STATE.md:51-55`). ID kasus berbentuk `UAT-M<modul>-<nn>`.
+
+**Hasil terakhir yang tercatat di repo** (`.uat/STATE.md:37-40`): **398 Pass / 36 N/A / 5 Blocked dari 439** (garis dasar 2026-07-27: 368/34/37). Pekerjaan terbuka menurut berkas yang sama: smoke 199 halaman dan pengisian workbook (`STATE.md:30-31`). Cacat harness yang sudah diperbaiki: M11-06, M21-03 (`STATE.md:42-47`). **Tanggal dan commit hasil ini tidak diverifikasi ulang oleh dokumentasi ini.**
+
+| Modul | Judul (menurut header berkas) | Berkas | Jumlah kasus (hitungan grep di repo) | Modul Bab 15 terkait |
+|---|---|---|---|---|
+| M1 | Autentikasi & Sesi | `.uat/m01-auth.mjs` | 26 | AUTH |
+| M2–M5 | Profil & Alamat; Katalog; Keranjang & Checkout; Voucher & Promo | `.uat/m02-m05.mjs` (+ `m30-gaps.mjs`) | 9 / 9 / 18 / 18 | ORD, LOY |
+| M6–M7 | Pembayaran & Refund; Pengiriman, Kurir & Bukti Terima | `.uat/m06-m07.mjs` | 16 / 25 | PAY, REF, DEL |
+| M8–M9 | Depot, Inventori & Pengadaan; Loyalty, Referral & Langganan | `.uat/m08-m09.mjs` | 18 / 13 | OPN, PO, LOY, SUB |
+| M10–M12 | HR, Absensi & Payroll; Franchise, HQ & Pelaporan; RBAC, Keamanan & Audit | `.uat/m10-m12.mjs` | 16 / 11 / 13 | HRM, ATT, PRL, FRA, SEC |
+| M13–M17 | Non-Fungsional; E2E; Galon & Deposit; Inventori Lanjutan; Kas & Shift | `.uat/m13-m17.mjs` | 8 / 7 / 16 / 14 / 18 | GAL, POS, OPN |
+| M18–M21 | Harga Grosir-Override-Reseller; Pembatalan & Langganan; Payout Kurir; Notifikasi | `.uat/m18-m21.mjs` | 17 / 16 / 19 / 13 | PRC, REF, SUB, WDR |
+| M22–M25 | Forecast & Rekomendasi; Administrasi Sistem; Payroll Lanjutan; Laporan Lanjutan | `.uat/m22-m25.mjs` | 10 / 21 / 17 / 18 | STF, PRL, RPT |
+| M26–M29 | Portal Manajer Mobile; Halaman Publik & Aksesibilitas; Konsistensi Lintas Surface; Zona Waktu & Mata Uang | `.uat/m26-m29.mjs` | 9 / 15 / 16 / 13 | APR, SEC |
+
+Total 439 ID unik. Pemetaan modul Bab 15 pada kolom terakhir bersifat **perkiraan penulis dokumen** dari judul modul, bukan dari membaca isi tiap kasus **[D]**.
+
+### 4.4 Celah bukti otomatis yang tampak dari daftar di atas
+
+Berdasarkan judul tes (bukan hasil menjalankan), area berikut **tidak tampak** punya tes otomatis di daftar yang dibaca. Ini hanya penunjuk prioritas uji manual, dan harus dipastikan ke pemilik tes: pembatalan oleh pelanggan setelah kurir ditugaskan; persetujuan refund Finance dan ambang; rilis payout empat mata; PDP; cuti dua tahap pemisahan tugas; kasbon eskalasi; penugasan lintas depot (fitur mati bawaan); pengujian peramban selain Chromium dan perangkat Android (WebView).
+
+---
+
+## 5. Lembar pelaksanaan (diisi penguji)
+
+| Isian | Nilai |
+|---|---|
+| Tanggal uji | (diisi penguji) |
+| Penguji | (diisi penguji) |
+| Lingkungan dan versi | (diisi penguji) |
+| Matriks hak akses saat uji | (diisi penguji) |
+| Nilai ambang saat uji (T-AMBANG) | (diisi penguji) |
+| Jumlah skenario dijalankan / Pass / Fail / Blocked / N/A | (diisi penguji) |
+| Nomor cacat terbuka | (diisi penguji) |
+
+**Aturan menutup siklus uji:**
+- [ ] Semua skenario berisiko tinggi (REF, COD, FRA-21..33, PRL, STF, PDP, SEC) sudah dijalankan.
+- [ ] Setiap Fail punya nomor cacat dan bukti.
+- [ ] Setiap Blocked punya alasan dan pemilik tindak lanjut.
+- [ ] Setiap perilaku bertanda **[B]** dibandingkan dengan keputusan bisnis (perbaiki kode atau perbarui panduan).
+- [ ] Setiap nilai bertanda **[K]** dicatat di T-AMBANG.
+
+## 6. Keterlacakan: alur Bab 11 ke modul uji
+
+| Alur Bab 11 | Modul uji Bab 15 |
+|---|---|
+| F01 | AUTH, ORD, PAY, DEL, COD |
+| F02 | REF |
+| F03 | GAL, APR |
+| F04 | POS |
+| F05 | OPN, APR |
+| F06 | PO |
+| F07 | INC |
+| F08 | SUB |
+| F09 | LOY |
+| F10 | FRA |
+| F11 | PRC |
+| F12 | STF |
+| F13 | HRM, STF |
+| F14 | ATT |
+| F15 | LEV |
+| F16 | KAS |
+| F17 | PRL |
+| F18 | ASG |
+| F19 | PDP |
+| F20 | CLM |
+| F21 | WDR |
+| F22 | JOB |
+| F23 | JOB (TS-JOB-08, TS-JOB-09) |
+| Lintas alur | SEC, RPT, ERR |
+
+## 7. Catatan celah dan hal yang perlu dikonfirmasi
+
+| No | Catatan | Tanda |
+|---|---|---|
+| T1 | Nilai ambang dan pengaturan (refund, auto-pass, radius, SLA, kuota, tarif) harus dibaca dari lingkungan sebelum uji | [K] |
+| T2 | Skenario yang bergantung pada simulasi gangguan layanan (TS-COD-10, TS-REF-13, TS-ERR-03, TS-ERR-08) memerlukan cara menyuntik kegagalan di lingkungan uji; belum ada prosedur di repo | [D] |
+| T3 | Skenario gerbang pembayaran online (TS-PAY-07) memerlukan penyedia atau stub aktif; status di produksi belum diketahui | [K] |
+| T4 | Skenario penugasan lintas depot (ASG) hanya dapat dijalankan bila `DEPOT_ASSIGNMENT_ENABLED` dinyalakan di lingkungan uji | [K] |
+| T5 | Akun Finance dan Marketing tidak dibuat oleh seed standar; sediakan sebelum uji | [V] |
+| T6 | Hasil perilaku yang diberi tanda [B] (mis. Head office menekan tombol yang ditolak server) sebaiknya dicatat sebagai temuan, bukan sekadar Pass/Fail | [B] |
+| T7 | Pengujian peramban dan perangkat selain Chromium desktop belum ada bukti otomatis; Android WebView lama dapat kehilangan tema (rekomendasi uji perangkat nyata) | [D] |
+| T8 | Hasil UAT 398/36/5 adalah klaim repo, bukan hasil dokumen ini | [V] |
