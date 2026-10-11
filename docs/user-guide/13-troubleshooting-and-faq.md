@@ -147,7 +147,7 @@ Dasar teknis: masuk memakai nomor telepon dan kode sekali pakai (OTP) lewat SMS.
 | **Langkah diagnosis** | Admin atau Head office: buka **Direktori staf** (`/hq/staff`), cari nomor, lihat lencana Aktif/Nonaktif. HR: cek status karyawan (Aktif/Nonaktif/Resign) di `/hr/employees`. |
 | **Prosedur perbaikan** | Staf: Head office atau Super admin menekan **Aktifkan** pada baris akun (tanpa dialog konfirmasi). Mengundang ulang nomor yang sama juga mengaktifkan kembali akun nonaktif **[V]**. Pelanggan SUSPENDED: layar untuk mengaktifkan kembali pelanggan tidak ditemukan di temuan **[D]**; eskalasi ke tingkat 3–4. |
 | **Peran/izin** | Aktifkan/Nonaktifkan staf: kapabilitas `staffAdmin` (Head office, Super admin) **[V]**. HR tidak punya akses `/hq/staff` **[V]**. |
-| **Eskalasi** | Tingkat 4 bila akun diduga dinonaktifkan keliru, atau bila Super admin tunggal yang terkunci (lihat G-097 di Bab 17: penonaktifan diri sendiri/Super admin terakhir tidak dijaga **[B]**). |
+| **Eskalasi** | Tingkat 4 bila akun diduga dinonaktifkan keliru, atau bila Super admin tunggal yang terkunci (lihat G-129 di Bab 17: penonaktifan diri sendiri/Super admin terakhir tidak dijaga **[B]**). |
 | **Lapor dengan** | Nomor akun (disamarkan), peran, pesan persis, kapan terakhir berhasil masuk, siapa yang terakhir mengubah status (lihat Log audit). |
 
 ### T-06 — "Nomor HP Indonesia tidak valid"
