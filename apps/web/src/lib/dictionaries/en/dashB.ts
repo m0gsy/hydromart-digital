@@ -272,6 +272,10 @@ export const dashB = {
   payout: {
     invalidAmount: 'Enter a valid withdrawal amount.',
     withdrawError: 'Withdrawal could not be processed.',
+    withdrawHistory: 'Withdrawal history',
+    wdPROCESSING: 'Awaiting transfer',
+    wdPAID: 'Transferred',
+    wdFAILED: 'Failed (balance returned)',
     withdrawalProcessed: 'Withdrawal processed',
     sentTo: 'sent to {ref}.',
     ref: 'Ref',

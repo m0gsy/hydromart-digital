@@ -79,8 +79,24 @@ export class IdentityHttpAdapter implements IdentityPort {
       throw new BadRequestException(conflictMessage);
     }
     if (!res.ok) {
+      // A 4xx with a sentence in it is auth-service saying WHY (role not grantable, depot
+      // mismatch...). Reducing that to "menolak permintaan (403)" left the person at the
+      // form with nothing to fix. 401 is the shared key being wrong — an outage, not data.
+      const why =
+        res.status >= 400 && res.status < 500 && res.status !== 401 ? await this.reason(res) : null;
+      if (why) throw new BadRequestException(why);
       throw new ServiceUnavailableException(`auth-service menolak permintaan (${res.status})`);
     }
     return (await res.json()) as T;
+  }
+
+  private async reason(res: Response): Promise<string | null> {
+    try {
+      const body = (await res.json()) as { message?: unknown };
+      const m = Array.isArray(body.message) ? body.message.join('; ') : body.message;
+      return typeof m === 'string' && m.trim() !== '' ? m : null;
+    } catch {
+      return null;
+    }
   }
 }

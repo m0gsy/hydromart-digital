@@ -238,6 +238,24 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     this.rows.set(customerId, { ...props, status: CustomerStatus.DELETED });
     return 'deleted';
   }
+
+  async suspendGuardingLastSuperAdmin(
+    customerId: string,
+  ): Promise<'suspended' | 'last-super-admin' | 'not-found'> {
+    const props = this.rows.get(customerId);
+    if (!props) return 'not-found';
+    if (props.role === Role.SUPER_ADMIN) {
+      const others = [...this.rows.values()].filter(
+        (p) =>
+          p.id !== customerId && p.role === Role.SUPER_ADMIN && p.status === CustomerStatus.ACTIVE,
+      );
+      if (others.length === 0) return 'last-super-admin';
+    }
+    if (props.status !== CustomerStatus.DELETED) {
+      this.rows.set(customerId, { ...props, status: CustomerStatus.SUSPENDED });
+    }
+    return 'suspended';
+  }
 }
 
 export class InMemoryOtpTokenRepository implements OtpTokenRepository {

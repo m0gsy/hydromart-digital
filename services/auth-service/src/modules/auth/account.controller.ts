@@ -291,10 +291,11 @@ export class AccountController {
   @ApiOperation({ summary: 'Enable or disable a staff login (and their employee record)' })
   @ApiOkResponse({ type: PublicCustomerDto })
   async setStaffActive(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() dto: SetStaffActiveConsoleDto,
   ): Promise<PublicCustomerDto> {
-    const staff = await this.account.setStaffActive(id, dto.active);
+    const staff = await this.account.setStaffActive(id, dto.active, user.sub);
     return PublicCustomerDto.from(staff);
   }
 

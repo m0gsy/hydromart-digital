@@ -85,7 +85,20 @@ function Snapshot({ a }: { a: Approval }) {
           <span className="text-sm font-semibold">{String(p.condition ?? '—')}</span>
         </RowLine>
         <RowLine label={t('dashA.approvalDetail.depositReturned')} divider>
-          <Money amount={num(p.deposit)} className="font-extrabold tabular-nums" />
+          {/* DEPOSIT_REFUND is queued from two places: the payload key is `deposit` from one and
+            `depositRefunded` from the damaged-return path. */}
+          <Money amount={num(p.deposit ?? p.depositRefunded)} className="font-extrabold tabular-nums" />
+        </RowLine>
+      </Card>
+    );
+  }
+  if (a.type === 'GALLON_VARIANCE') {
+    return (
+      <Card className="px-4 py-1">
+        <RowLine label={t('dashA.approvalDetail.variance')}>
+          <span className="text-sm font-extrabold tabular-nums">
+            {num(p.excessGallons).toLocaleString('id-ID')} galon
+          </span>
         </RowLine>
       </Card>
     );

@@ -779,7 +779,7 @@ export const hq = {
     },
     commission: {
       title: 'Skema komisi',
-      subtitle: 'Persentase payout per depot',
+      subtitle: 'Persentase komisi HQ per depot',
       depot: 'Depot',
       current: 'Saat ini',
       next: 'Baru',

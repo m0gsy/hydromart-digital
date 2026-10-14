@@ -2191,6 +2191,13 @@ export const hrFix = {
     reports: 'Reports',
     audit: 'Audit',
     settings: 'Settings',
+    meter: 'Meter',
+    forecast: 'Forecast',
+    promoRules: 'Promo rules',
+    disputes: 'Disputes',
+    crm: 'CRM',
+    roles: 'Roles',
+    account: 'Account',
   },
   mgrAccount: {
     openOnDesktop: 'Open on desktop',

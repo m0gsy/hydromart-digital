@@ -119,6 +119,12 @@ export const canManageStaff = (role: string | null | undefined) => can('staffAdm
 export const canViewOpsNotifications = (role: string | null | undefined) => can('opsNotif', role);
 export const canViewTracking = (role: string | null | undefined) => can('tracking', role);
 export const canViewForecast = (role: string | null | undefined) => can('forecast', role);
+// Each of these three pages was gated on a broader capability than its API enforces
+// (depotFinance / dashboard), so a role passed the nav and then met a 403. They name what
+// the server checks.
+export const canViewCourierCommission = (role: string | null | undefined) => can('courierSettle', role);
+export const canViewMonthlyClose = (role: string | null | undefined) => can('dailyClose', role);
+export const canViewTeamPerformance = (role: string | null | undefined) => can('deliveryReports', role);
 export const canViewChurn = (role: string | null | undefined) => can('churn', role);
 export const canConfirmPayment = (role: string | null | undefined) => can('paymentSettle', role);
 export const canVerifySettlement = (role: string | null | undefined) => can('courierSettle', role);

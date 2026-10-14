@@ -289,6 +289,56 @@ describe('remaining prisma repository paths', () => {
     });
   });
 
+  // The switch-off twin of the delete guard above: same lock, so two concurrent suspensions
+  // of two different super admins cannot each see the other as the survivor.
+  describe('suspendGuardingLastSuperAdmin', () => {
+    const repoWith = (target: unknown, live: { id: string }[] = []) => {
+      const update = jest.fn().mockResolvedValue({});
+      const tx = {
+        customer: { findUnique: jest.fn().mockResolvedValue(target), update },
+        $queryRaw: jest.fn().mockResolvedValue(live),
+      };
+      const prisma = {
+        $transaction: (fn: (t: unknown) => unknown) => fn(tx),
+      } as unknown as PrismaService;
+      return { repo: new CustomerPrismaRepository(prisma), tx, update };
+    };
+
+    it('reports not-found', async () => {
+      const { repo, update } = repoWith(null);
+      await expect(repo.suspendGuardingLastSuperAdmin('gone')).resolves.toBe('not-found');
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('suspends an ordinary staff login without taking the super-admin lock', async () => {
+      const { repo, tx, update } = repoWith({ role: 'KEPALA_DEPOT', status: 'ACTIVE' });
+      await expect(repo.suspendGuardingLastSuperAdmin('s-1')).resolves.toBe('suspended');
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
+      expect(update).toHaveBeenCalledWith({ where: { id: 's-1' }, data: { status: 'SUSPENDED' } });
+    });
+
+    it('refuses the last active super admin and writes nothing', async () => {
+      const { repo, update } = repoWith({ role: 'SUPER_ADMIN', status: 'ACTIVE' }, [{ id: 'sa-1' }]);
+      await expect(repo.suspendGuardingLastSuperAdmin('sa-1')).resolves.toBe('last-super-admin');
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('suspends a super admin while another is active', async () => {
+      const { repo, update } = repoWith({ role: 'SUPER_ADMIN', status: 'ACTIVE' }, [
+        { id: 'sa-1' },
+        { id: 'sa-2' },
+      ]);
+      await expect(repo.suspendGuardingLastSuperAdmin('sa-1')).resolves.toBe('suspended');
+      expect(update).toHaveBeenCalled();
+    });
+
+    it('never re-labels a DELETED identity as suspended', async () => {
+      const { repo, update } = repoWith({ role: 'KEPALA_DEPOT', status: 'DELETED' });
+      await expect(repo.suspendGuardingLastSuperAdmin('s-2')).resolves.toBe('suspended');
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
   it('counts created customers over an open, one-sided and closed window', async () => {
     const count = jest.fn().mockResolvedValue(7);
     const repo = new CustomerPrismaRepository({ customer: { count } } as unknown as PrismaService);

@@ -168,6 +168,36 @@ export class CustomerPrismaRepository implements CustomerRepository {
     });
   }
 
+  async suspendGuardingLastSuperAdmin(
+    customerId: string,
+  ): Promise<'suspended' | 'last-super-admin' | 'not-found'> {
+    return this.prisma.$transaction(async (tx) => {
+      const target = await tx.customer.findUnique({
+        where: { id: customerId },
+        select: { role: true, status: true },
+      });
+      if (!target) return 'not-found';
+      if (target.role === toPrismaRole(Role.SUPER_ADMIN)) {
+        // Same lock as markDeletedGuardingLastSuperAdmin: every ACTIVE super admin, in id
+        // order, so two concurrent suspensions queue instead of both seeing a survivor.
+        const live = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM customers
+          WHERE role = 'SUPER_ADMIN' AND status = 'ACTIVE'
+          ORDER BY id
+          FOR UPDATE`;
+        if (!live.some((row) => row.id !== customerId)) return 'last-super-admin';
+      }
+      // DELETED is never revived or re-labelled here (see Customer.setActive).
+      if (target.status !== toPrismaStatus(CustomerStatus.DELETED)) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: { status: toPrismaStatus(CustomerStatus.SUSPENDED) },
+        });
+      }
+      return 'suspended';
+    });
+  }
+
   async save(customer: Customer): Promise<Customer> {
     const props = customer.toProps();
     try {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -21,6 +22,7 @@ import {
 import { ImportSummary, isDepotLocked, Role as PlatformRole, runImport } from '@hydromart/platform';
 import { canGrantRole } from '@hydromart/access';
 
+import { Customer } from '../../domain/customer/customer.entity';
 import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
@@ -603,7 +605,17 @@ export class AccountService {
    * other side calls. Without the split each service would answer the other's notification
    * with a notification of its own, forever.
    */
-  async setStaffActive(customerId: string, active: boolean): Promise<PublicCustomer> {
+  async setStaffActive(
+    customerId: string,
+    active: boolean,
+    actorId?: string,
+  ): Promise<PublicCustomer> {
+    // The console is the only caller that knows WHO is pressing the button; the HR path
+    // reports a resignation and has no actor to compare. Deleting yourself is refused for
+    // the same reason, and disabling yourself locks the one person who could undo it.
+    if (!active && actorId !== undefined && actorId === customerId) {
+      throw new BadRequestException('Akun sendiri tidak bisa dinonaktifkan.');
+    }
     const staff = await this.setStaffActiveInternal(customerId, active);
     if (this.hr && staff.role !== Role.FRANCHISE_OWNER) {
       await this.hr.setEmployeeActive(staff.id, active);
@@ -659,8 +671,44 @@ export class AccountService {
     if (customer.role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
     }
+    return this.applyActive(customer, active);
+  }
+
+  /**
+   * Write the on/off switch and, when it turns OFF, take the sessions with it.
+   *
+   * A suspended login was refused at the NEXT sign-in and nowhere else: its refresh tokens
+   * stayed valid, so a person who was switched off kept a working session for as long as
+   * they kept the app open. Revoking here closes every refresh family. The access token
+   * already issued still lives out its short TTL — there is no per-request status check.
+   *
+   * A SUPER_ADMIN goes through the repository guard so the last active one cannot be
+   * switched off (deletion already had this; disabling had been the way around it).
+   */
+  private async applyActive(customer: Customer, active: boolean): Promise<PublicCustomer> {
+    if (!active && customer.role === Role.SUPER_ADMIN) {
+      const outcome = await this.customers.suspendGuardingLastSuperAdmin(customer.id);
+      if (outcome === 'not-found') {
+        throw new CustomerNotFoundError();
+      }
+      if (outcome === 'last-super-admin') {
+        throw new BadRequestException(
+          'Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.',
+        );
+      }
+      await this.sessions.revokeAll(customer.id);
+      const fresh = await this.customers.findById(customer.id);
+      if (!fresh) {
+        throw new CustomerNotFoundError();
+      }
+      return toPublicCustomer(fresh);
+    }
     customer.setActive(active);
-    return toPublicCustomer(await this.customers.save(customer));
+    const saved = await this.customers.save(customer);
+    if (!active) {
+      await this.sessions.revokeAll(customer.id);
+    }
+    return toPublicCustomer(saved);
   }
 
   /**
@@ -686,8 +734,7 @@ export class AccountService {
       // here would leave the employee record saying they still work here.
       throw new InvalidStaffRoleError();
     }
-    customer.setActive(active);
-    return toPublicCustomer(await this.customers.save(customer));
+    return this.applyActive(customer, active);
   }
 
   /**

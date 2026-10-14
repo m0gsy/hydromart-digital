@@ -11,7 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canViewPromotions } from '@/lib/roles';
+import { canManagePromotions, canViewPromotions } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion, PromotionAnalytics as PromotionAnalyticsView, PromotionPayload } from '@/lib/types';
 
@@ -336,6 +336,8 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
 function PromotionsAdmin() {
   const { t } = useT();
   const { customer } = useAuth();
+  // promotionWrite excludes KEPALA_DEPOT: it may read the list, and the server refuses the rest.
+  const canWrite = canManagePromotions(customer?.role);
   const { toast } = useToast();
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined); // undefined = closed, null = new
   const [analytics, setAnalytics] = useState<Promotion | null>(null);
@@ -371,7 +373,7 @@ function PromotionsAdmin() {
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Megaphone size={24} weight="fill" className="text-brand-600" /> Promo
         </h1>
-        {editing === undefined && <Button onClick={() => setEditing(null)}>{t('hrFix.promotions.newPromo')}</Button>}
+        {canWrite && editing === undefined && <Button onClick={() => setEditing(null)}>{t('hrFix.promotions.newPromo')}</Button>}
       </div>
 
       {editing !== undefined && (
@@ -407,12 +409,16 @@ function PromotionsAdmin() {
               <Button variant="ghost" onClick={() => setAnalytics(p)}>
                 {t('opsFix.promoAnalytics.open')}
               </Button>
-              <Button variant="ghost" onClick={() => setEditing(p)}>
-                Edit
-              </Button>
-              <Button variant="danger" onClick={() => remove(p.id)}>
-                {t('hrFix.promotions.delete2')}
-              </Button>
+              {canWrite && (
+                <>
+                  <Button variant="ghost" onClick={() => setEditing(p)}>
+                    Edit
+                  </Button>
+                  <Button variant="danger" onClick={() => remove(p.id)}>
+                    {t('hrFix.promotions.delete2')}
+                  </Button>
+                </>
+              )}
             </div>
           ))}
         </div>

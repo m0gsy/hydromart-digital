@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
@@ -442,6 +443,70 @@ describe('AccountService', () => {
       await expect(
         service.setCustomerActiveInternal('11111111-1111-4111-8111-111111111111', false),
       ).rejects.toBeInstanceOf(CustomerNotFoundError);
+    });
+
+    // A switched-off login used to be refused at the NEXT sign-in only: its refresh tokens
+    // stayed valid, so the session in the person's pocket kept working.
+    it('revokes every session when a login is switched off, and not when it is switched on', async () => {
+      const staff = await service.inviteStaff('+628995550010', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await service.setStaffActive(staff.id, false);
+      expect(revokeAll).toHaveBeenCalledWith(staff.id);
+
+      revokeAll.mockClear();
+      await service.setStaffActive(staff.id, true);
+      expect(revokeAll).not.toHaveBeenCalled();
+    });
+
+    it('revokes sessions on the route hr-service calls too, and for a suspended customer', async () => {
+      const staff = await service.inviteStaff('+628995550011', Role.KEPALA_DEPOT, 'Rina', 'depot-1');
+      const customer = makeCustomer({ phone: '+628995550012', role: Role.CUSTOMER });
+      customers.seed(customer);
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await service.setStaffActiveInternal(staff.id, false);
+      await service.setCustomerActiveInternal(customer.id, false);
+
+      expect(revokeAll).toHaveBeenCalledWith(staff.id);
+      expect(revokeAll).toHaveBeenCalledWith(customer.id);
+    });
+
+    it('refuses to switch off your own login from the console', async () => {
+      const staff = await service.inviteStaff('+628995550013', Role.HEAD_OFFICE, 'Kantor');
+
+      await expect(service.setStaffActive(staff.id, false, staff.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      // Switching yourself ON is harmless, and the HR path passes no actor at all.
+      await expect(service.setStaffActive(staff.id, true, staff.id)).resolves.toBeDefined();
+      await expect(service.setStaffActiveInternal(staff.id, false)).resolves.toBeDefined();
+    });
+
+    // Delete had this guard; disabling walked straight around it, and a suspended last
+    // super admin is as unrecoverable as a deleted one.
+    it('refuses to switch off the last active super admin, but allows it when another exists', async () => {
+      const only = makeCustomer({ phone: '+628995550014', role: Role.SUPER_ADMIN });
+      customers.seed(only);
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await expect(service.setStaffActive(only.id, false)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.setStaffActiveInternal(only.id, false)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(revokeAll).not.toHaveBeenCalled();
+      expect((await customers.findById(only.id))?.status).toBe(CustomerStatus.ACTIVE);
+
+      const second = makeCustomer({ phone: '+628995550015', role: Role.SUPER_ADMIN });
+      customers.seed(second);
+      const off = await service.setStaffActiveInternal(only.id, false);
+      expect(off.status).toBe(CustomerStatus.SUSPENDED);
+      expect(revokeAll).toHaveBeenCalledWith(only.id);
+
+      // `second` is now the last active one.
+      await expect(service.setStaffActiveInternal(second.id, false)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     // Deleting anonymises the identity; "activate" must not bring back a record nobody can

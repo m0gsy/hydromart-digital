@@ -55,7 +55,7 @@ export const terms = {
     },
     {
       heading: '8. Membatalkan, dan bila ada yang salah',
-      body: 'Kamu bisa membatalkan sebelum depot mulai menyiapkan pesanan; setelah itu pembatalan bergantung pada persetujuan depot. Bila air atau galon yang kamu terima bermasalah — segelnya rusak, isinya keruh, jumlahnya kurang — laporkan pada hari yang sama lewat aplikasi, sertakan foto bila ada. Depot akan mengganti atau mengembalikan uangmu. Untuk pesanan yang sudah dibayar dan dibatalkan, uangmu dikembalikan oleh depot melalui jalur yang sama dengan cara kamu membayar.',
+      body: 'Kamu bisa membatalkan sebelum kurir ditugaskan; setelah itu pembatalan bergantung pada persetujuan depot. Bila air atau galon yang kamu terima bermasalah — segelnya rusak, isinya keruh, jumlahnya kurang — laporkan pada hari yang sama lewat aplikasi, sertakan foto bila ada. Depot akan mengganti atau mengembalikan uangmu. Untuk pesanan yang sudah dibayar dan dibatalkan, uangmu dikembalikan oleh depot melalui jalur yang sama dengan cara kamu membayar.',
     },
     {
       heading: '9. Poin, tingkat keanggotaan, voucher, dan referal',

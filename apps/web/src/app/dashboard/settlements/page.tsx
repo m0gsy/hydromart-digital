@@ -79,12 +79,19 @@ function SettlementRow({
   const [error, setError] = useState<string | null>(null);
   const surplusThreshold = useSurplusThreshold();
 
-  const pending = s.status === 'SUBMITTED';
+  // A DISPUTED deposit can be ruled on again (canResolve in delivery-service): hiding the button
+  // left the money parked with no way out. Ending a dispute needs a written note.
+  const disputed = s.status === 'DISPUTED';
+  const pending = s.status === 'SUBMITTED' || disputed;
   const shortfall = s.variance < 0;
 
   const act = async (kind: 'verify' | 'dispute') => {
     if (kind === 'dispute' && note.trim() === '') {
       setError(t('opsFix.settlements.disputeReasonRequired'));
+      return;
+    }
+    if (kind === 'verify' && disputed && note.trim() === '') {
+      setError(t('opsFix.settlements.resolveNoteRequired'));
       return;
     }
     setBusy(kind);
@@ -138,6 +145,11 @@ function SettlementRow({
       {/* Pending → verify trigger + inline flow */}
       {pending ? (
         <>
+          {disputed && (
+            <span className="w-fit rounded-full bg-[color:var(--danger-bg)] px-2.5 py-1 text-xs font-bold text-[color:var(--danger)]">
+              {t(STATUS_LABEL[s.status])}
+            </span>
+          )}
           {!open ? (
             <Button onClick={() => setOpen(true)} className="w-full">
               {t('opsFix.settlements.countVerify')}
@@ -184,9 +196,11 @@ function SettlementRow({
                 <Button onClick={() => act('verify')} loading={busy === 'verify'} className="flex-1">
                   {t('opsFix.settlements.verify')}
                 </Button>
-                <Button variant="ghost" onClick={() => act('dispute')} loading={busy === 'dispute'} className="flex-1">
-                  {t('opsFix.settlements.dispute')}
-                </Button>
+                {!disputed && (
+                  <Button variant="ghost" onClick={() => act('dispute')} loading={busy === 'dispute'} className="flex-1">
+                    {t('opsFix.settlements.dispute')}
+                  </Button>
+                )}
               </div>
             </div>
           )}

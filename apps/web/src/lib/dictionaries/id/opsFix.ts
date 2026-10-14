@@ -518,7 +518,7 @@ export const opsFix = {
     noDepotsBody: 'Belum ada depot yang dikonfigurasi.',
     empty: 'Belum ada pemasok',
     emptyBody: 'Tambahkan pemasok pertama depot ini.',
-    gate: 'Khusus manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Direktori pemasok tersedia untuk manajer depot dan super admin.',
   },
   // dashboard/subscriptions — PR-8. Sebelumnya seluruhnya hardcoded.
@@ -556,7 +556,7 @@ export const opsFix = {
     empty: 'Belum ada langganan',
     emptyBody: 'Depot ini belum punya langganan berjalan. Tambahkan yang pertama.',
     running: 'Langganan berjalan',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Langganan pelanggan hanya untuk Manajer depot.',
   },
   // dashboard/earning-rules — PR-8. Sebelumnya seluruhnya hardcoded.
@@ -683,7 +683,7 @@ export const opsFix = {
     insight: 'Insight',
     insightBody:
       'Bar kuning menandai KPI di bawah pace bulan ini (hari ke-{day} dari {days}). Fokuskan sumber daya ke sana untuk mengejar target.',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Target & goals depot hanya untuk Manajer depot.',
   },
   // dashboard/ratings — PR-8. Sebelumnya seluruhnya hardcoded.
@@ -696,7 +696,7 @@ export const opsFix = {
     emptyBody: 'Belum ada ulasan pelanggan untuk depot ini dalam 30 hari terakhir.',
     pickDepot: 'Pilih depot',
     pickDepotBody: 'Pilih depot di switcher untuk melihat rating pelanggan.',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Rating & ulasan pelanggan hanya untuk Manajer depot.',
   },
   // dashboard/settlements — PR-8. Sebelumnya seluruhnya hardcoded.
@@ -716,6 +716,7 @@ export const opsFix = {
     verify: 'Verifikasi',
     dispute: 'Sengketakan',
     disputeReasonRequired: 'Isi alasan sengketa.',
+    resolveNoteRequired: 'Isi catatan penyelesaian sengketa.',
     actionError: 'Aksi gagal. Coba lagi.',
     dtExpected: 'Wajib setor',
     dtDeposited: 'Disetor',
@@ -767,7 +768,7 @@ export const opsFix = {
     saveError: 'Gagal mencatat kas.',
     empty: 'Belum ada transaksi',
     emptyBody: 'Belum ada kas masuk atau keluar yang tercatat hari ini.',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Buku kas depot hanya untuk Manajer depot.',
   },
   // dashboard/compare — PR-8. Sebelumnya seluruhnya hardcoded.
@@ -785,7 +786,7 @@ export const opsFix = {
     insight: 'Insight',
     insightBody:
       'Kelima metrik dibaca dari sumbernya masing-masing: order dan pendapatan dari buku pesanan bulan ini, SLA dari delivery-service, wastage dari depot-service, laba bersih dari order-service (omzet − pembelian − gaji − beban). “—” berarti sumbernya tidak terbaca, bukan nol.',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Banding antar depot hanya untuk Manajer depot.',
   },
   cashierShift: {

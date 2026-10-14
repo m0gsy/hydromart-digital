@@ -13,18 +13,18 @@ export const ORDER_FLOW: OrderStatus[] = [
 ];
 
 const LABELS: Record<OrderStatus, string> = {
-  CREATED: 'Order placed',
-  CONFIRMED: 'Confirmed',
-  PREPARING: 'Preparing',
-  DRIVER_ASSIGNED: 'Driver assigned',
-  PICKED_UP: 'Picked up',
-  ON_DELIVERY: 'On the way',
-  DELIVERED: 'Delivered',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
+  CREATED: 'Dipesan',
+  CONFIRMED: 'Dikonfirmasi',
+  PREPARING: 'Disiapkan',
+  DRIVER_ASSIGNED: 'Kurir ditugaskan',
+  PICKED_UP: 'Diambil kurir',
+  ON_DELIVERY: 'Dalam perjalanan',
+  DELIVERED: 'Tiba',
+  COMPLETED: 'Selesai',
+  CANCELLED: 'Dibatalkan',
   // Not "cancelled": this sale happened and was reversed at the till. The two have to stay
   // tellable apart wherever an order is shown.
-  VOIDED: 'Voided at the counter',
+  VOIDED: 'Dibatalkan di kasir',
 };
 
 export function statusLabel(status: OrderStatus): string {

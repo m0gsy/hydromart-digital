@@ -33,8 +33,10 @@ export type Role =
   | 'SUPER_ADMIN';
 
 // ASSISTANT_SUPERVISOR and SUPERVISOR see MANY depots but hold deliberately WEAKER
-// powers than MANAGER: oversight reads, no writes, no money, no approvals. Widening
-// them is a runtime matrix edit, not a redeploy — these are only the seeded defaults.
+// powers than MANAGER: mostly oversight reads, no approvals. They are not read-only, though:
+// SUPERVISOR also writes incidents, disputes, targets and the cash book (`incidents`,
+// `depotDisputes`, `depotTargets`, `depotFinance`). Widening or narrowing them is a runtime
+// matrix edit, not a redeploy — these are only the seeded defaults.
 //
 // ONE EXCEPTION, added knowingly: `kasbonApprove`. An ASSISTANT_SUPERVISOR decides the
 // kasbon raised at their own depots, which is both a money decision and an approval. The
@@ -412,7 +414,8 @@ export const CAPABILITIES = {
   priceOverrideDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // depot-service — review/approve/reject a franchise application + its documents.
   franchiseApplications: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
-  // promo-service — HQ decides a depot's voucher request (approving mints the voucher).
+  // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
+  // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // admin-service — review, block or clear a fraud flag.
   fraudReview: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
