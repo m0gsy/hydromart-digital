@@ -333,6 +333,9 @@ Pesan Inggris di atas ditampilkan apa adanya dari server. **[B]** Tombol checkou
 ![Gambar 6.2 — Checkout](assets/screenshots/customer-05-checkout.png)
 *Gambar 6.2 (diambil sebelum PR #664; kini ringkasan checkout juga bisa memuat baris "Deposit galon" — estimasi, belum masuk total — dan teks halaman produk "Pesan sebelum 16.00" sudah diganti) — Halaman `/checkout`: empat baris berpanah — "Alamat pengiriman" (Rumah · Jl. Contoh No. 12, RT 03/RW 05), "Waktu pengiriman" (Secepatnya), "Metode pembayaran" (Bayar di tempat (COD)), "Voucher" (kosong) — dan bilah bawah "Ringkasan pesanan Rp 84.000" dengan tombol **Buat pesanan**. Layar dalam keadaan ringkas; rincian tiap baris tidak terlihat. Total Rp 84.000 = barang Rp 80.000 + ongkir Rp 4.000 (angka ini terlihat pada rincian pesanan, Gambar 6.5). Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
+![Gambar 6.2b — Setelah PR #664: Baris Deposit galon di ringkasan checkout](assets/screenshots/customer-05c-checkout-deposit-p664.png)
+*Gambar 6.2b — Setelah PR #664: Checkout dengan satu "Galon 19L + Air (Baru)" dan depot "Depot Cikini" (lebar 390 px). Lembar "Ringkasan pesanan" (dibuka dengan menekan bilah ringkasan di bawah) memuat Subtotal Rp 65.000, "Ongkir (est.) — Depot Cikini" Rp 1.000, **"Deposit galon (1 galon)" Rp 20.000** dengan keterangan "Titipan yang dicatat depot saat galon diantar, dikembalikan saat galon kembali. Belum termasuk dalam total yang dibayar.", lalu Total Rp 66.000 (= subtotal + ongkir; deposit tidak ikut). Baris deposit hanya terlihat setelah lembar ringkasan dibuka; di layar utama checkout hanya ada bilah ringkasan. Lingkungan uji lokal pasca-#664, data sintetis (tarif deposit depot uji Rp 20.000).*
+
 ![Gambar 6.2a — Lembar metode pembayaran](assets/screenshots/customer-05b-checkout-pembayaran.png)
 *Gambar 6.2a — Lembar "Metode pembayaran" di checkout: **Bayar di tempat (COD)** ("Bayar ke kurir saat pesanan tiba.", terpilih), **Transfer bank** ("Transfer manual, dikonfirmasi oleh depot."), **E-wallet** ("GoPay, OVO, DANA, dan lainnya."), **Virtual account** ("Bayar ke nomor rekening sekali pakai."), dan tombol **Selesai**. Opsi **QRIS** tidak tampil pada depot uji ini. Lingkungan uji lokal, 2026-10-11.*
 
@@ -450,8 +453,20 @@ Kartu "sedang diantar" di beranda tampil untuk semua pesanan terbuka, termasuk y
 ![Gambar 6.5 — Pelacakan pesanan](assets/screenshots/customer-08-detail-pesanan.png)
 *Gambar 6.5 — Rincian pesanan dalam status **Selesai**: bilah kemajuan penuh (Dipesan, Disiapkan, Diambil, Diantar, Tiba), kartu kurir "Staf Depot Satu" dengan teks "Pesanan selesai — terima kasih!" dan tombol telepon, lalu Item, Subtotal Rp 80.000, Ongkir Rp 4.000, Total Rp 84.000. Kondisi berbeda dari keterangan placeholder: gambar menunjukkan pesanan yang sudah selesai, bukan sedang diantar. Nama kurir adalah data contoh sintetis. Lingkungan uji lokal, 2026-10-11.*
 
+![Gambar 6.5e — Setelah PR #664: Rincian pesanan Dibatalkan](assets/screenshots/customer-08-detail-pesanan-p664.png)
+*Gambar 6.5e — Setelah PR #664: Rincian pesanan HM-20261014-1000009 (pelanggan uji, lebar 390 px, 14 Okt 2026). Terlihat lencana status **Dibatalkan** (berbahasa Indonesia), tombol "Bagikan link lacak", banner merah "Pesanan dibatalkan", Item "6× Pompa Galon Manual" Rp 150.000, Subtotal Rp 150.000, Ongkir Rp 0, Total Rp 150.000, dan kartu "Pembayaran · TRANSFER" dengan lencana "PAID" (kode Inggris, sesuai catatan **[B]** di atas). Lingkungan uji lokal pasca-#664, data sintetis.*
+
+![Gambar 6.5f — Setelah PR #664: Status refund menunggu persetujuan](assets/screenshots/customer-08b-detail-refund-p664.png)
+*Gambar 6.5f — Setelah PR #664: Pesanan yang sama digulir ke kartu pembayaran. Di bawah lencana "PAID" tampil teks refund: "Refund diajukan dan menunggu persetujuan pusat. Setelah disetujui, diproses 1–3 hari kerja." Ini teks persetujuan PENDING yang dijelaskan di bagian Refund; petunjuk di atasnya masih berbahasa Inggris ("Transfer to the depot bank account and keep your receipt."). Lingkungan uji lokal pasca-#664, data sintetis. Teks untuk status REFUNDED dan REJECTED tidak difoto pada gambar ini.*
+
+![Gambar 6.5g — Setelah PR #664: Rincian pesanan Selesai](assets/screenshots/customer-08c-detail-pesanan-selesai-p664.png)
+*Gambar 6.5g — Setelah PR #664: Rincian pesanan HM-20261014-1000026 berstatus **Selesai**: bilah kemajuan penuh (Dipesan, Disiapkan, Diambil, Diantar, Tiba), banner "Pesanan selesai — terima kasih!", Item "2× Pompa Galon Manual" Rp 50.000, dan awal kartu "Pembayaran · CASH". Pesanan uji (COD). Lingkungan uji lokal pasca-#664, data sintetis.*
+
 ![Gambar 6.5a — Lacak pesanan lewat tautan publik](assets/screenshots/customer-09-lacak.png)
 *Gambar 6.5a — Diambil sebelum PR #664: label status di gambar masih berbahasa Inggris; kini berbahasa Indonesia (Dipesan, Dikonfirmasi, Disiapkan, Kurir ditugaskan, Diambil kurir, Dalam perjalanan, Tiba, Selesai). Halaman `/track` (tanpa masuk) untuk pesanan selesai: judul "Lacak Pesanan", nomor HM-20261011-1000000, status "Completed", kota "Jakarta Pusat", dan "Riwayat status": Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed (dengan jam). Token pada tautan tidak terlihat di gambar. Lingkungan uji lokal, data sintetis, 2026-10-11.*
+
+![Gambar 6.5h — Setelah PR #664: Lacak pesanan, label Indonesia](assets/screenshots/customer-09-lacak-p664.png)
+*Gambar 6.5h — Setelah PR #664: Halaman `/track` untuk pesanan HM-20261014-1000026 (lebar 390 px). Judul "Lacak Pesanan", status **Selesai**, kota "Jakarta Pusat", dan "Riwayat status" berlabel Indonesia: Dipesan, Dikonfirmasi, Disiapkan, Kurir ditugaskan, Diambil kurir, Dalam perjalanan, Tiba, Selesai (semua berjam sama, 14 Okt 2026 20.47, pada data uji ini). Token pada tautan tidak terlihat di gambar. Menggantikan gambar 6.5a yang masih berlabel Inggris. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 Diperbaiki sejak PR #664 (2026-10-14): pada uji 2026-10-11 label di `/track` masih Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed). Kini kamus `order.status` dipakai bersama oleh `/track`, rincian pesanan, dan struk, sehingga labelnya seragam. **[V]** Label status pembayaran (PENDING, PAID, dst.) di rincian pesanan tidak berubah dan masih kode Inggris. **[B]**
 
@@ -777,6 +792,11 @@ Untuk pelanggan, kegiatan berkala yang disarankan:
 | SS-customer-19 | `/orders` | Daftar pesanan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-07-daftar-pesanan.png` |
 | SS-customer-20 | `/subscriptions` | Formulir langganan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-12-langganan.png`; hanya formulir, tanpa langganan tersimpan |
 | SS-customer-21 | `/rewards` | Poin dan hadiah, akun baru | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-13-hadiah.png`; 0 poin, daftar hadiah kosong |
+| SS-customer-22 | Rincian pesanan Dibatalkan | Lencana "Dibatalkan", pembayaran PAID | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `customer-08-detail-pesanan-p664.png` (Gambar 6.5e) |
+| SS-customer-23 | Rincian pesanan: status refund | Refund menunggu persetujuan, janji 1–3 hari kerja | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `customer-08b-detail-refund-p664.png` (Gambar 6.5f); hanya status PENDING; REFUNDED dan REJECTED belum difoto |
+| SS-customer-24 | Rincian pesanan Selesai | Label Indonesia, bilah kemajuan | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `customer-08c-detail-pesanan-selesai-p664.png` (Gambar 6.5g) |
+| SS-customer-25 | `/track?token=…` | Pelacakan publik, label Indonesia (menggantikan SS-customer-18) | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `customer-09-lacak-p664.png` (Gambar 6.5h); token tidak terlihat |
+| SS-customer-26 | `/checkout` | Ringkasan dengan baris "Deposit galon" | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `customer-05c-checkout-deposit-p664.png` (Gambar 6.2b); baris terlihat hanya di lembar ringkasan yang dibuka |
 
 Gambar `umum-01-login.png` (SS-umum-02 di Panduan Umum) juga dipakai sebagai Gambar 4.1a.
 

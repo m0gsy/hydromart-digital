@@ -1,6 +1,6 @@
 # Panduan Pengguna Hydromart — Indeks Utama
 
-**Versi:** 0.1 (draf) · **Tanggal pembaruan terakhir:** 2026-10-11 · **Bahasa:** Indonesia
+**Versi:** 0.2 (draf) · **Tanggal pembaruan terakhir:** 2026-10-14 · **Bahasa:** Indonesia
 
 Hydromart adalah platform operasional depot air minum isi ulang di Indonesia (depot milik perusahaan "HKP" dan depot waralaba). Paket dokumen ini menjelaskan cara tiap peran bekerja di aplikasi, dari awal sampai akhir.
 
@@ -9,8 +9,8 @@ Hydromart adalah platform operasional depot air minum isi ulang di Indonesia (de
 | Hal | Status |
 |---|---|
 | Sumber isi | Pembacaan kode (`packages/access`, `apps/web`, `services/*`), kamus UI, dan dokumen proyek. Tiap klaim penting diberi tag bukti. |
-| Pengujian di aplikasi | **Belum ada pengujian terstruktur.** Semua skenario di dokumen 15 berstatus *Not Tested*. Satu alur pesanan (pelanggan → depot → kurir → COD → selesai) memang dijalankan sekali di lingkungan uji lokal pada 2026-10-11 untuk mengambil screenshot; itu dicatat sebagai *pengamatan* di dokumen 15 bagian 'Pengamatan lingkungan uji lokal', bukan hasil Pass. |
-| Screenshot | **74 gambar asli** dari lingkungan uji lokal (data sintetis, nomor telepon tersamar, 2026-10-11) sudah dipasang di bab 01–10 dan tersimpan di `assets/screenshots/`. Sekitar 70 slot masih berupa placeholder `[SCREENSHOT REQUIRED: SS-…]` (dialog, status lain, dan peran Finance/Marketing/Manajer/Direktur belum difoto). Banyak layar menunjukkan keadaan kosong karena data uji minim. Status tiap gambar ada di inventaris di akhir bab. |
+| Pengujian di aplikasi | **Terbatas.** Dari 406 skenario di dokumen 15, **104 dijalankan** pada 2026-10-14 di stack uji lokal yang dibangun dari kode setelah PR #664: **102 Pass, 1 Fail, 1 Blocked**; **302 tetap Not Tested**. Sebagian besar Pass hanya diperiksa lewat API (UI hanya pada beberapa skenario), dan sebagian memakai simulasi (waktu dimundurkan di DB uji, layanan dihentikan sementara, data waralaba disuntik). Ini bukan UAT penuh dan bukan pengujian produksi. |
+| Screenshot | **124 gambar asli** tersimpan di `assets/screenshots/` dan terpasang di bab 02–10 (dan 01): **74** diambil 2026-10-11 dari build SEBELUM PR #664 (bila keterangannya berbunyi "Diambil sebelum PR #664", sebagian tampilannya kini berbeda), ditambah **50 gambar berakhiran `-p664`** yang diambil 2026-10-14 dari stack uji lokal pasca-#664 (data sintetis; nomor telepon, nomor rekening, surel, alamat IP, dan token disamarkan; kotak OTP diburamkan; tiap gambar diperiksa visual). Gambar `-p664` dipasang di bawah gambar lama yang digantikannya (judul "Setelah PR #664") atau mengisi placeholder yang cocok (7 slot terisi, 1 di antaranya sebagian). Peran Finance, Marketing, Manajer, dan Direktur kini sudah difoto (termasuk layar galat izin Finance, dilabeli apa adanya). Sekitar 63 slot di bab 01–10 masih berupa placeholder `[SCREENSHOT REQUIRED: SS-…]` (dialog, status lain, item approval PENDING/HELD, kartu "Pencairan diproses" yang tidak tampil di UI). Banyak layar menunjukkan keadaan kosong karena data uji minim. Status tiap gambar ada di inventaris di akhir bab; daftar rinci tambahan di berkas temuan `N-screenshots-p664.md` (di luar repo). |
 | Hak akses | Nilai **bawaan** dari kode. Super Admin dapat mengubahnya saat aplikasi berjalan (sekitar 30 detik), jadi lingkungan nyata bisa berbeda. |
 | PDF/DOCX gabungan | Tersedia dua paket: `hydromart-panduan-pelanggan.pdf/.docx` (publik, hanya bab 02) dan `hydromart-panduan-internal.pdf/.docx` (bab 00–01 dan 03–17, rahasia). PDF punya daftar isi, header, nomor halaman, dan klasifikasi di footer. Pada DOCX, daftar isi diisi saat dibuka di Word (setujui pembaruan field). Diagram Mermaid di dokumen 11 tampil sebagai teks diagram, belum sebagai gambar. |
 
@@ -107,3 +107,4 @@ Dokumen untuk pelanggan (02) sebaiknya didistribusikan sendiri. Jangan menyertak
 | Versi | Tanggal | Perubahan |
 |---|---|---|
 | 0.1 | 2026-10-11 | Draf pertama dari audit kode. Belum diuji di aplikasi; screenshot menyusul. |
+| 0.2 | 2026-10-14 | Dicocokkan ulang dengan kode setelah PR #664 (perbaikan celah); audit sampel klaim [V] pada bab HR, Admin, HQ (227 klaim: 205 benar, 14 sebagian, 8 salah, semuanya sudah dikoreksi); 104 skenario dijalankan; 50 screenshot pasca-#664 ditambahkan (total 124); 148 celah berstatus 2026-10-14 + G-149..G-155 baru. |

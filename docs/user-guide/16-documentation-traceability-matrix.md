@@ -69,7 +69,7 @@ Matriks ini menghubungkan setiap modul/kebutuhan dengan bukti sumber, peran, bag
 | Aplikasi mobile Manajer `/m/manager` | `app/m/manager/*` | Manajer | Bab 5 Lamp. A | — | Not Verified (rilis aplikasi Ops tidak pasti) |
 | Pencarian depot `/dashboard/search` | `app/dashboard/search` | Beberapa peran | — | — | Not Verified (isi belum dibaca) |
 | Responsif desktop/tablet/mobile | `apps/web` (uji 320 px di CI) | Semua | Bab 1 | — | Blocked (belum diperiksa visual) |
-| Screenshot semua prosedur | `assets/screenshots/` (74 gambar); inventaris SS di tiap bab | Semua | tiap bab | — | Partial (74 gambar terpasang, diambil sebelum PR #664 sehingga sebagian kini berbeda: label status, tab Pembayaran, checkout, payout; ± 70 slot masih placeholder; Finance/Marketing/Manajer/Direktur belum difoto) |
+| Screenshot semua prosedur | `assets/screenshots/` (124 gambar: 74 lama + 50 `-p664`); inventaris SS di tiap bab | Semua | tiap bab | — | Partial (74 gambar diambil sebelum PR #664 sehingga sebagian kini berbeda: label status, tab Pembayaran, checkout, payout; 50 gambar baru diambil 2026-10-14 dari stack uji lokal pasca-#664 dan dipasang di bawah gambar lama atau pada slot placeholder; Finance/Marketing/Manajer/Direktur sudah difoto, termasuk galat izin Finance; ± 63 slot masih placeholder: dialog, item approval PENDING/HELD, kartu "Pencairan diproses", dan lainnya) |
 | Dukungan & eskalasi | `docs/GO_LIVE.md`, `docs/RUNBOOK_ONCALL.md` | Semua | Bab 1; dok. 14 | — | Partial (tidak ada kanal dukungan staf/pelanggan terdokumentasi [K]) |
 
 ## Ringkasan

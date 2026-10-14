@@ -166,7 +166,10 @@ Dahulu tiga menu ini tampil untuk SPV tetapi data di baliknya ditolak server **[
 | Tinjauan bulanan (`/dashboard/monthly-review`) | `dailyClose` | Kepala depot, Manajer, Kantor pusat, Direktur, Super admin |
 | Performa tim (`/dashboard/team-performance`) | `deliveryReports` | Kantor pusat, Manajer, Super admin |
 
-SPV tidak memegang satu pun dari tiga kemampuan itu **[V]**. Bila SPV membuka alamatnya langsung, halaman menampilkan judul "Akses terbatas" dengan isi: untuk Komisi kurir "Pembayaran komisi kurir hanya untuk Manajer depot.", untuk Tinjauan bulanan "Tinjauan ops bulanan hanya untuk Manajer depot.", untuk Performa tim "Performa tim hanya untuk Manajer depot." **[V]**. Teks itu menyebut Manajer saja, padahal beberapa peran lain juga boleh; teks ini tidak diubah oleh PR #664. Perilaku server (menolak peran tanpa kemampuan) belum diuji di peramban **[D]**. Bila SPV memerlukan angka ini, minta Manajer atau Kantor pusat. Pembaruan peran melalui matriks runtime Super admin dapat mengubah daftar ini.
+SPV tidak memegang satu pun dari tiga kemampuan itu **[V]**. Bila SPV membuka alamatnya langsung, halaman menampilkan judul "Akses terbatas" dengan isi: untuk Komisi kurir "Pembayaran komisi kurir hanya untuk Manajer depot.", untuk Tinjauan bulanan "Tinjauan ops bulanan hanya untuk Manajer depot.", untuk Performa tim "Performa tim hanya untuk Manajer depot." **[V]**. Teks itu menyebut Manajer saja, padahal beberapa peran lain juga boleh; teks ini tidak diubah oleh PR #664. Perilaku server (menolak peran tanpa kemampuan) belum diuji di peramban **[D]**. Bila SPV memerlukan angka ini, minta Manajer atau Kantor pusat. Pembaruan peran melalui matriks runtime Super admin dapat mengubah daftar ini. Uji tampilan 2026-10-14 pasca-#664 (akun SPV, lingkungan uji lokal) membenarkan judul "Akses terbatas" pada halaman lain yang ditolak: `/dashboard/depot-settings` berisi "Pengaturan depot butuh hak depotAdmin." dan `/dashboard/approvals` berisi "Antrean approval tersedia untuk manajer depot dan super admin." (Gambar 5.10 dan 5.11). Teks pertama menyebut nama kemampuan teknis `depotAdmin`, bukan nama peran **[B]**. Teks tiga halaman Komisi kurir, Tinjauan bulanan, dan Performa tim di atas belum dibuka pada uji itu.
+
+![Gambar 5.10 — Setelah PR #664: Akses terbatas dan pemberitahuan per depot](assets/screenshots/supervisor-05-akses-terbatas-p664.png)
+*Gambar 5.10 — Setelah PR #664: Akun SPV (cakupan 23 depot; pemilih "Semua depot — 23 lokasi") membuka `/dashboard/depot-settings` (1366×800). Di atas isi halaman tampil kotak "Menampilkan Depot Hierarki 4. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih." (pemberitahuan "Semua depot" sejak PR #664), lalu layar penolak berjudul **"Akses terbatas"** dengan isi "Pengaturan depot butuh hak depotAdmin." (ikon gembok). Menu kiri sesuai bagian 5.1 (Operasi, Antrean pesanan, Live tracking, …). Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ### 5.4 Pintu masuk ke konsol HR
 
@@ -655,6 +658,12 @@ SPV tidak boleh meminjam hak orang lain dengan membagi akun. Lihat bagian 10.
 | SS-supervisor-09 | Absen saya | Hari berjalan (pada tangkapan: layar Absensi Wajah `/hr/me/check-in`, kamera uji) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-supervisor-10 | (Lampiran A) Antrean approval Manajer | Satu item PENDING | Belum diambil |
 | SS-supervisor-11 | "Antrean pesanan" (`/dashboard/orders`) | Semua depot, antrean kosong, tab Perlu ditugaskan/Diproses/Dikirim/Ditutup | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-supervisor-12 | `/dashboard/depot-settings` | "Akses terbatas" + pemberitahuan per depot ("Menampilkan Depot Hierarki 4") | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `supervisor-05-akses-terbatas-p664.png` (Gambar 5.10) |
+| SS-supervisor-13 | `/dashboard/approvals` | "Akses terbatas" untuk SPV | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `supervisor-06-approvals-p664.png` (Gambar 5.11); SS-supervisor-10 (antrean berisi item) tetap belum diambil |
+| SS-supervisor-14 | (Lampiran A) Landing Manajer `/dashboard` | Kartu "Antrean approval" tanpa item | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `manager-01-landing-p664.png` (Gambar A.2) |
+| SS-supervisor-15 | (Lampiran A) `/m/manager` beranda dan approval | Ponsel 390×844 | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `manager-04-m-beranda-p664.png` (Gambar A.3), `manager-05-m-approval-p664.png` (Gambar A.5) |
+| SS-supervisor-16 | (Lampiran A) Antrean approval Manajer | Kosong; item PENDING/HELD tidak ada di data uji | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `manager-02-approvals-p664.png` (Gambar A.4); SS-supervisor-10 tetap belum diambil |
+| SS-supervisor-17 | (Lampiran A) Pesanan pembelian | Kosong | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `manager-03-purchase-orders-p664.png` (Gambar A.6) |
 
 ## 15. Catatan celah dan hal yang perlu dikonfirmasi
 
@@ -685,6 +694,13 @@ Manajer memegang 70 kemampuan bawaan, termasuk hampir semua kemampuan tulis oper
 
 Cakupan Manajer: depot milik Asisten SPV di bawah SPV bawahannya, ditambah hak langsung **[V]**. Manajer tidak dapat mengubah cakupannya sendiri.
 
+![Gambar A.2 — Setelah PR #664: Landing Manajer (Operasi)](assets/screenshots/manager-01-landing-p664.png)
+*Gambar A.2 — Setelah PR #664: Akun **Manajer** (Manajer Depot Cikini) membuka `/dashboard` (1366×800). Pemilih "Semua depot — 1 lokasi" dan rel kiri (Ringkasan: Operasi, Pencarian; Operasi harian: Antrean pesanan, Penjualan depot, Live tracking, Inventori, Retur galon, Susut & kerusakan, Meteran air, Notifikasi ops [lencana 9+], Setoran COD, Perkiraan; Jaringan: Depot, Harga dinamis, Pengaturan, dan seterusnya). Halaman "Operasi": Order hari ini 21, Pendapatan Rp 1.297.000, Galon terkirim 9, SLA on-time 100% (target 96%), "Tren penjualan 2026-10", teks "Menampilkan depot pertama — pilih depot di switcher untuk mengubah.", dan kartu aksi khas Manajer **"Antrean approval"** ("Tidak ada approval tertunda."), "Stok kritis" dan "Kurir aktif". Lingkungan uji lokal pasca-#664, data sintetis.*
+
+
+![Gambar A.3 — Setelah PR #664: Beranda Manajer di ponsel (/m/manager)](assets/screenshots/manager-04-m-beranda-p664.png)
+*Gambar A.3 — Setelah PR #664: `/m/manager` pada akun Manajer (390×844): "Halo, Manajer — Depot kamu"; kartu 21 Order, Rp 1.297.000 Pendapatan, 9 Galon terkirim, 100% SLA tepat waktu; "Stok kritis 0", "Kurir aktif 0"; tautan "Notifikasi operasional" dan "Harga depot — Atur harga jual & diskon"; tab bawah **Beranda, Approval, Notif, Tim, Akun** (sesuai A.1). Lingkungan uji lokal pasca-#664, data sintetis.*
+
 ## A.2 Menu khas Manajer
 
 | Kelompok | Menu (rute) | Fungsi singkat |
@@ -710,9 +726,22 @@ Kemampuan `approvals` hanya Manajer dan Admin **[V]**. Jenis item: "Selisih opna
 > **[SCREENSHOT REQUIRED: SS-supervisor-10 — Antrean approval Manajer dengan satu item PENDING dan penghitung "Menunggu approval · {n} item"]**
 > *Gambar A.1 — Antrean approval (rujukan SPV).*
 
+![Gambar 5.11 — Setelah PR #664: Antrean approval ditolak untuk SPV](assets/screenshots/supervisor-06-approvals-p664.png)
+*Gambar 5.11 — Setelah PR #664: Akun SPV membuka `/dashboard/approvals` (1366×800): kotak "Menampilkan Depot Hierarki 4. Layar ini bekerja per depot, bukan gabungan…" dan layar **"Akses terbatas"** dengan isi "Antrean approval tersedia untuk manajer depot dan super admin." Ini bukti bahwa SPV tidak punya kemampuan `approvals`. Gambar antrean Manajer berisi item PENDING/HELD (SS-supervisor-10) belum diambil: data uji tidak memuat approval apa pun. Lingkungan uji lokal pasca-#664, data sintetis.*
+
+![Gambar A.4 — Setelah PR #664: Antrean approval Manajer (kosong)](assets/screenshots/manager-02-approvals-p664.png)
+*Gambar A.4 — Setelah PR #664: Akun **Manajer** membuka `/dashboard/approvals` (1366×800): judul "Antrean approval", "Menunggu approval · 0 item", "Menampilkan depot pertama — pilih depot di switcher.", keadaan kosong "Tidak ada approval — Semua permintaan sudah diproses untuk depot ini." dan catatan "Aksi di bawah ambang otomatis lolos tanpa persetujuan manajer. Hanya item di atas ambang yang muncul di sini." **Tidak ada item PENDING maupun HELD** pada data uji, sehingga SS-supervisor-10 dan tampilan item "Tahan" belum terbukti di layar; tidak ada layar pembuat approval di UI (item dibuat otomatis oleh layanan depot untuk selisih opname, refund deposit, dan selisih retur galon). Lingkungan uji lokal pasca-#664, data sintetis.*
+
+
+![Gambar A.5 — Setelah PR #664: Approval Manajer di ponsel (kosong)](assets/screenshots/manager-05-m-approval-p664.png)
+*Gambar A.5 — Setelah PR #664: `/m/manager/approvals` (390×844): judul "Approval — Permintaan yang butuh persetujuan manajer." dan keadaan kosong "Tidak ada approval — Semua permintaan sudah diproses." Lingkungan uji lokal pasca-#664, data sintetis.*
+
 ## A.4 Pembelian
 
 Pesanan pembelian: Draft → Dikirim → Diterima. Manajer membuat PO dari stok menipis ("Buat PO dari stok menipis"), memilih pemasok, mengirim ("Kirim ke pemasok"), dan menerima ("Terima barang → RECEIPT"). Kurang kirim diberi alasan ("Alasan sisanya tidak datang"). Pesan server bisa berbahasa Inggris, mis. "Only a SENT purchase order can be received." (arti: hanya PO berstatus Dikirim yang dapat diterima) **[V]**. SPV tidak punya akses.
+
+![Gambar A.6 — Setelah PR #664: Pesanan pembelian (kosong)](assets/screenshots/manager-03-purchase-orders-p664.png)
+*Gambar A.6 — Setelah PR #664: Akun **Manajer** membuka `/dashboard/purchase-orders` (1366×800): judul "Pesanan pembelian", tombol "Buat PO dari stok menipis" dan "Buat dari forecast", teks "PO untuk Depot Cikini · JKT-01 (dari switcher).", chip "Semua / Draft / Dikirim / Diterima" dan keadaan kosong "Belum ada PO — Belum ada pesanan pembelian untuk filter ini." Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ## A.5 Keuangan Manajer
 

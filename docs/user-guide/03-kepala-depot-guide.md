@@ -103,6 +103,12 @@ Yang membedakan peran ini dari peran lain di dasbor:
 
 *Gambar 3.2 — Konsol Operator depot setelah masuk. Terlihat header (nama depot "Depot Cikini", lonceng dengan titik merah, inisial "KD", nama "Kepala Depot Cikini", keterangan "Operator depot") dan bilah tab dari "Ringkasan" sampai "Perawatan" (sisa tab di sebelah kanan perlu digeser). Tangkapan dari lingkungan uji lokal dengan data sintetis (11 Okt 2026): pada saat itu hanya ada 1 pesanan dan ketiga kartu berada pada keadaan kosong.*
 
+![Gambar 3.2a — Setelah PR #664: Ringkasan hari ini dengan data](assets/screenshots/kepala-depot-01-ringkasan-p664.png)
+*Gambar 3.2a — Setelah PR #664: Tab **Ringkasan** akun Kepala depot (Depot Cikini, 14 Okt 2026, 1366×800). Empat penghitung terisi: "Pesanan masuk 27", "Perlu ditugaskan 2", "Kurir aktif 0/3", "COD belum disetor Rp 50.000"; kartu "Perlu ditugaskan" memuat dua pesanan (HM-20261014-1000025 dan -1000024) dengan tombol **Tugaskan**; kartu "Stok menipis · 0 — Semua item di atas ambang."; kartu "Setoran menunggu — 1 kurir belum setor Rp 50.000" dengan tombol **Verifikasi setoran**. Ini keadaan berdata yang belum tertangkap pada Gambar 3.2. Data uji sintetis; lingkungan uji lokal pasca-#664.*
+
+![Gambar 3.2b — Setelah PR #664: Bilah tab digeser ke kanan](assets/screenshots/kepala-depot-01b-tab-bar-kelola-p664.png)
+*Gambar 3.2b — Setelah PR #664: Bilah tab yang sama digeser ke kanan. Urutan yang terlihat: … Absen saya, Shift, Huddle, Serah terima, Perawatan, **Kelola depot, Meteran, Prakiraan, Aturan promo, Sengketa, CRM, Peran, Akun**, Notifikasi, Laporan, Audit, Pengaturan. Tab **Pembayaran** tidak ada. Ini mencocokkan tabel bagian 5.1 (nomor 18–29). Lingkungan uji lokal pasca-#664, data sintetis.*
+
 ### Layar "Pilih depot"
 
 Jika akun Anda belum tertaut ke depot yang terbaca, Ringkasan menampilkan judul "Pilih depot" dan teks "Pilih depot yang kamu kelola untuk melihat ringkasan hari ini." Karena akun Kepala depot terkunci pada satu depot, kondisi ini berarti penempatan depot Anda bermasalah. Hubungi HR atau Admin. **[V]**
@@ -224,8 +230,7 @@ Tutup buku harian ---------------------> [Anda]  (buka kembali: Kantor pusat/Sup
 - [ ] Angka "COD belum disetor" dicatat untuk akhir hari.
 - [ ] Stok menipis sudah dipesan/dibahas dengan Manajer.
 
-> **[SCREENSHOT REQUIRED: SS-kepala-depot-03 — Ringkasan hari ini dengan empat penghitung terisi dan ketiga kartu (Perlu ditugaskan, Stok menipis, Setoran menunggu)]**
-> *Gambar 3.3 — Ringkasan hari ini.*
+*Keadaan ini terlihat pada Gambar 3.2a (Setelah PR #664) dan Gambar 3.2b di atas; slot SS-kepala-depot-03 terisi sejak 2026-10-14.*
 
 ---
 
@@ -281,9 +286,18 @@ Tutup buku harian ---------------------> [Anda]  (buka kembali: Kantor pusat/Sup
 
 *Gambar 3.4 — Antrean pesanan dengan empat chip ("Perlu ditugaskan · 0", "Diproses · 1", "Dikirim · 0", "Ditutup · 0"). Diambil sebelum PR #664; lencana status kini berbahasa Indonesia ("Dipesan") dan teks "Semua depot. Pilih satu depot dari switcher untuk memfilter." tidak relevan bagi Kepala depot yang hanya punya satu depot. Terlihat satu pesanan dengan lencana berbahasa Inggris "Order placed", total Rp 84.000, tombol **Proses**, dan panel kanan "Tugaskan kurir — Pilih pesanan dari antrean untuk menugaskan kurir." Pada lingkungan uji lokal (data sintetis) hanya ada satu pesanan, bukan beberapa baris.*
 
+![Gambar 3.4a — Setelah PR #664: Antrean pesanan, lencana Indonesia](assets/screenshots/kepala-depot-02-pesanan-p664.png)
+*Gambar 3.4a — Setelah PR #664: Tab **Antrean** (1366×800) dengan chip "Perlu ditugaskan · 2", "Diproses · 10", "Dikirim · 0", "Ditutup · 15". Dua pesanan berlencana **Disiapkan** (HM-20261014-1000025 dan -1000024; Rp 50.000; tombol **Tugaskan**); panel kanan "Tugaskan kurir — Pilih pesanan dari antrean untuk menugaskan kurir." Teks "Semua depot. Pilih satu depot dari switcher untuk memfilter." masih tampil di bawah judul, padahal akun ini tidak punya pemilih depot **[B]**. Lingkungan uji lokal pasca-#664, data sintetis.*
+
+![Gambar 3.4b — Setelah PR #664: Chip Diproses](assets/screenshots/kepala-depot-02b-pesanan-diproses-p664.png)
+*Gambar 3.4b — Setelah PR #664: Chip "Diproses · 10": lencana **Dipesan** dan **Dikonfirmasi** (Indonesia), masing-masing dengan tombol **Proses**; panel kanan masih "Tugaskan kurir — Pilih pesanan dari antrean…". Lingkungan uji lokal pasca-#664, data sintetis.*
+
 ![Gambar 3.5 — Lembar detail pesanan](assets/screenshots/kepala-depot-03-detail-pesanan.png)
 
 *Gambar 3.5 — Diambil sebelum PR #664; kini lencana status, "Riwayat status", dan tombol lanjut berbahasa Indonesia ("Dipesan", "Lanjut ke Dikonfirmasi"); kode pembayaran tetap mentah. Lembar detail pesanan berstatus "Order placed" (data sintetis; telepon tersamar). Terlihat Item, Subtotal/Ongkir/Total, kotak "Pembayaran · CASH" dengan lencana mentah "PENDING", kolom "Uang tunai diterima (opsional)", tombol **Konfirmasi lunas** dan **Tandai gagal**, "Riwayat status" berbahasa Inggris, serta tombol **Cetak struk** dan **Lanjut ke Confirmed**. Metode pembayaran juga tampil sebagai kode mentah "CASH" **[B]**.*
+
+![Gambar 3.5a — Setelah PR #664: Dialog detail pesanan Dipesan](assets/screenshots/kepala-depot-03-detail-pesanan-p664.png)
+*Gambar 3.5a — Setelah PR #664: Dialog detail HM-20261014-1000022 (lencana **Dipesan**, 14 Okt 2026 20.44). Terlihat Item "2× Pompa Galon Manual" Rp 50.000, kotak "Pembayaran · CASH" dengan lencana "PENDING", kolom "Uang tunai diterima (opsional)", tombol **Konfirmasi lunas** dan **Tandai gagal**, "Riwayat status: Dipesan", serta tombol **Cetak struk** dan **Lanjut ke Dikonfirmasi** (berbahasa Indonesia). Kode pembayaran "CASH" dan "PENDING" tetap mentah **[B]**. Dialog dibuka dengan memilih pesanan di chip "Diproses" lalu **Buka detail pesanan**. Nomor telepon pelanggan tersamar dalam gambar. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 #### Prosedur: Mengonfirmasi pembayaran tunai atau transfer
 
@@ -423,8 +437,9 @@ Semua penjualan konter wajib berada di dalam **shift kasir** yang terbuka atas n
 **Daftar periksa:**
 - [ ] Uang kembalian awal sudah dihitung sebelum diketik.
 
-> **[SCREENSHOT REQUIRED: SS-kepala-depot-08 — Halaman Penjualan dengan kartu "Belum ada shift terbuka" dan kolom "Uang kembalian awal di laci"]**
-> *Gambar 3.8 — Membuka shift kasir.*
+![Gambar 3.8 — Membuka shift kasir (belum ada shift)](assets/screenshots/kepala-depot-04-walk-in-p664.png)
+*Gambar 3.8 — Tab **Penjualan** (1366×800) tanpa shift terbuka: kartu "Belum ada shift terbuka — Buka shift dulu — penjualan konter ditolak selama laci belum ada penanggung jawabnya.", kolom "Uang kembalian awal di laci" (contoh isi 200000) dan tombol **Buka shift**. Di bawahnya kartu "Penjualan konter terakhir — Depot ini saja" memuat pesanan HM-20261014-1000026, -1000025, -1000024, -1000023 (Rp 50.000 masing-masing) dengan tautan **Batalkan penjualan**; daftar itu memuat pesanan COD uji, bukan hanya penjualan konter **[B]** (lihat Gambar 3.17). Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
+
 
 ![Gambar 3.17 — Halaman Penjualan dengan shift terbuka](assets/screenshots/kepala-depot-04-walk-in.png)
 
@@ -592,12 +607,19 @@ Semua penjualan konter wajib berada di dalam **shift kasir** yang terbuka atas n
 - [ ] Kekurangan yang tidak Anda bebankan sudah dicatat alasannya dan diteruskan ke Manajer bila perlu dibebankan **[K]**.
 - [ ] Penghitung "COD belum disetor" di Ringkasan = 0 sebelum tutup buku.
 
-> **[SCREENSHOT REQUIRED: SS-kepala-depot-11 — Panel "Hitung & verifikasi" untuk setoran kurang: Disetor, kurang Rp, kotak "Bebankan selisih", kolom Catatan, tombol Verifikasi dan Sengketakan]**
-> *Gambar 3.11 — Verifikasi setoran COD.*
+![Gambar 3.11 — Verifikasi setoran COD (setoran kurang, status Menunggu verifikasi)](assets/screenshots/kepala-depot-12-setoran-submitted-p664.png)
+*Gambar 3.11 — Tab **Setoran** (1366×800), filter **Status** "Menunggu verifikasi", setoran kurir "Staf Depot Satu" (1 pesanan COD, setor 13.47, "Wajib setor Rp 50.000"): banner merah "Disetor Rp 45.000 · kurang Rp 5.000", teks "Membebankan selisih ke kurir hanya bisa oleh manajer. Anda bisa memverifikasi tanpa membebankan.", kolom "Catatan (wajib untuk sengketa, dan untuk setoran lebih di atas Rp 5.000)" serta tombol **Verifikasi** dan **Sengketakan**. Pada akun Kepala depot **kotak "Bebankan selisih" tidak tampil** (hanya teks pemberitahuan); kotak itu hanya untuk Manajer/Super admin, sesuai aturan di atas. Panel langsung terbuka (tidak perlu menekan **Hitung & verifikasi**) karena hanya ada satu setoran menunggu. Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
+
 
 ![Gambar 3.19 — Verifikasi setoran COD (keadaan kosong)](assets/screenshots/kepala-depot-07-setoran.png)
 
 *Gambar 3.19 — Tab **Setoran** pada lingkungan uji lokal (data sintetis): judul "Verifikasi setoran COD", "Shift 11 Oktober 2026 · 0 setoran menunggu", filter **Status** = "Menunggu verifikasi", dan keadaan kosong "Tidak ada setoran — Belum ada setoran menunggu verifikasi untuk depot ini." Di bawah judul tampil "Menampilkan depot pertama — pilih depot di switcher untuk memverifikasi setoran." (teks pemilih depot yang tidak ada untuk Kepala depot **[B]**). Bilah info di bawah berbunyi "Verifikasi mencocokkan tunai fisik dengan total COD kurir. Selisih tercatat sebagai tanggungan kurir & muncul di riwayat setoran app kurir." Kalimat ini lebih umum daripada aturan sebenarnya, karena kekurangan hanya dibebankan bila Manajer/Super admin mencentang "Bebankan selisih" **[B]**. Gambar diambil sebelum PR #664; filter "Sengketa" kini memuat tombol verifikasi dan kotak beban tidak tampil untuk Kepala depot. Panel "Hitung & verifikasi" belum tertangkap.*
+
+![Gambar 3.19a — Setelah PR #664: Setoran berstatus Sengketa (daftar)](assets/screenshots/kepala-depot-13-setoran-disputed-p664.png)
+*Gambar 3.19a — Setelah PR #664: Filter **Status** = "Sengketa" (daftar pilihan: Menunggu verifikasi, Terverifikasi, Sengketa; berupa menu tarik-turun, bukan chip). Baris "Staf Depot Satu" ("Wajib setor Rp 50.000") berlencana merah **Sengketa** dengan tombol **Hitung & verifikasi**. Subjudul "Shift 14 Oktober 2026 · 0 setoran menunggu" (setoran Sengketa tidak dihitung sebagai "menunggu"). Lingkungan uji lokal pasca-#664, data sintetis.*
+
+![Gambar 3.19b — Setelah PR #664: Verifikasi setoran Sengketa dengan catatan](assets/screenshots/kepala-depot-13b-setoran-disputed-verifikasi-p664.png)
+*Gambar 3.19b — Setelah PR #664: Setelah menekan **Hitung & verifikasi** pada setoran Sengketa: banner "Disetor Rp 40.000 · kurang Rp 10.000", teks "Membebankan selisih ke kurir hanya bisa oleh manajer. Anda bisa memverifikasi tanpa membebankan.", kolom Catatan terisi contoh ("Selisih dihitung ulang bersama kurir; diverifikasi.") dan hanya tombol **Verifikasi** (tidak ada **Sengketakan**), sesuai aturan sejak PR #664. Tombol belum ditekan saat gambar diambil. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ---
 
@@ -820,6 +842,9 @@ Total COD yang tidak terbaca membuat penutupan gagal dengan aman (tidak jadi dit
 
 Untuk membuat atau mengubah promo spanduk, minta Manajer atau Marketing. Voucher tidak punya halaman untuk Anda.
 
+![Gambar 3.21 — Setelah PR #664: Tab Promo tanpa tombol tulis](assets/screenshots/kepala-depot-11-promo-p664.png)
+*Gambar 3.21 — Setelah PR #664: Tab **Promo** akun Kepala depot (1366×800): judul "Promo", keadaan kosong "Belum ada promo — Buat promo pertama untuk ditampilkan di beranda pelanggan." Tidak ada tombol **Promo baru**, **Edit**, atau **Hapus** (sesuai pembatasan `promotionWrite`). Teks keadaan kosong tetap mengajak "Buat promo pertama" walau Kepala depot tidak bisa membuatnya **[B]**. Tombol **Analitik** tidak terlihat karena daftar promo kosong. Lingkungan uji lokal pasca-#664, data sintetis.*
+
 #### Prosedur: Membuat aturan promo otomatis untuk depot sendiri
 
 **Tujuan:** Membuat promo otomatis saat checkout (jadwal, produk, kelipatan) untuk depot Anda. **Peran:** Kepala depot (`promoRuleWrite`). **Prasyarat:** hak `promoRuleRead`/`promoRuleWrite`. **Titik awal:** tab **Aturan promo** (`/dashboard/promo-rules`; tab ada sejak PR #664, 2026-10-14, sebelumnya hanya lewat URL).
@@ -937,6 +962,9 @@ Error: "Gagal menyimpan huddle." Bentrok edit dijaga (versi terakhir yang diliha
 ![Gambar 3.20 — Serah terima shift (keadaan kosong)](assets/screenshots/kepala-depot-08-serah-terima.png)
 
 *Gambar 3.20 — Tab **Serah terima** pada lingkungan uji lokal (data sintetis): judul "Serah terima shift", "Depot Cikini", keadaan kosong "Belum ada serah terima — Buat serah terima shift pertama untuk depot ini." dan tombol **+ Serah terima baru**. Formulir dan checklist belum tertangkap.*
+
+![Gambar 3.20a — Setelah PR #664: Serah terima shift (keadaan kosong)](assets/screenshots/kepala-depot-08-serah-terima-p664.png)
+*Gambar 3.20a — Setelah PR #664: Tab **Serah terima** (1366×800): judul "Serah terima shift", "Depot Cikini", "Belum ada serah terima — Buat serah terima shift pertama untuk depot ini." dan tombol **+ Serah terima baru**. Sama dengan Gambar 3.20 (tampilan tidak berubah sejak PR #664); formulir dan checklist belum tertangkap. Lingkungan uji lokal, data sintetis.*
 
 #### Perawatan alat (tab Perawatan)
 
@@ -1252,15 +1280,15 @@ Peran Kepala depot dan kurir terkunci pada satu depot yang tercantum di token ak
 |---|---|---|---|
 | SS-kepala-depot-01 | Halaman masuk `/login` | Nomor sintetis terisi | Belum diambil |
 | SS-kepala-depot-02 | Ringkasan hari ini + header + bilah tab | Setelah masuk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-01-ringkasan.png`; kartu dalam keadaan kosong |
-| SS-kepala-depot-03 | Ringkasan: empat penghitung dan tiga kartu | Ada data contoh | Belum diambil (kartu terisi; tangkapan yang ada hanya keadaan kosong, dipakai pada SS-02) |
+| SS-kepala-depot-03 | Ringkasan: empat penghitung dan tiga kartu | Ada data contoh | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — lihat SS-kepala-depot-21 (`kepala-depot-01-ringkasan-p664.png`, Gambar 3.2a) |
 | SS-kepala-depot-04 | Antrean pesanan, empat chip | Beberapa pesanan | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-02-pesanan.png`; hanya satu pesanan |
 | SS-kepala-depot-05 | Lembar detail pesanan Dipesan | Tombol Lanjut ke Dikonfirmasi | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-03-detail-pesanan.png` |
 | SS-kepala-depot-06 | Panel "Tugaskan kurir" | Satu kurir Tersedia, satu Sibuk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-09-tugaskan-kurir.png`; tanpa kurir Sibuk |
 | SS-kepala-depot-07 | Live tracking | Satu pengiriman aktif | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-10-kurir.png`; keadaan kosong, kartu aktif belum diambil |
-| SS-kepala-depot-08 | Penjualan: "Belum ada shift terbuka" | Belum ada shift | Belum diambil |
+| SS-kepala-depot-08 | Penjualan: "Belum ada shift terbuka" | Belum ada shift | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — lihat SS-kepala-depot-25 (`kepala-depot-04-walk-in-p664.png`, Gambar 3.8) |
 | SS-kepala-depot-09 | Form penjualan konter | Keranjang terisi, tunai | Belum diambil |
 | SS-kepala-depot-10 | Tutup shift dan hasil selisih | Selisih negatif | Belum diambil |
-| SS-kepala-depot-11 | Panel verifikasi setoran | Setoran kurang | Belum diambil |
+| SS-kepala-depot-11 | Panel verifikasi setoran | Setoran kurang | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — lihat SS-kepala-depot-26 (`kepala-depot-12-setoran-submitted-p664.png`, Gambar 3.11); tanpa kotak "Bebankan selisih" untuk Kepala depot |
 | SS-kepala-depot-12 | Lembar opname massal | Sebagian baris berubah | Belum diambil |
 | SS-kepala-depot-13 | Retur galon | Kartu + formulir | Belum diambil |
 | SS-kepala-depot-14 | Meteran air | Form + kartu hasil | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-06-meter.png`; kartu Selisih/Rendemen RO di luar tangkapan |
@@ -1270,6 +1298,15 @@ Peran Kepala depot dan kurir terkunci pada satu depot yang tercantum di token ak
 | SS-kepala-depot-18 | Inventory, subtab Stok | Daftar stok enam produk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-05-stok.png` (Gambar 3.18) |
 | SS-kepala-depot-19 | Setoran COD | Keadaan kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-07-setoran.png` (Gambar 3.19) |
 | SS-kepala-depot-20 | Serah terima shift | Keadaan kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `kepala-depot-08-serah-terima.png` (Gambar 3.20) |
+| SS-kepala-depot-21 | Ringkasan hari ini dengan data | Empat penghitung, kartu terisi | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-01-ringkasan-p664.png` (Gambar 3.2a); mengisi SS-kepala-depot-03 |
+| SS-kepala-depot-22 | Bilah tab digeser: Kelola depot sampai Pengaturan | Tab baru tampil, Pembayaran tidak ada | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-01b-tab-bar-kelola-p664.png` (Gambar 3.2b) |
+| SS-kepala-depot-23 | Antrean pesanan | Lencana Indonesia, dua pesanan Disiapkan | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-02-pesanan-p664.png` (Gambar 3.4a), `kepala-depot-02b-pesanan-diproses-p664.png` (Gambar 3.4b) |
+| SS-kepala-depot-24 | Dialog detail pesanan Dipesan | Tombol "Lanjut ke Dikonfirmasi" | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-03-detail-pesanan-p664.png` (Gambar 3.5a); mengisi SS-kepala-depot-05 versi pasca-#664 |
+| SS-kepala-depot-25 | Penjualan: "Belum ada shift terbuka" | Belum ada shift | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-04-walk-in-p664.png` (Gambar 3.8); mengisi SS-kepala-depot-08 |
+| SS-kepala-depot-26 | Panel verifikasi setoran (setoran kurang) | Status Menunggu verifikasi | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-12-setoran-submitted-p664.png` (Gambar 3.11); mengisi SS-kepala-depot-11 (tanpa kotak "Bebankan selisih", memang hanya untuk Manajer) |
+| SS-kepala-depot-27 | Setoran berstatus Sengketa: daftar dan verifikasi dengan catatan | Filter Sengketa | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-13-setoran-disputed-p664.png` (Gambar 3.19a), `kepala-depot-13b-setoran-disputed-verifikasi-p664.png` (Gambar 3.19b) |
+| SS-kepala-depot-28 | Serah terima shift | Keadaan kosong (pasca-#664) | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-08-serah-terima-p664.png` (Gambar 3.20a) |
+| SS-kepala-depot-29 | Tab Promo | Tanpa tombol tulis | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `kepala-depot-11-promo-p664.png` (Gambar 3.21) |
 
 ---
 

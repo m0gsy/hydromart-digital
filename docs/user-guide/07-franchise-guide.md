@@ -368,11 +368,11 @@ Status rekening:
 | 2 | Isi "Jumlah pencairan (IDR)" (angka). Atau tekan Rp 2.000.000, Rp 5.000.000 (hanya muncul bila tidak melebihi saldo), atau "Semua". | Kolom terisi. Kolom kosong menampilkan saldo penuh sebagai petunjuk. |
 | 3 | Periksa jumlah dan rekening tujuan. | |
 | 4 | Tekan "Cairkan saldo". | Tombol nonaktif bila saldo 0 atau rekening belum terverifikasi. |
-| 5 | Baca layar hasil. | "Pencairan diproses", "Rp X diajukan ke {BANK ···· 1234}, menunggu transfer." (sejak PR #664, 2026-10-14; dahulu "…dikirim ke…"), "Ref" = nomor `WD-YYYYMMDD-NNNN`, "Status" = "Diproses". |
+| 5 | Baca hasilnya. **[B]** Menurut kode, kartu "Pencairan diproses" ("Rp X diajukan ke {BANK ···· 1234}, menunggu transfer.", "Ref" = nomor `WD-YYYYMMDD-NNNN`, "Status" = "Diproses") seharusnya tampil. **Pada uji layar 2026-10-14 (pasca-#664, tiga kali Cairkan saldo Rp50.000) kartu itu tidak pernah tampil**: halaman memuat ulang datanya dan kembali ke formulir kosong dengan saldo baru. Bukti keberhasilan yang benar-benar terlihat: saldo "Saldo tersedia" berkurang, baris baru "Pencairan saldo · WD-…" di Buku kas, dan baris baru berlencana "Menunggu transfer" di kartu "Riwayat penarikan". | Sebab di kode: setelah berhasil, `BalanceCard` memanggil `onWithdrawn` = `reload()`; `useAsync` menyetel `loading` sehingga seluruh halaman diganti kerangka pemuat dan kartu hasil (state `done`) ikut terhapus. Catat nomor "Ref" dari Riwayat penarikan. **[V]** |
 | 6 | Catat nomor "Ref". | Berguna bila perlu menghubungi HQ. |
 | 7 | Tunggu HQ. Pantau di kartu "Riwayat penarikan" pada halaman yang sama. | HQ menandai "Lunas" atau "Gagal"; kartu riwayat menampilkan "Menunggu transfer", "Sudah ditransfer", atau "Gagal (saldo dikembalikan)". |
 
-**Ejaan status (diperbaiki sejak PR #664, 2026-10-14).** Dahulu layar hasil menulis "dikirim ke…", yang optimistis. Kini berbunyi "diajukan ke {rekening}, menunggu transfer." Dana belum tentu sudah masuk: statusnya tetap **PROCESSING** sampai HQ menandai lunas. **[V]**
+**Ejaan status (diperbaiki sejak PR #664, 2026-10-14).** Dahulu layar hasil menulis "dikirim ke…", yang optimistis. Kini berbunyi "diajukan ke {rekening}, menunggu transfer." Dana belum tentu sudah masuk: statusnya tetap **PROCESSING** sampai HQ menandai lunas. **[V]** **[B]** Teks "diajukan ke … , menunggu transfer." ada di kode, tetapi pada uji layar 2026-10-14 tidak terlihat oleh pengguna karena kartu hasil terhapus oleh muat ulang halaman (lihat langkah 5); pengguna hanya melihat lencana "Menunggu transfer" di Riwayat penarikan.
 
 **Siklus pencairan:**
 
@@ -409,7 +409,7 @@ Status rekening:
 > *Gambar 7.7 — Kartu "Saldo tersedia" di sisi kanan halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Saldo tersedia Rp 0", chip "Menunggu verifikasi kantor pusat / a.n. akun terdaftar", kolom "Jumlah pencairan (IDR)" (petunjuk "0"), tombol "Semua", dan tombol "Cairkan saldo" yang nonaktif (pudar). Catatan kondisi: karena saldo Rp 0, tombol cepat Rp 2.000.000 dan Rp 5.000.000 tidak tampil (sesuai aturan: hanya muncul bila tidak melebihi saldo). Di bawah kartu terlihat "Rekening tujuan pencairan" dengan teks "Belum ada rekening terdaftar." dan kolom "Nama bank". [B] Chip tetap bertuliskan "Menunggu verifikasi kantor pusat" walau belum ada rekening terdaftar; arti chip pada kondisi ini belum dikonfirmasi. Diambil sebelum PR #664; kini, bila sudah ada pencairan, kartu "Riwayat penarikan" tampil di bawah kartu ini, dan pencairan di bawah Rp50.000 ditolak dengan "Minimum penarikan Rp50.000."*
 
 > **[SCREENSHOT REQUIRED: SS-waralaba-08 — Layar sukses "Pencairan diproses" dengan teks "diajukan ke …, menunggu transfer.", "Ref" WD-… dan "Status" Diproses (data sintetis; belum diambil setelah PR #664)]**
-> *Gambar 7.8 — Hasil pencairan berstatus Diproses.*
+> *Gambar 7.8 — Hasil pencairan berstatus Diproses.* *Dicoba 2026-10-14 pasca-#664 dan tidak dapat difoto: kartu ini tidak tampil di UI (lihat **[B]** di langkah 5).*
 
 ---
 
@@ -462,6 +462,12 @@ Pembatalan penjualan kasir (void) menulis baris koreksi "Pembatalan: …" dengan
 
 ![Gambar 7.9 — Halaman Payout & komisi pemilik](assets/screenshots/waralaba-03-pencairan.png)
 > *Gambar 7.9 — Bagian atas halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat lencana "Usulan" di samping judul, subjudul "Buku kas depot, komisi HQ, dan pencairan untuk pemilik waralaba.", empat kartu: Saldo tersedia "Rp 0", Pendapatan bulan ini "Rp 0", Komisi HQ "Rp 0", Payout berikutnya "14 Okt"; serta kartu "Buku kas". Catatan kondisi: buku kas kosong ("Belum ada transaksi."), sehingga baris kredit hijau dan debit merah belum terlihat. Gambar yang sama dengan Gambar 7.7. Diambil sebelum PR #664; kini kartu "Riwayat penarikan" tampil di bawah kartu "Saldo tersedia" bila ada pencairan, dan layar hasil pencairan berbunyi "diajukan ke …, menunggu transfer."*
+
+![Gambar 7.9a — Setelah PR #664: Penarikan minimum Rp50.000](assets/screenshots/waralaba-03-pencairan-minimum-p664.png)
+*Gambar 7.9a — Setelah PR #664: Halaman "Payout & komisi" pada akun pemilik uji (1366×800): "Saldo tersedia Rp 150.000", chip "Terverifikasi / a.n. akun terdaftar", kolom "Jumlah pencairan (IDR)" berisi 10000, tombol "Semua", dan teks merah **"Minimum penarikan Rp50.000."** setelah menekan "Cairkan saldo". Buku kas memuat "Pencairan saldo · WD-20261014-100005 − Rp 50.000", "Pencairan gagal · Bank menolak + Rp 60.000" dan seterusnya. Nomor rekening pada kartu "Rekening tujuan pencairan" diganti titik pada gambar. Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
+
+![Gambar 7.9b — Setelah PR #664: Riwayat penarikan](assets/screenshots/waralaba-05-riwayat-penarikan-p664.png)
+*Gambar 7.9b — Setelah PR #664: Halaman yang sama digulir ke kartu **"Riwayat penarikan"**: empat baris — Rp 50.000 "WD-20261014-100006" **Menunggu transfer**, Rp 50.000 "WD-20261014-100005" **Menunggu transfer**, Rp 300.000 "WD-20261014-100004" **Menunggu transfer**, Rp 60.000 "WD-20261014-100003" **Gagal (saldo dikembalikan)**. Tanggal pada baris terpotong oleh lebar kartu ("14/1…"). Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
 
 ---
 
@@ -547,8 +553,9 @@ Verifikasi rekening oleh HQ: kartu "Rekening tujuan menunggu verifikasi", petunj
 
 > **[B]** Asumsi lama "pemilik minta → FINANCE ajukan → DIREKTUR setujui" **tidak sesuai kode**. Pasangan Ajukan/Setujui hanya untuk rilis yang dimulai HQ.
 
-> **[SCREENSHOT REQUIRED: SS-waralaba-10 — Layar HQ "Pembayaran & payout": kartu "Rilis payout waralaba" dengan tombol "Ajukan rilis" dan kartu "Pengajuan rilis menunggu persetujuan" dengan tombol "Setujui & rilis"/"Tolak" (data sintetis)]**
-> *Gambar 7.10 — Alur rilis payout di sisi HQ.*
+![Gambar 7.10 — Alur rilis payout di sisi HQ](assets/screenshots/direktur-02-pembayaran-p664.png)
+*Gambar 7.10 — Layar HQ "Pembayaran & payout" pada akun **Direktur** (1366×800, 14 Okt 2026): empat kartu KPI (Terkumpul Rp 1.297.000, Belum settle Rp 100.000, Payout tertunda Rp 200.000, Refund perlu disetujui 1); kartu "Rilis payout waralaba" (Pemilik Waralaba Dago, jatuh tempo 14 Okt, Rp 200.000) dengan tombol **Ajukan rilis** (tampil untuk Direktur walau hak ajukan ada pada Finance, lihat **[B]** di bab 9); kartu "Pengajuan rilis menunggu persetujuan" (Rp 200.000, "Diajukan oleh #8e8c196e", catatan "Pengaju tidak boleh menyetujui pengajuannya sendiri") dengan tombol **Setujui & rilis** dan **Tolak**. Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
+
 
 ---
 
@@ -713,9 +720,11 @@ Detail penting:
 | SS-waralaba-05 | "Waralabaku" | Empat kartu + daftar depot (pada tangkapan: tanpa kartu SDM/CRM, ada banner "hr, crm") | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-waralaba-06 | Kartu "Rekening tujuan pencairan" | Status menunggu verifikasi | Belum diambil |
 | SS-waralaba-07 | Kartu "Saldo tersedia" | Kolom jumlah + tombol cepat (pada tangkapan: hanya "Semua", tombol nonaktif, saldo Rp 0) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
-| SS-waralaba-08 | "Pencairan diproses" | Ref WD-… dan Status Diproses | Belum diambil |
+| SS-waralaba-08 | "Pencairan diproses" | Ref WD-… dan Status Diproses | Belum diambil — dicoba 2026-10-14 pasca-#664, kartu tidak tampil di UI (**[B]**, lihat langkah 5) |
 | SS-waralaba-09 | "Payout & komisi" | Kartu angka + Buku kas (pada tangkapan: buku kas kosong) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
-| SS-waralaba-10 | "Pembayaran & payout" (HQ) | Ajukan rilis / Setujui & rilis | Belum diambil |
+| SS-waralaba-10 | "Pembayaran & payout" (HQ) | Ajukan rilis / Setujui & rilis | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `direktur-02-pembayaran-p664.png` (Gambar 7.10), akun Direktur |
+| SS-waralaba-11 | "Payout & komisi": penarikan minimum | Teks "Minimum penarikan Rp50.000." | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `waralaba-03-pencairan-minimum-p664.png` (Gambar 7.9a); nomor rekening diganti titik |
+| SS-waralaba-12 | "Riwayat penarikan" | Tiga lencana Menunggu transfer dan satu Gagal | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `waralaba-05-riwayat-penarikan-p664.png` (Gambar 7.9b) |
 
 ## 15. Catatan celah & hal yang perlu dikonfirmasi
 

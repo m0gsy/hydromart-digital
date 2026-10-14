@@ -93,7 +93,7 @@ Menu di rel HR (desktop). Di ponsel, 3 tab pertama tampil di bilah bawah; sisany
 | 21 | Log Audit | `/hr/audit` | `hrAdmin` | **[V]** |
 | 22 | Data saya | `/hr/me` | `hrView` (data diri sendiri; dibahas di panduan karyawan) | **[V]** |
 
-> **[B]** Label string untuk pintu "Konsol HQ" di rel HR hilang dari kamus. **[V]** Dikonfirmasi uji 2026-10-14: rel HR menampilkan kunci mentah `hrFix.nav.hqConsole` sebagai label (G-151).
+> **[B]** Label string untuk pintu "Konsol HQ" di rel HR hilang dari kamus. **[V]** Dikonfirmasi uji 2026-10-14: rel HR menampilkan kunci mentah `hrFix.nav.hqConsole` sebagai label (G-151). **Koreksi uji 2026-10-14 (pasca-#664, [B]):** kunci mentah itu terlihat pada rel akun **Super admin** yang membuka halaman HR (item paling atas, lihat Gambar 8.11b), bukan pada rel akun HR: rel HR dalam uji (Gambar 8.9a, 8.10) dimulai dari "Dashboard" tanpa item pintu HQ, karena HR tidak memegang `hqConsole`.
 
 > **[SCREENSHOT REQUIRED: SS-hr-01 — Rel menu konsol HR lengkap (21 item bagi HR; no. 12 tidak tampil) saat masuk sebagai HR, dengan "Dashboard" aktif, termasuk dua item paling bawah]**
 > *Gambar 8.1 — Menu konsol HR.*
@@ -534,6 +534,9 @@ Hari libur dan libur mingguan dikeluarkan dari hari kerja cuti dan hitungan abse
 ![Gambar 8.8a — Pengajuan Cuti, antrean kosong](assets/screenshots/hr-04-cuti.png)
 > *Gambar 8.8a — Halaman "Pengajuan Cuti" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti.", tombol "Import Saldo Cuti" dan "Ajukan cuti untuk karyawan", penyaring status yang sudah terpilih "Menunggu atasan" (bawaan), dan pesan "Tidak ada pengajuan." Catatan kondisi: tidak ada data cuti pada lingkungan uji sehingga baris pengajuan dan tombol "Setujui"/"Tolak" belum terlihat.*
 
+![Gambar 8.8b — Setelah PR #664: Pengajuan Cuti (kosong)](assets/screenshots/hr-04-cuti-p664.png)
+*Gambar 8.8b — Setelah PR #664: Halaman "Pengajuan Cuti" akun HR (1366×800): subjudul "Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti.", tombol "Ajukan cuti untuk karyawan" dan "Import Saldo Cuti", penyaring (bawaan "Menunggu atasan") dan keadaan kosong "Tidak ada pengajuan." Tidak ada baris pengajuan, jadi tombol "Setujui"/"Tolak" belum terlihat (SS-hr-08 tetap belum terisi). Lingkungan uji lokal pasca-#664, data sintetis.*
+
 > **[SCREENSHOT REQUIRED: SS-hr-08 — Halaman "Pengajuan Cuti" penyaring "Menunggu atasan" dengan baris pengajuan dan tombol "Setujui"/"Tolak"]**
 > *Gambar 8.8 — Antrean cuti.*
 
@@ -579,6 +582,9 @@ Status: Menunggu keputusan, Disetujui, Ditolak, Dibatalkan (oleh karyawan, atau 
 **Di penggajian:** cicilan dipotong sebagai "Cicilan pinjaman"/"Cicilan: {catatan}". Bila gaji bersih menjadi negatif, cicilan dikecilkan atau ditunda lebih dulu. **[V]**
 
 ---
+
+![Gambar 8.14 — Setelah PR #664: Antrean Kasbon HR (kosong)](assets/screenshots/hr-06-kasbon-antrean-p664.png)
+*Gambar 8.14 — Setelah PR #664: Halaman "Antrean Kasbon" akun HR (1366×800): penyaring bawaan "Menunggu keputusan", tautan "Lihat daftar kasbon berjalan", dan keadaan kosong "Tidak ada pengajuan kasbon di depot Anda." Tidak ada baris pengajuan sehingga kolom "Cicilan per bulan (Rp)", "Mulai potong (YYYY-MM)" dan tombol "Setujui" belum terlihat. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ### Prosedur 6.12: Penggajian — Draft → Disetujui → Dibayar
 
@@ -695,13 +701,24 @@ Kolom: employeeCode*, periodMonth* (YYYY-MM), gross* (bulat), totalBonus, totalD
 ![Gambar 8.9 — Daftar dan pembuatan payroll](assets/screenshots/hr-05-penggajian.png)
 > *Gambar 8.9 — Halaman "Payroll", subjudul "Periode 2026-10" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "Import Riwayat Slip Gaji"; kartu penyaring "Periode" (kolom bulan, tampil "October 2026" mengikuti bahasa peramban), "Karyawan (opsional)" (petunjuk "Semua karyawan"), "Status" ("Semua status") dan tombol "Generate"; kartu batch "Depot" ("Pilih depot") dengan tombol "Buat sedepot" dan petunjuk "Menulis DRAFT untuk setiap karyawan aktif di depot itu. Menyetujui dan membayar tetap manual, satu per satu."; serta pesan "Belum ada payroll periode ini." Catatan kondisi: daftar slip kosong pada lingkungan uji.*
 
+![Gambar 8.9a — Setelah PR #664: Daftar payroll periode 2026-09](assets/screenshots/hr-05-penggajian-2026-09-p664.png)
+*Gambar 8.9a — Setelah PR #664: Halaman "Payroll" dengan "Periode" diganti ke September 2026 (subjudul "Periode 2026-09"). Daftar memuat tiga slip: **Andi Pratama** Rp 0 *Draft*, **Budi Santoso** Rp 5.000.000 *Disetujui*, **Siti Aminah** Rp 0 *Dibayar* (semua "0 hari hadir · dibuat 14 Okt 2026") dan "Menampilkan 3 dari 3". Data uji sintetis. Rel menu kiri milik akun HR. Lingkungan uji lokal pasca-#664.*
+
 > **[B] Periode bawaan = bulan berjalan.** Pada gambar, "Periode" terisi bulan berjalan (2026-10), padahal slip hanya dapat dibuat untuk bulan yang sudah berakhir. Memilih "Generate" untuk periode itu diperkirakan ditolak dengan "Periode {YYYY-MM} belum selesai…" **[D]** (belum dicoba). Ganti "Periode" ke bulan lalu sebelum menghasilkan slip.
 
-> **[SCREENSHOT REQUIRED: SS-hr-10 — Detail slip gaji berstatus Draft: baris komponen, "Gaji Bersih (Net)", tombol "Hitung ulang" dan "Setujui"]**
-> *Gambar 8.10 — Slip gaji Draft.*
+![Gambar 8.10 — Slip gaji Draft](assets/screenshots/hr-05c-slip-draft-p664.png)
+*Gambar 8.10 — Detail slip **Andi Pratama** ("Slip Gaji 2026-09 · 0 hari hadir"), lencana **Draft**, akun HR (1366×800). Terlihat tombol "Unduh PDF", "Gaji pokok (0 hari) Rp 0", "Gaji Bersih (Net) Rp 0", tombol "Koreksi pembagian depot", kartu Gross/Bonus/Potongan (semua Rp 0), serta tombol **Hitung ulang** dan **Setujui**. Slip uji bernilai nol karena karyawan uji tidak punya absensi. Tombol "Setujui" tampil walau akun HR yang membuat slip tidak boleh menyetujuinya (server yang menolak). Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
+
 
 > **[SCREENSHOT REQUIRED: SS-hr-11 — Dialog konfirmasi "Tandai penggajian … sudah dibayar?" pada slip Disetujui]**
 > *Gambar 8.11 — Konfirmasi tandai dibayar.*
+
+![Gambar 8.11a — Setelah PR #664: Slip Disetujui dilihat HR](assets/screenshots/hr-05b-slip-disetujui-p664.png)
+*Gambar 8.11a — Setelah PR #664: Detail slip **Budi Santoso** (2026-09, Rp 5.000.000), lencana **Disetujui**, akun HR: kartu "Disetujui 14 Okt 2026" dan hanya satu tombol aksi, **Tandai Dibayar**. Tidak ada kolom alasan maupun tombol "Batalkan persetujuan" untuk HR, sesuai tabel status. Tombol "Tandai Dibayar" tidak ditekan. Lingkungan uji lokal pasca-#664, data sintetis.*
+
+
+![Gambar 8.11b — Setelah PR #664: Slip Disetujui dilihat Super admin: Batalkan persetujuan](assets/screenshots/admin-10-slip-disetujui-batalkan-p664.png)
+*Gambar 8.11b — Setelah PR #664: Slip yang sama pada akun **Super admin**: di baris aksi tampil kolom isian "Alasan membatalkan persetujuan (wajib):", tombol **Batalkan persetujuan** (tampak abu-abu/nonaktif karena alasan masih kosong) dan **Tandai Dibayar**. Item paling atas rel menu kiri berlabel kunci mentah "hrFix.nav.hqConsole" **[B]**. Tombol belum ditekan. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ---
 
@@ -889,6 +906,9 @@ Pembatalan hanya untuk Terjadwal atau pinjaman Berjalan: lainnya 409 "Penugasan 
 | 2 | Tekan "Ajukan". | "Permintaan terkirim ke HR". Daftar "Permintaan Anda" (kosong "Belum ada permintaan."). Kode salah: "Karyawan tidak ditemukan". |
 
 Peran lain melihat penjelasan: "Hanya manajer depot yang bisa mengajukan peminjaman karyawan. HR merencanakannya langsung dari kartu karyawan." (judulnya memakai kalimat "Impor massal tidak tersedia untuk peran ini" yang dipakai ulang — **[B]**).
+
+![Gambar 8.15 — Setelah PR #664: Halaman /hr/depot-requests untuk HR](assets/screenshots/hr-07-depot-requests-p664.png)
+*Gambar 8.15 — Setelah PR #664: Akun HR membuka `/hr/depot-requests` langsung lewat alamat (1366×800; menu "Permintaan pinjam karyawan" tidak ada di rel HR). Tampil ikon gembok, judul "**Impor massal tidak tersedia untuk peran ini**" dan isi "Hanya manajer depot yang bisa mengajukan peminjaman karyawan. HR merencanakannya langsung dari kartu karyawan." Judul salah konteks (kalimat impor massal dipakai ulang) sesuai catatan **[B]** di atas. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 **HR memutuskan** pada kartu "Penugasan lintas depot" karyawan terkait, baris berstatus Diajukan:
 
@@ -1079,13 +1099,18 @@ Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `
 | SS-hr-07 | Absensi | Absen menunggu persetujuan + dialog koreksi | Belum diambil |
 | SS-hr-08 | Pengajuan Cuti | Filter "Menunggu atasan" | Belum diambil |
 | SS-hr-09 | Daftar Payroll | Filter periode + "Buat sedepot" (pada tangkapan: daftar kosong) | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
-| SS-hr-10 | Slip gaji Draft | "Hitung ulang" dan "Setujui" | Belum diambil |
+| SS-hr-10 | Slip gaji Draft | "Hitung ulang" dan "Setujui" | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `hr-05c-slip-draft-p664.png` (Gambar 8.10) |
 | SS-hr-11 | Konfirmasi "Tandai Dibayar" | Slip Disetujui | Belum diambil |
 | SS-hr-12 | Laporan | Kartu laporan + CSV/Excel/PDF | Belum diambil |
 | SS-hr-13 | Penugasan lintas depot | Baris Diajukan (fitur aktif) | Belum diambil |
 | SS-hr-14 | Daftar "Karyawan" (`/hr/employees`) | 24 karyawan seed | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-hr-15 | Formulir "Tambah Karyawan" (`/hr/employees/new`) | Kosong, dropdown tertutup | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
 | SS-hr-16 | "Pengajuan Cuti" (`/hr/leave`) | Penyaring "Menunggu atasan", daftar kosong | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
+| SS-hr-17 | Daftar Payroll periode 2026-09 | Draft, Disetujui, Dibayar | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `hr-05-penggajian-2026-09-p664.png` (Gambar 8.9a) |
+| SS-hr-18 | Slip Disetujui: HR dan Super admin | HR hanya "Tandai Dibayar"; Super admin juga "Batalkan persetujuan" | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `hr-05b-slip-disetujui-p664.png` (Gambar 8.11a), `admin-10-slip-disetujui-batalkan-p664.png` (Gambar 8.11b) |
+| SS-hr-19 | "Pengajuan Cuti" | Keadaan kosong (pasca-#664) | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `hr-04-cuti-p664.png` (Gambar 8.8b); SS-hr-08 (baris pengajuan) tetap belum diambil |
+| SS-hr-20 | "Antrean Kasbon" | Keadaan kosong | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `hr-06-kasbon-antrean-p664.png` (Gambar 8.14) |
+| SS-hr-21 | `/hr/depot-requests` untuk HR | Judul "Impor massal tidak tersedia untuk peran ini" | Diambil 2026-10-14, uji lokal pasca-#664, data sintetis — `hr-07-depot-requests-p664.png` (Gambar 8.15) |
 
 ## 15. Catatan celah & hal yang perlu dikonfirmasi
 
