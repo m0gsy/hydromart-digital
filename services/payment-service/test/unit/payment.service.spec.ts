@@ -414,12 +414,14 @@ describe('PaymentService', () => {
     expect(queued.status).toBe(PaymentStatus.PAID); // not settled yet
     expect(queued.refundApproval).toBe(RefundApproval.PENDING);
     expect(queued.refundReason).toBe('galon bocor');
-    // The HQ queue says who asked (owner decision 2026-10-14: marked, not blocked).
+    // Who asked travels with the row, so the queue can say "diajukan oleh" — information
+    // only, it gates nothing.
     expect(queued.refundRequestedBy).toBe('finance');
 
     const list = await service.listRefundQueue({});
     expect(list.total).toBe(1);
     expect(list.items[0].id).toBe(payment.id);
+    expect(list.items[0].refundRequestedBy).toBe('finance');
   });
 
   // §G-3: a payment row holds only the order id, so this was the one money screen that

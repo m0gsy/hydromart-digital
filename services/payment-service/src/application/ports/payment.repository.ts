@@ -14,10 +14,10 @@ export interface PaymentRecord {
   failedAt: Date | null;
   refundedAt: Date | null;
   refundReason: string | null;
+  /** Who raised a refund that parked for HQ: a user id, or `order-service` for a cancellation. */
+  refundRequestedBy: string | null;
   refundedAmount: number | null;
   refundApproval: RefundApproval;
-  /** Who raised the refund that parked at PENDING; null for a direct settle and for old rows. */
-  refundRequestedBy: string | null;
   cashReceived: number | null;
   changeGiven: number | null;
   /** Depot whose drawer took the money; set only for a counter sale. */
@@ -56,9 +56,9 @@ export interface PaymentStatusPatch {
   failedAt?: Date | null;
   refundedAt?: Date | null;
   refundReason?: string | null;
+  refundRequestedBy?: string | null;
   refundedAmount?: number | null;
   refundApproval?: RefundApproval;
-  refundRequestedBy?: string | null;
   reference?: string | null;
   instruction?: string | null;
   gatewayData?: string | null;

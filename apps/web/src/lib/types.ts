@@ -2108,7 +2108,7 @@ export interface RefundQueueItem {
   status: PaymentStatus;
   amount: number;
   refundReason: string | null;
-  /** Who raised it: a user id, or the literal `order-service` for a cancellation. Null on old rows. */
+  /** Who raised it: a user id, `order-service` for a cancellation, or null for older rows. */
   refundRequestedBy?: string | null;
   refundApproval: RefundApproval;
   /**
