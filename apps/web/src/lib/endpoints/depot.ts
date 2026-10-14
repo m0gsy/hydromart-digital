@@ -52,6 +52,7 @@ export const depot = {
     // The depot's own phone, for the help screen. Signed-in only, one depot at a time —
     // contactPhone is deliberately absent from the public projection.
     contact: (id: string) => `/depots/api/v1/depots/${id}/contact`,
+    gallonDeposit: (id: string) => `/depots/api/v1/depots/${id}/gallon-deposit`,
     // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
     uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
     // "Tutup buku": one depot declaring one day counted. GET reads the state plus whatever

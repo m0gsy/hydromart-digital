@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 import {
   DATA_SUBJECT_REQUEST_TYPES,
@@ -18,6 +18,16 @@ export class CreateDataSubjectRequestDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+}
+
+export class ApproveDataSubjectRequestDto {
+  @ApiPropertyOptional({
+    description:
+      'Erase even though the customer has open orders. Only a SUPER_ADMIN may set it; anyone else gets 403.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }
 
 export class RejectDataSubjectRequestDto {

@@ -716,6 +716,7 @@ export const opsFix = {
     verify: 'Verifikasi',
     dispute: 'Sengketakan',
     disputeReasonRequired: 'Isi alasan sengketa.',
+    chargeManagerOnly: 'Membebankan selisih ke kurir hanya bisa oleh manajer. Anda bisa memverifikasi tanpa membebankan.',
     resolveNoteRequired: 'Isi catatan penyelesaian sengketa.',
     actionError: 'Aksi gagal. Coba lagi.',
     dtExpected: 'Wajib setor',

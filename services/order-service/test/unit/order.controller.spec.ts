@@ -38,6 +38,7 @@ function makeService(): Mocked {
     voidCounterSale: jest.fn().mockResolvedValue({ id: 'w1', status: 'VOIDED' }),
     expireAbandoned: jest.fn().mockResolvedValue({ cancelled: 3 }),
     listForCustomer: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    countOpenForCustomer: jest.fn().mockResolvedValue(2),
     listAll: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     getAny: jest.fn().mockResolvedValue({ id: 'o1', depotId: 'd1', total: 42000 }),
     assignDepot: jest.fn().mockResolvedValue({ id: 'order-1', depotId: 'depot-a' }),
@@ -487,6 +488,11 @@ describe('OrderController', () => {
 
     service.listForCustomer.mockResolvedValue({ items: [], total: 0 });
     expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: false });
+  });
+
+  it('internalCustomerOpenCount: wraps the service count', async () => {
+    expect(await controller.internalCustomerOpenCount('c1')).toEqual({ openCount: 2 });
+    expect(service.countOpenForCustomer).toHaveBeenCalledWith('c1');
   });
 
   // A junk `limit` must not become NaN or 0 rows — it falls through to the service default.

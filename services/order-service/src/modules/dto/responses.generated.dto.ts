@@ -1252,6 +1252,15 @@ export class InternalCustomerCompletedResponseDto {
   hasCompleted!: boolean;
 }
 
+/**
+ * auth-service asks how many orders a customer still has in flight before it erases the
+ * account. Owner decision 2026-10-14: deletion is refused while any are open.
+ */
+export class InternalCustomerOpenCountResponseDto {
+  @ApiProperty({ type: Number })
+  openCount!: number;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class RemindStale2ResponseDto {
   @ApiProperty({ type: Number })

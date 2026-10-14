@@ -1641,6 +1641,9 @@ export const hq = {
       'This is the threshold delivery-service grades on-time against — and what courier commission turns on. A depot may still override it in depot settings.',
   },
   pdp: {
+    forceTitle: 'Force the deletion?',
+    forceBody: 'This account still has orders in flight. Forcing the deletion cuts the customer off from them and cannot be undone. It is recorded in the audit log.',
+    forceConfirm: 'Yes, force delete',
     title: 'Personal-data requests',
     subtitle: 'UU PDP stage 1 data-subject rights: data copy and account deletion.',
     empty: 'No requests.',

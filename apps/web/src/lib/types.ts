@@ -566,6 +566,10 @@ export interface Payment {
   // COD only (design 7a): cash tendered + change given back, set on confirm.
   cashReceived?: number | null;
   changeGiven?: number | null;
+  /** HQ refund-approval state and the refund itself — what the customer is told about it. */
+  refundApproval?: RefundApproval;
+  refundedAmount?: number | null;
+  refundedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

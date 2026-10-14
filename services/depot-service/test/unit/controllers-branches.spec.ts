@@ -1221,6 +1221,15 @@ describe('DepotController', () => {
     expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
   });
 
+  it('gallonDeposit: answers the depot rate, 404s through get(), and is 0 when no config is wired', async () => {
+    const withConfig = new DepotController(svc as never, storage as never, {
+      gallonDepositIdr: (id: string) => (id === DEPOT ? 25000 : 0),
+    } as never);
+    await expect(withConfig.gallonDeposit(DEPOT)).resolves.toEqual({ gallonDepositIdr: 25000 });
+    expect(svc.get).toHaveBeenCalledWith(DEPOT, true);
+    await expect(c.gallonDeposit(DEPOT)).resolves.toEqual({ gallonDepositIdr: 0 });
+  });
+
   it('is deliberately readable by any signed-in caller — checkout depends on it', () => {
     const handler = DepotController.prototype.paymentInfo;
     // No @Public(): the route is authenticated, the global JwtAuthGuard reads this key.

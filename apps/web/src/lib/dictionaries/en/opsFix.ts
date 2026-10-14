@@ -717,6 +717,7 @@ export const opsFix = {
     verify: 'Verify',
     dispute: 'Dispute',
     disputeReasonRequired: 'Give a reason for the dispute.',
+    chargeManagerOnly: 'Only a manager can charge a shortfall to the courier. You can still verify without charging.',
     resolveNoteRequired: 'Add a note on how the dispute was resolved.',
     actionError: 'That action failed. Try again.',
     dtExpected: 'Owed',

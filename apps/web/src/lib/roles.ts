@@ -118,6 +118,8 @@ export const canViewPayout = (role: string | null | undefined) => can('payout', 
 export const canManageStaff = (role: string | null | undefined) => can('staffAdmin', role);
 export const canViewOpsNotifications = (role: string | null | undefined) => can('opsNotif', role);
 export const canViewTracking = (role: string | null | undefined) => can('tracking', role);
+// Putting a deposit shortfall on a courier's account is a manager's call (`approvals`).
+export const canChargeCourier = (role: string | null | undefined) => can('approvals', role);
 export const canViewForecast = (role: string | null | undefined) => can('forecast', role);
 // Each of these three pages was gated on a broader capability than its API enforces
 // (depotFinance / dashboard), so a role passed the nav and then met a 403. They name what

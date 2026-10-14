@@ -10,7 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { canVerifySettlement } from '@/lib/roles';
+import { canChargeCourier, canVerifySettlement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
@@ -81,6 +81,8 @@ function SettlementRow({
 
   // A DISPUTED deposit can be ruled on again (canResolve in delivery-service): hiding the button
   // left the money parked with no way out. Ending a dispute needs a written note.
+  const { customer } = useAuth();
+  const canCharge = canChargeCourier(customer?.role);
   const disputed = s.status === 'DISPUTED';
   const pending = s.status === 'SUBMITTED' || disputed;
   const shortfall = s.variance < 0;
@@ -98,7 +100,7 @@ function SettlementRow({
     setError(null);
     try {
       if (kind === 'verify') {
-        await api.post(endpoints.settlements.verify(s.id), { chargedToDriver: shortfall && charge, note: note.trim() || undefined }, true);
+        await api.post(endpoints.settlements.verify(s.id), { chargedToDriver: shortfall && charge && canCharge, note: note.trim() || undefined }, true);
       } else {
         await api.post(endpoints.settlements.dispute(s.id), { note: note.trim() }, true);
       }
@@ -175,7 +177,10 @@ function SettlementRow({
                 </span>
               </div>
 
-              {shortfall && (
+              {shortfall && !canCharge && (
+                <p className="text-sm text-muted">{t('opsFix.settlements.chargeManagerOnly')}</p>
+              )}
+              {shortfall && canCharge && (
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={charge} onChange={(e) => setCharge(e.target.checked)} />
                   {t('opsFix.settlements.chargeCourier', {

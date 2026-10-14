@@ -46,6 +46,10 @@ export const customerFix = {
     shortBy: '{amount} short',
   },
   // 13b — delivery slot (checkout)
+  deposit: {
+    row: 'Gallon deposit ({n} gallons)',
+    note: 'Held by the depot when the gallons are delivered and refunded when they come back. Not part of the total you pay.',
+  },
   slot: {
     expressNow: 'Deliver now',
     expressEta: 'Est. {min}–{max} min',

@@ -1653,6 +1653,9 @@ export const hq = {
       'Ini ambang yang dipakai delivery-service menilai tepat waktu — dan yang menentukan komisi kurir. Depot boleh menimpanya sendiri di setelan depot.',
   },
   pdp: {
+    forceTitle: 'Paksa hapus akun?',
+    forceBody: 'Akun ini masih punya pesanan yang belum selesai. Memaksa penghapusan memutus pelanggan dari pesanan itu dan tidak bisa dibatalkan. Tindakan ini dicatat di audit.',
+    forceConfirm: 'Ya, paksa hapus',
     title: 'Permintaan data pribadi',
     subtitle: 'Hak subjek data UU PDP tahap 1: salinan data dan penghapusan akun.',
     empty: 'Tidak ada permintaan.',

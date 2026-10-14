@@ -72,12 +72,18 @@ saluran OTP console dijaga saat boot di produksi (f9).
 25. Error satu halaman penuh di payout/komisi/rekonsiliasi/waralaba untuk Finance; tampilan error SPV;
     isi `/hr/me`; rumus skor kinerja; apakah pemindaian fraud dan rilis payout otomatis berjalan.
 
-## 3. Diputuskan pemilik, belum dibangun (butuh proyek tersendiri)
+## 3. Keputusan pemilik yang dibangun kemudian (2026-10-14)
 
-| Keputusan | Mengapa belum |
+| Keputusan | Status |
 |---|---|
-| Refund: tandai "diajukan oleh X" + status dan janji 1-3 hari ke pelanggan | pemohon hanya ada di audit; menampilkannya di antrean butuh kolom/gabungan lintas layanan |
-| Beban selisih COD ke kurir butuh persetujuan manajer | `COD_VARIANCE` belum pernah dibuat; alur delivery-service → depot-service baru |
-| Hapus akun ditolak bila ada pesanan terbuka (Super Admin bisa paksa) | butuh endpoint hitung pesanan di order-service + port di auth-service |
-| Deposit galon tampil di checkout | perlu pengecekan alur checkout dan harga |
-| Dukungan: nomor telepon + jam layanan; MX `privacy@` | menunggu data dari pemilik |
+| Beban selisih COD ke kurir butuh manajer | **Dibangun**: hanya MANAJER/SUPER_ADMIN yang bisa membebankan; kasir tetap bisa verifikasi tanpa beban. Diterapkan sebagai pemeriksaan kapabilitas (`approvals`), bukan antrean persetujuan asinkron: kurir yang menyetor, manajer yang memverifikasi = orang kedua |
+| Hapus akun ditolak bila pesanan terbuka, Super Admin bisa paksa | **Dibangun**: order-service `internal/customer-open-count`, port + adapter di auth-service (fail-closed), `force` hanya SUPER_ADMIN (403 untuk yang lain), dialog paksa di `/hq/pdp`, audit mencatat jumlah pesanan |
+| Deposit galon tampil di checkout | **Ditampilkan, belum ditagih**: baris "Deposit galon" dengan keterangan jelas. Lihat catatan di bawah |
+| Refund: status dan janji 1-3 hari ke pelanggan | **Dibangun**: halaman detail pesanan menampilkan status refund dan janji 1-3 hari kerja dari data pembayaran yang sudah ada |
+| Refund: "diajukan oleh X" di antrean HQ | **Setengah**: kolom `refundRequestedBy` + migrasi ditambahkan (aturan skema: kolom dikirim satu rilis sebelum kode yang membacanya). Kode yang mengisi dan menampilkannya ada di PR berikutnya, setelah migrasi ini ter-deploy |
+
+### Catatan: deposit galon belum pernah ditagih
+Keputusan pemilik "dibayar saat pesan" mengasumsikan deposit sudah ada di total. Kenyataannya deposit hanya **dicatat** di buku depot saat galon diantar (`rate × galon`); tidak masuk `order.total`, tidak masuk jumlah pembayaran, tidak masuk ekspektasi setoran COD. Menagihnya sungguhan menyentuh order-service, payment-service, delivery-service (setoran COD), refund, laporan, plus migrasi dan snapshot deposit per pesanan. Itu proyek tersendiri dan belum dibangun. Checkout kini hanya menampilkan estimasinya dengan label "belum termasuk dalam total yang dibayar".
+
+### Masih menunggu pemilik
+Nomor telepon dan jam layanan dukungan pusat; catatan MX `privacy@hydromart-digital.com`.

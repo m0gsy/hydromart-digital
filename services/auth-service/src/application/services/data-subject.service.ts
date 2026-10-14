@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
+  AccountHasOpenOrdersError,
   CustomerNotFoundError,
   DataExportApprovalExpiredError,
   DataExportNotApprovedError,
@@ -10,6 +11,7 @@ import {
 } from '../../domain/errors/auth.errors';
 import { Role } from '../../domain/customer/role.enum';
 import { HR_DIRECTORY_PORT, HrDirectoryPort } from '../ports/hr-directory.port';
+import { OPEN_ORDERS_PORT, OpenOrdersPort } from '../ports/open-orders.port';
 import {
   DataSubjectRequestRecord,
   DataSubjectRequestStatus,
@@ -93,6 +95,9 @@ export class DataSubjectService {
     // specs) keeps working, and an absent registry reports nothing rather than half-failing.
     @Optional() @Inject(ERASURE_EXECUTORS) private readonly erasers?: ErasureExecutor[],
     @Optional() @Inject(ERASURE_EXEMPTIONS) private readonly exemptions?: ErasureExemption[],
+    // Optional like the others so existing construction sites compile; the module always
+    // provides it, and an absent port means "no check" only in unit tests that do not care.
+    @Optional() @Inject(OPEN_ORDERS_PORT) private readonly openOrders?: OpenOrdersPort,
   ) {}
 
   /** Raise a request. A second one of the same type while the first is open is refused. */
@@ -145,6 +150,7 @@ export class DataSubjectService {
   async approve(
     id: string,
     staffId: string,
+    options: { force?: boolean } = {},
   ): Promise<{ request: DataSubjectRequestRecord; export?: DataExport }> {
     const found = await this.pendingOrThrow(id);
 
@@ -165,6 +171,21 @@ export class DataSubjectService {
         metadata: { requestId: id, subject: found.customerId },
       });
       return { request, export: payload };
+    }
+
+    /*
+     * Owner decision 2026-10-14. Before ANY side effect: an order in flight needs the person
+     * on the other end of it. A failed lookup refuses too (fail closed) — erasing the
+     * identity behind a delivery is not undoable, and a refused approval is a retry.
+     * `force` is the controller's to grant, and only to SUPER_ADMIN.
+     */
+    let forcedOver: number | null = null;
+    if (this.openOrders) {
+      const open = await this.openOrders.countOpen(found.customerId);
+      if (open > 0) {
+        if (!options.force) throw new AccountHasOpenOrdersError(open);
+        forcedOver = open;
+      }
     }
 
     await this.customerData.anonymise(found.customerId);
@@ -190,7 +211,12 @@ export class DataSubjectService {
       userAgent: null,
       // The coverage report rides on the audit row, so "what was actually erased" is a
       // question the trail can answer months later without re-running anything.
-      metadata: { requestId: id, subject: found.customerId, coverage },
+      metadata: {
+        requestId: id,
+        subject: found.customerId,
+        coverage,
+        ...(forcedOver !== null ? { forced: true, openOrders: forcedOver } : {}),
+      },
     });
     return { request };
   }
