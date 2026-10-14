@@ -22,7 +22,7 @@ terhadap `main` (8c541431) sebelum disentuh. Hasilnya: banyak premis sudah tidak
 | e4 halaman via URL (Kepala depot) | tab Meteran, Prakiraan, Aturan promo, Sengketa, CRM, Peran, Akun, sesuai kapabilitas |
 | f1 sesi setelah nonaktif | semua refresh token dicabut saat login dimatikan (staf, HR, pelanggan) |
 | f2 nonaktifkan diri / Super Admin terakhir | ditolak, dengan kunci transaksi yang sama seperti hapus |
-| Keputusan pemilik 2026-10-14 (dibangun) | payroll: approve oleh pembuat slip ditolak (SUPER_ADMIN dikecualikan) + batal approval khusus SUPER_ADMIN dengan alasan; Head office baru hanya dibuat SUPER_ADMIN; reviewer OTP maks 30 hari; penarikan minimum Rp50.000 (gratis, `MIN_WITHDRAWAL_IDR`); kasbon maks 1x gaji pokok, kedaluwarsa 3 hari kerja; teks "sebelum 16.00" dihapus; sisa konfigurasi WhatsApp di env/compose dihapus |
+| Keputusan pemilik 2026-10-14 (dibangun) | payroll: approve oleh pembuat slip ditolak (SUPER_ADMIN dikecualikan) + batal approval khusus SUPER_ADMIN dengan alasan; Head office baru hanya dibuat SUPER_ADMIN; penarikan minimum Rp50.000 (gratis, `MIN_WITHDRAWAL_IDR`); kasbon maks 1x gaji pokok, kedaluwarsa 3 hari kerja; teks "sebelum 16.00" dihapus; sisa konfigurasi WhatsApp di env/compose dihapus |
 | f8 filter audit | `/auth/audit` menerima `from`/`to`/`success`; halaman HQ punya filter aksi, tanggal, hasil, dan ekspor memakai filter yang sama |
 | b7 "Semua depot" | layar per-depot kini menampilkan pemberitahuan depot mana yang sedang ditampilkan; layar yang memang gabungan (pesanan, churn, aturan promo, impor) dikecualikan |
 

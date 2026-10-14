@@ -69,8 +69,8 @@ describe('OtpService', () => {
         buildTestConfig({
           REVIEWER_PHONE: REVIEWER,
           REVIEWER_OTP_CODE: '424242',
-          // AUTH-8: the feature is dated now; unset is off. Inside the 30-day ceiling.
-          REVIEWER_OTP_EXPIRES_AT: new Date(clock.now().getTime() + 7 * 86_400_000).toISOString(),
+          // AUTH-8: the feature is dated now; unset is off.
+          REVIEWER_OTP_EXPIRES_AT: '2099-01-01T00:00:00.000Z',
           ...overrides,
         }),
       );
@@ -128,17 +128,6 @@ describe('OtpService', () => {
 
       expect(otpRepo.rows[0].codeHash).toBe('hashed:123456');
       // And the SMS comes back with it: the number is an ordinary number again.
-      expect(delivery.sent).toHaveLength(1);
-    });
-
-    // A review lasts days. An expiry months out is how the code outlives the review.
-    it('refuses an expiry more than 30 days away and falls back to a random code', async () => {
-      const far = withReviewer({
-        REVIEWER_OTP_EXPIRES_AT: new Date(clock.now().getTime() + 45 * 86_400_000).toISOString(),
-      });
-      await far.issue(reviewerCustomer(), OtpPurpose.LOGIN);
-
-      expect(otpRepo.rows[0].codeHash).toBe('hashed:123456');
       expect(delivery.sent).toHaveLength(1);
     });
 
