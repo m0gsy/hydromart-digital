@@ -163,6 +163,13 @@ describe('CAPABILITIES', () => {
  * invite their own phone back as a superuser.
  */
 describe('canGrantRole', () => {
+  // Owner decision 2026-10-14: head office cannot mint more head office.
+  it('keeps new head-office accounts to a superuser', () => {
+    expect(canGrantRole('HEAD_OFFICE', 'HEAD_OFFICE')).toBe(false);
+    expect(canGrantRole(undefined, 'HEAD_OFFICE')).toBe(false);
+    expect(canGrantRole('SUPER_ADMIN', 'HEAD_OFFICE')).toBe(true);
+  });
+
   it('keeps the superuser roles to a superuser', () => {
     expect(canGrantRole('HEAD_OFFICE', 'SUPER_ADMIN')).toBe(false);
     expect(canGrantRole('HEAD_OFFICE', 'DIREKTUR')).toBe(false);

@@ -111,7 +111,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
     id: string,
     from: PayrollStatus,
     status: PayrollStatus,
-    stamp: { approvedBy?: string; approvedAt?: Date; paidAt?: Date },
+    stamp: { approvedBy?: string | null; approvedAt?: Date | null; paidAt?: Date },
   ): Promise<PayrollWithItems> {
     return this.prisma.payroll
       .update({ where: { id, status: from }, data: { status, ...stamp }, ...withItems })

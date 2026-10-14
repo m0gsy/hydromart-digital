@@ -22,7 +22,7 @@ export const shop: typeof base = {
     open: 'Open',
     onBreak: 'On break',
     closed: 'Closed',
-    cutoff: 'Order before 4pm — arrives today, ±30 min',
+    cutoff: 'Depot is open and delivers to your address — arrives today, ±30 min',
     closedNote: 'This depot is closed. Orders are processed when it opens again.',
     outOfArea: 'The nearest depot, {depot}, does not deliver to this address yet ({km} km).',
     setLocation: 'Set your location to see delivery estimates',

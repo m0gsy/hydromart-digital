@@ -12,6 +12,7 @@ import {
   ListPayrollDto,
   PayrollShareResponseDto,
   ReallocatePayrollDto,
+  UnapprovePayrollDto,
 } from './dto/payroll.dto';
 import { ImportPayrollDto } from './dto/history-import.dto';
 import { ImportResponseDto } from './dto/responses.generated.dto';
@@ -155,6 +156,19 @@ export class PayrollController {
   @ApiOperation({ summary: 'Approve a DRAFT payroll' })
   approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.approve(user, id);
+  }
+
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
+  @Post(':id/unapprove')
+  @HttpCode(200)
+  @Can('hrPayroll')
+  @ApiOperation({ summary: 'Take an APPROVED payroll back to DRAFT (Super Admin only, reason required)' })
+  unapprove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UnapprovePayrollDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PayrollWithItems> {
+    return this.payroll.unapprove(user, id, dto.reason);
   }
 
   @ApiOkResponse({ type: PayrollWithItemsResponseDto })

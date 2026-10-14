@@ -696,6 +696,9 @@ export const RESTRICTED_GRANTS: Partial<Record<Role, readonly Role[]>> = {
   FINANCE: ['SUPER_ADMIN'],
   HR: ['SUPER_ADMIN'],
   MARKETING: ['SUPER_ADMIN'],
+  // Owner decision 2026-10-14: head office cannot mint more head office. Granting it hands over
+  // `staffAdmin` itself, which is how a restricted role is acquired by a side door.
+  HEAD_OFFICE: ['SUPER_ADMIN'],
   MANAGER: ['SUPER_ADMIN', 'HR'],
 };
 

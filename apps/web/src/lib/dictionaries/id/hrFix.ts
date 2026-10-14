@@ -1977,6 +1977,9 @@ export const hrFix = {
     downloadFailed: 'Gagal unduh',
     netPay: 'Gaji Bersih (Net)',
     approved: 'Payroll disetujui',
+    unapprove: 'Batalkan persetujuan',
+    unapproveReason: 'Alasan membatalkan persetujuan (wajib):',
+    unapproved: 'Persetujuan dibatalkan; slip kembali ke DRAFT.',
     approveConfirm:
       'Setujui penggajian ini senilai {net}? Sesudah disetujui, angkanya tidak bisa lagi diubah dari layar ini.',
     markPaidConfirm:

@@ -199,12 +199,23 @@ export class OtpService {
    * are already stored in one canonical form, and a looser comparison here is a wider door
    * than anybody asked for.
    */
+  private static readonly REVIEWER_MAX_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
   private fixedCodeFor(phone: string): string | null {
     const reviewer = this.config.reviewerOtp;
     if (!reviewer || !reviewer.phones.includes(phone)) return null;
     // AUTH-8: the review window is over, so the fixed code is over with it. Whoever set the
     // variable is not here any more; the date is.
-    if (this.clock.now() > reviewer.expiresAt) {
+    const now = this.clock.now();
+    // Owner decision 2026-10-14: a review window is days, not months. An expiry further out
+    // than this is a forgotten credential in the making, so it is refused rather than honoured.
+    if (reviewer.expiresAt.getTime() - now.getTime() > OtpService.REVIEWER_MAX_WINDOW_MS) {
+      this.logger.warn(
+        `Reviewer OTP refused: REVIEWER_OTP_EXPIRES_AT ${reviewer.expiresAt.toISOString()} is more than 30 days away; issuing a random code`,
+      );
+      return null;
+    }
+    if (now > reviewer.expiresAt) {
       this.logger.warn(
         `Reviewer OTP expired on ${reviewer.expiresAt.toISOString()}; issuing a random code`,
       );
