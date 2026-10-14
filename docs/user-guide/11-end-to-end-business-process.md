@@ -95,7 +95,7 @@ Tanda: **Y** = ada dan terverifikasi di kode · **S** = sebagian/dengan catatan 
 
 ## 4. Rincian alur
 
-Setiap alur memakai bentuk tabel 13 komponen yang sama. Nama status memakai label layar (Indonesia) dengan kode di kurung bila perlu. Label status pesanan dan pembayaran di konsol depot masih tampil dalam bahasa Inggris atau kode mentah **[B]**; padanannya ada di Bab 3 §6.2.
+Setiap alur memakai bentuk tabel 13 komponen yang sama. Nama status memakai label layar (Indonesia) dengan kode di kurung bila perlu. Label status pesanan kini diterjemahkan (Dipesan, Dikonfirmasi, Disiapkan, Kurir ditugaskan, Diambil kurir, Dalam perjalanan, Tiba, Selesai, Dibatalkan, Dibatalkan di kasir; sejak PR #664, 2026-10-14, dari `order.status.*` di `apps/web/src/lib/dictionaries/id/order.ts`) **[V]**; tombol maju bertuliskan "Lanjut ke {label}" (mis. "Lanjut ke Dikonfirmasi"; sebelum PR #664 tertulis "Lanjut ke Confirmed"). Label status pembayaran dan pesan server tertentu masih dapat berbahasa Inggris **[B]**; padanannya ada di Bab 3 §6.2.
 
 ### F01 — Pesanan pelanggan sampai selesai
 
@@ -122,8 +122,8 @@ flowchart LR
 | 4. Prasyarat | Pelanggan masuk; alamat dalam radius depot (bawaan 5 km **[K]**); stok tersedia; minimum pesanan depot terpenuhi; kurir sudah check-in shift berstatus Online; depot Kepala depot terbaca. |
 | 5. Data/dokumen | Keranjang, alamat dengan titik peta atau depot pilihan, metode bayar (tunai/COD, transfer, QRIS; e-wallet dan VA hanya bila penyedia aktif **[K]**), voucher opsional, bukti bayar (jpeg/png/webp ≤ 5 MB), foto bukti antar, nama penerima, tanda tangan opsional, daftar COD. |
 | 6. Status awal | Pesanan **Dipesan** (CREATED); pembayaran **PENDING**. |
-| 7. Langkah | (1) Pelanggan checkout; kunci unik mencegah pesanan ganda. (2) Stok dicadangkan, depot menerima notifikasi "Pesanan baru masuk". (3) Pembayaran: online lunas otomatis menjadi Dikonfirmasi; tunai/transfer/QRIS dikonfirmasi staf lewat **Konfirmasi lunas** atau tombol **Lanjut ke Confirmed**. (4) Kepala depot **Lanjut ke Preparing**. (5) Kepala depot **Tugaskan** kurir. (6) Kurir **Konfirmasi barang diambil**, **Mulai antar**. (7) COD: kurir **Terima uang** → kembalian dihitung. (8) Kurir **Selesaikan pengantaran** dengan foto, nama penerima, GPS. (9) Pesanan Tiba lalu Selesai. (10) Kurir check-out lalu **Setor ke kasir**. (11) Kepala depot **Hitung & verifikasi**. Langkah "pelanggan menandatangani di layar sebagai syarat" **Tidak tersedia** (tanda tangan opsional). **[V]** |
-| 8. Jalur setuju/tolak | Tidak ada persetujuan atasan untuk pesanan. Penolakan: staf **Tandai gagal** pada pembayaran (pelanggan boleh membayar lagi). Setoran: **Verifikasi** atau **Sengketakan** (alasan wajib). Selisih kurang dapat dibebankan ke saldo kurir (kotak centang, bawaan tercentang); setoran lebih > Rp5.000 butuh catatan. **[V]** |
+| 7. Langkah | (1) Pelanggan checkout; kunci unik mencegah pesanan ganda. (2) Stok dicadangkan, depot menerima notifikasi "Pesanan baru masuk". (3) Pembayaran: online lunas otomatis menjadi Dikonfirmasi; tunai/transfer/QRIS dikonfirmasi staf lewat **Konfirmasi lunas** atau tombol **Lanjut ke Dikonfirmasi** (sebelum PR #664: "Lanjut ke Confirmed"). (4) Kepala depot **Lanjut ke Disiapkan** (sebelumnya "Lanjut ke Preparing"). (5) Kepala depot **Tugaskan** kurir. (6) Kurir **Konfirmasi barang diambil**, **Mulai antar**. (7) COD: kurir **Terima uang** → kembalian dihitung. (8) Kurir **Selesaikan pengantaran** dengan foto, nama penerima, GPS. (9) Pesanan Tiba lalu Selesai. (10) Kurir check-out lalu **Setor ke kasir**. (11) Kepala depot **Hitung & verifikasi**. Langkah "pelanggan menandatangani di layar sebagai syarat" **Tidak tersedia** (tanda tangan opsional). **[V]** |
+| 8. Jalur setuju/tolak | Tidak ada persetujuan atasan untuk pesanan. Penolakan: staf **Tandai gagal** pada pembayaran (pelanggan boleh membayar lagi). Setoran: **Verifikasi** atau **Sengketakan** (alasan wajib). Selisih kurang dapat dibebankan ke saldo kurir (kotak centang, bawaan tercentang) **hanya oleh Manajer atau Super admin** (kapabilitas `approvals`); kasir/Kepala depot/Finance tetap bisa memverifikasi tanpa membebankan, dan bagi mereka kotak diganti teks "Membebankan selisih ke kurir hanya bisa oleh manajer. Anda bisa memverifikasi tanpa membebankan." Server menolak (403 `SETTLEMENT_CHARGE_NEEDS_MANAGER`): "Membebankan selisih ke kurir harus disetujui manajer. Verifikasi tanpa membebankan, atau minta manajer yang memverifikasi." Penolakan hanya berlaku bila selisih benar-benar kurang dan beban dicentang. Setoran berstatus SENGKETA (DISPUTED) kini dapat diputuskan ulang dengan tombol verifikasi; catatan penyelesaian wajib. Setoran lebih > Rp5.000 butuh catatan. Semua itu sejak PR #664 (2026-10-14). **[V]** |
 | 9. Transisi status | Pesanan: Dipesan → Dikonfirmasi → Disiapkan → Kurir ditugaskan → Diambil kurir → Dalam perjalanan → Tiba → Selesai; Dibatalkan dari status tertentu; kembali ke Disiapkan saat jadwal ulang. Pengiriman: Ditugaskan → Diambil → Diantar → Selesai / Gagal / Dijadwalkan ulang. Pembayaran: PENDING → PAID / FAILED / CANCELLED; PAID → REFUNDED. Setoran: Menunggu verifikasi → Terverifikasi / Sengketa → Terverifikasi (catatan wajib; tombol tidak ada di UI **[B]**). Shift kurir: Online ↔ Istirahat/Offline → Selesai. **[V]** |
 | 10. Notifikasi | Ke pelanggan (kotak masuk + push): Pesanan diterima, dikonfirmasi, Kurir ditugaskan, dalam perjalanan, terkirim, selesai, dibatalkan (bukan bila pelanggan sendiri membatalkan), Pengiriman dijadwalkan ulang, Beri penilaian (±30 menit setelah tiba, sekali). Ke depot: Pesanan baru masuk. Tidak ada notifikasi untuk: pembayaran dikonfirmasi/gagal. Status Disiapkan tidak memicu notifikasi. WhatsApp dan email **Tidak tersedia** sebagai saluran. **[V][B]** |
 | 11. Pengecualian | Stok kurang (pesan server Inggris, pelanggan mengurangi jumlah); di luar radius; pembayaran gagal dimulai (tekan lagi, pesanan sama dipakai); bayar non-tunai tertunda > 24 jam → otomatis Gagal; pesanan belum dikonfirmasi > 60 menit atau tertahan di depot > 24 jam → dibatalkan otomatis **[K]**; kurir di luar radius check-in (200 m bawaan); antrean offline kurir (bukti, uang tunai diterima, jadwal ulang, gagal tersimpan di ponsel dan terkirim ulang, maksimal 6 percobaan); no-show butuh ≥ 2 upaya kontak dan 300 detik; setoran tidak masuk antrean offline. **[V]** |
@@ -155,10 +155,10 @@ flowchart TD
 | 4. Prasyarat | Pelanggan: status Dipesan, Dikonfirmasi, atau Disiapkan **dan** kurir belum pernah ditugaskan (aturan juga berlaku bila dijadwalkan ulang). Refund: pembayaran PAID. |
 | 5. Data/dokumen | Alasan pembatalan (opsional, ≤ 255 huruf) untuk pelanggan; alasan tarik/batal wajib untuk staf; alasan tolak refund wajib. |
 | 6. Status awal | Pesanan aktif; pembayaran PENDING atau PAID; persetujuan refund NONE. |
-| 7. Langkah | (1) Permintaan batal. (2) Sistem membalik pembayaran **lebih dulu** (gagal-tertutup: bila tidak bisa dibalik, pesanan tidak dibatalkan). (3) Pesanan Dibatalkan, stok dilepas. (4) Jika PAID dan jumlah ≤ ambang, refund diproses langsung. (5) Jika > ambang (bawaan Rp100.000 **[K]**), status persetujuan PENDING dan item muncul di `/hq/refunds`. (6) Finance **Setujui** (satu klik, tanpa konfirmasi) atau **Tolak** dengan alasan. Cara dan waktu uang kembali ke pelanggan (QRIS/transfer dibayar langsung ke depot) tidak terdokumentasi pasti; pengembalian manual oleh depot **[B][K]**. |
-| 8. Jalur setuju/tolak | Hanya Finance dan Super admin memutuskan (`refundQueue`). Head office dan Direktur melihat tombol tetapi ditolak server **[B]**. Tombol Tolak tidak muncul untuk pesanan yang sudah dibatalkan ("uang pelanggan harus dikembalikan"). Tidak ada pengecekan "pemohon ≠ penyetuju"; Finance dapat memulai lalu menyetujui sendiri **[B]**. |
+| 7. Langkah | (1) Permintaan batal. (2) Sistem membalik pembayaran **lebih dulu** (gagal-tertutup: bila tidak bisa dibalik, pesanan tidak dibatalkan). (3) Pesanan Dibatalkan, stok dilepas. (4) Jika PAID dan jumlah ≤ ambang, refund diproses langsung. (5) Jika > ambang (bawaan Rp100.000 **[K]**), status persetujuan PENDING dan item muncul di `/hq/refunds`. (6) Finance **Setujui** (satu klik, tanpa konfirmasi) atau **Tolak** dengan alasan. Cara dan waktu uang kembali ke pelanggan (QRIS/transfer dibayar langsung ke depot) tidak terdokumentasi pasti; pengembalian manual oleh depot **[B][K]**. Kebijakan cara dan waktu refund masih menunggu keputusan pemilik; layar pelanggan hanya menjanjikan 1–3 hari kerja. |
+| 8. Jalur setuju/tolak | Hanya Finance dan Super admin memutuskan (`refundQueue`). Head office dan Direktur melihat tombol tetapi ditolak server **[B]**. Tombol Tolak tidak muncul untuk pesanan yang sudah dibatalkan ("uang pelanggan harus dikembalikan"). Tidak ada pengecekan "pemohon ≠ penyetuju"; Finance dapat memulai lalu menyetujui sendiri **[B]**. Kolom `payment.refundRequestedBy` ditambahkan sejak PR #664 (2026-10-14) tetapi belum diisi atau dibaca kode mana pun; penegakan dan tampilan "diajukan oleh" menunggu PR berikutnya serta keputusan pemilik (toko tanpa Finance kedua akan terblokir) **[V][K]**. |
 | 9. Transisi status | Pesanan: aktif → Dibatalkan. Pembayaran: PENDING → Gagal/Dibatalkan; PAID → REFUNDED (atau tetap PAID bila ditolak). Persetujuan refund: NONE → PENDING → APPROVED / REJECTED. |
-| 10. Notifikasi | Pelanggan menerima "Pesanan dibatalkan" bila dibatalkan oleh depot/sistem; **tidak** bila membatalkan sendiri; **tidak ada** notifikasi saat refund selesai atau ditolak. **[V][B]** |
+| 10. Notifikasi | Pelanggan menerima "Pesanan dibatalkan" bila dibatalkan oleh depot/sistem; **tidak** bila membatalkan sendiri; **tidak ada** notifikasi (push/kotak masuk) saat refund selesai atau ditolak. **[V][B]** Sejak PR #664 (2026-10-14), halaman detail pesanan pelanggan menampilkan status refund dari data pembayaran: "Refund {jumlah} sudah diproses. Sampai ke sumber dana dalam 1–3 hari kerja." (REFUNDED), "Refund diajukan dan menunggu persetujuan pusat. Setelah disetujui, diproses 1–3 hari kerja." (PENDING), atau "Pengajuan refund tidak disetujui. Hubungi depot bila ada pertanyaan." (REJECTED) **[V]** (`orders/detail/page.tsx`; janji 1–3 hari kerja adalah teks tetap di layar, bukan jaminan dari gerbang pembayaran **[K]**). |
 | 11. Pengecualian | Setelah kurir ditugaskan: pesan "Kurir sudah ditugaskan, jadi pesanan tidak bisa lagi dibatalkan dari sini…". "An order in status X can no longer be cancelled." Refund gagal diproses: "Gagal memproses refund." Pembalikan pembayaran gagal: pembatalan ditahan, coba lagi. Pengiriman dengan uang tunai dipegang kurir: jawaban "Sudah saya kembalikan"/"Masih saya pegang" wajib. |
 | 12. Status akhir | Dibatalkan + pembayaran Gagal/Dikembalikan; atau pembayaran PAID dengan refund Ditolak. |
 | 13. Jejak audit/pelaporan | Alasan tolak "tercatat atas nama Anda"; antrean `/hq/refunds`; kartu KPI "Refund perlu disetujui" di `/hq/payments`; fraud scan harian menandai pelanggan dengan ≥ 3 refund selesai dalam 30 hari (≥ 5 = risiko tinggi). |
@@ -187,9 +187,9 @@ flowchart TD
 | 6. Status awal | Saldo galon beredar dan deposit tertahan sesuai ledger depot. |
 | 7. Langkah | (1) Catat retur. (2) Sistem menghitung deposit (tarif bawaan Rp20.000 per galon **[K]**). (3) Kondisi Baik menambah stok galon; Rusak tidak menambah stok dan tidak mengembalikan deposit pada layar kurir. (4) Bila ada kondisi khusus, persetujuan dibuat (lihat diagram). (5) Manajer memutuskan di `/dashboard/approvals`. |
 | 8. Jalur setuju/tolak | Manajer: **Setujui**, **Tahan**, **Tolak** (catatan wajib untuk tolak). Nilai ≤ batas auto-pass (bawaan Rp100.000) disetujui otomatis ("Disetujui otomatis (di bawah ambang)"). Pengaju tidak boleh memutuskan pengajuannya sendiri. Refund deposit lebih besar dari deposit yang ditahan depot ditolak langsung. Persetujuan hanya peninjauan sesudahnya; catatan retur sudah tersimpan. **[V]** |
-| 9. Transisi status | Persetujuan: PENDING → APPROVED / REJECTED / HELD; HELD → APPROVED / REJECTED; APPROVED dan REJECTED final. Item Tahan hilang dari daftar dan hanya terbuka lewat tautan **[B]**. |
+| 9. Transisi status | Persetujuan: PENDING → APPROVED / REJECTED / HELD; HELD → APPROVED / REJECTED; APPROVED dan REJECTED final. Sejak PR #664 (2026-10-14) daftar `/dashboard/approvals` memuat item PENDING dan HELD, sehingga item Tahan tidak lagi hilang dari daftar **[V]**. |
 | 10. Notifikasi | Pelanggan: pengingat "Galon belum dikembalikan" (maksimal sekali per 7 hari, bawaan **[K]**). Tidak ada notifikasi untuk Kepala depot tentang keputusan Manajer; Kepala depot tidak bisa membuka antrean approval **[B]**. |
-| 11. Pengecualian | Kurir offline: retur masuk antrean; "Sudah tercatat sebelumnya" bila diulang; "Pengantaran ini belum terhubung ke depot, jadi retur tidak bisa dicatat." Tampilan detail desktop untuk "Selisih retur galon" dan "Deposit dikembalikan" dapat menampilkan Rp0 **[B]**. Pembuatan persetujuan upaya-terbaik (tidak memblokir retur). |
+| 11. Pengecualian | Kurir offline: retur masuk antrean; "Sudah tercatat sebelumnya" bila diulang; "Pengantaran ini belum terhubung ke depot, jadi retur tidak bisa dicatat." Tampilan detail "Selisih retur galon" (GALLON_VARIANCE; jumlah galon lebih) dan "Deposit dikembalikan" (membaca `deposit` maupun `depositRefunded`) diperbaiki sejak PR #664 (2026-10-14) sehingga tidak lagi Rp0 **[V]** (belum diuji di peramban). Pembuatan persetujuan upaya-terbaik (tidak memblokir retur). |
 | 12. Status akhir | Retur tercatat; persetujuan Disetujui/Ditolak/otomatis; saldo galon beredar berubah. |
 | 13. Jejak audit/pelaporan | Laporan harian (kolom Galon: Retur masuk, Keluar, Rusak); `/hq/returns` (galon beredar, deposit tertahan, 100 depot pertama); Deposit galon di Akun pelanggan. |
 
@@ -390,11 +390,11 @@ flowchart TD
 | 4. Prasyarat | Nomor WhatsApp aktif; persetujuan data dicentang; akun Pemilik dibuat sebelum depot Waralaba; rekening terverifikasi sebelum pencairan. |
 | 5. Data/dokumen | Formulir: nama, WhatsApp (+628…), kode depot usulan (≤ 30), nama depot, kota, provinsi, titik lokasi, investasi dan omzet (bilangan bulat). Upload dokumen: **Tidak tersedia**; daftar periksa 4 butir hanya centang manual (KTP & NPWP, Bukti kepemilikan lokasi, Setoran modal awal, Survei lapangan). Rekening: nama bank (2–60), nomor (6–30), nama pemilik (2–120). |
 | 6. Status awal | Lamaran Baru; rekening belum ada; saldo 0. |
-| 7. Langkah | (1) Pengajuan, simpan nomor tanda terima (tidak ada halaman cek status **[V]**). Batas 3 kirim per jam. (2) HQ **Tinjau**, centang butir, **Ubah tahap**. (3) **Setujui & provision** hanya mengubah tahap dan membuka form onboarding terisi sebagian (tanpa nama dan telepon). (4) **Undang staf** peran Pemilik waralaba (tanpa kartu karyawan). (5) **Onboard depot** (Kepemilikan Waralaba + pemilik). (6) Pantau `/hq/onboarding` (kesiapan diturunkan dari data). (7) Pemilik **Daftarkan rekening**; Finance **Verifikasi**. (8) Saldo bertambah per pesanan Selesai (komisi HQ dari skema per depot; tanpa skema = 0% **[K]**). (9) Pencairan: jalur A pemilik **Cairkan saldo** (saldo langsung dipotong, PROCESSING, tanpa persetujuan HQ sebelum dipotong); jalur B Finance **Ajukan rilis** (seluruh saldo) → Direktur **Setujui & rilis**. (10) Setelah bank menjawab Finance menekan **Lunas** atau **Gagal**. |
+| 7. Langkah | (1) Pengajuan, simpan nomor tanda terima (tidak ada halaman cek status **[V]**). Batas 3 kirim per jam. (2) HQ **Tinjau**, centang butir, **Ubah tahap**. (3) **Setujui & provision** hanya mengubah tahap dan membuka form onboarding terisi sebagian (tanpa nama dan telepon). (4) **Undang staf** peran Pemilik waralaba (tanpa kartu karyawan). (5) **Onboard depot** (Kepemilikan Waralaba + pemilik). (6) Pantau `/hq/onboarding` (kesiapan diturunkan dari data). (7) Pemilik **Daftarkan rekening**; Finance **Verifikasi**. (8) Saldo bertambah per pesanan Selesai (komisi HQ dari skema per depot; tanpa skema = 0% **[K]**). (9) Pencairan: jalur A pemilik **Cairkan saldo** (minimum Rp50.000; saldo langsung dipotong, PROCESSING, tanpa persetujuan HQ sebelum dipotong); jalur B Finance **Ajukan rilis** (seluruh saldo) → Direktur **Setujui & rilis**. (10) Setelah bank menjawab Finance menekan **Lunas** atau **Gagal**. |
 | 8. Jalur setuju/tolak | Lamaran: Setujui/Tolak final, tanpa konfirmasi, tanpa alasan; checklist tidak wajib lengkap. Rekening: Verifikasi / Tolak (alasan tidak dikirim → pemilik melihat "Ditolak: tanpa alasan"). Rilis: pengaju tidak boleh menyetujui sendiri ("Pengaju pencairan tidak boleh menyetujui pengajuannya sendiri."); Tolak tanpa alasan di layar. |
 | 9. Transisi status | Lamaran: Baru ↔ Verifikasi dokumen ↔ Survei → Disetujui / Ditolak. Rekening: PENDING → VERIFIED / REJECTED (Ganti rekening → PENDING). Pengajuan rilis: PENDING → APPROVED / REJECTED. Penarikan: PROCESSING → PAID / FAILED (saldo kembali). |
-| 10. Notifikasi | Keputusan lamaran tidak dikirim otomatis (dihubungi manual lewat WhatsApp **[K]**); undangan staf tidak mengirim SMS **[D]**; tidak ada notifikasi untuk status penarikan. |
-| 11. Pengecualian | "A depot with this code already exists."; "A franchise (WARALABA) depot must have an owner."; "This application has already been approved or rejected."; HQ Head office/Direktur ditolak saat buat depot (hanya Manajer/Super admin) **[B]**; "Belum ada rekening tujuan yang terverifikasi…"; "Withdrawal of X exceeds available balance Y."; "Withdrawal is already {status}; only a PROCESSING withdrawal can be settled."; halaman pemilik tidak menampilkan status penarikan **[B]**; Finance kemungkinan mendapat layar galat pada beberapa halaman HQ **[B][D]**; layar "Net payout" selalu "—" bagi peran non-Manajer **[B]**. |
+| 10. Notifikasi | Keputusan lamaran tidak dikirim otomatis (dihubungi manual lewat WhatsApp **[K]**); undangan staf tidak mengirim SMS **[D]**; tidak ada notifikasi (push/kotak masuk) untuk status penarikan, tetapi statusnya kini terlihat di halaman pemilik. |
+| 11. Pengecualian | "A depot with this code already exists."; "A franchise (WARALABA) depot must have an owner."; "This application has already been approved or rejected."; HQ Head office/Direktur ditolak saat buat depot (hanya Manajer/Super admin) **[B]**; "Belum ada rekening tujuan yang terverifikasi…"; "Withdrawal of X exceeds available balance Y."; "Withdrawal is already {status}; only a PROCESSING withdrawal can be settled."; halaman pemilik kini menampilkan "Riwayat penarikan" dengan status "Menunggu transfer" / "Sudah ditransfer" / "Gagal (saldo dikembalikan)" dan teks sukses "diajukan ke {rekening}, menunggu transfer." (sejak PR #664, 2026-10-14) **[V]**; penarikan di bawah Rp50.000 ditolak: "Minimum penarikan Rp50.000." (sejak PR #664; nilai `MIN_WITHDRAWAL_IDR`, bawaan 50000, 0 menonaktifkan batas) **[V]**; Finance kemungkinan mendapat layar galat pada beberapa halaman HQ **[B][D]**; layar "Net payout" selalu "—" bagi peran non-Manajer **[B]**. |
 | 12. Status akhir | Depot Waralaba aktif milik pemilik; penarikan Lunas atau Gagal. |
 | 13. Jejak audit/pelaporan | Buku kas dan komisi pemilik (Payout & komisi); referensi penarikan `WD-YYYYMMDD-NNNN`; kartu `/hq/payments`; Log audit; lamaran ditolak dihapus berkala (≤ 24 bulan sejak keputusan). |
 
@@ -431,7 +431,7 @@ flowchart TD
   A[Undang staf /hq/staff] --> B[Akun AKTIF + kartu karyawan HR]
   B --> C[Masuk dengan OTP]
   B -->|undang ulang nomor sama| D[Ganti peran/depot; nonaktif ikut aktif]
-  B -->|Nonaktifkan, tanpa konfirmasi| E[Nonaktif]
+  B -->|Nonaktifkan, tanpa konfirmasi| E[Nonaktif: semua refresh token dicabut]
   E -->|token akses lama hidup <= 15 mnt| F[Akses sisa]
   B -->|Super admin: Hapus, ketik ulang nama| G[Dianonimkan, final]
   H[Admin: matriks hak akses] -->|<= 30-45 dtk| I[Berlaku di seluruh layanan]
@@ -441,17 +441,17 @@ flowchart TD
 |---|---|
 | 1. Tujuan | Memberi akses staf sesuai peran minimum dan mencabutnya dengan benar. |
 | 2. Pemicu | Karyawan baru, perubahan tugas, keluar, atau indikasi penyalahgunaan. |
-| 3. Aktor | Super admin (12 peran); Head office (6 peran: Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba, Head office); HR (Manajer lewat jabatan); hanya Super admin menghapus dan mengubah matriks. |
+| 3. Aktor | Super admin (12 peran); Head office (5 peran: Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba; Head office dikeluarkan sejak PR #664, 2026-10-14); HR (Manajer lewat jabatan); hanya Super admin menghapus dan mengubah matriks. |
 | 4. Prasyarat | Nomor telepon Indonesia; depot untuk Staf depot dan Kepala depot; Posisi, Tanggal masuk, Status kepegawaian, Gaji > 0 (kecuali Pemilik waralaba). |
 | 5. Data/dokumen | Formulir "Undang / tetapkan peran staf"; persetujuan tertulis pemilik untuk peran bernilai tinggi (praktik yang disarankan di luar sistem). |
 | 6. Status awal | Nomor belum punya akun, atau sudah punya akun (dipromosikan). |
-| 7. Langkah | (1) **Undang staf**. (2) Akun langsung AKTIF; kartu karyawan dibuat di HR. (3) Beri tahu orangnya lewat saluran lain (SMS undangan **Tidak tersedia**). (4) Ubah peran: undang ulang nomor yang sama (tombol "ubah peran" **Tidak tersedia**). (5) Atur hak di `/hq/access` (Simpan; berlaku ±30–45 detik). (6) **Nonaktifkan** (tanpa konfirmasi). (7) **Hapus**: ketik ulang nama/nomor; identitas dianonimkan, token penyegar dihapus, kartu HR dianonimkan. (8) Hierarki Asisten SPV → SPV → Manajer di `/hq/hierarchy` menentukan depot terlihat (berlaku ≤ 60 detik). |
-| 8. Jalur setuju/tolak | Tidak ada persetujuan bertingkat di sistem. Aturan pemberian peran (RESTRICTED_GRANTS): Manajer hanya oleh Super admin atau HR; Direktur, Finance, HR, Marketing, Super admin hanya oleh Super admin. Matriks yang disimpan menolak pencabutan Super admin dari `accessMatrixWrite`. |
+| 7. Langkah | (1) **Undang staf**. (2) Akun langsung AKTIF; kartu karyawan dibuat di HR. (3) Beri tahu orangnya lewat saluran lain (SMS undangan **Tidak tersedia**). (4) Ubah peran: undang ulang nomor yang sama (tombol "ubah peran" **Tidak tersedia**). (5) Atur hak di `/hq/access` (Simpan; berlaku ±30–45 detik). (6) **Nonaktifkan** (tanpa konfirmasi). (6b) Sejak PR #664: menonaktifkan mencabut SEMUA refresh token dan ditolak untuk akun sendiri dan Super admin aktif terakhir. (7) **Hapus**: ketik ulang nama/nomor; identitas dianonimkan, token penyegar dihapus, kartu HR dianonimkan. (8) Hierarki Asisten SPV → SPV → Manajer di `/hq/hierarchy` menentukan depot terlihat (berlaku ≤ 60 detik). |
+| 8. Jalur setuju/tolak | Tidak ada persetujuan bertingkat di sistem. Aturan pemberian peran (RESTRICTED_GRANTS): Manajer hanya oleh Super admin atau HR; Direktur, Finance, HR, Marketing, Head office (sejak PR #664), Super admin hanya oleh Super admin. Matriks yang disimpan menolak pencabutan Super admin dari `accessMatrixWrite`. |
 | 9. Transisi status | Akun: AKTIF ↔ Nonaktif (SUSPENDED); → DELETED (final). |
 | 10. Notifikasi | Tidak ada pesan undangan; tidak ada notifikasi saat nonaktif. |
-| 11. Pengecualian | `"X" is not a valid Indonesian mobile number.`; "Peran staf depot wajib terikat ke satu depot."; "Peran {ROLE} hanya boleh diberikan oleh {A atau B}."; "Akun sendiri tidak bisa dihapus."; "Ini super admin terakhir…"; "hr-service belum dikonfigurasi…"; nomor salah ketik dapat mengubah akun orang lain; menonaktifkan diri sendiri atau Admin terakhir tidak dijaga **[B]**; layar `/dashboard/staff` kemungkinan ditolak validasi **[B]**; token akses lama bertahan ≤ 15 menit; memaksa keluar perangkat orang lain: **Tidak tersedia**. |
+| 11. Pengecualian | `"X" is not a valid Indonesian mobile number.`; "Peran staf depot wajib terikat ke satu depot."; "Peran {ROLE} hanya boleh diberikan oleh {A atau B}."; "Akun sendiri tidak bisa dihapus."; "Ini super admin terakhir…"; "hr-service belum dikonfigurasi…"; nomor salah ketik dapat mengubah akun orang lain; menonaktifkan diri sendiri: "Akun sendiri tidak bisa dinonaktifkan."; menonaktifkan Admin terakhir: "Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan." (kedua penjaga baru sejak PR #664); layar `/dashboard/staff` kini memakai formulir undang HQ (diperbaiki sejak PR #664; hasil di peramban belum diuji **[D]**); token akses lama bertahan ≤ 15 menit (tidak ada pengecekan status per permintaan; menutupnya butuh `tokenVersion`, keputusan pemilik terbuka **[K]**); penangguhan depot belum mencabut sesi stafnya **[K]**; memaksa keluar perangkat orang lain: **Tidak tersedia**. |
 | 12. Status akhir | Akun aktif dengan peran baru, nonaktif, atau dihapus/dianonimkan. |
-| 13. Jejak audit/pelaporan | `/hq/audit` (mutasi berhak istimewa, `staff.account.deleted`, perubahan matriks); tanpa filter di layar, ekspor XLSX penuh **[B]**. |
+| 13. Jejak audit/pelaporan | `/hq/audit` (mutasi berhak istimewa, `staff.account.deleted`, perubahan matriks); layar kini punya penyaring aksi/tanggal/hasil dan ekspor XLSX mengikuti penyaring (sejak PR #664, 2026-10-14); penyaring pelaku belum ada. |
 
 ### F13 — HR: karyawan → akun → peran → offboarding → pencabutan akses
 
@@ -461,7 +461,7 @@ flowchart TD
   B --> C[Enroll wajah + dokumen]
   C --> D[Aktif bekerja]
   D -->|Edit: Tanggal keluar + Status Resign/Nonaktif| E[Akun SUSPENDED]
-  E --> F[Token akses lama hidup sampai 15 menit]
+  E --> F[Refresh token dicabut; token akses lama hidup sampai 15 menit]
   F --> G[Slip gaji terakhir dibuat per karyawan]
   E -->|Aktifkan kembali| D
 ```
@@ -478,7 +478,7 @@ flowchart TD
 | 8. Jalur setuju/tolak | Tidak ada persetujuan atas perubahan kepegawaian. Pemberian Manajer ditolak bagi Head office/Direktur. |
 | 9. Transisi status | Karyawan: Aktif ↔ Nonaktif; → Resign (tidak ditimpa penyalaan balik). Akun login ikut: Aktif ↔ SUSPENDED. |
 | 10. Notifikasi | Tidak ada ke karyawan. |
-| 11. Pengecualian | "Karyawan berstatus RESIGNED tanpa tanggal keluar…" (payroll menolak); "Nomor telepon ini sudah dipakai karyawan lain"; "NIK harus 16 digit angka."; "Karyawan ini punya penugasan depot yang terjadwal atau berjalan…"; layanan autentikasi menolak → seluruh simpan gagal; pesan auth tidak diteruskan jelas **[B]**; token akses terbit tetap berlaku ≤ 15 menit dan token penyegar gagal saat disegarkan ("This account has been suspended."). Status Resign tidak menghentikan gaji; yang dibaca payroll adalah Tanggal keluar. |
+| 11. Pengecualian | "Karyawan berstatus RESIGNED tanpa tanggal keluar…" (payroll menolak); "Nomor telepon ini sudah dipakai karyawan lain"; "NIK harus 16 digit angka."; "Karyawan ini punya penugasan depot yang terjadwal atau berjalan…"; layanan autentikasi menolak → seluruh simpan gagal, dan sejak PR #664 (2026-10-14) alasan 4xx dari auth-service (mis. peran tidak boleh diberikan, depot tidak cocok) diteruskan ke layar HR; 401 tetap dianggap gangguan, bukan data **[V]**; sejak PR #664 semua refresh token dicabut saat login dimatikan lewat HR, sedangkan token akses terbit tetap berlaku ≤ 15 menit; masuk ulang ditolak ("This account has been suspended."). Status Resign tidak menghentikan gaji; yang dibaca payroll adalah Tanggal keluar. |
 | 12. Status akhir | Karyawan Resign/Nonaktif, login ditangguhkan; data dianonimkan oleh sapuan retensi (biometrik, absensi, kinerja dihapus; payroll disimpan tanpa pemilik 10 tahun). |
 | 13. Jejak audit/pelaporan | "Riwayat Kepegawaian" (status, jabatan, peran login, depot, gaji); Log Audit HR (`/hr/audit`, menampilkan 8 karakter awal ID pelaku); `/hq/audit`. |
 
@@ -555,13 +555,13 @@ flowchart LR
 | 2. Pemicu | Karyawan menekan **Ajukan Kasbon**. |
 | 3. Aktor | Karyawan; penyetuju: bila depot punya Asisten SPV tercatat, hanya dia; bila tidak, Manajer atau HR (`kasbonApprove`). Kepala depot dan SPV tidak. |
 | 4. Prasyarat | Akun terhubung ke satu depot (Asisten SPV/SPV/Manajer tanpa depot: "Ajukan lewat HR"); tidak ada pengajuan terbuka lain. |
-| 5. Data/dokumen | Nominal (bulat > 0), Alasan (≤ 300); penyetuju mengisi Cicilan per bulan dan Mulai potong (YYYY-MM). Batas nominal di kode: tidak ada **[K]**. |
+| 5. Data/dokumen | Nominal (bulat > 0), Alasan (≤ 300); penyetuju mengisi Cicilan per bulan dan Mulai potong (YYYY-MM). Batas nominal (sejak PR #664, 2026-10-14): maksimal 1x gaji pokok sebulan (gaji harian dihitung 26 hari); bila gaji pokok belum diisi, pengajuan ditolak. **[V]** |
 | 6. Status awal | Menunggu keputusan (PENDING). |
-| 7. Langkah | (1) Pengajuan. (2) Notifikasi ke Asisten SPV. (3) Keputusan di `/hr/loans/requests`. (4) Pinjaman dibuat; cicilan dipotong di payroll (dikecilkan atau ditunda bila gaji bersih negatif). Pencairan uang kasbon tidak dilacak di sistem **[D]**. HR dapat juga mencatat pinjaman langsung tanpa persetujuan (`hrAdmin`). Asisten SPV/Manajer/SPV tidak punya menu ke halaman ini selain URL **[D]**. |
+| 7. Langkah | (1) Pengajuan. (2) Notifikasi ke Asisten SPV. (3) Keputusan di `/hr/loans/requests`. (3b) Pengajuan yang tidak diputuskan dalam 3 hari kerja (Senin–Jumat; hari libur tidak dihitung) kedaluwarsa: statusnya menjadi Dibatalkan dengan catatan "Kedaluwarsa: tidak diputuskan dalam 3 hari kerja."; penutupan dilakukan saat pemohon membuka daftar atau mengajukan lagi, atau saat penyetuju mencoba memutuskan (ditolak 409, tanpa pekerjaan terjadwal) **[V]**. (4) Pinjaman dibuat; cicilan dipotong di payroll (dikecilkan atau ditunda bila gaji bersih negatif). Pencairan uang kasbon tidak dilacak di sistem **[D]**. HR dapat juga mencatat pinjaman langsung tanpa persetujuan (`hrAdmin`); batas 1x gaji pokok dan kedaluwarsa hanya diterapkan pada alur pengajuan karyawan (tidak ditemukan di jalur catat langsung **[D]**). Asisten SPV/Manajer/SPV tidak punya menu ke halaman ini selain URL **[D]**. |
 | 8. Jalur setuju/tolak | Tolak wajib alasan. "Kasbon sendiri tidak bisa Anda setujui."; "Kasbon ini diputuskan oleh asisten supervisor depotnya." (Manajer dan HR ditolak bila asisten ada). |
 | 9. Transisi status | Menunggu keputusan → Disetujui / Ditolak / Dibatalkan. |
 | 10. Notifikasi | Pengajuan masuk (ke Asisten SPV); Disetujui; Ditolak (tanpa judul di kamus **[B]**). |
-| 11. Pengecualian | "Masih ada pengajuan kasbon yang belum diputuskan."; "Pengajuan ini sudah dijawab orang lain. Muat ulang daftarnya."; layanan depot tidak terjangkau → 503 (gagal-tertutup). |
+| 11. Pengecualian | "Kasbon melebihi batas 1x gaji pokok (Rp{batas})."; "Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR."; "Pengajuan ini kedaluwarsa (lewat 3 hari kerja); pemohon perlu mengajukan lagi." (ketiganya sejak PR #664); "Masih ada pengajuan kasbon yang belum diputuskan."; "Pengajuan ini sudah dijawab orang lain. Muat ulang daftarnya."; layanan depot tidak terjangkau → 503 (gagal-tertutup). |
 | 12. Status akhir | Disetujui (pinjaman Berjalan → Lunas/Dihentikan), Ditolak, atau Dibatalkan. |
 | 13. Jejak audit/pelaporan | Daftar `/hr/loans`; slip gaji (baris "Cicilan pinjaman"). |
 
@@ -572,7 +572,8 @@ flowchart LR
   A[Bulan berakhir] --> B[Generate per karyawan / Buat sedepot]
   B --> C[DRAFT]
   C -->|Hitung ulang| C
-  C -->|Setujui| D[APPROVED]
+  C -->|Setujui: bukan pembuat slip, kecuali Super admin| D[APPROVED]
+  D -->|Super admin: Batalkan persetujuan + alasan| C
   D -->|transfer bank di luar aplikasi| E[Tandai Dibayar]
   E --> F[PAID, final]
 ```
@@ -585,11 +586,11 @@ flowchart LR
 | 4. Prasyarat | Absensi bulan itu diputuskan; cuti, kasbon, bonus, potongan, tunjangan masuk; karyawan Resign punya Tanggal keluar. |
 | 5. Data/dokumen | Slip (gaji pokok, tunjangan, bonus, lembur, potongan, cicilan, BPJS, PPh 21); PDF slip. Tabel TER PPh 21 kosong sampai dimuat dan belum ditandatangani akuntan **[K]**. |
 | 6. Status awal | Tidak ada slip periode itu. |
-| 7. Langkah | (1) **Generate** atau **Buat sedepot** (hanya karyawan Aktif, maks 500, hanya DRAFT). (2) Tinjau, peringatan hari kehadiran belum diputuskan tidak memblokir. (3) **Hitung ulang** bila data berubah. (4) **Setujui**. (5) Transfer gaji di bank (sistem tidak memindahkan uang). (6) **Tandai Dibayar**. |
-| 8. Jalur setuju/tolak | Tidak ada penolakan atau batal setuju. **Tidak ada maker-checker**: akun yang sama boleh membuat, menyetujui, dan menandai dibayar **[V][K]**. |
-| 9. Transisi status | DRAFT → APPROVED → PAID. |
+| 7. Langkah | (1) **Generate** atau **Buat sedepot** (hanya karyawan Aktif, maks 500, hanya DRAFT). (2) Tinjau, peringatan hari kehadiran belum diputuskan tidak memblokir. (3) **Hitung ulang** bila data berubah. (4) **Setujui** (orang lain selain pembuat slip; atau Super admin). Bila keliru, Super admin memakai **Batalkan persetujuan** + alasan sebelum PAID. (5) Transfer gaji di bank (sistem tidak memindahkan uang). (6) **Tandai Dibayar**. |
+| 8. Jalur setuju/tolak | Sejak PR #664 (2026-10-14): **Setujui** ditolak bila akun yang menekan adalah pembuat slip (`createdBy`): "Slip ini dibuat oleh akun Anda sendiri; persetujuan harus dari orang lain (atau Super admin)." Super admin dikecualikan agar meja HR satu orang tidak terkunci; slip tanpa pembuat tercatat (impor, baris lama) tidak diblokir. **Batalkan persetujuan** (APPROVED → DRAFT): hanya Super admin, alasan wajib (min. 3 huruf), tidak bisa setelah PAID; cap penyetuju dikosongkan dan audit mencatat `PAYROLL_UNAPPROVE` dengan alasan. Tidak ada penolakan. **Tandai Dibayar** tidak punya pemeriksaan pelaku: akun yang menyetujui boleh menandai dibayar **[V]**. Penegakan hanya pada langkah Setujui; pemisahan di luar itu dipegang kebiasaan kerja **[K]**. |
+| 9. Transisi status | DRAFT → APPROVED → PAID; APPROVED → DRAFT hanya oleh Super admin (sejak PR #664). |
 | 10. Notifikasi | Tidak ada ke karyawan; slip Draft sudah terlihat oleh karyawan **[B]**. |
-| 11. Pengecualian | "Periode {YYYY-MM} belum selesai…"; "Payroll {periode} sudah {STATUS}, tidak bisa dibuat ulang"; "Hanya payroll DRAFT yang bisa dihitung ulang/disetujui"; "Hanya payroll APPROVED yang bisa dibayar"; "Penugasan depot karyawan ini berubah setelah slip dihitung…"; "Payroll yang sudah dibayar tidak bisa dialokasikan ulang." |
+| 11. Pengecualian | "Slip ini dibuat oleh akun Anda sendiri; persetujuan harus dari orang lain (atau Super admin)."; "Hanya Super Admin yang bisa membatalkan persetujuan payroll."; "Alasan wajib diisi."; "Hanya payroll APPROVED yang bisa dibatalkan persetujuannya (saat ini {STATUS})" (semua sejak PR #664); "Periode {YYYY-MM} belum selesai…"; "Payroll {periode} sudah {STATUS}, tidak bisa dibuat ulang"; "Hanya payroll DRAFT yang bisa dihitung ulang/disetujui"; "Hanya payroll APPROVED yang bisa dibayar"; "Penugasan depot karyawan ini berubah setelah slip dihitung…"; "Payroll yang sudah dibayar tidak bisa dialokasikan ulang." |
 | 12. Status akhir | PAID. Riwayat impor langsung PAID. |
 | 13. Jejak audit/pelaporan | Detail slip, "Disetujui"/"Dibayar" bertanggal, laporan beban BPJS perusahaan, Log Audit HR. |
 
@@ -631,7 +632,8 @@ flowchart LR
 flowchart TD
   A[Pelanggan: Minta salinan data / Minta hapus akun] --> B[Menunggu ditinjau]
   B -->|Head office/Super admin Setujui salinan| C[Selesai: JSON, unduh 7 hari]
-  B -->|Setujui hapus| D[Selesai: akun dianonimkan di semua layanan]
+  B -->|Setujui hapus, tanpa pesanan terbuka| D[Selesai: akun dianonimkan di semua layanan]
+  B -->|Setujui hapus, ada pesanan terbuka| G[Ditolak server; hanya Super admin boleh paksa]
   B -->|Tolak + alasan| E[Ditolak, alasan terbaca pelanggan]
   B -->|lewat 3x24 jam| F[Lencana LEWAT BATAS]
 ```
@@ -644,11 +646,11 @@ flowchart TD
 | 4. Prasyarat | Pelanggan masuk; satu permintaan terbuka per jenis. |
 | 5. Data/dokumen | Alasan penolakan (wajib). Ekspor: JSON akun, profil, alamat, riwayat persetujuan (tanpa pesanan, pembayaran, saldo loyalti). |
 | 6. Status awal | Menunggu (PENDING). |
-| 7. Langkah | (1) Pelanggan kirim; dialog konfirmasi untuk hapus. (2) HQ buka `/hq/pdp` (antrean: menunggu lebih dulu, terlama dulu). (3) Setujui/Tolak. (4) Salinan: pelanggan **Unduh salinan data** dalam 7 hari. (5) Hapus: tidak dapat dibatalkan; data pribadi dihapus/disamarkan, langganan dibatalkan; pesanan dan pembayaran disimpan 10 tahun tanpa pemilik; foto bukti antar ≤ 12 bulan. |
-| 8. Jalur setuju/tolak | Setujui atau Tolak (final). |
+| 7. Langkah | (1) Pelanggan kirim; dialog konfirmasi untuk hapus. (2) HQ buka `/hq/pdp` (antrean: menunggu lebih dulu, terlama dulu). (3) Setujui/Tolak. (4) Salinan: pelanggan **Unduh salinan data** dalam 7 hari. (4b) Hapus akun: sejak PR #664 (2026-10-14) server menghitung pesanan terbuka lebih dulu (semua status selain Selesai, Dibatalkan, Dibatalkan di kasir); bila ada, persetujuan ditolak 409 "Akun ini masih punya {n} pesanan yang belum selesai. Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan."; gagal-tertutup bila order-service tidak terjangkau; Super admin saja dapat memaksa lewat dialog "Paksa hapus akun?" (Head office yang mengirim `force`: 403 "Hanya Super Admin yang boleh memaksa penghapusan."); audit mencatat `forced` dan `openOrders`. (5) Hapus: tidak dapat dibatalkan; data pribadi dihapus/disamarkan, langganan dibatalkan; pesanan dan pembayaran disimpan 10 tahun tanpa pemilik; foto bukti antar ≤ 12 bulan. |
+| 8. Jalur setuju/tolak | Setujui atau Tolak (final). Setujui hapus akun ditolak bila ada pesanan terbuka, kecuali dipaksa Super admin (sejak PR #664). |
 | 9. Transisi status | Menunggu → Selesai / Ditolak. Penghapusan gagal di tengah: tetap Menunggu dan dapat diulang. Akun pelanggan: Aktif → Dihapus. |
 | 10. Notifikasi | **Tidak ada** notifikasi saat diputuskan **[B]**; tidak ada peringatan otomatis untuk yang terlambat. |
-| 11. Pengecualian | "Permintaan sejenis masih diproses."; "Ekspor data belum disetujui…"; "Persetujuan ekspor sudah lewat 7 hari…"; "Permintaan ini sudah diputuskan."; sistem tidak memeriksa pesanan aktif sebelum hapus **[B]**; batas 72 jam dihitung sejak permintaan dibuat, halaman publik menjanjikan "sejak diverifikasi" **[B]**. |
+| 11. Pengecualian | "Permintaan sejenis masih diproses."; "Ekspor data belum disetujui…"; "Persetujuan ekspor sudah lewat 7 hari…"; "Permintaan ini sudah diputuskan."; "Akun ini masih punya {n} pesanan yang belum selesai…" bila ada pesanan terbuka (pemeriksaan ditambahkan sejak PR #664; sebelumnya tidak ada **[B]** yang kini diperbaiki); peringatan permintaan PDP lewat batas waktu belum ada (menunggu keputusan pemilik **[K]**); batas 72 jam dihitung sejak permintaan dibuat, halaman publik menjanjikan "sejak diverifikasi" **[B]**. |
 | 12. Status akhir | Selesai atau Ditolak. |
 | 13. Jejak audit/pelaporan | Audit: permintaan dibuat, diekspor, dianonimkan, ditolak; cakupan penghapusan (ERASED/EXEMPT/UNENFORCED/FAILED) di metadata audit; kartu "Ketertinggalan persetujuan". |
 
@@ -687,14 +689,14 @@ flowchart TD
 | 1. Tujuan | Mencairkan upah per antar, bonus, dan penyesuaian. |
 | 2. Pemicu | Kurir menekan **Tarik saldo**. |
 | 3. Aktor | Kurir; Finance/Super admin (verifikasi rekening, Lunas/Gagal). |
-| 4. Prasyarat | Saldo > 0; rekening terverifikasi. Aturan upah (tarif dasar, bonus) adalah data Finance/Super admin; tanpa aturan upah tidak tercatat tanpa pemberitahuan **[K]**. |
+| 4. Prasyarat | Saldo > 0 dan minimal Rp50.000 per penarikan (sejak PR #664, 2026-10-14; `MIN_WITHDRAWAL_IDR`); rekening terverifikasi. Aturan upah (tarif dasar, bonus) adalah data Finance/Super admin; tanpa aturan upah tidak tercatat tanpa pemberitahuan **[K]**. |
 | 5. Data/dokumen | Nama bank, nomor, nama pemilik; jumlah penarikan. |
 | 6. Status awal | Rekening "Menunggu verifikasi kantor pusat". |
 | 7. Langkah | Daftarkan rekening → Finance Verifikasi/Tolak → **Tarik** (saldo langsung berkurang, "Diproses") → Finance **Lunas** (Terkirim) atau **Gagal** (saldo kembali). Jadwal pencairan otomatis: tidak ditemukan **[K]**; FAQ saling bertentangan **[B]**. |
 | 8. Jalur setuju/tolak | Verifikasi/Tolak rekening (alasan tidak dikirim). Tidak ada persetujuan sebelum saldo dipotong. |
 | 9. Transisi status | Rekening PENDING → VERIFIED / REJECTED. Penarikan PROCESSING → PAID / FAILED. |
 | 10. Notifikasi | Tidak ada. |
-| 11. Pengecualian | "Jumlah melebihi saldo tersedia."; "Withdrawal amount must be greater than zero."; "Belum ada rekening tujuan yang terverifikasi…". |
+| 11. Pengecualian | "Minimum penarikan Rp50.000." (sejak PR #664); "Jumlah melebihi saldo tersedia."; "Withdrawal amount must be greater than zero."; "Belum ada rekening tujuan yang terverifikasi…". |
 | 12. Status akhir | Terkirim (PAID) atau Gagal (saldo kembali "Penarikan gagal, saldo dikembalikan"). |
 | 13. Jejak audit/pelaporan | Riwayat penghasilan (Upah, Bonus, Potongan, Selisih setoran, Penarikan, Penyesuaian); kartu "Penarikan menunggu jawaban bank" di `/hq/payments`. |
 
@@ -795,7 +797,7 @@ Tanda: **P** pemrakarsa · **X** pelaksana · **R** pemeriksa (meninjau/memverif
 | F14 Absensi | – | P, X | P, X | P, X | P, X | – | – | R, D (tertahan) | – | – | – | – | P, X |
 | F15 Cuti | – | P | P | P | P | R, D (tahap 1) | – | R, D (tahap 1/2) | D (tahap 2) | D (tahap 2) | – | – | D |
 | F16 Kasbon | – | P | P | D | P | D (bila tanpa asisten) | – | D (bila tanpa asisten) | – | – | – | – | D |
-| F17 Payroll | R (slip sendiri) | R | R | R | R | R | – | P, X, D | R | R | X, D | – | X, D |
+| F17 Payroll | R (slip sendiri) | R | R | R | R | R | – | P, X, D (Setujui bukan atas slip buatannya sendiri) | R | R | X, D (idem) | – | X, D (dapat menyetujui slip sendiri dan membatalkan persetujuan) |
 | F18 Pinjam lintas depot | – | – | – | – | P | P | – | D | D | D | – | – | D |
 | F19 UU PDP | P | – | – | – | – | – | – | – | D | – | – | – | D |
 | F20 Klaim pengeluaran | – | P | – | – | – | D (≤ batas) | – | – | – | – | D | – | D |
@@ -814,13 +816,13 @@ Tabel ini mendaftar langkah yang lazim dibayangkan dalam skenario bisnis ilustra
 | No | Langkah pada skenario ilustrasi | Kenyataan di kode | Alur | Bukti |
 |---|---|---|---|---|
 | 1 | Pelanggan mengajukan refund sendiri | Pelanggan tidak bisa; refund mengikuti pembatalan atau diproses petugas (`refundIssue`: Finance, Manajer, Super admin) | F02 | [V] |
-| 2 | Status refund terlihat dan ada notifikasi saat selesai | Tidak ada tampilan status refund pelanggan dan tidak ada notifikasi | F02 | [V][B] |
+| 2 | Status refund terlihat dan ada notifikasi saat selesai | Sebagian benar sejak PR #664 (2026-10-14): detail pesanan menampilkan status refund dan janji 1–3 hari kerja. Tetap tidak ada notifikasi saat refund selesai atau ditolak | F02 | [V][B] |
 | 3 | Kepala depot membatalkan pesanan di antrean | Tidak ada tombol; hanya "Batalkan pengiriman" pada pesanan yang sudah ditugaskan | F01/F02 | [V][B] |
 | 4 | Kepala depot membuka antrean approval untuk melihat hasil opname | Kepala depot tidak punya akses `approvals` | F05 | [V] |
 | 5 | Kurir tidak bisa menyelesaikan antar tanpa menerima uang | Dijaga tampilan aplikasi saja; server tidak mengecek | F01 | [V][B] |
 | 6 | Kurir wajib tanda tangan pelanggan | Tanda tangan opsional; server mewajibkan foto, nama penerima, koordinat | F01 | [V][B] |
 | 7 | Tutup buku mensyaratkan COD terverifikasi | Hanya shift kasir terbuka yang memblokir | F04 | [V][B] |
-| 8 | Persetujuan Manajer atas kurang setoran COD | Jenis COD_VARIANCE tidak pernah dibuat; Kepala depot memutuskan sendiri apakah selisih dibebankan | F01 | [V] |
+| 8 | Persetujuan Manajer atas kurang setoran COD | Jenis COD_VARIANCE tetap tidak pernah dibuat (tidak ada antrean persetujuan asinkron). Sejak PR #664 (2026-10-14) sebagai gantinya server memeriksa kapabilitas: hanya Manajer atau Super admin yang bisa membebankan selisih ke kurir; kasir/Kepala depot tetap bisa verifikasi tanpa beban. Keputusan pemilik: kurir menyetor, manajer memverifikasi = orang kedua | F01 | [V] |
 | 9 | Selisih kas shift butuh persetujuan | Tidak ada; hanya tercatat | F04 | [V] |
 | 10 | Persetujuan Manajer menahan perubahan stok opname | Stok langsung berubah; persetujuan hanya peninjauan sesudahnya | F05 | [V] |
 | 11 | Pembatalan PO atau pembayaran ke pemasok di sistem | Tidak tersedia | F06 | [V] |
@@ -831,27 +833,27 @@ Tabel ini mendaftar langkah yang lazim dibayangkan dalam skenario bisnis ilustra
 | 16 | Persetujuan lamaran otomatis membuat akun pemilik dan depot | Hanya mengubah tahap; undang pemilik dan onboard depot dilakukan manual (oleh peran berbeda) | F10 | [V] |
 | 17 | Persetujuan HQ sebelum pemilik waralaba menarik saldo | Penarikan pemilik langsung memotong saldo (PROCESSING); persetujuan empat mata hanya pada jalur "Ajukan rilis" oleh HQ | F10 | [V] |
 | 18 | Rilis payout otomatis tanggal 15 | "Jatuh tempo" hanya informasi; tidak ada pekerjaan yang merilis | F10 | [D] |
-| 19 | Pemilik melihat status penarikan di layar | Daftar penarikan tidak tampil | F10 | [V][B] |
-| 20 | Maker-checker pada refund | Tidak ada pengecekan pemohon ≠ penyetuju | F02 | [V][B] |
-| 21 | Maker-checker pada payroll | Tidak ada; satu akun dapat membuat, menyetujui, menandai dibayar | F17 | [V] |
-| 22 | "Tandai Dibayar" memindahkan uang | Hanya mencatat status; transfer dilakukan di bank di luar aplikasi | F17 | [V] |
-| 23 | Undangan staf mengirim SMS/pesan | Tidak ada pesan undangan | F12 | [D] |
-| 24 | Tombol "ubah peran" | Tidak ada; undang ulang nomor yang sama | F12 | [V] |
-| 25 | Nonaktifkan akun memutus akses seketika, dan Admin dapat memaksa keluar perangkat | Token akses hidup hingga 15 menit; memaksa keluar perangkat orang lain tidak tersedia | F12/F13 | [V] |
-| 26 | Wizard offboarding / tombol terminate | Tidak ada; ubah Status dan isi Tanggal keluar | F13 | [V] |
-| 27 | Status Resign menghentikan gaji | Payroll membaca Tanggal keluar, bukan status | F13 | [V] |
-| 28 | Absen otomatis ditandai Absen oleh sapuan | Tidak ada sapuan; Absen dari entri manual atau potongan payroll | F14 | [V] |
-| 29 | Check-in shift kurir otomatis menjadi absen | Dua sistem terpisah | F14 | [V][B] |
-| 30 | HR dapat menyelesaikan kedua tahap cuti sendirian | Dilarang; tahap 2 ≠ tahap 1 | F15 | [V] |
-| 31 | Kepala depot menyetujui cuti atau kasbon kurir | Tidak; Manajer/HR (cuti) dan Asisten SPV (kasbon) | F15/F16 | [V] |
-| 32 | Permintaan pinjam karyawan masuk kotak masuk HR | Tidak ada kotak masuk; hanya kartu per karyawan | F18 | [V][B] |
-| 33 | Penugasan lintas depot aktif | Mati secara bawaan | F18 | [V][K] |
-| 34 | Pelanggan menandatangani persetujuan PDP baru dan mencabut persetujuan wajib | Persetujuan layanan/privasi tidak bisa dicabut selama akun aktif | F19 | [V] |
-| 35 | Email/WhatsApp sebagai saluran notifikasi atau OTP | Tidak tersedia; SMS (OTP), kotak masuk, dan push saja | Semua | [V] |
-| 36 | Laporan terjadwal dikirim lewat email | Tidak; berkas diunduh dari HQ › Ekspor | F22 | [V] |
-| 37 | Kedaluwarsa poin otomatis | Mati sampai pengaturan diisi | F09/F22 | [V][K] |
-| 38 | Penagihan otomatis pesanan langganan | Pembayaran tidak dimulai otomatis | F08 | [D] |
-| 39 | Pembukaan bulan oleh Head office | Hak `depotFinance` bukan bawaan Head office | F04 | [B][D] |
+| 19 | Maker-checker pada refund | Tidak ada pengecekan pemohon ≠ penyetuju. Kolom `refundRequestedBy` ada sejak PR #664 tetapi belum dipakai kode | F02 | [V][B] |
+| 20 | Maker-checker pada payroll | Sebagian ada sejak PR #664 (2026-10-14): pembuat slip tidak boleh menyetujui (Super admin dikecualikan); Super admin bisa membatalkan persetujuan sebelum PAID. Tandai Dibayar tidak punya pemeriksaan pelaku | F17 | [V] |
+| 21 | "Tandai Dibayar" memindahkan uang | Hanya mencatat status; transfer dilakukan di bank di luar aplikasi | F17 | [V] |
+| 22 | Undangan staf mengirim SMS/pesan | Tidak ada pesan undangan | F12 | [D] |
+| 23 | Tombol "ubah peran" | Tidak ada; undang ulang nomor yang sama | F12 | [V] |
+| 24 | Nonaktifkan akun memutus akses seketika, dan Admin dapat memaksa keluar perangkat | Sejak PR #664 (2026-10-14) semua refresh token dicabut seketika, tetapi token akses yang sudah terbit hidup hingga 15 menit (tidak ada pengecekan status per permintaan); tombol paksa-keluar terpisah tidak tersedia; penangguhan depot belum mencabut sesi stafnya | F12/F13 | [V][K] |
+| 25 | Wizard offboarding / tombol terminate | Tidak ada; ubah Status dan isi Tanggal keluar | F13 | [V] |
+| 26 | Status Resign menghentikan gaji | Payroll membaca Tanggal keluar, bukan status | F13 | [V] |
+| 27 | Absen otomatis ditandai Absen oleh sapuan | Tidak ada sapuan; Absen dari entri manual atau potongan payroll | F14 | [V] |
+| 28 | Check-in shift kurir otomatis menjadi absen | Dua sistem terpisah | F14 | [V][B] |
+| 29 | HR dapat menyelesaikan kedua tahap cuti sendirian | Dilarang; tahap 2 ≠ tahap 1 | F15 | [V] |
+| 30 | Kepala depot menyetujui cuti atau kasbon kurir | Tidak; Manajer/HR (cuti) dan Asisten SPV (kasbon) | F15/F16 | [V] |
+| 31 | Permintaan pinjam karyawan masuk kotak masuk HR | Tidak ada kotak masuk; hanya kartu per karyawan | F18 | [V][B] |
+| 32 | Penugasan lintas depot aktif | Mati secara bawaan | F18 | [V][K] |
+| 33 | Pelanggan menandatangani persetujuan PDP baru dan mencabut persetujuan wajib | Persetujuan layanan/privasi tidak bisa dicabut selama akun aktif | F19 | [V] |
+| 34 | Email/WhatsApp sebagai saluran notifikasi atau OTP | Tidak tersedia; SMS (OTP), kotak masuk, dan push saja | Semua | [V] |
+| 35 | Laporan terjadwal dikirim lewat email | Tidak; berkas diunduh dari HQ › Ekspor | F22 | [V] |
+| 36 | Kedaluwarsa poin otomatis | Mati sampai pengaturan diisi | F09/F22 | [V][K] |
+| 37 | Penagihan otomatis pesanan langganan | Pembayaran tidak dimulai otomatis | F08 | [D] |
+
+**Baris yang dihapus dari tabel karena kini sesuai kode (sejak PR #664, 2026-10-14) [V]:** (a) "Pemilik melihat status penarikan di layar": halaman Payout kini menampilkan "Riwayat penarikan"; (b) "Pembukaan bulan oleh Head office": layar tutup/buka bulan kini memakai `dailyClose`/`dailyCloseReopen` yang dipegang Head office. Belum diuji di peramban. Baris 2, 8, 20, 21, dan 25 (sebelum penomoran ulang: 2, 8, 20, 21, 25) diubah isinya; penomoran sesudah baris 19 bergeser satu.
 
 ---
 
@@ -860,14 +862,14 @@ Tabel ini mendaftar langkah yang lazim dibayangkan dalam skenario bisnis ilustra
 | No | Celah | Tanda |
 |---|---|---|
 | G1 | Nilai ambang (refund Rp100.000, auto-pass approval, klaim Rp50.000/Rp500.000, radius, SLA, dsb.) berasal dari data/pengaturan produksi | [K] |
-| G2 | Cara Kepala depot melihat status approval yang ia ajukan (tidak ada akses) | [B] |
+| G2 | Cara Kepala depot melihat status approval yang ia ajukan (tidak ada akses; butuh filter `mine` + tab, keputusan pemilik butir 7 belum dibangun) | [K] |
 | G3 | Status penggunaan fitur penugasan lintas depot di produksi | [K] |
 | G4 | Halaman HQ yang kemungkinan galat bagi Finance (Pembayaran, Waralaba, Rekonsiliasi, Skema komisi) | [B][D] |
-| G5 | Kebijakan pemisahan tugas payroll dan refund dipegang kebiasaan kerja, bukan sistem | [K] |
+| G5 | Pemisahan tugas: payroll sebagian ditegakkan sistem sejak PR #664 (pembuat tidak boleh menyetujui; Super admin dikecualikan; Tandai Dibayar tanpa pemeriksaan). Refund belum (kolom `refundRequestedBy` belum dipakai; toko tanpa Finance kedua akan terblokir). Opname dan void konter satu orang: ambang menunggu keputusan pemilik | [K] |
 | G6 | Alamat surel privasi belum tentu dapat menerima surat | [K] |
 | G7 | Cara pemohon waralaba dihubungi dan menyerahkan dokumen | [K] |
 | G8 | Batas jumlah jadwal ulang pengantaran tidak ditemukan | [D] |
-| G9 | Pelaporan sengketa setoran COD yang bisa diselesaikan server tetapi tombolnya tidak ada di UI | [B] |
+| G9 | ~~Setoran COD berstatus SENGKETA tidak bisa diselesaikan dari UI.~~ Diperbaiki sejak PR #664 (2026-10-14): tombol verifikasi muncul untuk DISPUTED, catatan wajib | diperbaiki [V] |
 | G10 | PPN/faktur dan tabel PPh 21 TER belum disahkan akuntan | [K] |
 
 Rujukan lebih lanjut: Bab 17 (Pertanyaan terbuka) dan Bab 15 (Matriks uji).

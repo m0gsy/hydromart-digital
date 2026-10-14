@@ -9,6 +9,8 @@
 | Peran di kode | `KEPALA_DEPOT` |
 | Status pengujian | Belum ada pengujian terstruktur (pengamatan terbatas di lingkungan uji lokal dicatat di dokumen 15). Isi bab disusun dari pembacaan kode dan berkas temuan. |
 
+> **Pembaruan 2026-10-14 (sejak PR #664).** Bab ini dicocokkan ulang dengan kode terbaru. Perubahan yang mengenai peran ini: label status pesanan berbahasa Indonesia; tab Pembayaran disembunyikan dan tab Meteran, Prakiraan, Aturan promo, Sengketa, CRM, Peran, Akun tampil sesuai kapabilitas; tombol Promo hanya untuk pemegang `promotionWrite`; judul gerbang "Akses terbatas"; setoran COD berstatus Sengketa bisa diverifikasi (catatan wajib) dan beban selisih ke kurir hanya untuk Manajer/Super admin; antrean persetujuan Manajer memuat item HELD serta rincian galon; kasbon maks. 1x gaji pokok dan kedaluwarsa 3 hari kerja. Tangkapan layar bertanggal 2026-10-11 diambil sebelum PR #664 dan diberi keterangan bila tampilannya kini berbeda. Tag **[V]** pada pembaruan ini berarti dibaca dari kode, bukan diuji di peramban.
+
 **Legenda bukti.** **[V]** terverifikasi di kode · **[D]** disimpulkan, perlu konfirmasi · **[K]** perlu konfirmasi bisnis (nilai berasal dari data/pengaturan) · **[B]** diketahui bermasalah/tidak konsisten.
 
 **Catatan hak akses (berlaku untuk seluruh bab).** Hak akses yang ditulis di bab ini adalah nilai BAWAAN dari `packages/access/src/index.ts`. Super admin dapat mengubah daftar hak akses saat aplikasi berjalan, dan perubahan berlaku sekitar 30 detik kemudian. Jika Anda melihat menu atau tombol yang berbeda dari bab ini, tanyakan kepada Admin sebelum menyimpulkan ada kesalahan. **[V]**
@@ -120,7 +122,7 @@ Jika akun Anda belum tertaut ke depot yang terbaca, Ringkasan menampilkan judul 
 
 ### 5.1 Bilah tab atas (yang benar-benar tampil untuk Kepala depot)
 
-Bilah tab bisa digeser ke samping. Sebuah garis tipis memisahkan tab utama dari tab kelola. Tidak ada navigasi bawah, tidak ada menu samping, dan tidak ada pemilih depot untuk peran ini. **[V]**
+Bilah tab bisa digeser ke samping. Sebuah garis tipis memisahkan tab utama dari tab kelola. Tidak ada navigasi bawah, tidak ada menu samping, dan tidak ada pemilih depot untuk peran ini. **[V]** Pemberitahuan "Menampilkan {depot}. Layar ini bekerja per depot, bukan gabungan…" (sejak PR #664) hanya muncul bila akun punya dua depot atau lebih dan memilih "Semua depot", jadi tidak muncul untuk Kepala depot yang terkunci pada satu depot. **[V]** (`all-depots-notice.tsx`)
 
 | # | Label tab | Rute | Hak akses (bawaan) | Bukti |
 |---|---|---|---|---|

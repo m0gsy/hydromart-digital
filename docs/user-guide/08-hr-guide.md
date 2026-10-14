@@ -185,7 +185,7 @@ Kolom "Tanggal keluar (kosongkan bila masih bekerja)" dan "Status" (Aktif/Nonakt
 3. Mencatat riwayat kepegawaian "Direkrut".
 4. Bila layanan autentikasi tidak tersedia, penyimpanan gagal total.
 
-**Peran yang boleh diberikan HR (`HR_MANAGED_ROLES`):** Staf Depot / Kurir (`STAFF_DEPOT`), Kepala Depot (`KEPALA_DEPOT`), Asisten Supervisor (`ASSISTANT_SUPERVISOR`), Supervisor (`SUPERVISOR`), Manager (`MANAGER`). Peran lain (`HEAD_OFFICE`, `FINANCE`, `HR`, `MARKETING`, `DIREKTUR`, `SUPER_ADMIN`, `FRANCHISE_OWNER`) **tidak bisa** diberikan lewat formulir ini; diberikan di konsol HQ "Direktori staf" oleh yang berwenang. **[V]** Siapa yang berwenang kini lebih sempit (sejak PR #664, 2026-10-14): Kantor pusat hanya boleh memberikan lima peran (Staf Depot, Kepala Depot, Asisten Supervisor, Supervisor, Pemilik waralaba). `HEAD_OFFICE`, `DIREKTUR`, `FINANCE`, `HR`, `MARKETING`, dan `SUPER_ADMIN` hanya dapat diberikan Admin; `MANAGER` hanya Admin atau HR **[V]** (`RESTRICTED_GRANTS`; pilihan yang tidak boleh disembunyikan dari formulir Kantor pusat di "Direktori staf").
+**Peran yang boleh diberikan HR (`HR_MANAGED_ROLES`):** Staf Depot / Kurir (`STAFF_DEPOT`), Kepala Depot (`KEPALA_DEPOT`), Asisten Supervisor (`ASSISTANT_SUPERVISOR`), Supervisor (`SUPERVISOR`), Manager (`MANAGER`). Peran lain (`HEAD_OFFICE`, `FINANCE`, `HR`, `MARKETING`, `DIREKTUR`, `SUPER_ADMIN`, `FRANCHISE_OWNER`) **tidak bisa** diberikan lewat formulir ini; diberikan di konsol HQ "Direktori staf" oleh yang berwenang. **[V]** Siapa yang berwenang kini lebih sempit (sejak PR #664, 2026-10-14): Kantor pusat hanya boleh memberikan lima peran (Staf Depot, Kepala Depot, Asisten Supervisor, Supervisor, Pemilik waralaba). `HEAD_OFFICE`, `DIREKTUR`, `FINANCE`, `HR`, `MARKETING`, dan `SUPER_ADMIN` hanya dapat diberikan Admin; `MANAGER` hanya Admin atau HR **[V]** (`RESTRICTED_GRANTS`); peran yang tidak boleh itu juga tidak ditawarkan di formulir undang Kantor pusat.
 
 **Aturan pemberian `MANAGER`:** hanya Admin dan HR yang boleh. `HEAD_OFFICE` dan `DIREKTUR` memegang `hrAdmin` tetapi **ditolak** saat mencoba memberikan Manager (keputusan pemilik produk 2026-09-11). Dropdown tetap menampilkan Manager kepada semua pemegang `hrAdmin`, jadi penolakan baru muncul dari server. **[V][B]**
 
@@ -555,17 +555,22 @@ Hari libur dan libur mingguan dikeluarkan dari hari kerja cuti dan hitungan abse
 | 2 | Untuk menyetujui isi "Cicilan per bulan (Rp)" dan "Mulai potong (YYYY-MM)", opsional "Catatan". Tekan "Setujui". | "Kasbon disetujui." Dibuat pinjaman; potongan muncul di daftar kasbon dan di slip gaji. Kurang: "Cicilan dan bulan mulai wajib diisi untuk menyetujui." |
 | 3 | Untuk menolak isi alasan, tekan "Tolak". | "Kasbon ditolak." Tanpa alasan: "Alasan penolakan wajib diisi." |
 
+**Batas dan tenggat (keputusan pemilik 2026-10-14, dibangun lewat PR #664) [V].** Saat karyawan mengajukan, sistem memeriksa: (1) jumlah tidak boleh melebihi **1x gaji pokok sebulan** (karyawan harian: tarif harian x 26); (2) gaji pokok harus terisi. Pengajuan terbuka yang **tidak diputuskan dalam 3 hari kerja** (Senin-Jumat; hari libur nasional tidak dimodelkan) berubah menjadi Dibatalkan dengan catatan "Kedaluwarsa: tidak diputuskan dalam 3 hari kerja." Penutupan ini dilakukan saat dibutuhkan (ketika pemohon membuka daftar kasbonnya atau mengajukan lagi, atau ketika seseorang mencoba memutuskannya), bukan oleh penjadwal. Karena itu antrean HR dapat masih memuat pengajuan yang sudah lewat tenggat sampai ada yang menyentuhnya. Batas nominal tidak berlaku pada "Mencatat pinjaman langsung" (C) dan impor (D), yang dilakukan `hrAdmin` tanpa pengajuan **[V]**. Pastikan HR mengisi gaji pokok di data karyawan.
+
 **Aturan server [V]:**
 
 | Pesan | Arti |
 |---|---|
+| "Kasbon melebihi batas 1x gaji pokok (Rp{batas})." (sejak PR #664) | Dilihat karyawan saat mengajukan: jumlah di atas satu bulan gaji pokok. |
+| "Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR." (sejak PR #664) | Tidak ada tarif gaji di data karyawan; pengajuan ditolak (bukan dibiarkan tanpa batas). Isi gaji pokok di data karyawan. |
+| "Pengajuan ini kedaluwarsa (lewat 3 hari kerja); pemohon perlu mengajukan lagi." (409, sejak PR #664) | Pemutus mencoba memutuskan pengajuan yang sudah lewat tenggat; pengajuan ditutup sebagai Dibatalkan. Minta karyawan mengajukan ulang. |
 | "Kasbon sendiri tidak bisa Anda setujui." | Pemohon tidak bisa memutuskan kasbonnya. |
 | "Kasbon ini diputuskan oleh asisten supervisor depotnya." (403) | **Bila depot punya Asisten Supervisor tercatat, hanya dia yang boleh memutuskan; HR dan Manager ditolak.** Bila tidak ada asisten, naik ke pihak yang cakupannya mencakup depot. |
 | "Pengajuan ini sudah diputuskan." / "Pengajuan ini sudah dijawab orang lain. Muat ulang daftarnya." (409) | Keputusan ganda. |
 | "Cicilan per bulan harus bilangan bulat lebih dari 0" / "Bulan mulai potong harus format YYYY-MM" | Input salah. |
 | "Keputusan gagal disimpan." | Kegagalan umum. |
 
-Status: Menunggu keputusan, Disetujui, Ditolak, Dibatalkan (oleh karyawan).
+Status: Menunggu keputusan, Disetujui, Ditolak, Dibatalkan (oleh karyawan, atau otomatis karena kedaluwarsa 3 hari kerja).
 
 **C. Mencatat pinjaman langsung** (kartu "Pinjaman / Kasbon" di detail karyawan; `hrAdmin`; tanpa persetujuan): isi "Pokok pinjaman (Rp)", "Cicilan / bulan (Rp)", "Mulai periode" (bulan), "Catatan (opsional)"; "Tambah Pinjaman". Pesan: "Pokok pinjaman harus > 0.", "Cicilan per bulan harus > 0.", toast "Pinjaman ditambahkan". "Hentikan" (gagal: "Gagal menghentikan pinjaman").
 
@@ -651,9 +656,21 @@ Halaman detail (`/hr/payroll/detail?id=`): judul nama karyawan; "Slip Gaji {peri
 |---|---|---|
 | 1 | Buka slip DRAFT. Baca peringatan bila ada. | Peringatan hari kehadiran belum diputuskan: "Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui)." Tidak memblokir. |
 | 2 | Bila data berubah (absensi, penugasan, aturan), tekan "Hitung ulang". | Konfirmasi "Hitung ulang slip ini dari data terbaru (absensi, penugasan, aturan)? Baris dan pembagian depotnya ditulis ulang." Toast "Slip dihitung ulang". |
-| 3 | Tekan "Setujui". | Konfirmasi "Setujui penggajian ini senilai {net}? Sesudah disetujui, angkanya tidak bisa lagi diubah dari layar ini." Toast "Payroll disetujui". Status Disetujui. |
+| 3 | Tekan "Setujui". Syarat (sejak PR #664, 2026-10-14): Anda bukan akun yang pertama membuat slip ini, kecuali Anda Admin. | Konfirmasi "Setujui penggajian ini senilai {net}? Sesudah disetujui, angkanya tidak bisa lagi diubah dari layar ini." Toast "Payroll disetujui". Status Disetujui. Bila Anda pembuat slipnya dan bukan Admin, tombol tetap tampil tetapi server menolak dan toast menampilkan: "Slip ini dibuat oleh akun Anda sendiri; persetujuan harus dari orang lain (atau Super Admin)." |
 | 4 | **Lakukan transfer gaji di bank di luar aplikasi.** | Tidak ada pembayaran dari sistem. |
 | 5 | Tekan "Tandai Dibayar". | Konfirmasi seperti di atas. Toast "Ditandai dibayar". Status Dibayar. |
+
+**Pemisahan pembuat dan penyetuju (sejak PR #664, 2026-10-14) [V].** "Pembuat" adalah akun yang pertama menjalankan "Generate" atau "Buat sedepot" untuk slip itu; menghitung ulang oleh orang lain tidak mengganti pembuat. Slip yang tidak punya pembuat tercatat (impor riwayat, data lama) tidak diblokir. Aturan ini dicek server, bukan sembunyi-tombol di layar. Akibat praktis: bila HR satu orang yang membuat slip, persetujuan harus dari orang lain dengan `hrPayroll` (HR lain atau `FINANCE`) atau dari Admin.
+
+**Membatalkan persetujuan (khusus Admin, sejak PR #664, 2026-10-14) [V].**
+
+| Langkah | Tindakan Admin | Respons sistem |
+|---|---|---|
+| 1 | Buka slip berstatus Disetujui. | Selain tombol "Tandai Dibayar", Admin melihat kolom isian berlabel "Alasan membatalkan persetujuan (wajib):" dan tombol "Batalkan persetujuan". Peran lain tidak melihatnya. |
+| 2 | Tulis alasan (minimal 3 karakter; tombol nonaktif bila kurang), lalu tekan "Batalkan persetujuan". | Tidak ada dialog konfirmasi tambahan. Toast "Persetujuan dibatalkan; slip kembali ke DRAFT." Slip kembali Draft, penanda penyetuju dan tanggal "Disetujui" dikosongkan, sehingga persetujuan berikutnya dibaca sebagai keputusan baru. |
+| 3 | Hitung ulang bila perlu, lalu setujui lagi. | Alur Draft biasa. |
+
+Aturan server: hanya `SUPER_ADMIN` ("Hanya Super Admin yang bisa membatalkan persetujuan payroll."), alasan wajib ("Alasan wajib diisi."; panjang 3 sampai 500 karakter), dan hanya slip Disetujui ("Hanya payroll APPROVED yang bisa dibatalkan persetujuannya (saat ini {S})"). **Setelah Dibayar tidak bisa dibatalkan**; koreksi lewat penyesuaian periode berikutnya. Setiap pembatalan dicatat di audit (aksi `PAYROLL_UNAPPROVE`, berisi alasan). Tombol ini memanggil `POST /payroll/:id/unapprove`, yang gerbangnya `hrPayroll` lalu diperiksa lagi sebagai Admin saja.
 
 **Pesan server bila status tidak cocok [V]:** "Hanya payroll DRAFT yang bisa dihitung ulang (saat ini {S})", "Hanya payroll DRAFT yang bisa disetujui (saat ini {S})", "Hanya payroll APPROVED yang bisa dibayar (saat ini {S})", dan bila penugasan depot bergeser setelah slip dihitung: "Penugasan depot karyawan ini berubah setelah slip dihitung. Hitung ulang slip dulu, lalu setujui."
 
@@ -902,7 +919,7 @@ Peran lain melihat penjelasan: "Hanya manajer depot yang bisa mengajukan peminja
 | Absensi manual | Hanya hari tanpa catatan | [V] |
 | Koreksi absensi | Alasan wajib, maks 200 | [V] |
 | Cuti | Tidak boleh tumpang tindih; kuota; penolakan wajib catatan; pemutus tahap 2 ≠ pemutus tahap 1 | [V] |
-| Kasbon | Cicilan bulat > 0; bulan mulai YYYY-MM; satu pengajuan terbuka per karyawan | [V] |
+| Kasbon | Cicilan bulat > 0; bulan mulai YYYY-MM; satu pengajuan terbuka per karyawan; jumlah maksimum 1x gaji pokok; kedaluwarsa 3 hari kerja (sejak PR #664, 2026-10-14) | [V] |
 | Payroll | Hanya bulan berakhir; hanya Draft yang dihitung ulang/disetujui; hanya Disetujui yang dibayar | [V] |
 | Impor | Maks 500 baris; .xlsx/.csv | [V] |
 | Dokumen | jpeg/png/webp/pdf, maks 5 MB | [V] |
@@ -999,8 +1016,9 @@ Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `
 - Data karyawan sensitif: NIK, NPWP, BPJS, rekening bank, foto wajah, dokumen. Akses hanya bila perlu; jangan mengirim data lewat chat atau email pribadi.
 - Data wajah memerlukan persetujuan tertulis karyawan (kotak persetujuan wajib) dan dapat dihapus ("Hapus data wajah" menarik persetujuan).
 - Setiap koreksi absensi wajib beralasan dan tercatat; alasan dibaca ulang saat penggajian dipertanyakan.
-- Tidak ada pemisahan tugas pada payroll. Terapkan kontrol manual: orang berbeda meninjau draf sebelum disetujui, dan transfer bank dilakukan pihak keuangan. **[K]**
-- Menonaktifkan karyawan tidak mencabut token yang sudah terbit seketika (hingga sekitar 15 menit). Untuk kasus mendesak, hubungi Admin. **[V][D]**
+- Pemisahan tugas payroll (keputusan pemilik 2026-10-14, dibangun lewat PR #664): akun yang pertama kali membuat ("Generate") sebuah slip tidak boleh menyetujuinya; Admin (`SUPER_ADMIN`) dikecualikan agar meja HR satu orang tidak terkunci. Slip tanpa pembuat tercatat (impor, data lama) tidak diblokir. Tetap terapkan kontrol manual: transfer bank dilakukan pihak keuangan, dan HR satu orang tetap memerlukan Admin atau orang lain dengan `hrPayroll` untuk menyetujui. **[V]**
+- Saat login karyawan dimatikan (Status Nonaktif/Resign), semua token pembaruan (refresh) akunnya langsung dicabut (sejak PR #664, 2026-10-14). Token akses yang sudah terbit tetap berlaku sampai habis masa berlakunya (sekitar 15 menit) karena tidak ada pemeriksaan status per permintaan; menutup celah itu belum diputuskan pemilik **[K]**. Untuk kasus mendesak, hubungi Admin. **[V]**
+- Akun Super Admin terakhir tidak bisa dinonaktifkan: "Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan." **[V]**
 - Memakai nomor HP yang sudah terdaftar akan **mengubah akun orang itu** menjadi staf. Baca kartu peringatan sebelum menekan "Ya, gunakan akun itu".
 - Impor massal mengubah banyak baris sekaligus; periksa pratinjau, simpan berkas sumber, dan hindari unggah ganda (tunjangan dan potongan tidak ber-deduplikasi).
 - Slip gaji, laporan, dan berkas unduhan berisi data pribadi; simpan dan hapus sesuai kebijakan.
@@ -1042,7 +1060,7 @@ Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `
 - [ ] Karyawan baru: akun login dan jabatan benar.
 - [ ] Offboarding: Status + Tanggal keluar + slip terakhir + aset.
 - [ ] Absen tertahan bulan itu seluruhnya diputuskan.
-- [ ] Cuti dan kasbon diproses oleh orang berbeda sesuai aturan.
+- [ ] Cuti dan kasbon diproses oleh orang berbeda sesuai aturan; kasbon diputuskan dalam 3 hari kerja.
 - [ ] Payroll: Draft → Disetujui → transfer bank → Dibayar.
 - [ ] Beban BPJS perusahaan diunduh.
 - [ ] Impor: pratinjau diperiksa, baris gagal diperbaiki.
@@ -1076,11 +1094,11 @@ Rujukan: lihat `17-open-questions`.
 | No | Celah | Tag |
 |---|---|---|
 | 1 | `DEPOT_ASSIGNMENT_ENABLED` bawaan false; belum diketahui apakah aktif di produksi. Bila mati, kartu penugasan, permintaan pinjam, dan pembagian gaji per depot tidak berfungsi. | [V][K] |
-| 2 | Tidak ada wizard offboarding; sesi/token yang sudah terbit tidak dicabut seketika. | [V][D] |
-| 3 | Pesan penolakan peran dari layanan autentikasi tidak diteruskan ke HR (hanya "auth-service menolak permintaan (403)"). | [V][B] |
-| 4 | Dropdown jabatan menawarkan Manager kepada `HEAD_OFFICE`/`DIREKTUR` walau server menolak. | [V][B] |
+| 2 | Tidak ada wizard offboarding (menunggu keputusan pemilik). Sejak PR #664 (2026-10-14) token pembaruan dicabut saat login dimatikan; token akses hidup hingga sekitar 15 menit. | [V][K] |
+| 3 | ~~Pesan penolakan peran dari layanan autentikasi tidak diteruskan ke HR~~ Diperbaiki sejak PR #664 (2026-10-14): alasan 4xx (selain 401) diteruskan; "auth-service menolak permintaan ({status})" hanya untuk 401/5xx/4xx tanpa alasan | Diperbaiki [V] |
+| 4 | Dropdown jabatan menawarkan Manager kepada `HEAD_OFFICE`/`DIREKTUR` walau server menolak (tidak diubah PR #664; alasan penolakan kini terbaca) | [V][B] |
 | 5 | Tidak ada kotak masuk global permintaan pinjam untuk HR; cara notifikasi ke HR belum diketahui. | [V][K] |
-| 6 | Tidak ada maker-checker payroll; tidak ada pembatalan persetujuan; "Tandai Dibayar" hanya status. | [V][K] |
+| 6 | ~~Tidak ada maker-checker payroll; tidak ada pembatalan persetujuan~~ Diputuskan pemilik 2026-10-14 dan dibangun lewat PR #664: pembuat slip tidak boleh menyetujui (Admin dikecualikan); Admin boleh membatalkan persetujuan sebelum Dibayar dengan alasan, tercatat di audit. Tersisa: "Tandai Dibayar" hanya status | Diputuskan [V]; sisanya [V][K] |
 | 7 | Payroll hanya bisa dibuat setelah bulan berakhir; batch melewati karyawan non-Aktif. | [V] |
 | 8 | Tabel TER PPh 21 kosong sampai dimuat; tarif bawaan perlu dikonfirmasi pajak/bisnis. | [V][K] |
 | 9 | Placeholder "mis. EMP-0012" berbeda dari format kode asli `HR-####`; pesan klien menampilkan nama kolom teknis mentah ("depotId", "fullName"). | [V][B] |

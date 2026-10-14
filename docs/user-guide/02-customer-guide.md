@@ -10,6 +10,8 @@
 
 > **Catatan status.** Panduan ini disusun dari pembacaan kode dan dokumen. Belum ada pengujian yang dijalankan oleh penulis. Tag bukti: **[V]** terverifikasi di kode · **[D]** disimpulkan · **[K]** perlu konfirmasi bisnis (nilai berbeda per depot atau berasal dari pengaturan) · **[B]** diketahui bermasalah atau tidak konsisten.
 > Fitur yang tidak ada ditulis "Tidak tersedia".
+>
+> **Pembaruan 2026-10-14 (sejak PR #664).** Bab ini dicocokkan ulang dengan kode terbaru: label status pesanan di `/track` kini berbahasa Indonesia, Pasal 8 pembatalan kini "sebelum kurir ditugaskan", checkout menampilkan estimasi "Deposit galon" (belum masuk total), rincian pesanan menampilkan status refund dan janji 1–3 hari kerja, teks "pesan sebelum 16.00" dihapus, dan hapus akun ditolak bila masih ada pesanan terbuka. Tangkapan layar bertanggal 2026-10-11 diambil sebelum PR #664 dan diberi keterangan bila tampilannya kini berbeda. Tag **[V]** pada pembaruan ini berarti dibaca dari kode, bukan diuji di peramban.
 
 ---
 

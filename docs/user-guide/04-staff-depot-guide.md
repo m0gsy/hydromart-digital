@@ -9,6 +9,8 @@
 | Peran di kode | `STAFF_DEPOT` |
 | Status pengujian | Belum ada pengujian terstruktur (pengamatan terbatas di lingkungan uji lokal dicatat di dokumen 15). Isi bab disusun dari pembacaan kode dan berkas temuan. |
 
+> **Pembaruan 2026-10-14 (sejak PR #664).** Bab ini dicocokkan ulang dengan kode terbaru. Perubahan yang mengenai peran ini: penarikan saldo minimum Rp50.000 (kurir dan pemilik waralaba); kasbon maks. 1x gaji pokok dan kedaluwarsa 3 hari kerja; beban selisih setoran COD ke kurir hanya dapat dilakukan Manajer/Super admin, dan setoran berstatus Sengketa kini dapat diselesaikan kasir; label status pesanan yang dilihat pelanggan dan staf konsol berbahasa Indonesia. Aplikasi kurir (`/driver`) sendiri tidak berubah tampilannya. Tangkapan layar bertanggal 2026-10-11 diambil sebelum PR #664 dan diberi keterangan bila tampilannya kini berbeda. Tag **[V]** pada pembaruan ini berarti dibaca dari kode, bukan diuji di peramban.
+
 **Legenda bukti.** **[V]** terverifikasi di kode · **[D]** disimpulkan, perlu konfirmasi · **[K]** perlu konfirmasi bisnis (nilai berasal dari data/pengaturan) · **[B]** diketahui bermasalah/tidak konsisten.
 
 **Catatan hak akses (berlaku untuk seluruh bab).** Hak akses di bab ini adalah nilai BAWAAN dari `packages/access/src/index.ts`. Super admin dapat mengubahnya saat aplikasi berjalan, dan perubahan berlaku sekitar 30 detik kemudian. **[V]**
