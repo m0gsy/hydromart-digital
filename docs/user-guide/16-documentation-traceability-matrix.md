@@ -78,4 +78,6 @@ Dari 51 baris modul/kebutuhan: **Complete 10 · Partial 35 · Blocked 4 · Not V
 
 *Hitung ulang 2026-10-14 (pasca PR #664):* dihitung dengan skrip dari baris data tabel Matriks saja (legenda dan tabel lain dikecualikan): 51 baris, **Complete 10 · Partial 35 · Blocked 4 · Not Verified 2** (tanpa Not Applicable). Angka sama dengan sebelumnya karena perbaikan PR #664 menghapus sebagian butir [B]/[D] tetapi tiap baris Partial masih punya butir terbuka lain ([K] keputusan bisnis atau [D]/[B] yang tersisa), dan tidak ada baris Blocked/Not Verified yang berubah. Dasar: pembacaan kode, bukan uji peramban.
 
+*Hitung ulang v0.3 (2026-10-14):* dihitung dengan skrip dari baris data tabel Matriks: 51 baris, **Complete 10 · Partial 35 · Blocked 4 · Not Verified 2**, tidak berubah. Baris "Hapus akun & permintaan data PDP" dan "Pembatalan & refund" hanya diperbarui teks catatannya (perbaikan G-149..G-152 ada di cabang `fix/uat-g128-g149-g152`, belum di `main`, belum diuji ulang; G-153 perlu konfirmasi; refund: pemohon dicatat, penegakan belum); keduanya tetap Partial.
+
 *Koreksi 2026-10-11:* versi awal ringkasan ini menyebut 55 baris (11/36/5/3) karena ikut menghitung baris legenda status di bagian atas dokumen. Angka di atas dihitung ulang dari tabel itu sendiri.

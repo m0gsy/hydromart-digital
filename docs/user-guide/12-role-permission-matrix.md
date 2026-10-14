@@ -605,7 +605,7 @@ Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkas
 |---|---|---|---|---|
 | Approval depot | siapa pun yang memicu | MANAGER, SA | Ya (`ApprovalSelfDecideError`) | approval.service.ts:138 **[V]** |
 | Rilis saldo waralaba (HQ) | FINANCE, SA | DIREKTUR, SA | Ya (`ReleaseSelfApprovalError`) | hq-release.service.ts:93 **[V]** |
-| Refund besar | FINANCE, MANAGER, SA | FINANCE, SA | **Tidak**: tidak ada cek pemohon ≠ penyetuju; FINANCE dan SA memegang keduanya. Kolom `refundRequestedBy` sudah ada di skema (sejak PR #664) tetapi belum diisi atau dibaca kode | payment.service.ts `approveRefund` **[V]** |
+| Refund besar | FINANCE, MANAGER, SA | FINANCE, SA | **Tidak**: tidak ada cek pemohon ≠ penyetuju; FINANCE dan SA memegang keduanya. Pemohon dicatat di `refundRequestedBy` dan ditampilkan di `/hq/refunds` (#665), tetapi `approveRefund` tidak membandingkannya | payment.service.ts `approveRefund` **[V]** |
 | Usulan harga depot | MANAGER, SA | HO, DIR, SA | Sebagian: pengusul tak boleh memutus bila dampak di atas ambang auto-pass | price-override.service.ts **[V]** |
 | Cuti | karyawan | MANAGER/HR (tahap 1), HR/HO/DIR/SA (tahap 2) | Ya: tahap 2 ≠ tahap 1; tak boleh memutus cuti sendiri | leave.service.ts **[V]** |
 | Kasbon | karyawan | ASPV (bila ada), MANAGER/HR/SA bila tidak | Ya: tak boleh memutus sendiri; bila depot punya ASPV hanya dia. Sejak PR #664: maks 1x gaji pokok, kedaluwarsa 3 hari kerja | loan-request.service.ts **[V]** |
@@ -773,7 +773,7 @@ Kolom "Jml peran" menghitung peran yang menandai ✓ (termasuk SUPER_ADMIN, tida
 | `settlement.service.ts` | beban selisih butuh `can('approvals')` (MANAGER, SUPER_ADMIN) | **[V]** |
 | `data-subject.controller.ts` / `data-subject.service.ts` | `force` hanya SUPER_ADMIN; pesanan terbuka menolak (409) | **[V]** |
 | `account.service.ts` `applyActive` | menonaktifkan mencabut semua refresh token; menolak diri sendiri dan Super admin terakhir | **[V]** |
-| `payment.service.ts` `approveRefund`; pencarian `refundRequestedBy` di kode | tetap tanpa cek pemohon; kolom belum dipakai kode mana pun | **[V]** |
+| `payment.service.ts` `approveRefund`; pencarian `refundRequestedBy` di kode | tetap tanpa cek pemohon; kolom dicatat dan ditampilkan (#665), penegakan pemohon≠penyetuju belum ada | **[V]** |
 | `payout-service` penarikan | minimum `MIN_WITHDRAWAL_IDR` (bawaan 50000) di pemilik waralaba dan kurir | **[V]** |
 | `loan-request.service.ts` | maks 1x gaji pokok; kedaluwarsa 3 hari kerja | **[V]** |
 | Tampilan di peramban | Tidak diuji oleh penulis | **[D]** |
@@ -789,7 +789,7 @@ Yang **belum** diverifikasi: perilaku nyata di peramban untuk semua sel bertanda
 | 2 | FINANCE: beberapa layar `/hq` kemungkinan error penuh karena memuat data yang tidak boleh dibaca FINANCE. | Alur payout Lunas/Gagal dan komisi mungkin hanya bisa dikerjakan SUPER_ADMIN. | **[D]** |
 | 3 | HEAD_OFFICE memegang `approvalThresholdWrite` tetapi layar setelan terkunci `depotAdmin` (MANAGER/SA); setelan global butuh SA. | Praktis hanya SUPER_ADMIN yang dapat mengubah ambang. | **[V]** |
 | 4 | ~~HEAD_OFFICE memegang `dailyCloseReopen`, tetapi layar tinjauan bulanan dibatasi `depotFinance`.~~ Diperbaiki sejak PR #664 (2026-10-14): layar memakai `dailyClose`. | Belum diuji di peramban. | diperbaiki **[V code]** |
-| 5 | Refund: tidak ada pemisahan pemohon/penyetuju bila akun yang sama memegang `refundIssue` dan `refundQueue` (FINANCE, SA). Kolom `refundRequestedBy` sudah ada (PR #664) tetapi belum dipakai; toko tanpa FINANCE kedua akan terblokir bila ditegakkan. | Kontrol uang bergantung pada pembagian peran; menunggu PR lanjutan dan keputusan pemilik. | **[V][K]** |
+| 5 | Refund: tidak ada pemisahan pemohon/penyetuju bila akun yang sama memegang `refundIssue` dan `refundQueue` (FINANCE, SA). Pemohon dicatat dan ditampilkan (#665), penegakan belum ada; toko tanpa FINANCE kedua akan terblokir bila ditegakkan. | Kontrol uang bergantung pada pembagian peran; menunggu PR lanjutan dan keputusan pemilik. | **[V][K]** |
 | 6 | Payroll: sejak PR #664 pembuat slip tak boleh menyetujui (SUPER_ADMIN dikecualikan) dan SUPER_ADMIN dapat membatalkan persetujuan sebelum PAID. Tandai Dibayar tetap tanpa cek pelaku. | Sisa celah: penyetuju boleh membayar. | **[V]** |
 | 7 | Cakupan voucher buatan MANAGER (depot vs jaringan) tidak terverifikasi. | Jangan dijanjikan sebagai "voucher depot". | **[K]** |
 | 8 | ~~Komentar "HQ decides a depot's voucher request" usang.~~ Diperbaiki sejak PR #664: kapabilitas `voucherRequestDecide` ditandai RETIRED di komentar; nama dipertahankan. | Nama masih tampil di matriks; abaikan. | diperbaiki **[V]** |

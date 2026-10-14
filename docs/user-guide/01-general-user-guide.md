@@ -492,7 +492,7 @@ Tidak ada nomor telepon pusat atau jam layanan pusat yang terdokumentasi. **[K]*
 
 | ID | Layar | Kondisi | Status |
 |---|---|---|---|
-| SS-umum-01 | Beranda pelanggan (tamu) | Belum masuk; hero, promo, kategori, depot terdekat tampil | Belum diambil (berkas `customer-01-beranda.png` adalah beranda setelah masuk, bukan tamu, sehingga tidak dipakai di sini) |
+| SS-umum-01 | Beranda pelanggan (tamu) | Belum masuk; hero, promo, kategori, depot terdekat tampil | Belum diambil (berkas `customer-01-beranda.png` adalah beranda setelah masuk, bukan tamu, sehingga tidak dipakai di sini). Catatan v0.3: tampilan beranda berubah sejak #666 (hero foto nyata, "Beli lagi" berfungsi, chip terbaca); gambar `customer-01-beranda*.png` di Bab 2 diambil sebelum #666 |
 | SS-umum-02 | Halaman `/login` | Kolom Nomor telepon kosong, tombol Kirim kode | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-01-login.png` |
 | SS-umum-03 | Halaman `/verify` | 6 kotak, hitung mundur, tombol Kirim ulang dalam {n}d | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `umum-02-verify.png`; kotak kode diburamkan, nomor disamarkan |
 | SS-umum-04 | Konsol depot `/dashboard` | Peran Manajer, rel menu terlihat | Belum diambil |

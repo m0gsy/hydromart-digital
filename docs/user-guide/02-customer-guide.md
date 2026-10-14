@@ -102,7 +102,7 @@ Hitung mundur "Kode berlaku {m:ss} lagi." menunjukkan sisa waktu (awal 5:00; ter
 | Terlalu banyak percobaan. Minta kode baru. | 5 kali salah. Kotak terkunci | Tekan **Kirim ulang kode** |
 | Kode verifikasi sudah kedaluwarsa. Minta kode baru. | Lewat 5 menit | Tekan **Kirim ulang kode** |
 | Kode baru bisa diminta sebentar lagi. Cek SMS yang sudah masuk dulu. | Belum 60 detik sejak kode terakhir | Tunggu; tombol menampilkan "Kirim ulang dalam {n}d" |
-| Akun ini tidak aktif. Hubungi dukungan Hydromart. | Akun ditangguhkan. **[B]** Akun yang sudah dihapus tidak mendapat pesan ini: uji 2026-10-14 menunjukkan login dengan nomor akun terhapus dijawab seolah nomor itu belum terdaftar (OTP pendaftaran), lihat G-153 | Lihat bagian 8 (Bantuan) |
+| Akun ini tidak aktif. Hubungi dukungan Hydromart. | Akun ditangguhkan. **[B]** Akun yang sudah dihapus tidak mendapat pesan ini: uji 2026-10-14 menunjukkan login dengan nomor akun terhapus dijawab seolah nomor itu belum terdaftar (OTP pendaftaran), lihat G-153. **[K]** Status 2026-10-14: diklaim selesai oleh pemilik produk, tetapi tidak ditemukan perubahan kode; kemungkinan perilaku sengaja (nomor dibebaskan saat penghapusan akun), perlu konfirmasi | Lihat bagian 8 (Bantuan) |
 
 Bila Anda memasukkan nomor yang belum terdaftar di halaman masuk, sistem menjalankan pendaftaran dan menampilkan "Selesaikan pendaftaran." **[V]** Jika ingin mengisi nama dan email, mulai dari halaman daftar.
 
@@ -234,7 +234,7 @@ Harga di daftar bisa berupa perkiraan: "Harga perkiraan — harga depot dipakai 
 **[D][K]** Lencana "Member Rp 24.500" (sekitar 2% di bawah harga Rp 25.000) tampil pada akun berstatus REGULAR, padahal tabel tier di bawah menyebut diskon REGULAR 0%. Arti lencana ini belum terkonfirmasi.
 
 ![Gambar 6.1a — Beranda pelanggan](assets/screenshots/customer-01-beranda.png)
-*Gambar 6.1a — Beranda `/` setelah masuk: pemilih "Pilih lokasi pengiriman", lonceng, keranjang berlencana jumlah, judul "Air minum, diantar ke rumah.", kolom pencarian "Cari galon, boto…" dengan tombol **Cari**, chip kategori, daftar "Kategori" (Air Galon, Air Kemasan), dan bilah bawah Beranda, Belanja, Pesanan, Akun. Teks "kurir antar hari ini juga" tertulis tetap di layar dan tidak dijamin sistem **[D]**. Ini beranda setelah masuk, bukan tampilan tamu. Lingkungan uji lokal, 2026-10-11.*
+*Gambar 6.1a — Beranda `/` setelah masuk: pemilih "Pilih lokasi pengiriman", lonceng, keranjang berlencana jumlah, judul "Air minum, diantar ke rumah.", kolom pencarian "Cari galon, boto…" dengan tombol **Cari**, chip kategori, daftar "Kategori" (Air Galon, Air Kemasan), dan bilah bawah Beranda, Belanja, Pesanan, Akun. Teks "kurir antar hari ini juga" tertulis tetap di layar dan tidak dijamin sistem **[D]**. Ini beranda setelah masuk, bukan tampilan tamu. Lingkungan uji lokal, 2026-10-11. **Catatan v0.3:** gambar ini diambil sebelum #666 (hero beranda kini memakai foto nyata, tombol "Beli lagi" berfungsi, chip terbaca); tampilan beranda di `main` sekarang berbeda dan gambar perlu diambil ulang.*
 
 ![Gambar 6.1b — Detail produk](assets/screenshots/customer-03-detail-produk.png)
 *Gambar 6.1b — Detail produk "Air Galon 19L (Isi Ulang)": jejak "Belanja > Air Galon", keterangan "per Galon 19L · SKU AIR-GALON-19L", pemilih jumlah (1), tombol **Tambah ke keranjang — Rp 20.000**, dan ikon hati (favorit). Harga, "Dikirim dari {depot}", status depot, dan "Sering dibeli bersama" tidak terlihat pada gambar (tertutup bilah bawah atau di bawah layar). Lingkungan uji lokal, 2026-10-11.*
@@ -784,7 +784,7 @@ Untuk pelanggan, kegiatan berkala yang disarankan:
 | SS-customer-11 | Data pribadi saya | Tombol dan chip status | Belum diambil (bagian ini tidak terlihat pada gambar Akun) |
 | SS-customer-12 | `/account` | Halaman Akun, pelanggan baru | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-10-akun.png`; nama "—" dan avatar "?" |
 | SS-customer-13 | `/addresses` | Daftar alamat dengan satu alamat | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-11-alamat.png`; nomor telepon disamarkan, nama contoh "Budi Contoh" |
-| SS-customer-14 | `/` | Beranda setelah masuk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-01-beranda.png` |
+| SS-customer-14 | `/` | Beranda setelah masuk | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-01-beranda.png`. Perlu diambil ulang: gambar mendahului #666 (hero beranda berubah: foto nyata, "Beli lagi" berfungsi, chip terbaca) |
 | SS-customer-15 | `/products/detail?id=…` | Detail produk Air Galon 19L | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-03-detail-produk.png` |
 | SS-customer-16 | `/cart` | Keranjang berisi 4 galon | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-04-keranjang.png`; jumlah 4 (bukan 2) akibat penambahan berulang |
 | SS-customer-17 | `/checkout` | Lembar Metode pembayaran terbuka | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) — `customer-05b-checkout-pembayaran.png`; tanpa opsi QRIS |

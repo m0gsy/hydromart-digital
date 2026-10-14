@@ -93,7 +93,7 @@ Menu di rel HR (desktop). Di ponsel, 3 tab pertama tampil di bilah bawah; sisany
 | 21 | Log Audit | `/hr/audit` | `hrAdmin` | **[V]** |
 | 22 | Data saya | `/hr/me` | `hrView` (data diri sendiri; dibahas di panduan karyawan) | **[V]** |
 
-> **[B]** Label string untuk pintu "Konsol HQ" di rel HR hilang dari kamus. **[V]** Dikonfirmasi uji 2026-10-14: rel HR menampilkan kunci mentah `hrFix.nav.hqConsole` sebagai label (G-151). **Koreksi uji 2026-10-14 (pasca-#664, [B]):** kunci mentah itu terlihat pada rel akun **Super admin** yang membuka halaman HR (item paling atas, lihat Gambar 8.11b), bukan pada rel akun HR: rel HR dalam uji (Gambar 8.9a, 8.10) dimulai dari "Dashboard" tanpa item pintu HQ, karena HR tidak memegang `hqConsole`.
+> **[B]** Label string untuk pintu "Konsol HQ" di rel HR hilang dari kamus. **[V]** Dikonfirmasi uji 2026-10-14: rel HR menampilkan kunci mentah `hrFix.nav.hqConsole` sebagai label (G-151). **Status 2026-10-14:** diperbaiki di cabang `fix/uat-g128-g149-g152` (5a8ae4a) (kamus id/en `hrFix` kini memuat `hqConsole: 'Konsol HQ'`), belum di `main` per 2026-10-14; terverifikasi dari kode, belum diuji ulang di stack; sampai cabang digabung, label mentah masih dapat muncul. **Koreksi uji 2026-10-14 (pasca-#664, [B]):** kunci mentah itu terlihat pada rel akun **Super admin** yang membuka halaman HR (item paling atas, lihat Gambar 8.11b), bukan pada rel akun HR: rel HR dalam uji (Gambar 8.9a, 8.10) dimulai dari "Dashboard" tanpa item pintu HQ, karena HR tidak memegang `hqConsole`.
 
 > **[SCREENSHOT REQUIRED: SS-hr-01 — Rel menu konsol HR lengkap (21 item bagi HR; no. 12 tidak tampil) saat masuk sebagai HR, dengan "Dashboard" aktif, termasuk dua item paling bawah]**
 > *Gambar 8.1 — Menu konsol HR.*

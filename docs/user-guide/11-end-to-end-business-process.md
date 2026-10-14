@@ -833,7 +833,7 @@ Tabel ini mendaftar langkah yang lazim dibayangkan dalam skenario bisnis ilustra
 | 16 | Persetujuan lamaran otomatis membuat akun pemilik dan depot | Hanya mengubah tahap; undang pemilik dan onboard depot dilakukan manual (oleh peran berbeda) | F10 | [V] |
 | 17 | Persetujuan HQ sebelum pemilik waralaba menarik saldo | Penarikan pemilik langsung memotong saldo (PROCESSING); persetujuan empat mata hanya pada jalur "Ajukan rilis" oleh HQ | F10 | [V] |
 | 18 | Rilis payout otomatis tanggal 15 | "Jatuh tempo" hanya informasi; tidak ada pekerjaan yang merilis | F10 | [D] |
-| 19 | Maker-checker pada refund | Tidak ada pengecekan pemohon ≠ penyetuju. Kolom `refundRequestedBy` ada sejak PR #664 tetapi belum dipakai kode | F02 | [V][B] |
+| 19 | Maker-checker pada refund | Tidak ada pengecekan pemohon ≠ penyetuju. Pemohon dicatat di `refundRequestedBy` dan ditampilkan di antrean HQ (#665), tetapi penegakan pemohon≠penyetuju belum ada | F02 | [V][B] |
 | 20 | Maker-checker pada payroll | Sebagian ada sejak PR #664 (2026-10-14): pembuat slip tidak boleh menyetujui (Super admin dikecualikan); Super admin bisa membatalkan persetujuan sebelum PAID. Tandai Dibayar tidak punya pemeriksaan pelaku | F17 | [V] |
 | 21 | "Tandai Dibayar" memindahkan uang | Hanya mencatat status; transfer dilakukan di bank di luar aplikasi | F17 | [V] |
 | 22 | Undangan staf mengirim SMS/pesan | Tidak ada pesan undangan | F12 | [D] |
@@ -865,7 +865,7 @@ Tabel ini mendaftar langkah yang lazim dibayangkan dalam skenario bisnis ilustra
 | G2 | Cara Kepala depot melihat status approval yang ia ajukan (tidak ada akses; butuh filter `mine` + tab, keputusan pemilik butir 7 belum dibangun) | [K] |
 | G3 | Status penggunaan fitur penugasan lintas depot di produksi | [K] |
 | G4 | Halaman HQ yang kemungkinan galat bagi Finance (Pembayaran, Waralaba, Rekonsiliasi, Skema komisi) | [B][D] |
-| G5 | Pemisahan tugas: payroll sebagian ditegakkan sistem sejak PR #664 (pembuat tidak boleh menyetujui; Super admin dikecualikan; Tandai Dibayar tanpa pemeriksaan). Refund belum (kolom `refundRequestedBy` belum dipakai; toko tanpa Finance kedua akan terblokir). Opname dan void konter satu orang: ambang menunggu keputusan pemilik | [K] |
+| G5 | Pemisahan tugas: payroll sebagian ditegakkan sistem sejak PR #664 (pembuat tidak boleh menyetujui; Super admin dikecualikan; Tandai Dibayar tanpa pemeriksaan). Refund belum (pemohon dicatat dan ditampilkan, penegakan belum ada; toko tanpa Finance kedua akan terblokir). Opname dan void konter satu orang: ambang menunggu keputusan pemilik | [K] |
 | G6 | Alamat surel privasi belum tentu dapat menerima surat | [K] |
 | G7 | Cara pemohon waralaba dihubungi dan menyerahkan dokumen | [K] |
 | G8 | Batas jumlah jadwal ulang pengantaran tidak ditemukan | [D] |
