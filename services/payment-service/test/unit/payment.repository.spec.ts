@@ -50,6 +50,7 @@ describe('PaymentPrismaRepository.updateIfStatus — refund claim', () => {
     gatewayData: null,
     refundedAt: new Date(),
     refundReason: null,
+    refundRequestedBy: null,
     refundedAmount: { toNumber: () => 18000 },
     refundApproval: 'NONE',
     paidAt: null,

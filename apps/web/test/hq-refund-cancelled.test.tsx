@@ -101,6 +101,42 @@ describe('a cancelled order’s refund cannot be refused (CA-2-34)', () => {
   });
 });
 
+describe('who asked for a refund is shown, and gates nothing', () => {
+  const serveRequester = (who: string | null) => {
+    const answer = (url: string) =>
+      String(url).includes('refunds/queue')
+        ? Promise.resolve({
+            items: [{ ...row('DELIVERED'), refundRequestedBy: who }],
+            total: 1,
+            page: 1,
+            limit: 100,
+          })
+        : Promise.resolve({ hqApprovalThresholdIdr: 100_000 });
+    get.mockReset().mockImplementation(answer);
+    getCached.mockReset().mockImplementation(answer);
+  };
+
+  it('names a cancellation as the system, and a person by a short id', async () => {
+    serveRequester('order-service');
+    const first = render(<HqRefundsPage />, { wrapper: Wrap });
+    expect(await screen.findByText(/Sistem \(pembatalan pesanan\)/)).toBeTruthy();
+    first.unmount();
+
+    serveRequester('aaaaaaaa-1111-4111-8111-111111111111');
+    render(<HqRefundsPage />, { wrapper: Wrap });
+    expect(await screen.findByText(/Diminta aaaaaaaa/)).toBeTruthy();
+    // Information only: both actions are still on offer.
+    expect(screen.getByRole('button', { name: /setujui/i })).toBeTruthy();
+  });
+
+  it('says nothing for a row from before the column existed', async () => {
+    serveRequester(null);
+    render(<HqRefundsPage />, { wrapper: Wrap });
+    expect(await screen.findByText(/HM-260904-001/)).toBeTruthy();
+    expect(screen.queryByText(/Diminta /)).toBeNull();
+  });
+});
+
 describe('a refusal that IS allowed has to say why (CA-2-34)', () => {
   it('asks for a reason and sends it', async () => {
     serve('DELIVERED');
