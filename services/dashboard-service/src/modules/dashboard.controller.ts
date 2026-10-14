@@ -33,6 +33,7 @@ export class DashboardController {
    * several depots asking about the one their screen names — and is refused outside it.
    */
   @ApiOkResponse({ type: ExecutiveDashboardResponseDto })
+  @Can('dashboardFinance')
   @Get('executive')
   @ApiOperation({ summary: 'Executive operational dashboard (sales + top lists + delivery SLA)' })
   executive(
@@ -80,6 +81,7 @@ export class DashboardController {
   }
 
   @ApiOkResponse({ type: NetworkDashboardResponseDto })
+  @Can('dashboardFinance')
   @Get('network')
   @ApiOperation({ summary: 'Network per-depot roll-up (revenue, orders, SLA, low stock per depot)' })
   network(

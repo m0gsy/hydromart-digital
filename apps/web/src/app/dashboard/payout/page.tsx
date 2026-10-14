@@ -243,8 +243,11 @@ function PayoutBody() {
     api.get(endpoints.payout.summary, true),
   );
 
-  if (loading) return <Skeleton className="h-96 w-full" />;
-  if (error) return <ErrorState message={error} onRetry={reload} />;
+  // First load only. `onWithdrawn` calls reload(), which flips `loading` back to true; swapping
+  // the whole body for a skeleton on that refetch unmounted BalanceCard and threw away its
+  // `done` receipt, so "Pencairan diproses" never appeared — the data is kept while it refetches.
+  if (loading && !data) return <Skeleton className="h-96 w-full" />;
+  if (error && !data) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
   const nextPayout = new Date(data.nextPayoutDate).toLocaleDateString('id-ID', {

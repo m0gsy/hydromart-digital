@@ -231,7 +231,7 @@ export class DepotController {
   // payment destination. Cut to the caller's own set here, the same rule `scope` uses.
   @ApiOkResponse({ type: PagedDepotResponseDto })
   @ApiBearerAuth()
-  @Can('depotDirectory')
+  @Can('depotDirectoryFinance')
   @Get('manage')
   @ApiOperation({ summary: 'List depots incl. inactive, within the caller scope (admin)' })
   manage(

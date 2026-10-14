@@ -306,6 +306,20 @@ function capsFor(pageFile, why = false) {
     if (hits.length) resolved += 1;
     for (const h of hits) if (h.can) caps.add(h.can);
   }
+  /*
+   * `<x>Finance` is `<x>` plus FINANCE, applied to one read route (see CAPABILITIES in
+   * packages/access). The rail still declares `<x>`, because FINANCE must not be offered the
+   * door `<x>` opens — so a route that checks `<x>Finance` counts as checking `<x>` here.
+   * `capabilities.spec.ts` pins that every `<x>Finance` is exactly `<x>` + FINANCE, which is
+   * what makes this equivalence safe rather than a way to silence the gate.
+   */
+  const READ_VARIANTS = {
+    dashboardFinance: 'dashboard',
+    orderReportsFinance: 'orderReports',
+    depotDirectoryFinance: 'depotDirectory',
+    returnsReadFinance: 'returnsRead',
+  }; // explicit: `depotFinance` is its own capability, not a variant of `depot`
+  for (const c of [...caps]) if (READ_VARIANTS[c]) caps.add(READ_VARIANTS[c]);
   return { caps: [...caps], resolved };
 }
 

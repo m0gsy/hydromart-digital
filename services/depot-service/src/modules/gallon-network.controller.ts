@@ -149,7 +149,7 @@ export class GallonNetworkController {
   }
 
   @ApiOkResponse({ type: GallonOutstandingRowResponseDto, isArray: true })
-  @Can('returnsRead')
+  @Can('returnsReadFinance')
   @Get()
   @ApiOperation({ summary: 'Per-depot outstanding empties + net deposit held (network)' })
   async outstanding(@CurrentUser() user: AuthenticatedUser): Promise<GallonOutstandingRow[]> {
