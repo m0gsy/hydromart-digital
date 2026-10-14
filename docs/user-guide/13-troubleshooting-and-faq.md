@@ -283,7 +283,7 @@ Dasar teknis: masuk memakai nomor telepon dan kode sekali pakai (OTP) lewat SMS.
 | Butir | Isi |
 |---|---|
 | **Gejala** | Finance membuka Pembayaran, Waralaba, Rekonsiliasi, atau Skema komisi lalu melihat layar galat penuh. "—" di kartu. "Net payout ke pemilik" selalu "—". SPV melihat Komisi kurir/Tinjauan bulanan/Performa tim kosong atau galat (bagian SPV diperbaiki sejak PR #664, lihat Penyebab). |
-| **Penyebab** | Halaman memuat data dari layanan yang menolak peran itu (Pembayaran memuat `dashboard`; Waralaba dan Skema komisi memuat `depotDirectory`; Rekonsiliasi memuat `dashboard`) **[B][V]**. Dari pembacaan kode, bukan uji peramban **[D]**. "—" artinya data tidak terbaca, BUKAN nol **[V]**. Biaya platform hanya terbaca dengan `depotAdmin` **[V]**. Sejak PR #664 (2026-10-14), menu **Komisi kurir**, **Tinjauan bulanan**, dan **Performa tim** di konsol depot memakai kapabilitas yang ditegakkan server (`courierSettle`, `dailyClose`, `deliveryReports`), sehingga peran tanpa kapabilitas itu (mis. SPV) tidak lagi melihat menu yang berujung 403 **[V]** (`roles.ts`, `ops-rail.tsx`). Layar galat penuh untuk Finance di Pembayaran/Waralaba/Skema komisi/Rekonsiliasi tetap belum diuji di peramban **[D][K]**. |
+| **Penyebab** | Halaman memuat data dari layanan yang menolak peran itu (Pembayaran memuat `dashboard`; Waralaba dan Skema komisi memuat `depotDirectory`; Rekonsiliasi memuat `dashboard`) **[B][V]**. Dari pembacaan kode, bukan uji peramban **[D]**. "—" artinya data tidak terbaca, BUKAN nol **[V]**. Biaya platform hanya terbaca dengan `depotAdmin` **[V]**. Sejak PR #664 (2026-10-14), menu **Komisi kurir**, **Tinjauan bulanan**, dan **Performa tim** di konsol depot memakai kapabilitas yang ditegakkan server (`courierSettle`, `dailyClose`, `deliveryReports`), sehingga peran tanpa kapabilitas itu (mis. SPV) tidak lagi melihat menu yang berujung 403 **[V]** (`roles.ts`, `ops-rail.tsx`). Layar galat penuh untuk Finance di Pembayaran/Waralaba/Skema komisi/Rekonsiliasi **terbukti pada uji layar 2026-10-14 di `main`** ("You do not have permission to perform this action.", tombol "Coba lagi") **[B][V]**. **Status perbaikan:** commit 609a497 pada cabang `fix/uat-g128-g149-g152` menambah empat kapabilitas baca untuk Finance (`dashboardFinance`, `orderReportsFinance`, `depotDirectoryFinance`, `returnsReadFinance`), tetapi cabang itu BELUM di `main` dan BELUM diuji ulang; selama belum digabung, galat ini masih terjadi dan jawaban "Perbaikan" di bawah tetap berlaku **[V code]**. |
 | **Diagnosis** | Catat halaman dan peran. Tes: apakah akun HQ lain dapat membuka halaman itu? |
 | **Perbaikan** | Mintalah Manajer atau Admin membaca angka itu. Jangan berbagi akun Admin. |
 | **Peran/izin** | Admin. |
@@ -973,7 +973,7 @@ Sumber: bagian 9 tiap bab peran. **[V]**
 |---|---|
 | Kenapa tombol depot/payout/refund menolak? | Tampil tetapi tak dibatasi peran (T-12, bagian 17.3). |
 | Siapa menyetujui rilis payout? | Direktur/Super admin; pengaju Finance (T-62). |
-| Kenapa Finance melihat galat penuh? | Halaman memuat data yang ditolak peran itu (T-16). |
+| Kenapa Finance melihat galat penuh? | Halaman memuat data yang ditolak peran itu (T-16). Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang. |
 | Apakah keputusan lamaran waralaba bisa dibatalkan? | Tidak; final **[V]**. |
 
 ### 18.6 Admin (Super admin)

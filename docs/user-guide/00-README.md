@@ -1,6 +1,6 @@
 # Panduan Pengguna Hydromart — Indeks Utama
 
-**Versi:** 0.3 (draf) · **Tanggal pembaruan terakhir:** 2026-10-14 · **Bahasa:** Indonesia
+**Versi:** 0.4 (draf) · **Tanggal pembaruan terakhir:** 2026-10-14 · **Bahasa:** Indonesia
 
 Hydromart adalah platform operasional depot air minum isi ulang di Indonesia (depot milik perusahaan "HKP" dan depot waralaba). Paket dokumen ini menjelaskan cara tiap peran bekerja di aplikasi, dari awal sampai akhir.
 
@@ -109,3 +109,4 @@ Dokumen untuk pelanggan (02) sebaiknya didistribusikan sendiri. Jangan menyertak
 | 0.1 | 2026-10-11 | Draf pertama dari audit kode. Belum diuji di aplikasi; screenshot menyusul. |
 | 0.2 | 2026-10-14 | Dicocokkan ulang dengan kode setelah PR #664 (perbaikan celah); audit sampel klaim [V] pada bab HR, Admin, HQ (227 klaim: 205 benar, 14 sebagian, 8 salah, semuanya sudah dikoreksi); 104 skenario dijalankan; 50 screenshot pasca-#664 ditambahkan (total 124); 148 celah berstatus 2026-10-14 + G-149..G-155 baru. |
 | 0.3 | 2026-10-14 | Status G-149..G-153 dicocokkan dengan cabang `fix/uat-g128-g149-g152` (5a8ae4a; `main` = 9ba67b7 setelah #665 dan #666). G-149, G-150, G-151 diperbaiki di cabang dan sebagian G-152 (catatan sengketa kosong); belum di `main`, terverifikasi dari kode, belum diuji ulang. G-153: diklaim selesai pemilik, perbaikan kodenya tidak ditemukan (kemungkinan sengaja; perlu konfirmasi). G-128: pemohon refund dicatat dan ditampilkan (#665), penegakan pemohon≠penyetuju belum ada. Catatan gambar beranda pelanggan yang mendahului #666. Hasil Pass/Fail Bab 15 tidak diubah. |
+| 0.4 | 2026-10-14 | Dicocokkan dengan commit 609a497 pada cabang `fix/uat-g128-g149-g152` (di atas 5a8ae4a; belum di `main` = 9ba67b7, belum diuji ulang). (1) Layar Finance: empat kapabilitas baca baru (`dashboardFinance`, `orderReportsFinance`, `depotDirectoryFinance`, `returnsReadFinance`); 110 kapabilitas di cabang, 106 di `main`; FINANCE 21 menjadi 25; kapabilitas dasar dan sembilan pintu `/hq` tidak berubah. Pengamatan galat Finance 2026-10-14 (Bab 9) dipertahankan sebagai kondisi pra-perbaikan. (2) `/dashboard/payout`: `if (loading && !data)` sehingga kartu "Pencairan diproses" tidak lagi terbuang saat muat ulang (Bab 7). G-086 menjadi "Diperbaiki di cabang, belum di `main`"; ringkasan Bab 17 dan Bab 16 dihitung ulang dengan skrip; Bab 15 menambah daftar uji ulang. Tabel nilai `main` di Bab 12 tidak diubah (empat kapabilitas dipisah di bagian 6.1). Hasil Pass/Fail Bab 15 tidak diubah. |

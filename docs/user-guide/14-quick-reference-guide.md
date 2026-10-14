@@ -128,7 +128,7 @@ Tidak ada 2FA tambahan untuk staf selain OTP login. **[V]** Menonaktifkan akun m
 |---|---|---|---|
 | **Manajer** | `/dashboard` (web), `/m/manager` (ponsel) | Antrean approval (Setujui/Tahan/Tolak), pengadaan, pengaturan depot, klaim kurir ≤ Rp 500.000, cuti tahap 1, refund (mulai) | Tidak boleh memutus approval yang ia ajukan; tidak punya pintu `/hq` |
 | **Direktur** | `/hq` | Baca jaringan, setujui rilis payout (bukan pengaju), putuskan harga/lamaran/fraud | Tidak mengundang staf atau memutus PDP |
-| **Finance** | Layar `/hq` pertama yang diizinkan | Refund (putus), payout (Lunas/Gagal), komisi, pajak, payroll | Beberapa layar kemungkinan error penuh **[D]** |
+| **Finance** | Layar `/hq` pertama yang diizinkan | Refund (putus), payout (Lunas/Gagal), komisi, pajak, payroll | Pembayaran, Waralaba, Rekonsiliasi, Skema komisi galat penuh di `main` (terbukti 2026-10-14) **[B][V]**; diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang |
 | **Marketing** | `/dashboard/campaigns` | Kampanye, promo, voucher, hadiah, churn | Tanpa pintu `/hq` |
 
 ## 3. Tugas yang sering dilakukan

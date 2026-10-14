@@ -5,8 +5,8 @@
 | **Versi** | 0.1 draf |
 | **Tanggal** | 2026-10-10 (dicocokkan ulang dengan kode pasca PR #664 pada 2026-10-14) |
 | **Klasifikasi** | Internal — Rahasia |
-| **Sumber utama** | `packages/access/src/index.ts` (106 kapabilitas), `apps/web/src/lib/roles.ts`, `apps/web/src/lib/hq-nav.ts`, `apps/web/src/components/dashboard/ops-rail.tsx`, temuan A–I dan K |
-| **Status pengujian** | Belum ada pengujian di aplikasi yang dijalankan oleh penulis dokumen ini. Semua nilai berasal dari pembacaan kode. |
+| **Sumber utama** | `packages/access/src/index.ts` (106 kapabilitas di `main`; 110 di cabang `fix/uat-g128-g149-g152` sampai commit 609a497, belum di `main`), `apps/web/src/lib/roles.ts`, `apps/web/src/lib/hq-nav.ts`, `apps/web/src/components/dashboard/ops-rail.tsx`, temuan A–I dan K |
+| **Status pengujian** | Belum ada pengujian di aplikasi yang dijalankan oleh penulis dokumen ini. Semua nilai berasal dari pembacaan kode. Perbaikan di cabang `fix/uat-g128-g149-g152` (609a497) belum ada di `main` dan belum diuji ulang. |
 
 Bab ini menjawab satu pertanyaan: **siapa boleh melakukan apa, dan dengan syarat apa.** Nilai disusun per modul, berdasarkan **kapabilitas nyata di kode** (kolom "Bukti"), bukan berdasarkan nama peran.
 
@@ -18,8 +18,9 @@ Bab ini menjawab satu pertanyaan: **siapa boleh melakukan apa, dan dengan syarat
 2. **SUPER_ADMIN selalu lolos.** Fungsi `can()` mengembalikan benar untuk SUPER_ADMIN sebelum membaca perubahan apa pun, jadi SUPER_ADMIN tidak bisa kehilangan kapabilitas lewat penyuntingan matriks. Satu-satunya penjaga tambahan: `accessMatrixWrite` tidak boleh dilepas dari SUPER_ADMIN (ditolak "SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite."). **[V]**
 3. **Tampilan bukan izin.** Layar sering menampilkan tombol yang akan ditolak server. Tanda **[B]** pada penjelasan sel menandai kasus yang diketahui. Server selalu menjadi penentu: tombol yang tampil belum tentu boleh dipakai, dan menu yang tersembunyi bukan jaminan keamanan. **[V]**
 4. **Cakupan depot menentukan data yang terlihat**, terpisah dari boleh/tidaknya aksi (lihat 1.4).
-5. **Kapabilitas per peran tidak berubah oleh PR #664 (2026-10-14).** Perbandingan `packages/access/src/index.ts` pada commit e01db63 dan HEAD (tanpa komentar) hanya berbeda satu baris: `RESTRICTED_GRANTS` mendapat `HEAD_OFFICE: ['SUPER_ADMIN']`. Isi `CAPABILITIES` dan tabel di bagian 6 tetap sah; yang diperbarui hanya aturan pemberian peran (bagian 3.16, 5.3), catatan [B] yang sudah diperbaiki, dan log verifikasi (bagian 7). **[V]**
+5. **Kapabilitas per peran tidak berubah oleh PR #664 (2026-10-14) di `main`; berubah di cabang `fix/uat-g128-g149-g152` (609a497): +4 kapabilitas baca (106 menjadi 110), belum di `main` (lihat butir 7 dan bagian 6.1).** Perbandingan `packages/access/src/index.ts` pada commit e01db63 dan HEAD (tanpa komentar) hanya berbeda satu baris: `RESTRICTED_GRANTS` mendapat `HEAD_OFFICE: ['SUPER_ADMIN']`. Isi `CAPABILITIES` dan tabel di bagian 6 tetap sah; yang diperbarui hanya aturan pemberian peran (bagian 3.16, 5.3), catatan [B] yang sudah diperbaiki, dan log verifikasi (bagian 7). **[V]**
 6. Pernyataan "tidak diuji" berlaku untuk seluruh bab ini. Sel bertanda **Tidak terverifikasi** adalah kasus di mana pembacaan kode saja tidak cukup untuk memastikan hasil di layar.
+7. **Nilai "cabang" dipisahkan dari nilai `main`.** Tabel bagian 3 dan tabel utama bagian 6 (106 kapabilitas) tetap menggambarkan `main`. Empat kapabilitas baca tambahan dari commit 609a497 pada cabang `fix/uat-g128-g149-g152` (di atas 5a8ae4a) dicatat terpisah di bagian 6.1 dan ditandai **hanya di cabang, belum di `main`, belum diuji ulang**. Bila cabang digabung, jumlah menjadi 110. **[V]**
 
 ### 1.2 Nilai sel
 
@@ -60,23 +61,23 @@ Angka dalam kurung siku, mis. `[3.4]`, merujuk ke penjelasan di bawah tabel modu
 
 ### 1.5 Peran dan singkatan di tabel
 
-| Singkatan | Nama di UI | Kode | Konsol utama | Jumlah kapabilitas bawaan |
-|---|---|---|---|---|
-| CUS | Pelanggan | `CUSTOMER` | Aplikasi/situs belanja | 0 (memakai rute berperan CUSTOMER) |
-| KD | Kepala depot | `KEPALA_DEPOT` | Konsol operator `/dashboard` (tab atas) | 38 |
-| STF | Staf depot (= kurir) | `STAFF_DEPOT` | Aplikasi kurir `/driver` | 12 |
-| SPV | SPV | `SUPERVISOR` | `/dashboard` (rel kiri) | 21 |
-| ASPV | Asisten SPV | `ASSISTANT_SUPERVISOR` | `/dashboard` (rel kiri) | 15 |
-| FRA | Pemilik waralaba | `FRANCHISE_OWNER` | `/dashboard/franchise` | 6 |
-| HR | HR | `HR` | `/hr` | 10 |
-| HO | Kantor pusat (Head office) | `HEAD_OFFICE` | `/hq` | 56 |
-| SA | Super admin | `SUPER_ADMIN` | `/hq` dan semua konsol | 106 (semua) |
-| MGR | Manajer | `MANAGER` | `/dashboard`, `/m/manager` (ponsel) | 68 |
-| DIR | Direktur | `DIREKTUR` | `/hq` | 46 |
-| FIN | Finance | `FINANCE` | `/hq` (terbatas) | 21 |
-| MKT | Marketing | `MARKETING` | `/dashboard/campaigns` | 18 |
+| Singkatan | Nama di UI | Kode | Konsol utama | Jumlah kapabilitas bawaan (`main`) | Di cabang 609a497 (belum di `main`) |
+|---|---|---|---|---|---|
+| CUS | Pelanggan | `CUSTOMER` | Aplikasi/situs belanja | 0 (memakai rute berperan CUSTOMER) | 0 (tetap) |
+| KD | Kepala depot | `KEPALA_DEPOT` | Konsol operator `/dashboard` (tab atas) | 38 | 40 (+2) |
+| STF | Staf depot (= kurir) | `STAFF_DEPOT` | Aplikasi kurir `/driver` | 12 | 12 (tetap) |
+| SPV | SPV | `SUPERVISOR` | `/dashboard` (rel kiri) | 21 | 23 (+2) |
+| ASPV | Asisten SPV | `ASSISTANT_SUPERVISOR` | `/dashboard` (rel kiri) | 15 | 17 (+2) |
+| FRA | Pemilik waralaba | `FRANCHISE_OWNER` | `/dashboard/franchise` | 6 | 8 (+2) |
+| HR | HR | `HR` | `/hr` | 10 | 10 (tetap) |
+| HO | Kantor pusat (Head office) | `HEAD_OFFICE` | `/hq` | 56 | 60 (+4) |
+| SA | Super admin | `SUPER_ADMIN` | `/hq` dan semua konsol | 106 (semua) | 110 (+4) |
+| MGR | Manajer | `MANAGER` | `/dashboard`, `/m/manager` (ponsel) | 68 | 72 (+4) |
+| DIR | Direktur | `DIREKTUR` | `/hq` | 46 | 50 (+4) |
+| FIN | Finance | `FINANCE` | `/hq` (terbatas) | 21 | 25 (+4) |
+| MKT | Marketing | `MARKETING` | `/dashboard/campaigns` | 18 | 18 (tetap) |
 
-Jumlah dihitung ulang dari kode pada penulisan ini (bagian 6). Urutan rantai depot: STAFF_DEPOT → KEPALA_DEPOT → ASSISTANT_SUPERVISOR → SUPERVISOR → MANAGER → DIREKTUR. **[V]**
+Jumlah `main` dihitung ulang dari kode pada penulisan ini (bagian 6); jumlah cabang dihitung dengan skrip penghitung yang sama pada `git show origin/fix/uat-g128-g149-g152:packages/access/src/index.ts` (bagian 6.1 dan 7). Urutan rantai depot: STAFF_DEPOT → KEPALA_DEPOT → ASSISTANT_SUPERVISOR → SUPERVISOR → MANAGER → DIREKTUR. **[V]**
 
 Pemetaan istilah permintaan: "Staff Depot" di dokumen ini = peran `STAFF_DEPOT`, yang di kode adalah **kurir** (masuk ke `/driver`). "Admin" = `SUPER_ADMIN` (di UI tertulis "Super admin"). "HQ" = `HEAD_OFFICE` (UI "Head office"/"Kantor pusat"); DIREKTUR dan FINANCE juga melewati pintu `/hq`.
 
@@ -95,7 +96,7 @@ Pemetaan istilah permintaan: "Staff Depot" di dokumen ini = peran `STAFF_DEPOT`,
 | **Admin (Super admin)** | Semua kapabilitas, plus matriks akses, hierarki, hapus staf, platform (flag, kunci API, webhook, retensi, keamanan), setelan global. |
 | **Manajer (lampiran)** | Pemegang kapabilitas depot terluas (68), termasuk approval, pengadaan, refund (mulai), klaim, cuti tahap 1, kasbon eskalasi. Bukan pintu `/hq`. |
 | **Direktur (lampiran)** | Baca jaringan luas + keputusan HQ (harga, lamaran, fraud, rilis payout). Tidak: undang staf, PDP, ambang approval, ubah data. |
-| **Finance (lampiran)** | Refund (putus), payout, komisi, pajak, payroll (bersama HR), rekonsiliasi. Pintu `/hq` terbuka, tetapi beberapa layar kemungkinan error (bagian 5). |
+| **Finance (lampiran)** | Refund (putus), payout, komisi, pajak, payroll (bersama HR), rekonsiliasi. Pintu `/hq` terbuka, tetapi beberapa layar galat izin pada `main` (bagian 5); diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang. |
 | **Marketing (lampiran)** | Kampanye, promo, voucher, loyalty, katalog hadiah, churn. Tidak lewat pintu `/hq`. |
 
 ## 3. Matriks per modul
@@ -385,12 +386,12 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
-- **[13.1]** Halaman /hq/reconciliation dan /hq/payments memuat data dari layanan yang menolak FINANCE; error penuh diduga. [D]
-- **[13.2]** Halaman memuat dashboard/executive yang menolak FINANCE. [D]
-- **[13.3]** Lihat catatan FINANCE di atas. [D]
+- **[13.1]** Halaman /hq/reconciliation dan /hq/payments memuat data dari layanan yang menolak FINANCE; galat izin penuh (terbukti dalam UAT 2026-10-14, kondisi `main` sebelum perbaikan). **[B]** Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497) lewat kapabilitas `dashboardFinance`, `orderReportsFinance`, `depotDirectoryFinance`, `returnsReadFinance`; belum di `main`, belum diuji ulang. Sel FIN tetap "Tidak terverifikasi" sampai uji ulang.
+- **[13.2]** Halaman memuat dashboard/executive yang menolak FINANCE (pengamatan pra-perbaikan). **[B]** Di cabang: `dashboardFinance` (belum di `main`, belum diuji ulang).
+- **[13.3]** Lihat catatan FINANCE di atas dan [13.1]. [D]
 - **[13.4]** Bukan pengaju yang sama (ReleaseSelfApprovalError). [V]
 - **[13.5]** Hanya ke rekening yang diverifikasi FINANCE; minimal Rp50.000 per penarikan (sejak PR #664); tanpa persetujuan, langsung berstatus Diproses. Halaman Payout pemilik kini menampilkan "Riwayat penarikan". [V]
-- **[13.6]** Halaman memuat daftar depot yang menolak FINANCE. [D]
+- **[13.6]** Halaman memuat daftar depot yang menolak FINANCE (pengamatan pra-perbaikan). **[B]** Di cabang: `depotDirectoryFinance` hanya untuk daftar depot (belum di `main`, belum diuji ulang).
 - **[13.7]** Diperbaiki sejak PR #664 (2026-10-14): menu Komisi kurir kini memakai `courierSettle` (KD, MGR, FIN, SA), Tinjauan bulanan memakai `dailyClose` (KD, MGR, HO, DIR, SA), dan Performa tim memakai `deliveryReports` (HO, MGR, SA), yaitu kapabilitas yang ditegakkan server. Dengan demikian SPV tidak lagi melihat ketiganya. Buku kas boleh dicatat/dibalik (`depotFinance`). [V code]
 
 ### 3.14 HR, payroll, cuti, kasbon
@@ -552,7 +553,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 
 Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkasan khas:
 
-### 4.1 MANAJER (`MANAGER`) — 68 kapabilitas
+### 4.1 MANAJER (`MANAGER`) — 68 kapabilitas (72 di cabang 609a497, belum di `main`)
 
 - **Cakupan:** himpunan depot (bukan terkunci). Konsol: `/dashboard` di web; di aplikasi Ops ponsel mendarat di `/m/manager` (Beranda, Approval, Notif, Tim, Akun). **[V]**
 - **Hanya MANAGER (di antara peran depot):** `approvals`, `procurement`, `depotAdmin`, `depotWholesale`, `depotSubscriptions`, `refundIssue` (bersama FINANCE), `expenseApprove` (bersama FINANCE), `leaveApprove` (bersama HR), `settingsRead`, `staffDirectory`, `catalogWrite`, `loyaltyAdjust`, `salesImportAdmin`, `resellerAdmin`. **[V]**
@@ -562,20 +563,21 @@ Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkas
 - **Menu yang tampil tetapi data ditolak:** lihat 3.13 dan 3.19 (SPV/ASPV); untuk MANAGER tidak ada kasus [B] yang diketahui. **[D]**
 - **Hanya MANAGER, SA yang melihat** antrean approval. Pengaju tidak boleh memutus approval yang ia ajukan sendiri (`ApprovalSelfDecideError`, approval.service.ts:138). **[V]**
 
-### 4.2 DIREKTUR (`DIREKTUR`) — 46 kapabilitas
+### 4.2 DIREKTUR (`DIREKTUR`) — 46 kapabilitas (50 di cabang 609a497, belum di `main`)
 
 - **Cakupan:** jaringan; pintu `/hq`. Peran pengawas: membaca hampir semua, memutus keputusan HQ (`priceOverrideDecide`, `franchiseApplications`, `fraudReview`; `voucherRequestDecide` berstatus RETIRED sejak PR #664, tidak ditegakkan), **menyetujui rilis payout** (`hqPayoutApprove`, bersama SA saja), menutup buku (`dailyClose`), mengelola HR (`hrAdmin`, `employeeAssign`). **[V]**
 - **Sengaja tidak punya:** `staffAdmin` (tidak boleh membuat akun), `pdpRequests`, `approvalThresholdWrite`, `catalogWrite`, `dailyCloseReopen` (komentar kode: peran pengawasan membaca tanpa menulis). **[V]**
 - **Peran DIREKTUR hanya dapat diberikan SUPER_ADMIN.** **[V]** (`RESTRICTED_GRANTS`).
 
-### 4.3 FINANCE (`FINANCE`) — 21 kapabilitas
+### 4.3 FINANCE (`FINANCE`) — 21 kapabilitas (25 di cabang 609a497, belum di `main`)
 
 - **Cakupan:** jaringan. Pintu `/hq` terbuka karena tujuh kapabilitasnya hanya punya layar di `/hq`: refund, payout, komisi, pajak, rekonsiliasi, template faktur. **[V]**
 - **Hanya FINANCE + SA:** `refundQueue`, `hqPayout`, `commissionRuns`, `earningRules`. **[V]**
-- **Risiko yang diketahui (bagian 5.1):** `/hq/payments`, `/hq/franchise`, `/hq/reconciliation`, `/hq/forms/commission` memuat data dari layanan yang menolak FINANCE (`dashboard`, `depotDirectory`) sehingga kemungkinan tampil error penuh. Alur payout Lunas/Gagal dan skema komisi untuk FINANCE **perlu diverifikasi di lingkungan nyata**. **[D]**
+- **Risiko yang diketahui (bagian 5.1):** `/hq/payments`, `/hq/franchise`, `/hq/reconciliation`, `/hq/forms/commission` memuat data dari layanan yang menolak FINANCE (`dashboard`, `depotDirectory`) sehingga tampil galat izin penuh (terbukti dalam UAT 2026-10-14, kondisi `main`). **[B]** Alur payout Lunas/Gagal dan skema komisi untuk FINANCE **perlu diverifikasi di lingkungan nyata**. **[D]**
+- **Diperbaiki di cabang (belum di `main`):** commit 609a497 pada `fix/uat-g128-g149-g152` menambah empat kapabilitas baca untuk FINANCE (`dashboardFinance`, `orderReportsFinance`, `depotDirectoryFinance`, `returnsReadFinance`; 21 menjadi 25). Pintu `/hq` tidak berubah. Belum diuji ulang. **[V code]**
 - Pendaratan setelah masuk: layar `/hq` pertama yang boleh dibuka (bukan `/hr`). **[V]** (`consoleHome`, CA-2-17).
 
-### 4.4 MARKETING (`MARKETING`) — 18 kapabilitas
+### 4.4 MARKETING (`MARKETING`) — 18 kapabilitas (tetap 18 di cabang)
 
 - **Cakupan:** jaringan; **bukan** pintu `/hq` (keputusan pemilik 2 September 2026). Mendarat di `/dashboard/campaigns`. **[V]**
 - Memegang: kampanye (baca/tulis), kampanye depot, promo, voucher, aturan promo, churn, loyalty (baca/sesuaikan), katalog hadiah, serah hadiah, direktori pelanggan, jangkauan audiens, cek pelanggan per HP. **[V]**
@@ -594,6 +596,7 @@ Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkas
 | Waralaba | Menu ponsel "Antrean", Pencarian | Tampil | Kosong/ditolak |
 | SPV / ASPV | ~~Performa tim, Komisi kurir, Tinjauan bulanan~~ (diperbaiki sejak PR #664, 2026-10-14) | Menu kini memakai `deliveryReports`, `courierSettle`, `dailyClose`, yang ditegakkan server, sehingga tidak tampil bagi SPV/ASPV | Server tetap menolak |
 | HO / DIR | Onboard/Edit/Tangguhkan depot; Buat kampanye; Re-engage churn; Beri poin; banner promo | Tombol tampil | 403 |
+| FINANCE | /hq/payments, /hq/reconciliation, /hq/franchise, formulir skema komisi | Layar tampil (pintu `/hq` terbuka) | Galat izin penuh pada `main` (UAT 2026-10-14). Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497) dengan empat kapabilitas baca baru; belum di `main`, belum diuji ulang |
 | HO / DIR | Ajukan rilis, Verifikasi rekening, Lunas/Gagal, Setujui/Tolak refund, Terapkan skema komisi | Tombol tampil | 403 (butuh FINANCE/SA) |
 | HR | Opsi peran MANAGER pada form karyawan untuk HO/DIR | Tampil | Ditolak |
 | HO / DIR | Kebijakan SLA | Tidak di rel (gerbang `depotAdmin`) | Server memakai `hqBackOffice` (HO/DIR boleh) — layar tak terjangkau |
@@ -633,7 +636,7 @@ Catatan: keputusan pemilik 2026-10-14: HEAD_OFFICE tidak boleh membuat HEAD_OFFI
 - **Penarikan pemilik waralaba (dan kurir):** minimal Rp50.000 (sejak PR #664); langsung Diproses (saldo dipotong) tanpa persetujuan HQ → FINANCE/SA tandai Lunas atau Gagal (saldo kembali). **[V]**
 - **Rilis oleh HQ:** FINANCE/SA ajukan seluruh saldo → DIREKTUR/SA setujui (beda akun) → penarikan Diproses → FINANCE/SA tandai. **[V]**
 
-## 6. Tabel lengkap 106 kapabilitas × 13 peran
+## 6. Tabel lengkap 106 kapabilitas × 13 peran (kondisi `main`)
 
 Dibangkitkan dari `CAPABILITIES` di `packages/access/src/index.ts` oleh skrip (bukan disalin manual), lalu dibandingkan dengan tabel temuan K: **0 selisih**. ✓ = dipegang secara bawaan; · = tidak. SUPER_ADMIN ✓ untuk semua karena `can()`. Kolom fungsi adalah ringkasan penulis; bila bertentangan, kode yang berlaku.
 
@@ -747,13 +750,32 @@ Dibangkitkan dari `CAPABILITIES` di `packages/access/src/index.ts` oleh skrip (b
 | 106 | `platformAdmin` | Flag, kunci API, webhook, retensi, keamanan | · | · | · | · | · | · | · | · | · | · | · | · | ✓ | 1 |
 Kolom "Jml peran" menghitung peran yang menandai ✓ (termasuk SUPER_ADMIN, tidak termasuk CUSTOMER yang tidak punya kapabilitas).
 
+### 6.1 Kapabilitas tambahan hanya di cabang `fix/uat-g128-g149-g152` (commit 609a497, belum di `main`)
+
+**Status: belum di `main`, belum diuji ulang.** Empat kapabilitas baca ini ditambahkan agar layar Finance tidak lagi galat izin. Masing-masing adalah peran kapabilitas dasarnya ditambah FINANCE, untuk satu rute baca yang dipakai layar. Kapabilitas dasar (`dashboard`, `orderReports`, `depotDirectory`, `returnsRead`) dan sembilan pintu `/hq` tidak berubah. Tabel di atas (nomor 1-106) tidak diubah. **[V code]**
+
+| # | Kapabilitas (cabang) | Label matriks | Rute yang dibuka | CUS | STF | KD | ASPV | SPV | MGR | DIR | FRA | HO | FIN | HR | MKT | SA | Jml peran |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 107 | `dashboardFinance` | Baca dasbor eksekutif & jaringan (layar keuangan) | dashboard-service `/dashboard/executive` dan `/dashboard/network` | · | · | · | ✓ | ✓ | ✓ | ✓ | · | ✓ | ✓ | · | · | ✓ | 7 |
+| 108 | `orderReportsFinance` | Baca ongkir & refund per depot (rekonsiliasi) | order-service ongkir per depot dan refund per depot (2 rute) | · | · | · | · | · | ✓ | ✓ | · | ✓ | ✓ | · | · | ✓ | 5 |
+| 109 | `depotDirectoryFinance` | Baca daftar depot (layar keuangan) | depot-service `GET depots/manage` (hanya daftar depot) | · | · | ✓ | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | · | · | ✓ | 7 |
+| 110 | `returnsReadFinance` | Baca galon beredar jaringan (rekonsiliasi) | depot-service gallon-network | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · | · | ✓ | 9 |
+
+Peran pemegang: `dashboardFinance` = HEAD_OFFICE, MANAGER, SUPERVISOR, ASSISTANT_SUPERVISOR, DIREKTUR, FINANCE, SUPER_ADMIN. `orderReportsFinance` = HEAD_OFFICE, MANAGER, DIREKTUR, FINANCE, SUPER_ADMIN. `depotDirectoryFinance` = KEPALA_DEPOT, MANAGER, HEAD_OFFICE, DIREKTUR, FRANCHISE_OWNER, FINANCE, SUPER_ADMIN. `returnsReadFinance` = KEPALA_DEPOT, MANAGER, SUPERVISOR, ASSISTANT_SUPERVISOR, HEAD_OFFICE, DIREKTUR, FRANCHISE_OWNER, FINANCE, SUPER_ADMIN.
+
+Dampak jumlah per peran bila cabang digabung: KD 38 menjadi 40, ASPV 15 menjadi 17, SPV 21 menjadi 23, MGR 68 menjadi 72, DIR 46 menjadi 50, FRA 6 menjadi 8, HO 56 menjadi 60, FIN 21 menjadi 25, SA 106 menjadi 110; STF 12, HR 10, MKT 18, CUS 0 tetap. **[V]**
+
+Catatan: peran selain FINANCE sudah memegang kapabilitas dasar yang sama, sehingga bagi mereka yang baru hanyalah nama kapabilitas; yang benar-benar berubah aksesnya adalah FINANCE. Keempatnya hanya membuka satu rute baca masing-masing dan tidak menambah izin tulis. **[V code]**
+
+
 ## 7. Verifikasi ulang di kode (dilakukan saat penulisan)
 
 | Pemeriksaan | Hasil | Status |
 |---|---|---|
-| Jumlah kapabilitas di `CAPABILITIES` | 106 | **[V]** |
+| Jumlah kapabilitas di `CAPABILITIES` | 106 di `main` | **[V]** |
 | Matriks dibangkitkan ulang dari kode vs tabel temuan K | 0 selisih | **[V]** |
-| Jumlah kapabilitas per peran | CUS 0, STF 12, KD 38, ASPV 15, SPV 21, MGR 68, DIR 46, FRA 6, HO 56, FIN 21, HR 10, MKT 18, SA 106 | **[V]** |
+| Jumlah kapabilitas per peran | CUS 0, STF 12, KD 38, ASPV 15, SPV 21, MGR 68, DIR 46, FRA 6, HO 56, FIN 21, HR 10, MKT 18, SA 106 (nilai `main`) | **[V]** |
+| **Cabang `fix/uat-g128-g149-g152` (609a497, di atas 5a8ae4a), 2026-10-14:** isi `CAPABILITIES` dibaca dari `git show origin/fix/uat-g128-g149-g152:packages/access/src/index.ts` dan dihitung dengan skrip penghitung yang sama | 110 kapabilitas (+4: `dashboardFinance`, `orderReportsFinance`, `depotDirectoryFinance`, `returnsReadFinance`). Per peran: CUS 0, STF 12, KD 40, ASPV 17, SPV 23, MGR 72, DIR 50, FRA 8, HO 60, FIN 25, HR 10, MKT 18, SA 110. Kapabilitas dasar tidak berubah. Belum di `main`, belum diuji ulang | **[V]** |
 | `refundQueue` dipakai di controller | `payment.controller.ts:642,653` (approve dan reject) | **[V]** |
 | `hqPayoutApprove` dipakai | `hq-payout.controller.ts:140,152` | **[V]** |
 | `approvals` | `approval.controller.ts:20` (tingkat kelas) | **[V]** |
@@ -768,6 +790,7 @@ Kolom "Jml peran" menghitung peran yang menandai ✓ (termasuk SUPER_ADMIN, tida
 | `approvalThresholdWrite` | tidak ada `@Can` langsung; dipakai sebagai `requires` pada setelan `approvalAutoPassIdr` (`setting-defs.ts:66`) | **[V]** |
 | Larangan memutus sendiri | approval.service.ts:138; hq-release.service.ts:93 | **[V]** |
 | **Pencocokan ulang 2026-10-14 (setelah PR #664, merge f71b0b9):** isi `CAPABILITIES` e01db63 vs HEAD | Identik (diff tanpa komentar hanya menambah `HEAD_OFFICE: ['SUPER_ADMIN']` di `RESTRICTED_GRANTS`); jumlah 106 dan tabel bagian 6 tidak berubah | **[V]** |
+| Perbandingan nilai `main` vs cabang | Yang berubah hanya empat entri baru; nilai kapabilitas lain identik (selisih per peran sama dengan +4 FIN/HO/MGR/DIR, +2 KD/ASPV/SPV/FRA) | **[V]** |
 | `RESTRICTED_GRANTS` + `canGrantRole` | HEAD_OFFICE hanya dari SUPER_ADMIN; peran tak terdaftar (5 peran) bebas bagi pemegang `staffAdmin` | **[V]** |
 | `payroll.service.ts` `approve` / `unapprove` | pembuat slip ditolak kecuali SUPER_ADMIN; `unapprove` hanya SUPER_ADMIN, hanya dari APPROVED, alasan wajib, audit `PAYROLL_UNAPPROVE` | **[V]** |
 | `settlement.service.ts` | beban selisih butuh `can('approvals')` (MANAGER, SUPER_ADMIN) | **[V]** |
@@ -786,7 +809,7 @@ Yang **belum** diverifikasi: perilaku nyata di peramban untuk semua sel bertanda
 | # | Celah | Dampak | Tag |
 |---|---|---|---|
 | 1 | Komentar header `index.ts:35` menyebut SPV/ASPV "tanpa tulis, uang, approval". Di kode SPV/ASPV menulis (status pesanan, dispatch), SPV juga insiden, sengketa, target, buku kas. | Dokumen ini mengikuti kapabilitas, bukan komentar. | **[B]** |
-| 2 | FINANCE: beberapa layar `/hq` kemungkinan error penuh karena memuat data yang tidak boleh dibaca FINANCE. | Alur payout Lunas/Gagal dan komisi mungkin hanya bisa dikerjakan SUPER_ADMIN. | **[D]** |
+| 2 | FINANCE: layar `/hq/payments`, `/hq/reconciliation`, `/hq/franchise`, formulir komisi galat izin pada `main` (UAT 2026-10-14). Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang. | Sampai cabang digabung dan diuji ulang, alur payout Lunas/Gagal dan komisi mungkin hanya bisa dikerjakan SUPER_ADMIN. | **[B]** (cabang: **[V code]**) |
 | 3 | HEAD_OFFICE memegang `approvalThresholdWrite` tetapi layar setelan terkunci `depotAdmin` (MANAGER/SA); setelan global butuh SA. | Praktis hanya SUPER_ADMIN yang dapat mengubah ambang. | **[V]** |
 | 4 | ~~HEAD_OFFICE memegang `dailyCloseReopen`, tetapi layar tinjauan bulanan dibatasi `depotFinance`.~~ Diperbaiki sejak PR #664 (2026-10-14): layar memakai `dailyClose`. | Belum diuji di peramban. | diperbaiki **[V code]** |
 | 5 | Refund: tidak ada pemisahan pemohon/penyetuju bila akun yang sama memegang `refundIssue` dan `refundQueue` (FINANCE, SA). Pemohon dicatat dan ditampilkan (#665), penegakan belum ada; toko tanpa FINANCE kedua akan terblokir bila ditegakkan. | Kontrol uang bergantung pada pembagian peran; menunggu PR lanjutan dan keputusan pemilik. | **[V][K]** |
@@ -795,7 +818,7 @@ Yang **belum** diverifikasi: perilaku nyata di peramban untuk semua sel bertanda
 | 8 | ~~Komentar "HQ decides a depot's voucher request" usang.~~ Diperbaiki sejak PR #664: kapabilitas `voucherRequestDecide` ditandai RETIRED di komentar; nama dipertahankan. | Nama masih tampil di matriks; abaikan. | diperbaiki **[V]** |
 | 9 | Akses ke layar HR (cuti, kasbon, pinjam karyawan) bagi MANAGER/SPV/ASPV tidak ada tautan menu dari rel `/dashboard`; hanya URL atau notifikasi. | Pengguna tidak menemukan layar persetujuan. | **[D]** |
 | 10 | Penugasan lintas depot dan permintaan pinjam karyawan butuh `DEPOT_ASSIGNMENT_ENABLED` (bawaan mati). Status produksi tidak diketahui. | Baris terkait ditandai Bersyarat. | **[K]** |
-| 11 | Jumlah kapabilitas MANAGER di temuan D tertulis 70, hasil hitung ulang 68. FINANCE komentar kode menyebut 19, hitung ulang 21. | Gunakan angka bab ini; komentar kode usang. | **[B]** |
+| 11 | Jumlah kapabilitas MANAGER di temuan D tertulis 70, hasil hitung ulang 68. FINANCE komentar kode menyebut 19, hitung ulang 21 (25 di cabang 609a497). | Gunakan angka bab ini; komentar kode usang. | **[B]** |
 | 12 | ~~Pasal 8 menyebut "sebelum depot mulai menyiapkan".~~ Diperbaiki sejak PR #664: Pasal 8 kini "sebelum kurir ditugaskan", sesuai aturan kode (aturan kode tidak berubah). Batal oleh staf sebelum kurir ditugaskan belum ada (butir keputusan 6). | — | diperbaiki **[V]** |
 | 13 | Nilai ambang (Rp 100.000 refund/approval, Rp 50.000 klaim otomatis, Rp 500.000 batas manajer, Rp 5.000 surplus setoran) adalah bawaan; produksi mungkin berbeda. | Konfirmasi ke pemilik. | **[K]** |
 | 14 | SUPER_ADMIN pada rute pelanggan (`@Roles(CUSTOMER)`): apakah boleh? Tidak diuji. | Sel ditandai "?". | **[D]** |

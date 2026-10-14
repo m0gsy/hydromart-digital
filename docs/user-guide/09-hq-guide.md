@@ -38,9 +38,9 @@ Banyak layar HQ hanya untuk membaca. Aksi tulis dibagi dua jenis:
 
 Banyak halaman HQ menampilkan tombol tulis kepada semua peran yang boleh membuka halaman, tanpa menyaring per peran. Jika peran Anda tidak memegang hak tulisnya, server menjawab penolakan (403) setelah Anda menekan tombol. Tidak ada data yang berubah. Daftar lengkap ada di bagian 9.2. Aturan praktis: **keberadaan tombol di layar bukan bukti bahwa Anda berwenang**.
 
-### 1.3 Finance: "perlu verifikasi di lingkungan nyata"
+### 1.3 Finance: "perlu verifikasi di lingkungan nyata" (perbaikan ada di cabang, belum di `main`)
 
-Finance lolos pintu /hq, tetapi beberapa halaman Finance memuat data dari layanan yang menolak Finance. Dari pembacaan kode, halaman Pembayaran, Waralaba, Rekonsiliasi, dan Skema komisi kemungkinan tampil sebagai layar galat penuh untuk Finance **[B][D]**. Alur Finance yang bergantung pada halaman-halaman itu (payout Lunas/Gagal, skema komisi) ditandai **"perlu verifikasi di lingkungan nyata"** di seluruh bab ini. Rincian ada di bagian 15.1. **Terbukti uji layar 2026-10-14 (akun Finance, pasca-#664): [B][V]** halaman Pembayaran, Waralaba (halaman pendaratan Finance setelah masuk), Rekonsiliasi, dan Skema komisi menampilkan layar galat penuh "Ada yang tidak beres — You do not have permission to perform this action." dengan tombol "Coba lagi" (artinya: Anda tidak punya izin melakukan tindakan ini). Halaman Refund dan Pajak & faktur terbuka normal. Lihat Gambar 9.4d, 9.12a, 9.16, 9.17, 9.6b, 9.18.
+Finance lolos pintu /hq, tetapi pada `main` beberapa halaman Finance memuat data dari layanan yang menolak Finance (perbaikan sudah ada di cabang `fix/uat-g128-g149-g152`, commit 609a497, belum di `main`, belum diuji ulang; lihat akhir bagian ini dan bagian 15.1). Dari pembacaan kode, halaman Pembayaran, Waralaba, Rekonsiliasi, dan Skema komisi kemungkinan tampil sebagai layar galat penuh untuk Finance **[B][D]**. Alur Finance yang bergantung pada halaman-halaman itu (payout Lunas/Gagal, skema komisi) ditandai **"perlu verifikasi di lingkungan nyata"** di seluruh bab ini. Rincian ada di bagian 15.1. **Terbukti uji layar 2026-10-14 (akun Finance, pasca-#664): [B][V]** halaman Pembayaran, Waralaba (halaman pendaratan Finance setelah masuk), Rekonsiliasi, dan Skema komisi menampilkan layar galat penuh "Ada yang tidak beres — You do not have permission to perform this action." dengan tombol "Coba lagi" (artinya: Anda tidak punya izin melakukan tindakan ini). Halaman Refund dan Pajak & faktur terbuka normal. Lihat Gambar 9.4d, 9.12a, 9.16, 9.17, 9.6b, 9.18. Pengamatan ini adalah kondisi sebelum perbaikan. **Status perbaikan:** commit 609a497 pada cabang `fix/uat-g128-g149-g152` (di atas 5a8ae4a) menambah empat kapabilitas baca untuk Finance (`dashboardFinance`, `orderReportsFinance`, `depotDirectoryFinance`, `returnsReadFinance`; ringkasannya di Bab 12 bagian 6.1) sehingga keempat halaman itu tidak lagi galat izin menurut pembacaan kode. Cabang itu BELUM di `main` dan BELUM diuji ulang; sampai digabung dan diuji ulang, anggap keempat halaman masih galat. Pintu `/hq` Finance tidak berubah (Finance tetap tidak memegang `dashboard`, jadi "Ringkasan jaringan" tetap tertutup). **[V code][D]**
 
 ---
 
@@ -392,13 +392,13 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 - Pemilik waralaba juga bisa menarik sendiri ("Cairkan saldo"). Penarikan itu langsung PROCESSING ke rekening terverifikasi tanpa pengajuan HQ, lalu muncul di kartu "Penarikan menunggu jawaban bank" untuk ditandai Lunas atau Gagal oleh Finance. **[V]**
 - "Jatuh tempo" selalu tanggal 15 (WIB) berikutnya. Itu informasi, bukan penjadwal otomatis; tidak ditemukan pekerjaan yang merilis otomatis. **[D]**
 - Super admin memegang kedua hak, tetapi server tetap melarang pengaju menyetujui pengajuannya sendiri. **[V]**
-- Bila Finance membuka halaman ini, kemungkinan tampil layar galat penuh karena halaman memuat ringkasan eksekutif yang butuh hak `dashboard`. **[B][D]** Perlu verifikasi di lingkungan nyata. **Terbukti 2026-10-14: galat penuh pada akun Finance (Gambar 9.4d).** **[B][V]**
+- Bila Finance membuka halaman ini, kemungkinan tampil layar galat penuh karena halaman memuat ringkasan eksekutif yang butuh hak `dashboard`. **[B][D]** Perlu verifikasi di lingkungan nyata. **Terbukti 2026-10-14: galat penuh pada akun Finance (Gambar 9.4d).** **[B][V]** **Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang.**
 
 ![Gambar 9.4b — Pembayaran & payout, kondisi kosong](assets/screenshots/hq-06-pembayaran.png)
 > *Gambar 9.4b — Halaman "Pembayaran & payout", subjudul "Rekonsiliasi lintas depot · 30 hari terakhir" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat empat kartu: Terkumpul "Rp 84.000", Belum settle "Rp 0", Payout tertunda "Rp 0", Refund perlu disetujui "0"; kartu "Belum settle per metode" ("Tidak ada pembayaran belum settle."), "Rilis payout waralaba" ("Tidak ada payout menunggu."), "Rekening tujuan menunggu verifikasi" ("Tidak ada rekening menunggu."; petunjuk "Cocokkan nama dan nomor rekening sebelum memverifikasi…"), "Pengajuan rilis menunggu persetujuan" ("Tidak ada pengajuan menunggu."; petunjuk "Pengaju tidak boleh menyetujui pengajuannya sendiri…"), dan "Penarikan menunggu jawaban bank" dengan dua kelompok "PEMILIK WARALABA" dan "KURIR" (keduanya "Tidak ada penarikan menunggu."). Catatan kondisi: akun Head office, semua daftar kosong; tombol "Ajukan rilis", "Setujui & rilis", "Lunas", dan "Gagal" belum terlihat.*
 
 ![Gambar 9.4d — Setelah PR #664: Pembayaran & payout pada akun Finance: galat](assets/screenshots/finance-02-pembayaran-p664.png)
-*Gambar 9.4d — Setelah PR #664: Akun **Finance** membuka `/hq/payments` (1366×800): layar galat penuh dengan judul "Ada yang tidak beres", pesan **"You do not have permission to perform this action."** dan tombol "Coba lagi". Rel menu kiri tetap tampil (HR (SDM), Waralaba, Pembayaran [aktif], Refund, Rekonsiliasi, Pajak & faktur, Skema komisi, Profil admin, Template faktur, Indeks layar HQ). Galat apa adanya, bukan kerusakan gambar. Lingkungan uji lokal pasca-#664, data sintetis.*
+*Gambar 9.4d (kondisi `main` sebelum perbaikan 609a497; cabang belum di `main`, belum diuji ulang) — Setelah PR #664: Akun **Finance** membuka `/hq/payments` (1366×800): layar galat penuh dengan judul "Ada yang tidak beres", pesan **"You do not have permission to perform this action."** dan tombol "Coba lagi". Rel menu kiri tetap tampil (HR (SDM), Waralaba, Pembayaran [aktif], Refund, Rekonsiliasi, Pajak & faktur, Skema komisi, Profil admin, Template faktur, Indeks layar HQ). Galat apa adanya, bukan kerusakan gambar. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ![Gambar 9.4 — Rilis payout dan persetujuan](assets/screenshots/direktur-02-pembayaran-p664.png)
 *Gambar 9.4 — "Pembayaran & payout" pada akun **Direktur** (1366×800, 14 Okt 2026): KPI Terkumpul Rp 1.297.000, Belum settle Rp 100.000, Payout tertunda Rp 200.000, Refund perlu disetujui 1; kartu "Belum settle per metode" (Tunai Rp 50.000; Transfer bank Rp 50.000), "Rilis payout waralaba" (Pemilik Waralaba Dago, jatuh tempo 14 Okt, Rp 200.000) dengan tombol **Ajukan rilis** (tampil untuk Direktur walau ditolak server **[B]**), "Rekening tujuan menunggu verifikasi" (kosong) dan "Pengajuan rilis menunggu persetujuan" (Rp 200.000, "Diajukan oleh #8e8c196e", "Pengaju tidak boleh menyetujui pengajuannya sendiri") dengan tombol **Setujui & rilis** dan **Tolak**. Diambil 2026-10-14 pasca-#664; lingkungan uji lokal, data sintetis.*
@@ -466,7 +466,7 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 
 **Peran:** Head office, Direktur, Finance (Finance: perlu verifikasi di lingkungan nyata, bagian 15.1). **Hanya BACA** dengan tombol "Buka depot". Header "Jaringan waralaba"; lencana "{n} depot" dan merah "{n} tanpa pemilik"; kartu "Menunggu rilis ke pemilik". Baris per depot: nama, kode, "Nonaktif", pemilik atau "Belum ada pemilik — pendapatan depot ini tidak terbukukan" (merah) atau "Pemilik di luar daftar staf", "komisi {n}%" atau "komisi belum diatur", " · menunggu rilis" + jumlah. Kosong: "Belum ada depot waralaba." **[V]**
 
-Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang butuh hak `depotDirectory`; kemungkinan tampil galat penuh. **[B][D]** **Terbukti uji layar 2026-10-14: galat penuh "You do not have permission to perform this action." (Gambar 9.16).** **[B][V]**
+Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang butuh hak `depotDirectory`; kemungkinan tampil galat penuh. **[B][D]** **Terbukti uji layar 2026-10-14: galat penuh "You do not have permission to perform this action." (Gambar 9.16).** **[B][V]** **Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang.**
 
 ### 6.10 Keputusan harga jaringan (/hq/pricing)
 
@@ -509,7 +509,7 @@ Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang but
 **Temuan [B][V]:** "Biaya platform" hanya dibaca bila peran memegang `depotAdmin` (Manajer, Super admin). Bagi Head office, Direktur, dan Finance nilainya "—" (layar tidak memintanya; server sebenarnya mengizinkan pembacaan setelan lewat `settingsRead`, tetapi layar masih memakai `depotAdmin`), sehingga **"Net payout ke pemilik" selalu "—"**. Jangan mengambil kesimpulan "nol" dari tanda ini. Komisi dihitung dari subtotal barang sebelum diskon, bukan total penjualan.
 
 ![Gambar 9.12a — Setelah PR #664: Rekonsiliasi pada akun Finance: galat](assets/screenshots/finance-03-rekonsiliasi-p664.png)
-*Gambar 9.12a — Setelah PR #664: Akun **Finance** membuka `/hq/reconciliation` (1366×800): layar galat penuh "Ada yang tidak beres — You do not have permission to perform this action." dengan "Coba lagi"; menu "Rekonsiliasi" aktif di rel kiri. Tampilan Head office/Direktur untuk halaman ini belum difoto. Lingkungan uji lokal pasca-#664, data sintetis.*
+*Gambar 9.12a (kondisi `main` sebelum perbaikan 609a497; cabang belum di `main`, belum diuji ulang) — Setelah PR #664: Akun **Finance** membuka `/hq/reconciliation` (1366×800): layar galat penuh "Ada yang tidak beres — You do not have permission to perform this action." dengan "Coba lagi"; menu "Rekonsiliasi" aktif di rel kiri. Tampilan Head office/Direktur untuk halaman ini belum difoto. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ### 6.13 Laba rugi jaringan (/hq/pnl)
 
@@ -644,7 +644,7 @@ Pesan "Riwayat pesanan tidak bisa dibaca sekarang — ini BUKAN berarti nol." be
 | 2 | Isi "Baru" (0–100) pada depot yang berubah dan "Tanggal berlaku" (bawaan hari ini; tanggal masa depan = terjadwal). | Hanya baris yang berubah dan 0–100 yang dikirim; nilai di luar rentang atau sama diabaikan diam-diam. |
 | 3 | Tekan "Terapkan skema baru". | Sukses "Skema komisi baru diterapkan." Tanpa perubahan: "Tidak ada perubahan untuk diterapkan." Gagal: "Gagal menerapkan skema komisi." |
 
-Server: "Commission percentage must be between 0 and 100." (persentase harus 0–100). Subjudul layar kini berbunyi "Persentase komisi HQ per depot" (diperbaiki sejak PR #664, 2026-10-14; sebelumnya "Persentase payout per depot") **[V]**. Head office dan Direktur melihat tombol tetapi ditolak. Untuk Finance, halaman memuat daftar depot lewat hak yang tidak dimilikinya; kemungkinan tampil galat penuh **[B][D]**.
+Server: "Commission percentage must be between 0 and 100." (persentase harus 0–100). Subjudul layar kini berbunyi "Persentase komisi HQ per depot" (diperbaiki sejak PR #664, 2026-10-14; sebelumnya "Persentase payout per depot") **[V]**. Head office dan Direktur melihat tombol tetapi ditolak. Untuk Finance, halaman memuat daftar depot lewat hak yang tidak dimilikinya; kemungkinan tampil galat penuh **[B][D]**. Terbukti galat penuh pada uji layar 2026-10-14 (Gambar 9.17) **[B][V]**. **Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang.**
 
 ### 6.23 Insiden (/hq/incidents)
 
@@ -800,7 +800,7 @@ Aksi **tanpa konfirmasi dan tanpa alasan** **[B]**: menyetujui atau menolak lama
 |---|---|---|
 | "Khusus HQ" | Peran Anda tidak memegang hak halaman itu. | Gunakan Indeks layar HQ untuk melihat apa yang boleh; minta Admin bila perlu akses. |
 | Tombol ditekan lalu muncul penolakan atau "Gagal …" | Tombol tampil tetapi hak tulis tidak ada di peran Anda **[B]**. | Lihat tabel bagian 9.2; serahkan ke peran yang berwenang. |
-| Layar galat penuh pada Pembayaran, Waralaba, Rekonsiliasi, Skema komisi (Finance) | Halaman memuat data dari layanan yang menolak Finance **[B][D]**. | Catat dan laporkan ke Admin (bagian 15.1). Jangan berbagi akun Admin sebagai jalan keluar. |
+| Layar galat penuh pada Pembayaran, Waralaba, Rekonsiliasi, Skema komisi (Finance) | Pada `main`, halaman memuat data dari layanan yang menolak Finance (terbukti 2026-10-14) **[B][V]**. Diperbaiki di cabang `fix/uat-g128-g149-g152` (609a497), belum di `main`, belum diuji ulang. | Catat dan laporkan ke Admin (bagian 15.1). Jangan berbagi akun Admin sebagai jalan keluar. Setelah perbaikan digabung, uji ulang dengan akun Finance. |
 | "—" di kartu atau tabel | Data tidak terbaca, BUKAN nol. | Muat ulang; bila berulang, laporkan. |
 | "Net payout ke pemilik" selalu "—" | Biaya platform tidak terbaca untuk peran Anda **[B]**. | Minta Manajer atau Admin membaca angka itu. |
 | "Orang lain sudah mengubah data ini sejak Anda membukanya…" | Dua orang menyimpan bersamaan. | Periksa data baru lalu simpan ulang. |
@@ -953,9 +953,11 @@ Seluruh gambar harus memakai data sintetis; samarkan nomor telepon dan rekening.
 
 Rujuk juga ke `17-open-questions`.
 
-### 15.1 Finance (temuan terbesar, dari pembacaan kode, belum diuji di browser) **[B][D]**
+### 15.1 Finance (temuan terbesar; galat terbukti pada `main` 2026-10-14, perbaikan di cabang belum di `main` dan belum diuji ulang) **[B][D]**
 
-Finance lolos pintu /hq dan melihat Waralaba, Pembayaran, Refund, Rekonsiliasi, Pajak & faktur, Skema komisi, Template faktur, Profil, Indeks layar, dan HR (SDM). Namun:
+**Pembaruan 2026-10-14 (versi 0.4):** commit 609a497 pada cabang `fix/uat-g128-g149-g152` (di atas 5a8ae4a) menambah empat kapabilitas baca khusus untuk layar Finance: `dashboardFinance` (ringkasan eksekutif dan jaringan), `orderReportsFinance` (ongkir dan refund per depot untuk rekonsiliasi), `depotDirectoryFinance` (hanya daftar depot), `returnsReadFinance` (galon beredar jaringan). Kapabilitas dasar dan sembilan pintu `/hq` tidak berubah. Cabang ini BELUM di `main` dan BELUM diuji ulang. Daftar di bawah menggambarkan kondisi `main` dan pengamatan pra-perbaikan.
+
+Finance lolos pintu /hq dan melihat Waralaba, Pembayaran, Refund, Rekonsiliasi, Pajak & faktur, Skema komisi, Template faktur, Profil, Indeks layar, dan HR (SDM). Namun pada `main`:
 
 - Pembayaran memuat ringkasan eksekutif yang butuh hak `dashboard` (tidak dimiliki Finance) dan kegagalannya menjadi layar galat penuh. Kartu Lunas/Gagal dan rilis mungkin tak terjangkau.
 - Waralaba (pendaratan Finance), Skema komisi memuat daftar depot lewat hak `depotDirectory` (tidak dimiliki Finance): kemungkinan galat penuh.
@@ -964,10 +966,10 @@ Finance lolos pintu /hq dan melihat Waralaba, Pembayaran, Refund, Rekonsiliasi, 
 - Komentar kode menyatakan Finance menjalankan refund, payout, dan komisi dari /hq. Dua dari tiga alur itu bergantung pada halaman di atas. **Semua alur Finance (payout Lunas/Gagal, skema komisi, rekonsiliasi) perlu verifikasi di lingkungan nyata** sebelum panduan ini dipakai melatih Finance.
 
 ![Gambar 9.16 — Setelah PR #664: Waralaba pada akun Finance: galat](assets/screenshots/finance-04-waralaba-p664.png)
-*Gambar 9.16 — Setelah PR #664: Akun **Finance** membuka `/hq/franchise` (halaman pendaratan Finance setelah masuk; 1366×800): layar galat penuh "Ada yang tidak beres — You do not have permission to perform this action." dan "Coba lagi". Lingkungan uji lokal pasca-#664, data sintetis.*
+*Gambar 9.16 (kondisi `main` sebelum perbaikan 609a497; cabang belum di `main`, belum diuji ulang) — Setelah PR #664: Akun **Finance** membuka `/hq/franchise` (halaman pendaratan Finance setelah masuk; 1366×800): layar galat penuh "Ada yang tidak beres — You do not have permission to perform this action." dan "Coba lagi". Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ![Gambar 9.17 — Setelah PR #664: Skema komisi pada akun Finance: galat](assets/screenshots/finance-05-skema-komisi-p664.png)
-*Gambar 9.17 — Setelah PR #664: Akun **Finance** membuka `/hq/forms/commission` ("Skema komisi"): layar galat penuh yang sama. Lingkungan uji lokal pasca-#664, data sintetis.*
+*Gambar 9.17 (kondisi `main` sebelum perbaikan 609a497; cabang belum di `main`, belum diuji ulang) — Setelah PR #664: Akun **Finance** membuka `/hq/forms/commission` ("Skema komisi"): layar galat penuh yang sama. Lingkungan uji lokal pasca-#664, data sintetis.*
 
 ![Gambar 9.18 — Setelah PR #664: Pajak & faktur pada akun Finance: berfungsi](assets/screenshots/finance-06-pajak-p664.png)
 *Gambar 9.18 — Setelah PR #664: Akun **Finance** membuka `/hq/tax`: halaman terbuka normal — "Pajak & faktur — PPN, format nomor faktur & identitas perusahaan", "PPN (%) 0", "Format nomor faktur HM/{YYYY}/{MM}/{SEQ}", sakelar "Harga sudah termasuk pajak" (aktif), "Nama perusahaan PT Hydromart Nusantara", NPWP dan Alamat kosong, tombol "Simpan pengaturan", tautan "Lihat template faktur →". Tombol Simpan tidak ditekan. Lingkungan uji lokal pasca-#664, data sintetis.*
