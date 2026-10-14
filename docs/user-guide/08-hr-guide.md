@@ -310,7 +310,7 @@ Aturan umum semua impor HR: berkas `.xlsx` atau `.csv`, **maksimal 500 baris**; 
 |---|---|---|
 | 1 | Unduh template, isi data. Tulis nomor HP dan NIK sebagai **teks** agar tidak menjadi notasi ilmiah. | Notasi ilmiah ditolak. |
 | 2 | Unggah file. | Pratinjau baris dan galat per baris. |
-| 3 | (Opsional) Centang "Perbarui karyawan yang sudah ada". | Mode perbarui (upsert): pencocokan berdasar employeeCode, lalu NIK, lalu telepon. "Role login tidak pernah ikut berubah." Tanpa centang, orang yang sudah ada **dilewati**. |
+| 3 | (Opsional) Centang "Perbarui karyawan yang sudah ada". | Mode perbarui (upsert): baris dicocokkan memakai **satu** kunci saja: employeeCode bila diisi; bila kosong, NIK bila diisi; bila kosong, telepon (kunci berikutnya tidak dicoba bila kunci pertama tidak ditemukan; teks di layar menulis "lalu" tetapi kodenya tidak berlanjut ke kunci berikutnya). "Role login tidak pernah ikut berubah" untuk akun yang sudah ada; jabatan hanya diisi dari file bila baris belum punya jabatan dan akunnya baru dibuat. Tanpa centang, orang yang sudah ada **dilewati**. |
 | 4 | Tekan "Import N baris". | Setiap baris baru juga membuat/mempromosikan akun login. |
 | 5 | Unduh baris bermasalah dan perbaiki. | |
 
@@ -379,8 +379,8 @@ Format impor modul lain dirangkum di Bagian 7.2.
 | Resign | **Ditangguhkan**, sama seperti Nonaktif. | Dibaca dari Tanggal keluar; **penggajian menolak** baris Resign tanpa Tanggal keluar. |
 | Kembali Aktif | Akun diaktifkan kembali. | Normal. |
 
-- Token akses yang sudah terbit **tidak dicabut seketika**; tetap berlaku sampai habis masa berlakunya (15 menit), dan token pembaruan tidak dicabut eksplisit sehingga pemblokiran terjadi pada pembaruan/masuk berikutnya. **[V][D]**
-- Mengaktifkan ulang akun dari konsol HQ ("Direktori staf") hanya menyalakan Nonaktif; karyawan berstatus Resign **tidak** ditimpa oleh penyalaan balik. **[V]**
+- Saat akun dinonaktifkan (Nonaktif/Resign), semua token pembaruan (refresh) akun itu langsung dicabut (sejak PR #664, 2026-10-14). Token akses yang sudah terbit **tidak dicabut seketika**; tetap berlaku sampai habis masa berlakunya (bawaan 900 detik = 15 menit) karena tidak ada pemeriksaan status per permintaan. **[V]**
+- Mematikan akun dari konsol HQ ("Direktori staf") menjadikan karyawan Nonaktif, tetapi karyawan yang sudah berstatus Resign **tetap Resign** (tidak ditimpa). Sebaliknya, **menyalakan kembali** akun dari konsol HQ mengubah status karyawan menjadi Aktif, termasuk yang sebelumnya Resign. **[V]**
 - Penghapusan akun staf (hanya Admin) menganonimkan data karyawan. Sapuan retensi menganonimkan karyawan yang sudah keluar: biometrik, absensi, dan kinerja dihapus; payroll, bonus, potongan, dan kasbon disimpan tanpa pemilik (catatan keuangan 10 tahun). **[V]**
 - Mengisi Tanggal keluar lalu mengosongkannya (rehire) pada baris Resign membuat penggajian menolak lagi; ubah juga statusnya. **[V]**
 
@@ -481,7 +481,7 @@ Hari libur dan libur mingguan dikeluarkan dari hari kerja cuti dan hitungan abse
 ### Prosedur 6.10: Cuti dua tahap
 
 **Tujuan:** Memproses pengajuan cuti lewat atasan (tahap 1) lalu HR (tahap 2).
-**Peran:** Tahap 1: pemegang `leaveApprove` (Manager, HR, Admin). Tahap 2: HR/pemegang `hrAdmin` pada layar yang melayani tahap itu. **[V]**
+**Peran:** Tahap 1: pemegang `leaveApprove` (Manager, HR, Admin). Tahap 2: server memeriksa `hrAdmin`; tombolnya di layar hanya tampil bagi yang memegang `hrAdmin` **dan** `leaveApprove` (HR, Admin). **[V]**
 **Titik awal:** "Pengajuan Cuti" (`/hr/leave`, subjudul "Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti."). Penyaring bawaan: "Menunggu atasan". 20 per halaman.
 
 **Alur status:**
@@ -591,12 +591,12 @@ Status: Menunggu keputusan, Disetujui, Ditolak, Dibatalkan (oleh karyawan, atau 
 | Status | Label | Tindakan yang tersedia | Berikutnya |
 |---|---|---|---|
 | `DRAFT` | Draft | "Hitung ulang", "Setujui" | Disetujui |
-| `APPROVED` | Disetujui | "Tandai Dibayar" | Dibayar |
+| `APPROVED` | Disetujui | "Tandai Dibayar"; khusus Admin: "Batalkan persetujuan" | Dibayar (atau kembali ke Draft oleh Admin) |
 | `PAID` | Dibayar | Tidak ada | – |
 
-Tidak ada langkah mundur (batal setuju) di layar maupun layanan. **[V][D]**
+Langkah mundur hanya ada dari Disetujui ke Draft, hanya oleh Admin, dengan alasan (lihat "Membatalkan persetujuan" di bawah). Setelah Dibayar tidak ada langkah mundur. **[V]**
 
-> **Tidak ada maker-checker.** Akun yang sama boleh menghasilkan, menyetujui, dan menandai dibayar. Tidak ada pemeriksaan pemisahan tugas pada langkah-langkah ini. Kebijakan perlu ditetapkan oleh manajemen. **[V][K]**
+> **Pemisahan tugas sebagian.** Sejak PR #664 (2026-10-14), akun yang pertama membuat slip tidak boleh menyetujuinya (Admin dikecualikan). Tidak ada pemeriksaan pemisahan tugas antara menyetujui dan menandai dibayar: akun yang sama boleh melakukan keduanya. Kebijakan lanjutan perlu ditetapkan oleh manajemen. **[V][K]**
 >
 > **"Tandai Dibayar" hanya mencatat status.** Ia **tidak** memindahkan uang. Teks konfirmasi: "Tandai penggajian {net} ini sudah dibayar? Ini pernyataan bahwa transfernya sudah keluar dari bank, dan tidak bisa dibatalkan di sini." **[V]**
 
@@ -660,7 +660,7 @@ Halaman detail (`/hr/payroll/detail?id=`): judul nama karyawan; "Slip Gaji {peri
 | 4 | **Lakukan transfer gaji di bank di luar aplikasi.** | Tidak ada pembayaran dari sistem. |
 | 5 | Tekan "Tandai Dibayar". | Konfirmasi seperti di atas. Toast "Ditandai dibayar". Status Dibayar. |
 
-**Pemisahan pembuat dan penyetuju (sejak PR #664, 2026-10-14) [V].** "Pembuat" adalah akun yang pertama menjalankan "Generate" atau "Buat sedepot" untuk slip itu; menghitung ulang oleh orang lain tidak mengganti pembuat. Slip yang tidak punya pembuat tercatat (impor riwayat, data lama) tidak diblokir. Aturan ini dicek server, bukan sembunyi-tombol di layar. Akibat praktis: bila HR satu orang yang membuat slip, persetujuan harus dari orang lain dengan `hrPayroll` (HR lain atau `FINANCE`) atau dari Admin.
+**Pemisahan pembuat dan penyetuju (sejak PR #664, 2026-10-14) [V].** "Pembuat" adalah akun yang pertama menjalankan "Generate" atau "Buat sedepot" untuk slip itu; menghitung ulang oleh orang lain tidak mengganti pembuat. Slip yang tidak punya pembuat tercatat (data lama) tidak diblokir. Slip impor riwayat mencatat pengimpor sebagai pembuat, tetapi langsung berstatus Dibayar sehingga tidak melewati persetujuan. Aturan ini dicek server, bukan sembunyi-tombol di layar. Akibat praktis: bila HR satu orang yang membuat slip, persetujuan harus dari orang lain dengan `hrPayroll` (HR lain atau `FINANCE`) atau dari Admin.
 
 **Membatalkan persetujuan (khusus Admin, sejak PR #664, 2026-10-14) [V].**
 
@@ -724,7 +724,7 @@ Petunjuk: "Komponen tetap yang terbayar setiap periode. Tidak masuk basis upah l
 | 1 | Pilih karyawan dan "Periode", tekan "Muat". | Dua daftar: Bonus dan Potongan. |
 | 2 | Isi "Jenis" (bonus/potongan), "Tipe", "Nominal" (> 0), "Catatan". Tipe bonus: Kehadiran, Kinerja, Penjualan, Depot, Manual. Tipe potongan: Terlambat, Mangkir, Manual, Kasbon, Lainnya. | "Nominal harus > 0". |
 | 3 | Tekan "Simpan". | "Bonus ditambahkan" / "Potongan ditambahkan". Catatan: "Masuk ke payroll saat digenerate." |
-| 4 | Untuk menghapus, tekan "Hapus" dan sebutkan alasan. | Prompt "Hapus penyesuaian ini? Sebutkan alasannya." |
+| 4 | Untuk menghapus, tekan "Hapus" dan sebutkan alasan. | Prompt "Hapus penyesuaian ini? Sebutkan alasannya." Alasan yang diketik hanya dipakai layar untuk melanjutkan; kode layar tidak mengirimnya ke server. **[V]** |
 
 **Terkunci setelah disetujui:** bila slip periode itu sudah Disetujui/Dibayar, tambah dan hapus ditolak: "Payroll {periode} sudah {STATUS}, jadi bonus/potongan periode itu tidak bisa diubah lagi. Catat di periode berikutnya." Pada slip Draft, tekan "Hitung ulang" setelah mengubah penyesuaian. **[V][D]** Impor potongan (tombol "Import Potongan"): employeeCode*, type* (`LATE`/`ABSENCE`/`MANUAL`/`CASH_ADVANCE`/`OTHER`), amount*, periodMonth*, note; baris ditambahkan apa adanya tanpa pemeriksaan duplikat.
 
@@ -748,7 +748,7 @@ Petunjuk: "Komponen tetap yang terbayar setiap periode. Tidak masuk basis upah l
 | TRANSFER | Pindah tangan | Dipegang | Dipegang | Perlu penerima |
 | RETURN | Pengembalian | Dipegang / Perbaikan | Dikembalikan | |
 | MAINTENANCE | Masuk perbaikan | Tersedia / Dikembalikan / Dipegang | Perbaikan | |
-| LOST | Dinyatakan hilang | – | Hilang | Final: "Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru." |
+| LOST | Dinyatakan hilang | Tersedia / Dikembalikan / Dipegang / Perbaikan | Hilang | Final: "Aset sudah dihapusbukukan. Jika barang ditemukan, daftarkan sebagai aset baru." |
 
 Pesan: "Aset berstatus {S} tidak bisa {JENIS}", "Pergerakan {JENIS} membutuhkan karyawan penerima" ("Pilih karyawan penerima"), "Karyawan penerima berada di depot lain". Impor aset: code*, type*, name*, depotCode*, brand, serialNo, value, holderEmployeeCode (pemegang harus di depot yang sama), note. **[V]**
 
@@ -1016,7 +1016,7 @@ Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `
 - Data karyawan sensitif: NIK, NPWP, BPJS, rekening bank, foto wajah, dokumen. Akses hanya bila perlu; jangan mengirim data lewat chat atau email pribadi.
 - Data wajah memerlukan persetujuan tertulis karyawan (kotak persetujuan wajib) dan dapat dihapus ("Hapus data wajah" menarik persetujuan).
 - Setiap koreksi absensi wajib beralasan dan tercatat; alasan dibaca ulang saat penggajian dipertanyakan.
-- Pemisahan tugas payroll (keputusan pemilik 2026-10-14, dibangun lewat PR #664): akun yang pertama kali membuat ("Generate") sebuah slip tidak boleh menyetujuinya; Admin (`SUPER_ADMIN`) dikecualikan agar meja HR satu orang tidak terkunci. Slip tanpa pembuat tercatat (impor, data lama) tidak diblokir. Tetap terapkan kontrol manual: transfer bank dilakukan pihak keuangan, dan HR satu orang tetap memerlukan Admin atau orang lain dengan `hrPayroll` untuk menyetujui. **[V]**
+- Pemisahan tugas payroll (keputusan pemilik 2026-10-14, dibangun lewat PR #664): akun yang pertama kali membuat ("Generate") sebuah slip tidak boleh menyetujuinya; Admin (`SUPER_ADMIN`) dikecualikan agar meja HR satu orang tidak terkunci. Slip tanpa pembuat tercatat (data lama) tidak diblokir; slip impor riwayat langsung Dibayar. Tetap terapkan kontrol manual: transfer bank dilakukan pihak keuangan, dan HR satu orang tetap memerlukan Admin atau orang lain dengan `hrPayroll` untuk menyetujui. **[V]**
 - Saat login karyawan dimatikan (Status Nonaktif/Resign), semua token pembaruan (refresh) akunnya langsung dicabut (sejak PR #664, 2026-10-14). Token akses yang sudah terbit tetap berlaku sampai habis masa berlakunya (sekitar 15 menit) karena tidak ada pemeriksaan status per permintaan; menutup celah itu belum diputuskan pemilik **[K]**. Untuk kasus mendesak, hubungi Admin. **[V]**
 - Akun Super Admin terakhir tidak bisa dinonaktifkan: "Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan." **[V]**
 - Memakai nomor HP yang sudah terdaftar akan **mengubah akun orang itu** menjadi staf. Baca kartu peringatan sebelum menekan "Ya, gunakan akun itu".
