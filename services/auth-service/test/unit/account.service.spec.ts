@@ -509,6 +509,20 @@ describe('AccountService', () => {
       );
     });
 
+    it('answers not-found when a super admin vanishes between the read and the locked write', async () => {
+      const sa = makeCustomer({ phone: '+628995550016', role: Role.SUPER_ADMIN });
+      customers.seed(sa);
+      customers.seed(makeCustomer({ phone: '+628995550017', role: Role.SUPER_ADMIN }));
+      jest.spyOn(customers, 'suspendGuardingLastSuperAdmin').mockResolvedValue('not-found');
+      const find = jest.spyOn(customers, 'findById');
+      find.mockResolvedValueOnce((await customers.findById(sa.id)) as never);
+      find.mockResolvedValueOnce(null);
+
+      await expect(service.setStaffActiveInternal(sa.id, false)).rejects.toBeInstanceOf(
+        CustomerNotFoundError,
+      );
+    });
+
     // Deleting anonymises the identity; "activate" must not bring back a record nobody can
     // read. Locks the 0a fix to SUSPENDED only.
     it('never revives a deleted account', async () => {

@@ -688,19 +688,18 @@ export class AccountService {
   private async applyActive(customer: Customer, active: boolean): Promise<PublicCustomer> {
     if (!active && customer.role === Role.SUPER_ADMIN) {
       const outcome = await this.customers.suspendGuardingLastSuperAdmin(customer.id);
-      if (outcome === 'not-found') {
-        throw new CustomerNotFoundError();
-      }
       if (outcome === 'last-super-admin') {
         throw new BadRequestException(
           'Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.',
         );
       }
-      await this.sessions.revokeAll(customer.id);
+      // 'not-found' here means the row vanished between the read above and the locked write;
+      // the re-read below turns that into the same not-found answer.
       const fresh = await this.customers.findById(customer.id);
       if (!fresh) {
         throw new CustomerNotFoundError();
       }
+      await this.sessions.revokeAll(customer.id);
       return toPublicCustomer(fresh);
     }
     customer.setActive(active);
