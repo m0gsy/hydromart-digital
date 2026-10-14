@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import { can, canViewDepotFinance } from '@/lib/roles';
+import { can, canViewMonthlyClose } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ReportDepotMonthly } from '@/lib/types';
 
@@ -364,7 +364,7 @@ function MonthlyReviewBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!canViewDepotFinance(customer?.role)) {
+  if (!canViewMonthlyClose(customer?.role)) {
     return (
       <CenterState
         title={t('hrFix.monthlyReview.managerOnly')}

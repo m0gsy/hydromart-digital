@@ -8,6 +8,15 @@ import { Bell, Drop } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth-context';
 import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
+import {
+  can,
+  canManageDepots,
+  canManagePromoRules,
+  canViewDepotCrm,
+  canViewForecast,
+  canViewMeterReading,
+  isStaff,
+} from '@/lib/roles';
 
 function initials(name: string): string {
   return name
@@ -25,7 +34,13 @@ function initials(name: string): string {
 // Retur · Setoran, plus the "Kelola depot" management group. Every tab links to a
 // /dashboard/* route; the active tab is derived from the current path.
 
-type Tab = { label: string; href: string; match: (p: string) => boolean };
+type Tab = {
+  label: string;
+  href: string;
+  match: (p: string) => boolean;
+  /** Hide the tab when the role lacks what the page behind it needs. */
+  show?: (role: string | null | undefined) => boolean;
+};
 
 const primaryTabs: Tab[] = [
   { label: 'hrFix.opNav.summary', href: '/dashboard', match: (p) => p === '/dashboard' },
@@ -53,7 +68,17 @@ const manageTabs: Tab[] = [
   { label: 'hrFix.opNav.handover', href: '/dashboard/handover', match: (p) => p.startsWith('/dashboard/handover') },
   { label: 'hrFix.opNav.maintenance', href: '/dashboard/maintenance', match: (p) => p.startsWith('/dashboard/maintenance') },
   { label: 'hrFix.opNav.depots', href: '/dashboard/depots', match: (p) => p.startsWith('/dashboard/depots') },
-  { label: 'hrFix.opNav.payments', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments') },
+  // The page behind this gates on depotAdmin (MANAGER/SUPER_ADMIN): without `show` the head saw a tab
+  // that only ever led to a denial page.
+  { label: 'hrFix.opNav.payments', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments'), show: canManageDepots },
+  // Reachable only by typing the URL before: the head holds each of these capabilities.
+  { label: 'hrFix.opNav.meter', href: '/dashboard/meter', match: (p) => p.startsWith('/dashboard/meter'), show: canViewMeterReading },
+  { label: 'hrFix.opNav.forecast', href: '/dashboard/forecast', match: (p) => p.startsWith('/dashboard/forecast'), show: canViewForecast },
+  { label: 'hrFix.opNav.promoRules', href: '/dashboard/promo-rules', match: (p) => p.startsWith('/dashboard/promo-rules'), show: canManagePromoRules },
+  { label: 'hrFix.opNav.disputes', href: '/dashboard/disputes', match: (p) => p.startsWith('/dashboard/disputes'), show: (r) => can('depotDisputes', r) },
+  { label: 'hrFix.opNav.crm', href: '/dashboard/crm', match: (p) => p.startsWith('/dashboard/crm'), show: canViewDepotCrm },
+  { label: 'hrFix.opNav.roles', href: '/dashboard/roles', match: (p) => p.startsWith('/dashboard/roles'), show: isStaff },
+  { label: 'hrFix.opNav.account', href: '/dashboard/account', match: (p) => p.startsWith('/dashboard/account'), show: isStaff },
   { label: 'hrFix.opNav.notifications', href: '/dashboard/notifications', match: (p) => p.startsWith('/dashboard/notifications') },
   { label: 'hrFix.opNav.reports', href: '/dashboard/reports', match: (p) => p.startsWith('/dashboard/reports') },
   { label: 'hrFix.opNav.audit', href: '/dashboard/audit', match: (p) => p.startsWith('/dashboard/audit') },
@@ -130,7 +155,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
             <TabLink key={t.href} tab={t} active={t.match(pathname)} />
           ))}
           <span className="mx-1 my-1 w-px shrink-0 bg-[color:var(--border)]" />
-          {manageTabs.map((t) => (
+          {manageTabs.filter((t) => !t.show || t.show(customer?.role)).map((t) => (
             <TabLink key={t.href} tab={t} active={t.match(pathname)} />
           ))}
         </nav>

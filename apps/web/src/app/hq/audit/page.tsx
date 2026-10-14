@@ -44,12 +44,23 @@ export default function HqAuditPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [exporting, setExporting] = useState(false);
-  const log = usePagedList<AuditEntry>((page) =>
-    api.get<Page<AuditEntry>>(endpoints.audit.list({ page, limit: PAGE_SIZE }), true),
+  const [action, setAction] = useState('');
+  const [fromDay, setFromDay] = useState('');
+  const [toDay, setToDay] = useState('');
+  const [outcome, setOutcome] = useState<'' | 'ok' | 'failed'>('');
+  // Local calendar days, sent as instants: `to` is the START of the day after the one picked,
+  // so choosing 8 Oct includes everything that happened on the 8th.
+  const filter = {
+    action: action.trim() || undefined,
+    from: fromDay ? new Date(`${fromDay}T00:00:00`).toISOString() : undefined,
+    to: toDay ? new Date(new Date(`${toDay}T00:00:00`).getTime() + 86_400_000).toISOString() : undefined,
+    success: outcome === '' ? undefined : outcome === 'ok',
+  };
+  const filtered = Object.values(filter).some((v) => v !== undefined);
+  const log = usePagedList<AuditEntry>(
+    (page) => api.get<Page<AuditEntry>>(endpoints.audit.list({ page, limit: PAGE_SIZE, ...filter }), true),
+    [filter.action, filter.from, filter.to, filter.success],
   );
-
-  if (log.loading && log.rows.length === 0) return <Skeleton className="h-96 w-full" />;
-  if (log.error) return <ErrorState message={t('hq.audit.loadError')} onRetry={log.reload} />;
 
   const rows = log.rows;
 
@@ -61,7 +72,7 @@ export default function HqAuditPage() {
     try {
       // Every page, not the ones on screen. The file leaves this building.
       all = await fetchAllPages<AuditEntry>(({ page, limit }) =>
-        api.get<Page<AuditEntry>>(endpoints.audit.list({ page, limit }), true),
+        api.get<Page<AuditEntry>>(endpoints.audit.list({ page, limit, ...filter }), true),
       );
     } catch (e) {
       setExporting(false);
@@ -109,9 +120,73 @@ export default function HqAuditPage() {
         }
       />
 
-      {rows.length === 0 ? (
+      {/* Filters narrow the list AND the export: a file that ignored them would hand over a
+          different trail from the one on screen. */}
+      <Card className="flex flex-wrap items-end gap-3 p-4">
+        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs font-medium text-muted">
+          {t('hq.audit.filterAction')}
+          <input
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm text-[color:var(--text)]"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+          {t('hq.audit.filterFrom')}
+          <input
+            type="date"
+            value={fromDay}
+            max={toDay || undefined}
+            onChange={(e) => setFromDay(e.target.value)}
+            className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm text-[color:var(--text)]"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+          {t('hq.audit.filterTo')}
+          <input
+            type="date"
+            value={toDay}
+            min={fromDay || undefined}
+            onChange={(e) => setToDay(e.target.value)}
+            className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm text-[color:var(--text)]"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+          {t('hq.audit.filterOutcome')}
+          <select
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value as '' | 'ok' | 'failed')}
+            className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm text-[color:var(--text)]"
+          >
+            <option value="">{t('hq.audit.outcomeAll')}</option>
+            <option value="ok">{t('hq.audit.outcomeOk')}</option>
+            <option value="failed">{t('hq.audit.outcomeFailed')}</option>
+          </select>
+        </label>
+        {filtered && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setAction('');
+              setFromDay('');
+              setToDay('');
+              setOutcome('');
+            }}
+          >
+            {t('hq.audit.filterReset')}
+          </Button>
+        )}
+      </Card>
+
+      {log.loading && rows.length === 0 ? (
+        <Skeleton className="h-96 w-full" />
+      ) : log.error ? (
+        <ErrorState message={t('hq.audit.loadError')} onRetry={log.reload} />
+      ) : rows.length === 0 ? (
         <Card className="p-8">
-          <p className="text-center text-sm text-muted">{t('hq.audit.empty')}</p>
+          <p className="text-center text-sm text-muted">
+            {filtered ? t('hq.audit.noMatch') : t('hq.audit.empty')}
+          </p>
         </Card>
       ) : (
         <Card className="overflow-x-auto p-0">

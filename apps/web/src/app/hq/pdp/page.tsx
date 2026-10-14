@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ShieldCheck, Warning } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
+import { useAuth } from '@/lib/auth-context';
 import { Button, Card, Chip, ErrorState, Skeleton } from '@/components/ui';
 import { ConfirmDialog } from '@/components/overlay';
 import { useToast } from '@/components/toast';
@@ -27,6 +28,7 @@ export default function HqPdpPage() {
   const { t } = useT();
   const { toast } = useToast();
   const { askReason } = useConfirm();
+  const { customer } = useAuth();
   const [onlyPending, setOnlyPending] = useState(true);
   const { data, error, loading, reload } = useAsync<DataSubjectRequest[]>(
     () => api.get(endpoints.pdp.queue(onlyPending ? 'PENDING' : undefined), true),
@@ -34,11 +36,17 @@ export default function HqPdpPage() {
   );
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DataSubjectRequest | null>(null);
+  // Set when the server refused because orders are open, and only a SUPER_ADMIN may override.
+  const [forceDelete, setForceDelete] = useState<DataSubjectRequest | null>(null);
 
-  async function approve(row: DataSubjectRequest) {
+  async function approve(row: DataSubjectRequest, force = false) {
     setBusy(row.id);
     try {
-      const result = await api.post<{ export?: unknown }>(endpoints.pdp.approve(row.id), {}, true);
+      const result = await api.post<{ export?: unknown }>(
+        endpoints.pdp.approve(row.id),
+        force ? { force: true } : {},
+        true,
+      );
       if (result.export) {
         downloadBlob(
           `pdp-export-${row.customerId}.json`,
@@ -50,7 +58,13 @@ export default function HqPdpPage() {
       }
       reload();
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : t('hq.pdp.actionError'), 'error');
+      if (err instanceof ApiError && err.code === 'PDP_OPEN_ORDERS' && customer?.role === 'SUPER_ADMIN') {
+        // The refusal is the point: say how many, and let the one role that may, decide.
+        setForceDelete(row);
+        toast(err.message, 'error');
+      } else {
+        toast(err instanceof ApiError ? err.message : t('hq.pdp.actionError'), 'error');
+      }
     } finally {
       setBusy(null);
       setConfirmDelete(null);
@@ -187,6 +201,20 @@ export default function HqPdpPage() {
         loading={busy !== null}
         onConfirm={() => confirmDelete && approve(confirmDelete)}
         onClose={() => setConfirmDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={forceDelete !== null}
+        title={t('hq.pdp.forceTitle')}
+        message={t('hq.pdp.forceBody')}
+        confirmLabel={t('hq.pdp.forceConfirm')}
+        loading={busy !== null}
+        onConfirm={() => {
+          const row = forceDelete;
+          setForceDelete(null);
+          if (row) void approve(row, true);
+        }}
+        onClose={() => setForceDelete(null)}
       />
     </div>
   );

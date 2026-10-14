@@ -84,6 +84,9 @@ export class AuditService {
     customerId?: string;
     depotId?: string;
     type?: string;
+    from?: Date;
+    to?: Date;
+    success?: boolean;
     /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
     cursor?: string;
   }): Promise<{
@@ -103,6 +106,9 @@ export class AuditService {
       customerId: input.customerId,
       depotId: input.depotId,
       type: input.type,
+      from: input.from,
+      to: input.to,
+      success: input.success,
     });
     return { items, total, page, limit, nextCursor };
   }

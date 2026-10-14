@@ -10,7 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { canVerifySettlement } from '@/lib/roles';
+import { canChargeCourier, canVerifySettlement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
@@ -79,7 +79,12 @@ function SettlementRow({
   const [error, setError] = useState<string | null>(null);
   const surplusThreshold = useSurplusThreshold();
 
-  const pending = s.status === 'SUBMITTED';
+  // A DISPUTED deposit can be ruled on again (canResolve in delivery-service): hiding the button
+  // left the money parked with no way out. Ending a dispute needs a written note.
+  const { customer } = useAuth();
+  const canCharge = canChargeCourier(customer?.role);
+  const disputed = s.status === 'DISPUTED';
+  const pending = s.status === 'SUBMITTED' || disputed;
   const shortfall = s.variance < 0;
 
   const act = async (kind: 'verify' | 'dispute') => {
@@ -87,11 +92,15 @@ function SettlementRow({
       setError(t('opsFix.settlements.disputeReasonRequired'));
       return;
     }
+    if (kind === 'verify' && disputed && note.trim() === '') {
+      setError(t('opsFix.settlements.resolveNoteRequired'));
+      return;
+    }
     setBusy(kind);
     setError(null);
     try {
       if (kind === 'verify') {
-        await api.post(endpoints.settlements.verify(s.id), { chargedToDriver: shortfall && charge, note: note.trim() || undefined }, true);
+        await api.post(endpoints.settlements.verify(s.id), { chargedToDriver: shortfall && charge && canCharge, note: note.trim() || undefined }, true);
       } else {
         await api.post(endpoints.settlements.dispute(s.id), { note: note.trim() }, true);
       }
@@ -138,6 +147,11 @@ function SettlementRow({
       {/* Pending → verify trigger + inline flow */}
       {pending ? (
         <>
+          {disputed && (
+            <span className="w-fit rounded-full bg-[color:var(--danger-bg)] px-2.5 py-1 text-xs font-bold text-[color:var(--danger)]">
+              {t(STATUS_LABEL[s.status])}
+            </span>
+          )}
           {!open ? (
             <Button onClick={() => setOpen(true)} className="w-full">
               {t('opsFix.settlements.countVerify')}
@@ -163,7 +177,10 @@ function SettlementRow({
                 </span>
               </div>
 
-              {shortfall && (
+              {shortfall && !canCharge && (
+                <p className="text-sm text-muted">{t('opsFix.settlements.chargeManagerOnly')}</p>
+              )}
+              {shortfall && canCharge && (
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={charge} onChange={(e) => setCharge(e.target.checked)} />
                   {t('opsFix.settlements.chargeCourier', {
@@ -184,9 +201,11 @@ function SettlementRow({
                 <Button onClick={() => act('verify')} loading={busy === 'verify'} className="flex-1">
                   {t('opsFix.settlements.verify')}
                 </Button>
-                <Button variant="ghost" onClick={() => act('dispute')} loading={busy === 'dispute'} className="flex-1">
-                  {t('opsFix.settlements.dispute')}
-                </Button>
+                {!disputed && (
+                  <Button variant="ghost" onClick={() => act('dispute')} loading={busy === 'dispute'} className="flex-1">
+                    {t('opsFix.settlements.dispute')}
+                  </Button>
+                )}
               </div>
             </div>
           )}

@@ -23,6 +23,8 @@ vi.mock('@/lib/api', () => ({
 }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({ t: (k: string) => k, locale: 'id' }),
+  // statusLabel() reads the dictionary through translate(); the mock has to offer it.
+  translate: (k: string) => k,
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),

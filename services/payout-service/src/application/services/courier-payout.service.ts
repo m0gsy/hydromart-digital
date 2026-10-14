@@ -6,6 +6,7 @@ import {
   InsufficientBalanceError,
   InvalidEarningRuleError,
   InvalidWithdrawalAmountError,
+  WithdrawalBelowMinimumError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
 } from '../../domain/errors';
@@ -274,6 +275,9 @@ export class CourierPayoutService {
    */
   async requestWithdrawal(courierId: string, amount: number): Promise<CourierWithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
+    if (amount < this.config.minWithdrawalIdr) {
+      throw new WithdrawalBelowMinimumError(this.config.minWithdrawalIdr);
+    }
     // PYO-3: the destination is the courier's VERIFIED account on file. It used to be typed
     // into the request — a different string every cash-out, checked by nobody.
     const bankAccountRef = await this.bankAccounts.verifiedDestination(courierId);

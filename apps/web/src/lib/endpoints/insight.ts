@@ -294,12 +294,26 @@ export const insight = {
 
   // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.
   audit: {
-    list: (q: { page?: number; limit?: number; action?: string; actorId?: string } = {}) => {
+    list: (
+      q: {
+        page?: number;
+        limit?: number;
+        action?: string;
+        actorId?: string;
+        /** ISO instants: `from` inclusive, `to` exclusive. */
+        from?: string;
+        to?: string;
+        success?: boolean;
+      } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.action) p.set('action', q.action);
       if (q.actorId) p.set('actorId', q.actorId);
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.success !== undefined) p.set('success', String(q.success));
       const qs = p.toString();
       return `/auth/api/v1/auth/audit${qs ? `?${qs}` : ''}`;
     },

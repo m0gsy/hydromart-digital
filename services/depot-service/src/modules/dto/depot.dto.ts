@@ -315,6 +315,15 @@ export class DepotContactView {
   }
 }
 
+/**
+ * What a gallon deposit is at this depot, for the checkout summary. The rate is a per-depot
+ * tunable, so it cannot be read off the depot record. Carries NO money flow: today the
+ * deposit is a ledger entry booked at delivery, not a line in the order total.
+ */
+export class DepotGallonDepositView {
+  @ApiProperty() gallonDepositIdr!: number;
+}
+
 export class DepotPaymentInfoView {
   /** Public anyway, and the payment panel reads "transfer masuk ke <nama depot>" — carrying
    *  it here saves the page a second fetch just to render the sentence. */

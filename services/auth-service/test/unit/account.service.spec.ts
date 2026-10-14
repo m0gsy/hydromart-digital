@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
@@ -200,7 +201,7 @@ describe('AccountService', () => {
 
   // Roles that are not depot-locked keep working with no depot at all.
   it('invites an office role without a depot', async () => {
-    const staff = await service.inviteStaff('+628990001188', Role.HEAD_OFFICE, 'Kantor');
+    const staff = await service.inviteStaff('+628990001188', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
     expect(staff).toMatchObject({ role: Role.HEAD_OFFICE, status: 'ACTIVE' });
   });
 
@@ -342,7 +343,7 @@ describe('AccountService', () => {
         noHr.inviteStaffWithEmployee({
           ...EMPLOYMENT,
           phone: '+628994440003',
-          role: Role.HEAD_OFFICE,
+          role: Role.SUPERVISOR,
           fullName: 'Kantor',
         }),
       ).rejects.toThrow(/hr-service/);
@@ -444,6 +445,84 @@ describe('AccountService', () => {
       ).rejects.toBeInstanceOf(CustomerNotFoundError);
     });
 
+    // A switched-off login used to be refused at the NEXT sign-in only: its refresh tokens
+    // stayed valid, so the session in the person's pocket kept working.
+    it('revokes every session when a login is switched off, and not when it is switched on', async () => {
+      const staff = await service.inviteStaff('+628995550010', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await service.setStaffActive(staff.id, false);
+      expect(revokeAll).toHaveBeenCalledWith(staff.id);
+
+      revokeAll.mockClear();
+      await service.setStaffActive(staff.id, true);
+      expect(revokeAll).not.toHaveBeenCalled();
+    });
+
+    it('revokes sessions on the route hr-service calls too, and for a suspended customer', async () => {
+      const staff = await service.inviteStaff('+628995550011', Role.KEPALA_DEPOT, 'Rina', 'depot-1');
+      const customer = makeCustomer({ phone: '+628995550012', role: Role.CUSTOMER });
+      customers.seed(customer);
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await service.setStaffActiveInternal(staff.id, false);
+      await service.setCustomerActiveInternal(customer.id, false);
+
+      expect(revokeAll).toHaveBeenCalledWith(staff.id);
+      expect(revokeAll).toHaveBeenCalledWith(customer.id);
+    });
+
+    it('refuses to switch off your own login from the console', async () => {
+      const staff = await service.inviteStaff('+628995550013', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
+
+      await expect(service.setStaffActive(staff.id, false, staff.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      // Switching yourself ON is harmless, and the HR path passes no actor at all.
+      await expect(service.setStaffActive(staff.id, true, staff.id)).resolves.toBeDefined();
+      await expect(service.setStaffActiveInternal(staff.id, false)).resolves.toBeDefined();
+    });
+
+    // Delete had this guard; disabling walked straight around it, and a suspended last
+    // super admin is as unrecoverable as a deleted one.
+    it('refuses to switch off the last active super admin, but allows it when another exists', async () => {
+      const only = makeCustomer({ phone: '+628995550014', role: Role.SUPER_ADMIN });
+      customers.seed(only);
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await expect(service.setStaffActive(only.id, false)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.setStaffActiveInternal(only.id, false)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(revokeAll).not.toHaveBeenCalled();
+      expect((await customers.findById(only.id))?.status).toBe(CustomerStatus.ACTIVE);
+
+      const second = makeCustomer({ phone: '+628995550015', role: Role.SUPER_ADMIN });
+      customers.seed(second);
+      const off = await service.setStaffActiveInternal(only.id, false);
+      expect(off.status).toBe(CustomerStatus.SUSPENDED);
+      expect(revokeAll).toHaveBeenCalledWith(only.id);
+
+      // `second` is now the last active one.
+      await expect(service.setStaffActiveInternal(second.id, false)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('answers not-found when a super admin vanishes between the read and the locked write', async () => {
+      const sa = makeCustomer({ phone: '+628995550016', role: Role.SUPER_ADMIN });
+      customers.seed(sa);
+      customers.seed(makeCustomer({ phone: '+628995550017', role: Role.SUPER_ADMIN }));
+      jest.spyOn(customers, 'suspendGuardingLastSuperAdmin').mockResolvedValue('not-found');
+      const find = jest.spyOn(customers, 'findById');
+      find.mockResolvedValueOnce((await customers.findById(sa.id)) as never);
+      find.mockResolvedValueOnce(null);
+
+      await expect(service.setStaffActiveInternal(sa.id, false)).rejects.toBeInstanceOf(
+        CustomerNotFoundError,
+      );
+    });
+
     // Deleting anonymises the identity; "activate" must not bring back a record nobody can
     // read. Locks the 0a fix to SUSPENDED only.
     it('never revives a deleted account', async () => {
@@ -465,7 +544,7 @@ describe('AccountService', () => {
   describe('importStaff', () => {
     it('creates good rows, fails only the bad one, and calls a re-upload updated', async () => {
       const first = await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004001', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004001', role: Role.SUPERVISOR, fullName: 'Kantor' },
         // Depot-locked with no depot: rejected by inviteStaff, so this row alone fails.
         { ...EMPLOYMENT, phone: '+628990004002', role: Role.KEPALA_DEPOT, fullName: 'Tanpa Depot' },
         {
@@ -505,7 +584,7 @@ describe('AccountService', () => {
     it('sends every non-owner row in one batch, and skips the franchise owner', async () => {
       const spy = jest.spyOn(hr, 'provisionEmployees');
       await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004101', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004101', role: Role.SUPERVISOR, fullName: 'Kantor' },
         { ...EMPLOYMENT, phone: '+628990004102', role: Role.FRANCHISE_OWNER, fullName: 'Pemilik' },
       ]);
       expect(spy).toHaveBeenCalledTimes(1);
@@ -517,7 +596,7 @@ describe('AccountService', () => {
         inputs.map((_i, index) => ({ index, ok: false, message: 'NIK sudah dipakai' }));
 
       const summary = await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004201', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004201', role: Role.SUPERVISOR, fullName: 'Kantor' },
       ]);
 
       expect(summary).toMatchObject({ created: 0, failed: 1 });
@@ -529,7 +608,7 @@ describe('AccountService', () => {
       hr.provisionEmployees = async () => [];
 
       const summary = await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004301', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004301', role: Role.SUPERVISOR, fullName: 'Kantor' },
       ]);
 
       expect(summary).toMatchObject({ created: 0, failed: 1 });
@@ -542,7 +621,7 @@ describe('AccountService', () => {
       };
 
       const summary = await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004401', role: Role.HEAD_OFFICE, fullName: 'A' },
+        { ...EMPLOYMENT, phone: '+628990004401', role: Role.SUPERVISOR, fullName: 'A' },
         { ...EMPLOYMENT, phone: '+628990004402', role: Role.FINANCE, fullName: 'B' },
       ]);
 
@@ -554,13 +633,13 @@ describe('AccountService', () => {
     // not just increment `failed`.
     it('moves a re-uploaded row out of updated when its employee half fails', async () => {
       await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004501', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004501', role: Role.SUPERVISOR, fullName: 'Kantor' },
       ]);
       hr.provisionEmployees = async (inputs) =>
         inputs.map((_i, index) => ({ index, ok: false, message: 'ditolak' }));
 
       const again = await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004501', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004501', role: Role.SUPERVISOR, fullName: 'Kantor' },
       ]);
       expect(again).toMatchObject({ created: 0, updated: 0, failed: 1 });
     });
@@ -568,7 +647,7 @@ describe('AccountService', () => {
     it('refuses the whole row when hr-service is not configured at all', async () => {
       const noHr = new AccountService(customers, sessions, new AuditService(audit));
       const summary = await noHr.importStaff([
-        { ...EMPLOYMENT, phone: '+628990004601', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004601', role: Role.SUPERVISOR, fullName: 'Kantor' },
       ]);
       expect(summary).toMatchObject({ created: 0, failed: 1 });
     });
@@ -611,7 +690,7 @@ describe('AccountService', () => {
   // depot rule as the invite path.
   describe('setStaffRole', () => {
     it('rejects demoting to CUSTOMER and an unknown account', async () => {
-      const staff = await service.inviteStaff('+628990003001', Role.HEAD_OFFICE, 'Kantor');
+      const staff = await service.inviteStaff('+628990003001', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
       await expect(service.setStaffRole(staff.id, Role.CUSTOMER)).rejects.toBeInstanceOf(
         InvalidStaffRoleError,
       );
@@ -633,7 +712,7 @@ describe('AccountService', () => {
     });
 
     it('refuses to leave a depot-locked role without a depot', async () => {
-      const office = await service.inviteStaff('+628990003004', Role.HEAD_OFFICE, 'Kantor');
+      const office = await service.inviteStaff('+628990003004', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
       // No depot on the account and none supplied.
       await expect(service.setStaffRole(office.id, Role.KEPALA_DEPOT)).rejects.toBeInstanceOf(
         StaffDepotRequiredError,
@@ -646,7 +725,7 @@ describe('AccountService', () => {
     });
 
     it('moves an office role that never had a depot', async () => {
-      const office = await service.inviteStaff('+628990003006', Role.HEAD_OFFICE, 'Kantor');
+      const office = await service.inviteStaff('+628990003006', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
       const moved = await service.setStaffRole(office.id, Role.FINANCE, undefined, Role.SUPER_ADMIN);
       expect(moved).toMatchObject({ role: Role.FINANCE, assignedDepotId: null });
     });
@@ -1206,7 +1285,7 @@ describe('AccountService', () => {
   // The remaining branches of the invite/import path: every optional field left out.
   describe('optional fields on the invite and import paths', () => {
     it('invites with no name at all', async () => {
-      const staff = await service.inviteStaff('+628990007001', Role.HEAD_OFFICE);
+      const staff = await service.inviteStaff('+628990007001', Role.HEAD_OFFICE, undefined, undefined, undefined, Role.SUPER_ADMIN);
       expect(staff.fullName).toBeNull();
     });
 
@@ -1216,7 +1295,7 @@ describe('AccountService', () => {
       await service.inviteStaffWithEmployee({
         ...EMPLOYMENT,
         phone: '+628990007002',
-        role: Role.HEAD_OFFICE,
+        role: Role.SUPERVISOR,
       });
       expect(hr.calls[0]?.fullName).toBe('+628990007002');
     });
@@ -1225,7 +1304,7 @@ describe('AccountService', () => {
       hr.provisionEmployees = async (inputs) =>
         inputs.map((_i, index) => ({ index, ok: false, message: null }));
       const summary = await service.importStaff([
-        { ...EMPLOYMENT, phone: '+628990007003', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990007003', role: Role.SUPERVISOR, fullName: 'Kantor' },
       ]);
       expect(summary.results[0]?.message).toContain('menolak');
     });
@@ -1238,7 +1317,7 @@ describe('AccountService', () => {
       const summary = await service.importStaff([
         // Depot-locked with no depot: this row fails before hr-service is ever asked.
         { ...EMPLOYMENT, phone: '+628990007004', role: Role.KEPALA_DEPOT, fullName: 'X' },
-        { ...EMPLOYMENT, phone: '+628990007005', role: Role.HEAD_OFFICE, fullName: 'Y' },
+        { ...EMPLOYMENT, phone: '+628990007005', role: Role.SUPERVISOR, fullName: 'Y' },
       ]);
       expect(summary.failed).toBe(2);
       expect(summary.created).toBe(0);
@@ -1254,7 +1333,7 @@ describe('AccountService', () => {
     it('reports an existing account rather than overwriting it', async () => {
       const pending = await service.preRegisterCustomer('+628990007007', 'Budi');
       expect((await service.preRegisterCustomer('+628990007007', 'Lain')).status).toBe('pending');
-      const staff = await service.inviteStaff('+628990007008', Role.HEAD_OFFICE, 'Kantor');
+      const staff = await service.inviteStaff('+628990007008', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
       expect((await service.preRegisterCustomer(staff.phone)).status).toBe('active');
       expect(pending.customerId).toBeDefined();
     });

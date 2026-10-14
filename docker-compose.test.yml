@@ -321,8 +321,6 @@ services:
       <<: *shared
       CRM_SERVICE_PORT: 3012
       CRM_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_crm?schema=public
-      WHATSAPP_API_URL: ""
-      WHATSAPP_API_TOKEN: ""
       CUSTOMER_SERVICE_URL: http://customer:3002
       # Activity half of a broadcast segment; blank would fail closed, not send wider.
       ORDER_SERVICE_URL: http://order:3004

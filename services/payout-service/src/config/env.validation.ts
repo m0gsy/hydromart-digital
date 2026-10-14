@@ -32,6 +32,9 @@ export const envValidationSchema = Joi.object({
   // HQ commission rate applied to gross sales settlements (0.05 = 5%). Reporting only.
   // Expense claims at or under this IDR amount auto-approve (0 = every claim needs a reviewer).
   EXPENSE_AUTO_APPROVE_MAX_IDR: Joi.number().integer().min(0).default(50000),
+  // Owner decision 2026-10-14: the smallest cash-out (franchise owner or courier). Below it the
+  // request is refused with the figure in the message; 0 disables the floor.
+  MIN_WITHDRAWAL_IDR: Joi.number().integer().min(0).default(50000),
   // PYO-5: the most a MANAGER may approve on one expense claim; above it, FINANCE/SUPER_ADMIN.
   EXPENSE_MANAGER_APPROVE_MAX_IDR: Joi.number().integer().min(0).default(500000),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an

@@ -31,7 +31,7 @@ import {
 } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime, mediaUrl } from '@/lib/format';
+import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { compressImage } from '@/lib/image';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
 import { needsPayment, offeredMethods } from '@/lib/payments';
@@ -497,6 +497,20 @@ function OrderDetailInner({ id }: { id: string }) {
                   >
                     {payment.status}
                   </span>
+                  {/* The refund, in the customer's terms: where it is, and the 1-3 working-day
+                      promise the FAQ makes. Read from the same payment row — nothing new is
+                      stored for it. */}
+                  {payment.status === 'REFUNDED' ? (
+                    <p className="mt-2 text-[12.5px] text-muted">
+                      {t('order.detail.refundDone', {
+                        amount: formatIDR(payment.refundedAmount ?? payment.amount),
+                      })}
+                    </p>
+                  ) : payment.refundApproval === 'PENDING' ? (
+                    <p className="mt-2 text-[12.5px] text-muted">{t('order.detail.refundPending')}</p>
+                  ) : payment.refundApproval === 'REJECTED' ? (
+                    <p className="mt-2 text-[12.5px] text-muted">{t('order.detail.refundRejected')}</p>
+                  ) : null}
                 </div>
               </div>
             )}

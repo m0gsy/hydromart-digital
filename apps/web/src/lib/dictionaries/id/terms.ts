@@ -21,7 +21,7 @@
 // sebelum ada sengketa yang bergantung padanya.
 export const terms = {
   title: 'Ketentuan Layanan',
-  effective: 'Berlaku sejak 29 Agustus 2026',
+  effective: 'Berlaku sejak 14 Oktober 2026',
   intro:
     'Ketentuan ini mengatur pemakaian aplikasi dan situs Hydromart. Dengan mendaftar atau memesan, kamu setuju pada isinya. Bacalah bersama Kebijakan Privasi kami, yang menjelaskan data pribadi apa yang kami olah dan atas dasar apa.',
   sections: [
@@ -47,7 +47,7 @@ export const terms = {
     },
     {
       heading: '6. Deposit galon',
-      body: 'Untuk galon yang kamu pinjam, ada deposit yang dibayar di muka dan dikembalikan saat galonnya kamu kembalikan dalam keadaan utuh. Deposit bukan biaya sewa dan tidak berkurang karena lamanya pemakaian. Galon yang pecah, retak, atau hilang tidak mendapat pengembalian deposit. Nilai depositnya ditampilkan sebelum kamu membayar.',
+      body: 'Untuk galon yang kamu pinjam, depot mencatat deposit atas namamu saat galon diantar, dan mengembalikannya saat galonnya kamu kembalikan dalam keadaan utuh. Deposit bukan biaya sewa dan tidak berkurang karena lamanya pemakaian. Galon yang pecah, retak, atau hilang tidak mendapat pengembalian deposit. Perkiraan nilai deposit ditampilkan di layar pembayaran, terpisah dan belum termasuk dalam total yang kamu bayar saat memesan.',
     },
     {
       heading: '7. Pengantaran',
@@ -55,7 +55,7 @@ export const terms = {
     },
     {
       heading: '8. Membatalkan, dan bila ada yang salah',
-      body: 'Kamu bisa membatalkan sebelum depot mulai menyiapkan pesanan; setelah itu pembatalan bergantung pada persetujuan depot. Bila air atau galon yang kamu terima bermasalah — segelnya rusak, isinya keruh, jumlahnya kurang — laporkan pada hari yang sama lewat aplikasi, sertakan foto bila ada. Depot akan mengganti atau mengembalikan uangmu. Untuk pesanan yang sudah dibayar dan dibatalkan, uangmu dikembalikan oleh depot melalui jalur yang sama dengan cara kamu membayar.',
+      body: 'Kamu bisa membatalkan sebelum kurir ditugaskan; setelah itu pembatalan bergantung pada persetujuan depot. Bila air atau galon yang kamu terima bermasalah — segelnya rusak, isinya keruh, jumlahnya kurang — laporkan pada hari yang sama lewat aplikasi, sertakan foto bila ada. Depot akan mengganti atau mengembalikan uangmu. Untuk pesanan yang sudah dibayar dan dibatalkan, uangmu dikembalikan oleh depot melalui jalur yang sama dengan cara kamu membayar.',
     },
     {
       heading: '9. Poin, tingkat keanggotaan, voucher, dan referal',

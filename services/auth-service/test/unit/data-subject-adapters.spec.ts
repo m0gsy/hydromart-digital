@@ -69,8 +69,8 @@ describe('DataSubjectController (delegation)', () => {
   });
 
   it('approve() omits the export key entirely for a DELETE', async () => {
-    const out = await ctrl.approve({ sub: 'staff-1' } as never, 'req-1');
-    expect(service.approve).toHaveBeenCalledWith('req-1', 'staff-1');
+    const out = await ctrl.approve({ sub: 'staff-1' } as never, 'req-1', {});
+    expect(service.approve).toHaveBeenCalledWith('req-1', 'staff-1', { force: false });
     expect(out.request.status).toBe('COMPLETED');
     expect('export' in out).toBe(false);
   });
@@ -80,8 +80,19 @@ describe('DataSubjectController (delegation)', () => {
       request: { ...row, status: 'COMPLETED' as const },
       export: { exportedAt: 'now', account: { id: 'cust-1' }, customer: {}, notIncluded: [] },
     } as never);
-    const out = await ctrl.approve({ sub: 'staff-1' } as never, 'req-1');
+    const out = await ctrl.approve({ sub: 'staff-1' } as never, 'req-1', {});
     expect(out.export?.account).toEqual({ id: 'cust-1' });
+  });
+
+  // Owner decision 2026-10-14: forcing past open orders is a SUPER_ADMIN's call, and a
+  // HEAD_OFFICE client that asks for it is told no rather than silently ignored.
+  it('approve() passes force through for a SUPER_ADMIN and refuses it for anyone else', async () => {
+    await ctrl.approve({ sub: 'root', role: 'SUPER_ADMIN' } as never, 'req-1', { force: true });
+    expect(service.approve).toHaveBeenLastCalledWith('req-1', 'root', { force: true });
+
+    await expect(
+      ctrl.approve({ sub: 'ho', role: 'HEAD_OFFICE' } as never, 'req-1', { force: true }),
+    ).rejects.toThrow(/Super Admin/);
   });
 
   it('reject() forwards the reason', async () => {

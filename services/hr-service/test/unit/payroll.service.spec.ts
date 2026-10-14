@@ -677,6 +677,48 @@ describe('PayrollService lifecycle', () => {
     expect(repo.status).toBe('PAID');
   });
 
+  // Owner decision 2026-10-14. A slip is not signed off by the person who generated it,
+  // except a SUPER_ADMIN, so a one-person desk is never locked out.
+  it('refuses approving your own slip unless you are SUPER_ADMIN', async () => {
+    const { repo, svc } = build({ employee: {} });
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+      createdBy: 'hr',
+    } as PayrollWithItems;
+    await expect(svc.approve(user, 'p1')).rejects.toThrow(/dibuat oleh akun Anda/);
+
+    const other = { ...user, sub: 'someone-else' };
+    await expect(svc.approve(other, 'p1')).resolves.toBeDefined();
+
+    repo.byId = {
+      id: 'p1',
+      employeeId: 'e1',
+      status: 'DRAFT',
+      periodMonth: '2026-07',
+      createdBy: 'root',
+    } as PayrollWithItems;
+    const root = { ...user, sub: 'root', role: 'SUPER_ADMIN' as never };
+    await expect(svc.approve(root, 'p1')).resolves.toBeDefined();
+  });
+
+  it('takes an APPROVED slip back to DRAFT: SUPER_ADMIN only, reason required, never once PAID', async () => {
+    const { repo, svc } = build({ employee: {} });
+    const root = { ...user, sub: 'root', role: 'SUPER_ADMIN' as never };
+    repo.byId = { id: 'p1', employeeId: 'e1', status: 'APPROVED', approvedBy: 'x' } as PayrollWithItems;
+
+    await expect(svc.unapprove(user, 'p1', 'salah hitung')).rejects.toThrow(/Super Admin/);
+    await expect(svc.unapprove(root, 'p1', '   ')).rejects.toThrow(/Alasan wajib/);
+
+    await svc.unapprove(root, 'p1', 'salah hitung');
+    expect(repo.status).toBe('DRAFT');
+
+    repo.byId = { id: 'p1', employeeId: 'e1', status: 'PAID' } as PayrollWithItems;
+    await expect(svc.unapprove(root, 'p1', 'salah hitung')).rejects.toThrow(ConflictException);
+  });
+
   it('refuses approving a non-DRAFT and paying a non-APPROVED', async () => {
     const { repo, svc } = build({ employee: {} });
     repo.byId = { id: 'p1', employeeId: 'e1', status: 'PAID' } as PayrollWithItems;

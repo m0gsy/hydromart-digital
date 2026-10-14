@@ -56,4 +56,13 @@ export interface CustomerRepository {
   markDeletedGuardingLastSuperAdmin(
     customerId: string,
   ): Promise<'deleted' | 'last-super-admin' | 'not-found'>;
+  /**
+   * Switch a SUPER_ADMIN login off, refusing if it is the last ACTIVE one — the same guard
+   * as deletion, which disabling had been walking around: a suspended last super admin is
+   * as unrecoverable as a deleted one, because every repair route is SUPER_ADMIN-only.
+   * Check and write share one transaction with every active super admin locked.
+   */
+  suspendGuardingLastSuperAdmin(
+    customerId: string,
+  ): Promise<'suspended' | 'last-super-admin' | 'not-found'>;
 }

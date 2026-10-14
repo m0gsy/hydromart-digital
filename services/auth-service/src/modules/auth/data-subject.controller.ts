@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { DataSubjectService, DataExport } from '../../application/services/data-subject.service';
@@ -7,6 +16,7 @@ import { Can, Roles } from '@hydromart/platform';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { Role } from '../../domain/customer/role.enum';
 import {
+  ApproveDataSubjectRequestDto,
   CreateDataSubjectRequestDto,
   DataSubjectRequestDto,
   RejectDataSubjectRequestDto,
@@ -81,8 +91,14 @@ export class DataSubjectController {
   async approve(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApproveDataSubjectRequestDto,
   ): Promise<{ request: DataSubjectRequestDto; export?: DataExport }> {
-    const result = await this.requests.approve(id, user.sub);
+    // Forcing over open orders is a SUPER_ADMIN's call. Refused loudly rather than ignored:
+    // a HEAD_OFFICE client sending force=true must learn it did not get what it asked for.
+    if (dto?.force && user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('Hanya Super Admin yang boleh memaksa penghapusan.');
+    }
+    const result = await this.requests.approve(id, user.sub, { force: dto?.force === true });
     return {
       request: DataSubjectRequestDto.from(result.request),
       ...(result.export ? { export: result.export } : {}),

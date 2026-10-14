@@ -15,7 +15,11 @@ import {
   LoanRequestRepository,
   LoanRequestWrite,
 } from '../../src/application/ports/loan-request.repository';
-import { LoanRequestService } from '../../src/application/services/loan-request.service';
+import {
+  LoanRequestService,
+  monthlyBasePay,
+  subtractWorkingDays,
+} from '../../src/application/services/loan-request.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
 import { LoanService } from '../../src/application/services/loan.service';
 
@@ -76,8 +80,9 @@ class FakeRepo implements LoanRequestRepository {
       decidedAt: null,
       decisionNote: null,
       loanId: null,
-      createdAt: new Date(this.seq * 1000),
-      updatedAt: new Date(this.seq * 1000),
+      // Recent, so the three-working-day window has not closed on a freshly filed request.
+      createdAt: new Date(Date.now() - (100 - this.seq) * 1000),
+      updatedAt: new Date(Date.now() - (100 - this.seq) * 1000),
     } as unknown as LoanRequest;
     this.rows.push(row);
     return { ...row };
@@ -120,6 +125,8 @@ const EMPLOYEE = {
   phone: '0802',
   authSubjectId: STAFF,
   depotId: DEPOT_A,
+  monthlyRate: 5_000_000,
+  dailyRate: null,
 };
 
 function make(overrides: { depotId?: string | null; assistant?: string | null } = {}) {
@@ -164,6 +171,21 @@ function make(overrides: { depotId?: string | null; assistant?: string | null } 
 }
 
 const APPLY = { amount: 500_000, reason: 'Biaya sekolah anak' };
+
+describe('subtractWorkingDays and monthlyBasePay', () => {
+  it('skips weekends when counting back the decision window', () => {
+    // Wednesday 14 Oct 2026 minus three working days is Friday 9 Oct.
+    expect(subtractWorkingDays(new Date('2026-10-14T00:00:00Z'), 3).toISOString().slice(0, 10)).toBe('2026-10-09');
+    // Monday minus one working day is the Friday before.
+    expect(subtractWorkingDays(new Date('2026-10-12T00:00:00Z'), 1).toISOString().slice(0, 10)).toBe('2026-10-09');
+  });
+
+  it('reads a month of base pay: monthly rate, 26 days of a daily rate, or nothing', () => {
+    expect(monthlyBasePay({ monthlyRate: '4500000' })).toBe(4_500_000);
+    expect(monthlyBasePay({ monthlyRate: null, dailyRate: 100_000 })).toBe(2_600_000);
+    expect(monthlyBasePay({})).toBeNull();
+  });
+});
 
 describe('LoanRequestService.submit', () => {
   it('files a request and tells the person who decides it', async () => {
@@ -221,6 +243,26 @@ describe('LoanRequestService.submit', () => {
     const { svc, sent } = make({ assistant: null });
     await svc.submit(staff, APPLY);
     expect(sent).toEqual([]);
+  });
+});
+
+describe('LoanRequestService kasbon limit and decision window', () => {
+  it('refuses more than one month of base pay and a missing rate', async () => {
+    const { svc } = make();
+    await expect(svc.submit(staff, { amount: 5_000_001, reason: 'sakit' })).rejects.toThrow(
+      /melebihi batas 1x gaji pokok/,
+    );
+  });
+
+  it('closes a request nobody answered in three working days, and refuses to decide it', async () => {
+    const { svc, repo } = make();
+    const stale = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'x' });
+    const row = repo.rows.find((r) => r.id === stale.id)!;
+    (row as { createdAt: Date }).createdAt = new Date(Date.now() - 10 * 86_400_000);
+
+    const mine = await svc.listSelf(staff);
+    expect(mine.find((r) => r.id === stale.id)?.status).toBe('CANCELLED');
+    expect(mine.find((r) => r.id === stale.id)?.decisionNote).toMatch(/Kedaluwarsa/);
   });
 });
 

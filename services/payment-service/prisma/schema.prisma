@@ -88,6 +88,11 @@ model Payment {
 
   refundedAt     DateTime?
   refundReason   String?
+  /// WHO raised the refund that parked at PENDING — shown in the HQ queue as "diajukan oleh".
+  /// TEXT, not uuid: a cancellation is raised by the literal service name `order-service`.
+  /// Added one release ahead of the code that writes and reads it (schema rule). Null for every
+  /// refund that settled directly and for rows from before this column existed.
+  refundRequestedBy String?
   refundedAmount Decimal?  @db.Decimal(12, 2)
   /// HQ refund-approval state. High-value refunds park at PENDING until decided.
   refundApproval RefundApproval @default(NONE)

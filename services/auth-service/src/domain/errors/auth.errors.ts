@@ -202,6 +202,22 @@ export class DataSubjectRequestNotFoundError extends DomainError {
   }
 }
 
+/**
+ * Owner decision 2026-10-14: an account with orders still in flight is not erased. The
+ * delivery, the payment and the reversal all need somebody on the other end. A SUPER_ADMIN
+ * may force it, knowing the count.
+ */
+export class AccountHasOpenOrdersError extends DomainError {
+  readonly code = 'PDP_OPEN_ORDERS';
+  readonly status = HTTP.CONFLICT;
+  constructor(readonly openOrders: number) {
+    super(
+      `Akun ini masih punya ${openOrders} pesanan yang belum selesai. ` +
+        'Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan.',
+    );
+  }
+}
+
 /** Deciding twice would re-run an irreversible side effect. */
 export class DataSubjectRequestAlreadyDecidedError extends DomainError {
   readonly code = 'PDP_REQUEST_DECIDED';

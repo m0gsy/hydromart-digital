@@ -2,6 +2,7 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  WithdrawalBelowMinimumError,
   PayoutDestinationNotVerifiedError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
@@ -249,6 +250,23 @@ const verifiedAccounts = () =>
   ({ verifiedDestination: async () => 'BCA ···· 4821' }) as never;
 
 describe('PayoutService.requestWithdrawal', () => {
+  // Owner decision 2026-10-14: nothing under the floor goes to the bank.
+  it('refuses a withdrawal under the minimum and writes nothing', async () => {
+    const ledger = new FakeLedger([100000]);
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      { businessTimeZone: 'Asia/Jakarta', minWithdrawalIdr: 50000 } as PayoutConfigService,
+      verifiedAccounts(),
+    );
+    await expect(svc.requestWithdrawal('owner-1', 49999)).rejects.toBeInstanceOf(
+      WithdrawalBelowMinimumError,
+    );
+    await expect(svc.requestWithdrawal('owner-1', 50000)).resolves.toBeDefined();
+  });
+
   it('rejects a non-positive amount', async () => {
     const svc = new PayoutService(
       new FakeLedger([100000]),

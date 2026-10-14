@@ -22,6 +22,14 @@ import { BonusType, DeductionType, PayrollStatus } from '../../../prisma/generat
 
 const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+export class UnapprovePayrollDto {
+  @ApiProperty({ description: 'Why the approval is being taken back.' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  reason!: string;
+}
+
 export class GeneratePayrollDto {
   @IsUUID() employeeId!: string;
 

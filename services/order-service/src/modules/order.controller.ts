@@ -72,6 +72,7 @@ import {
   InternalCompleted2ResponseDto,
   InternalConfirm2ResponseDto,
   InternalCustomerCompletedResponseDto,
+  InternalCustomerOpenCountResponseDto,
   InternalCustomerOrdersResponseDto,
   InternalDepotCustomers2ResponseDto,
   InternalDepotSales2ResponseDto,
@@ -662,6 +663,23 @@ export class OrderController {
       limit: 1,
     });
     return { hasCompleted: page.total > 0 };
+  }
+
+  /**
+   * How many orders this customer still has in flight — everything not COMPLETED, CANCELLED
+   * or VOIDED (DELIVERED is open: it still moves to COMPLETED). auth-service refuses an
+   * account erasure while this is above zero. Internal key, not a user capability.
+   */
+  @ApiOkResponse({ type: InternalCustomerOpenCountResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-open-count')
+  @ApiOperation({ summary: 'Open (non-terminal) orders for a customer (internal service auth)' })
+  async internalCustomerOpenCount(
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<{ openCount: number }> {
+    return { openCount: await this.orders.countOpenForCustomer(customerId) };
   }
 
   @Public()

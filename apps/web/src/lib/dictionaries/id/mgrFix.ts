@@ -52,7 +52,7 @@ export const mgrFix = {
     depositVariance: 'Setoran selisih',
     avgSla: 'SLA rata2',
     avgRating: 'Rating rata2',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Performa tim hanya untuk Manajer depot.',
     emptyTitle: 'Belum ada aktivitas tim',
     emptyBody: 'Belum ada pengantaran atau setoran terverifikasi bulan ini.',
@@ -74,7 +74,7 @@ export const mgrFix = {
     unread: 'Gagal dibaca',
     km: '{n} km',
     unset: 'Belum diatur',
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Pengaturan depot butuh hak depotAdmin.',
   },
   // 8a — Laporan L/R bulanan.
@@ -114,7 +114,7 @@ export const mgrFix = {
       AMBIGUOUS_ITEM_LABEL: 'Label yang sama dipakai lebih dari satu item stok.',
       AMBIGUOUS_PO_COST: 'PO terbaru memuat lebih dari satu biaya untuk label yang sama.',
     },
-    gate: 'Khusus Manajer depot',
+    gate: 'Akses terbatas',
     gateBody: 'Laporan L/R hanya untuk Manajer depot.',
   },
   // 11a — customer broadcast audience selector.

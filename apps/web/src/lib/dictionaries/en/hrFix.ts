@@ -1956,6 +1956,9 @@ export const hrFix = {
     downloadFailed: 'Download failed',
     netPay: 'Net pay',
     approved: 'Payroll approved',
+    unapprove: 'Revoke approval',
+    unapproveReason: 'Reason for revoking the approval (required):',
+    unapproved: 'Approval revoked; the slip is back to DRAFT.',
     approveConfirm:
       'Approve this payroll run of {net}? Once approved, the figures can no longer be edited from this screen.',
     markPaidConfirm:
@@ -2191,6 +2194,13 @@ export const hrFix = {
     reports: 'Reports',
     audit: 'Audit',
     settings: 'Settings',
+    meter: 'Meter',
+    forecast: 'Forecast',
+    promoRules: 'Promo rules',
+    disputes: 'Disputes',
+    crm: 'CRM',
+    roles: 'Roles',
+    account: 'Account',
   },
   mgrAccount: {
     openOnDesktop: 'Open on desktop',

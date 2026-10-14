@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { IdentityHttpAdapter } from '../../src/infrastructure/http/identity.http.adapter';
@@ -21,7 +21,12 @@ function res(init: { ok?: boolean; status?: number; body?: unknown }): Response 
 }
 
 const fetchMock = jest.fn();
-const INPUT = { phone: '+628123456789', role: 'STAFF_DEPOT' as const, fullName: 'Joko', depotId: 'd1' };
+const INPUT = {
+  phone: '+628123456789',
+  role: 'STAFF_DEPOT' as const,
+  fullName: 'Joko',
+  depotId: 'd1',
+};
 
 beforeEach(() => {
   fetchMock.mockReset();
@@ -138,6 +143,49 @@ describe('IdentityHttpAdapter, the rest of the account writes', () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe('http://auth:3001/api/v1/auth/internal/staff/status');
     expect(JSON.parse(options.body)).toEqual({ customerId: 'c1', active: false });
+  });
+
+  // auth-service says WHY it refused. Collapsing that to "(403)" left the person at the form
+  // with nothing to fix; the reason has to reach them.
+  it('surfaces the reason auth-service gives for a 4xx refusal', async () => {
+    fetchMock.mockResolvedValue(
+      res({ ok: false, status: 403, body: { message: 'Peran ini tidak boleh diberikan' } }),
+    );
+    const call = new IdentityHttpAdapter(makeConfig()).assignRole({
+      customerId: 'c1',
+      role: 'MANAGER' as never,
+      depotId: null,
+    });
+    await expect(call).rejects.toBeInstanceOf(BadRequestException);
+    await expect(call).rejects.toThrow(/Peran ini tidak boleh diberikan/);
+  });
+
+  it('joins a validation-array message, and keeps a 401 an outage even with a body', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({ ok: false, status: 400, body: { message: ['a salah', 'b salah'] } }),
+    );
+    await expect(new IdentityHttpAdapter(makeConfig()).setStaffActive('c1', false)).rejects.toThrow(
+      'a salah; b salah',
+    );
+    fetchMock.mockResolvedValueOnce(
+      res({ ok: false, status: 401, body: { message: 'Invalid key' } }),
+    );
+    await expect(
+      new IdentityHttpAdapter(makeConfig()).setStaffActive('c1', false),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('falls back to the status when the body is not JSON', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => {
+        throw new Error('x');
+      },
+    } as never);
+    await expect(new IdentityHttpAdapter(makeConfig()).setStaffActive('c1', false)).rejects.toThrow(
+      /400/,
+    );
   });
 
   // Same hard-fail contract as provisionStaff: hr-service must not report a role change

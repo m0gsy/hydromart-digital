@@ -88,6 +88,8 @@ export const ops = {
     activeContext: 'konteks aktif',
     locations: '{n} lokasi',
     combined: '{n} lokasi · gabungan',
+    perDepotNotice:
+      'Menampilkan {name}. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih.',
   },
   roles: {
     SUPER_ADMIN: 'Super admin',

@@ -2795,6 +2795,17 @@ describe('OrderService', () => {
     expect(others.total).toBe(0);
   });
 
+  // Owner decision 2026-10-14: an account with orders in flight cannot be erased.
+  it('counts only open orders for a customer, and none for somebody else', async () => {
+    await addToCart(20000, 1);
+    const open = await service.checkout(customer, { deliveryAddress: address });
+    expect(await service.countOpenForCustomer(customer)).toBe(1);
+    expect(await service.countOpenForCustomer(randomUUID())).toBe(0);
+
+    await service.cancel(customer, open.id);
+    expect(await service.countOpenForCustomer(customer)).toBe(0);
+  });
+
   it('filters the staff queue by depotId, and returns all depots when omitted (6a)', async () => {
     depots.depots = [
       {

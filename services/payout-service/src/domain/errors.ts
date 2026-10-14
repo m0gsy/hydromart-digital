@@ -8,6 +8,14 @@ export class InsufficientBalanceError extends DomainError {
   }
 }
 
+export class WithdrawalBelowMinimumError extends DomainError {
+  readonly code = 'PAYOUT_BELOW_MINIMUM';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(minimum: number) {
+    super(`Minimum penarikan Rp${minimum.toLocaleString('id-ID')}.`);
+  }
+}
+
 export class InvalidWithdrawalAmountError extends DomainError {
   readonly code = 'PAYOUT_INVALID_AMOUNT';
   readonly status = HTTP_STATUS.BAD_REQUEST;

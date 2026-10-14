@@ -55,7 +55,7 @@ export const dashC = {
     languageHint: 'Pilih bahasa antarmuka.',
     languageAria: 'Bahasa',
     signOut: 'Keluar',
-    gateTitle: 'Khusus Manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Profil manajer hanya untuk Manajer depot.',
   },
   promotionDetail: {
@@ -92,7 +92,7 @@ export const dashC = {
     noTrendBody: 'Belum ada produk yang cukup laku untuk jadi tren di depot ini.',
     skuUnit: 'SKU {sku} · {unit}',
     info: 'Rekomendasi dihasilkan otomatis dari pola order pelanggan — produk yang sering dibeli bersama, deposit galon yang belum aktif, dan kandidat langganan.',
-    gateTitle: 'Khusus Manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Rekomendasi cross-sell hanya untuk Manajer depot.',
   },
   referral: {
@@ -109,7 +109,7 @@ export const dashC = {
     customer: 'Pelanggan {id}',
     friendsJoined: '{n} teman bergabung',
     pointsValue: '{n} poin',
-    gateTitle: 'Khusus Manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Program referral hanya untuk Manajer depot.',
   },
   roles: {

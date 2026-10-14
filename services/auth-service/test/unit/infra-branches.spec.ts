@@ -557,6 +557,33 @@ describe('AuditLogPrismaRepository.list branch gaps', () => {
     );
   });
 
+  // Date window and outcome: the trail had no way to ask "what refused last Tuesday".
+  it('narrows by a created-at window and by outcome, and leaves both out when unset', async () => {
+    auditLog.findMany.mockResolvedValue([]);
+    auditLog.count.mockResolvedValue(0);
+    customer.findMany.mockResolvedValue([]);
+    const from = new Date('2026-10-01T00:00:00Z');
+    const to = new Date('2026-10-08T00:00:00Z');
+
+    await repo.list({ page: 1, limit: 20, from, to, success: false });
+    let where = auditLog.findMany.mock.calls[0][0].where;
+    expect(where.createdAt).toEqual({ gte: from, lt: to });
+    expect(where.success).toBe(false);
+
+    await repo.list({ page: 1, limit: 20, from });
+    where = auditLog.findMany.mock.calls[1][0].where;
+    expect(where.createdAt).toEqual({ gte: from });
+
+    await repo.list({ page: 1, limit: 20, to });
+    where = auditLog.findMany.mock.calls[2][0].where;
+    expect(where.createdAt).toEqual({ lt: to });
+
+    await repo.list({ page: 1, limit: 20 });
+    where = auditLog.findMany.mock.calls[3][0].where;
+    expect(where.createdAt).toBeUndefined();
+    expect(where.success).toBeUndefined();
+  });
+
   it('skips the actor lookup for system rows with no actor', async () => {
     auditLog.findMany.mockResolvedValue([auditRow({ customerId: null, metadata: null })]);
     auditLog.count.mockResolvedValue(1);

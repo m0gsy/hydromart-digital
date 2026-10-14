@@ -38,6 +38,29 @@ export interface DecideLoanRequestInput {
   seenUpdatedAt?: string;
 }
 
+/** Owner decision 2026-10-14: a kasbon request is decided within three working days. */
+const DECISION_WINDOW_WORKING_DAYS = 3;
+
+/** `from` minus `n` Mon-Fri days (public holidays are not modelled — a week-end is the floor). */
+export function subtractWorkingDays(from: Date, n: number): Date {
+  const d = new Date(from);
+  let left = n;
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) left -= 1;
+  }
+  return d;
+}
+
+/** One month of base pay in IDR; a DAILY employee's month is 26 paid days. Null = no rate on file. */
+export function monthlyBasePay(e: { monthlyRate?: unknown; dailyRate?: unknown }): number | null {
+  const monthly = e.monthlyRate == null ? 0 : Number(e.monthlyRate);
+  if (monthly > 0) return monthly;
+  const daily = e.dailyRate == null ? 0 : Number(e.dailyRate);
+  return daily > 0 ? daily * 26 : null;
+}
+
 /**
  * Kasbon an employee raises for themselves.
  *
@@ -95,6 +118,28 @@ export class LoanRequestService {
     const reason = input.reason.trim();
     if (!reason) throw new BadRequestException('Alasan kasbon wajib diisi');
 
+    /*
+     * Owner decision 2026-10-14: a kasbon may not exceed one month of base pay. A DAILY
+     * employee's month is 26 paid days. With no rate recorded there is nothing to measure
+     * against, and "no limit" would be the wrong default for money — so it is refused with a
+     * pointer to HR rather than waved through.
+     */
+    const cap = monthlyBasePay(employee);
+    if (cap === null) {
+      throw new BadRequestException(
+        'Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR.',
+      );
+    }
+    if (input.amount > cap) {
+      throw new BadRequestException(
+        `Kasbon melebihi batas 1x gaji pokok (Rp${cap.toLocaleString('id-ID')}).`,
+      );
+    }
+
+    // An open request nobody answered within the window is closed first, so the person is
+    // not stuck behind a decision that is no longer coming.
+    await this.expireStaleFor(employee.id, user.sub);
+
     let request: LoanRequest;
     try {
       request = await this.repo.create({
@@ -118,7 +163,29 @@ export class LoanRequestService {
   /** Everything I ever asked for, newest first. */
   async listSelf(user: AuthenticatedUser): Promise<LoanRequest[]> {
     const employee = await this.employees.getSelf(user);
+    await this.expireStaleFor(employee.id, user.sub);
     return this.repo.listByEmployee(employee.id);
+  }
+
+  /**
+   * Close this person's PENDING requests that outlived the decision window. They become
+   * CANCELLED with a note saying why, so the applicant reads "kedaluwarsa" rather than a
+   * request that is silently still open. Lazy on purpose: no sweep job, and the answer is
+   * the same whenever somebody next looks.
+   */
+  private async expireStaleFor(employeeId: string, actorId: string): Promise<void> {
+    const cutoff = subtractWorkingDays(new Date(), DECISION_WINDOW_WORKING_DAYS);
+    const rows = await this.repo.listByEmployee(employeeId);
+    for (const r of rows) {
+      if (r.status === 'PENDING' && r.createdAt < cutoff) {
+        await this.repo.decide(r.id, {
+          status: 'CANCELLED',
+          decidedBy: actorId,
+          decisionNote: `Kedaluwarsa: tidak diputuskan dalam ${DECISION_WINDOW_WORKING_DAYS} hari kerja.`,
+          loanId: null,
+        });
+      }
+    }
   }
 
   /** Withdraw my own request while nobody has answered it. */
@@ -191,6 +258,17 @@ export class LoanRequestService {
     assertFresh(request.updatedAt, input.seenUpdatedAt);
     if (request.status !== 'PENDING') {
       throw new ConflictException('Pengajuan ini sudah diputuskan.');
+    }
+    if (request.createdAt < subtractWorkingDays(new Date(), DECISION_WINDOW_WORKING_DAYS)) {
+      await this.repo.decide(id, {
+        status: 'CANCELLED',
+        decidedBy: user.sub,
+        decisionNote: `Kedaluwarsa: tidak diputuskan dalam ${DECISION_WINDOW_WORKING_DAYS} hari kerja.`,
+        loanId: null,
+      });
+      throw new ConflictException(
+        `Pengajuan ini kedaluwarsa (lewat ${DECISION_WINDOW_WORKING_DAYS} hari kerja); pemohon perlu mengajukan lagi.`,
+      );
     }
 
     if (!input.approve) {

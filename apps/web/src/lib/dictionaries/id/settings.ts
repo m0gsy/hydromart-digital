@@ -15,7 +15,7 @@ export const settings = {
   resetError: 'Gagal mengembalikan ke bawaan.',
   emptyTitle: 'Belum ada pengaturan',
   emptyBody: 'Layanan ini belum mengekspos parameter yang bisa diubah.',
-  gateTitle: 'Khusus manajer depot',
+  gateTitle: 'Akses terbatas',
   gateBody: 'Editor pengaturan hanya untuk manajer depot dan super admin.',
   globalOnly: 'Nilai ini diatur secara global untuk seluruh jaringan, tidak bisa di-override per depot.',
   globalWriteDenied: 'Hanya SUPER_ADMIN yang dapat mengubah default global.',
