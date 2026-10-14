@@ -300,7 +300,7 @@ Aturan siapa boleh memberi peran apa adalah **konstanta di kode** dan tidak beru
 
 ### 6.8 Hierarki pembinaan (/hq/hierarchy)
 
-**Tujuan:** Menentukan rantai Depot → Asisten SPV → SPV → Manajer, yang menentukan **depot mana terlihat oleh siapa**. **Peran:** Admin saja (`hierarchyAdmin`). **Titik awal:** Rail "Jaringan depot" > "Hierarki pembinaan". Subjudul: "Depot → Asisten SPV → SPV → Manajer. Peta ini yang menentukan depot mana terlihat oleh siapa." **[V]**
+**Tujuan:** Menentukan rantai Depot → Asisten SPV → SPV → Manajer, yang menentukan **depot mana terlihat oleh siapa**. **Peran:** Admin saja (`hierarchyAdmin`). **Titik awal:** Rail "Jaringan depot" > "Hierarki pembinaan". Subjudul: "Depot → Asisten SPV → SPV → Manager. Peta ini yang menentukan depot mana terlihat oleh siapa." **[V]**
 
 **Cara kerja cakupan depot [V]:**
 
@@ -334,7 +334,7 @@ Catatan layar: "Depot tanpa asisten hanya terlihat oleh HQ ke atas. Ini anak tan
 **Propagasi:** cache cakupan depot di semua layanan 60 detik. **[V]** Atasan di kartu karyawan HR sudah dihapus; garis pelaporan hanya dicatat di sini.
 
 ![Gambar 10.6 — Hierarki pembinaan](assets/screenshots/admin-02-hierarki.png)
-> *Gambar 10.6 — "Hierarki pembinaan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Depot → Asisten SPV → SPV → Manajer. Peta ini yang menentukan depot mana terlihat oleh siapa.", kartu "Asisten SPV tiap depot" dengan catatan "Depot tanpa asisten hanya terlihat HQ ke atas…", dan baris `{kode} · {nama depot}` dengan pemilih: "BDG-01 · Depot Dago" = "Belum ditugaskan", "HIER-01 · Depot Hierarki 1" dst. = "Asisten SPV Wilayah A". Catatan kondisi: hanya bagian atas halaman; panel "Posisi satu akun di rantai" (atasan, bawahan, depot binaan) berada di bawah dan belum terlihat.*
+> *Gambar 10.6 — "Hierarki pembinaan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Depot → Asisten SPV → SPV → Manager. Peta ini yang menentukan depot mana terlihat oleh siapa.", kartu "Asisten SPV tiap depot" dengan catatan "Depot tanpa asisten hanya terlihat HQ ke atas…", dan baris `{kode} · {nama depot}` dengan pemilih: "BDG-01 · Depot Dago" = "Belum ditugaskan", "HIER-01 · Depot Hierarki 1" dst. = "Asisten SPV Wilayah A". Catatan kondisi: hanya bagian atas halaman; panel "Posisi satu akun di rantai" (atasan, bawahan, depot binaan) berada di bawah dan belum terlihat.*
 
 ### 6.9 Kunci API (/hq/api-keys)
 
@@ -438,7 +438,7 @@ Token: akses 900 detik (15 menit), penyegar 30 hari; setiap penyegaran memutar t
 
 ### 6.14 Wizard HQ (/hq/wizard)
 
-Daftar periksa awal untuk akun Admin ("Selamat datang di HQ" — "Selesaikan langkah ini untuk menyiapkan jaringan"; "{done} dari {total} selesai"). Lima langkah: "Verifikasi 2FA akun kamu" (Amankan akun HQ dengan OTP), "Tambah depot pertama", "Undang head office", "Atur harga & PPN", "Aktifkan kanal pembayaran". Tombol: "Mulai", "Tandai selesai" ("Langkah ditandai selesai"), "Batalkan" ("Langkah dibuka kembali"), "Selesai". Selesai semua: "Semua langkah selesai. Konsol siap dipakai!" Status disimpan per akun; langkah bersifat penasihat dan **tidak diturunkan dari kondisi sebenarnya** (hanya dicentang manual). **[V]** Langkah "Verifikasi 2FA" menyesatkan karena 2FA tidak ada **[B]**. Jangan menganggap centang wizard sebagai bukti konfigurasi.
+Daftar periksa awal untuk akun Admin ("Selamat datang di HQ" — "Selesaikan langkah ini untuk menyiapkan jaringan"; "{done} dari {total} selesai"). Lima langkah: "Verifikasi 2FA akun kamu" (Amankan akun HQ dengan OTP), "Tambah depot pertama", "Undang head office", "Atur harga & PPN", "Aktifkan kanal pembayaran". Tombol: "Mulai", "Tandai selesai" ("Langkah ditandai selesai"), "Batalkan" ("Langkah dibuka kembali"), "Selesai". Selesai semua: "Semua langkah selesai. Konsol siap dipakai!" Status disimpan satu untuk seluruh jaringan (satu baris bersama, bukan per akun: centang Admin lain terlihat oleh semua); langkah bersifat penasihat dan **tidak diturunkan dari kondisi sebenarnya** (hanya dicentang manual). **[V]** Langkah "Verifikasi 2FA" menyesatkan karena 2FA tidak ada **[B]**. Jangan menganggap centang wizard sebagai bukti konfigurasi.
 
 ### 6.15 Konten dwibahasa (/hq/content)
 
@@ -450,7 +450,7 @@ Editor kamus ID/EN ("Editor kamus ID/EN dengan status terjemahan"): "Cari kunci 
 
 | Layar | Rute | Cakupan | Siapa |
 |---|---|---|---|
-| Pengaturan (editor generik) | /dashboard/settings | Beralih "Default jaringan" atau "Depot tertentu"; layanan: Pengiriman & Kurir, Order & Ongkir, Payout & Komisi, Loyalty / Poin, Referral, Depot & Galon | Gerbang: Manajer dan Admin ("Khusus manajer depot — Editor pengaturan hanya untuk manajer depot dan super admin.") |
+| Pengaturan (editor generik) | /dashboard/settings | Beralih "Default jaringan" atau "Depot tertentu"; layanan: Pengiriman & Kurir, Order & Ongkir, Payout & Komisi, Loyalty / Poin, Referral, Depot & Galon | Gerbang: Manajer dan Admin ("Akses terbatas — Editor pengaturan hanya untuk manajer depot dan super admin.") |
 | Pengaturan depot | /dashboard/depot-settings | Satu depot: Radius layanan, Jam operasi, Deposit galon, Order aktif per kurir | Pengelola depot; catatan layar: "Perubahan pengaturan berlaku untuk depot ini saja & tercatat di audit log. Nonaktifkan depot lewat head office." |
 | Konfigurasi Gaji | /hr/settings | "Cakupan": Default jaringan atau Depot tertentu | Global hanya Admin: "Hanya SUPER_ADMIN yang dapat mengubah default GLOBAL." |
 | Pengaturan platform | /hq/flags | Seluruh platform | Admin |
@@ -469,7 +469,7 @@ Editor kamus ID/EN ("Editor kamus ID/EN dengan status terjemahan"): "Cari kunci 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Buka halaman. | Tabel Pelaku, Peran, Objek, Aksi, Waktu; 100 baris per halaman + muat lagi; "Sistem" untuk aksi otomatis. Pada tampilan uji (Gambar 10.12) kolom Peran memakai kode sistem (mis. "SUPER_ADMIN"), kolom Aksi memakai kunci teknis (mis. "auth.login.succeeded"), dan Waktu berbentuk relatif ("14 mnt lalu") **[B]**. |
-| 1b | Sejak PR #664 (2026-10-14): pakai penyaring "Aksi (persis, mis. depot.suspend)", "Dari tanggal", "Sampai tanggal" (hari yang dipilih ikut), dan "Hasil" (Semua / Berhasil / Ditolak / gagal); "Reset filter" membersihkan. | Daftar disaring di server (`/auth/audit` parameter `action`, `from`, `to`, `success`). Tidak ada yang cocok: "Tidak ada entri yang cocok dengan filter ini." |
+| 1b | Sejak PR #664 (2026-10-14): pakai penyaring "Aksi (persis, mis. depot.suspend)", "Dari tanggal", "Sampai tanggal" (hari yang dipilih ikut), dan "Hasil" (Semua / Berhasil / Ditolak / gagal; satu pilihan berlabel "Ditolak / gagal"); "Reset filter" membersihkan. | Daftar disaring di server (`/auth/audit` parameter `action`, `from`, `to`, `success`). Tidak ada yang cocok: "Tidak ada entri yang cocok dengan filter ini." |
 | 2 | Tekan "Ekspor". | `audit-{YYYY-MM-DD}.xlsx` (sheet "Audit"; kolom Pelaku, Peran, Objek, Aksi, Waktu) berisi seluruh entri yang cocok dengan penyaring aktif (sejak PR #664) atau seluruh jejak bila tanpa penyaring. Bila terlalu besar: "Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas." Kosong: "Belum ada aktivitas." |
 
 **Yang dicatat [V]:** (1) kejadian masuk: permintaan daftar, OTP terverifikasi atau gagal, kirim ulang, token disegarkan atau dipakai ulang, keluar, keluar dari semua perangkat, penggantian nomor (nomor disamarkan); (2) mutasi berhak istimewa lewat pencatat di tiap layanan (aksi diturunkan dari rute dan kata kerja "created", "changed", "deleted"; target dari ID di jalur; isi permintaan disamarkan untuk kunci yang cocok secret, token, password, apikey, signature, otp, pin); (3) UU PDP: permintaan dibuat, diekspor, dianonimkan, ditolak, dan `staff.account.deleted`; (4) kejadian lintas layanan seperti `depot.suspend`.
@@ -513,11 +513,11 @@ Bagian ini menjelaskan apa yang bisa dan tidak bisa dilakukan. Jangan mengatasi 
 | Sesi | Semua refresh token dicabut seketika (sejak PR #664); token akses hidup ≤15 menit | Berakhir saat penyegaran berikutnya |
 | Data keuangan | Utuh | Tetap disimpan tanpa pemilik (10 tahun) |
 
-**Permintaan data pelanggan (UU PDP):** Head office dan Admin mengerjakan /hq/pdp (Bab 9 bagian 6.29). Batas jawab 72 jam sejak permintaan dibuat (bukan sejak verifikasi, berbeda dengan halaman publik **[B]**). Menyetujui salinan: berkas JSON; pelanggan hanya dapat mengunduh 7 hari ("Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini."). Ekspor tidak memuat riwayat pesanan/pembayaran (retensi keuangan 10 tahun) dan saldo loyalti. Menyetujui hapus: pelanggan dianonimkan di semua layanan, token dihapus. Sejak PR #664 (2026-10-14), penghapusan DITOLAK bila pelanggan masih punya pesanan terbuka (409 `PDP_OPEN_ORDERS`: "Akun ini masih punya {n} pesanan yang belum selesai. Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan."); pemeriksaan gagal-tertutup (bila order-service tidak terjangkau, persetujuan juga ditolak). Hanya Super admin (Admin) yang boleh memaksa lewat dialog "Paksa hapus akun?" ("Ya, paksa hapus"); permintaan `force` dari peran lain ditolak 403 "Hanya Super Admin yang boleh memaksa penghapusan." Audit mencatat `forced: true` dan jumlah pesanan terbuka (`openOrders`). Peringatan permintaan PDP lewat batas waktu belum ada **[K]**. Menolak butuh alasan. Cakupan penghapusan (ERASED / EXEMPT / UNENFORCED / FAILED) dicatat di metadata audit; bila ada UNENFORCED atau FAILED, tindak lanjuti dengan pengembang. **[V]**
+**Permintaan data pelanggan (UU PDP):** Head office dan Admin mengerjakan /hq/pdp (Bab 9 bagian 6.29). Batas jawab 72 jam sejak permintaan dibuat (bukan sejak verifikasi, berbeda dengan halaman publik **[B]**). Menyetujui salinan: berkas JSON; pelanggan hanya dapat mengunduh 7 hari ("Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini."). Ekspor tidak memuat riwayat pesanan/pembayaran (retensi keuangan 10 tahun) dan saldo loyalti. Menyetujui hapus: pelanggan dianonimkan di semua layanan, token dihapus. Sejak PR #664 (2026-10-14), penghapusan DITOLAK bila pelanggan masih punya pesanan terbuka (409 `PDP_OPEN_ORDERS`: "Akun ini masih punya {n} pesanan yang belum selesai. Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan."); pemeriksaan gagal-tertutup (bila order-service tidak terjangkau, persetujuan juga ditolak). Hanya Super admin (Admin) yang boleh memaksa lewat dialog "Paksa hapus akun?" ("Ya, paksa hapus"); permintaan `force` dari peran lain ditolak 403 "Hanya Super Admin yang boleh memaksa penghapusan." Audit mencatat `forced: true` dan jumlah pesanan terbuka (`openOrders`). Layar /hq/pdp menandai permintaan yang belum dijawab dengan "Batas jawab {tanggal}" dan, setelah lewat 72 jam, penanda merah "LEWAT BATAS 3x24 jam"; notifikasi/peringatan ke petugas belum ada (kode `pdp-sla.ts` sengaja tidak mengirim alert) **[K]**. Menolak butuh alasan. Cakupan penghapusan (ERASED / EXEMPT / UNENFORCED / FAILED) dicatat di metadata audit; bila ada UNENFORCED atau FAILED, tindak lanjuti dengan pengembang. **[V]**
 
 **Penghapusan akun staf:** halaman publik `/hapus-akun` menyebut permintaan akun staf ditangani melalui HRD atau kantor pusat; eksekusinya oleh Admin (bagian 6.6). Alamat email privasi di halaman publik perlu diverifikasi sebelum dikutip (dokumen go-live mencatat tidak ada MX pada 2026-09-25). **[K]**
 
-**Retensi:** bagian 6.12. Bukti pengantaran 12 bulan; data keuangan 10 tahun. **[V]**
+**Retensi:** bagian 6.12. Bukti pengantaran 12 bulan (nilai bawaan 365 hari, dapat diubah); data keuangan 10 tahun. **[V]**
 
 **Hukum:** Tinjauan pihak ketiga atas bukti persetujuan UU PDP belum ada (dokumen hukum internal). **[K]**
 
@@ -535,7 +535,7 @@ Bagian ini menjelaskan apa yang bisa dan tidak bisa dilakukan. Jangan mengatasi 
 
 | Layar | Kolom wajib | Aturan penting |
 |---|---|---|
-| Undang staf | Nomor telepon, Peran; Posisi, Tanggal masuk, Status kepegawaian, Gaji (selain Pemilik waralaba); Depot untuk Staf depot dan Kepala depot | Nomor Indonesia sah; gaji > 0; nama ≤120; posisi ≤80. **[V]** |
+| Undang staf | Nomor telepon, Peran; Posisi, Tanggal masuk, Status kepegawaian, Gaji (selain Pemilik waralaba); Depot untuk Staf depot dan Kepala depot | Nomor Indonesia sah; gaji > 0 (dijaga layar; server hanya menolak nilai negatif); nama ≤120; posisi ≤80. **[V]** |
 | Impor staf | phone, role, position, joinDate, employmentStatus, salaryType | Maksimal 500 baris; kegagalan per baris tidak menghentikan baris lain. **[V]** |
 | Hapus staf | Ketik ulang nama | Tidak boleh diri sendiri atau Super admin aktif terakhir. **[V]** |
 | Matriks hak akses | — | Maksimal 256 perubahan; 32 peran per kapabilitas; Super admin tetap pada `accessMatrixWrite`. **[V]** |
