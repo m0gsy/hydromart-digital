@@ -2120,6 +2120,7 @@ export const hrFix = {
     cameraDenied: 'The camera is unavailable. Allow camera access, then reload.',
   },
   nav: {
+    hqConsole: 'HQ console',
     dashboard: 'Dashboard',
     allScreens: 'All HR screens',
     closeMenu: 'Close menu',

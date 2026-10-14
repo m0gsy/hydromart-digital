@@ -2108,6 +2108,8 @@ export interface RefundQueueItem {
   status: PaymentStatus;
   amount: number;
   refundReason: string | null;
+  /** Who raised it: a user id, or the literal `order-service` for a cancellation. Null on old rows. */
+  refundRequestedBy?: string | null;
   refundApproval: RefundApproval;
   /**
    * CA-2-34: the order's status, or null when order-service could not be read.

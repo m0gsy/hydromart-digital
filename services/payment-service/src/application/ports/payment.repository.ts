@@ -16,6 +16,8 @@ export interface PaymentRecord {
   refundReason: string | null;
   refundedAmount: number | null;
   refundApproval: RefundApproval;
+  /** Who raised the refund that parked at PENDING; null for a direct settle and for old rows. */
+  refundRequestedBy: string | null;
   cashReceived: number | null;
   changeGiven: number | null;
   /** Depot whose drawer took the money; set only for a counter sale. */
@@ -56,6 +58,7 @@ export interface PaymentStatusPatch {
   refundReason?: string | null;
   refundedAmount?: number | null;
   refundApproval?: RefundApproval;
+  refundRequestedBy?: string | null;
   reference?: string | null;
   instruction?: string | null;
   gatewayData?: string | null;

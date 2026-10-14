@@ -2141,6 +2141,7 @@ export const hrFix = {
     cameraDenied: 'Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.',
   },
   nav: {
+    hqConsole: 'Konsol HQ',
     dashboard: 'Dashboard',
     allScreens: 'Semua layar HR',
     closeMenu: 'Tutup menu',

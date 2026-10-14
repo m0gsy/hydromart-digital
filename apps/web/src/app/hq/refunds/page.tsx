@@ -121,6 +121,14 @@ export default function HqRefundsPage() {
                 <p className="mt-1 text-sm">{r.refundReason ?? '—'}</p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('hq.refunds.age', { n: hoursAgo(r.updatedAt) })}
+                  {r.refundRequestedBy
+                    ? ` · ${t('hq.refunds.requestedBy', {
+                        who:
+                          r.refundRequestedBy === 'order-service'
+                            ? t('hq.refunds.requestedBySystem')
+                            : r.refundRequestedBy.slice(0, 8),
+                      })}`
+                    : ''}
                 </p>
               </div>
               <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2">

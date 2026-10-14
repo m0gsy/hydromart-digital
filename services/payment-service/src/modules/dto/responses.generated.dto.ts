@@ -37,6 +37,8 @@ export class PaymentResponseDto {
   refundedAmount!: number | null;
   @ApiProperty({ enum: ['NONE', 'PENDING', 'APPROVED', 'REJECTED'] })
   refundApproval!: string;
+  @ApiProperty({ type: String, nullable: true })
+  refundRequestedBy!: string | null;
   @ApiProperty({ type: Number, nullable: true })
   cashReceived!: number | null;
   @ApiProperty({ type: Number, nullable: true })

@@ -639,6 +639,9 @@ export class PaymentService {
       return this.payments.update(id, {
         status: payment.status, // stays PAID until approved
         refundApproval: RefundApproval.PENDING,
+        // Owner decision 2026-10-14: the queue SAYS who asked, it does not block approval by
+        // the same person. `changedBy` is the literal `order-service` for a cancellation.
+        refundRequestedBy: changedBy,
         refundReason: reason ?? null,
         refundedAmount: payment.amount,
       });

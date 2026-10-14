@@ -643,6 +643,8 @@ export const hq = {
     note: 'Highest priority wins when rules overlap.',
   },
   refunds: {
+    requestedBy: 'Requested by {who}',
+    requestedBySystem: 'System (order cancelled)',
     title: 'Refund approvals',
     subtitle: 'Above Rp 100k needs HQ approval',
     count: '{n} pending',

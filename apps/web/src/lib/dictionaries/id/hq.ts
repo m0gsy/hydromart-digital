@@ -647,6 +647,8 @@ export const hq = {
     note: 'Prioritas tertinggi menang saat aturan tumpang tindih.',
   },
   refunds: {
+    requestedBy: 'Diajukan oleh {who}',
+    requestedBySystem: 'Sistem (pesanan dibatalkan)',
     title: 'Persetujuan refund',
     subtitle: 'Di atas {amount} butuh persetujuan HQ',
     count: '{n} menunggu',

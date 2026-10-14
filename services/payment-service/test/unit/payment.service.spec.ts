@@ -414,6 +414,8 @@ describe('PaymentService', () => {
     expect(queued.status).toBe(PaymentStatus.PAID); // not settled yet
     expect(queued.refundApproval).toBe(RefundApproval.PENDING);
     expect(queued.refundReason).toBe('galon bocor');
+    // The HQ queue says who asked (owner decision 2026-10-14: marked, not blocked).
+    expect(queued.refundRequestedBy).toBe('finance');
 
     const list = await service.listRefundQueue({});
     expect(list.total).toBe(1);
