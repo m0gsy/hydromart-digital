@@ -5,11 +5,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowsClockwise, Drop, MagnifyingGlass } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Category } from '@/lib/types';
+import type { Category, Page, Product } from '@/lib/types';
 
 // Home hero (1c Fresh Flow): teal-tint rounded panel with a big greeting, a
 // rounded-full search pill, quick-search chips, and a designed image slot with a
@@ -51,12 +52,28 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
     router.push(q ? `/products?search=${encodeURIComponent(q)}` : '/products');
   }
 
+  /*
+   * The right-hand slot used to be a tinted box with a droplet in it — a permanent
+   * "image failed to load" for every visitor, because nothing ever filled it. It now shows a
+   * real catalogue photo, and when the catalogue has none the whole column is dropped
+   * rather than drawing a placeholder that reads as broken.
+   */
+  const featured = useAsync<Product | null>(async () => {
+    const page = await api
+      .getCached<Page<Product>>(endpoints.products.browse({ limit: 12 }))
+      .catch(() => null);
+    return page?.items.find((p) => p.imageUrl) ?? null;
+  }, []);
+  const photo = featured.data?.imageUrl ? featured.data : null;
+
   const first = greetingName ? greetingName.split(' ')[0] : null;
 
   return (
     <section
       aria-label={t('home.hero.aria')}
-      className="grid items-center gap-8 overflow-hidden rounded-[26px] bg-brand-50 p-8 sm:px-12 sm:py-11 lg:grid-cols-[1fr_460px] lg:gap-12"
+      className={`grid items-center gap-8 overflow-hidden rounded-[26px] bg-brand-50 p-8 sm:px-12 sm:py-11 lg:gap-12 ${
+        photo ? 'lg:grid-cols-[1fr_460px]' : ''
+      }`}
     >
       <div className="flex flex-col gap-[18px]">
         <h1 className="text-[34px] font-extrabold leading-[1.08] tracking-[-0.03em] text-[color:var(--text)] sm:text-[42px]">
@@ -89,12 +106,15 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
           </button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {chips.map((c) => (
             <Link
               key={c.href}
               href={c.href}
-              className="text-deep-teal min-h-11 rounded-full bg-white/75 px-[15px] py-2 text-[13px] font-bold transition-colors hover:bg-white"
+              // In the dark theme `bg-white/75` was a washed-out grey pill with dark-teal text
+              // on it: neither the light chip nor the dark page, and hard to read. The dark
+              // variant sits on the panel as a translucent tint with the normal text colour.
+              className="text-deep-teal inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-white/75 px-5 py-2.5 text-sm font-bold leading-none transition-colors hover:bg-white dark:bg-white/10 dark:text-[color:var(--text)] dark:hover:bg-white/20"
             >
               {c.label}
             </Link>
@@ -102,23 +122,35 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
         </div>
       </div>
 
-      <div className="relative hidden min-h-[340px] self-stretch lg:block">
-        <div className="absolute inset-0 flex items-center justify-center rounded-[18px] bg-[color:var(--surface-soft)]">
-          <Drop size={96} weight="thin" className="text-brand-300" />
-        </div>
-        <div
-          style={{ boxShadow: '0 10px 28px rgba(11,77,87,0.14)' }}
-          className="absolute -left-6 bottom-4 flex items-center gap-3 rounded-2xl bg-[color:var(--surface)] px-4 py-3"
-        >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50">
-            <ArrowsClockwise size={19} weight="fill" className="text-brand-600" />
-          </span>
-          <div>
-            <div className="text-[13.5px] font-extrabold text-[color:var(--text)]">{t('home.hero.reorderTitle')}</div>
-            <div className="text-[12.5px] text-muted">{t('home.hero.reorderSub')}</div>
+      {photo && (
+        <div className="relative hidden min-h-[340px] self-stretch lg:block">
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[18px] bg-[color:var(--surface-soft)]">
+            <RemoteImage
+              src={photo.imageUrl as string}
+              alt={photo.name}
+              className="h-full w-full object-contain p-6"
+              fallback={<Drop size={96} weight="thin" className="text-brand-300" />}
+            />
           </div>
+          {/* A real shortcut now, and only for somebody who has orders to repeat: it used to
+              be a card that looked tappable and went nowhere. */}
+          {first && (
+            <Link
+              href="/orders"
+              style={{ boxShadow: '0 10px 28px rgba(11,77,87,0.14)' }}
+              className="absolute -left-6 bottom-4 flex items-center gap-3 rounded-2xl bg-[color:var(--surface)] px-4 py-3 transition-transform hover:-translate-y-0.5"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50">
+                <ArrowsClockwise size={19} weight="fill" className="text-brand-600" />
+              </span>
+              <div>
+                <div className="text-[13.5px] font-extrabold text-[color:var(--text)]">{t('home.hero.reorderTitle')}</div>
+                <div className="text-[12.5px] text-muted">{t('home.hero.reorderSub')}</div>
+              </div>
+            </Link>
+          )}
         </div>
-      </div>
+      )}
     </section>
   );
 }

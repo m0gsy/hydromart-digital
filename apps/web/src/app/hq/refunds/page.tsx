@@ -119,6 +119,13 @@ export default function HqRefundsPage() {
                   <Chip tone="outline">{r.method}</Chip>
                 </div>
                 <p className="mt-1 text-sm">{r.refundReason ?? '—'}</p>
+                {r.refundRequestedBy && (
+                  <p className="mt-0.5 text-xs text-muted">
+                    {r.refundRequestedBy === 'order-service'
+                      ? t('hq.refunds.bySystem')
+                      : t('hq.refunds.by', { who: r.refundRequestedBy.slice(0, 8) })}
+                  </p>
+                )}
                 <p className="mt-0.5 text-xs text-muted">
                   {t('hq.refunds.age', { n: hoursAgo(r.updatedAt) })}
                 </p>

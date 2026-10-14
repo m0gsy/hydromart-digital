@@ -640,6 +640,8 @@ export class PaymentService {
         status: payment.status, // stays PAID until approved
         refundApproval: RefundApproval.PENDING,
         refundReason: reason ?? null,
+        // Shown in the HQ queue as "diajukan oleh". Information only — nothing gates on it.
+        refundRequestedBy: changedBy || null,
         refundedAmount: payment.amount,
       });
     }
