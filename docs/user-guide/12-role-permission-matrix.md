@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Versi** | 0.1 draf |
-| **Tanggal** | 2026-10-10 |
+| **Tanggal** | 2026-10-10 (dicocokkan ulang dengan kode pasca PR #664 pada 2026-10-14) |
 | **Klasifikasi** | Internal — Rahasia |
 | **Sumber utama** | `packages/access/src/index.ts` (106 kapabilitas), `apps/web/src/lib/roles.ts`, `apps/web/src/lib/hq-nav.ts`, `apps/web/src/components/dashboard/ops-rail.tsx`, temuan A–I dan K |
 | **Status pengujian** | Belum ada pengujian di aplikasi yang dijalankan oleh penulis dokumen ini. Semua nilai berasal dari pembacaan kode. |
@@ -18,7 +18,8 @@ Bab ini menjawab satu pertanyaan: **siapa boleh melakukan apa, dan dengan syarat
 2. **SUPER_ADMIN selalu lolos.** Fungsi `can()` mengembalikan benar untuk SUPER_ADMIN sebelum membaca perubahan apa pun, jadi SUPER_ADMIN tidak bisa kehilangan kapabilitas lewat penyuntingan matriks. Satu-satunya penjaga tambahan: `accessMatrixWrite` tidak boleh dilepas dari SUPER_ADMIN (ditolak "SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite."). **[V]**
 3. **Tampilan bukan izin.** Layar sering menampilkan tombol yang akan ditolak server. Tanda **[B]** pada penjelasan sel menandai kasus yang diketahui. Server selalu menjadi penentu: tombol yang tampil belum tentu boleh dipakai, dan menu yang tersembunyi bukan jaminan keamanan. **[V]**
 4. **Cakupan depot menentukan data yang terlihat**, terpisah dari boleh/tidaknya aksi (lihat 1.4).
-5. Pernyataan "tidak diuji" berlaku untuk seluruh bab ini. Sel bertanda **Tidak terverifikasi** adalah kasus di mana pembacaan kode saja tidak cukup untuk memastikan hasil di layar.
+5. **Kapabilitas per peran tidak berubah oleh PR #664 (2026-10-14).** Perbandingan `packages/access/src/index.ts` pada commit e01db63 dan HEAD (tanpa komentar) hanya berbeda satu baris: `RESTRICTED_GRANTS` mendapat `HEAD_OFFICE: ['SUPER_ADMIN']`. Isi `CAPABILITIES` dan tabel di bagian 6 tetap sah; yang diperbarui hanya aturan pemberian peran (bagian 3.16, 5.3), catatan [B] yang sudah diperbaiki, dan log verifikasi (bagian 7). **[V]**
+6. Pernyataan "tidak diuji" berlaku untuk seluruh bab ini. Sel bertanda **Tidak terverifikasi** adalah kasus di mana pembacaan kode saja tidak cukup untuk memastikan hasil di layar.
 
 ### 1.2 Nilai sel
 
@@ -90,7 +91,7 @@ Pemetaan istilah permintaan: "Staff Depot" di dokumen ini = peran `STAFF_DEPOT`,
 | **Asisten SPV** | Pengawasan baca-saja, ditambah dispatch dan ubah status pesanan, serta **memutus kasbon** staf depotnya (pengecualian yang disengaja di kode). |
 | **Waralaba** | Dasbor sendiri, buku kas payout, tarik saldo, daftar rekening, baca retur dan prakiraan depot miliknya. Tidak menjalankan operasi depot. |
 | **HR** | Karyawan, absensi, payroll, tunjangan, cuti tahap 1 dan 2, kasbon, aset, pengumuman, setelan gaji (override depot), penugasan lintas depot. Tidak mengundang staf di `/hq/staff`. |
-| **HQ (Head office)** | Pintu `/hq`: undang staf (peran tidak terbatas), lamaran waralaba, harga jaringan, buka kembali buku, PDP, back-office, laporan. Tidak: membuat/menangguhkan depot, memutus refund, rilis payout, membuat kampanye (tombolnya tampil tetapi ditolak server, **[B]**). Boleh menulis katalog produk. |
+| **HQ (Head office)** | Pintu `/hq`: undang staf (hanya 5 peran: Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba; Head office tidak lagi sejak PR #664, 2026-10-14), lamaran waralaba, harga jaringan, buka kembali buku, PDP, back-office, laporan. Tidak: membuat/menangguhkan depot, memutus refund, rilis payout, membuat kampanye (tombolnya tampil tetapi ditolak server, **[B]**). Boleh menulis katalog produk. |
 | **Admin (Super admin)** | Semua kapabilitas, plus matriks akses, hierarki, hapus staf, platform (flag, kunci API, webhook, retensi, keamanan), setelan global. |
 | **Manajer (lampiran)** | Pemegang kapabilitas depot terluas (68), termasuk approval, pengadaan, refund (mulai), klaim, cuti tahap 1, kasbon eskalasi. Bukan pintu `/hq`. |
 | **Direktur (lampiran)** | Baca jaringan luas + keputusan HQ (harga, lamaran, fraud, rilis payout). Tidak: undang staf, PDP, ambang approval, ubah data. |
@@ -195,6 +196,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 | # | Aksi | Kat. | CUS | KD | STF | SPV | ASPV | FRA | HR | HO | SA | MGR | DIR | FIN | MKT | Bukti (kapabilitas / kode) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 5.1 | Menyetor uang tunai COD akhir shift | Submit | — | — | Bersyarat [5.1] | — | — | — | — | — | Ya | — | — | — | — | `courierDeposit` · driver-settlement.controller.ts:26 |
+| 5.2a | Membebankan selisih kurang setoran ke saldo kurir (sejak PR #664, 2026-10-14) | Approve | — | — | — | — | — | — | — | — | Ya | Ya | — | — | — | `approvals` · settlement.service.ts |
 | 5.2 | Memverifikasi atau menyengketakan setoran | Approve | — | Bersyarat [5.2] | — | — | — | — | — | — | Ya | Ya | — | Dibatasi [5.3] | — | `courierSettle` · settlement.controller.ts |
 | 5.3 | Melihat penghasilan, riwayat, menarik saldo kurir | Submit | — | — | Bersyarat [5.4] | — | — | — | — | — | Ya | — | — | — | — | `courierPayout` · courier-payout.controller.ts |
 | 5.4 | Mengajukan klaim pengeluaran kurir | Create | — | — | Bersyarat [5.5] | — | — | — | — | — | Ya | — | — | — | — | `courierPayout` |
@@ -204,9 +206,9 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
 - **[5.1]** Shift harus sudah check-out; satu setoran per shift; tidak bisa diubah setelah kirim. [V]
-- **[5.2]** Memutus sendiri apakah selisih dibebankan ke kurir (tanpa persetujuan lain). Surplus > Rp 5.000 wajib catatan. [V]
+- **[5.2]** Memverifikasi tanpa membebankan boleh oleh pemegang `courierSettle` (KD, MGR, FIN, SA). Membebankan selisih ke kurir kini hanya MANAGER/SUPER_ADMIN (baris 5.2a; 403 `SETTLEMENT_CHARGE_NEEDS_MANAGER`, sejak PR #664): kurir menyetor, manajer memverifikasi = orang kedua; tidak ada antrean persetujuan asinkron (COD_VARIANCE tetap tidak pernah dibuat). Pemeriksaan hanya bila selisih benar-benar kurang dan beban dicentang. Setoran SENGKETA (DISPUTED) dapat diputuskan ulang dengan catatan wajib (sejak PR #664). Surplus > Rp 5.000 wajib catatan. [V]
 - **[5.3]** Memegang kapabilitas; tidak ada tautan menu ke layar Setoran. [D]
-- **[5.4]** Hanya data sendiri; tarik saldo hanya ke rekening terverifikasi kantor pusat. [V]
+- **[5.4]** Hanya data sendiri; tarik saldo hanya ke rekening terverifikasi kantor pusat; minimum penarikan Rp50.000 (sejak PR #664; `MIN_WITHDRAWAL_IDR`, bawaan 50000, "Minimum penarikan Rp50.000."). [V]
 - **[5.5]** Klaim <= Rp 50.000 dengan struk valid disetujui otomatis. [K]
 - **[5.6]** Batas bawaan Rp 500.000; di atasnya hanya FINANCE/SUPER_ADMIN (MANAGER masih boleh menolak). [K]
 
@@ -222,7 +224,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
 - **[6.1]** Ditolak bila masih ada shift kasir terbuka. Tidak mensyaratkan setoran COD terverifikasi. [V]
-- **[6.2]** Tombol ada di /dashboard/reports (pilih depot). Layar tinjauan bulanan dibatasi depotFinance sehingga HO tampaknya tidak sampai. [D]
+- **[6.2]** Tombol ada di /dashboard/reports (pilih depot). Layar tinjauan bulanan sebelumnya dibatasi depotFinance sehingga HO tidak sampai; sejak PR #664 (2026-10-14) layar dan menu memakai `dailyClose` (sama dengan server) dan tombol "Buka bulan" tampil untuk pemegang `dailyCloseReopen`, jadi HO kini dapat menjangkaunya. [V code] [D peramban]
 
 ### 3.7 Tracking dan pengantaran
 
@@ -278,7 +280,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 | 9.2 | Membuat/mengubah promo banner | Edit | — | — [9.1] | — | — | — | — | — | — | Ya | Ya | — | — | Ya | `promotionWrite` · promotion.controller.ts |
 | 9.3 | Melihat voucher | View | — | — | — | — | — | — | — | Ya | Ya | Ya | Ya | — | Ya | `voucherRead` |
 | 9.4 | Membuat voucher, memberi ke pelanggan | Create | — | — | — | — | — | — | — | — | Ya | Bersyarat [9.2] | — | — | Ya | `voucherWrite` · voucher.controller |
-| 9.5 | Menyetujui permintaan voucher depot | Approve | — | — | — | — | — | — | — | Tidak terverifikasi [9.3] | Tidak terverifikasi [9.3] | — | Tidak terverifikasi [9.3] | — | — | `voucherRequestDecide` · index.ts:416 |
+| 9.5 | Menyetujui permintaan voucher depot (RETIRED) | Approve | — | — | — | — | — | — | — | Tidak terverifikasi [9.3] | Tidak terverifikasi [9.3] | — | Tidak terverifikasi [9.3] | — | — | `voucherRequestDecide` · index.ts:416 |
 | 9.6 | Melihat aturan promo otomatis | View | — | Ya | — | — | — | — | — | Ya | Ya | Ya | Ya | — | Ya | `promoRuleRead` |
 | 9.7 | Membuat/ubah/hapus aturan promo otomatis | Edit | — | Dibatasi [9.4] | — | — | — | — | — | — | Ya | Dibatasi [9.5] | — | — | Bersyarat [9.6] | `promoRuleWrite` · promo-rule.controller.ts |
 | 9.8 | Melihat kampanye broadcast | View | — | — | — | — | — | — | — | Ya | Ya | — | Ya | — | Ya | `campaignRead` |
@@ -288,9 +290,9 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
-- **[9.1]** Tombol Promo baru/Edit/Hapus tetap tampil di layar Kepala depot tetapi server menolak (403). [B]
+- **[9.1]** Diperbaiki sejak PR #664 (2026-10-14): tombol Promo baru/Edit/Hapus kini hanya tampil bagi pemegang `promotionWrite` (`canManagePromotions`); Kepala depot hanya membaca daftar. Server tetap menolak (403) bila dipaksa. [V]
 - **[9.2]** Cakupan voucher buatan manajer (depot atau jaringan) belum terverifikasi. [K]
-- **[9.3]** Alur permintaan voucher dihapus (CA-2-42); kapabilitas tinggal nama. [B]
+- **[9.3]** Alur permintaan voucher dihapus (CA-2-42); kapabilitas `voucherRequestDecide` ditandai RETIRED di komentar kode sejak PR #664 dan tinggal nama agar baris matriks tersimpan tetap valid. Tidak ada kontroler yang menegakkannya. [V]
 - **[9.4]** Hanya aturan depot sendiri; aturan jaringan hanya terbaca. [V]
 - **[9.5]** Hanya aturan depot dalam cakupannya. [V]
 - **[9.6]** Aturan yang sudah dipakai tidak bisa dihapus, hanya dinonaktifkan. [V]
@@ -359,7 +361,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
-- **[12.1]** Pengaju tidak boleh memutus yang ia ajukan sendiri; item HELD tidak muncul di daftar. [V]
+- **[12.1]** Pengaju tidak boleh memutus yang ia ajukan sendiri; item HELD kini ikut tampil di daftar bersama PENDING (sejak PR #664, 2026-10-14; sebelumnya hilang). [V]
 - **[12.2]** Menolak wajib catatan alasan. [V]
 - **[12.3]** Setujui tidak mewajibkan checklist lengkap; keputusan final; tidak membuat depot/akun otomatis. [V]
 - **[12.4]** Tidak ada cek pemohon sama dengan penyetuju; FINANCE memegang refundIssue dan refundQueue. [V]
@@ -387,9 +389,9 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 - **[13.2]** Halaman memuat dashboard/executive yang menolak FINANCE. [D]
 - **[13.3]** Lihat catatan FINANCE di atas. [D]
 - **[13.4]** Bukan pengaju yang sama (ReleaseSelfApprovalError). [V]
-- **[13.5]** Hanya ke rekening yang diverifikasi FINANCE; tanpa persetujuan, langsung berstatus Diproses. [V]
+- **[13.5]** Hanya ke rekening yang diverifikasi FINANCE; minimal Rp50.000 per penarikan (sejak PR #664); tanpa persetujuan, langsung berstatus Diproses. Halaman Payout pemilik kini menampilkan "Riwayat penarikan". [V]
 - **[13.6]** Halaman memuat daftar depot yang menolak FINANCE. [D]
-- **[13.7]** Menu menampilkan semua, tetapi Komisi kurir dan Tinjauan bulanan ditolak server. Buku kas boleh dicatat/dibalik. [B]
+- **[13.7]** Diperbaiki sejak PR #664 (2026-10-14): menu Komisi kurir kini memakai `courierSettle` (KD, MGR, FIN, SA), Tinjauan bulanan memakai `dailyClose` (KD, MGR, HO, DIR, SA), dan Performa tim memakai `deliveryReports` (HO, MGR, SA), yaitu kapabilitas yang ditegakkan server. Dengan demikian SPV tidak lagi melihat ketiganya. Buku kas boleh dicatat/dibalik (`depotFinance`). [V code]
 
 ### 3.14 HR, payroll, cuti, kasbon
 
@@ -400,6 +402,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 | 14.1 | Melihat konsol HR | View | — | — | — | Dibatasi [14.1] | Dibatasi [14.1] | — | Ya | Ya | Ya | Dibatasi [14.2] | Ya | Ya | — | `hrView` · hr layout gate |
 | 14.2 | Mengelola karyawan, wajah, absensi, setelan gaji | Edit | — | — | — | — | — | — | Ya | Bersyarat [14.3] | Ya | — | Bersyarat [14.3] | — | — | `hrAdmin` |
 | 14.3 | Membuat/menyetujui/membayar payroll, tunjangan | Approve | — | — | — | — | — | — | Bersyarat [14.4] | — | Bersyarat [14.4] | — | — | Bersyarat [14.4] | — | `hrPayroll` · payroll.controller.ts |
+| 14.3a | Membatalkan persetujuan payroll (APPROVED → DRAFT, alasan wajib, tidak bisa setelah PAID; sejak PR #664, 2026-10-14) | Reject | — | — | — | — | — | — | — | — | Ya | — | — | — | — | `hrPayroll` + cek peran SUPER_ADMIN di payroll.service.ts (`unapprove`) |
 | 14.4 | Cuti tahap 1 (atasan) | Approve | — | — | — | — | — | — | Bersyarat [14.5] | — | Bersyarat [14.5] | Bersyarat [14.6] | — | — | — | `leaveApprove` · leave.controller.ts:102 |
 | 14.5 | Cuti tahap 2 (HR) | Approve | — | — | — | — | — | — | Bersyarat [14.7] | Dibatasi [14.8] | Ya | — | Dibatasi [14.8] | — | — | `hrAdmin` · leave.controller.ts hr-decision |
 | 14.6 | Menolak cuti | Reject | — | — | — | — | — | — | Bersyarat [14.9] | — | Bersyarat [14.9] | Bersyarat [14.9] | — | — | — | `leaveApprove` |
@@ -414,13 +417,13 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 - **[14.1]** Hanya depot dalam cakupan. [V]
 - **[14.2]** Hanya depotnya. [V]
 - **[14.3]** Peran MANAGER tidak boleh diberikan HO; HR boleh. [V]
-- **[14.4]** Slip hanya bisa dibuat setelah bulan berakhir; tidak ada maker-checker: akun sama boleh buat, setujui, bayar. [V]
+- **[14.4]** Slip hanya bisa dibuat setelah bulan berakhir. Sejak PR #664 (2026-10-14): Setujui ditolak bila penekannya adalah pembuat slip ("Slip ini dibuat oleh akun Anda sendiri; persetujuan harus dari orang lain (atau Super Admin)."); SUPER_ADMIN dikecualikan (agar meja HR satu orang tidak terkunci); slip tanpa pembuat tercatat tidak diblokir. Tandai Dibayar tidak punya pemeriksaan pelaku, jadi penyetuju boleh menandai dibayar. Batal persetujuan (baris 14.3a) hanya SUPER_ADMIN; HR/FINANCE yang memegang `hrPayroll` ditolak: "Hanya Super Admin yang bisa membatalkan persetujuan payroll." [V]
 - **[14.5]** Tahap 2 harus orang lain dari pemutus tahap 1. [V]
 - **[14.6]** Hanya depot dalam cakupan; tidak untuk cuti sendiri. [V]
 - **[14.7]** Harus akun lain dari pemutus tahap 1. [V]
 - **[14.8]** Server mengizinkan, tetapi layar hanya menampilkan tombol untuk pemegang leaveApprove. [V]
 - **[14.9]** Catatan alasan wajib. [V]
-- **[14.10]** Bila depot punya asisten supervisor, hanya dia yang boleh; yang lain mendapat penolakan. Tidak boleh memutus kasbon sendiri. [V]
+- **[14.10]** Bila depot punya asisten supervisor, hanya dia yang boleh; yang lain mendapat penolakan. Tidak boleh memutus kasbon sendiri. Sejak PR #664 (2026-10-14): pengajuan kasbon maksimal 1x gaji pokok sebulan (gaji harian x 26; tanpa gaji pokok ditolak) dan pengajuan yang tidak diputuskan dalam 3 hari kerja (Senin–Jumat) kedaluwarsa menjadi Dibatalkan; memutus pengajuan kedaluwarsa ditolak 409. [V]
 - **[14.11]** Hanya bila depot tanpa asisten supervisor (eskalasi). [V] (Sama seperti MANAGER. [V])
 - **[14.12]** Hanya bila depot tanpa asisten supervisor (eskalasi). [V]
 - **[14.13]** Alasan wajib; aturan pemutus sama. [V]
@@ -460,8 +463,8 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
 - **[16.1]** Hanya depot dalam cakupan; banyak depot wajib menyebut depotId. [V]
-- **[16.2]** Hanya peran yang tidak dibatasi (STAFF_DEPOT, KEPALA_DEPOT, ASPV, SPV, FRANCHISE_OWNER, HEAD_OFFICE). Tidak boleh memberi MANAGER, DIREKTUR, FINANCE, HR, MARKETING, SUPER_ADMIN. [V]
-- **[16.3]** Hanya SUPER_ADMIN yang dapat memberi SUPER_ADMIN, DIREKTUR, FINANCE, HR, MARKETING. [V]
+- **[16.2]** Hanya peran yang tidak dibatasi: STAFF_DEPOT, KEPALA_DEPOT, ASPV, SPV, FRANCHISE_OWNER (5 peran; HEAD_OFFICE dikeluarkan sejak PR #664, 2026-10-14). Tidak boleh memberi MANAGER, DIREKTUR, FINANCE, HR, MARKETING, SUPER_ADMIN, HEAD_OFFICE. Sejak PR #664 menonaktifkan juga: mencabut semua refresh token (access token lama hidup ≤ 15 menit) dan ditolak untuk akun sendiri serta Super admin aktif terakhir. [V]
+- **[16.3]** Hanya SUPER_ADMIN yang dapat memberi SUPER_ADMIN, DIREKTUR, FINANCE, HR, MARKETING, HEAD_OFFICE (yang terakhir sejak PR #664). Pesan: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." [V]
 - **[16.4]** Tidak untuk akun sendiri atau super admin aktif terakhir. [V]
 - **[16.5]** SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite (ditolak 400). [V]
 - **[16.6]** Hanya STAFF_DEPOT, KEPALA_DEPOT, ASPV, SPV, MANAGER (HR_MANAGED_ROLES). [V]
@@ -496,7 +499,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
-- **[18.1]** Ekspor menolak bila jejak terlalu besar; tidak ada filter di layar. [V]
+- **[18.1]** Ekspor menolak bila jejak terlalu besar. Sejak PR #664 (2026-10-14) layar punya penyaring aksi (persis), tanggal dari/sampai, dan hasil (berhasil/ditolak), dan ekspor mengikuti penyaring yang sama; penyaring pelaku belum ada di layar. [V]
 
 ### 3.19 Laporan dan ekspor
 
@@ -526,9 +529,11 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 | 20.1 | Meminta salinan data atau hapus akun sendiri | Create | Ya | — | — | — | — | — | — | — | — | — | — | — | — | account.controller.ts / data-subject |
 | 20.2 | Memutus permintaan PDP (setujui ekspor/hapus, tolak) | Approve | — | — | — | — | — | — | — | Bersyarat [20.1] | Bersyarat [20.1] | — | — | — | — | `pdpRequests` · data-subject.controller.ts |
 
+| 20.3 | Memaksa hapus akun pelanggan yang masih punya pesanan terbuka (dialog "Paksa hapus akun?"; sejak PR #664, 2026-10-14) | Approve | — | — | — | — | — | — | — | — | Ya | — | — | — | — | `pdpRequests` + cek peran SUPER_ADMIN di data-subject.controller.ts |
+
 **Penjelasan sel Dibatasi / Bersyarat / Tidak terverifikasi / catatan:**
 
-- **[20.1]** Penolakan wajib alasan; hapus permanen. Batas jawab 3x24 jam. [V]
+- **[20.1]** Penolakan wajib alasan; hapus permanen. Batas jawab 3x24 jam. Sejak PR #664 (2026-10-14): menyetujui hapus akun ditolak (409 `PDP_OPEN_ORDERS`) bila pelanggan masih punya pesanan terbuka; pemeriksaan gagal-tertutup. HEAD_OFFICE yang mengirim `force` ditolak 403 "Hanya Super Admin yang boleh memaksa penghapusan." [V]
 
 ### 3.21 Akun sendiri
 
@@ -559,7 +564,7 @@ Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkas
 
 ### 4.2 DIREKTUR (`DIREKTUR`) — 46 kapabilitas
 
-- **Cakupan:** jaringan; pintu `/hq`. Peran pengawas: membaca hampir semua, memutus keputusan HQ (`priceOverrideDecide`, `franchiseApplications`, `fraudReview`, `voucherRequestDecide`), **menyetujui rilis payout** (`hqPayoutApprove`, bersama SA saja), menutup buku (`dailyClose`), mengelola HR (`hrAdmin`, `employeeAssign`). **[V]**
+- **Cakupan:** jaringan; pintu `/hq`. Peran pengawas: membaca hampir semua, memutus keputusan HQ (`priceOverrideDecide`, `franchiseApplications`, `fraudReview`; `voucherRequestDecide` berstatus RETIRED sejak PR #664, tidak ditegakkan), **menyetujui rilis payout** (`hqPayoutApprove`, bersama SA saja), menutup buku (`dailyClose`), mengelola HR (`hrAdmin`, `employeeAssign`). **[V]**
 - **Sengaja tidak punya:** `staffAdmin` (tidak boleh membuat akun), `pdpRequests`, `approvalThresholdWrite`, `catalogWrite`, `dailyCloseReopen` (komentar kode: peran pengawasan membaca tanpa menulis). **[V]**
 - **Peran DIREKTUR hanya dapat diberikan SUPER_ADMIN.** **[V]** (`RESTRICTED_GRANTS`).
 
@@ -583,11 +588,11 @@ Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkas
 
 | Peran | Layar | Tampil | Server |
 |---|---|---|---|
-| Kepala depot | Promo | Promo baru, Edit, Hapus | 403 (`promotionWrite` tak dipegang) |
-| Kepala depot | Pembayaran (tab) | Tab di bilah atas | Halaman "Akses manajer depot" |
-| Kepala depot | Sengketa order, Huddle, Serah terima, Perawatan | Teks penolakan "Khusus Manajer depot" | Sebenarnya diizinkan (teks penolakan menyesatkan) |
+| Kepala depot | ~~Promo~~ (diperbaiki sejak PR #664, 2026-10-14) | Tombol Promo baru/Edit/Hapus kini hanya untuk pemegang `promotionWrite` | Server tetap 403 bila dipaksa |
+| Kepala depot | ~~Pembayaran (tab)~~ (diperbaiki sejak PR #664) | Tab kini hanya untuk pemegang `depotAdmin` (MGR/SA); judul gerbang "Akses terbatas" | Halaman tetap menolak selain `depotAdmin` |
+| Kepala depot | Sengketa order, Huddle, Serah terima, Perawatan | Teks gerbang kini "Akses terbatas" (sebelumnya "Khusus Manajer depot" yang menyesatkan; diubah sejak PR #664) | Siapa yang masuk tetap ditentukan kapabilitas |
 | Waralaba | Menu ponsel "Antrean", Pencarian | Tampil | Kosong/ditolak |
-| SPV / ASPV | Performa tim, Komisi kurir (SPV), Tinjauan bulanan (SPV) | Tampil di rel | Ditolak (`deliveryReports`, `courierSettle`, `dailyClose`) |
+| SPV / ASPV | ~~Performa tim, Komisi kurir, Tinjauan bulanan~~ (diperbaiki sejak PR #664, 2026-10-14) | Menu kini memakai `deliveryReports`, `courierSettle`, `dailyClose`, yang ditegakkan server, sehingga tidak tampil bagi SPV/ASPV | Server tetap menolak |
 | HO / DIR | Onboard/Edit/Tangguhkan depot; Buat kampanye; Re-engage churn; Beri poin; banner promo | Tombol tampil | 403 |
 | HO / DIR | Ajukan rilis, Verifikasi rekening, Lunas/Gagal, Setujui/Tolak refund, Terapkan skema komisi | Tombol tampil | 403 (butuh FINANCE/SA) |
 | HR | Opsi peran MANAGER pada form karyawan untuk HO/DIR | Tampil | Ditolak |
@@ -600,30 +605,32 @@ Keempat peran ini ada di kode dan di kolom lampiran semua tabel di atas. Ringkas
 |---|---|---|---|---|
 | Approval depot | siapa pun yang memicu | MANAGER, SA | Ya (`ApprovalSelfDecideError`) | approval.service.ts:138 **[V]** |
 | Rilis saldo waralaba (HQ) | FINANCE, SA | DIREKTUR, SA | Ya (`ReleaseSelfApprovalError`) | hq-release.service.ts:93 **[V]** |
-| Refund besar | FINANCE, MANAGER, SA | FINANCE, SA | **Tidak**: tidak ada cek pemohon ≠ penyetuju; FINANCE dan SA memegang keduanya | payment.service.ts `approveRefund` **[V]** |
+| Refund besar | FINANCE, MANAGER, SA | FINANCE, SA | **Tidak**: tidak ada cek pemohon ≠ penyetuju; FINANCE dan SA memegang keduanya. Kolom `refundRequestedBy` sudah ada di skema (sejak PR #664) tetapi belum diisi atau dibaca kode | payment.service.ts `approveRefund` **[V]** |
 | Usulan harga depot | MANAGER, SA | HO, DIR, SA | Sebagian: pengusul tak boleh memutus bila dampak di atas ambang auto-pass | price-override.service.ts **[V]** |
 | Cuti | karyawan | MANAGER/HR (tahap 1), HR/HO/DIR/SA (tahap 2) | Ya: tahap 2 ≠ tahap 1; tak boleh memutus cuti sendiri | leave.service.ts **[V]** |
-| Kasbon | karyawan | ASPV (bila ada), MANAGER/HR/SA bila tidak | Ya: tak boleh memutus sendiri; bila depot punya ASPV hanya dia | loan-request.service.ts **[V]** |
-| Payroll | HR/FINANCE/SA | HR/FINANCE/SA | **Tidak**: akun yang sama boleh buat, setujui, dan bayar | payroll.service.ts **[V]** |
-| Verifikasi setoran COD | kurir | KD, MGR, FIN, SA | Tidak ada langkah approval; keputusan membebankan selisih dibuat sendiri | settlement.service.ts **[V]** |
-| Permintaan voucher depot | — | — | Alur dihapus (2026-09-04); `voucherRequestDecide` tinggal nama | promo.module.ts **[B]** |
+| Kasbon | karyawan | ASPV (bila ada), MANAGER/HR/SA bila tidak | Ya: tak boleh memutus sendiri; bila depot punya ASPV hanya dia. Sejak PR #664: maks 1x gaji pokok, kedaluwarsa 3 hari kerja | loan-request.service.ts **[V]** |
+| Payroll (Setujui) | HR/FINANCE/SA (pembuat slip) | HR/FINANCE/SA selain pembuat | **Sebagian, sejak PR #664 (2026-10-14)**: pembuat slip tak boleh menyetujui, SUPER_ADMIN dikecualikan; Tandai Dibayar tanpa cek pelaku; batal persetujuan hanya SUPER_ADMIN sebelum PAID | payroll.service.ts **[V]** |
+| Verifikasi setoran COD | kurir | KD, MGR, FIN, SA (verifikasi); MGR, SA (membebankan selisih) | Beban selisih ke kurir dipaksa lewat kapabilitas `approvals` sejak PR #664 (bukan antrean persetujuan); kurir menyetor, manajer memverifikasi | settlement.service.ts **[V]** |
+| Hapus akun pelanggan (PDP) | pelanggan | HO, SA | Pesanan terbuka menolak; hanya SA boleh memaksa (sejak PR #664) | data-subject.controller.ts **[V]** |
+| Permintaan voucher depot | — | — | Alur dihapus (2026-09-04); `voucherRequestDecide` RETIRED (komentar kode, sejak PR #664), tinggal nama | promo.module.ts **[V]** |
 
 ### 5.3 Siapa boleh memberi peran apa (`canGrantRole`)
 
 | Peran yang diberikan | Boleh diberikan oleh | Bukti |
 |---|---|---|
-| STAFF_DEPOT, KEPALA_DEPOT, ASSISTANT_SUPERVISOR, SUPERVISOR, FRANCHISE_OWNER, HEAD_OFFICE | Pemegang `staffAdmin` (HEAD_OFFICE, SUPER_ADMIN) | tak terdaftar di `RESTRICTED_GRANTS` **[V]** |
+| STAFF_DEPOT, KEPALA_DEPOT, ASSISTANT_SUPERVISOR, SUPERVISOR, FRANCHISE_OWNER | Pemegang `staffAdmin` (HEAD_OFFICE, SUPER_ADMIN) | tak terdaftar di `RESTRICTED_GRANTS` **[V]** |
+| HEAD_OFFICE | SUPER_ADMIN saja (sejak PR #664, 2026-10-14) | `RESTRICTED_GRANTS` `HEAD_OFFICE: ['SUPER_ADMIN']` **[V]** |
 | MANAGER | SUPER_ADMIN atau HR (lewat data karyawan) | `RESTRICTED_GRANTS` **[V]** |
 | DIREKTUR, FINANCE, HR, MARKETING | SUPER_ADMIN saja | **[V]** |
 | SUPER_ADMIN | SUPER_ADMIN saja | **[V]** |
 | CUSTOMER | Tidak ada (bukan peran staf) | **[V]** |
 
-Catatan: HEAD_OFFICE dapat membuat HEAD_OFFICE lain (peer). Konfirmasi ke pemilik apakah ini disengaja (temuan H). **[K]** Impor staf massal hanya menerima STAFF_DEPOT dan KEPALA_DEPOT (`STAFF_IMPORT_ROLES`). **[V]**
+Catatan: keputusan pemilik 2026-10-14: HEAD_OFFICE tidak boleh membuat HEAD_OFFICE lain (memberi peran ini sama dengan menyerahkan `staffAdmin`); sebelumnya dapat (temuan H). Akibatnya Head office hanya boleh memberi 5 peran (STAFF_DEPOT, KEPALA_DEPOT, ASSISTANT_SUPERVISOR, SUPERVISOR, FRANCHISE_OWNER) dan formulir undang di web hanya menawarkan kelima peran itu (`grantableRoles`). **[V]** Impor staf massal hanya menerima STAFF_DEPOT dan KEPALA_DEPOT (`STAFF_IMPORT_ROLES`). **[V]**
 
 ### 5.4 Rantai keputusan uang (ringkas)
 
 - **Refund:** MANAGER/FINANCE/SA mulai → bila nominal ≤ Rp 100.000 (bawaan) langsung dieksekusi; bila lebih, status tetap Lunas dengan persetujuan menunggu → FINANCE/SA putuskan. **[V/K]**
-- **Penarikan pemilik waralaba:** langsung Diproses (saldo dipotong) tanpa persetujuan HQ → FINANCE/SA tandai Lunas atau Gagal (saldo kembali). **[V]**
+- **Penarikan pemilik waralaba (dan kurir):** minimal Rp50.000 (sejak PR #664); langsung Diproses (saldo dipotong) tanpa persetujuan HQ → FINANCE/SA tandai Lunas atau Gagal (saldo kembali). **[V]**
 - **Rilis oleh HQ:** FINANCE/SA ajukan seluruh saldo → DIREKTUR/SA setujui (beda akun) → penarikan Diproses → FINANCE/SA tandai. **[V]**
 
 ## 6. Tabel lengkap 106 kapabilitas × 13 peran
@@ -703,7 +710,7 @@ Dibangkitkan dari `CAPABILITIES` di `packages/access/src/index.ts` oleh skrip (b
 | 69 | `pdpRequests` | Putuskan permintaan UU PDP | · | · | · | · | · | · | · | · | ✓ | · | · | · | ✓ | 2 |
 | 70 | `priceOverrideDecide` | Putuskan usulan harga depot | · | · | · | · | · | · | ✓ | · | ✓ | · | · | · | ✓ | 3 |
 | 71 | `franchiseApplications` | Putuskan lamaran waralaba | · | · | · | · | · | · | ✓ | · | ✓ | · | · | · | ✓ | 3 |
-| 72 | `voucherRequestDecide` | Putuskan permintaan voucher (alur dihapus) | · | · | · | · | · | · | ✓ | · | ✓ | · | · | · | ✓ | 3 |
+| 72 | `voucherRequestDecide` | Putuskan permintaan voucher (alur dihapus; RETIRED sejak PR #664) | · | · | · | · | · | · | ✓ | · | ✓ | · | · | · | ✓ | 3 |
 | 73 | `fraudReview` | Tinjau/blokir/lepas tanda fraud | · | · | · | · | · | · | ✓ | · | ✓ | · | · | · | ✓ | 3 |
 | 74 | `refundIssue` | Mulai refund | · | · | · | · | · | ✓ | · | · | · | ✓ | · | · | ✓ | 3 |
 | 75 | `refundQueue` | Putuskan refund tertahan | · | · | · | · | · | · | · | · | · | ✓ | · | · | ✓ | 2 |
@@ -760,6 +767,16 @@ Kolom "Jml peran" menghitung peran yang menandai ✓ (termasuk SUPER_ADMIN, tida
 | `courierDeposit` | `driver-settlement.controller.ts:26` | **[V]** |
 | `approvalThresholdWrite` | tidak ada `@Can` langsung; dipakai sebagai `requires` pada setelan `approvalAutoPassIdr` (`setting-defs.ts:66`) | **[V]** |
 | Larangan memutus sendiri | approval.service.ts:138; hq-release.service.ts:93 | **[V]** |
+| **Pencocokan ulang 2026-10-14 (setelah PR #664, merge f71b0b9):** isi `CAPABILITIES` e01db63 vs HEAD | Identik (diff tanpa komentar hanya menambah `HEAD_OFFICE: ['SUPER_ADMIN']` di `RESTRICTED_GRANTS`); jumlah 106 dan tabel bagian 6 tidak berubah | **[V]** |
+| `RESTRICTED_GRANTS` + `canGrantRole` | HEAD_OFFICE hanya dari SUPER_ADMIN; peran tak terdaftar (5 peran) bebas bagi pemegang `staffAdmin` | **[V]** |
+| `payroll.service.ts` `approve` / `unapprove` | pembuat slip ditolak kecuali SUPER_ADMIN; `unapprove` hanya SUPER_ADMIN, hanya dari APPROVED, alasan wajib, audit `PAYROLL_UNAPPROVE` | **[V]** |
+| `settlement.service.ts` | beban selisih butuh `can('approvals')` (MANAGER, SUPER_ADMIN) | **[V]** |
+| `data-subject.controller.ts` / `data-subject.service.ts` | `force` hanya SUPER_ADMIN; pesanan terbuka menolak (409) | **[V]** |
+| `account.service.ts` `applyActive` | menonaktifkan mencabut semua refresh token; menolak diri sendiri dan Super admin terakhir | **[V]** |
+| `payment.service.ts` `approveRefund`; pencarian `refundRequestedBy` di kode | tetap tanpa cek pemohon; kolom belum dipakai kode mana pun | **[V]** |
+| `payout-service` penarikan | minimum `MIN_WITHDRAWAL_IDR` (bawaan 50000) di pemilik waralaba dan kurir | **[V]** |
+| `loan-request.service.ts` | maks 1x gaji pokok; kedaluwarsa 3 hari kerja | **[V]** |
+| Tampilan di peramban | Tidak diuji oleh penulis | **[D]** |
 | `approveRefund` tidak membandingkan pemohon dengan penyetuju | payment.service.ts (tidak ada pemeriksaan pemohon) | **[V]** |
 
 Yang **belum** diverifikasi: perilaku nyata di peramban untuk semua sel bertanda Tidak terverifikasi/[D]; nilai ambang yang dipakai di produksi; apakah ada perubahan matriks aktif di produksi (hanya dapat dilihat di `/hq/access` oleh SUPER_ADMIN atau `/dashboard/roles` untuk peran sendiri).
@@ -771,18 +788,18 @@ Yang **belum** diverifikasi: perilaku nyata di peramban untuk semua sel bertanda
 | 1 | Komentar header `index.ts:35` menyebut SPV/ASPV "tanpa tulis, uang, approval". Di kode SPV/ASPV menulis (status pesanan, dispatch), SPV juga insiden, sengketa, target, buku kas. | Dokumen ini mengikuti kapabilitas, bukan komentar. | **[B]** |
 | 2 | FINANCE: beberapa layar `/hq` kemungkinan error penuh karena memuat data yang tidak boleh dibaca FINANCE. | Alur payout Lunas/Gagal dan komisi mungkin hanya bisa dikerjakan SUPER_ADMIN. | **[D]** |
 | 3 | HEAD_OFFICE memegang `approvalThresholdWrite` tetapi layar setelan terkunci `depotAdmin` (MANAGER/SA); setelan global butuh SA. | Praktis hanya SUPER_ADMIN yang dapat mengubah ambang. | **[V]** |
-| 4 | HEAD_OFFICE memegang `dailyCloseReopen`, tetapi layar tinjauan bulanan dibatasi `depotFinance`. | Buka kembali bulan oleh HO tampaknya tak terjangkau. | **[D]** |
-| 5 | Refund: tidak ada pemisahan pemohon/penyetuju bila akun yang sama memegang `refundIssue` dan `refundQueue` (FINANCE, SA). | Kontrol uang bergantung pada pembagian peran. | **[V]** |
-| 6 | Payroll tanpa maker-checker. | Satu akun HR/FINANCE dapat buat, setujui, bayar. | **[V]** |
+| 4 | ~~HEAD_OFFICE memegang `dailyCloseReopen`, tetapi layar tinjauan bulanan dibatasi `depotFinance`.~~ Diperbaiki sejak PR #664 (2026-10-14): layar memakai `dailyClose`. | Belum diuji di peramban. | diperbaiki **[V code]** |
+| 5 | Refund: tidak ada pemisahan pemohon/penyetuju bila akun yang sama memegang `refundIssue` dan `refundQueue` (FINANCE, SA). Kolom `refundRequestedBy` sudah ada (PR #664) tetapi belum dipakai; toko tanpa FINANCE kedua akan terblokir bila ditegakkan. | Kontrol uang bergantung pada pembagian peran; menunggu PR lanjutan dan keputusan pemilik. | **[V][K]** |
+| 6 | Payroll: sejak PR #664 pembuat slip tak boleh menyetujui (SUPER_ADMIN dikecualikan) dan SUPER_ADMIN dapat membatalkan persetujuan sebelum PAID. Tandai Dibayar tetap tanpa cek pelaku. | Sisa celah: penyetuju boleh membayar. | **[V]** |
 | 7 | Cakupan voucher buatan MANAGER (depot vs jaringan) tidak terverifikasi. | Jangan dijanjikan sebagai "voucher depot". | **[K]** |
-| 8 | `voucherRequestDecide` dan komentar "HQ decides a depot's voucher request" usang; alur dihapus. | Nama kapabilitas menyesatkan. | **[B]** |
+| 8 | ~~Komentar "HQ decides a depot's voucher request" usang.~~ Diperbaiki sejak PR #664: kapabilitas `voucherRequestDecide` ditandai RETIRED di komentar; nama dipertahankan. | Nama masih tampil di matriks; abaikan. | diperbaiki **[V]** |
 | 9 | Akses ke layar HR (cuti, kasbon, pinjam karyawan) bagi MANAGER/SPV/ASPV tidak ada tautan menu dari rel `/dashboard`; hanya URL atau notifikasi. | Pengguna tidak menemukan layar persetujuan. | **[D]** |
 | 10 | Penugasan lintas depot dan permintaan pinjam karyawan butuh `DEPOT_ASSIGNMENT_ENABLED` (bawaan mati). Status produksi tidak diketahui. | Baris terkait ditandai Bersyarat. | **[K]** |
 | 11 | Jumlah kapabilitas MANAGER di temuan D tertulis 70, hasil hitung ulang 68. FINANCE komentar kode menyebut 19, hitung ulang 21. | Gunakan angka bab ini; komentar kode usang. | **[B]** |
-| 12 | Pemisahan "Bersyarat" untuk pelanggan membatalkan pesanan mengikuti kode (hingga status Disiapkan), sedangkan Ketentuan Layanan Pasal 8 menyebut "sebelum depot mulai menyiapkan". | Teks hukum dan kode berbeda. | **[B]** |
+| 12 | ~~Pasal 8 menyebut "sebelum depot mulai menyiapkan".~~ Diperbaiki sejak PR #664: Pasal 8 kini "sebelum kurir ditugaskan", sesuai aturan kode (aturan kode tidak berubah). Batal oleh staf sebelum kurir ditugaskan belum ada (butir keputusan 6). | — | diperbaiki **[V]** |
 | 13 | Nilai ambang (Rp 100.000 refund/approval, Rp 50.000 klaim otomatis, Rp 500.000 batas manajer, Rp 5.000 surplus setoran) adalah bawaan; produksi mungkin berbeda. | Konfirmasi ke pemilik. | **[K]** |
 | 14 | SUPER_ADMIN pada rute pelanggan (`@Roles(CUSTOMER)`): apakah boleh? Tidak diuji. | Sel ditandai "?". | **[D]** |
-| 15 | Menonaktifkan akun tidak mematikan token akses yang sudah terbit (hingga ± 15 menit); tidak ada paksa-keluar untuk akun lain. Menonaktifkan super admin terakhir/diri sendiri tidak dijaga. | Jangan menjanjikan kunci instan. | **[V/D]** |
-| 16 | Label status pesanan di beberapa layar staf berbahasa Inggris; pesan penolakan 403 server berbahasa Inggris: "You do not have permission to perform this action." (artinya: Anda tidak punya izin untuk tindakan ini). | Jelaskan ke pengguna. | **[V]** |
+| 15 | Sejak PR #664 menonaktifkan akun mencabut semua refresh token dan menolak menonaktifkan diri sendiri/Super admin terakhir. Token akses yang sudah terbit tetap hidup hingga ± 15 menit (tidak ada pengecekan status per permintaan); penangguhan depot belum mencabut sesi stafnya. | Jangan menjanjikan kunci instan; keputusan pemilik terbuka (`tokenVersion`). | **[V][K]** |
+| 16 | Label status pesanan sudah diterjemahkan sejak PR #664 (`lib/order-status.ts`); pesan penolakan 403 server berbahasa Inggris: "You do not have permission to perform this action." (artinya: Anda tidak punya izin untuk tindakan ini). | Jelaskan ke pengguna. | **[V]** |
 
 Rujukan: Bab 03 (Kepala depot), 04 (Staf depot), 05 (Supervisor), 06 (Asisten supervisor), 07 (Waralaba), 08 (HR), 09 (HQ), 10 (Admin), 13 (Pemecahan masalah), 14 (Panduan cepat).

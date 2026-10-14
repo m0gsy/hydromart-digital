@@ -479,7 +479,6 @@ Editor kamus ID/EN ("Editor kamus ID/EN dengan status terjemahan"): "Cari kunci 
 - Catatan "append-only — tidak bisa diubah atau dihapus" berlaku untuk pengguna. Baris dapat dibuang oleh sapuan retensi setelah masa simpan (batas bawah 365 hari).
 - Kegagalan menulis audit tidak menghalangi aksi; hanya dicatat di log server.
 - Layar lain: "Jejak audit" di konsol depot (/dashboard/audit; chip Semua / Harga / Pengembalian dana / Staf; per depot; tanpa ekspor) dan "Log Audit" di HR (/hr/audit; filter entity; menampilkan 8 karakter awal ID pelaku, bukan nama).
-- Gambar 10.12 diambil sebelum PR #664: belum menampilkan kotak penyaring di atas tabel.
 
 ### 6.18 Penanganan akun dan pemulihan akses
 
@@ -705,7 +704,7 @@ Samarkan secret, nomor telepon, dan alamat IP. Tempatkan SS-admin-08 sampai SS-a
 > *Gambar 10.11 — Halaman "Feature flags", subjudul "Rollout fitur jaringan & pengaturan platform" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat satu banner jingga "Belum ditegakkan" di atas daftar ("Tidak ada layanan yang membaca flag ini. Mengubahnya menyimpan status di sini, tapi tidak menyalakan atau mematikan apa pun di aplikasi — sampai layanan yang bersangkutan dibuat membacanya."); lima flag dengan pilihan ROLLOUT / AKTIF / BETA / MATI: "Siaran kurir" (BETA), "Portal franchise" (ROLLOUT), "Poin & hadiah" (AKTIF), "Harga reseller" (AKTIF), "Langganan" (AKTIF); dan awal kartu "Pengaturan platform" ("Zona waktu" = "Asia/Jakarta"). Catatan kondisi: baris lain pada kartu "Pengaturan platform" terpotong di tepi bawah.*
 
 ![Gambar 10.12 — Log audit](assets/screenshots/admin-05-audit.png)
-> *Gambar 10.12 — Halaman "Log audit", subjudul "Jejak tak terubah lintas layanan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "Ekspor" dan tabel kolom Pelaku, Peran, Objek, Aksi, Waktu. Baris berisi nama akun uji (misalnya "Direktur Hydromart", "Admin Hydromart"), peran dalam kode sistem berbahasa Inggris ("DIREKTUR", "MANAGER", "SUPER_ADMIN", "HEAD_OFFICE"), Objek "—", Aksi berupa kunci teknis ("auth.login.succeeded", "auth.otp.verified", "auth.login.requested"), dan Waktu relatif ("14 mnt lalu"). Catatan kondisi: pada tampilan ini kolom Peran dan Aksi tidak diterjemahkan ke label Indonesia **[B]**; tidak ada nomor telepon atau kode OTP pada baris-baris ini.*
+> *Gambar 10.12 — Halaman "Log audit", subjudul "Jejak tak terubah lintas layanan" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "Ekspor" dan tabel kolom Pelaku, Peran, Objek, Aksi, Waktu. Baris berisi nama akun uji (misalnya "Direktur Hydromart", "Admin Hydromart"), peran dalam kode sistem berbahasa Inggris ("DIREKTUR", "MANAGER", "SUPER_ADMIN", "HEAD_OFFICE"), Objek "—", Aksi berupa kunci teknis ("auth.login.succeeded", "auth.otp.verified", "auth.login.requested"), dan Waktu relatif ("14 mnt lalu"). Catatan kondisi: pada tampilan ini kolom Peran dan Aksi tidak diterjemahkan ke label Indonesia **[B]**; tidak ada nomor telepon atau kode OTP pada baris-baris ini. Diambil sebelum PR #664; kini ada kotak penyaring (Aksi, Dari tanggal, Sampai tanggal, Hasil, Reset filter) di atas tabel.*
 
 ---
 
