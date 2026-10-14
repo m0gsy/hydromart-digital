@@ -106,7 +106,7 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
           </button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {chips.map((c) => (
             <Link
               key={c.href}
@@ -114,7 +114,7 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
               // In the dark theme `bg-white/75` was a washed-out grey pill with dark-teal text
               // on it: neither the light chip nor the dark page, and hard to read. The dark
               // variant sits on the panel as a translucent tint with the normal text colour.
-              className="text-deep-teal min-h-11 rounded-full bg-white/75 px-[15px] py-2 text-[13px] font-bold transition-colors hover:bg-white dark:bg-white/10 dark:text-[color:var(--text)] dark:hover:bg-white/20"
+              className="text-deep-teal inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-white/75 px-5 py-2.5 text-sm font-bold leading-none transition-colors hover:bg-white dark:bg-white/10 dark:text-[color:var(--text)] dark:hover:bg-white/20"
             >
               {c.label}
             </Link>
