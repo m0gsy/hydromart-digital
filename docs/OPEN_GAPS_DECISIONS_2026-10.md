@@ -22,6 +22,8 @@ terhadap `main` (8c541431) sebelum disentuh. Hasilnya: banyak premis sudah tidak
 | e4 halaman via URL (Kepala depot) | tab Meteran, Prakiraan, Aturan promo, Sengketa, CRM, Peran, Akun, sesuai kapabilitas |
 | f1 sesi setelah nonaktif | semua refresh token dicabut saat login dimatikan (staf, HR, pelanggan) |
 | f2 nonaktifkan diri / Super Admin terakhir | ditolak, dengan kunci transaksi yang sama seperti hapus |
+| f8 filter audit | `/auth/audit` menerima `from`/`to`/`success`; halaman HQ punya filter aksi, tanggal, hasil, dan ekspor memakai filter yang sama |
+| b7 "Semua depot" | layar per-depot kini menampilkan pemberitahuan depot mana yang sedang ditampilkan; layar yang memang gabungan (pesanan, churn, aturan promo, impor) dikecualikan |
 
 Premis yang ternyata salah: menu ops sudah memuat meteran/forecast/promo/sengketa/CRM/peran/akun (e4, e5);
 tautan lacak tidak membocorkan PII dan token-nya 128-bit (f6); filter audit sudah ada (f8, sebagian);
@@ -46,7 +48,6 @@ saluran OTP console dijaga saat boot di produksi (f9).
    persetujuan otomatis membuat akun/depot atau tetap manual?
 9. Ekspor manual masuk Log ekspor (ekspor CSV klien perlu panggilan log sebelum unduh).
 10. Peringatan permintaan PDP lewat batas waktu (sweep admin-service + badge).
-11. Filter audit tanggal/sukses di UI HQ (backend belum menerima `from`/`to`/`success`).
 12. Satu-satunya Super Admin: prosedur pemulihan (runbook/CLI) selain penjaga yang kini ada.
 
 ### Konfigurasi / bisnis (kelompok c)
@@ -62,8 +63,6 @@ saluran OTP console dijaga saat boot di produksi (f9).
 21. WhatsApp: masih dikirim (CRM) atau sisa? Konfigurasi `.env` masih ada. Jawaban menentukan penghapusan.
 22. Reviewer OTP (Play Console) sengaja melayani akun staf demo untuk review aplikasi Ops. Batas masa
     berlaku maksimum yang diinginkan? (Kini hanya wajib diisi, tanpa batas atas.)
-23. "Semua depot" jatuh ke depot pertama di 62 file. Perbaikan benar = tiap halaman punya keadaan
-    "pilih depot"; atau hilangkan opsi "Semua depot" di halaman satu-depot. Pilih arah.
 24. Sesi: access token tetap hidup hingga 15 menit setelah nonaktif (tidak ada pengecekan status per
     request). Menutupnya butuh `tokenVersion` di jalur panas; terima 15 menit atau bangun?
     Penangguhan depot juga belum mencabut sesi stafnya.

@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsInt,
   IsObject,
   IsOptional,
@@ -55,6 +56,21 @@ export class AuditQueryDto {
   @IsOptional()
   @IsUUID()
   actorId?: string;
+
+  @ApiPropertyOptional({ description: 'Only entries at or after this instant (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Only entries strictly before this instant (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+
+  @ApiPropertyOptional({ enum: ['true', 'false'], description: 'Successful vs refused actions.' })
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  success?: string;
 }
 
 /** Depot-scoped audit list (design 8b). depotId is required; type is a category chip. */

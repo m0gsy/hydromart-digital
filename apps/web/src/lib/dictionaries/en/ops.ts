@@ -85,6 +85,8 @@ export const ops = {
     activeContext: 'active context',
     locations: '{n} locations',
     combined: '{n} locations · combined',
+    perDepotNotice:
+      'Showing {name}. This screen works one depot at a time, not combined. Pick a depot at the top left to switch.',
   },
   roles: {
     SUPER_ADMIN: 'Super admin',

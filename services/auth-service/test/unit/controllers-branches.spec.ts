@@ -226,6 +226,24 @@ describe('AuditController delegation', () => {
     });
   });
 
+  it('parses the date window and the outcome filter', async () => {
+    audit.list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 });
+    await controller.list({
+      from: '2026-10-01T00:00:00Z',
+      to: '2026-10-08T00:00:00Z',
+      success: 'false',
+    });
+    expect(audit.list).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: new Date('2026-10-01T00:00:00Z'),
+        to: new Date('2026-10-08T00:00:00Z'),
+        success: false,
+      }),
+    );
+    await controller.list({ success: 'true' });
+    expect(audit.list).toHaveBeenLastCalledWith(expect.objectContaining({ success: true }));
+  });
+
   it('lists a depot-scoped trail with defaults', async () => {
     audit.list.mockResolvedValue({
       items: [auditItem({ metadata: null })],

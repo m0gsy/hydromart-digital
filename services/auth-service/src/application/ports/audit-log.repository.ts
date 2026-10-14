@@ -19,6 +19,11 @@ export interface AuditLogQuery {
   depotId?: string;
   /** Category chip (design 8b): OPNAME/RECEIPT/HARGA/SETORAN/STAF → action substrings. */
   type?: string;
+  /** Window on `createdAt`: `from` inclusive, `to` exclusive. */
+  from?: Date;
+  to?: Date;
+  /** Only successful (true) or only refused/failed (false) actions. */
+  success?: boolean;
   /**
    * Opaque keyset cursor — the previous page's `nextCursor`. The audit log is append-only
    * and never stops growing, so an OFFSET deep into it walks everything before it

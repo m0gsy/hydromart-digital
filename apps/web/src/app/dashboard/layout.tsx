@@ -2,6 +2,7 @@
 
 import { OperatorShell } from '@/components/operator/operator-shell';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
+import { AllDepotsNotice } from '@/components/dashboard/all-depots-notice';
 import { OpsRail } from '@/components/dashboard/ops-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { DepotProvider } from '@/lib/depot-context';
@@ -23,7 +24,10 @@ function ConsoleFrame({ children }: { children: React.ReactNode }) {
     <>
       <div className="flex">
         <OpsRail />
-        <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
+        <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">
+          <AllDepotsNotice />
+          {children}
+        </div>
       </div>
       <OpsBottomNav />
     </>

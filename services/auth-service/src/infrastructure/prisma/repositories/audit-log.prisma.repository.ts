@@ -42,6 +42,15 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
     const where: Prisma.AuditLogWhereInput = {
       ...(query.action ? { action: query.action } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
+      ...(query.success !== undefined ? { success: query.success } : {}),
+      ...(query.from || query.to
+        ? {
+            createdAt: {
+              ...(query.from ? { gte: query.from } : {}),
+              ...(query.to ? { lt: query.to } : {}),
+            },
+          }
+        : {}),
       // Depot scope lives in the JSON metadata (folded in on cross-service ingest).
       ...(query.depotId ? { metadata: { path: ['depotId'], equals: query.depotId } } : {}),
       ...(category

@@ -382,6 +382,7 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
     const all = this.entries
       .filter((e) => !query.action || e.action === query.action)
       .filter((e) => !query.customerId || e.customerId === query.customerId)
+      .filter((e) => query.success === undefined || e.success === query.success)
       .filter(
         (e) =>
           !query.depotId ||
