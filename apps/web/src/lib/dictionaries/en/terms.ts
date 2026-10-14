@@ -5,7 +5,7 @@ import { terms as base } from '../id/terms';
 // made in and the one a BPSK panel would read.
 export const terms: typeof base = {
   title: 'Terms of Service',
-  effective: 'In force since 29 August 2026',
+  effective: 'In force since 14 October 2026',
   intro:
     'These terms govern your use of the Hydromart app and website. By registering or placing an order you agree to them. Read them together with our Privacy Policy, which explains what personal data we process and on what basis.',
   sections: [
@@ -31,7 +31,7 @@ export const terms: typeof base = {
     },
     {
       heading: '6. Gallon deposit',
-      body: 'For a gallon you borrow there is a deposit, paid up front and returned when you return the gallon intact. The deposit is not a rental fee and does not shrink with time. A gallon that is cracked, broken or lost does not earn its deposit back. The amount is shown before you pay.',
+      body: 'For a gallon you borrow, the depot records a deposit in your name when the gallon is delivered, and returns it when you return the gallon intact. The deposit is not a rental fee and does not shrink with time. A gallon that is cracked, broken or lost does not earn its deposit back. An estimate of the deposit is shown on the payment screen, separately and not included in the total you pay when you order.',
     },
     {
       heading: '7. Delivery',
