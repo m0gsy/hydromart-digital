@@ -113,8 +113,10 @@ Tidak ada pintu "Konsol HQ". Pemilik tidak bisa membuka `/hq/*`. **[V]**
 
 **Pengalih depot.** Di rel ada pengalih depot dengan label "Semua depot", "konteks aktif", "{n} lokasi", dan "{n} lokasi · gabungan". Server hanya mengembalikan depot yang `ownerId`-nya adalah akun Anda. **[V]**
 
+**Pemberitahuan "Semua depot" (sejak PR #664, 2026-10-14).** Bila Anda memiliki dua depot atau lebih dan pengalih berada di "Semua depot", halaman di bawah `/dashboard` yang bukan layar gabungan menampilkan kotak: "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih." (nama = depot pertama dalam daftar). Menurut kodenya kotak ini ikut muncul di "Waralabaku", "Payout & komisi", dan "Pencarian", padahal halaman-halaman itu tidak membaca pilihan depot (payout dan buku kas terikat ke akun, bukan depot). Jadi untuk halaman tersebut kalimat itu menyesatkan; abaikan kotaknya. **[V]** untuk kodenya, **[D]** untuk tampilannya di peramban (daftar layar gabungan yang dikecualikan ada di `all-depots-notice.tsx` dan tidak memuat halaman pemilik). Jika hanya satu depot, kotak tidak muncul.
+
 ![Gambar 7.1 — Menu konsol pemilik waralaba](assets/screenshots/waralaba-01-ringkasan.png)
-> *Gambar 7.1 — Rel menu konsol pemilik waralaba (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat 8 item menu: Waralabaku, Pencarian (Ringkasan); Retur galon, Perkiraan (Operasi harian); Jadwal shift (Tim & jadwal); Payout & komisi (Keuangan · usulan); Peran & akses, Akun saya (Referensi). Pengalih depot menunjukkan "Semua depot / 1 lokasi". Di dasar menu terlihat pilihan "Bahasa" (ID / EN), "Peran: Pemilik waralaba", dan "Keluar". Catatan kondisi: akun uji hanya memiliki satu depot (Depot Dago, BDG-01).*
+> *Gambar 7.1 — Rel menu konsol pemilik waralaba (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat 8 item menu: Waralabaku, Pencarian (Ringkasan); Retur galon, Perkiraan (Operasi harian); Jadwal shift (Tim & jadwal); Payout & komisi (Keuangan · usulan); Peran & akses, Akun saya (Referensi). Pengalih depot menunjukkan "Semua depot / 1 lokasi". Di dasar menu terlihat pilihan "Bahasa" (ID / EN), "Peran: Pemilik waralaba", dan "Keluar". Catatan kondisi: akun uji hanya memiliki satu depot (Depot Dago, BDG-01). Diambil sebelum PR #664; daftar 8 menu pemilik tidak berubah, tetapi dengan dua depot atau lebih pada "Semua depot" kini tampil kotak "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. …" di atas isi halaman.*
 
 ---
 
@@ -237,7 +239,7 @@ Catatan penting bagi pemohon:
 ### Prosedur 6.3: Undangan akun dan onboarding depot
 
 **Tujuan:** Menjadikan pemohon yang disetujui sebagai pemilik yang bisa masuk dan memiliki depot.
-**Peran:** HQ. Undang staf: `HEAD_OFFICE`, `SUPER_ADMIN`. Buat/ubah depot: `MANAGER`, `SUPER_ADMIN`. **[V]**
+**Peran:** HQ. Undang staf: `HEAD_OFFICE`, `SUPER_ADMIN`. Buat/ubah depot: `MANAGER`, `SUPER_ADMIN`. **[V]** Peran yang boleh diberikan Kantor pusat dibatasi (sejak PR #664, 2026-10-14): hanya Staff depot, Kepala depot, Asisten SPV, SPV, dan Pemilik waralaba; peran lain (termasuk Kantor pusat sendiri) hanya dapat diberikan Super admin, dan pilihan itu tidak muncul di formulir Kantor pusat **[V]** (`RESTRICTED_GRANTS` di `packages/access/src/index.ts`). Pemilik waralaba tetap bisa dibuat oleh Kantor pusat.
 **Titik awal:** Setelah "Setujui & provision" di detail lamaran, atau langsung dari "Direktori staf" dan "Depot".
 
 Tahapan nyata (tidak ada otomatisasi yang menghubungkannya):
@@ -245,7 +247,7 @@ Tahapan nyata (tidak ada otomatisasi yang menghubungkannya):
 | Langkah | Tindakan HQ | Respons sistem |
 |---|---|---|
 | 1 | Di detail lamaran, tekan "Setujui & provision". | Hanya tahap berubah ke "Disetujui". Toast: "Lamaran {nama} disetujui — lanjut provision depot". Browser membuka `/hq/depots?onboard=1` dengan data usulan terisi (kode, nama, jenis Waralaba, kota, provinsi, lintang, bujur). |
-| 2 | Buat akun pemilik: menu "Direktori staf" > "＋ Undang staf". Pilih peran "Pemilik waralaba". Isi nomor telepon dan nama. | Akun langsung aktif. Untuk peran ini, posisi/gaji tidak diminta dan tidak dibuat data karyawan. Nomor masuk = nomor undangan. **[V]** |
+| 2 | Buat akun pemilik: menu "Direktori staf" > "＋ Undang staf". Pilih peran "Pemilik waralaba". Isi nomor telepon dan nama. | Akun langsung aktif. Untuk peran ini, posisi/gaji tidak diminta dan tidak dibuat data karyawan. Nomor masuk = nomor undangan. **[V]** Halaman lama `/dashboard/staff` ("Staf & peran" di konsol depot) kini memakai formulir undang HQ yang sama (sejak PR #664, 2026-10-14), sehingga tidak lagi gagal 400 karena field karyawan yang kurang **[V]**. |
 | 3 | Buka "Onboard depot". Isi Kode, Nama depot, Kepemilikan = "Waralaba", **"Pemilik waralaba"** (pilih akun tadi), Alamat, Kota, Provinsi, Latitude, Longitude, Radius km, Ongkir, Min order, dan data "Pembayaran ke depot". | Tombol "Buat depot". Gagal: "Gagal menyimpan depot." |
 | 4 | Pantau kelengkapan di "Onboarding depot". | Daftar langkah dengan progres "{done}/{total} langkah selesai". |
 
@@ -353,8 +355,8 @@ Status rekening:
 
 | Aturan | Isi | Bukti |
 |---|---|---|
-| Minimum pencairan | **Tidak ada** minimum yang ditemukan. Jumlah harus bilangan bulat rupiah lebih dari 0 dan tidak melebihi saldo. | **[V]** |
-| Biaya pencairan | **Tidak ada** biaya yang ditemukan di layanan payout. | **[V]** |
+| Minimum pencairan | **Rp50.000** (sejak PR #664, 2026-10-14; keputusan pemilik). Nilai ini adalah pengaturan `MIN_WITHDRAWAL_IDR` di layanan payout (bawaan 50000; 0 berarti tanpa minimum) dan berlaku sama untuk pemilik waralaba dan kurir. Jumlah di bawahnya ditolak sebelum saldo diperiksa. Jumlah tetap harus bilangan bulat rupiah lebih dari 0 dan tidak melebihi saldo. Nilai produksi sebenarnya perlu dikonfirmasi **[K]**. | **[V]** |
+| Biaya pencairan | **Gratis** (keputusan pemilik 2026-10-14); tidak ada biaya di layanan payout. | **[V]** |
 | Batas harian | Tidak ditemukan. | **[V]** |
 | Tujuan | Selalu rekening terverifikasi; tidak dikirim dari layar. Ditampilkan tersamar "BANK ···· 1234". | **[V]** |
 | Saat diminta | Saldo **langsung berkurang** dan status menjadi PROCESSING. | **[V]** |
@@ -366,11 +368,11 @@ Status rekening:
 | 2 | Isi "Jumlah pencairan (IDR)" (angka). Atau tekan Rp 2.000.000, Rp 5.000.000 (hanya muncul bila tidak melebihi saldo), atau "Semua". | Kolom terisi. Kolom kosong menampilkan saldo penuh sebagai petunjuk. |
 | 3 | Periksa jumlah dan rekening tujuan. | |
 | 4 | Tekan "Cairkan saldo". | Tombol nonaktif bila saldo 0 atau rekening belum terverifikasi. |
-| 5 | Baca layar hasil. | "Pencairan diproses", "Rp X dikirim ke {BANK ···· 1234}.", "Ref" = nomor `WD-YYYYMMDD-NNNN`, "Status" = "Diproses". |
+| 5 | Baca layar hasil. | "Pencairan diproses", "Rp X diajukan ke {BANK ···· 1234}, menunggu transfer." (sejak PR #664, 2026-10-14; dahulu "…dikirim ke…"), "Ref" = nomor `WD-YYYYMMDD-NNNN`, "Status" = "Diproses". |
 | 6 | Catat nomor "Ref". | Berguna bila perlu menghubungi HQ. |
-| 7 | Tunggu HQ. | HQ menandai "Lunas" atau "Gagal". |
+| 7 | Tunggu HQ. Pantau di kartu "Riwayat penarikan" pada halaman yang sama. | HQ menandai "Lunas" atau "Gagal"; kartu riwayat menampilkan "Menunggu transfer", "Sudah ditransfer", atau "Gagal (saldo dikembalikan)". |
 
-**Ejaan status.** Kata "dikirim" di layar bersifat optimistis. Dana belum tentu sudah masuk. Statusnya tetap **PROCESSING** sampai HQ menandai lunas. **[V][B]**
+**Ejaan status (diperbaiki sejak PR #664, 2026-10-14).** Dahulu layar hasil menulis "dikirim ke…", yang optimistis. Kini berbunyi "diajukan ke {rekening}, menunggu transfer." Dana belum tentu sudah masuk: statusnya tetap **PROCESSING** sampai HQ menandai lunas. **[V]**
 
 **Siklus pencairan:**
 
@@ -380,7 +382,7 @@ Status rekening:
 | PAID ("Lunas") | HQ menyatakan transfer masuk. Tidak bisa dibatalkan. | Tidak berubah lagi. |
 | FAILED ("Gagal") | Transfer gagal. | Dikembalikan sebagai catatan kredit "Pencairan gagal · {alasan}" atau "Pencairan gagal, saldo dikembalikan". |
 
-**Celah antarmuka.** API menyediakan lima pencairan terakhir, tetapi halaman **tidak menampilkannya**. Pemilik tidak bisa melihat status PROCESSING, PAID, atau FAILED di layar. Satu-satunya petunjuk adalah buku kas (WITHDRAWAL dan kredit pengembalian) atau konfirmasi dari HQ. **[V][B]**
+**Riwayat penarikan (sejak PR #664, 2026-10-14).** Dahulu halaman tidak menampilkan lima pencairan terakhir yang sudah dikirim API **[B, diperbaiki]**. Kini, bila ada minimal satu pencairan, kartu "Riwayat penarikan" tampil di bawah kartu "Saldo tersedia". Tiap baris memuat jumlah, nomor "Ref" dan tanggal, serta lencana status: PROCESSING = "Menunggu transfer", PAID = "Sudah ditransfer", FAILED = "Gagal (saldo dikembalikan)". Hanya **lima** pencairan terakhir yang dimuat; yang lebih lama tidak ada tautan "lihat lagi" **[V]**. Kartu ini hilang bila belum ada pencairan sama sekali. Buku kas tetap memuat catatan WITHDRAWAL dan kredit pengembalian.
 
 **Masalah umum:**
 
@@ -391,6 +393,7 @@ Status rekening:
 | "Belum ada rekening tujuan yang terverifikasi. Daftarkan rekening dan tunggu verifikasi kantor pusat sebelum menarik saldo." | Server menolak (422) karena rekening belum terverifikasi. | Tunggu verifikasi HQ. |
 | "Withdrawal of {requested} exceeds available balance {available}." (Inggris) | Jumlah melebihi saldo tersedia. | Kecilkan jumlah atau pakai "Semua". |
 | "Withdrawal amount must be greater than zero." (Inggris) | Jumlah harus lebih dari nol. | Isi jumlah positif. |
+| "Minimum penarikan Rp50.000." (sejak PR #664, 2026-10-14; angka mengikuti `MIN_WITHDRAWAL_IDR`, format ribuan titik mengikuti locale server **[D]**) | Jumlah di bawah minimum penarikan (kode galat `PAYOUT_BELOW_MINIMUM`, status 400). | Naikkan jumlah sampai minimal Rp50.000, atau tekan "Semua" bila saldo cukup. Bila saldo di bawah minimum, tunggu saldo bertambah. |
 | "Pencairan gagal diproses." | Kegagalan umum. | Muat ulang, cek buku kas agar tidak mencairkan dua kali, lalu coba lagi. |
 
 **Hasil akhir:** Saldo berkurang sebesar jumlah pencairan; pencairan berstatus PROCESSING.
@@ -403,9 +406,9 @@ Status rekening:
 - [ ] Buku kas dicek setelahnya.
 
 ![Gambar 7.7 — Halaman Payout & komisi pemilik](assets/screenshots/waralaba-03-pencairan.png)
-> *Gambar 7.7 — Kartu "Saldo tersedia" di sisi kanan halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Saldo tersedia Rp 0", chip "Menunggu verifikasi kantor pusat / a.n. akun terdaftar", kolom "Jumlah pencairan (IDR)" (petunjuk "0"), tombol "Semua", dan tombol "Cairkan saldo" yang nonaktif (pudar). Catatan kondisi: karena saldo Rp 0, tombol cepat Rp 2.000.000 dan Rp 5.000.000 tidak tampil (sesuai aturan: hanya muncul bila tidak melebihi saldo). Di bawah kartu terlihat "Rekening tujuan pencairan" dengan teks "Belum ada rekening terdaftar." dan kolom "Nama bank". [B] Chip tetap bertuliskan "Menunggu verifikasi kantor pusat" walau belum ada rekening terdaftar; arti chip pada kondisi ini belum dikonfirmasi.*
+> *Gambar 7.7 — Kartu "Saldo tersedia" di sisi kanan halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Saldo tersedia Rp 0", chip "Menunggu verifikasi kantor pusat / a.n. akun terdaftar", kolom "Jumlah pencairan (IDR)" (petunjuk "0"), tombol "Semua", dan tombol "Cairkan saldo" yang nonaktif (pudar). Catatan kondisi: karena saldo Rp 0, tombol cepat Rp 2.000.000 dan Rp 5.000.000 tidak tampil (sesuai aturan: hanya muncul bila tidak melebihi saldo). Di bawah kartu terlihat "Rekening tujuan pencairan" dengan teks "Belum ada rekening terdaftar." dan kolom "Nama bank". [B] Chip tetap bertuliskan "Menunggu verifikasi kantor pusat" walau belum ada rekening terdaftar; arti chip pada kondisi ini belum dikonfirmasi. Diambil sebelum PR #664; kini, bila sudah ada pencairan, kartu "Riwayat penarikan" tampil di bawah kartu ini, dan pencairan di bawah Rp50.000 ditolak dengan "Minimum penarikan Rp50.000."*
 
-> **[SCREENSHOT REQUIRED: SS-waralaba-08 — Layar sukses "Pencairan diproses" dengan "Ref" WD-… dan "Status" Diproses (data sintetis)]**
+> **[SCREENSHOT REQUIRED: SS-waralaba-08 — Layar sukses "Pencairan diproses" dengan teks "diajukan ke …, menunggu transfer.", "Ref" WD-… dan "Status" Diproses (data sintetis; belum diambil setelah PR #664)]**
 > *Gambar 7.8 — Hasil pencairan berstatus Diproses.*
 
 ---
@@ -455,10 +458,10 @@ Pembatalan penjualan kasir (void) menulis baris koreksi "Pembatalan: …" dengan
 
 > **Pendapatan hilang bila pemilik tidak terhubung.** Jika depot waralaba tidak punya pemilik, pesanan selesai tidak dibukukan sama sekali (pendapatan pemilik dan komisi HQ hilang; hanya masuk log kesalahan). Jika tidak ada skema komisi, komisi 0% dan muncul peringatan ke operasional. Penyelesaian pesanan tidak pernah diblokir oleh hal ini. **[V]**
 
-> **[B]** Label HQ "Skema komisi" memakai kata "Persentase payout per depot", padahal kode **memotong** persentase itu sebagai komisi HQ. Bab ini memakai arti kode: persentase adalah bagian HQ. **[V][B]**
+> **Label diperbaiki (sejak PR #664, 2026-10-14).** Subjudul halaman HQ "Skema komisi" dahulu berbunyi "Persentase payout per depot", padahal kode **memotong** persentase itu sebagai komisi HQ **[B]**. Kini berbunyi "Persentase komisi HQ per depot" **[V]**. Persentase adalah bagian HQ.
 
 ![Gambar 7.9 — Halaman Payout & komisi pemilik](assets/screenshots/waralaba-03-pencairan.png)
-> *Gambar 7.9 — Bagian atas halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat lencana "Usulan" di samping judul, subjudul "Buku kas depot, komisi HQ, dan pencairan untuk pemilik waralaba.", empat kartu: Saldo tersedia "Rp 0", Pendapatan bulan ini "Rp 0", Komisi HQ "Rp 0", Payout berikutnya "14 Okt"; serta kartu "Buku kas". Catatan kondisi: buku kas kosong ("Belum ada transaksi."), sehingga baris kredit hijau dan debit merah belum terlihat. Gambar yang sama dengan Gambar 7.7.*
+> *Gambar 7.9 — Bagian atas halaman "Payout & komisi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat lencana "Usulan" di samping judul, subjudul "Buku kas depot, komisi HQ, dan pencairan untuk pemilik waralaba.", empat kartu: Saldo tersedia "Rp 0", Pendapatan bulan ini "Rp 0", Komisi HQ "Rp 0", Payout berikutnya "14 Okt"; serta kartu "Buku kas". Catatan kondisi: buku kas kosong ("Belum ada transaksi."), sehingga baris kredit hijau dan debit merah belum terlihat. Gambar yang sama dengan Gambar 7.7. Diambil sebelum PR #664; kini kartu "Riwayat penarikan" tampil di bawah kartu "Saldo tersedia" bila ada pencairan, dan layar hasil pencairan berbunyi "diajukan ke …, menunggu transfer."*
 
 ---
 
@@ -537,6 +540,8 @@ Alur jalur 2 di layar HQ:
 Pesan penolakan dari server: pengaju menyetujui sendiri → 403 "Pengaju pencairan tidak boleh menyetujui pengajuannya sendiri."; sudah diputuskan → 409 "Pengajuan pencairan ini tidak ditemukan atau sudah diputuskan."; bila rilis gagal (misalnya rekening belum terverifikasi) pengajuan kembali PENDING. Petunjuk layar: "PROCESSING berarti saldonya sudah dipotong. Tandai LUNAS kalau transfernya masuk, atau GAGAL untuk mengembalikan saldonya." **[V]**
 
 Pencairan oleh pemilik (jalur 1) tampil langsung di "Penarikan menunggu jawaban bank" dan **tidak pernah** tampil di "Pengajuan rilis menunggu persetujuan". **[V]**
+
+Minimum penarikan (sejak PR #664, 2026-10-14): rilis oleh HQ memakai fungsi pencairan yang sama dengan permintaan pemilik (`releaseForOwner` memanggil `requestWithdrawal`), sehingga saat "Setujui & rilis" dijalankan pada saldo di bawah Rp50.000 pencairan ditolak dengan "Minimum penarikan Rp50.000." **[V]** Bagaimana pesan itu tampil di layar HQ belum diuji **[D]**.
 
 Verifikasi rekening oleh HQ: kartu "Rekening tujuan menunggu verifikasi", petunjuk "Cocokkan nama dan nomor rekening sebelum memverifikasi. Pencairan hanya ke rekening terverifikasi.", tombol "Verifikasi" ("Verifikasi rekening ini? Pencairan berikutnya akan dikirim ke sana.") dan "Tolak" ("Tolak rekening ini? Pemiliknya harus mendaftarkan ulang."). **[V]**
 
@@ -651,7 +656,7 @@ HQ memegang kendali berikut. Tabel ini membantu pemilik memahami siapa yang memu
 Detail penting:
 
 - **Skema komisi** bersifat tambah-saja dan punya tanggal berlaku; tanggal di masa depan berarti terjadwal. Persentase harus 0–100 (kesalahan server: "Commission percentage must be between 0 and 100."). Daftarnya memuat seluruh depot termasuk milik pusat; mengisi persentase pada depot milik pusat tidak berdampak karena tanpa pemilik. Siapa yang menerapkan tercatat. `HEAD_OFFICE`/`DIREKTUR` melihat halaman tetapi ditolak saat menerapkan. **[V]**
-- **Penangguhan depot** lewat dialog "Tangguhkan Depot?" yang meminta mengetik kode depot. Dampak yang tertulis: pesanan aktif dialihkan ke depot terdekat; staf dan kurir kehilangan akses; radius cakupan dikembalikan ke depot terdekat (dua terakhir berlabel "Perkiraan"). Depot tampil "Ditangguhkan" bagi HQ dan "nonaktif" bagi pemilik. **Tidak ada kode yang membekukan payout** saat depot ditangguhkan; saldo tetap bisa dicairkan. Apakah itu sesuai kebijakan perlu konfirmasi. **[V][K]**
+- **Penangguhan depot** lewat dialog "Tangguhkan Depot?" yang meminta mengetik kode depot. Dampak yang tertulis: pesanan aktif dialihkan ke depot terdekat; staf dan kurir kehilangan akses; radius cakupan dikembalikan ke depot terdekat (dua terakhir berlabel "Perkiraan"). Depot tampil "Ditangguhkan" bagi HQ dan "nonaktif" bagi pemilik. **Tidak ada kode yang membekukan payout** saat depot ditangguhkan; saldo tetap bisa dicairkan **[V]** (payout-service tidak membaca status depot; PR #664 tidak mengubahnya). Apakah itu sesuai kebijakan masih menunggu pemilik **[K]**. Catatan yang masih terbuka (butir 24 di `docs/OPEN_GAPS_DECISIONS_2026-10.md`): penangguhan depot belum mencabut sesi staf depot itu **[K]**; pencabutan sesi yang dibangun PR #664 hanya untuk mematikan login akun (lihat bagian 10).
 - Daftar "Jaringan waralaba" memperlihatkan per depot: nama, kode, "Nonaktif", pemilik, "{kota} · komisi {n}%" atau "komisi belum diatur", "menunggu rilis" beserta jumlah, tombol "Buka depot". Kartu "Menunggu rilis ke pemilik" menjumlahkan saldo pemilik yang siap dicairkan HQ. Kosong: "Belum ada depot waralaba." **[V]**
 
 ## 10. Pertimbangan keamanan
@@ -660,7 +665,7 @@ Detail penting:
 - Jangan membagikan akses akun. Semua pencairan atas nama akun Anda.
 - Periksa nomor rekening dua kali. Pencairan hanya ke rekening yang diverifikasi, dan mengganti rekening mengulang verifikasi.
 - Anda hanya melihat depot milik Anda. Bila melihat depot orang lain, laporkan ke HQ.
-- Nonaktif/ditangguhkan: akun dengan status ditangguhkan ditolak saat masuk dan saat pembaruan sesi. Token yang sudah terbit kemungkinan berlaku sampai habis masa berlakunya (15 menit). **[V][D]**
+- Nonaktif/ditangguhkan: akun dengan status ditangguhkan ditolak saat masuk dan saat pembaruan sesi. Sejak PR #664 (2026-10-14), saat login sebuah akun dimatikan (staf, HR, pelanggan) semua token pembaruan (refresh) akun itu langsung dicabut; token akses yang sudah terbit tetap berlaku sampai habis masa berlakunya (15 menit) karena tidak ada pemeriksaan status per permintaan **[V]**. Menutup 15 menit itu belum diputuskan pemilik **[K]**. Akun sendiri dan Super admin terakhir tidak bisa dinonaktifkan ("Akun sendiri tidak bisa dinonaktifkan."; "Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.") **[V]**.
 - Data pelamar diproses dengan persetujuan privasi; lamaran ditolak dihapus berkala. **[V]**
 - Contoh nomor telepon di dokumen ini sintetis.
 
@@ -722,14 +727,16 @@ Rujukan: lihat `17-open-questions`.
 | 2 | Persetujuan tidak membuat akun maupun depot; nama/telepon pemohon tidak terbawa; data usulan hanya di sessionStorage. | [V] |
 | 3 | Persetujuan boleh dengan daftar periksa belum lengkap; penolakan tanpa alasan; tidak ada notifikasi otomatis ke pemohon. | [V][K] |
 | 4 | Tanggal "Payout berikutnya" (15) hanya tampilan; kebijakan pembayaran tanggal 15 belum jelas. | [V][K] |
-| 5 | Halaman payout tidak menampilkan riwayat/status pencairan; buku kas hanya 8 catatan terakhir tanpa "lihat lagi". | [V][B] |
-| 6 | Teks sukses "dikirim" menyesatkan; status riil PROCESSING. | [V][B] |
+| 5 | ~~Halaman payout tidak menampilkan riwayat/status pencairan~~ Diperbaiki sejak PR #664 (2026-10-14): kartu "Riwayat penarikan" (lima terakhir). Yang tersisa: buku kas hanya 8 catatan terakhir tanpa "lihat lagi", dan riwayat penarikan hanya lima | Diperbaiki [V]; sisanya [B] |
+| 6 | ~~Teks sukses "dikirim" menyesatkan~~ Diperbaiki sejak PR #664 (2026-10-14): "diajukan ke {rekening}, menunggu transfer." | Diperbaiki [V] |
 | 7 | Penolakan rekening tanpa alasan di layar HQ ("Ditolak: tanpa alasan"). | [V][B] |
 | 8 | Pesan error server berbahasa Inggris tampil apa adanya (kode depot sudah ada, jumlah melebihi saldo, depot waralaba harus punya pemilik, dsb.). | [V][B] |
-| 9 | Label "Persentase payout per depot" pada "Skema komisi" bertentangan dengan perilaku (persentase = komisi HQ). | [V][B] |
-| 10 | Penangguhan depot tidak membekukan payout; kebijakan perlu konfirmasi. | [V][K] |
-| 11 | Menu/tab "Antrean", "Jadwal shift", sebagian "Pencarian" tidak berguna bagi pemilik; baris "PIN persetujuan" dan "Perangkat masuk" tidak berfungsi; lencana "Usulan" belum jelas. | [V][B] |
+| 9 | ~~Label "Persentase payout per depot" bertentangan dengan perilaku~~ Diperbaiki sejak PR #664 (2026-10-14): "Persentase komisi HQ per depot" | Diperbaiki [V] |
+| 10 | Penangguhan depot tidak membekukan payout dan belum mencabut sesi staf depot; kebijakan perlu konfirmasi pemilik (tidak diubah PR #664) | [V][K] |
+| 11 | Menu/tab "Antrean", "Jadwal shift", sebagian "Pencarian" tidak berguna bagi pemilik (kodenya tidak diubah PR #664; daftar 8 menu pemilik tetap); baris "PIN persetujuan" dan "Perangkat masuk" tidak berfungsi; lencana "Usulan" belum jelas. | [V][B] |
 | 12 | Penghubung STOCK_PURCHASE dan ADJUSTMENT: penulisnya tidak ditemukan. | [K] |
 | 13 | Tombol depot di layar HQ tidak dibatasi peran padahal server hanya menerima `MANAGER`/`SUPER_ADMIN`. | [V][B] |
+| 14 | Kotak "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan." (sejak PR #664) menurut kodenya juga muncul di "Waralabaku" dan "Payout & komisi" untuk pemilik dengan dua depot atau lebih, padahal halaman itu bukan per depot; belum diuji di peramban | [V][B][D] |
+| 15 | Minimum pencairan Rp50.000 (`MIN_WITHDRAWAL_IDR`) diputuskan pemilik; nilai produksi, lama proses, dan biaya perlu dikonfirmasi (butir 16 di `docs/OPEN_GAPS_DECISIONS_2026-10.md`) | [K] |
 | 14 | Hak akses di bab ini adalah nilai bawaan; Admin dapat mengubahnya saat berjalan. | [V] |
 | 15 | Belum ada pengujian yang dijalankan oleh penulis dokumen ini. | – |

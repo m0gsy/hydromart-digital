@@ -357,7 +357,7 @@ Tombol **Batal** menanyakan "Batalkan bukti serah ini? Foto, nama penerima, dan 
 
 **Aturan server. [V]**
 - Jarak lokasi bukti ke alamat selalu diukur. Ditolak hanya bila depot menyalakan `proofRadiusEnforced` (bawaan **mati**) dan jarak melebihi batas (bawaan 500 m): "Bukti antar diambil {m} m dari alamat tujuan (batas {r} m). Pastikan Anda di alamat pelanggan." **[K]**
-- Bukti disimpan lebih dulu, lalu pesanan menjadi Delivered lalu Completed. Upah antar dikirim ke layanan penghasilan.
+- Bukti disimpan lebih dulu, lalu pesanan menjadi Tiba (DELIVERED) lalu Selesai (COMPLETED); label ini yang tampil bagi pelanggan dan staf konsol sejak PR #664 (2026-10-14). Upah antar dikirim ke layanan penghasilan.
 - Mengirim ulang bukti yang sudah selesai mengembalikan hasil sukses (tidak error).
 - Bukti disimpan selama 12 bulan, lalu dihapus otomatis sesuai UU PDP.
 - **[B]** Pada layar sukses, kalimat ini tertulis "Bukti disimpan 12 bulan lalu dihapus otomatis sesuai kebijakan retensi UU PDP." Tanpa tanda baca, kalimat itu terbaca seolah bukti disimpan "12 bulan yang lalu". Maksudnya (disimpulkan **[D]**): disimpan 12 bulan, lalu dihapus.
@@ -471,7 +471,9 @@ Nominal deposit dihitung server dari tarif deposit depot. Kata "deposit dikembal
 
 **Arti status. [V]** "Menunggu verifikasi" → "Terverifikasi" atau "Sengketa". Kasir yang memutuskan.
 
-> **[B] Kalimat "dipotong dari upah Anda" tidak selalu benar.** Kekurangan hanya memotong upah bila kasir memverifikasi dengan pilihan *bebankan selisih ke kurir*. Bantuan & FAQ berkata kekurangan "menjadi tanggungan kurir". Kelebihan setoran **tidak** dikreditkan kepada Anda. **[V]**
+**Sengketa bisa diselesaikan (sejak PR #664, 2026-10-14).** Setoran berstatus "Sengketa" kini bisa diverifikasi ulang oleh kasir, dengan catatan wajib; sebelumnya status itu tidak punya jalan keluar di layar. **[V]** (`settlements/page.tsx`; `settlement.service.ts`)
+
+> **Kalimat "dipotong dari upah Anda" tidak selalu benar [B].** Sejak PR #664, **hanya Manajer atau Super admin yang dapat membebankan selisih ke kurir**; Kepala depot dan kasir lain hanya dapat memverifikasi tanpa membebankan (server menolak pembebanan oleh peran lain dengan "Membebankan selisih ke kurir harus disetujui manajer. Verifikasi tanpa membebankan, atau minta manajer yang memverifikasi."). Kekurangan hanya memotong upah bila Manajer/Super admin memverifikasi dengan pilihan *bebankan selisih ke kurir*. **[V]** Bantuan & FAQ berkata kekurangan "menjadi tanggungan kurir". Kelebihan setoran **tidak** dikreditkan kepada Anda. **[V]**
 
 **Masalah umum:**
 
@@ -511,10 +513,10 @@ Nominal deposit dihitung server dari tarif deposit depot. Kata "deposit dikembal
 | 1 | Buka **Pendapatan**. | Kartu biru "Saldo tersedia" dan "Bulan ini" (upah + insentif bulan berjalan). Baris tautan "Target shift" dan "Setor uang tunai". |
 | 2 | Lihat "Rincian" (8 catatan terakhir; hijau = masuk, merah = keluar). Tekan "Lihat semua" untuk **Riwayat penghasilan**. | Jenis: Upah, Bonus, Potongan, Selisih setoran, Penarikan, Penyesuaian. 20 per halaman; "Sebelumnya"/"Berikutnya"; kosong "Belum ada catatan". |
 | 3 | Daftarkan rekening: pada panel penarikan atau kartu "Rekening tujuan pencairan", isi **Nama bank**, **Nomor rekening**, **Nama pemilik rekening**, tekan **Daftarkan rekening** (atau **Ganti rekening**). | Status: "Menunggu verifikasi kantor pusat" → "Terverifikasi" atau "Ditolak: {alasan}". |
-| 4 | Tekan **Tarik saldo** (nonaktif bila saldo ≤ 0). Isi **Jumlah penarikan**. | Panel "Tarik saldo". |
+| 4 | Tekan **Tarik saldo** (nonaktif bila saldo ≤ 0). Isi **Jumlah penarikan**. Minimum penarikan **Rp50.000** (sejak PR #664, 2026-10-14). | Panel "Tarik saldo". |
 | 5 | Tekan **Tarik** (aktif bila jumlah > 0, ≤ saldo, dan rekening terverifikasi). | Saldo langsung berkurang; penarikan berstatus "Diproses". Kemudian "Terkirim" atau "Gagal" (saldo dikembalikan, catatan "Penarikan gagal, saldo dikembalikan"). |
 
-Daftar "Riwayat penarikan" menampilkan 5 terakhir.
+Daftar "Riwayat penarikan" menampilkan 5 terakhir. Penarikan berlaku juga untuk pemilik waralaba dengan minimum yang sama (sejak PR #664). Tampilan layar kurir tidak berubah; pesan minimum datang dari server dan tampil apa adanya. **[V]**
 
 **Pesan:**
 
@@ -523,6 +525,7 @@ Daftar "Riwayat penarikan" menampilkan 5 terakhir.
 | "Jumlah melebihi saldo tersedia." | Melebihi saldo | Kurangi |
 | "Daftarkan rekening dan tunggu verifikasi sebelum menarik saldo." / "Belum ada rekening tujuan yang terverifikasi. Daftarkan rekening dan tunggu verifikasi kantor pusat sebelum menarik saldo." | Rekening belum terverifikasi | Tunggu Kantor pusat |
 | "Withdrawal amount must be greater than zero." | Jumlah ≤ 0 | Isi jumlah positif |
+| "Minimum penarikan Rp50.000." | Jumlah di bawah minimum penarikan (sejak PR #664, 2026-10-14). Nilai dari pengaturan server `MIN_WITHDRAWAL_IDR`, bawaan 50.000; 0 menonaktifkan batas **[K]** | Tarik jumlah lebih besar, atau tunggu saldo bertambah |
 | "Withdrawal of {x} exceeds available balance {y}." | Penarikan melebihi saldo | Kurangi |
 | "Gagal menarik saldo. Coba lagi." | Kesalahan umum | Coba lagi |
 
@@ -704,11 +707,11 @@ Pesan klien: "Tanggal mulai dan selesai wajib diisi." · "Alasan wajib diisi." P
 |---|---|---|
 | 1 | Isi **Nominal (Rp)** (bulat > 0; contoh 500000). | — |
 | 2 | Isi **Alasan** ("Untuk apa kasbon ini dipakai"; maks 300). | — |
-| 3 | Tekan **Ajukan Kasbon**. | "Pengajuan kasbon terkirim." Muncul di "Riwayat pengajuan". |
+| 3 | Tekan **Ajukan Kasbon**. | "Pengajuan kasbon terkirim." Muncul di "Riwayat pengajuan". Nominal di atas batas ditolak (lihat di bawah). |
 
-Hanya **satu pengajuan terbuka** pada satu waktu: 409 "Masih ada pengajuan kasbon yang belum diputuskan." Anda **tidak** menentukan cicilan atau bulan mulai potong; penyetuju yang menentukan. Pesan klien: "Nominal harus lebih dari 0." · "Alasan wajib diisi." Gagal: "Pengajuan kasbon gagal dikirim."
+Hanya **satu pengajuan terbuka** pada satu waktu: 409 "Masih ada pengajuan kasbon yang belum diputuskan." Anda **tidak** menentukan cicilan atau bulan mulai potong; penyetuju yang menentukan. Pesan klien: "Nominal harus lebih dari 0." · "Alasan wajib diisi." Pesan server di atas tampil apa adanya di formulir. Gagal: "Pengajuan kasbon gagal dikirim."
 
-**Siapa memutuskan. [V]** Asisten SPV depot Anda, bila ada di data depot. Jika depot tidak punya, Manajer atau HR (eskalasi). Penyetuju menetapkan "Cicilan per bulan (Rp)" dan "Mulai potong (YYYY-MM)". Setelah disetujui, gaji dipotong tiap bulan sebesar cicilan (atau sisa) sampai lunas, muncul sebagai potongan "Kasbon" di slip. **Kepala depot tidak menyetujui kasbon.** Tidak ada batas nominal di kode; batas ada pada kebijakan penyetuju **[K]**. Pencairan uang kasbon sendiri tidak dilacak di aplikasi **[D]**.
+**Siapa memutuskan. [V]** Asisten SPV depot Anda, bila ada di data depot. Jika depot tidak punya, Manajer atau HR (eskalasi). Penyetuju menetapkan "Cicilan per bulan (Rp)" dan "Mulai potong (YYYY-MM)". Setelah disetujui, gaji dipotong tiap bulan sebesar cicilan (atau sisa) sampai lunas, muncul sebagai potongan "Kasbon" di slip. **Kepala depot tidak menyetujui kasbon.** **Batas nominal (sejak PR #664, 2026-10-14, keputusan pemilik): kasbon maksimal 1x gaji pokok** (gaji bulanan; untuk karyawan harian dihitung 26 hari upah harian). Bila melebihi: "Kasbon melebihi batas 1x gaji pokok (Rp{batas})." Bila gaji pokok Anda belum diisi: "Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR." **Kedaluwarsa:** pengajuan yang tidak diputuskan dalam **3 hari kerja** (Senin-Jumat; libur nasional tidak dihitung) otomatis menjadi Dibatalkan dengan catatan "Kedaluwarsa: tidak diputuskan dalam 3 hari kerja."; penyetuju yang membukanya sesudah itu mendapat "Pengajuan ini kedaluwarsa (lewat 3 hari kerja); pemohon perlu mengajukan lagi." Pengecekan dilakukan saat Anda membuka atau mengajukan kasbon, bukan oleh penyapu latar. **[V]** Pencairan uang kasbon sendiri tidak dilacak di aplikasi **[D]**.
 
 **Batalkan:** tombol **Batalkan** saat PENDING > konfirmasi "Batalkan pengajuan kasbon ini? Pengajuan ditarik dari antrean penyetuju." Status: Menunggu keputusan, Disetujui ("Disetujui — potongannya muncul di daftar kasbon dan di slip gaji."), Ditolak ("Alasan penolakan: {catatan}"), Dibatalkan. Pesan: "Pengajuan dibatalkan." · "Pengajuan gagal dibatalkan." · 409 "Pengajuan ini sudah diputuskan."
 
@@ -779,13 +782,14 @@ Hanya **satu pengajuan terbuka** pada satu waktu: 409 "Masih ada pengajuan kasbo
 |---|---|---|
 | Penugasan pengantaran | **Kepala depot** (atau Manajer/SPV/Asisten SPV); atau ambil sendiri bila depot mengaktifkan | **[V]** |
 | Penugasan ulang setelah jadwal ulang | **Kepala depot** | **[V]** |
-| Verifikasi setoran COD dan keputusan beban selisih | **Kepala depot**, Manajer, Finance, atau Super admin | **[V]** |
+| Verifikasi setoran COD (tanpa beban) | **Kepala depot**, Manajer, Finance, atau Super admin | **[V]** |
+| Beban selisih setoran ke kurir (potong upah) | **Manajer** atau **Super admin** saja (sejak PR #664, 2026-10-14) | **[V]** |
 | Klaim pengeluaran ≤ Rp50.000 dengan struk sah | Otomatis (tanpa orang) | **[V]** |
 | Klaim pengeluaran di atas itu | **Manajer** (sampai Rp500.000); **Finance**/Super admin di atasnya | **[V]** |
 | Verifikasi rekening pencairan | **Kantor pusat** | **[V]** |
 | Pencairan penarikan ("Terkirim"/"Gagal") | Finance/Super admin (diduga) | **[D]** |
 | Cuti | Tahap 1 **Manajer** atau HR; tahap 2 **HR**/Kantor pusat/Direktur | **[V]** |
-| Kasbon | **Asisten SPV** depot (bila ada), jika tidak Manajer/HR | **[V]** |
+| Kasbon (maks. 1x gaji pokok; kedaluwarsa 3 hari kerja) | **Asisten SPV** depot (bila ada), jika tidak Manajer/HR | **[V]** |
 | Koreksi absen, absen "Menunggu persetujuan" | **HR** | **[V]** |
 | Slip gaji disetujui dan dibayar | **HR/Finance** | **[V]** |
 | Pembatalan pesanan, refund | Kepala depot (batal pengiriman), Manajer/Finance (refund) | **[V]** |
@@ -849,7 +853,7 @@ Di kode, `STAFF_DEPOT` adalah kurir dan **tidak** punya konsol `/dashboard` seba
 
 **Skenario D — Sinyal hilang saat bukti.** Selesaikan bukti seperti biasa. Layar menampilkan "Tersimpan di HP, menunggu sinyal". Jangan ulangi. Spanduk akan terkirim begitu sinyal kembali.
 
-**Skenario E — Setoran kurang Rp10.000.** Layar menampilkan peringatan kurang. Ketik jumlah sebenarnya dengan jujur. Kasir memutuskan apakah dipotong dari upah. Jika berkeberatan, bicarakan dengan Kepala depot.
+**Skenario E — Setoran kurang Rp10.000.** Layar menampilkan peringatan kurang. Ketik jumlah sebenarnya dengan jujur. Kasir (Kepala depot) dapat memverifikasi tanpa memotong upah; hanya Manajer atau Super admin yang dapat memutuskan pemotongan dari upah. Jika berkeberatan, bicarakan dengan Kepala depot.
 
 **Skenario F — Klaim bensin Rp30.000.** Foto struk, isi klaim. Disetujui otomatis dan saldo bertambah. Klaim Rp80.000 menunggu Manajer.
 
@@ -904,7 +908,7 @@ Rujuk ke berkas `17-open-questions` untuk daftar terpadu.
 **Celah teknis ([B]):**
 1. Nama "Staff Depot" di permintaan = kurir di kode; tidak ada peran petugas konsol non-kepala. Konfirmasi apakah perusahaan memerlukan peran tersebut.
 2. Dua "check-in" tidak terhubung (shift dan absen wajah).
-3. Teks tetap vs pengaturan: "minimal 2 kali" (no-show), tanda tangan "wajib" di perkenalan, "lokasi terkirim" pada insiden darurat, "dipotong dari upah", "payout mingguan" vs kapan saja, "Foto & tanda tangan" pada layar sukses.
+3. Teks tetap vs pengaturan: "minimal 2 kali" (no-show), tanda tangan "wajib" di perkenalan, "lokasi terkirim" pada insiden darurat, "dipotong dari upah" (kini hanya bila Manajer/Super admin membebankan), "payout mingguan" vs kapan saja, "Foto & tanda tangan" pada layar sukses.
 4. Aturan "uang dulu baru selesai" hanya di UI; server tidak mengecek.
 5. Pesan error berbahasa Inggris tampil mentah ke kurir (check-in, setoran, penarikan, no-show).
 6. Tab "Dompet" praktis tak terlihat; pengantaran Dijadwalkan ulang tak muncul di Riwayat.
@@ -913,9 +917,9 @@ Rujuk ke berkas `17-open-questions` untuk daftar terpadu.
 
 **Perlu konfirmasi bisnis ([K]):**
 1. Nilai tarif upah, bonus jam sibuk, bonus tepat waktu, insentif berjenjang, target mingguan.
-2. Kebijakan pembebanan kekurangan setoran; tenggat setoran.
-3. Jadwal dan lama pemrosesan penarikan; siapa yang membayar.
-4. Batas kasbon, kebijakan surat dokter untuk cuti sakit.
+2. Siapa yang membebankan kekurangan setoran sudah diputuskan (Manajer/Super admin, sejak PR #664); kapan dibebankan dan tenggat setoran masih terbuka.
+3. Jadwal dan lama pemrosesan penarikan; siapa yang membayar. Minimum penarikan sudah ditetapkan Rp50.000 (sejak PR #664).
+4. Batas kasbon sudah diputuskan (maks. 1x gaji pokok; keputusan dalam 3 hari kerja, sejak PR #664); kebijakan surat dokter untuk cuti sakit masih terbuka.
 5. Apakah kurir digaji harian dan per antar sekaligus.
 6. Apakah kurir diminta mencatat meteran air.
 7. Nomor/jalur eskalasi darurat resmi.

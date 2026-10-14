@@ -25,7 +25,8 @@ Admin adalah pemilik tertinggi sistem. Admin dapat:
 - mengangkat, menonaktifkan, dan menghapus akun staf, termasuk peran yang tidak boleh diberikan peran lain;
 - mengatur hierarki pembinaan yang menentukan depot mana terlihat oleh siapa;
 - mengelola kunci API, webhook, feature flag, retensi data, dan kebijakan keamanan;
-- mengubah pengaturan global jaringan.
+- mengubah pengaturan global jaringan;
+- (sejak PR #664, 2026-10-14) satu-satunya peran yang boleh memaksa penghapusan akun pelanggan yang masih punya pesanan terbuka (dialog "Paksa hapus akun?" di /hq/pdp), membatalkan persetujuan payroll sebelum Lunas dengan alasan tertulis, dan memberi peran Head office. **[V]**
 
 Secara kode, sistem selalu menjawab "boleh" untuk Admin pada setiap kapabilitas, di atas tabel override, sehingga baris matriks yang rusak pun tidak dapat mengunci Admin keluar. **[V]** Konsekuensinya: **mencabut Super admin dari sebuah baris matriks hanya mengubah tampilan, tidak mengubah apa yang dapat dilakukan Admin**. Satu-satunya pengecualian yang dijaga: server menolak bila Super admin dilepas dari `accessMatrixWrite` ("SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite.").
 
@@ -176,7 +177,7 @@ Seluruh kiriman diperiksa dulu dan ditulis dalam satu transaksi; bila satu perub
 | 1 | Tekan "＋ Undang staf". | Kartu "Undang / tetapkan peran staf". |
 | 2 | Isi "Nomor telepon" (wajib). Bentuk 0812…, +62…, atau 62… diterima. | Kosong: "Masukkan nomor telepon." Tidak sah: `"X" is not a valid Indonesian mobile number.` (bukan nomor HP Indonesia yang sah). |
 | 3 | Isi "Nama (untuk akun baru)". | — |
-| 4 | Pilih "Peran". Admin melihat ke-12 peran (Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin). | Bawaan pilihan awal: Kepala depot. |
+| 4 | Pilih "Peran". Admin melihat ke-12 peran (Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin). Head office hanya melihat 5 (Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba; sejak PR #664, 2026-10-14). | Bawaan pilihan awal: Kepala depot. |
 | 5 | Pilih "Depot penempatan (opsional)". | **Wajib dari sisi server** untuk Staf depot dan Kepala depot: "Peran staf depot wajib terikat ke satu depot." |
 | 6 | Untuk selain Pemilik waralaba isi "Posisi" (wajib), "Tanggal masuk" (bawaan hari ini), "Status kepegawaian" (Training / Percobaan / Tetap; bawaan Percobaan), "Gaji" (Bulanan atau Harian + angka > 0). | Bila kosong: "Posisi dan gaji wajib diisi — datanya dipakai membuat kartu karyawan." Pemilik waralaba: tidak ada kartu karyawan (posisi "Pemilik waralaba", gaji 0 dikirim otomatis). |
 | 7 | Tekan "Kirim undangan" ("Batal" menutup). | Form menutup dan daftar dimuat ulang. Gagal: pesan server atau "Gagal mengundang staf." |
@@ -197,7 +198,7 @@ Seluruh kiriman diperiksa dulu dan ditulis dalam satu transaksi; bila satu perub
 ![Gambar 10.4 — Formulir undang staf](assets/screenshots/admin-07-undang-staf.png)
 > *Gambar 10.4 — Kartu "Undang / tetapkan peran staf" pada akun Super admin (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat teks pengantar "Nomor terdaftar akan dipromosikan; nomor baru dibuatkan akun staf aktif (login via OTP). Data kepegawaian di bawah ikut membuat kartu karyawan di HR.", kolom "Nomor telepon" (petunjuk "+62812…") dan "Nama (untuk akun baru)", 12 tombol "Peran" (Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin) dengan "Kepala depot" sudah terpilih, "Depot penempatan (opsional)" (bawaan "Tanpa depot"), "Posisi" (petunjuk "mis. Kurir"), "Tanggal masuk" (terisi hari uji, 10/11/2026), "Status kepegawaian" (bawaan "Percobaan"), "Gaji" (pilihan "Bulanan" dan angka 0), serta tombol "Batal" dan "Kirim undangan". Catatan kondisi: formulir belum disimpan; tidak ada nomor telepon nyata pada gambar.*
 
-**Celah penting: /dashboard/staff [B][V code, D runtime].** Layar Konsol depot > Staf (`/dashboard/staff`, gerbang "Khusus admin": "Manajemen staf & peran tersedia untuk head office dan super admin.") memuat formulir undangan yang **tidak mengirim kolom wajib** pada DTO server (position, joinDate, employmentStatus, salaryType). Kodenya tidak menandai kolom-kolom itu opsional, sehingga undangan dari layar itu hampir pasti ditolak dengan galat validasi 400. Hasil di browser belum diuji. **Gunakan /hq/staff untuk mengundang.** Formulir /dashboard/staff memiliki kolom kendaraan (jenis dan plat), sedangkan formulir HQ tidak; kolom itu hanya disimpan untuk Staf depot.
+**/dashboard/staff kini memakai formulir HQ (diperbaiki sejak PR #664, 2026-10-14) [V code, D runtime].** Layar Konsol depot > Staf (`/dashboard/staff`, gerbang "Khusus admin": "Manajemen staf & peran tersedia untuk head office dan super admin.") sebelumnya memuat formulir undangan sendiri yang tidak mengirim kolom wajib (position, joinDate, employmentStatus, salaryType) sehingga hampir pasti ditolak 400. Kini halaman itu memakai komponen `StaffInvite` yang sama dengan /hq/staff (kolom karyawan ikut terkirim, daftar peran disaring menurut pemberi). Kolom kendaraan (jenis dan plat) dari formulir lama dihapus dari layar ini. Hasil di peramban belum diuji.
 
 ### 6.3 Mengubah peran akun
 
@@ -235,16 +236,16 @@ Peran dengan kunci depot (Staf depot, Kepala depot) tidak boleh dikosongkan. Bil
 | Hal | Perilaku |
 |---|---|
 | Masuk OTP baru | Ditolak: "This account has been suspended." |
-| Token akses yang sudah terbit (berlaku 900 detik = 15 menit) | **Tetap berlaku sampai kedaluwarsa.** Penjaga hanya memeriksa tanda tangan token, tidak memeriksa status akun. |
-| Token penyegar (30 hari) | Tidak dicabut, tetapi gagal saat disegarkan karena akun nonaktif. |
+| Token akses yang sudah terbit (berlaku 900 detik = 15 menit) | **Tetap berlaku sampai kedaluwarsa.** Penjaga hanya memeriksa tanda tangan token, tidak memeriksa status akun per permintaan; komentar kode (`applyActive`) menyatakan hal yang sama. Menutupnya butuh `tokenVersion` di jalur panas: menunggu keputusan pemilik (terima 15 menit atau bangun) **[K]**. |
+| Token penyegar (30 hari) | **Semua dicabut seketika** saat login dimatikan (staf, karyawan lewat HR, pelanggan) — sejak PR #664, 2026-10-14. Sebelumnya hanya gagal saat disegarkan. |
 | Memaksa keluar semua perangkat orang lain | **Tidak tersedia.** Hanya pemilik akun yang dapat "keluar dari semua perangkat". |
 
 Jadi akses residual bisa bertahan sekitar 15 menit setelah dinonaktifkan. Untuk kasus darurat, nonaktifkan lalu beri tahu atasan bahwa akses akan berakhir paling lama sekitar 15 menit; atur peran/akses terkait lewat matriks bila perlu.
 
-**Pelindung yang TIDAK ada [B][V]:** menonaktifkan akun sendiri atau Super admin terakhir **tidak dijaga** oleh kode. Jangan menonaktifkan akun Admin Anda sendiri dan jangan menonaktifkan Admin terakhir; tidak ada jalur pulih lewat layar (bagian 6.18). Penghapusan dijaga, penonaktifan tidak.
+**Pelindung (sejak PR #664, 2026-10-14) [V]:** menonaktifkan akun sendiri ditolak ("Akun sendiri tidak bisa dinonaktifkan.", hanya berlaku dari konsol; jalur HR yang melaporkan resign tidak membawa pelaku). Menonaktifkan Super admin aktif terakhir ditolak ("Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.") dengan kunci transaksi yang sama seperti hapus, sehingga dua penonaktifan bersamaan tidak lolos. Tetap tidak ada jalur pulih lewat layar bila Admin tunggal kehilangan ponsel (bagian 6.18). Penangguhan depot belum mencabut sesi staf depotnya (tidak ditemukan pemanggil pencabutan di kode) **[D]**.
 
 ![Gambar 10.5 — Daftar staf dengan aksi baris](assets/screenshots/admin-03-staf.png)
-> *Gambar 10.5 — "Direktori staf" pada akun Super admin (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "+ Undang staf", penyaring peran, dan baris akun dengan nomor tersamar "08xx-xxxx-xxxx", pemilih depot (misalnya "Depot Hierarki 1" untuk Staf depot dan Kepala depot), lencana peran, lencana "Aktif", tombol "Nonaktifkan", dan tombol merah "Hapus". Catatan kondisi: seluruh baris berstatus Aktif (belum ada lencana "Nonaktif"). Tombol "Hapus" dan "Nonaktifkan" juga tampil pada baris "Super Admin E2E" (akun yang sedang dipakai); penjaga "Akun sendiri tidak bisa dihapus." ada di sisi server (bagian 6.6), sedangkan menonaktifkan akun sendiri tidak dijaga (bagian 6.5).*
+> *Gambar 10.5 — "Direktori staf" pada akun Super admin (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat tombol "+ Undang staf", penyaring peran, dan baris akun dengan nomor tersamar "08xx-xxxx-xxxx", pemilih depot (misalnya "Depot Hierarki 1" untuk Staf depot dan Kepala depot), lencana peran, lencana "Aktif", tombol "Nonaktifkan", dan tombol merah "Hapus". Catatan kondisi: seluruh baris berstatus Aktif (belum ada lencana "Nonaktif"). Tombol "Hapus" dan "Nonaktifkan" juga tampil pada baris "Super Admin E2E" (akun yang sedang dipakai); penjaga "Akun sendiri tidak bisa dihapus." ada di sisi server (bagian 6.6), sedangkan menonaktifkan akun sendiri kini juga ditolak server (bagian 6.5; sejak PR #664, 2026-10-14). Diambil sebelum PR #664; tidak ada perubahan tampilan tombol, hanya server yang kini menolak.*
 
 ### 6.6 Menghapus akun staf
 
@@ -275,7 +276,7 @@ Aturan siapa boleh memberi peran apa adalah **konstanta di kode** dan tidak beru
 
 | Peran sasaran | Siapa boleh memberi (konsol undang/impor) | Head office? | HR (lewat jabatan karyawan)? | Catatan |
 |---|---|:-:|:-:|---|
-| Staf depot | Pemegang `staffAdmin` (Head office, Admin) | Ya | Ya | Wajib depot |
+| Staf depot | Pemegang `staffAdmin` (Head office, Admin); tidak terbatas | Ya | Ya | Wajib depot |
 | Kepala depot | idem | Ya | Ya | Wajib depot |
 | Asisten SPV | idem | Ya | Ya | — |
 | SPV | idem | Ya | Ya | — |
@@ -285,12 +286,13 @@ Aturan siapa boleh memberi peran apa adalah **konstanta di kode** dan tidak beru
 | HR | Super admin | Tidak | Tidak | — |
 | Marketing | Super admin | Tidak | Tidak | — |
 | Super admin | Super admin | Tidak | Tidak | — |
-| Pemilik waralaba | Pemegang `staffAdmin` | Ya | Tidak | Tanpa kartu karyawan |
-| Head office | Pemegang `staffAdmin` | Ya | Tidak | Head office dapat menciptakan sesama Head office; konfirmasi dengan pemilik apakah dikehendaki **[K]** |
+| Pemilik waralaba | Pemegang `staffAdmin`; tidak terbatas | Ya | Tidak | Tanpa kartu karyawan |
+| Head office | Super admin | **Tidak** (sejak PR #664, 2026-10-14) | Tidak | Keputusan pemilik 2026-10-14: Head office tidak boleh membuat sesama Head office, karena memberi peran ini berarti menyerahkan `staffAdmin` itu sendiri. Akun Head office yang sudah ada tidak berubah. |
 | Pelanggan | Tidak seorang pun | Tidak | Tidak | Ditolak sebagai peran staf |
 
 - Penolakan server: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." Contoh: "Peran MANAGER hanya boleh diberikan oleh SUPER_ADMIN atau HR."
-- Formulir web hanya menawarkan peran yang boleh diberikan pengguna itu (Admin melihat 12; Head office 6).
+- Formulir web hanya menawarkan peran yang boleh diberikan pengguna itu (Admin melihat 12; Head office 5: Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba; sebelumnya 6 karena Head office ikut ditawarkan). Terverifikasi dari `RESTRICTED_GRANTS` di `packages/access/src/index.ts` dan `staff-invite.tsx`. **[V]**
+- Kapabilitas per peran (matriks) TIDAK berubah oleh PR #664; yang berubah hanya `RESTRICTED_GRANTS` (tambah HEAD_OFFICE: SUPER_ADMIN).
 - Impor massal: dropdown peran di template memuat semua 12 peran, tetapi server memeriksa tiap baris dengan peran pengunggah.
 - Panggilan sistem tanpa pelaku manusia hanya boleh memberi peran tidak terbatas.
 - Hak untuk MENGUBAH peran Manajer adalah milik HR; keputusan ini disengaja karena Manajer memegang kapabilitas refund.
@@ -467,15 +469,17 @@ Editor kamus ID/EN ("Editor kamus ID/EN dengan status terjemahan"): "Cari kunci 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Buka halaman. | Tabel Pelaku, Peran, Objek, Aksi, Waktu; 100 baris per halaman + muat lagi; "Sistem" untuk aksi otomatis. Pada tampilan uji (Gambar 10.12) kolom Peran memakai kode sistem (mis. "SUPER_ADMIN"), kolom Aksi memakai kunci teknis (mis. "auth.login.succeeded"), dan Waktu berbentuk relatif ("14 mnt lalu") **[B]**. |
-| 2 | Tekan "Ekspor". | `audit-{YYYY-MM-DD}.xlsx` (sheet "Audit"; kolom Pelaku, Peran, Objek, Aksi, Waktu) berisi seluruh jejak. Bila terlalu besar: "Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas." Kosong: "Belum ada aktivitas." |
+| 1b | Sejak PR #664 (2026-10-14): pakai penyaring "Aksi (persis, mis. depot.suspend)", "Dari tanggal", "Sampai tanggal" (hari yang dipilih ikut), dan "Hasil" (Semua / Berhasil / Ditolak / gagal); "Reset filter" membersihkan. | Daftar disaring di server (`/auth/audit` parameter `action`, `from`, `to`, `success`). Tidak ada yang cocok: "Tidak ada entri yang cocok dengan filter ini." |
+| 2 | Tekan "Ekspor". | `audit-{YYYY-MM-DD}.xlsx` (sheet "Audit"; kolom Pelaku, Peran, Objek, Aksi, Waktu) berisi seluruh entri yang cocok dengan penyaring aktif (sejak PR #664) atau seluruh jejak bila tanpa penyaring. Bila terlalu besar: "Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas." Kosong: "Belum ada aktivitas." |
 
 **Yang dicatat [V]:** (1) kejadian masuk: permintaan daftar, OTP terverifikasi atau gagal, kirim ulang, token disegarkan atau dipakai ulang, keluar, keluar dari semua perangkat, penggantian nomor (nomor disamarkan); (2) mutasi berhak istimewa lewat pencatat di tiap layanan (aksi diturunkan dari rute dan kata kerja "created", "changed", "deleted"; target dari ID di jalur; isi permintaan disamarkan untuk kunci yang cocok secret, token, password, apikey, signature, otp, pin); (3) UU PDP: permintaan dibuat, diekspor, dianonimkan, ditolak, dan `staff.account.deleted`; (4) kejadian lintas layanan seperti `depot.suspend`.
 
 **Keterbatasan [B]:**
-- **Tidak ada saringan atau pencarian** di layar (API mendukung aksi dan pelaku tetapi halaman tidak memakainya). Untuk menemukan satu kejadian, ekspor lalu saring di Excel. Pesan ekspor "Persempit dulu rentang atau saringannya" tidak dapat dituruti di layar ini.
+- ~~Tidak ada saringan di layar~~ — diperbaiki sejak PR #664 (2026-10-14): ada penyaring aksi, tanggal, dan hasil, dan ekspor mengikuti penyaring, jadi pesan "Persempit dulu rentang atau saringannya" kini bisa dituruti. Yang masih tidak ada: penyaring pelaku di layar (API mendukung `actorId`, halaman tidak memakainya) dan pencarian bebas; kolom "Aksi" harus persis sama. **[V]**
 - Catatan "append-only — tidak bisa diubah atau dihapus" berlaku untuk pengguna. Baris dapat dibuang oleh sapuan retensi setelah masa simpan (batas bawah 365 hari).
 - Kegagalan menulis audit tidak menghalangi aksi; hanya dicatat di log server.
 - Layar lain: "Jejak audit" di konsol depot (/dashboard/audit; chip Semua / Harga / Pengembalian dana / Staf; per depot; tanpa ekspor) dan "Log Audit" di HR (/hr/audit; filter entity; menampilkan 8 karakter awal ID pelaku, bukan nama).
+- Gambar 10.12 diambil sebelum PR #664: belum menampilkan kotak penyaring di atas tabel.
 
 ### 6.18 Penanganan akun dan pemulihan akses
 
@@ -485,17 +489,17 @@ Bagian ini menjelaskan apa yang bisa dan tidak bisa dilakukan. Jangan mengatasi 
 |---|---|---|
 | Staf lupa atau tidak menerima OTP | Periksa nomor di Direktori staf; minta ia mencoba lagi setelah jeda 60 detik. Penyebab umum di dokumen operasi: saldo pengirim SMS habis (tindakan pemilik sistem) **[D]**. | Batas laju OTP 20 per 60 detik per IP. |
 | Staf berganti nomor | Pengguna mengganti nomor sendiri (OTP ke nomor baru); semua sesi dicabut. | Tidak ada fitur Admin untuk mengganti nomor orang lain **[D]**. |
-| Staf kehilangan ponsel | Nonaktifkan akun (bagian 6.5). Mengundang nomor baru membuat akun baru, bukan memindahkan akun lama **[D]**; konsultasikan dengan HR agar kartu karyawan tidak ganda. | Token lama hidup hingga 15 menit. |
+| Staf kehilangan ponsel | Nonaktifkan akun (bagian 6.5). Mengundang nomor baru membuat akun baru, bukan memindahkan akun lama **[D]**; konsultasikan dengan HR agar kartu karyawan tidak ganda. | Semua refresh token dicabut seketika (sejak PR #664); access token lama hidup hingga 15 menit. |
 | Staf keluar dari perusahaan | Nonaktifkan; bila diminta hapus data, Hapus (bagian 6.6). Kartu HR diperbarui oleh HR. | Hapus tidak dapat dibatalkan. |
 | Akun salah peran | Undang ulang dengan peran benar (bagian 6.3). | Mengaktifkan kembali akun nonaktif. |
 | Akun tidak menemukan depot | Periksa hierarki (bagian 6.8) dan depot penempatan (bagian 6.4). | Cache 60 detik. |
 | Hak yang diharapkan tidak ada | Periksa Tampilan per peran dan matriks (bagian 6.1). | Perubahan butuh 30–45 detik. |
 | Admin tunggal kehilangan ponsel | **Tidak ada jalur pemulihan lewat layar.** Eskalasi ke pemilik sistem/pengembang untuk pemulihan di tingkat basis data **[K]**. | Karena itu angkat Admin kedua sekarang. |
-| Admin terakhir dinonaktifkan | Tidak dijaga kode; tidak ada jalur layar untuk mengaktifkan kembali. | Eskalasi seperti di atas **[B]**. |
-| Akun terindikasi disalahgunakan | Nonaktifkan; tinjau Log audit; periksa "Sesi aktif" milik Anda; putar kunci API bila relevan. | Tidak bisa memaksa keluar perangkat orang lain. |
+| Admin terakhir dinonaktifkan | Kini ditolak server: "Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan." (sejak PR #664, 2026-10-14). Admin tunggal yang kehilangan ponsel tetap tanpa jalur layar. | Prosedur pemulihan (runbook/CLI) masih menunggu keputusan pemilik **[K]**. |
+| Akun terindikasi disalahgunakan | Nonaktifkan (mencabut semua refresh token akun itu sejak PR #664); tinjau Log audit; periksa "Sesi aktif" milik Anda; putar kunci API bila relevan. | Tidak ada tombol paksa-keluar terpisah; nonaktifkan adalah jalurnya. Access token lama ≤15 menit. |
 | Akun pelanggan (bukan staf) | Gunakan Permintaan data (UU PDP) atau Fraud & risiko ("Blokir" menonaktifkan login). | Penghapusan staf menolak akun pelanggan. |
 
-**Pelindung Admin yang ada [V]:** tidak bisa menghapus diri sendiri; tidak bisa menghapus Super admin aktif terakhir; Super admin tidak dapat dilepas dari `accessMatrixWrite`; Admin selalu lolos pemeriksaan hak. **Tidak ada pelindung** untuk menonaktifkan diri sendiri atau Admin terakhir.
+**Pelindung Admin yang ada [V]:** tidak bisa menghapus diri sendiri; tidak bisa menghapus Super admin aktif terakhir; Super admin tidak dapat dilepas dari `accessMatrixWrite`; Admin selalu lolos pemeriksaan hak. Sejak PR #664 (2026-10-14) server juga menolak menonaktifkan diri sendiri dan Super admin aktif terakhir.
 
 **Praktik yang disarankan:** (1) minimal dua Admin berbeda orang dengan ponsel masing-masing; (2) tinjau daftar Admin berkala; (3) setiap perubahan peran bernilai tinggi dicatat dengan alasan dan persetujuan tertulis; (4) tidak ada akun bersama; (5) kunci API dan kunci tanda tangan hanya disimpan di penyimpan rahasia perusahaan.
 
@@ -507,10 +511,10 @@ Bagian ini menjelaskan apa yang bisa dan tidak bisa dilakukan. Jangan mengatasi 
 |---|---|---|
 | Dapat dibatalkan | Ya ("Aktifkan"; atau undang ulang) | Tidak |
 | Data | Tetap utuh | Identitas dianonimkan; kartu karyawan dianonimkan; token penyegar dihapus |
-| Sesi | Gagal saat disegarkan; token akses hidup ≤15 menit | Berakhir saat penyegaran berikutnya |
+| Sesi | Semua refresh token dicabut seketika (sejak PR #664); token akses hidup ≤15 menit | Berakhir saat penyegaran berikutnya |
 | Data keuangan | Utuh | Tetap disimpan tanpa pemilik (10 tahun) |
 
-**Permintaan data pelanggan (UU PDP):** Head office dan Admin mengerjakan /hq/pdp (Bab 9 bagian 6.29). Batas jawab 72 jam sejak permintaan dibuat (bukan sejak verifikasi, berbeda dengan halaman publik **[B]**). Menyetujui salinan: berkas JSON; pelanggan hanya dapat mengunduh 7 hari ("Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini."). Ekspor tidak memuat riwayat pesanan/pembayaran (retensi keuangan 10 tahun) dan saldo loyalti. Menyetujui hapus: pelanggan dianonimkan di semua layanan, token dihapus. Menolak butuh alasan. Cakupan penghapusan (ERASED / EXEMPT / UNENFORCED / FAILED) dicatat di metadata audit; bila ada UNENFORCED atau FAILED, tindak lanjuti dengan pengembang. **[V]**
+**Permintaan data pelanggan (UU PDP):** Head office dan Admin mengerjakan /hq/pdp (Bab 9 bagian 6.29). Batas jawab 72 jam sejak permintaan dibuat (bukan sejak verifikasi, berbeda dengan halaman publik **[B]**). Menyetujui salinan: berkas JSON; pelanggan hanya dapat mengunduh 7 hari ("Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini."). Ekspor tidak memuat riwayat pesanan/pembayaran (retensi keuangan 10 tahun) dan saldo loyalti. Menyetujui hapus: pelanggan dianonimkan di semua layanan, token dihapus. Sejak PR #664 (2026-10-14), penghapusan DITOLAK bila pelanggan masih punya pesanan terbuka (409 `PDP_OPEN_ORDERS`: "Akun ini masih punya {n} pesanan yang belum selesai. Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan."); pemeriksaan gagal-tertutup (bila order-service tidak terjangkau, persetujuan juga ditolak). Hanya Super admin (Admin) yang boleh memaksa lewat dialog "Paksa hapus akun?" ("Ya, paksa hapus"); permintaan `force` dari peran lain ditolak 403 "Hanya Super Admin yang boleh memaksa penghapusan." Audit mencatat `forced: true` dan jumlah pesanan terbuka (`openOrders`). Peringatan permintaan PDP lewat batas waktu belum ada **[K]**. Menolak butuh alasan. Cakupan penghapusan (ERASED / EXEMPT / UNENFORCED / FAILED) dicatat di metadata audit; bila ada UNENFORCED atau FAILED, tindak lanjuti dengan pengembang. **[V]**
 
 **Penghapusan akun staf:** halaman publik `/hapus-akun` menyebut permintaan akun staf ditangani melalui HRD atau kantor pusat; eksekusinya oleh Admin (bagian 6.6). Alamat email privasi di halaman publik perlu diverifikasi sebelum dikutip (dokumen go-live mencatat tidak ada MX pada 2026-09-25). **[K]**
 
@@ -559,6 +563,9 @@ Aksi Admin yang berjalan **tanpa konfirmasi**: Nonaktifkan atau Aktifkan staf, m
 | "dailyRate wajib diisi untuk tipe gaji DAILY" / "monthlyRate wajib diisi untuk tipe gaji MONTHLY" | Gaji tidak lengkap (pesan server). | Isi nilai gaji sesuai tipe. |
 | "Akun sendiri tidak bisa dihapus." | Pelindung hapus. | Minta Admin lain. |
 | "Ini super admin terakhir. Angkat super admin lain dulu sebelum menghapus." | Pelindung hapus. | Angkat Admin lain dulu. |
+| "Akun sendiri tidak bisa dinonaktifkan." (sejak PR #664) | Pelindung nonaktif. | Minta Admin lain. |
+| "Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan." (sejak PR #664) | Pelindung nonaktif. | Angkat Admin lain dulu. |
+| "Akun ini masih punya {n} pesanan yang belum selesai…" (/hq/pdp, sejak PR #664) | Hapus akun pelanggan ditolak: ada pesanan terbuka. | Tunggu pesanan selesai/batal, atau Super admin memaksa. |
 | "Capability tidak dikenal: X" | Versi layar dan server tidak sinkron. | Muat ulang. |
 | "SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite." | Pelindung. | Pertahankan. |
 | "Seseorang tidak bisa menjadi atasan dirinya sendiri." / "Penugasan ini membentuk lingkaran atasan-bawahan." | Hierarki tidak sah. | Pilih atasan lain. |
@@ -566,7 +573,7 @@ Aksi Admin yang berjalan **tanpa konfirmasi**: Nonaktifkan atau Aktifkan staf, m
 | "Orang lain sudah mengubah data ini sejak Anda membukanya…" | Konflik penyimpanan bersamaan. | Periksa data terbaru lalu simpan lagi. |
 | Layar "Khusus HQ" pada layar Admin | Akun bukan Super admin, atau matriks diubah. | Pastikan akun; periksa Tampilan per peran. |
 | Grid matriks tampak bawaan semua | Muat gagal tertutup bawaan **[B]**. | Jangan menyimpan; muat ulang. |
-| Undangan dari /dashboard/staff ditolak | Kolom wajib tidak terkirim **[B]**. | Gunakan /hq/staff. |
+| Undangan dari /dashboard/staff ditolak (400) | Diperbaiki sejak PR #664 (2026-10-14): halaman memakai formulir HQ yang membawa kolom karyawan. Bila masih terjadi, laporkan. | Gunakan /hq/staff sambil menunggu. |
 | 403 setelah aksi | Hak peran pengguna kurang. | Periksa matriks. |
 
 ---
@@ -577,16 +584,16 @@ Admin sangat berkuasa, tetapi tidak berarti tanpa batas:
 
 | Batas | Penjelasan |
 |---|---|
-| Tidak bisa menghapus akun sendiri atau Admin aktif terakhir | Dijaga server. |
+| Tidak bisa menghapus atau menonaktifkan akun sendiri atau Admin aktif terakhir | Dijaga server (menonaktifkan: sejak PR #664, 2026-10-14). |
 | Tidak bisa melepas diri dari `accessMatrixWrite` | Dijaga server. |
-| Tidak bisa memaksa keluar perangkat pengguna lain | Fitur tidak tersedia. |
+| Tidak bisa memaksa keluar perangkat pengguna lain dengan tombol khusus | Tidak tersedia; menonaktifkan akun mencabut semua refresh token (sejak PR #664). |
 | Tidak bisa melihat atau memulihkan secret kunci API/webhook | Hanya tampil sekali. |
 | Tidak bisa mengubah aturan pemberian peran lewat layar | Konstanta kode (bagian 6.7). |
 | Tidak bisa memulihkan akun terhapus | Anonim dan permanen. |
 | Tidak bisa menghapus data keuangan lewat retensi | Dilindungi; 10 tahun. |
 | Tidak bisa menyimpan edit "Konten dwibahasa" | Hanya diff untuk pengembang. |
 | Pengaju tidak boleh menyetujui pengajuan payout sendiri | Server tetap memaksa, termasuk untuk Admin. |
-| Tidak dapat mengubah label status/pesan Inggris | Perlu pengembang. |
+| Tidak dapat mengubah pesan Inggris dari server | Perlu pengembang. Label status pesanan sudah berbahasa Indonesia sejak PR #664. |
 | Perubahan hak peran lain memengaruhi orang nyata | Butuh persetujuan pemilik proses. |
 
 Ada hal yang butuh pihak lain: peran Manajer boleh diberikan HR juga; keputusan hukum (PPN, PPh 21, bukti persetujuan UU PDP) butuh akuntan atau penasihat hukum; pemulihan Admin tunggal butuh pengembang/pemilik sistem.
@@ -638,7 +645,7 @@ Ada hal yang butuh pihak lain: peran Manajer boleh diberikan HR juga; keputusan 
 
 **Skenario 3 — Nomor salah ketik pada undangan.** Admin mengundang nomor yang ternyata milik akun lain. Karena nomor yang sudah ada **dipromosikan** (peran dan nama berubah), akun orang lain bisa berubah peran. Segera undang ulang nomor itu dengan peran semula, lalu periksa Log audit. Hindari dengan memeriksa nomor dua kali sebelum "Kirim undangan". Perhatikan: undang ulang juga mengaktifkan akun yang nonaktif.
 
-**Skenario 4 — Staf berhenti mendadak.** Admin menekan "Nonaktifkan" pada /hq/staff. Beri tahu bahwa akses bisa tersisa hingga sekitar 15 menit. Cabut kunci API yang dipegangnya bila ada. Minta HR memperbarui kartu karyawan. Bila ia meminta data dihapus, gunakan "Hapus" setelah memastikan ia bukan Admin terakhir.
+**Skenario 4 — Staf berhenti mendadak.** Admin menekan "Nonaktifkan" pada /hq/staff. Semua refresh token dicabut seketika (sejak PR #664); beri tahu bahwa access token yang sudah terbit bisa tersisa hingga sekitar 15 menit. Cabut kunci API yang dipegangnya bila ada. Minta HR memperbarui kartu karyawan. Bila ia meminta data dihapus, gunakan "Hapus" setelah memastikan ia bukan Admin terakhir.
 
 **Skenario 5 — Memberi Finance hak tambahan sementara.** Admin menambah kapabilitas ke kolom Finance di matriks, mencatat diff, menyimpan, memberi tahu pemilik proses, lalu mengembalikan ("Batalkan" tidak cukup setelah tersimpan: buka matriks, cabut, simpan lagi atau reset ke bawaan). Catat kapan hak dicabut.
 
@@ -655,12 +662,12 @@ Ada hal yang butuh pihak lain: peran Manajer boleh diberikan HR juga; keputusan 
 - [ ] Saya paham matriks berlaku 30–45 detik dan hierarki 60 detik.
 - [ ] Saya paham mencabut Super admin dari baris matriks tidak berefek.
 - [ ] Saya tahu siapa boleh memberi peran apa (tabel bagian 6.7).
-- [ ] Saya tahu menonaktifkan akun tidak langsung mematikan token (hingga 15 menit).
+- [ ] Saya tahu menonaktifkan akun mencabut refresh token, tetapi access token lama hidup hingga 15 menit.
 - [ ] Saya tahu Hapus akun tidak dapat dibatalkan dan penjaga yang ada.
 - [ ] Saya tahu tidak ada 2FA dan IP allowlist tidak berlaku untuk konsol.
 - [ ] Saya menyimpan secret hanya di penyimpan rahasia perusahaan.
 - [ ] Saya selalu melakukan Pratinjau sebelum sapuan retensi.
-- [ ] Saya tahu mengundang staf dilakukan di /hq/staff, bukan /dashboard/staff.
+- [ ] Saya tahu /dashboard/staff kini memakai formulir yang sama dengan /hq/staff (sejak PR #664); jika ragu, pakai /hq/staff.
 - [ ] Saya tahu pemulihan Admin tunggal memerlukan pengembang.
 
 ---
@@ -708,11 +715,11 @@ Rujuk juga ke `17-open-questions`.
 
 | No | Celah | Dampak | Tag |
 |---|---|---|---|
-| 1 | Undangan di /dashboard/staff tidak mengirim kolom wajib (position, joinDate, employmentStatus, salaryType); kemungkinan ditolak 400. Hasil runtime belum diuji. | Gunakan /hq/staff; perbaikan perlu pengembang. | [B][D] |
+| 1 | ~~Undangan di /dashboard/staff tidak mengirim kolom wajib.~~ Diperbaiki sejak PR #664 (2026-10-14): halaman memakai formulir undang HQ. Hasil runtime belum diuji. | Verifikasi di peramban. | diperbaiki [V code][D runtime] |
 | 2 | Tidak ada 2FA. Kunci kamus "Wajib 2FA", rail "Keamanan & 2FA", dan langkah wizard "Verifikasi 2FA akun kamu" menyesatkan. | Risiko pemahaman keliru; OTP satu-satunya faktor. | [B] |
-| 3 | /hq/audit tidak punya saringan atau pencarian; pesan ekspor menyarankan menyaring. | Cari lewat ekspor. | [B] |
-| 4 | Menonaktifkan akun tidak mencabut token; akses sisa hingga 15 menit; tidak ada paksa-keluar untuk akun lain. | Tidak ada pemutusan instan. | [B] |
-| 5 | Menonaktifkan diri sendiri atau Admin terakhir tidak dijaga. | Risiko terkunci; pemulihan butuh pengembang. | [B] |
+| 3 | ~~/hq/audit tidak punya saringan.~~ Diperbaiki sejak PR #664: saringan aksi/tanggal/hasil + ekspor mengikuti saringan. Sisa: tanpa saringan pelaku dan pencarian bebas. | Aksi harus persis. | diperbaiki [V] |
+| 4 | Menonaktifkan akun kini mencabut semua refresh token (sejak PR #664), tetapi access token lama hidup ≤15 menit (tidak ada cek status per permintaan; butuh `tokenVersion`); penangguhan depot belum mencabut sesi staf. | Tidak ada pemutusan instan. Pemilik belum memutuskan menerima 15 menit atau membangun. | [K] |
+| 5 | ~~Menonaktifkan diri sendiri atau Admin terakhir tidak dijaga.~~ Diperbaiki sejak PR #664 (2026-10-14). Sisa: prosedur pemulihan Admin tunggal (runbook/CLI) belum ada. | Risiko terkunci bila Admin tunggal kehilangan ponsel. | diperbaiki [V]; sisa [K] |
 | 6 | Tidak ada tombol "ubah peran"; undang ulang juga mengaktifkan akun nonaktif. | Salah ketik nomor dapat mengubah akun lain. | [B] |
 | 7 | Grid matriks diam-diam menampilkan nilai bawaan bila muat gagal. | Menyimpan dari kondisi ini berbahaya. | [B] |
 | 8 | Mencabut Super admin dari baris matriks tidak berefek; peran lain dapat diberi `accessMatrixWrite` tanpa pelindung. | Perlu kebijakan tertulis. | [B][D] |
@@ -720,10 +727,10 @@ Rujuk juga ke `17-open-questions`.
 | 10 | Wizard HQ dicentang manual, tidak diturunkan dari kondisi nyata. | Centang bukan bukti. | [B] |
 | 11 | Konten dwibahasa hanya menghasilkan diff, tidak menyimpan. | Butuh pengembang. | [V] |
 | 12 | Beberapa flag "Belum ditegakkan"; daftarnya belum ditentukan. | Jangan menjanjikan efek. | [K] |
-| 13 | Head office dapat menciptakan sesama Head office dan Pemilik waralaba (tak dibatasi). | Konfirmasi kebijakan. | [K] |
-| 14 | Batas jawab UU PDP dihitung dari saat permintaan dibuat; halaman publik menyebut "sejak diverifikasi"; tidak ada peringatan otomatis. | Selaraskan teks. | [B] |
+| 13 | ~~Head office dapat menciptakan sesama Head office.~~ Diputuskan pemilik 2026-10-14 dan dibangun: peran Head office hanya dapat dibuat Super admin. Pemilik waralaba tetap boleh diberikan Head office. | — | keputusan [V] |
+| 14 | Batas jawab UU PDP dihitung dari saat permintaan dibuat; halaman publik menyebut "sejak diverifikasi"; tidak ada peringatan otomatis (peringatan lewat batas waktu masih menunggu keputusan pemilik). | Selaraskan teks. | [B][K] |
 | 15 | Alamat email privasi pada halaman publik belum punya MX pada 2026-09-25. | Verifikasi sebelum dikutip. | [K] |
 | 16 | Aksi sistem yang menulis audit memakai nama aksi turunan dari rute; bentuk persis (mis. untuk perubahan matriks) belum dipastikan. | Konfirmasi dengan contoh nyata. | [D] |
-| 17 | Apakah penangguhan depot mencabut akses sesi staf depot (teks dialog "kehilangan akses") belum ditelusuri. | Jangan menjanjikan pemutusan instan. | [D] |
+| 17 | Penangguhan depot belum mencabut sesi staf depotnya (OPEN_GAPS_DECISIONS_2026-10 butir 24; tidak ada pemanggil pencabutan di auth-service untuk jalur itu). | Jangan menjanjikan pemutusan instan. | [K] |
 | 18 | Tidak ada jalur layar untuk pemulihan Admin tunggal atau mengganti nomor orang lain. | Eskalasi ke pengembang. | [K] |
 | 19 | Pengujian di browser nyata belum dilakukan oleh penulis; semua temuan berasal dari pembacaan kode. | Verifikasi sebelum pelatihan. | [D] |

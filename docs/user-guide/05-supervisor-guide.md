@@ -27,7 +27,7 @@ Ciri utama SPV:
 - Tidak memegang keputusan kasbon dan tidak memegang antrean approval. Dua hal itu tidak termasuk hak SPV **[V]**.
 - Mendarat di halaman "Operasi" bertipe eksekutif (ringkasan 30 hari terakhir).
 
-> **[B] Kontradiksi dengan komentar kode.** Komentar di `packages/access/src/index.ts` (baris 35-40) menyebut SPV dan Asisten SPV hanya "oversight reads, no writes, no money, no approvals". Kenyataannya, daftar kemampuan SPV mencakup menulis di insiden, sengketa order, target depot, dan buku kas, serta aksi pengiriman. Panduan ini mengikuti **daftar kemampuan di kode**, bukan komentarnya. Pemilik produk perlu memastikan apakah ini memang disengaja.
+> **Komentar kode sudah dikoreksi (sejak PR #664, 2026-10-14).** Dahulu komentar di `packages/access/src/index.ts` menyebut SPV dan Asisten SPV hanya "oversight reads, no writes, no money, no approvals", padahal daftar kemampuan SPV mencakup menulis di insiden, sengketa order, target depot, dan buku kas, serta aksi pengiriman. Komentar kini berbunyi "mostly oversight reads, no approvals" dan menyebut empat area tulis SPV (`incidents`, `depotDisputes`, `depotTargets`, `depotFinance`). Matriks kemampuannya sendiri tidak diubah **[V]**. Apakah SPV memang sebaiknya boleh menulis di area itu tetap **[K]** menunggu keputusan pemilik (butir 18 di `docs/OPEN_GAPS_DECISIONS_2026-10.md`); sementara itu panduan ini mengikuti daftar kemampuan di kode.
 
 ## 2. Tujuan dan tanggung jawab
 
@@ -104,21 +104,24 @@ Aturan penting:
 - [ ] Layar "Operasi" menampilkan angka, bukan pesan "Khusus staf"
 
 ![Gambar 5.1 — Pemilih depot SPV terbuka](assets/screenshots/supervisor-03-pilih-depot.png)
-> *Gambar 5.1 — Pemilih depot SPV terbuka di atas halaman "Operasi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Semua depot — 23 lokasi · gabungan" (bertanda centang) dan baris depot berformat nama dengan `{kode} · {kota}`, misalnya "Depot Hierarki 4 / HIER-04 · Jakarta". Catatan kondisi: daftar depot terpotong di tepi bawah layar, dan teks "Peran: SPV" di dasar menu tidak tampak pada tangkapan ini. Semua angka Rp 0 karena depot uji belum punya pesanan.*
+> *Gambar 5.1 — Pemilih depot SPV terbuka di atas halaman "Operasi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Semua depot — 23 lokasi · gabungan" (bertanda centang) dan baris depot berformat nama dengan `{kode} · {kota}`, misalnya "Depot Hierarki 4 / HIER-04 · Jakarta". Catatan kondisi: daftar depot terpotong di tepi bawah layar, dan teks "Peran: SPV" di dasar menu tidak tampak pada tangkapan ini. Semua angka Rp 0 karena depot uji belum punya pesanan. Diambil sebelum PR #664; daftar menu di bawah pemilih kini tanpa Komisi kurir, Tinjauan bulanan, dan Performa tim bagi SPV.*
 
 ### 4.1 Arti "Semua depot" (penting)
 
 | Layar | Perilaku saat "Semua depot" dipilih |
 |---|---|
 | "Operasi" (landing) | Angka KPI adalah **jumlah seluruh depot dalam cakupan**. Pemilih depot tidak mengubah angka landing **[V]** |
-| Halaman yang butuh satu depot (Inventori, Perkiraan, rekonsiliasi bayar, Rating, dan sejenisnya) | Memakai **depot pertama dalam daftar** secara diam-diam **[V]** |
-| Layar tertentu menampilkan "Menampilkan depot pertama — pilih depot di switcher untuk mengubah." | Peringatan bahwa hanya satu depot yang dibaca |
+| Halaman yang butuh satu depot (Inventori, Perkiraan, rekonsiliasi bayar, Rating, dan sejenisnya) | Memakai **depot pertama dalam daftar**, tetapi kini disertai pemberitahuan (sejak PR #664, 2026-10-14, lihat di bawah) **[V]** |
+| Layar yang memang menggabungkan semua depot: "Antrean pesanan", "Risiko churn", "Aturan promo", dan halaman impor (penjualan, pelanggan, inventori, harga, reseller, retur) | Tanpa pemberitahuan; layar ini membaca pilihan "Semua depot" sendiri **[V]** |
+| Sebagian layar lama masih menampilkan petunjuk "Menampilkan depot pertama — pilih depot di switcher untuk mengubah." | Petunjuk bawaan layar itu sendiri bahwa hanya satu depot yang dibaca **[V]** |
+
+**Pemberitahuan "Semua depot" (sejak PR #664, 2026-10-14).** Bila Anda memilih "Semua depot" dan cakupan Anda berisi dua depot atau lebih, layar per-depot menampilkan kotak di atas isi halaman: "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih." Nama yang disebut adalah depot pertama dalam daftar. Kotak ini muncul di semua halaman `/dashboard/*` pada menu kiri, termasuk landing "Operasi", kecuali layar gabungan di atas **[V]** (`all-depots-notice.tsx`, dipasang di `dashboard/layout.tsx`). Kotak ini tidak muncul bila hanya satu depot dalam cakupan, dan tidak ada di halaman di luar `/dashboard` (misalnya `/hr/me`, `/resellers`) **[V]**. Angka KPI landing tetap jumlah semua depot, sehingga kotak itu di landing dapat membingungkan; hal ini belum diuji di peramban **[D]**.
 
 Anjuran: untuk memeriksa satu depot, selalu pilih depot itu secara eksplisit.
 
 ## 5. Menu dan modul tersedia
 
-Menu kiri dikelompokkan. Tabel berikut hanya memuat yang **terlihat** oleh SPV. Kolom "Jenis" menunjukkan apakah SPV hanya membaca (R) atau dapat mengubah data (W). "X" berarti menu tampil tetapi server menolak data **[B]**.
+Menu kiri dikelompokkan. Tabel berikut hanya memuat yang **terlihat** oleh SPV. Kolom "Jenis" menunjukkan apakah SPV hanya membaca (R) atau dapat mengubah data (W). Menu "Komisi kurir", "Tinjauan bulanan", dan "Performa tim" tidak lagi tampil untuk SPV (lihat 5.3).
 
 ### 5.1 Menu yang terlihat
 
@@ -142,10 +145,7 @@ Menu kiri dikelompokkan. Tabel berikut hanya memuat yang **terlihat** oleh SPV. 
 | Pelanggan & pertumbuhan | CRM & follow-up | `/dashboard/crm` | R | [V] |
 | Keuangan · usulan | Buku kas | `/dashboard/cashbook` | W (catat dan koreksi) | [V] |
 | Keuangan · usulan | Rekonsiliasi bayar | `/dashboard/payment-recon` | R | [V] |
-| Keuangan · usulan | Komisi kurir | `/dashboard/commission` | X (server menolak) | [B] |
-| Keuangan · usulan | Tinjauan bulanan | `/dashboard/monthly-review` | X (server menolak) | [B] |
 | Keuangan · usulan | Laporan L/R | `/dashboard/monthly-pnl` | R | [V] |
-| Keuangan · usulan | Performa tim | `/dashboard/team-performance` | X (server menolak) | [B] |
 | Referensi | Peran & akses | `/dashboard/roles` | R | [V] |
 | Referensi | Audit log | `/dashboard/audit` | R | [V] |
 | Referensi | Akun saya | `/dashboard/account` | W (akun sendiri) | [V] |
@@ -154,19 +154,19 @@ Di ponsel, bilah bawah menampilkan empat tab pertama dari: Ringkasan, Antrean, I
 
 ### 5.2 Menu yang TIDAK terlihat oleh SPV
 
-Pencarian, Penjualan depot, Susut & kerusakan, Setoran COD, Depot, Harga dinamis, Pengaturan, Staf & peran, Aturan promo, Voucher, Risiko churn, Antrean approval, Pesanan pembelian, Pemasok, Huddle mingguan, Serah terima shift, Perawatan alat, Panduan manajer, Broadcast, Loyalty & poin, Penukaran hadiah, Referral, Rekomendasi, Rating & ulasan, Langganan, Kelola produk, Harga borongan, Pembayaran & QRIS, Klaim pengeluaran, Laporan, Banding depot, Profil, Pengaturan depot **[V]**. Semuanya milik MANAGER ke atas. Lihat Lampiran A.
+Komisi kurir, Tinjauan bulanan, Performa tim (sejak PR #664, 2026-10-14; lihat 5.3), Pencarian, Penjualan depot, Susut & kerusakan, Setoran COD, Depot, Harga dinamis, Pengaturan, Staf & peran, Aturan promo, Voucher, Risiko churn, Antrean approval, Pesanan pembelian, Pemasok, Huddle mingguan, Serah terima shift, Perawatan alat, Panduan manajer, Broadcast, Loyalty & poin, Penukaran hadiah, Referral, Rekomendasi, Rating & ulasan, Langganan, Kelola produk, Harga borongan, Pembayaran & QRIS, Klaim pengeluaran, Laporan, Banding depot, Profil, Pengaturan depot **[V]**. Semuanya milik MANAGER ke atas. Lihat Lampiran A.
 
-### 5.3 Menu yang tampil tetapi ditolak server [B]
+### 5.3 Komisi kurir, Tinjauan bulanan, Performa tim (diperbaiki sejak PR #664, 2026-10-14)
 
-Tiga menu masuk ke daftar SPV karena gerbang menunya longgar, sementara data di baliknya meminta kemampuan yang tidak dimiliki SPV:
+Dahulu tiga menu ini tampil untuk SPV tetapi data di baliknya ditolak server **[B]**. Kini menu dan halamannya memakai kemampuan yang sama dengan yang ditegakkan server, sehingga **menu tidak lagi tampil untuk SPV** **[V]** (`ops-rail.tsx`, `lib/roles.ts`). Daftar peran bawaan di `packages/access/src/index.ts`:
 
-| Menu | Penyebab | Yang Anda lihat |
+| Menu | Kemampuan yang diperiksa | Peran bawaan yang melihat menu |
 |---|---|---|
-| Komisi kurir | Data meminta kemampuan `courierSettle` (Kepala depot, Manajer, Finance, Admin) | Layar galat/kosong **[D]** wording belum diverifikasi |
-| Tinjauan bulanan | Data meminta `dailyClose` dan `orderReports` | Layar galat/kosong **[D]** |
-| Performa tim | Data meminta `deliveryReports` dan `staffDirectory` | Layar galat/kosong **[D]**; teks "Performa tim hanya untuk Manajer depot." hanya muncul bila kemampuan `dashboard` hilang |
+| Komisi kurir (`/dashboard/commission`) | `courierSettle` | Kepala depot, Manajer, Finance, Super admin |
+| Tinjauan bulanan (`/dashboard/monthly-review`) | `dailyClose` | Kepala depot, Manajer, Kantor pusat, Direktur, Super admin |
+| Performa tim (`/dashboard/team-performance`) | `deliveryReports` | Kantor pusat, Manajer, Super admin |
 
-Jangan menganggap ini kerusakan akun Anda. Untuk kebutuhan ini minta Manajer atau Kantor pusat.
+SPV tidak memegang satu pun dari tiga kemampuan itu **[V]**. Bila SPV membuka alamatnya langsung, halaman menampilkan judul "Akses terbatas" dengan isi: untuk Komisi kurir "Pembayaran komisi kurir hanya untuk Manajer depot.", untuk Tinjauan bulanan "Tinjauan ops bulanan hanya untuk Manajer depot.", untuk Performa tim "Performa tim hanya untuk Manajer depot." **[V]**. Teks itu menyebut Manajer saja, padahal beberapa peran lain juga boleh; teks ini tidak diubah oleh PR #664. Perilaku server (menolak peran tanpa kemampuan) belum diuji di peramban **[D]**. Bila SPV memerlukan angka ini, minta Manajer atau Kantor pusat. Pembaruan peran melalui matriks runtime Super admin dapat mengubah daftar ini.
 
 ### 5.4 Pintu masuk ke konsol HR
 
@@ -191,7 +191,7 @@ Bila sebagian data gagal dimuat, muncul "Sebagian data gagal dimuat{which}. Mena
 SPV **tidak** mendapat widget aksi khas Manajer ("Antrean approval", "Stok kritis", "Kurir aktif") **[V]**.
 
 ![Gambar 5.2 — Landing eksekutif SPV](assets/screenshots/supervisor-01-ringkasan.png)
-> *Gambar 5.2 — Landing "Operasi" SPV (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat empat kartu: Pendapatan "Rp 0 / 0 pesanan", SLA tepat waktu "0% / 0/0 terkirim", Rata-rata antar "— / ambang 120 mnt", Terlewat / gagal "0 / 0"; serta "Tren penjualan" ("Tidak ada penjualan pada periode ini.") dan "Pelanggan teratas" / "Depot teratas" ("Belum ada pesanan pada periode ini."). Catatan kondisi: seluruh data kosong karena depot uji SPV tidak punya pesanan; pemilih depot menunjukkan "Semua depot / 23 lokasi". Menu kiri tampil sampai "Jadwal shift"; bagian bawah menu terpotong.*
+> *Gambar 5.2 — Landing "Operasi" SPV (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat empat kartu: Pendapatan "Rp 0 / 0 pesanan", SLA tepat waktu "0% / 0/0 terkirim", Rata-rata antar "— / ambang 120 mnt", Terlewat / gagal "0 / 0"; serta "Tren penjualan" ("Tidak ada penjualan pada periode ini.") dan "Pelanggan teratas" / "Depot teratas" ("Belum ada pesanan pada periode ini."). Catatan kondisi: seluruh data kosong karena depot uji SPV tidak punya pesanan; pemilih depot menunjukkan "Semua depot / 23 lokasi". Menu kiri tampil sampai "Jadwal shift"; bagian bawah menu terpotong. Diambil sebelum PR #664; kini pada pilihan "Semua depot" dengan dua depot atau lebih, kotak "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. …" tampil di atas isi halaman, dan menu SPV tidak lagi memuat Komisi kurir, Tinjauan bulanan, dan Performa tim.*
 
 ## 6. Prosedur langkah demi langkah
 
@@ -317,7 +317,7 @@ Layar yang sama menampilkan "Laporan insiden kurir" (laporan dari kurir di jalan
 **Hasil akhir:** Insiden tercatat dan, bila selesai, tertutup dengan catatan.
 **Izin & batasan:** SPV dapat mencatat dan menyelesaikan insiden karena server memakai satu kemampuan `incidents` untuk mencatat, membaca, dan menutup **[V]**. Asisten SPV tidak punya kemampuan ini.
 
-> **[B]** Teks pembatas layar berbunyi "Insiden hanya tersedia untuk operator dan manajer depot." dan komentar RBAC menyebut SPV tanpa tulis; padahal SPV dapat menulis. Pakai perilaku yang tertera di sini.
+> **[B]** Teks pembatas layar masih berbunyi "Insiden hanya tersedia untuk operator dan manajer depot." padahal SPV dapat menulis **[V]**. Komentar RBAC yang menyebut SPV tanpa tulis sudah dikoreksi (sejak PR #664, 2026-10-14). Pakai perilaku yang tertera di sini.
 
 **Daftar periksa:**
 - [ ] Judul menjelaskan apa yang terjadi
@@ -414,7 +414,7 @@ Kategori: Salah item, Tidak diterima, Lebih bayar, Kualitas, Lainnya **[V]**.
 - SPV dapat mencatat dan membalik entri (server `depotFinance` pada kelas pengendali) **[V]**. Asisten SPV tidak punya menu ini.
 - "Tutup buku harian" ada di halaman Laporan, yang tidak terlihat oleh SPV **[V]**.
 
-> **[B]** Teks pembatas "Buku kas depot hanya untuk Manajer depot." tidak sesuai kenyataan. Komentar RBAC "tanpa tulis, tanpa uang" juga bertentangan dengan kemampuan mencatat kas.
+> **[B]** Teks pembatas "Buku kas depot hanya untuk Manajer depot." masih ada dan tidak sesuai kenyataan **[V]**. Komentar RBAC "tanpa tulis, tanpa uang" sudah dikoreksi (sejak PR #664, 2026-10-14); kemampuan SPV mencatat kas tidak diubah dan masih menunggu konfirmasi pemilik **[K]**.
 
 **Daftar periksa:**
 - [ ] Kategori dan keterangan jelas
@@ -436,10 +436,10 @@ Kategori: Salah item, Tidak diterima, Lebih bayar, Kualitas, Lainnya **[V]**.
 |---|---|---|
 | Laporan L/R | Dapat dibuka (baca) | Satu depot, per bulan |
 | Rekonsiliasi bayar | Baca saja | Pesan: "Layar ini baca-saja untuk peranmu. Konfirmasi lunas dikerjakan di antrean pesanan oleh kepala depot, staf depot, manajer, atau keuangan." Butuh depot terpilih: "Rekonsiliasi menampilkan pesanan satu depot. Pilih depot dulu." |
-| Komisi kurir | Ditolak server | [B] Lihat bagian 5.3 |
-| Tinjauan bulanan | Ditolak server | [B] "Tutup bulan" hanya Manajer; "Buka bulan" hanya HQ |
+| Komisi kurir | Menu tidak tampil untuk SPV (sejak PR #664, 2026-10-14) | Lihat bagian 5.3 |
+| Tinjauan bulanan | Menu tidak tampil untuk SPV (sejak PR #664, 2026-10-14) | Lihat bagian 5.3; "Tutup bulan" Manajer, "Buka bulan" HQ |
 | Laporan (`/dashboard/reports`) | Tidak terlihat | Milik Manajer; di sana "Tutup buku harian" |
-| Performa tim | Ditolak server | [B] |
+| Performa tim | Menu tidak tampil untuk SPV (sejak PR #664, 2026-10-14) | Lihat bagian 5.3 |
 
 SPV tidak dapat menutup buku, menutup bulan, atau memverifikasi setoran COD.
 
@@ -575,11 +575,11 @@ Beberapa masalah muncul sebagai daftar bertitik merah sekaligus.
 | Akun ini belum diberi tanggung jawab depot manapun. | Belum ada depot untuk Anda | Minta Admin |
 | Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya. | Depot di luar cakupan | Pilih depot lain |
 | Angka landing berbeda dengan satu depot | Landing = jumlah semua depot | Pilih depot dan buka layar rinci |
-| Halaman memakai "depot pertama" | Pemilih pada "Semua depot" | Pilih depot secara eksplisit |
-| Menu Komisi kurir / Tinjauan bulanan / Performa tim kosong atau galat | Server menolak peran SPV **[B]** | Minta data ke Manajer |
+| Halaman memakai "depot pertama"; kotak "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih." (sejak PR #664, 2026-10-14) | Pemilih pada "Semua depot" dan layar bersifat per depot | Pilih depot secara eksplisit |
+| Menu Komisi kurir / Tinjauan bulanan / Performa tim tidak ada di menu SPV (sejak PR #664, 2026-10-14) | Memang bukan hak SPV; bila alamat dibuka langsung muncul "Akses terbatas" | Minta data ke Manajer atau Kantor pusat |
 | Depot baru saja ditambahkan namun tidak terlihat | Cakupan butuh ±60 detik, atau depot belum punya Asisten SPV | Tunggu 1-2 menit; bila tetap, minta Admin |
 | "You do not have permission to perform this action." | Aksi di luar hak (Inggris; arti: Anda tidak punya izin melakukan tindakan ini) | Berhenti; minta Manajer atau HQ |
-| Layar penolak "Khusus Manajer depot" | Peran tak punya hak, atau teks yang keliru **[B]** | Bila layar yang SPV biasa pakai (Buku kas, Target, Sengketa) menolak, laporkan ke Admin |
+| Layar penolak berjudul "Akses terbatas" (dahulu "Khusus Manajer depot"; judul diganti sejak PR #664, 2026-10-14) | Peran tak punya hak, atau isi teks yang menyebut Manajer saja keliru **[B]** | Bila layar yang SPV biasa pakai (Buku kas, Target, Sengketa) menolak, laporkan ke Admin |
 
 ## 9. Batasan peran (yang TIDAK bisa dilakukan SPV)
 
@@ -629,7 +629,7 @@ SPV tidak boleh meminjam hak orang lain dengan membagi akun. Lihat bagian 10.
 
 **Skenario 4 — Kasbon staf depot menumpuk.** Itu antrean Asisten SPV. Ingatkan Asisten SPV depot itu. Bila depot tanpa Asisten SPV, kasbon hanya bisa diputuskan Manajer (hak langsung) atau HR.
 
-**Skenario 5 — Menu "Performa tim" galat.** Itu bukan kerusakan; server menolak peran SPV. Minta Manajer membagikan data.
+**Skenario 5 — Perlu data "Performa tim".** Menu itu tidak tersedia untuk SPV (sejak PR #664, 2026-10-14; bawaan hanya Kantor pusat, Manajer, Super admin). Bila alamatnya dibuka langsung, muncul "Akses terbatas". Minta Manajer membagikan data.
 
 ## 13. Daftar periksa penyelesaian
 
@@ -662,9 +662,9 @@ Rujuk ke `17-open-questions`.
 
 | No | Celah | Tag |
 |---|---|---|
-| S1 | Komentar RBAC "tanpa tulis, tanpa uang, tanpa approval" bertentangan dengan hak tulis SPV pada insiden, sengketa, target, buku kas, serta aksi pengiriman | [B] |
-| S2 | Menu "Komisi kurir", "Tinjauan bulanan", "Performa tim" tampil tetapi ditolak server; teks galat belum diverifikasi di peramban | [B] |
-| S3 | Teks penolak "Khusus Manajer depot" pada layar yang bisa dibuka SPV (Buku kas, Target, Sengketa, Insiden) | [B] |
+| S1 | ~~Komentar RBAC "tanpa tulis, tanpa uang, tanpa approval" bertentangan dengan hak tulis SPV~~ Diperbaiki: komentar dikoreksi, matriks tidak diubah (sejak PR #664, 2026-10-14) | Diperbaiki [V] |
+| S2 | ~~Menu "Komisi kurir", "Tinjauan bulanan", "Performa tim" tampil tetapi ditolak server~~ Diperbaiki: menu kini memakai kemampuan yang ditegakkan server; SPV tidak melihatnya (sejak PR #664, 2026-10-14). Tampilan "Akses terbatas" belum diuji di peramban | Diperbaiki [V]; tampilan [D] |
+| S3 | Judul penolak sudah diganti menjadi "Akses terbatas" (sejak PR #664, 2026-10-14), tetapi isi teksnya masih menyebut Manajer saja ("Buku kas depot hanya untuk Manajer depot.", "Insiden hanya tersedia untuk operator dan manajer depot.") pada layar yang bisa dibuka SPV | [B] sebagian |
 | S4 | Tidak ada tautan menu dari rel SPV ke `/hr/depot-requests` dan `/hr/leave` | [D] |
 | S5 | Status bendera `DEPOT_ASSIGNMENT_ENABLED` di produksi | [K] |
 | S6 | Ambang refund HQ (bawaan Rp100.000) di produksi | [K] |
@@ -703,8 +703,8 @@ Kemampuan `approvals` hanya Manajer dan Admin **[V]**. Jenis item: "Selisih opna
 
 - Item di bawah batas auto-pass (bawaan Rp100.000, "Batas auto-pass approval") otomatis disetujui. Nilai hanya dapat diubah HQ atau Admin **[V]**, nilai produksi **[K]**.
 - Pengaju tidak boleh memutuskan pengajuannya sendiri: "Pengaju tidak boleh memutuskan pengajuannya sendiri — teruskan ke atasan." **[V]**
-- Item "Tahan" hilang dari daftar (hanya PENDING yang dimuat) dan hanya dapat dibuka lewat tautan **[B]**.
-- Tampilan detail desktop untuk "Selisih retur galon" dan nominal "Deposit dikembalikan" dapat menampilkan Rp0 **[B]**; tampilan ponsel benar.
+- Item "Tahan" (HELD) kini tetap tampil di daftar bersama item PENDING (sejak PR #664, 2026-10-14; halaman memuat dua panggilan, PENDING dan HELD) **[V]**. Dahulu hanya PENDING yang dimuat sehingga item yang ditahan hilang **[B, diperbaiki]**.
+- Halaman rincian kini membaca "Selisih retur galon" (`excessGallons`, ditampilkan "{n} galon") dan nominal "Deposit dikembalikan" dari dua kemungkinan isian (`deposit` atau `depositRefunded`) (sejak PR #664, 2026-10-14) **[V]**. Dahulu keduanya dapat tampil Rp0 **[B, diperbaiki]**. Tampilan di peramban belum diuji **[D]**.
 - Tidak ada pengaju otomatis untuk "Kurang setoran" (COD); setoran COD diverifikasi di "Setoran COD" **[V]**.
 
 > **[SCREENSHOT REQUIRED: SS-supervisor-10 — Antrean approval Manajer dengan satu item PENDING dan penghitung "Menunggu approval · {n} item"]**
@@ -718,13 +718,15 @@ Pesanan pembelian: Draft → Dikirim → Diterima. Manajer membuat PO dari stok 
 
 - Klaim pengeluaran kurir: Manajer menyetujui sampai batas bawaan Rp500.000; di atasnya wajib Finance: "Klaim di atas Rp{limit} harus disetujui FINANCE." (Manajer tetap boleh menolak) **[V]**, nilai produksi **[K]**.
 - Refund pembayaran: Manajer mengajukan lewat "Ajukan refund" di rincian pesanan; nilai di atas ambang menunggu HQ/Finance **[V]**.
-- Setoran COD: "Verifikasi" atau "Sengketakan"; selisih lebih dari Rp5.000 butuh catatan **[V]**.
+- Setoran COD: "Verifikasi" atau "Sengketakan"; selisih lebih dari Rp5.000 butuh catatan **[V]**. Sejak PR #664 (2026-10-14): setoran berstatus DISPUTED kini dapat diverifikasi lagi dengan catatan wajib ("Isi catatan penyelesaian sengketa."), dan opsi membebankan kekurangan ke kurir hanya untuk Manajer dan Super admin (kemampuan `approvals`). Peran lain (mis. Kepala depot, Finance) tetap bisa memverifikasi tanpa membebankan; bila mencoba membebankan, server menolak: "Membebankan selisih ke kurir harus disetujui manajer. Verifikasi tanpa membebankan, atau minta manajer yang memverifikasi." **[V]**
 - Tutup buku harian dan "Tutup bulan"; "Buka bulan" hanya HQ **[V]**.
 
 ## A.6 Cuti dan kasbon
 
 - Cuti tahap 1 diputuskan Manajer (atau HR); tahap 2 HR **[V]**.
 - Kasbon: Manajer dapat memutuskan hanya bila depot **tidak** punya Asisten SPV tercatat (eskalasi K2). Bila ada Asisten SPV, Manajer ditolak: "Kasbon ini diputuskan oleh asisten supervisor depotnya." **[V]**
+- Batas kasbon (sejak PR #664, 2026-10-14): jumlah tidak boleh melebihi 1x gaji pokok sebulan (karyawan harian dihitung 26 hari). Bila lebih, pengajuan ditolak: "Kasbon melebihi batas 1x gaji pokok (Rp{batas})." Bila gaji pokok belum diisi: "Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR." **[V]** (`loan-request.service.ts`).
+- Kedaluwarsa (sejak PR #664): pengajuan yang tidak diputuskan dalam 3 hari kerja (Senin-Jumat; hari libur nasional tidak dihitung) menjadi CANCELLED dengan catatan "Kedaluwarsa: tidak diputuskan dalam 3 hari kerja." Memutuskan pengajuan yang sudah lewat ditolak: "Pengajuan ini kedaluwarsa (lewat 3 hari kerja); pemohon perlu mengajukan lagi." Penutupan terjadi saat pemohon atau pemutus membuka/mengajukan, bukan oleh penjadwal **[V]**.
 
 ## A.7 Perbedaan dengan SPV (ringkas)
 

@@ -28,7 +28,7 @@ Ciri utama:
 - Satu pengecualian yang disengaja: Asisten SPV **memutuskan kasbon** karyawan di depot sendiri (`kasbonApprove`). Ini keputusan uang sekaligus persetujuan **[V]** (komentar `index.ts` baris 367-383).
 - Mendarat di "Operasi" bertipe eksekutif (ringkasan 30 hari terakhir), sama dengan SPV.
 
-> **[B] Kontradiksi kode.** Komentar header `index.ts` baris 35-40 menyatakan "oversight reads, no writes, no money, no approvals", lalu menyebut kasbon sebagai satu-satunya pengecualian. Namun daftar kemampuan Asisten SPV juga memuat dua kemampuan tulis pengiriman/pesanan (`orderFulfilment` dan `tracking`). Panduan ini mengikuti daftar kemampuan, bukan komentarnya.
+> **Komentar kode sudah dikoreksi (sejak PR #664, 2026-10-14).** Dahulu komentar header `index.ts` menyatakan "oversight reads, no writes, no money, no approvals", padahal daftar kemampuan Asisten SPV memuat dua kemampuan tulis pengiriman/pesanan (`orderFulfilment` dan `tracking`). Komentar kini berbunyi "mostly oversight reads, no approvals", masih menyebut kasbon sebagai satu-satunya pengecualian, dan menegaskan bahwa SPV menulis insiden, sengketa, target, dan buku kas **[V]**. Matriks kemampuan tidak diubah. Komentar itu tidak menyebut `orderFulfilment` dan `tracking` secara khusus untuk Asisten SPV, jadi panduan ini tetap mengikuti daftar kemampuan.
 
 ## 2. Tujuan dan tanggung jawab
 
@@ -90,13 +90,13 @@ Konsekuensi penting:
 
 **Hasil akhir:** Anda berada di konsol dengan konteks depot.
 **Masalah umum:** Lihat bagian 3.1 dan 8.
-**Izin & batasan:** "Semua depot" tidak mengubah angka landing (jumlah seluruh depot cakupan). Halaman yang butuh satu depot memakai depot pertama dalam daftar secara diam-diam **[V]**. Pilih depot secara eksplisit saat memeriksa satu depot.
+**Izin & batasan:** "Semua depot" tidak mengubah angka landing (jumlah seluruh depot cakupan). Halaman yang butuh satu depot memakai depot pertama dalam daftar. Sejak PR #664 (2026-10-14), bila Anda memilih "Semua depot" dan punya dua depot atau lebih, layar per-depot di `/dashboard/*` menampilkan kotak "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih." (nama = depot pertama dalam daftar). Layar gabungan tanpa kotak itu: "Antrean pesanan", "Risiko churn", "Aturan promo", dan halaman impor. Halaman di luar `/dashboard` (mis. `/hr/loans`) tidak menampilkannya **[V]** (`all-depots-notice.tsx`). Pilih depot secara eksplisit saat memeriksa satu depot.
 **Daftar periksa:**
 - [ ] Peran tertulis "Asisten SPV"
 - [ ] Depot di pemilih sesuai depot binaan saya
 
 ![Gambar 6.1 — Pemilih depot Asisten SPV terbuka](assets/screenshots/asisten-supervisor-03-pilih-depot.png)
-> *Gambar 6.1 — Pemilih depot Asisten SPV terbuka di atas halaman "Operasi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Semua depot — 11 lokasi · gabungan" (bertanda centang) dan 11 baris depot berformat nama dengan `{kode} · {kota}`, misalnya "Depot Hierarki 4 / HIER-04 · Jakarta". Catatan kondisi: teks "Peran: Asisten SPV" di dasar menu tidak tampak pada tangkapan ini (di luar bingkai). Semua angka Rp 0 karena depot uji belum punya pesanan.*
+> *Gambar 6.1 — Pemilih depot Asisten SPV terbuka di atas halaman "Operasi" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat "Semua depot — 11 lokasi · gabungan" (bertanda centang) dan 11 baris depot berformat nama dengan `{kode} · {kota}`, misalnya "Depot Hierarki 4 / HIER-04 · Jakarta". Catatan kondisi: teks "Peran: Asisten SPV" di dasar menu tidak tampak pada tangkapan ini (di luar bingkai). Semua angka Rp 0 karena depot uji belum punya pesanan. Diambil sebelum PR #664; tidak ada perubahan pada pemilih itu sendiri.*
 
 ## 5. Tabel perbandingan: Asisten SPV, SPV, dan Manajer
 
@@ -160,7 +160,7 @@ Sumber: `packages/access/src/index.ts` (CAPABILITIES), selisih dihitung dari daf
 
 HR dan Admin juga memegang `kasbonApprove`, tetapi tunduk pada aturan yang sama: bila depot punya Asisten SPV, hanya Asisten SPV itu yang boleh memutuskan **[V]**.
 
-> **[B]** Teks halaman penolak "Insiden hanya tersedia untuk operator dan manajer depot." dan komentar RBAC tidak sepenuhnya cocok dengan hak yang ada; ikuti tabel ini.
+> **[B]** Teks halaman penolak "Insiden hanya tersedia untuk operator dan manajer depot." masih tidak sepenuhnya cocok dengan hak yang ada **[V]** (judul penolak diganti menjadi "Akses terbatas" sejak PR #664, 2026-10-14; isi teks tidak). Komentar RBAC sudah dikoreksi. Ikuti tabel ini.
 
 ## 6. Menu dan modul tersedia
 
@@ -180,18 +180,17 @@ HR dan Admin juga memegang `kasbonApprove`, tetapi tunduk pada aturan yang sama:
 | Pelanggan & pertumbuhan | Pelanggan | `/dashboard/customers` | Baca | [V] |
 | Pelanggan & pertumbuhan | CRM & follow-up | `/dashboard/crm` | Baca | [V] |
 | Keuangan · usulan | Laporan L/R | `/dashboard/monthly-pnl` | Baca | [V] |
-| Keuangan · usulan | Performa tim | `/dashboard/team-performance` | Ditolak server | [B] |
 | Referensi | Peran & akses | `/dashboard/roles` | Baca | [V] |
 | Referensi | Audit log | `/dashboard/audit` | Baca | [V] |
 | Referensi | Akun saya | `/dashboard/account` | Akun sendiri | [V] |
 
 ### 6.2 Yang TIDAK terlihat
 
-Notifikasi ops, Reseller / Agen, Insiden, Sengketa order, Target & goals, Buku kas, Rekonsiliasi bayar, Komisi kurir, Tinjauan bulanan, Antrean approval, serta seluruh menu Manajer **[V]**.
+Notifikasi ops, Reseller / Agen, Insiden, Sengketa order, Target & goals, Buku kas, Rekonsiliasi bayar, Komisi kurir, Tinjauan bulanan, Performa tim, Antrean approval, serta seluruh menu Manajer **[V]**.
 
-### 6.3 Menu "Performa tim" [B]
+### 6.3 Menu "Performa tim", "Komisi kurir", "Tinjauan bulanan" (diperbaiki sejak PR #664, 2026-10-14)
 
-Menu tampil karena gerbangnya memakai `dashboard`, tetapi data di baliknya meminta `deliveryReports` dan `staffDirectory` yang tidak dimiliki Asisten SPV. Hasilnya layar galat atau kosong **[D]**.
+Dahulu "Performa tim" tampil untuk Asisten SPV (gerbangnya memakai `dashboard`) tetapi data di baliknya ditolak server **[B]**. Kini ketiga menu memakai kemampuan yang ditegakkan server: Komisi kurir `courierSettle` (Kepala depot, Manajer, Finance, Super admin), Tinjauan bulanan `dailyClose` (Kepala depot, Manajer, Kantor pusat, Direktur, Super admin), Performa tim `deliveryReports` (Kantor pusat, Manajer, Super admin). Asisten SPV tidak memegang satu pun, sehingga **tidak ada yang tampil di menunya** **[V]** (`ops-rail.tsx`, `lib/roles.ts`). Bila alamatnya dibuka langsung, halaman menampilkan "Akses terbatas" dengan isi, misalnya, "Performa tim hanya untuk Manajer depot." Tampilan itu belum diuji di peramban **[D]**.
 
 ### 6.4 Pintu masuk ke antrean kasbon (penting)
 
@@ -204,7 +203,7 @@ Antrean kasbon ada di `/hr/loans/requests` ("Antrean Kasbon"). **Tidak ada menu 
 Konsol `/hr` dapat dibuka karena Asisten SPV memegang `hrView` **[V]**.
 
 ![Gambar 6.2 — Landing dan menu Asisten SPV](assets/screenshots/asisten-supervisor-01-ringkasan.png)
-> *Gambar 6.2 — Landing "Operasi" Asisten SPV (lingkungan uji lokal, data sintetis, 2026-10-11). Menu kiri terlihat berisi Operasi; Antrean pesanan, Live tracking, Inventori, Retur galon, Meteran air, Perkiraan; Absen saya, Jadwal shift; Pelanggan, CRM & follow-up; Laporan L/R, Performa tim. Tidak tampak kelompok "Approval & supervisi" (Insiden, Sengketa order), "Notifikasi ops", "Reseller / Agen", "Target & goals", maupun "Buku kas", sesuai bagian 6.2. Catatan kondisi: menu terpotong di bawah "Performa tim" (item Referensi tidak terlihat); semua kartu kosong (Rp 0, SLA 0%, "ambang 120 mnt") karena depot uji tanpa pesanan; pemilih depot menunjukkan "Semua depot / 11 lokasi".*
+> *Gambar 6.2 — Landing "Operasi" Asisten SPV (lingkungan uji lokal, data sintetis, 2026-10-11). Menu kiri terlihat berisi Operasi; Antrean pesanan, Live tracking, Inventori, Retur galon, Meteran air, Perkiraan; Absen saya, Jadwal shift; Pelanggan, CRM & follow-up; Laporan L/R, Performa tim. Tidak tampak kelompok "Approval & supervisi" (Insiden, Sengketa order), "Notifikasi ops", "Reseller / Agen", "Target & goals", maupun "Buku kas", sesuai bagian 6.2. Catatan kondisi: menu terpotong di bawah "Performa tim" (item Referensi tidak terlihat); semua kartu kosong (Rp 0, SLA 0%, "ambang 120 mnt") karena depot uji tanpa pesanan; pemilih depot menunjukkan "Semua depot / 11 lokasi". Diambil sebelum PR #664; kini menu tidak lagi memuat "Performa tim" untuk Asisten SPV, dan pada "Semua depot" kotak "Menampilkan {nama depot}. Layar ini bekerja per depot, bukan gabungan. …" tampil di atas isi halaman.*
 
 ## 7. Prosedur langkah demi langkah
 
@@ -237,7 +236,7 @@ Konsol `/hr` dapat dibuka karena Asisten SPV memegang `hrView` **[V]**.
 | Mulai potong (YYYY-MM) | Ya (untuk setuju) | Format tahun-bulan |
 | Catatan | Ya untuk tolak | Maks. 300 karakter |
 
-Tidak ada batas atas nominal kasbon di sistem; batas itu masih keputusan bisnis yang belum diambil **[K]**. Tanyakan kebijakan perusahaan sebelum menyetujui nominal besar.
+**Batas dan tenggat kasbon (keputusan pemilik 2026-10-14, dibangun lewat PR #664) [V].** Kasbon tidak boleh melebihi 1x gaji pokok sebulan (karyawan harian dihitung 26 hari); pemeriksaan dilakukan saat karyawan mengajukan, bukan saat Anda memutuskan. Pengajuan yang lebih besar ditolak sistem dengan pesan: "Kasbon melebihi batas 1x gaji pokok (Rp{batas})." Bila gaji pokok karyawan belum diisi HR: "Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR." Pengajuan yang tidak diputuskan dalam **3 hari kerja** (Senin-Jumat, hari libur tidak dihitung) kedaluwarsa: statusnya menjadi CANCELLED dengan catatan "Kedaluwarsa: tidak diputuskan dalam 3 hari kerja." Bila Anda mencoba memutuskan pengajuan yang sudah lewat tenggat, sistem menolak: "Pengajuan ini kedaluwarsa (lewat 3 hari kerja); pemohon perlu mengajukan lagi." Penutupan otomatis ini terjadi saat dibutuhkan, bukan lewat penjadwal: ketika pemohon membuka daftar kasbonnya atau mengajukan lagi, atau ketika Anda mencoba memutuskan pengajuan itu **[V]**. Karena itu putuskan kasbon di awal minggu kerja, bukan menunggu akhir pekan.
 
 **Masalah umum:**
 
@@ -397,7 +396,7 @@ Tidak ada batas atas nominal kasbon di sistem; batas itu masih keputusan bisnis 
 | Antrean kasbon kosong | Tidak ada pengajuan, atau depot di luar cakupan | Periksa cakupan dengan Admin |
 | Kasbon ini diputuskan oleh asisten supervisor depotnya. | Anda bukan Asisten SPV depot pengaju | Teruskan ke Asisten SPV yang benar |
 | Kasbon sendiri tidak bisa Anda setujui. | Pengaju adalah Anda | Minta atasan melalui HR |
-| Menu "Performa tim" galat | Server menolak peran Anda **[B]** | Minta data ke Manajer |
+| Menu "Performa tim" tidak ada di menu Anda (sejak PR #664, 2026-10-14) | Memang bukan hak Asisten SPV; bila alamat dibuka langsung muncul "Akses terbatas" | Minta data ke Manajer |
 | Tidak ada "Notifikasi ops" / "Insiden" | Bukan hak Asisten SPV | Minta SPV atau Kepala depot |
 | "You do not have permission to perform this action." | Di luar hak (arti: Anda tidak punya izin melakukan tindakan ini) | Berhenti; hubungi SPV |
 | Tombol "Konfirmasi lunas" tidak ada | Bukan hak Anda | Kepala depot, Manajer, atau Finance |
@@ -419,7 +418,7 @@ Tidak ada batas atas nominal kasbon di sistem; batas itu masih keputusan bisnis 
 
 ## 11. Pertimbangan keamanan
 
-- Keputusan kasbon adalah keputusan uang. Pastikan identitas pengaju dan alasan wajar sebelum menyetujui. Tidak ada batas nominal di sistem **[K]**.
+- Keputusan kasbon adalah keputusan uang. Pastikan identitas pengaju dan alasan wajar sebelum menyetujui. Batas nominal: maksimum 1x gaji pokok, diperiksa saat pengajuan (sejak PR #664, 2026-10-14) **[V]**.
 - Jangan menyetujui kasbon atas tekanan dari pihak lain tanpa alasan tertulis. Alasan penolakan dan catatan tersimpan.
 - Jangan membagikan akun atau kode OTP. Setiap keputusan tercatat atas nama Anda.
 - Data pribadi karyawan (alasan kasbon, gaji) bersifat rahasia; jangan dikirim lewat percakapan umum.
@@ -479,12 +478,12 @@ Rujuk ke `17-open-questions`.
 |---|---|---|
 | A1 | Tidak ada tautan menu dari rel Asisten SPV ke antrean kasbon; hanya notifikasi atau alamat langsung | [D] |
 | A2 | Tujuan ketukan notifikasi `LOAN_REQUEST_SUBMITTED` di aplikasi belum diverifikasi | [D] |
-| A3 | Tidak ada batas nominal kasbon | [K] |
+| A3 | ~~Tidak ada batas nominal kasbon~~ Diputuskan pemilik 2026-10-14: maksimum 1x gaji pokok, dibangun lewat PR #664 | Diputuskan [V] |
 | A4 | Mekanisme eskalasi (siapa menghubungi siapa) bila depot tanpa Asisten SPV belum didokumentasikan secara resmi | [K] |
-| A5 | Menu "Performa tim" tampil namun ditolak server | [B] |
-| A6 | Komentar RBAC "tanpa tulis" bertentangan dengan `orderFulfilment` dan `tracking` | [B] |
+| A5 | ~~Menu "Performa tim" tampil namun ditolak server~~ Diperbaiki sejak PR #664 (2026-10-14): menu tidak lagi tampil untuk Asisten SPV | Diperbaiki [V] |
+| A6 | ~~Komentar RBAC "tanpa tulis" bertentangan dengan `orderFulfilment` dan `tracking`~~ Komentar dikoreksi sejak PR #664 (2026-10-14); matriks tidak diubah | Diperbaiki [V] |
 | A7 | Asisten SPV tanpa "Notifikasi ops" sehingga stok menipis tidak diberi tahu otomatis | [K] |
 | A8 | Cara staf mendapat peran dan penempatan Asisten SPV selain `/hq/hierarchy` (hanya Admin) | [K] |
-| A9 | Tidak ada batas waktu (SLA) keputusan kasbon yang ditetapkan | [K] |
+| A9 | ~~Tidak ada batas waktu keputusan kasbon~~ Diputuskan pemilik 2026-10-14: kedaluwarsa 3 hari kerja, dibangun lewat PR #664. Hari libur nasional tidak dimodelkan | Diputuskan [V] |
 
 > Catatan penomoran: bab ini memiliki 16 bagian karena bagian 5 (tabel perbandingan) ditambahkan di antara bagian "Prasyarat/Masuk" dan "Menu". Urutan wajib struktur bab peran tetap terpenuhi.

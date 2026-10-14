@@ -58,7 +58,7 @@ Prinsip kerja: satu orang tidak boleh menyelesaikan satu alur uang dari awal sam
 
 ## 3. Prasyarat akses
 
-1. Akun staf aktif dengan peran Head office, Direktur, atau Finance. Akun dibuat oleh Head office (untuk peran tertentu) atau oleh Super admin. Peran Direktur dan Finance HANYA dapat diberikan oleh Super admin. **[V]**
+1. Akun staf aktif dengan peran Head office, Direktur, atau Finance. Akun dibuat oleh Head office (untuk peran tertentu) atau oleh Super admin. Peran Direktur, Finance, dan (sejak PR #664, 2026-10-14) Head office HANYA dapat diberikan oleh Super admin. **[V]**
 2. Nomor telepon yang bisa menerima kode OTP (6 digit).
 3. Browser modern (setara Chrome 111 atau lebih baru). **[D]** Tidak ada matriks browser resmi di repositori.
 4. Rail menu kiri hanya tampil di layar lebar (lebar lg ke atas). Di ponsel, gunakan tombol "Lainnya". **[V]**
@@ -299,7 +299,7 @@ Kosong: "Belum ada depot. Onboard depot pertama." / "Tidak ada depot yang cocok.
 | 1 | Tekan "＋ Undang staf". | Kartu "Undang / tetapkan peran staf". |
 | 2 | Isi "Nomor telepon" (wajib). Format 0812…, +62…, atau 62… diterima. | Kosong: "Masukkan nomor telepon." Nomor tidak sah: pesan server `"X" is not a valid Indonesian mobile number.` |
 | 3 | Isi "Nama (untuk akun baru)". | Dipakai hanya untuk akun baru. |
-| 4 | Pilih "Peran" (tombol). | Hanya peran yang boleh Anda berikan yang ditawarkan (lihat tabel di bawah). **[B]** Pada gambar form (akun Super admin, lihat Bab 10) terlihat 12 tombol peran dengan urutan Staf depot, Kepala depot, Asisten SPV, SPV, Manajer, Direktur, Marketing, Finance, HR, Pemilik waralaba, Head office, Super admin, dan "Kepala depot" sudah terpilih sebelum Anda memilih apa pun: periksa peran sebelum menekan "Kirim undangan". |
+| 4 | Pilih "Peran" (tombol). | Hanya peran yang boleh Anda berikan yang ditawarkan (lihat tabel di bawah). Akun Head office kini melihat 5 tombol: Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba (sejak PR #664, 2026-10-14; Head office tidak lagi ditawarkan). **[V]** (`staff-invite.tsx` menyaring dengan `grantableRoles`/`canGrantRole`). Akun Super admin melihat 12 tombol (lihat Bab 10). "Kepala depot" sudah terpilih sebelum Anda memilih apa pun: periksa peran sebelum menekan "Kirim undangan". |
 | 5 | Pilih "Depot penempatan (opsional)" (bawaan "Tanpa depot"). | Wajib untuk Staf depot dan Kepala depot. |
 | 6 | Untuk selain Pemilik waralaba: isi "Posisi" (wajib), "Tanggal masuk" (bawaan hari ini), "Status kepegawaian" (Training / Percobaan / Tetap; bawaan Percobaan), "Gaji" (Bulanan atau Harian + angka lebih dari 0, wajib). | Bila kosong: "Posisi dan gaji wajib diisi — datanya dipakai membuat kartu karyawan." |
 | 7 | Tekan "Kirim undangan". "Batal" menutup. | Form menutup dan daftar dimuat ulang. Gagal: pesan server atau "Gagal mengundang staf." |
@@ -310,13 +310,13 @@ Kosong: "Belum ada depot. Onboard depot pertama." / "Tidak ada depot yang cocok.
 
 | Boleh | Tidak boleh (hanya Super admin) | Tidak boleh (Super admin atau HR) |
 |---|---|---|
-| Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba, Head office | Super admin, Direktur, Finance, HR, Marketing | Manajer |
+| Staf depot, Kepala depot, Asisten SPV, SPV, Pemilik waralaba (5 peran) | Super admin, Direktur, Finance, HR, Marketing, **Head office** (Head office ditambahkan sejak PR #664, 2026-10-14) | Manajer |
 
-Penolakan server: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." (contoh: "Peran MANAGER hanya boleh diberikan oleh SUPER_ADMIN atau HR."). Tanpa depot: "Peran staf depot wajib terikat ke satu depot." Catatan: Head office dapat menciptakan sesama Head office **[D]**; konfirmasi ke pemilik apakah itu dikehendaki.
+Penolakan server: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." (contoh: "Peran MANAGER hanya boleh diberikan oleh SUPER_ADMIN atau HR."). Tanpa depot: "Peran staf depot wajib terikat ke satu depot." Keputusan pemilik 2026-10-14: Head office tidak boleh membuat sesama Head office; peran Head office hanya dapat dibuat Super admin (alasan di kode: memberi Head office berarti menyerahkan hak `staffAdmin` itu sendiri). Contoh pesan: "Peran HEAD_OFFICE hanya boleh diberikan oleh SUPER_ADMIN." **[V]** (`RESTRICTED_GRANTS` di `packages/access/src/index.ts`, pesan di `auth.errors.ts`). Akun Head office yang sudah ada tidak berubah.
 
 **Aksi lain pada baris staf (hanya Head office dan Super admin):**
 - "Depot penempatan": pemilih untuk Staf depot, Kepala depot, Asisten SPV, SPV, Manajer. Konfirmasi "Pindahkan {name} ke {depot}?" Gagal: "Gagal memindahkan depot." Kartu karyawan ikut pindah. Depot yang terlihat oleh Manajer dan SPV ditentukan hierarki (Bab 10), bukan kolom ini.
-- "Nonaktifkan" / "Aktifkan": **tanpa konfirmasi**. Kartu karyawan ikut berubah. Gagal: "Gagal mengubah status akun." Nonaktif tidak mematikan token yang sudah terbit; akses lama berlaku sampai sekitar 15 menit **[V]**.
+- "Nonaktifkan" / "Aktifkan": **tanpa konfirmasi**. Kartu karyawan ikut berubah. Gagal: "Gagal mengubah status akun." Sejak PR #664 (2026-10-14), menonaktifkan akun mencabut SEMUA refresh token akun itu, sehingga sesi tidak bisa diperpanjang. Access token yang sudah terbit tetap berlaku sampai masa berlakunya habis (sekitar 15 menit), karena tidak ada pengecekan status per permintaan **[V]** (`account.service.ts` `applyActive`; komentar kode menyatakan hal yang sama). Penolakan baru: menonaktifkan akun sendiri ("Akun sendiri tidak bisa dinonaktifkan.") dan menonaktifkan Super admin terakhir ("Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.") **[V]**. Penangguhan depot belum mencabut sesi stafnya (masih keputusan terbuka **[K]**).
 - "Hapus": hanya Super admin (Bab 10).
 - Tautan kuning "Belum ada data karyawan — buatkan" bila akun belum punya kartu karyawan di HR.
 
@@ -338,7 +338,7 @@ Penolakan server: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." (contoh:
 
 **Kolom (tanda * wajib):** phone* (diubah ke +628…), fullName, role* (huruf besar), depotCode (kode depot), position*, joinDate* (YYYY-MM-DD), employmentStatus* (TRAINING / PROBATION / PERMANENT), salaryType* (DAILY / MONTHLY), dailyRate, monthlyRate. **Pesan:** `kolom "{column}" wajib diisi`; `kode depot "{value}" tidak dikenal`; "… bukan nomor HP Indonesia yang sah".
 
-**Batasan [B]:** pilihan peran di template memuat semua 12 peran, tetapi server menolak per baris peran yang terbatas bagi Head office (baris menjadi "gagal" dengan pesan "Peran … hanya boleh diberikan oleh …"). Baris Staf depot atau Kepala depot tanpa depot juga gagal.
+**Batasan [B]:** pilihan peran di template memuat semua 12 peran, tetapi server menolak per baris peran yang terbatas bagi Head office (baris menjadi "gagal" dengan pesan "Peran … hanya boleh diberikan oleh …"); sejak PR #664 (2026-10-14) baris berperan HEAD_OFFICE juga ditolak bagi Head office. Baris Staf depot atau Kepala depot tanpa depot juga gagal.
 
 ### 6.6 Payout waralaba dan maker-checker (/hq/payments)
 
@@ -411,7 +411,7 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 
 **Siapa boleh apa:** Memulai refund (`refundIssue`) = Finance, Manajer, Super admin (tombol "Ajukan refund" di detail pesanan konsol depot). Memutuskan (`refundQueue`) = Finance dan Super admin saja. Head office dan Direktur melihat tombol "Setujui"/"Tolak" tetapi server menolak **[B]**. Pesan bila sudah diputuskan: "This refund is not awaiting approval." (belum ada keputusan baru diperlukan).
 
-**Maker-checker refund [B]:** pemisahan hanya lewat peran. Tidak ada pengecekan "pemohon berbeda dari penyetuju" di kode. Finance memegang kedua hak sehingga dapat memulai lalu menyetujui refund yang sama. **Kendalikan lewat kebiasaan kerja**: Finance tidak menyetujui refund yang ia mulai sendiri; Direktur atau pimpinan meninjau berkala di log audit.
+**Maker-checker refund [B]:** pemisahan hanya lewat peran. Tidak ada pengecekan "pemohon berbeda dari penyetuju" di kode: `approveRefund` hanya memeriksa status PENDING. Sejak PR #664 (2026-10-14) kolom `payment.refundRequestedBy` sudah ada di skema database, tetapi belum diisi maupun dibaca kode mana pun (sengaja dikirim satu rilis lebih dulu; kode pengisi dan tampilan "diajukan oleh" menyusul di PR berikutnya) **[V]**. Jadi pemisahan refund belum ditegakkan. Finance memegang kedua hak sehingga dapat memulai lalu menyetujui refund yang sama. **Kendalikan lewat kebiasaan kerja**: Finance tidak menyetujui refund yang ia mulai sendiri; Direktur atau pimpinan meninjau berkala di log audit.
 
 ![Gambar 9.6a — Persetujuan refund, antrean kosong](assets/screenshots/hq-05-refund.png)
 > *Gambar 9.6a — "Persetujuan refund" (lingkungan uji lokal, data sintetis, 2026-10-11). Terlihat subjudul "Di atas Rp 100.000 butuh persetujuan HQ", lencana "0 menunggu", dan pesan "Tidak ada refund menunggu persetujuan." Di bawah kartu ada catatan layar: "Nama depot & nomor pesanan belum ditampilkan (dimiliki layanan lain); nilai, metode, alasan & keputusan sudah nyata." Catatan kondisi: antrean kosong sehingga baris refund, tombol "Setujui"/"Tolak", dan dialog penolakan belum terlihat.*
@@ -477,7 +477,7 @@ Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang but
 **Peran:** Head office, Direktur (Finance tidak). **Hanya BACA.** **[V]**
 
 - Judul "Tata kelola voucher": kartu "Belanja voucher jaringan" ("Total diskon terpakai" dan "{n} voucher aktif") dan daftar "Voucher aktif" (kode, deskripsi, "{n} terpakai", bilah kemajuan, "Terpakai: Rp…"). Hanya 50 voucher pertama. Kosong: "Belum ada voucher aktif."
-- **Permintaan voucher TIDAK ADA lagi.** Antrean persetujuan voucher depot ke HQ dihapus atas keputusan pemilik pada 2026-09-04 (CA-2-42). Manajer depot membuat voucher depotnya sendiri; HQ hanya memantau. Kapabilitas `voucherRequestDecide` masih terdaftar di matriks tetapi tidak dipakai layar atau kontroler mana pun. Jangan mencari tombol "putuskan permintaan voucher". **[V]**
+- **Permintaan voucher TIDAK ADA lagi.** Antrean persetujuan voucher depot ke HQ dihapus atas keputusan pemilik pada 2026-09-04 (CA-2-42). Manajer depot membuat voucher depotnya sendiri; HQ hanya memantau. Kapabilitas `voucherRequestDecide` masih terdaftar di matriks tetapi ditandai RETIRED di kode (sejak PR #664, 2026-10-14; nama dipertahankan agar baris matriks tersimpan tetap valid) dan tidak dipakai layar atau kontroler mana pun. Jangan mencari tombol "putuskan permintaan voucher". **[V]**
 - Tombol "＋ Voucher baru" menuju /hq/forms/voucher yang butuh hak Marketing, Manajer, atau Super admin. Bagi Head office, Direktur, dan Finance tampil "Khusus HQ".
 
 ### 6.12 Rekonsiliasi (/hq/reconciliation)
@@ -616,7 +616,7 @@ Pesan "Riwayat pesanan tidak bisa dibaca sekarang — ini BUKAN berarti nol." be
 | 2 | Isi "Baru" (0–100) pada depot yang berubah dan "Tanggal berlaku" (bawaan hari ini; tanggal masa depan = terjadwal). | Hanya baris yang berubah dan 0–100 yang dikirim; nilai di luar rentang atau sama diabaikan diam-diam. |
 | 3 | Tekan "Terapkan skema baru". | Sukses "Skema komisi baru diterapkan." Tanpa perubahan: "Tidak ada perubahan untuk diterapkan." Gagal: "Gagal menerapkan skema komisi." |
 
-Server: "Commission percentage must be between 0 and 100." (persentase harus 0–100). Subjudul layar berbunyi "Persentase payout per depot", padahal persentase ini adalah komisi HQ yang dipotong dari penjualan **[B]**. Head office dan Direktur melihat tombol tetapi ditolak. Untuk Finance, halaman memuat daftar depot lewat hak yang tidak dimilikinya; kemungkinan tampil galat penuh **[B][D]**.
+Server: "Commission percentage must be between 0 and 100." (persentase harus 0–100). Subjudul layar kini berbunyi "Persentase komisi HQ per depot" (diperbaiki sejak PR #664, 2026-10-14; sebelumnya "Persentase payout per depot") **[V]**. Head office dan Direktur melihat tombol tetapi ditolak. Untuk Finance, halaman memuat daftar depot lewat hak yang tidak dimilikinya; kemungkinan tampil galat penuh **[B][D]**.
 
 ### 6.23 Insiden (/hq/incidents)
 
@@ -664,9 +664,10 @@ Filter chip: "Semua" | "Berlangsung" | "Selesai". Kosong "Tidak ada insiden."; g
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Buka halaman. | Kolom Pelaku, Peran, Objek, Aksi, Waktu ("Sistem" bila otomatis); 100 baris per halaman + muat lagi. Catatan: "Log bersifat append-only — tidak bisa diubah atau dihapus." Kosong: "Belum ada aktivitas." |
-| 2 | Tekan "Ekspor". | Berkas `audit-{YYYY-MM-DD}.xlsx` (sheet "Audit") berisi SELURUH jejak. Bila terlalu besar: "Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas." |
+| 1b | (Sejak PR #664, 2026-10-14) Gunakan kotak penyaring di atas daftar: "Aksi (persis, mis. depot.suspend)" (teks, harus sama persis dengan nama aksi), "Dari tanggal", "Sampai tanggal" (tanggal sampai dengan hari yang dipilih termasuk), dan "Hasil" ("Semua" / "Berhasil" / "Ditolak / gagal"). Tombol "Reset filter" muncul bila ada penyaring aktif. | Daftar dimuat ulang sesuai penyaring. Tidak ada yang cocok: "Tidak ada entri yang cocok dengan filter ini." |
+| 2 | Tekan "Ekspor". | Berkas `audit-{YYYY-MM-DD}.xlsx` (sheet "Audit") berisi seluruh entri yang cocok dengan penyaring aktif (tanpa penyaring: seluruh jejak); ekspor memakai penyaring yang sama dengan layar (sejak PR #664, 2026-10-14) **[V]**. Bila terlalu besar: "Jejak audit terlalu besar untuk diekspor utuh. Persempit dulu rentang atau saringannya — berkas sepotong lebih berbahaya daripada tidak ada berkas." |
 
-**Gap [B]:** layar **tidak punya saringan atau pencarian** (tanggal, pelaku, aksi); pesan di atas menyarankan menyaring padahal kontrolnya tidak ada. Catatan "tidak bisa dihapus" berlaku untuk pengguna; baris dapat dibersihkan oleh sapuan retensi setelah masa simpan (batas bawah 365 hari). **[V]** Kegagalan menulis audit tidak menghalangi aksi (hanya dicatat di log server). Di konsol depot ada "Jejak audit" (/dashboard/audit) berfilter kategori per depot, dan di HR ada "Log Audit" (/hr/audit) tersendiri.
+**Diperbaiki (sejak PR #664, 2026-10-14):** layar kini punya penyaring aksi, tanggal, dan hasil, dan ekspor mengikuti penyaring itu, sehingga saran "persempit rentang atau saringan" pada pesan ekspor kini punya kontrolnya **[V]** (`apps/web/src/app/hq/audit/page.tsx`; server `/auth/audit` menerima `from`, `to`, `success`, `action`). Masih tidak ada penyaring pelaku di layar ini dan tidak ada pencarian bebas (aksi harus persis) **[V]**. Catatan "tidak bisa dihapus" berlaku untuk pengguna; baris dapat dibersihkan oleh sapuan retensi setelah masa simpan (batas bawah 365 hari). **[V]** Kegagalan menulis audit tidak menghalangi aksi (hanya dicatat di log server). Di konsol depot ada "Jejak audit" (/dashboard/audit) berfilter kategori per depot, dan di HR ada "Log Audit" (/hr/audit) tersendiri.
 
 ### 6.28 Kesehatan sistem dan Kebijakan SLA
 
@@ -681,7 +682,8 @@ Filter chip: "Semua" | "Berlangsung" | "Selesai". Kosong "Tidak ada insiden."; g
 |---|---|---|
 | 1 | Pilih filter "Menunggu" atau "Semua". | Baris: jenis ("Minta salinan data" / "Hapus akun"), status (Menunggu / Selesai / Ditolak), "Pelanggan {nama}", "Diminta {tgl}", "Batas jawab {tgl}" atau merah "LEWAT BATAS 3x24 jam". |
 | 2a | Salinan data: tekan "Setujui". | File JSON terunduh otomatis; "Salinan data siap diunduh." (tombol "Unduh JSON"). Pelanggan hanya bisa mengunduh dalam 7 hari sejak disetujui. |
-| 2b | Hapus akun: tekan "Setujui". | Dialog dengan peringatan "Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun)." Konfirmasi → toast "Permintaan disetujui." |
+| 2b | Hapus akun: tekan "Setujui". | Dialog dengan peringatan "Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun)." Konfirmasi → toast "Permintaan disetujui." Sejak PR #664 (2026-10-14): bila pelanggan masih punya pesanan yang belum selesai, server menolak (409, kode PDP_OPEN_ORDERS) dengan pesan "Akun ini masih punya {n} pesanan yang belum selesai. Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan." Pemeriksaan gagal-tertutup: bila order-service tidak terjangkau, persetujuan juga ditolak dan bisa diulang. **[V]** |
+| 2b-force | (Hanya Super admin) Setelah penolakan di atas, dialog "Paksa hapus akun?" muncul: "Akun ini masih punya pesanan yang belum selesai. Memaksa penghapusan memutus pelanggan dari pesanan itu dan tidak bisa dibatalkan. Tindakan ini dicatat di audit." Tombol "Ya, paksa hapus". | Penghapusan dijalankan; audit mencatat `forced: true` dan jumlah pesanan terbuka (`openOrders`). Head office yang mengirim `force` ditolak server: "Hanya Super Admin yang boleh memaksa penghapusan." (403); Head office tidak melihat dialog paksa. **[V]** |
 | 2c | Tolak: tekan "Tolak", isi "Alasan penolakan (akan dibaca pelanggan)" (wajib). | Toast "Permintaan ditolak." |
 
 **Pesan:** "Gagal memproses permintaan."; server: "Permintaan ini sudah diputuskan." (sudah final), "Permintaan tidak ditemukan." Bila penghapusan gagal di tengah, permintaan tetap Menunggu dan bisa diulang. **Batas jawab 72 jam (3x24 jam) dihitung dari saat permintaan dibuat**; halaman publik menjanjikan "sejak diverifikasi" sehingga ada selisih tafsir **[B]**. Tidak ada peringatan otomatis untuk yang terlambat. Kartu di bawah daftar, "Ketertinggalan persetujuan", hanya untuk dibaca. Penghapusan akun STAF ditangani lewat HRD atau Super admin, bukan layar ini. Ekspor tidak memuat riwayat pesanan, pembayaran, dan saldo loyalti (disimpan sesuai retensi keuangan). Alamat email privasi di halaman publik perlu diperiksa sebelum dikutip karena dokumen go-live mencatat belum ada MX (2026-09-25). **[K]**
@@ -703,7 +705,7 @@ Dua pengaturan ini dimiliki Head office, tetapi **tidak ada di /hq**; letaknya d
 | 2 | Lihat status di kanan atas tanggal. | Bila ditutup: lencana hijau "Buku ditutup", tombol "Buka kembali", dan keterangan "{n} entri masuk setelah tutup ({amount})". Bila belum: tombol "Tutup buku" (Kepala depot, Manajer, Head office, Direktur, Super admin). |
 | 3 | Tekan "Buka kembali". | Buku terbuka lagi. Galat: "Gagal menutup buku." / "Status tutup buku tidak bisa dibaca." |
 
-**Catatan:** Menutup bulan (`/dashboard/monthly-review`, "Tutup bulan"/"Buka bulan") dibatasi hak `depotFinance` yang bawaannya tidak dimiliki Head office; Head office tampaknya tidak dapat membukanya **[B][D]**.
+**Catatan:** Menutup bulan (`/dashboard/monthly-review`, "Tutup bulan"/"Buka bulan") sebelumnya dibatasi layar dengan hak `depotFinance` yang bawaannya tidak dimiliki Head office. Sejak PR #664 (2026-10-14) layar dan menu memakai `dailyClose`, hak yang sama dengan yang ditegakkan server (Kepala depot, Manajer, Head office, Direktur, Super admin), dan tombol "Buka bulan" tampil untuk pemegang `dailyCloseReopen` (Head office, Super admin) **[V]** (`roles.ts` `canViewMonthlyClose`, `monthly-review/page.tsx`, `monthly-close.controller.ts`). Jadi Head office kini bisa membukanya; belum diuji di peramban.
 
 ### Prosedur: Mengubah "Batas auto-pass approval"
 
@@ -785,7 +787,7 @@ Aksi **tanpa konfirmasi dan tanpa alasan** **[B]**: menyetujui atau menolak lama
 | Peran | Tidak bisa | Butuh |
 |---|---|---|
 | Head office | Membuat, mengubah, menangguhkan depot | Manajer atau Super admin |
-| Head office | Memberikan peran Super admin, Direktur, Finance, HR, Marketing, Manajer | Super admin (Manajer juga oleh HR) |
+| Head office | Memberikan peran Super admin, Direktur, Finance, HR, Marketing, Manajer, dan Head office (yang terakhir sejak PR #664, 2026-10-14) | Super admin (Manajer juga oleh HR) |
 | Head office | Ajukan rilis payout, verifikasi rekening, Lunas/Gagal, putuskan refund, terapkan komisi | Finance atau Super admin |
 | Head office | Setujui rilis payout | Direktur atau Super admin |
 | Head office | Mengubah ambang persetujuan (praktis) | Super admin |
@@ -818,11 +820,11 @@ Tidak ada data yang berubah ketika server menolak.
 ## 10. Pertimbangan keamanan
 
 1. **Satu akun satu orang.** Jangan berbagi akun HQ atau meminjam akun Admin. Semua tindakan keuangan dan pengelolaan staf dicatat atas nama pemegang akun; berbagi akun menghapus akuntabilitas.
-2. **Pemisahan tugas uang.** Payout: Finance mengajukan, Direktur menyetujui, Finance menutup (Lunas/Gagal). Server melarang pengaju menyetujui sendiri. Refund: pemisahan hanya lewat peran dan Finance memegang kedua sisi; tinjau berkala di log audit. **[B]**
+2. **Pemisahan tugas uang.** Payout: Finance mengajukan, Direktur menyetujui, Finance menutup (Lunas/Gagal). Server melarang pengaju menyetujui sendiri. Refund: pemisahan hanya lewat peran dan Finance memegang kedua sisi; tinjau berkala di log audit (kolom `refundRequestedBy` sudah ada tetapi belum ditegakkan kode). **[B]**
 3. **Verifikasi rekening dengan teliti.** Cocokkan nama pemilik dan nomor rekening sebelum "Verifikasi". Uang hanya mengalir ke rekening terverifikasi.
 4. **Aksi tanpa konfirmasi.** Lihat bagian 7. Periksa dua kali.
 5. **Data pribadi.** Customer 360, Pencarian, dan UU PDP menampilkan data pelanggan. Gunakan hanya untuk keperluan kerja; jangan menyalin ke aplikasi pribadi.
-6. **Sesi.** Keluar ("Keluar") dari perangkat bersama. Batas menganggur bawaan 15 menit, ditegakkan saat token diperbarui. Akun yang dinonaktifkan masih dapat bertindak hingga sekitar 15 menit. **[V]**
+6. **Sesi.** Keluar ("Keluar") dari perangkat bersama. Batas menganggur bawaan 15 menit, ditegakkan saat token diperbarui. Akun yang dinonaktifkan: semua refresh token dicabut seketika (sejak PR #664, 2026-10-14), tetapi access token yang sudah terbit masih dapat bertindak hingga sekitar 15 menit karena tidak ada pengecekan status per permintaan. **[V]**
 7. **Tidak ada 2FA.** OTP telepon adalah satu-satunya faktor. Layar "Keamanan & 2FA" milik Admin tidak menambah faktor kedua. **[V]**
 8. **Tidak ada rahasia di dokumen.** Jangan menuliskan OTP, kata sandi, atau kunci API di tiket, catatan insiden, atau chat.
 9. **Hak dapat berubah.** Super admin dapat mengubah matriks; hak nyata dapat berbeda dari tabel.
@@ -858,7 +860,7 @@ Tidak ada data yang berubah ketika server menolak.
 
 **Skenario 3 — Refund besar.** Manajer depot mengajukan refund melebihi ambang. Finance membuka Refund, membaca alasan, lalu "Setujui" atau "Tolak" dengan alasan tertulis. Untuk pesanan yang dibatalkan, refund harus dikembalikan; tombol "Tolak" tidak tersedia.
 
-**Skenario 4 — Permintaan hapus akun pelanggan.** Head office membuka Permintaan data, melihat batas jawab, memeriksa pelanggan, menekan "Setujui" dan membaca peringatan permanen. Data keuangan tetap disimpan tanpa pemilik selama 10 tahun.
+**Skenario 4 — Permintaan hapus akun pelanggan.** Head office membuka Permintaan data, melihat batas jawab, memeriksa pelanggan, menekan "Setujui" dan membaca peringatan permanen. Data keuangan tetap disimpan tanpa pemilik selama 10 tahun. Bila pelanggan masih punya pesanan terbuka, server menolak dengan jumlah pesanan; hanya Super admin yang dapat memaksa lewat dialog "Paksa hapus akun?" (sejak PR #664, 2026-10-14). Head office menunggu pesanan selesai atau dibatalkan, atau meminta Super admin.
 
 **Skenario 5 — Direktur ingin mengubah harga satu depot.** Direktur tidak dapat membuat aturan harga (butuh Manajer atau Super admin). Direktur menunggu usulan override dari Manajer depot, lalu menyetujui di "Harga jaringan".
 
@@ -871,7 +873,7 @@ Tidak ada data yang berubah ketika server menolak.
 - [ ] Saya dapat masuk dan melihat peran yang benar di kaki rail.
 - [ ] Saya tahu layar mana yang boleh saya buka (Indeks layar HQ).
 - [ ] Saya paham tombol yang tampil belum tentu boleh dipakai (bagian 9.2).
-- [ ] Saya dapat mengundang staf dan tahu peran apa yang tidak boleh saya berikan (Head office).
+- [ ] Saya dapat mengundang staf dan tahu peran apa yang tidak boleh saya berikan (Head office hanya boleh memberi 5 peran; lihat bagian 6.4).
 - [ ] Saya paham alur payout empat mata dan siapa pada tiap langkah.
 - [ ] Saya tahu refund yang dibatalkan tidak boleh ditolak.
 - [ ] Saya tahu keputusan lamaran waralaba tidak bisa dibatalkan.
@@ -893,7 +895,7 @@ Tidak ada data yang berubah ketika server menolak.
 | SS-hq-06 | /hq/refunds + dialog "Tolak refund ini?" | Alasan sampel | Belum diambil |
 | SS-hq-07 | /hq/applications/detail | Checklist sebagian terverifikasi | Belum diambil |
 | SS-hq-08 | /hq/pricing "Override menunggu" | Satu usulan sampel | Belum diambil |
-| SS-hq-09 | /hq/pdp "Menunggu" + dialog hapus akun | Satu permintaan melewati batas | Belum diambil |
+| SS-hq-09 | /hq/pdp "Menunggu" + dialog hapus akun | Satu permintaan melewati batas; sebaiknya juga dialog "Paksa hapus akun?" pada akun Super admin (baru sejak PR #664) | Belum diambil |
 | SS-hq-10 | /dashboard/reports tab harian "Buku ditutup" | Depot sampel | Belum diambil |
 | SS-hq-11 | /dashboard/settings "Batas auto-pass approval" | Cakupan Default jaringan | Belum diambil |
 | SS-hq-12 | /hq/depots Direktori depot | Akun Head office; tombol "+ Onboard depot" | Diambil (2026-10-11, lingkungan uji lokal, data sintetis) |
@@ -931,14 +933,14 @@ Finance lolos pintu /hq dan melihat Waralaba, Pembayaran, Refund, Rekonsiliasi, 
 | 3 | Menyetujui lamaran tidak membuat akun pemilik atau depot; Head office tidak dapat menuntaskan depot sendiri. | [B] |
 | 4 | "Net payout ke pemilik" selalu "—" bagi Head office, Direktur, Finance. | [B] |
 | 5 | Kebijakan SLA tak terjangkau Head office dan Direktur walau server mengizinkan. | [B] |
-| 6 | Log audit tanpa saringan; pesan ekspor menyarankan menyaring. | [B] |
+| 6 | ~~Log audit tanpa saringan.~~ Diperbaiki sejak PR #664 (2026-10-14): ada penyaring aksi/tanggal/hasil dan ekspor mengikuti penyaring. Sisa: tidak ada penyaring pelaku di layar; aksi harus persis. | diperbaiki [V] |
 | 7 | Pencarian: baris Pesanan tidak bisa diklik; pelanggan hanya via nomor telepon. | [B] |
-| 8 | Refund: tidak ada pengecekan pemohon berbeda dari penyetuju; Finance memegang dua sisi. | [B] |
-| 9 | Beberapa pesan dan label berbahasa Inggris (status pesanan, validasi depot, disclaimer L/R). | [B] |
+| 8 | Refund: tidak ada pengecekan pemohon berbeda dari penyetuju; Finance memegang dua sisi. Kolom `refundRequestedBy` sudah ada (sejak PR #664) tetapi belum dipakai kode; penegakan menunggu PR berikutnya dan keputusan pemilik (toko tanpa Finance kedua akan terblokir). | [B][K] |
+| 9 | Beberapa pesan dan label berbahasa Inggris (validasi depot, disclaimer L/R). Label status pesanan sudah diterjemahkan sejak PR #664 (2026-10-14). | [B] |
 | 10 | Teks skor komposit tetap "70% pendapatan + 30% SLA" walau bobot dapat diubah. | [B] |
 | 11 | Format nomor faktur hanya memengaruhi pratinjau; token `{NNNN}` vs `{SEQ}`. | [B] |
 | 12 | Daftar terbatas diam-diam: harga jaringan 50 produk, voucher 50, retur galon dan bandingkan depot dan komisi 100 depot. | [B] |
-| 13 | Penutupan bulan (/dashboard/monthly-review) tampaknya tidak dapat dibuka Head office. | [B][D] |
+| 13 | ~~Penutupan bulan (/dashboard/monthly-review) tidak dapat dibuka Head office.~~ Diperbaiki sejak PR #664 (2026-10-14): layar dan menu memakai `dailyClose`/`dailyCloseReopen`, sama dengan server. | diperbaiki [V] |
 | 14 | Ambang persetujuan: Head office memegang hak tetapi tidak punya pintu; praktis hanya Super admin. | [B] |
 | 15 | Apakah balasan tiket sampai ke pelanggan, apakah pemindaian fraud berjalan terjadwal di produksi, apakah ada rilis payout otomatis tanggal 15. | [K] |
 | 16 | Nilai bawaan (ambang refund Rp100.000, batas auto-pass Rp100.000, PPN 0) berasal dari pengaturan dan dapat berubah. | [K] |

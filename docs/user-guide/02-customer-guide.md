@@ -275,7 +275,7 @@ Kesalahan: "Gagal menambah ke keranjang." **[V]**
 | 3 | Pilih **Waktu pengiriman**: **Antar sekarang** atau **Atau jadwalkan**. Antar sekarang menampilkan "Estimasi {min}–{maks} menit" dan biaya tambahan (bawaan Rp5.000, bisa berbeda per depot **[K]**). Jadwal: pilih tanggal (Hari ini, Besok, dan dua hari berikutnya) lalu jam; bawaan 09.00-11.00, 11.00-13.00, 13.00-15.00, 15.00-17.00, 17.00-19.00 (bisa berbeda per depot **[K]**). | Antar sekarang tidak tersedia saat depot tutup atau istirahat: "Depot sedang tutup — antar sekarang tidak tersedia. Pesanan terjadwal tetap bisa." |
 | 4 | Pilih **Metode pembayaran** (lihat prosedur Pembayaran). Baris ini membuka lembar "Metode pembayaran" dengan tombol **Selesai** (Gambar 6.2a). | Metode yang tidak tersedia di depot diganti otomatis dengan pesan "Metode bayar diganti — periksa sebelum memesan." |
 | 5 | (Opsional) Isi **Voucher** lalu **Terapkan**, atau pilih dari "Bisa dipakai sekarang". | Potongan harga tampil di ringkasan. |
-| 6 | Periksa ringkasan: subtotal, diskon, ongkir, total. | "Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih." |
+| 6 | Periksa ringkasan: subtotal, diskon, ongkir, total. Bila depot punya nilai deposit galon dan keranjang berisi galon, ada baris terpisah **Deposit galon ({n} galon)** dengan keterangan "Titipan yang dicatat depot saat galon diantar, dikembalikan saat galon kembali. Belum termasuk dalam total yang dibayar." (sejak PR #664, 2026-10-14) **[V]** | "Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih." |
 | 7 | Tekan **Buat pesanan**. Total tampil di sisi kiri bilah bawah ("Ringkasan pesanan", mis. Rp 84.000); tombolnya sendiri berlabel "Buat pesanan" tanpa angka. | Pesanan dibuat dan Anda dibawa ke rincian pesanan. |
 
 **Cara mengenali sukses:** banner "Pesanan berhasil dibuat!" dan "Depot sedang menyiapkan pesananmu. Kami kabari saat kurir berangkat." Halaman juga menampilkan "Estimasi tiba ±30–45 menit". Itu teks tetap, bukan hitungan sistem. **[B]** Aplikasi bisa meminta izin notifikasi setelah pesanan pertama.
@@ -287,6 +287,8 @@ Kesalahan: "Gagal menambah ke keranjang." **[V]**
 - Minimum pesanan depot dipenuhi (dihitung dari subtotal sebelum promo).
 - Stok dicadangkan.
 - Voucher sah, dan tidak dipakai bersama harga agen.
+
+**Baris Deposit galon hanyalah estimasi** (nilai per galon depot × jumlah galon, termasuk galon gratis). Baris itu tidak ditambahkan ke total dan tidak ikut ditagih lewat pembayaran pesanan; depot mencatat deposit atas nama Anda saat galon diantar. Bila nilai deposit depot tidak terbaca, baris disembunyikan. (sejak PR #664, 2026-10-14) **[V]** Penagihan deposit sungguhan belum dibangun; cara dan waktu pembayarannya masih menunggu keputusan pemilik. **[K]**
 
 Ongkir = biaya antar depot × jumlah **galon**; barang selain galon tidak menambah ongkir. Biaya antar sekarang sudah masuk total saat pesanan dibuat, walaupun teks "Biaya antar sekarang ditambahkan saat depot mengonfirmasi." **[B]**
 
@@ -327,7 +329,7 @@ Pesan Inggris di atas ditampilkan apa adanya dari server. **[B]** Tombol checkou
 - [ ] Total diperiksa
 
 ![Gambar 6.2 — Checkout](assets/screenshots/customer-05-checkout.png)
-*Gambar 6.2 — Halaman `/checkout`: empat baris berpanah — "Alamat pengiriman" (Rumah · Jl. Contoh No. 12, RT 03/RW 05), "Waktu pengiriman" (Secepatnya), "Metode pembayaran" (Bayar di tempat (COD)), "Voucher" (kosong) — dan bilah bawah "Ringkasan pesanan Rp 84.000" dengan tombol **Buat pesanan**. Layar dalam keadaan ringkas; rincian tiap baris tidak terlihat. Total Rp 84.000 = barang Rp 80.000 + ongkir Rp 4.000 (angka ini terlihat pada rincian pesanan, Gambar 6.5). Lingkungan uji lokal, data sintetis, 2026-10-11.*
+*Gambar 6.2 (diambil sebelum PR #664; kini ringkasan checkout juga bisa memuat baris "Deposit galon" — estimasi, belum masuk total — dan teks halaman produk "Pesan sebelum 16.00" sudah diganti) — Halaman `/checkout`: empat baris berpanah — "Alamat pengiriman" (Rumah · Jl. Contoh No. 12, RT 03/RW 05), "Waktu pengiriman" (Secepatnya), "Metode pembayaran" (Bayar di tempat (COD)), "Voucher" (kosong) — dan bilah bawah "Ringkasan pesanan Rp 84.000" dengan tombol **Buat pesanan**. Layar dalam keadaan ringkas; rincian tiap baris tidak terlihat. Total Rp 84.000 = barang Rp 80.000 + ongkir Rp 4.000 (angka ini terlihat pada rincian pesanan, Gambar 6.5). Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
 ![Gambar 6.2a — Lembar metode pembayaran](assets/screenshots/customer-05b-checkout-pembayaran.png)
 *Gambar 6.2a — Lembar "Metode pembayaran" di checkout: **Bayar di tempat (COD)** ("Bayar ke kurir saat pesanan tiba.", terpilih), **Transfer bank** ("Transfer manual, dikonfirmasi oleh depot."), **E-wallet** ("GoPay, OVO, DANA, dan lainnya."), **Virtual account** ("Bayar ke nomor rekening sekali pakai."), dan tombol **Selesai**. Opsi **QRIS** tidak tampil pada depot uji ini. Lingkungan uji lokal, 2026-10-11.*
@@ -439,7 +441,7 @@ Arti status dan banner:
 
 Pengantaran bisa dijadwalkan ulang oleh depot; status kembali ke Disiapkan dan Anda menerima notifikasi "Pengiriman dijadwalkan ulang". **[V]**
 
-**Membagikan tautan lacak:** tekan **Bagikan link lacak** (tersedia bila pesanan punya tautan). Siapa pun yang memegang tautan `/track?token=…` dapat melihat nomor pesanan, status, kota, perkiraan tiba, nama depan kurir, dan riwayat status. Nama, nomor telepon, dan alamat Anda tidak ikut tampil. **[V]** Halaman itu berlabel Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled). **[B]** Tautan tidak lengkap: "Tidak ada nomor lacak"; tautan salah: "Link tidak ditemukan" (minta tautan baru dari depot).
+**Membagikan tautan lacak:** tekan **Bagikan link lacak** (tersedia bila pesanan punya tautan). Siapa pun yang memegang tautan `/track?token=…` dapat melihat nomor pesanan, status, kota, perkiraan tiba, nama depan kurir, dan riwayat status. Nama, nomor telepon, dan alamat Anda tidak ikut tampil. **[V]** Riwayat status di halaman itu kini berlabel Indonesia, sama dengan rincian pesanan: Dipesan, Dikonfirmasi, Disiapkan, Kurir ditugaskan, Diambil kurir, Dalam perjalanan, Tiba, Selesai, Dibatalkan, serta Dibatalkan di kasir untuk penjualan kasir yang dibatalkan (sejak PR #664, 2026-10-14). **[V]** Tautan tidak lengkap: "Tidak ada nomor lacak"; tautan salah: "Link tidak ditemukan" (minta tautan baru dari depot).
 
 Kartu "sedang diantar" di beranda tampil untuk semua pesanan terbuka, termasuk yang baru dibuat. **[B]** Peta kurir langsung: Tidak tersedia (lihat bagian 15).
 
@@ -447,9 +449,9 @@ Kartu "sedang diantar" di beranda tampil untuk semua pesanan terbuka, termasuk y
 *Gambar 6.5 — Rincian pesanan dalam status **Selesai**: bilah kemajuan penuh (Dipesan, Disiapkan, Diambil, Diantar, Tiba), kartu kurir "Staf Depot Satu" dengan teks "Pesanan selesai — terima kasih!" dan tombol telepon, lalu Item, Subtotal Rp 80.000, Ongkir Rp 4.000, Total Rp 84.000. Kondisi berbeda dari keterangan placeholder: gambar menunjukkan pesanan yang sudah selesai, bukan sedang diantar. Nama kurir adalah data contoh sintetis. Lingkungan uji lokal, 2026-10-11.*
 
 ![Gambar 6.5a — Lacak pesanan lewat tautan publik](assets/screenshots/customer-09-lacak.png)
-*Gambar 6.5a — Halaman `/track` (tanpa masuk) untuk pesanan selesai: judul "Lacak Pesanan", nomor HM-20261011-1000000, status "Completed", kota "Jakarta Pusat", dan "Riwayat status": Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed (dengan jam). Token pada tautan tidak terlihat di gambar. Lingkungan uji lokal, data sintetis, 2026-10-11.*
+*Gambar 6.5a — Diambil sebelum PR #664: label status di gambar masih berbahasa Inggris; kini berbahasa Indonesia (Dipesan, Dikonfirmasi, Disiapkan, Kurir ditugaskan, Diambil kurir, Dalam perjalanan, Tiba, Selesai). Halaman `/track` (tanpa masuk) untuk pesanan selesai: judul "Lacak Pesanan", nomor HM-20261011-1000000, status "Completed", kota "Jakarta Pusat", dan "Riwayat status": Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed (dengan jam). Token pada tautan tidak terlihat di gambar. Lingkungan uji lokal, data sintetis, 2026-10-11.*
 
-**[B]** Terkonfirmasi pada uji: seluruh label status di `/track` berbahasa Inggris, sedangkan rincian pesanan (Gambar 6.5) berbahasa Indonesia. Arti: Order placed = Dipesan, Confirmed = Dikonfirmasi, Preparing = Disiapkan, Driver assigned = Kurir ditugaskan, Picked up = Diambil kurir, On the way = Dalam perjalanan, Delivered = Tiba, Completed = Selesai.
+Diperbaiki sejak PR #664 (2026-10-14): pada uji 2026-10-11 label di `/track` masih Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed). Kini kamus `order.status` dipakai bersama oleh `/track`, rincian pesanan, dan struk, sehingga labelnya seragam. **[V]** Label status pembayaran (PENDING, PAID, dst.) di rincian pesanan tidak berubah dan masih kode Inggris. **[B]**
 
 ### Prosedur: Melihat riwayat dan memesan lagi
 
@@ -581,7 +583,7 @@ Yang terjadi di belakang layar **[V]**: pembayaran dibatalkan atau di-refund leb
 
 Setelah kurir ditugaskan, tombol hilang dan layar menampilkan: "Kurir sudah ditugaskan, jadi pesanan tidak bisa lagi dibatalkan dari sini. Depot masih bisa menghentikannya." dengan tombol **Hubungi depot** (WhatsApp ke depot bila ada nomor). Aturan ini juga berlaku bila pesanan dijadwalkan ulang setelah kurir sempat ditugaskan. **[V]**
 
-Teks dialog menyebut "depot belum menyiapkan pesanan", padahal sistem mengizinkan pembatalan juga saat status Disiapkan. Syarat & Ketentuan Pasal 8 berbunyi lain (sebelum depot mulai menyiapkan). Jika ragu, hubungi depot sebelum membatalkan. **[B]**
+Syarat & Ketentuan Pasal 8 kini berbunyi "Kamu bisa membatalkan sebelum kurir ditugaskan; setelah itu pembatalan bergantung pada persetujuan depot" dan sesuai dengan aturan kode (sejak PR #664, 2026-10-14; berlaku sejak 14 Oktober 2026). **[V]** Sisa ketidakcocokan kecil: kalimat pengantar dialog masih berbunyi "Masih bisa dibatalkan karena depot belum menyiapkan pesanan.", padahal pembatalan juga diizinkan saat status Disiapkan. **[B]** Aturan yang berlaku adalah "sebelum kurir ditugaskan".
 
 | Pesan | Arti | Solusi |
 |---|---|---|
@@ -593,8 +595,9 @@ Pesanan juga bisa dibatalkan **otomatis** oleh sistem: bila belum dikonfirmasi l
 **Refund — yang perlu Anda ketahui:**
 - Anda tidak bisa mengajukan refund sendiri; refund mengikuti pembatalan atau diproses petugas. **[V]**
 - Refund sampai Rp100.000 (bawaan) diproses langsung; di atas itu perlu persetujuan kantor pusat lebih dulu. **[V][K]**
-- Cara dan waktu uang kembali **tidak terdokumentasi pasti**. QRIS dan transfer dibayar langsung ke depot, sehingga pengembalian dilakukan depot secara manual. FAQ menyebut "1–3 hari kerja ke sumber dana yang sama", tetapi tidak ada aturan kode yang menjamin itu. **[B][K]**
-- Status refund tidak tampil di layar pelanggan dan tidak ada notifikasi saat refund selesai. Hubungi depot atau ajukan komplain untuk menanyakan. **[B]**
+- Status refund kini tampil di **rincian pesanan**, di kartu pembayaran (sejak PR #664, 2026-10-14) **[V]**: "Refund {jumlah} sudah diproses. Sampai ke sumber dana dalam 1–3 hari kerja." (pembayaran berstatus REFUNDED); "Refund diajukan dan menunggu persetujuan pusat. Setelah disetujui, diproses 1–3 hari kerja." (persetujuan PENDING); "Pengajuan refund tidak disetujui. Hubungi depot bila ada pertanyaan." (persetujuan REJECTED). Teks dibaca dari data pembayaran yang sudah ada.
+- Janji "1–3 hari kerja" adalah teks layar dan FAQ; belum ada aturan kode yang menjamin waktu itu, karena QRIS dan transfer dibayar langsung ke depot dan pengembaliannya dilakukan depot secara manual. Cara dan waktu refund nyata masih menunggu keputusan pemilik. **[K]**
+- Tidak ada notifikasi saat refund selesai; periksa rincian pesanan. **[B]**
 
 > **[SCREENSHOT REQUIRED: SS-customer-10 — Dialog "Batalkan pesanan?" dengan empat pilihan alasan.]**
 > *Gambar 6.7 — Pembatalan pesanan.*
@@ -613,7 +616,7 @@ Bila teks syarat diperbarui, muncul banner "Syarat & kebijakan sudah diperbarui"
 
 Pesan: "Perangkat dikeluarkan.", "Semua perangkat dikeluarkan.", "Gagal mengeluarkan perangkat.", "Gagal keluar dari semua perangkat.", "Gagal memuat daftar perangkat.", "Tidak ada sesi aktif." "Persetujuan {tujuan} tidak dapat dicabut selama akun aktif. Ajukan penghapusan akun bila ingin berhenti sepenuhnya."
 
-**Deposit galon:** Kartu "Deposit galon" di Akun menampilkan per depot jumlah galon yang Anda pegang dan deposit yang ditahan ("Deposit kembali saat galon dikembalikan ke depot yang sama."). Bila kosong: "Belum ada galon yang Anda pegang." **[V]** Nilai deposit bawaan Rp20.000 per galon **[K]**. Layar keranjang dan checkout tidak menampilkan baris deposit, walaupun Syarat & Ketentuan menyatakan nilainya ditampilkan sebelum membayar; cara pembayaran deposit belum jelas. **[B][K]**
+**Deposit galon:** Kartu "Deposit galon" di Akun menampilkan per depot jumlah galon yang Anda pegang dan deposit yang ditahan ("Deposit kembali saat galon dikembalikan ke depot yang sama."). Bila kosong: "Belum ada galon yang Anda pegang." **[V]** Nilai deposit bawaan Rp20.000 per galon **[K]**. Checkout kini menampilkan estimasi deposit sebagai baris terpisah yang belum masuk total (sejak PR #664, 2026-10-14); keranjang tidak. **[V]** Syarat & Ketentuan Pasal 6 kini berbunyi bahwa depot mencatat deposit atas nama Anda saat galon diantar dan mengembalikannya saat galon kembali dalam keadaan utuh. Deposit belum benar-benar ditagih lewat pembayaran pesanan; cara pelanggan membayarnya masih menunggu keputusan pemilik. **[K]**
 
 ### Prosedur: Meminta salinan data atau menghapus akun (UU PDP)
 
@@ -631,7 +634,7 @@ Aturan penting **[V]**:
 - Keputusan dibuat manual oleh kantor pusat (Disetujui atau Ditolak dengan alasan). Status akhir: Selesai atau Ditolak. Tidak ada notifikasi saat diputuskan. **[B]**
 - Unduhan hanya berlaku **7 hari** sejak disetujui. Sebelum disetujui: "Ekspor data belum disetujui. Kirim permintaan dulu, kantor pusat akan meninjau." Setelah 7 hari: "Persetujuan ekspor sudah lewat 7 hari. Kirim permintaan baru untuk data terkini."
 - Penghapusan akun **tidak dapat dibatalkan**. Data pribadi (nama, nomor, email, foto, tanggal lahir, metode bayar tersimpan, favorit, nama dan nomor di alamat) dihapus atau disamarkan. Langganan dibatalkan. Catatan pesanan dan pembayaran tetap disimpan 10 tahun untuk kewajiban pajak, termasuk salinan nama dan nomor penerima di pesanan. Foto bukti antar disimpan paling lama 12 bulan.
-- Sebelum menghapus akun, pastikan tidak ada pesanan yang sedang berjalan atau refund yang ditunggu. Sistem tidak memeriksa pesanan aktif sebelum penghapusan. **[B]**
+- Penghapusan **ditolak bila akun masih punya pesanan yang belum selesai** (sejak PR #664, 2026-10-14). Pemeriksaan terjadi saat kantor pusat menyetujui permintaan hapus akun, bukan saat Anda mengirimnya. Pesan untuk petugas: "Akun ini masih punya {n} pesanan yang belum selesai. Tunggu pesanan selesai atau dibatalkan, atau minta Super Admin memaksa penghapusan." Bila pemeriksaan gagal terbaca, penghapusan juga ditolak (fail-closed). Permintaan Anda tetap menunggu sampai pesanan selesai atau dibatalkan; Super Admin dapat memaksa penghapusan, dan itu dicatat di audit. **[V]** Anda tidak diberi notifikasi atas penolakan ini. **[D]** Tetap pastikan tidak ada refund yang ditunggu sebelum meminta hapus akun.
 - Kesalahan: "Gagal mengirim permintaan." dan "Gagal mengunduh salinan data."
 
 Halaman publik `/hapus-akun` menjelaskan kebijakan ini. Halaman itu masih menyebut "tautan akun Google" padahal masuk dengan Google sudah dihapus, dan menghitung 3x24 jam sejak verifikasi, sementara aplikasi menghitung sejak permintaan dikirim. **[B]** Alamat surel privasi di halaman itu belum tentu dapat menerima surat (lihat bagian 8).
@@ -734,7 +737,7 @@ Untuk pelanggan, kegiatan berkala yang disarankan:
 
 **Skenario 4 — Langganan galon rutin.** Buka **Langganan**, pilih produk, jumlah 2, frekuensi Mingguan, tanggal besok, alamat bertitik peta, **Mulai langganan**. Jika bepergian, tekan **Jeda**; **Lanjutkan** saat kembali.
 
-**Skenario 5 — Menutup akun.** Buka **Akun** → **Data pribadi saya** → **Minta salinan data** dahulu bila perlu; setelah disetujui, **Unduh salinan data** dalam 7 hari. Pastikan tidak ada pesanan atau refund tertunda, lalu **Minta hapus akun**.
+**Skenario 5 — Menutup akun.** Buka **Akun** → **Data pribadi saya** → **Minta salinan data** dahulu bila perlu; setelah disetujui, **Unduh salinan data** dalam 7 hari. Selesaikan atau batalkan pesanan yang berjalan (penghapusan ditolak selama masih ada pesanan terbuka) dan pastikan tidak ada refund tertunda, lalu **Minta hapus akun**.
 
 ## 13. Daftar Periksa Penyelesaian
 
@@ -789,9 +792,9 @@ Gunakan akun dan nomor telepon contoh (sintetis) untuk semua tangkapan layar.
 | Pelacakan kurir real-time di peta | Tur: "Pantau kurir real-time" | Tidak tersedia. Yang ada: status, nama dan nomor kurir, perkiraan tiba, segar tiap 15 detik | [B] |
 | Mengubah alamat setelah memesan | FAQ: bisa dari halaman Lacak pesanan | Tidak tersedia. Batalkan lalu pesan ulang bila kurir belum ditugaskan | [B] |
 | Melewati (skip) satu jadwal langganan | Syarat & Ketentuan Pasal 10 | Tidak tersedia. Pakai **Jeda** dan **Lanjutkan** | [B] |
-| Melihat status refund | FAQ menyebut refund 1–3 hari kerja | Tidak ada tampilan status refund dan tidak ada notifikasi selesai | [B] |
-| Baris deposit galon di checkout | Syarat & Ketentuan Pasal 6: nilai deposit ditampilkan sebelum membayar | Tidak tampil di keranjang dan checkout | [B][K] |
-| Batas pesan "sebelum 16.00, tiba hari ini" | Teks halaman produk | Tidak ada aturan batas jam di sistem; teks tetap | [B] |
+| Melihat status refund | FAQ menyebut refund 1–3 hari kerja | Diperbaiki sejak PR #664 (2026-10-14): rincian pesanan menampilkan status refund dan janji 1–3 hari kerja. Notifikasi selesai tetap tidak ada; waktu nyata tetap bergantung proses depot | [V][K] |
+| Baris deposit galon di checkout | Syarat & Ketentuan Pasal 6 (diperbarui 2026-10-14): perkiraan deposit ditampilkan di layar pembayaran, terpisah dan belum termasuk total | Checkout menampilkan estimasi "Deposit galon" (belum ditagih, tidak masuk total); keranjang tidak. Penagihan deposit belum dibangun | [V][K] |
+| Batas pesan "sebelum 16.00, tiba hari ini" | Teks halaman produk lama | Dihapus sejak PR #664 (2026-10-14). Halaman produk kini berbunyi "Depot buka dan mengantar ke alamatmu — tiba hari ini, ±30 menit" (hanya bila depot buka dan melayani alamat Anda). Estimasi ±30 menit tetap teks tetap | [V] |
 | Estimasi "±30 mnt" / "±30–45 menit" | Beranda, keranjang, sukses pesanan | Teks tetap, bukan hitungan | [B] |
 | Jam jadwal pengiriman tersimpan sebagai tanggal | Pilihan tanggal di checkout | Tanggal tidak disimpan; hanya teks jam | [B] |
 | Tip untuk kurir | Pernah ada | Dihapus dari tampilan | Tidak tersedia |
@@ -804,7 +807,7 @@ Gunakan akun dan nomor telepon contoh (sintetis) untuk semua tangkapan layar.
 | Masa berlaku poin | "Hangus setelah 12 bulan tanpa aktivitas" | Kode: 12 bulan sejak diperoleh, dan penyapuan otomatis mati secara bawaan | [B][K] |
 | Belanja sebagai tamu | — | Tidak tersedia; masuk wajib untuk keranjang dan checkout | Tidak tersedia |
 | Nama pendaftaran | Formulir `/register` memiliki kolom Nama lengkap | Pada uji 2026-10-11 nama tidak tersimpan/tampil: Akun menampilkan "—" dan avatar "?" | [B] |
-| Label status di `/track` | Rincian pesanan berbahasa Indonesia | `/track` berbahasa Inggris (Completed, Order placed, dst.) | [B] |
+| Label status di `/track` | Rincian pesanan berbahasa Indonesia | Diperbaiki sejak PR #664 (2026-10-14): `/track` kini memakai label Indonesia yang sama | [V] |
 | Hitung mundur kirim ulang | "Kirim ulang dalam {n}d" | Singkatan "d" (detik) tidak dijelaskan | [B] |
 | Jumlah di keranjang | Tombol Tambah ke keranjang | Penambahan berulang menumpuk jumlah (4 galon pada uji) | [B] |
 | Lencana "Member Rp …" di katalog | Tier REGULAR diskon 0% | Lencana tampil pada akun REGULAR dengan potongan sekitar 2% | [D][K] |
@@ -814,9 +817,9 @@ Gunakan akun dan nomor telepon contoh (sintetis) untuk semua tangkapan layar.
 
 1. Nilai per depot: minimum pesanan, ongkir per galon, biaya antar sekarang, jam jadwal, radius layanan, diskon langganan. **[K]**
 2. Cara dan waktu refund untuk tunai, transfer, dan QRIS. **[K]**
-3. Cara pelanggan membayar dan mendapatkan kembali deposit galon. **[K]**
+3. Cara pelanggan membayar dan mendapatkan kembali deposit galon (estimasi sudah tampil di checkout, penagihan belum dibangun). **[K]**
 4. Ketersediaan e-wallet dan virtual account di produksi. **[K]**
-5. Apakah penghapusan akun perlu diblokir bila ada pesanan aktif. **[B]**
+5. ~~Apakah penghapusan akun perlu diblokir bila ada pesanan aktif.~~ Diputuskan pemilik 2026-10-14: ditolak, Super Admin dapat memaksa. Dibangun (sejak PR #664). Yang masih terbuka: prosedur pemulihan bila Super Admin satu-satunya hilang. **[K]**
 6. Surel `privacy@hydromart-digital.com`: per 2026-09-25 domain tidak memiliki catatan MX sehingga surat berisiko tidak sampai. Cek ulang sebelum mencantumkannya ke pelanggan. **[B]**
 7. Pesan Inggris yang masih tampil ke pelanggan (checkout, voucher, hadiah, langganan, alamat) perlu diterjemahkan. **[B]**
 8. Daftar browser dan perangkat resmi. **[K]**

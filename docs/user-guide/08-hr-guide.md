@@ -185,7 +185,7 @@ Kolom "Tanggal keluar (kosongkan bila masih bekerja)" dan "Status" (Aktif/Nonakt
 3. Mencatat riwayat kepegawaian "Direkrut".
 4. Bila layanan autentikasi tidak tersedia, penyimpanan gagal total.
 
-**Peran yang boleh diberikan HR (`HR_MANAGED_ROLES`):** Staf Depot / Kurir (`STAFF_DEPOT`), Kepala Depot (`KEPALA_DEPOT`), Asisten Supervisor (`ASSISTANT_SUPERVISOR`), Supervisor (`SUPERVISOR`), Manager (`MANAGER`). Peran lain (`HEAD_OFFICE`, `FINANCE`, `HR`, `MARKETING`, `DIREKTUR`, `SUPER_ADMIN`, `FRANCHISE_OWNER`) **tidak bisa** diberikan lewat formulir ini; diberikan di konsol HQ "Direktori staf" oleh yang berwenang. **[V]**
+**Peran yang boleh diberikan HR (`HR_MANAGED_ROLES`):** Staf Depot / Kurir (`STAFF_DEPOT`), Kepala Depot (`KEPALA_DEPOT`), Asisten Supervisor (`ASSISTANT_SUPERVISOR`), Supervisor (`SUPERVISOR`), Manager (`MANAGER`). Peran lain (`HEAD_OFFICE`, `FINANCE`, `HR`, `MARKETING`, `DIREKTUR`, `SUPER_ADMIN`, `FRANCHISE_OWNER`) **tidak bisa** diberikan lewat formulir ini; diberikan di konsol HQ "Direktori staf" oleh yang berwenang. **[V]** Siapa yang berwenang kini lebih sempit (sejak PR #664, 2026-10-14): Kantor pusat hanya boleh memberikan lima peran (Staf Depot, Kepala Depot, Asisten Supervisor, Supervisor, Pemilik waralaba). `HEAD_OFFICE`, `DIREKTUR`, `FINANCE`, `HR`, `MARKETING`, dan `SUPER_ADMIN` hanya dapat diberikan Admin; `MANAGER` hanya Admin atau HR **[V]** (`RESTRICTED_GRANTS`; pilihan yang tidak boleh disembunyikan dari formulir Kantor pusat di "Direktori staf").
 
 **Aturan pemberian `MANAGER`:** hanya Admin dan HR yang boleh. `HEAD_OFFICE` dan `DIREKTUR` memegang `hrAdmin` tetapi **ditolak** saat mencoba memberikan Manager (keputusan pemilik produk 2026-09-11). Dropdown tetap menampilkan Manager kepada semua pemegang `hrAdmin`, jadi penolakan baru muncul dari server. **[V][B]**
 
@@ -199,7 +199,8 @@ Kolom "Tanggal keluar (kosongkan bila masih bekerja)" dan "Status" (Aktif/Nonakt
 | "NIK harus 16 digit angka." | NIK salah panjang/bukan angka. | Perbaiki. |
 | "Akhir kontrak tidak boleh sebelum tanggal masuk." / "Tanggal keluar tidak boleh sebelum tanggal masuk." | Urutan tanggal salah. | Perbaiki tanggal. |
 | "Gagal menyimpan." | Kegagalan umum; pesan server tampil bila ada. | Baca pesan; coba lagi. |
-| "auth-service menolak permintaan (403)" atau "Gagal menghubungi auth-service: …" | Layanan autentikasi menolak (mis. peran tidak boleh Anda berikan, depot wajib). Pesan jelas dari autentikasi **tidak** diteruskan ke HR. | Periksa peran yang dipilih (Manager hanya HR/Admin) dan depot; bila tetap gagal, minta Admin. **[V][B]** |
+| Alasan dari layanan autentikasi, mis. "Peran MANAGER hanya boleh diberikan oleh SUPER_ADMIN atau HR." (sejak PR #664, 2026-10-14) | Layanan autentikasi menolak dengan status 4xx selain 401 dan menyertakan kalimat alasan; HR kini meneruskan kalimat itu apa adanya (sebagai kesalahan 400). Contoh: peran tidak boleh Anda berikan, depot wajib. Dahulu HR hanya menampilkan "auth-service menolak permintaan (403)" **[B, diperbaiki]**. | Baca alasannya dan perbaiki peran atau depot; bila tetap gagal, minta Admin. **[V]** |
+| "auth-service menolak permintaan ({status})" atau "Gagal menghubungi auth-service: …" | Masih muncul bila autentikasi menjawab 401 (kunci layanan salah; dianggap gangguan), 5xx, atau 4xx tanpa kalimat alasan yang terbaca. | Coba lagi; bila berulang, hubungi Admin. **[V]** |
 | "Departemen {kode} milik depot lain" / "Departemen tidak ditemukan" | Departemen tidak cocok depot. | Pilih departemen depot yang sama atau lintas depot. |
 
 **Hasil akhir:** Kartu karyawan dan akun login ada. Karyawan masuk lewat OTP ke nomor yang didaftarkan.
@@ -932,7 +933,7 @@ Hasil impor: "N dibuat", "N diperbarui", "N dilewati", "N gagal". Tidak semua ha
 | Tombol "+ Tambah"/"Import Excel" tidak ada | Tanpa `hrAdmin`. | Minta Admin meninjau hak akses. |
 | Tidak bisa memilih peran selain lima | Hak HR terbatas (`HR_MANAGED_ROLES`). | Minta Kantor pusat/Admin di "Direktori staf". |
 | Memilih Manager ditolak | Pembuat bukan HR/Admin. | Minta HR atau Admin. |
-| "auth-service menolak permintaan (403)" | Pesan sebenarnya dari layanan autentikasi tidak diteruskan. | Cek peran dan depot; hubungi Admin. |
+| Penolakan dari layanan autentikasi | Sejak PR #664 (2026-10-14) alasan 4xx dari autentikasi ditampilkan apa adanya; "auth-service menolak permintaan ({status})" hanya untuk 401, 5xx, atau 4xx tanpa alasan. | Baca alasannya; cek peran dan depot; hubungi Admin bila perlu. |
 | Payroll tidak bisa dibuat | Bulan belum berakhir / Resign tanpa Tanggal keluar. | Tunggu tanggal 1 bulan berikut / isi Tanggal keluar. |
 | Karyawan keluar tidak ikut batch | Batch hanya karyawan Aktif. | Pakai "Generate" per karyawan. |
 | Cuti tidak bisa dilanjutkan | Pemutus tahap 2 sama dengan tahap 1, atau memutuskan cuti sendiri. | Pakai akun lain. |
@@ -947,8 +948,8 @@ Hasil impor: "N dibuat", "N diperbarui", "N dilewati", "N gagal". Tidak semua ha
 | Tidak bisa dilakukan HR | Alasan | Siapa yang bisa |
 |---|---|---|
 | Mengundang, memindahkan, menonaktifkan, menghapus staf di "Direktori staf" | Butuh `staffAdmin` (`HEAD_OFFICE`, `SUPER_ADMIN`) atau `staffDelete` (Admin saja). HR tidak punya akses ke `/hq/staff`. | Kantor pusat / Admin |
-| Memberikan peran selain lima peran HR | Konstanta kode. | Kantor pusat (peran tak terbatas), Admin (semua) |
-| Memberikan peran `HR`, `FINANCE`, `DIREKTUR`, `MARKETING`, `SUPER_ADMIN` | `RESTRICTED_GRANTS`. | Admin saja |
+| Memberikan peran selain lima peran HR | Konstanta kode. | Kantor pusat (hanya Staf Depot, Kepala Depot, Asisten Supervisor, Supervisor, Pemilik waralaba; sejak PR #664, 2026-10-14), Admin (semua) |
+| Memberikan peran `HR`, `FINANCE`, `DIREKTUR`, `MARKETING`, `HEAD_OFFICE`, `SUPER_ADMIN` | `RESTRICTED_GRANTS` (`HEAD_OFFICE` ditambahkan sejak PR #664, 2026-10-14). | Admin saja |
 | Mengatur atasan/garis pelaporan | `hierarchyAdmin`. | Admin (`/hq/hierarchy`) |
 | Mengubah matriks hak akses | `accessMatrixWrite`. | Admin |
 | Mengubah default GLOBAL konfigurasi gaji | `settingsGlobal`. | Admin |
@@ -956,7 +957,8 @@ Hasil impor: "N dibuat", "N diperbarui", "N dilewati", "N gagal". Tidak semua ha
 | Mengajukan permintaan pinjam karyawan | `employeeAssignRequest` hanya Manager dan Supervisor. | Manager / Supervisor |
 | Memutuskan kasbon bila depot punya Asisten Supervisor | Aturan server. | Asisten Supervisor depot itu |
 | Menyelesaikan kedua tahap cuti sendirian | Pemisahan tugas. | Dua akun berbeda |
-| Membatalkan persetujuan payroll | Tidak ada langkah mundur. | Tidak tersedia |
+| Membatalkan persetujuan payroll | Hanya Admin (`SUPER_ADMIN`), dengan alasan tertulis, dan hanya selama slip berstatus Disetujui; tidak bisa setelah Dibayar (sejak PR #664, 2026-10-14). | Admin (lihat Prosedur 6.12 bagian C) |
+| Menyetujui slip yang Anda buat sendiri | Pemisahan tugas payroll (sejak PR #664, 2026-10-14); Admin dikecualikan. | Orang lain dengan `hrPayroll`, atau Admin |
 | Menggerakkan uang gaji | "Tandai Dibayar" hanya status. | Transfer bank oleh keuangan |
 
 ### 9.1 HR vs Admin
@@ -969,16 +971,18 @@ Hasil impor: "N dibuat", "N diperbarui", "N dilewati", "N gagal". Tidak semua ha
 | Memberi peran login: Staf Depot, Kepala Depot, Asisten Supervisor, Supervisor | Ya (lewat jabatan) | Ya |
 | Memberi peran `MANAGER` | Ya | Ya |
 | Memberi peran `HR`, `DIREKTUR`, `FINANCE`, `MARKETING`, `SUPER_ADMIN` | **Tidak** | Ya (satu-satunya) |
-| Memberi peran `HEAD_OFFICE`, `FRANCHISE_OWNER` | Tidak (di luar lima peran HR) | Ya, juga Kantor pusat |
-| Mengundang staf lewat "Direktori staf" (`/hq/staff`) | **Tidak ada akses** | Ya (juga Kantor pusat) |
+| Memberi peran `FRANCHISE_OWNER` | Tidak (di luar lima peran HR) | Ya, juga Kantor pusat |
+| Memberi peran `HEAD_OFFICE` | Tidak | Ya (satu-satunya; Kantor pusat tidak bisa membuat sesama Kantor pusat, keputusan pemilik 2026-10-14) |
+| Mengundang staf lewat "Direktori staf" (`/hq/staff`) dan `/dashboard/staff` | **Tidak ada akses** | Ya (juga Kantor pusat, terbatas lima peran; kedua halaman memakai formulir undang HQ yang sama sejak PR #664, 2026-10-14) |
 | Menonaktifkan/mengaktifkan akun di "Direktori staf" | Tidak (tetapi Status karyawan di HR menyalakan/mematikan login) | Ya |
 | Menghapus akun staf permanen (`staffDelete`) | Tidak | Ya |
 | Mengatur atasan/hierarki (`/hq/hierarchy`) | Tidak | Ya |
 | Mengubah matriks "Peran & hak akses" (`/hq/access`) | Tidak | Ya |
-| Menjalankan payroll (hasilkan, setujui, bayar) | Ya (`hrPayroll`) | Ya |
+| Menjalankan payroll (hasilkan, setujui, bayar) | Ya (`hrPayroll`); tidak boleh menyetujui slip yang ia buat sendiri | Ya (Admin dikecualikan dari larangan itu) |
+| Membatalkan persetujuan payroll (Disetujui kembali ke Draft) | **Tidak** | Ya (satu-satunya, alasan wajib; tidak bisa setelah Dibayar) |
 | Tunjangan | Ya | Ya |
 | Keputusan cuti tahap 1 / tahap 2 | Ya (akun berbeda per tahap) | Ya |
-| Keputusan kasbon | Ya (kecuali depot punya Asisten Supervisor) | Ya |
+| Keputusan kasbon | Ya (kecuali depot punya Asisten Supervisor); pengajuan lewat 3 hari kerja kedaluwarsa | Ya |
 | Penugasan lintas depot; mundur tanggal | Ya; mundur tanggal ya | Ya; mundur tanggal ya |
 | Konfigurasi gaji: override depot | Ya (`hrAdmin`) | Ya |
 | Konfigurasi gaji: default GLOBAL | **Tidak** | Ya (satu-satunya) |
@@ -986,7 +990,7 @@ Hasil impor: "N dibuat", "N diperbarui", "N dilewati", "N gagal". Tidak semua ha
 | Log audit sistem (`/hq/audit`) | Tidak (tidak punya akses HQ) | Ya |
 | Hak akses dapat diubah saat berjalan | Tidak | Ya |
 
-Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `staffAdmin`, tetapi tidak menjalankan payroll dan tidak memberi `MANAGER`. **[V]**
+Kantor pusat (`HEAD_OFFICE`) berada di antara keduanya: memegang `hrAdmin` dan `staffAdmin`, tetapi tidak menjalankan payroll dan tidak memberi `MANAGER`; sejak PR #664 (2026-10-14) juga tidak dapat memberi `HEAD_OFFICE`, `DIREKTUR`, `FINANCE`, `HR`, `MARKETING`, atau `SUPER_ADMIN`. **[V]**
 
 > **Catatan hak akses.** Nilai bawaan dari `packages/access/src/index.ts`. Admin dapat mengubahnya saat berjalan (sekitar 30 detik). Aturan pemberian peran (`RESTRICTED_GRANTS`, `HR_MANAGED_ROLES`) adalah kode tetap dan tidak ikut berubah.
 
