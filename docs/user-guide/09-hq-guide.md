@@ -48,7 +48,7 @@ Finance lolos pintu /hq, tetapi beberapa halaman Finance memuat data dari layana
 
 | Peran | Tanggung jawab bawaan |
 |---|---|
-| Head office | Memantau kesehatan jaringan; mengundang dan menonaktifkan staf (kecuali peran terbatas); memproses lamaran waralaba; memutuskan usulan override harga; memproses permintaan data pribadi UU PDP; mengelola katalog produk; mengatur pajak dan faktur; membuka kembali buku harian depot. |
+| Head office | Memantau kesehatan jaringan; mengundang staf (kecuali peran terbatas) dan menonaktifkan atau mengaktifkan akun staf (server tidak membatasi peran yang dinonaktifkan, selain akun sendiri dan Super admin terakhir); memproses lamaran waralaba; memutuskan usulan override harga; memproses permintaan data pribadi UU PDP; mengelola katalog produk; mengatur pajak dan faktur; membuka kembali buku harian depot. |
 | Direktur | Memantau jaringan; memutuskan override harga dan lamaran waralaba; menyetujui atau menolak pengajuan rilis payout (bukan pengaju); mengelola insiden, tiket, dan fraud; membaca laporan. Tidak memegang pengelolaan staf, katalog, pajak, maupun permintaan UU PDP. |
 | Finance | Mengajukan rilis payout; memverifikasi rekening tujuan; menandai penarikan Lunas atau Gagal; memutuskan refund; menerapkan skema komisi; mengatur pajak dan faktur. |
 
@@ -316,7 +316,7 @@ Penolakan server: "Peran {ROLE} hanya boleh diberikan oleh {A atau B}." (contoh:
 
 **Aksi lain pada baris staf (hanya Head office dan Super admin):**
 - "Depot penempatan": pemilih untuk Staf depot, Kepala depot, Asisten SPV, SPV, Manajer. Konfirmasi "Pindahkan {name} ke {depot}?" Gagal: "Gagal memindahkan depot." Kartu karyawan ikut pindah. Depot yang terlihat oleh Manajer dan SPV ditentukan hierarki (Bab 10), bukan kolom ini.
-- "Nonaktifkan" / "Aktifkan": **tanpa konfirmasi**. Kartu karyawan ikut berubah. Gagal: "Gagal mengubah status akun." Sejak PR #664 (2026-10-14), menonaktifkan akun mencabut SEMUA refresh token akun itu, sehingga sesi tidak bisa diperpanjang. Access token yang sudah terbit tetap berlaku sampai masa berlakunya habis (sekitar 15 menit), karena tidak ada pengecekan status per permintaan **[V]** (`account.service.ts` `applyActive`; komentar kode menyatakan hal yang sama). Penolakan baru: menonaktifkan akun sendiri ("Akun sendiri tidak bisa dinonaktifkan.") dan menonaktifkan Super admin terakhir ("Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.") **[V]**. Penangguhan depot belum mencabut sesi stafnya (masih keputusan terbuka **[K]**).
+- "Nonaktifkan" / "Aktifkan": **tanpa konfirmasi**. Kartu karyawan ikut berubah. Gagal: pesan dari server bila ada (misalnya penolakan di bawah), selain itu "Gagal mengubah status akun." Sejak PR #664 (2026-10-14), menonaktifkan akun mencabut SEMUA refresh token akun itu, sehingga sesi tidak bisa diperpanjang. Access token yang sudah terbit tetap berlaku sampai masa berlakunya habis (sekitar 15 menit), karena tidak ada pengecekan status per permintaan **[V]** (`account.service.ts` `applyActive`; komentar kode menyatakan hal yang sama). Penolakan baru: menonaktifkan akun sendiri ("Akun sendiri tidak bisa dinonaktifkan.") dan menonaktifkan Super admin terakhir ("Ini super admin terakhir. Angkat super admin lain dulu sebelum menonaktifkan.") **[V]**. Penangguhan depot belum mencabut sesi stafnya (masih keputusan terbuka **[K]**).
 - "Hapus": hanya Super admin (Bab 10).
 - Tautan kuning "Belum ada data karyawan — buatkan" bila akun belum punya kartu karyawan di HR.
 
@@ -404,7 +404,7 @@ Hanya tombol "Setujui & rilis" dan "Tolak" yang disaring per peran di layar. Tom
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
 | 1 | Buka halaman. Periksa tiap baris: "Pesanan {nomor}", metode, alasan pemohon, "{n} jam lalu", jumlah. | Lencana "{n} menunggu". Kosong: "Tidak ada refund menunggu persetujuan." |
-| 2 | Tekan "Setujui". | **Satu klik tanpa konfirmasi**: refund langsung diselesaikan (metode online memanggil gerbang pembayaran). Toast "Refund {order} disetujui". Gagal: "Gagal memproses refund." |
+| 2 | Tekan "Setujui". | **Satu klik tanpa konfirmasi**: refund langsung diselesaikan (metode online memanggil gerbang pembayaran). Toast "Refund {order} disetujui". Gagal: pesan dari server bila ada, selain itu "Gagal memproses refund." |
 | 3 | Atau tekan "Tolak". | Dialog "Tolak refund ini?" — "… alasannya wajib ditulis dan tercatat atas nama Anda." Isi "Alasan penolakan" (wajib). Tekan "Tolak". Toast "Refund {order} ditolak". Pembayaran tetap PAID. |
 
 **Pengecualian:** Tombol "Tolak" tidak muncul untuk pesanan dibatalkan; tertulis "Pesanan dibatalkan — refund wajib dikembalikan" atau "Status pesanan tidak terbaca — coba muat ulang". Server: "Pesanan ini sudah dibatalkan, jadi refundnya tidak bisa ditolak — uang pelanggan harus dikembalikan."
@@ -490,7 +490,7 @@ Untuk Finance, halaman ini adalah pendaratan tetapi memuat daftar depot yang but
 | 2 | Baca baris: "Total penjualan"; "Biaya platform (x%)" (negatif); "Ongkir tertagih (sudah termasuk total penjualan)" (catatan, bukan penjumlah); "Refund periode ini" (negatif); "Dasar komisi (barang sebelum diskon)" (catatan); "Komisi waralaba (x%)" (negatif; atau "Komisi (belum ada skema)" / "Komisi (skema tidak terbaca)"); "Deposit galon" (negatif); bilah hijau "Net payout ke pemilik". | Net = penjualan − biaya platform − komisi − refund − deposit galon. Nilai tak terbaca ditulis "—" (bukan nol). Tanpa data: "Belum ada data penjualan untuk depot ini." |
 | 3 | Tekan "Unduh XLSX". | Berkas `rekonsiliasi-{kodeDepot}.xlsx`, sheet "Rekonsiliasi", kolom "Komponen" dan "Jumlah (IDR)". Toast "Berkas rekonsiliasi terunduh" atau "Gagal membuat berkas." Sel tak diketahui dikosongkan, bukan 0. |
 
-**Temuan [B][V]:** "Biaya platform" hanya dibaca bila peran memegang `depotAdmin` (Manajer, Super admin). Bagi Head office, Direktur, dan Finance nilainya "—", sehingga **"Net payout ke pemilik" selalu "—"**. Jangan mengambil kesimpulan "nol" dari tanda ini. Komisi dihitung dari subtotal barang sebelum diskon, bukan total penjualan.
+**Temuan [B][V]:** "Biaya platform" hanya dibaca bila peran memegang `depotAdmin` (Manajer, Super admin). Bagi Head office, Direktur, dan Finance nilainya "—" (layar tidak memintanya; server sebenarnya mengizinkan pembacaan setelan lewat `settingsRead`, tetapi layar masih memakai `depotAdmin`), sehingga **"Net payout ke pemilik" selalu "—"**. Jangan mengambil kesimpulan "nol" dari tanda ini. Komisi dihitung dari subtotal barang sebelum diskon, bukan total penjualan.
 
 ### 6.13 Laba rugi jaringan (/hq/pnl)
 
@@ -713,7 +713,7 @@ Dua pengaturan ini dimiliki Head office, tetapi **tidak ada di /hq**; letaknya d
 
 | Langkah | Tindakan pengguna | Respons sistem yang diharapkan |
 |---|---|---|
-| 1 | Buka /dashboard/settings. Pilih cakupan "Default jaringan" atau "Depot tertentu". | Bagi peran selain Manajer dan Super admin tampil "Khusus manajer depot — Editor pengaturan hanya untuk manajer depot dan super admin." |
+| 1 | Buka /dashboard/settings. Pilih cakupan "Default jaringan" atau "Depot tertentu". | Bagi peran selain Manajer dan Super admin tampil "Akses terbatas — Editor pengaturan hanya untuk manajer depot dan super admin." |
 | 2 | Cari "Batas auto-pass approval" (Rp, 0–100.000.000, bawaan Rp100.000 **[K]**). Isi "Nilai", tekan "Simpan". "Ikut default" mengembalikan nilai bawaan. | Tersimpan dan tercatat di audit. Cakupan "Default jaringan" butuh Super admin: "Hanya SUPER_ADMIN yang dapat mengubah default global." |
 
 **Mengapa Head office tidak bisa:** halaman diblokir untuk selain pemegang `depotAdmin`, dan server membutuhkan `depotAdmin` ditambah `approvalThresholdWrite`. Head office hanya memegang yang kedua. Minta Admin mengubahnya. Pengaju tidak boleh memutuskan persetujuannya sendiri.
