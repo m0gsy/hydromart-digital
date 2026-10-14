@@ -135,7 +135,7 @@ Tidak ada 2FA tambahan untuk staf selain OTP login. **[V]** Menonaktifkan akun m
 
 | Tugas | Peran | Di mana | Ringkas | Catatan |
 |---|---|---|---|---|
-| Proses pesanan | KD, SPV, ASPV, MGR | Antrean → Proses | Lanjut ke Confirmed → Lanjut ke Preparing | Pembayaran online otomatis Dikonfirmasi; COD tetap Dipesan sampai staf konfirmasi |
+| Proses pesanan | KD, SPV, ASPV, MGR | Antrean → Proses | Lanjut ke Dikonfirmasi → Lanjut ke Disiapkan | Pembayaran online otomatis Dikonfirmasi; COD tetap Dipesan sampai staf konfirmasi |
 | Konfirmasi bayar | KD, MGR (staf kurir untuk COD) | Detail pesanan → Konfirmasi lunas | Isi "Uang tunai diterima" bila tunai | Hanya status PENDING |
 | Tugaskan kurir | KD, SPV, ASPV, MGR | Antrean → Tugaskan | Pilih kurir Tersedia | Kurir harus punya shift terbuka; bawaan 1 tugas aktif |
 | Penjualan konter | KD, MGR | Penjualan | Buka shift → pilih produk → metode → Simpan & cetak struk | Wajib shift terbuka |
@@ -176,7 +176,7 @@ Label dikutip dari kamus bahasa Indonesia bila ada. **(label ID belum ada)** = t
 | CANCELLED | Dibatalkan | Pembayaran dibalik, stok dilepas |
 | VOIDED | Dibatalkan di kasir | Penjualan konter dibatalkan |
 
-Catatan (sejak PR #664, 2026-10-14): label status pesanan di layar staf, `/track` (enam halaman) dan struk kini berbahasa Indonesia seperti tabel di atas, dari kamus `order.status.*` **[V]**. Sebelumnya layar menampilkan label Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled, Voided at the counter); tangkapan layar lama mungkin masih menunjukkannya.
+Catatan (sejak PR #664, 2026-10-14): label status pesanan di halaman yang memakai `statusLabel` (antrean pesanan, rincian pesanan staf, pesanan HQ, `/track`) dan struk kini berbahasa Indonesia seperti tabel di atas, dari kamus `order.status.*` **[V]**. Sebelumnya layar menampilkan label Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled, Voided at the counter); tangkapan layar lama mungkin masih menunjukkannya.
 
 ### 4.2 Pembayaran dan refund
 

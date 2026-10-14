@@ -9,6 +9,8 @@
 | **Klasifikasi** | Internal — Terbatas (boleh dibagikan ke semua pengguna platform) |
 | **Bahasa** | Indonesia |
 
+> **Pembaruan 2026-10-14 (sejak PR #664).** Bab ini dicocokkan ulang dengan kode setelah PR #664 digabung (`docs/OPEN_GAPS_DECISIONS_2026-10.md`): label status pesanan kini berbahasa Indonesia, penonaktifan akun mencabut token penyegar, dan beberapa catatan [B] diubah. Perubahan ditandai "(sejak PR #664)". Pembacaan kode, bukan uji peramban.
+
 > **Catatan status dokumen.** Dokumen ini disusun dari pembacaan kode dan dokumen repositori. Belum ada pengujian yang dijalankan oleh penulis dokumen ini. Setiap klaim penting diberi tag bukti:
 > **[V]** terverifikasi di kode · **[D]** disimpulkan, perlu konfirmasi · **[K]** perlu konfirmasi bisnis (nilainya berasal dari data/pengaturan) · **[B]** diketahui bermasalah atau tidak konsisten.
 > Fitur yang tidak ada ditulis "Tidak tersedia".
@@ -238,6 +240,7 @@ Di konsol staf, tombol **Keluar** ada di rel menu dan bilah bawah konsol depot, 
 | Token penyegar | 30 hari | **[V]** (`JWT_REFRESH_TTL` 2.592.000 detik) |
 | Batas diam (idle) | Diatur kantor pusat. Komentar kode menyebut bawaan 15 menit. Nol atau kosong berarti tanpa batas. Halaman `/hq/login` menampilkan teks "Sesi berakhir otomatis 15 menit" | **[K]** Nilai produksi belum diketahui; teks layar belum tentu sama dengan pengaturan |
 | Penggunaan ulang token lama | Seluruh keluarga sesi dicabut demi keamanan | **[V]** |
+| Akun dinonaktifkan (sejak PR #664, 2026-10-14) | Saat login akun dimatikan (staf, karyawan lewat HR, pelanggan), semua token penyegar dicabut sehingga sesi tidak bisa diperpanjang. Token akses yang sudah terbit tetap berlaku sampai habis (maksimal 15 menit) | **[V]** `account.service.ts`; apakah 15 menit ini diterima atau perlu ditutup: **[K]** |
 
 Bila sesi habis, Anda akan diminta masuk lagi. Sesi staf yang habis dikembalikan ke pintu masuk staf (`/hq/login`, atau `/login` bila pintu itu tidak ada di aplikasi). **[V]** (`staffDoor`)
 
@@ -312,7 +315,7 @@ Halaman `/dashboard` memilih tampilan menurut peran **[V]** (`dashboardLandingVi
 
 ### 9.3 Jalan pintas dan "Kembali ke konsol"
 
-Tombol di layar akses ditolak berlabel **Kembali ke halaman saya** dan membawa Anda ke halaman awal peran Anda. **[V]** Teks layar itu berjudul "Khusus HQ" dan menyebut "Konsol Admin & Super Admin hanya untuk head office dan super admin", walaupun layar yang sama juga dipakai konsol HR. **[B]** Abaikan judul bila Anda berada di konsol HR.
+Tombol di layar akses ditolak berlabel **Kembali ke halaman saya** dan membawa Anda ke halaman awal peran Anda. **[V]** Teks layar itu berjudul "Khusus HQ" dan menyebut "Konsol Admin & Super Admin hanya untuk head office dan super admin", walaupun layar yang sama juga dipakai konsol HR. **[B]** Abaikan judul bila Anda berada di konsol HR. Sejak PR #664 (2026-10-14), layar konsol depot yang dulu berjudul "Khusus Manajer depot" kini berjudul "Akses terbatas". **[V]**
 
 Notifikasi staf punya umpan sendiri menurut konsol (`/hq/notifications`, `/dashboard/notifications`, `/m/manager/notifications`). Kurir tidak punya umpan operasional dan diarahkan ke aplikasi kurir. `/notifications` hanya untuk pelanggan. **[V]** (`notificationHome`)
 
@@ -346,7 +349,7 @@ Layar kosong menampilkan teks penjelas, misalnya "Tidak ada notifikasi" dengan "
 |---|---|---|
 | SMS (kode OTP) | Aktif lewat penyedia SMS | **[V]** |
 | Kotak masuk dalam aplikasi (`/notifications`) dan push (FCM/Web Push) | Aktif untuk pelanggan; push dapat dimatikan per pelanggan | **[V]** `crm-service` |
-| WhatsApp transaksional | Dihapus. Kampanye pemasaran masih memakai WhatsApp menurut komentar kode | **[V]** |
+| WhatsApp transaksional | Dihapus. Kampanye pemasaran masih memakai WhatsApp menurut komentar kode. Sisa konfigurasi WhatsApp di berkas contoh `.env` auth-service dan crm-service dihapus sejak PR #664 (2026-10-14) | **[V]** |
 | Email | Tidak tersedia (PRD §27 menyebut email, belum diterapkan) | **[V]** |
 
 Push di aplikasi Android memakai FCM karena Web Push tidak berfungsi di WebView. Izin notifikasi Android 13+ diminta setelah pesanan pertama, bukan saat aplikasi pertama dibuka. **[V]** (`MOBILE_PLAY_STORE.md`)
@@ -388,7 +391,7 @@ PENDING (menunggu), PAID (lunas), FAILED (gagal), CANCELLED (dibatalkan), REFUND
 
 Semua label dikutip dari kamus bahasa (`profile.ts`, `help.ts`, `subscriptions.ts`, `hrFix.ts`, `hq.ts`). **[V]**
 
-Halaman pelacakan publik `/track` menampilkan label status berbahasa Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled). **[B]** Terlihat langsung pada lingkungan uji 2026-10-11 (judul "Lacak Pesanan", status "Completed", riwayat "Order placed" sampai "Completed"; lihat Gambar 6.5a di Panduan Pelanggan), sedangkan rincian pesanan pelanggan berbahasa Indonesia (Dipesan, Disiapkan, Diambil, Diantar, Tiba, Selesai). Di konsol staf, label status dan pembayaran juga sempat tampil dalam bahasa Inggris pada uji yang sama (mis. "Order placed", "Confirmed", "PENDING", "CASH"). **[B]**
+Sejak PR #664 (2026-10-14), label status PESANAN di `/track`, konsol staf, dan struk berbahasa Indonesia (Dipesan, Dikonfirmasi, Disiapkan, Kurir ditugaskan, Diambil kurir, Dalam perjalanan, Tiba, Selesai, Dibatalkan, Dibatalkan di kasir), dibaca dari kamus `order.status.*`. **[V]** Sebelumnya `/track` dan konsol staf menampilkan label Inggris (Order placed, Confirmed, Preparing, Driver assigned, Picked up, On the way, Delivered, Completed, Cancelled); itu teramati pada lingkungan uji 2026-10-11 (sebelum PR #664) dan tangkapan layar lama mungkin masih menunjukkannya. Kode status PEMBAYARAN dan metode (mis. "PENDING", "CASH") di sebagian layar masih tampil mentah. **[B]**
 
 ## 12. Tabel 13 Peran dan Konsol yang Dapat Dimasuki
 
@@ -513,7 +516,7 @@ Daftar lengkap dirujuk ke `17-open-questions`. Yang terkait bab ini:
 | 2 | Layar verifikasi dikunci 6 kotak, server bisa disetel 4–8 digit | [B] |
 | 3 | Nilai produksi batas diam sesi belum diketahui | [K] |
 | 4 | `privacy@hydromart-digital.com` tanpa MX per 2026-09-25 | [B] |
-| 5 | Status pembayaran dan metode tampil kode Inggris mentah; `/track` berlabel Inggris; beberapa pesan server Inggris | [B] |
+| 5 | Status pembayaran dan metode tampil kode Inggris mentah; beberapa pesan server Inggris. (Label status pesanan di `/track` dan konsol staf sudah Indonesia sejak PR #664, 2026-10-14.) | [B] |
 | 6 | Layar akses ditolak berjudul "Khusus HQ" juga dipakai konsol lain | [B] |
 | 7 | Status aplikasi Android di Play Store (pengujian internal per 2026-09-25) | [K] |
 | 8 | Isi menu `/dashboard` per peran ("Sebagian") perlu dipetakan per peran | [D] |
