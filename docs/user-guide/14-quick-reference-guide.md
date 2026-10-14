@@ -310,7 +310,7 @@ Layar detail pesanan staf dan pelanggan menampilkan PENDING/PAID/CASH/QRIS menta
 | Peran {ROLE} hanya boleh diberikan oleh {A atau B}. | Pembatasan pemberian peran | Minta SUPER_ADMIN (atau HR untuk MANAGER) |
 | This account has been suspended. | Akun dinonaktifkan | Hubungi atasan/HR/HQ untuk diaktifkan |
 | Kode verifikasi salah. / Kode verifikasi sudah kedaluwarsa. Minta kode baru. | OTP salah/lewat 5 menit | Minta kode baru setelah 60 detik |
-| Akun ini tidak aktif. Hubungi dukungan Hydromart. | Pelanggan ditangguhkan/dihapus | Gunakan kanal pada bagian 6 |
+| Akun ini tidak aktif. Hubungi dukungan Hydromart. | Pelanggan ditangguhkan (akun yang sudah dihapus tidak mendapat pesan ini, G-153 **[B]**) | Gunakan kanal pada bagian 6 |
 | Di luar area absen depot ({n} m dari titik). Absen harus di lokasi. | Geofence absen aktif | Absen di depot |
 | Absen offline sudah terlalu lama. Minta entri manual ke HR. | Punch tertunda terlalu lama | Hubungi HR |
 | Cannot move an order from X to Y. | Transisi status tidak sah | Muat ulang; status sudah berubah |

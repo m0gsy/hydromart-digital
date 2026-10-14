@@ -102,7 +102,7 @@ Hitung mundur "Kode berlaku {m:ss} lagi." menunjukkan sisa waktu (awal 5:00; ter
 | Terlalu banyak percobaan. Minta kode baru. | 5 kali salah. Kotak terkunci | Tekan **Kirim ulang kode** |
 | Kode verifikasi sudah kedaluwarsa. Minta kode baru. | Lewat 5 menit | Tekan **Kirim ulang kode** |
 | Kode baru bisa diminta sebentar lagi. Cek SMS yang sudah masuk dulu. | Belum 60 detik sejak kode terakhir | Tunggu; tombol menampilkan "Kirim ulang dalam {n}d" |
-| Akun ini tidak aktif. Hubungi dukungan Hydromart. | Akun ditangguhkan atau dihapus | Lihat bagian 8 (Bantuan) |
+| Akun ini tidak aktif. Hubungi dukungan Hydromart. | Akun ditangguhkan. **[B]** Akun yang sudah dihapus tidak mendapat pesan ini: uji 2026-10-14 menunjukkan login dengan nomor akun terhapus dijawab seolah nomor itu belum terdaftar (OTP pendaftaran), lihat G-153 | Lihat bagian 8 (Bantuan) |
 
 Bila Anda memasukkan nomor yang belum terdaftar di halaman masuk, sistem menjalankan pendaftaran dan menampilkan "Selesaikan pendaftaran." **[V]** Jika ingin mengisi nama dan email, mulai dari halaman daftar.
 

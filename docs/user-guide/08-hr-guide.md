@@ -93,7 +93,7 @@ Menu di rel HR (desktop). Di ponsel, 3 tab pertama tampil di bilah bawah; sisany
 | 21 | Log Audit | `/hr/audit` | `hrAdmin` | **[V]** |
 | 22 | Data saya | `/hr/me` | `hrView` (data diri sendiri; dibahas di panduan karyawan) | **[V]** |
 
-> **[B]** Label string untuk pintu "Konsol HQ" di rel HR belum ditemukan di kamus; kemungkinan hilang. **[D]**
+> **[B]** Label string untuk pintu "Konsol HQ" di rel HR hilang dari kamus. **[V]** Dikonfirmasi uji 2026-10-14: rel HR menampilkan kunci mentah `hrFix.nav.hqConsole` sebagai label (G-151).
 
 > **[SCREENSHOT REQUIRED: SS-hr-01 — Rel menu konsol HR lengkap (21 item bagi HR; no. 12 tidak tampil) saat masuk sebagai HR, dengan "Dashboard" aktif, termasuk dua item paling bawah]**
 > *Gambar 8.1 — Menu konsol HR.*
