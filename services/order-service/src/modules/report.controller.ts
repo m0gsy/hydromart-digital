@@ -174,6 +174,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: ShippingByDepotResponseDto })
+  @Can('orderReportsFinance')
   @Get('shipping-by-depot')
   @ApiOperation({ summary: 'Shipping (ongkir) billed per depot (reconciliation 22a)' })
   shippingByDepot(
@@ -184,6 +185,7 @@ export class ReportController {
   }
 
   @ApiOkResponse({ type: RefundsByDepotResponseDto })
+  @Can('orderReportsFinance')
   @Get('refunds-by-depot')
   @ApiOperation({ summary: 'Refunds settled per depot (reconciliation 22a)' })
   refundsByDepot(

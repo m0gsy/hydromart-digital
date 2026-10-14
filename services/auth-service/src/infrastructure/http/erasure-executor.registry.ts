@@ -24,7 +24,7 @@ import { UnenforcedErasure } from './unenforced-erasure.executor';
  *
  * Row counts are from `docs/AUDIT_L3.md` §4.2, measured on the live cluster 2026-08-25.
  */
-const REMOTE_DATASETS = [
+export const REMOTE_DATASETS = [
   /*
    * customer-service is deliberately NOT here. `CustomerDataPort.anonymise()` has called it
    * since tahap 1 and is fail-closed and tested; listing it again would make one click send
@@ -50,7 +50,7 @@ const REMOTE_DATASETS = [
   {
     dataset: 'delivery.recipients',
     envKey: 'DELIVERY_SERVICE_URL',
-    path: '/api/v1/deliveries/internal/pdp-anonymise',
+    path: '/api/v1/proofs/internal/pdp-anonymise',
   },
   /*
    * order.subscriptions.phone/recipientName (21). Not history: a standing instruction
@@ -94,7 +94,7 @@ const REMOTE_DATASETS = [
   {
     dataset: 'admin.support_tickets',
     envKey: 'ADMIN_SERVICE_URL',
-    path: '/api/v1/support-tickets/internal/pdp-anonymise',
+    path: '/api/v1/tickets/internal/pdp-anonymise',
   },
 ] as const;
 

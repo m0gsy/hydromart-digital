@@ -537,6 +537,52 @@ export const CAPABILITIES = {
   // payout-service — READ franchise payout batches. Wider than hqPayout: head office
   // watches the queue, only finance releases money out of it.
   hqPayoutRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
+  /*
+   * FINANCE's own screens read four network figures through routes whose capability FINANCE
+   * does not hold, so /hq/payments, /hq/reconciliation, /hq/franchise and the commission form
+   * opened on a permission error (UAT 2026-10-14). Each of these is EXACTLY the existing
+   * capability's roles plus FINANCE, applied to the one read route the screen needs.
+   *
+   * They are separate capabilities, not FINANCE added to `dashboard`, `orderReports`,
+   * `depotDirectory` and `returnsRead`: those four also open nav doors (/hq/depots,
+   * /hq/search, /hq/onboarding, the depot dashboard) and writes, and the door list above is
+   * deliberately nine items long. Reading a figure is not holding the console it lives in.
+   */
+  // dashboard-service — `/dashboard/executive` and `/dashboard/network` only.
+  dashboardFinance: [
+    'HEAD_OFFICE',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'DIREKTUR',
+    'FINANCE',
+    'SUPER_ADMIN',
+  ],
+  // order-service — shipping-by-depot and refunds-by-depot (the reconciliation statement).
+  orderReportsFinance: ['HEAD_OFFICE', 'MANAGER', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
+  // depot-service — the depot LIST (`GET depots/manage`) only; the full record stays
+  // `depotDirectory`.
+  depotDirectoryFinance: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'FRANCHISE_OWNER',
+    'FINANCE',
+    'SUPER_ADMIN',
+  ],
+  // depot-service — the network gallon rollup the reconciliation statement prints.
+  returnsReadFinance: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'FRANCHISE_OWNER',
+    'FINANCE',
+    'SUPER_ADMIN',
+  ],
   // payout-service — run/close courier commission periods.
   commissionRuns: ['FINANCE', 'SUPER_ADMIN'],
   // payout-service — READ the agreed per-depot commission percentages. Wider than

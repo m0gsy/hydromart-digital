@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -44,6 +45,7 @@ export class VerifySettlementDto {
 export class DisputeSettlementDto {
   @ApiProperty({ example: 'Courier and cashier counts disagree.' })
   @IsString()
+  @Matches(/\S/, { message: 'note must not be blank' })
   @MaxLength(500)
   note!: string;
 }

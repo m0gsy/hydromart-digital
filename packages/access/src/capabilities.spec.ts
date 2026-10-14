@@ -284,3 +284,32 @@ describe('the cancel button and the cancel route admit the same people', () => {
     expect(CAPABILITIES.orderFulfilment).not.toContain('CUSTOMER');
   });
 });
+
+/*
+ * `<x>Finance` is `<x>` plus FINANCE on one read route, so FINANCE's own screens stop opening
+ * on a permission error without FINANCE being let through the door `<x>` guards. The console
+ * gate script treats the two names as equivalent; this is what keeps that honest.
+ */
+describe('<x>Finance read variants', () => {
+  const variants = [
+    'dashboardFinance',
+    'depotDirectoryFinance',
+    'orderReportsFinance',
+    'returnsReadFinance',
+  ] as const;
+
+  it.each(variants)(
+    '%s is exactly its base capability plus FINANCE',
+    (variant) => {
+      const base = variant.slice(0, -'Finance'.length) as Capability;
+      expect([...CAPABILITIES[variant]].sort()).toEqual([...CAPABILITIES[base], 'FINANCE'].sort());
+    },
+  );
+
+  it('does not let FINANCE through the base door', () => {
+    for (const v of variants) {
+      const base = v.slice(0, -'Finance'.length) as Capability;
+      expect(can(base, 'FINANCE')).toBe(false);
+    }
+  });
+});

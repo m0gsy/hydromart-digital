@@ -75,6 +75,17 @@ export class PdpAnonymiseDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   customerId!: string;
+
+  /**
+   * Sent by the registry to every owner. The ledger is keyed on `customerId`, so it is not
+   * read — but the global pipe is `forbidNonWhitelisted`, and an undeclared field made the
+   * whole request 400 (G-150).
+   */
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string | null;
 }
 
 /** LOY-10: how many ledger rows lost their free-text note. */
