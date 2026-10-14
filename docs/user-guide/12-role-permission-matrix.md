@@ -113,7 +113,7 @@ Sel "Ya" pada baris berkapabilitas berarti peran ada di daftar `CAPABILITIES[kap
 | 1.1 | Lihat antrean pesanan depot | View | — | Ya | Ya | Ya | Ya | — [1.1] | — | Ya | Ya | Ya | Ya | — | — | `orderQueue` |
 | 1.2 | Membuat pesanan sendiri (keranjang, checkout) | Create | Ya | — | — | — | — | — | — | — | ? [1.2] | — | — | — | — | rute pelanggan (peran CUSTOMER), tanpa kapabilitas |
 | 1.3 | Membatalkan pesanan sendiri | Delete | Bersyarat [1.3] | — | — | — | — | — | — | — | — | — | — | — | — | order-status.ts isCancellable |
-| 1.4 | Mengubah status pesanan (Lanjut ke Confirmed/Preparing) | Edit | — | Bersyarat [1.4] | Dibatasi [1.5] | Ya | Ya | — | — | — | Ya | Ya | — | — | — | `orderFulfilment` · order.controller.ts:867 |
+| 1.4 | Mengubah status pesanan (Lanjut ke Dikonfirmasi/Disiapkan) | Edit | — | Bersyarat [1.4] | Dibatasi [1.5] | Ya | Ya | — | — | — | Ya | Ya | — | — | — | `orderFulfilment` · order.controller.ts:867 |
 | 1.5 | Menugaskan kurir / Tarik ke antrean / Batalkan pengiriman | Edit | — | Bersyarat [1.6] | — | Ya | Ya | — | — | — | Ya | Ya | — | — | — | `tracking` · delivery.controller.ts:24 |
 | 1.6 | Konfirmasi pembayaran lunas / tandai gagal | Submit | — | Ya | Dibatasi [1.7] | — | — | — | — | — | Ya | Ya | — | Dibatasi [1.8] | — | `paymentSettle` · payment.controller.ts:599 |
 | 1.7 | Melihat panel pembayaran pesanan | View | — | Ya | Ya | Ya | Ya | — | — | Ya | Ya | Ya | Ya | Ya | — | `paymentRead` |
