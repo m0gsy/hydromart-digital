@@ -740,6 +740,16 @@ export class PayrollService {
       );
     }
     /*
+     * Owner decision 2026-10-14: whoever generated a slip does not also sign it off. A
+     * SUPER_ADMIN is the one exception, so a one-person HR desk is never locked out of its
+     * own payroll. Slips with no recorded creator (imports, older rows) are not blocked.
+     */
+    if (payroll.createdBy && payroll.createdBy === user.sub && user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Slip ini dibuat oleh akun Anda sendiri; persetujuan harus dari orang lain (atau Super Admin).',
+      );
+    }
+    /*
      * A slip is approved against the split it was GENERATED with. Backdate a loan into the month
      * (or let a late sweep apply one) after generating, and that split no longer matches the
      * ledger - approving it would lock the wrong depot costs in, and from there only the audited
@@ -758,6 +768,41 @@ export class PayrollService {
       approvedBy: user.sub,
       approvedAt: new Date(),
     });
+  }
+
+  /**
+   * Take an APPROVED slip back to DRAFT so it can be regenerated and approved again.
+   *
+   * Owner decision 2026-10-14: SUPER_ADMIN only, a written reason, and never once PAID —
+   * paid money has left, and the way to correct that is a following period's adjustment.
+   * The approver stamp is cleared so the next approval reads as a fresh decision.
+   */
+  async unapprove(user: AuthenticatedUser, id: string, reason: string): Promise<PayrollWithItems> {
+    if (user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Hanya Super Admin yang bisa membatalkan persetujuan payroll.');
+    }
+    const why = reason.trim();
+    if (!why) throw new BadRequestException('Alasan wajib diisi.');
+    const payroll = await this.load(user, id, { forWrite: true });
+    if (payroll.status !== 'APPROVED') {
+      throw new ConflictException(
+        `Hanya payroll APPROVED yang bisa dibatalkan persetujuannya (saat ini ${payroll.status})`,
+      );
+    }
+    const draft = await this.repo.setStatus(id, 'APPROVED', 'DRAFT', {
+      approvedBy: null,
+      approvedAt: null,
+    });
+    await this.audit?.record({
+      actorId: user.sub,
+      action: 'PAYROLL_UNAPPROVE',
+      entity: 'payroll',
+      entityId: id,
+      before: { status: 'APPROVED', approvedBy: payroll.approvedBy ?? null },
+      after: { status: 'DRAFT', reason: why },
+      ip: null,
+    });
+    return draft;
   }
 
   async markPaid(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {

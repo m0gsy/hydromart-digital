@@ -90,6 +90,10 @@ describe('AuditService', () => {
     const filtered = await service.list({ page: 1, limit: 10, action: 'depot.suspend' });
     expect(filtered.total).toBe(2);
     expect(filtered.items.every((i) => i.action === 'depot.suspend')).toBe(true);
+
+    const refused = await service.list({ page: 1, limit: 10, success: false });
+    expect(refused.total).toBe(1);
+    expect(refused.items[0].success).toBe(false);
   });
 
   it('scopes a depot audit list by depotId and category (design 8b)', async () => {

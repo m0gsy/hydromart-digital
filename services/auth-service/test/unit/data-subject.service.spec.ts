@@ -6,6 +6,7 @@ import {
   DataExportNotApprovedError,
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
+  AccountHasOpenOrdersError,
   DuplicateDataSubjectRequestError,
 } from '../../src/domain/errors/auth.errors';
 import {
@@ -288,6 +289,66 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     expect(requests.anonymised).toEqual([CUSTOMER]);
     expect(result.request.status).toBe('COMPLETED');
     expect(result.export).toBeUndefined();
+  });
+
+  // Owner decision 2026-10-14: an account with orders in flight is not erased. The guard
+  // runs before any side effect, fails closed, and only `force` (the controller grants it to
+  // SUPER_ADMIN alone) gets past it — leaving a note of how many orders it ran over.
+  describe('open orders', () => {
+    const withOrders = (countOpen: jest.Mock) =>
+      new DataSubjectService(
+        requests as never,
+        customers as never,
+        customerData as never,
+        audit as never,
+        new ConsentService(new InMemoryConsentRepository()),
+        undefined,
+        undefined,
+        undefined,
+        { countOpen } as never,
+      );
+
+    it('refuses a DELETE while orders are open and touches nothing', async () => {
+      const guarded = withOrders(jest.fn().mockResolvedValue(2));
+      const created = await guarded.request(CUSTOMER, 'DELETE', null);
+
+      await expect(guarded.approve(created.id, STAFF)).rejects.toBeInstanceOf(
+        AccountHasOpenOrdersError,
+      );
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+      expect(requests.anonymised).toEqual([]);
+    });
+
+    it('goes through with force, and the audit row says how many orders it ran over', async () => {
+      const guarded = withOrders(jest.fn().mockResolvedValue(3));
+      const created = await guarded.request(CUSTOMER, 'DELETE', null);
+
+      await guarded.approve(created.id, STAFF, { force: true });
+
+      expect(customerData.anonymise).toHaveBeenCalledWith(CUSTOMER);
+      expect(JSON.stringify(audit.record.mock.calls)).toContain('"openOrders":3');
+    });
+
+    it('approves normally at zero, and an EXPORT never asks', async () => {
+      const count = jest.fn().mockResolvedValue(0);
+      const guarded = withOrders(count);
+      const del = await guarded.request(CUSTOMER, 'DELETE', null);
+      await expect(guarded.approve(del.id, STAFF)).resolves.toBeDefined();
+      expect(count).toHaveBeenCalledTimes(1);
+
+      count.mockClear();
+      const exp = await guarded.request(CUSTOMER, 'EXPORT', null);
+      await guarded.approve(exp.id, STAFF);
+      expect(count).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when order-service cannot answer', async () => {
+      const guarded = withOrders(jest.fn().mockRejectedValue(new Error('order-service down')));
+      const created = await guarded.request(CUSTOMER, 'DELETE', null);
+
+      await expect(guarded.approve(created.id, STAFF)).rejects.toThrow('order-service down');
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+    });
   });
 
   it('leaves the request PENDING when the downstream scrub fails, so it can be retried', async () => {

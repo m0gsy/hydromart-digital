@@ -9,6 +9,7 @@ import {
   HttpStatus,
   Inject,
   Logger,
+  Optional,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -41,12 +42,14 @@ import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { DepotService } from '../application/services/depot.service';
+import { DepotConfigService } from '../config/depot-config.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
 import {
   BrowseDepotsQueryDto,
   CreateDepotDto,
   DepotContactView,
+  DepotGallonDepositView,
   DepotPaymentInfoView,
   NearbyDepotsQueryDto,
   NearbyDepotView,
@@ -82,6 +85,9 @@ export class DepotController {
   constructor(
     private readonly depots: DepotService,
     @Inject(DEPOT_TOKENS.Storage) private readonly storage: StoragePort,
+    // Optional so the controller specs that build it by hand keep compiling; the module
+    // always provides it.
+    @Optional() private readonly config?: DepotConfigService,
   ) {}
 
   // Anonymous browse: the trimmed projection only. Serving the whole DepotRecord here
@@ -340,6 +346,20 @@ export class DepotController {
   @ApiOperation({ summary: "A depot's contact phone (signed-in callers)" })
   async contact(@Param('id', ParseUUIDPipe) id: string): Promise<DepotContactView> {
     return DepotContactView.from(await this.depots.get(id, true));
+  }
+
+  // The per-gallon deposit this depot books, for the checkout summary. Same guard as `contact`:
+  // one depot at a time to a signed-in caller. Declared before `:id` so it is not swallowed.
+  //
+  // route-authz: takes no subject, same shape as contact/payment-info just above.
+  @ApiOkResponse({ type: DepotGallonDepositView })
+  @ApiBearerAuth()
+  @SelfScoped()
+  @Get(':id/gallon-deposit')
+  @ApiOperation({ summary: "A depot's per-gallon deposit (signed-in callers)" })
+  async gallonDeposit(@Param('id', ParseUUIDPipe) id: string): Promise<DepotGallonDepositView> {
+    await this.depots.get(id, true); // 404 for an unknown or inactive depot, like its siblings
+    return { gallonDepositIdr: this.config?.gallonDepositIdr(id) ?? 0 };
   }
 
   @ApiOkResponse({ type: PublicDepotView })

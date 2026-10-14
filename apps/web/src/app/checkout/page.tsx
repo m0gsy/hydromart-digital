@@ -51,7 +51,7 @@ import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { offeredMethods, PAYMENT_METHODS } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
-import { memberDiscount, shippingFeeFor, voucherLinesFor } from '@/lib/pricing';
+import { galonQuantity, memberDiscount, shippingFeeFor, voucherLinesFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -448,6 +448,22 @@ function CheckoutInner() {
     return item && l.freeQty > 0 ? [{ ...item, quantity: l.freeQty }] : [];
   });
   const shippingFeeEstimate = shippingFeeFor(perGalonFee, [...(cart?.items ?? []), ...freeUnits]);
+
+  /*
+   * The gallon deposit, SHOWN and not added. The depot books `rate × gallons` as a titipan at
+   * delivery and refunds it when the gallons come back; nothing in this order's total or
+   * payment includes it today, so the row says what it is rather than inflating the sum.
+   * Failing to read the rate hides the row — a missing hint, never a wrong total.
+   */
+  const { data: depositRate } = useAsync<{ gallonDepositIdr: number } | null>(
+    () =>
+      depot?.id
+        ? api.get<{ gallonDepositIdr: number }>(endpoints.depots.gallonDeposit(depot.id), true).catch(() => null)
+        : Promise.resolve(null),
+    [depot?.id],
+  );
+  const depositGallons = galonQuantity([...(cart?.items ?? []), ...freeUnits]);
+  const depositEstimate = (depositRate?.gallonDepositIdr ?? 0) * depositGallons;
 
   // A depot that stops offering express while this screen is open must not leave a
   // selection that checkout would now reject.
@@ -1526,6 +1542,17 @@ function CheckoutInner() {
           </div>
         ) : (
           <p className="text-xs text-muted">{t('order.checkout.deliveryNote')}</p>
+        )}
+        {depositEstimate > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <div className="flex justify-between">
+              <span className="text-muted">
+                {t('customerFix.deposit.row', { n: depositGallons })}
+              </span>
+              <Money amount={depositEstimate} className="font-bold" />
+            </div>
+            <p className="text-xs text-muted">{t('customerFix.deposit.note')}</p>
+          </div>
         )}
         {/*
           * CA-3-14 — the express fee was in the total and on no line of its own.

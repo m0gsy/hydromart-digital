@@ -24,10 +24,11 @@ const ALL = [
 describe('grantableRoles', () => {
   it('offers head office no role that carries money or authority it lacks', () => {
     const offered = grantableRoles(ALL, 'HEAD_OFFICE');
-    for (const role of ['FINANCE', 'HR', 'MARKETING', 'MANAGER', 'DIREKTUR', 'SUPER_ADMIN']) {
+    // HEAD_OFFICE joined the list on 2026-10-14: head office cannot mint more head office.
+    for (const role of ['FINANCE', 'HR', 'MARKETING', 'MANAGER', 'DIREKTUR', 'SUPER_ADMIN', 'HEAD_OFFICE']) {
       expect(offered).not.toContain(role);
     }
-    expect(offered).toEqual(['STAFF_DEPOT', 'KEPALA_DEPOT', 'SUPERVISOR', 'HEAD_OFFICE']);
+    expect(offered).toEqual(['STAFF_DEPOT', 'KEPALA_DEPOT', 'SUPERVISOR']);
   });
 
   it('offers a superuser everything', () => {

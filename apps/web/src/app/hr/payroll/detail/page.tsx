@@ -33,6 +33,7 @@ export default function PayrollDetailPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
+  const [revokeReason, setRevokeReason] = useState('');
 
   const { data, error, loading, reload } = useAsync<Payroll>(
     () => api.get<Payroll>(endpoints.hr.payrollById(id), true),
@@ -52,6 +53,23 @@ export default function PayrollDetailPage() {
     try {
       await api.post(path, undefined, true);
       toast(ok);
+      reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hrFix.payrollDetail.failed'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // SUPER_ADMIN only, and only while APPROVED. The reason travels to the audit log.
+  async function unapprove() {
+    const reason = revokeReason.trim();
+    if (!reason) return;
+    setBusy(true);
+    try {
+      await api.post(endpoints.hr.unapprovePayroll(id), { reason }, true);
+      toast(t('hrFix.payrollDetail.unapproved'));
+      setRevokeReason('');
       reload();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('hrFix.payrollDetail.failed'), 'error');
@@ -243,6 +261,25 @@ export default function PayrollDetailPage() {
             >
               {t('hrFix.payrollDetail.approve')}
             </Button>
+          )}
+          {p.status === 'APPROVED' && customer?.role === 'SUPER_ADMIN' && (
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <input
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                placeholder={t('hrFix.payrollDetail.unapproveReason')}
+                aria-label={t('hrFix.payrollDetail.unapproveReason')}
+                className="min-w-[200px] flex-1 rounded-xl border border-app bg-transparent px-3 py-2 text-sm"
+              />
+              <Button
+                variant="secondary"
+                onClick={unapprove}
+                loading={busy}
+                disabled={revokeReason.trim().length < 3}
+              >
+                {t('hrFix.payrollDetail.unapprove')}
+              </Button>
+            </div>
           )}
           {p.status === 'APPROVED' && (
             <Button

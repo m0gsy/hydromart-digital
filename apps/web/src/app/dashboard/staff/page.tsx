@@ -1,15 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, UserGear, UserPlus } from '@phosphor-icons/react';
+import { Lock, UserGear } from '@phosphor-icons/react';
 
+import { StaffInvite } from '@/components/hq/staff-invite';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { CAPABILITIES, canManageStaff, grantableRoles, type Capability } from '@/lib/roles';
+import { CAPABILITIES, canManageStaff, type Capability } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Page } from '@/lib/types';
 
@@ -28,119 +29,6 @@ const STAFF_ROLES = [
   'MARKETING',
   'SUPER_ADMIN',
 ] as const;
-
-function selectClass() {
-  return 'w-full rounded-xl border border-app bg-transparent px-3 py-2.5 text-sm font-medium';
-}
-
-function InviteForm({ onSaved }: { onSaved: () => void }) {
-  const { t } = useT();
-  const { customer } = useAuth();
-  const offered = grantableRoles(STAFF_ROLES, customer?.role);
-  const [open, setOpen] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<string>('KEPALA_DEPOT');
-  const [vehicleType, setVehicleType] = useState('MOTOR');
-  const [plateNumber, setPlateNumber] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const isDriver = role === 'STAFF_DEPOT';
-
-  async function submit() {
-    if (phone.trim() === '') {
-      setError(t('dashC.staff.invalidPhone'));
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post(
-        endpoints.auth.inviteStaff,
-        {
-          phone: phone.trim(),
-          role,
-          fullName: fullName || undefined,
-          // Vehicle info is courier-only; the server ignores it for other roles.
-          vehicleType: isDriver ? vehicleType : undefined,
-          plateNumber: isDriver && plateNumber.trim() ? plateNumber.trim() : undefined,
-        },
-        true,
-      );
-      setPhone('');
-      setFullName('');
-      setPlateNumber('');
-      setOpen(false);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('dashC.staff.inviteError'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!open) {
-    return (
-      <Button onClick={() => setOpen(true)}>
-        <UserPlus size={16} weight="bold" className="mr-1.5" />
-        {t('dashC.staff.inviteBtn')}
-      </Button>
-    );
-  }
-
-  return (
-    <Card className="flex flex-col gap-3 p-4">
-      <p className="font-semibold">{t('dashC.staff.inviteTitle')}</p>
-      <p className="text-xs text-muted">
-        {t('dashC.staff.inviteHint')}
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={t('dashC.staff.phone')} htmlFor="st-phone">
-          <Input id="st-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+62812…" autoFocus />
-        </Field>
-        <Field label={t('dashC.staff.fullName')} htmlFor="st-name">
-          <Input id="st-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t('hrFix.staff.nameHint')} />
-        </Field>
-      </div>
-      <Field label={t('dashC.staff.role')} htmlFor="st-role">
-        <select id="st-role" value={role} onChange={(e) => setRole(e.target.value)} className={selectClass()}>
-          {offered.map((r) => (
-            <option key={r} value={r}>
-              {t(`dashC.staff.roleLabel.${r}`)}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {isDriver && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={t('dashC.staff.vehicleType')} htmlFor="st-vtype">
-            <select id="st-vtype" value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className={selectClass()}>
-              <option value="MOTOR">{t('dashC.staff.motor')}</option>
-              <option value="MOBIL">{t('dashC.staff.car')}</option>
-            </select>
-          </Field>
-          <Field label={t('dashC.staff.plate')} htmlFor="st-plate">
-            <Input id="st-plate" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder={t('hrFix.staff.plateHint')} />
-          </Field>
-        </div>
-      )}
-      {error && (
-        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-          {t('dashC.staff.cancel')}
-        </Button>
-        <Button onClick={submit} loading={busy}>
-          {t('dashC.staff.save')}
-        </Button>
-      </div>
-    </Card>
-  );
-}
 
 // Reference matrix "Peran & hak akses" (7b). Rows are just (label -> capability):
 // the actual role lists are read from CAPABILITIES in lib/roles.ts — the SAME map
@@ -229,7 +117,7 @@ function StaffBody() {
           <UserGear size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">{t('dashC.staff.title')}</h1>
         </div>
-        <InviteForm onSaved={list.reload} />
+        <StaffInvite onSaved={list.reload} />
       </div>
 
       <AccessMatrix />

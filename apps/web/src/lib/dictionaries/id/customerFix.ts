@@ -52,6 +52,10 @@ export const customerFix = {
     shortBy: 'kurang {amount}',
   },
   // 13b — delivery slot (checkout)
+  deposit: {
+    row: 'Deposit galon ({n} galon)',
+    note: 'Titipan yang dicatat depot saat galon diantar, dikembalikan saat galon kembali. Belum termasuk dalam total yang dibayar.',
+  },
   slot: {
     expressNow: 'Antar sekarang',
     expressEta: 'Estimasi {min}–{max} menit',

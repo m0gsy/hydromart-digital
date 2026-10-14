@@ -10,7 +10,7 @@ import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import { canViewDashboard } from '@/lib/roles';
+import { canViewTeamPerformance } from '@/lib/roles';
 import type { Customer, DepotTeamReport, Page } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
 
@@ -214,7 +214,7 @@ function TeamPerformanceBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!canViewDashboard(customer?.role)) {
+  if (!canViewTeamPerformance(customer?.role)) {
     return (
       <CenterState title={t('mgrFix.teamPerf.gate')} icon={<Lock size={40} weight="fill" />}>
         {t('mgrFix.teamPerf.gateBody')}

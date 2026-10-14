@@ -5,6 +5,7 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  WithdrawalBelowMinimumError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
 } from '../../domain/errors';
@@ -280,6 +281,9 @@ export class PayoutService {
 
   async requestWithdrawal(ownerId: string, amount: number): Promise<WithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
+    if (amount < this.config.minWithdrawalIdr) {
+      throw new WithdrawalBelowMinimumError(this.config.minWithdrawalIdr);
+    }
     // PYO-3: the destination comes from the verified account, not from the request body.
     const bankAccountRef = await this.bankAccounts.verifiedDestination(ownerId);
 

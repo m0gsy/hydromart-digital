@@ -1,3 +1,4 @@
+import { translate } from './locale-context';
 import type { OrderStatus } from './types';
 
 // The forward fulfilment sequence (BR-012). CANCELLED is terminal and off-track.
@@ -12,23 +13,13 @@ export const ORDER_FLOW: OrderStatus[] = [
   'COMPLETED',
 ];
 
-const LABELS: Record<OrderStatus, string> = {
-  CREATED: 'Order placed',
-  CONFIRMED: 'Confirmed',
-  PREPARING: 'Preparing',
-  DRIVER_ASSIGNED: 'Driver assigned',
-  PICKED_UP: 'Picked up',
-  ON_DELIVERY: 'On the way',
-  DELIVERED: 'Delivered',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
-  // Not "cancelled": this sale happened and was reversed at the till. The two have to stay
-  // tellable apart wherever an order is shown.
-  VOIDED: 'Voided at the counter',
-};
-
+/**
+ * The status words live in the dictionaries (`order.status.*`) so a translator sees them. This
+ * module is not a component and cannot hold a hook, so it reads the same dictionary through
+ * `translate`, which follows the reader's locale once the provider has mounted.
+ */
 export function statusLabel(status: OrderStatus): string {
-  return LABELS[status];
+  return translate(`order.status.${status}`);
 }
 
 /** Progress through the fulfilment flow as a 0..1 fraction. */

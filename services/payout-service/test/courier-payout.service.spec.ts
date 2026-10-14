@@ -2,6 +2,7 @@ import {
   InsufficientBalanceError,
   InvalidEarningRuleError,
   InvalidWithdrawalAmountError,
+  WithdrawalBelowMinimumError,
 } from '../src/domain/errors';
 import type { WithdrawalStatus } from '../src/domain/ledger';
 import { CourierPayoutService } from '../src/application/services/courier-payout.service';
@@ -457,6 +458,21 @@ describe('CourierPayoutService', () => {
   });
 
   describe('requestWithdrawal', () => {
+    // Owner decision 2026-10-14: nothing under the floor goes to the bank.
+    it('refuses a cash-out under the minimum and writes nothing', async () => {
+      const floored = new CourierPayoutService(
+        ledger,
+        withdrawals,
+        { businessTimeZone: 'Asia/Jakarta', minWithdrawalIdr: 50000 } as PayoutConfigService,
+        verifiedAccounts(),
+      );
+      await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
+      await expect(floored.requestWithdrawal(COURIER, 8000)).rejects.toBeInstanceOf(
+        WithdrawalBelowMinimumError,
+      );
+      expect(withdrawals.created).toHaveLength(0);
+    });
+
     it('rejects a non-positive amount', async () => {
       await expect(service.requestWithdrawal(COURIER, 0)).rejects.toBeInstanceOf(
         InvalidWithdrawalAmountError,

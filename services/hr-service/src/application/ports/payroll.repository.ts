@@ -111,7 +111,7 @@ export interface PayrollRepository {
     id: string,
     from: PayrollStatus,
     status: PayrollStatus,
-    stamp: { approvedBy?: string; approvedAt?: Date; paidAt?: Date },
+    stamp: { approvedBy?: string | null; approvedAt?: Date | null; paidAt?: Date },
   ): Promise<PayrollWithItems>;
   /**
    * IDR already deducted for each `sourceRef` on this employee's payslips BEFORE

@@ -81,10 +81,16 @@ function Body() {
   const { t } = useT();
   const { scopedId, selected } = useDepot();
   const list = useAsync<Approval[]>(
-    () =>
-      scopedId
-        ? api.get(endpoints.approvals.list({ depotId: scopedId, status: 'PENDING' }), true)
-        : Promise.resolve([]),
+    // A held item is still waiting on someone: listing PENDING alone made it vanish the
+    // moment it was held, with nothing left to say where it went.
+    async () => {
+      if (!scopedId) return [];
+      const [pending, held] = await Promise.all([
+        api.get<Approval[]>(endpoints.approvals.list({ depotId: scopedId, status: 'PENDING' }), true),
+        api.get<Approval[]>(endpoints.approvals.list({ depotId: scopedId, status: 'HELD' }), true),
+      ]);
+      return [...pending, ...held];
+    },
     [scopedId],
   );
 

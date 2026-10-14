@@ -1,9 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { can } from '@hydromart/access';
 import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import {
   SettlementAlreadyExistsError,
+  SettlementChargeNeedsManagerError,
   SettlementChargeUndeliverableError,
   SettlementNotFoundError,
   SettlementNotSubmittedError,
@@ -239,6 +241,13 @@ export class SettlementService {
     // surplus rule above is about leaving a trace, NOT about billing: it must never make
     // a surplus chargeable.
     const charged = (input.chargedToDriver ?? false) && isShortfall(settlement.variance);
+    // Gated on `charged`, not on what was typed: a surplus with the box ticked charges
+    // nothing and must not be refused. `approvals` is the manager capability (MANAGER and
+    // SUPER_ADMIN); the courier is who submits the deposit, so a manager verifying the
+    // charge is the second person.
+    if (charged && !can('approvals', user.role)) {
+      throw new SettlementChargeNeedsManagerError();
+    }
     /*
      * CA-2-32: the debit is posted BEFORE the settlement claims it was, and a push that
      * does not land refuses the verify.

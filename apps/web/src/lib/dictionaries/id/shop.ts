@@ -20,7 +20,7 @@ export const shop = {
     open: 'Buka',
     onBreak: 'Istirahat',
     closed: 'Tutup',
-    cutoff: 'Pesan sebelum 16.00 — tiba hari ini, ±30 menit',
+    cutoff: 'Depot buka dan mengantar ke alamatmu — tiba hari ini, ±30 menit',
     closedNote: 'Depot sedang tutup. Pesanan diproses saat depot buka lagi.',
     outOfArea: 'Depot terdekat, {depot}, belum mengantar ke alamat ini ({km} km).',
     setLocation: 'Atur lokasi untuk lihat estimasi pengiriman',

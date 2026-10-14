@@ -36,7 +36,7 @@ export const dashA = {
     metaDeposit: 'Kondisi {condition} · deposit {deposit}',
     metaCod: 'Diharapkan {expected} · diterima {received}',
     metaGallon: 'Kelebihan {excess} galon dari saldo beredar',
-    gateTitle: 'Khusus manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Antrean approval tersedia untuk manajer depot dan super admin.',
   },
   approvalDetail: {
@@ -71,7 +71,7 @@ export const dashA = {
     back: 'Kembali',
     decidedApproved: 'Item ini sudah disetujui.',
     decidedRejected: 'Item ini sudah ditolak.',
-    gateTitle: 'Khusus manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Antrean approval tersedia untuk manajer depot dan super admin.',
   },
   audit: {
@@ -245,7 +245,7 @@ export const dashA = {
     emptyTitle: 'Tidak ada sengketa',
     emptyAll: 'Depot ini belum punya catatan sengketa.',
     emptyFilter: 'Tidak ada sengketa untuk filter ini.',
-    gateTitle: 'Khusus Manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Sengketa order hanya untuk Manajer depot.',
   },
   handover: {
@@ -276,7 +276,7 @@ export const dashA = {
     noDepotBody: 'Belum ada depot yang dikonfigurasi.',
     emptyTitle: 'Belum ada serah terima',
     emptyBody: 'Buat serah terima shift pertama untuk depot ini.',
-    gateTitle: 'Khusus Manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Checklist serah terima shift hanya untuk Manajer depot.',
   },
   huddle: {
@@ -303,7 +303,7 @@ export const dashA = {
     add: 'Tambah',
     actionLabel: 'Action item',
     assigneeLabel: 'Penanggung jawab',
-    gateTitle: 'Khusus Manajer depot',
+    gateTitle: 'Akses terbatas',
     gateBody: 'Huddle tim mingguan hanya untuk Manajer depot.',
   },
 };

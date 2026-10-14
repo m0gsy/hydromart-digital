@@ -1576,6 +1576,21 @@ export class OrderService {
   }
 
   /**
+   * Orders still in flight for a customer: every status that is not terminal. One count per
+   * open status through `search` rather than a bespoke repository method — this runs once per
+   * account erasure, never on a hot path.
+   */
+  async countOpenForCustomer(customerId: string): Promise<number> {
+    const open = Object.values(OrderStatus).filter(
+      (s) => s !== OrderStatus.COMPLETED && s !== OrderStatus.CANCELLED && s !== OrderStatus.VOIDED,
+    );
+    const pages = await Promise.all(
+      open.map((status) => this.search({ customerId, status, limit: 1 })),
+    );
+    return pages.reduce((sum, p) => sum + p.total, 0);
+  }
+
+  /**
    * Internal keyset-paginated feed of COMPLETED orders for recommendation-service's
    * rebuild backfill (service-to-service, `GET /orders/internal/completed`).
    */

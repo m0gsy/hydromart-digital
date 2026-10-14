@@ -94,6 +94,11 @@ export class PayoutConfigService {
    * default — never a depot's own number, or the ceiling would be whatever it is measured
    * against.
    */
+  /** The smallest withdrawal either wallet accepts. Env-only: it is a policy floor, not a depot knob. */
+  get minWithdrawalIdr(): number {
+    return Number(this.config.get('MIN_WITHDRAWAL_IDR', 50000));
+  }
+
   /** PYO-5: the largest claim a MANAGER may approve alone (network-wide setting). */
   get expenseManagerApproveMaxIdr(): number {
     return this.tunable(

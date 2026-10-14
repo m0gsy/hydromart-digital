@@ -281,7 +281,31 @@ function PayoutBody() {
             </ul>
           )}
         </Card>
-        <BalanceCard summary={data} onWithdrawn={reload} />
+        <div className="flex flex-col gap-4">
+          <BalanceCard summary={data} onWithdrawn={reload} />
+          {/* The summary already carried the last withdrawals; the page never drew them, so a
+              request vanished from the screen the moment the form closed. */}
+          {data.recentWithdrawals.length > 0 && (
+            <Card className="flex flex-col p-5">
+              <h2 className="mb-1 font-semibold">{t('dashB.payout.withdrawHistory')}</h2>
+              <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                {data.recentWithdrawals.map((w) => (
+                  <li key={w.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold tabular-nums">{formatIDR(w.amount)}</div>
+                      <div className="truncate text-xs text-muted">
+                        {w.reference} · {new Date(w.createdAt).toLocaleDateString('id-ID')}
+                      </div>
+                    </div>
+                    <Badge tone={w.status === 'PAID' ? 'success' : w.status === 'FAILED' ? 'danger' : 'warning'}>
+                      {t(`dashB.payout.wd${w.status}`)}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

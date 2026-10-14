@@ -10,7 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { canViewDepotFinance } from '@/lib/roles';
+import { canViewCourierCommission } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionCourier, CommissionRun, Customer } from '@/lib/types';
 
@@ -162,7 +162,7 @@ function CommissionBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!canViewDepotFinance(customer?.role)) {
+  if (!canViewCourierCommission(customer?.role)) {
     return (
       <CenterState title={t('hrFix.commission.managerOnly')} icon={<Lock size={40} weight="fill" />}>
         {t('hrFix.commission.gateBody2')}

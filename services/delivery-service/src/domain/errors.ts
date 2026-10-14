@@ -308,6 +308,22 @@ export class SettlementSurplusNoteRequiredError extends DomainError {
  * ever took off them. 422 like its neighbours — the cashier's request was fine, the
  * service the money moves in was not, and pressing the button again is the whole remedy.
  */
+/**
+ * Owner decision 2026-10-14: putting a shortfall on a courier's account is a manager's call.
+ * A cashier may still verify the deposit WITHOUT charging, dispute it, or hand it over —
+ * what they cannot do is turn the shortfall into the courier's debt by themselves.
+ */
+export class SettlementChargeNeedsManagerError extends DomainError {
+  readonly code = 'SETTLEMENT_CHARGE_NEEDS_MANAGER';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super(
+      'Membebankan selisih ke kurir harus disetujui manajer. Verifikasi tanpa membebankan, ' +
+        'atau minta manajer yang memverifikasi.',
+    );
+  }
+}
+
 export class SettlementChargeUndeliverableError extends DomainError {
   readonly code = 'SETTLEMENT_CHARGE_UNDELIVERABLE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

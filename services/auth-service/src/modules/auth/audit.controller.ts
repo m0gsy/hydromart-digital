@@ -45,6 +45,9 @@ export class AuditController {
       limit: query.limit ?? 20,
       action: query.action,
       customerId: query.actorId,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+      success: query.success === undefined ? undefined : query.success === 'true',
     });
     return { ...result, items: result.items.map(AuditLogDto.from) };
   }
