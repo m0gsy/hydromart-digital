@@ -14,6 +14,8 @@ export interface PaymentRecord {
   failedAt: Date | null;
   refundedAt: Date | null;
   refundReason: string | null;
+  /** Who raised a refund that parked for HQ: a user id, or `order-service` for a cancellation. */
+  refundRequestedBy: string | null;
   refundedAmount: number | null;
   refundApproval: RefundApproval;
   cashReceived: number | null;
@@ -54,6 +56,7 @@ export interface PaymentStatusPatch {
   failedAt?: Date | null;
   refundedAt?: Date | null;
   refundReason?: string | null;
+  refundRequestedBy?: string | null;
   refundedAmount?: number | null;
   refundApproval?: RefundApproval;
   reference?: string | null;

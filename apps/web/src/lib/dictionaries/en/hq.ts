@@ -649,6 +649,7 @@ export const hq = {
     order: 'Order',
     reason: 'Reason',
     by: 'Requested by {who}',
+    bySystem: 'System (order cancellation)',
     age: '{n}h ago',
     approve: 'Approve',
     reject: 'Reject',

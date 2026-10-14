@@ -653,6 +653,7 @@ export const hq = {
     order: 'Pesanan',
     reason: 'Alasan',
     by: 'Diminta {who}',
+    bySystem: 'Sistem (pembatalan pesanan)',
     age: '{n} jam lalu',
     approve: 'Setujui',
     reject: 'Tolak',
