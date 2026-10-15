@@ -117,6 +117,7 @@ export const order = {
     payment: 'Pembayaran',
     refundDone: 'Refund {amount} sudah diproses. Sampai ke sumber dana dalam 1–3 hari kerja.',
     refundPending: 'Refund diajukan dan menunggu persetujuan pusat. Setelah disetujui, diproses 1–3 hari kerja.',
+    refundDue: 'Paling lambat {date}.',
     refundRejected: 'Pengajuan refund tidak disetujui. Hubungi depot bila ada pertanyaan.',
     payTitle: 'Bayar pesanan ini',
     payRetry: 'Coba bayar lagi',

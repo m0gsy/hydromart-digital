@@ -119,3 +119,21 @@ export function isRefundable(status: PaymentStatus): boolean {
 export function computeChange(amount: number, cashReceived: number): number {
   return Math.round((cashReceived - amount) * 100) / 100;
 }
+
+/** The refund promise made to customers: 1-3 working days. The due date is the 3rd. */
+export const REFUND_PROMISE_WORKING_DAYS = 3;
+
+/**
+ * `from` plus `days` working days (Mon-Fri, UTC). Public holidays are not modelled --
+ * ponytail: add a holiday list if finance wants the promise to skip them.
+ */
+export function addWorkingDays(from: Date, days: number): Date {
+  const d = new Date(from.getTime());
+  let left = days;
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) left -= 1;
+  }
+  return d;
+}

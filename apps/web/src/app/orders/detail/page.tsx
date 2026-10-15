@@ -31,7 +31,7 @@ import {
 } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
+import { formatDate, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { compressImage } from '@/lib/image';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
 import { needsPayment, offeredMethods } from '@/lib/payments';
@@ -507,7 +507,11 @@ function OrderDetailInner({ id }: { id: string }) {
                       })}
                     </p>
                   ) : payment.refundApproval === 'PENDING' ? (
-                    <p className="mt-2 text-[12.5px] text-muted">{t('order.detail.refundPending')}</p>
+                    <p className="mt-2 text-[12.5px] text-muted">
+                      {t('order.detail.refundPending')}
+                      {payment.refundDueAt &&
+                        ` ${t('order.detail.refundDue', { date: formatDate(payment.refundDueAt) })}`}
+                    </p>
                   ) : payment.refundApproval === 'REJECTED' ? (
                     <p className="mt-2 text-[12.5px] text-muted">{t('order.detail.refundRejected')}</p>
                   ) : null}

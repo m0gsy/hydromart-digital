@@ -28,7 +28,9 @@ import {
   EXPIRABLE_PENDING_METHODS,
   PaymentMethod,
   PaymentStatus,
+  REFUND_PROMISE_WORKING_DAYS,
   RefundApproval,
+  addWorkingDays,
   canTransition,
   computeChange,
   isOnlineMethod,
@@ -642,6 +644,7 @@ export class PaymentService {
         refundReason: reason ?? null,
         // Shown in the HQ queue as "diajukan oleh". Information only — nothing gates on it.
         refundRequestedBy: changedBy || null,
+        refundDueAt: addWorkingDays(new Date(), REFUND_PROMISE_WORKING_DAYS),
         refundedAmount: payment.amount,
       });
     }

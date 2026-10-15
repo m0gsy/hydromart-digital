@@ -1,4 +1,5 @@
 import {
+  addWorkingDays,
   PaymentMethod,
   PaymentStatus,
   WEBHOOK_MAX_SKEW_MS,
@@ -76,5 +77,21 @@ describe('isWebhookFresh', () => {
   it('rejects a missing or unparseable timestamp', () => {
     expect(isWebhookFresh(Number.NaN, now)).toBe(false);
     expect(isWebhookFresh(Number.POSITIVE_INFINITY, now)).toBe(false);
+  });
+});
+
+describe('addWorkingDays', () => {
+  it('skips the weekend', () => {
+    // Thu 2026-10-15 + 3 working days = Tue 2026-10-20
+    expect(addWorkingDays(new Date('2026-10-15T03:00:00Z'), 3).toISOString()).toBe(
+      '2026-10-20T03:00:00.000Z',
+    );
+    // Sat 2026-10-17 + 1 = Mon 2026-10-19
+    expect(addWorkingDays(new Date('2026-10-17T03:00:00Z'), 1).toISOString()).toBe(
+      '2026-10-19T03:00:00.000Z',
+    );
+    expect(addWorkingDays(new Date('2026-10-14T03:00:00Z'), 0).toISOString()).toBe(
+      '2026-10-14T03:00:00.000Z',
+    );
   });
 });

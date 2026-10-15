@@ -9,7 +9,7 @@ import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatIDR } from '@/lib/format';
+import { formatDate, formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
@@ -145,6 +145,17 @@ export default function HqRefundsPage() {
                 <p className="mt-0.5 text-xs text-muted">
                   {t('hq.refunds.age', { n: hoursAgo(r.updatedAt) })}
                 </p>
+                {r.refundDueAt && (
+                  <p className="mt-0.5">
+                    {new Date(r.refundDueAt).getTime() < Date.now() ? (
+                      <Badge tone="warning">{t('hq.refunds.overdue')}</Badge>
+                    ) : (
+                      <span className="text-xs text-muted">
+                        {t('hq.refunds.due', { date: formatDate(r.refundDueAt) })}
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
                 <Money amount={r.amount} className="text-lg font-bold text-brand-700" />

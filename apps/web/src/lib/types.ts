@@ -568,6 +568,8 @@ export interface Payment {
   changeGiven?: number | null;
   /** HQ refund-approval state and the refund itself — what the customer is told about it. */
   refundApproval?: RefundApproval;
+  /** The 1-3 working-day refund promise falls due here; null for older rows. */
+  refundDueAt?: string | null;
   refundedAmount?: number | null;
   refundedAt?: string | null;
   createdAt: string;
@@ -2114,6 +2116,8 @@ export interface RefundQueueItem {
   refundReason: string | null;
   /** Who raised it: a user id, `order-service` for a cancellation, or null for older rows. */
   refundRequestedBy?: string | null;
+  /** The 1-3 working-day refund promise falls due here; null for older rows. */
+  refundDueAt?: string | null;
   refundApproval: RefundApproval;
   /**
    * CA-2-34: the order's status, or null when order-service could not be read.

@@ -118,6 +118,7 @@ export const order: typeof base = {
     payment: 'Payment',
     refundDone: 'Refund of {amount} has been processed. It reaches your funding source within 1–3 working days.',
     refundPending: 'Your refund is requested and awaiting head-office approval. Once approved it is processed in 1–3 working days.',
+    refundDue: 'Due by {date}.',
     refundRejected: 'The refund request was not approved. Contact the depot with any questions.',
     payTitle: 'Pay for this order',
     payRetry: 'Try paying again',

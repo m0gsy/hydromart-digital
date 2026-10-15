@@ -51,6 +51,7 @@ describe('PaymentPrismaRepository.updateIfStatus — refund claim', () => {
     refundedAt: new Date(),
     refundReason: null,
     refundRequestedBy: null,
+    refundDueAt: null,
     refundedAmount: { toNumber: () => 18000 },
     refundApproval: 'NONE',
     paidAt: null,

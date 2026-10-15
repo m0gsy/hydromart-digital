@@ -129,6 +129,22 @@ describe('who asked for a refund is shown, and gates nothing', () => {
     expect(screen.getByRole('button', { name: /setujui/i })).toBeTruthy();
   });
 
+  it('flags a refund past its 3 working-day promise as overdue', async () => {
+    const answer = (url: string) =>
+      String(url).includes('refunds/queue')
+        ? Promise.resolve({
+            items: [{ ...row('DELIVERED'), refundDueAt: '2020-01-01T00:00:00.000Z' }],
+            total: 1,
+            page: 1,
+            limit: 100,
+          })
+        : Promise.resolve({ hqApprovalThresholdIdr: 100_000 });
+    get.mockReset().mockImplementation(answer);
+    getCached.mockReset().mockImplementation(answer);
+    render(<HqRefundsPage />, { wrapper: Wrap });
+    expect(await screen.findByText(/TERLAMBAT/)).toBeTruthy();
+  });
+
   it('says nothing for a row from before the column existed', async () => {
     serveRequester(null);
     render(<HqRefundsPage />, { wrapper: Wrap });
