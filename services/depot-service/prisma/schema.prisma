@@ -339,6 +339,8 @@ model FranchiseApplication {
   /// { ktpNpwp, locationProof, capitalDeposit, fieldSurvey } each = PENDING|VERIFIED|REJECTED.
   checklist               Json              @default("{}")
   stage                   FranchiseAppStage @default(PENDING)
+  /// The reason HQ typed when approving/rejecting; null when none was given.
+  decisionReason          String?
   submittedAt             DateTime          @default(now())
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
@@ -391,6 +393,8 @@ model PriceOverrideProposal {
   proposedBy   String              @db.Uuid
   /// Account id of the HQ approver/rejecter. Null until decided.
   decidedBy    String?             @db.Uuid
+  /// The reason HQ typed with the decision (a rejection's "why"); null when none was given.
+  decisionReason String?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
