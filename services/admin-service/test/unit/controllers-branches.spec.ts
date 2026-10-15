@@ -112,6 +112,30 @@ describe('ExportLogsController', () => {
    * 404 matters as much as the happy path: a zero-byte spreadsheet is the kind of answer
    * somebody forwards to finance before noticing it says nothing.
    */
+  // The revenue export builds its file in the browser and used to leave no trace here.
+  it('record logs a browser export against the CALLER, never a requester they supplied', async () => {
+    exports.ingest.mockResolvedValue(makeExportLog());
+    await controller.record(
+      { dataset: 'Pendapatan per depot', format: 'CSV', rowCount: 12 } as never,
+      { sub: 'u-9', phone: '+62811', role: 'FINANCE' } as never,
+    );
+    expect(exports.ingest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestedById: 'u-9',
+        requestedByEmail: '+62811',
+        rowCount: 12,
+        status: 'DONE',
+      }),
+    );
+    await controller.record(
+      { dataset: 'x', format: 'XLSX' } as never,
+      { sub: 'u-9', phone: null, role: 'FINANCE' } as never,
+    );
+    expect(exports.ingest).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestedByEmail: 'u-9', rowCount: null }),
+    );
+  });
+
   it('download sends the stored file as an attachment', async () => {
     exports.download.mockResolvedValue({ fileName: 'a.csv', content: Buffer.from('hi') });
     const res = { header: jest.fn().mockReturnThis(), send: jest.fn() };
@@ -222,9 +246,9 @@ describe('FraudFlagsController', () => {
     fraud.review.mockResolvedValue(makeFraudFlag({ status: FraudStatus.REVIEWED }));
     fraud.block.mockResolvedValue(makeFraudFlag({ status: FraudStatus.BLOCKED }));
     fraud.clear.mockResolvedValue(makeFraudFlag({ status: FraudStatus.CLEARED }));
-    expect((await controller.review('f-1')).status).toBe(FraudStatus.REVIEWED);
-    expect((await controller.block('f-1')).status).toBe(FraudStatus.BLOCKED);
-    expect((await controller.clear('f-1')).status).toBe(FraudStatus.CLEARED);
+    expect((await controller.review('f-1', {})).status).toBe(FraudStatus.REVIEWED);
+    expect((await controller.block('f-1', {})).status).toBe(FraudStatus.BLOCKED);
+    expect((await controller.clear('f-1', {})).status).toBe(FraudStatus.CLEARED);
   });
 
   it('ingest forwards the scoring payload verbatim', async () => {

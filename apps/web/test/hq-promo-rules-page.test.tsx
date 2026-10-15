@@ -28,6 +28,7 @@ vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 
 import { ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 import { id as idDict } from '@/lib/dictionaries/id';
 import type { PromoRule } from '@/lib/types';
@@ -104,7 +105,9 @@ const serve = (rules: PromoRule[], usage: unknown[] = []) =>
 function renderPage(): void {
   render(
     <LocaleProvider>
+      <ConfirmProvider>
       <HqPromoRulesPage />
+    </ConfirmProvider>
     </LocaleProvider>,
   );
 }
@@ -407,6 +410,7 @@ describe('hq/promo-rules delete', () => {
     renderPage();
     await screen.findByText(RULE.name);
     await user.click(screen.getAllByRole('button', { name: T.remove })[0]!);
+    await user.click(await screen.findByRole('button', { name: /^Ya, hapus$/ }));
     await waitFor(() =>
       expect(get.mock.calls.filter(([path]) => path === endpoints.promoRules.manage)).toHaveLength(2),
     );
@@ -420,10 +424,12 @@ describe('hq/promo-rules delete', () => {
     await screen.findByText(RULE.name);
     del.mockRejectedValueOnce(new ApiError(500, 'masih dipakai'));
     await user.click(screen.getAllByRole('button', { name: T.remove })[0]!);
+    await user.click(await screen.findByRole('button', { name: /^Ya, hapus$/ }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('masih dipakai', 'error'));
 
     del.mockRejectedValueOnce(new Error('x'));
     await user.click(screen.getAllByRole('button', { name: T.remove })[0]!);
+    await user.click(await screen.findByRole('button', { name: /^Ya, hapus$/ }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith(idDict.hq.common.actionFailed, 'error'));
   });
 });

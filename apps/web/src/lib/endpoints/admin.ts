@@ -50,6 +50,8 @@ export const admin = {
       },
       replay: (id: string) => `/admin/api/v1/webhooks/deliveries/${encodeURIComponent(id)}/replay`,
     },
+    // Record an export the caller ran in the browser (POST).
+    recordExport: '/admin/api/v1/export-logs',
     // Data-export logs (13c) — HEAD_OFFICE + SUPER_ADMIN read (paginated, filterable).
     exportLogs: (q: { page?: number; limit?: number; dataset?: string; status?: string } = {}) => {
       const p = new URLSearchParams();

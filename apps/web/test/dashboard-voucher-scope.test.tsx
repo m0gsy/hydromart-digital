@@ -20,6 +20,7 @@ vi.mock('@/lib/auth-context', () => ({
 import VouchersPage from '@/app/dashboard/vouchers/page';
 import { endpoints } from '@/lib/endpoints';
 import { id as idDict } from '@/lib/dictionaries/id';
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 import type { Voucher } from '@/lib/types';
 
@@ -60,7 +61,9 @@ const serve = (vouchers: Voucher[]) =>
 const draw = () =>
   render(
     <LocaleProvider>
+      <ConfirmProvider>
       <VouchersPage />
+    </ConfirmProvider>
     </LocaleProvider>,
   );
 

@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/roles';
@@ -33,6 +34,7 @@ const AUDIENCES: Audience[] = ['all', 'depot', 'loyalty', 'staff'];
 // with nothing to choose between (see domain/channel.ts).
 export default function HqBroadcastPage() {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const { toast } = useToast();
   const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
@@ -86,6 +88,14 @@ export default function HqBroadcastPage() {
       return toast(t('hq.broadcast.audienceUnsupported'), 'error');
     }
     if (audience === 'depot' && !depotId) return toast(t('hq.broadcast.pickDepot'), 'error');
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.broadcastTitle'),
+        message: t('hrFix.confirmGap.broadcastMessage'),
+        confirmLabel: t('hrFix.confirmGap.broadcastConfirm'),
+      }))
+    )
+      return;
     setBusy(true);
     try {
       // Empty segment = all reachable customers (crm SegmentFilter contract); a depotId

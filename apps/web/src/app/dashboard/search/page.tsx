@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MagnifyingGlass, Storefront, Package, User, Lock, Receipt } from '@phosphor-icons/react';
 
@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { can, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, DepotAdmin, Order, Page, Product } from '@/lib/types';
 
 /*
@@ -32,34 +33,44 @@ interface Results {
   products: Product[];
   orders: Order[];
   customer: Customer | null;
+  /** Sources that could not be asked this time — an outage is not "no results". */
+  unreachable: ('depots' | 'products' | 'orders' | 'customers')[];
 }
 
 const PHONE_RE = /^\+?\d[\d\s-]{6,}$/;
 
-// Each section may 403/404 for the caller's role or a miss — swallow and return empty.
-async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
+// Each section may fail for the caller's role or the network — return its empty value, but
+// REMEMBER the failure: swallowing it turned "could not search orders" into "no orders".
+async function safe<T>(
+  p: Promise<T>,
+  fallback: T,
+  label?: Results['unreachable'][number],
+  failures?: Results['unreachable'],
+): Promise<T> {
   try {
     return await p;
   } catch {
+    if (label && failures) failures.push(label);
     return fallback;
   }
 }
 
 async function runSearch(q: string, mayLookupCustomer: boolean): Promise<Results> {
+  const failures: Results['unreachable'] = [];
   const [depotPage, productPage, orderPage, customer] = await Promise.all([
     safe(api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ search: q, limit: 8 }), true), {
       items: [],
-    } as unknown as Page<DepotAdmin>),
+    } as unknown as Page<DepotAdmin>, 'depots', failures),
     safe(api.get<Page<Product>>(endpoints.products.browse({ search: q, limit: 8 }), true), {
       items: [],
-    } as unknown as Page<Product>),
+    } as unknown as Page<Product>, 'products', failures),
     // Order-number substring, matched by order-service over the whole table (F-12) —
     // not the last twenty rows filtered in the browser.
     safe(api.get<Page<Order>>(endpoints.orders.manage({ orderNumber: q, limit: 8 }), true), {
       items: [],
-    } as unknown as Page<Order>),
+    } as unknown as Page<Order>, 'orders', failures),
     mayLookupCustomer && PHONE_RE.test(q.trim())
-      ? safe(api.get<Customer>(endpoints.auth.customerLookup(q.trim()), true), null)
+      ? safe(api.get<Customer>(endpoints.auth.customerLookup(q.trim()), true), null, 'customers', failures)
       : Promise.resolve(null),
   ]);
   return {
@@ -67,6 +78,7 @@ async function runSearch(q: string, mayLookupCustomer: boolean): Promise<Results
     products: productPage.items ?? [],
     orders: orderPage.items ?? [],
     customer,
+    unreachable: failures,
   };
 }
 
@@ -103,6 +115,11 @@ function SearchBody() {
   // not hold `customerPhoneLookup` on purpose, so the source is not queried for them (it used
   // to be, and its 403 was swallowed into an empty result) and the screen says so.
   const mayLookupCustomer = can('customerPhoneLookup', customer?.role);
+  // Typing searches by itself once it settles; Enter still searches at once.
+  const settled = useDebounce(input, 300);
+  useEffect(() => {
+    setQ(settled);
+  }, [settled]);
   const res = useAsync<Results | null>(
     () => (q.trim() ? runSearch(q.trim(), mayLookupCustomer) : Promise.resolve(null)),
     [q, mayLookupCustomer],
@@ -152,6 +169,13 @@ function SearchBody() {
         // "Tidak ada hasil untuk <q>" is a statement about the catalogue. A search that
         // could not run is a statement about the search.
         <ErrorState message={res.error} onRetry={res.reload} />
+      ) : res.data && res.data.unreachable.length > 0 && total === 0 ? (
+        <ErrorState
+          message={t('dashC.search.partial', {
+            sources: res.data.unreachable.map((k) => t(`dashC.search.${k}`)).join(', '),
+          })}
+          onRetry={res.reload}
+        />
       ) : total === 0 ? (
         <CenterState
           title={t('dashC.search.noResultsTitle')}
@@ -161,6 +185,13 @@ function SearchBody() {
         </CenterState>
       ) : (
         <div className="flex flex-col gap-5">
+          {res.data && res.data.unreachable.length > 0 && (
+            <p className="rounded-xl border border-app px-3.5 py-2.5 text-xs text-muted" role="status">
+              {t('dashC.search.partial', {
+                sources: res.data.unreachable.map((k) => t(`dashC.search.${k}`)).join(', '),
+              })}
+            </p>
+          )}
           <Section
             title={t('dashC.search.depots')}
             icon={<Storefront size={16} weight="fill" />}

@@ -10,6 +10,7 @@ import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { canManagePromotions, canViewPromotions } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -358,7 +359,16 @@ function PromotionsAdmin() {
 
   // Audit F-14: a rejected delete used to be swallowed, so the row simply reappeared
   // and the operator had no way to tell a refusal from a no-op.
+  const { confirm } = useConfirm();
   async function remove(id: string) {
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.deleteTitle'),
+        message: t('hrFix.confirmGap.deleteMessage'),
+        confirmLabel: t('hrFix.confirmGap.deleteConfirm'), tone: 'danger',
+      }))
+    )
+      return;
     try {
       await api.del(endpoints.promotions.detail(id), true);
     } catch (e) {

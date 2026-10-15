@@ -10,6 +10,7 @@ import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { CategorySelect, ProductSelect } from '@/components/catalog-select';
 import { useAuth } from '@/lib/auth-context';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
 import { effectiveDepotIdFor } from '@/lib/promo-rule-depot';
@@ -209,7 +210,16 @@ export default function DashboardPromoRulesPage() {
 
   const visible = filterRules(data ?? [], filter);
 
+  const { confirm } = useConfirm();
   async function remove(id: string) {
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.deleteTitle'),
+        message: t('hrFix.confirmGap.deleteMessage'),
+        confirmLabel: t('hrFix.confirmGap.deleteConfirm'), tone: 'danger',
+      }))
+    )
+      return;
     try {
       await api.del(endpoints.promoRules.detail(id), true);
     } catch (e) {

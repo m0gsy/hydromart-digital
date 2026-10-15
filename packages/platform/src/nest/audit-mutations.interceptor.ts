@@ -126,8 +126,18 @@ export class AuditMutationsInterceptor implements NestInterceptor {
     const url = String(req.originalUrl ?? req.url ?? '');
     const { action, target } = describeRoute(method, url);
     const actorId: string | null = req.user?.sub ?? null;
+    const body = redactBody(req.body) ?? {};
+    // The depot-scoped audit view filters on a TOP-LEVEL `depotId`. A write addressed by path
+    // (`PATCH /depots/:depotId`) or made by a depot-assigned account carried it only inside
+    // `params` or not at all, so those rows never reached the depot's own screen. Body wins:
+    // it is what the caller said they were acting on.
+    const scope =
+      body.depotId === undefined
+        ? (req.params?.depotId ?? req.user?.depotId ?? undefined)
+        : undefined;
     const metadata = {
-      ...(redactBody(req.body) ?? {}),
+      ...body,
+      ...(typeof scope === 'string' && scope ? { depotId: scope } : {}),
       ...(req.params && Object.keys(req.params).length ? { params: req.params } : {}),
     };
 

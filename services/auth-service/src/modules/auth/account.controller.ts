@@ -161,10 +161,10 @@ export class AccountController {
 
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
-  @ApiOkResponse({ type: ListStaff3ResponseDto })
   // `staffDirectoryFinance`, not `staffDirectory`: FINANCE reads this ONLY to put a name on a
   // franchise owner it is releasing money to. The role filter below holds it to that — it
   // must not turn into a staff roster for the people who run the books.
+  @ApiOkResponse({ type: ListStaff3ResponseDto })
   @Can('staffDirectoryFinance')
   @Get('auth/staff')
   @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })

@@ -27,7 +27,7 @@ function hoursAgo(iso: string): number {
 export default function HqRefundsPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const { askReason } = useConfirm();
+  const { askReason, confirm } = useConfirm();
   const { customer } = useAuth();
   const mayDecide = can('refundQueue', customer?.role);
   const queue = useAsync<Page<RefundQueueItem>>(() =>
@@ -46,6 +46,18 @@ export default function HqRefundsPage() {
    */
   async function decide(r: RefundQueueItem, approved: boolean) {
     let reason: string | null = null;
+    if (approved) {
+      if (
+        !(await confirm({
+          title: t('hq.refunds.approveTitle'),
+          message: t('hq.refunds.approveMessage', {
+            order: r.orderNumber ?? r.orderId.slice(0, 8),
+          }),
+          confirmLabel: t('hq.refunds.approve'),
+        }))
+      )
+        return;
+    }
     if (!approved) {
       reason = await askReason({
         title: t('hq.refunds.rejectTitle'),

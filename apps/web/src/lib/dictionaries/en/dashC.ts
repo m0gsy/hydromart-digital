@@ -235,6 +235,10 @@ export const dashC = {
       settingsGlobal: 'Global settings',
       accessMatrixWrite: 'Edit the access matrix',
       staffDirectory: 'Staff directory (view)',
+      orderManageRead: 'Read orders (no changes)',
+      depotLifecycle: 'Open and deactivate depots',
+      driverRosterRead: 'View courier names (finance)',
+      staffDirectoryFinance: 'View franchise owners (finance)',
       depotDirectory: 'Depot records (view)',
       hqConsole: 'Enter the head-office console',
       dashboardFinance: 'Executive & network dashboard (finance screens)',
@@ -250,6 +254,7 @@ export const dashC = {
     placeholder: 'Search depots, products, or a customer phone number…',
     startTitle: 'Start searching',
     startBody: 'Type a keyword then press Enter to search across the whole network.',
+    partial: 'Some sources could not be reached: {sources}. The other results are shown.',
     customerUnavailable:
       'Customer search by phone number is limited to head office and managers; depot, product and order results still appear.',
     noResultsTitle: 'No results',

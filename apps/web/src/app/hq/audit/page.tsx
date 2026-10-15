@@ -11,6 +11,7 @@ import { downloadXlsx } from '@/lib/xlsx';
 import type { CsvCell } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { agoLabel } from '@/lib/hq/stubs';
+import { actionLabel } from '@/lib/audit-action';
 import { useT } from '@/lib/locale-context';
 import { fetchAllPages, TooManyPagesError } from '@/lib/fetch-all-pages';
 import { usePagedList } from '@/lib/use-paged-list';
@@ -208,7 +209,9 @@ export default function HqAuditPage() {
                   </td>
                   <td className="px-4 py-2.5 text-muted">{r.actorRole ?? '—'}</td>
                   <td className="px-4 py-2.5">{r.target ?? '—'}</td>
-                  <td className="px-4 py-2.5">{r.action}</td>
+                  <td className="px-4 py-2.5" title={r.action}>
+                    {actionLabel(r.action, t)}
+                  </td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-muted">
                     {agoLabel(minutesAgo(r.createdAt), t)}
                   </td>

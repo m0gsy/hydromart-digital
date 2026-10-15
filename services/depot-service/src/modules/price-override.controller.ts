@@ -28,6 +28,7 @@ import {
   PriceOverrideStatus,
 } from '../domain/price-override-proposal';
 import { Page } from '../application/pagination';
+import { DecisionReasonDto } from './dto/franchise-application.dto';
 import {
   ImportPriceOverridesDto,
   ListPriceOverridesQueryDto,
@@ -143,8 +144,9 @@ export class PriceOverrideController {
   async reject(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DecisionReasonDto,
   ): Promise<PriceOverrideProposalRecord> {
     assertDepotAccess(user, (await this.overrides.get(id)).depotId);
-    return this.overrides.reject(id, user.sub);
+    return this.overrides.reject(id, user.sub, dto?.reason);
   }
 }

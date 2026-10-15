@@ -8,6 +8,7 @@ import { Badge, Button, Card, Chip, ErrorState, Skeleton } from '@/components/ui
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { FraudFlag, FraudStatus } from '@/lib/types';
@@ -32,6 +33,7 @@ const STATUS_TONE: Record<FraudStatus, 'warning' | 'brand' | 'danger' | 'success
 export default function HqFraudPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { askReason } = useConfirm();
   const [filter, setFilter] = useState<Filter>('all');
   const query = useAsync<FraudFlag[]>(
     () => api.get(endpoints.admin.fraud.list({ status: filter === 'all' ? undefined : filter }), true),
@@ -42,8 +44,23 @@ export default function HqFraudPage() {
   const label = (f: Filter) => (f === 'all' ? t('hq.fraud.all') : t(`hq.fraud.status.${f}`));
 
   async function act(r: FraudFlag, action: 'review' | 'block' | 'clear') {
+    // Blocking and clearing decide about a person or an account: they say why, and it is
+    // kept in the audit trail. A plain review is a bookkeeping mark and stays one tap.
+    let reason: string | null = '';
+    if (action !== 'review') {
+      reason = await askReason({
+        title: t(action === 'block' ? 'hrFix.decisionGap.fraudBlockTitle' : 'hrFix.decisionGap.fraudClearTitle'),
+        message: t('hrFix.decisionGap.fraudMessage', { subject: r.entityRef }),
+        label: t('hrFix.decisionGap.reason'),
+        placeholder: t('hrFix.decisionGap.reasonHint'),
+        confirmLabel: t(action === 'block' ? 'hrFix.decisionGap.fraudBlockConfirm' : 'hrFix.decisionGap.fraudClearConfirm'),
+        optional: action === 'clear',
+        tone: action === 'block' ? 'danger' : undefined,
+      });
+      if (reason === null) return;
+    }
     try {
-      await api.post(endpoints.admin.fraud[action](r.id), {}, true);
+      await api.post(endpoints.admin.fraud[action](r.id), reason ? { reason } : {}, true);
       const key = action === 'block' ? 'blocked' : action === 'clear' ? 'cleared' : 'reviewed';
       toast(t(`hq.fraud.${key}`, { subject: r.entityRef }), action === 'block' ? 'error' : 'success');
       query.reload();

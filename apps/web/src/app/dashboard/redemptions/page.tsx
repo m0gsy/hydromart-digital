@@ -11,6 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatDateTime } from '@/lib/format';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { canHandOverRewards } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -38,7 +39,16 @@ function RedemptionQueue() {
   );
   const [pending, setPending] = useState<string | null>(null);
 
+  const { confirm } = useConfirm();
   async function markUsed(row: RedemptionListItem) {
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.usedTitle'),
+        message: t('hrFix.confirmGap.usedMessage'),
+        confirmLabel: t('hrFix.confirmGap.usedConfirm'),
+      }))
+    )
+      return;
     setPending(row.id);
     try {
       await api.post(endpoints.rewards.markRedemptionUsed(row.id), {}, true);

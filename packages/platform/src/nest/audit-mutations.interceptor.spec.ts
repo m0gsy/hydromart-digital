@@ -201,6 +201,43 @@ describe('AuditMutationsInterceptor (CA-2-67)', () => {
     expect(logged).toEqual(['audit entry dropped for webhooks.deleted: auth-service down']);
   });
 
+  it('stamps a top-level depotId from the path or the actor, so the depot view can find the row', async () => {
+    const interceptor = new AuditMutationsInterceptor(sink);
+    await firstValueFrom(
+      interceptor.intercept(
+        ctx({
+          method: 'PATCH',
+          originalUrl: '/api/v1/depots/d-1',
+          params: { depotId: 'd-1' },
+          user: { sub: 'u1', depotId: 'd-own' },
+        }),
+        handler(),
+      ),
+    );
+    await Promise.resolve();
+    expect(recorded[0].metadata).toMatchObject({ depotId: 'd-1' });
+
+    recorded.length = 0;
+    await firstValueFrom(
+      interceptor.intercept(
+        ctx({ method: 'POST', originalUrl: '/api/v1/x', user: { sub: 'u1', depotId: 'd-own' } }),
+        handler(),
+      ),
+    );
+    await Promise.resolve();
+    expect(recorded[0].metadata).toMatchObject({ depotId: 'd-own' });
+
+    recorded.length = 0;
+    await firstValueFrom(
+      interceptor.intercept(
+        ctx({ method: 'POST', originalUrl: '/api/v1/x', body: { depotId: 'd-body' }, params: { depotId: 'd-path' } }),
+        handler(),
+      ),
+    );
+    await Promise.resolve();
+    expect(recorded[0].metadata).toMatchObject({ depotId: 'd-body' });
+  });
+
   it('treats a missing user as a system actor rather than throwing', async () => {
     const interceptor = new AuditMutationsInterceptor(sink);
     await firstValueFrom(

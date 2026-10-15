@@ -1,4 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+
+import { recordAuditEvent } from '@hydromart/platform';
 
 import {
   ApplicationAlreadyDecidedError,
@@ -21,6 +23,7 @@ import {
   FranchiseApplicationRepository,
   ListApplicationsFilter,
 } from '../ports/franchise-application.repository';
+import { DepotConfigService } from '../../config/depot-config.service';
 import { DEPOT_TOKENS } from '../tokens';
 
 /** Onboard-form prefill returned on approval (WARALABA depot from the proposed fields). */
@@ -55,6 +58,7 @@ export class FranchiseApplicationService {
     private readonly applications: FranchiseApplicationRepository,
     @Inject(DEPOT_TOKENS.DepotRepository)
     private readonly depots: DepotRepository,
+    @Optional() private readonly config?: DepotConfigService,
   ) {}
 
   /**
@@ -92,8 +96,9 @@ export class FranchiseApplicationService {
     return this.applications.update(id, { stage: patch.stage, checklist });
   }
 
-  async approve(id: string): Promise<ApproveResult> {
+  async approve(id: string, actorId?: string, reason?: string): Promise<ApproveResult> {
     const app = await this.decide(id, FranchiseAppStage.APPROVED);
+    await this.audit('depot.franchise_application.approved', app, actorId, true, reason);
     return {
       application: app,
       proposedDepot: {
@@ -108,8 +113,42 @@ export class FranchiseApplicationService {
     };
   }
 
-  reject(id: string): Promise<FranchiseApplicationRecord> {
-    return this.decide(id, FranchiseAppStage.REJECTED);
+  async reject(
+    id: string,
+    actorId?: string,
+    reason?: string,
+  ): Promise<FranchiseApplicationRecord> {
+    const app = await this.decide(id, FranchiseAppStage.REJECTED);
+    await this.audit('depot.franchise_application.rejected', app, actorId, false, reason);
+    return app;
+  }
+
+  /** The decision and its reason go to the shared trail. Fail-open: it is already made. */
+  private async audit(
+    action: string,
+    app: FranchiseApplicationRecord,
+    actorId: string | undefined,
+    success: boolean,
+    reason?: string,
+  ): Promise<void> {
+    if (!this.config) return;
+    await recordAuditEvent(
+      {
+        authServiceUrl: this.config.authServiceUrl,
+        internalServiceKey: this.config.internalServiceKey,
+      },
+      {
+        action,
+        actorId: actorId || null,
+        target: `${app.proposedName} · ${app.proposedCode}`,
+        success,
+        metadata: {
+          applicationId: app.id,
+          ...(reason?.trim() ? { reason: reason.trim().slice(0, 300) } : {}),
+        },
+      },
+      this.logger,
+    );
   }
 
   private async decide(id: string, stage: FranchiseAppStage): Promise<FranchiseApplicationRecord> {

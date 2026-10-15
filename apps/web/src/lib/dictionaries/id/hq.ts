@@ -669,6 +669,8 @@ export const hq = {
     age: '{n} jam lalu',
     approve: 'Setujui',
     reject: 'Tolak',
+    approveTitle: 'Setujui refund?',
+    approveMessage: 'Refund untuk pesanan {order} akan disetujui dan dananya dikembalikan ke pelanggan.',
     rejectTitle: 'Tolak refund ini?',
     rejectMessage: 'Refund untuk {order} akan ditolak. Uang pelanggan tetap di perusahaan, jadi alasannya wajib ditulis dan tercatat atas nama Anda.',
     rejectReason: 'Alasan penolakan',

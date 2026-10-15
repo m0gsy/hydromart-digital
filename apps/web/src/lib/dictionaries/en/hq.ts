@@ -665,6 +665,8 @@ export const hq = {
     age: '{n}h ago',
     approve: 'Approve',
     reject: 'Reject',
+    approveTitle: 'Approve the refund?',
+    approveMessage: 'The refund for order {order} is approved and the money goes back to the customer.',
     rejectTitle: 'Reject this refund?',
     rejectMessage: 'The refund for {order} will be rejected. The money stays with the business, so a reason is required and is recorded under your name.',
     rejectReason: 'Reason for rejecting',

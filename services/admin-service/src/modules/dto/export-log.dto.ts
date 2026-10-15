@@ -72,6 +72,24 @@ export class IngestExportLogDto {
   status?: ExportStatus;
 }
 
+/** A browser-side export the person who ran it asks to have logged. */
+export class RecordExportLogDto {
+  @ApiProperty({ example: 'Pendapatan per depot' })
+  @IsString()
+  @MaxLength(200)
+  dataset!: string;
+
+  @ApiProperty({ enum: ExportFormat })
+  @IsEnum(ExportFormat)
+  format!: ExportFormat;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  rowCount?: number;
+}
+
 /* ---------- Responses ---------- */
 
 export class ExportLogDto {

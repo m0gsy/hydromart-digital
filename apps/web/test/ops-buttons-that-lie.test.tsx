@@ -38,13 +38,16 @@ vi.mock('@/lib/depot-context', () => ({
 import CommissionPage from '@/app/dashboard/commission/page';
 import BroadcastPage from '@/app/dashboard/broadcast/page';
 import { ToastProvider } from '@/components/toast';
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 import { endpoints } from '@/lib/endpoints';
 
 function show(node: React.ReactNode) {
   render(
     <LocaleProvider>
+      <ConfirmProvider>
       <ToastProvider>{node}</ToastProvider>
+    </ConfirmProvider>
     </LocaleProvider>,
   );
 }
@@ -101,6 +104,7 @@ describe('OPS-04 · the depot broadcast actually sends', () => {
     await userEvent.type(inputs[0] as HTMLElement, 'Promo galon');
     await userEvent.type(inputs[inputs.length - 1] as HTMLElement, 'Diskon akhir pekan');
     await userEvent.click(screen.getByRole('button', { name: /kirim/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Ya, kirim$/ }));
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
     expect(post.mock.calls[0]?.[0]).toBe(endpoints.crm.createDepotCampaign);

@@ -14,7 +14,7 @@ import {
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
-import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import {
   ApproveResult,
@@ -24,6 +24,7 @@ import { FranchiseApplicationRecord } from '../application/ports/franchise-appli
 import { emptyChecklist, FranchiseAppStage } from '../domain/franchise-application';
 import { Page } from '../application/pagination';
 import {
+  DecisionReasonDto,
   ListApplicationsQueryDto,
   PatchApplicationDto,
   PurgeRejectedApplicationsDto,
@@ -137,15 +138,23 @@ export class FranchiseApplicationController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve → returns the proposed-depot onboard prefill' })
-  approve(@Param('id', ParseUUIDPipe) id: string): Promise<ApproveResult> {
-    return this.applications.approve(id);
+  approve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DecisionReasonDto,
+  ): Promise<ApproveResult> {
+    return this.applications.approve(id, user.sub, dto?.reason);
   }
 
   @ApiOkResponse({ type: FranchiseApplicationResponseDto })
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject an application' })
-  reject(@Param('id', ParseUUIDPipe) id: string): Promise<FranchiseApplicationRecord> {
-    return this.applications.reject(id);
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DecisionReasonDto,
+  ): Promise<FranchiseApplicationRecord> {
+    return this.applications.reject(id, user.sub, dto?.reason);
   }
 }

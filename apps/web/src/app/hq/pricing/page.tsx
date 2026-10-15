@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { computeEffective } from '@/lib/pricing';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Page, PriceOverrideProposalItem, Product } from '@/lib/types';
@@ -20,6 +21,7 @@ import type { Page, PriceOverrideProposalItem, Product } from '@/lib/types';
 export default function HqPricingPage() {
   const { t } = useT();
   const { toast } = useToast();
+  const { askReason } = useConfirm();
   const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
   const queueQ = useAsync<Page<PriceOverrideProposalItem>>(() =>
     api.get(endpoints.priceOverrides.queue({ limit: 50 }), true),
@@ -31,9 +33,23 @@ export default function HqPricingPage() {
   const [deciding, setDeciding] = useState<string | null>(null);
 
   async function decide(p: PriceOverrideProposalItem, approved: boolean) {
+    // A price decision moves a depot's margin: it asks first, and a rejection says why.
+    const reason = await askReason({
+      title: t('hrFix.decisionGap.priceTitle'),
+      message: t('hrFix.decisionGap.priceMessage'),
+      label: t('hrFix.decisionGap.reason'),
+      placeholder: t('hrFix.decisionGap.reasonHint'),
+      confirmLabel: t('hrFix.decisionGap.priceConfirm'),
+      optional: approved,
+    });
+    if (reason === null) return;
     setDeciding(p.id);
     try {
-      await api.post(approved ? endpoints.priceOverrides.approve(p.id) : endpoints.priceOverrides.reject(p.id), {}, true);
+      await api.post(
+        approved ? endpoints.priceOverrides.approve(p.id) : endpoints.priceOverrides.reject(p.id),
+        approved ? {} : { reason: reason || undefined },
+        true,
+      );
       toast(
         approved
           ? t('hq.pricing.queue.approved', { product: p.productName })

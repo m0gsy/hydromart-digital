@@ -20,6 +20,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { canBroadcastToCouriers } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -94,10 +95,21 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
   }, [depotId, audience, toCustomers]);
   const audienceSize = reach.data?.count ?? null;
 
+  const { confirm } = useConfirm();
   async function send() {
     if (!title.trim() || !body.trim()) {
       setError(t('dashA.broadcast.titleRequired'));
       return;
+    }
+    if (toCustomers) {
+      if (
+        !(await confirm({
+          title: t('hrFix.confirmGap.broadcastTitle'),
+          message: t('hrFix.confirmGap.broadcastMessage'),
+          confirmLabel: t('hrFix.confirmGap.broadcastConfirm'),
+        }))
+      )
+        return;
     }
     setBusy(true);
     setError(null);
