@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
+import { HQ_IDLE_LIMIT } from '@hydromart/access';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
@@ -43,21 +44,29 @@ export default function HqSecurityPage() {
   if (query.error)
     return <ErrorState message={t('hq.security.loadError')} onRetry={query.reload} />;
 
-  const policy = draft ?? query.data!;
+  // 0 is "off"; anything else must be inside the range the server enforces. Checked here
+  // too so the admin is told before the round trip, not by a 400 afterwards.
+  const idleOk = (n: number) =>
+    n === HQ_IDLE_LIMIT.off || (n >= HQ_IDLE_LIMIT.min && n <= HQ_IDLE_LIMIT.max);
+
+  // A value stored before the limit meant "head office only, off by default" — the old 15
+  // was the column default, never a choice — is shown as what the migration makes it: off.
+  // Otherwise an admin who only came to edit the allowlist would find Save locked by a
+  // number they never entered.
+  const loaded = query.data!;
+  const policy =
+    draft ??
+    (idleOk(loaded.idleTimeoutMinutes)
+      ? loaded
+      : { ...loaded, idleTimeoutMinutes: HQ_IDLE_LIMIT.off });
   const allowlist = allowlistText ?? policy.ipAllowlist.join('\n');
   const set = (patch: Partial<SecurityPolicy>) => setDraft({ ...policy, ...patch });
 
-  /**
-   * UNENFORCED-2. Measured 2026-08-29: `idleTimeoutMinutes` and `ipAllowlist` are written
-   * here, stored by admin-service, and read by NOTHING — no session TTL derives from the
-   * first (auth-service has no idle concept at all) and no gateway or guard evaluates the
-   * second. Unlike `require2fa` both are implementable, so they stay editable rather than
-   * being deleted: removing them would throw away an admin's stated intent. But the SCREEN
-   * still presents them as if they applied, and that is the same lie in a smaller font.
-   * Saying so needs two dictionary strings, which live outside this page — until they land,
-   * this comment is the only place the gap is recorded. Do not read it as "handled".
-   */
+  const idle = policy.idleTimeoutMinutes;
+  const idleInvalid = !idleOk(idle);
+
   async function save() {
+    if (idleInvalid) return;
     setBusy(true);
     const ipAllowlist = allowlist
       .split('\n')
@@ -129,8 +138,9 @@ export default function HqSecurityPage() {
             <input
               id="idle"
               type="number"
-              min={1}
-              max={1440}
+              min={HQ_IDLE_LIMIT.off}
+              max={HQ_IDLE_LIMIT.max}
+              aria-invalid={idleInvalid}
               value={policy.idleTimeoutMinutes}
               onChange={(e) => set({ idleTimeoutMinutes: Number(e.target.value) })}
               className="surface-elevated w-20 rounded-lg border border-app px-2.5 py-1.5 text-sm font-semibold tabular-nums focus:outline focus:outline-2 focus:outline-brand-600"
@@ -156,6 +166,11 @@ export default function HqSecurityPage() {
          * switch was removed rather than left lying.
          */}
         <p className="-mt-1 text-xs text-muted">{t('hq.security.idleEnforced')}</p>
+        {idleInvalid && (
+          <p className="-mt-2 text-xs font-medium text-[color:var(--danger)]" role="alert">
+            {t('hq.security.idleInvalid')}
+          </p>
+        )}
         <div>
           <label htmlFor="ips" className="text-sm font-semibold">
             {t('hq.security.ipAllowlist')}
@@ -176,7 +191,7 @@ export default function HqSecurityPage() {
           </p>
         </div>
         <div className="flex justify-end">
-          <Button onClick={save} loading={busy}>
+          <Button onClick={save} loading={busy} disabled={idleInvalid}>
             {t('hq.security.save')}
           </Button>
         </div>

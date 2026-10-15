@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { CAPABILITIES, HQ_IDLE_LIMIT, type Role } from '@hydromart/access';
+
+import { SecurityPolicyPort } from '../ports/security-policy.port';
 
 import { Customer } from '../../domain/customer/customer.entity';
-import { InvalidRefreshTokenError, RefreshTokenRotatedError } from '../../domain/errors/auth.errors';
+import {
+  InvalidRefreshTokenError,
+  RefreshTokenRotatedError,
+} from '../../domain/errors/auth.errors';
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AccessTokenSignerPort } from '../ports/access-token-signer.port';
 import { ClockPort } from '../ports/clock.port';
@@ -58,6 +64,7 @@ export class SessionService {
     @Inject(AUTH_TOKENS.AccessTokenSignerPort) private readonly signer: AccessTokenSignerPort,
     @Inject(AUTH_TOKENS.CryptoPort) private readonly crypto: CryptoPort,
     @Inject(AUTH_TOKENS.ClockPort) private readonly clock: ClockPort,
+    @Inject(AUTH_TOKENS.SecurityPolicy) private readonly securityPolicy: SecurityPolicyPort,
     private readonly config: AuthConfigService,
   ) {}
 
@@ -98,21 +105,11 @@ export class SessionService {
     }
 
     /*
-     * No idle limit here, on purpose — a session ends when it has gone unused for the
-     * whole refresh lifetime (`JWT_REFRESH_TTL`, 30 days), which the expiry check above
-     * already enforces, and at no earlier point.
-     *
-     * Every refresh mints a NEW token with a fresh lifetime, so that lifetime is a sliding
-     * window: open the app once a month and you are never asked again. That is the rule the
-     * business wants, because every sign-out costs one SMS OTP to get back in.
-     *
-     * An idle limit measured from `record.createdAt` cannot be made to fit under it. That
-     * column is the time of the LAST REFRESH, not of the last request, and a refresh only
-     * happens when the 15-minute access token has run out — so for anybody actively using
-     * the app, "idle" is at least one access-token lifetime at every refresh. A limit at or
-     * below that signs out exactly the people who are working. (It did: the first
-     * deployment that made auth-service read the policy, with its 15-minute default, ended
-     * every active session at the 15-minute mark.)
+     * A session ends when it has gone unused for the whole refresh lifetime
+     * (`JWT_REFRESH_TTL`, 30 days), which the expiry check above already enforces. Every
+     * refresh mints a NEW token with a fresh lifetime, so that lifetime is a sliding window:
+     * open the app once a month and you are never asked again. Every sign-out costs an SMS
+     * OTP, so nobody is signed out earlier for idleness — with ONE exception, below.
      */
 
     const customer = await this.customers.findById(record.customerId);
@@ -120,6 +117,8 @@ export class SessionService {
       throw new InvalidRefreshTokenError();
     }
     customer.ensureCanAuthenticate();
+
+    await this.assertNotIdle(customer, record.createdAt, record.familyId, now);
 
     const session = await this.mintSession(customer, record.familyId, ctx, record.id);
     return session;
@@ -164,6 +163,45 @@ export class SessionService {
       ipAddress: record.ipAddress,
       userAgent: record.userAgent,
     }));
+  }
+
+  /**
+   * The idle limit head office set — for head-office accounts only.
+   *
+   * CA-2-06 applied it to everybody, measured from `createdAt` (the last REFRESH, not the
+   * last request). A refresh only happens when the access token has run out, so for anybody
+   * using the app that interval is at least one access-token lifetime at every refresh: a
+   * 15-minute limit ended every active session at the 15-minute mark. Two corrections:
+   *
+   *  - the access-token lifetime is subtracted, so a continuously used session measures ~0.
+   *    What is left is a floor on the real inactivity — it can under-state idleness by up to
+   *    one access-token lifetime, never over-state it — hence `HQ_IDLE_LIMIT.min`.
+   *  - it applies only to roles that hold `hqConsole`. A customer or a courier is never
+   *    signed out for idleness; see `HQ_IDLE_LIMIT`.
+   *
+   * Off unless head office turned it on (`null`), and also off when the policy cannot be
+   * read: neither is a reason to sign anybody out.
+   */
+  private async assertNotIdle(
+    customer: Customer,
+    lastRefreshedAt: Date,
+    familyId: string,
+    now: Date,
+  ): Promise<void> {
+    if (!(CAPABILITIES.hqConsole as readonly Role[]).includes(customer.role as unknown as Role)) {
+      return;
+    }
+    const limit = await this.securityPolicy.idleTimeoutMinutes();
+    if (limit === null || limit < HQ_IDLE_LIMIT.min) return;
+
+    const accessMs = this.config.tokenPolicy.accessTtlSeconds * 1000;
+    const idleMs = now.getTime() - lastRefreshedAt.getTime() - accessMs;
+    if (idleMs > limit * 60_000) {
+      // The family goes with it: an abandoned session should not be resumable from another
+      // device holding an older token in the same chain.
+      await this.refreshTokens.revokeFamily(familyId, now);
+      throw new InvalidRefreshTokenError('The session was idle for too long.');
+    }
   }
 
   /**

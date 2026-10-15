@@ -1,5 +1,20 @@
 import { DomainError, HTTP_STATUS } from '@hydromart/platform';
 
+/**
+ * The idle limit is either off (0) or between the minimum and the maximum. A value in the
+ * gap is refused rather than rounded: rounding 15 up to 30 would store a number the admin
+ * did not choose, and accepting it would sign out people who are working.
+ */
+export class IdleLimitOutOfRangeError extends DomainError {
+  readonly code = 'IDLE_LIMIT_OUT_OF_RANGE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(min: number, max: number) {
+    super(
+      `Batas idle harus 0 (mati) atau antara ${min} dan ${max} menit. Di bawah ${min} menit, orang yang sedang bekerja ikut terkeluarkan.`,
+    );
+  }
+}
+
 export class FeatureFlagNotFoundError extends DomainError {
   readonly code = 'FEATURE_FLAG_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

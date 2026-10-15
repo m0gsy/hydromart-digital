@@ -16,6 +16,7 @@ import {
   FakeClock,
   FakeCrypto,
   FakeOtpDelivery,
+  FakeSecurityPolicy,
   InMemoryAuditLogRepository,
   InMemoryCustomerRepository,
   InMemoryOtpTokenRepository,
@@ -45,6 +46,7 @@ describe('AccountService branch gaps', () => {
       new FakeAccessTokenSigner(),
       new FakeCrypto(),
       clock,
+      new FakeSecurityPolicy(),
       buildTestConfig(),
     );
     service = new AccountService(customers, sessions, new AuditService(audit));
@@ -125,6 +127,7 @@ describe('SessionService branch gaps', () => {
       new FakeAccessTokenSigner(),
       new FakeCrypto(),
       clock,
+      new FakeSecurityPolicy(),
       buildTestConfig(),
     );
   });
@@ -183,6 +186,7 @@ describe('OtpVerificationService branch gaps', () => {
       new FakeAccessTokenSigner(),
       crypto,
       clock,
+      new FakeSecurityPolicy(),
       config,
     );
     service = new OtpVerificationService(

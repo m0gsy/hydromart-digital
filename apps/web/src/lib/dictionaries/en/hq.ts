@@ -1746,13 +1746,14 @@ export const hq = {
   },
   security: {
     idleEnforced:
-      'Not applied: a session ends only after 30 days without being opened. A forced sign-out makes the user request another OTP, so a short idle limit is deliberately not used.',
+      'Enter 0 to turn it off (the default). When on, at least 30 minutes. Head-office accounts only; customers, couriers and cashiers are never signed out for idleness — their session ends after 30 days unused.',
+    idleInvalid: 'Enter 0 (off) or between 30 and 1440 minutes.',
     ipUnenforced:
       'PARTLY ENFORCED. This list now refuses partner API requests (x-api-key) from addresses outside it. It is NOT enforced for this HQ console: those requests arrive through the gateway, which admin-service cannot see past.',
     title: 'Security & 2FA',
     subtitle: 'Session policy, 2FA, and active sessions',
     sessionPolicy: 'Session policy',
-    sessionTimeout: 'Auto sign-out',
+    sessionTimeout: 'Head-office idle limit',
     minutesIdle: 'minutes idle',
     twoFa: 'Require 2FA',
     twoFaBody: 'All HQ accounts must verify OTP on sign-in.',

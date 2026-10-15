@@ -12,7 +12,8 @@ describe('SecurityPolicyService', () => {
 
   it('returns platform defaults before anything is saved', async () => {
     const p = await service.get();
-    expect(p).toMatchObject({ idleTimeoutMinutes: 15, require2fa: true, ipAllowlist: [] });
+    // Off: the idle limit applies to head-office accounts only and is a decision, not a default.
+    expect(p).toMatchObject({ idleTimeoutMinutes: 0, require2fa: true, ipAllowlist: [] });
   });
 
   it('saves and reads back the policy', async () => {
@@ -27,6 +28,22 @@ describe('SecurityPolicyService', () => {
       require2fa: false,
       ipAllowlist: ['103.21.0.0/16'],
     });
+  });
+
+  /*
+   * The idle limit is off (0) or 30–1440. A value in between is refused, not rounded:
+   * below 30 minutes the measurement (accurate to one access-token lifetime) would sign
+   * out people who are working.
+   */
+  it.each([0, 30, 480, 1440])('accepts an idle limit of %i', async (idle) => {
+    await service.save({ idleTimeoutMinutes: idle, require2fa: true, ipAllowlist: [] });
+    expect((await service.get()).idleTimeoutMinutes).toBe(idle);
+  });
+
+  it.each([1, 15, 29, 1441, -5])('refuses an idle limit of %i', async (idle) => {
+    await expect(
+      service.save({ idleTimeoutMinutes: idle, require2fa: true, ipAllowlist: [] }),
+    ).rejects.toMatchObject({ code: 'IDLE_LIMIT_OUT_OF_RANGE', status: 400 });
   });
 
   /*

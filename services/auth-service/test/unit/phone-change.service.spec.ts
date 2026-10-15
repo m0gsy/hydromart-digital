@@ -15,6 +15,7 @@ import {
   FakeClock,
   FakeCrypto,
   FakeOtpDelivery,
+  FakeSecurityPolicy,
   InMemoryAuditLogRepository,
   InMemoryCustomerRepository,
   InMemoryOtpTokenRepository,
@@ -72,6 +73,7 @@ describe('PhoneChangeService', () => {
       new FakeAccessTokenSigner(),
       crypto,
       clock,
+      new FakeSecurityPolicy(),
       config,
     );
     service = new PhoneChangeService(

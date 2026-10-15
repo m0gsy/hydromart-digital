@@ -1,10 +1,12 @@
 import { InvalidRefreshTokenError } from '../../src/domain/errors/auth.errors';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
+import { Role } from '../../src/domain/customer/role.enum';
 import { SessionService } from '../../src/application/services/session.service';
 import {
   FakeAccessTokenSigner,
   FakeClock,
   FakeCrypto,
+  FakeSecurityPolicy,
   InMemoryCustomerRepository,
   InMemoryRefreshTokenRepository,
   buildTestConfig,
@@ -17,12 +19,14 @@ describe('SessionService', () => {
   let crypto: FakeCrypto;
   let clock: FakeClock;
   let service: SessionService;
+  let policy: FakeSecurityPolicy;
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
 
   beforeEach(() => {
     refreshRepo = new InMemoryRefreshTokenRepository();
     customerRepo = new InMemoryCustomerRepository();
+    policy = new FakeSecurityPolicy();
     crypto = new FakeCrypto();
     clock = new FakeClock();
     service = new SessionService(
@@ -31,6 +35,7 @@ describe('SessionService', () => {
       new FakeAccessTokenSigner(),
       crypto,
       clock,
+      policy,
       buildTestConfig(),
     );
   });
@@ -171,6 +176,70 @@ describe('SessionService', () => {
       clock.advance(1);
 
       await expect(service.refresh(first.refreshToken, ctx)).rejects.toThrow(/terminated/i);
+    });
+  });
+
+  /*
+   * The idle limit head office may set applies to head-office accounts ONLY, and measures
+   * real inactivity: the access-token lifetime is not idleness. See HQ_IDLE_LIMIT.
+   */
+  describe('idle limit for head-office accounts', () => {
+    const seedAs = async (role: Role) => {
+      const customer = makeCustomer({ role });
+      customerRepo.seed(customer);
+      return service.issueForCustomer(customer, ctx);
+    };
+
+    it('does not sign out a head-office user who is working, at the access-token expiry', async () => {
+      policy.minutes = 30;
+      const first = await seedAs(Role.FINANCE);
+      clock.advance(900 + 1);
+
+      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
+    });
+
+    it('signs out a head-office user who left past the limit, and ends the family', async () => {
+      policy.minutes = 30;
+      const first = await seedAs(Role.SUPER_ADMIN);
+      clock.advance(60 * 60);
+
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toThrow(/idle/i);
+      expect(refreshRepo.rows.every((r) => r.revokedAt !== null)).toBe(true);
+    });
+
+    it('keeps a head-office user whose absence is shorter than the limit', async () => {
+      policy.minutes = 60;
+      const first = await seedAs(Role.DIREKTUR);
+      clock.advance(40 * 60);
+
+      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
+    });
+
+    it.each([Role.CUSTOMER, Role.STAFF_DEPOT, Role.KEPALA_DEPOT, Role.MANAGER])(
+      'never signs out a %s for idleness, however long',
+      async (role) => {
+        policy.minutes = 30;
+        const first = await seedAs(role);
+        clock.advance(20 * 24 * 60 * 60);
+
+        await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
+      },
+    );
+
+    it('is off unless head office turned it on', async () => {
+      policy.minutes = null;
+      const first = await seedAs(Role.HEAD_OFFICE);
+      clock.advance(24 * 60 * 60);
+
+      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
+    });
+
+    it('ignores a limit below the minimum rather than signing out working people', async () => {
+      policy.minutes = 15;
+      const first = await seedAs(Role.FINANCE);
+      clock.advance(900 + 1);
+
+      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
     });
   });
 

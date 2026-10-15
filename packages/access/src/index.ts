@@ -690,6 +690,23 @@ export type Capability = keyof typeof CAPABILITIES;
  */
 export const STAFF_IMPORT_ROLES = ['STAFF_DEPOT', 'KEPALA_DEPOT'] as const satisfies readonly Role[];
 
+/**
+ * The idle-session limit head office may set, and who it applies to.
+ *
+ * Applies ONLY to the roles that hold `hqConsole`. Customers, couriers and depot staff are
+ * never signed out for idleness: every forced sign-out costs one SMS OTP, and a courier
+ * between deliveries or a customer who orders weekly is not a risk. Their session ends only
+ * when it has gone unused for the whole refresh lifetime (30 days).
+ *
+ * `min` is not arbitrary. Idleness is measured at a refresh, and a refresh only happens
+ * when the 15-minute access token has run out, so the measurement is accurate to about one
+ * access-token lifetime. A limit below twice that would sign out people who are working —
+ * which is exactly the bug that ended every active session at the 15-minute mark.
+ *
+ * `0` means "off", and "never configured" is also off.
+ */
+export const HQ_IDLE_LIMIT = { off: 0, min: 30, max: 1440 } as const;
+
 export type StaffImportRole = (typeof STAFF_IMPORT_ROLES)[number];
 
 /**
