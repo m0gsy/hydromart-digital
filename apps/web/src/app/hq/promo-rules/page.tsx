@@ -10,6 +10,7 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, 
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { canWritePromoRule, canWritePromoRules } from '@/lib/roles';
 import { PromoSimulator, RuleFilterBar, RuleUsageLine, useRuleUsage } from '@/components/promo-rule-tools';
@@ -200,7 +201,16 @@ export default function HqPromoRulesPage() {
 
   const visible = filterRules(data ?? [], filter);
 
+  const { confirm } = useConfirm();
   async function remove(id: string) {
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.deleteTitle'),
+        message: t('hrFix.confirmGap.deleteMessage'),
+        confirmLabel: t('hrFix.confirmGap.deleteConfirm'), tone: 'danger',
+      }))
+    )
+      return;
     try {
       await api.del(endpoints.promoRules.detail(id), true);
     } catch (e) {

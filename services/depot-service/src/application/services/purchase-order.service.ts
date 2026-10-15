@@ -10,9 +10,11 @@ import {
   PurchaseOrder,
   receivedOf,
 } from '../../domain/purchase-order';
+import { isProductLine } from '../../domain/inventory';
 import {
   DepotNotFoundError,
   InvalidPurchaseOrderTransitionError,
+  ProductLineRequiresProductError,
   PurchaseOrderNotFoundError,
   SupplierNotFoundError,
 } from '../../domain/errors';
@@ -36,6 +38,17 @@ export interface CreatePurchaseOrderInput {
   shippingIdr?: number;
   expectedAt?: Date | null;
 }
+
+/** A line whose arrival could not be booked into stock, and why (CA-2-31). */
+export interface UnbookedLine {
+  index: number;
+  label: string;
+  quantity: number;
+  reason: string;
+}
+
+/** What `receive` hands back: the PO plus what did NOT make it into stock this time. */
+export type ReceivedPurchaseOrder = PurchaseOrder & { unbooked: UnbookedLine[] };
 
 export interface ListPurchaseOrderFilters {
   status?: PoStatus;
@@ -70,6 +83,14 @@ export class PurchaseOrderService {
     const supplier = await this.suppliers.findById(input.supplierId);
     if (!supplier || supplier.depotId !== input.depotId) {
       throw new SupplierNotFoundError();
+    }
+    // A PRODUK line must name its product and a raw line must not: the same rule the stock
+    // line itself keeps. Drafting a catalogue line with no product made a PO nobody could
+    // ever receive, and the failure only showed at the delivery door.
+    for (const line of input.lines) {
+      if (isProductLine(line.itemType) !== (line.productId !== undefined)) {
+        throw new ProductLineRequiresProductError();
+      }
     }
     const shippingIdr = input.shippingIdr ?? 0;
     const { subtotalIdr, totalIdr } = computeTotal(input.lines, shippingIdr);
@@ -134,7 +155,7 @@ export class PurchaseOrderService {
     actorId: string,
     received?: Record<number, number>,
     notes?: Record<number, string>,
-  ): Promise<PurchaseOrder> {
+  ): Promise<ReceivedPurchaseOrder> {
     const po = await this.require(id);
     if (po.status !== PoStatus.SENT) {
       throw new InvalidPurchaseOrderTransitionError('Only a SENT purchase order can be received.');
@@ -202,6 +223,7 @@ export class PurchaseOrderService {
      * discovering it at the next opname.
      */
     const failed = new Set<number>();
+    const unbooked: UnbookedLine[] = [];
     for (const { line, arriving, index, note } of lines) {
       if (arriving === 0) continue;
       try {
@@ -215,9 +237,18 @@ export class PurchaseOrderService {
           note
             ? `PO ${po.poNumber} · ${line.label} · kurang kirim: ${note}`
             : `PO ${po.poNumber} · ${line.label}`,
+          line.productId ?? null,
         );
       } catch (error) {
         failed.add(index);
+        // Said in the RESULT too, not only in the log: a 201 whose PO quietly stays SENT is
+        // indistinguishable, to the person at the till, from a receipt that worked.
+        unbooked.push({
+          index,
+          label: line.label,
+          quantity: arriving,
+          reason: (error as Error).message,
+        });
         // Best-effort: a missing/unconfigured stock line must not fail the whole receipt.
         // Q-4: but it must not be SILENT either. This is the stock ledger — a swallowed
         // line means the PO reads RECEIVED while the goods were never booked in, and the
@@ -236,12 +267,13 @@ export class PurchaseOrderService {
     // delivery the supplier will not complete can finally reach RECEIVED instead of
     // sitting in SENT forever with nothing able to close it.
     const complete = isFullyReceived(next);
-    return this.orders.update(id, {
+    const updated = await this.orders.update(id, {
       lines: next,
       // Still SENT while anything is outstanding: a PO marked RECEIVED is one nobody
       // chases, and the rest of the delivery is exactly what someone has to chase.
       status: complete ? PoStatus.RECEIVED : PoStatus.SENT,
       receivedAt: complete ? new Date() : null,
     });
+    return { ...updated, unbooked };
   }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { Lock, Receipt } from '@phosphor-icons/react';
 
@@ -43,11 +44,22 @@ const DATE = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 
 
 function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const act = async (kind: 'approve' | 'reject') => {
+    if (kind === 'approve') {
+      if (
+        !(await confirm({
+          title: t('hrFix.confirmGap.claimTitle'),
+          message: t('hrFix.confirmGap.claimMessage'),
+          confirmLabel: t('hrFix.confirmGap.claimConfirm'),
+        }))
+      )
+        return;
+    }
     setBusy(kind);
     setError(null);
     try {

@@ -16,7 +16,7 @@ import { endpoints } from '@/lib/endpoints';
 import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canManageDepots, canReadDepotRecords } from '@/lib/roles';
+import { canManageDepotLifecycle, canManageDepots, canReadDepotRecords } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin, Page } from '@/lib/types';
 
@@ -302,6 +302,7 @@ function DepotCard({
   onDetail,
   onChanged,
   canWrite,
+  canLifecycle,
 }: {
   depot: DepotAdmin;
   onEdit: () => void;
@@ -311,6 +312,8 @@ function DepotCard({
   /** False for a read-only caller (the depot operator): the record is visible, the
    *  edit / hours / deactivate controls are not. */
   canWrite: boolean;
+  /** Deactivate / reactivate: head office only, a narrower power than editing. */
+  canLifecycle: boolean;
 }) {
   const { t } = useT();
   const [busy, setBusy] = useState(false);
@@ -375,7 +378,7 @@ function DepotCard({
             </Button>
           </>
         )}
-        {canWrite && (
+        {canLifecycle && (
           <Button variant={depot.active ? 'danger' : 'primary'} onClick={toggleActive} loading={busy}>
             {depot.active ? t('dashboard.depots.deactivate') : t('dashboard.depots.reactivate')}
           </Button>
@@ -389,6 +392,7 @@ function DepotsBody() {
   const { t } = useT();
   const { customer } = useAuth();
   const canWrite = canManageDepots(customer?.role);
+  const canLifecycle = canManageDepotLifecycle(customer?.role);
   // `GET /depots/manage` lists the WHOLE network including inactive depots, so it stays
   // depotAdmin. A read-only caller (the depot operator, whose shell carries this tab) reads
   // exactly one record instead: their own. Widening the network list to reach the tab would
@@ -438,7 +442,7 @@ function DepotsBody() {
               </button>
             ))}
           </div>
-          {canWrite && editing === null && (
+          {canLifecycle && editing === null && (
             <Button onClick={() => setEditing('new')}>{t('dashboard.depots.newDepot')}</Button>
           )}
         </div>
@@ -483,6 +487,7 @@ function DepotsBody() {
               onDetail={() => setDetail(d)}
               onChanged={list.reload}
               canWrite={canWrite}
+              canLifecycle={canLifecycle}
             />
           ))}
         </div>

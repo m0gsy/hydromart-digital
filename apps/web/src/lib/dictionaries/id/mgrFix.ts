@@ -30,7 +30,8 @@ export const mgrFix = {
   },
   // 1a — manager KPI row on the executive dashboard.
   dash: {
-    orderToday: 'Order hari ini',
+    // Angkanya rentang eksekutif (30 hari terakhir), bukan hari ini; label sebelumnya keliru.
+    orderToday: 'Order 30 hari',
     revenue: 'Pendapatan',
     gallonsDelivered: 'Galon terkirim',
     slaOnTime: 'SLA on-time',

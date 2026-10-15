@@ -17,6 +17,7 @@ export const settings = {
   gateBody: 'The settings editor is available to depot managers and super admins.',
   globalOnly: 'This value is set globally for the whole network and cannot be overridden per depot.',
   globalWriteDenied: 'Only a SUPER_ADMIN can change network-wide defaults.',
+  writeDenied: 'This setting can only be changed by head office.',
   svcDelivery: 'Delivery & couriers',
   svcOrder: 'Orders & delivery fees',
   svcPayout: 'Payouts & commission',

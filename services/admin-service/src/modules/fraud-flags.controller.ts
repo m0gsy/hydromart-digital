@@ -17,6 +17,7 @@ import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydr
 import { FraudFlagService } from '../application/services/fraud-flag.service';
 import { FraudScanResult, FraudScanService } from '../application/services/fraud-scan.service';
 import {
+  DecisionReasonDto,
   FraudFlagDto,
   FraudFlagQueryDto,
   FraudScanResultDto,
@@ -50,7 +51,9 @@ export class FraudFlagsController {
   @Can('fraudReview')
   @Post(':id/review')
   @ApiOperation({ summary: 'Mark a flag reviewed' })
-  async review(@Param('id') id: string): Promise<FraudFlagDto> {
+  // `dto` is not read: AuditMutationsInterceptor writes the request body, `reason` included,
+  // to the trail. It is declared so the whitelist pipe accepts the field.
+  async review(@Param('id') id: string, @Body() _dto: DecisionReasonDto): Promise<FraudFlagDto> {
     return FraudFlagDto.from(await this.fraud.review(id));
   }
 
@@ -58,7 +61,7 @@ export class FraudFlagsController {
   @Can('fraudReview')
   @Post(':id/block')
   @ApiOperation({ summary: 'Block the flagged entity' })
-  async block(@Param('id') id: string): Promise<FraudFlagDto> {
+  async block(@Param('id') id: string, @Body() _dto: DecisionReasonDto): Promise<FraudFlagDto> {
     return FraudFlagDto.from(await this.fraud.block(id));
   }
 
@@ -66,7 +69,7 @@ export class FraudFlagsController {
   @Can('fraudReview')
   @Post(':id/clear')
   @ApiOperation({ summary: 'Clear the flag (no fraud)' })
-  async clear(@Param('id') id: string): Promise<FraudFlagDto> {
+  async clear(@Param('id') id: string, @Body() _dto: DecisionReasonDto): Promise<FraudFlagDto> {
     return FraudFlagDto.from(await this.fraud.clear(id));
   }
 

@@ -16,6 +16,21 @@ import { FraudFlagRecord } from '../../application/ports/fraud-flag.repository';
 
 /* ---------- Requests ---------- */
 
+/**
+ * The reason a decider gives, recorded in the audit trail next to the decision.
+ *
+ * Optional on the wire (an approval rarely needs one) and trimmed/bounded here, the only
+ * writer. It is not a column: the shared audit trail is where a decision's reason is read
+ * back, and it already carries the actor, the target and the time.
+ */
+export class DecisionReasonDto {
+  @ApiPropertyOptional({ maxLength: 300, description: 'Why — shown in the audit trail.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
 export class FraudFlagQueryDto {
   @ApiPropertyOptional({ enum: FraudLevel })
   @IsOptional()

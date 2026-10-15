@@ -97,6 +97,47 @@ describe('FranchiseApplicationService', () => {
     service = new FranchiseApplicationService(repo, depotsWithCodes());
   });
 
+  // A decision with no reason attached is one nobody can defend later. The reason rides in the
+  // shared audit trail (no column), next to who decided and when.
+  describe('decision audit', () => {
+    let fetchMock: jest.SpyInstance;
+    beforeEach(() => {
+      fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    });
+    afterEach(() => fetchMock.mockRestore());
+    const audited = () =>
+      new FranchiseApplicationService(repo, depotsWithCodes(), {
+        authServiceUrl: 'http://auth:3001',
+        internalServiceKey: 'k'.repeat(16),
+      } as never);
+    const sent = () =>
+      fetchMock.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+
+    it('records a rejection with its reason and actor', async () => {
+      const svc = audited();
+      const created = await svc.create(APP());
+      await svc.reject(created.id, 'hq-1', '  dokumen tidak lengkap  ');
+      expect(sent()[0]).toMatchObject({
+        action: 'depot.franchise_application.rejected',
+        actorId: 'hq-1',
+        success: false,
+        metadata: { applicationId: created.id, reason: 'dokumen tidak lengkap' },
+      });
+    });
+
+    it('records an approval, and nothing when no trail is configured', async () => {
+      const svc = audited();
+      const created = await svc.create(APP());
+      await svc.approve(created.id, 'hq-1');
+      expect(sent()[0]).toMatchObject({ action: 'depot.franchise_application.approved', success: true });
+
+      fetchMock.mockClear();
+      const second = await service.create(APP({ proposedCode: 'DPK-09' }));
+      await service.reject(second.id, 'hq-1', 'x');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses a code a live depot already wears, before a human reviews the application', async () => {
     const taken = new FranchiseApplicationService(repo, depotsWithCodes('DPK-01'));
     await expect(taken.create(APP({ proposedCode: 'DPK-01' }))).rejects.toBeInstanceOf(

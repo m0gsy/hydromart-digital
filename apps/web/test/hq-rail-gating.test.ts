@@ -47,12 +47,13 @@ describe('HQ rail offers a role only what it can use', () => {
     '/hq/webhooks',
     '/hq/flags',
     // Write capabilities a director does not hold: catalogue, tax, invoice template,
-    // sending a broadcast (`campaignWrite`), and the depot SLA policy (`depotAdmin`).
+    // and sending a broadcast (`campaignWrite`). The SLA policy used to be listed here as a
+    // `depotAdmin` page; admin-service gates it `hqBackOffice`, which a director holds, so it
+    // moved to the "still theirs" test below and the door follows the server.
     '/hq/catalog',
     '/hq/tax',
     '/hq/invoice-template',
     '/hq/broadcast',
-    '/hq/sla-policy',
     // RBAC editor and the PDP request desk.
     '/hq/access',
     '/hq/pdp',
@@ -100,6 +101,11 @@ describe('HQ rail offers a role only what it can use', () => {
     const direktur = hrefs('DIREKTUR');
     expect(direktur).toContain('/hq');
     expect(direktur).toContain('/hq/analytics');
+    // `hqBackOffice` is what admin-service checks on the SLA policy, and a director has it.
+    expect(direktur).toContain('/hq/sla-policy');
+    expect(hrefs('SUPER_ADMIN')).toContain('/hq/sla-policy');
+    // A depot manager is not HQ, so the rail never reaches it even though it holds depotAdmin.
+    expect(hrefs('MANAGER')).not.toContain('/hq/sla-policy');
     expect(direktur.length).toBeGreaterThan(10);
   });
 

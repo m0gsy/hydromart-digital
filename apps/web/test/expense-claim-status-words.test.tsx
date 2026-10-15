@@ -38,6 +38,7 @@ vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [], scopedId: 'd1', ready: true, error: null, reload: vi.fn() }),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import ExpenseClaimsPage from '@/app/dashboard/expense-claims/page';
 
 beforeEach(() => get.mockReset());
@@ -45,7 +46,11 @@ beforeEach(() => get.mockReset());
 describe('CA-2-49 the claims screen says the status in words', () => {
   it('names the filter in the empty line instead of lowercasing the enum', async () => {
     get.mockResolvedValue({ items: [], total: 0 });
-    render(<ExpenseClaimsPage />);
+    render(
+      <ConfirmProvider>
+        <ExpenseClaimsPage />
+      </ConfirmProvider>,
+    );
 
     await waitFor(() =>
       expect(
@@ -69,7 +74,11 @@ describe('CA-2-49 the claims screen says the status in words', () => {
       ],
       total: 1,
     });
-    render(<ExpenseClaimsPage />);
+    render(
+      <ConfirmProvider>
+        <ExpenseClaimsPage />
+      </ConfirmProvider>,
+    );
 
     await waitFor(() =>
       expect(screen.getByText('hrFix.expenseClaims.statusApproved')).toBeTruthy(),

@@ -246,8 +246,10 @@ export default function LeaveQueuePage() {
         <Card className="divide-y divide-[color:var(--border)]">
           {queue.rows.map((r) => {
             const waitingHr = r.status === 'PENDING_HR';
-            const actionable =
-              mayApprove && (r.status === 'PENDING_MANAGER' || waitingHr) && (isHr || !waitingHr);
+            // Stage 2 (PENDING_HR) is `hrAdmin`'s decision on the server — HR, head office, the
+            // director — and NOT `leaveApprove`'s. Requiring both hid the button from the
+            // director, whom the server accepts, behind a capability that is stage 1's.
+            const actionable = waitingHr ? isHr : mayApprove && r.status === 'PENDING_MANAGER';
             return (
               <div key={r.id} className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-2">

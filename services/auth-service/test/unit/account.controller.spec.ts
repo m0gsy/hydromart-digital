@@ -47,6 +47,25 @@ describe('AccountController.listStaff depot-manager scope', () => {
     expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, ownDepot, undefined);
   });
 
+  // FINANCE reads this list to name the franchise owner it releases money to — nothing more.
+  // `staffDirectoryFinance` opened the route to them, so the controller is what keeps it from
+  // becoming a staff roster for the people who run the books.
+  it('lets FINANCE read franchise owners only, and refuses any other role filter', async () => {
+    const finance = { sub: 'fin-1', role: Role.FINANCE, phone: '+62833333333' };
+
+    await controller.listStaff({ page: 1, limit: 20, role: Role.FRANCHISE_OWNER }, finance);
+    expect(account.listStaff).toHaveBeenCalledWith(1, 20, Role.FRANCHISE_OWNER, undefined, undefined);
+
+    jest.clearAllMocks();
+    await expect(controller.listStaff({ page: 1, limit: 20 }, finance)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(
+      controller.listStaff({ page: 1, limit: 20, role: Role.MANAGER }, finance),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listStaff).not.toHaveBeenCalled();
+  });
+
   it('rejects a depot manager requesting a depot outside their scope', async () => {
     await expect(
       controller.listStaff(

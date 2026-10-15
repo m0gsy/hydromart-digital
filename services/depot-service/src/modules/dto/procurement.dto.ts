@@ -66,6 +66,14 @@ export class PoLineDto {
   @IsEnum(InventoryItemType)
   itemType!: InventoryItemType;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Catalogue product. Required when itemType is PRODUK, forbidden otherwise.',
+  })
+  @IsOptional()
+  @IsUUID()
+  productId?: string;
+
   @ApiProperty({ example: 'Galon 19L' })
   @IsString()
   @MinLength(1)

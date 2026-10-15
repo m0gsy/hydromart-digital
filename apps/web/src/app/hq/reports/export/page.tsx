@@ -159,7 +159,17 @@ export default function HqReportsExportPage() {
       }
     } catch {
       toast(t('hrFix.reportsExport.fileFailed'), 'error');
+      return;
     }
+    // The file exists; the log entry is a record of it, so a failure to write one must never
+    // read as a failed export.
+    void Promise.resolve(
+      api.post(
+        endpoints.admin.recordExport,
+        { dataset: t(`hrFix.reportsExport.dataset.${group}`), format: format.toUpperCase(), rowCount: rows.length },
+        true,
+      ),
+    ).catch(() => undefined);
   }
 
   const RANGES: RangeKey[] = ['d7', 'd30', 'quarter', 'custom'];

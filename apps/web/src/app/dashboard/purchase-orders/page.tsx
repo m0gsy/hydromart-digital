@@ -185,6 +185,7 @@ function LowStockDraft({
             const l = lineOf(i);
             return {
               itemType: i.itemType,
+              ...(i.productId ? { productId: i.productId } : {}),
               label: i.label,
               quantity: Math.max(1, Number(l.qty) || 1),
               unitCostIdr: Math.max(1, Math.round(Number(l.cost) || 0)),

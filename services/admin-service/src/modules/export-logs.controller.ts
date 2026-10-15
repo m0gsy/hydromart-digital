@@ -16,11 +16,23 @@ import {
 import { Response } from 'express';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import {
+  AuditMutationsInterceptor,
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { ExportStatus } from '../domain/export';
 import { ExportLogService } from '../application/services/export-log.service';
-import { ExportLogDto, ExportLogQueryDto, IngestExportLogDto } from './dto/export-log.dto';
+import {
+  ExportLogDto,
+  ExportLogQueryDto,
+  IngestExportLogDto,
+  RecordExportLogDto,
+} from './dto/export-log.dto';
 import { List3ResponseDto } from './dto/responses.generated.dto';
 
 // Design 13c — data-export audit log. HEAD_OFFICE + SUPER_ADMIN read (paginated,
@@ -75,6 +87,35 @@ export class ExportLogsController {
       .header('content-type', 'application/octet-stream')
       .header('content-disposition', `attachment; filename="${file.fileName}"`)
       .send(file.content);
+  }
+
+  /*
+   * A person ran an export in their own browser (the revenue export builds its file client-side)
+   * and it left no trace here: /hq/exports listed scheduled runs and nothing a human did. The
+   * same capability that opens the export screen may record it; the requester is the caller,
+   * never a field they send.
+   */
+  @ApiOkResponse({ type: ExportLogDto })
+  @Can('orderReports')
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Record an export the caller just ran in the browser' })
+  async record(
+    @Body() dto: RecordExportLogDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ExportLogDto> {
+    return ExportLogDto.from(
+      await this.exports.ingest({
+        dataset: dto.dataset,
+        requestedById: user.sub,
+        // The token carries a phone, not an email; the column wants a human-readable
+        // requester and the id alone tells an auditor nothing.
+        requestedByEmail: user.phone ?? user.sub,
+        format: dto.format,
+        rowCount: dto.rowCount ?? null,
+        status: ExportStatus.DONE,
+      }),
+    );
   }
 
   // Service-to-service ingest: an export job records its own run. @Public() bypasses the

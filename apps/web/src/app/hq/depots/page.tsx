@@ -9,7 +9,9 @@ import { DepotForm } from '@/components/hq/depot-form';
 import { Badge, Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { fetchAllDepots } from '@/lib/all-depots';
 import type { DepotForm as DepotFormValues } from '@/lib/depots';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canManageDepotLifecycle } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin } from '@/lib/types';
 
@@ -19,6 +21,10 @@ const PREFILL_KEY = 'hq.onboard.prefill';
 // depot detail drill-down; onboard opens the shared DepotForm.
 export default function HqDepotsPage() {
   const { t } = useT();
+  const { customer } = useAuth();
+  // Opening a depot is `depotLifecycle`: head office and the director read the directory but
+  // a FINANCE-style reader must not be offered a button the server will refuse.
+  const canOnboard = canManageDepotLifecycle(customer?.role);
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
@@ -81,7 +87,7 @@ export default function HqDepotsPage() {
         subtitle={t('hq.depots.subtitle')}
         action={
           <>
-            {!creating && <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>}
+            {!creating && canOnboard && <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>}
           </>
         }
       />

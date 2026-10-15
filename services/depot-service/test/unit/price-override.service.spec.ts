@@ -158,6 +158,22 @@ describe('PriceOverrideService', () => {
       });
     });
 
+    it('keeps the reason the rejecter gave in the trail, trimmed and bounded', async () => {
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await svc.reject(created.id, 'hq-1', `  harga di bawah modal ${'x'.repeat(400)}  `);
+      const reason = (entries()[0].metadata as { reason: string }).reason;
+      expect(reason.startsWith('harga di bawah modal')).toBe(true);
+      expect(reason).toHaveLength(300);
+    });
+
+    it('omits the reason key when none was given', async () => {
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await svc.reject(created.id, 'hq-1', '   ');
+      expect(entries()[0].metadata).not.toHaveProperty('reason');
+    });
+
     it('records a blocked self-approval — an attempt is the thing worth keeping', async () => {
       const svc = service('Depot Kelapa Gading', 0, true);
       const created = await svc.propose('d1', 'mgr-1', PROPOSE);

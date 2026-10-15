@@ -9,6 +9,7 @@ import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
@@ -47,6 +48,7 @@ export default function HqApplicationDetailPage() {
   const id = useQueryParam('id');
   const { t } = useT();
   const { toast } = useToast();
+  const { askReason } = useConfirm();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -99,11 +101,20 @@ export default function HqApplicationDetailPage() {
       detail.reload();
     });
 
-  const approve = () =>
-    guarded(async () => {
+  const approve = async () => {
+    const reason = await askReason({
+      title: t('hrFix.decisionGap.applicationApproveTitle'),
+      message: t('hrFix.decisionGap.applicationApproveMessage'),
+      label: t('hrFix.decisionGap.reason'),
+      placeholder: t('hrFix.decisionGap.reasonHint'),
+      confirmLabel: t('hrFix.decisionGap.applicationApproveConfirm'),
+      optional: true,
+    });
+    if (reason === null) return;
+    await guarded(async () => {
       const result = await api.post<ApproveApplicationResult>(
         endpoints.franchiseApps.approve(app.id),
-        undefined,
+        reason ? { reason } : {},
         true,
       );
       // Stash the onboard-form prefill for the depots page to pick up.
@@ -121,13 +132,25 @@ export default function HqApplicationDetailPage() {
       toast(t('hq.applications.detail.approved', { name: app.applicantName }), 'success');
       router.push('/hq/depots?onboard=1');
     });
+  };
 
-  const reject = () =>
-    guarded(async () => {
-      await api.post(endpoints.franchiseApps.reject(app.id), undefined, true);
+  const reject = async () => {
+    const reason = await askReason({
+      title: t('hrFix.decisionGap.applicationRejectTitle'),
+      message: t('hrFix.decisionGap.applicationRejectMessage'),
+      label: t('hrFix.decisionGap.reason'),
+      placeholder: t('hrFix.decisionGap.reasonHint'),
+      confirmLabel: t('hrFix.decisionGap.applicationRejectConfirm'),
+      optional: false,
+      tone: 'danger',
+    });
+    if (!reason) return;
+    await guarded(async () => {
+      await api.post(endpoints.franchiseApps.reject(app.id), { reason }, true);
       toast(t('hq.applications.detail.rejected', { name: app.applicantName }), 'info');
       router.push('/hq/applications');
     });
+  };
 
   const age = ageDays(app.submittedAt);
 

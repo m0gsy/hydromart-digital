@@ -7,7 +7,9 @@ import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { fetchAllDepots } from '@/lib/all-depots';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionScheme, Customer, DepotAdmin, Page, PendingPayout } from '@/lib/types';
@@ -18,7 +20,11 @@ import type { CommissionScheme, Customer, DepotAdmin, Page, PendingPayout } from
 // viewer without the finance capability gets a 403 there and should still see the directory.
 export default function HqFranchisePage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const router = useRouter();
+  // The button opens /hq/depots/detail, which is gated `depotDirectory`. FINANCE reaches this
+  // page (it reads the payout queue) but not that one, so the button was a door to "Khusus HQ".
+  const mayOpenDepot = can('depotDirectory', customer?.role);
 
   /*
    * CA-2-26. Three numbers on this screen are computed from this read — the franchise count
@@ -128,9 +134,11 @@ export default function HqFranchisePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {pending !== undefined && <Money amount={pending} className="font-semibold" />}
-                  <Button variant="secondary" onClick={() => router.push(`/hq/depots/detail?id=${d.id}`)}>
-                    {t('hq.franchise.open')}
-                  </Button>
+                  {mayOpenDepot && (
+                    <Button variant="secondary" onClick={() => router.push(`/hq/depots/detail?id=${d.id}`)}>
+                      {t('hq.franchise.open')}
+                    </Button>
+                  )}
                 </div>
               </Card>
             );

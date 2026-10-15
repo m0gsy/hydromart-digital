@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { ArrowLeft } from '@phosphor-icons/react';
 
 import { Badge, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
+import { PaymentSettle } from '@/components/dashboard/order-detail';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/roles';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
@@ -19,7 +22,13 @@ const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as 
 // + payments.forOrderStaff (both staff-readable). Delivery is read off the order itself.
 export default function HqOrderDetailPage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const id = useQueryParam('id');
+  // FINANCE holds `refundIssue` and could not reach an order to use it: the order read was
+  // `orderQueue`. With `orderManageRead` it can, and the refund starts from here — the same
+  // panel the depot console uses, so the reason prompt and the 'above the HQ threshold it is
+  // parked for finance' behaviour are one implementation, not two.
+  const canRefund = can('refundIssue', customer?.role);
 
   // Staff read, not the customer one: `orders.get` filters by owner, so HQ always got 404.
   const order = useAsync<Order>(() => api.get(endpoints.orders.manageGet(id), true), [id]);
@@ -129,6 +138,8 @@ export default function HqOrderDetailPage() {
             <h2 className="mb-1.5 text-sm font-semibold">{t('hq.orderDetail.payment')}</h2>
             {payments.loading ? (
               <Skeleton className="h-10 w-full" />
+            ) : payment && canRefund ? (
+              <PaymentSettle order={o} />
             ) : payment ? (
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="font-medium">{payment.method}</span>

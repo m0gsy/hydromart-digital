@@ -10,6 +10,7 @@ import { capForHqPath } from '@/lib/hq-nav';
 import { RequireAuth } from '@/components/require-auth';
 import { useAuth } from '@/lib/auth-context';
 import { can, isHq } from '@/lib/roles';
+import { hasPartialHqDoor, mayOpenHqPath } from '@/lib/hq-nav';
 
 // Audit F-9: the palette is mounted on every HQ screen but only renders once someone
 // presses ⌘K. Loading it lazily keeps it out of the first paint of all 60 routes.
@@ -36,7 +37,8 @@ function HqGate({ children }: { children: React.ReactNode }) {
   const { customer } = useAuth();
   const pathname = usePathname();
   const role = customer?.role;
-  if (!isHq(role)) return <AccessDeniedHq role={role} />;
+  if (!isHq(role) && !hasPartialHqDoor(role as never)) return <AccessDeniedHq role={role} />;
+  if (!mayOpenHqPath(role as never, pathname)) return <AccessDeniedHq role={role} />;
   const cap = capForHqPath(pathname);
   if (cap && !can(cap, role)) return <AccessDeniedHq role={role} />;
   return <>{children}</>;

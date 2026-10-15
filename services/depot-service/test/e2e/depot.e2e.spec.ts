@@ -32,6 +32,8 @@ const depotBody = {
 describe('Depot & Inventory HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
+  // Opening a depot is `depotLifecycle` (head office), not the depot manager's `depotAdmin`.
+  let headOfficeToken: string;
   let operatorToken: string;
   let customerToken: string;
   let ownerToken: string;
@@ -95,6 +97,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
       );
     managerToken = signStaff(Role.MANAGER);
+    headOfficeToken = signStaff(Role.HEAD_OFFICE);
     operatorToken = signStaff(Role.KEPALA_DEPOT);
     customerToken = jwt.sign(
       { sub: 'c', role: Role.CUSTOMER, phone: '+62' },
@@ -139,7 +142,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // manager creates a depot
     const created = await request(server())
       .post('/api/v1/depots')
-      .set(auth(managerToken))
+      .set(auth(headOfficeToken))
       .send(depotBody)
       .expect(201);
     const depotId = created.body.id;
@@ -243,7 +246,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const depotId = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send({ ...depotBody, code: 'CONS-01' })
         .expect(201)
     ).body.id;
@@ -309,7 +312,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   it('rejects an invalid depot payload (400)', async () => {
     await request(server())
       .post('/api/v1/depots')
-      .set(auth(managerToken))
+      .set(auth(headOfficeToken))
       .send({ ...depotBody, deliveryFee: -5 })
       .expect(400);
   });
@@ -320,7 +323,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const a = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send({ ...depotBody, code: 'OWN-A', ownerId: OWNER_SUB })
         .expect(201)
     ).body;
@@ -328,19 +331,19 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const b = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send({ ...depotBody, code: 'OWN-B', ownerId: OWNER_SUB })
         .expect(201)
     ).body;
     await request(server())
       .post('/api/v1/depots')
-      .set(auth(managerToken))
+      .set(auth(headOfficeToken))
       .send({ ...depotBody, code: 'OWN-C', ownerId: OTHER_OWNER })
       .expect(201);
     // deactivate one of the owner's depots — listMine still returns it
     await request(server())
       .delete(`/api/v1/depots/${b.id}`)
-      .set(auth(signStaff(Role.MANAGER, b.id)))
+      .set(auth(headOfficeToken))
       .expect(200);
 
     await request(server())
@@ -362,14 +365,14 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const depotId = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send({ ...depotBody, code: 'MNG-01', name: 'Depot Manage' })
         .expect(201)
     ).body.id;
     const mgrAt = signStaff(Role.MANAGER, depotId);
 
     // deactivate (soft delete)
-    await request(server()).delete(`/api/v1/depots/${depotId}`).set(auth(mgrAt)).expect(200);
+    await request(server()).delete(`/api/v1/depots/${depotId}`).set(auth(headOfficeToken)).expect(200);
 
     // public browse no longer surfaces it
     await request(server())
@@ -414,7 +417,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   it('refuses a depot edit built on a copy somebody else already replaced', async () => {
     const created = await request(server())
       .post('/api/v1/depots')
-      .set(auth(managerToken))
+      .set(auth(headOfficeToken))
       .send({ ...depotBody, code: 'STALE-01', name: 'Depot Stale' })
       .expect(201);
     const id = created.body.id;
@@ -460,7 +463,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const mineRow = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send({ ...depotBody, code: 'SCOPE-A', name: 'Depot Scope A' })
         .expect(201)
     ).body;
@@ -468,7 +471,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const theirs = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send({ ...depotBody, code: 'SCOPE-B', name: 'Depot Scope B' })
         .expect(201)
     ).body.id;

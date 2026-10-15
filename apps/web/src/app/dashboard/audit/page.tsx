@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { actionLabel } from '@/lib/audit-action';
 import { useT } from '@/lib/locale-context';
 import { canViewAudit } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -112,8 +113,8 @@ function AuditBody() {
                       {cat && <Badge tone="brand">{t(`dashA.audit.category.${cat}`)}</Badge>}
                       {!r.success && <Badge tone="danger">{t('dashA.audit.failed')}</Badge>}
                     </div>
-                    <p className="text-sm text-muted">
-                      {r.action}
+                    <p className="text-sm text-muted" title={r.action}>
+                      {actionLabel(r.action, t)}
                       {r.target ? ` · ${r.target}` : ''}
                     </p>
                   </div>

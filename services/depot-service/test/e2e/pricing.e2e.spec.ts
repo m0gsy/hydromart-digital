@@ -34,7 +34,8 @@ const depotBody = {
 
 describe('Pricing rules HTTP flows (e2e)', () => {
   let app: INestApplication;
-  let managerToken: string;
+  // Opening a depot is `depotLifecycle` (head office), not the depot manager's `depotAdmin`.
+  let headOfficeToken: string;
   let customerToken: string;
   let signStaff: (role: Role, depotId?: string | null) => string;
   let rulesRepo: FakePricingRuleRepository;
@@ -92,7 +93,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
         { sub: 's', role, phone: '+62', depotId: depotId ?? null },
         { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
       );
-    managerToken = signStaff(Role.MANAGER);
+    headOfficeToken = signStaff(Role.HEAD_OFFICE);
     customerToken = jwt.sign(
       { sub: 'c', role: Role.CUSTOMER, phone: '+62' },
       { secret, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
@@ -110,7 +111,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     const depotId = (
       await request(server())
         .post('/api/v1/depots')
-        .set(auth(managerToken))
+        .set(auth(headOfficeToken))
         .send(depotBody)
         .expect(201)
     ).body.id;

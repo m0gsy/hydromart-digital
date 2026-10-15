@@ -7,7 +7,9 @@ import { MagnifyingGlass, Receipt, Storefront, User, UserGear } from '@phosphor-
 import { Card, Input, Spinner } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import type { Customer, DepotAdmin, Order } from '@/lib/types';
 
 interface Results {
@@ -43,8 +45,8 @@ const PHONE_RE = /^\+?\d[\d\s-]{6,}$/;
 // page 2 of the directory, or an order older than the last twenty, was unfindable. Each
 // list takes the term as a query parameter now and returns at most ten rows.
 /** The phone lookup, on one line so the endpoint gate can read its verb. */
-async function lookupCustomer(term: string): Promise<Customer[]> {
-  if (!PHONE_RE.test(term)) return [];
+async function lookupCustomer(term: string, allowed: boolean): Promise<Customer[]> {
+  if (!allowed || !PHONE_RE.test(term)) return [];
   try {
     return [await api.get<Customer>(endpoints.auth.customerLookup(term), true)];
   } catch {
@@ -54,6 +56,15 @@ async function lookupCustomer(term: string): Promise<Customer[]> {
 
 export default function HqSearchPage() {
   const { t } = useT();
+  const { customer: me } = useAuth();
+  // FINANCE reaches this page for orders and depot names (`orderManageRead`,
+  // `depotDirectoryFinance`) and holds neither the staff directory nor the phone lookup.
+  // Asking for them anyway 403s and prints "staff, customers could not be reached" on every
+  // search, which is noise that hides a real outage. A source the role may not ask is not
+  // asked, and is not reported as down.
+  const mayStaff = can('staffDirectory', me?.role);
+  const mayCustomer = can('customerPhoneLookup', me?.role);
+  const mayOpenDepot = can('depotDirectory', me?.role);
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [results, setResults] = useState<Results>(EMPTY);
@@ -100,10 +111,12 @@ export default function HqSearchPage() {
         'depots',
         api.get(endpoints.depots.manage({ search: debounced, limit: 10 }), true),
       ),
-      source<Customer>(
-        'staff',
-        api.get(endpoints.auth.staff({ search: debounced, limit: 10 }), true),
-      ),
+      mayStaff
+        ? source<Customer>(
+            'staff',
+            api.get(endpoints.auth.staff({ search: debounced, limit: 10 }), true),
+          )
+        : Promise.resolve([] as Customer[]),
       source<Order>(
         'orders',
         api.get(endpoints.orders.manage({ orderNumber: debounced, limit: 10 }), true),
@@ -117,7 +130,7 @@ export default function HqSearchPage() {
       // prettier broke the line after `api` — so nothing verified it. Keeping the call on
       // one line is what restores the check; hoisting the URL into a variable would
       // silence the counter and lose the check with it.
-      lookupCustomer(debounced),
+      lookupCustomer(debounced, mayCustomer),
     ]).then(([depots, staff, orders, customers]) => {
       if (!alive) return;
       setResults({ depots, staff, orders, customer: customers[0] ?? null });
@@ -127,7 +140,7 @@ export default function HqSearchPage() {
     return () => {
       alive = false;
     };
-  }, [debounced]);
+  }, [debounced, mayStaff, mayCustomer]);
 
   const total =
     results.depots.length +
@@ -193,9 +206,13 @@ export default function HqSearchPage() {
               title={t('hq.search.groups.depots')}
             >
               {results.depots.map((d) => (
-                <Link key={d.id} href={`/hq/depots/detail?id=${d.id}`} className="block">
-                  <ResultRow title={d.name} meta={`${d.code} · ${d.city}`} />
-                </Link>
+                mayOpenDepot ? (
+                  <Link key={d.id} href={`/hq/depots/detail?id=${d.id}`} className="block">
+                    <ResultRow title={d.name} meta={`${d.code} · ${d.city}`} />
+                  </Link>
+                ) : (
+                  <ResultRow key={d.id} title={d.name} meta={`${d.code} · ${d.city}`} />
+                )
               ))}
             </Group>
           )}

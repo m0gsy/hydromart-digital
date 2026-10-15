@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { Lock, Ticket } from '@phosphor-icons/react';
 
@@ -79,15 +80,17 @@ function toPayload(f: VoucherForm, mode: 'create' | 'edit'): VoucherPayload {
   const payload: VoucherPayload = {
     description: f.description.trim() ? f.description.trim() : null,
     discountType: f.discountType,
-    value: Number(f.value),
+    // FREE_SHIPPING waives the fee and carries no value; the server stores it as 0.
+    value: f.discountType === 'FREE_SHIPPING' ? 0 : Number(f.value),
     minSpend: int(f.minSpend) ?? 0,
     maxDiscount: f.discountType === 'PERCENTAGE' ? int(f.maxDiscount) ?? null : null,
     validFrom: dateOrNull(f.validFrom),
     validUntil: dateOrNull(f.validUntil),
     usageLimit: int(f.usageLimit) ?? null,
     perCustomerLimit: int(f.perCustomerLimit) ?? 1,
-    productId: f.productId || null,
-    categoryId: f.categoryId || null,
+    // A free-shipping voucher has no goods to scope; the server refuses one that does.
+    productId: f.discountType === 'FREE_SHIPPING' ? null : f.productId || null,
+    categoryId: f.discountType === 'FREE_SHIPPING' ? null : f.categoryId || null,
   };
   if (mode === 'create') payload.code = f.code.trim().toUpperCase();
   else payload.active = f.active;
@@ -129,7 +132,7 @@ function VoucherEditor({
       setError(t('hrFix.vouchers.codeRequired'));
       return;
     }
-    if (!form.value.trim() || Number(form.value) <= 0) {
+    if (form.discountType !== 'FREE_SHIPPING' && (!form.value.trim() || Number(form.value) <= 0)) {
       setError(t('hrFix.vouchers.valuePositive'));
       return;
     }
@@ -174,33 +177,40 @@ function VoucherEditor({
           <select value={form.discountType} onChange={set('discountType')} className={SELECT_CLASS}>
             <option value="PERCENTAGE">{t('hrFix.vouchers.percentage')}</option>
             <option value="FIXED">{t('hrFix.vouchers.fixedAmount')}</option>
+            <option value="FREE_SHIPPING">{t('hrFix.vouchers.freeShipping')}</option>
           </select>
         </Field>
-        <Field
-          label={form.discountType === 'PERCENTAGE' ? t('hrFix.vouchers.valuePercent') : t('hrFix.vouchers.valueRupiah')}
-          hint={form.discountType === 'PERCENTAGE' ? '1–100' : t('hrFix.vouchers.rupiahOff')}
-        >
-          <Input type="number" value={form.value} onChange={set('value')} placeholder="10" />
-        </Field>
+        {form.discountType !== 'FREE_SHIPPING' && (
+          <Field
+            label={form.discountType === 'PERCENTAGE' ? t('hrFix.vouchers.valuePercent') : t('hrFix.vouchers.valueRupiah')}
+            hint={form.discountType === 'PERCENTAGE' ? '1–100' : t('hrFix.vouchers.rupiahOff')}
+          >
+            <Input type="number" value={form.value} onChange={set('value')} placeholder="10" />
+          </Field>
+        )}
         {form.discountType === 'PERCENTAGE' && (
           <Field label={t('hrFix.vouchers.maxDiscount')} hint={t('hrFix.vouchers.maxDiscountHint')}>
             <Input type="number" value={form.maxDiscount} onChange={set('maxDiscount')} placeholder="20000" />
           </Field>
         )}
-        <Field label={t('hq.forms.voucher.scopeProduct')} hint={t('hq.forms.voucher.scopeHint')}>
-          <ProductSelect
-            value={form.productId}
-            onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
-            emptyLabel={t('hq.forms.voucher.scopeNone')}
-          />
-        </Field>
-        <Field label={t('hq.forms.voucher.scopeCategory')}>
-          <CategorySelect
-            value={form.categoryId}
-            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
-            emptyLabel={t('hq.forms.voucher.scopeNone')}
-          />
-        </Field>
+        {form.discountType !== 'FREE_SHIPPING' && (
+          <>
+            <Field label={t('hq.forms.voucher.scopeProduct')} hint={t('hq.forms.voucher.scopeHint')}>
+              <ProductSelect
+                value={form.productId}
+                onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
+                emptyLabel={t('hq.forms.voucher.scopeNone')}
+              />
+            </Field>
+            <Field label={t('hq.forms.voucher.scopeCategory')}>
+              <CategorySelect
+                value={form.categoryId}
+                onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+                emptyLabel={t('hq.forms.voucher.scopeNone')}
+              />
+            </Field>
+          </>
+        )}
         <Field label={t('hrFix.vouchers.minSpend')} hint={t('hrFix.vouchers.minSpendHint')}>
           <Input type="number" value={form.minSpend} onChange={set('minSpend')} placeholder="50000" />
         </Field>
@@ -352,6 +362,7 @@ function VouchersAdmin() {
   const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const canWrite = canManageVouchers(customer?.role);
   const [editing, setEditing] = useState<Voucher | null | undefined>(undefined); // undefined closed, null new
   const [granting, setGranting] = useState<Voucher | null>(null);
@@ -371,6 +382,14 @@ function VouchersAdmin() {
   // Audit F-14: a rejected deactivation used to be swallowed — the voucher stayed
   // live and the list redrew as if the click had worked.
   async function deactivate(v: Voucher) {
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.deactivateTitle'),
+        message: t('hrFix.confirmGap.deactivateMessage'),
+        confirmLabel: t('hrFix.confirmGap.deactivateConfirm'), tone: 'danger',
+      }))
+    )
+      return;
     try {
       await api.del(endpoints.vouchers.detail(v.id), true);
     } catch (e) {

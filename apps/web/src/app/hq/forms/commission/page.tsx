@@ -8,6 +8,7 @@ import { Button, Card, ErrorState, Input, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionScheme, DepotAdmin, Page } from '@/lib/types';
@@ -30,6 +31,7 @@ export default function HqCommissionFormPage() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const [busy, setBusy] = useState(false);
+  const { confirm } = useConfirm();
 
   if (depots.loading || schemes.loading) return <Skeleton className="h-96 w-full" />;
   if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
@@ -61,6 +63,14 @@ export default function HqCommissionFormPage() {
       toast(t('hq.forms.commission.noChanges'), 'info');
       return;
     }
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.schemeTitle'),
+        message: t('hrFix.confirmGap.schemeMessage'),
+        confirmLabel: t('hrFix.confirmGap.schemeConfirm'), tone: 'danger',
+      }))
+    )
+      return;
     setBusy(true);
     try {
       await api.post(endpoints.commission.apply, { effectiveDate, items: changed }, true);

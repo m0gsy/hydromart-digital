@@ -80,9 +80,26 @@ describe('the platform fee is a number or a dash, never a silent zero (CA-2-11)'
     expect(screen.queryByText(/Biaya platform \(0%\)/)).toBeNull();
   });
 
+  // The settings READ is `settingsRead` (MANAGER, HEAD_OFFICE, DIREKTUR, FINANCE, SUPER_ADMIN),
+  // not the `depotAdmin` write gate the page used to ask — so every one of those roles got
+  // "—" for a number the server would have handed them.
+  it.each(['DIREKTUR', 'HEAD_OFFICE', 'FINANCE'])(
+    'shows the real percentage to %s, who may read the settings',
+    async (r) => {
+      role.current = r;
+
+      render(<HqReconciliationPage />, { wrapper: LocaleProvider });
+
+      await waitFor(() =>
+        expect(screen.getAllByText(/Biaya platform \(5%\)/).length).toBeGreaterThan(0),
+      );
+    },
+  );
+
   it('shows no percentage at all to a role that may not', async () => {
-    // DIREKTUR reads the statement; the fee editor behind `depotAdmin` is not theirs.
-    role.current = 'DIREKTUR';
+    // A role with no `settingsRead`: it reads the statement, never the fee, and the page must
+    // say "—" rather than the 0% that used to stand in for "not allowed to ask".
+    role.current = 'KEPALA_DEPOT';
 
     render(<HqReconciliationPage />, { wrapper: LocaleProvider });
 

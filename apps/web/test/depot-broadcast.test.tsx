@@ -24,13 +24,16 @@ vi.mock('@/lib/depot-context', () => ({
   }),
 }));
 
+import { ConfirmProvider } from '@/components/confirm';
 import { LocaleProvider } from '@/lib/locale-context';
 import BroadcastPage from '@/app/dashboard/broadcast/page';
 
 const renderPage = (): void => {
   render(
     <LocaleProvider>
+      <ConfirmProvider>
       <BroadcastPage />
+    </ConfirmProvider>
     </LocaleProvider>,
   );
 };
@@ -77,6 +80,8 @@ describe('depot broadcast composer', () => {
     const user = await compose();
     await user.click(screen.getByRole('button', { name: /churn|Berisiko/i }));
     await user.click(screen.getByRole('button', { name: /Kirim/i }));
+    // A customer blast is not undoable, so it asks first.
+    await user.click(await screen.findByRole('button', { name: /^Ya, kirim$/ }));
 
     const [path, body] = post.mock.calls[0] ?? [];
     expect(path).toBe('/crm/api/v1/campaigns/depot');

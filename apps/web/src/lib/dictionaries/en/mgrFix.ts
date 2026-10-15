@@ -27,7 +27,8 @@ export const mgrFix = {
   },
   // 1a — manager KPI row on the executive dashboard.
   dash: {
-    orderToday: 'Orders today',
+    // The figure is the executive range (trailing 30 days), not today; the label said otherwise.
+    orderToday: 'Orders (30 days)',
     revenue: 'Revenue',
     gallonsDelivered: 'Gallons delivered',
     slaOnTime: 'On-time SLA',

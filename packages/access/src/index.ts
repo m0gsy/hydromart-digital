@@ -62,6 +62,22 @@ export const CAPABILITIES = {
     'DIREKTUR',
     'SUPER_ADMIN',
   ],
+  // order-service — READ the staff order list and one order (`GET orders/manage[/:id]`), and
+  // nothing that moves an order. `orderQueue` also gates assign/move depot, so FINANCE gets
+  // a read-only twin: it can issue a refund and reconcile payments, and could open neither
+  // the order nor the payment-recon screen. Note the rows carry customer name, address and
+  // phone — same exposure HEAD_OFFICE and DIREKTUR already have, scoped by `depotId` filter.
+  orderManageRead: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'STAFF_DEPOT',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'FINANCE',
+    'SUPER_ADMIN',
+  ],
   // order-service — record a cash sale at the depot counter. Deliberately narrower than
   // orderQueue: a courier and head office never stand at the till.
   walkInSale: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
@@ -135,6 +151,20 @@ export const CAPABILITIES = {
   promoRuleWrite: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — depot admin (create/edit/deactivate) + dynamic pricing.
   depotAdmin: ['MANAGER', 'SUPER_ADMIN'],
+  /*
+   * depot-service — OPEN a new depot and DEACTIVATE an existing one (`POST /depots`,
+   * `DELETE /depots/:depotId`), and nothing else. Editing a depot stays `depotAdmin`.
+   *
+   * Owner decision 2026-10-15: standing up or closing a depot is a network decision, not a
+   * depot manager's. The screens already said so ("lewat head office") while the server let
+   * a MANAGER do both, and the franchise-application flow ended in "Setujui & provision"
+   * for HEAD_OFFICE/DIREKTUR — who held the approval but not the create, so the approval was
+   * written and the provisioning POST then answered 403.
+   *
+   * A subset of `depotDirectory` on purpose: whoever may create a depot must be able to read
+   * the directory it lands in (pinned in capabilities.spec.ts).
+   */
+  depotLifecycle: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // dashboard-service franchise view + payout-service (FRANCHISE_OWNER-only).
   franchise: ['FRANCHISE_OWNER'],
   payout: ['FRANCHISE_OWNER'],
@@ -157,6 +187,10 @@ export const CAPABILITIES = {
   hierarchyAdmin: ['SUPER_ADMIN'],
   // auth-service — active-driver roster for dispatch (courier assignment).
   driverRoster: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // auth-service — READ the courier list (`GET auth/drivers`) only. `driverRoster` is also
+  // the roster WRITE gate (roles.ts `canManageRoster`), so FINANCE gets a separate read:
+  // settlements and payment screens print a courier's name, not "#abc12345".
+  driverRosterRead: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   // crm-service — operational notification feed.
   opsNotif: [
     'KEPALA_DEPOT',
@@ -469,6 +503,13 @@ export const CAPABILITIES = {
   // auth-service — READ the staff directory. Wider than staffAdmin, which is the power
   // to change who holds which role: a manager needs the roster, not the switch.
   staffDirectory: ['HEAD_OFFICE', 'DIREKTUR', 'MANAGER', 'SUPER_ADMIN'],
+  /*
+   * auth-service — the same list, widened to FINANCE, but ONLY for `role=FRANCHISE_OWNER`
+   * (the controller refuses FINANCE any other filter). Finance releases money to owners and
+   * could not read their names: both payout screens fell back to "#abc12345" because the
+   * lookup was a swallowed 403. They need who the owner is, not the whole staff roster.
+   */
+  staffDirectoryFinance: ['HEAD_OFFICE', 'DIREKTUR', 'MANAGER', 'FINANCE', 'SUPER_ADMIN'],
   // depot-service — read one depot in full (edit forms, HQ onboarding, payment setup).
   // Wider than depotAdmin because an owner reads their own depot's record.
   // KEPALA_DEPOT reads it too (2026-08-14): the operator shell's "Depot" tab pointed at a

@@ -8,6 +8,7 @@ import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion, PromotionPayload } from '@/lib/types';
@@ -182,7 +183,16 @@ export default function HqPromotionsPage() {
 
   // Audit F-14: this used to swallow the failure and reload, so a rejected delete
   // (403, 409, network) redrew the same row and read as "nothing happened".
+  const { confirm } = useConfirm();
   async function remove(id: string) {
+    if (
+      !(await confirm({
+        title: t('hrFix.confirmGap.deleteTitle'),
+        message: t('hrFix.confirmGap.deleteMessage'),
+        confirmLabel: t('hrFix.confirmGap.deleteConfirm'), tone: 'danger',
+      }))
+    )
+      return;
     try {
       await api.del(endpoints.promotions.detail(id), true);
     } catch (e) {

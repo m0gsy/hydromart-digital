@@ -19,6 +19,7 @@ export const settings = {
   gateBody: 'Editor pengaturan hanya untuk manajer depot dan super admin.',
   globalOnly: 'Nilai ini diatur secara global untuk seluruh jaringan, tidak bisa di-override per depot.',
   globalWriteDenied: 'Hanya SUPER_ADMIN yang dapat mengubah default global.',
+  writeDenied: 'Pengaturan ini hanya dapat diubah oleh kantor pusat.',
   svcDelivery: 'Pengiriman & Kurir',
   svcOrder: 'Order & Ongkir',
   svcPayout: 'Payout & Komisi',

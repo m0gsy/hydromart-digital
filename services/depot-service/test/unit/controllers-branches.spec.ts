@@ -465,10 +465,11 @@ describe('FranchiseApplicationController', () => {
     expect(svc.get).toHaveBeenCalledWith(ID);
     await c.patch(ID, { stage: 'DOCS', checklist: {} } as never);
     expect(svc.patch).toHaveBeenCalledWith(ID, { stage: 'DOCS', checklist: {} });
-    await c.approve(ID);
-    expect(svc.approve).toHaveBeenCalledWith(ID);
-    await c.reject(ID);
-    expect(svc.reject).toHaveBeenCalledWith(ID);
+    const hq = { sub: 'hq-1', role: 'HEAD_OFFICE' } as never;
+    await c.approve(ID, hq, { reason: 'lengkap' });
+    expect(svc.approve).toHaveBeenCalledWith(ID, 'hq-1', 'lengkap');
+    await c.reject(ID, hq, { reason: 'dokumen palsu' });
+    expect(svc.reject).toHaveBeenCalledWith(ID, 'hq-1', 'dokumen palsu');
   });
   /*
    * D6: rejected applications are purged at 24 months. Internal-key only — the caller is a
@@ -873,8 +874,8 @@ describe('Price override controllers', () => {
     expect(svc.countByProduct).toHaveBeenCalled();
     await hqC.approve(user, ID);
     expect(svc.approve).toHaveBeenCalledWith(ID, 'user-1');
-    await hqC.reject(user, ID);
-    expect(svc.reject).toHaveBeenCalledWith(ID, 'user-1');
+    await hqC.reject(user, ID, { reason: 'terlalu rendah' });
+    expect(svc.reject).toHaveBeenCalledWith(ID, 'user-1', 'terlalu rendah');
   });
 });
 

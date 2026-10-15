@@ -372,9 +372,9 @@ export class DepotController {
 
   @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
-  @Can('depotAdmin')
+  @Can('depotLifecycle')
   @Post()
-  @ApiOperation({ summary: 'Create a depot (admin)' })
+  @ApiOperation({ summary: 'Create a depot (head office)' })
   create(@Body() dto: CreateDepotDto): Promise<DepotRecord> {
     return this.depots.create({
       code: dto.code,
@@ -471,10 +471,10 @@ export class DepotController {
   // AUTHZ-B1 — see `update` above.
   @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
-  @Can('depotAdmin')
+  @Can('depotLifecycle')
   @Delete(':depotId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Deactivate a depot (soft delete, admin)' })
+  @ApiOperation({ summary: 'Deactivate a depot (soft delete, head office)' })
   remove(@Param('depotId', ParseUUIDPipe) id: string): Promise<DepotRecord> {
     return this.depots.deactivate(id);
   }

@@ -807,8 +807,8 @@ export class InventoryService {
    * Called in-process by PurchaseOrderService.receive — a direct method call, no HTTP.
    * Throws InventoryItemNotFoundError if the depot has no such line; the caller receives
    * best-effort, so a missing line does not fail the whole PO.
-   * ponytail: targets the raw singleton line only. A PRODUK line needs a productId a PO
-   * line does not carry — give PoLine a productId if PRODUK procurement must land too.
+   * A PRODUK line is booked into the stock line of the catalogue product the PO line names
+   * (`productId`); the four raw types leave it null and hit the singleton.
    */
   async receiveStock(
     depotId: string,
@@ -816,8 +816,9 @@ export class InventoryService {
     quantity: number,
     actorId: string,
     reason: string,
+    productId: string | null = null,
   ): Promise<ItemView> {
-    const line = await this.inventory.findLine(depotId, itemType, null);
+    const line = await this.inventory.findLine(depotId, itemType, productId);
     if (!line) {
       throw new InventoryItemNotFoundError();
     }

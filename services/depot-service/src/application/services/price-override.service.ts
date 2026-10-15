@@ -178,7 +178,11 @@ export class PriceOverrideService {
     });
   }
 
-  async reject(id: string, decidedBy: string): Promise<PriceOverrideProposalRecord> {
+  async reject(
+    id: string,
+    decidedBy: string,
+    reason?: string,
+  ): Promise<PriceOverrideProposalRecord> {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();
     // success:false — the decision succeeded, the price change did not. The trail records
@@ -188,6 +192,7 @@ export class PriceOverrideService {
       adjustType: proposal.adjustType,
       value: proposal.value,
       proposedBy: proposal.proposedBy,
+      ...(reason?.trim() ? { reason: reason.trim().slice(0, 300) } : {}),
     });
     return this.proposals.update(id, {
       status: PriceOverrideStatus.REJECTED,

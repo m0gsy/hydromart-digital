@@ -407,7 +407,7 @@ export class OrderController {
   // Static `manage` routes are declared before `:id` so they are not captured by it.
   @ApiOkResponse({ type: PagedOrderResponseDto })
   @Get('manage')
-  @Can('orderQueue')
+  @Can('orderManageRead')
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
   async listManaged(
     @CurrentUser() user: AuthenticatedUser,
@@ -484,7 +484,7 @@ export class OrderController {
 
   @ApiOkResponse({ type: OrderResponseDto })
   @Get('manage/:id')
-  @Can('orderQueue')
+  @Can('orderManageRead')
   @ApiOperation({ summary: 'Staff: read any order by id' })
   async getManaged(
     @CurrentUser() user: AuthenticatedUser,

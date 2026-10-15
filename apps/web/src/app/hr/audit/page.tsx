@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { actionLabel } from '@/lib/audit-action';
 import { useT } from '@/lib/locale-context';
 
 import {
@@ -92,7 +93,7 @@ export default function AuditPage() {
              */
             <div key={l.id} className="flex flex-col gap-1.5 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <Badge tone={ACTION_TONE[l.action] ?? 'neutral'}>{l.action}</Badge>
+                <Badge tone={ACTION_TONE[l.action] ?? 'neutral'}>{actionLabel(l.action, t)}</Badge>
                 <span className="min-w-0 flex-1 truncate">
                   <b>{l.entity}</b>
                   {l.entityId ? ` · ${l.entityId.slice(0, 8)}…` : ''}

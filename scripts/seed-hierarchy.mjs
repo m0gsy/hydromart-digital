@@ -170,8 +170,6 @@ async function ensureAccounts(depotIds) {
       salaryType: 'MONTHLY',
       monthlyRate: 5_000_000,
     };
-    // AUTH-5: the guards check `iss`/`aud` now, so a hand-minted token carries them.
-    Object.assign(body, { iss: 'hydromart-auth', aud: 'hydromart-api' });
     if (a.depot) body.depotId = depotIds[a.depot];
     // inviteStaff promotes an existing phone rather than failing, so this is the
     // idempotent path for both a first run and a re-run.

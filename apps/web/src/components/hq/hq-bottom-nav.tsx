@@ -7,6 +7,7 @@ import { List, X, type Icon } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { hasPartialHqDoor } from '@/lib/hq-nav';
 import { isHq } from '@/lib/roles';
 import { hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 // The rail's table, not a second one: /hq/sitemap already reads it the same way, and the
@@ -46,7 +47,7 @@ export function HqBottomNav() {
   useEffect(() => setMenuOpen(false), [pathname]);
 
   // Hooks first: an early return above them changes the hook order between renders.
-  if (!isHq(role)) return null;
+  if (!isHq(role) && !hasPartialHqDoor(role as never)) return null;
 
   const groups = hqGroupsForRole(role);
   const tabs = hqItemsForRole(role).slice(0, TAB_COUNT);

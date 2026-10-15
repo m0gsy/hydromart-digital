@@ -109,7 +109,7 @@ export default function HqReconciliationPage() {
    * for what you may not have and calling the refusal a failure is the same lie this page
    * was rewritten to stop telling.
    */
-  const maySeeSettings = can('depotAdmin', customer?.role);
+  const maySeeSettings = can('settingsRead', customer?.role);
   const payoutSettings = useAsync<SettingsSchema>(
     () =>
       maySeeSettings
