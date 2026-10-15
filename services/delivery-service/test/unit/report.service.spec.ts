@@ -184,6 +184,8 @@ describe('ReportService.sla', () => {
       depositedAmount: 95_000,
       chargedToDriver: false,
       note: null,
+      chargeRequestedBy: null,
+      chargeRequestedAt: null,
       verifiedBy: operatorId,
       verifiedAt: at(300),
       createdAt: at(300),

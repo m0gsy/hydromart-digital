@@ -12,6 +12,9 @@ export interface SettlementRecord {
   variance: number;
   chargedToDriver: boolean;
   note: string | null;
+  /** Who raised a shortfall charge still awaiting a second person's approval. */
+  chargeRequestedBy: string | null;
+  chargeRequestedAt: Date | null;
   verifiedBy: string | null;
   verifiedAt: Date | null;
   createdAt: Date;
@@ -90,4 +93,8 @@ export interface SettlementRepository {
     to: Date,
   ): Promise<OperatorSettlementStats[]>;
   resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord>;
+  /** Park a shortfall charge for a second person (status unchanged). `note` replaces only if given. */
+  requestCharge(id: string, by: string, note: string | null): Promise<SettlementRecord>;
+  /** A rejected charge: back to the queue, request cleared, `note` written as given. */
+  clearChargeRequest(id: string, note: string | null): Promise<SettlementRecord>;
 }

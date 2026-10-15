@@ -197,6 +197,9 @@ export const money = {
     rules: '/deliveries/api/v1/settlements/rules',
     verify: (id: string) => `/deliveries/api/v1/settlements/${id}/verify`,
     dispute: (id: string) => `/deliveries/api/v1/settlements/${id}/dispute`,
+    // Second signature on a shortfall charge (approvals capability, never the raiser).
+    approveCharge: (id: string) => `/deliveries/api/v1/settlements/${id}/approve-charge`,
+    rejectCharge: (id: string) => `/deliveries/api/v1/settlements/${id}/reject-charge`,
   },
 
   // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;

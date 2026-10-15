@@ -292,6 +292,10 @@ export class SettlementResponseDto {
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
   @ApiProperty({ type: String, nullable: true })
+  chargeRequestedBy!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  chargeRequestedAt!: string | null;
+  @ApiProperty({ type: String, nullable: true })
   verifiedBy!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   verifiedAt!: string | null;

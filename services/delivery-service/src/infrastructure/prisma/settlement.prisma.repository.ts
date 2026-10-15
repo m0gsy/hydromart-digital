@@ -25,6 +25,8 @@ interface SettlementRow {
   variance: number;
   chargedToDriver: boolean;
   note: string | null;
+  chargeRequestedBy: string | null;
+  chargeRequestedAt: Date | null;
   verifiedBy: string | null;
   verifiedAt: Date | null;
   createdAt: Date;
@@ -165,6 +167,26 @@ export class SettlementPrismaRepository implements SettlementRepository {
 
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
     const row = await this.prisma.cashSettlement.update({ where: { id }, data: patch });
+    return this.toRecord(row);
+  }
+
+  async requestCharge(id: string, by: string, note: string | null): Promise<SettlementRecord> {
+    const row = await this.prisma.cashSettlement.update({
+      where: { id },
+      data: {
+        chargeRequestedBy: by,
+        chargeRequestedAt: new Date(),
+        ...(note ? { note } : {}),
+      },
+    });
+    return this.toRecord(row);
+  }
+
+  async clearChargeRequest(id: string, note: string | null): Promise<SettlementRecord> {
+    const row = await this.prisma.cashSettlement.update({
+      where: { id },
+      data: { chargeRequestedBy: null, chargeRequestedAt: null, note },
+    });
     return this.toRecord(row);
   }
 }

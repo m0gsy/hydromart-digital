@@ -90,6 +90,27 @@ export class SettlementController {
   }
 
   @ApiOkResponse({ type: SettlementResponseDto })
+  @Post(':id/approve-charge')
+  @ApiOperation({ summary: "Approve another person's shortfall charge (second signature)" })
+  approveCharge(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SettlementRecord> {
+    return this.settlements.approveCharge(user, id);
+  }
+
+  @ApiOkResponse({ type: SettlementResponseDto })
+  @Post(':id/reject-charge')
+  @ApiOperation({ summary: 'Reject a raised shortfall charge, with a reason' })
+  rejectCharge(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DisputeSettlementDto,
+  ): Promise<SettlementRecord> {
+    return this.settlements.rejectCharge(user, id, dto.note);
+  }
+
+  @ApiOkResponse({ type: SettlementResponseDto })
   @Post(':id/dispute')
   @ApiOperation({ summary: 'Dispute a courier deposit (parks it for resolution)' })
   dispute(

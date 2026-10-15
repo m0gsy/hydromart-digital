@@ -6,7 +6,10 @@ import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 import {
   SettlementAlreadyExistsError,
   SettlementChargeNeedsManagerError,
+  SettlementChargePendingError,
+  SettlementChargeSelfApprovalError,
   SettlementChargeUndeliverableError,
+  SettlementNoChargePendingError,
   SettlementNotFoundError,
   SettlementNotSubmittedError,
   SettlementSurplusNoteRequiredError,
@@ -226,6 +229,7 @@ export class SettlementService {
   ): Promise<SettlementRecord> {
     const actorId = user.sub;
     const settlement = await this.resolvable(id, user);
+    if (settlement.chargeRequestedBy) throw new SettlementChargePendingError();
     const note = input.note?.trim() ? input.note.trim() : null;
     if (surplusNeedsNote(settlement.variance) && note === null) {
       throw new SettlementSurplusNoteRequiredError();
@@ -241,51 +245,87 @@ export class SettlementService {
     // surplus rule above is about leaving a trace, NOT about billing: it must never make
     // a surplus chargeable.
     const charged = (input.chargedToDriver ?? false) && isShortfall(settlement.variance);
-    // Gated on `charged`, not on what was typed: a surplus with the box ticked charges
-    // nothing and must not be refused. `approvals` is the manager capability (MANAGER and
-    // SUPER_ADMIN); the courier is who submits the deposit, so a manager verifying the
-    // charge is the second person.
-    if (charged && !can('approvals', user.role)) {
-      throw new SettlementChargeNeedsManagerError();
-    }
     /*
-     * CA-2-32: the debit is posted BEFORE the settlement claims it was, and a push that
-     * does not land refuses the verify.
-     *
-     * It used to be `void this.payout.cashVarianceCharged(...)` after the write — a charge
-     * fired at a service that might be down, from a row that already said the courier had
-     * been charged. Nothing reconciled the two, so a payout outage silently forgave the
-     * shortfall while the paperwork said it had been collected.
-     *
-     * Refusing loses nothing: the settlement stays awaiting a ruling, and the push is
-     * idempotent by settlement id, so pressing verify again is safe whether the first
-     * attempt reached payout or not.
+     * Owner decision 2026-10-16: a shortfall charge needs a SECOND person. Raising it only
+     * parks it; `approveCharge` (a different approvals-capable user) posts it. Gated on
+     * `charged`, not on what was typed: a surplus with the box ticked charges nothing and
+     * must not be parked. Plain verify/dispute stay single-person.
      */
     if (charged) {
-      const posted = await this.payout.cashVarianceCharged({
-        courierId: settlement.driverId,
-        depotId: settlement.depotId,
-        settlementId: settlement.id,
-        amount: Math.abs(settlement.variance),
-      });
-      if (!posted) throw new SettlementChargeUndeliverableError();
+      const raised = wasDisputed && note ? appendNote(settlement.note, note) : note;
+      this.logger.log(`Settlement ${id} charge raised by ${actorId}, awaiting approval`);
+      return this.settlements.requestCharge(id, actorId, raised);
     }
-    this.logger.log(`Settlement ${id} verified by ${actorId} (chargedToDriver=${charged})`);
-    const resolved = await this.settlements.resolve(id, {
+    this.logger.log(`Settlement ${id} verified by ${actorId} (chargedToDriver=false)`);
+    return this.settlements.resolve(id, {
       status: SettlementStatus.VERIFIED,
-      chargedToDriver: charged,
+      chargedToDriver: false,
       // C10: keep WHY it was disputed next to HOW it ended — one column, both facts.
       note: wasDisputed && note ? appendNote(settlement.note, note) : note,
       verifiedBy: actorId,
       verifiedAt: new Date(),
     });
-    return resolved;
+  }
+
+  /** A pending charge, readable and decidable by this user; `approvals` capability only. */
+  private async pendingCharge(user: AuthenticatedUser, id: string): Promise<SettlementRecord> {
+    const settlement = await this.resolvable(id, user);
+    if (!can('approvals', user.role)) throw new SettlementChargeNeedsManagerError();
+    if (!settlement.chargeRequestedBy) throw new SettlementNoChargePendingError();
+    return settlement;
+  }
+
+  /**
+   * Second person approves a raised shortfall charge. Never the raiser (SUPER_ADMIN may be
+   * raiser or approver, but still not both on one charge).
+   *
+   * CA-2-32: the debit is posted BEFORE the settlement claims it was, and a push that does
+   * not land refuses the approval — the charge stays pending, and the push is idempotent
+   * by settlement id, so retrying is safe whether or not the first attempt reached payout.
+   */
+  async approveCharge(user: AuthenticatedUser, id: string): Promise<SettlementRecord> {
+    const settlement = await this.pendingCharge(user, id);
+    if (settlement.chargeRequestedBy === user.sub) throw new SettlementChargeSelfApprovalError();
+    const posted = await this.payout.cashVarianceCharged({
+      courierId: settlement.driverId,
+      depotId: settlement.depotId,
+      settlementId: settlement.id,
+      amount: Math.abs(settlement.variance),
+    });
+    if (!posted) throw new SettlementChargeUndeliverableError();
+    this.logger.log(
+      `Settlement ${id} charge raised by ${settlement.chargeRequestedBy} approved by ${user.sub}`,
+    );
+    return this.settlements.resolve(id, {
+      status: SettlementStatus.VERIFIED,
+      chargedToDriver: true,
+      note: settlement.note,
+      verifiedBy: user.sub,
+      verifiedAt: new Date(),
+    });
+  }
+
+  /** Reject a raised charge: back to the queue uncharged, with the reason kept in the note. */
+  async rejectCharge(
+    user: AuthenticatedUser,
+    id: string,
+    reason: string,
+  ): Promise<SettlementRecord> {
+    const settlement = await this.pendingCharge(user, id);
+    this.logger.log(
+      `Settlement ${id} charge raised by ${settlement.chargeRequestedBy} rejected by ${user.sub}`,
+    );
+    return this.settlements.clearChargeRequest(
+      id,
+      appendNote(settlement.note, `Pembebanan ditolak: ${reason.trim()}`),
+    );
   }
 
   /** Cashier disputes the deposit (design 6a): parks it for offline resolution. */
   async dispute(user: AuthenticatedUser, id: string, note: string): Promise<SettlementRecord> {
     const actorId = user.sub;
-    await this.resolvable(id, user);
+    const settlement = await this.resolvable(id, user);
+    if (settlement.chargeRequestedBy) throw new SettlementChargePendingError();
     this.logger.log(`Settlement ${id} disputed by ${actorId}`);
     return this.settlements.resolve(id, {
       status: SettlementStatus.DISPUTED,

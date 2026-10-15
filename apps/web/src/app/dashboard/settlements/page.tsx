@@ -73,7 +73,7 @@ function SettlementRow({
 }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<'verify' | 'dispute' | null>(null);
+  const [busy, setBusy] = useState<'verify' | 'dispute' | 'approve' | 'reject' | null>(null);
   const [charge, setCharge] = useState(true);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -86,10 +86,18 @@ function SettlementRow({
   const disputed = s.status === 'DISPUTED';
   const pending = s.status === 'SUBMITTED' || disputed;
   const shortfall = s.variance < 0;
+  // A raised shortfall charge awaits a SECOND person: someone with the approvals capability
+  // who is not the one who raised it. The server enforces both; this only shapes the screen.
+  const chargePending = pending && !!s.chargeRequestedBy;
+  const raisedByMe = chargePending && s.chargeRequestedBy === customer?.id;
 
-  const act = async (kind: 'verify' | 'dispute') => {
+  const act = async (kind: 'verify' | 'dispute' | 'approve' | 'reject') => {
     if (kind === 'dispute' && note.trim() === '') {
       setError(t('opsFix.settlements.disputeReasonRequired'));
+      return;
+    }
+    if (kind === 'reject' && note.trim() === '') {
+      setError(t('opsFix.settlements.rejectReasonRequired'));
       return;
     }
     if (kind === 'verify' && disputed && note.trim() === '') {
@@ -100,7 +108,11 @@ function SettlementRow({
     setError(null);
     try {
       if (kind === 'verify') {
-        await api.post(endpoints.settlements.verify(s.id), { chargedToDriver: shortfall && charge && canCharge, note: note.trim() || undefined }, true);
+        await api.post(endpoints.settlements.verify(s.id), { chargedToDriver: shortfall && charge, note: note.trim() || undefined }, true);
+      } else if (kind === 'approve') {
+        await api.post(endpoints.settlements.approveCharge(s.id), {}, true);
+      } else if (kind === 'reject') {
+        await api.post(endpoints.settlements.rejectCharge(s.id), { note: note.trim() }, true);
       } else {
         await api.post(endpoints.settlements.dispute(s.id), { note: note.trim() }, true);
       }
@@ -152,7 +164,39 @@ function SettlementRow({
               {t(STATUS_LABEL[s.status])}
             </span>
           )}
-          {!open ? (
+          {chargePending ? (
+            <div className="flex flex-col gap-3 border-t border-app pt-3">
+              <p className="text-sm font-medium">
+                {raisedByMe
+                  ? t('opsFix.settlements.chargePendingMine')
+                  : canCharge
+                    ? t('opsFix.settlements.chargePending')
+                    : t('opsFix.settlements.chargePendingWait')}
+              </p>
+              {s.note && <p className="text-xs text-[color:var(--text-muted)]">{s.note}</p>}
+              {canCharge && (
+                <>
+                  <Field
+                    label={t('opsFix.settlements.rejectCharge')}
+                    htmlFor={`reject-${s.id}`}
+                  >
+                    <Input id={`reject-${s.id}`} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('opsFix.settlements.notePlaceholder')} />
+                  </Field>
+                  <FormError message={error} />
+                  <div className="flex gap-2">
+                    {!raisedByMe && (
+                      <Button onClick={() => act('approve')} loading={busy === 'approve'} className="flex-1">
+                        {t('opsFix.settlements.approveCharge')}
+                      </Button>
+                    )}
+                    <Button variant="ghost" onClick={() => act('reject')} loading={busy === 'reject'} className="flex-1">
+                      {t('opsFix.settlements.rejectCharge')}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : !open ? (
             <Button onClick={() => setOpen(true)} className="w-full">
               {t('opsFix.settlements.countVerify')}
             </Button>
@@ -177,10 +221,7 @@ function SettlementRow({
                 </span>
               </div>
 
-              {shortfall && !canCharge && (
-                <p className="text-sm text-muted">{t('opsFix.settlements.chargeManagerOnly')}</p>
-              )}
-              {shortfall && canCharge && (
+              {shortfall && (
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={charge} onChange={(e) => setCharge(e.target.checked)} />
                   {t('opsFix.settlements.chargeCourier', {

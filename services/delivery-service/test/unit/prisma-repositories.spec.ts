@@ -1045,6 +1045,29 @@ describe('SettlementPrismaRepository', () => {
     expect(rec.status).toBe(SettlementStatus.VERIFIED);
     expect(cashSettlement.update).toHaveBeenCalledWith({ where: { id: 'set-1' }, data: patch });
   });
+
+  it('requestCharge parks the charge with who/when, keeping the note unless one is given', async () => {
+    cashSettlement.update.mockResolvedValue(settlementRow({}));
+    await repo.requestCharge('set-1', 'u-1', null);
+    expect(cashSettlement.update).toHaveBeenLastCalledWith({
+      where: { id: 'set-1' },
+      data: { chargeRequestedBy: 'u-1', chargeRequestedAt: expect.any(Date) },
+    });
+    await repo.requestCharge('set-1', 'u-1', 'catatan');
+    expect(cashSettlement.update).toHaveBeenLastCalledWith({
+      where: { id: 'set-1' },
+      data: { chargeRequestedBy: 'u-1', chargeRequestedAt: expect.any(Date), note: 'catatan' },
+    });
+  });
+
+  it('clearChargeRequest empties the request and writes the note', async () => {
+    cashSettlement.update.mockResolvedValue(settlementRow({}));
+    await repo.clearChargeRequest('set-1', 'ditolak');
+    expect(cashSettlement.update).toHaveBeenCalledWith({
+      where: { id: 'set-1' },
+      data: { chargeRequestedBy: null, chargeRequestedAt: null, note: 'ditolak' },
+    });
+  });
 });
 
 describe('ShiftPrismaRepository', () => {
