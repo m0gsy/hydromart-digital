@@ -16,6 +16,8 @@ export interface PaymentRecord {
   refundReason: string | null;
   /** Who raised a refund that parked for HQ: a user id, or `order-service` for a cancellation. */
   refundRequestedBy: string | null;
+  /** When the refund promise (3 working days from the request) falls due; null before it parks. */
+  refundDueAt: Date | null;
   refundedAmount: number | null;
   refundApproval: RefundApproval;
   cashReceived: number | null;
@@ -57,6 +59,7 @@ export interface PaymentStatusPatch {
   refundedAt?: Date | null;
   refundReason?: string | null;
   refundRequestedBy?: string | null;
+  refundDueAt?: Date | null;
   refundedAmount?: number | null;
   refundApproval?: RefundApproval;
   reference?: string | null;

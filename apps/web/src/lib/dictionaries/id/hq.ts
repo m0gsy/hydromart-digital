@@ -666,6 +666,8 @@ export const hq = {
     reason: 'Alasan',
     by: 'Diminta {who}',
     bySystem: 'Sistem (pembatalan pesanan)',
+    overdue: 'TERLAMBAT - lewat janji 3 hari kerja',
+    due: 'Janji ke pelanggan: {date}',
     age: '{n} jam lalu',
     approve: 'Setujui',
     reject: 'Tolak',

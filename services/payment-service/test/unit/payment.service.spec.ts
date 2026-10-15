@@ -417,6 +417,11 @@ describe('PaymentService', () => {
     // Who asked travels with the row, so the queue can say "diajukan oleh" — information
     // only, it gates nothing.
     expect(queued.refundRequestedBy).toBe('finance');
+    // The 1-3 working-day promise is recorded as a due date, 3 working days out.
+    expect(queued.refundDueAt).not.toBeNull();
+    expect(queued.refundDueAt!.getTime()).toBeGreaterThan(Date.now() + 2 * 86_400_000);
+    expect(queued.refundDueAt!.getTime()).toBeLessThan(Date.now() + 6 * 86_400_000);
+    expect([0, 6]).not.toContain(queued.refundDueAt!.getUTCDay());
 
     const list = await service.listRefundQueue({});
     expect(list.total).toBe(1);

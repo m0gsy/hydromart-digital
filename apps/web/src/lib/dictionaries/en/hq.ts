@@ -662,6 +662,8 @@ export const hq = {
     reason: 'Reason',
     by: 'Requested by {who}',
     bySystem: 'System (order cancellation)',
+    overdue: 'OVERDUE - past the 3 working-day promise',
+    due: 'Promised to customer: {date}',
     age: '{n}h ago',
     approve: 'Approve',
     reject: 'Reject',
