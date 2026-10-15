@@ -1,4 +1,4 @@
-﻿-- RERUNNABLE: both statements are ADD COLUMN IF NOT EXISTS, so a retry after a deploy failure is safe.
+-- RERUNNABLE: both statements are ADD COLUMN IF NOT EXISTS, so a retry after a deploy failure is safe.
 -- Charging a COD shortfall to a courier needs a SECOND person (owner decision 2026-10-16).
 -- `chargeRequestedBy` is who raised the charge; the row stays SUBMITTED/DISPUTED until a
 -- different person with the approvals capability approves (then VERIFIED, chargedToDriver)
