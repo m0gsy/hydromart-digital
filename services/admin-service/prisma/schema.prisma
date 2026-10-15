@@ -375,6 +375,8 @@ model FraudFlag {
   /// all, because by then the flag said REVIEWED. Null means this flag never suspended
   /// anybody, so clearing it must not reopen an account somebody else closed.
   blockedAt   DateTime?
+  /// The reason typed when head office decided this flag; null for older decisions.
+  decisionReason String?
 }
 
 /// A platform incident (Design 14c). Timeline entries live in the child `IncidentUpdate` rows.

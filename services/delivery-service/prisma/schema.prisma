@@ -216,6 +216,10 @@ model CashSettlement {
   chargedToDriver Boolean @default(false)
   note            String?
 
+  /// Who raised a shortfall charge that still awaits a SECOND person's approval.
+  chargeRequestedBy String?   @db.Uuid
+  chargeRequestedAt DateTime?
+
   verifiedBy String?   @db.Uuid
   verifiedAt DateTime?
 
