@@ -324,6 +324,33 @@ export class SettlementChargeNeedsManagerError extends DomainError {
   }
 }
 
+/** The deposit has a shortfall charge awaiting a second person; it cannot be ruled on meanwhile. */
+export class SettlementChargePendingError extends DomainError {
+  readonly code = 'SETTLEMENT_CHARGE_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pembebanan selisih setoran ini menunggu persetujuan manajer lain. Setujui atau tolak dulu.');
+  }
+}
+
+/** Approve/reject on a settlement nobody asked to charge. */
+export class SettlementNoChargePendingError extends DomainError {
+  readonly code = 'SETTLEMENT_NO_CHARGE_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Tidak ada pembebanan selisih yang menunggu persetujuan pada setoran ini.');
+  }
+}
+
+/** Four-eyes: whoever raised the charge cannot also be the one who approves it. */
+export class SettlementChargeSelfApprovalError extends DomainError {
+  readonly code = 'SETTLEMENT_CHARGE_SELF_APPROVAL';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Pembebanan selisih harus disetujui orang lain, bukan yang mengajukannya.');
+  }
+}
+
 export class SettlementChargeUndeliverableError extends DomainError {
   readonly code = 'SETTLEMENT_CHARGE_UNDELIVERABLE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

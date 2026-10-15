@@ -7,7 +7,10 @@ import { SettlementService } from '../../src/application/services/settlement.ser
 import {
   SettlementAlreadyExistsError,
   SettlementChargeNeedsManagerError,
+  SettlementChargePendingError,
+  SettlementChargeSelfApprovalError,
   SettlementChargeUndeliverableError,
+  SettlementNoChargePendingError,
   SettlementNotFoundError,
   SettlementNotSubmittedError,
   SettlementSurplusNoteRequiredError,
@@ -316,16 +319,114 @@ describe('SettlementService', () => {
       return service.submit(driver, shift.id, deposited, AUTH);
     };
 
-    it('charges a shortfall to the courier only when asked', async () => {
+    /*
+     * Owner decision 2026-10-16: charging a shortfall needs a SECOND person. Raising the
+     * charge parks it; nothing reaches payout until a different approver signs.
+     */
+    it('raising a charge only parks it: nothing posted, nothing resolved', async () => {
       const s = await submit(60000, 75000); // variance -15000
-      const verified = await service.verify(MANAGER, s.id, { chargedToDriver: true });
+      const parked = await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      expect(parked.status).toBe(SettlementStatus.SUBMITTED);
+      expect(parked.chargedToDriver).toBe(false);
+      expect(parked.chargeRequestedBy).toBe(CASHIER.sub);
+      expect(parked.chargeRequestedAt).toBeInstanceOf(Date);
+      expect(payout.variances).toHaveLength(0);
+    });
+
+    it('charges the courier once a DIFFERENT manager approves', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true, note: 'hitung ulang' });
+      const verified = await service.approveCharge(MANAGER, s.id);
       expect(verified.status).toBe(SettlementStatus.VERIFIED);
       expect(verified.chargedToDriver).toBe(true);
-      expect(verified.verifiedBy).not.toBeNull();
-      // The shortfall is pushed to payout as a positive magnitude keyed by settlement id.
+      expect(verified.verifiedBy).toBe(MANAGER.sub);
+      expect(verified.chargeRequestedBy).toBe(CASHIER.sub); // who raised stays on the row
       expect(payout.variances).toEqual([
         expect.objectContaining({ courierId: driver, settlementId: s.id, amount: 15000 }),
       ]);
+    });
+
+    it('refuses the raiser approving their own charge, manager or not', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(MANAGER, s.id, { chargedToDriver: true });
+      await expect(service.approveCharge(MANAGER, s.id)).rejects.toBeInstanceOf(
+        SettlementChargeSelfApprovalError,
+      );
+      expect(payout.variances).toHaveLength(0);
+    });
+
+    it('lets a SUPER_ADMIN be either the raiser or the approver', async () => {
+      const root: AuthenticatedUser = { ...MANAGER, sub: randomUUID(), role: Role.SUPER_ADMIN };
+      const a = await submit(60000, 75000);
+      await service.verify(root, a.id, { chargedToDriver: true });
+      expect((await service.approveCharge(MANAGER, a.id)).chargedToDriver).toBe(true);
+
+      const b = await submit(60000, 75000);
+      await service.verify(CASHIER, b.id, { chargedToDriver: true });
+      expect((await service.approveCharge(root, b.id)).chargedToDriver).toBe(true);
+    });
+
+    it('only an approvals-capable role may approve or reject', async () => {
+      const s = await submit(60000, 75000);
+      const other: AuthenticatedUser = { ...CASHIER, sub: randomUUID() };
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      await expect(service.approveCharge(other, s.id)).rejects.toBeInstanceOf(
+        SettlementChargeNeedsManagerError,
+      );
+      await expect(service.rejectCharge(other, s.id, 'x')).rejects.toBeInstanceOf(
+        SettlementChargeNeedsManagerError,
+      );
+    });
+
+    it('a rejected charge returns to the queue, uncharged, with the reason kept', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      const back = await service.rejectCharge(MANAGER, s.id, 'kurir sudah setor sisanya');
+      expect(back.status).toBe(SettlementStatus.SUBMITTED);
+      expect(back.chargeRequestedBy).toBeNull();
+      expect(back.chargeRequestedAt).toBeNull();
+      expect(back.note).toContain('kurir sudah setor sisanya');
+      expect(payout.variances).toHaveLength(0);
+      // ...and it can be ruled on again.
+      const verified = await service.verify(CASHIER, s.id, { chargedToDriver: false });
+      expect(verified.status).toBe(SettlementStatus.VERIFIED);
+    });
+
+    it('approve/reject need a pending charge', async () => {
+      const s = await submit(60000, 75000);
+      await expect(service.approveCharge(MANAGER, s.id)).rejects.toBeInstanceOf(
+        SettlementNoChargePendingError,
+      );
+      await expect(service.rejectCharge(MANAGER, s.id, 'x')).rejects.toBeInstanceOf(
+        SettlementNoChargePendingError,
+      );
+      await expect(service.approveCharge(MANAGER, randomUUID())).rejects.toBeInstanceOf(
+        SettlementNotFoundError,
+      );
+    });
+
+    it('verify and dispute are blocked while a charge awaits approval', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      await expect(service.verify(CASHIER, s.id, {})).rejects.toBeInstanceOf(
+        SettlementChargePendingError,
+      );
+      await expect(service.dispute(CASHIER, s.id, 'x')).rejects.toBeInstanceOf(
+        SettlementChargePendingError,
+      );
+    });
+
+    it("forbids another depot's manager from approving", async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      const elsewhere: AuthenticatedUser = {
+        ...MANAGER,
+        sub: randomUUID(),
+        depotId: '00000000-0000-4000-8000-000000000099',
+      };
+      await expect(service.approveCharge(elsewhere, s.id)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     /*
@@ -333,31 +434,24 @@ describe('SettlementService', () => {
      * `chargedToDriver: true`, so a payout-service that never took the debit left a
      * settlement claiming a courier had been charged money nobody collected.
      */
-    it('refuses the verify when the charge cannot be handed to payout', async () => {
+    it('refuses the approval when the charge cannot be handed to payout', async () => {
       const s = await submit(60000, 75000); // variance -15000
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
       payout.variancePostAccepted = false;
 
-      await expect(service.verify(MANAGER, s.id, { chargedToDriver: true })).rejects.toBeInstanceOf(
+      await expect(service.approveCharge(MANAGER, s.id)).rejects.toBeInstanceOf(
         SettlementChargeUndeliverableError,
       );
 
-      // Nothing was recorded: the deposit is still awaiting a ruling, so the same
-      // button retries it once payout is back.
+      // Nothing was recorded: the charge is still pending, so the same button retries.
       const still = await service.getForDriver(driver, s.id);
       expect(still.status).toBe(SettlementStatus.SUBMITTED);
       expect(still.chargedToDriver).toBe(false);
+      expect(still.chargeRequestedBy).toBe(CASHIER.sub);
     });
 
-    it('lets only a manager put a shortfall on the courier; a cashier may verify without charging', async () => {
+    it('a cashier may still verify without charging', async () => {
       const s = await submit(60000, 75000); // variance -15000
-
-      await expect(service.verify(CASHIER, s.id, { chargedToDriver: true })).rejects.toBeInstanceOf(
-        SettlementChargeNeedsManagerError,
-      );
-      // Nothing posted, and the deposit is still waiting for a ruling.
-      expect(payout.variances).toHaveLength(0);
-      expect((await service.getForDriver(driver, s.id)).status).toBe(SettlementStatus.SUBMITTED);
-
       const verified = await service.verify(CASHIER, s.id, { chargedToDriver: false });
       expect(verified.status).toBe(SettlementStatus.VERIFIED);
       expect(verified.chargedToDriver).toBe(false);
@@ -493,15 +587,18 @@ describe('SettlementService', () => {
       );
     });
 
-    it('still charges only a genuine shortfall when the dispute ends', async () => {
+    it('still charges only a genuine shortfall when the dispute ends (via approval)', async () => {
       const disputed = await disputedSettlement();
 
-      const resolved = await service.verify(MANAGER, disputed.id, {
+      await service.verify(CASHIER, disputed.id, {
         note: 'ditagihkan',
         chargedToDriver: true,
       });
+      const resolved = await service.approveCharge(MANAGER, disputed.id);
 
       expect(resolved.chargedToDriver).toBe(true);
+      expect(resolved.note).toContain('counts disagree');
+      expect(resolved.note).toContain('ditagihkan');
     });
 
     it('never makes a surplus chargeable, dispute or not', async () => {

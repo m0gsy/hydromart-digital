@@ -1640,6 +1640,9 @@ export interface CashSettlement {
   // depositedAmount - expectedAmount. Negative = shortfall (courier owes).
   variance: number;
   chargedToDriver: boolean;
+  // Who raised a shortfall charge still awaiting a second person; null = none pending.
+  chargeRequestedBy?: string | null;
+  chargeRequestedAt?: string | null;
   note: string | null;
   verifiedBy: string | null;
   verifiedAt: string | null;

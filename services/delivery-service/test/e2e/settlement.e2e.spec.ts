@@ -197,12 +197,51 @@ describe('Cash settlement HTTP flows (e2e)', () => {
       .expect(403);
   });
 
-  it('lets the depot cashier verify and charge the shortfall', async () => {
-    const res = await request(server())
+  it('a rejected charge needs a reason and returns the deposit uncharged', async () => {
+    // Own settlement so the main flow below is untouched.
+    const other = await request(server())
+      .post('/api/v1/settlements/00000000-0000-4000-8000-0000000000aa/reject-charge')
+      .set(auth(token(randomUUID(), Role.MANAGER, DEPOT_ID)))
+      .send({ note: 'x' });
+    expect(other.status).toBe(404);
+
+    await request(server())
       .post(`/api/v1/settlements/${settlementId}/verify`)
-      // Cashier must be assigned to the settlement's own depot (by-id depot guard).
       .set(auth(token(randomUUID(), Role.MANAGER, DEPOT_ID)))
       .send({ chargedToDriver: true })
+      .expect(201);
+    const res = await request(server())
+      .post(`/api/v1/settlements/${settlementId}/reject-charge`)
+      .set(auth(token(randomUUID(), Role.MANAGER, DEPOT_ID)))
+      .send({ note: 'kurir sudah setor' })
+      .expect(201);
+    expect(res.body).toMatchObject({ status: 'SUBMITTED', chargeRequestedBy: null });
+    expect(res.body.note).toContain('kurir sudah setor');
+  });
+
+  it('charges the shortfall only after a second, different manager approves', async () => {
+    const raiser = randomUUID();
+    const raised = await request(server())
+      .post(`/api/v1/settlements/${settlementId}/verify`)
+      // Cashier must be assigned to the settlement's own depot (by-id depot guard).
+      .set(auth(token(raiser, Role.MANAGER, DEPOT_ID)))
+      .send({ chargedToDriver: true })
+      .expect(201);
+    expect(raised.body).toMatchObject({
+      status: 'SUBMITTED',
+      chargedToDriver: false,
+      chargeRequestedBy: raiser,
+    });
+
+    // The raiser cannot sign their own charge.
+    await request(server())
+      .post(`/api/v1/settlements/${settlementId}/approve-charge`)
+      .set(auth(token(raiser, Role.MANAGER, DEPOT_ID)))
+      .expect(403);
+
+    const res = await request(server())
+      .post(`/api/v1/settlements/${settlementId}/approve-charge`)
+      .set(auth(token(randomUUID(), Role.MANAGER, DEPOT_ID)))
       .expect(201);
     expect(res.body).toMatchObject({ status: 'VERIFIED', chargedToDriver: true });
   });

@@ -701,6 +701,8 @@ export class InMemorySettlementRepository implements SettlementRepository {
       status: SettlementStatus.SUBMITTED,
       chargedToDriver: false,
       note: null,
+      chargeRequestedBy: null,
+      chargeRequestedAt: null,
       verifiedBy: null,
       verifiedAt: null,
       createdAt: now,
@@ -797,6 +799,26 @@ export class InMemorySettlementRepository implements SettlementRepository {
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, patch, { updatedAt: nextDate() });
+    return clone(row);
+  }
+  async requestCharge(id: string, by: string, note: string | null): Promise<SettlementRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, {
+      chargeRequestedBy: by,
+      chargeRequestedAt: nextDate(),
+      ...(note ? { note } : {}),
+      updatedAt: nextDate(),
+    });
+    return clone(row);
+  }
+  async clearChargeRequest(id: string, note: string | null): Promise<SettlementRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, {
+      chargeRequestedBy: null,
+      chargeRequestedAt: null,
+      note,
+      updatedAt: nextDate(),
+    });
     return clone(row);
   }
 }

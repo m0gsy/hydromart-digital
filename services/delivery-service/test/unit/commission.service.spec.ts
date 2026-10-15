@@ -74,6 +74,8 @@ function seedSettlement(
     variance,
     chargedToDriver,
     note: null,
+    chargeRequestedBy: null,
+    chargeRequestedAt: null,
     verifiedBy: randomUUID(),
     verifiedAt: createdAt,
     createdAt,
