@@ -18,13 +18,14 @@ import { SecurityPolicyRecord } from '../../application/ports/security-policy.re
 
 export class SaveSecurityPolicyDto {
   @ApiProperty({
-    example: 15,
-    minimum: 1,
+    example: 60,
+    minimum: 0,
     maximum: 1440,
-    description: 'Idle minutes before sign-out.',
+    description:
+      'Idle minutes before a HEAD-OFFICE account is signed out. 0 = off (default); otherwise 30–1440. Never applies to customers, couriers or depot staff.',
   })
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Max(1440)
   idleTimeoutMinutes!: number;
 
@@ -56,7 +57,7 @@ export class SaveSecurityPolicyDto {
 /* ---------- Responses ---------- */
 
 export class SecurityPolicyDto {
-  @ApiProperty({ example: 15 })
+  @ApiProperty({ example: 0 })
   idleTimeoutMinutes!: number;
   @ApiProperty({ example: true })
   require2fa!: boolean;

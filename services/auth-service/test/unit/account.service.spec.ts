@@ -18,6 +18,7 @@ import {
   FakeAccessTokenSigner,
   FakeClock,
   FakeCrypto,
+  FakeSecurityPolicy,
   InMemoryAuditLogRepository,
   InMemoryCustomerRepository,
   InMemoryRefreshTokenRepository,
@@ -66,6 +67,7 @@ describe('AccountService', () => {
       new FakeAccessTokenSigner(),
       new FakeCrypto(),
       new FakeClock(),
+      new FakeSecurityPolicy(),
       buildTestConfig(),
     );
     hr = {

@@ -37,6 +37,19 @@ describe('AuthConfigService', () => {
     ).toEqual({ hrUrl: 'http://hr:3018', internalKey: 'k' });
   });
 
+  // The head-office idle limit is read from admin-service; blank means "not configured",
+  // which the adapter treats as no limit rather than as a reason to sign anybody out.
+  it('reports the admin-service policy source, trimmed and without a trailing slash', () => {
+    expect(buildTestConfig().securityPolicySource).toEqual({
+      adminServiceUrl: '',
+      internalServiceKey: '',
+    });
+    expect(
+      buildTestConfig({ ADMIN_SERVICE_URL: ' http://admin:3017/ ', INTERNAL_SERVICE_KEY: 'k' })
+        .securityPolicySource,
+    ).toEqual({ adminServiceUrl: 'http://admin:3017', internalServiceKey: 'k' });
+  });
+
   it('exposes sms provider settings and environment flags', () => {
     const config = buildTestConfig({ NODE_ENV: 'production' });
     expect(config.isProduction).toBe(true);

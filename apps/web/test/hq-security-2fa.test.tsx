@@ -75,7 +75,7 @@ describe('/hq/security · the 2FA switch nothing enforced (W10c)', () => {
   it('offers no "require 2FA" control, because there is no second factor to require', async () => {
     open();
     // The page has rendered: its other, real control is on screen.
-    expect(await screen.findByLabelText('Sesi berakhir otomatis')).toBeTruthy();
+    expect(await screen.findByLabelText('Batas idle akun kantor pusat')).toBeTruthy();
 
     expect(screen.queryByRole('switch')).toBeNull();
     expect(screen.queryByText('Wajib 2FA')).toBeNull();
@@ -84,7 +84,7 @@ describe('/hq/security · the 2FA switch nothing enforced (W10c)', () => {
 
   it('still round-trips the stored require2fa, so a save is not a 400', async () => {
     const user = open();
-    const idle = await screen.findByLabelText('Sesi berakhir otomatis');
+    const idle = await screen.findByLabelText('Batas idle akun kantor pusat');
     await user.clear(idle);
     await user.type(idle, '30');
     await user.click(screen.getByRole('button', { name: 'Simpan pengaturan' }));
@@ -104,5 +104,54 @@ describe('/hq/security · the 2FA switch nothing enforced (W10c)', () => {
     open();
     expect(await screen.findByLabelText('IP allowlist')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Simpan pengaturan' })).toBeTruthy();
+  });
+});
+
+describe('/hq/security · the head-office idle limit', () => {
+  it.each(['1', '15', '29', '1441'])(
+    'refuses %s before the round trip, and says what is allowed',
+    async (value) => {
+      const user = open();
+      const idle = await screen.findByLabelText('Batas idle akun kantor pusat');
+      await user.clear(idle);
+      await user.type(idle, value);
+
+      expect(await screen.findByText('Isi 0 (mati) atau antara 30 dan 1440 menit.')).toBeTruthy();
+      expect(
+        (screen.getByRole('button', { name: 'Simpan pengaturan' }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(put).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['0', '30', '1440'])('accepts %s and sends it', async (value) => {
+    const user = open();
+    const idle = await screen.findByLabelText('Batas idle akun kantor pusat');
+    await user.clear(idle);
+    await user.type(idle, value);
+    await user.click(screen.getByRole('button', { name: 'Simpan pengaturan' }));
+
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    expect((put.mock.calls[0]![1] as { idleTimeoutMinutes: number }).idleTimeoutMinutes).toBe(
+      Number(value),
+    );
+  });
+
+  it('says who it applies to, so 0 is not read as "everyone is signed out at once"', async () => {
+    open();
+    expect(await screen.findByText(/Hanya berlaku untuk akun kantor pusat/)).toBeTruthy();
+  });
+});
+
+describe('/hq/security · a value stored before the limit meant what it means now', () => {
+  it('shows the old 15 as off, and leaves Save usable for an allowlist edit', async () => {
+    // POLICY stores 15 — the column default of the old regime, never somebody's choice.
+    open();
+    const idle = (await screen.findByLabelText('Batas idle akun kantor pusat')) as HTMLInputElement;
+
+    expect(idle.value).toBe('0');
+    expect(
+      (screen.getByRole('button', { name: 'Simpan pengaturan' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 });

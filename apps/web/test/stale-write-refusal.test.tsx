@@ -81,7 +81,7 @@ describe('CA-2-53 · a save built on a stale copy is refused, and the screen say
     put.mockRejectedValue(stale());
     render(<HqSecurityPage />, { wrapper: LocaleProvider });
 
-    const idle = await screen.findByLabelText('Sesi berakhir otomatis');
+    const idle = await screen.findByLabelText('Batas idle akun kantor pusat');
     await user.clear(idle);
     await user.type(idle, '45');
     const readsBefore = get.mock.calls.length;
@@ -399,7 +399,7 @@ describe('CA-2-53 · a save built on a stale copy is refused, and the screen say
     );
     render(<HqSecurityPage />, { wrapper: LocaleProvider });
 
-    expect(await screen.findByLabelText('Sesi berakhir otomatis')).toBeTruthy();
+    expect(await screen.findByLabelText('Batas idle akun kantor pusat')).toBeTruthy();
     expect(await screen.findByText('auth-service down')).toBeTruthy();
   });
 

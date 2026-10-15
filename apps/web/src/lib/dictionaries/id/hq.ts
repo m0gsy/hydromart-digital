@@ -1769,13 +1769,14 @@ export const hq = {
   },
   security: {
     idleEnforced:
-      'Tidak diterapkan: sesi hanya berakhir bila tidak dibuka selama 30 hari. Keluar paksa membuat pengguna meminta OTP lagi, jadi batas idle pendek sengaja tidak dipakai.',
+      'Isi 0 untuk mematikan (default). Bila dinyalakan, minimal 30 menit. Hanya berlaku untuk akun kantor pusat; pelanggan, kurir, dan kasir tidak pernah dikeluarkan karena idle, sesinya berakhir bila tidak dibuka 30 hari.',
+    idleInvalid: 'Isi 0 (mati) atau antara 30 dan 1440 menit.',
     ipUnenforced:
       'DITEGAKKAN SEBAGIAN. Daftar ini sekarang menolak permintaan API mitra (x-api-key) dari alamat di luarnya. Konsol HQ ini TIDAK ditegakkan: permintaannya masuk lewat gateway, dan admin-service tidak bisa melihat menembusnya.',
     title: 'Keamanan & 2FA',
     subtitle: 'Kebijakan sesi, 2FA, dan sesi aktif',
     sessionPolicy: 'Kebijakan sesi',
-    sessionTimeout: 'Sesi berakhir otomatis',
+    sessionTimeout: 'Batas idle akun kantor pusat',
     minutesIdle: 'menit idle',
     twoFa: 'Wajib 2FA',
     twoFaBody: 'Semua akun HQ harus verifikasi OTP saat masuk.',

@@ -474,8 +474,9 @@ model BackupStatus {
 /// enforcement/listing lives in auth-service, not here — this row only stores the policy.
 model SecurityPolicy {
   id                 String   @id @default(uuid())
-  /// Idle minutes before an HQ session is signed out.
-  idleTimeoutMinutes Int      @default(15)
+  /// Idle minutes before a HEAD-OFFICE session is signed out. 0 = off (the default). Never
+  /// applies to customers, couriers or depot staff — see HQ_IDLE_LIMIT in @hydromart/access.
+  idleTimeoutMinutes Int      @default(0)
   /// Whether 2FA is mandatory for HQ accounts.
   require2fa         Boolean  @default(true)
   /// CIDR allowlist; empty = access from anywhere.
