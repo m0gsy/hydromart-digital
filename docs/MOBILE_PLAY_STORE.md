@@ -32,19 +32,20 @@ Tiga jawaban berlaku untuk **semua** baris di kedua tabel, jadi tidak diulang:
   ada formulir Play bergantung padanya. Mengisi Data Safety dari versi lama dokumen ini akan
   menghasilkan deklarasi yang SALAH, dan Play menolak aplikasi yang deklarasinya tidak cocok
   dengan perilaku yang bisa mereka amati.
+
 - **Bisa diminta hapus:** ya, lewat jalur di bagian 3.
 
 ### App 1 — Hydromart (`id.hydromart.app`, pelanggan)
 
-| Jenis data (istilah Play) | Kumpul | Wajib    | Tujuan                       | Catatan                                                      |
-| ------------------------- | ------ | -------- | ---------------------------- | ------------------------------------------------------------ |
-| Name                      | Ya     | Wajib    | Fungsi aplikasi              | Nama penerima di pesanan dan alamat                          |
-| Phone number              | Ya     | Wajib    | Fungsi aplikasi, autentikasi | Satu-satunya identitas login (OTP)                           |
-| Address                   | Ya     | Wajib    | Fungsi aplikasi              | Buku alamat + patokan; kurir butuh ini untuk mengantar       |
-| Photos                    | Ya     | Opsional | Fungsi aplikasi              | Foto profil saja. Diambil kamera; galeri tidak pernah dibaca |
-| Purchase history          | Ya     | Wajib    | Fungsi aplikasi              | Riwayat pesanan, poin, tier                                  |
-| Device or other IDs       | Ya     | Opsional | Fungsi aplikasi              | Token FCM, hanya kalau notifikasi diizinkan                  |
-| App interactions          | Ya     | Wajib    | Fungsi aplikasi              | Status pesanan & notifikasi in-app                           |
+| Jenis data (istilah Play) | Kumpul | Wajib    | Tujuan                       | Catatan                                                              |
+| ------------------------- | ------ | -------- | ---------------------------- | -------------------------------------------------------------------- |
+| Name                      | Ya     | Wajib    | Fungsi aplikasi              | Nama penerima di pesanan dan alamat                                  |
+| Phone number              | Ya     | Wajib    | Fungsi aplikasi, autentikasi | Satu-satunya identitas login (OTP)                                   |
+| Address                   | Ya     | Wajib    | Fungsi aplikasi              | Buku alamat + patokan; kurir butuh ini untuk mengantar               |
+| Photos                    | Ya     | Opsional | Fungsi aplikasi              | Foto profil saja. Diambil kamera; galeri tidak pernah dibaca         |
+| Purchase history          | Ya     | Wajib    | Fungsi aplikasi              | Riwayat pesanan, poin, tier                                          |
+| Device or other IDs       | Ya     | Opsional | Fungsi aplikasi              | Token FCM, hanya kalau notifikasi diizinkan                          |
+| App interactions          | Ya     | Wajib    | Fungsi aplikasi              | Status pesanan & notifikasi in-app                                   |
 | Approximate location      | Ya     | Opsional | Fungsi aplikasi              | Dikirim ke server untuk cari depot terdekat — lihat catatan di bawah |
 | Crash logs                | Ya     | Wajib    | Diagnostik                   | Ke Sentry (server Jerman). Pesan error + jejak kode + versi aplikasi |
 | Diagnostics               | Ya     | Wajib    | Diagnostik                   | Alamat halaman tanpa query string. Replay & breadcrumb dimatikan     |
@@ -102,14 +103,24 @@ Aplikasi pelanggan tidak punya absen wajah sama sekali.
 Satu baris per izin, dan kalimat inilah yang dipakai kalau Play menanyakannya. Daftar yang
 sama ada di `mobile/scripts/audit-manifest.mjs`; keduanya harus tetap sama.
 
-| Izin                     | Dipakai untuk                                                 | Diminta kapan                            |
-| ------------------------ | ------------------------------------------------------------- | ---------------------------------------- |
-| `INTERNET`               | Bicara dengan API Hydromart                                   | Tidak perlu izin runtime                 |
-| `POST_NOTIFICATIONS`     | Notifikasi status pesanan (FCM)                               | Setelah pesanan pertama, bukan saat boot |
-| `CAMERA`                 | Foto bukti kirim & absen wajah (`getUserMedia`, bukan galeri) | Saat kamera dibuka                       |
-| `ACCESS_COARSE_LOCATION` | Posisi kurir selama antaran terbuka                           | Saat antaran dibuka                      |
-| `ACCESS_FINE_LOCATION`   | Sama, akurasi alamat                                          | Saat antaran dibuka                      |
-| `USE_BIOMETRIC`          | Membuka sesi tersimpan di perangkat                           | Saat aplikasi dibuka, kalau ada sesi     |
+| Izin                                               | Dipakai untuk                                                    | Diminta kapan                            |
+| -------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------- |
+| `INTERNET`                                         | Bicara dengan API Hydromart                                      | Tidak perlu izin runtime                 |
+| `POST_NOTIFICATIONS`                               | Notifikasi status pesanan (FCM)                                  | Setelah pesanan pertama, bukan saat boot |
+| `CAMERA`                                           | Foto bukti kirim & absen wajah (`getUserMedia`, bukan galeri)    | Saat kamera dibuka                       |
+| `ACCESS_COARSE_LOCATION`                           | Posisi kurir selama antaran terbuka                              | Saat antaran dibuka                      |
+| `ACCESS_FINE_LOCATION`                             | Sama, akurasi alamat                                             | Saat antaran dibuka                      |
+| `USE_BIOMETRIC`                                    | Membuka sesi tersimpan di perangkat                              | Saat aplikasi dibuka, kalau ada sesi     |
+| `BLUETOOTH_SCAN`                                   | **Ops saja.** Mencari printer struk konter (`neverForLocation`)  | Saat kasir menekan "Cari printer"        |
+| `BLUETOOTH_CONNECT`                                | **Ops saja.** Menyambung ke printer struk yang sudah dipasangkan | Saat kasir memakai printer               |
+| `BLUETOOTH`, `BLUETOOTH_ADMIN`                     | **Ops saja.** Bentuk lama dua izin di atas, `maxSdkVersion 30`   | Android 11 ke bawah                      |
+| `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE` | **Ops saja.** Menemukan printer struk di jaringan depot          | Tidak ada dialog                         |
+
+Lima izin Bluetooth/Wi-Fi terakhir dibawa plugin printer termal
+(`@delicity/capacitor-thermal-printer`) dan **hanya ada di binari Ops**: plugin itu dikeluarkan
+dari binari pelanggan lewat `includePlugins` di `mobile/capacitor.config.ts`, jadi kemunculan
+salah satunya di merged manifest pelanggan berarti pengecualian itu bocor dan audit harus
+gagal. Binari Ops juga naik ke `minSdkVersion 26` karena SDK Star yang dibawa plugin itu.
 
 Sisanya (`ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE`,
 `c2dm.permission.RECEIVE`, `FOREGROUND_SERVICE`) tidak diminta oleh kode mana pun di repo
@@ -540,11 +551,11 @@ Sampai N8, rilis punya satu kecepatan — semua orang sekaligus — dan satu tua
 yaitu gerbang versi. Sekarang workflow `mobile.yml` menerima tiga input, dan **default-nya
 persis perilaku lama** (`internal` / `completed` / tanpa fraksi):
 
-| Input | Arti |
-| --- | --- |
-| `track` | `internal`, `alpha`, `beta`, `production` |
+| Input            | Arti                                                                         |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `track`          | `internal`, `alpha`, `beta`, `production`                                    |
 | `rollout_status` | `completed` = semua sekaligus · `inProgress` = bertahap · `draft` · `halted` |
-| `user_fraction` | porsi pengguna, mis. `0.1`. Hanya dipakai bila `rollout_status: inProgress` |
+| `user_fraction`  | porsi pengguna, mis. `0.1`. Hanya dipakai bila `rollout_status: inProgress`  |
 
 **Yang diukur, bukan diasumsikan:** track `internal` **mengabaikan** `userFraction` — Play
 hanya melakukan rollout bertahap pada `production`, `beta`, dan `alpha`. Selama rilis masih
@@ -571,6 +582,7 @@ Tiga tuas, dari yang paling cepat:
    **dekorasi**, dan begitu juga `version_name` — pada tag push nama versinya datang dari
    `${GITHUB_REF_NAME#mobile-v}`. Selama itu belum diperbaiki, halt adalah pekerjaan
    tangan di konsol, dan itulah satu-satunya bentuk yang MTTR di bawah bisa menjanjikan.
+
 2. **Gerbang versi (N5)** — `MOBILE_MIN_VERSION_CODE_BY_ID` di VPS, lalu restart gateway.
    Ini yang menghentikan build yang sudah TERPASANG, dan sejak N5 ia bisa diarahkan ke satu
    paket saja: menaikkan lantai aplikasi pelanggan tidak lagi mematikan kurir di tengah
@@ -667,25 +679,25 @@ konsolnya, dan setiap langkah punya satu jawaban yang benar — kalau jawabannya
 berhenti di situ, karena langkah berikutnya akan berhasil tapi menghasilkan barang yang
 salah.
 
-| #   | Langkah                              | Perintah / layar                                                                                            | Yang harus terlihat                              |
-| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| 1   | Tentukan commit-nya                  | `git fetch origin --tags --prune` lalu `git log --oneline -1 origin/main`                                    | SHA yang mau dirilis                             |
+| #   | Langkah                              | Perintah / layar                                                                                             | Yang harus terlihat                                 |
+| --- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| 1   | Tentukan commit-nya                  | `git fetch origin --tags --prune` lalu `git log --oneline -1 origin/main`                                    | SHA yang mau dirilis                                |
 | 2   | CI hijau untuk SHA **itu**           | `gh run list --workflow=ci.yml --commit $(git rev-parse origin/main) --limit 1 --json status,conclusion,url` | `"status":"completed"` dan `"conclusion":"success"` |
-| 3   | Uji gerbangnya lebih dulu            | `bash scripts/mobile-release-gate.sh $(git rev-parse origin/main) origin/main`                              | baris `release-gate: … — releasing`              |
-| 4   | Konfigurasi build ada                | `gh variable list` dan `gh secret list` — `SENTRY_DSN_MOBILE` termasuk, lihat bagian 7                      | **3** variable + 5 secret dari 11.1              |
-| 5   | Data Safety terisi, dua form         | Play Console → **App content → Data safety**, isi dari bagian 1                                              | "Complete" di **kedua** aplikasi                 |
-| 6   | Content rating, target audience      | Play Console → **App content**                                                                              | tidak ada task merah                             |
-| 7   | URL hapus akun                       | Play Console → **App content → Data deletion**, nilai dari bagian 6                                          | `…/hapus-akun`                                   |
-| 8   | Akses reviewer hidup                 | `.env` VPS: `REVIEWER_PHONE` + `REVIEWER_OTP_CODE`, lalu `docker compose up -d auth`                        | **Anda sendiri** bisa login dengan pasangan itu  |
-| 9   | Listing + aset                       | Play Console → **Main store listing**, teks & berkas dari bagian 6                                           | judul, deskripsi, ≥2 screenshot per aplikasi     |
-| 10  | assetlinks masih benar               | `curl -s https://hydromart-digital.com/.well-known/assetlinks.json`                                          | 3 sidik jari per `package_name`                  |
-| 11  | Tag, lalu tunggu                     | `git tag mobile-v1.4.1 && git push origin mobile-v1.4.1` lalu `gh run watch`                                 | job `bundle` hijau (≈20–45 menit)                |
-| 12  | Ambil AAB-nya                        | `gh run download <run-id> -n hydromart-aab-1.4.1`                                                            | `hydromart-customer.aab` + `hydromart-ops.aab`   |
-| 13  | Tidak ada pustaka native menyelundup | `unzip -l hydromart-customer.aab` lalu cari akhiran `.so`                                                    | **kosong** — lihat "Halaman 16 KB" di bagian 2   |
-| 14  | Catat `versionCode`-nya              | log run, step **Version numbers**                                                                            | angkanya, di catatan rilis Anda                  |
-| 15  | Unggah                               | Play Console → **Testing → Internal testing → Create new release**                                           | dua rilis, satu per aplikasi                     |
-| 16  | Catatan rilis                        | kolom **Release notes**, `id-ID`                                                                             | Bahasa Indonesia, apa yang berubah               |
-| 17  | Terbitkan                            | **Save → Review release → Start rollout to Internal testing**                                                | status "Available to internal testers"           |
+| 3   | Uji gerbangnya lebih dulu            | `bash scripts/mobile-release-gate.sh $(git rev-parse origin/main) origin/main`                               | baris `release-gate: … — releasing`                 |
+| 4   | Konfigurasi build ada                | `gh variable list` dan `gh secret list` — `SENTRY_DSN_MOBILE` termasuk, lihat bagian 7                       | **3** variable + 5 secret dari 11.1                 |
+| 5   | Data Safety terisi, dua form         | Play Console → **App content → Data safety**, isi dari bagian 1                                              | "Complete" di **kedua** aplikasi                    |
+| 6   | Content rating, target audience      | Play Console → **App content**                                                                               | tidak ada task merah                                |
+| 7   | URL hapus akun                       | Play Console → **App content → Data deletion**, nilai dari bagian 6                                          | `…/hapus-akun`                                      |
+| 8   | Akses reviewer hidup                 | `.env` VPS: `REVIEWER_PHONE` + `REVIEWER_OTP_CODE`, lalu `docker compose up -d auth`                         | **Anda sendiri** bisa login dengan pasangan itu     |
+| 9   | Listing + aset                       | Play Console → **Main store listing**, teks & berkas dari bagian 6                                           | judul, deskripsi, ≥2 screenshot per aplikasi        |
+| 10  | assetlinks masih benar               | `curl -s https://hydromart-digital.com/.well-known/assetlinks.json`                                          | 3 sidik jari per `package_name`                     |
+| 11  | Tag, lalu tunggu                     | `git tag mobile-v1.4.1 && git push origin mobile-v1.4.1` lalu `gh run watch`                                 | job `bundle` hijau (≈20–45 menit)                   |
+| 12  | Ambil AAB-nya                        | `gh run download <run-id> -n hydromart-aab-1.4.1`                                                            | `hydromart-customer.aab` + `hydromart-ops.aab`      |
+| 13  | Tidak ada pustaka native menyelundup | `unzip -l hydromart-customer.aab` lalu cari akhiran `.so`                                                    | **kosong** — lihat "Halaman 16 KB" di bagian 2      |
+| 14  | Catat `versionCode`-nya              | log run, step **Version numbers**                                                                            | angkanya, di catatan rilis Anda                     |
+| 15  | Unggah                               | Play Console → **Testing → Internal testing → Create new release**                                           | dua rilis, satu per aplikasi                        |
+| 16  | Catatan rilis                        | kolom **Release notes**, `id-ID`                                                                             | Bahasa Indonesia, apa yang berubah                  |
+| 17  | Terbitkan                            | **Save → Review release → Start rollout to Internal testing**                                                | status "Available to internal testers"              |
 
 Langkah 2 dan 3 tampak duplikat dan bukan: langkah 3 menjalankan gerbang yang sama yang
 akan menolak tag Anda, **sebelum** tag itu ada. Menemukan penolakannya di sini murah;
@@ -776,18 +788,18 @@ Membawa dua puluh rute tingkat atas ditambah beranda, dan tidak satu pun konsol 
 dan karena itu tidak boleh dilaporkan sebagai hilang: `/hq`, `/hr`, `/dashboard`,
 `/driver`, `/m`, `/resellers`.
 
-| #   | Alur              | Layar yang dilewati                                                                                                                       | Yang membuatnya gagal                                                                            |
-| --- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 1   | Masuk             | `/login` → `/verify` → beranda `/`                                                                                                        | keyboard menutupi kolom OTP; kode tidak pernah datang                                            |
-| 2   | Belanja           | tab **Belanja** `/products` → cari di app bar → `/products/detail` → tambah → `/cart`                                                     | harga berbeda dari yang di kartu; keranjang lupa isinya setelah app ditutup                       |
-| 3   | Checkout          | `/cart` → `/checkout` (alamat + **patokan** + catatan) → buat pesanan                                                                     | ongkos ekspres salah; catatan tidak sampai ke kurir                                              |
-| 4   | Lacak dan ulas    | tab **Pesanan** `/orders` → `/orders/detail` → setelah selesai `/orders/detail/review`                                                    | status tidak pernah berubah; tombol ulas tidak muncul                                            |
-| 5   | Alamat dan lokasi | `/addresses` → tambah alamat, beri izin **"Kira-kira saja"** → depot terdekat muncul; lalu **tolak** izinnya dan ketik alamat manual      | app tetap meminta izin padahal sudah diberikan (J1); menolak izin membuat alamat tidak bisa disimpan |
-| 6   | Poin dan promo    | `/rewards` (bertab) → `/vouchers` → `/promo` → `/referral` → `/subscriptions`                                                             | poin tidak bertambah; voucher tidak bisa dipakai di checkout                                     |
-| 7   | Akun              | tab **Akun** `/account` → `/account/edit` (foto lewat **kamera**) → tema → bahasa → notifikasi → ekspor data → `/hapus-akun`               | kamera tidak terbuka, atau membuka galeri; tema tidak bertahan setelah app dimatikan              |
-| 8   | Notifikasi & push | `/notifications`; lalu **matikan app sepenuhnya**, minta depot mengubah status pesanan, ketuk notifikasinya                                | notifikasi tidak datang; ketukan membuka beranda, bukan pesanannya                               |
-| 9   | Tautan dalam      | kirim `https://hydromart-digital.com/orders` ke diri sendiri lewat WhatsApp, lalu ketuk                                                   | terbuka di browser, bukan di app                                                                 |
-| 10  | Sisanya           | `/favorites`, `/help`, `/waralaba`                                                                                                        | halaman kosong; tombol back menutup app alih-alih kembali                                        |
+| #   | Alur              | Layar yang dilewati                                                                                                                  | Yang membuatnya gagal                                                                                |
+| --- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| 1   | Masuk             | `/login` → `/verify` → beranda `/`                                                                                                   | keyboard menutupi kolom OTP; kode tidak pernah datang                                                |
+| 2   | Belanja           | tab **Belanja** `/products` → cari di app bar → `/products/detail` → tambah → `/cart`                                                | harga berbeda dari yang di kartu; keranjang lupa isinya setelah app ditutup                          |
+| 3   | Checkout          | `/cart` → `/checkout` (alamat + **patokan** + catatan) → buat pesanan                                                                | ongkos ekspres salah; catatan tidak sampai ke kurir                                                  |
+| 4   | Lacak dan ulas    | tab **Pesanan** `/orders` → `/orders/detail` → setelah selesai `/orders/detail/review`                                               | status tidak pernah berubah; tombol ulas tidak muncul                                                |
+| 5   | Alamat dan lokasi | `/addresses` → tambah alamat, beri izin **"Kira-kira saja"** → depot terdekat muncul; lalu **tolak** izinnya dan ketik alamat manual | app tetap meminta izin padahal sudah diberikan (J1); menolak izin membuat alamat tidak bisa disimpan |
+| 6   | Poin dan promo    | `/rewards` (bertab) → `/vouchers` → `/promo` → `/referral` → `/subscriptions`                                                        | poin tidak bertambah; voucher tidak bisa dipakai di checkout                                         |
+| 7   | Akun              | tab **Akun** `/account` → `/account/edit` (foto lewat **kamera**) → tema → bahasa → notifikasi → ekspor data → `/hapus-akun`         | kamera tidak terbuka, atau membuka galeri; tema tidak bertahan setelah app dimatikan                 |
+| 8   | Notifikasi & push | `/notifications`; lalu **matikan app sepenuhnya**, minta depot mengubah status pesanan, ketuk notifikasinya                          | notifikasi tidak datang; ketukan membuka beranda, bukan pesanannya                                   |
+| 9   | Tautan dalam      | kirim `https://hydromart-digital.com/orders` ke diri sendiri lewat WhatsApp, lalu ketuk                                              | terbuka di browser, bukan di app                                                                     |
+| 10  | Sisanya           | `/favorites`, `/help`, `/waralaba`                                                                                                   | halaman kosong; tombol back menutup app alih-alih kembali                                            |
 
 Tautan dalam yang diklaim binary ini persis dua puluh: `/products`, `/orders`, `/cart`,
 `/checkout`, `/account`, `/promo`, `/rewards`, `/vouchers`, `/referral`, `/subscriptions`,
@@ -809,12 +821,12 @@ pusat → `/hq` tidak ada di binary ini sehingga jatuh ke `/dashboard`, lalu `/h
 **Mendarat bukan di layar yang Anda duga adalah temuan yang layak dilaporkan** — dan
 sekaligus satu-satunya cara membuktikan jalur fallback itu di lapangan.
 
-| Peran         | Alur yang harus dijalani                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Peran         | Alur yang harus dijalani                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Kurir         | `/driver/shift/check-in` → tab **Tugas** `/driver` → `/driver/deliveries/detail` → foto PoD → **matikan jaringan** → `…/success` → nyalakan jaringan, banner antrean offline harus hilang sendiri → coba juga `…/fail`, `…/no-show`, `…/reschedule`, `…/returns`, `…/pay` → `/driver/settlement` → tab **Dompet** `/driver/earnings`, `/driver/expenses` → `/driver/history`, `/driver/route`, `/driver/goal`, `/driver/performance`, `/driver/incidents/new`, `/driver/announcements`, `/driver/settings`, tab **Profil** `/driver/profile` |
-| Kepala depot  | `/dashboard/shift` buka shift → `/dashboard/walk-in` jual lalu **cetak struk** → `/dashboard/cashbook` → `/dashboard/orders` → `/dashboard/tracking` → `/dashboard/settlements` dan `/dashboard/payment-recon` → `/dashboard/inventory`, `/dashboard/wastage`, `/dashboard/returns`, `/dashboard/meter` → tutup shift                                                                                                                             |
-| Manajer / SPV | `/m/manager` → `/m/manager/approvals` → `/m/manager/approvals/detail` → `/m/manager/pricing` → `/m/manager/team` → `/m/manager/notifications` → `/m/manager/account`                                                                                                                                                                                                                                                                            |
-| Semua staf    | `/hr/me` → `/hr/me/enroll` → `/hr/me/check-in` (absen **wajah**) → `/hr/me/attendance` → `/hr/me/payroll` → `/hr/me/payroll/detail` → `/hr/me/leave` → `/hr/me/announcements`                                                                                                                                                                                                                                                                   |
+| Kepala depot  | `/dashboard/shift` buka shift → `/dashboard/walk-in` jual lalu **cetak struk** → `/dashboard/cashbook` → `/dashboard/orders` → `/dashboard/tracking` → `/dashboard/settlements` dan `/dashboard/payment-recon` → `/dashboard/inventory`, `/dashboard/wastage`, `/dashboard/returns`, `/dashboard/meter` → tutup shift                                                                                                                                                                                                                        |
+| Manajer / SPV | `/m/manager` → `/m/manager/approvals` → `/m/manager/approvals/detail` → `/m/manager/pricing` → `/m/manager/team` → `/m/manager/notifications` → `/m/manager/account`                                                                                                                                                                                                                                                                                                                                                                         |
+| Semua staf    | `/hr/me` → `/hr/me/enroll` → `/hr/me/check-in` (absen **wajah**) → `/hr/me/attendance` → `/hr/me/payroll` → `/hr/me/payroll/detail` → `/hr/me/leave` → `/hr/me/announcements`                                                                                                                                                                                                                                                                                                                                                                |
 
 Binary ini hanya mengklaim **dua** prefiks tautan dalam, `/driver` dan `/m`
 (`mobile.yml:486-487`). Tautan ke `/dashboard/…` **memang** membuka browser; itu bukan bug
@@ -886,7 +898,6 @@ Dua rincian di dalamnya persis yang menyelamatkan Anda dari salah paham:
   sebagai "tidak pernah diuji". Skripnya memanggil `git rev-parse --verify` dulu supaya
   orang yang menjalankannya dengan tangan tidak diberi tahu bahwa commit bagusnya belum
   diuji — gerbang yang berdusta adalah gerbang yang dimatikan orang.
-
 
 **Step kedua menanyakan pertanyaan yang lain: apakah _konfigurasinya_ layak.**
 "Required configuration is present" menolak `MOBILE_API_URL`, `MOBILE_WEB_HOST` dan

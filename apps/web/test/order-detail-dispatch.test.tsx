@@ -18,6 +18,7 @@ vi.mock('@/lib/auth-context', () => ({
 
 import { OrderDetail } from '@/components/dashboard/order-detail';
 import { ConfirmProvider } from '@/components/confirm';
+import { ToastProvider } from '@/components/toast';
 import { LocaleProvider } from '@/lib/locale-context';
 
 const DRIVERS = [
@@ -67,13 +68,16 @@ afterEach(() => vi.clearAllMocks());
  * shift". The guard reads `shifts != null`, so the catch has to produce null.
  */
 // The component reads copy through useT(), which needs the provider — rendering it bare
-// throws before a single assertion runs.
+// throws before a single assertion runs. It also toasts when a saved receipt printer fails,
+// so it needs the toast provider the app root always supplies.
 const renderDetail = () =>
   render(
     <LocaleProvider>
-      <ConfirmProvider>
-        <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
-      </ConfirmProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <OrderDetail order={ORDER} onClose={() => {}} onChanged={() => {}} />
+        </ConfirmProvider>
+      </ToastProvider>
     </LocaleProvider>,
   );
 

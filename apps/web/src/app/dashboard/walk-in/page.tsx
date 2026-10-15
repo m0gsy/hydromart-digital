@@ -28,6 +28,9 @@ import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { computeEffective } from '@/lib/pricing';
 import { printReceipt } from '@/lib/receipt';
+import { useDepotContact } from '@/lib/use-depot-contact';
+import { thermalErrorKey } from '@/lib/receipt-thermal';
+import { PrinterSetup } from '@/components/dashboard/printer-setup';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
@@ -81,7 +84,12 @@ function WalkIn({ depotId }: { depotId: string }) {
   // K3.4: the depot record behind `depotId`, for the outlet line on the struk.
   const { depots } = useDepot();
   const depot = depots.find((d) => d.id === depotId) ?? null;
+  // The depot's own line for the struk — the public projection above leaves it out.
+  const depotContact = useDepotContact(depotId);
   const { toast } = useToast();
+  const [printerOpen, setPrinterOpen] = useState(false);
+  // The struk was already shared as a file; this only says why the printer stayed quiet.
+  const thermalFailed = (f: { code: string }) => toast(t(thermalErrorKey(f.code)), 'error');
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -146,6 +154,7 @@ function WalkIn({ depotId }: { depotId: string }) {
   const outlet = () => ({
     depotName: depot?.name ?? null,
     depotCity: depot?.city ?? null,
+    depotPhone: depotContact?.phone ?? null,
     cashierName: shift?.cashierName ?? null,
     shiftId: shift?.id ?? null,
   });
@@ -563,7 +572,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     // are both wrong until this lands. One cashier is enough to make them wrong — this is
     // not about a second till.
     stockReloadRef.current();
-    if (!printReceipt(order, { t, locale }, receipt, method, outlet())) {
+    if (!printReceipt(order, { t, locale }, receipt, method, outlet(), thermalFailed)) {
       toast(t('hrFix.walkIn.receiptBlocked'), 'error');
     }
     setQty({});
@@ -635,7 +644,17 @@ function WalkIn({ depotId }: { depotId: string }) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title={t('opsFix.walkIn.title')} subtitle={t('opsFix.walkIn.subtitle')} />
+      <SectionHeader
+        title={t('opsFix.walkIn.title')}
+        subtitle={t('opsFix.walkIn.subtitle')}
+        action={
+          <Button variant="ghost" onClick={() => setPrinterOpen(true)}>
+            <Printer size={18} className="mr-1" />
+            {t('hrFix.printer.open')}
+          </Button>
+        }
+      />
+      <PrinterSetup open={printerOpen} onClose={() => setPrinterOpen(false)} />
 
       <CashierShiftBar depotId={depotId} onChange={(s) => setShift(s)} />
 
@@ -686,6 +705,7 @@ function WalkIn({ depotId }: { depotId: string }) {
                   lastSale.cash,
                   lastSale.method,
                   outlet(),
+                  thermalFailed,
                 )
               }
             >

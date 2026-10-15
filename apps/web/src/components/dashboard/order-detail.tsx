@@ -13,6 +13,9 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, mediaUrl } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
+import { thermalErrorKey } from '@/lib/receipt-thermal';
+import { useDepotContact } from '@/lib/use-depot-contact';
+import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
 import { can, canConfirmPayment } from '@/lib/roles';
 import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
@@ -362,6 +365,10 @@ export function OrderDetail({
   onChanged: () => void;
 }) {
   const { t, locale } = useT();
+  const { toast } = useToast();
+  // The depot's name and own line for the struk header. This screen has no cashier or shift
+  // to name, only the depot the order belongs to.
+  const depotContact = useDepotContact(order.depotId);
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const next = nextStatus(order.status);
@@ -508,7 +515,19 @@ export function OrderDetail({
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => printReceipt(order, { t, locale })}>
+          <Button
+            variant="ghost"
+            onClick={() =>
+              printReceipt(
+                order,
+                { t, locale },
+                undefined,
+                undefined,
+                { depotName: depotContact?.name ?? null, depotPhone: depotContact?.phone ?? null },
+                (f) => toast(t(thermalErrorKey(f.code)), 'error'),
+              )
+            }
+          >
             {t('hrFix.orderDetail.printReceipt2')}
           </Button>
           {canAdvance && (

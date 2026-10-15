@@ -77,6 +77,33 @@ const ALLOWED = new Map([
     'android.permission.FOREGROUND_SERVICE',
     'Contributed by Play Services. Not used by any code in this app.',
   ],
+  // The thermal-printer plugin (@delicity/capacitor-thermal-printer) — staff binary only.
+  // The customer binary does not include the plugin, so any of these appearing in its
+  // merged manifest means `includePlugins` in capacitor.config.ts has leaked.
+  [
+    'android.permission.BLUETOOTH_SCAN',
+    'Ops only. Finds the till receipt printer. Declared neverForLocation, so it does not derive a position.',
+  ],
+  [
+    'android.permission.BLUETOOTH_CONNECT',
+    'Ops only. Connects to the paired till receipt printer (Android 12+).',
+  ],
+  [
+    'android.permission.BLUETOOTH',
+    'Ops only. Legacy form of BLUETOOTH_CONNECT, declared maxSdkVersion 30 by the printer plugin.',
+  ],
+  [
+    'android.permission.BLUETOOTH_ADMIN',
+    'Ops only. Legacy form of BLUETOOTH_SCAN, declared maxSdkVersion 30 by the printer plugin.',
+  ],
+  [
+    'android.permission.ACCESS_WIFI_STATE',
+    'Ops only. Tells a LAN receipt printer on the depot network from a missing one.',
+  ],
+  [
+    'android.permission.CHANGE_WIFI_MULTICAST_STATE',
+    'Ops only. mDNS discovery of a LAN receipt printer. Never prompts.',
+  ],
 ]);
 
 /**
@@ -131,7 +158,7 @@ function resolveManifest(path) {
 function sourceManifests() {
   const files = [join(ROOT, 'android/app/src/main/AndroidManifest.xml')];
   const modules = join(ROOT, 'node_modules');
-  for (const scope of ['@capacitor', '@aparajita']) {
+  for (const scope of ['@capacitor', '@aparajita', '@delicity']) {
     const dir = join(modules, scope);
     if (!existsSync(dir)) continue;
     for (const pkg of readdirSync(dir)) {

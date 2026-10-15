@@ -1906,6 +1906,7 @@ export const hrFix = {
     subtitle: 'Order receipt',
     cashier: 'Cashier',
     shift: 'Shift',
+    phone: 'Phone',
     title: 'Receipt',
     discount: 'Discount',
     cash: 'Cash',
@@ -1915,6 +1916,42 @@ export const hrFix = {
     deliveryFee: 'Delivery fee',
     total: 'Total',
     thanks: 'Thank you for ordering from Hydromart.',
+  },
+  printer: {
+    open: 'Receipt printer',
+    title: 'Receipt printer',
+    intro:
+      'Connect a thermal printer so receipts print straight away. For Bluetooth, pair the printer in your phone’s Bluetooth settings first.',
+    webIntro:
+      'On a computer the receipt prints through the browser’s print dialog. Pick your thermal printer there, then set its paper width here.',
+    paper: 'Paper width',
+    paperUnknown: 'Not chosen (treated as 58 mm)',
+    current: 'Active printer',
+    noneSaved: 'No printer saved. Receipts are shared as a file.',
+    scan: 'Find printers',
+    scanning: 'Looking for printers…',
+    none: 'No printer found. Make sure it is on and paired.',
+    use: 'Use',
+    saved: 'Printer saved.',
+    test: 'Test print',
+    testOk: 'Test print sent.',
+    testLine: 'Test print OK',
+    forget: 'Remove printer',
+    forgotten: 'Printer removed.',
+    close: 'Close',
+    fellBack: 'The printer did not print, so the receipt was shared as a file.',
+    err: {
+      bluetoothOff: 'Bluetooth is off. Turn it on and try again. The receipt was shared as a file.',
+      pairing:
+        'The printer is not paired. Pair it in the phone’s Bluetooth settings. The receipt was shared as a file.',
+      permission:
+        'Bluetooth permission was not granted. Allow it in the app settings. The receipt was shared as a file.',
+      unreachable:
+        'Cannot reach the printer. Check that it is on and nearby. The receipt was shared as a file.',
+      paperEmpty: 'The printer is out of paper. The receipt was shared as a file.',
+      coverOpen: 'The printer cover is open. The receipt was shared as a file.',
+      generic: 'The printer failed to print. The receipt was shared as a file.',
+    },
   },
   depotCustomers: {
     gallonNotLinked: 'Depot gallon data is not connected yet',

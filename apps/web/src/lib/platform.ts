@@ -1,6 +1,7 @@
 'use client';
 
 import { askPlugin, callPlugin } from './capacitor';
+import { printThermal, type PrintItem, type ThermalOutcome } from './receipt-thermal';
 
 /**
  * The three things this app does that a browser handles for free and an Android
@@ -100,13 +101,28 @@ function toBase64(blob: Blob): Promise<string | null> {
  * `window.open` + `window.print()` are both unsupported in an Android WebView, which is
  * why `printReceipt` returns a boolean its callers already act on.
  */
-export function printDocument(html: string): boolean {
-  // ponytail: shares the receipt as an HTML file rather than printing it. Android has no
-  // print API a Capacitor core plugin exposes, and the share sheet reaches every printer
-  // app, Drive and WhatsApp — which is what a depot cashier actually does with a struk.
-  // If a counter ever gets a real thermal printer, that is a Bluetooth plugin and a new
-  // branch here, not a change to any caller.
-  return saveFile('struk.html', new Blob([html], { type: 'text/html' }));
+export function printDocument(
+  html: string,
+  thermal?: {
+    items: PrintItem[];
+    paperWidthMm: number;
+    /** Called when a saved printer was tried and failed — after the struk was shared. */
+    onFailed?: (failure: Extract<ThermalOutcome, { kind: 'failed' }>) => void;
+  },
+): boolean {
+  const share = () => saveFile('struk.html', new Blob([html], { type: 'text/html' }));
+  if (!thermal || !isNativeShell()) return share();
+  // Shares the receipt as an HTML file when nothing prints it. Android has no print API a
+  // Capacitor core plugin exposes, and the share sheet reaches every printer app, Drive and
+  // WhatsApp. Returns true now and settles later, like `saveFile`: the callers are
+  // synchronous, and "true" means the native path took the job — either way the cashier
+  // ends up with a struk, never with nothing.
+  void printThermal(thermal.items, thermal.paperWidthMm).then((outcome) => {
+    if (outcome.kind === 'printed') return;
+    share();
+    if (outcome.kind === 'failed') thermal.onFailed?.(outcome);
+  });
+  return true;
 }
 
 /**

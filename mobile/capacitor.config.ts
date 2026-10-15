@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
@@ -24,6 +27,30 @@ const BINARIES = {
 } as const;
 
 const target = process.env.MOBILE_APP === 'ops' ? 'ops' : 'customer';
+
+/**
+ * Plugins only the staff binary ships. The thermal printer is a till peripheral: the
+ * customer app has no screen that prints, and carrying it would put Bluetooth and Wi-Fi
+ * permissions, the Star SDK and a higher minSdk into a binary that cannot use any of them.
+ *
+ * Capacitor has no "exclude" — `includePlugins` is an allow-list — so the customer list
+ * is every dependency in package.json minus these. Computed rather than written out, so a
+ * plugin added to package.json later ships in both binaries unless someone lists it HERE,
+ * instead of silently shipping in neither.
+ *
+ * Read from the working directory because the CLI loads this file as CommonJS, where
+ * `import.meta.url` does not exist; every caller (`scripts/sync.mjs`, CI) runs from here.
+ */
+const OPS_ONLY_PLUGINS = ['@delicity/capacitor-thermal-printer'];
+
+function customerPlugins(): string[] {
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+  };
+  return Object.keys(manifest.dependencies ?? {}).filter(
+    (name) => !OPS_ONLY_PLUGINS.includes(name),
+  );
+}
 
 const config: CapacitorConfig = {
   ...BINARIES[target],
@@ -60,6 +87,7 @@ const config: CapacitorConfig = {
     },
   },
   android: {
+    ...(target === 'customer' ? { includePlugins: customerPlugins() } : {}),
     // F6 sets `usesCleartextTraffic=false` for release. Nothing in the app should ever
     // reach a plain-http URL: `MOBILE_API_URL` is https, and a missing one falls back to
     // `http://localhost:8080`, which Android blocks as an unreadable network error.
