@@ -320,6 +320,37 @@ describe('createSessionRouter — token/refresh', () => {
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
+  // The same rule for an upstream that ANSWERED but could not decide: rate-limited or broken
+  // is not "your session is over". Each wrongful sign-out costs an SMS OTP.
+  it.each([429, 500, 502, 503])(
+    'returns 503 and KEEPS the cookies when auth-service answers %i',
+    async (status) => {
+      fetchMock.mockResolvedValue(jsonRes(status, { message: 'busy' }));
+      const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);
+
+      expect(res.status).toBe(503);
+      expect(res.headers['set-cookie']).toBeUndefined();
+    },
+  );
+
+  // Two tabs on one cookie jar: the loser must not erase the pair the winner just set.
+  it('answers 409 and KEEPS the cookies when the token was rotated a moment ago', async () => {
+    fetchMock.mockResolvedValue(jsonRes(409, { code: 'AUTH_REFRESH_ROTATED' }));
+    const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);
+
+    expect(res.status).toBe(409);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it.each([400, 403])('still ends the session on a definite %i', async (status) => {
+    fetchMock.mockResolvedValue(jsonRes(status, { message: 'no' }));
+    const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);
+
+    expect(res.status).toBe(401);
+    const cookies = res.headers['set-cookie'] as unknown as string[];
+    expect(cookies.some((c) => c.startsWith(`${RT_COOKIE}=;`))).toBe(true);
+  });
+
   it('clears cookies and returns 401 when the refresh is rejected upstream', async () => {
     fetchMock.mockResolvedValue(jsonRes(401, { message: 'expired' }));
     const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);

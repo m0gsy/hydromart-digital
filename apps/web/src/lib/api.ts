@@ -155,9 +155,21 @@ async function refreshSession(): Promise<Session | null> {
   // On the web the refresh token rides in an httpOnly cookie the gateway reads — nothing
   // to send. Native holds its own and has to hand it over explicitly.
   if (!hasCredential()) return null;
-  const body = isNativeShell() ? { refreshToken: getRefreshToken() } : undefined;
+  // Read at call time, not once: on a retry the token held may be the one the winning
+  // request just stored, and sending the stale one again would lose the same race twice.
+  const attempt = () =>
+    rawRequest<Session>(endpoints.auth.refresh, {
+      method: 'POST',
+      body: isNativeShell() ? { refreshToken: getRefreshToken() } : undefined,
+    });
   if (!refreshing) {
-    refreshing = rawRequest<Session>(endpoints.auth.refresh, { method: 'POST', body })
+    refreshing = attempt()
+      // 409: another request (a second tab) rotated this token a moment ago. It is not a
+      // refusal — the credential it was given is already in place — so ask once more.
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 409) return attempt();
+        throw err;
+      })
       .then((next) => {
         setSession(next);
         return next;

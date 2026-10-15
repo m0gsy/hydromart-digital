@@ -139,20 +139,23 @@ export default function HqSecurityPage() {
           </div>
         </div>
         {/*
-         * CA-2-06 then ADM-6: two of the three are enforced now, each where it can be.
+         * ADM-6: the IP allowlist is applied to the PARTNER API — the one surface this
+         * service owns end to end, its own keys against its own policy; it is not applied
+         * to this console, whose requests arrive through the gateway, and the warning below
+         * says exactly that rather than implying more.
          *
-         * All three settings had a screen, a DTO and a repository, and not one line outside
-         * admin-service ever read any of them. The idle limit is applied on the refresh path
-         * (CA-2-06). The IP allowlist is applied to the PARTNER API (ADM-6) — the one
-         * surface this service owns end to end, its own keys against its own policy; it is
-         * not applied to this console, whose requests arrive through the gateway, and the
-         * warning below says exactly that rather than implying more.
+         * The idle limit is NOT applied. CA-2-06 wired it into the refresh path and the
+         * first environment that actually reached admin-service ended every active session
+         * at the 15-minute default: the limit was measured from the last refresh, which for
+         * somebody using the app is always at least one access-token lifetime ago. A
+         * session now ends only after 30 days unused, because each forced sign-out costs an
+         * SMS OTP. The note below says so rather than leaving a number that looks live.
          *
          * 2FA remains impossible rather than unbuilt: there is no password anywhere in
          * auth-service, so phone + OTP is the whole credential and OTP is factor one. The
          * switch was removed rather than left lying.
          */}
-        <p className="-mt-1 text-xs text-[color:var(--success)]">{t('hq.security.idleEnforced')}</p>
+        <p className="-mt-1 text-xs text-muted">{t('hq.security.idleEnforced')}</p>
         <div>
           <label htmlFor="ips" className="text-sm font-semibold">
             {t('hq.security.ipAllowlist')}

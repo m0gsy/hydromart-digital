@@ -175,6 +175,24 @@ export class InvalidRefreshTokenError extends DomainError {
   }
 }
 
+/**
+ * A refresh token that was rotated a moment ago, presented again.
+ *
+ * Two requests (two tabs, a retry, the app waking while a push handler runs) can both carry
+ * the cookie that was current before the first one's rotation landed. The second one is not
+ * theft — and treating it as theft revoked the whole family and signed the person out, which
+ * costs an SMS OTP. It gets a distinct, non-destructive answer instead: no session is issued
+ * to it, the family is left alone, and the caller retries with the credential the first
+ * request already put in place.
+ */
+export class RefreshTokenRotatedError extends DomainError {
+  readonly code = 'AUTH_REFRESH_ROTATED';
+  readonly status = HTTP.CONFLICT;
+  constructor(message = 'This session was just renewed. Retry with the current credential.') {
+    super(message);
+  }
+}
+
 export class InvalidGoogleTokenError extends DomainError {
   readonly code = 'AUTH_INVALID_GOOGLE_TOKEN';
   readonly status = HTTP.UNAUTHORIZED;

@@ -1758,7 +1758,8 @@ export const hq = {
     empty: 'Belum ada dataset.',
   },
   security: {
-    idleEnforced: 'Ditegakkan: sesi yang menganggur lebih lama dari ini harus masuk ulang.',
+    idleEnforced:
+      'Tidak diterapkan: sesi hanya berakhir bila tidak dibuka selama 30 hari. Keluar paksa membuat pengguna meminta OTP lagi, jadi batas idle pendek sengaja tidak dipakai.',
     ipUnenforced:
       'DITEGAKKAN SEBAGIAN. Daftar ini sekarang menolak permintaan API mitra (x-api-key) dari alamat di luarnya. Konsol HQ ini TIDAK ditegakkan: permintaannya masuk lewat gateway, dan admin-service tidak bisa melihat menembusnya.',
     title: 'Keamanan & 2FA',

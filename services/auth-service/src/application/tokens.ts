@@ -12,7 +12,6 @@ export const AUTH_TOKENS = {
   AccessTokenSignerPort: Symbol('AccessTokenSignerPort'),
   ClockPort: Symbol('ClockPort'),
   /** CA-2-06: the idle-session limit from admin-service. Fails OPEN — see the port. */
-  SecurityPolicy: Symbol('SecurityPolicy'),
   CustomerNotificationPort: Symbol('CustomerNotificationPort'),
   Storage: Symbol('Storage'),
   DataSubjectRequestRepository: Symbol('DataSubjectRequestRepository'),
