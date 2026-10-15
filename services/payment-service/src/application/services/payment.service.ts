@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   AuthenticatedUser,
+  FeatureFlagReader,
   Role as PlatformRole,
   assertDepotAccess,
   isDepotScoped,
@@ -12,6 +13,7 @@ import {
 
 import {
   CashShortError,
+  CodDisabledError,
   GatewayUnavailableError,
   InvalidPaymentTransitionError,
   InvalidWebhookSignatureError,
@@ -178,6 +180,11 @@ export class PaymentService {
     @Optional()
     @Inject(CASHIER_SHIFT_PORT)
     private readonly cashierShift?: CashierShiftPort,
+    // `payments.cash_on_delivery`: fail-open (the reader answers enabled when admin-service is
+    // unreachable). Optional so an unwired deployment keeps taking cash.
+    @Optional()
+    @Inject(PAYMENT_TOKENS.FeatureFlags)
+    private readonly flags?: FeatureFlagReader,
   ) {}
 
   /**
@@ -186,6 +193,16 @@ export class PaymentService {
    * bank transfer are settled out-of-band and remain PENDING until confirmed.
    */
   async initiate(customerId: string, input: InitiatePaymentInput): Promise<PaymentRecord> {
+    // COD means cash at the courier's hand-over. A counter sale is cash at the depot till
+    // and is rung up by staff, so it is not what the flag governs.
+    if (
+      input.method === PaymentMethod.CASH &&
+      !input.atCounter &&
+      !input.staffFor &&
+      !(await this.codEnabled())
+    ) {
+      throw new CodDisabledError();
+    }
     const active = await this.payments.findActiveByOrder(input.orderId);
     if (active) {
       throw new PaymentAlreadyExistsError();
@@ -884,15 +901,20 @@ export class PaymentService {
    * impossible today is one missing URL for the whole platform, and a per-depot switch
    * would be a lever that moves nothing until a gateway exists.
    */
-  availableMethods(): Record<PaymentMethod, boolean> {
+  async availableMethods(): Promise<Record<PaymentMethod, boolean>> {
     const online = this.gateway.isConfigured();
     return {
-      [PaymentMethod.CASH]: true,
+      // Cash-on-delivery follows its feature flag; the rest are configuration facts.
+      [PaymentMethod.CASH]: await this.codEnabled(),
       [PaymentMethod.TRANSFER]: true,
       [PaymentMethod.QRIS]: true,
       [PaymentMethod.EWALLET]: online,
       [PaymentMethod.VA]: online,
     };
+  }
+
+  private async codEnabled(): Promise<boolean> {
+    return this.flags ? this.flags.isEnabled('payments.cash_on_delivery') : true;
   }
 
   /** Settles a refund: gateway call (online methods) then PAID → REFUNDED. */

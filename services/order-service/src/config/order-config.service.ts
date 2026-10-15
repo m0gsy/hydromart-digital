@@ -55,6 +55,10 @@ export class OrderConfigService {
   get crmServiceUrl(): string {
     return this.config.getOrThrow<string>('CRM_SERVICE_URL').replace(/\/+$/, '');
   }
+  /** admin-service, for the feature-flag read. Blank = flags unreadable = all enabled. */
+  get adminServiceUrl(): string {
+    return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get recommendationServiceUrl(): string {
     return this.config.get<string>('RECOMMENDATION_SERVICE_URL', '').replace(/\/+$/, '');
   }

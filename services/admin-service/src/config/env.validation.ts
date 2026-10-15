@@ -43,6 +43,13 @@ export const envValidationSchema = Joi.object({
   // Fraud scan (15b). Defaults are a starting point, not a policy: three refunds in a
   // month puts a customer in front of a human, five calls it HIGH. Nothing here blocks an
   // account — the scan only ever raises a review item.
+  // Generic SMTP for emailing scheduled reports. Blank host or from = mail is skipped (the
+  // file is still stored on the export log); credentials are optional (open relay / LAN).
+  SMTP_HOST: Joi.string().allow('').default(''),
+  SMTP_PORT: Joi.number().port().default(587),
+  SMTP_USER: Joi.string().allow('').default(''),
+  SMTP_PASS: Joi.string().allow('').default(''),
+  SMTP_FROM: Joi.string().allow('').default(''),
   FRAUD_SCAN_WINDOW_DAYS: Joi.number().integer().min(1).max(365).default(30),
   FRAUD_SCAN_MIN_REFUNDS: Joi.number().integer().min(2).max(100).default(3),
   FRAUD_SCAN_HIGH_REFUNDS: Joi.number().integer().min(2).max(100).default(5),

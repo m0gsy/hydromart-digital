@@ -26,8 +26,8 @@ import type { ExportFormat, ReportCadence, ReportDataset, ScheduledReport } from
 // `enabled` pauses a schedule without deleting it. `nextRunAt` is no longer advisory: the
 // hourly sweep reads it, produces the file and records it in hq/exports.
 //
-// Delivery is NOT email yet: there is no mail transport here, so the file is downloaded
-// from hq/exports and the card says so rather than implying an inbox.
+// Delivery: the file is stored under hq/exports and, when admin-service has SMTP
+// configured, mailed to the recipients as an attachment (best-effort, fail-open).
 const CADENCES: ReportCadence[] = ['DAILY', 'WEEKLY', 'MONTHLY'];
 const FORMATS: ExportFormat[] = ['XLSX', 'CSV', 'PDF'];
 const DATASETS: ReportDataset[] = ['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT', 'REVENUE_BY_METHOD'];

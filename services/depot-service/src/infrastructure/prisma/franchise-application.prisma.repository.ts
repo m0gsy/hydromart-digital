@@ -25,6 +25,7 @@ interface ApplicationRow {
   projectedMonthlyRevenue: unknown; // Prisma Decimal
   checklist: unknown; // Prisma Json
   stage: string;
+  decisionReason: string | null;
   submittedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -81,6 +82,7 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
       where: { id },
       data: {
         ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
+        ...(patch.decisionReason !== undefined ? { decisionReason: patch.decisionReason } : {}),
         ...(patch.checklist !== undefined
           ? { checklist: patch.checklist as unknown as Prisma.InputJsonValue }
           : {}),

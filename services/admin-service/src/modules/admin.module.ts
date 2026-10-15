@@ -53,6 +53,7 @@ import { RetentionPrismaRepository } from '../infrastructure/prisma/retention.pr
 import { SecurityPolicyPrismaRepository } from '../infrastructure/prisma/security-policy.prisma.repository';
 import { AdminNotificationPrefPrismaRepository } from '../infrastructure/prisma/admin-notification-pref.prisma.repository';
 import { OnboardingStatePrismaRepository } from '../infrastructure/prisma/onboarding-state.prisma.repository';
+import { SmtpReportMailer } from '../infrastructure/mail/smtp-report-mailer';
 import { HealthProbeHttpAdapter } from '../infrastructure/http/health-probe.http.adapter';
 import { FeatureFlagsController } from './feature-flags.controller';
 import { SystemSettingsController } from './system-settings.controller';
@@ -112,6 +113,7 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.ExportLogRepository, useClass: ExportLogPrismaRepository },
   { provide: ADMIN_TOKENS.ScheduledReportRepository, useClass: ScheduledReportPrismaRepository },
   { provide: ADMIN_TOKENS.ReportSource, useClass: ReportSourceHttpAdapter },
+  { provide: ADMIN_TOKENS.ReportMailer, useClass: SmtpReportMailer },
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
   { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
   { provide: ADMIN_TOKENS.FraudSignals, useClass: FraudSignalsHttpAdapter },

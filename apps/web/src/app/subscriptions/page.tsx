@@ -21,6 +21,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { dateInDaysWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
+import { useFeatureFlag } from '@/lib/feature-flags';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
 import { subscriptions as subEN } from '@/lib/dictionaries/en/subscriptions';
 import type {
@@ -37,6 +38,7 @@ const BENEFIT_ICONS = [Percent, Truck, BellSlash, Pause];
 
 function Panel() {
   const { t, locale } = useT();
+  const subscriptionsOn = useFeatureFlag('subscriptions.galon');
   const { toast } = useToast();
   const copy = locale === 'en' ? subEN : subID;
 
@@ -220,7 +222,12 @@ function Panel() {
       </h1>
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        {/* setup */}
+        {/* setup — `subscriptions.galon` OFF: no new plans, existing ones stay manageable */}
+        {!subscriptionsOn ? (
+          <div className="surface rounded-[22px] border border-app p-6 text-sm">
+            {copy.closedNote}
+          </div>
+        ) : (
         <form
           onSubmit={create}
           className="surface flex flex-col gap-4 rounded-[22px] border border-app p-6"
@@ -374,6 +381,7 @@ function Panel() {
             {copy.start}
           </Button>
         </form>
+        )}
 
         {/* benefits + active */}
         <div className="flex flex-col gap-5">

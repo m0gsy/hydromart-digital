@@ -29,6 +29,7 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
       id: `a${++this.seq}`,
       ...data,
       stage: data.stage ?? FranchiseAppStage.PENDING,
+      decisionReason: null,
       submittedAt: at,
       createdAt: at,
       updatedAt: at,
@@ -50,6 +51,7 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (patch.stage !== undefined) row.stage = patch.stage;
     if (patch.checklist !== undefined) row.checklist = patch.checklist;
+    if (patch.decisionReason !== undefined) row.decisionReason = patch.decisionReason;
     // The rejection IS the last write, which is what makes updatedAt a decision date.
     row.updatedAt = new Date(row.updatedAt.getTime() + 1);
     return row;
@@ -99,6 +101,15 @@ describe('FranchiseApplicationService', () => {
 
   // A decision with no reason attached is one nobody can defend later. The reason rides in the
   // shared audit trail (no column), next to who decided and when.
+  it('persists the decision reason on the row, trimmed, or null when none was given', async () => {
+    const a = await service.create(APP());
+    const rejected = await service.reject(a.id, 'hq-1', '  dokumen palsu  ');
+    expect(rejected.decisionReason).toBe('dokumen palsu');
+
+    const b = await service.create(APP({ proposedCode: 'DPK-02' }));
+    expect((await service.approve(b.id, 'hq-1')).application.decisionReason).toBeNull();
+  });
+
   describe('decision audit', () => {
     let fetchMock: jest.SpyInstance;
     beforeEach(() => {

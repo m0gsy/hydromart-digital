@@ -30,6 +30,7 @@ import { useT } from '@/lib/locale-context';
 import { useLocation } from '@/lib/location-context';
 import { memberDiscount } from '@/lib/pricing';
 import { useAsync } from '@/lib/use-async';
+import { useFeatureFlag } from '@/lib/feature-flags';
 import type { Cart, CartLine, LoyaltyAccount, Recommendation } from '@/lib/types';
 
 function CartInner() {
@@ -54,8 +55,13 @@ function CartInner() {
     () => api.get(endpoints.loyalty.me(location?.depotId ?? null), true),
     [location?.depotId],
   );
-  const recs = useAsync<Recommendation[]>(() =>
-    api.get(endpoints.recommendations.trending({ limit: 4 })),
+  const recommendationsOn = useFeatureFlag('recommendations.ai');
+  const recs = useAsync<Recommendation[]>(
+    () =>
+      recommendationsOn
+        ? api.get(endpoints.recommendations.trending({ limit: 4 }))
+        : Promise.resolve([]),
+    [recommendationsOn],
   );
   /*
    * CA-3-62. The cart's own LINES were fixed; the add-on strip underneath them still drew a

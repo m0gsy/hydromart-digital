@@ -32,6 +32,7 @@ class InMemoryProposalRepository implements PriceOverrideProposalRepository {
       ...data,
       status: PriceOverrideStatus.PENDING,
       decidedBy: null,
+      decisionReason: null,
       createdAt: at,
       updatedAt: at,
     };
@@ -60,6 +61,7 @@ class InMemoryProposalRepository implements PriceOverrideProposalRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (patch.status !== undefined) row.status = patch.status;
     if (patch.decidedBy !== undefined) row.decidedBy = patch.decidedBy;
+    if (patch.decisionReason !== undefined) row.decisionReason = patch.decisionReason;
     return row;
   }
 }
@@ -119,6 +121,17 @@ describe('PriceOverrideService', () => {
   // that a log line WAS the trail, because depot-service has no audit store. It has one
   // now (auth-service's, over the internal ingest route), and all three outcomes land in
   // it: approved, rejected, and a blocked self-approval.
+  it('persists the rejection reason on the proposal row, trimmed and bounded', async () => {
+    const svc = service();
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+    const rejected = await svc.reject(created.id, 'hq-1', `  terlalu murah ${'x'.repeat(400)}  `);
+    expect(rejected.decisionReason).toHaveLength(300);
+    expect(rejected.decisionReason!.startsWith('terlalu murah')).toBe(true);
+
+    const other = await svc.propose('d1', 'mgr-1', PROPOSE);
+    expect((await svc.reject(other.id, 'hq-1')).decisionReason).toBeNull();
+  });
+
   describe('audit trail', () => {
     let fetchMock: jest.SpyInstance;
     beforeEach(() => {

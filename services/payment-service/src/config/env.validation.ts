@@ -8,6 +8,9 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
   JWT_ACCESS_SECRET: requiredSecret(32),
+  // admin-service base URL for the payments.cash_on_delivery flag read. Fail-open: blank
+  // or unreachable = COD stays enabled.
+  ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   PAYMENT_GATEWAY_BASE_URL: Joi.string().uri().allow('').default(''),
   PAYMENT_GATEWAY_API_KEY: Joi.string().allow('').default(''),
   PAYMENT_WEBHOOK_SECRET: requiredSecret(16),

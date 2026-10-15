@@ -2,7 +2,13 @@ import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
+import {
+  JwtAuthGuard,
+  RolesGuard,
+  DepotScopeGuard,
+  SettingsCache,
+  httpFeatureFlagReader,
+} from '@hydromart/platform';
 
 import { OrderConfigService } from '../config/order-config.service';
 import { ORDER_TOKENS } from '../application/tokens';
@@ -90,6 +96,12 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.CashierShift, useClass: CashierShiftHttpAdapter },
   { provide: ORDER_TOKENS.PaymentReversal, useClass: PaymentReversalHttpAdapter },
   { provide: ORDER_TOKENS.PaymentCash, useClass: PaymentCashHttpAdapter },
+  {
+    provide: ORDER_TOKENS.FeatureFlags,
+    inject: [OrderConfigService],
+    useFactory: (config: OrderConfigService) =>
+      httpFeatureFlagReader({ adminServiceUrl: config.adminServiceUrl }),
+  },
   { provide: ORDER_TOKENS.DeliverySla, useClass: DeliverySlaHttpAdapter },
   { provide: ORDER_TOKENS.DepotCosts, useClass: DepotCostsHttpAdapter },
   { provide: ORDER_TOKENS.Membership, useClass: MembershipHttpAdapter },

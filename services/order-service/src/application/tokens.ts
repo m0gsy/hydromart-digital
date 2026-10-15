@@ -15,6 +15,7 @@ export const ORDER_TOKENS = {
   CashierShift: Symbol('CashierShift'),
   PaymentReversal: Symbol('PaymentReversal'),
   PaymentCash: Symbol('PaymentCash'),
+  FeatureFlags: Symbol('FeatureFlags'),
   DeliverySla: Symbol('DeliverySla'),
   DepotCosts: Symbol('DepotCosts'),
   Membership: Symbol('Membership'),

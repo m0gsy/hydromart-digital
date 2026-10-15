@@ -40,6 +40,7 @@ import { memberPrice, useMemberRate } from '@/lib/member';
 import { depotOpenState } from '@/lib/opening-hours';
 import { useRecommendationProducts } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
+import { useFeatureFlag } from '@/lib/feature-flags';
 import type {
   Cart,
   Category,
@@ -122,9 +123,13 @@ export default function ProductDetailPage() {
   const openState = depot ? depotOpenState(depot.operatingHours, depot.holidays) : 'tutup';
   const shelfPrice = (product && shelf.prices.get(product.id)) ?? product?.basePrice ?? 0;
 
+  const recommendationsOn = useFeatureFlag('recommendations.ai');
   const { data: related } = useAsync<Recommendation[]>(
-    () => api.get<Recommendation[]>(endpoints.recommendations.related(id)),
-    [id],
+    () =>
+      recommendationsOn
+        ? api.get<Recommendation[]>(endpoints.recommendations.related(id))
+        : Promise.resolve([]),
+    [id, recommendationsOn],
   );
   // The four that will actually be drawn, and their photos — one catalogue call for the
   // row, never one per card. Hooks run before the early returns below, so the slice is

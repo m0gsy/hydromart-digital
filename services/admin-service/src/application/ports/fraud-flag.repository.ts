@@ -10,6 +10,8 @@ export interface FraudFlagRecord {
   status: FraudStatus;
   /** ADM-8: when this flag suspended the account, or null if it never did. */
   blockedAt: Date | null;
+  /** The reason typed with the latest review/block/clear decision, if one was given. */
+  decisionReason: string | null;
   createdAt: Date;
 }
 
@@ -45,7 +47,11 @@ export interface FraudFlagRepository {
    * ADM-8: `blockedAt` is stamped when the status becomes BLOCKED and never cleared —
    * "this flag suspended somebody" is a fact about what happened, not a current state.
    */
-  setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null>;
+  setStatus(
+    id: string,
+    status: FraudStatus,
+    reason?: string | null,
+  ): Promise<FraudFlagRecord | null>;
   /**
    * ADM-8: how many OTHER flags still hold this entity blocked.
    *

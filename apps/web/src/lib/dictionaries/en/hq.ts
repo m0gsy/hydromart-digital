@@ -1915,7 +1915,7 @@ export const hq = {
       REVENUE_BY_METHOD: 'Revenue by payment method',
     },
     deliveryNote:
-      'The file is produced automatically and downloaded from HQ › Exports. It is not emailed yet.',
+      'The file is produced automatically, saved under HQ › Exports and emailed to the recipients as an attachment (when email delivery is configured).',
     on: 'On',
     off: 'Off',
     delete: 'Delete',

@@ -2,7 +2,12 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
+import {
+  JwtAuthGuard,
+  RolesGuard,
+  DepotScopeGuard,
+  httpFeatureFlagReader,
+} from '@hydromart/platform';
 
 import { PaymentConfigService } from '../config/payment-config.service';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
@@ -39,6 +44,12 @@ const providers: Provider[] = [
       config.storageDriver === 's3'
         ? new S3StorageAdapter(config)
         : new LocalDiskStorageAdapter(config),
+  },
+  {
+    provide: PAYMENT_TOKENS.FeatureFlags,
+    inject: [PaymentConfigService],
+    useFactory: (config: PaymentConfigService) =>
+      httpFeatureFlagReader({ adminServiceUrl: config.adminServiceUrl }),
   },
   // C2: which drawer a counter payment lands in, asked with the cashier's own token.
   { provide: CASHIER_SHIFT_PORT, useClass: CashierShiftHttpAdapter },

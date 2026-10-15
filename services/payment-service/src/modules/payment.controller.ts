@@ -377,7 +377,7 @@ export class PaymentController {
   @Public()
   @Get('methods')
   @ApiOperation({ summary: 'Which payment methods are available' })
-  methods(): Record<string, boolean> {
+  methods(): Promise<Record<string, boolean>> {
     return this.payments.availableMethods();
   }
 

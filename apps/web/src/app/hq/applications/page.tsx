@@ -94,6 +94,12 @@ export default function HqApplicationsPage() {
                   <p className="mt-0.5 text-xs text-muted">
                     {a.city} · {a.applicantPhone}
                   </p>
+                  {a.decisionReason ? (
+                    <p className="mt-0.5 text-xs text-muted">
+                      <span className="font-semibold">{t('hrFix.decisionGap.reason')}:</span>{' '}
+                      {a.decisionReason}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => router.push(`/hq/applications/detail?id=${a.id}`)}>

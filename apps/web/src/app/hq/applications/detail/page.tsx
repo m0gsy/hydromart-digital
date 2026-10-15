@@ -165,6 +165,12 @@ export default function HqApplicationDetailPage() {
         <Badge tone="brand">{t(`hq.applications.stageName.${app.stage}`)}</Badge>
         <Badge tone={age >= 5 ? 'danger' : 'neutral'}>{t('hq.applications.age', { n: age })}</Badge>
       </div>
+      {app.decisionReason ? (
+        <p className="text-sm text-muted">
+          <span className="font-semibold">{t('hrFix.decisionGap.reason')}:</span>{' '}
+          {app.decisionReason}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="flex flex-col gap-4 p-5">

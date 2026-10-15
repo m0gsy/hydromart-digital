@@ -4,6 +4,7 @@ import { ExportStatus } from '../../domain/export';
 import { renderReport, reportFileName } from '../../domain/report-file';
 import { nextRunAfter, reportWindow } from '../../domain/report-window';
 import { ExportLogRepository } from '../ports/export-log.repository';
+import { ReportMailer } from '../ports/report-mailer.port';
 import { ReportSourcePort } from '../ports/report-source.port';
 import {
   ScheduledReportRecord,
@@ -33,10 +34,9 @@ export interface ReportSweepResult {
  * metadata for the future scheduler", and nothing ever produced a file — which is also why
  * `hq/exports` was permanently empty: nothing wrote an export log either.
  *
- * Delivery is NOT email. There is no mail transport anywhere in this repo, so a run that
- * claimed to have sent one would be the same lie one layer down. The file is stored on the
- * export-log row and downloaded from `hq/exports`; `recipients` stays on the schedule as
- * the list to mail once a transport exists.
+ * The file is stored on the export-log row (downloadable from `hq/exports`) and, when SMTP
+ * is configured, mailed to `recipients` as an attachment. Mail is best-effort: it is never
+ * allowed to fail a run, and an unconfigured transport is logged, not reported as sent.
  */
 @Injectable()
 export class ScheduledReportRunnerService {
@@ -52,6 +52,7 @@ export class ScheduledReportRunnerService {
     private readonly schedules: ScheduledReportRepository,
     @Inject(ADMIN_TOKENS.ExportLogRepository) private readonly logs: ExportLogRepository,
     @Inject(ADMIN_TOKENS.ReportSource) private readonly source: ReportSourcePort,
+    @Inject(ADMIN_TOKENS.ReportMailer) private readonly mailer: ReportMailer,
   ) {}
 
   async runDue(now = new Date()): Promise<ReportSweepResult> {
@@ -90,6 +91,7 @@ export class ScheduledReportRunnerService {
     try {
       const rows = await this.source.rowsFor(schedule.dataset, from, to);
       const content = await renderReport(rows, schedule.format, schedule.name);
+      const fileName = reportFileName(schedule.name, from, schedule.format);
       await this.logs.create({
         dataset: schedule.dataset,
         requestedByEmail: schedule.recipients[0] ?? 'scheduler',
@@ -97,8 +99,13 @@ export class ScheduledReportRunnerService {
         rowCount: rows.length,
         status: ExportStatus.DONE,
         content,
-        fileName: reportFileName(schedule.name, from, schedule.format),
+        fileName,
       });
+      // Fail-open: the mailer never throws and a failed send does not fail the run — the
+      // file is already stored and downloadable from `hq/exports`.
+      if (schedule.recipients.length > 0) {
+        await this.mailer.send({ to: schedule.recipients, subject: schedule.name, fileName, content });
+      }
       return { ok: true, error: null };
     } catch (error) {
       // The failure is RECORDED, not swallowed. An unreachable service would otherwise

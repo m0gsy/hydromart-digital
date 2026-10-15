@@ -16,6 +16,7 @@ import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
 import { useRecommendationProducts } from '@/lib/product-photos';
 import { useAsync } from '@/lib/use-async';
+import { useFeatureFlag } from '@/lib/feature-flags';
 import { SectionHeader } from '@/components/ui';
 import type { Cart, Product, Recommendation } from '@/lib/types';
 
@@ -145,7 +146,10 @@ export function ProductRecRail({
 }) {
   const { customer } = useAuth();
   const { t } = useT();
-  const canFetch = !requiresAuth || !!customer;
+  // `recommendations.ai` OFF hides every rail built from this component (home, orders,
+  // catalogue) and skips the fetch.
+  const recommendationsOn = useFeatureFlag('recommendations.ai');
+  const canFetch = recommendationsOn && (!requiresAuth || !!customer);
 
   const { data, loading, error } = useAsync<Recommendation[]>(
     // Audit F-13: recommendations change when an order is placed, and placing one is a

@@ -1,6 +1,8 @@
 // Subscriptions (spec 7b). Mirrors id/subscriptions.ts.
 export const subscriptions = {
   title: 'Subscriptions',
+  closedNote:
+    'New subscriptions are not being taken right now. Plans already running can still be managed here.',
   setupHeading: 'Routine gallons, nothing to remember',
   product: 'Product',
   productPlaceholder: 'Pick a product',

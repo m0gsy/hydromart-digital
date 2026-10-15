@@ -1,10 +1,15 @@
 import { Body, Controller, Get, Param, Patch, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
+import { AuditMutationsInterceptor, Can, Public } from '@hydromart/platform';
 
 import { FeatureFlagService } from '../application/services/feature-flag.service';
-import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
+import { ENFORCED_FLAG_KEYS, FlagState } from '../domain/flag-state';
+import {
+  FeatureFlagDto,
+  PublicFeatureFlagDto,
+  UpdateFeatureFlagDto,
+} from './dto/feature-flag.dto';
 
 // Design 8b — feature flags. Reading is head-office + super-admin; changing a flag is
 // super-admin only (matching the task's "SUPER_ADMIN (+ HEAD_OFFICE read)" gate).
@@ -22,6 +27,20 @@ export class FeatureFlagsController {
   @ApiOperation({ summary: 'List all feature flags (8b)' })
   async list(): Promise<FeatureFlagDto[]> {
     return (await this.flags.list()).map((f) => FeatureFlagDto.from(f));
+  }
+
+  /**
+   * Public: the web hides COD / subscriptions / recommendations from it before anyone signs
+   * in, and the other services read it fail-open. Only enforced keys, only on/off.
+   */
+  @ApiOkResponse({ type: PublicFeatureFlagDto, isArray: true })
+  @Public()
+  @Get('public')
+  @ApiOperation({ summary: 'On/off state of the enforced feature flags (public)' })
+  async publicFlags(): Promise<PublicFeatureFlagDto[]> {
+    return (await this.flags.list())
+      .filter((f) => (ENFORCED_FLAG_KEYS as readonly string[]).includes(f.key))
+      .map((f) => ({ key: f.key, enabled: f.state !== FlagState.OFF }));
   }
 
   @ApiOkResponse({ type: FeatureFlagDto })

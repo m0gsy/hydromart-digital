@@ -417,6 +417,19 @@ describe('FraudFlagPrismaRepository', () => {
     expect(rec?.status).toBe(FraudStatus.CLEARED);
   });
 
+  it('setStatus writes decisionReason only when a reason is passed', async () => {
+    model.findUnique.mockResolvedValue(row());
+    model.update.mockResolvedValue({ ...row(), status: 'CLEARED' });
+    await repo.setStatus('fr-1', FraudStatus.CLEARED, 'alasan');
+    expect(model.update.mock.calls[0]![0].data).toEqual({
+      status: 'CLEARED',
+      decisionReason: 'alasan',
+    });
+    model.update.mockClear();
+    await repo.setStatus('fr-1', FraudStatus.CLEARED, null);
+    expect(model.update.mock.calls[0]![0].data.decisionReason).toBeNull();
+  });
+
   it('setStatus returns null for an unknown flag', async () => {
     model.findUnique.mockResolvedValue(null);
     expect(await repo.setStatus('nope', FraudStatus.CLEARED)).toBeNull();

@@ -90,7 +90,8 @@ export {
 } from './nest/depot-scope-resolver';
 export { httpSuperiorResolver, type SuperiorResolver } from './nest/superior-resolver';
 export { httpAccountNameResolver, type AccountNameResolver } from './nest/account-name-resolver';
-export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
+export { httpFeatureFlagReader, type FeatureFlagReader } from './nest/feature-flag-reader';
+export { InternalAuthGuard,INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { LOG_REDACT_PATHS, redactPaths, maskPhone } from './nest/log-redact';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';

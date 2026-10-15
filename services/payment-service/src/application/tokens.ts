@@ -4,4 +4,5 @@ export const PAYMENT_TOKENS = {
   OrderCoordination: Symbol('OrderCoordination'),
   TaxSettingsRepository: Symbol('TaxSettingsRepository'),
   Storage: Symbol('Storage'),
+  FeatureFlags: Symbol('FeatureFlags'),
 } as const;

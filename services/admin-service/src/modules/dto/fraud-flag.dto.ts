@@ -19,9 +19,9 @@ import { FraudFlagRecord } from '../../application/ports/fraud-flag.repository';
 /**
  * The reason a decider gives, recorded in the audit trail next to the decision.
  *
- * Optional on the wire (an approval rarely needs one) and trimmed/bounded here, the only
- * writer. It is not a column: the shared audit trail is where a decision's reason is read
- * back, and it already carries the actor, the target and the time.
+ * Optional on the wire (an approval rarely needs one) and bounded here. It is written to
+ * the audit trail by AuditMutationsInterceptor and also persisted as `decisionReason` on
+ * the decided row so the list can show it.
  */
 export class DecisionReasonDto {
   @ApiPropertyOptional({ maxLength: 300, description: 'Why — shown in the audit trail.' })
@@ -94,6 +94,8 @@ export class FraudFlagDto {
   signals!: string[];
   @ApiProperty({ enum: FraudStatus })
   status!: FraudStatus;
+  @ApiProperty({ type: String, nullable: true, description: 'Reason given with the last decision.' })
+  decisionReason!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 
@@ -106,6 +108,7 @@ export class FraudFlagDto {
       level: record.level,
       signals: record.signals,
       status: record.status,
+      decisionReason: record.decisionReason,
       createdAt: record.createdAt.toISOString(),
     };
   }

@@ -8,6 +8,7 @@ export const ADMIN_TOKENS = {
   ExportLogRepository: Symbol('ExportLogRepository'),
   ScheduledReportRepository: Symbol('ScheduledReportRepository'),
   ReportSource: Symbol('ReportSource'),
+  ReportMailer: Symbol('ReportMailer'),
   SupportTicketRepository: Symbol('SupportTicketRepository'),
   FraudFlagRepository: Symbol('FraudFlagRepository'),
   /** CA-2-05: suspends the account behind a fraud flag. Fails CLOSED — see the port. */

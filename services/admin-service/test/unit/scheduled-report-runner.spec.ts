@@ -17,8 +17,9 @@ const WED = new Date('2026-08-12T03:00:00.000Z'); // a Wednesday
 function makeRunner(rowsFor: jest.Mock) {
   const schedules = new InMemoryScheduledReportRepository();
   const logs = new InMemoryExportLogRepository();
-  const runner = new ScheduledReportRunnerService(schedules, logs, { rowsFor } as never);
-  return { schedules, logs, runner };
+  const mailer = { send: jest.fn().mockResolvedValue(true) };
+  const runner = new ScheduledReportRunnerService(schedules, logs, { rowsFor } as never, mailer);
+  return { schedules, logs, runner, mailer };
 }
 
 describe('reportWindow', () => {
@@ -250,6 +251,42 @@ describe('ScheduledReportRunnerService', () => {
       rowCount: null,
       hasFile: false,
     });
+  });
+
+  it('emails the generated file to the recipients as an attachment', async () => {
+    const { schedules, runner, mailer } = makeRunner(jest.fn().mockResolvedValue([{ a: 1 }]));
+    await schedules.create({
+      name: 'Harian',
+      cadence: ReportCadence.DAILY,
+      recipients: ['a@b.c', 'd@e.f'],
+      format: ExportFormat.CSV,
+    });
+    await runner.runDue(WED);
+    expect(mailer.send).toHaveBeenCalledWith({
+      to: ['a@b.c', 'd@e.f'],
+      subject: 'Harian',
+      fileName: 'harian-2026-08-11.csv',
+      content: expect.any(Buffer),
+    });
+  });
+
+  it('does not email when there are no recipients, or when the report failed', async () => {
+    const ok = makeRunner(jest.fn().mockResolvedValue([]));
+    await ok.schedules.create({ name: 'K', cadence: ReportCadence.DAILY, recipients: [] });
+    await ok.runner.runDue(WED);
+    expect(ok.mailer.send).not.toHaveBeenCalled();
+
+    const bad = makeRunner(jest.fn().mockRejectedValue(new Error('down')));
+    await bad.schedules.create({ name: 'K', cadence: ReportCadence.DAILY, recipients: ['a@b.c'] });
+    await bad.runner.runDue(WED);
+    expect(bad.mailer.send).not.toHaveBeenCalled();
+  });
+
+  it('still counts the run produced when the mailer reports it could not send', async () => {
+    const { schedules, runner, mailer } = makeRunner(jest.fn().mockResolvedValue([]));
+    mailer.send.mockResolvedValue(false);
+    await schedules.create({ name: 'K', cadence: ReportCadence.DAILY, recipients: ['a@b.c'] });
+    expect(await runner.runDue(WED)).toEqual({ due: 1, produced: 1, failed: 0, ok: true });
   });
 
   // A schedule that fails every tick must not become a hot loop refiring every minute.

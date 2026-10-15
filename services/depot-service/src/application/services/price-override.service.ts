@@ -185,6 +185,7 @@ export class PriceOverrideService {
   ): Promise<PriceOverrideProposalRecord> {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();
+    const cleanReason = reason?.trim().slice(0, 300) || null;
     // success:false — the decision succeeded, the price change did not. The trail records
     // outcomes for the thing under review, and a rejected price rise is a "no".
     await this.audit('depot.price_override.rejected', proposal, decidedBy, false, {
@@ -192,11 +193,13 @@ export class PriceOverrideService {
       adjustType: proposal.adjustType,
       value: proposal.value,
       proposedBy: proposal.proposedBy,
-      ...(reason?.trim() ? { reason: reason.trim().slice(0, 300) } : {}),
+      ...(cleanReason ? { reason: cleanReason } : {}),
     });
+    // The queue shows WHY from the row itself; the trail keeps the same text beside the actor.
     return this.proposals.update(id, {
       status: PriceOverrideStatus.REJECTED,
       decidedBy,
+      decisionReason: cleanReason,
     });
   }
 

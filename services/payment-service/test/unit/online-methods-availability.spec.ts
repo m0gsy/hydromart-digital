@@ -55,17 +55,72 @@ describe('O5 · a method with no gateway is refused before it costs a row', () =
     expect(repo.rows).toHaveLength(3);
   });
 
-  it('says which methods are available, so the screen can stop offering the others', () => {
-    expect(build(false).service.availableMethods()).toEqual({
+  it('says which methods are available, so the screen can stop offering the others', async () => {
+    expect(await build(false).service.availableMethods()).toEqual({
       CASH: true,
       TRANSFER: true,
       QRIS: true,
       EWALLET: false,
       VA: false,
     });
-    expect(build(true).service.availableMethods()).toMatchObject({
+    expect(await build(true).service.availableMethods()).toMatchObject({
       EWALLET: true,
       VA: true,
+    });
+  });
+
+  describe('payments.cash_on_delivery flag', () => {
+    const withFlag = (isEnabled: jest.Mock) => {
+      const { repo, gateway } = build(false);
+      const service = new PaymentService(
+        repo,
+        gateway,
+        new FakeOrderCoordination(),
+        buildTestConfig(),
+        undefined,
+        { isEnabled },
+      );
+      return { service, repo };
+    };
+
+    it('refuses COD when the flag is OFF, and writes no payment', async () => {
+      const isEnabled = jest.fn().mockResolvedValue(false);
+      const { service, repo } = withFlag(isEnabled);
+      await expect(
+        service.initiate(customer, {
+          orderId: randomUUID(),
+          method: PaymentMethod.CASH,
+          amount: 45000,
+        }),
+      ).rejects.toMatchObject({ code: 'PAYMENT_COD_DISABLED' });
+      expect(isEnabled).toHaveBeenCalledWith('payments.cash_on_delivery');
+      expect(repo.rows).toHaveLength(0);
+    });
+
+    it('still takes a counter sale and non-cash methods when the flag is OFF', async () => {
+      const { service, repo } = withFlag(jest.fn().mockResolvedValue(false));
+      await service.initiate(customer, {
+        orderId: randomUUID(),
+        method: PaymentMethod.CASH,
+        amount: 45000,
+        atCounter: true,
+      });
+      await service.initiate(customer, {
+        orderId: randomUUID(),
+        method: PaymentMethod.TRANSFER,
+        amount: 45000,
+      });
+      expect(repo.rows).toHaveLength(2);
+    });
+
+    it('stops offering CASH at checkout when the flag is OFF', async () => {
+      const { service } = withFlag(jest.fn().mockResolvedValue(false));
+      expect(await service.availableMethods()).toMatchObject({ CASH: false, TRANSFER: true });
+    });
+
+    it('offers CASH when the flag is ON', async () => {
+      const { service } = withFlag(jest.fn().mockResolvedValue(true));
+      expect(await service.availableMethods()).toMatchObject({ CASH: true });
     });
   });
 

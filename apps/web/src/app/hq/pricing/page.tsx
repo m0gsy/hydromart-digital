@@ -162,6 +162,12 @@ export default function HqPricingPage() {
                       })}
                     </p>
                     {p.note ? <p className="text-xs text-muted">{p.note}</p> : null}
+                    {p.decisionReason ? (
+                      <p className="text-xs text-muted">
+                        <span className="font-semibold">{t('hrFix.decisionGap.reason')}:</span>{' '}
+                        {p.decisionReason}
+                      </p>
+                    ) : null}
                     <p className="flex items-center gap-2 text-sm">
                       <span className="text-muted line-through">
                         <Money amount={p.currentPrice} />

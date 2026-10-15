@@ -297,6 +297,8 @@ services:
       # Franchise revenue push on order completion (design 6a). Blank disables it silently.
       PAYOUT_SERVICE_URL: http://payout:3016
       ORDER_DELIVERY_FEE: 5000
+      # Feature-flag read (subscriptions.galon). Fail-open: blank or unreachable = enabled.
+      ADMIN_SERVICE_URL: http://admin:3017
       # Water-meter variance alert (staff ops feed via crm). Reuses the ONE ops
       # number DEPOT_ALERT_PHONE rather than adding a third variable to keep in
       # sync — delivery already borrows it the same way. Blank = alerting silent,
@@ -321,6 +323,8 @@ services:
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET (min 16 chars)}
       ORDER_SERVICE_URL: http://order:3004
+      # Feature-flag read (payments.cash_on_delivery). Fail-open: blank/unreachable = enabled.
+      ADMIN_SERVICE_URL: http://admin:3017
       # Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
       # default in payment-service/src/domain/payment.ts, which is now the only place the
       # number lives. It was never set here at all, so nobody could tell whether the

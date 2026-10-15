@@ -14,6 +14,8 @@ export interface FranchiseApplicationRecord {
   projectedMonthlyRevenue: number;
   checklist: Checklist;
   stage: FranchiseAppStage;
+  /** The reason HQ gave when approving/rejecting (trimmed, <= 300 chars), if any. */
+  decisionReason: string | null;
   submittedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +39,7 @@ export interface CreateFranchiseApplicationData {
 export interface UpdateFranchiseApplicationData {
   stage?: FranchiseAppStage;
   checklist?: Checklist;
+  decisionReason?: string | null;
 }
 
 export interface ListApplicationsFilter {

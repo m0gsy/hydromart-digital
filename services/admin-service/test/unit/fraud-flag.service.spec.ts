@@ -66,6 +66,14 @@ describe('FraudFlagService', () => {
     expect((await service.clear(f.id)).status).toBe(FraudStatus.CLEARED);
   });
 
+  it('persists the trimmed decision reason, and nulls a blank one', async () => {
+    const f = makeFraudFlag();
+    repo.rows = [f];
+    expect((await service.review(f.id, '  pelanggan lama  ')).decisionReason).toBe('pelanggan lama');
+    expect((await service.clear(f.id, '   ')).decisionReason).toBeNull();
+    expect((await service.block(f.id, 'mencurigakan')).decisionReason).toBe('mencurigakan');
+  });
+
   it('throws FraudFlagNotFoundError for unknown ids', async () => {
     await expect(service.review('nope')).rejects.toBeInstanceOf(FraudFlagNotFoundError);
     await expect(service.block('nope')).rejects.toBeInstanceOf(FraudFlagNotFoundError);
