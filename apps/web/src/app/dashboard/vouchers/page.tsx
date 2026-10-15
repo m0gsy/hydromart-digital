@@ -362,6 +362,7 @@ function VouchersAdmin() {
   const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const canWrite = canManageVouchers(customer?.role);
   const [editing, setEditing] = useState<Voucher | null | undefined>(undefined); // undefined closed, null new
   const [granting, setGranting] = useState<Voucher | null>(null);
@@ -380,7 +381,6 @@ function VouchersAdmin() {
 
   // Audit F-14: a rejected deactivation used to be swallowed — the voucher stayed
   // live and the list redrew as if the click had worked.
-  const { confirm } = useConfirm();
   async function deactivate(v: Voucher) {
     if (
       !(await confirm({

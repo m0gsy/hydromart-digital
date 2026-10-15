@@ -340,6 +340,7 @@ function PromotionsAdmin() {
   // promotionWrite excludes KEPALA_DEPOT: it may read the list, and the server refuses the rest.
   const canWrite = canManagePromotions(customer?.role);
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined); // undefined = closed, null = new
   const [analytics, setAnalytics] = useState<Promotion | null>(null);
   const { data, error, loading, reload } = useAsync<Promotion[]>(
@@ -359,7 +360,6 @@ function PromotionsAdmin() {
 
   // Audit F-14: a rejected delete used to be swallowed, so the row simply reappeared
   // and the operator had no way to tell a refusal from a no-op.
-  const { confirm } = useConfirm();
   async function remove(id: string) {
     if (
       !(await confirm({
