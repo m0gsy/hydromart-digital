@@ -143,7 +143,7 @@ describe('CAPABILITIES', () => {
       ['orderManageRead', 'orderQueue'],
     ] as const) {
       for (const w of CAPABILITIES[write]) {
-        expect(CAPABILITIES[read], `${read} must include ${w}`).toContain(w);
+        expect(CAPABILITIES[read]).toContain(w);
       }
     }
   });
