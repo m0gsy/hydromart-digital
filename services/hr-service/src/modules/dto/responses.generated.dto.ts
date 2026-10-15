@@ -796,10 +796,18 @@ export class LoanRequestResponseDto {
   updatedAt!: string;
 }
 
+/** A queue row: the request plus its derived answer-by date (createdAt + 3 working days). */
+export class LoanRequestQueueRowResponseDto extends LoanRequestResponseDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  dueAt!: string;
+  @ApiProperty({ type: Boolean })
+  overdue!: boolean;
+}
+
 /** One page of the kasbon decision queue. */
 export class PagedLoanRequestResponseDto {
-  @ApiProperty({ type: [LoanRequestResponseDto] })
-  rows!: LoanRequestResponseDto[];
+  @ApiProperty({ type: [LoanRequestQueueRowResponseDto] })
+  rows!: LoanRequestQueueRowResponseDto[];
   @ApiProperty({ type: Number })
   total!: number;
 }

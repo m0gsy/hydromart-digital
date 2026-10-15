@@ -103,6 +103,16 @@ export class LoanService {
     asOfPeriod: string,
   ): Promise<LoanView[]> {
     await this.employees.getById(user, employeeId);
+    return this.viewsFor(employeeId, asOfPeriod);
+  }
+
+  /** What this person still owes on every unsettled loan, as of now. Internal: no access check. */
+  async openBalance(employeeId: string): Promise<number> {
+    const views = await this.viewsFor(employeeId, '');
+    return views.reduce((sum, l) => sum + (l.settled ? 0 : l.remaining), 0);
+  }
+
+  private async viewsFor(employeeId: string, asOfPeriod: string): Promise<LoanView[]> {
     // C2: the fallback period is the LOCAL month. `toISOString().slice(0, 7)` is the UTC
     // month, so for the first seven hours of the 1st WIB it still said last month — an
     // employee opening their kasbon at 06:00 on 1 August was shown July's balance.

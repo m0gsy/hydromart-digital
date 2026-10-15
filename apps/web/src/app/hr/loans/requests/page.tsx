@@ -178,6 +178,13 @@ export default function KasbonQueuePage() {
                 </p>
                 <Badge tone={TONE[r.status]}>{t(KASBON_STATUS_LABEL[r.status])}</Badge>
               </div>
+              {r.status === 'PENDING' && (
+                <p className={r.overdue ? 'text-xs font-semibold text-[color:var(--danger)]' : 'text-xs text-muted'}>
+                  {t(r.overdue ? 'hrFix.kasbonQueue.overdue' : 'hrFix.kasbonQueue.dueBy', {
+                    date: fmtDate(r.dueAt),
+                  })}
+                </p>
+              )}
               <p className="text-sm">
                 <span className="text-muted">{t('hrFix.kasbonQueue.reason')}: </span>
                 {r.reason}

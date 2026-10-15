@@ -305,15 +305,19 @@ export class HrConfigService {
     );
   }
 
-  // --- Face recognition (read straight from ENV; not per-depot user-facing) ---
+  // --- Face recognition. ENV is the initial default; a GLOBAL override (SUPER_ADMIN only,
+  // stored x100 because the settings store is integer-only) wins over it. ---
   get faceVerifierDriver(): string {
     return this.config.get<string>('FACE_VERIFIER_DRIVER', 'onnx');
   }
   get faceMatchThreshold(): number {
-    return this.num('HR_FACE_MATCH_THRESHOLD');
+    return this.faceThreshold('faceMatchX100', 'HR_FACE_MATCH_THRESHOLD');
   }
   get faceDuplicateThreshold(): number {
-    return this.num('HR_FACE_DUPLICATE_THRESHOLD');
+    return this.faceThreshold('faceDupX100', 'HR_FACE_DUPLICATE_THRESHOLD');
+  }
+  private faceThreshold(key: string, env: string): number {
+    return this.tunableNum(key, Math.round(this.num(env) * 100), null) / 100;
   }
   get faceModelPath(): string {
     return this.config.get<string>('HR_FACE_MODEL_PATH', './models/arcface.onnx');
