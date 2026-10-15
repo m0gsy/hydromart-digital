@@ -89,6 +89,13 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/vouchers', labelKey: 'vouchers', cap: 'voucherRead' },
       { href: '/hq/refunds', labelKey: 'refunds', cap: 'refundQueueRead' },
       { href: '/hq/reconciliation', labelKey: 'reconciliation', cap: 'commissionRead' },
+      // The finance work screens live under /dashboard (the depot console's own screens,
+      // network-wide for FINANCE). The rail had no door to them, so they were reachable only
+      // by typing the URL. `cap` is what each page's server calls check.
+      { href: '/dashboard/settlements', labelKey: 'settlements', cap: 'courierSettle' },
+      { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', cap: 'expenseApprove' },
+      { href: '/dashboard/earning-rules', labelKey: 'earningRules', cap: 'earningRules' },
+      { href: '/dashboard/cashbook', labelKey: 'cashbook', cap: 'depotFinance' },
       // CA-2-59: the network P&L. Same capability as the revenue roll-up it completes —
       // whoever may read what the network SOLD may read what it cost to make.
       { href: '/hq/pnl', labelKey: 'pnl', cap: 'dashboard' },
@@ -190,13 +197,44 @@ export const HQ_GROUPS: HqRailGroup[] = [
  * screen index still listing a door the rail has hidden is the same lie wearing a hat.
  */
 export function hqGroupsForRole(role: Role): HqRailGroup[] {
-  if (!isHq(role)) return [];
+  const partial = PARTIAL_HQ_DOOR[role as string];
+  if (!isHq(role) && !partial) return [];
   return HQ_GROUPS.map((g) => ({
     ...g,
     // `cap` filters on top of the console gate: an item whose capability this role lacks is
-    // not shown at all, rather than shown and then refused by the server.
-    items: g.items.filter((i) => can(i.cap, role)),
+    // not shown at all, rather than shown and then refused by the server. A role with only
+    // a PARTIAL door sees nothing outside its own list, whatever else it happens to hold.
+    items: g.items.filter((i) => can(i.cap, role) && (!partial || partial.includes(i.href))),
   })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * Roles that are NOT head office but own a handful of /hq screens with no depot-console
+ * twin. Owner decision 2026-10-15 (MARKETING): the console stays closed — `isHq` is what
+ * lands a user on /hq at sign-in, and MARKETING keeps its own console as home — and only
+ * these doors open. An allow-list rather than "every item whose cap you hold", because a
+ * role can hold a capability for a screen the owner never meant it to browse.
+ */
+export const PARTIAL_HQ_DOOR: Record<string, readonly string[] | undefined> = {
+  MARKETING: [
+    '/hq/loyalty', // rewardCatalog
+    '/hq/customers', // customerPhoneLookup + loyaltyAdjust/loyaltyRead
+    '/hq/campaigns', // campaignRead: schedule
+    '/hq/forms/segment', // saved segments
+    '/hq/broadcast', // audienceReach + send
+  ],
+};
+
+export function hasPartialHqDoor(role: Role): boolean {
+  return PARTIAL_HQ_DOOR[role as string] !== undefined;
+}
+
+/** May this role open this /hq path? Full console roles defer to `capForHqPath`. */
+export function mayOpenHqPath(role: Role, pathname: string | null | undefined): boolean {
+  if (isHq(role)) return true;
+  const allowed = PARTIAL_HQ_DOOR[role as string];
+  if (!allowed || !pathname) return false;
+  return allowed.some((h) => pathname === h || pathname.startsWith(h + '/'));
 }
 
 export function hqItemsForRole(role: Role): HqRailItem[] {

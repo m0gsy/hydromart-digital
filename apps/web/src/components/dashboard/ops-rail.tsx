@@ -57,6 +57,7 @@ import {
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
 import { isServedHere } from '@/lib/deep-link';
+import { hasPartialHqDoor } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -144,6 +145,14 @@ export const GROUPS: RailGroup[] = [
         labelKey: 'hqConsole',
         icon: Buildings,
         show: (role) => isHq(role) && isServedHere('/hq'),
+      },
+      // MARKETING holds a partial door: a handful of /hq screens with no depot twin. The
+      // overview is not among them, so this goes straight to the first one.
+      {
+        href: '/hq/campaigns',
+        labelKey: 'hqConsole',
+        icon: Buildings,
+        show: (role) => !isHq(role) && hasPartialHqDoor(role as never) && isServedHere('/hq'),
       },
     ],
   },
@@ -286,6 +295,17 @@ export const GROUPS: RailGroup[] = [
         labelKey: 'maintenance',
         icon: Wrench,
         show: (r) => can('depotMaintenance', r),
+      },
+      // The depot manager's HR doors. They live in the /hr console, which the HQ rail reaches
+      // and this rail never did, so leave, kasbon and borrow requests were typed-URL only.
+      // Each carries the capability its own screen's server calls check.
+      { href: '/hr/leave', labelKey: 'hrLeave', icon: CalendarCheck, show: (r) => can('leaveApprove', r) },
+      { href: '/hr/loans', labelKey: 'hrLoans', icon: HandCoins, show: (r) => can('kasbonApprove', r) },
+      {
+        href: '/hr/depot-requests',
+        labelKey: 'hrDepotRequests',
+        icon: UsersThree,
+        show: (r) => can('employeeAssignRequest', r),
       },
       {
         href: '/dashboard/onboarding',
