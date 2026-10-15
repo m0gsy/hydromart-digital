@@ -5,7 +5,6 @@ import {
   FakeAccessTokenSigner,
   FakeClock,
   FakeCrypto,
-  FakeSecurityPolicy,
   InMemoryAuditLogRepository,
   InMemoryCustomerRepository,
   InMemoryRefreshTokenRepository,
@@ -30,7 +29,6 @@ describe('TokenService', () => {
       new FakeAccessTokenSigner(),
       new FakeCrypto(),
       new FakeClock(),
-      new FakeSecurityPolicy(),
       buildTestConfig(),
     );
     service = new TokenService(sessions, new AuditService(audit));

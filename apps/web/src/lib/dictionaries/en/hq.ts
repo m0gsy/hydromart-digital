@@ -1745,7 +1745,8 @@ export const hq = {
     empty: 'No datasets yet.',
   },
   security: {
-    idleEnforced: 'Enforced: a session idle longer than this must sign in again.',
+    idleEnforced:
+      'Not applied: a session ends only after 30 days without being opened. A forced sign-out makes the user request another OTP, so a short idle limit is deliberately not used.',
     ipUnenforced:
       'PARTLY ENFORCED. This list now refuses partner API requests (x-api-key) from addresses outside it. It is NOT enforced for this HQ console: those requests arrive through the gateway, which admin-service cannot see past.',
     title: 'Security & 2FA',

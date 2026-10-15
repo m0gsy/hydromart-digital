@@ -5,7 +5,6 @@ import {
   FakeAccessTokenSigner,
   FakeClock,
   FakeCrypto,
-  FakeSecurityPolicy,
   InMemoryCustomerRepository,
   InMemoryRefreshTokenRepository,
   buildTestConfig,
@@ -18,13 +17,11 @@ describe('SessionService', () => {
   let crypto: FakeCrypto;
   let clock: FakeClock;
   let service: SessionService;
-  let policy: FakeSecurityPolicy;
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
 
   beforeEach(() => {
     refreshRepo = new InMemoryRefreshTokenRepository();
-    policy = new FakeSecurityPolicy();
     customerRepo = new InMemoryCustomerRepository();
     crypto = new FakeCrypto();
     clock = new FakeClock();
@@ -34,7 +31,6 @@ describe('SessionService', () => {
       new FakeAccessTokenSigner(),
       crypto,
       clock,
-      policy,
       buildTestConfig(),
     );
   });
@@ -128,63 +124,59 @@ describe('SessionService', () => {
     expect(await service.listActive(customer.id)).toHaveLength(0);
   });
   /*
-   * CA-2-06: the idle-session limit head office set, finally applied.
-   *
-   * `idleTimeoutMinutes` had a screen, a DTO, a repository and a default of fifteen
-   * minutes — and not one line outside admin-service ever read it. A console that lets
-   * somebody set a session timeout and then does not time sessions out reports a control
-   * that does not exist.
+   * A session ends when it has gone unused for the whole refresh lifetime (30 days), and
+   * not before. Every sign-out costs an SMS OTP to get back in, so there is no shorter idle
+   * limit — and a limit measured from the last refresh could not be made to fit anyway: a
+   * refresh only happens when the 15-minute access token has run out, so an actively used
+   * session looks "idle" for at least one access-token lifetime every single time.
    */
-  describe('idle-session limit (CA-2-06)', () => {
+  describe('session lifetime', () => {
+    const DAY = 24 * 60 * 60;
     const seed = async () => {
       const customer = makeCustomer();
       customerRepo.seed(customer);
       return service.issueForCustomer(customer, ctx);
     };
 
-    it('refuses a session left unused past the limit, and ends its family', async () => {
-      policy.minutes = 15;
+    it('does not sign out somebody who is using the app, at the access-token expiry', async () => {
       const first = await seed();
-      clock.advance(16 * 60);
+      // The access token (900 s) has just run out; the client refreshes for the first time.
+      clock.advance(900 + 1);
 
-      await expect(service.refresh(first.refreshToken, ctx)).rejects.toThrow(/idle/i);
-      // The family goes with it: an abandoned session must not be resumable from another
-      // device still holding an older token in the same chain.
-      expect(refreshRepo.rows.every((r) => r.revokedAt !== null)).toBe(true);
+      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
     });
 
-    it('lets a session inside the limit through, and the clock restarts on use', async () => {
-      policy.minutes = 15;
-      const first = await seed();
-      clock.advance(10 * 60);
+    it('keeps a session that is refreshed every fifteen minutes for a day', async () => {
+      let session = await seed();
+      for (let i = 0; i < 96; i++) {
+        clock.advance(901);
+        session = await service.refresh(session.refreshToken, ctx);
+      }
+      expect(session.refreshToken).toBeTruthy();
+    });
 
+    it('lets a phone left alone for most of a month come back without a new OTP', async () => {
+      const first = await seed();
+      clock.advance(29 * DAY);
+
+      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
+    });
+
+    it('slides the window: a refresh starts a fresh thirty days', async () => {
+      const first = await seed();
+      clock.advance(20 * DAY);
       const rotated = await service.refresh(first.refreshToken, ctx);
-      // Ten more minutes: twenty since sign-in, but only ten since the last use — and it is
-      // the last USE the limit measures.
-      clock.advance(10 * 60);
+      // Forty days since sign-in, twenty since the last use.
+      clock.advance(20 * DAY);
+
       await expect(service.refresh(rotated.refreshToken, ctx)).resolves.toBeTruthy();
     });
 
-    /*
-     * The heart of it. A security control that logs the whole business out when the service
-     * holding it restarts is an outage wearing a policy's clothes — so `null` (no limit) is
-     * both "head office set none" and "the policy could not be read", deliberately
-     * indistinguishable. The env-driven refresh TTL still bounds every session.
-     */
-    it('signs nobody out when the policy cannot be read', async () => {
-      policy.minutes = null;
+    it('ends a session that was not opened for the whole thirty days', async () => {
       const first = await seed();
-      clock.advance(60 * 24 * 60);
+      clock.advance(31 * DAY);
 
-      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
-    });
-
-    it('treats a zero or negative limit as no limit, not as instant logout', async () => {
-      policy.minutes = 0;
-      const first = await seed();
-      clock.advance(60 * 60);
-
-      await expect(service.refresh(first.refreshToken, ctx)).resolves.toBeTruthy();
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toThrow(/expired/i);
     });
   });
 });

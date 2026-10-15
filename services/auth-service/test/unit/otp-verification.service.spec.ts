@@ -10,7 +10,6 @@ import {
   FakeClock,
   FakeCrypto,
   FakeOtpDelivery,
-  FakeSecurityPolicy,
   InMemoryAuditLogRepository,
   InMemoryCustomerRepository,
   InMemoryOtpTokenRepository,
@@ -54,7 +53,6 @@ describe('OtpVerificationService', () => {
       new FakeAccessTokenSigner(),
       crypto,
       clock,
-      new FakeSecurityPolicy(),
       config,
     );
     notifications = new FakeCustomerNotification();

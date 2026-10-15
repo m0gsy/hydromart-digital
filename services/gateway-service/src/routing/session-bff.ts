@@ -223,6 +223,15 @@ export function createSessionRouter(
       setSessionCookies(res, data, secure);
       return res.status(status).json({ customer: data.customer });
     }
+    /*
+     * Only a definite NO ends the session.
+     *
+     * Auth-service answering 429 (rate limit) or 5xx (a restart, a database blip) is "no
+     * answer", exactly like the unreachable case above — and clearing the cookies on it
+     * signed users out of healthy 30-day sessions, each one costing an SMS OTP to get back
+     * in. The refresh token is still good; the next request tries again.
+     */
+    if (status === 429 || status >= 500) return res.status(503).json(UPSTREAM_DOWN);
     clearSessionCookies(res, secure);
     return res.status(401).json({ statusCode: 401, message: 'Session expired.' });
   });
