@@ -19,6 +19,7 @@ export interface CreatePriceOverrideProposalData {
 export interface UpdatePriceOverrideProposalData {
   status?: PriceOverrideStatus;
   decidedBy?: string;
+  decisionReason?: string | null;
 }
 
 export interface ListProposalsFilter {

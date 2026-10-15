@@ -445,6 +445,15 @@ export class SubscriptionAddressNotRoutableError extends DomainError {
   }
 }
 
+/** The `subscriptions.galon` feature flag is OFF: no new plans are being taken. */
+export class SubscriptionsDisabledError extends DomainError {
+  readonly code = 'SUBSCRIPTIONS_DISABLED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Langganan galon sedang tidak dibuka. Silakan pesan satuan untuk saat ini.');
+  }
+}
+
 /**
  * D10: a subscription depot staff tried to create for a customer who has no saved address.
  *

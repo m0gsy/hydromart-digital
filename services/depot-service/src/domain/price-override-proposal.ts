@@ -29,6 +29,8 @@ export interface PriceOverrideProposalRecord {
   status: PriceOverrideStatus;
   proposedBy: string;
   decidedBy: string | null;
+  /** The reason HQ gave with the decision (trimmed, <= 300 chars), if any. */
+  decisionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

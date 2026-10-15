@@ -14,6 +14,9 @@ export const admin = {
   // and the aggregate per-service health roll-up (13b). SUPER_ADMIN / HEAD_OFFICE gated.
   admin: {
     flags: '/admin/api/v1/feature-flags',
+    // Public: on/off of the three flags the platform enforces (COD, galon subscriptions,
+    // AI recommendations). Read fail-open by `useFeatureFlag`.
+    publicFlags: '/admin/api/v1/feature-flags/public',
     // PATCH a single flag's state / rolloutPct by key.
     flag: (key: string) => `/admin/api/v1/feature-flags/${encodeURIComponent(key)}`,
     // GET current settings, PUT to replace.

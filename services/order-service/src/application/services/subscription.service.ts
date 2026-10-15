@@ -1,7 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+
+import type { FeatureFlagReader } from '@hydromart/platform';
 
 import {
   ProductUnavailableError,
+  SubscriptionsDisabledError,
   SubscriptionAddressNotRoutableError,
   SubscriptionCustomerAddressMissingError,
   SubscriptionNotActionableError,
@@ -103,6 +106,11 @@ export class SubscriptionService {
     // read here rather than typed by whoever filled the form.
     @Inject(ORDER_TOKENS.CustomerDirectory)
     private readonly customers: CustomerDirectoryPort,
+    // `subscriptions.galon`: fail-open (the reader answers enabled when admin-service is
+    // unreachable). Optional so an unwired deployment keeps accepting subscriptions.
+    @Optional()
+    @Inject(ORDER_TOKENS.FeatureFlags)
+    private readonly flags?: FeatureFlagReader,
   ) {}
 
   /**
@@ -115,6 +123,11 @@ export class SubscriptionService {
   }
 
   async create(customerId: string, input: CreateSubscriptionInput): Promise<SubscriptionRecord> {
+    // Only NEW plans are refused: plans already running keep their schedule, so switching the
+    // flag off never silently stops water a customer is already expecting.
+    if (this.flags && !(await this.flags.isEnabled('subscriptions.galon'))) {
+      throw new SubscriptionsDisabledError();
+    }
     // D3: refuse a plan nobody could ever fulfil, while somebody is still on the screen to
     // fix it. The sweep resolves a depot from this snapshot and has nothing to fall back on
     // — no customer to ask, no depot picker, no session — so an address with no map pin

@@ -61,6 +61,7 @@ import { canViewDashboard, isStaff } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
+import { useFeatureFlag } from '@/lib/feature-flags';
 import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
 import { currentSessionFamily } from '@/lib/session-device';
@@ -1056,6 +1057,8 @@ export default function AccountPage() {
     [depotId, staff],
   );
   const [sheet, setSheet] = useState<SheetKey | null>(null);
+  // `subscriptions.galon` OFF: no entry point to a screen that can no longer create a plan.
+  const subscriptionsOn = useFeatureFlag('subscriptions.galon');
 
   if (ready && !customer) {
     return (
@@ -1134,7 +1137,9 @@ export default function AccountPage() {
     { href: '/rewards', label: t('account.nav.rewards'), icon: Medal },
     { href: '/vouchers', label: t('profile.rewards.wallet.title'), icon: Gift },
     { href: '/favorites', label: t('account.nav.favorites'), icon: Heart },
-    { href: '/subscriptions', label: t('subscriptions.title'), icon: ArrowsClockwise },
+    ...(subscriptionsOn
+      ? [{ href: '/subscriptions', label: t('subscriptions.title'), icon: ArrowsClockwise }]
+      : []),
     { href: '/referral', label: t('account.nav.referral'), icon: Gift },
     /*
      * H3. `/waralaba` is a real franchise application form whose only way in was the

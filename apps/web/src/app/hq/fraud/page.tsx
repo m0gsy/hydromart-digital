@@ -117,6 +117,12 @@ export default function HqFraudPage() {
                     <Chip key={s} tone="amber">{s}</Chip>
                   ))}
                 </div>
+                {r.decisionReason && (
+                  <p className="mt-1.5 text-xs text-muted">
+                    <span className="font-semibold">{t('hrFix.decisionGap.reason')}:</span>{' '}
+                    {r.decisionReason}
+                  </p>
+                )}
               </div>
               {(r.status === 'OPEN' || r.status === 'REVIEWED') && (
                 <div className="flex gap-2">

@@ -30,8 +30,8 @@ export class FraudFlagService {
   }
 
   /** Mark a flag REVIEWED. 404 when unknown. */
-  review(id: string): Promise<FraudFlagRecord> {
-    return this.transition(id, FraudStatus.REVIEWED);
+  review(id: string, reason?: string): Promise<FraudFlagRecord> {
+    return this.transition(id, FraudStatus.REVIEWED, reason);
   }
 
   /**
@@ -47,13 +47,13 @@ export class FraudFlagService {
    * still a real decision (it is what the review queue records), it just cannot reach into
    * order-service from here; that is a separate wire and is not pretended at.
    */
-  async block(id: string): Promise<FraudFlagRecord> {
+  async block(id: string, reason?: string): Promise<FraudFlagRecord> {
     const flag = await this.repo.findById(id);
     if (!flag) throw new FraudFlagNotFoundError(id);
     if (flag.entityType === FraudEntityType.ACCOUNT) {
       await this.accounts.setActive(flag.entityRef, false);
     }
-    return this.transition(id, FraudStatus.BLOCKED);
+    return this.transition(id, FraudStatus.BLOCKED, reason);
   }
 
   /**
@@ -73,7 +73,7 @@ export class FraudFlagService {
    * The question is therefore not "was this flag blocked" but "is this account still held":
    * reinstate exactly when no OTHER flag on the same entity is BLOCKED.
    */
-  async clear(id: string): Promise<FraudFlagRecord> {
+  async clear(id: string, reason?: string): Promise<FraudFlagRecord> {
     const flag = await this.repo.findById(id);
     if (!flag) throw new FraudFlagNotFoundError(id);
     /*
@@ -94,11 +94,17 @@ export class FraudFlagService {
         await this.accounts.setActive(flag.entityRef, true);
       }
     }
-    return this.transition(id, FraudStatus.CLEARED);
+    return this.transition(id, FraudStatus.CLEARED, reason);
   }
 
-  private async transition(id: string, status: FraudStatus): Promise<FraudFlagRecord> {
-    const updated = await this.repo.setStatus(id, status);
+  private async transition(
+    id: string,
+    status: FraudStatus,
+    reason?: string,
+  ): Promise<FraudFlagRecord> {
+    // A human decision always writes the column (blank -> null) so a stale reason from an
+    // earlier decision never sits beside a newer one.
+    const updated = await this.repo.setStatus(id, status, reason?.trim() || null);
     if (!updated) throw new FraudFlagNotFoundError(id);
     return updated;
   }

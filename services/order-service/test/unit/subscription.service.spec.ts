@@ -165,6 +165,42 @@ describe('SubscriptionService', () => {
     expect(service.discountRate(null)).toBe(0.05);
   });
 
+  describe('subscriptions.galon flag', () => {
+    const input = (productId: string) => ({
+      productId,
+      quantity: 1,
+      frequency: 'WEEKLY' as const,
+      firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+      address,
+    });
+    const withFlags = (isEnabled: jest.Mock) =>
+      new SubscriptionService(
+        subs,
+        catalog,
+        orderService,
+        buildTestConfig(),
+        notification,
+        customers,
+        { isEnabled },
+      );
+
+    it('refuses a NEW subscription when the flag is OFF', async () => {
+      const p = seedProduct();
+      const isEnabled = jest.fn().mockResolvedValue(false);
+      await expect(withFlags(isEnabled).create(customer, input(p.id))).rejects.toMatchObject({
+        code: 'SUBSCRIPTIONS_DISABLED',
+      });
+      expect(isEnabled).toHaveBeenCalledWith('subscriptions.galon');
+      expect(subs.rows).toHaveLength(0);
+    });
+
+    it('accepts a subscription when the flag is ON', async () => {
+      const p = seedProduct();
+      const sub = await withFlags(jest.fn().mockResolvedValue(true)).create(customer, input(p.id));
+      expect(sub.status).toBe('ACTIVE');
+    });
+  });
+
   it('creates an ACTIVE subscription snapshotting product name/unit', async () => {
     const p = seedProduct();
     const sub = await service.create(customer, {

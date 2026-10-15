@@ -97,7 +97,7 @@ export class FranchiseApplicationService {
   }
 
   async approve(id: string, actorId?: string, reason?: string): Promise<ApproveResult> {
-    const app = await this.decide(id, FranchiseAppStage.APPROVED);
+    const app = await this.decide(id, FranchiseAppStage.APPROVED, reason);
     await this.audit('depot.franchise_application.approved', app, actorId, true, reason);
     return {
       application: app,
@@ -118,7 +118,7 @@ export class FranchiseApplicationService {
     actorId?: string,
     reason?: string,
   ): Promise<FranchiseApplicationRecord> {
-    const app = await this.decide(id, FranchiseAppStage.REJECTED);
+    const app = await this.decide(id, FranchiseAppStage.REJECTED, reason);
     await this.audit('depot.franchise_application.rejected', app, actorId, false, reason);
     return app;
   }
@@ -151,10 +151,19 @@ export class FranchiseApplicationService {
     );
   }
 
-  private async decide(id: string, stage: FranchiseAppStage): Promise<FranchiseApplicationRecord> {
+  private async decide(
+    id: string,
+    stage: FranchiseAppStage,
+    reason?: string,
+  ): Promise<FranchiseApplicationRecord> {
     const app = await this.require(id);
     if (isTerminalStage(app.stage)) throw new ApplicationAlreadyDecidedError();
-    return this.applications.update(id, { stage });
+    // Stored on the row so the queue and the detail page can show WHY; the audit trail
+    // keeps the same text beside the actor.
+    return this.applications.update(id, {
+      stage,
+      decisionReason: reason?.trim().slice(0, 300) || null,
+    });
   }
 
   private async require(id: string): Promise<FranchiseApplicationRecord> {

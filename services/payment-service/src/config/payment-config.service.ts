@@ -59,6 +59,10 @@ export class PaymentConfigService {
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** admin-service, for the feature-flag read. Blank = flags unreadable = all enabled. */
+  get adminServiceUrl(): string {
+    return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** C2: where to ask which drawer is open. Empty leaves counter payments unattributed. */
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');

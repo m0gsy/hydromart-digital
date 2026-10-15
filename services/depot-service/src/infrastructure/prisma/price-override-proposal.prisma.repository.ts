@@ -26,6 +26,7 @@ interface ProposalRow {
   status: string;
   proposedBy: string;
   decidedBy: string | null;
+  decisionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +49,7 @@ export class PriceOverrideProposalPrismaRepository implements PriceOverridePropo
       status: row.status as PriceOverrideStatus,
       proposedBy: row.proposedBy,
       decidedBy: row.decidedBy,
+      decisionReason: row.decisionReason,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -99,6 +101,7 @@ export class PriceOverrideProposalPrismaRepository implements PriceOverridePropo
       data: {
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.decidedBy !== undefined ? { decidedBy: patch.decidedBy } : {}),
+        ...(patch.decisionReason !== undefined ? { decisionReason: patch.decisionReason } : {}),
       },
     });
     return this.toRecord(row as unknown as ProposalRow);

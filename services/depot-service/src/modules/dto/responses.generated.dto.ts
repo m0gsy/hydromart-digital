@@ -402,6 +402,8 @@ export class FranchiseApplicationResponseDto {
   checklist!: unknown;
   @ApiProperty({ enum: ['PENDING', 'DOC_VERIFICATION', 'SURVEY', 'APPROVED', 'REJECTED'] })
   stage!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Reason given with the decision.' })
+  decisionReason!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   submittedAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -1002,6 +1004,8 @@ export class PriceOverrideProposalResponseDto {
   proposedByName!: string | null;
   @ApiProperty({ type: String, nullable: true })
   decidedBy!: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'Reason given with the decision.' })
+  decisionReason!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })

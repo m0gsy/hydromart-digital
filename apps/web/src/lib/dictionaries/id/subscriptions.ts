@@ -1,6 +1,8 @@
 // Langganan (spec 7b): galon rutin terjadwal.
 export const subscriptions = {
   title: 'Langganan',
+  closedNote:
+    'Langganan baru sedang tidak dibuka. Langganan yang sudah berjalan tetap bisa dikelola di sini.',
   setupHeading: 'Galon rutin, tanpa perlu ingat',
   product: 'Produk',
   productPlaceholder: 'Pilih produk',

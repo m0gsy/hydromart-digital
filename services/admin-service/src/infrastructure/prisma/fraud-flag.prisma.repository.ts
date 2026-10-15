@@ -18,6 +18,7 @@ interface FraudFlagRow {
   signals: string[];
   status: string;
   blockedAt: Date | null;
+  decisionReason: string | null;
   createdAt: Date;
 }
 
@@ -63,7 +64,11 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
     });
   }
 
-  async setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null> {
+  async setStatus(
+    id: string,
+    status: FraudStatus,
+    reason?: string | null,
+  ): Promise<FraudFlagRecord | null> {
     const existing = await this.prisma.fraudFlag.findUnique({ where: { id } });
     if (!existing) return null;
     // ADM-8: stamped when it becomes BLOCKED and never cleared — "this flag suspended
@@ -72,6 +77,8 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
       where: { id },
       data: {
         status,
+        // undefined = a system transition (scan sweep) that must not wipe a typed reason.
+        ...(reason !== undefined ? { decisionReason: reason } : {}),
         ...(status === FraudStatus.BLOCKED && !existing.blockedAt ? { blockedAt: new Date() } : {}),
       },
     });

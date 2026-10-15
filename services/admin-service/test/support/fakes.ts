@@ -503,6 +503,7 @@ export function makeFraudFlag(over: Partial<FraudFlagRecord> = {}): FraudFlagRec
     signals: ['Sample signal'],
     status: FraudStatus.OPEN,
     blockedAt: null,
+    decisionReason: null,
     createdAt: nextDate(),
     ...over,
   };
@@ -530,6 +531,7 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
       signals: data.signals,
       status: data.status ?? FraudStatus.OPEN,
       blockedAt: null,
+      decisionReason: null,
       createdAt: nextDate(),
     };
     this.rows.push(record);
@@ -540,10 +542,15 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
     return this.rows.find((f) => f.id === id) ?? null;
   }
 
-  async setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null> {
+  async setStatus(
+    id: string,
+    status: FraudStatus,
+    reason?: string | null,
+  ): Promise<FraudFlagRecord | null> {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
     r.status = status;
+    if (reason !== undefined) r.decisionReason = reason;
     // ADM-8: stamped once, never cleared — it records what happened, not what is true now.
     if (status === FraudStatus.BLOCKED && !r.blockedAt) r.blockedAt = nextDate();
     return { ...r };

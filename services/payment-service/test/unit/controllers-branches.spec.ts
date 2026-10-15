@@ -73,15 +73,15 @@ describe('PaymentController', () => {
 
   // O5: the screen needs one answer to "which methods can this take", and there was no
   // endpoint that could give it — so it offered all five and let two fail at the gateway.
-  it('answers which payment methods are available', () => {
-    svc.availableMethods.mockReturnValue({
+  it('answers which payment methods are available', async () => {
+    svc.availableMethods.mockResolvedValue({
       CASH: true,
       TRANSFER: true,
       QRIS: true,
       EWALLET: false,
       VA: false,
     });
-    expect(controller.methods()).toMatchObject({ EWALLET: false, VA: false });
+    expect(await controller.methods()).toMatchObject({ EWALLET: false, VA: false });
     expect(svc.availableMethods).toHaveBeenCalled();
   });
 

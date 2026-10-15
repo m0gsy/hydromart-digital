@@ -29,14 +29,22 @@ export class UpdateFeatureFlagDto {
 
 /* ---------- Responses ---------- */
 
+/** One enforced flag as the public read route and the web see it. */
+export class PublicFeatureFlagDto {
+  @ApiProperty({ example: 'payments.cash_on_delivery' })
+  key!: string;
+  @ApiProperty({ description: 'false only when the flag state is OFF.' })
+  enabled!: boolean;
+}
+
 export class FeatureFlagDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
-  @ApiProperty({ example: 'payments.virtual_account' })
+  @ApiProperty({ example: 'payments.cash_on_delivery' })
   key!: string;
-  @ApiProperty({ example: 'Virtual Account payments' })
+  @ApiProperty({ example: 'Cash on delivery' })
   label!: string;
-  @ApiProperty({ example: 'Per-bank VA at checkout' })
+  @ApiProperty({ example: 'COD at delivery time' })
   description!: string;
   @ApiProperty({ enum: FlagState })
   state!: FlagState;

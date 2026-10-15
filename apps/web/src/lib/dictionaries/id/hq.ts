@@ -1924,7 +1924,8 @@ export const hq = {
       REVENUE_BY_PRODUCT: 'Pendapatan per produk',
       REVENUE_BY_METHOD: 'Pendapatan per metode bayar',
     },
-    deliveryNote: 'Berkas dibuat otomatis dan diunduh dari HQ › Ekspor. Belum dikirim lewat email.',
+    deliveryNote:
+      'Berkas dibuat otomatis, disimpan di HQ › Ekspor, dan dikirim sebagai lampiran email ke penerima (bila pengiriman email sudah dikonfigurasi).',
     on: 'Aktif',
     off: 'Nonaktif',
     delete: 'Hapus',

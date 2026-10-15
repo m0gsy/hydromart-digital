@@ -1372,6 +1372,8 @@ export interface FranchiseApplication {
   projectedMonthlyRevenue: number;
   checklist: ApplicationChecklist;
   stage: FranchiseAppStage;
+  /** The reason HQ gave when deciding; null when none was given. */
+  decisionReason?: string | null;
   submittedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -2200,6 +2202,8 @@ export interface PriceOverrideProposalItem {
   /** Account name behind `proposedBy` (§G-3). Null when the account has none. */
   proposedByName: string | null;
   decidedBy: string | null;
+  /** The reason HQ gave when deciding; null when none was given. */
+  decisionReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2390,6 +2394,8 @@ export interface FraudFlag {
   level: FraudLevel;
   signals: string[];
   status: FraudStatus;
+  /** The reason typed with the latest decision; null when none was given. */
+  decisionReason?: string | null;
   createdAt: string;
 }
 

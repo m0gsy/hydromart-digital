@@ -51,7 +51,9 @@ const filled = (v: string | null | undefined): boolean => (v ?? '').trim().lengt
  * active depots and not one bank account or QRIS image among them, so both buttons were
  * offered to everyone and both ended in an order nobody could pay.
  *
- * CASH is never filtered, so there is always a way left to pay.
+ * CASH follows the `payments.cash_on_delivery` flag through the server's answer: a flag
+ * switched OFF reads `CASH: false` and drops out here like any other method. With no
+ * answer at all (read failed) it stays on offer — fail-open, so there is a way left to pay.
  */
 export function offeredMethods(
   available: Record<string, boolean> | null,

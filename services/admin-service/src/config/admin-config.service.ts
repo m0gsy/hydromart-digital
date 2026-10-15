@@ -82,6 +82,20 @@ export class AdminConfigService {
     };
   }
 
+  /** Generic SMTP for scheduled-report email. null = not configured (mail is skipped). */
+  get smtp(): { host: string; port: number; user: string; pass: string; from: string } | null {
+    const host = this.config.get<string>('SMTP_HOST', '').trim();
+    const from = this.config.get<string>('SMTP_FROM', '').trim();
+    if (!host || !from) return null;
+    return {
+      host,
+      port: Number(this.config.get('SMTP_PORT', 587)),
+      user: this.config.get<string>('SMTP_USER', ''),
+      pass: this.config.get<string>('SMTP_PASS', ''),
+      from,
+    };
+  }
+
   /** Base URL of one peer, or '' when this environment does not reach it. */
   serviceUrl(envKey: string): string {
     return (this.config.get<string>(envKey) ?? '').replace(/\/+$/, '');

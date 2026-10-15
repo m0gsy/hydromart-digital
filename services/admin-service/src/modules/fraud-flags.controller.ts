@@ -51,26 +51,26 @@ export class FraudFlagsController {
   @Can('fraudReview')
   @Post(':id/review')
   @ApiOperation({ summary: 'Mark a flag reviewed' })
-  // `dto` is not read: AuditMutationsInterceptor writes the request body, `reason` included,
-  // to the trail. It is declared so the whitelist pipe accepts the field.
-  async review(@Param('id') id: string, @Body() _dto: DecisionReasonDto): Promise<FraudFlagDto> {
-    return FraudFlagDto.from(await this.fraud.review(id));
+  // The reason is persisted on the row; AuditMutationsInterceptor also writes the body to
+  // the trail.
+  async review(@Param('id') id: string, @Body() dto: DecisionReasonDto): Promise<FraudFlagDto> {
+    return FraudFlagDto.from(await this.fraud.review(id, dto.reason));
   }
 
   @ApiOkResponse({ type: FraudFlagDto })
   @Can('fraudReview')
   @Post(':id/block')
   @ApiOperation({ summary: 'Block the flagged entity' })
-  async block(@Param('id') id: string, @Body() _dto: DecisionReasonDto): Promise<FraudFlagDto> {
-    return FraudFlagDto.from(await this.fraud.block(id));
+  async block(@Param('id') id: string, @Body() dto: DecisionReasonDto): Promise<FraudFlagDto> {
+    return FraudFlagDto.from(await this.fraud.block(id, dto.reason));
   }
 
   @ApiOkResponse({ type: FraudFlagDto })
   @Can('fraudReview')
   @Post(':id/clear')
   @ApiOperation({ summary: 'Clear the flag (no fraud)' })
-  async clear(@Param('id') id: string, @Body() _dto: DecisionReasonDto): Promise<FraudFlagDto> {
-    return FraudFlagDto.from(await this.fraud.clear(id));
+  async clear(@Param('id') id: string, @Body() dto: DecisionReasonDto): Promise<FraudFlagDto> {
+    return FraudFlagDto.from(await this.fraud.clear(id, dto.reason));
   }
 
   /*

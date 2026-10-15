@@ -109,6 +109,15 @@ export class PaymentAmountMismatchError extends DomainError {
   }
 }
 
+/** The `payments.cash_on_delivery` feature flag is OFF: COD is not being taken. */
+export class CodDisabledError extends DomainError {
+  readonly code = 'PAYMENT_COD_DISABLED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Bayar di tempat (COD) sedang tidak tersedia. Pilih metode pembayaran lain.');
+  }
+}
+
 /** PAY-4: the order belongs to somebody else. Same answer as an order that does not exist. */
 export class PaymentOrderNotYoursError extends DomainError {
   readonly code = 'PAYMENT_ORDER_NOT_FOUND';
