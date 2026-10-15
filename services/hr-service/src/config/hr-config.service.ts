@@ -311,10 +311,10 @@ export class HrConfigService {
     return this.config.get<string>('FACE_VERIFIER_DRIVER', 'onnx');
   }
   get faceMatchThreshold(): number {
-    return this.faceThreshold('faceMatchThresholdX100', 'HR_FACE_MATCH_THRESHOLD');
+    return this.faceThreshold('faceMatchX100', 'HR_FACE_MATCH_THRESHOLD');
   }
   get faceDuplicateThreshold(): number {
-    return this.faceThreshold('faceDuplicateThresholdX100', 'HR_FACE_DUPLICATE_THRESHOLD');
+    return this.faceThreshold('faceDupX100', 'HR_FACE_DUPLICATE_THRESHOLD');
   }
   private faceThreshold(key: string, env: string): number {
     return this.tunableNum(key, Math.round(this.num(env) * 100), null) / 100;

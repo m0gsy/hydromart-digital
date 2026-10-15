@@ -378,7 +378,7 @@ export const SETTING_DEFS: SettingDef[] = [
   // Face thresholds (x100: 62 = 0.62). Global-only and SUPER_ADMIN-only to write: they decide
   // who may punch in and who is flagged as a duplicate, network-wide. ENV is the initial default.
   {
-    key: 'faceMatchThresholdX100',
+    key: 'faceMatchX100',
     label: 'Ambang kecocokan wajah',
     type: 'int',
     unit: 'x100 (62 = 0,62); makin tinggi makin ketat',
@@ -388,7 +388,7 @@ export const SETTING_DEFS: SettingDef[] = [
     global: true,
   },
   {
-    key: 'faceDuplicateThresholdX100',
+    key: 'faceDupX100',
     label: 'Ambang wajah duplikat',
     type: 'int',
     unit: 'x100 (75 = 0,75)',

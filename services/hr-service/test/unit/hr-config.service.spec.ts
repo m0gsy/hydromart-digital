@@ -55,8 +55,8 @@ describe('HrConfigService', () => {
     const svc = new HrConfigService(
       config(),
       await cacheWith([
-        { scope: 'GLOBAL', depotId: null, key: 'faceMatchThresholdX100', value: '70' },
-        { scope: 'GLOBAL', depotId: null, key: 'faceDuplicateThresholdX100', value: '80' },
+        { scope: 'GLOBAL', depotId: null, key: 'faceMatchX100', value: '70' },
+        { scope: 'GLOBAL', depotId: null, key: 'faceDupX100', value: '80' },
       ]),
     );
     expect(svc.faceMatchThreshold).toBeCloseTo(0.7);
