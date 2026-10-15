@@ -323,3 +323,13 @@ describe('LoanService.listAll', () => {
     expect(payrolls.lastBefore).toBeUndefined();
   });
 });
+
+describe('LoanService.openBalance', () => {
+  it('sums what is still owed and is zero for somebody with no loans', async () => {
+    const { payrolls, svc } = make();
+    const open = await svc.create(hr, base);
+    payrolls.ledger.push({ loanId: open.id, periodMonth: '2026-07', amount: 300_000 });
+    expect(await svc.openBalance('e1')).toBeGreaterThan(0);
+    expect(await svc.openBalance('nobody')).toBe(0);
+  });
+});

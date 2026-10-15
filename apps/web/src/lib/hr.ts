@@ -328,6 +328,9 @@ export interface LoanRequest {
 export interface LoanRequestListView extends LoanRequest {
   employeeName: string | null;
   employeeCode: string | null;
+  /** createdAt + 3 working days (server-derived). */
+  dueAt: string;
+  overdue: boolean;
 }
 /** Values are i18n KEYS, like LEAVE_STATUS_LABEL — never the copy itself. */
 export const KASBON_STATUS_LABEL: Record<LoanRequestStatus, string> = {
@@ -774,6 +777,8 @@ export interface SettingDef {
    * The server decides; a list of key names here would drift the first time one is added.
    */
   long?: boolean;
+  /** Global-only: no per-depot override; writing it needs SUPER_ADMIN. */
+  global?: boolean;
 }
 export interface SettingsSchema {
   defs: SettingDef[];

@@ -123,7 +123,10 @@ export default function HrSettingsPage() {
       {error && <ErrorState message={error} onRetry={reload} />}
       {data && (
         <Card className="divide-y divide-[color:var(--border)]">
-          {data.defs.map((d) => (
+          {data.defs.map((d) => {
+            // Global-only keys: no per-depot override, and only SUPER_ADMIN may write the global one.
+            const locked = !!d.global && (scope === 'DEPOT' || !superAdmin);
+            return (
             <div key={d.key} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="font-medium">{d.label ?? d.key}</p>
@@ -138,6 +141,7 @@ export default function HrSettingsPage() {
                   {t('hrFix.settings.effectiveLabel')}:{' '}
                   {String(data.effective[d.key] ?? '') || t('hrFix.settings.notFilled')}
                 </p>
+                {d.global && <p className="text-xs text-muted">{t('hrFix.settings.globalOnlyKey')}</p>}
               </div>
               <div className="flex items-start gap-2">
                 {/* CONTROLLED, and keyed to the scope: an uncontrolled box kept the previous
@@ -170,17 +174,19 @@ export default function HrSettingsPage() {
                     placeholder={d.unit ?? ''}
                     onChange={(e) => setDrafts((p) => ({ ...p, [d.key]: e.target.value }))}
                     className="w-32"
+                    disabled={locked}
                   />
                 )}
-                <Button variant="secondary" onClick={() => save(d.key)}>
+                <Button variant="secondary" disabled={locked} onClick={() => save(d.key)}>
                   {t('hrFix.settings.save')}
                 </Button>
-                <Button variant="ghost" onClick={() => reset(d.key)}>
+                <Button variant="ghost" disabled={locked} onClick={() => reset(d.key)}>
                   {t('hrFix.settings.reset')}
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </Card>
       )}
     </div>

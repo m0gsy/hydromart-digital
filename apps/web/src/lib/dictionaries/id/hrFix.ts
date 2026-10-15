@@ -474,6 +474,7 @@ export const hrFix = {
     title: 'Konfigurasi Gaji',
     subtitle: 'Default GLOBAL (SUPER_ADMIN) atau override per depot',
     globalOnly: 'Hanya SUPER_ADMIN yang dapat mengubah default GLOBAL.',
+    globalOnlyKey: 'Hanya bisa diatur global oleh SUPER_ADMIN.',
     save: 'Simpan',
     reset: 'Reset',
     depotIdHint: 'UUID depot',
@@ -1252,6 +1253,8 @@ export const hrFix = {
     listTitle: 'Riwayat pengajuan',
   },
   kasbonQueue: {
+    overdue: 'Lewat batas 3 hari kerja (batas {date})',
+    dueBy: 'Putuskan sebelum {date}',
     title: 'Antrean Kasbon',
     subtitle: '{n} pengajuan menunggu keputusan',
     empty: 'Tidak ada pengajuan kasbon di depot Anda.',

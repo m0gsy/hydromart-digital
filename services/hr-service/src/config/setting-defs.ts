@@ -375,6 +375,28 @@ export const SETTING_DEFS: SettingDef[] = [
     unit: 'desimal (mis. 106.8123)',
     envDefault: '',
   },
+  // Face thresholds (x100: 62 = 0.62). Global-only and SUPER_ADMIN-only to write: they decide
+  // who may punch in and who is flagged as a duplicate, network-wide. ENV is the initial default.
+  {
+    key: 'faceMatchThresholdX100',
+    label: 'Ambang kecocokan wajah',
+    type: 'int',
+    unit: 'x100 (62 = 0,62); makin tinggi makin ketat',
+    min: 1,
+    max: 100,
+    envDefault: 62,
+    global: true,
+  },
+  {
+    key: 'faceDuplicateThresholdX100',
+    label: 'Ambang wajah duplikat',
+    type: 'int',
+    unit: 'x100 (75 = 0,75)',
+    min: 1,
+    max: 100,
+    envDefault: 75,
+    global: true,
+  },
   {
     key: 'geofenceRadiusM',
     label: 'Radius absen (geofence)',

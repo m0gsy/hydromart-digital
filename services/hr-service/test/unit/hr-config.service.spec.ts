@@ -51,6 +51,18 @@ describe('HrConfigService', () => {
     expect(svc.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
   });
 
+  it('lets a GLOBAL override replace the face thresholds, ENV stays the default', async () => {
+    const svc = new HrConfigService(
+      config(),
+      await cacheWith([
+        { scope: 'GLOBAL', depotId: null, key: 'faceMatchThresholdX100', value: '70' },
+        { scope: 'GLOBAL', depotId: null, key: 'faceDuplicateThresholdX100', value: '80' },
+      ]),
+    );
+    expect(svc.faceMatchThreshold).toBeCloseTo(0.7);
+    expect(svc.faceDuplicateThreshold).toBeCloseTo(0.8);
+  });
+
   it('falls through to ENV defaults with no overrides', async () => {
     const svc = new HrConfigService(config(), await cacheWith([]));
     expect(svc.lateDeductionAmount()).toBe(10000);

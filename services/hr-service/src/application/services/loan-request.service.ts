@@ -27,7 +27,12 @@ import { LoanService } from './loan.service';
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /** A queue row plus who it belongs to. */
-export type LoanRequestView = LoanRequestListRow;
+export type LoanRequestView = LoanRequestListRow & {
+  /** createdAt + 3 working days. Derived, so no column and no migration. */
+  dueAt: Date;
+  /** PENDING past `dueAt`. A flag for the queue only: nothing is decided automatically. */
+  overdue: boolean;
+};
 
 export interface DecideLoanRequestInput {
   approve: boolean;
@@ -41,12 +46,12 @@ export interface DecideLoanRequestInput {
 /** Owner decision 2026-10-14: a kasbon request is decided within three working days. */
 const DECISION_WINDOW_WORKING_DAYS = 3;
 
-/** `from` minus `n` Mon-Fri days (public holidays are not modelled â€” a week-end is the floor). */
-export function subtractWorkingDays(from: Date, n: number): Date {
+/** `from` plus `n` Mon-Fri days: when a request filed at `from` is due to be answered. */
+export function addWorkingDays(from: Date, n: number): Date {
   const d = new Date(from);
   let left = n;
   while (left > 0) {
-    d.setUTCDate(d.getUTCDate() - 1);
+    d.setUTCDate(d.getUTCDate() + 1);
     const dow = d.getUTCDay();
     if (dow !== 0 && dow !== 6) left -= 1;
   }
@@ -130,15 +135,14 @@ export class LoanRequestService {
         'Gaji pokok Anda belum diisi sehingga batas kasbon tidak bisa dihitung. Hubungi HR.',
       );
     }
-    if (input.amount > cap) {
+    // Owner decision 2026-10-16: the limit is on the OPEN balance, not on one request —
+    // what is still owed plus this ask may not pass one month of base pay.
+    const owed = await this.loans.openBalance(employee.id);
+    if (owed + input.amount > cap) {
       throw new BadRequestException(
-        `Kasbon melebihi batas 1x gaji pokok (Rp${cap.toLocaleString('id-ID')}).`,
+        `Kasbon melebihi batas 1x gaji pokok (Rp${cap.toLocaleString('id-ID')}); sisa kasbon Anda Rp${owed.toLocaleString('id-ID')}.`,
       );
     }
-
-    // An open request nobody answered within the window is closed first, so the person is
-    // not stuck behind a decision that is no longer coming.
-    await this.expireStaleFor(employee.id, user.sub);
 
     let request: LoanRequest;
     try {
@@ -163,29 +167,7 @@ export class LoanRequestService {
   /** Everything I ever asked for, newest first. */
   async listSelf(user: AuthenticatedUser): Promise<LoanRequest[]> {
     const employee = await this.employees.getSelf(user);
-    await this.expireStaleFor(employee.id, user.sub);
     return this.repo.listByEmployee(employee.id);
-  }
-
-  /**
-   * Close this person's PENDING requests that outlived the decision window. They become
-   * CANCELLED with a note saying why, so the applicant reads "kedaluwarsa" rather than a
-   * request that is silently still open. Lazy on purpose: no sweep job, and the answer is
-   * the same whenever somebody next looks.
-   */
-  private async expireStaleFor(employeeId: string, actorId: string): Promise<void> {
-    const cutoff = subtractWorkingDays(new Date(), DECISION_WINDOW_WORKING_DAYS);
-    const rows = await this.repo.listByEmployee(employeeId);
-    for (const r of rows) {
-      if (r.status === 'PENDING' && r.createdAt < cutoff) {
-        await this.repo.decide(r.id, {
-          status: 'CANCELLED',
-          decidedBy: actorId,
-          decisionNote: `Kedaluwarsa: tidak diputuskan dalam ${DECISION_WINDOW_WORKING_DAYS} hari kerja.`,
-          loanId: null,
-        });
-      }
-    }
   }
 
   /** Withdraw my own request while nobody has answered it. */
@@ -213,12 +195,20 @@ export class LoanRequestService {
   ): Promise<{ rows: LoanRequestView[]; total: number }> {
     const page = Math.max(1, query.page ?? 1);
     const take = Math.min(100, Math.max(1, query.pageSize ?? 20));
-    return this.repo.listAll({
+    const { rows, total } = await this.repo.listAll({
       depotIds: depotScopeIds(user),
       status: query.status as never,
       skip: (page - 1) * take,
       take,
     });
+    const now = new Date();
+    return {
+      rows: rows.map((r) => {
+        const dueAt = addWorkingDays(r.createdAt, DECISION_WINDOW_WORKING_DAYS);
+        return { ...r, dueAt, overdue: r.status === 'PENDING' && dueAt < now };
+      }),
+      total,
+    };
   }
 
   /**
@@ -259,18 +249,6 @@ export class LoanRequestService {
     if (request.status !== 'PENDING') {
       throw new ConflictException('Pengajuan ini sudah diputuskan.');
     }
-    if (request.createdAt < subtractWorkingDays(new Date(), DECISION_WINDOW_WORKING_DAYS)) {
-      await this.repo.decide(id, {
-        status: 'CANCELLED',
-        decidedBy: user.sub,
-        decisionNote: `Kedaluwarsa: tidak diputuskan dalam ${DECISION_WINDOW_WORKING_DAYS} hari kerja.`,
-        loanId: null,
-      });
-      throw new ConflictException(
-        `Pengajuan ini kedaluwarsa (lewat ${DECISION_WINDOW_WORKING_DAYS} hari kerja); pemohon perlu mengajukan lagi.`,
-      );
-    }
-
     if (!input.approve) {
       const note = input.note?.trim();
       if (!note) throw new BadRequestException('Alasan penolakan wajib diisi');

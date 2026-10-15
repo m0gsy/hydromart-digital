@@ -461,6 +461,7 @@ export const hrFix = {
     title: 'Payroll configuration',
     subtitle: 'GLOBAL defaults (SUPER_ADMIN) or a per-depot override',
     globalOnly: 'Only a SUPER_ADMIN can change the GLOBAL defaults.',
+    globalOnlyKey: 'Global only; set by a SUPER_ADMIN.',
     save: 'Save',
     reset: 'Reset',
     depotIdHint: 'Depot UUID',
@@ -1234,6 +1235,8 @@ export const hrFix = {
     listTitle: 'Request history',
   },
   kasbonQueue: {
+    overdue: 'Past the 3-working-day limit (due {date})',
+    dueBy: 'Decide by {date}',
     title: 'Cash Advance Queue',
     subtitle: '{n} request(s) awaiting a decision',
     empty: 'No cash advance requests at your depots.',

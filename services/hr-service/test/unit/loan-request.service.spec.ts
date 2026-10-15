@@ -18,7 +18,7 @@ import {
 import {
   LoanRequestService,
   monthlyBasePay,
-  subtractWorkingDays,
+  addWorkingDays,
 } from '../../src/application/services/loan-request.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
 import { LoanService } from '../../src/application/services/loan.service';
@@ -129,7 +129,7 @@ const EMPLOYEE = {
   dailyRate: null,
 };
 
-function make(overrides: { depotId?: string | null; assistant?: string | null } = {}) {
+function make(overrides: { depotId?: string | null; assistant?: string | null; owed?: number } = {}) {
   const repo = new FakeRepo();
   const employee = { ...EMPLOYEE, depotId: overrides.depotId ?? EMPLOYEE.depotId };
   if ('depotId' in overrides && overrides.depotId === null) employee.depotId = null as never;
@@ -141,6 +141,7 @@ function make(overrides: { depotId?: string | null; assistant?: string | null } 
   } as unknown as EmployeeService;
   const created: Record<string, unknown>[] = [];
   const loans = {
+    openBalance: async () => overrides.owed ?? 0,
     create: async (_u: AuthenticatedUser, input: Record<string, unknown>) => {
       created.push(input);
       return { id: 'loan-1', ...input };
@@ -172,12 +173,12 @@ function make(overrides: { depotId?: string | null; assistant?: string | null } 
 
 const APPLY = { amount: 500_000, reason: 'Biaya sekolah anak' };
 
-describe('subtractWorkingDays and monthlyBasePay', () => {
+describe('addWorkingDays and monthlyBasePay', () => {
   it('skips weekends when counting back the decision window', () => {
     // Wednesday 14 Oct 2026 minus three working days is Friday 9 Oct.
-    expect(subtractWorkingDays(new Date('2026-10-14T00:00:00Z'), 3).toISOString().slice(0, 10)).toBe('2026-10-09');
+    expect(addWorkingDays(new Date('2026-10-09T00:00:00Z'), 3).toISOString().slice(0, 10)).toBe('2026-10-14');
     // Monday minus one working day is the Friday before.
-    expect(subtractWorkingDays(new Date('2026-10-12T00:00:00Z'), 1).toISOString().slice(0, 10)).toBe('2026-10-09');
+    expect(addWorkingDays(new Date('2026-10-09T00:00:00Z'), 1).toISOString().slice(0, 10)).toBe('2026-10-12');
   });
 
   it('reads a month of base pay: monthly rate, 26 days of a daily rate, or nothing', () => {
@@ -254,15 +255,27 @@ describe('LoanRequestService kasbon limit and decision window', () => {
     );
   });
 
-  it('closes a request nobody answered in three working days, and refuses to decide it', async () => {
+  it('counts what is still owed against the limit', async () => {
+    const { svc } = make({ owed: 4_500_000 });
+    await expect(svc.submit(staff, { amount: 600_000, reason: 'x' })).rejects.toThrow(
+      /sisa kasbon Anda Rp4\.500\.000/,
+    );
+    await expect(svc.submit(staff, { amount: 500_000, reason: 'x' })).resolves.toMatchObject({
+      status: 'PENDING',
+    });
+  });
+
+  it('flags a pending request past three working days as overdue and never auto-decides it', async () => {
     const { svc, repo } = make();
     const stale = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'x' });
     const row = repo.rows.find((r) => r.id === stale.id)!;
     (row as { createdAt: Date }).createdAt = new Date(Date.now() - 10 * 86_400_000);
+    const fresh = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'y' });
 
-    const mine = await svc.listSelf(staff);
-    expect(mine.find((r) => r.id === stale.id)?.status).toBe('CANCELLED');
-    expect(mine.find((r) => r.id === stale.id)?.decisionNote).toMatch(/Kedaluwarsa/);
+    const { rows } = await svc.listAll(asv, {});
+    expect(rows.find((r) => r.id === stale.id)).toMatchObject({ overdue: true, status: 'PENDING' });
+    expect(rows.find((r) => r.id === fresh.id)?.overdue).toBe(false);
+    expect((await svc.listSelf(staff)).find((r) => r.id === stale.id)?.status).toBe('PENDING');
   });
 });
 
