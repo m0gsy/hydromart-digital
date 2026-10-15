@@ -17,6 +17,16 @@ export interface PoLine {
   quantity: number;
   unitCostIdr: number;
   /**
+   * The catalogue product a PRODUK line orders. Required for PRODUK, absent for the four raw
+   * types (which are per-depot singletons and need no id).
+   *
+   * Without it a PO for catalogue goods could be drafted and sent and then NEVER received:
+   * `receiveStock` could only name the raw singleton line, so every attempt threw, was
+   * swallowed (CA-2-31) and left the PO in SENT for ever. `lines` is a JSON column, so this
+   * needed no migration, and rows written before it simply have none.
+   */
+  productId?: string;
+  /**
    * CA-2-64: how much of this line has actually arrived.
    *
    * Receiving was all-or-nothing — one button that booked in the FULL ordered quantity of

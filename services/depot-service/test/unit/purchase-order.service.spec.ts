@@ -38,10 +38,12 @@ describe('PurchaseOrderService', () => {
   let supplierId: string;
   let galonItemId: string;
   let segelItemId: string;
+  let catalog: FakeProductCatalog;
 
   beforeEach(async () => {
     depotRepo = new InMemoryDepotRepository();
     inventoryRepo = new InMemoryInventoryRepository();
+    catalog = new FakeProductCatalog();
     poRepo = new InMemoryPurchaseOrderRepository();
     const supplierRepo = new InMemorySupplierRepository();
     const config = buildTestConfig();
@@ -51,7 +53,7 @@ describe('PurchaseOrderService', () => {
       depotRepo,
       new FakeLowStockAlert(),
       new FakeUntrackedSaleAlert(),
-      new FakeProductCatalog(),
+      catalog,
       approvals,
       config,
     );
@@ -456,6 +458,108 @@ describe('PurchaseOrderService', () => {
       expect(after.lines[0]!.receivedQuantity ?? 0).toBe(0);
       // And the line that DID arrive is booked — one bad line must not lose the delivery.
       expect(after.lines[1]!.receivedQuantity).toBe(200);
+    });
+
+    /*
+     * The defect behind CA-2-31's catch: `PoLine` carried no `productId`, and `receiveStock`
+     * only ever looked at the raw singleton line. A PO for a catalogue product could be
+     * drafted, sent, and then never received — every attempt threw, was swallowed, and left
+     * the PO in SENT for ever. A PRODUK line now names its product and books into THAT line.
+     */
+    describe('catalogue (PRODUK) lines', () => {
+      const PRODUCT_ID = '55555555-5555-5555-5555-555555555555';
+      let produkItemId: string;
+
+      beforeEach(async () => {
+        catalog.products.set(PRODUCT_ID, {
+          id: PRODUCT_ID,
+          name: 'Teh Botol',
+          sku: 'TEH-1',
+          unit: 'pcs',
+          active: true,
+        });
+        const line = await inventory.createLine(
+          depotId,
+          {
+            itemType: InventoryItemType.PRODUK,
+            productId: PRODUCT_ID,
+            label: 'Teh Botol',
+            unit: 'pcs',
+            quantity: 5,
+            minimumStock: 0,
+          },
+          ACTOR,
+        );
+        produkItemId = line.id;
+      });
+
+      const produkPo = () =>
+        service.create({
+          depotId,
+          supplierId,
+          lines: [
+            {
+              itemType: InventoryItemType.PRODUK,
+              productId: PRODUCT_ID,
+              label: 'Teh Botol',
+              quantity: 24,
+              unitCostIdr: 3_000,
+            },
+          ],
+        });
+
+      it('books the arrival into the product line it names, and reaches RECEIVED', async () => {
+        const po = await produkPo();
+        await service.send(po.id);
+
+        const after = await service.receive(po.id, ACTOR);
+
+        expect(after.status).toBe(PoStatus.RECEIVED);
+        expect(after.lines[0]!.receivedQuantity).toBe(24);
+        const stock = await inventory.listForDepot(depotId, {});
+        expect(stock.find((l) => l.id === produkItemId)!.quantity).toBe(5 + 24);
+      });
+
+      it('refuses to draft a catalogue line that names no product', async () => {
+        await expect(
+          service.create({
+            depotId,
+            supplierId,
+            lines: [
+              {
+                itemType: InventoryItemType.PRODUK,
+                label: 'Teh Botol',
+                quantity: 1,
+                unitCostIdr: 3_000,
+              },
+            ],
+          }),
+        ).rejects.toThrow(/produk/i);
+      });
+
+      it('names the line that could not be booked in the result, not only in the log', async () => {
+        const po = await service.create({
+          depotId,
+          supplierId,
+          lines: [
+            {
+              itemType: InventoryItemType.PRODUK,
+              productId: '66666666-6666-6666-6666-666666666666', // no stock line for it
+              label: 'Tanpa stok',
+              quantity: 3,
+              unitCostIdr: 1_000,
+            },
+          ],
+        });
+        await service.send(po.id);
+
+        const after = await service.receive(po.id, ACTOR);
+
+        expect(after.status).toBe(PoStatus.SENT);
+        expect(after.unbooked).toEqual([
+          expect.objectContaining({ index: 0, label: 'Tanpa stok' }),
+        ]);
+      });
     });
 
     it('refuses more than the line still has outstanding', async () => {

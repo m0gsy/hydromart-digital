@@ -71,6 +71,7 @@ class FakeRequests implements ReleaseRequestRepository {
 const OWNER = 'owner-1';
 const FINANCE = 'finance-1';
 const DIRECTOR = 'direktur-1';
+const CONFIG = { minWithdrawalIdr: 50_000 } as never;
 
 describe('HqReleaseService', () => {
   let requests: FakeRequests;
@@ -84,7 +85,32 @@ describe('HqReleaseService', () => {
       requests,
       { balanceFor: jest.fn(async () => 250_000) } as never,
       { releaseForOwner } as unknown as PayoutService,
+      CONFIG,
     );
+  });
+
+  // Owner decision 2026-10-14: the floor is Rp50.000. It used to be enforced only when the
+  // approver pressed the button, so FINANCE queued a request the director could not pay and
+  // the error landed on the wrong person, a day later.
+  it('refuses a request below the withdrawal minimum, before anything is queued', async () => {
+    const small = new HqReleaseService(
+      requests,
+      { balanceFor: jest.fn(async () => 49_999) } as never,
+      { releaseForOwner } as unknown as PayoutService,
+      CONFIG,
+    );
+    await expect(small.request(OWNER, undefined, FINANCE)).rejects.toThrow(/50\.000|minimum/i);
+    expect(await small.listPending()).toHaveLength(0);
+
+    const exact = new HqReleaseService(
+      requests,
+      { balanceFor: jest.fn(async () => 50_000) } as never,
+      { releaseForOwner } as unknown as PayoutService,
+      CONFIG,
+    );
+    await expect(exact.request(OWNER, undefined, FINANCE)).resolves.toMatchObject({
+      amountAtRequest: 50_000,
+    });
   });
 
   it('records a request with the balance it was raised against, and moves nothing', async () => {
@@ -108,6 +134,7 @@ describe('HqReleaseService', () => {
       new FakeRequests(),
       { balanceFor: jest.fn(async () => 0) } as never,
       { releaseForOwner } as unknown as PayoutService,
+      CONFIG,
     );
     await expect(broke.request(OWNER, undefined, FINANCE)).rejects.toThrow();
   });

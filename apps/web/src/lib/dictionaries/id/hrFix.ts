@@ -1065,6 +1065,8 @@ export const hrFix = {
     sendToSupplier: 'Kirim ke pemasok',
     receiveGoods: 'Terima barang → RECEIPT',
     gateBody2: 'Pengadaan tersedia untuk manajer depot dan super admin.',
+    unbooked:
+      'Belum masuk stok: {labels}. Baris ini tidak punya baris stok di depot ini — tambahkan di Stok, lalu terima lagi.',
     items: 'Item',
     qtyPrice: 'Qty × Harga',
     subtotal: 'Subtotal',

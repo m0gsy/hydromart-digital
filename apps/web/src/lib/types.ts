@@ -1940,6 +1940,8 @@ export interface PoLine {
   label: string;
   quantity: number;
   unitCostIdr: number;
+  /** Catalogue product a PRODUK line orders; absent on the raw stock types. */
+  productId?: string;
   /**
    * CA-2-64: how much of this line has actually arrived. Absent on every PO written before
    * partial receipt shipped, and read as 0 — the same thing it meant then.
@@ -1966,6 +1968,8 @@ export interface PurchaseOrder {
   expectedAt: string | null;
   receivedAt: string | null;
   createdAt: string;
+  /** Only on a receive response: lines that arrived but could not be booked to stock. */
+  unbooked?: { index: number; label: string; quantity: number; reason: string }[];
 }
 
 // Per-depot resolved price for one product (depot-service resolvePrices, 11a).

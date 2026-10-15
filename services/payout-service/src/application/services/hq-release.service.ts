@@ -5,7 +5,9 @@ import {
   ReleaseAlreadyRequestedError,
   ReleaseRequestNotPendingError,
   ReleaseSelfApprovalError,
+  WithdrawalBelowMinimumError,
 } from '../../domain/errors';
+import { PayoutConfigService } from '../../config/payout-config.service';
 import { LedgerRepository } from '../ports/ledger.repository';
 import {
   ReleaseRequestRecord,
@@ -31,6 +33,7 @@ export class HqReleaseService {
     private readonly requests: ReleaseRequestRepository,
     @Inject(PAYOUT_TOKENS.LedgerRepository) private readonly ledger: LedgerRepository,
     private readonly payout: PayoutService,
+    private readonly config: PayoutConfigService,
   ) {}
 
   async request(
@@ -40,6 +43,12 @@ export class HqReleaseService {
   ): Promise<ReleaseRequestRecord> {
     const balance = await this.ledger.balanceFor(ownerId);
     if (!(balance > 0)) throw new InvalidWithdrawalAmountError();
+    // The floor is checked HERE as well as in `requestWithdrawal`: the approver pressing the
+    // button was the first place it fired, so a request FINANCE could never get paid sat in
+    // the queue and the refusal landed on the director, a day later.
+    if (balance < this.config.minWithdrawalIdr) {
+      throw new WithdrawalBelowMinimumError(this.config.minWithdrawalIdr);
+    }
     const created = await this.requests.create({
       franchiseOwnerId: ownerId,
       bankAccountRef: bankAccountRef?.trim() || null,

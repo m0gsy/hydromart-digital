@@ -1048,6 +1048,8 @@ export const hrFix = {
     sendToSupplier: 'Send to supplier',
     receiveGoods: 'Receive goods → RECEIPT',
     gateBody2: 'Procurement is for depot managers and super admins.',
+    unbooked:
+      'Not booked into stock: {labels}. This depot has no stock line for them — add one under Stock, then receive again.',
     items: 'Items',
     qtyPrice: 'Qty × price',
     subtotal: 'Subtotal',

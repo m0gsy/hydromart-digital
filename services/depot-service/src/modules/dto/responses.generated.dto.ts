@@ -1078,6 +1078,12 @@ export class PoLineResponseDto {
   quantity!: number;
   @ApiProperty({ type: Number })
   unitCostIdr!: number;
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description: 'Catalogue product a PRODUK line orders; absent on raw stock lines.',
+  })
+  productId?: string;
   // `receivedQuantity` was added to PoLine by CA-2-64 and never reached this class, whose
   // own comment above claims it mirrors PoLine exactly. `check-api-responses.mjs` counts
   // routes that declare a response; it never diffs a DTO's fields against the domain, so
@@ -1089,6 +1095,18 @@ export class PoLineResponseDto {
     description: 'Why the balance is not coming; its presence closes a short line (CA-2-55).',
   })
   shortfallNote?: string;
+}
+
+/** One line of a receipt whose stock could not be booked (CA-2-31). */
+export class PoUnbookedLineResponseDto {
+  @ApiProperty({ type: Number })
+  index!: number;
+  @ApiProperty({ type: String })
+  label!: string;
+  @ApiProperty({ type: Number })
+  quantity!: number;
+  @ApiProperty({ type: String })
+  reason!: string;
 }
 
 /** Mirrors `PurchaseOrder` exactly — generated for audit D-6, no field added or removed. */
@@ -1119,6 +1137,11 @@ export class PurchaseOrderResponseDto {
   receivedAt!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+  @ApiPropertyOptional({
+    type: [PoUnbookedLineResponseDto],
+    description: 'Only on a receive response: lines that arrived but could not be booked to stock.',
+  })
+  unbooked?: PoUnbookedLineResponseDto[];
 }
 
 /** Mirrors `ShiftAssignment` exactly — generated for audit D-6, no field added or removed. */

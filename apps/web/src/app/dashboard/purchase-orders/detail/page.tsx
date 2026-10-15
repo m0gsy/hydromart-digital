@@ -113,10 +113,17 @@ function Detail({ id }: { id: string }) {
               ...(Object.keys(notes).length > 0 ? { notes } : {}),
             }
           : {};
-      await api.post(url, body, true);
+      const res = await api.post<PurchaseOrder>(url, body, true);
       setArriving({});
       setShortNotes({});
       detail.reload();
+      // A 201 whose PO is still SENT looked exactly like a receipt that worked. Name the
+      // lines that did not make it into stock instead of leaving the operator to guess.
+      if (kind === 'receive' && res?.unbooked?.length) {
+        setError(
+          t('hrFix.poDetail.unbooked', { labels: res.unbooked.map((u) => u.label).join(', ') }),
+        );
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('hrFix.poDetail.actionFailed'));
     } finally {
