@@ -41,7 +41,9 @@ function fetchThatRefreshesWith(refreshAnswer: (init?: RequestInit) => Promise<R
 /** Never answers, but honours the abort the client attaches — that is what makes it a 408. */
 const hangs = (init?: RequestInit) =>
   new Promise<Response>((_resolve, reject) => {
-    init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    init?.signal?.addEventListener('abort', () =>
+      reject(new DOMException('Aborted', 'AbortError')),
+    );
   });
 
 describe('a refresh with no answer keeps the session', () => {
@@ -83,6 +85,46 @@ describe('a refresh with no answer keeps the session', () => {
       fetchThatRefreshesWith(async () => res(500, { message: 'boom' })),
     );
     await api.get('/api/v1/server-error-case', true).catch(() => undefined);
+    expect(getSession()).not.toBeNull();
+  });
+
+  it('asks again, once, when another tab rotated the token a moment ago (409)', async () => {
+    let refreshCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (!String(url).includes('/token/refresh')) {
+          // The real request: 401 first, then success once a refresh has landed.
+          return refreshCalls >= 2
+            ? res(200, { ok: true })
+            : res(401, { code: 'AUTH_TOKEN_EXPIRED' });
+        }
+        refreshCalls += 1;
+        return refreshCalls === 1 ? res(409, { code: 'AUTH_REFRESH_ROTATED' }) : res(200, SESSION);
+      }),
+    );
+
+    await api.get('/api/v1/two-tabs-case', true);
+
+    expect(refreshCalls).toBe(2);
+    expect(getSession()).not.toBeNull();
+  });
+
+  it('does not loop: a second 409 ends the attempt but keeps the session', async () => {
+    let refreshCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (!String(url).includes('/token/refresh'))
+          return res(401, { code: 'AUTH_TOKEN_EXPIRED' });
+        refreshCalls += 1;
+        return res(409, { code: 'AUTH_REFRESH_ROTATED' });
+      }),
+    );
+
+    await api.get('/api/v1/still-racing-case', true).catch(() => undefined);
+
+    expect(refreshCalls).toBe(2);
     expect(getSession()).not.toBeNull();
   });
 

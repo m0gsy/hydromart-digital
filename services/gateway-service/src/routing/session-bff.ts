@@ -232,6 +232,15 @@ export function createSessionRouter(
      * in. The refresh token is still good; the next request tries again.
      */
     if (status === 429 || status >= 500) return res.status(503).json(UPSTREAM_DOWN);
+    /*
+     * 409: this token was rotated a moment ago by another request on the SAME cookie jar
+     * (a second tab, a retry). The jar already holds the new pair that request was given —
+     * clearing here would erase it and end a session nothing is wrong with. Say "retry" and
+     * leave the cookies alone; the retry carries the current credential.
+     */
+    if (status === 409) {
+      return res.status(409).json({ statusCode: 409, message: 'Session was just renewed.' });
+    }
     clearSessionCookies(res, secure);
     return res.status(401).json({ statusCode: 401, message: 'Session expired.' });
   });

@@ -333,6 +333,15 @@ describe('createSessionRouter — token/refresh', () => {
     },
   );
 
+  // Two tabs on one cookie jar: the loser must not erase the pair the winner just set.
+  it('answers 409 and KEEPS the cookies when the token was rotated a moment ago', async () => {
+    fetchMock.mockResolvedValue(jsonRes(409, { code: 'AUTH_REFRESH_ROTATED' }));
+    const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);
+
+    expect(res.status).toBe(409);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
   it.each([400, 403])('still ends the session on a definite %i', async (status) => {
     fetchMock.mockResolvedValue(jsonRes(status, { message: 'no' }));
     const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);

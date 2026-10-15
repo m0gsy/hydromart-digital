@@ -69,6 +69,7 @@ describe('SessionService', () => {
     customerRepo.seed(customer);
     const first = await service.issueForCustomer(customer, ctx);
     await service.refresh(first.refreshToken, ctx); // rotates; first is now revoked
+    clock.advance(60); // past the rotation grace: this is a replay, not a lost race
 
     // Replaying the original (already-rotated) token is treated as theft.
     await expect(service.refresh(first.refreshToken, ctx)).rejects.toBeInstanceOf(
@@ -130,6 +131,49 @@ describe('SessionService', () => {
    * refresh only happens when the 15-minute access token has run out, so an actively used
    * session looks "idle" for at least one access-token lifetime every single time.
    */
+  /*
+   * Two tabs refreshing on the same cookie. The second request carries the token the first
+   * has just rotated away, and used to be answered by revoking the whole family — a sign-out
+   * for somebody who did nothing but have two tabs open, and one SMS OTP to get back in.
+   */
+  describe('rotation grace', () => {
+    const seed = async () => {
+      const customer = makeCustomer();
+      customerRepo.seed(customer);
+      return service.issueForCustomer(customer, ctx);
+    };
+
+    it('does not end the family when a just-rotated token is presented again', async () => {
+      const first = await seed();
+      const rotated = await service.refresh(first.refreshToken, ctx);
+      clock.advance(5);
+
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toMatchObject({
+        code: 'AUTH_REFRESH_ROTATED',
+        status: 409,
+      });
+      // Nothing was issued to the loser, and the winner's token still works.
+      await expect(service.refresh(rotated.refreshToken, ctx)).resolves.toBeTruthy();
+    });
+
+    it('still treats a replay after the window as theft and ends the family', async () => {
+      const first = await seed();
+      await service.refresh(first.refreshToken, ctx);
+      clock.advance(31);
+
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toThrow(/terminated/i);
+      expect(refreshRepo.rows.every((r) => r.revokedAt !== null)).toBe(true);
+    });
+
+    it('does not extend the grace to a token that was logged out, not rotated', async () => {
+      const first = await seed();
+      await service.revokeByToken(first.refreshToken);
+      clock.advance(1);
+
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toThrow(/terminated/i);
+    });
+  });
+
   describe('session lifetime', () => {
     const DAY = 24 * 60 * 60;
     const seed = async () => {

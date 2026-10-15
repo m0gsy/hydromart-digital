@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { Customer } from '../../domain/customer/customer.entity';
-import { InvalidRefreshTokenError } from '../../domain/errors/auth.errors';
+import { InvalidRefreshTokenError, RefreshTokenRotatedError } from '../../domain/errors/auth.errors';
 import { AuthConfigService } from '../../config/auth-config.service';
 import { AccessTokenSignerPort } from '../ports/access-token-signer.port';
 import { ClockPort } from '../ports/clock.port';
@@ -33,6 +33,14 @@ export interface SessionInfo {
   ipAddress: string | null;
   userAgent: string | null;
 }
+
+/**
+ * How long after a rotation the OLD token is treated as "a concurrent request lost the race"
+ * rather than as a stolen credential. Long enough for two tabs or a retry to land, short
+ * enough that a thief replaying a captured token is still caught — and inside the window
+ * nobody is issued anything, so the grace cannot be used to mint a session.
+ */
+const ROTATION_GRACE_MS = 30_000;
 
 /**
  * Issues and manages refresh-token sessions with rotation and reuse detection.
@@ -69,7 +77,17 @@ export class SessionService {
       throw new InvalidRefreshTokenError();
     }
 
-    // Reuse of a rotated/revoked token → treat the family as compromised.
+    // Reuse of a rotated/revoked token → treat the family as compromised — unless it was
+    // rotated moments ago, which is two requests racing on the same cookie, not theft.
+    // `replacedById` is what tells a rotation from a logout or a revoke-all.
+    if (
+      record.revokedAt &&
+      record.replacedById &&
+      now.getTime() - record.revokedAt.getTime() <= ROTATION_GRACE_MS
+    ) {
+      throw new RefreshTokenRotatedError();
+    }
+
     if (record.revokedAt) {
       await this.refreshTokens.revokeFamily(record.familyId, now);
       throw new InvalidRefreshTokenError('This session was terminated for security reasons.');
