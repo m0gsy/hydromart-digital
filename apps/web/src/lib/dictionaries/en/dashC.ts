@@ -250,6 +250,8 @@ export const dashC = {
     placeholder: 'Search depots, products, or a customer phone number…',
     startTitle: 'Start searching',
     startBody: 'Type a keyword then press Enter to search across the whole network.',
+    customerUnavailable:
+      'Customer search by phone number is limited to head office and managers; depot, product and order results still appear.',
     noResultsTitle: 'No results',
     noResultsBody: 'Nothing matches “{q}”.',
     depots: 'Depots',

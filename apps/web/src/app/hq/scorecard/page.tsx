@@ -90,7 +90,10 @@ export default function HqScorecardPage() {
         subtitle={t('hq.scorecard.subtitle')}
       />
 
-      <p className="text-[12.5px] text-muted">{t('hq.scorecard.scoreNote')}</p>
+      <p className="text-[12.5px] text-muted">{t('hq.scorecard.scoreNote', {
+          rev: Math.round(revenueWeight * 100),
+          sla: Math.round(slaWeight * 100),
+        })}</p>
 
       {ranked.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.scorecard.empty')}</p>

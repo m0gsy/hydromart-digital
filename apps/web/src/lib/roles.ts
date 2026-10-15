@@ -107,6 +107,10 @@ export const canManagePromotions = (role: string | null | undefined) => can('pro
 export const canViewVouchers = (role: string | null | undefined) => can('voucherRead', role);
 export const canManageVouchers = (role: string | null | undefined) => can('voucherWrite', role);
 export const canManageDepots = (role: string | null | undefined) => can('depotAdmin', role);
+// Opening and closing a depot is a network decision (owner, 2026-10-15), apart from editing
+// the one you run. The server holds the same line: POST /depots and DELETE /depots/:id.
+export const canManageDepotLifecycle = (role: string | null | undefined) =>
+  can('depotLifecycle', role);
 // READ vs WRITE, kept apart on purpose: the operator shell carries a "Depot" tab, and the
 // screen behind it was gated on depotAdmin — create, edit, deactivate. Widening THAT to
 // reach the tab would have handed a depot operator the power to deactivate any depot in the

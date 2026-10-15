@@ -111,6 +111,44 @@ describe('CAPABILITIES', () => {
   });
 
   /*
+   * 2026-10-15 gap pass. Each of these was a screen shown to a role whose server call 403s,
+   * fixed by giving the READ its own capability rather than widening the write.
+   */
+  it('keeps opening and closing a depot with head office, not the depot manager', () => {
+    expect(can('depotLifecycle', 'HEAD_OFFICE')).toBe(true);
+    expect(can('depotLifecycle', 'DIREKTUR')).toBe(true);
+    expect(can('depotLifecycle', 'SUPER_ADMIN')).toBe(true);
+    expect(can('depotLifecycle', 'MANAGER')).toBe(false);
+    expect(can('depotLifecycle', 'FINANCE')).toBe(false);
+    // The depot manager still edits the depot they run.
+    expect(can('depotAdmin', 'MANAGER')).toBe(true);
+    // Whoever may create a depot must be able to read the directory it lands in.
+    for (const w of CAPABILITIES.depotLifecycle) {
+      expect(CAPABILITIES.depotDirectory).toContain(w);
+    }
+  });
+
+  it('lets FINANCE read names and orders without gaining any write beside them', () => {
+    expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
+    expect(can('driverRosterRead', 'FINANCE')).toBe(true);
+    expect(can('orderManageRead', 'FINANCE')).toBe(true);
+    // ...and not the powers those reads were split off from.
+    expect(can('staffDirectory', 'FINANCE')).toBe(false);
+    expect(can('driverRoster', 'FINANCE')).toBe(false);
+    expect(can('orderQueue', 'FINANCE')).toBe(false);
+    // A read is at least as wide as the write it was split from.
+    for (const [read, write] of [
+      ['staffDirectoryFinance', 'staffDirectory'],
+      ['driverRosterRead', 'driverRoster'],
+      ['orderManageRead', 'orderQueue'],
+    ] as const) {
+      for (const w of CAPABILITIES[write]) {
+        expect(CAPABILITIES[read], `${read} must include ${w}`).toContain(w);
+      }
+    }
+  });
+
+  /*
    * Same shape one service over: head office WATCHES the franchise payout queue, finance
    * RELEASES money out of it. `hqPayoutRead` exists for exactly that split, and the
    * per-owner route already carried it — while the network-wide list beside it inherited

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -161,7 +162,10 @@ export class AccountController {
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
   @ApiOkResponse({ type: ListStaff3ResponseDto })
-  @Can('staffDirectory')
+  // `staffDirectoryFinance`, not `staffDirectory`: FINANCE reads this ONLY to put a name on a
+  // franchise owner it is releasing money to. The role filter below holds it to that — it
+  // must not turn into a staff roster for the people who run the books.
+  @Can('staffDirectoryFinance')
   @Get('auth/staff')
   @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })
   async listStaff(
@@ -173,6 +177,9 @@ export class AccountController {
     page: number;
     limit: number;
   }> {
+    if (user.role === 'FINANCE' && query.role !== 'FRANCHISE_OWNER') {
+      throw new ForbiddenException('Keuangan hanya dapat melihat daftar pemilik waralaba.');
+    }
     const depotId = await this.scopedDepotFilter(user, query.depotId);
     const result = await this.account.listStaff(
       query.page ?? 1,
@@ -205,7 +212,7 @@ export class AccountController {
   // Driver roster for dispatch (feature 9b): pick a courier by name. Unlike the
   // staff directory above (head-office / super-admin only), dispatchers must be
   // able to read this, so it also allows the depot dispatch roles.
-  @Can('driverRoster')
+  @Can('driverRosterRead')
   @Get('auth/drivers')
   @ApiOperation({ summary: 'List active drivers (couriers) for dispatch, scoped to the caller' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })

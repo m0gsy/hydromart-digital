@@ -10,7 +10,9 @@ import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Page, RefundQueueItem } from '@/lib/types';
 
@@ -26,6 +28,8 @@ export default function HqRefundsPage() {
   const { t } = useT();
   const { toast } = useToast();
   const { askReason } = useConfirm();
+  const { customer } = useAuth();
+  const mayDecide = can('refundQueue', customer?.role);
   const queue = useAsync<Page<RefundQueueItem>>(() =>
     api.get(endpoints.refunds.queue({ limit: 100 }), true),
   );
@@ -132,6 +136,10 @@ export default function HqRefundsPage() {
               </div>
               <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
                 <Money amount={r.amount} className="text-lg font-bold text-brand-700" />
+                {/* `refundQueueRead` lets head office and the director WATCH this queue; deciding
+                    is `refundQueue` (FINANCE, superuser). Offering the buttons to the readers
+                    meant every press ended in a 403 after the reason had been typed. */}
+                {mayDecide && (
                 <div className="flex gap-2">
                   {/*
                    * CA-2-34: a cancelled order that was paid gets its money back, so there
@@ -167,6 +175,7 @@ export default function HqRefundsPage() {
                     {t('hq.refunds.approve')}
                   </button>
                 </div>
+                )}
               </div>
             </Card>
           ))}

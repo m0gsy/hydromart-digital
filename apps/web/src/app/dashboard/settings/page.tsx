@@ -9,7 +9,7 @@ import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canManageDepots, isSuperAdmin } from '@/lib/roles';
+import { can, canManageDepots, isSuperAdmin } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import {
   fetchSettingsSchema,
@@ -58,6 +58,7 @@ function SettingRow({
   onSaved: () => void;
 }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const [value, setValue] = useState(String(effective));
   const [busy, setBusy] = useState<'save' | 'reset' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +95,22 @@ function SettingRow({
         </div>
         <p className="text-sm font-medium">{effective}</p>
         <p className="text-xs text-muted">{t('settings.globalWriteDenied')}</p>
+      </Card>
+    );
+  }
+
+  // A def can ask for more than the settings gate (`requires`). Draw it read-only for a role
+  // that lacks it — the server answers 403 to the save AND to a reset, so an input here is a
+  // promise the page cannot keep.
+  if (def.requires && !can(def.requires, customer?.role)) {
+    return (
+      <Card className="flex flex-col gap-2 p-4">
+        <div>
+          <p className="font-semibold">{def.label}</p>
+          <p className="text-xs text-muted">{t('settings.envDefault', { v: def.envDefault })}</p>
+        </div>
+        <p className="text-sm font-medium">{effective}</p>
+        <p className="text-xs text-muted">{t('settings.writeDenied')}</p>
       </Card>
     );
   }

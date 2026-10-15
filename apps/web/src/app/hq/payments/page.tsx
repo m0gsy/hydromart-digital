@@ -114,6 +114,10 @@ export default function HqPaymentsPage() {
    */
   const { customer } = useAuth();
   const mayApprove = can('hqPayoutApprove', customer?.role);
+  // Releasing, verifying a bank account and settling a withdrawal are `hqPayout` — FINANCE and
+  // the superuser. Head office and the director reach this page through `hqPayoutRead` and
+  // were offered every one of those buttons, each of which answered 403.
+  const mayPay = can('hqPayout', customer?.role);
   const requestsQ = useAsync<ReleaseRequest[]>(() =>
     api.get(endpoints.payout.hqReleaseRequests, true),
   );
@@ -335,14 +339,16 @@ export default function HqPaymentsPage() {
                       className="mt-1 block text-sm font-semibold text-brand-700"
                     />
                   </span>
-                  <Button
-                    variant="secondary"
-                    onClick={() => release(r)}
-                    disabled={releasing === r.franchiseOwnerId}
-                    className="shrink-0"
-                  >
-                    {t('hq.payments.release.action')}
-                  </Button>
+                  {mayPay && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => release(r)}
+                      disabled={releasing === r.franchiseOwnerId}
+                      className="shrink-0"
+                    >
+                      {t('hq.payments.release.action')}
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -379,22 +385,24 @@ export default function HqPaymentsPage() {
                         : t('hq.payments.accounts.courier')}
                     </span>
                   </span>
-                  <span className="flex shrink-0 gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={() => decideAccount(a, true)}
-                      disabled={checkingAccount === a.id}
-                    >
-                      {t('hq.payments.accounts.verify')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => decideAccount(a, false)}
-                      disabled={checkingAccount === a.id}
-                    >
-                      {t('hq.payments.accounts.reject')}
-                    </Button>
-                  </span>
+                  {mayPay && (
+                    <span className="flex shrink-0 gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => decideAccount(a, true)}
+                        disabled={checkingAccount === a.id}
+                      >
+                        {t('hq.payments.accounts.verify')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => decideAccount(a, false)}
+                        disabled={checkingAccount === a.id}
+                      >
+                        {t('hq.payments.accounts.reject')}
+                      </Button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -518,6 +526,8 @@ function WithdrawalQueue<
   busyId: string | null;
   onSettle: (row: T, paid: boolean) => void;
 }) {
+  const { customer } = useAuth();
+  const mayPay = can('hqPayout', customer?.role);
   const { t } = useT();
   const rows = query.data ?? [];
   return (
@@ -543,22 +553,24 @@ function WithdrawalQueue<
                 </span>
                 <Money amount={r.amount} className="mt-1 block text-sm font-semibold" />
               </span>
-              <span className="flex shrink-0 gap-2">
-                <Button
-                  variant="secondary"
-                  disabled={busyId === r.id}
-                  onClick={() => onSettle(r, true)}
-                >
-                  {t('hq.payments.settle.paid')}
-                </Button>
-                <Button
-                  variant="danger"
-                  disabled={busyId === r.id}
-                  onClick={() => onSettle(r, false)}
-                >
-                  {t('hq.payments.settle.failed')}
-                </Button>
-              </span>
+              {mayPay && (
+                <span className="flex shrink-0 gap-2">
+                  <Button
+                    variant="secondary"
+                    disabled={busyId === r.id}
+                    onClick={() => onSettle(r, true)}
+                  >
+                    {t('hq.payments.settle.paid')}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={busyId === r.id}
+                    onClick={() => onSettle(r, false)}
+                  >
+                    {t('hq.payments.settle.failed')}
+                  </Button>
+                </span>
+              )}
             </li>
           ))}
         </ul>

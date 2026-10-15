@@ -255,6 +255,8 @@ export const dashC = {
     placeholder: 'Cari depot, produk, atau nomor telepon pelanggan…',
     startTitle: 'Mulai mencari',
     startBody: 'Ketik kata kunci lalu tekan Enter untuk mencari di seluruh jaringan.',
+    customerUnavailable:
+      'Pencarian pelanggan lewat nomor telepon hanya untuk kantor pusat dan manajer; hasil depot, produk, dan pesanan tetap tampil.',
     noResultsTitle: 'Tidak ada hasil',
     noResultsBody: 'Tidak ada yang cocok dengan “{q}”.',
     depots: 'Depot',

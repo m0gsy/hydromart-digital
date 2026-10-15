@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { isStaff } from '@/lib/roles';
+import { can, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, DepotAdmin, Order, Page, Product } from '@/lib/types';
 
@@ -45,7 +45,7 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-async function runSearch(q: string): Promise<Results> {
+async function runSearch(q: string, mayLookupCustomer: boolean): Promise<Results> {
   const [depotPage, productPage, orderPage, customer] = await Promise.all([
     safe(api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ search: q, limit: 8 }), true), {
       items: [],
@@ -58,7 +58,7 @@ async function runSearch(q: string): Promise<Results> {
     safe(api.get<Page<Order>>(endpoints.orders.manage({ orderNumber: q, limit: 8 }), true), {
       items: [],
     } as unknown as Page<Order>),
-    PHONE_RE.test(q.trim())
+    mayLookupCustomer && PHONE_RE.test(q.trim())
       ? safe(api.get<Customer>(endpoints.auth.customerLookup(q.trim()), true), null)
       : Promise.resolve(null),
   ]);
@@ -95,11 +95,17 @@ function Section({
 
 function SearchBody() {
   const { t } = useT();
+  const { customer } = useAuth();
   const [input, setInput] = useState('');
   const [q, setQ] = useState('');
+  // `auth/customers/lookup` matches a phone against EVERY account on the network and returns
+  // name, email and role — there is no per-depot version of it. Depot head and supervisors do
+  // not hold `customerPhoneLookup` on purpose, so the source is not queried for them (it used
+  // to be, and its 403 was swallowed into an empty result) and the screen says so.
+  const mayLookupCustomer = can('customerPhoneLookup', customer?.role);
   const res = useAsync<Results | null>(
-    () => (q.trim() ? runSearch(q.trim()) : Promise.resolve(null)),
-    [q],
+    () => (q.trim() ? runSearch(q.trim(), mayLookupCustomer) : Promise.resolve(null)),
+    [q, mayLookupCustomer],
   );
 
   const total = res.data
@@ -128,6 +134,9 @@ function SearchBody() {
           placeholder={t('dashC.search.placeholder')}
           autoFocus
         />
+        {!mayLookupCustomer && (
+          <p className="mt-1.5 text-xs text-muted">{t('dashC.search.customerUnavailable')}</p>
+        )}
       </form>
 
       {!q.trim() ? (

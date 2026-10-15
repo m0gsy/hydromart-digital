@@ -1,6 +1,8 @@
 // Per-depot editable business settings (business/settings-editor plan). Global
 // default + per-depot override for tunables the server would otherwise read from
 // env (delivery-service today; slices 2-5 append more service rows).
+import type { Capability } from '@hydromart/access';
+
 import { api } from './api';
 
 export interface SettingDef {
@@ -13,6 +15,12 @@ export interface SettingDef {
   envDefault: number | string;
   /** Global-only tunable: no per-depot override — server rejects a DEPOT write. */
   global?: boolean;
+  /**
+   * A write needs this capability ON TOP of the settings gate (the server sends it in the
+   * schema). `approvalAutoPassIdr` is the one today: a manager holds the settings gate and
+   * not the capability, and was shown an editable box whose save answered 403.
+   */
+  requires?: Capability;
 }
 
 export interface SettingsSchema {
