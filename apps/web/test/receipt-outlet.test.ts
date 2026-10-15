@@ -7,11 +7,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const printed = vi.hoisted(() => ({ html: '' }));
+const printed = vi.hoisted(() => ({
+  html: '',
+  thermal: undefined as { paperWidthMm: number } | undefined,
+}));
 
 vi.mock('@/lib/platform', () => ({
-  printDocument: (html: string) => {
+  printDocument: (html: string, thermal?: { paperWidthMm: number }) => {
     printed.html = html;
+    printed.thermal = thermal;
     return true;
   },
 }));
@@ -96,5 +100,62 @@ describe('K3.4 · the receipt names the till that printed it', () => {
 
     expect(printed.html).not.toContain('<script>x</script>');
     expect(printed.html).toContain('&lt;script&gt;');
+  });
+  /*
+   * The depot's own line, so a buyer holding the paper knows who to call about it. Same
+   * rule as the cashier and shift lines: shown when known, absent when not — "Telp: -"
+   * reads as a depot that has no phone, which is a claim the paper has no right to make.
+   */
+  it('prints the depot phone under the depot line when it is known', () => {
+    printReceipt(ORDER, i18n, undefined, undefined, {
+      depotName: 'Depot Cibubur',
+      depotPhone: '0812-3456-7890',
+    });
+
+    expect(printed.html).toContain('phone: 0812-3456-7890');
+    expect(printed.html.indexOf('Depot Cibubur')).toBeLessThan(
+      printed.html.indexOf('0812-3456-7890'),
+    );
+  });
+
+  it('prints no phone line, and no empty label, when the depot has none', () => {
+    printReceipt(ORDER, i18n, undefined, undefined, {
+      depotName: 'Depot Cibubur',
+      depotPhone: null,
+    });
+
+    expect(printed.html).not.toContain('phone');
+  });
+
+  it('escapes a phone value rather than letting it into the markup', () => {
+    printReceipt(ORDER, i18n, undefined, undefined, { depotPhone: '<b>1</b>' });
+
+    expect(printed.html).not.toContain('<b>1</b>');
+    expect(printed.html).toContain('&lt;b&gt;1&lt;/b&gt;');
+  });
+
+  /*
+   * A 420px column on a 58 mm roll is what the till would have got without this — but an
+   * office printer must keep printing A4, so the roll rules only apply once the cashier
+   * has said what paper the printer takes.
+   */
+  it('sizes the page to the roll only after the cashier chose a width', () => {
+    printReceipt(ORDER, i18n);
+    expect(printed.html).not.toContain('@page');
+
+    window.localStorage.setItem('hm.printer.paperMm', '80');
+    printReceipt(ORDER, i18n);
+    expect(printed.html).toContain('@page{size:80mm auto;margin:0}');
+    window.localStorage.removeItem('hm.printer.paperMm');
+  });
+
+  it('prints at 58 mm columns when no width was ever chosen', () => {
+    printReceipt(ORDER, i18n);
+    expect(printed.thermal?.paperWidthMm).toBe(58);
+
+    window.localStorage.setItem('hm.printer.paperMm', '80');
+    printReceipt(ORDER, i18n);
+    expect(printed.thermal?.paperWidthMm).toBe(80);
+    window.localStorage.removeItem('hm.printer.paperMm');
   });
 });

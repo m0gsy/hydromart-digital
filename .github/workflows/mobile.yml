@@ -146,6 +146,9 @@ jobs:
           mkdir -p ../apps/web/mobile-out-customer
           echo '<!doctype html><title>placeholder</title>' > ../apps/web/mobile-out-customer/index.html
           npx cap update android
+          # The printer plugin belongs to Ops only. If it is here, `includePlugins` leaked and
+          # the customer binary is about to ask for Bluetooth.
+          ! grep -q thermal-printer android/capacitor.settings.gradle
 
       - name: Customer binary compiles
         working-directory: mobile/android
@@ -179,6 +182,22 @@ jobs:
         working-directory: mobile
         run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release
 
+      # The native project above was generated for the CUSTOMER binary. The thermal-printer
+      # plugin is Ops-only (`includePlugins` in capacitor.config.ts), so compiling Ops from
+      # that same project would build it WITHOUT the plugin: green, and proving nothing about
+      # the one binary that carries the Bluetooth permissions and the higher minSdk.
+      - name: Generate the native project for Ops
+        working-directory: mobile
+        env:
+          MOBILE_APP: ops
+        run: |
+          mkdir -p ../apps/web/mobile-out-ops
+          echo '<!doctype html><title>placeholder</title>' > ../apps/web/mobile-out-ops/index.html
+          npx cap update android
+          # Fails loudly if the plugin did not make it in, rather than compiling a binary
+          # that merely lacks it.
+          grep -q thermal-printer android/capacitor.settings.gradle
+
       - name: Ops binary compiles
         working-directory: mobile/android
         run: |
@@ -188,6 +207,10 @@ jobs:
             -PhydromartWebHost=hydromart.example \
             -PhydromartLinkPrefix=/driver \
             -PhydromartLinkPrefix2=/m
+
+      - name: Ops permissions are the ones we justified
+        working-directory: mobile
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release
 
   # An APK you can put on a phone, today, without a Play account.
   #

@@ -1,5 +1,11 @@
+// The staff binary ships the thermal-printer plugin, whose bundled Star SDK needs API 26;
+// the customer binary does not include that plugin (see capacitor.config.ts), so it keeps
+// 24 and loses no device. Keyed off the same property app/build.gradle derives hydromartIsOps
+// from, so the two cannot disagree about which binary this is.
+def hydromartIsOpsBuild = (project.findProperty('hydromartAppId') ?: '').toString().endsWith('.ops')
+
 ext {
-    minSdkVersion = 24
+    minSdkVersion = hydromartIsOpsBuild ? 26 : 24
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'

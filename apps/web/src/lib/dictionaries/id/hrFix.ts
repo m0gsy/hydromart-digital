@@ -1927,6 +1927,7 @@ export const hrFix = {
     subtitle: 'Struk pesanan',
     cashier: 'Kasir',
     shift: 'Shift',
+    phone: 'Telp',
     title: 'Struk',
     discount: 'Diskon',
     cash: 'Tunai',
@@ -1936,6 +1937,42 @@ export const hrFix = {
     deliveryFee: 'Ongkir',
     total: 'Total',
     thanks: 'Terima kasih telah memesan di Hydromart.',
+  },
+  printer: {
+    open: 'Printer struk',
+    title: 'Printer struk',
+    intro:
+      'Hubungkan printer termal supaya struk langsung tercetak. Untuk Bluetooth, pasangkan dulu printernya di Setelan Bluetooth HP.',
+    webIntro:
+      'Di komputer, struk dicetak lewat dialog cetak browser. Pilih printer termal Anda di sana, lalu atur lebar kertasnya di sini.',
+    paper: 'Lebar kertas',
+    paperUnknown: 'Belum dipilih (dianggap 58 mm)',
+    current: 'Printer aktif',
+    noneSaved: 'Belum ada printer tersimpan. Struk dibagikan sebagai file.',
+    scan: 'Cari printer',
+    scanning: 'Mencari printer…',
+    none: 'Tidak ada printer ditemukan. Pastikan printer menyala dan sudah dipasangkan.',
+    use: 'Pakai',
+    saved: 'Printer tersimpan.',
+    test: 'Uji cetak',
+    testOk: 'Uji cetak terkirim.',
+    testLine: 'Uji cetak berhasil',
+    forget: 'Lepas printer',
+    forgotten: 'Printer dilepas.',
+    close: 'Tutup',
+    fellBack: 'Printer tidak mencetak, struk dibagikan sebagai file.',
+    err: {
+      bluetoothOff: 'Bluetooth mati. Nyalakan Bluetooth lalu coba lagi. Struk dibagikan sebagai file.',
+      pairing:
+        'Printer belum dipasangkan. Pasangkan di Setelan Bluetooth HP. Struk dibagikan sebagai file.',
+      permission:
+        'Izin Bluetooth belum diberikan. Izinkan di Setelan aplikasi. Struk dibagikan sebagai file.',
+      unreachable:
+        'Printer tidak terjangkau. Cek printer menyala dan dekat. Struk dibagikan sebagai file.',
+      paperEmpty: 'Kertas printer habis. Struk dibagikan sebagai file.',
+      coverOpen: 'Penutup printer terbuka. Struk dibagikan sebagai file.',
+      generic: 'Printer gagal mencetak. Struk dibagikan sebagai file.',
+    },
   },
   depotCustomers: {
     gallonNotLinked: 'Data galon depot belum tersambung',

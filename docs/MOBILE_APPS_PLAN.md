@@ -644,9 +644,11 @@ Supaya tidak terbaca sebagai kelalaian:
   kode. Crashlytics ditambahkan kalau Vitals terbukti kurang, bukan sebelum.
 - **In-app update API** dan **in-app review prompt.** Gerbang versi (F5) sudah menutup
   kasus wajibnya; sisanya kenyamanan.
-- **Cetak struk ke printer termal Bluetooth.** `printReceipt` sekarang mengandalkan dialog
-  cetak sistem. Kalau kasir depot memakai printer termal, itu plugin dan protokol
-  tersendiri — perlu dipastikan dulu perangkat apa yang sebenarnya dipakai di depot.
+- ~~**Cetak struk ke printer termal Bluetooth.**~~ **Dibangun** (branch `feat/thermal-receipt`).
+  `@delicity/capacitor-thermal-printer@8.5.2`, hanya di binari Ops (`includePlugins`),
+  `minSdkVersion 26` untuk Ops. Struk dikirim sebagai teks ESC/POS; gagal apa pun jatuh ke
+  share sheet. Yang belum dibuktikan: cetak ke printer fisik (VSC TM-58V, 58 mm) dan build
+  release dengan R8 — keduanya butuh perangkat/CI, lihat daftar periksa perangkat.
 - **iOS.** Butuh akun Apple Developer (belum ada) + D-U-N-S untuk entitas organisasi
   (1–2 minggu kalender di luar kendali kita) + runner macOS.
   _(Optimasi ukuran APK dulu ada di daftar ini. Setelah dicek, ternyata levernya murah dan
