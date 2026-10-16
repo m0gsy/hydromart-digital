@@ -366,9 +366,16 @@ function VouchersAdmin() {
   const canWrite = canManageVouchers(customer?.role);
   const [editing, setEditing] = useState<Voucher | null | undefined>(undefined); // undefined closed, null new
   const [granting, setGranting] = useState<Voucher | null>(null);
+  // The denied screen below used to render AFTER this request had already gone out, so a role
+  // without `voucherRead` (a KEPALA_DEPOT typing the URL) saw the right screen and a 403 in the
+  // console. Ask only when the answer is allowed.
+  const mayView = !customer || canViewVouchers(customer.role);
   const { data, error, loading, reload } = useAsync<Page<Voucher>>(
-    () => api.get<Page<Voucher>>(endpoints.vouchers.browse(), true),
-    [],
+    () =>
+      mayView
+        ? api.get<Page<Voucher>>(endpoints.vouchers.browse(), true)
+        : Promise.resolve({ items: [], total: 0, page: 1, limit: 20 } as Page<Voucher>),
+    [mayView],
   );
 
   if (customer && !canViewVouchers(customer.role)) {
