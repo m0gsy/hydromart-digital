@@ -330,6 +330,8 @@ services:
       # number lives. It was never set here at all, so nobody could tell whether the
       # threshold in production was a decision or an accident.
       REFUND_HQ_THRESHOLD: ${REFUND_HQ_THRESHOLD:-100000}
+      # Movable public holidays (ISO dates) skipped by the refund promise.
+      PUBLIC_HOLIDAYS: ${PUBLIC_HOLIDAYS:-}
       # K2.1b: where a customer's payment receipt is stored. Same fallback shape customer
       # uses — proofs live under payment-proof/, avatars under avatars/, resellers under
       # resellers/, so sharing one bucket cannot collide, and the fallback is what makes
@@ -686,6 +688,8 @@ services:
       NEO_FR_ENDPOINT: ${NEO_FR_ENDPOINT:-https://fr.neoapi.id}
       NEO_FR_TOKEN: ${NEO_FR_TOKEN:-}
       NEO_FR_GALLERY_ID: ${NEO_FR_GALLERY_ID:-hydromart-hr}
+      NEO_FR_LIVENESS: ${NEO_FR_LIVENESS:-off}
+      NEO_FR_LIVENESS_PATH: ${NEO_FR_LIVENESS_PATH:-/risetai/liveness-api/verify-face-liveness}
       # Employee photo / face-enrollment storage (per-service S3 bucket in prod).
       # hr can live on its own NOS cluster (endpoint/region override), else falls back
       # to the shared bucket's endpoint/region.

@@ -94,4 +94,22 @@ describe('addWorkingDays', () => {
       '2026-10-14T03:00:00.000Z',
     );
   });
+
+  it('skips a fixed national holiday: Fri 14 Aug 2026 + 3 working days skips Mon 17 Aug', () => {
+    // Fri 14 Aug -> Tue 18 (1), Wed 19 (2), Thu 20 (3); the 17th is Independence Day.
+    expect(addWorkingDays(new Date('2026-08-14T03:00:00Z'), 3).toISOString()).toBe(
+      '2026-08-20T03:00:00.000Z',
+    );
+  });
+
+  it('skips configured movable holidays too, and only those', () => {
+    const extra = new Set(['2026-10-16']);
+    // Thu 15 Oct + 3: Fri 16 is a holiday -> Mon 19 (1), Tue 20 (2), Wed 21 (3)
+    expect(addWorkingDays(new Date('2026-10-15T03:00:00Z'), 3, extra).toISOString()).toBe(
+      '2026-10-21T03:00:00.000Z',
+    );
+    expect(addWorkingDays(new Date('2026-10-15T03:00:00Z'), 3).toISOString()).toBe(
+      '2026-10-20T03:00:00.000Z',
+    );
+  });
 });

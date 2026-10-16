@@ -661,7 +661,7 @@ export class PaymentService {
         refundReason: reason ?? null,
         // Shown in the HQ queue as "diajukan oleh". Information only — nothing gates on it.
         refundRequestedBy: changedBy || null,
-        refundDueAt: addWorkingDays(new Date(), REFUND_PROMISE_WORKING_DAYS),
+        refundDueAt: addWorkingDays(new Date(), REFUND_PROMISE_WORKING_DAYS, this.config.publicHolidays),
         refundedAmount: payment.amount,
       });
     }

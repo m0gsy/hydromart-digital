@@ -51,6 +51,30 @@ describe('HrConfigService', () => {
     expect(svc.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
   });
 
+  it('reads NEO connection + liveness settings, with liveness OFF and a known path by default', () => {
+    const svc = new HrConfigService(config(), new SettingsCache(new FakeSource([])));
+    expect(svc.neoFr).toEqual({
+      endpoint: 'https://fr.neoapi.id',
+      token: '',
+      galleryId: 'hydromart-hr',
+    });
+    expect(svc.neoLiveness).toEqual({
+      mode: 'off',
+      path: '/risetai/liveness-api/verify-face-liveness',
+    });
+    const on = new HrConfigService(
+      config({ NEO_FR_LIVENESS: 'enforce', NEO_FR_LIVENESS_PATH: '/x/liveness', NEO_FR_TOKEN: 't' }),
+      new SettingsCache(new FakeSource([])),
+    );
+    expect(on.neoLiveness).toEqual({ mode: 'enforce', path: '/x/liveness' });
+    // Anything that is not exactly 'enforce' is off: a typo must not switch punches to fail-closed.
+    const typo = new HrConfigService(
+      config({ NEO_FR_LIVENESS: 'ENFORCE ' }),
+      new SettingsCache(new FakeSource([])),
+    );
+    expect(typo.neoLiveness.mode).toBe('off');
+  });
+
   it('lets a GLOBAL override replace the face thresholds, ENV stays the default', async () => {
     const svc = new HrConfigService(
       config(),

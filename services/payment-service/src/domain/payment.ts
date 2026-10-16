@@ -124,16 +124,39 @@ export function computeChange(amount: number, cashReceived: number): number {
 export const REFUND_PROMISE_WORKING_DAYS = 3;
 
 /**
- * `from` plus `days` working days (Mon-Fri, UTC). Public holidays are not modelled --
- * ponytail: add a holiday list if finance wants the promise to skip them.
+ * National holidays that fall on the same calendar day every year (MM-DD): New Year, Labour
+ * Day, Pancasila Day, Independence Day, Christmas. The movable ones (Idul Fitri, Nyepi,
+ * Waisak, cuti bersama ...) change each year by SKB, so they come from `PUBLIC_HOLIDAYS`
+ * (ISO dates) instead of a table here that would be silently wrong by next January.
  */
-export function addWorkingDays(from: Date, days: number): Date {
+const FIXED_HOLIDAYS = new Set(['01-01', '05-01', '06-01', '08-17', '12-25']);
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** True for a weekend, a fixed national holiday, or a date in the configured list. */
+export function isNonWorkingDay(d: Date, extraHolidays: ReadonlySet<string> = new Set()): boolean {
+  const dow = d.getUTCDay();
+  if (dow === 0 || dow === 6) return true;
+  const iso = isoDay(d);
+  return FIXED_HOLIDAYS.has(iso.slice(5)) || extraHolidays.has(iso);
+}
+
+/**
+ * `from` plus `days` working days: Mon-Fri, UTC, skipping fixed national holidays and the
+ * `extraHolidays` ISO dates. A promise made over a long weekend must not count it.
+ */
+export function addWorkingDays(
+  from: Date,
+  days: number,
+  extraHolidays: ReadonlySet<string> = new Set(),
+): Date {
   const d = new Date(from.getTime());
   let left = days;
   while (left > 0) {
     d.setUTCDate(d.getUTCDate() + 1);
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) left -= 1;
+    if (!isNonWorkingDay(d, extraHolidays)) left -= 1;
   }
   return d;
 }

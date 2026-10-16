@@ -12,6 +12,12 @@ export interface FaceVerifyResult {
   score: number;
   /** score >= faceMatchThreshold. */
   matched: boolean;
+  /**
+   * Server-side passive-liveness verdict. `undefined` means it was not asked (the driver has
+   * none, or it is switched off); `false` is a presentation attack the face match alone
+   * would have let through (a photo of a photo, a screen).
+   */
+  live?: boolean;
 }
 
 /**
@@ -39,11 +45,10 @@ export interface FaceVerifier {
    * Match one aligned probe frame against an employee's enrolled faces. Local drivers use
    * `enrolled` vectors; remote drivers (neo) ignore them and verify 1:1 by `identity.userId`.
    *
-   * There is deliberately no liveness argument. The verdict used to arrive as a boolean in
+   * There is deliberately no liveness ARGUMENT. The verdict used to arrive as a boolean in
    * the punch request body, which any crafted request could set to true — a check an
-   * attacker fills in themselves is not a check. The face match is the control.
-   * ponytail: no server-side liveness; wire NEO's passive-liveness endpoint (or an on-device
-   * attestation) into the driver if photo-of-a-photo fraud shows up in the audit trail.
+   * attacker fills in themselves is not a check. Liveness is now decided by the provider
+   * from the same frame (`FaceVerifyResult.live`), never by the caller.
    */
   verify(image: Buffer, enrolled: number[][], identity?: FaceIdentity): Promise<FaceVerifyResult>;
 }

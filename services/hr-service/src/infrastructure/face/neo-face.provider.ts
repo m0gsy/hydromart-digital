@@ -72,7 +72,51 @@ export class NeoFaceProvider implements FaceVerifier {
       image: toBase64(image),
     });
     if (res.verified === undefined) this.ensureOk('verify-face', res);
-    return { score: normalizeSimilarity(res.similarity), matched: isTruthy(res.verified) };
+    const result: FaceVerifyResult = {
+      score: normalizeSimilarity(res.similarity),
+      matched: isTruthy(res.verified),
+    };
+    // Only worth a second call when the face already matched: a non-match is refused anyway.
+    if (result.matched && this.config.neoLiveness.mode === 'enforce') {
+      result.live = await this.checkLiveness(image, id.userId);
+    }
+    return result;
+  }
+
+  /**
+   * Passive liveness from the SAME frame the match used. Real means the provider says
+   * `is_real` and does not say `is_spoof`; anything it does not say is not real. A transport
+   * failure throws (fail closed) — see `HrConfigService.neoLiveness`.
+   */
+  private async checkLiveness(image: Buffer, userId: string): Promise<boolean> {
+    const { endpoint, token } = this.config.neoFr;
+    if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
+    let res: Response;
+    try {
+      res = await fetch(`${endpoint}${this.config.neoLiveness.path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accesstoken: token },
+        body: JSON.stringify({
+          facegallery_id: this.gallery,
+          user_id: userId,
+          image: toBase64(image),
+          trx_id: randomUUID(),
+          face_parameters: { spoof_detection: true },
+        }),
+      });
+    } catch (err) {
+      throw this.unavailable(`tidak bisa menghubungi NEO (liveness): ${String(err)}`);
+    }
+    const body = ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
+    // Same envelope as the gallery routes, but the liveness verdict may also sit at the top.
+    const root = body as Record<string, unknown>;
+    const results = (root.results ?? {}) as Record<string, unknown>;
+    const match = (root.match_status ?? {}) as Record<string, unknown>;
+    if (!String(root.status ?? '').startsWith('2')) {
+      throw this.unavailable(`liveness: ${String(root.status_message ?? 'unknown error')}`);
+    }
+    if (isTruthy(results.is_spoof as string | boolean | undefined)) return false;
+    return isTruthy(match.is_real as string | boolean | undefined);
   }
 
   private get gallery(): string {
