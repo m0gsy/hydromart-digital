@@ -201,6 +201,10 @@ describe('canManageRoster', () => {
 
   it('refuses depot staff, who can read the grid but not write it', () => {
     expect(canManageRoster('STAFF_DEPOT')).toBe(false);
+    // the roster read is guarded by driverRoster too, so these roles must not be offered the screen
+    for (const r of ['SUPERVISOR', 'ASSISTANT_SUPERVISOR', 'FINANCE', 'MARKETING', 'FRANCHISE_OWNER']) {
+      expect(canManageRoster(r)).toBe(false);
+    }
     expect(canManageRoster('CUSTOMER')).toBe(false);
     expect(canManageRoster(null)).toBe(false);
     expect(canManageRoster(undefined)).toBe(false);

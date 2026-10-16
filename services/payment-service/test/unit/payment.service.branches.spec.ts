@@ -115,11 +115,11 @@ describe('PaymentService (branch coverage)', () => {
       amount: 45000,
       atCounter: true,
     });
-    expect(counter.instruction).toBe('Cash paid at the depot counter.');
+    expect(counter.instruction).toBe('Tunai dibayar di kasir depot.');
 
     // A delivery order keeps the courier wording.
     const delivered = await initiate(PaymentMethod.CASH);
-    expect(delivered.instruction).toContain('driver');
+    expect(delivered.instruction).toContain('kurir');
   });
 
   it('fails closed when the gateway refund errors, leaving the payment PAID', async () => {

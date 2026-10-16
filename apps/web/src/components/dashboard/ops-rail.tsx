@@ -270,10 +270,11 @@ export const GROUPS: RailGroup[] = [
       // Self-service absen. Lives here rather than in a console of its own because the
       // supervision ranks land on this rail and had no way at all to reach /hr/me.
       { href: '/hr/me', labelKey: 'selfService', icon: CalendarCheck, show: canPunchAttendance },
-      // CA-6-02: `isStaff` STAYS on these three, and that is the finding, not an oversight.
-      // Reading the roster is open to any depot staff — knowing when you work is not a
-      // privilege, and `canManageRoster` already gates the writing half.
-      { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: isStaff },
+      // The roster read (`GET /rosters`) is guarded by `driverRoster` on the server, so the door
+      // follows it: with `isStaff` here Supervisor, Finance, Marketing and the Franchise Owner got a
+      // menu entry that opened a screen of "You do not have permission" (found in the user-guide run).
+      // `isStaff` still gates the two items below.
+      { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: (r) => can('driverRoster', r) },
       {
         href: '/dashboard/targets',
         labelKey: 'targets',

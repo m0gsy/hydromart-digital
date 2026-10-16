@@ -6,6 +6,7 @@ export const dashboard = {
     orders: '{n} orders',
     slaOnTime: 'SLA on-time',
     delivered: '{onTime}/{total} delivered',
+    noDepotTitle: 'No depot assigned to you yet',
     avgDelivery: 'Avg delivery',
     min: '{n} min',
     threshold: 'threshold {n} min',

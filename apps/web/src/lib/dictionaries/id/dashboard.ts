@@ -8,6 +8,7 @@ export const dashboard = {
     orders: '{n} pesanan',
     slaOnTime: 'SLA tepat waktu',
     delivered: '{onTime}/{total} terkirim',
+    noDepotTitle: 'Belum ada depot yang kamu pegang',
     avgDelivery: 'Rata-rata antar',
     min: '{n} mnt',
     threshold: 'ambang {n} mnt',

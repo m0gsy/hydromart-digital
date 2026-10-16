@@ -21,7 +21,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { copyWeekCells, shiftWeekStart } from '@/lib/roster-copy';
-import { canManageRoster, isStaff } from '@/lib/roles';
+import { canManageRoster } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Customer, ShiftAssignment, ShiftKind } from '@/lib/types';
@@ -375,7 +375,8 @@ function RosterBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isStaff(customer?.role)) {
+  // the roster read is `driverRoster` on the server; `canManageRoster` is that same capability
+  if (!canManageRoster(customer?.role)) {
     return (
       <CenterState title={t('opsFix.shift.gate')} icon={<Lock size={40} weight="fill" />}>
         {t('opsFix.shift.gateBody')}
