@@ -23,6 +23,8 @@ import { useDepot } from '@/lib/depot-context';
 import { copyWeekCells, shiftWeekStart } from '@/lib/roster-copy';
 import { canManageRoster } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { whenRosterScoped } from '@/lib/drivers-scope';
+import { useDriversUrl } from '@/lib/use-drivers-url';
 import { useT } from '@/lib/locale-context';
 import type { Customer, ShiftAssignment, ShiftKind } from '@/lib/types';
 
@@ -99,7 +101,11 @@ function RosterBody() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
 
-  const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
+  const driversEndpoint = useDriversUrl();
+  const drivers = useAsync<Customer[]>(
+    () => whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true)),
+    [driversEndpoint],
+  );
   const roster = useAsync<ShiftAssignment[]>(
     () =>
       scopedId ? api.get(endpoints.roster.week(scopedId, weekStart), true) : Promise.resolve([]),

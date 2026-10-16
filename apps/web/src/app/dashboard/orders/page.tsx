@@ -16,6 +16,8 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
+import { whenRosterScoped } from '@/lib/drivers-scope';
+import { useDriversUrl } from '@/lib/use-drivers-url';
 import { usePagedList } from '@/lib/use-paged-list';
 import type { Customer, Delivery, Order, Page } from '@/lib/types';
 
@@ -284,6 +286,7 @@ function QueueBody() {
   // that must name a single depot — using it here sent ?depotId=<first depot> while the
   // banner said "Semua depot", so HQ saw one arbitrary depot's queue and called it empty.
   const { selectedId: depotFilterId, selected: scopedDepot } = useDepot();
+  const driversEndpoint = useDriversUrl();
 
   /*
    * CA-2-40. The queue read 100 orders and grouped them into four tabs client-side, so on a
@@ -312,7 +315,7 @@ function QueueBody() {
    */
   const roster = useAsync<{ drivers: Customer[]; loads: Map<string, number> }>(async () => {
     const [drivers, deliveries] = await Promise.all([
-      api.get<Customer[]>(endpoints.auth.drivers, true),
+      whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true)),
       fetchAllPages<Delivery>(({ page, limit }) =>
         api.get<Page<Delivery>>(endpoints.deliveries.list({ page, limit }), true),
       ),
@@ -322,7 +325,7 @@ function QueueBody() {
       if (ACTIVE_DELIVERY.includes(d.status)) loads.set(d.driverId, (loads.get(d.driverId) ?? 0) + 1);
     }
     return { drivers, loads };
-  }, []);
+  }, [driversEndpoint]);
 
   const items = queue.rows;
   const needAssign = useMemo(() => items.filter(NEEDS_ASSIGN), [items]);

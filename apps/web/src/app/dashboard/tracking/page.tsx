@@ -14,6 +14,8 @@ import { useT, type TVars } from '@/lib/locale-context';
 import { canViewTracking } from '@/lib/roles';
 import { ACTIVE_DELIVERY_STATUSES } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
+import { whenRosterScoped } from '@/lib/drivers-scope';
+import { useDriversUrl } from '@/lib/use-drivers-url';
 import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const REFRESH_MS = 15000;
@@ -218,7 +220,11 @@ function TrackingBody() {
   );
   // 1c: resolve courier display names from the active-driver roster (delivery records carry
   // only driverId). Fail-soft — a roster miss falls back to the short id in the card.
-  const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
+  const driversEndpoint = useDriversUrl();
+  const drivers = useAsync<Customer[]>(
+    () => whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true)),
+    [driversEndpoint],
+  );
   const nameById = new Map((drivers.data ?? []).map((c) => [c.id, c.fullName]));
 
   // Live-ish: poll while the tab is open. useAsync.reload isn't memoized, so hold the

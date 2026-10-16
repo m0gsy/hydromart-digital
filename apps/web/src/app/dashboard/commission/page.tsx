@@ -81,7 +81,7 @@ function CommissionBody() {
     const [run, drivers] = await Promise.all([
       api.get<CommissionRun>(endpoints.deliveries.commission(scopedId, { from, to }), true),
       // Names live in auth-service; a failure here just falls back to a short id.
-      api.get<Customer[]>(endpoints.auth.drivers, true).catch(() => [] as Customer[]),
+      api.get<Customer[]>(endpoints.auth.driversAt(scopedId), true).catch(() => [] as Customer[]),
     ]);
     const names = new Map(drivers.map((d) => [d.id, d.fullName ?? d.phone]));
     return { run, names };

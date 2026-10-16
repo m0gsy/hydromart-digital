@@ -78,7 +78,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
       api.get<Page<Order>>(endpoints.orders.manage({ depotId, limit: 100 }), true),
       api.get<InventoryItem[]>(endpoints.inventory.lines(depotId, { lowStockOnly: true }), true),
       api.get<CashSettlement[]>(endpoints.settlements.list({ depotId, status: 'SUBMITTED' }), true),
-      api.get<Customer[]>(endpoints.auth.drivers, true),
+      api.get<Customer[]>(endpoints.auth.driversAt(depotId), true),
       api.get<Page<Delivery>>(endpoints.deliveries.list({ limit: 100 }), true),
     ]);
     const busy = new Set(

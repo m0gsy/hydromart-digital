@@ -12,6 +12,8 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canChargeCourier, canVerifySettlement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { whenRosterScoped } from '@/lib/drivers-scope';
+import { useDriversUrl } from '@/lib/use-drivers-url';
 import { useT } from '@/lib/locale-context';
 import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
 
@@ -37,9 +39,11 @@ const initials = (id: string) => id.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpp
  */
 function useDriverNames(): (id: string) => string {
   const { t } = useT();
+  const driversEndpoint = useDriversUrl();
   const drivers = useAsync<Customer[]>(
-    () => api.getCached<Customer[]>(endpoints.auth.drivers, true).catch(() => []),
-    [],
+    () =>
+      whenRosterScoped(driversEndpoint, (u) => api.getCached<Customer[]>(u, true)).catch(() => []),
+    [driversEndpoint],
   );
   return useMemo(() => {
     const byId = new Map((drivers.data ?? []).map((d) => [d.id, d.fullName || d.phone]));
