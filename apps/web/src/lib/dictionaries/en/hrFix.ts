@@ -1235,7 +1235,7 @@ export const hrFix = {
     listTitle: 'Request history',
   },
   kasbonQueue: {
-    overdue: 'Past the 3-working-day limit (due {date})',
+    overdue: 'Past the 3-working-day limit (due {date}) — closes as expired automatically',
     dueBy: 'Decide by {date}',
     title: 'Cash Advance Queue',
     subtitle: '{n} request(s) awaiting a decision',

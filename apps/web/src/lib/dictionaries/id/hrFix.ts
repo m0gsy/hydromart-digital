@@ -1253,7 +1253,7 @@ export const hrFix = {
     listTitle: 'Riwayat pengajuan',
   },
   kasbonQueue: {
-    overdue: 'Lewat batas 3 hari kerja (batas {date})',
+    overdue: 'Lewat batas 3 hari kerja (batas {date}) — akan kedaluwarsa otomatis',
     dueBy: 'Putuskan sebelum {date}',
     title: 'Antrean Kasbon',
     subtitle: '{n} pengajuan menunggu keputusan',

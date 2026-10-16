@@ -19,6 +19,7 @@ import {
   LoanRequestService,
   monthlyBasePay,
   addWorkingDays,
+  subtractWorkingDays,
 } from '../../src/application/services/loan-request.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
 import { LoanService } from '../../src/application/services/loan.service';
@@ -265,7 +266,36 @@ describe('LoanRequestService kasbon limit and decision window', () => {
     });
   });
 
-  it('flags a pending request past three working days as overdue and never auto-decides it', async () => {
+  it('closes a request nobody answered in three working days, and refuses to decide it', async () => {
+    const { svc, repo } = make();
+    const stale = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'x' });
+    const row = repo.rows.find((r) => r.id === stale.id)!;
+    (row as { createdAt: Date }).createdAt = new Date(Date.now() - 10 * 86_400_000);
+
+    const mine = await svc.listSelf(staff);
+    expect(mine.find((r) => r.id === stale.id)?.status).toBe('CANCELLED');
+    expect(mine.find((r) => r.id === stale.id)?.decisionNote).toMatch(/Kedaluwarsa/);
+
+    // The approver arriving late is told so, and the request is closed rather than approved.
+    const late = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'z' });
+    (repo.rows.find((r) => r.id === late.id)! as { createdAt: Date }).createdAt = new Date(
+      Date.now() - 10 * 86_400_000,
+    );
+    await expect(
+      svc.decide(asv, late.id, {
+        approve: true,
+        seenUpdatedAt: repo.rows.find((r) => r.id === late.id)!.updatedAt.toISOString(),
+      } as never),
+    ).rejects.toThrow(/kedaluwarsa/);
+    expect(repo.rows.find((r) => r.id === late.id)?.status).toBe('CANCELLED');
+  });
+
+  it('counts back three working days over a weekend', () => {
+    // Wed 14 Oct 2026 minus three working days is Fri 9 Oct.
+    expect(subtractWorkingDays(new Date('2026-10-14T00:00:00Z'), 3).toISOString().slice(0, 10)).toBe('2026-10-09');
+  });
+
+  it('warns that a pending request is past its window (overdue) before it is closed', async () => {
     const { svc, repo } = make();
     const stale = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'x' });
     const row = repo.rows.find((r) => r.id === stale.id)!;
@@ -275,7 +305,8 @@ describe('LoanRequestService kasbon limit and decision window', () => {
     const { rows } = await svc.listAll(asv, {});
     expect(rows.find((r) => r.id === stale.id)).toMatchObject({ overdue: true, status: 'PENDING' });
     expect(rows.find((r) => r.id === fresh.id)?.overdue).toBe(false);
-    expect((await svc.listSelf(staff)).find((r) => r.id === stale.id)?.status).toBe('PENDING');
+    // Seen by the approver as overdue; the applicant's own list is what closes it.
+    expect((await svc.listSelf(staff)).find((r) => r.id === stale.id)?.status).toBe('CANCELLED');
   });
 });
 
