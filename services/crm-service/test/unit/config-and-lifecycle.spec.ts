@@ -100,12 +100,12 @@ describe('CrmConfigService', () => {
 
 describe('SegmentUnavailableError', () => {
   it('omits the detail suffix when no detail is given', () => {
-    expect(new SegmentUnavailableError().message).toBe('Could not resolve the audience segment.');
+    expect(new SegmentUnavailableError().message).toBe('Segmen audiens tidak dapat diambil.');
   });
 
   it('appends the detail when provided', () => {
     expect(new SegmentUnavailableError('down').message).toBe(
-      'Could not resolve the audience segment: down.',
+      'Segmen audiens tidak dapat diambil: down.',
     );
   });
 });

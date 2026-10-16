@@ -4,7 +4,7 @@ export class CampaignNotFoundError extends DomainError {
   readonly code = 'CAMPAIGN_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
   constructor() {
-    super('Campaign not found.');
+    super('Kampanye tidak ditemukan.');
   }
 }
 
@@ -12,7 +12,7 @@ export class CampaignNotDraftError extends DomainError {
   readonly code = 'CAMPAIGN_NOT_DRAFT';
   readonly status = HTTP_STATUS.CONFLICT;
   constructor() {
-    super('Only a draft campaign can be sent.');
+    super('Hanya kampanye berstatus draf yang bisa dikirim.');
   }
 }
 
@@ -20,7 +20,7 @@ export class NoRecipientsError extends DomainError {
   readonly code = 'CAMPAIGN_NO_RECIPIENTS';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('A campaign needs at least one recipient.');
+    super('Kampanye butuh minimal satu penerima.');
   }
 }
 
@@ -28,7 +28,7 @@ export class BroadcastNotFoundError extends DomainError {
   readonly code = 'BROADCAST_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
   constructor() {
-    super('Broadcast not found.');
+    super('Siaran tidak ditemukan.');
   }
 }
 
@@ -36,7 +36,7 @@ export class SegmentUnavailableError extends DomainError {
   readonly code = 'CAMPAIGN_SEGMENT_UNAVAILABLE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor(detail?: string) {
-    super(`Could not resolve the audience segment${detail ? `: ${detail}` : ''}.`);
+    super(`Segmen audiens tidak dapat diambil${detail ? `: ${detail}` : ''}.`);
   }
 }
 

@@ -23,7 +23,7 @@ const STATUS_TONE: Record<CampaignStatus, 'neutral' | 'brand' | 'success'> = {
 };
 
 // Segment tiers accepted by customer-service (MembershipTier). Blank = no filter.
-const TIERS = ['REGULAR', 'SILVER', 'GOLD', 'PLATINUM'];
+const TIERS = ['BASIC', 'SILVER', 'GOLD'];
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';

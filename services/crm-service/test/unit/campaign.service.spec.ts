@@ -55,6 +55,26 @@ describe('CampaignService', () => {
       expect(c.recipients.every((r) => r.status === RecipientStatus.PENDING)).toBe(true);
     });
 
+    it('attaches the customer id to a pasted number however it is spelled', async () => {
+      directory.recipients = [{ customerId: 'c1', name: 'Sinta', phone: '+6281234567890' }];
+      const c = await service.create('staff-1', 'Blast', 'Hi', [
+        { phone: '081234567890' },
+        { phone: '+6289999' },
+      ]);
+      expect(c.recipients.find((r) => r.phone === '081234567890')).toMatchObject({
+        customerId: 'c1',
+        name: 'Sinta',
+      });
+      expect(c.recipients.find((r) => r.phone === '+6289999')?.customerId ?? null).toBeNull();
+    });
+
+    it('keeps a pasted list as-is when the directory is down', async () => {
+      directory.down = true;
+      const c = await service.create('staff-1', 'Blast', 'Hi', [{ phone: '+6281' }]);
+      expect(c.recipients).toHaveLength(1);
+      expect(c.recipients[0]!.customerId ?? null).toBeNull();
+    });
+
     it('throws NoRecipientsError when the list is empty', async () => {
       await expect(service.create('staff-1', 'Blast', 'Hi', [])).rejects.toBeInstanceOf(
         NoRecipientsError,

@@ -13,7 +13,7 @@ import { NotificationEvent } from '../../src/domain/notification-event';
  * Refusing by throwing rather than returning quietly is deliberate: the sweep records the
  * recipient FAILED with the thrown message, which is exactly what staff need to see next to
  * a pasted number. It follows the pattern already above it in the sweep, where a number
- * with no Hydromart account is recorded FAILED with "nothing to deliver to".
+ * with no Hydromart account is recorded FAILED with "tidak ada inbox tujuan".
  */
 describe('InboxBroadcastDelivery · marketing opt-out', () => {
   const notify = jest.fn();
