@@ -359,6 +359,8 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => !query.customerId || r.customerId === query.customerId)
       .filter((r) => !query.status || r.status === query.status)
       .filter((r) => (query.unrouted ? r.depotId == null : true))
+      // Models the repository's opt-in counter-sale predicate (C6); absent = either.
+      .filter((r) => (query.isWalkIn === undefined ? true : r.isWalkIn === query.isWalkIn))
       // Models the repository's orderNumber predicate, so a search test cannot pass
       // against a repository that ignores the term (audit F-12).
       .filter((r) =>

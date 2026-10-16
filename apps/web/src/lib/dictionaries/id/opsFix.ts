@@ -714,6 +714,7 @@ export const opsFix = {
     note: 'Catatan (wajib untuk sengketa, dan untuk setoran lebih di atas {amount})',
     notePlaceholder: 'mis. dihitung bersama kasir',
     verify: 'Verifikasi',
+    requestCharge: 'Ajukan pembebanan',
     dispute: 'Sengketakan',
     disputeReasonRequired: 'Isi alasan sengketa.',
     chargePendingMine: 'Pembebanan selisih Anda menunggu persetujuan manajer lain.',

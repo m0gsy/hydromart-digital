@@ -2789,6 +2789,10 @@ export class OrderService {
       depotIds: input.depotIds,
       unrouted: input.unrouted,
       orderNumber: input.orderNumber,
+      // C6 filter: the controller parsed it and the repository honours it, but this mapper dropped
+      // it, so the till's "recent counter sales" listed every order of the depot (delivery
+      // orders included, each with a void button).
+      isWalkIn: input.isWalkIn,
     };
     const { items, total, nextCursor } = await this.orders.search(query);
     return buildPage(items, total, page, limit, nextCursor);

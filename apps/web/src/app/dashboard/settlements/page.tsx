@@ -240,7 +240,8 @@ function SettlementRow({
               <FormError message={error} />
               <div className="flex gap-2">
                 <Button onClick={() => act('verify')} loading={busy === 'verify'} className="flex-1">
-                  {t('opsFix.settlements.verify')}
+                  {/* ticking the charge box means this press raises a charge REQUEST that a second manager must approve, so the button says so instead of "Verifikasi" */}
+                  {shortfall && charge ? t('opsFix.settlements.requestCharge') : t('opsFix.settlements.verify')}
                 </Button>
                 {!disputed && (
                   <Button variant="ghost" onClick={() => act('dispute')} loading={busy === 'dispute'} className="flex-1">

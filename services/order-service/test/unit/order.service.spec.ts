@@ -3797,6 +3797,20 @@ describe('OrderService', () => {
       expect(a.trackingToken).not.toBe(a.orderNumber);
     });
 
+    it('lists only counter sales when the till asks for isWalkIn (the filter used to be dropped)', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 10000 });
+      const sale = await service.walkInSale(
+        { sub: 'kd-1', role: 'KEPALA_DEPOT', phone: '08', depotId: homeDepot.id } as never,
+        { depotId: homeDepot.id, lines: [{ productId: p.id, quantity: 1 }] },
+      );
+      await addToCart(20_000, 1);
+      const delivery = await service.checkout(customer, { deliveryAddress: address });
+      const counter = await service.listAll({ isWalkIn: true });
+      expect(counter.items.map((o) => o.id)).toContain(sale.id);
+      expect(counter.items.map((o) => o.id)).not.toContain(delivery.id);
+      expect((await service.listAll({})).items.map((o) => o.id)).toEqual(expect.arrayContaining([sale.id, delivery.id]));
+    });
+
     it('answers a walk-in sale the same way', async () => {
       const p = catalog.seed({ id: randomUUID(), basePrice: 10000 });
       const walkIn = await service.walkInSale(

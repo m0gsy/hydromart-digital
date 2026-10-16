@@ -715,6 +715,7 @@ export const opsFix = {
     note: 'Note (required to dispute, and for a surplus over {amount})',
     notePlaceholder: 'e.g. counted with the cashier',
     verify: 'Verify',
+    requestCharge: 'Request charge',
     dispute: 'Dispute',
     disputeReasonRequired: 'Give a reason for the dispute.',
     chargePendingMine: 'Your shortfall charge is waiting for another manager to approve it.',
