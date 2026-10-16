@@ -124,11 +124,16 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
 
       {photo && (
         <div className="relative hidden min-h-[340px] self-stretch lg:block">
-          <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[18px] bg-[color:var(--surface-soft)]">
+          {/* The catalogue photo is a product shot on an OPAQUE white background. Sitting on the
+              theme's soft surface with padding around it, it read as a white box floating in a
+              dark frame with empty corners, and the dark theme made that look like a cropped
+              picture. The frame is the photo's own white and the picture fills it, so it is
+              one full image in both themes; `object-contain` still shows the whole product. */}
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[18px] bg-white">
             <RemoteImage
               src={photo.imageUrl as string}
               alt={photo.name}
-              className="h-full w-full object-contain p-6"
+              className="h-full w-full object-contain"
               fallback={<Drop size={96} weight="thin" className="text-brand-300" />}
             />
           </div>
