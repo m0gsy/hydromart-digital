@@ -54,3 +54,25 @@ describe('depot search', () => {
     await waitFor(() => expect(screen.getByText(/dashC\.search\.partial|dashC\.search\.orders/)).toBeTruthy());
   });
 });
+
+describe('/dashboard/vouchers for a role without voucherRead', () => {
+  it('shows the denied screen without sending the request that would 403', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/auth-context', () => ({
+      useAuth: () => ({ customer: { id: 'u1', role: 'KEPALA_DEPOT' }, ready: true, signOut: vi.fn() }),
+    }));
+    vi.doMock('@/components/require-auth', () => ({
+      RequireAuth: ({ children }: { children: React.ReactNode }) => children,
+    }));
+    vi.doMock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+    vi.doMock('@/components/confirm', () => ({
+      useConfirm: () => ({ confirm: vi.fn(), askReason: vi.fn() }),
+    }));
+    get.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 });
+    const { default: VouchersPage } = await import('@/app/dashboard/vouchers/page');
+    render(<VouchersPage />);
+    await screen.findByText('hrFix.vouchers.denied');
+    const urls = [...get.mock.calls, ...getCached.mock.calls].map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('/vouchers/'))).toBe(false);
+  });
+});
