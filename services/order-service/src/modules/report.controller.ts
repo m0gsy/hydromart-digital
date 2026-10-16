@@ -328,10 +328,20 @@ export class ReportController {
     return this.reports.reportsDepotCompare(ids, toRange(q));
   }
 
+  // `orderReportsDepot`, like its daily sibling: this is the monthly review the depot console's
+  // "Tinjauan bulanan" door (a depot head's, `dailyClose`) opens, and the class-level
+  // `orderReports` shut that role out with a 403 behind a door the menu drew. A depot head
+  // reads THEIR depot only, so the row is checked against the caller — the daily report leaves
+  // that to the scope guard, and a widened read should not rest on one layer.
   @ApiOkResponse({ type: DepotMonthlyReportResponseDto })
+  @Can('orderReportsDepot')
   @Get('depot-monthly')
   @ApiOperation({ summary: "One depot's monthly ops review (orders/revenue/active customers)" })
-  depotMonthly(@Query() q: DepotMonthlyQueryDto): Promise<DepotMonthlyReport> {
+  depotMonthly(
+    @Query() q: DepotMonthlyQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotMonthlyReport> {
+    assertDepotAccess(user, q.depotId);
     return this.reports.reportsDepotMonthly(q.depotId, q.month);
   }
 
