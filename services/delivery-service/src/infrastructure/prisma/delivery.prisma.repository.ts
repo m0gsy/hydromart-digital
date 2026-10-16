@@ -553,14 +553,15 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
     if (scoped) conds.push(Prisma.sql`"depotId" = ANY(${depotIds}::uuid[])`);
     const [agg] = await this.prisma.$queryRaw<
-      { total: bigint; ontime: bigint; summinutes: number | null }[]
+      { total: bigint; ontime: bigint; summinutes: number | null; medianminutes: number | null }[]
     >(Prisma.sql`
       SELECT COUNT(*)::bigint AS total,
              COALESCE(SUM(
                CASE WHEN EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes}
                     THEN 1 ELSE 0 END
              ), 0)::bigint AS ontime,
-             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes
+             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60) AS medianminutes
       FROM "deliveries"
       WHERE ${Prisma.join(conds, ' AND ')}
     `);
@@ -581,6 +582,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       onTime,
       breached: totalDelivered - onTime,
       sumMinutes: Number(agg.summinutes ?? 0),
+      medianMinutes: agg.medianminutes == null ? null : Number(agg.medianminutes),
       failedCount,
     };
   }
@@ -600,7 +602,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
     const rows = await this.prisma.$queryRaw<
-      { depotid: string; total: bigint; ontime: bigint; summinutes: number | null }[]
+      { depotid: string; total: bigint; ontime: bigint; summinutes: number | null; medianminutes: number | null }[]
     >(Prisma.sql`
       SELECT "depotId" AS depotid,
              COUNT(*)::bigint AS total,
@@ -608,7 +610,8 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
                CASE WHEN EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes}
                     THEN 1 ELSE 0 END
              ), 0)::bigint AS ontime,
-             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes
+             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60) AS medianminutes
       FROM "deliveries"
       WHERE ${Prisma.join(conds, ' AND ')}
       GROUP BY "depotId"
@@ -622,6 +625,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         onTime,
         breached: totalDelivered - onTime,
         sumMinutes: Number(r.summinutes ?? 0),
+        medianMinutes: r.medianminutes == null ? null : Number(r.medianminutes),
       };
     });
   }

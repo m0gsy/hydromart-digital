@@ -64,6 +64,18 @@ describe('ReportService.sla', () => {
     service = new ReportService(repo, settlements, rating, buildTestConfig()); // DELIVERY_SLA_MINUTES=120
   });
 
+  it('keeps the median steady when one delivery took weeks (the mean does not)', async () => {
+    seed(repo, { deliveredAt: at(30) });
+    seed(repo, { deliveredAt: at(40) });
+    seed(repo, { deliveredAt: at(50) });
+    seed(repo, { deliveredAt: at(60 * 24 * 30) }); // a delivery closed a month late (stale seed, stuck order)
+
+    const r = await service.sla({});
+
+    expect(r.avgMinutes).toBeGreaterThan(10000);
+    expect(r.medianMinutes).toBe(45); // between 40 and 50
+  });
+
   it('counts on-time (incl. boundary) vs breached, averages minutes, and counts failures', async () => {
     seed(repo, { deliveredAt: at(60) }); // on time
     seed(repo, { deliveredAt: at(120) }); // on time (== threshold)
@@ -79,6 +91,7 @@ describe('ReportService.sla', () => {
     expect(r.breached).toBe(1);
     expect(r.slaRate).toBeCloseTo(2 / 3, 5);
     expect(r.avgMinutes).toBe(120.3); // (60+120+181)/3 = 120.333 -> 120.3
+    expect(r.medianMinutes).toBe(120); // middle of 60 / 120 / 181
     expect(r.failedCount).toBe(2);
   });
 
@@ -132,6 +145,7 @@ describe('ReportService.sla', () => {
     expect(r.totalDelivered).toBe(0);
     expect(r.slaRate).toBe(0);
     expect(r.avgMinutes).toBeNull();
+    expect(r.medianMinutes).toBeNull();
     expect(r.failedCount).toBe(0);
   });
 

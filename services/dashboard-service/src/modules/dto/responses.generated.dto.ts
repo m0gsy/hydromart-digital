@@ -88,6 +88,8 @@ export class DeliverySlaResponseDto {
   slaRate!: number;
   @ApiProperty({ type: Number, nullable: true })
   avgMinutes!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  medianMinutes!: number | null;
   @ApiProperty({ type: Number })
   failedCount!: number;
 }
@@ -182,6 +184,8 @@ export class NetworkDepotRowResponseDto {
   slaRate!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   avgMinutes!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  medianMinutes!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   rating!: number | null;
   @ApiProperty({ type: Number })

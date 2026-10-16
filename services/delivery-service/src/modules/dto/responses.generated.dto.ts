@@ -21,6 +21,8 @@ export class SlaReportResponseDto {
   slaRate!: number;
   @ApiProperty({ type: Number, nullable: true })
   avgMinutes!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  medianMinutes!: number | null;
   @ApiProperty({ type: Number })
   failedCount!: number;
 }
@@ -39,6 +41,8 @@ export class DepotSlaRowResponseDto {
   slaRate!: number;
   @ApiProperty({ type: Number, nullable: true })
   avgMinutes!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  medianMinutes!: number | null;
 }
 
 /** Mirrors `DepotSlaReport` exactly — generated for audit D-6, no field added or removed. */

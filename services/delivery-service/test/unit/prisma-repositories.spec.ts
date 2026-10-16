@@ -651,7 +651,7 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats aggregates a scoped range and derives breached', async () => {
-    $queryRaw.mockResolvedValue([{ total: 10n, ontime: 8n, summinutes: 240 }]);
+    $queryRaw.mockResolvedValue([{ total: 10n, ontime: 8n, summinutes: 240, medianminutes: 22.5 }]);
     delivery.count.mockResolvedValue(2);
     const stats = await repo.slaStats(
       { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
@@ -663,6 +663,7 @@ describe('DeliveryPrismaRepository', () => {
       onTime: 8,
       breached: 2,
       sumMinutes: 240,
+      medianMinutes: 22.5,
       failedCount: 2,
     });
     expect($queryRaw).toHaveBeenCalledTimes(1);
@@ -675,7 +676,7 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats handles an unscoped, unbounded range with null summinutes', async () => {
-    $queryRaw.mockResolvedValue([{ total: 0n, ontime: 0n, summinutes: null }]);
+    $queryRaw.mockResolvedValue([{ total: 0n, ontime: 0n, summinutes: null, medianminutes: null }]);
     delivery.count.mockResolvedValue(0);
     const stats = await repo.slaStats({}, 30);
     expect(stats).toEqual({
@@ -683,6 +684,7 @@ describe('DeliveryPrismaRepository', () => {
       onTime: 0,
       breached: 0,
       sumMinutes: 0,
+      medianMinutes: null,
       failedCount: 0,
     });
     expect(delivery.count).toHaveBeenCalledWith({ where: { failedAt: { not: null } } });
@@ -699,16 +701,16 @@ describe('DeliveryPrismaRepository', () => {
 
   it('slaStatsByDepot maps per-depot aggregate rows', async () => {
     $queryRaw.mockResolvedValue([
-      { depotid: 'dep-1', total: 4n, ontime: 3n, summinutes: 90 },
-      { depotid: 'dep-2', total: 2n, ontime: 2n, summinutes: null },
+      { depotid: 'dep-1', total: 4n, ontime: 3n, summinutes: 90, medianminutes: 20 },
+      { depotid: 'dep-2', total: 2n, ontime: 2n, summinutes: null, medianminutes: null },
     ]);
     const rows = await repo.slaStatsByDepot(
       { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
       30,
     );
     expect(rows).toEqual([
-      { depotId: 'dep-1', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 90 },
-      { depotId: 'dep-2', totalDelivered: 2, onTime: 2, breached: 0, sumMinutes: 0 },
+      { depotId: 'dep-1', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 90, medianMinutes: 20 },
+      { depotId: 'dep-2', totalDelivered: 2, onTime: 2, breached: 0, sumMinutes: 0, medianMinutes: null },
     ]);
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });

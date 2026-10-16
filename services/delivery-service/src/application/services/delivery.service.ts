@@ -13,6 +13,7 @@ import {
   NotAssignedDriverError,
   OrderAlreadyClaimedError,
   OrderCoordinationError,
+  OrderOutOfScopeError,
   OrderNotClaimableError,
   PaymentLookupUnavailableError,
   ProofTooFarError,
@@ -1155,6 +1156,9 @@ export class DeliveryService {
        */
       if ((error as { refused?: boolean }).refused) {
         throw new OrderAlreadyClaimedError();
+      }
+      if ((error as { denied?: boolean }).denied) {
+        throw new OrderOutOfScopeError();
       }
       throw new OrderCoordinationError();
     }

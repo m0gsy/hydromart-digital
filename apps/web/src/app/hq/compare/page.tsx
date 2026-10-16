@@ -65,7 +65,7 @@ export default function HqComparePage() {
     { key: 'revenue', higher: true, value: (id) => perf.get(id)?.revenue ?? 0, format: formatIDR },
     { key: 'orders', higher: true, value: (id) => perf.get(id)?.orderCount ?? 0, format: (n) => String(n) },
     { key: 'sla', higher: true, value: (id) => perf.get(id)?.slaRate ?? null, format: (n) => `${Math.round(n * 100)}%` },
-    { key: 'avgDelivery', higher: false, value: (id) => perf.get(id)?.avgMinutes ?? null, format: (n) => t('hq.compare.minutes', { n }) },
+    { key: 'avgDelivery', higher: false, value: (id) => perf.get(id)?.medianMinutes ?? perf.get(id)?.avgMinutes ?? null, format: (n) => t('hq.compare.minutes', { n }) },
     { key: 'rating', higher: true, value: (id) => perf.get(id)?.rating ?? null, format: (n) => n.toFixed(1) },
     { key: 'gallonReturn', higher: false, value: (id) => outstanding.get(id) ?? null, format: (n) => String(n) },
   ];

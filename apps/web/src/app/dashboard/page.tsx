@@ -254,6 +254,15 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
   );
 
   if (loading) return <Skeleton className="h-96 w-full" />;
+  // A supervision account that nobody has linked to a depot yet is not a fault to retry: say what
+  // is missing (the server's own sentence), under a title that names it.
+  if (error && /tanggung jawab depot|no depot/i.test(error)) {
+    return (
+      <CenterState title={t('dashboard.landing.noDepotTitle')} icon={<Lock size={40} weight="fill" />}>
+        {error}
+      </CenterState>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
@@ -314,7 +323,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
             />
             <Stat
               label={t('dashboard.landing.avgDelivery')}
-              value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
+              value={(deliverySla?.medianMinutes ?? deliverySla?.avgMinutes) != null ? t('dashboard.landing.min', { n: Math.round((deliverySla?.medianMinutes ?? deliverySla?.avgMinutes) as number) }) : '—'}
               hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
             />
             <Stat

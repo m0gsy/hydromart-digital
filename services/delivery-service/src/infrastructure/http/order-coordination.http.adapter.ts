@@ -61,6 +61,9 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
          */
         throw Object.assign(new Error(`order-service responded ${res.status}`), {
           refused: res.status === 409 || res.status === 422,
+          // 403 = the order is outside this account's depot (or role): a different fact from both
+          // a lost race and a dropped connection, and nothing a retry can change.
+          denied: res.status === 403,
         });
       }
     } catch (error) {

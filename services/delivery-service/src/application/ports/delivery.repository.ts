@@ -169,6 +169,8 @@ export interface SlaStats {
   breached: number;
   /** Sum of delivery minutes ((deliveredAt-assignedAt)/60000) over the delivered set. */
   sumMinutes: number;
+  /** Median delivery minutes (percentile_cont 0.5); null when nothing was delivered. */
+  medianMinutes: number | null;
   failedCount: number;
 }
 
@@ -180,6 +182,7 @@ export interface DepotSlaStats {
   onTime: number;
   breached: number;
   sumMinutes: number;
+  medianMinutes: number | null;
 }
 
 /** The projection behind `findPingState` — no history, no proof. */

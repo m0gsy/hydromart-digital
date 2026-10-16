@@ -54,7 +54,7 @@ describe('toDepotPayload', () => {
 
   it('rejects a missing required field', () => {
     const res = toDepotPayload({ ...valid, name: '  ' }, t);
-    expect(res).toEqual({ ok: false, error: 'name is required.' });
+    expect(res).toEqual({ ok: false, error: 'opsFix.depotForm.fieldRequired' });
   });
 
   it('rejects out-of-range coordinates and negative fee', () => {

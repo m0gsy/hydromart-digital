@@ -49,6 +49,12 @@ export interface CampaignSweepResult {
   ok: boolean;
 }
 
+/** Digits only, local 0-prefix read as Indonesian +62, so +62812…, 62812… and 0812… compare equal. */
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  return digits.startsWith('0') ? `62${digits.slice(1)}` : digits;
+}
+
 @Injectable()
 export class CampaignService {
   private static readonly MAX_LIMIT = 100;
@@ -106,11 +112,44 @@ export class CampaignService {
         .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
     }
 
+
+    if (!segment) list = await this.attachCustomerIds(list, authorization);
+
     // Dedupe by phone (last wins) — a pasted list often repeats numbers, and the DB has a
     // unique(campaignId, phone) constraint that would otherwise reject the insert.
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
     return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
+  }
+
+  /**
+   * A pasted list carries bare phone numbers, but a broadcast is delivered to an inbox and an
+   * inbox belongs to a customer id — so every such row used to end FAILED "no Hydromart
+   * account", even for a registered customer. Match each number to the directory here.
+   *
+   * Soft on purpose: if the directory is unreachable the row keeps its null id and is recorded
+   * FAILED at delivery with its reason, exactly as before. A number nobody owns stays null.
+   * ponytail: whole-directory read, matched in memory (same cost as the segment path); push a
+   * phone filter into the directory query if a deployment outgrows it.
+   */
+  private async attachCustomerIds(
+    list: CreateRecipientData[],
+    authorization: string,
+  ): Promise<CreateRecipientData[]> {
+    if (!list.some((r) => !r.customerId)) return list;
+    let directory: Awaited<ReturnType<CustomerDirectoryPort['resolveSegment']>>;
+    try {
+      directory = await this.directory.resolveSegment({}, authorization);
+    } catch (e) {
+      this.logger.warn(`could not match pasted numbers to customers: ${(e as Error).message}`);
+      return list;
+    }
+    const byPhone = new Map(directory.map((d) => [normalizePhone(d.phone), d]));
+    return list.map((r) => {
+      if (r.customerId) return r;
+      const hit = byPhone.get(normalizePhone(r.phone));
+      return hit ? { ...r, customerId: hit.customerId, name: r.name ?? hit.name } : r;
+    });
   }
 
   /**
@@ -258,7 +297,7 @@ export class CampaignService {
           await this.repo.recordRecipientResult(
             recipient.id,
             RecipientStatus.FAILED,
-            'no Hydromart account for this number — nothing to deliver to',
+            'nomor ini belum punya akun Hydromart atau menolak pesan promosi — tidak ada inbox tujuan',
             null,
           );
           continue;

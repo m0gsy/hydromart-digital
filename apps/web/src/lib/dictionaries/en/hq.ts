@@ -982,7 +982,7 @@ export const hq = {
       revenue: 'Revenue',
       orders: 'Orders',
       sla: 'On-time SLA',
-      avgDelivery: 'Avg delivery',
+      avgDelivery: 'Median delivery',
       rating: 'Rating',
       gallonReturn: 'Gallon returns',
     },

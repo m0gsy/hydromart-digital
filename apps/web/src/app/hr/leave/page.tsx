@@ -171,7 +171,9 @@ export default function LeaveQueuePage() {
    * exactly the roles it will serve and to nobody else.
    */
   const mayApprove = can('leaveApprove', customer?.role);
-  const [status, setStatus] = useState<LeaveStatus | ''>('PENDING_MANAGER');
+  // HR gives stage 2, so the queue must open on what is waiting for HR: opening everyone on the
+  // manager's stage hid every request HR could act on until the filter was changed by hand.
+  const [status, setStatus] = useState<LeaveStatus | ''>(canManageHr(customer?.role) ? 'PENDING_HR' : 'PENDING_MANAGER');
   const [note, setNote] = useState<Record<string, string>>({});
 
   /*

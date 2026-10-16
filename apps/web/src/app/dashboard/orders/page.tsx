@@ -10,7 +10,7 @@ import { Badge, Button, Card, CenterState, ErrorState, ListFooter, Money, Skelet
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { statusLabel, tone } from '@/lib/order-status';
-import { isStaff } from '@/lib/roles';
+import { can } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -496,7 +496,7 @@ function QueueBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isStaff(customer?.role)) {
+  if (!can('orderManageRead', customer?.role)) {
     return (
       <CenterState title={t('dashB.orders.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashB.orders.gateBody')}

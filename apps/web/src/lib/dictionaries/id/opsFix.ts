@@ -19,6 +19,13 @@ export const opsFix = {
   },
   depotForm: {
     ownerRequired: 'Depot waralaba wajib punya pemilik.',
+    fieldRequired: 'Kolom {field} wajib diisi.',
+    field: { code: 'Kode', name: 'Nama depot', address: 'Alamat', city: 'Kota', province: 'Provinsi' },
+    pickOwnership: 'Pilih jenis kepemilikan.',
+    latRange: 'Latitude harus di antara -90 dan 90.',
+    lngRange: 'Longitude harus di antara -180 dan 180.',
+    feeMin: 'Ongkir wajib diisi dengan angka 0 atau lebih.',
+    radiusMin: 'Radius layanan harus lebih dari 0.',
     whatsappFormat: 'Nomor WhatsApp depot harus 8–15 angka, boleh diawali +.',
   },
   import: {
@@ -659,8 +666,8 @@ export const opsFix = {
     shiftMorning: 'Pagi',
     shiftEvening: 'Sore',
     shiftOff: 'Libur',
-    gate: 'Khusus staf depot',
-    gateBody: 'Jadwal shift hanya tersedia untuk staf depot.',
+    gate: 'Akses terbatas',
+    gateBody: 'Jadwal shift kurir tersedia untuk kepala depot, manajer, head office, direktur, dan super admin.',
   },
   // dashboard/targets — PR-8. Sebelumnya seluruhnya hardcoded.
   targets: {
@@ -714,6 +721,7 @@ export const opsFix = {
     note: 'Catatan (wajib untuk sengketa, dan untuk setoran lebih di atas {amount})',
     notePlaceholder: 'mis. dihitung bersama kasir',
     verify: 'Verifikasi',
+    requestCharge: 'Ajukan pembebanan',
     dispute: 'Sengketakan',
     disputeReasonRequired: 'Isi alasan sengketa.',
     chargePendingMine: 'Pembebanan selisih Anda menunggu persetujuan manajer lain.',

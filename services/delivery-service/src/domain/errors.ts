@@ -90,7 +90,22 @@ export class OrderCoordinationError extends DomainError {
   readonly code = 'DELIVERY_ORDER_SYNC_FAILED';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('Could not update the order for this delivery. Please try again.');
+    super('Pesanan untuk pengantaran ini gagal diperbarui. Coba lagi sebentar lagi.');
+  }
+}
+
+
+/**
+ * order-service answered 403 to the courier's own token: the order belongs to a depot this
+ * account is not placed at (DepotScopeGuard), or the role may not move it. Retrying cannot
+ * help and the courier cannot fix it, so it must not read as "try again" — it names the
+ * real cause and who can change it (HR sets the depot placement).
+ */
+export class OrderOutOfScopeError extends DomainError {
+  readonly code = 'DELIVERY_ORDER_OUT_OF_SCOPE';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Pesanan ini bukan milik depot penempatanmu, jadi tidak bisa kamu proses. Hubungi admin depot atau HR untuk mengecek penempatan depotmu.');
   }
 }
 

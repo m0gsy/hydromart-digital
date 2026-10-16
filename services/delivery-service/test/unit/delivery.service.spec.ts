@@ -28,6 +28,7 @@ import {
   NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
+  OrderOutOfScopeError,
   PaymentLookupUnavailableError,
   StaleCaptureError,
 } from '../../src/domain/errors';
@@ -812,6 +813,14 @@ describe('DeliveryService', () => {
     const d = await assign();
     orders.throwOnAdvance = true;
     await expect(service.pickup(driver, d.id, AUTH)).rejects.toBeInstanceOf(OrderCoordinationError);
+    expect((await service.getAny(d.id)).status).toBe(DeliveryStatus.ASSIGNED);
+  });
+
+  it('tells a courier whose order sits in another depot why, instead of "try again"', async () => {
+    const d = await assign();
+    // order-service answers 403 (DepotScopeGuard): not a lost race, not a dropped connection
+    orders.failNext = Object.assign(new Error('order-service responded 403'), { denied: true });
+    await expect(service.pickup(driver, d.id, AUTH)).rejects.toBeInstanceOf(OrderOutOfScopeError);
     expect((await service.getAny(d.id)).status).toBe(DeliveryStatus.ASSIGNED);
   });
 

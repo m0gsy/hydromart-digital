@@ -46,7 +46,7 @@ describe('PaymentService', () => {
     const payment = await initiate(PaymentMethod.CASH);
     expect(payment.status).toBe(PaymentStatus.PENDING);
     expect(payment.reference).toBeNull();
-    expect(payment.instruction).toContain('cash');
+    expect(payment.instruction).toContain('tunai');
     expect(gateway.charges).toHaveLength(0);
   });
 

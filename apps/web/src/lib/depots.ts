@@ -130,10 +130,10 @@ export function toDepotPayload(
     province: form.province.trim(),
   };
   for (const [key, value] of Object.entries(text)) {
-    if (!value) return { ok: false, error: `${key} is required.` };
+    if (!value) return { ok: false, error: t('opsFix.depotForm.fieldRequired', { field: t(`opsFix.depotForm.field.${key}`) }) };
   }
   if (form.ownershipType !== 'WARALABA' && form.ownershipType !== 'HKP') {
-    return { ok: false, error: 'Pick an ownership type.' };
+    return { ok: false, error: t('opsFix.depotForm.pickOwnership') };
   }
   // A franchise depot with no owner books its revenue — and HQ's commission — to nobody,
   // silently. depot-service rejects it too; this is the same rule stated early.
@@ -142,11 +142,11 @@ export function toDepotPayload(
     return { ok: false, error: t('opsFix.depotForm.ownerRequired') };
   }
   const lat = numOrNull(form.lat);
-  if (lat === null || lat < -90 || lat > 90) return { ok: false, error: 'Latitude must be between -90 and 90.' };
+  if (lat === null || lat < -90 || lat > 90) return { ok: false, error: t('opsFix.depotForm.latRange') };
   const lng = numOrNull(form.lng);
-  if (lng === null || lng < -180 || lng > 180) return { ok: false, error: 'Longitude must be between -180 and 180.' };
+  if (lng === null || lng < -180 || lng > 180) return { ok: false, error: t('opsFix.depotForm.lngRange') };
   const deliveryFee = numOrNull(form.deliveryFee);
-  if (deliveryFee === null || deliveryFee < 0) return { ok: false, error: 'Delivery fee must be 0 or more.' };
+  if (deliveryFee === null || deliveryFee < 0) return { ok: false, error: t('opsFix.depotForm.feeMin') };
   // Digits only (optionally +-prefixed): crm-service enforces exactly this on the message
   // it sends, and the send path is fail-open — a dashed number saved here would mean the
   // depot silently never receives its sales report. Caught at the form, not at 13:00.
@@ -175,7 +175,7 @@ export function toDepotPayload(
   };
   const radius = numOrNull(form.serviceRadiusKm);
   if (form.serviceRadiusKm.trim() !== '') {
-    if (radius === null || radius <= 0) return { ok: false, error: 'Service radius must be greater than 0.' };
+    if (radius === null || radius <= 0) return { ok: false, error: t('opsFix.depotForm.radiusMin') };
     value.serviceRadiusKm = radius;
   }
   return { ok: true, value };

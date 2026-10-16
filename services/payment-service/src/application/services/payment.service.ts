@@ -1082,16 +1082,16 @@ export class PaymentService {
       case PaymentMethod.CASH:
         // A counter sale has no courier and no delivery — the cash is already on the till.
         return atCounter
-          ? 'Cash paid at the depot counter.'
-          : 'Pay with cash to the driver on delivery.';
+          ? 'Tunai dibayar di kasir depot.'
+          : 'Bayar tunai ke kurir saat pesanan tiba.';
       case PaymentMethod.TRANSFER:
-        return 'Transfer to the depot bank account and keep your receipt.';
+        return 'Transfer ke rekening bank depot dan simpan bukti transfernya.';
       case PaymentMethod.QRIS:
         // Static QRIS displayed at the depot, paid directly to the depot and
         // confirmed by staff — no gateway, settles manually like TRANSFER.
-        return 'Scan the depot QRIS and show the payment proof to staff.';
+        return 'Pindai QRIS depot lalu tunjukkan bukti bayar ke staf.';
       default:
-        return 'Follow the payment instructions from your provider.';
+        return 'Ikuti petunjuk pembayaran dari penyedia pembayaran.';
     }
   }
 

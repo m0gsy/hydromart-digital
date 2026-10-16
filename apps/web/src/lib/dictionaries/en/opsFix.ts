@@ -19,6 +19,13 @@ export const opsFix = {
   },
   depotForm: {
     ownerRequired: 'A franchise depot must have an owner.',
+    fieldRequired: 'The {field} field is required.',
+    field: { code: 'Code', name: 'Depot name', address: 'Address', city: 'City', province: 'Province' },
+    pickOwnership: 'Pick an ownership type.',
+    latRange: 'Latitude must be between -90 and 90.',
+    lngRange: 'Longitude must be between -180 and 180.',
+    feeMin: 'Delivery fee is required and must be 0 or more.',
+    radiusMin: 'Service radius must be greater than 0.',
     whatsappFormat: 'The depot WhatsApp number must be 8–15 digits, optionally +-prefixed.',
   },
   import: {
@@ -660,8 +667,8 @@ export const opsFix = {
     shiftMorning: 'Morning',
     shiftEvening: 'Evening',
     shiftOff: 'Off',
-    gate: 'Depot staff only',
-    gateBody: 'The shift roster is for depot staff only.',
+    gate: 'Restricted',
+    gateBody: 'The courier shift roster is available to depot heads, managers, head office, the director and super admins.',
   },
   // dashboard/targets — PR-8. Mirrors id/opsFix.targets key for key.
   targets: {
@@ -715,6 +722,7 @@ export const opsFix = {
     note: 'Note (required to dispute, and for a surplus over {amount})',
     notePlaceholder: 'e.g. counted with the cashier',
     verify: 'Verify',
+    requestCharge: 'Request charge',
     dispute: 'Dispute',
     disputeReasonRequired: 'Give a reason for the dispute.',
     chargePendingMine: 'Your shortfall charge is waiting for another manager to approve it.',
