@@ -102,6 +102,14 @@ describe('addWorkingDays', () => {
     );
   });
 
+  it('counts the day in Jakarta: a request late Friday UTC is already Saturday in WIB', () => {
+    // Fri 16 Oct 20:00 UTC = Sat 17 Oct 03:00 WIB. Sun 18 03:00 WIB is not a working day;
+    // Mon 19 Oct 03:00 WIB (= Sun 18 Oct 20:00 UTC) is, so that is the first working day on.
+    expect(addWorkingDays(new Date('2026-10-16T20:00:00Z'), 1).toISOString()).toBe(
+      '2026-10-18T20:00:00.000Z',
+    );
+  });
+
   it('skips configured movable holidays too, and only those', () => {
     const extra = new Set(['2026-10-16']);
     // Thu 15 Oct + 3: Fri 16 is a holiday -> Mon 19 (1), Tue 20 (2), Wed 21 (3)

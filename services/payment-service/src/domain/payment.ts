@@ -131,16 +131,19 @@ export const REFUND_PROMISE_WORKING_DAYS = 3;
  */
 const FIXED_HOLIDAYS = new Set(['01-01', '05-01', '06-01', '08-17', '12-25']);
 
-function isoDay(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+/** The business zone the promise is counted in (WIB). A refund asked at 20:00 UTC is already tomorrow here. */
+const PROMISE_TZ = 'Asia/Jakarta';
 
-/** True for a weekend, a fixed national holiday, or a date in the configured list. */
+/**
+ * True for a weekend, a fixed national holiday, or a date in the configured list — judged
+ * on the LOCAL calendar day, because that is the day a customer reads in the promise.
+ */
 export function isNonWorkingDay(d: Date, extraHolidays: ReadonlySet<string> = new Set()): boolean {
-  const dow = d.getUTCDay();
+  // en-CA formats as YYYY-MM-DD. Intl, not a platform import: this file is framework-free.
+  const key = new Intl.DateTimeFormat('en-CA', { timeZone: PROMISE_TZ }).format(d);
+  const dow = new Date(`${key}T00:00:00.000Z`).getUTCDay();
   if (dow === 0 || dow === 6) return true;
-  const iso = isoDay(d);
-  return FIXED_HOLIDAYS.has(iso.slice(5)) || extraHolidays.has(iso);
+  return FIXED_HOLIDAYS.has(key.slice(5)) || extraHolidays.has(key);
 }
 
 /**
