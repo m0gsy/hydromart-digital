@@ -210,6 +210,9 @@ const ROLES = {
   manager: { phone: '+6281100000002', routes: MANAGER },
   courier: { phone: '+6281100000003', routes: DRIVER },
   hr: { phone: '+6281100000004', routes: HR },
+  // Seeded by seed-hierarchy.mjs. Narrow with ROUTES=… — these roles own only a slice of /hq.
+  finance: { phone: '+6281199000007', routes: HQ },
+  marketing: { phone: '+6281199000008', routes: HQ },
   customer: { phone: '+6281298765432', routes: SHOP },
 };
 
