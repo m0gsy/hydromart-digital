@@ -30,6 +30,8 @@ export interface NetworkDepotRow {
   slaRate: number | null;
   /** Average delivered-order lead time in minutes, or null when none delivered. */
   avgMinutes: number | null;
+  /** Median delivered-order lead time in minutes, or null when none delivered. */
+  medianMinutes: number | null;
   /** Average customer rating 1..5, or null when the depot has no reviews in range. */
   rating: number | null;
   lowStockCount: number;
@@ -482,9 +484,11 @@ export class DashboardService {
     let missingFromReport = false;
     const slaByDepotId = new Map<string, number>();
     const avgMinutesByDepot = new Map<string, number | null>();
+    const medianMinutesByDepot = new Map<string, number | null>();
     for (const row of slaByDepot?.depots ?? []) {
       slaByDepotId.set(row.depotId, row.slaRate);
       avgMinutesByDepot.set(row.depotId, row.avgMinutes);
+      medianMinutesByDepot.set(row.depotId, row.medianMinutes ?? null);
     }
     const ratingByDepotId = new Map<string, number>();
     for (const row of ratingByDepot?.items ?? []) {
@@ -517,6 +521,7 @@ export class DashboardService {
         orderCount: unrepresented ? null : (rev?.orderCount ?? 0),
         slaRate: slaByDepotId.has(d.id) ? slaByDepotId.get(d.id)! : null,
         avgMinutes: avgMinutesByDepot.has(d.id) ? avgMinutesByDepot.get(d.id)! : null,
+        medianMinutes: medianMinutesByDepot.has(d.id) ? medianMinutesByDepot.get(d.id)! : null,
         rating: ratingByDepotId.has(d.id) ? ratingByDepotId.get(d.id)! : null,
         lowStockCount: low?.length ?? 0,
       };

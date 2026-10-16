@@ -468,6 +468,7 @@ describe('DashboardService when the depots list survives but nothing else does',
       orderCount: 0,
       slaRate: null,
       avgMinutes: null,
+      medianMinutes: null,
       rating: null,
       lowStockCount: 0,
     });

@@ -9,7 +9,7 @@ export const dashboard = {
     slaOnTime: 'SLA tepat waktu',
     delivered: '{onTime}/{total} terkirim',
     noDepotTitle: 'Belum ada depot yang kamu pegang',
-    avgDelivery: 'Rata-rata antar',
+    avgDelivery: 'Median waktu antar',
     min: '{n} mnt',
     threshold: 'ambang {n} mnt',
     breachedFailed: 'Terlewat / gagal',

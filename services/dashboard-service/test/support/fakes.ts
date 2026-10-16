@@ -56,7 +56,7 @@ const ALL_DEPOTS: NetworkDepot[] = [
 const SLA_BY_DEPOT: DepotSlaByDepot = {
   from: null,
   to: null,
-  depots: [{ depotId: 'depot-1', slaRate: 0.9, avgMinutes: 32 }],
+  depots: [{ depotId: 'depot-1', slaRate: 0.9, avgMinutes: 32, medianMinutes: 30 }],
 };
 
 const RATING_BY_DEPOT: DepotRatingByDepot = {
@@ -72,6 +72,7 @@ const DELIVERY_SLA: DeliverySla = {
   breached: 8,
   slaRate: 0.92,
   avgMinutes: 74,
+  medianMinutes: 68,
   failedCount: 3,
 };
 

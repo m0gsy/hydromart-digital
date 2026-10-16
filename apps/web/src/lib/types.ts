@@ -1084,6 +1084,8 @@ export interface DeliverySla {
   breached: number;
   slaRate: number;
   avgMinutes: number | null;
+  /** Median minutes (steady against one very late delivery). Older servers omit it. */
+  medianMinutes?: number | null;
   failedCount: number;
 }
 
@@ -1180,6 +1182,7 @@ export interface NetworkDepotRow {
   orderCount: number | null;
   slaRate: number | null;
   avgMinutes: number | null;
+  medianMinutes?: number | null;
   rating: number | null;
   lowStockCount: number;
 }

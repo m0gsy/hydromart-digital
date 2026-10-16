@@ -986,7 +986,7 @@ export const hq = {
       revenue: 'Pendapatan',
       orders: 'Pesanan',
       sla: 'SLA tepat waktu',
-      avgDelivery: 'Rata antar',
+      avgDelivery: 'Median antar',
       rating: 'Rating',
       gallonReturn: 'Retur galon',
     },

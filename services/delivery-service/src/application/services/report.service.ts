@@ -17,6 +17,9 @@ export interface SlaReport {
   slaRate: number;
   /** Mean delivery minutes rounded to 1 decimal; null when nothing was delivered. */
   avgMinutes: number | null;
+  /** Median delivery minutes, 1 decimal; null when nothing was delivered. One very old delivery
+   * moves the mean by thousands of minutes and the median not at all, so dashboards show this. */
+  medianMinutes: number | null;
   failedCount: number;
 }
 
@@ -27,6 +30,7 @@ export interface DepotSlaRow {
   breached: number;
   slaRate: number;
   avgMinutes: number | null;
+  medianMinutes: number | null;
 }
 
 export interface DepotSlaReport {
@@ -84,6 +88,7 @@ export class ReportService {
       slaRate: s.totalDelivered === 0 ? 0 : s.onTime / s.totalDelivered,
       avgMinutes:
         s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
+      medianMinutes: s.medianMinutes == null ? null : Math.round(s.medianMinutes * 10) / 10,
       failedCount: s.failedCount,
     };
   }
@@ -110,6 +115,7 @@ export class ReportService {
         slaRate: s.totalDelivered === 0 ? 0 : s.onTime / s.totalDelivered,
         avgMinutes:
           s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
+        medianMinutes: s.medianMinutes == null ? null : Math.round(s.medianMinutes * 10) / 10,
       })),
     };
   }

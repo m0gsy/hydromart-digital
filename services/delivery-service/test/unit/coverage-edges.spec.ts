@@ -149,8 +149,8 @@ describe('ReportService arithmetic on empty sets', () => {
   it('a depot that delivered nothing scores 0, and its average is null rather than NaN', async () => {
     const deliveries = {
       slaStatsByDepot: jest.fn().mockResolvedValue([
-        { depotId: 'dep-1', totalDelivered: 0, onTime: 0, breached: 0, sumMinutes: 0 },
-        { depotId: 'dep-2', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 200 },
+        { depotId: 'dep-1', totalDelivered: 0, onTime: 0, breached: 0, sumMinutes: 0, medianMinutes: null },
+        { depotId: 'dep-2', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 200, medianMinutes: 45 },
       ]),
     } as never;
 

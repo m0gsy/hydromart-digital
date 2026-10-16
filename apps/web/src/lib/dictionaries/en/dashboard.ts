@@ -7,7 +7,7 @@ export const dashboard = {
     slaOnTime: 'SLA on-time',
     delivered: '{onTime}/{total} delivered',
     noDepotTitle: 'No depot assigned to you yet',
-    avgDelivery: 'Avg delivery',
+    avgDelivery: 'Median delivery time',
     min: '{n} min',
     threshold: 'threshold {n} min',
     breachedFailed: 'Breached / failed',

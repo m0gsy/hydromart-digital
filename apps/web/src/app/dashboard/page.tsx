@@ -323,7 +323,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
             />
             <Stat
               label={t('dashboard.landing.avgDelivery')}
-              value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
+              value={(deliverySla?.medianMinutes ?? deliverySla?.avgMinutes) != null ? t('dashboard.landing.min', { n: Math.round((deliverySla?.medianMinutes ?? deliverySla?.avgMinutes) as number) }) : '—'}
               hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
             />
             <Stat

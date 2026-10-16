@@ -425,9 +425,11 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     );
     let onTime = 0;
     let sumMinutes = 0;
+    const all: number[] = [];
     for (const r of delivered) {
       const minutes = (r.deliveredAt!.getTime() - r.assignedAt.getTime()) / 60000;
       sumMinutes += minutes;
+      all.push(minutes);
       if (minutes <= thresholdMinutes) onTime += 1;
     }
     return {
@@ -435,6 +437,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       onTime,
       breached: delivered.length - onTime,
       sumMinutes,
+      medianMinutes: median(all),
       failedCount: this.rows.filter((r) => r.failedAt && inRange(r.failedAt) && inScope(r)).length,
     };
   }
@@ -443,6 +446,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       (!range.from || d.getTime() >= range.from.getTime()) &&
       (!range.to || d.getTime() < range.to.getTime());
     const byDepot = new Map<string, DepotSlaStats>();
+    const depotMinutes = new Map<string, number[]>();
     for (const r of this.rows) {
       if (!r.depotId || !r.deliveredAt || !inRange(r.deliveredAt)) continue;
       const cur = byDepot.get(r.depotId) ?? {
@@ -451,8 +455,12 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
         onTime: 0,
         breached: 0,
         sumMinutes: 0,
+        medianMinutes: null,
       };
       const minutes = (r.deliveredAt.getTime() - r.assignedAt.getTime()) / 60000;
+      const bucket = (depotMinutes.get(r.depotId) ?? []).concat(minutes);
+      depotMinutes.set(r.depotId, bucket);
+      cur.medianMinutes = median(bucket);
       cur.totalDelivered += 1;
       cur.sumMinutes += minutes;
       if (minutes <= thresholdMinutes) cur.onTime += 1;
@@ -483,6 +491,14 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   async markSlaAlerted(id: string, at: Date): Promise<void> {
     this.slaAlerted.set(id, at);
   }
+}
+
+/** Linear-interpolated median, the same answer Postgres percentile_cont(0.5) gives. */
+function median(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = (s.length - 1) / 2;
+  return (s[Math.floor(mid)]! + s[Math.ceil(mid)]!) / 2;
 }
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
