@@ -16,6 +16,11 @@ interface NeoPayload {
   similarity?: string | number;
   verified?: boolean | string;
 }
+/** The liveness route's extra fields (RisetAI `verify-face-liveness`). */
+interface NeoLivenessPayload extends NeoPayload {
+  match_status?: { is_real?: boolean | string };
+  results?: { is_spoof?: boolean | string };
+}
 // NEO wraps every response body under a `risetai` key.
 interface NeoResponse {
   risetai?: NeoPayload;
@@ -99,34 +104,20 @@ export class NeoFaceProvider implements FaceVerifier {
    * failure throws (fail closed) — see `HrConfigService.neoLiveness`.
    */
   private async checkLiveness(image: Buffer, userId: string): Promise<boolean> {
-    const { endpoint, token } = this.config.neoFr;
-    if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
-    let res: Response;
-    try {
-      res = await fetch(`${endpoint}${this.config.neoLiveness.path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accesstoken: token },
-        body: JSON.stringify({
-          facegallery_id: this.gallery,
-          user_id: userId,
-          image: toBase64(image),
-          trx_id: randomUUID(),
-          face_parameters: { spoof_detection: true },
-        }),
-      });
-    } catch (err) {
-      throw this.unavailable(`tidak bisa menghubungi NEO (liveness): ${String(err)}`);
-    }
-    const body = ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
-    // Same envelope as the gallery routes, but the liveness verdict may also sit at the top.
-    const root = body as Record<string, unknown>;
-    const results = (root.results ?? {}) as Record<string, unknown>;
-    const match = (root.match_status ?? {}) as Record<string, unknown>;
-    if (!String(root.status ?? '').startsWith('2')) {
-      throw this.unavailable(`liveness: ${String(root.status_message ?? 'unknown error')}`);
-    }
-    if (isTruthy(results.is_spoof as string | boolean | undefined)) return false;
-    return isTruthy(match.is_real as string | boolean | undefined);
+    const payload = (await this.post(
+      `${this.config.neoFr.endpoint}${this.config.neoLiveness.path}`,
+      'POST',
+      'liveness',
+      {
+        facegallery_id: this.gallery,
+        user_id: userId,
+        image: toBase64(image),
+        face_parameters: { spoof_detection: true },
+      },
+    )) as NeoLivenessPayload;
+    this.ensureOk('liveness', payload);
+    if (isTruthy(payload.results?.is_spoof)) return false;
+    return isTruthy(payload.match_status?.is_real);
   }
 
   private get gallery(): string {
@@ -164,23 +155,38 @@ export class NeoFaceProvider implements FaceVerifier {
     return payload;
   }
 
-  /** Raw NEO call: fetch + unwrap the `risetai` envelope. Does NOT throw on a business status. */
-  private async request(
+  /** Raw NEO gallery call: fetch + unwrap the `risetai` envelope. Does NOT throw on a business status. */
+  private request(
     method: string,
     path: string,
     body: Record<string, unknown>,
   ): Promise<NeoPayload> {
-    const { endpoint, token } = this.config.neoFr;
+    return this.post(
+      `${this.config.neoFr.endpoint}/risetai/face-api/facegallery/${path}`,
+      method,
+      path,
+      body,
+    );
+  }
+
+  /** One authenticated NEO request. `label` names the call in errors (a path, or 'liveness'). */
+  private async post(
+    url: string,
+    method: string,
+    label: string,
+    body: Record<string, unknown>,
+  ): Promise<NeoPayload> {
+    const { token } = this.config.neoFr;
     if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
     let res: Response;
     try {
-      res = await fetch(`${endpoint}/risetai/face-api/facegallery/${path}`, {
+      res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', Accesstoken: token },
         body: JSON.stringify({ ...body, trx_id: randomUUID() }),
       });
     } catch (err) {
-      throw this.unavailable(`tidak bisa menghubungi NEO (${path}): ${String(err)}`);
+      throw this.unavailable(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
     }
     // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok).
     return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
