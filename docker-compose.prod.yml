@@ -632,6 +632,14 @@ services:
       <<: *shared
       ADMIN_SERVICE_PORT: 3017
       ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
+      # Scheduled-report email. Host/port are the company mail server (cPanel/Exim, cert
+      # *.hydromart.id); the mailbox and password live only in the box .env (ENV_SET_BLOCK). Blank
+      # SMTP_FROM = reports are generated and stored but not mailed (logged, never an error).
+      SMTP_HOST: ${SMTP_HOST:-mail.hydromart.id}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Peer service base URLs probed by the aggregate system-health roll-up (13b).
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
