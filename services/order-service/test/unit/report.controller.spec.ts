@@ -1,7 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
+import { CAPABILITY_KEY } from '@hydromart/platform';
 
 import { ReportController } from '../../src/modules/report.controller';
 import { ReportService } from '../../src/application/services/report.service';
+
+// Head office reads every depot: no `depotIds` on the principal means unscoped.
+const HQ_USER = { sub: 'hq-1', role: 'HEAD_OFFICE' } as never;
 
 // Each handler is a thin delegate: it maps the query DTO to service args (applying
 // toRange / default limit / default granularity branches) and returns the service's value.
@@ -304,9 +308,23 @@ describe('ReportController', () => {
 
   it('depotMonthly: forwards depotId and month', async () => {
     await expect(
-      controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never),
+      controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never, HQ_USER),
     ).resolves.toBe('monthly');
     expect(service.reportsDepotMonthly).toHaveBeenCalledWith('d1', '2026-02');
+  });
+
+  // The depot head's monthly review: readable for their own depot, refused for any other.
+  it('depotMonthly: a depot head reads their own depot and is refused another', async () => {
+    const kepala = { sub: 'k1', role: 'KEPALA_DEPOT', depotId: 'd1', depotIds: ['d1'] } as never;
+    await expect(
+      controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never, kepala),
+    ).resolves.toBe('monthly');
+    expect(() =>
+      controller.depotMonthly({ depotId: 'd2', month: '2026-02' } as never, kepala),
+    ).toThrow();
+    expect(
+      Reflect.getMetadata(CAPABILITY_KEY, ReportController.prototype.depotMonthly),
+    ).toBe('orderReportsDepot');
   });
 
   it('internalDepotDailyGallons: forwards the day keys and echoes the depotId', async () => {

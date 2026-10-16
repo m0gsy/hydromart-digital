@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 
 import { CAPABILITIES, type Capability } from '@hydromart/access';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
+import { can } from '@/lib/roles';
 
 export type CapabilityHolders = Record<Capability, readonly string[]>;
 
@@ -26,8 +28,14 @@ interface MatrixResponse {
  */
 export function useEffectiveCapabilities(): CapabilityHolders {
   const [caps, setCaps] = useState<CapabilityHolders>(CAPABILITIES as CapabilityHolders);
+  const { customer } = useAuth();
+  // The matrix read is `staffAdmin`. A depot head opens the same "who can do what" screen and
+  // got a 403 in the console for it, then silently used the compiled map — the outcome a
+  // role that cannot read overrides should have, minus the refused request.
+  const mayRead = can('staffAdmin', customer?.role);
 
   useEffect(() => {
+    if (!mayRead) return;
     let alive = true;
     api
       .getCached<MatrixResponse>(endpoints.auth.matrix, true)
@@ -41,7 +49,7 @@ export function useEffectiveCapabilities(): CapabilityHolders {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [mayRead]);
 
   return caps;
 }
