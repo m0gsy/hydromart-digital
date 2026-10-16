@@ -55,6 +55,28 @@ describe('depot search', () => {
   });
 });
 
+describe('/hq/broadcast for MARKETING (found by the full-stack browser pass)', () => {
+  it('does not ask for the depot list MARKETING cannot read, and offers no per-depot audience', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/auth-context', () => ({
+      useAuth: () => ({ customer: { id: 'u1', role: 'MARKETING' }, ready: true, signOut: vi.fn() }),
+    }));
+    vi.doMock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+    vi.doMock('@/components/confirm', () => ({
+      useConfirm: () => ({ confirm: vi.fn(), askReason: vi.fn() }),
+    }));
+    get.mockResolvedValue({ count: 0 });
+    getCached.mockResolvedValue({ items: [] });
+    const { default: HqBroadcastPage } = await import('@/app/hq/broadcast/page');
+    render(<HqBroadcastPage />);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    const urls = [...get.mock.calls, ...getCached.mock.calls].map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('/depots/manage'))).toBe(false);
+    expect(screen.queryByText('hq.broadcast.audiences.depot')).toBeNull();
+    expect(screen.getByText('hq.broadcast.audiences.all')).toBeTruthy();
+  });
+});
+
 describe('/dashboard/vouchers for a role without voucherRead', () => {
   it('shows the denied screen without sending the request that would 403', async () => {
     vi.resetModules();

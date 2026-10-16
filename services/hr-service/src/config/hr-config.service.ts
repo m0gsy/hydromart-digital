@@ -368,6 +368,28 @@ export class HrConfigService {
       internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
     };
   }
+  /**
+   * NEO passive liveness (RisetAI `liveness-api/verify-face-liveness`).
+   *
+   * `off` asks nothing. `shadow` asks on every punch and only LOGS the verdict — it never
+   * blocks and swallows its own failures — so real traffic can be read before it is allowed
+   * to refuse anyone. `enforce` rejects a frame the provider calls spoof, and FAILS CLOSED
+   * when the provider cannot be reached, because 'could not check' must not read as 'is live'.
+   * The route exists on fr.neoapi.id (answers 401 without a token, 404 elsewhere); what a real
+   * face returns for `is_real` has not been seen, which is why `shadow` comes first.
+   */
+  get neoLiveness(): { mode: 'off' | 'shadow' | 'enforce'; path: string } {
+    const raw = this.config.get<string>('NEO_FR_LIVENESS', 'off');
+    const mode = raw === 'enforce' ? 'enforce' : raw === 'shadow' ? 'shadow' : 'off';
+    return {
+      mode,
+      path: this.config.get<string>(
+        'NEO_FR_LIVENESS_PATH',
+        '/risetai/liveness-api/verify-face-liveness',
+      ),
+    };
+  }
+
   /** BiznetGio NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only. */
   get neoFr(): { endpoint: string; token: string; galleryId: string } {
     return {

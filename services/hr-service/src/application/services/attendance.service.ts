@@ -699,6 +699,12 @@ export class AttendanceService {
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }
+    // `live` is undefined unless server-side liveness is switched on. false is a spoof the
+    // match alone accepted; it is refused with its own words so the audit trail can tell a
+    // photo-of-a-photo from an honest mismatch.
+    if (result.live === false) {
+      throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
+    }
     return result.score;
   }
 

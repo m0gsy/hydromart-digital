@@ -59,6 +59,15 @@ export class PaymentConfigService {
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /**
+   * Movable public holidays as ISO dates (`2027-03-10,2027-03-11`), skipped when counting
+   * the refund promise. Fixed-date holidays are built in; this is what ops updates yearly
+   * from the government SKB. Malformed entries are ignored rather than failing boot.
+   */
+  get publicHolidays(): Set<string> {
+    const raw = this.config.get<string>('PUBLIC_HOLIDAYS', '');
+    return new Set(raw.split(',').map((s) => s.trim()).filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s)));
+  }
   /** admin-service, for the feature-flag read. Blank = flags unreadable = all enabled. */
   get adminServiceUrl(): string {
     return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');

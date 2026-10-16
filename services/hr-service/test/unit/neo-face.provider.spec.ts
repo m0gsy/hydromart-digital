@@ -6,7 +6,10 @@ import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider
 const identity = { userId: 'e1', userName: 'Budi' };
 
 function makeConfig(token = 'tok_test'): HrConfigService {
-  return { neoFr: { endpoint: 'https://fr.example', token, galleryId: 'g1' } } as HrConfigService;
+  return {
+    neoFr: { endpoint: 'https://fr.example', token, galleryId: 'g1' },
+    neoLiveness: { mode: 'off', path: '/liveness' },
+  } as unknown as HrConfigService;
 }
 
 function mockFetch(
@@ -145,5 +148,142 @@ describe('NeoFaceProvider', () => {
     await expect(neo.verify(Buffer.from('p'), [], undefined)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
+  });
+});
+
+describe('NeoFaceProvider liveness', () => {
+  const withLiveness = (mode: 'off' | 'shadow' | 'enforce') =>
+    ({
+      neoFr: { endpoint: 'https://fr.example', token: 'tok', galleryId: 'g1' },
+      neoLiveness: { mode, path: '/risetai/liveness-api/verify-face-liveness' },
+    }) as unknown as HrConfigService;
+
+  it('asks nothing when off, and reports no verdict', async () => {
+    const calls = mockFetch(() => ({ body: { status: '200', verified: true, similarity: '90' } }));
+    const res = await new NeoFaceProvider(withLiveness('off')).verify(Buffer.from('p'), [], identity);
+    expect(calls).toHaveLength(1);
+    expect(res.live).toBeUndefined();
+  });
+
+  it('shadow asks, never blocks, and swallows a failing liveness call', async () => {
+    const calls = mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '200', results: { is_spoof: true } } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const spoof = await new NeoFaceProvider(withLiveness('shadow')).verify(Buffer.from('p'), [], identity);
+    // The call was made, but the verdict does not reach the caller.
+    expect(calls.some((c) => c.url.includes('liveness-api'))).toBe(true);
+    expect(spoof.matched).toBe(true);
+    expect(spoof.live).toBeUndefined();
+
+    mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '500', status_message: 'boom' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const down = await new NeoFaceProvider(withLiveness('shadow')).verify(Buffer.from('p'), [], identity);
+    expect(down).toMatchObject({ matched: true });
+    expect(down.live).toBeUndefined();
+  });
+
+  it('marks a real face live and sends spoof_detection on the same frame', async () => {
+    const calls = mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '200', match_status: { is_real: true }, results: { is_spoof: false } } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const res = await new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity);
+    expect(res.live).toBe(true);
+    const live = calls.find((c) => c.url.includes('liveness-api'))!;
+    expect(live.body).toMatchObject({ user_id: 'e1', face_parameters: { spoof_detection: true } });
+    expect(live.body.image).toBe(Buffer.from('p').toString('base64'));
+  });
+
+  it('marks a spoof not live, and treats a missing is_real as not live', async () => {
+    mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '200', results: { is_spoof: true } } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    expect((await new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity)).live).toBe(false);
+    mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '200' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    expect((await new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity)).live).toBe(false);
+  });
+
+  it('fails closed when the liveness call errors, and skips it for a non-match', async () => {
+    mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '500', status_message: 'boom' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    await expect(
+      new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    const calls = mockFetch(() => ({ body: { status: '200', verified: false, similarity: '10' } }));
+    const res = await new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity);
+    expect(res.matched).toBe(false);
+    expect(calls.filter((c) => c.url.includes('liveness-api'))).toHaveLength(0);
+  });
+
+  it('fails closed on a transport error and on a missing token (liveness and the plain call)', async () => {
+    // The match succeeds, then the liveness request itself cannot be made.
+    let n = 0;
+    global.fetch = (async () => {
+      n += 1;
+      if (n === 1) {
+        return { ok: true, status: 200, json: async () => ({ risetai: { status: '200', verified: true, similarity: '90' } }) } as Response;
+      }
+      throw new Error('socket hang up');
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    // A plain gallery call whose request never leaves the box.
+    global.fetch = (async () => {
+      throw new Error('ECONNRESET');
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(withLiveness('off')).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('fails closed when the token vanishes, and when the answer is not JSON at all', async () => {
+    // verify() reads the token once, checkLiveness() again: the second read finds none.
+    let reads = 0;
+    const flaky = {
+      get neoFr() {
+        reads += 1;
+        return { endpoint: 'https://fr.example', token: reads === 1 ? 'tok' : '', galleryId: 'g1' };
+      },
+      neoLiveness: { mode: 'enforce', path: '/liveness' },
+    } as unknown as HrConfigService;
+    mockFetch(() => ({ body: { status: '200', verified: true, similarity: '90' } }));
+    await expect(new NeoFaceProvider(flaky).verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    // The liveness answer is not JSON: no `risetai`, so no 2xx status -> unavailable, not "live".
+    let n = 0;
+    global.fetch = (async () => {
+      n += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => {
+          if (n === 1) return { risetai: { status: '200', verified: true, similarity: '90' } };
+          throw new Error('not json');
+        },
+      } as Response;
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });

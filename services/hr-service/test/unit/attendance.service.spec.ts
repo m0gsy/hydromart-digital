@@ -168,6 +168,17 @@ describe('AttendanceService', () => {
     await expect(nomatch.svc.checkIn(user, punch, AT_0810)).rejects.toThrow(UnauthorizedException);
   });
 
+  // The face matched but the provider says the frame is a spoof (photo of a photo, a screen):
+  // refused with its own words, and a verdict of `undefined` (liveness off) is not a spoof.
+  it('rejects a matched face the provider calls a spoof, and accepts one it did not check', async () => {
+    const spoof = make({ verify: { score: 0.95, matched: true, live: false } });
+    await expect(spoof.svc.checkIn(user, punch, AT_0810)).rejects.toThrow(/bukan wajah asli/);
+    const unchecked = make({ verify: { score: 0.95, matched: true } });
+    await expect(unchecked.svc.checkIn(user, punch, AT_0810)).resolves.toBeDefined();
+    const live = make({ verify: { score: 0.95, matched: true, live: true } });
+    await expect(live.svc.checkIn(user, punch, AT_0810)).resolves.toBeDefined();
+  });
+
   it('rejects an unlinked or inactive employee', async () => {
     await expect(make({ employee: null }).svc.checkIn(user, punch, AT_0810)).rejects.toThrow(
       NotFoundException,

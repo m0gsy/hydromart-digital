@@ -330,6 +330,8 @@ services:
       # number lives. It was never set here at all, so nobody could tell whether the
       # threshold in production was a decision or an accident.
       REFUND_HQ_THRESHOLD: ${REFUND_HQ_THRESHOLD:-100000}
+      # Movable public holidays (ISO dates) skipped by the refund promise.
+      PUBLIC_HOLIDAYS: ${PUBLIC_HOLIDAYS:-2026-01-16,2026-02-16,2026-02-17,2026-03-18,2026-03-19,2026-03-20,2026-03-23,2026-03-24,2026-04-03,2026-05-14,2026-05-15,2026-05-27,2026-05-28,2026-06-16,2026-08-25,2026-12-24,2027-01-05,2027-02-05,2027-02-06,2027-03-08,2027-03-09,2027-03-10,2027-03-11,2027-03-12,2027-03-15,2027-03-25,2027-03-26,2027-03-28,2027-05-06,2027-05-17,2027-05-18,2027-05-19,2027-05-20,2027-06-06,2027-08-15,2027-12-24,2027-12-26}
       # K2.1b: where a customer's payment receipt is stored. Same fallback shape customer
       # uses — proofs live under payment-proof/, avatars under avatars/, resellers under
       # resellers/, so sharing one bucket cannot collide, and the fallback is what makes
@@ -630,6 +632,14 @@ services:
       <<: *shared
       ADMIN_SERVICE_PORT: 3017
       ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
+      # Scheduled-report email. Host/port are the company mail server (cPanel/Exim, cert
+      # *.hydromart.id); the mailbox and password live only in the box .env (ENV_SET_BLOCK). Blank
+      # SMTP_FROM = reports are generated and stored but not mailed (logged, never an error).
+      SMTP_HOST: ${SMTP_HOST:-mail.hydromart.id}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Peer service base URLs probed by the aggregate system-health roll-up (13b).
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
@@ -686,6 +696,10 @@ services:
       NEO_FR_ENDPOINT: ${NEO_FR_ENDPOINT:-https://fr.neoapi.id}
       NEO_FR_TOKEN: ${NEO_FR_TOKEN:-}
       NEO_FR_GALLERY_ID: ${NEO_FR_GALLERY_ID:-hydromart-hr}
+      # shadow = ask NEO passive liveness on every punch and only LOG the verdict. Move to
+      # `enforce` after reading the logs (`liveness shadow user=... live=...`).
+      NEO_FR_LIVENESS: ${NEO_FR_LIVENESS:-shadow}
+      NEO_FR_LIVENESS_PATH: ${NEO_FR_LIVENESS_PATH:-/risetai/liveness-api/verify-face-liveness}
       # Employee photo / face-enrollment storage (per-service S3 bucket in prod).
       # hr can live on its own NOS cluster (endpoint/region override), else falls back
       # to the shared bucket's endpoint/region.

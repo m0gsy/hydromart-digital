@@ -36,13 +36,21 @@ export default function HqBroadcastPage() {
   const { t } = useT();
   const { confirm } = useConfirm();
   const { toast } = useToast();
-  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
   const [audience, setAudience] = useState<Audience>('all');
   const [depotId, setDepotId] = useState('');
   const [title, setTitle] = useState('');
   const { customer } = useAuth();
   const role = customer?.role;
+  // The depot LIST is `depotDirectoryFinance`; MARKETING (who this screen is for) does not hold it, and
+  // asking anyway 403'd on every open. Without the list the per-depot audience cannot be chosen, so it is
+  // not offered rather than offered and empty.
+  const mayListDepots = can('depotDirectoryFinance', role);
+  const depots = useAsync<Page<DepotAdmin>>(() =>
+    mayListDepots
+      ? api.getCached(endpoints.depots.manage({ limit: 100 }), true)
+      : Promise.resolve({ items: [], total: 0, page: 1, limit: 100 } as Page<DepotAdmin>),
+  );
   const [message, setMessage] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
   const [busy, setBusy] = useState(false);
@@ -129,7 +137,7 @@ export default function HqBroadcastPage() {
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">{t('hq.broadcast.audience')}</span>
           <div className="flex flex-wrap gap-2">
-            {AUDIENCES.map((a) => (
+            {AUDIENCES.filter((a) => a !== 'depot' || mayListDepots).map((a) => (
               <button
                 key={a}
                 type="button"
