@@ -93,7 +93,7 @@ export const envValidationSchema = Joi.object({
   NEO_FR_ENDPOINT: Joi.string().uri().default('https://fr.neoapi.id'),
   NEO_FR_TOKEN: Joi.string().allow('').default(''),
   NEO_FR_GALLERY_ID: Joi.string().default('hydromart-hr'),
-  NEO_FR_LIVENESS: Joi.string().valid('off', 'enforce').default('off'),
+  NEO_FR_LIVENESS: Joi.string().valid('off', 'shadow', 'enforce').default('off'),
   NEO_FR_LIVENESS_PATH: Joi.string().default('/risetai/liveness-api/verify-face-liveness'),
   // Photo storage (shared StoragePort). Local disk in dev; S3-compatible in prod.
   STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),

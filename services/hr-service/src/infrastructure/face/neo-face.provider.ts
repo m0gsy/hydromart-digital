@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
@@ -37,6 +37,7 @@ interface NeoResponse {
  */
 @Injectable()
 export class NeoFaceProvider implements FaceVerifier {
+  private readonly logger = new Logger(NeoFaceProvider.name);
   private galleryReady: Promise<void> | null = null;
 
   constructor(private readonly config: HrConfigService) {}
@@ -77,8 +78,17 @@ export class NeoFaceProvider implements FaceVerifier {
       matched: isTruthy(res.verified),
     };
     // Only worth a second call when the face already matched: a non-match is refused anyway.
-    if (result.matched && this.config.neoLiveness.mode === 'enforce') {
+    const mode = this.config.neoLiveness.mode;
+    if (result.matched && mode === 'enforce') {
       result.live = await this.checkLiveness(image, id.userId);
+    } else if (result.matched && mode === 'shadow') {
+      // Observe only: record what the provider says and never let it change the outcome.
+      try {
+        const live = await this.checkLiveness(image, id.userId);
+        this.logger.log(`liveness shadow user=${id.userId} live=${live} score=${result.score}`);
+      } catch (err) {
+        this.logger.warn(`liveness shadow failed user=${id.userId}: ${String(err)}`);
+      }
     }
     return result;
   }

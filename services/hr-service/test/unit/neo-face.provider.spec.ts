@@ -152,7 +152,7 @@ describe('NeoFaceProvider', () => {
 });
 
 describe('NeoFaceProvider liveness', () => {
-  const withLiveness = (mode: 'off' | 'enforce') =>
+  const withLiveness = (mode: 'off' | 'shadow' | 'enforce') =>
     ({
       neoFr: { endpoint: 'https://fr.example', token: 'tok', galleryId: 'g1' },
       neoLiveness: { mode, path: '/risetai/liveness-api/verify-face-liveness' },
@@ -163,6 +163,28 @@ describe('NeoFaceProvider liveness', () => {
     const res = await new NeoFaceProvider(withLiveness('off')).verify(Buffer.from('p'), [], identity);
     expect(calls).toHaveLength(1);
     expect(res.live).toBeUndefined();
+  });
+
+  it('shadow asks, never blocks, and swallows a failing liveness call', async () => {
+    const calls = mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '200', results: { is_spoof: true } } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const spoof = await new NeoFaceProvider(withLiveness('shadow')).verify(Buffer.from('p'), [], identity);
+    // The call was made, but the verdict does not reach the caller.
+    expect(calls.some((c) => c.url.includes('liveness-api'))).toBe(true);
+    expect(spoof.matched).toBe(true);
+    expect(spoof.live).toBeUndefined();
+
+    mockFetch((url) =>
+      url.includes('liveness-api')
+        ? { body: { status: '500', status_message: 'boom' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const down = await new NeoFaceProvider(withLiveness('shadow')).verify(Buffer.from('p'), [], identity);
+    expect(down).toMatchObject({ matched: true });
+    expect(down.live).toBeUndefined();
   });
 
   it('marks a real face live and sends spoof_detection on the same frame', async () => {

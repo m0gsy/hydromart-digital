@@ -67,6 +67,11 @@ describe('HrConfigService', () => {
       new SettingsCache(new FakeSource([])),
     );
     expect(on.neoLiveness).toEqual({ mode: 'enforce', path: '/x/liveness' });
+    const shadow = new HrConfigService(
+      config({ NEO_FR_LIVENESS: 'shadow' }),
+      new SettingsCache(new FakeSource([])),
+    );
+    expect(shadow.neoLiveness.mode).toBe('shadow');
     // Anything that is not exactly 'enforce' is off: a typo must not switch punches to fail-closed.
     const typo = new HrConfigService(
       config({ NEO_FR_LIVENESS: 'ENFORCE ' }),
