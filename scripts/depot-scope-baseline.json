@@ -1,5 +1,5 @@
 {
-  "count": 65,
+  "count": 66,
   "routes": [
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
@@ -47,6 +47,7 @@
     "services/order-service/src/modules/order.controller.ts Patch manage/:id/depot @Can(orderQueue)",
     "services/order-service/src/modules/order.controller.ts Post :id/cancel @Can(-)",
     "services/order-service/src/modules/order.controller.ts Post :id/repeat @Can(-)",
+    "services/order-service/src/modules/order.controller.ts Post :id/reschedule @Can(-)",
     "services/order-service/src/modules/order.controller.ts Post :id/review @Can(-)",
     "services/order-service/src/modules/subscription.controller.ts Post :id/address @Can(-)",
     "services/order-service/src/modules/subscription.controller.ts Post :id/cancel @Can(-)",
