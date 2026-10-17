@@ -57,14 +57,14 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 | FR-031 | Promo | ADA | `services/order-service/src/application/ports/product-catalog.port.ts` | - |
 | FR-032 | Membership Discount | ADA | `services/order-service/src/application/ports/membership.port.ts` | - |
 | FR-033 | Delivery Fee | ADA | `services/order-service/src/application/ports/depot-directory.port.ts` | E |
-| FR-034 | Tax Calculation | ADA | PPN dicatat per pesanan (orders.taxAmount/taxPercent) pada tarif dan pembulatan payment-service; harga ke konsumen sudah termasuk PPN sehingga total tidak berubah. Mode "belum termasuk" hanya mengatur faktur. Pratinjau di keranjang belum ada: tampil di layar pesanan. | E |
+| FR-034 | Tax Calculation | ADA | PPN dicatat per pesanan (orders.taxAmount/taxPercent) pada tarif dan pembulatan payment-service; harga ke konsumen sudah termasuk PPN sehingga total tidak berubah. Mode "belum termasuk" hanya mengatur faktur. Pratinjau PPN tampil di total checkout (GET /orders/tax-preview) dan di layar pesanan. | E |
 
 ## Module 5 — Checkout
 
 | FR | Fitur (PRD) | Status kode | Bukti kode | Uji |
 |---|---|---|---|---|
 | FR-035 | Konfirmasi alamat | ADA | `services/order-service/src/application/ports/customer-directory.port.ts` | E,B |
-| FR-036 | Pilih jadwal | ADA | orders.scheduledFor (instan awal slot, validasi terhadap slot depot, 30 menit sampai 4 hari, tidak bisa digabung express); checkout mengirimnya. | E |
+| FR-036 | Pilih jadwal | ADA | orders.scheduledFor (instan awal slot, validasi terhadap slot depot, 30 menit sampai 4 hari, tidak bisa digabung express, tidak pada hari libur/tutup depot); checkout mengirimnya. Depot diberi tahu saat dijadwal ulang (DEPOT_ORDER_RESCHEDULED). | E |
 | FR-037 | Pilih pembayaran | ADA | `services/payment-service/src/application/ports/payment-gateway.port.ts` | E,B |
 | FR-038 | Catatan customer | ADA | `services/order-service/src/application/ports/order.repository.ts` | E |
 | FR-039 | Review order | ADA | `apps/web/src/app/checkout/page.tsx` | B |
