@@ -115,6 +115,7 @@ export const shop = {
     },
     get: (id: string) => `/orders/api/v1/orders/${id}`,
     cancel: (id: string) => `/orders/api/v1/orders/${id}/cancel`,
+    reschedule: (id: string) => `/orders/api/v1/orders/${id}/reschedule`,
     repeat: (id: string) => `/orders/api/v1/orders/${id}/repeat`,
     // GET → existing review (null if unrated), POST → submit (spec 7c).
     review: (id: string) => `/orders/api/v1/orders/${id}/review`,

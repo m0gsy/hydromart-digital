@@ -490,6 +490,12 @@ export interface Order extends DeliveryAddress {
    * been shown a confirmation for.
    */
   deliveryWindow?: string | null;
+  /** FR-036: the real instant the booked delivery slot starts (null: no day was booked). */
+  scheduledFor?: string | null;
+  /** FR-034: the PPN portion already inside `total` (0 / absent when none was recorded). */
+  taxAmount?: number;
+  /** The PPN percent `taxAmount` was taken at. */
+  taxPercent?: number | null;
   /** The landmark (patokan) the customer wrote for the courier. */
   notes?: string | null;
   driverName: string | null;

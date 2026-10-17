@@ -42,6 +42,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { useQueryParam } from '@/lib/use-query-param';
 import { voucherToApply } from '@/lib/vouchers';
+import { slotInstant } from '@/lib/delivery-schedule';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, numOrNull, pickDefaultAddress } from '@/lib/addresses';
 import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
@@ -667,6 +668,9 @@ function CheckoutInner() {
            */
           voucherCode: activeQuote?.code ?? undefined,
           deliveryWindow: deliveryWindow || undefined,
+          // FR-036: the booked day as a real instant, so it survives in the order (the label
+          // above says which weekday but not which one).
+          scheduledFor: !express && slotTime ? (slotInstant(slotDateIdx, slotTime) ?? undefined) : undefined,
           // The intent, not the price: order-service reads the surcharge from the depot's
           // own settings. Nothing this screen believes about money is sent.
           express: express || undefined,

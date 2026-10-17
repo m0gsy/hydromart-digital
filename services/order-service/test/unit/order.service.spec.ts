@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as alerter from '@hydromart/platform';
+import { TaxRounding } from '@hydromart/platform';
 
 import { Logger } from '@nestjs/common';
 
@@ -15,10 +16,12 @@ import {
   DuplicateCheckoutError,
   EmptyCartError,
   InsufficientStockError,
+  InvalidDeliveryScheduleError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
   OrderAlreadyRoutedError,
   OrderNotReroutableError,
+  OrderNotReschedulableError,
   OrderNotRoutedError,
   OrderNotCancellableError,
   OrderNotFoundError,
@@ -2887,6 +2890,302 @@ describe('OrderService', () => {
     });
     expect(order.deliveryFee).toBe(8000);
     expect(order.total).toBe(28000);
+  });
+
+  // FR-036 / FR-052. The booked DAY never reached the database: checkout stored a free-form
+  // label ("Kam, 09.00-11.00") that says which weekday but not which Thursday, so nothing could
+  // sort, remind or move an order by the day it was booked for. Pinned clock: 08:00 Jakarta on
+  // 2026-08-31, so tomorrow 09:00 WIB is 2026-09-01T02:00:00Z.
+  describe('scheduled delivery (FR-036) and reschedule (FR-052)', () => {
+    const TOMORROW_9 = '2026-09-01T02:00:00.000Z';
+    const TOMORROW_11 = '2026-09-01T04:00:00.000Z';
+    beforeEach(() => {
+      jest.useFakeTimers({
+        now: new Date('2026-08-31T01:00:00Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('stores the real instant of the chosen slot and names the window from it', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        scheduledFor: TOMORROW_9,
+      });
+      expect(order.scheduledFor?.toISOString()).toBe(TOMORROW_9);
+      expect(order.deliveryWindow).toBe('09.00-11.00');
+    });
+
+    it('keeps the label the client sent when it sent one', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        scheduledFor: TOMORROW_9,
+        deliveryWindow: 'Besok, 09.00-11.00',
+      });
+      expect(order.deliveryWindow).toBe('Besok, 09.00-11.00');
+    });
+
+    it('leaves scheduledFor empty for an order that named no day', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.scheduledFor).toBeNull();
+    });
+
+    it('refuses a time that is not the start of one of the depot slots', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: '2026-09-01T02:20:00.000Z',
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses a slot that has already started', async () => {
+      jest.setSystemTime(new Date('2026-08-31T03:30:00Z')); // 10:30 WIB
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: '2026-08-31T02:00:00.000Z', // 09:00 WIB today
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses a date past the booking horizon', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: '2026-09-08T02:00:00.000Z',
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses a schedule together with express: they are different services', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: TOMORROW_9,
+          express: true,
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses something that is not a date', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, scheduledFor: 'besok pagi' }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    describe('reschedule', () => {
+      const place = async (scheduledFor: string | undefined = TOMORROW_9) => {
+        await addToCart(20000, 1);
+        return service.checkout(customer, { deliveryAddress: address, scheduledFor });
+      };
+
+      it('moves the order to another slot and updates the window with it', async () => {
+        const order = await place();
+        const moved = await service.reschedule(customer, order.id, TOMORROW_11);
+        expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+        expect(moved.deliveryWindow).toBe('11.00-13.00');
+        const again = await service.getForCustomer(customer, order.id);
+        expect(again.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+      });
+
+      it('lets the depot keep working: CONFIRMED and PREPARING can still be moved', async () => {
+        const order = await place();
+        await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+        await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+        const moved = await service.reschedule(customer, order.id, TOMORROW_11);
+        expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+      });
+
+      it('does not touch another customer order, and does not say it exists', async () => {
+        const order = await place();
+        await expect(service.reschedule(randomUUID(), order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotFoundError,
+        );
+      });
+
+      it('refuses an express order: it has no slot to move', async () => {
+        await addToCart(20000, 1);
+        const order = await service.checkout(customer, { deliveryAddress: address, express: true });
+        await expect(service.reschedule(customer, order.id, TOMORROW_9)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('refuses once a courier has been assigned', async () => {
+        const order = await place();
+        await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+        await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+        await service.updateStatus(order.id, OrderStatus.DRIVER_ASSIGNED, 'staff');
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('refuses a cancelled order', async () => {
+        const order = await place();
+        await service.cancel(customer, order.id, 'x');
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('refuses inside the notice window before the CURRENT slot', async () => {
+        const order = await place(); // tomorrow 09:00 WIB
+        jest.setSystemTime(new Date('2026-09-01T01:00:00Z')); // 08:00 WIB: one hour before
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-01T04:00:00.000Z'),
+        ).rejects.toBeInstanceOf(OrderNotReschedulableError);
+      });
+
+      it('applies the same slot rules to the NEW time, and changes nothing when it refuses', async () => {
+        const order = await place();
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-01T02:20:00.000Z'),
+        ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-20T02:00:00.000Z'),
+        ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+        const again = await service.getForCustomer(customer, order.id);
+        expect(again.scheduledFor?.toISOString()).toBe(TOMORROW_9);
+      });
+
+      it('reports a dispatch that wins the race as not-reschedulable, not as a server error', async () => {
+        const order = await place();
+        jest.spyOn(orders, 'rescheduleSlot').mockRejectedValueOnce(new StaleOrderStatusError());
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('lets an unexpected failure through untouched', async () => {
+        const order = await place();
+        jest.spyOn(orders, 'rescheduleSlot').mockRejectedValueOnce(new Error('db down'));
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toThrow('db down');
+      });
+
+      it('can give a day to an older order that only ever had a label', async () => {
+        await addToCart(20000, 1);
+        const legacy = await service.checkout(customer, {
+          deliveryAddress: address,
+          deliveryWindow: 'Sel, 09.00-11.00',
+        });
+        expect(legacy.scheduledFor).toBeNull();
+        const moved = await service.reschedule(customer, legacy.id, TOMORROW_11);
+        expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+      });
+    });
+  });
+
+  // FR-034. The PPN settings existed (HQ edits the rate, the invoice template prints it) but no
+  // order recorded how much of its total was tax. Customer-facing prices include PPN, so the
+  // total is untouched: the order stores the portion of it that is tax, at the rate and rounding
+  // payment-service holds, so the figure on the receipt is the one on the books.
+  describe('PPN on the order (FR-034)', () => {
+    class FakeTaxRate {
+      rate: { percent: number; rounding: TaxRounding } | null = {
+        percent: 11,
+        rounding: TaxRounding.HALF_UP,
+      };
+      calls = 0;
+      async current() {
+        this.calls += 1;
+        return this.rate;
+      }
+    }
+    let taxRate: FakeTaxRate;
+    let taxed: OrderService;
+    beforeEach(() => {
+      taxRate = new FakeTaxRate();
+      taxed = new OrderService(
+        orders,
+        cart,
+        catalog,
+        depots,
+        pricing,
+        loyalty,
+        referral,
+        membership,
+        resellerDiscount,
+        customerDirectory,
+        notification,
+        promo,
+        promoAutoApply,
+        inventory,
+        cartService,
+        config,
+        recommendation,
+        forecast,
+        franchiseRevenue,
+        gallonIssue,
+        new FakeCashierShift(),
+        reversal,
+        outbox,
+        taxRate,
+      );
+    });
+
+    it('records the PPN portion of the total without changing the total', async () => {
+      await addToCart(20000, 1); // subtotal 20000 + shipping 5000 = 25000
+      const order = await taxed.checkout(customer, { deliveryAddress: address });
+      expect(order.total).toBe(25000);
+      // 25000 * 11 / 111 = 2477.48 -> 2477 (HALF_UP)
+      expect(order.taxAmount).toBe(2477);
+      expect(order.taxPercent).toBe(11);
+    });
+
+    it('applies the rounding method payment-service holds', async () => {
+      taxRate.rate = { percent: 11, rounding: TaxRounding.DOWN };
+      await addToCart(20000, 1);
+      expect((await taxed.checkout(customer, { deliveryAddress: address })).taxAmount).toBe(2477);
+      taxRate.rate = { percent: 11, rounding: TaxRounding.HALF_UP };
+      await addToCart(20000, 3); // 60000 + 15000 = 75000 -> 7432.43 -> 7432
+      expect((await taxed.checkout(customer, { deliveryAddress: address })).taxAmount).toBe(7432);
+    });
+
+    it('records nothing when the rate is zero, and nothing when it cannot be read', async () => {
+      taxRate.rate = { percent: 0, rounding: TaxRounding.HALF_UP };
+      await addToCart(20000, 1);
+      const zero = await taxed.checkout(customer, { deliveryAddress: address });
+      expect(zero.taxAmount).toBe(0);
+      expect(zero.taxPercent).toBeNull();
+
+      taxRate.rate = null; // payment-service unreachable and nothing cached
+      await addToCart(20000, 1);
+      const unknown = await taxed.checkout(customer, { deliveryAddress: address });
+      expect(unknown.taxAmount).toBe(0);
+      expect(unknown.taxPercent).toBeNull();
+      expect(unknown.total).toBe(25000); // a tax outage never blocks or reprices a checkout
+    });
+
+    it('takes the PPN of what the customer actually pays, after the discount', async () => {
+      await addToCart(20000, 1);
+      promo.quoteDiscount = 5000;
+      promo.quoteDiscountType = 'FIXED';
+      const order = await taxed.checkout(customer, {
+        deliveryAddress: address,
+        voucherCode: 'hemat5',
+      });
+      expect(order.total).toBe(20000);
+      expect(order.taxAmount).toBe(Math.round((20000 * 11) / 111)); // 1982
+    });
+
+    it('is optional: a service built without a tax source places orders exactly as before', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.taxAmount).toBe(0);
+      expect(order.taxPercent).toBeNull();
+    });
   });
 
   // The express surcharge was a constant in the checkout SCREEN and had no counterpart

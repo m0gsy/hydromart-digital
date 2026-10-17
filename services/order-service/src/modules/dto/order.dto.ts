@@ -11,6 +11,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsISO8601,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
@@ -120,6 +121,15 @@ export class CheckoutDto {
   @IsString()
   @MaxLength(40)
   deliveryWindow?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-09-01T02:00:00.000Z',
+    description:
+      "The instant the chosen delivery slot starts (ISO-8601). It must be the start of one of the depot's own slots, between 30 minutes and 4 days from now, and cannot be combined with express.",
+  })
+  @IsOptional()
+  @IsISO8601()
+  scheduledFor?: string;
 
   @ApiPropertyOptional({
     example: true,
@@ -234,6 +244,16 @@ export class AssignDepotDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   depotId!: string;
+}
+
+/** FR-052: the customer moves their own delivery to another slot. */
+export class RescheduleOrderDto {
+  @ApiProperty({
+    example: '2026-09-01T04:00:00.000Z',
+    description: "The instant the new delivery slot starts (ISO-8601), same rules as checkout's scheduledFor.",
+  })
+  @IsISO8601()
+  scheduledFor!: string;
 }
 
 export class CancelOrderDto {

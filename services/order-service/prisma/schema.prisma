@@ -84,6 +84,16 @@ model Order {
   /// (e.g. "2026-07-20 09:00-12:00"). Not slot-checked — display/reference only.
   deliveryWindow String?
 
+  /// FR-036: the real instant the booked slot STARTS (Jakarta wall-clock slot -> UTC). Null for
+  /// an order that named no day (express, or placed before this column existed).
+  scheduledFor DateTime?
+
+  /// FR-034: the PPN portion of `total` (prices shown to customers include PPN, so the total is
+  /// unchanged) and the percent it was taken at. 0 / null for orders placed before the column,
+  /// when no rate could be read, or when the rate is zero.
+  taxAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  taxPercent Decimal? @db.Decimal(5, 2)
+
   /// Cash sale recorded at the depot counter: no cart, no courier, no delivery fee.
   /// Reporting needs it — otherwise a zero-fee order looks like a broken delivery order.
   isWalkIn       Boolean @default(false)

@@ -41,6 +41,7 @@ import { GallonIssueHttpAdapter } from '../infrastructure/http/gallon-issue.http
 import { CashierShiftHttpAdapter } from '../infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../infrastructure/http/payment-reversal.http.adapter';
 import { PaymentCashHttpAdapter } from '../infrastructure/http/payment-cash.http.adapter';
+import { TaxRateHttpAdapter } from '../infrastructure/http/tax-rate.http.adapter';
 import { DeliverySlaHttpAdapter } from '../infrastructure/http/delivery-sla.http.adapter';
 import { DepotCostsHttpAdapter } from '../infrastructure/http/depot-costs.http.adapter';
 import { MembershipHttpAdapter } from '../infrastructure/http/membership.http.adapter';
@@ -96,6 +97,7 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.CashierShift, useClass: CashierShiftHttpAdapter },
   { provide: ORDER_TOKENS.PaymentReversal, useClass: PaymentReversalHttpAdapter },
   { provide: ORDER_TOKENS.PaymentCash, useClass: PaymentCashHttpAdapter },
+  { provide: ORDER_TOKENS.TaxRate, useClass: TaxRateHttpAdapter },
   {
     provide: ORDER_TOKENS.FeatureFlags,
     inject: [OrderConfigService],

@@ -50,6 +50,7 @@ import { Page } from '../application/pagination';
 import {
   AssignDepotDto,
   CancelOrderDto,
+  RescheduleOrderDto,
   CheckoutDto,
   CounterBuyerResponseDto,
   CounterIdentifyDto,
@@ -133,6 +134,7 @@ export class OrderController {
         depotId: dto.depotId ?? null,
         voucherCode: dto.voucherCode ?? null,
         deliveryWindow: dto.deliveryWindow ?? null,
+        scheduledFor: dto.scheduledFor ?? null,
         express: dto.express ?? false,
         idempotencyKey: idempotencyKey ?? null,
       },
@@ -760,6 +762,21 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     return this.orders.cancel(user.sub, id, dto.reason, authorization);
+  }
+
+  @ApiOkResponse({ type: OrderResponseDto })
+  @SelfScoped()
+  @Post(':id/reschedule')
+  @ApiOperation({
+    summary:
+      "Move an order's delivery to another slot (before it leaves the depot, until 2 hours before the booked slot)",
+  })
+  reschedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RescheduleOrderDto,
+  ): Promise<OrderRecord> {
+    return this.orders.reschedule(user.sub, id, dto.scheduledFor);
   }
 
   @ApiOkResponse({ type: CartResponseDto })

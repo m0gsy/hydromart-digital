@@ -3,6 +3,7 @@ import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platf
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
+import { EXPRESS_WINDOW } from '../../domain/delivery-schedule';
 import { OrderStatus } from '../../domain/order-status';
 import { galonQuantity } from '../../domain/pricing';
 import {
@@ -57,7 +58,7 @@ const STALE_SWEEP_BATCH = 500;
  * it is not a schedule and earns none of the grace below — an express order still sitting
  * in CREATED an hour later IS abandoned.
  */
-const EXPRESS_WINDOW = 'Antar sekarang (express)';
+// EXPRESS_WINDOW comes from the domain now (FR-052 needs it in the service too).
 /**
  * W2b: how much longer an order the customer booked for a later day gets before the
  * abandoned sweep may touch it.
@@ -133,6 +134,9 @@ interface OrderRow {
   longitude: number | null;
   notes: string | null;
   deliveryWindow: string | null;
+  scheduledFor: Date | null;
+  taxAmount: Decimalish;
+  taxPercent: Decimalish | null;
   isWalkIn: boolean;
   voidedAt: Date | null;
   voidReason: string | null;
@@ -237,6 +241,9 @@ export class OrderPrismaRepository implements OrderRepository {
       longitude: row.longitude,
       notes: row.notes,
       deliveryWindow: row.deliveryWindow,
+      scheduledFor: row.scheduledFor,
+      taxAmount: row.taxAmount.toNumber(),
+      taxPercent: row.taxPercent ? row.taxPercent.toNumber() : null,
       isWalkIn: row.isWalkIn,
       voidedAt: row.voidedAt,
       voidReason: row.voidReason,
@@ -471,6 +478,21 @@ export class OrderPrismaRepository implements OrderRepository {
       include: INCLUDE,
     });
     return row ? this.toRecord(row) : null;
+  }
+
+  async rescheduleSlot(
+    id: string,
+    scheduledFor: Date,
+    deliveryWindow: string,
+    allowedStatuses: OrderStatus[],
+  ): Promise<OrderRecord> {
+    const { count } = await this.prisma.order.updateMany({
+      where: { id, status: { in: allowedStatuses as unknown as DbOrderStatus[] } },
+      data: { scheduledFor, deliveryWindow },
+    });
+    if (count === 0) throw new StaleOrderStatusError();
+    const row = await this.prisma.order.findUniqueOrThrow({ where: { id }, include: INCLUDE });
+    return this.toRecord(row);
   }
 
   async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
