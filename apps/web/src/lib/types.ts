@@ -453,6 +453,8 @@ export interface DeliveryOptions {
   expressFee: number;
   expressEtaMinMinutes: number;
   expressEtaMaxMinutes: number;
+  /** Local days (`YYYY-MM-DD`) within the booking horizon on which the depot is shut. */
+  closedDates?: string[];
 }
 
 export interface Order extends DeliveryAddress {
@@ -867,6 +869,7 @@ export type NotificationEvent =
   | 'CUSTOMER_REGISTERED'
   // O6: addressed to a DEPOT rather than to a buyer — the depot's own "an order arrived".
   | 'DEPOT_ORDER_INCOMING'
+  | 'DEPOT_ORDER_RESCHEDULED'
   | 'STOCK_LOW'
   | 'STOCK_UNTRACKED'
   | 'METER_VARIANCE'
@@ -901,6 +904,7 @@ export type NotificationEvent =
  */
 export const OPS_EVENTS = [
   'DEPOT_ORDER_INCOMING',
+  'DEPOT_ORDER_RESCHEDULED',
   'STOCK_LOW',
   'STOCK_UNTRACKED',
   'METER_VARIANCE',

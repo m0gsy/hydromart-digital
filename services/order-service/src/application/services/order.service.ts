@@ -51,9 +51,11 @@ import {
   isVoidableInShift,
   notificationEventFor,
 } from '../../domain/order-status';
+import { isClosedOn } from '../../domain/opening-hours';
 import {
   EXPRESS_WINDOW,
   RESCHEDULE_CUTOFF_MINUTES,
+  SCHEDULE_HORIZON_DAYS,
   validateSchedule,
 } from '../../domain/delivery-schedule';
 import { computePpn } from '@hydromart/platform';
@@ -233,6 +235,8 @@ export interface DeliveryOptions {
   expressFee: number;
   expressEtaMinMinutes: number;
   expressEtaMaxMinutes: number;
+  /** Local days within the booking horizon on which the depot is shut. */
+  closedDates: string[];
 }
 
 export interface ListOrdersInput {
@@ -433,7 +437,29 @@ export class OrderService {
       expressFee: express.fee,
       expressEtaMinMinutes: express.etaMinMinutes,
       expressEtaMaxMinutes: express.etaMaxMinutes,
+      // FR-036: the days a booking would be refused, so the screen stops offering them.
+      closedDates: await this.closedDatesFor(depotId),
     };
+  }
+
+  /**
+   * The local days, within the booking horizon, on which this depot is shut (a holiday or a
+   * weekday it does not trade). Empty when the depot is unknown or the directory is down: the
+   * screen then offers every day and the server's own check at checkout still decides.
+   */
+  private async closedDatesFor(depotId: string | null): Promise<string[]> {
+    if (!depotId) return [];
+    const depots = await this.depotDirectory.listActiveDepots();
+    const found = depots?.find((d) => d.id === depotId);
+    if (!found) return [];
+    const tz = this.config.businessTimeZone;
+    const now = Date.now();
+    const closed: string[] = [];
+    for (let i = 0; i <= SCHEDULE_HORIZON_DAYS; i += 1) {
+      const at = new Date(now + i * 86_400_000);
+      if (isClosedOn(found.operatingHours, found.holidays, at, tz)) closed.push(localDayKey(at, tz));
+    }
+    return closed;
   }
 
   /**
@@ -570,7 +596,7 @@ export class OrderService {
     // FR-036: a booked day is a real instant, checked against THIS depot's slots. Express and a
     // schedule are different services, so asking for both is refused rather than guessed at.
     const schedule = input.scheduledFor
-      ? this.resolveSchedule(depot.id, input.scheduledFor, input.express)
+      ? await this.resolveSchedule(depot.id, input.scheduledFor, input.express, depot)
       : null;
 
     // Reseller pricing (reseller-only): an active reseller priced either by percent or by
@@ -680,9 +706,7 @@ export class OrderService {
     // FR-034: the PPN portion of what the customer pays. Prices shown to customers include PPN,
     // so this is carved OUT of the total, never added to it; a tax source that is missing or
     // down records nothing rather than blocking or repricing the order.
-    const tax = this.taxRate ? await this.taxRate.current() : null;
-    const taxAmount =
-      tax && tax.percent > 0 ? computePpn(total, tax.percent, true, tax.rounding) : 0;
+    const { amount: taxAmount, percent: taxPercent } = await this.taxPreview(total);
 
     const { order, gifts: keptGifts } = await this.reserveThenCreateWithGifts(
       depot.id,
@@ -703,7 +727,7 @@ export class OrderService {
           : (input.deliveryWindow ?? schedule?.slot ?? null),
         scheduledFor: schedule?.at ?? null,
         taxAmount,
-        taxPercent: taxAmount > 0 && tax ? tax.percent : null,
+        taxPercent,
         idempotencyKey,
         ...input.deliveryAddress,
         items,
@@ -1902,14 +1926,29 @@ export class OrderService {
   }
 
   /**
+   * FR-034: the PPN already inside `total` — what checkout records on the order, and what the
+   * screen shows beside its total before the order exists. One function, so the figure the
+   * customer reads and the figure that is stored cannot disagree. Prices shown to customers
+   * include PPN, so this is carved OUT of the total, never added; no source, an unreadable rate
+   * or a zero rate answers nothing rather than blocking or repricing anything.
+   */
+  async taxPreview(total: number): Promise<{ amount: number; percent: number | null }> {
+    const tax = this.taxRate ? await this.taxRate.current() : null;
+    const amount =
+      tax && tax.percent > 0 && total > 0 ? computePpn(total, tax.percent, true, tax.rounding) : 0;
+    return { amount, percent: amount > 0 && tax ? tax.percent : null };
+  }
+
+  /**
    * A requested delivery instant, checked against the depot's slots (FR-036/FR-052). Returns
    * the instant and the slot label it starts, or throws the refusal that names the reason.
    */
-  private resolveSchedule(
+  private async resolveSchedule(
     depotId: string | null,
     requested: string,
     express?: boolean,
-  ): { at: Date; slot: string } {
+    depot?: DepotLocation,
+  ): Promise<{ at: Date; slot: string }> {
     if (express) throw new InvalidDeliveryScheduleError('EXPRESS');
     const at = new Date(requested);
     if (Number.isNaN(at.getTime())) throw new InvalidDeliveryScheduleError('NOT_A_DATE');
@@ -1919,7 +1958,29 @@ export class OrderService {
       now: new Date(),
     });
     if (!verdict.ok) throw new InvalidDeliveryScheduleError(verdict.reason);
+    // The slots say WHEN in a day; whether the depot trades on that day is the depot's own
+    // calendar. An unknown depot or an unreachable directory books the slot, as depotIsOpen does:
+    // not knowing is not the same as knowing it is shut.
+    if (await this.depotClosedOn(depotId, at, depot)) {
+      throw new InvalidDeliveryScheduleError('CLOSED_DAY');
+    }
     return { at, slot: verdict.slot };
+  }
+
+  /** Is this depot shut for the whole local day of `at` (holiday, or a non-trading weekday)? */
+  private async depotClosedOn(
+    depotId: string | null,
+    at: Date,
+    depot?: DepotLocation,
+  ): Promise<boolean> {
+    if (!depotId) return false;
+    let found = depot;
+    if (!found) {
+      const depots = await this.depotDirectory.listActiveDepots();
+      found = depots?.find((d) => d.id === depotId);
+    }
+    if (!found) return false;
+    return isClosedOn(found.operatingHours, found.holidays, at, this.config.businessTimeZone);
   }
 
   /**
@@ -1931,7 +1992,12 @@ export class OrderService {
    * passes the same checks checkout applies. The write is a compare-and-set on the status, so a
    * dispatch that lands between the read and the write wins and the move is refused.
    */
-  async reschedule(customerId: string, orderId: string, requested: string): Promise<OrderRecord> {
+  async reschedule(
+    customerId: string,
+    orderId: string,
+    requested: string,
+    authorization = '',
+  ): Promise<OrderRecord> {
     const order = await this.getForCustomer(customerId, orderId);
     if (order.isWalkIn || order.deliveryWindow === EXPRESS_WINDOW) {
       throw new OrderNotReschedulableError('EXPRESS');
@@ -1945,9 +2011,10 @@ export class OrderService {
     ) {
       throw new OrderNotReschedulableError('TOO_LATE');
     }
-    const next = this.resolveSchedule(order.depotId, requested);
+    const next = await this.resolveSchedule(order.depotId, requested);
+    let moved: OrderRecord;
     try {
-      return await this.orders.rescheduleSlot(order.id, next.at, next.slot, [
+      moved = await this.orders.rescheduleSlot(order.id, next.at, next.slot, [
         OrderStatus.CREATED,
         OrderStatus.CONFIRMED,
         OrderStatus.PREPARING,
@@ -1956,6 +2023,36 @@ export class OrderService {
       if (error instanceof StaleOrderStatusError) throw new OrderNotReschedulableError('STATUS');
       throw error;
     }
+    await this.notifyDepotOfReschedule(moved, next.at, next.slot, authorization);
+    return moved;
+  }
+
+  /**
+   * The depot planned a morning around the old slot, so it is told the slot moved — addressed to
+   * the DEPOT (no customer id: the buyer is not pushed their own change). Fail-open like every
+   * notify: the order is already moved and a message that did not go must not undo it.
+   */
+  private async notifyDepotOfReschedule(
+    order: OrderRecord,
+    at: Date,
+    slot: string,
+    authorization: string,
+  ): Promise<void> {
+    if (!order.depotId) return;
+    const day = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      timeZone: this.config.businessTimeZone,
+    }).format(at);
+    await this.notification.notify(
+      'DEPOT_ORDER_RESCHEDULED',
+      order.phone,
+      { orderNumber: order.orderNumber, orderId: order.id, when: `${day}, ${slot}` },
+      null,
+      authorization,
+      order.depotId,
+    );
   }
 
   /**

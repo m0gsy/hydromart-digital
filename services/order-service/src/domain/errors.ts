@@ -411,7 +411,9 @@ export class OrderNotCancellableError extends DomainError {
 export class InvalidDeliveryScheduleError extends DomainError {
   readonly code = 'ORDER_SCHEDULE_INVALID';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
-  constructor(reason: 'NOT_A_DATE' | 'NOT_A_SLOT' | 'TOO_SOON' | 'BEYOND_HORIZON' | 'EXPRESS') {
+  constructor(
+    reason: 'NOT_A_DATE' | 'NOT_A_SLOT' | 'TOO_SOON' | 'BEYOND_HORIZON' | 'EXPRESS' | 'CLOSED_DAY',
+  ) {
     super(
       {
         NOT_A_DATE: 'Waktu pengiriman tidak valid.',
@@ -419,6 +421,7 @@ export class InvalidDeliveryScheduleError extends DomainError {
         TOO_SOON: 'Jam antar itu sudah terlalu dekat atau sudah lewat. Pilih jam yang lebih lambat.',
         BEYOND_HORIZON: 'Pengiriman hanya bisa dijadwalkan sampai beberapa hari ke depan.',
         EXPRESS: 'Antar sekarang (express) tidak bisa digabung dengan jadwal. Pilih salah satu.',
+        CLOSED_DAY: 'Depot ini libur atau tutup pada hari itu. Pilih hari lain.',
       }[reason],
     );
   }

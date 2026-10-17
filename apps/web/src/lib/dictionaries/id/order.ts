@@ -141,6 +141,7 @@ export const order = {
     rescheduleSlot: 'Jam antar',
     rescheduleConfirm: 'Simpan jadwal baru',
     rescheduleError: 'Tidak bisa mengubah jadwal.',
+    closedDay: 'tutup',
     rescheduleNoSlots: 'Depot ini belum membuka pilihan jam antar.',
     repeatError: 'Tidak bisa menambahkan item ini lagi.',
     repeatNothing: 'Tidak ada barang pesanan ini yang masih dijual.',

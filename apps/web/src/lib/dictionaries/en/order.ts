@@ -142,6 +142,7 @@ export const order: typeof base = {
     rescheduleSlot: 'Time',
     rescheduleConfirm: 'Save new time',
     rescheduleError: 'Could not change the time.',
+    closedDay: 'closed',
     rescheduleNoSlots: 'This depot has not opened any delivery times.',
     repeatNothing: 'Nothing from this order is still on sale.',
     repeatPartial: '{n} item(s) are no longer sold and were not added.',

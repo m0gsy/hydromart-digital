@@ -157,6 +157,13 @@ export class DeliveryOptionsResponseDto {
 
   @ApiProperty({ example: 60 })
   expressEtaMaxMinutes!: number;
+
+  @ApiProperty({
+    example: ['2026-09-03'],
+    description:
+      'Local days within the booking horizon on which this depot is shut (a holiday, or a weekday it does not trade). A scheduled order for one of them is refused.',
+  })
+  closedDates!: string[];
 }
 
 export class ListOrdersQueryDto {
@@ -244,6 +251,24 @@ export class AssignDepotDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   depotId!: string;
+}
+
+/** FR-034: the total the screen is about to show, to read the PPN inside it. */
+export class TaxPreviewQueryDto {
+  @ApiProperty({ example: 25000, description: 'The order total in IDR (PPN-inclusive).' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000_000)
+  total!: number;
+}
+
+export class TaxPreviewResponseDto {
+  @ApiProperty({ example: 2477, description: 'IDR already inside the total; 0 when none applies.' })
+  amount!: number;
+
+  @ApiProperty({ example: 11, nullable: true, type: Number })
+  percent!: number | null;
 }
 
 /** FR-052: the customer moves their own delivery to another slot. */

@@ -21,6 +21,7 @@ vi.mock('@/lib/locale-context', () => ({
 
 import { RescheduleSheet } from '@/components/order/reschedule-sheet';
 import { ApiError } from '@/lib/api';
+import { dayKey } from '@/lib/delivery-schedule';
 import { endpoints } from '@/lib/endpoints';
 import type { Order } from '@/lib/types';
 
@@ -76,6 +77,27 @@ describe('reschedule sheet', () => {
     fireEvent.click(screen.getByText('order.detail.rescheduleConfirm'));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/2 jam/));
     expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('does not offer a day the depot is shut, and starts from the next day it trades', async () => {
+    get.mockResolvedValue({
+      slots: ['09.00-11.00'],
+      expressEnabled: false,
+      expressFee: 0,
+      expressEtaMinMinutes: 0,
+      expressEtaMaxMinutes: 0,
+      closedDates: [dayKey(1)],
+    });
+    show();
+    await waitFor(() => expect(screen.getByText('09.00-11.00')).toBeTruthy());
+    const dayOptions = Array.from(screen.getAllByRole('combobox')[0]!.querySelectorAll('option'));
+    expect(dayOptions[1]!.disabled).toBe(true);
+    expect(dayOptions[1]!.textContent).toMatch(/order.detail.closedDay/);
+    fireEvent.click(screen.getByText('order.detail.rescheduleConfirm'));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    // Tomorrow is shut, so the day offered first is the one after: its key is what was booked.
+    const booked = post.mock.calls[0]![1].scheduledFor as string;
+    expect(booked.slice(0, 10)).not.toBe(dayKey(1));
   });
 
   it('says so when the depot has no slots, and offers nothing to save', async () => {

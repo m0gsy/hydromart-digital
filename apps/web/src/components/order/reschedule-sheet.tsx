@@ -6,7 +6,7 @@ import { Sheet } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { dayLabel, slotInstant } from '@/lib/delivery-schedule';
+import { dayKey, dayLabel, slotInstant } from '@/lib/delivery-schedule';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import type { DeliveryOptions, Order } from '@/lib/types';
@@ -38,7 +38,11 @@ export function RescheduleSheet({
     () => api.get(endpoints.orders.deliveryOptions(order.depotId)),
     [order.depotId],
   );
-  const [dayIdx, setDayIdx] = useState(1);
+  const closed = new Set(options.data?.closedDates ?? []);
+  const firstOpen = DAYS.find((d) => d >= 1 && !closed.has(dayKey(d))) ?? 1;
+  const [picked, setDayIdx] = useState<number | null>(null);
+  // The day offered first is tomorrow, or the next one the depot trades.
+  const dayIdx = picked ?? firstOpen;
   const [slot, setSlot] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +84,9 @@ export function RescheduleSheet({
                 onChange={(e) => setDayIdx(Number(e.target.value))}
               >
                 {DAYS.map((d) => (
-                  <option key={d} value={d}>
+                  <option key={d} value={d} disabled={closed.has(dayKey(d))}>
                     {dayLabel(d, locale)}
+                    {closed.has(dayKey(d)) ? ` (${t('order.detail.closedDay')})` : ''}
                   </option>
                 ))}
               </select>

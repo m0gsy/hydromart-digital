@@ -42,7 +42,8 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { useQueryParam } from '@/lib/use-query-param';
 import { voucherToApply } from '@/lib/vouchers';
-import { slotInstant } from '@/lib/delivery-schedule';
+import { TaxPreviewLine } from '@/components/order/tax-preview-line';
+import { dayKey, slotInstant } from '@/lib/delivery-schedule';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, numOrNull, pickDefaultAddress } from '@/lib/addresses';
 import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
@@ -379,6 +380,15 @@ function CheckoutInner() {
     [depot?.id],
   );
   const delivery = options ?? NO_OPTIONS;
+  // Days the depot is shut (holiday / non-trading weekday): the server refuses a booking for them,
+  // so the screen stops offering them rather than letting the customer find out at submit.
+  const closedDays = new Set(delivery.closedDates ?? []);
+  useEffect(() => {
+    if (!closedDays.has(dayKey(slotDateIdx))) return;
+    const open = [0, 1, 2, 3].find((i) => !closedDays.has(dayKey(i)));
+    if (open !== undefined) setSlotDateIdx(open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delivery.closedDates, slotDateIdx]);
 
   // Buka / istirahat / tutup for the fulfilling depot, from the hours the public depot
   // projection already carries. It explains the missing express option AND, since W11,
@@ -1239,10 +1249,13 @@ function CheckoutInner() {
         <div className="flex gap-2 overflow-x-auto">
           {dates.map((d, i) => {
             const on = !express && slotDateIdx === i;
+            const shut = closedDays.has(dayKey(i));
             return (
               <button
                 key={i}
                 type="button"
+                disabled={shut}
+                title={shut ? t('order.detail.closedDay') : undefined}
                 onClick={() => {
                   setSlotDateIdx(i);
                   setExpress(false);
@@ -1252,7 +1265,7 @@ function CheckoutInner() {
                   on
                     ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
                     : 'border border-app bg-[color:var(--surface)]'
-                }`}
+                } ${shut ? 'cursor-not-allowed line-through opacity-40' : ''}`}
               >
                 <span
                   className={`block text-[11px] font-semibold ${on ? 'text-[color:var(--surface)]/70' : 'text-muted'}`}
@@ -1578,6 +1591,7 @@ function CheckoutInner() {
         <span>{t('order.checkout.total')}</span>
         <Money amount={displayedTotal} />
       </div>
+      <TaxPreviewLine total={displayedTotal} />
 
       <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
         <ShieldCheck size={15} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />

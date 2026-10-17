@@ -43,6 +43,13 @@ export function formatSchedule(iso: string | null | undefined, locale: string): 
   }).format(new Date(iso));
 }
 
+/** The Jakarta calendar day `dayOffset` days from today, `YYYY-MM-DD` — the form a depot lists its closed days in. */
+export function dayKey(dayOffset: number, now: Date = new Date()): string {
+  const wib = new Date(now.getTime() + WIB_OFFSET_MS);
+  wib.setUTCDate(wib.getUTCDate() + dayOffset);
+  return `${wib.getUTCFullYear()}-${pad(wib.getUTCMonth() + 1)}-${pad(wib.getUTCDate())}`;
+}
+
 /** "Sel, 1 Sep" for the day `dayOffset` days from today (Jakarta), for the day picker. */
 export function dayLabel(dayOffset: number, locale: string, now: Date = new Date()): string {
   const day = new Date(now.getTime() + dayOffset * 86_400_000);

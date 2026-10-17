@@ -20,6 +20,7 @@ export const notifications = {
     DELIVERY_RESCHEDULED: 'Pengiriman dijadwalkan ulang',
     CUSTOMER_REGISTERED: 'Selamat datang di Hydromart',
     DEPOT_ORDER_INCOMING: 'Pesanan baru masuk',
+    DEPOT_ORDER_RESCHEDULED: 'Jadwal pesanan diubah',
     STOCK_LOW: 'Stok menipis',
     POINTS_EARNED: 'Poin bertambah',
     MEMBERSHIP_TIER_UPGRADED: 'Naik tier membership',

@@ -19,6 +19,7 @@ export const notifications = {
     DELIVERY_RESCHEDULED: 'Delivery rescheduled',
     CUSTOMER_REGISTERED: 'Welcome to Hydromart',
     DEPOT_ORDER_INCOMING: 'New order arrived',
+    DEPOT_ORDER_RESCHEDULED: 'Order rescheduled',
     STOCK_LOW: 'Low stock',
     POINTS_EARNED: 'Points earned',
     MEMBERSHIP_TIER_UPGRADED: 'Membership tier upgraded',

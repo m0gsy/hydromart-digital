@@ -14,6 +14,8 @@ import {
   CreateSubscriptionDto,
   ListOrdersQueryDto,
   OrderValueBatchDto,
+  RescheduleOrderDto,
+  TaxPreviewQueryDto,
   WalkInLineDto,
   WalkInSaleDto,
 } from '../../src/modules/dto/order.dto';
@@ -290,7 +292,12 @@ describe('ChangeSubscriptionAddressDto', () => {
 
   it('refuses one missing its street line rather than moving a plan to nowhere', async () => {
     const errors = await validate(
-      dto({ recipientName: 'Budi', phone: '081234567890', city: 'Bandung', province: 'Jawa Barat' }),
+      dto({
+        recipientName: 'Budi',
+        phone: '081234567890',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+      }),
     );
     expect(errors).toHaveLength(1);
   });
@@ -322,5 +329,50 @@ describe('required nested objects reject an absent body field', () => {
 
   it('CheckoutDto rejects a body with no deliveryAddress', async () => {
     expect(await errorsFor(CheckoutDto, {})).toContain('deliveryAddress');
+  });
+});
+
+describe('TaxPreviewQueryDto (FR-034)', () => {
+  it('reads the query-string number and accepts a normal total', async () => {
+    const dto = plainToInstance(TaxPreviewQueryDto, { total: '25000' });
+    expect(dto.total).toBe(25000);
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it.each([['-1'], ['abc'], ['2000000000'], ['10.123']])('rejects %p', async (total) => {
+    const dto = plainToInstance(TaxPreviewQueryDto, { total });
+    expect((await validate(dto)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('RescheduleOrderDto (FR-052)', () => {
+  it('needs an ISO-8601 instant', async () => {
+    expect(
+      await validate(
+        plainToInstance(RescheduleOrderDto, { scheduledFor: '2026-09-01T04:00:00.000Z' }),
+      ),
+    ).toEqual([]);
+    expect(
+      (await validate(plainToInstance(RescheduleOrderDto, { scheduledFor: 'besok' }))).length,
+    ).toBe(1);
+    expect((await validate(plainToInstance(RescheduleOrderDto, {}))).length).toBe(1);
+  });
+});
+
+describe('CheckoutDto scheduledFor (FR-036)', () => {
+  const base = {
+    deliveryAddress: { recipientName: 'A', phone: '+62811', addressLine: 'Jl 1', city: 'Jakarta' },
+  };
+  it('is optional, and when sent must be ISO-8601', async () => {
+    expect(await validate(plainToInstance(CheckoutDto, base))).toEqual([]);
+    expect(
+      await validate(
+        plainToInstance(CheckoutDto, { ...base, scheduledFor: '2026-09-01T02:00:00.000Z' }),
+      ),
+    ).toEqual([]);
+    expect(
+      (await validate(plainToInstance(CheckoutDto, { ...base, scheduledFor: 'besok pagi' })))
+        .length,
+    ).toBeGreaterThan(0);
   });
 });

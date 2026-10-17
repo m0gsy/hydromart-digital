@@ -51,6 +51,8 @@ import {
   AssignDepotDto,
   CancelOrderDto,
   RescheduleOrderDto,
+  TaxPreviewQueryDto,
+  TaxPreviewResponseDto,
   CheckoutDto,
   CounterBuyerResponseDto,
   CounterIdentifyDto,
@@ -172,6 +174,22 @@ export class OrderController {
   })
   deliveryOptions(@Query('depotId') depotId?: string): Promise<DeliveryOptionsResponseDto> {
     return this.orders.deliveryOptions(depotId ?? null);
+  }
+
+  // Declared before any ':id' route so 'tax-preview' is never read as an order id.
+  //
+  // route-authz: takes no subject — the answer is arithmetic on the number sent and the PPN rate,
+  // not data belonging to the caller.
+  @ApiOkResponse({ type: TaxPreviewResponseDto })
+  @SelfScoped()
+  @Get('tax-preview')
+  @ApiOperation({
+    summary: 'The PPN already inside a total (FR-034)',
+    description:
+      'What the checkout screen prints beside its total. Same function checkout records on the order.',
+  })
+  taxPreview(@Query() query: TaxPreviewQueryDto): Promise<TaxPreviewResponseDto> {
+    return this.orders.taxPreview(query.total);
   }
 
   // Declared before any ':id' route so 'walk-in' is never read as an order id.
@@ -775,8 +793,9 @@ export class OrderController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RescheduleOrderDto,
+    @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
-    return this.orders.reschedule(user.sub, id, dto.scheduledFor);
+    return this.orders.reschedule(user.sub, id, dto.scheduledFor, authorization);
   }
 
   @ApiOkResponse({ type: CartResponseDto })
