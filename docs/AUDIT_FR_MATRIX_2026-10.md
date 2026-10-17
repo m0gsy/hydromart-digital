@@ -57,14 +57,14 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 | FR-031 | Promo | ADA | `services/order-service/src/application/ports/product-catalog.port.ts` | - |
 | FR-032 | Membership Discount | ADA | `services/order-service/src/application/ports/membership.port.ts` | - |
 | FR-033 | Delivery Fee | ADA | `services/order-service/src/application/ports/depot-directory.port.ts` | E |
-| FR-034 | Tax Calculation | SEBAGIAN | Pengaturan PPN (priceIncludesTax) ada di payment-service dan dipakai template invoice HQ; belum ditemukan perhitungan pajak di total order/keranjang. | - |
+| FR-034 | Tax Calculation | ADA | PPN dicatat per pesanan (orders.taxAmount/taxPercent) pada tarif dan pembulatan payment-service; harga ke konsumen sudah termasuk PPN sehingga total tidak berubah. Mode "belum termasuk" hanya mengatur faktur. Pratinjau di keranjang belum ada: tampil di layar pesanan. | E |
 
 ## Module 5 — Checkout
 
 | FR | Fitur (PRD) | Status kode | Bukti kode | Uji |
 |---|---|---|---|---|
 | FR-035 | Konfirmasi alamat | ADA | `services/order-service/src/application/ports/customer-directory.port.ts` | E,B |
-| FR-036 | Pilih jadwal | SEBAGIAN | Slot pengiriman per depot ada (order.service deliverySlots); komentar checkout/page.tsx:86 menyebut kolom scheduledFor per-order belum ada. | - |
+| FR-036 | Pilih jadwal | ADA | orders.scheduledFor (instan awal slot, validasi terhadap slot depot, 30 menit sampai 4 hari, tidak bisa digabung express); checkout mengirimnya. | E |
 | FR-037 | Pilih pembayaran | ADA | `services/payment-service/src/application/ports/payment-gateway.port.ts` | E,B |
 | FR-038 | Catatan customer | ADA | `services/order-service/src/application/ports/order.repository.ts` | E |
 | FR-039 | Review order | ADA | `apps/web/src/app/checkout/page.tsx` | B |
@@ -90,7 +90,7 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 | FR-049 | Create Order | ADA | `services/order-service/src/application/ports/customer-directory.port.ts` | E,B |
 | FR-050 | Update Order | ADA | `services/order-service/src/modules/order.controller.ts` | E |
 | FR-051 | Cancel Order | ADA | `services/order-service/src/application/ports/inventory.port.ts` | E |
-| FR-052 | Reschedule | BELUM | Hanya notifikasi RESCHEDULED dari sisi delivery; tidak ada alur customer menjadwal ulang order. | - |
+| FR-052 | Reschedule | ADA | POST /orders/:id/reschedule: pemilik, sebelum barang keluar depot, sampai 2 jam sebelum slot; bukan express/counter; compare-and-set status. | E (15/16; express hanya unit test) |
 | FR-053 | Repeat Order | ADA | `apps/web/src/app/orders/detail/page.tsx` | - |
 | FR-054 | Track Order | ADA | `apps/web/src/app/track/page.tsx` | P |
 | FR-055 | Order Timeline | ADA | `apps/web/src/components/app-bar.tsx` | P |
@@ -116,9 +116,9 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 | FR | Fitur (PRD) | Status kode | Bukti kode | Uji |
 |---|---|---|---|---|
 | FR-067 | Stock Air | ADA | `services/depot-service/src/application/ports/depot.repository.ts` | E |
-| FR-068 | Stock Galon | ADA | `services/depot-service/src/application/ports/customer-notification.port.ts` | - |
-| FR-069 | Stock Tutup | SEBAGIAN | Stok dikelola per produk (inventory per depot); tidak ada jenis stok "tutup" terpisah dari produk. | - |
-| FR-070 | Stock Segel | SEBAGIAN | Idem FR-069 untuk "segel". | - |
+| FR-068 | Stock Galon | ADA | `services/depot-service/src/application/ports/customer-notification.port.ts` | E |
+| FR-069 | Stock Tutup | ADA | InventoryItemType.TUTUP: form stok baru, impor, penyesuaian dan low-stock (diverifikasi live). | E |
+| FR-070 | Stock Segel | ADA | InventoryItemType.SEGEL: idem TUTUP (diverifikasi live). | E |
 | FR-071 | Stock Produk | ADA | `services/depot-service/src/application/ports/depot.repository.ts` | E |
 | FR-072 | Stock Adjustment | ADA | `services/depot-service/src/application/ports/inventory.repository.ts` | - |
 | FR-073 | Stock Opname | ADA | `apps/web/src/app/dashboard/approvals/detail/page.tsx` | - |
@@ -141,7 +141,7 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 |---|---|---|---|---|
 | FR-081 | Tambah Franchise | ADA | `services/depot-service/src/application/ports/franchise-application.repository.ts` | P |
 | FR-082 | Monitoring Franchise | ADA | `services/dashboard-service/src/application/ports/dashboard-sources.port.ts` | P |
-| FR-083 | Royalty | SEBAGIAN | Diimplementasikan sebagai platformFeePct (bagian HQ dari penjualan waralaba); status akuntansi/pajaknya masih pertanyaan terbuka di docs/BRIEF_AKUNTAN.md. | - |
+| FR-083 | Royalty | ADA (tarif belum diatur) | Royalti per depot = platformFeePct x penjualan di Rekonsiliasi HQ (tarif per depot, skema komisi per depot). Tarif belum disepakati sehingga tampil "—"; belum diposting ke ledger (keputusan bisnis/akuntansi, docs/BRIEF_AKUNTAN.md). | - |
 | FR-084 | Performance | ADA | `services/delivery-service/src/application/ports/delivery.repository.ts` | P |
 | FR-085 | Sales Report | ADA | `services/order-service/src/application/ports/order.repository.ts` | P |
 | FR-086 | Audit | ADA | `services/admin-service/src/application/ports/purge-executor.port.ts` | P |
@@ -172,11 +172,10 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 
 ## Ringkasan
 
-- ADA: 89
+- ADA: 94
 - DIHAPUS: 1
 - TIDAK BERLAKU: 1
-- SEBAGIAN: 5
 - ADA (stub): 2
-- BELUM: 1
+- ADA (tarif belum diatur): 1
 - BERBEDA: 1
-- Diuji runtime (E/B/P): 66 dari 100; sisanya TIDAK TERVERIFIKASI secara runtime.
+- Diuji runtime (E/B/P): 72 dari 100; sisanya TIDAK TERVERIFIKASI secara runtime.
