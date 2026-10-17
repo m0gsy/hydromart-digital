@@ -13,7 +13,7 @@ import {
 } from 'class-validator';
 
 import { TaxSettingsRecord } from '../../application/ports/tax-settings.repository';
-import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../domain/tax';
+import { DEFAULT_TAX_ROUNDING, TaxRounding } from '@hydromart/platform';
 
 export class UpdateTaxSettingsDto {
   @ApiProperty({ example: 11, description: 'PPN / VAT percentage (0–100).' })

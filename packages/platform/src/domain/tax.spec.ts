@@ -4,7 +4,7 @@ import {
   computePpn,
   isTaxRounding,
   roundIdr,
-} from '../../src/domain/tax';
+} from './tax';
 
 describe('roundIdr', () => {
   it('defaults to PER-11/2025 half-up (M29-10)', () => {

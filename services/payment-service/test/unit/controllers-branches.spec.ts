@@ -473,6 +473,11 @@ describe('TaxController', () => {
     expect(out.updatedAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
+  it('rate: hands order-service only the rate and the rounding, never the company identity', async () => {
+    svc.get.mockResolvedValue({ ...record, taxRounding: 'HALF_EVEN' });
+    await expect(controller.rate()).resolves.toEqual({ ppnPercent: 11, taxRounding: 'HALF_EVEN' });
+  });
+
   it('update forwards the dto and maps the result', async () => {
     // CA-2-53: the version the edit started from travels beside the body.
     const dto = { ppnPercent: 12, seenUpdatedAt: '2026-09-09T10:00:00.000Z' } as never;

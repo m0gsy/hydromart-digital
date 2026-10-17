@@ -4,7 +4,7 @@ import {
   TaxSettingsRecord,
   TaxSettingsRepository,
 } from '../../src/application/ports/tax-settings.repository';
-import { TaxRounding } from '../../src/domain/tax';
+import { TaxRounding } from '@hydromart/platform';
 
 class InMemoryTaxSettingsRepository implements TaxSettingsRepository {
   row: TaxSettingsRecord | null = null;

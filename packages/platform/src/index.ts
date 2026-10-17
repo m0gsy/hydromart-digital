@@ -11,6 +11,13 @@ export {
 } from './domain/keyset';
 export { Role } from './domain/role.enum';
 export { money } from './domain/money';
+export {
+  DEFAULT_TAX_ROUNDING,
+  TaxRounding,
+  computePpn,
+  isTaxRounding,
+  roundIdr,
+} from './domain/tax';
 export { haversineKm } from './domain/geo';
 export {
   BUSINESS_TIME_ZONE,
