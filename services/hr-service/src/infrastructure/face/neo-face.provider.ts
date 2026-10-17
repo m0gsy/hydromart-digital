@@ -184,6 +184,8 @@ export class NeoFaceProvider implements FaceVerifier {
         method,
         headers: { 'Content-Type': 'application/json', Accesstoken: token },
         body: JSON.stringify({ ...body, trx_id: randomUUID() }),
+        // The provider is third-party and takes images: bounded, so a hang is `unavailable`.
+        signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
       throw this.unavailable(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
