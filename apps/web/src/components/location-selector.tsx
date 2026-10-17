@@ -111,18 +111,18 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
   }, [open]);
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="relative min-w-0" ref={rootRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={
           compact
-            ? 'flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold hover:bg-brand-50'
+            ? 'flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold hover:bg-brand-50'
             : 'flex items-center gap-2 rounded-lg border border-app px-3 py-2 text-sm font-semibold hover:bg-brand-50'
         }
       >
         <MapPin size={18} weight="fill" className="text-brand-600" />
-        <span className="max-w-[10rem] truncate">
+        <span className="min-w-0 max-w-[10rem] truncate">
           {location ? location.label : t('home.location.placeholder')}
         </span>
         <CaretDown size={14} className="text-muted" />
