@@ -8,10 +8,16 @@ import {
 } from '../../application/ports/cash-collection.port';
 
 /**
- * Reads PAID-cash totals from payment-service's GET /payments/cash-collected,
- * forwarding the caller's bearer so payment-service enforces the settlement RBAC.
+ * Reads PAID-cash totals from payment-service's internal POST /payments/internal/cash-collected.
  * A non-2xx response or timeout throws so the settlement fails closed — the
  * expected amount must never be silently understated.
+ *
+ * Internal route, not the bearer route, on purpose. The order ids are never the caller's: the
+ * settlement service derives them from the courier's OWN deliveries inside the shift window,
+ * after checking the shift is theirs. The bearer route additionally refuses any order outside
+ * the caller's CURRENT depot — which is every order of a shift worked before the courier was
+ * moved to another depot — and the courier then met "Could not compute the expected cash
+ * total. Please try again." for good, with the cash still in their hands.
  */
 @Injectable()
 export class CashCollectionHttpAdapter implements CashCollectionPort {
@@ -27,14 +33,18 @@ export class CashCollectionHttpAdapter implements CashCollectionPort {
     if (orderIds.length === 0) {
       return { total: 0, count: 0, byOrder: [] };
     }
-    const query = new URLSearchParams({ orderIds: orderIds.join(',') });
-    const url = `${this.config.paymentServiceUrl}/api/v1/payments/cash-collected?${query}`;
+    const { paymentServiceUrl, internalServiceKey } = this.config;
+    if (!internalServiceKey) {
+      throw new Error('INTERNAL_SERVICE_KEY is not configured — cannot read cash collected');
+    }
+    const url = `${paymentServiceUrl}/api/v1/payments/internal/cash-collected`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CashCollectionHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
-        method: 'GET',
-        headers: { authorization },
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderIds }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -53,7 +63,7 @@ export class CashCollectionHttpAdapter implements CashCollectionPort {
         : [];
       return { total: Number(body.total ?? 0), count: Number(body.count ?? 0), byOrder };
     } catch (error) {
-      this.logger.error(`GET cash-collected failed: ${(error as Error).message}`);
+      this.logger.error(`POST internal/cash-collected failed: ${(error as Error).message}`);
       throw error;
     } finally {
       clearTimeout(timer);

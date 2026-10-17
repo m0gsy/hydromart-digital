@@ -278,9 +278,26 @@ describe('CashCollectionHttpAdapter', () => {
         { orderId: 'o2', amountIdr: 100000 },
       ],
     });
+    // The ids come from the courier's OWN deliveries, so the read goes through the internal
+    // route: the bearer route refuses orders outside the caller's CURRENT depot, which is every
+    // order of a shift worked before the courier was moved to another depot.
     expect(fetchMock.mock.calls[0][0]).toBe(
-      'http://payment:3004/api/v1/payments/cash-collected?orderIds=o1%2Co2%2Co3',
+      'http://payment:3004/api/v1/payments/internal/cash-collected',
     );
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    expect(init.headers).toMatchObject({ 'x-internal-key': KEY });
+    expect(JSON.parse(init.body as string)).toEqual({ orderIds: ['o1', 'o2', 'o3'] });
+  });
+
+  it('fails closed when the internal key is not configured, rather than reading unauthenticated', async () => {
+    await expect(
+      new CashCollectionHttpAdapter(makeConfig({ internalServiceKey: '' })).sumCollected(
+        ['o1'],
+        'Bearer x',
+      ),
+    ).rejects.toThrow(/INTERNAL_SERVICE_KEY/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('fails closed (throws) on non-2xx', async () => {
