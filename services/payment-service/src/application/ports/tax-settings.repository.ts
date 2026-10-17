@@ -1,4 +1,4 @@
-import { TaxRounding } from '../../domain/tax';
+import { TaxRounding } from '@hydromart/platform';
 
 export interface TaxSettingsRecord {
   ppnPercent: number;

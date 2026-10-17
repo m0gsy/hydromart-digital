@@ -8,7 +8,13 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, GallonIssueSummary, GallonReturnSummary, Page } from '@/lib/types';
+import type {
+  DepotAdmin,
+  GallonIssueSummary,
+  GallonOutstanding,
+  GallonReturnSummary,
+  Page,
+} from '@/lib/types';
 
 interface ReturnRow {
   depot: DepotAdmin;
@@ -27,6 +33,28 @@ export default function HqReturnsPage() {
       true,
     );
     const depots = list.items.filter((d) => d.active);
+    /*
+     * One grouped call answers for every depot, where the per-depot reads below are two
+     * requests each — a hundred for a fifty-depot network, 8s to settle with eighty-six depots
+     * in measurement. The grouped rollup is the one the compare and reconciliation screens
+     * already read; a depot with no gallons on either ledger simply has no row, which is zero.
+     * The fan-out stays as the FALLBACK, because it is what lets one unreadable depot cost one
+     * row instead of the page (CA-2-69).
+     */
+    try {
+      const network = await api.get<GallonOutstanding[]>(endpoints.gallonNetwork.outstanding, true);
+      const byDepot = new Map(network.map((r) => [r.depotId, r]));
+      return {
+        rows: depots.map((depot) => ({
+          depot,
+          circulating: byDepot.get(depot.id)?.outstanding ?? 0,
+          deposit: byDepot.get(depot.id)?.netDeposit ?? 0,
+        })),
+        unreadable: [] as string[],
+      };
+    } catch {
+      /* fall through to the per-depot reads */
+    }
     /*
      * CA-2-69: one depot that cannot be read must not blank the other thirty-nine.
      *

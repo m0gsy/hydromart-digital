@@ -11,6 +11,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsISO8601,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
@@ -122,6 +123,15 @@ export class CheckoutDto {
   deliveryWindow?: string;
 
   @ApiPropertyOptional({
+    example: '2026-09-01T02:00:00.000Z',
+    description:
+      "The instant the chosen delivery slot starts (ISO-8601). It must be the start of one of the depot's own slots, between 30 minutes and 4 days from now, and cannot be combined with express.",
+  })
+  @IsOptional()
+  @IsISO8601()
+  scheduledFor?: string;
+
+  @ApiPropertyOptional({
     example: true,
     description:
       'Express ("antar sekarang") instead of a scheduled window. The surcharge is read from the depot\'s settings server-side; no price is accepted from the client.',
@@ -147,6 +157,13 @@ export class DeliveryOptionsResponseDto {
 
   @ApiProperty({ example: 60 })
   expressEtaMaxMinutes!: number;
+
+  @ApiProperty({
+    example: ['2026-09-03'],
+    description:
+      'Local days within the booking horizon on which this depot is shut (a holiday, or a weekday it does not trade). A scheduled order for one of them is refused.',
+  })
+  closedDates!: string[];
 }
 
 export class ListOrdersQueryDto {
@@ -234,6 +251,34 @@ export class AssignDepotDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   depotId!: string;
+}
+
+/** FR-034: the total the screen is about to show, to read the PPN inside it. */
+export class TaxPreviewQueryDto {
+  @ApiProperty({ example: 25000, description: 'The order total in IDR (PPN-inclusive).' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1_000_000_000)
+  total!: number;
+}
+
+export class TaxPreviewResponseDto {
+  @ApiProperty({ example: 2477, description: 'IDR already inside the total; 0 when none applies.' })
+  amount!: number;
+
+  @ApiProperty({ example: 11, nullable: true, type: Number })
+  percent!: number | null;
+}
+
+/** FR-052: the customer moves their own delivery to another slot. */
+export class RescheduleOrderDto {
+  @ApiProperty({
+    example: '2026-09-01T04:00:00.000Z',
+    description: "The instant the new delivery slot starts (ISO-8601), same rules as checkout's scheduledFor.",
+  })
+  @IsISO8601()
+  scheduledFor!: string;
 }
 
 export class CancelOrderDto {

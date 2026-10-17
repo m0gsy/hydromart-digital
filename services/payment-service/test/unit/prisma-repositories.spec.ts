@@ -7,7 +7,7 @@ import {
   PaymentStatus,
   RefundApproval,
 } from '../../src/domain/payment';
-import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../src/domain/tax';
+import { DEFAULT_TAX_ROUNDING, TaxRounding } from '@hydromart/platform';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
 // Prisma returns Decimal instances for money columns; the repos only rely on toNumber().

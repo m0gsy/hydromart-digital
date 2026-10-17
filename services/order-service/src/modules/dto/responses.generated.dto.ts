@@ -727,6 +727,12 @@ export class OrderResponseDto {
   estimatedArrivalAt!: string | null;
   @ApiProperty({ type: String, nullable: true })
   deliveryWindow!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  scheduledFor!: string | null;
+  @ApiProperty({ type: Number })
+  taxAmount!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  taxPercent!: number | null;
   @ApiProperty({ type: Boolean })
   isWalkIn!: boolean;
   @ApiProperty({

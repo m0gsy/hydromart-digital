@@ -98,4 +98,54 @@ describe('Gateway cookie -> bearer translation', () => {
 
     expect(res.body.auth).toBe('Bearer explicit');
   });
+  // A cookie is sent by the browser on its own, so a write that rides on one needs a second
+  // proof that the page making it is ours. SameSite=Lax already withholds the cookie from
+  // cross-site requests; this is the layer behind it, for a sibling subdomain or a browser that
+  // does not enforce the attribute.
+  describe('cookie-authenticated writes check the Origin', () => {
+    it('refuses a POST that carries only the cookie and a foreign Origin', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/orders/api/v1/anything')
+        .set('Cookie', `${AT_COOKIE}=AT-9`)
+        .set('Origin', 'https://evil.example')
+        .send({})
+        .expect(403);
+      expect(res.body.code).toBe('CSRF_ORIGIN_REFUSED');
+    });
+
+    it('lets the same POST through from the configured web origin', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/orders/api/v1/anything')
+        .set('Cookie', `${AT_COOKIE}=AT-9`)
+        .set('Origin', 'http://localhost:3000')
+        .send({})
+        .expect(200);
+      expect(res.body.auth).toBe('Bearer AT-9');
+    });
+
+    it('does not touch a cookie-authenticated READ from another origin (CORS owns that)', async () => {
+      await request(app.getHttpServer())
+        .get('/orders/api/v1/anything')
+        .set('Cookie', `${AT_COOKIE}=AT-9`)
+        .set('Origin', 'https://evil.example')
+        .expect(200);
+    });
+
+    it('does not touch a bearer-authenticated write: no cookie, nothing for a forged page to ride', async () => {
+      await request(app.getHttpServer())
+        .post('/orders/api/v1/anything')
+        .set('Authorization', 'Bearer explicit')
+        .set('Origin', 'https://evil.example')
+        .send({})
+        .expect(200);
+    });
+
+    it('does not touch a request with no Origin at all (not a browser page)', async () => {
+      await request(app.getHttpServer())
+        .post('/orders/api/v1/anything')
+        .set('Cookie', `${AT_COOKIE}=AT-9`)
+        .send({})
+        .expect(200);
+    });
+  });
 });

@@ -52,6 +52,10 @@ function makeService(): Mocked {
     requestReviews: jest.fn().mockResolvedValue({ asked: 3, skipped: 0, failed: 0, ok: true }),
     getForCustomer: jest.fn().mockResolvedValue({ id: 'o1', history: ['h1', 'h2'] }),
     cancel: jest.fn().mockResolvedValue({ id: 'o1', status: 'CANCELLED' }),
+    taxPreview: jest.fn().mockResolvedValue({ amount: 2477, percent: 11 }),
+    reschedule: jest
+      .fn()
+      .mockResolvedValue({ id: 'o1', scheduledFor: new Date('2026-09-01T04:00:00Z') }),
     repeat: jest.fn().mockResolvedValue({ items: ['x'] }),
     getReview: jest.fn().mockResolvedValue(null),
     reviewOrder: jest.fn().mockResolvedValue({ id: 'r1' }),
@@ -554,6 +558,29 @@ describe('OrderController', () => {
   it('cancel: forwards reason and token', async () => {
     await controller.cancel(customer, 'o1', { reason: 'changed mind' } as never, 'Bearer t');
     expect(service.cancel).toHaveBeenCalledWith('cust-1', 'o1', 'changed mind', 'Bearer t');
+  });
+
+  it('taxPreview: asks for the PPN inside the given total', async () => {
+    await expect(controller.taxPreview({ total: 25000 })).resolves.toEqual({
+      amount: 2477,
+      percent: 11,
+    });
+    expect(service.taxPreview).toHaveBeenCalledWith(25000);
+  });
+
+  it('reschedule: moves the caller own order to the requested slot', async () => {
+    await controller.reschedule(
+      customer,
+      'o1',
+      { scheduledFor: '2026-09-01T04:00:00.000Z' },
+      'Bearer t',
+    );
+    expect(service.reschedule).toHaveBeenCalledWith(
+      'cust-1',
+      'o1',
+      '2026-09-01T04:00:00.000Z',
+      'Bearer t',
+    );
   });
 
   it('repeat: re-adds an order items to the cart', async () => {

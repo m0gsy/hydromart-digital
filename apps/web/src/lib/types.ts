@@ -453,6 +453,8 @@ export interface DeliveryOptions {
   expressFee: number;
   expressEtaMinMinutes: number;
   expressEtaMaxMinutes: number;
+  /** Local days (`YYYY-MM-DD`) within the booking horizon on which the depot is shut. */
+  closedDates?: string[];
 }
 
 export interface Order extends DeliveryAddress {
@@ -490,6 +492,12 @@ export interface Order extends DeliveryAddress {
    * been shown a confirmation for.
    */
   deliveryWindow?: string | null;
+  /** FR-036: the real instant the booked delivery slot starts (null: no day was booked). */
+  scheduledFor?: string | null;
+  /** FR-034: the PPN portion already inside `total` (0 / absent when none was recorded). */
+  taxAmount?: number;
+  /** The PPN percent `taxAmount` was taken at. */
+  taxPercent?: number | null;
   /** The landmark (patokan) the customer wrote for the courier. */
   notes?: string | null;
   driverName: string | null;
@@ -861,6 +869,7 @@ export type NotificationEvent =
   | 'CUSTOMER_REGISTERED'
   // O6: addressed to a DEPOT rather than to a buyer — the depot's own "an order arrived".
   | 'DEPOT_ORDER_INCOMING'
+  | 'DEPOT_ORDER_RESCHEDULED'
   | 'STOCK_LOW'
   | 'STOCK_UNTRACKED'
   | 'METER_VARIANCE'
@@ -895,6 +904,7 @@ export type NotificationEvent =
  */
 export const OPS_EVENTS = [
   'DEPOT_ORDER_INCOMING',
+  'DEPOT_ORDER_RESCHEDULED',
   'STOCK_LOW',
   'STOCK_UNTRACKED',
   'METER_VARIANCE',

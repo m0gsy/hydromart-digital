@@ -115,6 +115,9 @@ export const shop = {
     },
     get: (id: string) => `/orders/api/v1/orders/${id}`,
     cancel: (id: string) => `/orders/api/v1/orders/${id}/cancel`,
+    reschedule: (id: string) => `/orders/api/v1/orders/${id}/reschedule`,
+    // FR-034: the PPN already inside a total, by the same function checkout records.
+    taxPreview: (total: number) => `/orders/api/v1/orders/tax-preview?total=${encodeURIComponent(total)}`,
     repeat: (id: string) => `/orders/api/v1/orders/${id}/repeat`,
     // GET → existing review (null if unrated), POST → submit (spec 7c).
     review: (id: string) => `/orders/api/v1/orders/${id}/review`,

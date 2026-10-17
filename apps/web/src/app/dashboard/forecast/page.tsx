@@ -13,7 +13,7 @@ import { useDepot } from '@/lib/depot-context';
 import { orderNeeded, trendLabel } from '@/lib/forecast';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import { canViewForecast } from '@/lib/roles';
+import { can, canViewForecast } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ForecastItem, InventoryItem, SalesForecast } from '@/lib/types';
 
@@ -62,9 +62,18 @@ function ForecastBody() {
   const scopedDepot = selected ?? depots.find((d) => d.id === depotId) ?? null;
 
   // On-hand stock per product → days-to-stockout at the forecast avg/day.
+  //
+  // Skipped for a role that may read the forecast but not the stock (the Franchise Owner): the
+  // read is refused with 403, which painted an error banner on a screen that was working. Their
+  // runway column simply stays empty — a missing permission is not a dead inventory service.
+  const { customer } = useAuth();
+  const canReadStock = can('inventoryRead', customer?.role);
   const inventory = useAsync<InventoryItem[]>(
-    () => (depotId ? api.get(endpoints.inventory.lines(depotId), true) : Promise.resolve([])),
-    [depotId],
+    () =>
+      depotId && canReadStock
+        ? api.get(endpoints.inventory.lines(depotId), true)
+        : Promise.resolve([]),
+    [depotId, canReadStock],
   );
   const stockByProduct = new Map<string, number>();
   for (const line of inventory.data ?? []) {

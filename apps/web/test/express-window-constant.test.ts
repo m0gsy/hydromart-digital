@@ -31,10 +31,15 @@ describe('EXPRESS_WINDOW is one value written in two places', () => {
   it('checkout and the sweep agree byte for byte', () => {
     const web = constantIn('apps/web/src/app/checkout/page.tsx', 'EXPRESS_WINDOW');
     const server = constantIn(
-      'services/order-service/src/infrastructure/prisma/order.prisma.repository.ts',
+      'services/order-service/src/domain/delivery-schedule.ts',
       'EXPRESS_WINDOW',
     );
     expect(server).toBe(web);
+  });
+
+  it('and so does the order screen that decides whether a slot can be moved', () => {
+    const web = constantIn('apps/web/src/app/checkout/page.tsx', 'EXPRESS_WINDOW');
+    expect(constantIn('apps/web/src/lib/delivery-schedule.ts', 'EXPRESS_WINDOW')).toBe(web);
   });
 
   it('is a literal, not something a translation can reach', () => {

@@ -4,6 +4,7 @@ import { CartPrismaRepository } from '../../src/infrastructure/prisma/cart.prism
 import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/subscription.prisma.repository';
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
 import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
+import { StaleOrderStatusError } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
 import {
@@ -289,6 +290,7 @@ describe('OrderPrismaRepository', () => {
   const order = {
     create: jest.fn(),
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     update: jest.fn(),
@@ -335,6 +337,9 @@ describe('OrderPrismaRepository', () => {
     longitude: 106.8,
     notes: null,
     deliveryWindow: null,
+    scheduledFor: null,
+    taxAmount: dec(0),
+    taxPercent: null,
     driverName: null,
     driverPhone: null,
     estimatedArrivalAt: null,
@@ -638,6 +643,47 @@ describe('OrderPrismaRepository', () => {
       data: { depotId: 'depot-a' },
       include: expect.any(Object),
     });
+  });
+
+  it('maps the booked slot and the recorded PPN onto the order record', async () => {
+    order.findUnique.mockResolvedValue({
+      ...orderRow(),
+      scheduledFor: new Date('2026-09-01T02:00:00Z'),
+      taxAmount: dec(2477),
+      taxPercent: dec(11),
+    });
+    const out = await repo.findById('ord-1');
+    expect(out?.scheduledFor).toEqual(new Date('2026-09-01T02:00:00Z'));
+    expect(out?.taxAmount).toBe(2477);
+    expect(out?.taxPercent).toBe(11);
+  });
+
+  it('moves a booked slot only while the order is still in an allowed status', async () => {
+    order.updateMany.mockResolvedValue({ count: 1 });
+    order.findUniqueOrThrow.mockResolvedValue({
+      ...orderRow(),
+      scheduledFor: new Date('2026-09-01T04:00:00Z'),
+      deliveryWindow: '11.00-13.00',
+    });
+    const out = await repo.rescheduleSlot('ord-1', new Date('2026-09-01T04:00:00Z'), '11.00-13.00', [
+      OrderStatus.CREATED,
+      OrderStatus.CONFIRMED,
+    ]);
+    expect(out.scheduledFor).toEqual(new Date('2026-09-01T04:00:00Z'));
+    expect(order.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ord-1', status: { in: [OrderStatus.CREATED, OrderStatus.CONFIRMED] } },
+      data: { scheduledFor: new Date('2026-09-01T04:00:00Z'), deliveryWindow: '11.00-13.00' },
+    });
+  });
+
+  it('refuses to move a slot under an order that has left the allowed statuses', async () => {
+    order.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repo.rescheduleSlot('ord-1', new Date('2026-09-01T04:00:00Z'), '11.00-13.00', [
+        OrderStatus.CREATED,
+      ]),
+    ).rejects.toBeInstanceOf(StaleOrderStatusError);
+    expect(order.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it('filters the unrouted tray on a null depot, ignoring any depot set', async () => {

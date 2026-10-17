@@ -41,6 +41,7 @@ export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
  */
 export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   DEPOT_ORDER_INCOMING: 'orders',
+  DEPOT_ORDER_RESCHEDULED: 'orders',
   STOCK_LOW: 'stock',
   // A sale the depot has no stock line for, and a meter reading that disagrees with the
   // litres sold, are both "the stock ledger is wrong" — the same person chases them.

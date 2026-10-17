@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 // explicit local type rather than leaking `any` through the assertions.
 type HeaderEntry = { key: string; value: string };
 type HeaderGroup = { source: string; headers: HeaderEntry[] };
-type NextConfigShape = { headers?: () => Promise<HeaderGroup[]> };
+type NextConfigShape = { headers?: () => Promise<HeaderGroup[]>; poweredByHeader?: boolean };
 
 // @ts-expect-error — next.config.mjs ships no .d.ts; the shape is asserted above.
 const nextConfig = ((await import('../next.config.mjs')) as { default: NextConfigShape }).default;
@@ -45,5 +45,9 @@ describe('baseline security headers', () => {
     expect(byKey.get('X-Frame-Options')).toBe('DENY');
     expect(byKey.get('X-Content-Type-Options')).toBe('nosniff');
     expect(byKey.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+  });
+
+  it('does not announce the framework: no X-Powered-By on any response', () => {
+    expect(nextConfig.poweredByHeader).toBe(false);
   });
 });

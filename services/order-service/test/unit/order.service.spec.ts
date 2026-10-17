@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as alerter from '@hydromart/platform';
+import { TaxRounding } from '@hydromart/platform';
 
 import { Logger } from '@nestjs/common';
 
@@ -15,10 +16,12 @@ import {
   DuplicateCheckoutError,
   EmptyCartError,
   InsufficientStockError,
+  InvalidDeliveryScheduleError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
   OrderAlreadyRoutedError,
   OrderNotReroutableError,
+  OrderNotReschedulableError,
   OrderNotRoutedError,
   OrderNotCancellableError,
   OrderNotFoundError,
@@ -2316,7 +2319,13 @@ describe('OrderService', () => {
         const productId = await addToCart(8000, 4);
         promoAutoApply.quoteResult = {
           lines: [
-            { productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+            {
+              productId,
+              appliedRuleIds: ['bogo-1'],
+              unitPriceAfter: 8000,
+              freeQty: 1,
+              lineTotal: 32000,
+            },
           ],
           shippingAppliedRuleId: null,
           shippingFeeOverride: null,
@@ -2445,7 +2454,13 @@ describe('OrderService', () => {
           const productId = await addToCart(8000, 4);
           promoAutoApply.quoteResult = {
             lines: [
-              { productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 },
+              {
+                productId,
+                appliedRuleIds: ['bogo-1'],
+                unitPriceAfter: 8000,
+                freeQty: 1,
+                lineTotal: 32000,
+              },
             ],
             shippingAppliedRuleId: null,
             shippingFeeOverride: null,
@@ -2772,7 +2787,15 @@ describe('OrderService', () => {
   it('I-2: reorders a BOGO-matched order at its PAID quantity, not a split or the free row', async () => {
     const productId = await addToCart(8000, 4);
     promoAutoApply.quoteResult = {
-      lines: [{ productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      lines: [
+        {
+          productId,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+          lineTotal: 32000,
+        },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -2889,6 +2912,446 @@ describe('OrderService', () => {
     expect(order.total).toBe(28000);
   });
 
+  // FR-036 / FR-052. The booked DAY never reached the database: checkout stored a free-form
+  // label ("Kam, 09.00-11.00") that says which weekday but not which Thursday, so nothing could
+  // sort, remind or move an order by the day it was booked for. Pinned clock: 08:00 Jakarta on
+  // 2026-08-31, so tomorrow 09:00 WIB is 2026-09-01T02:00:00Z.
+  describe('scheduled delivery (FR-036) and reschedule (FR-052)', () => {
+    const TOMORROW_9 = '2026-09-01T02:00:00.000Z';
+    const TOMORROW_11 = '2026-09-01T04:00:00.000Z';
+    beforeEach(() => {
+      jest.useFakeTimers({
+        now: new Date('2026-08-31T01:00:00Z'),
+        doNotFake: ['nextTick', 'setImmediate'],
+      });
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('stores the real instant of the chosen slot and names the window from it', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        scheduledFor: TOMORROW_9,
+      });
+      expect(order.scheduledFor?.toISOString()).toBe(TOMORROW_9);
+      expect(order.deliveryWindow).toBe('09.00-11.00');
+    });
+
+    it('keeps the label the client sent when it sent one', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        scheduledFor: TOMORROW_9,
+        deliveryWindow: 'Besok, 09.00-11.00',
+      });
+      expect(order.deliveryWindow).toBe('Besok, 09.00-11.00');
+    });
+
+    it('leaves scheduledFor empty for an order that named no day', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.scheduledFor).toBeNull();
+    });
+
+    it('refuses a time that is not the start of one of the depot slots', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: '2026-09-01T02:20:00.000Z',
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses a slot that has already started', async () => {
+      jest.setSystemTime(new Date('2026-08-31T03:30:00Z')); // 10:30 WIB
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: '2026-08-31T02:00:00.000Z', // 09:00 WIB today
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses a date past the booking horizon', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: '2026-09-08T02:00:00.000Z',
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses a schedule together with express: they are different services', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, {
+          deliveryAddress: address,
+          scheduledFor: TOMORROW_9,
+          express: true,
+        }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    it('refuses something that is not a date', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, scheduledFor: 'besok pagi' }),
+      ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+    });
+
+    describe('the depot calendar', () => {
+      // 2026-09-01 is a Tuesday.
+      it('tells the screen which of the next days the depot is shut, so it can stop offering them', async () => {
+        const noTuesday = { ...ALWAYS_OPEN } as Record<string, unknown>;
+        delete noTuesday.tue;
+        depots.depots = [
+          { ...homeDepot, operatingHours: noTuesday as never, holidays: [{ date: '2026-09-03' }] },
+        ];
+        const options = await service.deliveryOptions(homeDepot.id);
+        // Clock: Monday 31 Aug 08:00 Jakarta. Tuesday is a closed weekday, Thursday a holiday.
+        expect(options.closedDates).toEqual(['2026-09-01', '2026-09-03']);
+      });
+
+      it('lists nothing for an unknown depot, an unreachable directory, or no depot yet', async () => {
+        expect((await service.deliveryOptions('no-such-depot')).closedDates).toEqual([]);
+        expect((await service.deliveryOptions(null)).closedDates).toEqual([]);
+        depots.unreachable = true;
+        expect((await service.deliveryOptions(homeDepot.id)).closedDates).toEqual([]);
+      });
+
+      const place = async (scheduledFor: string) => {
+        await addToCart(20000, 1);
+        return service.checkout(customer, { deliveryAddress: address, scheduledFor });
+      };
+
+      it('refuses a day the depot has listed as a holiday', async () => {
+        depots.depots = [{ ...homeDepot, holidays: [{ date: '2026-09-01' }] }];
+        await expect(place(TOMORROW_9)).rejects.toMatchObject({ code: 'ORDER_SCHEDULE_INVALID' });
+        await expect(place(TOMORROW_9)).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+      });
+
+      it('refuses a weekday the depot does not trade', async () => {
+        const noTuesday = { ...ALWAYS_OPEN } as Record<string, unknown>;
+        delete noTuesday.tue;
+        depots.depots = [{ ...homeDepot, operatingHours: noTuesday as never }];
+        await expect(place(TOMORROW_9)).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+      });
+
+      it('still books a day the depot trades, and the next day after a holiday', async () => {
+        depots.depots = [{ ...homeDepot, holidays: [{ date: '2026-09-01' }] }];
+        const order = await place('2026-09-02T02:00:00.000Z'); // Wednesday
+        expect(order.scheduledFor?.toISOString()).toBe('2026-09-02T02:00:00.000Z');
+      });
+
+      it('books when the depot never said when it trades (only a holiday could close it)', async () => {
+        depots.depots = [{ ...homeDepot, operatingHours: {} }];
+        const order = await place(TOMORROW_9);
+        expect(order.scheduledFor?.toISOString()).toBe(TOMORROW_9);
+      });
+
+      it('books when the directory cannot be reached: not knowing is not knowing it is shut', async () => {
+        depots.unreachable = true;
+        await addToCart(20000, 1);
+        // The depot is resolved by the cart's own routing, so reach it through the order instead.
+        depots.unreachable = false;
+        const order = await place(TOMORROW_9);
+        depots.unreachable = true;
+        const moved = await service.reschedule(customer, order.id, '2026-09-01T04:00:00.000Z');
+        expect(moved.scheduledFor?.toISOString()).toBe('2026-09-01T04:00:00.000Z');
+      });
+
+      it('applies the same calendar when the customer reschedules', async () => {
+        const order = await place(TOMORROW_9);
+        depots.depots = [{ ...homeDepot, holidays: [{ date: '2026-09-02' }] }];
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-02T02:00:00.000Z'),
+        ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+        const again = await service.getForCustomer(customer, order.id);
+        expect(again.scheduledFor?.toISOString()).toBe(TOMORROW_9);
+      });
+    });
+
+    describe('reschedule', () => {
+      const place = async (scheduledFor: string | undefined = TOMORROW_9) => {
+        await addToCart(20000, 1);
+        return service.checkout(customer, { deliveryAddress: address, scheduledFor });
+      };
+
+      it('moves the order to another slot and updates the window with it', async () => {
+        const order = await place();
+        const moved = await service.reschedule(customer, order.id, TOMORROW_11);
+        expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+        expect(moved.deliveryWindow).toBe('11.00-13.00');
+        const again = await service.getForCustomer(customer, order.id);
+        expect(again.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+      });
+
+      it('lets the depot keep working: CONFIRMED and PREPARING can still be moved', async () => {
+        const order = await place();
+        await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+        await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+        const moved = await service.reschedule(customer, order.id, TOMORROW_11);
+        expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+      });
+
+      it('does not touch another customer order, and does not say it exists', async () => {
+        const order = await place();
+        await expect(
+          service.reschedule(randomUUID(), order.id, TOMORROW_11),
+        ).rejects.toBeInstanceOf(OrderNotFoundError);
+      });
+
+      it('refuses an express order: it has no slot to move', async () => {
+        await addToCart(20000, 1);
+        const order = await service.checkout(customer, { deliveryAddress: address, express: true });
+        await expect(service.reschedule(customer, order.id, TOMORROW_9)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('refuses once a courier has been assigned', async () => {
+        const order = await place();
+        await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+        await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+        await service.updateStatus(order.id, OrderStatus.DRIVER_ASSIGNED, 'staff');
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('refuses a cancelled order', async () => {
+        const order = await place();
+        await service.cancel(customer, order.id, 'x');
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('refuses inside the notice window before the CURRENT slot', async () => {
+        const order = await place(); // tomorrow 09:00 WIB
+        jest.setSystemTime(new Date('2026-09-01T01:00:00Z')); // 08:00 WIB: one hour before
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-01T04:00:00.000Z'),
+        ).rejects.toBeInstanceOf(OrderNotReschedulableError);
+      });
+
+      it('applies the same slot rules to the NEW time, and changes nothing when it refuses', async () => {
+        const order = await place();
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-01T02:20:00.000Z'),
+        ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+        await expect(
+          service.reschedule(customer, order.id, '2026-09-20T02:00:00.000Z'),
+        ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+        const again = await service.getForCustomer(customer, order.id);
+        expect(again.scheduledFor?.toISOString()).toBe(TOMORROW_9);
+      });
+
+      it('reports a dispatch that wins the race as not-reschedulable, not as a server error', async () => {
+        const order = await place();
+        jest.spyOn(orders, 'rescheduleSlot').mockRejectedValueOnce(new StaleOrderStatusError());
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toBeInstanceOf(
+          OrderNotReschedulableError,
+        );
+      });
+
+      it('lets an unexpected failure through untouched', async () => {
+        const order = await place();
+        jest.spyOn(orders, 'rescheduleSlot').mockRejectedValueOnce(new Error('db down'));
+        await expect(service.reschedule(customer, order.id, TOMORROW_11)).rejects.toThrow(
+          'db down',
+        );
+      });
+
+      describe('telling the depot', () => {
+        const rescheduleEvents = () =>
+          notification.calls.filter((c) => c.event === 'DEPOT_ORDER_RESCHEDULED');
+
+        it('tells the depot, not the customer, that the delivery time moved', async () => {
+          const order = await place();
+          notification.calls = [];
+          await service.reschedule(customer, order.id, TOMORROW_11, 'Bearer t');
+          const sent = rescheduleEvents();
+          expect(sent).toHaveLength(1);
+          expect(sent[0]).toMatchObject({
+            customerId: null, // addressed to a place, so the buyer is not pushed their own change
+            depotId: homeDepot.id,
+            authorization: 'Bearer t',
+          });
+          expect(sent[0]!.vars).toMatchObject({
+            orderNumber: order.orderNumber,
+            orderId: order.id,
+          });
+          expect(sent[0]!.vars.when).toMatch(/11\.00-13\.00/);
+          expect(notification.calls.filter((c) => c.customerId === customer)).toHaveLength(0);
+        });
+
+        it('names the new day and time in the depot own words', async () => {
+          const order = await place();
+          await service.reschedule(customer, order.id, TOMORROW_11);
+          // Tuesday 1 September, Jakarta.
+          expect(rescheduleEvents()[0]!.vars.when).toMatch(/Selasa.*1 Sep.*11\.00-13\.00/);
+        });
+
+        it('does not move the order back, or fail, when the message cannot be sent', async () => {
+          const order = await place();
+          jest.spyOn(notification, 'notify').mockResolvedValue(false);
+          const moved = await service.reschedule(customer, order.id, TOMORROW_11);
+          expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+        });
+
+        it('says nothing when the move is refused', async () => {
+          const order = await place();
+          notification.calls = [];
+          await expect(
+            service.reschedule(customer, order.id, '2026-09-01T02:20:00.000Z'),
+          ).rejects.toBeInstanceOf(InvalidDeliveryScheduleError);
+          expect(rescheduleEvents()).toHaveLength(0);
+        });
+      });
+
+      it('can give a day to an older order that only ever had a label', async () => {
+        await addToCart(20000, 1);
+        const legacy = await service.checkout(customer, {
+          deliveryAddress: address,
+          deliveryWindow: 'Sel, 09.00-11.00',
+        });
+        expect(legacy.scheduledFor).toBeNull();
+        const moved = await service.reschedule(customer, legacy.id, TOMORROW_11);
+        expect(moved.scheduledFor?.toISOString()).toBe(TOMORROW_11);
+      });
+    });
+  });
+
+  // FR-034. The PPN settings existed (HQ edits the rate, the invoice template prints it) but no
+  // order recorded how much of its total was tax. Customer-facing prices include PPN, so the
+  // total is untouched: the order stores the portion of it that is tax, at the rate and rounding
+  // payment-service holds, so the figure on the receipt is the one on the books.
+  describe('PPN on the order (FR-034)', () => {
+    class FakeTaxRate {
+      rate: { percent: number; rounding: TaxRounding } | null = {
+        percent: 11,
+        rounding: TaxRounding.HALF_UP,
+      };
+      calls = 0;
+      async current() {
+        this.calls += 1;
+        return this.rate;
+      }
+    }
+    let taxRate: FakeTaxRate;
+    let taxed: OrderService;
+    beforeEach(() => {
+      taxRate = new FakeTaxRate();
+      taxed = new OrderService(
+        orders,
+        cart,
+        catalog,
+        depots,
+        pricing,
+        loyalty,
+        referral,
+        membership,
+        resellerDiscount,
+        customerDirectory,
+        notification,
+        promo,
+        promoAutoApply,
+        inventory,
+        cartService,
+        config,
+        recommendation,
+        forecast,
+        franchiseRevenue,
+        gallonIssue,
+        new FakeCashierShift(),
+        reversal,
+        outbox,
+        taxRate,
+      );
+    });
+
+    it('records the PPN portion of the total without changing the total', async () => {
+      await addToCart(20000, 1); // subtotal 20000 + shipping 5000 = 25000
+      const order = await taxed.checkout(customer, { deliveryAddress: address });
+      expect(order.total).toBe(25000);
+      // 25000 * 11 / 111 = 2477.48 -> 2477 (HALF_UP)
+      expect(order.taxAmount).toBe(2477);
+      expect(order.taxPercent).toBe(11);
+    });
+
+    it('applies the rounding method payment-service holds', async () => {
+      taxRate.rate = { percent: 11, rounding: TaxRounding.DOWN };
+      await addToCart(20000, 1);
+      expect((await taxed.checkout(customer, { deliveryAddress: address })).taxAmount).toBe(2477);
+      taxRate.rate = { percent: 11, rounding: TaxRounding.HALF_UP };
+      await addToCart(20000, 3); // 60000 + 15000 = 75000 -> 7432.43 -> 7432
+      expect((await taxed.checkout(customer, { deliveryAddress: address })).taxAmount).toBe(7432);
+    });
+
+    it('records nothing when the rate is zero, and nothing when it cannot be read', async () => {
+      taxRate.rate = { percent: 0, rounding: TaxRounding.HALF_UP };
+      await addToCart(20000, 1);
+      const zero = await taxed.checkout(customer, { deliveryAddress: address });
+      expect(zero.taxAmount).toBe(0);
+      expect(zero.taxPercent).toBeNull();
+
+      taxRate.rate = null; // payment-service unreachable and nothing cached
+      await addToCart(20000, 1);
+      const unknown = await taxed.checkout(customer, { deliveryAddress: address });
+      expect(unknown.taxAmount).toBe(0);
+      expect(unknown.taxPercent).toBeNull();
+      expect(unknown.total).toBe(25000); // a tax outage never blocks or reprices a checkout
+    });
+
+    it('takes the PPN of what the customer actually pays, after the discount', async () => {
+      await addToCart(20000, 1);
+      promo.quoteDiscount = 5000;
+      promo.quoteDiscountType = 'FIXED';
+      const order = await taxed.checkout(customer, {
+        deliveryAddress: address,
+        voucherCode: 'hemat5',
+      });
+      expect(order.total).toBe(20000);
+      expect(order.taxAmount).toBe(Math.round((20000 * 11) / 111)); // 1982
+    });
+
+    it('previews the PPN inside a total the screen is about to show, with the same arithmetic', async () => {
+      await expect(taxed.taxPreview(25000)).resolves.toEqual({ amount: 2477, percent: 11 });
+      await expect(taxed.taxPreview(0)).resolves.toEqual({ amount: 0, percent: null });
+      taxRate.rate = { percent: 11, rounding: TaxRounding.DOWN };
+      await expect(taxed.taxPreview(75000)).resolves.toEqual({ amount: 7432, percent: 11 });
+    });
+
+    it('previews nothing at a zero rate, with no rate, and with no tax source', async () => {
+      taxRate.rate = { percent: 0, rounding: TaxRounding.HALF_UP };
+      await expect(taxed.taxPreview(25000)).resolves.toEqual({ amount: 0, percent: null });
+      taxRate.rate = null;
+      await expect(taxed.taxPreview(25000)).resolves.toEqual({ amount: 0, percent: null });
+      await expect(service.taxPreview(25000)).resolves.toEqual({ amount: 0, percent: null });
+    });
+
+    it('previews the figure checkout then records: they cannot disagree', async () => {
+      await addToCart(20000, 1);
+      const order = await taxed.checkout(customer, { deliveryAddress: address });
+      const preview = await taxed.taxPreview(order.total);
+      expect(preview.amount).toBe(order.taxAmount);
+      expect(preview.percent).toBe(order.taxPercent);
+    });
+
+    it('is optional: a service built without a tax source places orders exactly as before', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.taxAmount).toBe(0);
+      expect(order.taxPercent).toBeNull();
+    });
+  });
+
   // The express surcharge was a constant in the checkout SCREEN and had no counterpart
   // here at all: the customer read a total with Rp5.000 in it and the order stored one
   // without. These four are the money path.
@@ -2962,6 +3425,7 @@ describe('OrderService', () => {
         expressFee: 5000,
         expressEtaMinMinutes: 30,
         expressEtaMaxMinutes: 60,
+        closedDates: [],
       });
     });
 
@@ -3069,7 +3533,9 @@ describe('OrderService', () => {
       },
     ];
     promoAutoApply.quoteResult = {
-      lines: [{ productId, appliedRuleIds: ['r1'], unitPriceAfter: 5000, freeQty: 0, lineTotal: 5000 }],
+      lines: [
+        { productId, appliedRuleIds: ['r1'], unitPriceAfter: 5000, freeQty: 0, lineTotal: 5000 },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -3098,7 +3564,15 @@ describe('OrderService', () => {
     const p = catalog.seed({ id: randomUUID(), basePrice: 8000, categoryId: 'cat-air' });
     await cartService.setItem(customer, p.id, 4, false);
     promoAutoApply.quoteResult = {
-      lines: [{ productId: p.id, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      lines: [
+        {
+          productId: p.id,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+          lineTotal: 32000,
+        },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -3119,7 +3593,11 @@ describe('OrderService', () => {
 
     it('takes an ORDER_DISCOUNT off the goods, and records it in the audit call', async () => {
       await addToCart(20000, 2); // subtotal 40000
-      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 5000 };
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 5000,
+      };
 
       const order = await service.checkout(customer, { deliveryAddress: address });
 
@@ -3136,9 +3614,16 @@ describe('OrderService', () => {
       membership.rate = 0.5; // 10000
       promo.quoteDiscount = 5000;
       promo.quoteDiscountType = 'FIXED';
-      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 10000 };
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 10000,
+      };
 
-      const order = await service.checkout(customer, { deliveryAddress: address, voucherCode: 'HEMAT' });
+      const order = await service.checkout(customer, {
+        deliveryAddress: address,
+        voucherCode: 'HEMAT',
+      });
 
       expect(order.discount).toBe(20000); // capped at the goods, 25000 asked for
       expect(order.total).toBe(order.deliveryFee); // delivery is still paid
@@ -3146,8 +3631,17 @@ describe('OrderService', () => {
 
     it('also applies to an agen, on top of the agen price', async () => {
       await addToCart(20000, 1);
-      resellerDiscount.result = { active: true, discountPct: 10, flatGallonPriceIdr: 0, homeDepotId: 'depot-home' };
-      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 3000 };
+      resellerDiscount.result = {
+        active: true,
+        discountPct: 10,
+        flatGallonPriceIdr: 0,
+        homeDepotId: 'depot-home',
+      };
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 3000,
+      };
 
       const order = await service.checkout(customer, { deliveryAddress: address });
 
@@ -3156,24 +3650,36 @@ describe('OrderService', () => {
 
     it('does not record an order discount that is zero', async () => {
       await addToCart(20000, 1);
-      promoAutoApply.quoteResult = { ...noLines, orderDiscountRuleId: 'r-order', orderDiscountAmount: 0 };
+      promoAutoApply.quoteResult = {
+        ...noLines,
+        orderDiscountRuleId: 'r-order',
+        orderDiscountAmount: 0,
+      };
       await service.checkout(customer, { deliveryAddress: address });
       expect(promoAutoApply.applyCalls[0].orderDiscountRuleId).toBeNull();
     });
 
     const giftSetup = async () => {
       const trigger = await addToCart(8000, 4);
-      const gift = catalog.seed({ id: randomUUID(), basePrice: 8000, name: 'Botol 600ml', isGallon: true });
+      const gift = catalog.seed({
+        id: randomUUID(),
+        basePrice: 8000,
+        name: 'Botol 600ml',
+        isGallon: true,
+      });
       promoAutoApply.quoteResult = {
         ...noLines,
-        gifts: [{ promoRuleId: 'r-gift', productId: gift.id, quantity: 2, triggerProductId: trigger }],
+        gifts: [
+          { promoRuleId: 'r-gift', productId: gift.id, quantity: 2, triggerProductId: trigger },
+        ],
       };
       return { trigger, gift };
     };
 
     it('adds a BUNDLE_GIFT as a free row, reserves it, audits its value and does not charge delivery for it', async () => {
       const { trigger, gift } = await giftSetup();
-      const withoutGift = (await service.checkout(customer, { deliveryAddress: address })).deliveryFee;
+      const withoutGift = (await service.checkout(customer, { deliveryAddress: address }))
+        .deliveryFee;
       // 4 paid galons at 5000 each; the 2 free galons of the GIFT are not counted.
       expect(withoutGift).toBe(20000);
 
@@ -3183,7 +3689,12 @@ describe('OrderService', () => {
       const order = await service.checkout(other, { deliveryAddress: address });
 
       expect(order.items).toHaveLength(2);
-      expect(order.items[1]).toMatchObject({ productId: gift.id, quantity: 2, unitPrice: 0, lineTotal: 0 });
+      expect(order.items[1]).toMatchObject({
+        productId: gift.id,
+        quantity: 2,
+        unitPrice: 0,
+        lineTotal: 0,
+      });
       expect(order.subtotal).toBe(32000); // the gift adds nothing
       expect(order.deliveryFee).toBe(20000);
       const reserved = inventory.reserveCalls[inventory.reserveCalls.length - 1].items;
@@ -3219,7 +3730,14 @@ describe('OrderService', () => {
       const trigger = await addToCart(8000, 4);
       promoAutoApply.quoteResult = {
         ...noLines,
-        gifts: [{ promoRuleId: 'r-gift', productId: randomUUID(), quantity: 1, triggerProductId: trigger }],
+        gifts: [
+          {
+            promoRuleId: 'r-gift',
+            productId: randomUUID(),
+            quantity: 1,
+            triggerProductId: trigger,
+          },
+        ],
       };
       const order = await service.checkout(customer, { deliveryAddress: address });
       expect(order.items).toHaveLength(1);
@@ -3238,7 +3756,10 @@ describe('OrderService', () => {
       };
       const order = await service.checkout(customer, { deliveryAddress: address });
       expect(order.items.filter((i) => i.productId === gift.id)).toHaveLength(1);
-      expect(order.items.find((i) => i.productId === gift.id)).toMatchObject({ quantity: 3, unitPrice: 0 });
+      expect(order.items.find((i) => i.productId === gift.id)).toMatchObject({
+        quantity: 3,
+        unitPrice: 0,
+      });
       expect(promoAutoApply.applyCalls[0].gifts).toEqual([
         { promoRuleId: 'r-a', productId: gift.id, value: 5000 },
         { promoRuleId: 'r-b', productId: gift.id, value: 10000 },
@@ -3267,7 +3788,10 @@ describe('OrderService', () => {
       await cartService.setItem(customer, p.id, 10, false);
       pricing.setTier('depot-home', p.id, 10, 8000);
       await service.checkout(customer, { deliveryAddress: address });
-      expect(promoAutoApply.quoteCalls[0].lines[0]).toMatchObject({ productId: p.id, skipPromo: true });
+      expect(promoAutoApply.quoteCalls[0].lines[0]).toMatchObject({
+        productId: p.id,
+        skipPromo: true,
+      });
     });
   });
 
@@ -3310,7 +3834,15 @@ describe('OrderService', () => {
   it('Fix 7: checkout() round-trips a BUY_X_GET_Y match (items, summed reserve, audit call)', async () => {
     const productId = await addToCart(8000, 4);
     promoAutoApply.quoteResult = {
-      lines: [{ productId, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1, lineTotal: 32000 }],
+      lines: [
+        {
+          productId,
+          appliedRuleIds: ['bogo-1'],
+          unitPriceAfter: 8000,
+          freeQty: 1,
+          lineTotal: 32000,
+        },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -3358,7 +3890,15 @@ describe('OrderService', () => {
     // A SPECIAL_PRICE-shaped match (freeQty: 0, no split row) cutting the subtotal to 80000
     // — simpler than a BOGO for isolating "which subtotal did the voucher see".
     promoAutoApply.quoteResult = {
-      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 80000 }],
+      lines: [
+        {
+          productId,
+          appliedRuleIds: ['special-1'],
+          unitPriceAfter: 8000,
+          freeQty: 0,
+          lineTotal: 80000,
+        },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -3393,14 +3933,25 @@ describe('OrderService', () => {
   it('stacking: a value voucher larger than the post-promo subtotal is capped there, never eating the delivery fee', async () => {
     const productId = await addToCart(10000, 1);
     promoAutoApply.quoteResult = {
-      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 }],
+      lines: [
+        {
+          productId,
+          appliedRuleIds: ['special-1'],
+          unitPriceAfter: 8000,
+          freeQty: 0,
+          lineTotal: 8000,
+        },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
     promo.quoteDiscount = 50000; // far above the 8000 post-promo subtotal
     promo.quoteDiscountType = 'FIXED';
 
-    const order = await service.checkout(customer, { deliveryAddress: address, voucherCode: 'BESAR' });
+    const order = await service.checkout(customer, {
+      deliveryAddress: address,
+      voucherCode: 'BESAR',
+    });
 
     expect(order.subtotal).toBe(8000);
     expect(order.discount).toBe(8000); // capped at the subtotal
@@ -3417,7 +3968,10 @@ describe('OrderService', () => {
     promo.quoteDiscount = 5000; // promo-service would cap this against the fee it was shown
     promo.quoteDiscountType = 'FREE_SHIPPING';
 
-    const order = await service.checkout(customer, { deliveryAddress: address, voucherCode: 'ONGKIR' });
+    const order = await service.checkout(customer, {
+      deliveryAddress: address,
+      voucherCode: 'ONGKIR',
+    });
 
     expect(promo.quoteCalls[0].shippingFee).toBe(1000); // the promo-reduced fee, not 5000
     expect(promo.redeemCalls[0].shippingFee).toBe(1000);
@@ -3429,7 +3983,15 @@ describe('OrderService', () => {
   it('stacking: a rejected voucher rejects checkout even though a promo matched, and records no promo', async () => {
     const productId = await addToCart(10000, 1);
     promoAutoApply.quoteResult = {
-      lines: [{ productId, appliedRuleIds: ['special-1'], unitPriceAfter: 8000, freeQty: 0, lineTotal: 8000 }],
+      lines: [
+        {
+          productId,
+          appliedRuleIds: ['special-1'],
+          unitPriceAfter: 8000,
+          freeQty: 0,
+          lineTotal: 8000,
+        },
+      ],
       shippingAppliedRuleId: null,
       shippingFeeOverride: null,
     };
@@ -3808,7 +4370,9 @@ describe('OrderService', () => {
       const counter = await service.listAll({ isWalkIn: true });
       expect(counter.items.map((o) => o.id)).toContain(sale.id);
       expect(counter.items.map((o) => o.id)).not.toContain(delivery.id);
-      expect((await service.listAll({})).items.map((o) => o.id)).toEqual(expect.arrayContaining([sale.id, delivery.id]));
+      expect((await service.listAll({})).items.map((o) => o.id)).toEqual(
+        expect.arrayContaining([sale.id, delivery.id]),
+      );
     });
 
     it('answers a walk-in sale the same way', async () => {

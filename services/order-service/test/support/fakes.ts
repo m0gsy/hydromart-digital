@@ -259,6 +259,9 @@ export class InMemoryOrderRepository implements OrderRepository {
       items: items.map((i) => ({ ...i, id: randomUUID() })),
       history: [{ status: opening, changedBy: null, note: null, createdAt: now }],
       deliveryWindow: rest.deliveryWindow ?? null,
+      scheduledFor: rest.scheduledFor ?? null,
+      taxAmount: rest.taxAmount ?? 0,
+      taxPercent: rest.taxPercent ?? null,
       isWalkIn: rest.isWalkIn ?? false,
       voidedAt: null,
       voidReason: null,
@@ -297,6 +300,20 @@ export class InMemoryOrderRepository implements OrderRepository {
   async findById(id: string): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
+  }
+
+  async rescheduleSlot(
+    id: string,
+    scheduledFor: Date,
+    deliveryWindow: string,
+    allowedStatuses: OrderStatus[],
+  ): Promise<OrderRecord> {
+    const row = this.rows.find((r) => r.id === id && allowedStatuses.includes(r.status));
+    if (!row) throw new StaleOrderStatusError();
+    row.scheduledFor = scheduledFor;
+    row.deliveryWindow = deliveryWindow;
+    row.updatedAt = nextDate();
+    return structuredClone(row);
   }
   async findByIdempotencyKey(
     customerId: string,

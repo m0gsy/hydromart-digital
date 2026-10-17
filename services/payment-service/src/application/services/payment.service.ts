@@ -646,6 +646,9 @@ export class PaymentService {
     if (!isRefundable(payment.status)) {
       throw new PaymentNotRefundableError(payment.status);
     }
+    // Already waiting on HQ: the first request stands. Asking again must not slide the due date
+    // the customer was promised, nor add another "requested" row to the audit trail.
+    if (payment.refundApproval === RefundApproval.PENDING) return payment;
     if (payment.amount > this.config.refundApprovalThreshold) {
       this.logger.log(
         `Refund for ${id} (${payment.amount}) queued for HQ approval by ${changedBy}`,
@@ -991,15 +994,23 @@ export class PaymentService {
     if (!payment || payment.status !== PaymentStatus.PENDING) {
       return { handled: false };
     }
+    // Compare-and-set (B-9): only the delivery that actually moves the payment out of PENDING
+    // settles it. Two deliveries racing (a provider retry against its own first attempt) both
+    // read PENDING above; the loser claims nothing, confirms nothing and is acknowledged.
+    const claimed =
+      payload.event === 'PAID'
+        ? await this.payments.updateIfStatus(payment.id, [PaymentStatus.PENDING], {
+            status: PaymentStatus.PAID,
+            paidAt: new Date(),
+          })
+        : await this.payments.updateIfStatus(payment.id, [PaymentStatus.PENDING], {
+            status: PaymentStatus.FAILED,
+            failedAt: new Date(),
+          });
+    if (!claimed) return { handled: false };
     if (payload.event === 'PAID') {
-      await this.payments.update(payment.id, { status: PaymentStatus.PAID, paidAt: new Date() });
       // A settled payment confirms the order (CREATED→CONFIRMED). Fail-open, idempotent.
       await this.orderCoordination.confirmPaid(payment.orderId);
-    } else {
-      await this.payments.update(payment.id, {
-        status: PaymentStatus.FAILED,
-        failedAt: new Date(),
-      });
     }
     return { handled: true };
   }

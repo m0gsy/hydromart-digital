@@ -2,8 +2,10 @@
 // an instant, and answers in the depot's own time zone. Used to stop offering "antar
 // sekarang" while the counter is shut or on its lunch break.
 //
-// Deliberately NOT used to block scheduled orders: a customer may order at 22:00 for
-// tomorrow morning. Only the immediate-delivery upgrade depends on someone being there.
+// Deliberately NOT used to block scheduled orders by the hour: a customer may order at 22:00
+// for tomorrow morning. Only the immediate-delivery upgrade depends on someone being there.
+// A booked DAY is a different question — `isClosedOn` answers it (holiday, or a weekday the
+// depot does not trade).
 
 import { localDayKey } from '@hydromart/platform';
 
@@ -94,4 +96,29 @@ export function isOpenAt(
     if (nowMinutes >= breakStart && nowMinutes < breakEnd) return false;
   }
   return true;
+}
+
+/**
+ * Whether the depot is closed for the whole local DAY of `at` (FR-036: a booked delivery).
+ *
+ * Only two things close a day: a listed holiday, and a weekday with no entry in the weekly
+ * hours. The hour of the booking is not tested — the depot's own slots decide that, and a slot
+ * inside a lunch break is the depot's configuration, not the customer's mistake.
+ *
+ * A depot that never said when it trades is NOT treated as closed here, unlike `isOpenAt`:
+ * refusing every booking to a depot nobody has configured would withdraw scheduling from it
+ * entirely, where the immediate-delivery upgrade can reasonably wait for an answer. Only a
+ * holiday closes it.
+ */
+export function isClosedOn(
+  hours: OperatingHours | null | undefined,
+  holidays: Holiday[] | null | undefined,
+  at: Date,
+  tz: string,
+): boolean {
+  const day = localDayKey(at, tz);
+  if (holidays?.some((h) => h?.date === day)) return true;
+  if (!hours || Object.keys(hours).length === 0) return false;
+  const weekday = new Date(`${day}T00:00:00.000Z`).getUTCDay();
+  return !hours[DAY_KEYS[weekday]];
 }

@@ -1803,7 +1803,8 @@ export const hq = {
     subtitle: 'PPN, format nomor faktur & identitas perusahaan',
     ppn: 'PPN (%)',
     includes: 'Harga sudah termasuk pajak',
-    includesBody: 'Jika aktif, PPN dihitung dari harga jual, bukan ditambahkan.',
+    includesBody:
+      'Jika aktif, PPN dihitung dari harga jual, bukan ditambahkan. Pesanan online selalu memakai harga akhir yang dilihat pelanggan (sudah termasuk PPN): pengaturan ini menentukan faktur, bukan total pesanan.',
     format: 'Format nomor faktur',
     formatHint: 'Token: {YYYY} tahun · {MM} bulan · {NNNN} urutan.',
     company: 'Nama perusahaan',

@@ -5,7 +5,7 @@ import {
   TaxSettingsRecord,
   TaxSettingsRepository,
 } from '../../application/ports/tax-settings.repository';
-import { DEFAULT_TAX_ROUNDING, isTaxRounding } from '../../domain/tax';
+import { DEFAULT_TAX_ROUNDING, isTaxRounding } from '@hydromart/platform';
 import { PrismaService } from './prisma.service';
 
 type Decimalish = { toNumber(): number };

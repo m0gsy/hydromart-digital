@@ -91,6 +91,7 @@ export class SupervisionHttpAdapter implements SupervisionPort {
           method: 'PUT',
           headers: { 'content-type': 'application/json', 'x-internal-key': internalKey },
           body: JSON.stringify({ superiorId: superiorAuthSubjectId }),
+          signal: AbortSignal.timeout(5000),
         },
       );
     } catch (err) {

@@ -7,7 +7,7 @@ import {
   TaxSettingsRepository,
 } from '../ports/tax-settings.repository';
 import { PAYMENT_TOKENS } from '../tokens';
-import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../domain/tax';
+import { DEFAULT_TAX_ROUNDING, TaxRounding } from '@hydromart/platform';
 
 /**
  * Defaults returned before HQ has saved any tax settings. These are editable config

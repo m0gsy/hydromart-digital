@@ -75,6 +75,13 @@ describe('SupervisionHttpAdapter', () => {
     expect(JSON.parse(init.body)).toEqual({ superiorId: 'boss-1' });
   });
 
+  // A depot-service that accepts the connection and never answers must not pin the caller.
+  it('gives up on a write that never answers (the call carries a timeout)', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 204 });
+    await new SupervisionHttpAdapter(config()).setSuperior('staff-1', 'boss-1');
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('raises on a write that is refused, unreachable, or unconfigured', async () => {
     const adapter = new SupervisionHttpAdapter(config());
 

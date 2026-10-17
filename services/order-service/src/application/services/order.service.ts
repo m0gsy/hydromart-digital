@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Optional, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   AuthenticatedUser,
   alertServerError,
@@ -26,6 +26,9 @@ import {
   OrderAlreadyRoutedError,
   OrderNotReroutableError,
   OrderNotRoutedError,
+  OrderNotReschedulableError,
+  InvalidDeliveryScheduleError,
+  StaleOrderStatusError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -48,6 +51,15 @@ import {
   isVoidableInShift,
   notificationEventFor,
 } from '../../domain/order-status';
+import { isClosedOn } from '../../domain/opening-hours';
+import {
+  EXPRESS_WINDOW,
+  RESCHEDULE_CUTOFF_MINUTES,
+  SCHEDULE_HORIZON_DAYS,
+  validateSchedule,
+} from '../../domain/delivery-schedule';
+import { computePpn } from '@hydromart/platform';
+import { TaxRatePort } from '../ports/tax-rate.port';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
@@ -198,6 +210,11 @@ export interface CheckoutInput {
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
   deliveryWindow?: string | null;
   /**
+   * FR-036: the instant the chosen delivery slot starts (ISO-8601). Validated against the
+   * depot's own slots here; absent means the order named no day.
+   */
+  scheduledFor?: string | null;
+  /**
    * "Antar sekarang": the customer wants the express service rather than a scheduled
    * window. A flag rather than a price — the surcharge comes from the depot's settings
    * here, never from the client.
@@ -218,6 +235,8 @@ export interface DeliveryOptions {
   expressFee: number;
   expressEtaMinMinutes: number;
   expressEtaMaxMinutes: number;
+  /** Local days within the booking horizon on which the depot is shut. */
+  closedDates: string[];
 }
 
 export interface ListOrdersInput {
@@ -289,6 +308,11 @@ export class OrderService {
     @Inject(ORDER_TOKENS.PaymentReversal)
     private readonly paymentReversal: PaymentReversalPort,
     private readonly outboxService: OutboxService,
+    // FR-034. Optional, so a deployment (or a test) built without a tax source places orders
+    // exactly as it did before: no tax is recorded rather than one being guessed.
+    @Optional()
+    @Inject(ORDER_TOKENS.TaxRate)
+    private readonly taxRate?: TaxRatePort,
   ) {
     // H-10: the effects live here because this is where the adapters and the
     // franchise-owner lookup are; the dispatcher only decides WHEN they run.
@@ -413,7 +437,29 @@ export class OrderService {
       expressFee: express.fee,
       expressEtaMinMinutes: express.etaMinMinutes,
       expressEtaMaxMinutes: express.etaMaxMinutes,
+      // FR-036: the days a booking would be refused, so the screen stops offering them.
+      closedDates: await this.closedDatesFor(depotId),
     };
+  }
+
+  /**
+   * The local days, within the booking horizon, on which this depot is shut (a holiday or a
+   * weekday it does not trade). Empty when the depot is unknown or the directory is down: the
+   * screen then offers every day and the server's own check at checkout still decides.
+   */
+  private async closedDatesFor(depotId: string | null): Promise<string[]> {
+    if (!depotId) return [];
+    const depots = await this.depotDirectory.listActiveDepots();
+    const found = depots?.find((d) => d.id === depotId);
+    if (!found) return [];
+    const tz = this.config.businessTimeZone;
+    const now = Date.now();
+    const closed: string[] = [];
+    for (let i = 0; i <= SCHEDULE_HORIZON_DAYS; i += 1) {
+      const at = new Date(now + i * 86_400_000);
+      if (isClosedOn(found.operatingHours, found.holidays, at, tz)) closed.push(localDayKey(at, tz));
+    }
+    return closed;
   }
 
   /**
@@ -547,6 +593,11 @@ export class OrderService {
     const expressAvailable = express.enabled && (await this.depotIsOpen(depot.id, depot));
     if (input.express && !expressAvailable) throw new ExpressUnavailableError();
     const expressFee = input.express ? money(express.fee) : 0;
+    // FR-036: a booked day is a real instant, checked against THIS depot's slots. Express and a
+    // schedule are different services, so asking for both is refused rather than guessed at.
+    const schedule = input.scheduledFor
+      ? await this.resolveSchedule(depot.id, input.scheduledFor, input.express, depot)
+      : null;
 
     // Reseller pricing (reseller-only): an active reseller priced either by percent or by
     // the SOP's flat rupiah-per-galon gets that instead of membership/voucher. Fails open
@@ -652,6 +703,10 @@ export class OrderService {
     // is a column on Order, not a second total.
     const deliveryFee = money(shippingFee + expressFee);
     const total = money(subtotal + deliveryFee - discount);
+    // FR-034: the PPN portion of what the customer pays. Prices shown to customers include PPN,
+    // so this is carved OUT of the total, never added to it; a tax source that is missing or
+    // down records nothing rather than blocking or repricing the order.
+    const { amount: taxAmount, percent: taxPercent } = await this.taxPreview(total);
 
     const { order, gifts: keptGifts } = await this.reserveThenCreateWithGifts(
       depot.id,
@@ -664,7 +719,15 @@ export class OrderService {
         deliveryFee,
         discount,
         total,
-        deliveryWindow: input.deliveryWindow ?? null,
+        // An express order is MARKED as one, whoever placed it: reschedule and the lifecycle
+        // sweep both recognise it by this value, and an API client that sent only the flag used
+        // to leave it indistinguishable from an order with no preference.
+        deliveryWindow: input.express
+          ? EXPRESS_WINDOW
+          : (input.deliveryWindow ?? schedule?.slot ?? null),
+        scheduledFor: schedule?.at ?? null,
+        taxAmount,
+        taxPercent,
         idempotencyKey,
         ...input.deliveryAddress,
         items,
@@ -1860,6 +1923,136 @@ export class OrderService {
     );
     await this.releaseStock(cancelled, authorization);
     return cancelled;
+  }
+
+  /**
+   * FR-034: the PPN already inside `total` — what checkout records on the order, and what the
+   * screen shows beside its total before the order exists. One function, so the figure the
+   * customer reads and the figure that is stored cannot disagree. Prices shown to customers
+   * include PPN, so this is carved OUT of the total, never added; no source, an unreadable rate
+   * or a zero rate answers nothing rather than blocking or repricing anything.
+   */
+  async taxPreview(total: number): Promise<{ amount: number; percent: number | null }> {
+    const tax = this.taxRate ? await this.taxRate.current() : null;
+    const amount =
+      tax && tax.percent > 0 && total > 0 ? computePpn(total, tax.percent, true, tax.rounding) : 0;
+    return { amount, percent: amount > 0 && tax ? tax.percent : null };
+  }
+
+  /**
+   * A requested delivery instant, checked against the depot's slots (FR-036/FR-052). Returns
+   * the instant and the slot label it starts, or throws the refusal that names the reason.
+   */
+  private async resolveSchedule(
+    depotId: string | null,
+    requested: string,
+    express?: boolean,
+    depot?: DepotLocation,
+  ): Promise<{ at: Date; slot: string }> {
+    if (express) throw new InvalidDeliveryScheduleError('EXPRESS');
+    const at = new Date(requested);
+    if (Number.isNaN(at.getTime())) throw new InvalidDeliveryScheduleError('NOT_A_DATE');
+    const verdict = validateSchedule({
+      at,
+      slots: this.config.deliverySlots(depotId),
+      now: new Date(),
+    });
+    if (!verdict.ok) throw new InvalidDeliveryScheduleError(verdict.reason);
+    // The slots say WHEN in a day; whether the depot trades on that day is the depot's own
+    // calendar. An unknown depot or an unreachable directory books the slot, as depotIsOpen does:
+    // not knowing is not the same as knowing it is shut.
+    if (await this.depotClosedOn(depotId, at, depot)) {
+      throw new InvalidDeliveryScheduleError('CLOSED_DAY');
+    }
+    return { at, slot: verdict.slot };
+  }
+
+  /** Is this depot shut for the whole local day of `at` (holiday, or a non-trading weekday)? */
+  private async depotClosedOn(
+    depotId: string | null,
+    at: Date,
+    depot?: DepotLocation,
+  ): Promise<boolean> {
+    if (!depotId) return false;
+    let found = depot;
+    if (!found) {
+      const depots = await this.depotDirectory.listActiveDepots();
+      found = depots?.find((d) => d.id === depotId);
+    }
+    if (!found) return false;
+    return isClosedOn(found.operatingHours, found.holidays, at, this.config.businessTimeZone);
+  }
+
+  /**
+   * FR-052: the customer moves their own order to another slot.
+   *
+   * Allowed while the goods have not left the depot (the same window as cancelling), only for
+   * a delivery that has a slot to move (express has none), and until two hours before the slot
+   * it is currently booked for — the depot has already planned that morning. The new instant
+   * passes the same checks checkout applies. The write is a compare-and-set on the status, so a
+   * dispatch that lands between the read and the write wins and the move is refused.
+   */
+  async reschedule(
+    customerId: string,
+    orderId: string,
+    requested: string,
+    authorization = '',
+  ): Promise<OrderRecord> {
+    const order = await this.getForCustomer(customerId, orderId);
+    if (order.isWalkIn || order.deliveryWindow === EXPRESS_WINDOW) {
+      throw new OrderNotReschedulableError('EXPRESS');
+    }
+    if (!isCancellable(order.status) || hasBeenDispatched(order.history)) {
+      throw new OrderNotReschedulableError('STATUS');
+    }
+    if (
+      order.scheduledFor &&
+      order.scheduledFor.getTime() - Date.now() < RESCHEDULE_CUTOFF_MINUTES * 60_000
+    ) {
+      throw new OrderNotReschedulableError('TOO_LATE');
+    }
+    const next = await this.resolveSchedule(order.depotId, requested);
+    let moved: OrderRecord;
+    try {
+      moved = await this.orders.rescheduleSlot(order.id, next.at, next.slot, [
+        OrderStatus.CREATED,
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+      ]);
+    } catch (error) {
+      if (error instanceof StaleOrderStatusError) throw new OrderNotReschedulableError('STATUS');
+      throw error;
+    }
+    await this.notifyDepotOfReschedule(moved, next.at, next.slot, authorization);
+    return moved;
+  }
+
+  /**
+   * The depot planned a morning around the old slot, so it is told the slot moved — addressed to
+   * the DEPOT (no customer id: the buyer is not pushed their own change). Fail-open like every
+   * notify: the order is already moved and a message that did not go must not undo it.
+   */
+  private async notifyDepotOfReschedule(
+    order: OrderRecord,
+    at: Date,
+    slot: string,
+    authorization: string,
+  ): Promise<void> {
+    if (!order.depotId) return;
+    const day = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      timeZone: this.config.businessTimeZone,
+    }).format(at);
+    await this.notification.notify(
+      'DEPOT_ORDER_RESCHEDULED',
+      order.phone,
+      { orderNumber: order.orderNumber, orderId: order.id, when: `${day}, ${slot}` },
+      null,
+      authorization,
+      order.depotId,
+    );
   }
 
   /**

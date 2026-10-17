@@ -48,9 +48,19 @@ beforeEach(() => {
 describe('HQ returns table (CA-2-69)', () => {
   it('shows the circulating figure once, not under two headings', async () => {
     get.mockImplementation(async (url: string) =>
-      String(url).includes('/returns/')
-        ? { gallons: 40, damaged: 0, depositRefunded: 100_000 }
-        : { gallons: 100, depositHeld: 500_000 },
+      String(url).includes('/gallon-outstanding')
+        ? DEPOTS.items.map((d) => ({
+            depotId: d.id,
+            issued: 100,
+            returned: 40,
+            outstanding: 60,
+            depositHeld: 500_000,
+            depositRefunded: 100_000,
+            netDeposit: 400_000,
+          }))
+        : (() => {
+            throw new Error('unexpected per-depot read');
+          })(),
     );
 
     const { container } = render(<HqReturnsPage />);
@@ -63,6 +73,18 @@ describe('HQ returns table (CA-2-69)', () => {
     expect(sixties).toHaveLength(DEPOTS.items.length);
   });
 
+  it('asks the network once, not twice per depot', async () => {
+    get.mockImplementation(async (url: string) =>
+      String(url).includes('/gallon-outstanding') ? [] : { gallons: 0, depositHeld: 0 },
+    );
+
+    render(<HqReturnsPage />);
+
+    await waitFor(() => expect(screen.getByText('Depot Satu')).toBeTruthy());
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls[0]![0]).toContain('/gallon-outstanding');
+  });
+
   /*
    * The depots that answered are shown, and the ones that did not are NAMED. Quietly
    * rendering fewer rows would be worse than the error it replaces: the totals under the
@@ -70,6 +92,8 @@ describe('HQ returns table (CA-2-69)', () => {
    */
   it('keeps the readable depots when one fails, and names the one that did not', async () => {
     get.mockImplementation(async (url: string) => {
+      // The grouped read is down too, so the page falls back to reading depot by depot.
+      if (String(url).includes('/gallon-outstanding')) throw new Error('rollup unavailable');
       if (String(url).includes('d2')) throw new Error('depot-service timed out');
       return String(url).includes('/returns/')
         ? { gallons: 40, damaged: 0, depositRefunded: 100_000 }

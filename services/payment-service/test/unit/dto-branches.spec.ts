@@ -10,7 +10,7 @@ import {
 } from '../../src/modules/dto/payment.dto';
 import { TaxSettingsDto, UpdateTaxSettingsDto } from '../../src/modules/dto/tax-settings.dto';
 import type { TaxSettingsRecord } from '../../src/application/ports/tax-settings.repository';
-import { TaxRounding } from '../../src/domain/tax';
+import { TaxRounding } from '@hydromart/platform';
 
 // Exercises the DTO transform callbacks (@Transform / @Type factories) and the
 // TaxSettingsDto.from mapper — the code jest never runs unless a transform fires.

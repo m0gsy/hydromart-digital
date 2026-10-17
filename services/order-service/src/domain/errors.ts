@@ -407,6 +407,41 @@ export class OrderNotCancellableError extends DomainError {
   }
 }
 
+/** FR-036/FR-052: a requested delivery time is not one the depot can book. */
+export class InvalidDeliveryScheduleError extends DomainError {
+  readonly code = 'ORDER_SCHEDULE_INVALID';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(
+    reason: 'NOT_A_DATE' | 'NOT_A_SLOT' | 'TOO_SOON' | 'BEYOND_HORIZON' | 'EXPRESS' | 'CLOSED_DAY',
+  ) {
+    super(
+      {
+        NOT_A_DATE: 'Waktu pengiriman tidak valid.',
+        NOT_A_SLOT: 'Waktu pengiriman harus tepat di awal salah satu jam antar yang tersedia di depot ini.',
+        TOO_SOON: 'Jam antar itu sudah terlalu dekat atau sudah lewat. Pilih jam yang lebih lambat.',
+        BEYOND_HORIZON: 'Pengiriman hanya bisa dijadwalkan sampai beberapa hari ke depan.',
+        EXPRESS: 'Antar sekarang (express) tidak bisa digabung dengan jadwal. Pilih salah satu.',
+        CLOSED_DAY: 'Depot ini libur atau tutup pada hari itu. Pilih hari lain.',
+      }[reason],
+    );
+  }
+}
+
+/** FR-052: the customer can no longer move this order's delivery time. */
+export class OrderNotReschedulableError extends DomainError {
+  readonly code = 'ORDER_NOT_RESCHEDULABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(reason: 'STATUS' | 'EXPRESS' | 'TOO_LATE') {
+    super(
+      {
+        STATUS: 'Pesanan ini sudah diproses lebih jauh, jadwalnya tidak bisa diubah lagi.',
+        EXPRESS: 'Pesanan antar sekarang (express) tidak punya jadwal untuk diubah.',
+        TOO_LATE: 'Jadwal tidak bisa diubah kurang dari 2 jam sebelum jam antar.',
+      }[reason],
+    );
+  }
+}
+
 /** Spec 7b: subscription not found (or not owned by the caller). */
 export class SubscriptionNotFoundError extends DomainError {
   readonly code = 'SUBSCRIPTION_NOT_FOUND';

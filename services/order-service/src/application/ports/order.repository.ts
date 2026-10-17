@@ -67,6 +67,12 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   estimatedArrivalAt: Date | null;
   /** Customer's preferred delivery time-window (free-form label), null when not given. */
   deliveryWindow: string | null;
+  /** The real instant the booked delivery slot starts; null when the order named no day. */
+  scheduledFor: Date | null;
+  /** FR-034: the PPN portion of `total` (0 when none was recorded). The total is unchanged by it. */
+  taxAmount: number;
+  /** The percent `taxAmount` was taken at, or null when no tax was recorded. */
+  taxPercent: number | null;
   /** Cash sale recorded at the depot counter (no courier, no delivery fee). */
   isWalkIn: boolean;
   /**
@@ -149,6 +155,11 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   total: number;
   /** Optional customer-preferred delivery time-window (free-form label). */
   deliveryWindow?: string | null;
+  /** The real instant the booked slot starts (FR-036). */
+  scheduledFor?: Date | null;
+  /** FR-034: the PPN portion of `total`. */
+  taxAmount?: number;
+  taxPercent?: number | null;
   /** Opening status. Defaults to CREATED; a walk-in sale opens already COMPLETED. */
   status?: OrderStatus;
   /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
@@ -477,6 +488,17 @@ export interface OrderRepository {
   findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
   /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
   assignDepot(id: string, depotId: string): Promise<OrderRecord>;
+  /**
+   * Moves a booked delivery slot (FR-052). A compare-and-set on the status, like every other
+   * write that races dispatch: an order that left the allowed statuses since it was read
+   * throws StaleOrderStatusError instead of being moved under a courier.
+   */
+  rescheduleSlot(
+    id: string,
+    scheduledFor: Date,
+    deliveryWindow: string,
+    allowedStatuses: OrderStatus[],
+  ): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */

@@ -1790,7 +1790,8 @@ export const hq = {
     subtitle: 'VAT, invoice-number format & company identity',
     ppn: 'VAT (%)',
     includes: 'Prices include tax',
-    includesBody: 'When on, VAT is derived from the sale price, not added on top.',
+    includesBody:
+      'When on, VAT is derived from the sale price, not added on top. Online orders always use the final price the customer sees (VAT included): this setting decides the invoice, not the order total.',
     format: 'Invoice number format',
     formatHint: 'Tokens: {YYYY} year · {MM} month · {NNNN} sequence.',
     company: 'Company name',

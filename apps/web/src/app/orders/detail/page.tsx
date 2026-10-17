@@ -17,6 +17,7 @@ import {
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
+import { RescheduleSheet } from '@/components/order/reschedule-sheet';
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatSchedule, isExpressWindow } from '@/lib/delivery-schedule';
 import { formatDate, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { compressImage } from '@/lib/image';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
@@ -48,6 +50,7 @@ import type {
   PaymentStatus,
 } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
+import { whenOrderKnown } from '@/lib/order-id';
 
 // White card in the 2e spec: 22px radius, soft shadow, no border. `surface`
 // keeps it theme-aware (white in light, elevated dark surface in dark).
@@ -173,7 +176,7 @@ function ProofUpload({
 }
 
 function OrderDetailInner({ id }: { id: string }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const router = useRouter();
   const { toast } = useToast();
   const {
@@ -181,9 +184,9 @@ function OrderDetailInner({ id }: { id: string }) {
     error,
     loading,
     reload,
-  } = useAsync<Order>(() => api.get(endpoints.orders.get(id), true), [id]);
+  } = useAsync<Order>(() => whenOrderKnown(id, (k) => api.get(endpoints.orders.get(k), true)), [id]);
   const { data: payments, reload: reloadPayments } = useAsync<Page<Payment>>(
-    () => api.get(endpoints.payments.forOrder(id), true),
+    () => whenOrderKnown(id, (k) => api.get(endpoints.payments.forOrder(k), true)),
     [id],
   );
   // The routed depot's payment destination (bank / static QRIS), shown when a
@@ -236,6 +239,7 @@ function OrderDetailInner({ id }: { id: string }) {
   const [payMethod, setPayMethod] = useState<PaymentMethod>('CASH');
   // Cancel-with-reason (spec 10b): open the reason sheet, then submit the chosen reason.
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState<string>('');
   // One-time success banner right after checkout (spec 5b): gone on any reload
   // without the ?placed=1 flag, so it never re-shows on a revisit.
@@ -404,6 +408,11 @@ function OrderDetailInner({ id }: { id: string }) {
             })}{' '}
             <Money amount={order.total} className="font-bold text-[color:var(--text)]" />
           </p>
+          {order.scheduledFor && (
+            <p className="mt-0.5 text-sm font-semibold">
+              {t('order.detail.scheduledFor')}: {formatSchedule(order.scheduledFor, locale)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-[18px] py-[9px] text-[13.5px] font-extrabold text-brand-800">
@@ -475,6 +484,12 @@ function OrderDetailInner({ id }: { id: string }) {
                 <span>{t('order.detail.total')}</span>
                 <Money amount={order.total} />
               </div>
+              {(order.taxAmount ?? 0) > 0 && (
+                <div className="flex justify-between text-xs text-muted">
+                  <span>{t('order.detail.taxIncluded', { pct: order.taxPercent ?? 0 })}</span>
+                  <Money amount={order.taxAmount ?? 0} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -725,6 +740,15 @@ function OrderDetailInner({ id }: { id: string }) {
                 {t('review.rateCta')}
               </LinkButton>
             )}
+            {isCancellable(order.status) && !dispatched && !isExpressWindow(order.deliveryWindow) && (
+              <Button
+                variant="secondary"
+                onClick={() => setRescheduleOpen(true)}
+                className="rounded-full"
+              >
+                {t('order.detail.reschedule')}
+              </Button>
+            )}
             {isCancellable(order.status) && !dispatched && (
               <Button
                 variant="secondary"
@@ -791,6 +815,17 @@ function OrderDetailInner({ id }: { id: string }) {
           </Button>
         )}
       </StickyActionBar>
+
+      {rescheduleOpen && (
+        <RescheduleSheet
+          order={order}
+          onClose={() => setRescheduleOpen(false)}
+          onDone={() => {
+            setRescheduleOpen(false);
+            reload();
+          }}
+        />
+      )}
 
       {/* Cancel-with-reason sheet (spec 10b) — Sheet (not ConfirmDialog) so it can
           host the reason radios; the reason rides along in the cancel POST. */}

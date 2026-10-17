@@ -1,4 +1,4 @@
-import { isOpenAt, type OperatingHours } from '../../src/domain/opening-hours';
+import { isClosedOn, isOpenAt, type OperatingHours } from '../../src/domain/opening-hours';
 
 const TZ = 'Asia/Jakarta';
 // SOP: 08.00–21.00 setiap hari, istirahat 12.00–13.00, kecuali Jumat 11.30–13.00.
@@ -101,5 +101,34 @@ describe('isOpenAt', () => {
       mon: { open: '08:00', close: '21:00', breakStart: '13:00', breakEnd: '12:00' },
     };
     expect(isOpenAt(inverted, [], wib(MON, '12:30'), TZ)).toBe(true);
+  });
+});
+
+// A booked delivery is for a DAY, not for "now": a customer may order at 22:00 for tomorrow morning,
+// so the hours of the moment are irrelevant — only whether the depot trades on that day at all.
+describe('isClosedOn', () => {
+  it('is closed on a listed holiday, whatever the weekly hours say', () => {
+    expect(isClosedOn(SOP, [{ date: MON }], wib(MON, '09:00'), TZ)).toBe(true);
+  });
+
+  it('is closed on a weekday the depot has no entry for (SOP: no Sunday)', () => {
+    expect(isClosedOn(SOP, [], wib(SUN, '09:00'), TZ)).toBe(true);
+  });
+
+  it('is open on an ordinary trading day, at any hour of the booking', () => {
+    expect(isClosedOn(SOP, [], wib(MON, '09:00'), TZ)).toBe(false);
+    expect(isClosedOn(SOP, [], wib(MON, '23:30'), TZ)).toBe(false);
+  });
+
+  it('reads the holiday in the depot own day, not in UTC', () => {
+    // 05:00 on Monday in Jakarta is still Sunday 22:00 UTC.
+    expect(isClosedOn(SOP, [{ date: MON }], wib(MON, '05:00'), TZ)).toBe(true);
+    expect(isClosedOn(SOP, [{ date: SUN }], wib(MON, '05:00'), TZ)).toBe(false);
+  });
+
+  it('does not guess when the depot never said when it trades: only a holiday closes it', () => {
+    expect(isClosedOn({}, [], wib(SUN, '09:00'), TZ)).toBe(false);
+    expect(isClosedOn(null, undefined, wib(SUN, '09:00'), TZ)).toBe(false);
+    expect(isClosedOn({}, [{ date: SUN }], wib(SUN, '09:00'), TZ)).toBe(true);
   });
 });

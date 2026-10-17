@@ -11,6 +11,11 @@ export enum NotificationEvent {
    * Distinct from ORDER_RECEIVED, which is the customer's own "we have your order".
    */
   DEPOT_ORDER_INCOMING = 'DEPOT_ORDER_INCOMING',
+  /**
+   * FR-052: a customer moved an order's delivery slot — addressed to the DEPOT, which had planned
+   * its day around the old one.
+   */
+  DEPOT_ORDER_RESCHEDULED = 'DEPOT_ORDER_RESCHEDULED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -139,6 +144,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami terima dan sedang menunggu konfirmasi. Kami segera memprosesnya untukmu 💧',
   [NotificationEvent.DEPOT_ORDER_INCOMING]:
     'Pesanan baru masuk: {{orderNumber}} · {{total}}. Buka antrean untuk memprosesnya.',
+  [NotificationEvent.DEPOT_ORDER_RESCHEDULED]:
+    'Jadwal pesanan {{orderNumber}} diubah pelanggan ke {{when}}. Cek antrean untuk menyesuaikan.',
   [NotificationEvent.ORDER_CONFIRMED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami konfirmasi dan sedang kami siapkan. Terima kasih sudah memesan di Hydromart 💧',
   [NotificationEvent.ORDER_ON_DELIVERY]:
@@ -214,6 +221,7 @@ export const OPS_EVENTS: NotificationEvent[] = [
   // O6: the depot's own "an order just arrived". The toggle for it has been on the ops
   // settings screen, defaulted ON, since before anything could emit it.
   NotificationEvent.DEPOT_ORDER_INCOMING,
+  NotificationEvent.DEPOT_ORDER_RESCHEDULED,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -256,6 +264,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}! We have your order {{orderNumber}} and it is waiting for confirmation. We will get it moving shortly 💧',
   [NotificationEvent.DEPOT_ORDER_INCOMING]:
     'New order in: {{orderNumber}} · {{total}}. Open the queue to process it.',
+  [NotificationEvent.DEPOT_ORDER_RESCHEDULED]:
+    'The customer moved the delivery of order {{orderNumber}} to {{when}}. Check the queue to adjust.',
   [NotificationEvent.ORDER_CONFIRMED]:
     'Hi {{name}}! Order {{orderNumber}} is confirmed and we are preparing it. Thank you for ordering from Hydromart 💧',
   [NotificationEvent.ORDER_ON_DELIVERY]:

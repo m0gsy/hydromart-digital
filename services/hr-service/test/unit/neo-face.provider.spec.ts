@@ -31,6 +31,18 @@ function mockFetch(
 }
 
 describe('NeoFaceProvider', () => {
+  // A provider that accepts the connection and never answers must not pin the caller.
+  it('every NEO call carries a timeout', async () => {
+    const signals: unknown[] = [];
+    mockFetch((_url, init) => {
+      signals.push(init.signal);
+      return { body: { status: '200' } };
+    });
+    await new NeoFaceProvider(makeConfig()).enroll([Buffer.from('img')], identity);
+    expect(signals.length).toBeGreaterThan(0);
+    expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
+  });
+
   it('enroll creates the gallery once then posts enroll-face with the identity', async () => {
     const calls = mockFetch(() => ({ body: { status: '200' } }));
     const neo = new NeoFaceProvider(makeConfig());
