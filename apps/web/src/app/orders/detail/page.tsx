@@ -48,6 +48,7 @@ import type {
   PaymentStatus,
 } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
+import { whenOrderKnown } from '@/lib/order-id';
 
 // White card in the 2e spec: 22px radius, soft shadow, no border. `surface`
 // keeps it theme-aware (white in light, elevated dark surface in dark).
@@ -181,9 +182,9 @@ function OrderDetailInner({ id }: { id: string }) {
     error,
     loading,
     reload,
-  } = useAsync<Order>(() => api.get(endpoints.orders.get(id), true), [id]);
+  } = useAsync<Order>(() => whenOrderKnown(id, (k) => api.get(endpoints.orders.get(k), true)), [id]);
   const { data: payments, reload: reloadPayments } = useAsync<Page<Payment>>(
-    () => api.get(endpoints.payments.forOrder(id), true),
+    () => whenOrderKnown(id, (k) => api.get(endpoints.payments.forOrder(k), true)),
     [id],
   );
   // The routed depot's payment destination (bank / static QRIS), shown when a

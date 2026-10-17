@@ -14,6 +14,9 @@ const MOBILE = process.env.MOBILE_BUILD === '1';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Do not announce the framework on every response (`X-Powered-By: Next.js`); it tells a scanner
+  // which exploits to try and nothing in the app reads it.
+  poweredByHeader: false,
   // Emit a self-contained server bundle (.next/standalone) for the prod Docker image.
   output: MOBILE ? 'export' : 'standalone',
   // J2, and verified on a device: without this, export writes `out/products.html`, while
