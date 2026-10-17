@@ -443,6 +443,21 @@ describe('PaymentService', () => {
     expect((await service.listRefundQueue({})).items[0].orderNumber).toBeNull();
   });
 
+  // A second request for a refund that is already waiting on HQ used to re-queue it: the
+  // promised due date (refundDueAt, what the customer was told) slid forward each time and the
+  // audit trail grew a "requested" row per click. The first request is the request.
+  it('a refund already waiting for approval is not re-queued: the first request stands', async () => {
+    const payment = await paidOver(150_000);
+    const first = await service.refund(payment.id, 'finance', 'galon bocor');
+    const again = await service.refund(payment.id, 'someone-else', 'sama saja');
+    expect(again.refundRequestedBy).toBe('finance');
+    expect(again.refundReason).toBe('galon bocor');
+    expect(again.refundDueAt).toEqual(first.refundDueAt);
+    expect(again.refundApproval).toBe(RefundApproval.PENDING);
+    expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+    expect((await service.listRefundQueue({})).total).toBe(1);
+  });
+
   it('approving a queued refund settles it and clears the queue', async () => {
     const payment = await paidOver(150_000);
     await service.refund(payment.id, 'finance', 'galon bocor');
@@ -691,6 +706,35 @@ describe('PaymentService', () => {
     expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
     // The PAID webhook confirms the order too.
     expect(orders.confirmedOrderIds).toEqual([payment.orderId]);
+  });
+
+  // Two deliveries of the same PAID at once (a provider retry racing its own first attempt)
+  // both read PENDING and both wrote. The payment ended PAID either way, but both told the
+  // caller "handled" and both confirmed the order. Only the delivery that actually moved the
+  // payment out of PENDING settles it.
+  it('two simultaneous PAID deliveries: one settles, the other is acknowledged and ignored', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    const reference = payment.reference!;
+    const results = await Promise.all([
+      service.handleWebhook(signedWebhook({ reference, event: 'PAID' })),
+      service.handleWebhook(signedWebhook({ reference, event: 'PAID' })),
+    ]);
+    expect(results.filter((r) => r.handled)).toHaveLength(1);
+    expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+    expect(orders.confirmedOrderIds).toEqual([payment.orderId]);
+  });
+
+  it('a PAID and a FAILED racing: whichever settles first wins, the other changes nothing', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    const reference = payment.reference!;
+    const results = await Promise.all([
+      service.handleWebhook(signedWebhook({ reference, event: 'PAID' })),
+      service.handleWebhook(signedWebhook({ reference, event: 'FAILED' })),
+    ]);
+    expect(results.filter((r) => r.handled)).toHaveLength(1);
+    const winner = repo.rows[0].status;
+    expect([PaymentStatus.PAID, PaymentStatus.FAILED]).toContain(winner);
+    expect(orders.confirmedOrderIds.length).toBe(winner === PaymentStatus.PAID ? 1 : 0);
   });
 
   it('does not confirm the order when a webhook settles FAILED', async () => {

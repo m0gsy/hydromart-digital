@@ -1,17 +1,11 @@
-import { Injectable, ValidationPipe } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { GlobalValidationPipe as PlatformGlobalValidationPipe } from '@hydromart/platform';
 
 /**
- * Strict global validation: strips unknown properties, rejects requests that carry
- * any, and transforms payloads into DTO instances. Applied to every route.
+ * The shared strict global validation (unknown properties rejected, payloads transformed into DTO
+ * instances, NUL characters refused). auth-service kept its own byte-for-byte copy of the platform
+ * pipe, which is how this one missed the NUL rule; it now extends it so they cannot drift.
  */
 @Injectable()
-export class GlobalValidationPipe extends ValidationPipe {
-  constructor() {
-    super({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-    });
-  }
-}
+export class GlobalValidationPipe extends PlatformGlobalValidationPipe {}
