@@ -68,6 +68,13 @@ export function rateLimitKey(req: Request, secret = '', secure = false): string 
   return `i:${req.ip ?? 'unknown'}`;
 }
 
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/** True when the request names an Origin that is not one of the configured web/native origins. */
+export function foreignOrigin(origin: string | undefined, allowed: readonly string[]): boolean {
+  return origin !== undefined && !allowed.includes(origin);
+}
+
 /**
  * The `sub` of a token this deployment can prove it signed, or null for anything else.
  *
@@ -243,6 +250,7 @@ export function cookiesAreSecure(nodeEnv: string, webDomain: string | undefined)
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
   const secureCookies = cookiesAreSecure(config.nodeEnv, process.env.WEB_DOMAIN);
+  const allowedOrigins = config.corsOrigins;
 
   // B-2: the limiter keys on `req.ip`. Behind Caddy every request arrives from
   // Caddy's address, so without this the socket peer IS the proxy and all traffic from
@@ -383,7 +391,21 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     // the SPA now) is left intact.
     if (!req.headers.authorization) {
       const at = readCookie(req, atCookieName(secureCookies));
-      if (at) req.headers.authorization = `Bearer ${at}`;
+      if (at) {
+        // The cookie is sent by the browser on its own, so a write riding on it needs a second
+        // proof that the page making it is ours. SameSite=Lax already withholds the cookie from
+        // cross-site requests; this is the layer behind it. A request with no Origin is not a
+        // browser page and passes; one that names an origin we did not configure does not.
+        if (UNSAFE_METHODS.has(req.method) && foreignOrigin(req.headers.origin, allowedOrigins)) {
+          res.status(403).json({
+            statusCode: 403,
+            code: 'CSRF_ORIGIN_REFUSED',
+            message: 'Permintaan ini berasal dari situs yang tidak dikenali.',
+          });
+          return;
+        }
+        req.headers.authorization = `Bearer ${at}`;
+      }
     }
     const route = resolveRoute(req.path, upstreams);
     const proxy = route ? proxies.get(route.segment) : undefined;
