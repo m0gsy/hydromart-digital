@@ -141,7 +141,7 @@ Sumber FR: `docs/PRD.docx` §14 (FR-001..FR-100). Dibuat dari pencarian kode ter
 |---|---|---|---|---|
 | FR-081 | Tambah Franchise | ADA | `services/depot-service/src/application/ports/franchise-application.repository.ts` | P |
 | FR-082 | Monitoring Franchise | ADA | `services/dashboard-service/src/application/ports/dashboard-sources.port.ts` | P |
-| FR-083 | Royalty | ADA (tarif belum diatur) | Royalti per depot = platformFeePct x penjualan di Rekonsiliasi HQ (tarif per depot, skema komisi per depot). Tarif belum disepakati sehingga tampil "—"; belum diposting ke ledger (keputusan bisnis/akuntansi, docs/BRIEF_AKUNTAN.md). | - |
+| FR-083 | Royalty | DITUNDA (keputusan pemilik 2026-10-18; di luar cakupan go-live) | Royalti per depot = platformFeePct x penjualan di Rekonsiliasi HQ (tarif per depot, skema komisi per depot). Tarif belum disepakati sehingga tampil "—"; belum diposting ke ledger (keputusan bisnis/akuntansi, docs/BRIEF_AKUNTAN.md). | - |
 | FR-084 | Performance | ADA | `services/delivery-service/src/application/ports/delivery.repository.ts` | P |
 | FR-085 | Sales Report | ADA | `services/order-service/src/application/ports/order.repository.ts` | P |
 | FR-086 | Audit | ADA | `services/admin-service/src/application/ports/purge-executor.port.ts` | P |
