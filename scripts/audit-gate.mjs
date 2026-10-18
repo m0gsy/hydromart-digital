@@ -15,6 +15,9 @@ import { execFileSync } from 'node:child_process';
 
 // GHSA id -> why it's accepted (no fix without a breaking change; low real risk).
 // Re-check every release; delete the entry the moment a non-breaking fix exists.
+//
+// Go-live sign-off 2026-10-18: the product owner (lwahyualdi) accepted the residual high
+// advisories listed below for go-live. Review again when upstream ships a fix or at the next audit.
 const ALLOWLIST = {
   // exceljs@4 pulls a vulnerable archiver/zip chain. This CVE is in v3/v5 with a
   // `buf` argument; exceljs passes none, and hr-service only GENERATES reports
