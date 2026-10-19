@@ -44,7 +44,7 @@ check "tls: unreachable host is a failure" 1 "$(run bash scripts/check-tls-expir
 check "tls: no domains is not a failure" 0 "$(WEB_DOMAIN= API_DOMAIN= run bash scripts/check-tls-expiry.sh)"
 
 # --- N14: the log-retention check must fail when the daemon is not configured -----------
-# No docker (or no hydromart-gateway container) is exactly the state a fresh host is in, and
+# No docker (or no hydromart-gateway-1 container) is exactly the state a fresh host is in, and
 # it must be reported rather than passed.
 check "logs: unconfigured host is a failure" 1 "$(run bash scripts/check-log-retention.sh)"
 

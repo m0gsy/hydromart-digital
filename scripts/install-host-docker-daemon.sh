@@ -27,7 +27,7 @@ set -euo pipefail
 
 SRC="${DAEMON_JSON_SRC:-ops/docker-daemon.json}"
 DEST="${DAEMON_JSON_DEST:-/etc/docker/daemon.json}"
-PROBE_CONTAINER="${PROBE_CONTAINER:-hydromart-gateway}"
+PROBE_CONTAINER="${PROBE_CONTAINER:-hydromart-gateway-1}"
 SUDO="${SUDO:-sudo -n}"
 CHECK=false
 [ "${1:-}" = "--check" ] && CHECK=true
