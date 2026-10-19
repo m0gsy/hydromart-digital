@@ -25,7 +25,7 @@ want_files="$(grep -o '"max-file"[^,}]*' ops/docker-daemon.json | cut -d'"' -f4)
 driver="$(docker info --format '{{.LoggingDriver}}' 2>/dev/null || echo unknown)"
 # `docker info` does not print log-opts, so ask a container what it was actually created
 # with — that is the value in force, not the value on disk.
-opts="$(docker inspect --format '{{json .HostConfig.LogConfig.Config}}' hydromart-gateway 2>/dev/null || echo '{}')"
+opts="$(docker inspect --format '{{json .HostConfig.LogConfig.Config}}' "${PROBE_CONTAINER:-hydromart-gateway-1}" 2>/dev/null || echo '{}')"
 
 echo "daemon log driver: $driver"
 echo "gateway log opts:  $opts"
