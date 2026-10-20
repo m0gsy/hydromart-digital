@@ -13,6 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * API client against a fake Keystore and a fake gateway.
  */
 
+// The lock screen is a lazily loaded chunk, so the first `findBy` also waits for its import.
+const SLOW = { timeout: 15_000 };
+
 // The first case pays for importing the whole provider tree (about 5 s on a cold CI runner).
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -121,7 +124,7 @@ describe('a locked session is never drawn as a signed-in app', () => {
     installDevice(STORED, ['cancel']);
     await mountApp(true);
 
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', {}, SLOW);
     expect(dialog.textContent).toMatch(/Sesi terkunci/);
     // The screen underneath asked for data on mount, and that was refused on the device:
     // nothing went out bare while the gate was up.
@@ -131,7 +134,7 @@ describe('a locked session is never drawn as a signed-in app', () => {
   it('opening it removes the gate, reloads what is underneath and sends the bearer', async () => {
     installDevice(STORED, ['cancel', 'ok']);
     await mountApp(true);
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
     const before = mounts;
 
     await act(async () => {
@@ -147,7 +150,7 @@ describe('a locked session is never drawn as a signed-in app', () => {
   it('a second dismissal keeps the gate up and says so', async () => {
     installDevice(STORED, ['cancel', 'cancel']);
     await mountApp(true);
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Buka sesi/i }));
@@ -160,7 +163,7 @@ describe('a locked session is never drawn as a signed-in app', () => {
   it('"masuk dengan kode SMS" gives the session up: gate gone, profile gone, vault empty', async () => {
     const vault = installDevice(STORED, ['cancel']);
     await mountApp(true);
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /kode SMS/i }));
@@ -174,7 +177,7 @@ describe('a locked session is never drawn as a signed-in app', () => {
   it('the profile was evicted but the token survived: opening the lock rebuilds it', async () => {
     installDevice(STORED, ['cancel', 'ok']);
     await mountApp(false);
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Buka sesi/i }));
@@ -192,7 +195,7 @@ describe('a shopper may carry on as a guest', () => {
   it('offers it to a customer, and taking it clears the profile but keeps the stored session', async () => {
     const vault = installDevice(STORED, ['cancel']);
     await mountApp(true, SHOPPER);
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Lanjut tanpa masuk/i }));
@@ -208,7 +211,7 @@ describe('a shopper may carry on as a guest', () => {
   it('offers it when the profile was evicted, since there is nothing to hide', async () => {
     installDevice(STORED, ['cancel']);
     await mountApp(false);
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
 
     expect(screen.getByRole('button', { name: /Lanjut tanpa masuk/i })).toBeTruthy();
   });
@@ -216,7 +219,7 @@ describe('a shopper may carry on as a guest', () => {
   it('does not offer it to staff: every screen they have needs the session', async () => {
     installDevice(STORED, ['cancel']);
     await mountApp(true); // STAFF_DEPOT
-    await screen.findByRole('dialog');
+    await screen.findByRole('dialog', {}, SLOW);
 
     expect(screen.queryByRole('button', { name: /Lanjut tanpa masuk/i })).toBeNull();
   });

@@ -1,21 +1,19 @@
 'use client';
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Fingerprint } from '@phosphor-icons/react';
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 
-import { Button } from '@/components/ui';
-import { api } from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
-import { useT } from '@/lib/locale-context';
-import { setSession } from '@/lib/session-store';
-import {
-  clearTokens,
-  getSessionLock,
-  hasTokens,
-  onSessionLockChange,
-  retryUnlock,
-  type SessionLock,
-} from '@/lib/token-store';
+import { getSessionLock, onSessionLockChange, type SessionLock } from '@/lib/token-store';
+
+/**
+ * The lock screen itself — its buttons, its icon, its copy — lives in a chunk of its own.
+ *
+ * This file is imported by `AuthProvider`, which is in the layout of EVERY page. Importing the
+ * screen here pulled the whole `@/components/ui` barrel and an icon into that shared bundle, and
+ * the Lighthouse ratchet failed `/driver` at +24 KB for a screen that is shown only when a stored
+ * session is locked. The chunk is fetched the first time that happens (from the APK's own assets,
+ * so it works offline) and never on the web.
+ */
+const LockScreen = lazy(() => import('./session-lock-screen'));
 
 /** The live lock state of the stored session. Always `open` on the web. */
 export function useSessionLock(): SessionLock {
@@ -29,12 +27,8 @@ export function useSessionLock(): SessionLock {
  * prompt left the whole app looking signed in while every request failed — and the only door
  * to the prompt was the login page, which nothing sent the user to. It covers the screen
  * wherever the user happens to be and offers exactly two ways out: open the session, or give
- * up on it and sign in with an SMS code.
- *
- * A shopper may also carry on as a guest: the catalogue never needed a sign-in, and a customer who
- * dismisses the prompt should not lose it. That drops the cached profile for this launch and
- * leaves the stored session alone, so the login page still offers to open it. Staff are not
- * offered this — every screen they use needs the session.
+ * up on it and sign in with an SMS code. A shopper may also carry on as a guest (see
+ * `session-lock-screen`).
  *
  * `onUnlocked` remounts what is underneath, so every screen that failed while the session was
  * shut loads again instead of staying on its error state.
@@ -47,90 +41,16 @@ export function SessionLockGate({ onUnlocked }: { onUnlocked: () => void }) {
   useEffect(() => {
     if (lock === 'open') setGuest(false);
   }, [lock]);
-  // Split from the screen so that nothing below — copy, buttons — is needed until a session is
-  // actually locked. On the web, and on every launch that opens normally, this renders null.
+  // On the web, and on every launch that opens normally, this renders null and loads nothing.
   if ((lock !== 'locked' && !busy) || guest) return null;
   return (
-    <LockScreen busy={busy} setBusy={setBusy} onUnlocked={onUnlocked} onGuest={() => setGuest(true)} />
-  );
-}
-
-function LockScreen({
-  busy,
-  setBusy,
-  onUnlocked,
-  onGuest,
-}: {
-  busy: boolean;
-  setBusy: (busy: boolean) => void;
-  onUnlocked: () => void;
-  onGuest: () => void;
-}) {
-  const { t } = useT();
-  const { customer } = useAuth();
-  const [failed, setFailed] = useState(false);
-  // No cached profile means nothing to hide; a CUSTOMER profile means a shopper.
-  const canBrowse = !customer || customer.role === 'CUSTOMER';
-
-  async function unlock() {
-    setBusy(true);
-    setFailed(false);
-    try {
-      await retryUnlock();
-    } finally {
-      setBusy(false);
-    }
-    if (hasTokens()) {
-      api.invalidate();
-      onUnlocked();
-    } else {
-      setFailed(true);
-    }
-  }
-
-  function signInWithSms() {
-    // Local only: the token that could revoke the old session upstream is exactly the one
-    // that cannot be read. The next sign-in replaces it.
-    clearTokens();
-    setSession(null);
-  }
-
-  function continueAsGuest() {
-    // The profile goes, the Keystore entry stays: `login` still offers "Buka sesi tersimpan".
-    setSession(null);
-    onGuest();
-  }
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="session-lock-title"
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-[color:var(--surface-muted)] px-6 text-center"
-    >
-      <Fingerprint size={44} weight="fill" className="text-brand-500" />
-      <h2 id="session-lock-title" className="text-lg font-semibold">
-        {t('auth.lock.title')}
-      </h2>
-      <p className="max-w-sm text-sm text-muted">{t('auth.lock.body')}</p>
-      <div className="flex w-full max-w-[360px] flex-col gap-2">
-        <Button onClick={unlock} loading={busy}>
-          {t('auth.lock.unlock')}
-        </Button>
-        <Button variant="secondary" onClick={signInWithSms} disabled={busy}>
-          {t('auth.lock.useOtp')}
-        </Button>
-        {canBrowse && (
-          <Button variant="ghost" onClick={continueAsGuest} disabled={busy}>
-            {t('auth.lock.continueGuest')}
-          </Button>
-        )}
-      </div>
-      {failed && (
-        <p role="alert" className="text-[12.5px] text-[color:var(--danger)]">
-          {t('auth.lock.failed')}
-        </p>
-      )}
-    </div>
+    <Suspense fallback={null}>
+      <LockScreen
+        busy={busy}
+        setBusy={setBusy}
+        onUnlocked={onUnlocked}
+        onGuest={() => setGuest(true)}
+      />
+    </Suspense>
   );
 }
