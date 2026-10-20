@@ -13,6 +13,7 @@ import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
+import { dateInDaysWib } from '@/lib/wib';
 import type { NetworkDashboard, RevenueByProduct, UnsettledMethodBucket } from '@/lib/types';
 
 type RangeKey = 'd7' | 'd30' | 'quarter' | 'custom';
@@ -23,10 +24,13 @@ const RANGE_DAYS: Record<Exclude<RangeKey, 'custom'>, number> = { d7: 7, d30: 30
 const CHIP =
   'min-h-11 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
 
-/** yyyy-mm-dd for `n` days ago / today — client-only, no module-scope Date. */
+/**
+ * yyyy-mm-dd for `n` days ago / today on the BUSINESS calendar — client-only, no module-scope Date.
+ * The UTC day (`toISOString`) is still yesterday until 07.00 WIB, so "to: today" asked the server
+ * for a range that ended a day early for anyone exporting before breakfast.
+ */
 function isoDay(offsetDays = 0): string {
-  const d = new Date(Date.now() - offsetDays * 24 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 10);
+  return dateInDaysWib(-offsetDays);
 }
 
 // Design 10a — Ekspor laporan pendapatan. All three groupings are real: depot (executive

@@ -15,6 +15,7 @@ import { actionLabel } from '@/lib/audit-action';
 import { useT } from '@/lib/locale-context';
 import { fetchAllPages, TooManyPagesError } from '@/lib/fetch-all-pages';
 import { usePagedList } from '@/lib/use-paged-list';
+import { todayWib } from '@/lib/wib';
 import type { AuditEntry, Page } from '@/lib/types';
 
 // Design 8a — immutable audit trail. Real auth-service track: recent privileged actions
@@ -102,7 +103,7 @@ export default function HqAuditPage() {
       r.createdAt,
     ]);
     try {
-      await downloadXlsx(`audit-${new Date().toISOString().slice(0, 10)}.xlsx`, headers, body, 'Audit');
+      await downloadXlsx(`audit-${todayWib()}.xlsx`, headers, body, 'Audit');
     } catch {
       toast(t('hq.audit.exportError'), 'error');
     }

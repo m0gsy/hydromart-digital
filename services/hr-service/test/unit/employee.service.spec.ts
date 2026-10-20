@@ -478,6 +478,35 @@ describe('EmployeeService (M1)', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    // `effectiveDate` is a @db.Date. It was given `new Date()`, whose UTC date is still YESTERDAY
+    // until 07:00 WIB, so a change made at 03:00 WIB was logged as the day before.
+    it('dates a history row on the WIB day, not the UTC one', async () => {
+      jest.useFakeTimers({
+        now: new Date('2026-10-20T20:00:00.000Z'), // Wed 2026-10-21 03:00 WIB
+        doNotFake: [
+          'nextTick',
+          'setImmediate',
+          'clearImmediate',
+          'setInterval',
+          'clearInterval',
+          'setTimeout',
+          'clearTimeout',
+          'queueMicrotask',
+          'performance',
+          'hrtime',
+        ],
+      });
+      try {
+        const { repo, svc } = make();
+        const e = await svc.create(hr, baseInput);
+        await svc.update(hr, e.id, { exitDate: '2026-08-10T00:00:00.000Z' });
+        const row = repo.history.find((h) => h.changeType === 'exitDate')!;
+        expect(new Date(row.effectiveDate).toISOString()).toBe('2026-10-21T00:00:00.000Z');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('leaves a history row, like every other field a payslip dispute turns on', async () => {
       const { repo, svc } = make();
       const e = await svc.create(hr, baseInput);

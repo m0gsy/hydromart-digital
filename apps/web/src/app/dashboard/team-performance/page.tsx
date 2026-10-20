@@ -13,10 +13,8 @@ import { useT } from '@/lib/locale-context';
 import { canViewTeamPerformance } from '@/lib/roles';
 import type { Customer, DepotTeamReport, Page } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
+import { monthRangeWib } from '@/lib/wib';
 
-const now = new Date();
-const MONTH_FROM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-const MONTH_TO = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
 const AVATAR_COLORS = ['#0b4d57', '#e2681c', '#1d4e89', '#0c97ac', '#6b4ea8'];
 
 function initials(name: string): string {
@@ -43,6 +41,8 @@ function TeamPerformanceBody() {
   const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((item) => item.id === scopedId) ?? null;
+  // Current business-calendar month, read at render so a long-open app does not keep last month's.
+  const { from: MONTH_FROM, to: MONTH_TO } = monthRangeWib();
   const result = useAsync<{ report: DepotTeamReport; names: Map<string, string> } | null>(
     async () => {
       if (!depot) return null;

@@ -1,3 +1,5 @@
+import { localDayKey } from '@hydromart/platform';
+
 import { ExportFormat } from './export';
 import { ReportRow } from '../application/ports/report-source.port';
 
@@ -179,9 +181,7 @@ export function reportFileName(name: string, from: Date, format: ExportFormat): 
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') || 'laporan';
-  // tz-ok: `from` is a period boundary this service built with Date.UTC in reportWindow(),
-  // so it is already a day key sitting at UTC midnight — slicing it re-reads the same day
-  // it was constructed as. Passing it through localDayKey would SHIFT it into WIB and name
-  // the file after the day before.
-  return `${slug}-${from.toISOString().slice(0, 10)}.${format.toLowerCase()}`;
+  // `from` is a WIB-midnight boundary built by reportWindow(), i.e. 17:00 UTC the day BEFORE. The UTC
+  // slice would name the file after that previous day, so the name is read on the WIB calendar.
+  return `${slug}-${localDayKey(from)}.${format.toLowerCase()}`;
 }

@@ -24,6 +24,9 @@ export function pointsForOrder(subtotal: number, earnRateRupiah: number): number
 /** When a lot earned now expires (BR-014). */
 export function expiryFrom(earnedAt: Date, months: number): Date {
   const expires = new Date(earnedAt.getTime());
-  expires.setMonth(expires.getMonth() + months);
+  // UTC on purpose: `setMonth`/`getMonth` read the HOST's calendar, so the same lot expired on a
+  // different instant depending on the container's TZ. A lot expires at an instant — N months
+  // after it was earned — and that must not change with where the process happens to run.
+  expires.setUTCMonth(expires.getUTCMonth() + months);
   return expires;
 }

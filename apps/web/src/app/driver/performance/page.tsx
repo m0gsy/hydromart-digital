@@ -37,6 +37,8 @@ const RANGE = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' 
 function wibMonday(weeksAgo: number): string {
   const thisMonday = new Date(`${mondayWib()}T00:00:00.000Z`);
   thisMonday.setUTCDate(thisMonday.getUTCDate() - weeksAgo * 7);
+  // tz-ok: `thisMonday` is built at UTC midnight from the WIB Monday string above, so the UTC
+  // slice reads back the WIB date it was made from — a calendar label, not an instant.
   return thisMonday.toISOString().slice(0, 10);
 }
 

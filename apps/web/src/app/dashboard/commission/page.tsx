@@ -12,17 +12,23 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canViewCourierCommission } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { BUSINESS_TZ, monthRangeWib } from '@/lib/wib';
 import type { CommissionCourier, CommissionRun, Customer } from '@/lib/types';
 
-const MONTH = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date());
+// Read at render, not at import: the Ops app stays open for days, and a label frozen at first load
+// keeps naming last month after the 1st.
+const monthLabel = (): string =>
+  new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: BUSINESS_TZ }).format(
+    new Date(),
+  );
 
-/** UTC calendar-month window [first-of-month, first-of-next-month), matching the backend. */
+/**
+ * The BUSINESS-calendar month [first-of-month, first-of-next-month), as the instants the API takes.
+ * This was the UTC month, which starts at 07:00 WIB — commission earned in the first seven hours of
+ * the 1st was counted in the previous month, while the backend's own default window is WIB.
+ */
 function monthWindow(): { from: string; to: string } {
-  const n = new Date();
-  return {
-    from: new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 1)).toISOString(),
-    to: new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth() + 1, 1)).toISOString(),
-  };
+  return monthRangeWib();
 }
 
 function initials(name: string): string {
@@ -99,7 +105,7 @@ function CommissionBody() {
           <h1 className="text-2xl font-bold">{t('hrFix.commission.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
             {selected ? t('opsFix.common.depotPrefix', { name: selected.name }) : ''}
-            {t('opsFix.commission.periodReady', { month: MONTH })}
+            {t('opsFix.commission.periodReady', { month: monthLabel() })}
           </p>
         </div>
       </div>
@@ -114,7 +120,7 @@ function CommissionBody() {
         <ErrorState message={t('hrFix.commission.payoutUnavailable')} onRetry={data.reload} />
       ) : !run || run.couriers.length === 0 ? (
         <CenterState title={t('hrFix.commission.empty')} icon={<Wallet size={40} weight="fill" />}>
-          {t('hrFix.commission.emptyBody', { month: MONTH })}
+          {t('hrFix.commission.emptyBody', { month: monthLabel() })}
         </CenterState>
       ) : (
         <>

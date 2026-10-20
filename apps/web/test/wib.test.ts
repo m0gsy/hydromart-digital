@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { mondayWib, monthWib, todayWib, wibParts } from '@/lib/wib';
+import { currentPeriod } from '@/lib/hr';
+import { mondayWib, monthRangeWib, monthWib, todayWib, wibParts } from '@/lib/wib';
 
 /**
  * C3 — the business day in the browser.
@@ -65,5 +66,46 @@ describe('mondayWib', () => {
 describe('wibParts', () => {
   it('gives calendar parts in WIB', () => {
     expect(wibParts(EARLY_MORNING)).toEqual({ year: 2026, month: 3, day: 10 });
+  });
+});
+
+describe('monthRangeWib', () => {
+  it('starts and ends the month at 00:00 WIB, which is 17:00 UTC the evening before', () => {
+    // 2026-11-01 00:30 WIB. The UTC month is still October, so the old
+    // Date.UTC(getUTCFullYear(), getUTCMonth(), 1) built the OCTOBER window here.
+    const at = new Date('2026-10-31T17:30:00.000Z');
+    expect(monthRangeWib(at)).toEqual({
+      from: '2026-10-31T17:00:00.000Z', // 1 Nov 00:00 WIB
+      to: '2026-11-30T17:00:00.000Z', // 1 Dec 00:00 WIB
+    });
+  });
+
+  it('puts an order placed at 03:00 WIB on the 1st inside that month, not the previous one', () => {
+    const order = new Date('2026-09-30T20:00:00.000Z'); // 1 Oct 03:00 WIB
+    const { from, to } = monthRangeWib(new Date('2026-10-15T05:00:00.000Z'));
+    expect(order >= new Date(from) && order < new Date(to)).toBe(true);
+    // The UTC window began at 07:00 WIB and would have missed it.
+    expect(order >= new Date(Date.UTC(2026, 9, 1))).toBe(false);
+  });
+
+  it('rolls December into January', () => {
+    expect(monthRangeWib(new Date('2026-12-20T05:00:00.000Z'))).toEqual({
+      from: '2026-11-30T17:00:00.000Z',
+      to: '2026-12-31T17:00:00.000Z',
+    });
+  });
+});
+
+// Payroll, adjustments, reports, performance and loans all open on this. Between 00:00 and 07:00 WIB
+// on the 1st it named LAST month.
+describe('currentPeriod', () => {
+  it('is the WIB month in the first hours of the 1st', () => {
+    vi.useFakeTimers({ now: new Date('2026-09-30T18:00:00.000Z') }); // 1 Oct 01:00 WIB
+    expect(currentPeriod()).toBe('2026-10');
+  });
+
+  it('is still the same month later that day', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-01T10:00:00.000Z') });
+    expect(currentPeriod()).toBe('2026-10');
   });
 });

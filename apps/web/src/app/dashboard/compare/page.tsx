@@ -11,15 +11,16 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { BUSINESS_TZ, monthRangeWib } from '@/lib/wib';
 import { useT } from '@/lib/locale-context';
 import type { ReportDepotCompare, ReportDepotCompareRow } from '@/lib/types';
 
-const MONTH = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date());
-
-// Current calendar month window [first-of-month, first-of-next-month) — matches the header.
-const now = new Date();
-const MONTH_FROM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-const MONTH_TO = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+// Read at render, not at import: the Ops app stays open for days, and a month frozen when the page
+// was first loaded keeps reporting last month after the 1st.
+const monthLabel = (): string =>
+  new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: BUSINESS_TZ }).format(
+    new Date(),
+  );
 
 type CompareMetric = {
   labelKey: string;
@@ -50,6 +51,8 @@ function CompareBody() {
   const { t } = useT();
   const { depots, scopedId } = useDepot();
   const depotIds = depots.map((d) => d.id);
+  // Current business-calendar month [first, first-of-next) — matches the header.
+  const { from: MONTH_FROM, to: MONTH_TO } = monthRangeWib();
 
   const report = useAsync<ReportDepotCompare | null>(
     () =>
@@ -76,7 +79,7 @@ function CompareBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('opsFix.compare.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {t('opsFix.compare.subtitle', { month: MONTH })}
+            {t('opsFix.compare.subtitle', { month: monthLabel() })}
           </p>
         </div>
       </div>

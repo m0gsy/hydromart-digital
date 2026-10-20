@@ -479,6 +479,32 @@ describe('LeaveService reads', () => {
     });
   });
 
+  // 2026-12-31 20:00 UTC is 03:00 WIB on 1 January 2027. The UTC year is still 2026, so the
+  // screen opened on an expired balance for the first seven hours of every year.
+  it('opens on the BUSINESS year, not the UTC one, in the first hours of 1 January WIB', async () => {
+    jest.useFakeTimers({
+      now: new Date('2026-12-31T20:00:00.000Z'),
+      doNotFake: [
+        'nextTick',
+        'setImmediate',
+        'clearImmediate',
+        'setInterval',
+        'clearInterval',
+        'setTimeout',
+        'clearTimeout',
+        'queueMicrotask',
+        'performance',
+        'hrtime',
+      ],
+    });
+    try {
+      const { svc } = make({ quota: 12 });
+      expect(await svc.myBalance(staff)).toMatchObject({ year: 2027 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   // CA-1-46. Without the proration a November joiner opens the year with the full quota
   // and can book a fortnight off for two months of work — and `submit`'s ceiling check
   // reads the same number, so it lets them.

@@ -3,7 +3,7 @@
 
 import type { HrManagedRole } from '@hydromart/access';
 import type { TVars } from './locale-context';
-import { BUSINESS_TZ } from './wib';
+import { BUSINESS_TZ, monthWib, todayWib } from './wib';
 
 /**
  * The `t` from `useT()`. PR-8: the label maps below hold dictionary KEYS, not Indonesian,
@@ -961,16 +961,25 @@ export function fmtTime(iso: string | null | undefined): string {
     : d.toLocaleTimeString('id-ID', { timeZone: BUSINESS_TZ, hour: '2-digit', minute: '2-digit' });
 }
 
-/** Current period as YYYY-MM. */
+/**
+ * Current period as YYYY-MM, on the BUSINESS calendar.
+ *
+ * This was `new Date().toISOString().slice(0, 7)`, the UTC month: on the 1st, between 00.00 and
+ * 07.00 WIB, the payroll, adjustments, reports, performance and loan screens all opened on LAST
+ * month — and payroll is the screen where opening on the wrong period is not cosmetic.
+ */
 export function currentPeriod(): string {
-  return new Date().toISOString().slice(0, 7);
+  return monthWib();
 }
 
 /** Completed full years of service since joinDate (mirrors hr-service tenure math). "—" if invalid. */
 export function tenureLabel(
   joinDate: string | null | undefined,
   t: Translate,
-  asOf: Date = new Date(),
+  // `joinDate` is a date, stored at UTC midnight, so "today" has to be the BUSINESS date at UTC
+  // midnight too. `new Date()` is still yesterday in UTC until 07:00 WIB, so on a service
+  // anniversary the label showed one year fewer for the first seven hours.
+  asOf: Date = new Date(`${todayWib()}T00:00:00.000Z`),
 ): string {
   if (!joinDate) return '—';
   const join = new Date(joinDate);

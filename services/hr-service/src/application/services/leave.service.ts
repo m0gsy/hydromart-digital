@@ -7,7 +7,14 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeIds,
+  localDayKey,
+  runImport,
+} from '@hydromart/platform';
 import { homeDepotOf } from '../../domain/depot-on';
 
 import {
@@ -155,8 +162,10 @@ export class LeaveService {
 
   async myBalance(user: AuthenticatedUser, year?: number): Promise<LeaveBalance> {
     const employee = await this.employees.getSelf(user);
-    const when = year ? new Date(Date.UTC(year, 0, 1)) : new Date();
-    return this.balanceFor(employee, when);
+    // The balance year is the BUSINESS year. `new Date().getUTCFullYear()` is still last year for
+    // the first seven hours of 1 January WIB, so the screen showed the expired balance.
+    const wibYear = Number(localDayKey(new Date(), this.config.timeZone).slice(0, 4));
+    return this.balanceFor(employee, new Date(Date.UTC(year ?? wibYear, 0, 1)));
   }
 
   /**
