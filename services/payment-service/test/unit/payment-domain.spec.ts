@@ -1,5 +1,6 @@
 import {
   addWorkingDays,
+  isNonWorkingDay,
   PaymentMethod,
   PaymentStatus,
   WEBHOOK_MAX_SKEW_MS,
@@ -81,6 +82,16 @@ describe('isWebhookFresh', () => {
 });
 
 describe('addWorkingDays', () => {
+  // Asked at 00:53 WIB on Wednesday (= 17:53 UTC Tuesday): three working days out is Monday
+  // 2026-10-26 00:53 WIB. That instant is SUNDAY evening in UTC, which is why a weekday check in
+  // UTC calls it a weekend — and why the promise is judged on the WIB calendar day.
+  it('counts in WIB: a request just after midnight there lands on a WIB Monday', () => {
+    const due = addWorkingDays(new Date('2026-10-20T17:53:00Z'), 3);
+    expect(due.toISOString()).toBe('2026-10-25T17:53:00.000Z');
+    expect(due.getUTCDay()).toBe(0); // Sunday in UTC...
+    expect(isNonWorkingDay(due)).toBe(false); // ...but a working Monday where it counts
+  });
+
   it('skips the weekend', () => {
     // Thu 2026-10-15 + 3 working days = Tue 2026-10-20
     expect(addWorkingDays(new Date('2026-10-15T03:00:00Z'), 3).toISOString()).toBe(

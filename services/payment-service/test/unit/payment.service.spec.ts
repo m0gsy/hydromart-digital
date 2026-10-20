@@ -421,7 +421,12 @@ describe('PaymentService', () => {
     expect(queued.refundDueAt).not.toBeNull();
     expect(queued.refundDueAt!.getTime()).toBeGreaterThan(Date.now() + 2 * 86_400_000);
     expect(queued.refundDueAt!.getTime()).toBeLessThan(Date.now() + 6 * 86_400_000);
-    expect([0, 6]).not.toContain(queued.refundDueAt!.getUTCDay());
+    // Judged on the WIB calendar day, because that is the day the promise is counted in
+    // (`isNonWorkingDay`). The UTC weekday was the check here, and it failed for every run
+    // between 17:00 and 24:00 UTC on a Tuesday: the due date is Monday 00:xx WIB, which is
+    // Sunday evening UTC. Caught by CI at 00:53 WIB, 2026-10-21.
+    const dueWib = new Date(queued.refundDueAt!.getTime() + 7 * 3_600_000);
+    expect([0, 6]).not.toContain(dueWib.getUTCDay());
 
     const list = await service.listRefundQueue({});
     expect(list.total).toBe(1);
