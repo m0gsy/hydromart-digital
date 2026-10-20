@@ -73,6 +73,7 @@ export function wibParts(at: Date = new Date()): { year: number; month: number; 
  */
 export function dateInDaysWib(n: number, at: Date = new Date()): string {
   const { year, month, day } = wibParts(at);
+  // tz-ok: built at UTC midnight from the WIB y/m/d above, so the slice reads back a WIB date.
   return new Date(Date.UTC(year, month - 1, day + n)).toISOString().slice(0, 10);
 }
 
@@ -87,5 +88,36 @@ export function mondayWib(at: Date = new Date()): string {
   const d = new Date(Date.UTC(year, month - 1, day));
   // getUTCDay: 0=Sunday. Monday-based offset, so Sunday walks back six days, not forward one.
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  // tz-ok: `d` was built at UTC midnight from WIB parts, so the slice reads back a WIB date.
   return d.toISOString().slice(0, 10);
+}
+
+/** The business zone's offset from UTC at `at`, in ms, read from `Intl` ("GMT+07:00" -> 25 200 000). */
+function wibOffsetMs(at: Date): number {
+  const name =
+    new Intl.DateTimeFormat('en-US', { timeZone: BUSINESS_TZ, timeZoneName: 'longOffset' })
+      .formatToParts(at)
+      .find((p) => p.type === 'timeZoneName')?.value ?? '';
+  const m = /^GMT(?:([+-])(\d{2}):(\d{2}))?$/.exec(name);
+  // Throw rather than default to 0: a silent zero is a UTC month boundary that looks plausible.
+  if (!m) throw new RangeError(`Tidak bisa membaca offset zona bisnis dari "${name}"`);
+  if (!m[1]) return 0;
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000;
+}
+
+/**
+ * `[from, to)` of the BUSINESS month containing `at`, as the ISO instants the API takes.
+ *
+ * The month starts at 00:00 WIB — 17:00 UTC the evening before. Three console screens built
+ * this from `Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)`, which starts the month at
+ * 07:00 WIB: orders placed in the first seven hours of the 1st were counted in LAST month, and
+ * the first seven hours of NEXT month were counted in this one.
+ */
+export function monthRangeWib(at: Date = new Date()): { from: string; to: string } {
+  const { year, month } = wibParts(at);
+  const at0 = (y: number, m: number): string => {
+    const asIfUtc = Date.UTC(y, m, 1);
+    return new Date(asIfUtc - wibOffsetMs(new Date(asIfUtc))).toISOString();
+  };
+  return { from: at0(year, month - 1), to: at0(year, month) };
 }

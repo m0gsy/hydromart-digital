@@ -30,15 +30,15 @@ describe('reportWindow', () => {
    */
   it('reports yesterday for DAILY, not the partial day it runs in', () => {
     expect(reportWindow(ReportCadence.DAILY, WED)).toEqual({
-      from: new Date('2026-08-11T00:00:00.000Z'),
-      to: new Date('2026-08-12T00:00:00.000Z'),
+      from: new Date('2026-08-10T17:00:00.000Z'), // Tue 11 Aug 00:00 WIB
+      to: new Date('2026-08-11T17:00:00.000Z'), // Wed 12 Aug 00:00 WIB
     });
   });
 
   it('reports last Monday-to-Monday for WEEKLY', () => {
     expect(reportWindow(ReportCadence.WEEKLY, WED)).toEqual({
-      from: new Date('2026-08-03T00:00:00.000Z'),
-      to: new Date('2026-08-10T00:00:00.000Z'),
+      from: new Date('2026-08-02T17:00:00.000Z'), // Mon 3 Aug 00:00 WIB
+      to: new Date('2026-08-09T17:00:00.000Z'), // Mon 10 Aug 00:00 WIB
     });
   });
 
@@ -47,31 +47,52 @@ describe('reportWindow', () => {
   it('treats Sunday as the END of a week, not the start', () => {
     const sunday = new Date('2026-08-09T03:00:00.000Z');
     expect(reportWindow(ReportCadence.WEEKLY, sunday)).toEqual({
-      from: new Date('2026-07-27T00:00:00.000Z'),
-      to: new Date('2026-08-03T00:00:00.000Z'),
+      from: new Date('2026-07-26T17:00:00.000Z'), // Mon 27 Jul 00:00 WIB
+      to: new Date('2026-08-02T17:00:00.000Z'), // Mon 3 Aug 00:00 WIB
     });
   });
 
   it('reports last calendar month for MONTHLY', () => {
     expect(reportWindow(ReportCadence.MONTHLY, WED)).toEqual({
-      from: new Date('2026-07-01T00:00:00.000Z'),
-      to: new Date('2026-08-01T00:00:00.000Z'),
+      from: new Date('2026-06-30T17:00:00.000Z'), // 1 Jul 00:00 WIB
+      to: new Date('2026-07-31T17:00:00.000Z'), // 1 Aug 00:00 WIB
     });
   });
 
   it('rolls a December monthly window into the previous year', () => {
     const jan = new Date('2026-01-05T03:00:00.000Z');
     expect(reportWindow(ReportCadence.MONTHLY, jan).from).toEqual(
-      new Date('2025-12-01T00:00:00.000Z'),
+      new Date('2025-11-30T17:00:00.000Z'), // 1 Dec 00:00 WIB
     );
+  });
+
+  // The reason the window moved. An order at 01:00 WIB on 12 Aug is 18:00 UTC on 11 Aug. The
+  // dashboards file it under 12 Aug; a UTC-midnight window filed it under 11 Aug, so the daily
+  // file and the screen disagreed about that order every single day.
+  it('puts an order placed at 01:00 WIB inside the WIB day it belongs to', () => {
+    const order = new Date('2026-08-11T18:00:00.000Z'); // Wed 12 Aug 01:00 WIB
+    const ranOnThe13th = new Date('2026-08-13T03:00:00.000Z'); // Thu 13 Aug 10:00 WIB
+    const { from, to } = reportWindow(ReportCadence.DAILY, ranOnThe13th); // covers Wed 12 Aug
+    expect(order >= from && order < to).toBe(true);
+    const ranOnThe12th = reportWindow(ReportCadence.DAILY, WED); // covers Tue 11 Aug
+    expect(order >= ranOnThe12th.from && order < ranOnThe12th.to).toBe(false);
+  });
+
+  // 17:30 UTC on Sunday is 00:30 WIB on MONDAY: the week has already turned over in WIB.
+  it('turns the week over at Monday 00:00 WIB, not at 07:00 WIB', () => {
+    const justAfterMidnightWib = new Date('2026-08-09T17:30:00.000Z'); // Mon 10 Aug 00:30 WIB
+    expect(reportWindow(ReportCadence.WEEKLY, justAfterMidnightWib)).toEqual({
+      from: new Date('2026-08-02T17:00:00.000Z'), // Mon 3 Aug
+      to: new Date('2026-08-09T17:00:00.000Z'), // Mon 10 Aug
+    });
   });
 });
 
 describe('nextRunAfter', () => {
   it.each([
-    [ReportCadence.DAILY, '2026-08-13T00:00:00.000Z'],
-    [ReportCadence.WEEKLY, '2026-08-17T00:00:00.000Z'],
-    [ReportCadence.MONTHLY, '2026-09-01T00:00:00.000Z'],
+    [ReportCadence.DAILY, '2026-08-12T17:00:00.000Z'], // Thu 13 Aug 00:00 WIB
+    [ReportCadence.WEEKLY, '2026-08-16T17:00:00.000Z'], // Mon 17 Aug 00:00 WIB
+    [ReportCadence.MONTHLY, '2026-08-31T17:00:00.000Z'], // Tue 1 Sep 00:00 WIB
   ])('gives the next %s boundary', (cadence, expected) => {
     expect(nextRunAfter(cadence, WED)).toEqual(new Date(expected));
   });
@@ -190,12 +211,12 @@ describe('renderReport', () => {
 
   it('names the file after the window, not the run time', () => {
     expect(
-      reportFileName('Laporan Harian!', new Date('2026-08-11T00:00:00.000Z'), ExportFormat.CSV),
+      reportFileName('Laporan Harian!', new Date('2026-08-10T17:00:00.000Z'), ExportFormat.CSV),
     ).toBe('laporan-harian-2026-08-11.csv');
   });
 
   it('falls back to a usable name when the title has no letters at all', () => {
-    expect(reportFileName('!!!', new Date('2026-08-11T00:00:00.000Z'), ExportFormat.XLSX)).toBe(
+    expect(reportFileName('!!!', new Date('2026-08-10T17:00:00.000Z'), ExportFormat.XLSX)).toBe(
       'laporan-2026-08-11.xlsx',
     );
   });
@@ -217,8 +238,8 @@ describe('ScheduledReportRunnerService', () => {
 
     expect(rowsFor).toHaveBeenCalledWith(
       ReportDataset.REVENUE_BY_PRODUCT,
-      new Date('2026-08-11T00:00:00.000Z'),
-      new Date('2026-08-12T00:00:00.000Z'),
+      new Date('2026-08-10T17:00:00.000Z'), // Tue 11 Aug 00:00 WIB
+      new Date('2026-08-11T17:00:00.000Z'), // Wed 12 Aug 00:00 WIB
     );
     const [log] = logs.rows;
     expect(log).toMatchObject({ status: ExportStatus.DONE, rowCount: 1, hasFile: true });
@@ -226,7 +247,7 @@ describe('ScheduledReportRunnerService', () => {
 
     const [after] = await schedules.list();
     expect(after.lastRunAt).toEqual(WED);
-    expect(after.nextRunAt).toEqual(new Date('2026-08-13T00:00:00.000Z'));
+    expect(after.nextRunAt).toEqual(new Date('2026-08-12T17:00:00.000Z')); // Thu 13 Aug 00:00 WIB
     // CA-2-66: and the outcome, beside the timestamp.
     expect(after.lastRunOk).toBe(true);
     expect(after.lastError).toBeNull();
@@ -299,7 +320,7 @@ describe('ScheduledReportRunnerService', () => {
     });
     await runner.runDue(WED);
     const [after] = await schedules.list();
-    expect(after.nextRunAt).toEqual(new Date('2026-08-13T00:00:00.000Z'));
+    expect(after.nextRunAt).toEqual(new Date('2026-08-12T17:00:00.000Z')); // Thu 13 Aug 00:00 WIB
   });
 
   /*

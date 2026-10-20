@@ -85,4 +85,13 @@ describe('points math', () => {
     expect(expiryFrom(base, 12).getUTCFullYear()).toBe(2027);
     expect(expiryFrom(base, 12).getUTCMonth()).toBe(0);
   });
+
+  // 20:00 UTC on 31 January is 03:00 WIB on 1 February. `setMonth` on the host calendar adds the
+  // month to a different day depending on the container's TZ; the answer must be one instant
+  // wherever the process runs. (JS month overflow: 31 Jan + 1 month = 3 March.)
+  it('does not depend on the host timezone', () => {
+    expect(expiryFrom(new Date('2026-01-31T20:00:00.000Z'), 1).toISOString()).toBe(
+      '2026-03-03T20:00:00.000Z',
+    );
+  });
 });

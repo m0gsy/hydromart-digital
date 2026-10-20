@@ -66,6 +66,22 @@ export const day = (d: Date): string => String(d);
 EOF
 run "$TMP" && ok "ignores a comment that only mentions the pattern" || bad "ignores a comment that only mentions the pattern"
 
+cat >"$TMP/src/bad-day.ts" <<'EOF'
+export const weekday = (): number => new Date().getUTCDay();
+EOF
+run "$TMP" && bad "catches the UTC weekday of now" || ok "catches the UTC weekday of now"
+
+cat >"$TMP/src/bad-day.ts" <<'EOF'
+export const month = (now: Date): number => now.getUTCMonth();
+EOF
+run "$TMP" && bad "catches now.getUTCMonth()" || ok "catches now.getUTCMonth()"
+
+cat >"$TMP/src/bad-day.ts" <<'EOF'
+// tz-ok: asOf is a stored @db.Date, not the current instant.
+export const month = (now: Date): number => now.getUTCMonth();
+EOF
+run "$TMP" && ok "accepts a REASONED excuse for a UTC read of now" || bad "accepts a REASONED excuse for a UTC read of now"
+
 # And the real tree must be clean, or this guard is being carried red.
 (cd "$ROOT" && node scripts/check-tz-usage.mjs >/dev/null 2>&1) &&
   ok "the repository itself passes" || bad "the repository itself passes"

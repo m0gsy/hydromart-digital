@@ -51,5 +51,6 @@ export function shiftWeekStart(weekStart: string, weeks: number): string {
   // which in WIB is the one that rolls over first.
   const d = new Date(`${weekStart}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + weeks * 7);
+  // tz-ok: `d` was parsed from a date-only string at UTC midnight, so the slice is that same date.
   return d.toISOString().slice(0, 10);
 }

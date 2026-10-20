@@ -12,20 +12,23 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { BUSINESS_TZ, monthRangeWib } from '@/lib/wib';
 import type { InventoryWastageSummary } from '@/lib/types';
 
-const MONTH = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date());
-
-// Current calendar month window [first-of-month, first-of-next-month).
-const now = new Date();
-const MONTH_FROM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-const MONTH_TO = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+// Read at render, not at import: the Ops app stays open for days, and a month frozen when the page
+// was first loaded keeps reporting last month after the 1st.
+const monthLabel = (): string =>
+  new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: BUSINESS_TZ }).format(
+    new Date(),
+  );
 
 function WastageBody() {
   const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? depots[0] ?? null;
   const depotName = depot?.name ?? t('opsFix.wastage.allDepots');
+  // Current business-calendar month window [first, first-of-next).
+  const { from: MONTH_FROM, to: MONTH_TO } = monthRangeWib();
 
   const summary = useAsync<InventoryWastageSummary | null>(
     () =>
@@ -46,7 +49,7 @@ function WastageBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('hrFix.wastage.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {depotName} · {MONTH} · {t('hrFix.wastage.fromAdjustment')}
+            {depotName} · {monthLabel()} · {t('hrFix.wastage.fromAdjustment')}
           </p>
         </div>
       </div>

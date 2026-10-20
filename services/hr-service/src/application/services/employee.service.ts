@@ -185,6 +185,15 @@ export class EmployeeService {
     private readonly assignments?: DepotAssignmentRepository,
   ) {}
 
+  /**
+   * The business-calendar day as the value every `@db.Date` column here holds: the local day at
+   * UTC midnight. `new Date()` was passed to these columns directly, and Prisma writes the UTC
+   * date of an instant — so a change made between 00.00 and 07.00 WIB was logged as yesterday.
+   */
+  private businessDate(now: Date = new Date()): Date {
+    return new Date(`${localDayKey(now, this.timeZone)}T00:00:00.000Z`);
+  }
+
   private get timeZone(): string {
     return this.config?.timeZone ?? 'Asia/Jakarta';
   }
@@ -543,7 +552,7 @@ export class EmployeeService {
             // and the change log is the only place that can be read back afterwards.
             changeType: 'ACCOUNT_LINKED',
             toValue: { authSubjectId: input.authSubjectId, source: 'staff-invite' },
-            effectiveDate: new Date(),
+            effectiveDate: this.businessDate(),
             createdBy: null,
           },
         ],
@@ -1109,7 +1118,7 @@ export class EmployeeService {
         fromDepotId: current.depotId,
         toDepotId,
         // The local day it was decided, as UTC midnight: the shape of every @db.Date here.
-        effectiveDate: new Date(`${localDayKey(new Date(), this.timeZone)}T00:00:00.000Z`),
+        effectiveDate: this.businessDate(),
         kind: 'PERMANENT',
         createdBy: actor,
       },
@@ -1189,7 +1198,7 @@ export class EmployeeService {
         changeType: String(field),
         fromValue: before == null ? Prisma.JsonNull : { value: String(before) },
         toValue: next == null ? Prisma.JsonNull : { value: String(next) },
-        effectiveDate: new Date(),
+        effectiveDate: this.businessDate(),
         createdBy: actor,
       });
     }

@@ -30,6 +30,8 @@ async function excel() {
 /** A cell can be text, a number, a date, rich text, a hyperlink or a formula result. */
 function cellText(value: unknown): string {
   if (value == null) return '';
+  // tz-ok: this reads cells of an UPLOADED sheet, where exceljs returns a zone-less spreadsheet date
+  // as UTC-midnight — the UTC slice is the date the person typed, not an instant to convert.
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === 'object') {
     const obj = value as { text?: unknown; result?: unknown; richText?: { text: string }[] };

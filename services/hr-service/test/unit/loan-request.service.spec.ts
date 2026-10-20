@@ -174,6 +174,27 @@ function make(overrides: { depotId?: string | null; assistant?: string | null; o
 
 const APPLY = { amount: 500_000, reason: 'Biaya sekolah anak' };
 
+// Filed at 03:00 WIB on Saturday 2026-10-17 = Friday 20:00 UTC. The UTC weekday said "Friday, a
+// working day", so one working day out came back as Tuesday instead of Monday.
+describe('working days are counted on the WIB calendar', () => {
+  it('a request filed in the small hours of a WIB Saturday is due the next WIB working day', () => {
+    const filed = new Date('2026-10-16T20:00:00Z'); // Sat 03:00 WIB
+    const due = addWorkingDays(filed, 1);
+    expect(due.toISOString()).toBe('2026-10-18T20:00:00.000Z'); // Mon 03:00 WIB
+  });
+
+  it('counting back crosses the same boundary the same way', () => {
+    // Mon 03:00 WIB (Sun 20:00 UTC) minus one working day = Fri 03:00 WIB.
+    const back = subtractWorkingDays(new Date('2026-10-18T20:00:00Z'), 1);
+    expect(back.toISOString()).toBe('2026-10-15T20:00:00.000Z'); // Fri 03:00 WIB
+  });
+
+  it('a request filed on a WIB Monday morning is not penalised for UTC still saying Sunday', () => {
+    const due = addWorkingDays(new Date('2026-10-18T20:00:00Z'), 3); // Mon 03:00 WIB
+    expect(due.toISOString()).toBe('2026-10-21T20:00:00.000Z'); // Thu 03:00 WIB
+  });
+});
+
 describe('addWorkingDays and monthlyBasePay', () => {
   it('skips weekends when counting back the decision window', () => {
     // Wednesday 14 Oct 2026 minus three working days is Friday 9 Oct.

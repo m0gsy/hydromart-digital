@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { id as idDict } from '../src/lib/dictionaries/id';
 
 
 import {
   EMPTY_EMPLOYEE_FORM,
+  tenureLabel,
   departmentLabel,
   departmentsForDepot,
   LEAVE_STATUS_LABEL,
@@ -449,5 +450,25 @@ describe('performance score (C2)', () => {
     expect(fmtScore(0)).toBe('0,0');
     expect(fmtScore(82.456)).toBe('82,5');
     expect(fmtScore(100)).toBe('100,0');
+  });
+});
+
+
+// `joinDate` is a date stored at UTC midnight. "Today" for the comparison has to be the business date,
+// or on a service anniversary the label is one year short for the first seven hours of the day.
+describe('tenureLabel on the business day', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const t = (_key: string, vars?: Record<string, unknown>) => String(vars?.n ?? '');
+
+  it('counts the anniversary from 00:00 WIB, not from 07:00', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-20T20:00:00.000Z') }); // 21 Oct 2026 03:00 WIB
+    expect(tenureLabel('2024-10-21T00:00:00.000Z', t as never)).toBe('2');
+  });
+
+  it('is still one year the day before the anniversary', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-19T20:00:00.000Z') }); // 20 Oct 2026 03:00 WIB
+    expect(tenureLabel('2024-10-21T00:00:00.000Z', t as never)).toBe('1');
   });
 });

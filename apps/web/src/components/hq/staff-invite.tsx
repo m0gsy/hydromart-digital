@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { grantableRoles } from '@/lib/roles';
 import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, Page } from '@/lib/types';
+import { todayWib } from '@/lib/wib';
 
 // Staff roles assignable from HQ (CUSTOMER is never assignable here). Same set as the
 // ops staff console — this just restyles role selection as buttons (design 4b) and
@@ -31,10 +32,12 @@ const STAFF_ROLES = [
 
 const EMPLOYMENT_STATUSES = ['TRAINING', 'PROBATION', 'PERMANENT'] as const;
 
-/** Today, as the `yyyy-mm-dd` a date input wants. Local, because a join date is a calendar day. */
+/**
+ * Today, as the `yyyy-mm-dd` a date input wants. On the BUSINESS calendar: the device's own clock
+ * is only right while the phone is set to WIB, and a join date is a calendar day of the business.
+ */
 function today(): string {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  return todayWib();
 }
 
 export function StaffInvite({ onSaved }: { onSaved: () => void }) {

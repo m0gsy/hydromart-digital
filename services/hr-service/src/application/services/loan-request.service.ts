@@ -11,6 +11,7 @@ import {
   assertDepotAccess,
   assertFresh,
   depotScopeIds,
+  localDayKey,
 } from '@hydromart/platform';
 
 import { Loan, LoanRequest } from '../../../prisma/generated/client';
@@ -50,14 +51,26 @@ export interface DecideLoanRequestInput {
 /** Owner decision 2026-10-14: a kasbon request is decided within three working days. */
 const DECISION_WINDOW_WORKING_DAYS = 3;
 
+/**
+ * Whether the instant falls on a Saturday or Sunday on the BUSINESS (WIB) calendar.
+ *
+ * Judged on the WIB day, not the UTC one: a request filed at 03:00 WIB on Saturday is still Friday
+ * in UTC, so the UTC weekday called it a working day and the answer was due a day late. The
+ * payment-service refund promise had the same defect and was fixed the same way.
+ */
+function isWeekendWib(at: Date): boolean {
+  // tz-ok: the key is a WIB calendar date, parsed at UTC midnight only to read its weekday.
+  const dow = new Date(`${localDayKey(at)}T00:00:00.000Z`).getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
 /** `from` minus `n` Mon-Fri days (public holidays are not modelled — a week-end is the floor). */
 export function subtractWorkingDays(from: Date, n: number): Date {
   const d = new Date(from);
   let left = n;
   while (left > 0) {
     d.setUTCDate(d.getUTCDate() - 1);
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) left -= 1;
+    if (!isWeekendWib(d)) left -= 1;
   }
   return d;
 }
@@ -68,8 +81,7 @@ export function addWorkingDays(from: Date, n: number): Date {
   let left = n;
   while (left > 0) {
     d.setUTCDate(d.getUTCDate() + 1);
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) left -= 1;
+    if (!isWeekendWib(d)) left -= 1;
   }
   return d;
 }

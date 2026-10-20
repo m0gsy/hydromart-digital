@@ -12,6 +12,11 @@
 //    are naive timestamps holding UTC, so a bare date_trunc cuts the day at 07:00 WIB. The
 //    correct form is two hops: `AT TIME ZONE 'UTC' AT TIME ZONE ${tz}`.
 //
+// 3. `new Date().getUTCDate()` / `now.getUTCDay()` and friends: the UTC weekday, day, month or year
+//    of the current instant. The same defect as (1) in another spelling — wrong for the first seven
+//    hours of the WIB day, which is how a refund promise landed on a Sunday and a payroll screen
+//    opened on last month.
+//
 // Both are legitimate in one narrow case: a value that is ALREADY a local date stored as
 // UTC-midnight (Prisma `@db.Date`). Say so on the line, or the line above it:
 //
@@ -41,13 +46,17 @@ const EXT = /\.(ts|tsx|mjs)$/;
  * Known-pending violations, with the item that removes them. They are LISTED, not ignored:
  * a new one anywhere fails immediately, and this list may only ever shrink.
  *
- * apps/web is deliberately here — the frontend day keys are plan item 4.9 (`todayWib()`),
- * and splitting that across two PRs would leave the console reading two different days.
+ * Empty since the frontend day keys (plan item 4.9) moved to `todayWib()`/`monthWib()`.
+ * apps/web is now held to the same rule as the services.
  */
-const PENDING = [{ prefix: `apps${sep}web${sep}src`, owner: 'plan item 4.9 (todayWib/monthWib)' }];
+const PENDING = [];
 
 const PERIOD_SLICE = /toISOString\(\)\s*\.\s*slice\(\s*0\s*,\s*(10|7)\s*\)/;
 const DATE_TRUNC = /date_trunc\s*\(/i;
+// The calendar parts of the CURRENT instant read in UTC: `new Date().getUTCDate()`, `now.getUTCDay()`.
+// A UTC read of a stored @db.Date is fine; "today" in UTC is not.
+const UTC_OF_NOW =
+  /(?:new Date\(\s*\)|\bnow)\s*\.\s*getUTC(?:FullYear|Month|Date|Day|Hours)\s*\(/;
 const TZ_OK = /tz-ok:\s*\S/;
 
 function* walk(dir) {
@@ -83,7 +92,7 @@ for (const rootDir of process.argv.slice(2).length ? process.argv.slice(2) : DEF
   for (const file of walk(resolve(ROOT, rootDir))) {
     const rel = relative(ROOT, file);
     const text = readFileSync(file, 'utf8');
-    if (!PERIOD_SLICE.test(text) && !DATE_TRUNC.test(text)) continue;
+    if (!PERIOD_SLICE.test(text) && !DATE_TRUNC.test(text) && !UTC_OF_NOW.test(text)) continue;
     const lines = text.split(/\r?\n/);
 
     lines.forEach((line, i) => {
@@ -103,6 +112,7 @@ for (const rootDir of process.argv.slice(2).length ? process.argv.slice(2) : DEF
       }
       let why = null;
       if (PERIOD_SLICE.test(line)) why = 'UTC period key from toISOString().slice';
+      else if (UTC_OF_NOW.test(line)) why = 'UTC calendar part of the current instant';
       else if (DATE_TRUNC.test(line)) {
         const stmt = templateAround(text, text.indexOf(line));
         if (!/AT TIME ZONE/i.test(stmt)) why = 'date_trunc with no AT TIME ZONE';

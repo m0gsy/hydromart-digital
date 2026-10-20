@@ -3,6 +3,8 @@
 // be counted on the Jakarta calendar whatever zone the device is in. Jakarta has no daylight
 // saving, so a fixed +07:00 offset is exact.
 
+import { dateInDaysWib } from './wib';
+
 // The value checkout writes for "antar sekarang" — the same literal as checkout/page.tsx and
 // order-service's domain/delivery-schedule.ts, pinned equal by test/express-window-constant.test.ts.
 const EXPRESS_WINDOW = 'Antar sekarang (express)';
@@ -12,8 +14,6 @@ export function isExpressWindow(window: string | null | undefined): boolean {
   return window === EXPRESS_WINDOW;
 }
 
-const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
-const pad = (n: number) => String(n).padStart(2, '0');
 
 /** ISO instant at which `slot` starts on the day `dayOffset` days from today (Jakarta), or null. */
 export function slotInstant(
@@ -23,9 +23,7 @@ export function slotInstant(
 ): string | null {
   const m = /^(\d{2})\.(\d{2})-/.exec(slot);
   if (!m) return null;
-  const wib = new Date(now.getTime() + WIB_OFFSET_MS);
-  wib.setUTCDate(wib.getUTCDate() + dayOffset);
-  const day = `${wib.getUTCFullYear()}-${pad(wib.getUTCMonth() + 1)}-${pad(wib.getUTCDate())}`;
+  const day = dateInDaysWib(dayOffset, now);
   return new Date(`${day}T${m[1]}:${m[2]}:00+07:00`).toISOString();
 }
 
@@ -45,9 +43,7 @@ export function formatSchedule(iso: string | null | undefined, locale: string): 
 
 /** The Jakarta calendar day `dayOffset` days from today, `YYYY-MM-DD` — the form a depot lists its closed days in. */
 export function dayKey(dayOffset: number, now: Date = new Date()): string {
-  const wib = new Date(now.getTime() + WIB_OFFSET_MS);
-  wib.setUTCDate(wib.getUTCDate() + dayOffset);
-  return `${wib.getUTCFullYear()}-${pad(wib.getUTCMonth() + 1)}-${pad(wib.getUTCDate())}`;
+  return dateInDaysWib(dayOffset, now);
 }
 
 /** "Sel, 1 Sep" for the day `dayOffset` days from today (Jakarta), for the day picker. */
