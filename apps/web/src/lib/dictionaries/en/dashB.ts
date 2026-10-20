@@ -191,6 +191,7 @@ export const dashB = {
     pickCourierError: 'Pick an available courier.',
     assignError: 'Could not assign courier.',
     mustPrepare: 'The order must be prepared (Preparing status) before a courier can be assigned.',
+    noRosterAccess: 'This account cannot see the courier list, so assignment is done by the depot head or manager.',
     openOrderDetail: 'Open order detail',
     availableCouriers: 'Available couriers',
     noCouriers: 'No active couriers yet. Invite couriers from the Staff & roles menu.',

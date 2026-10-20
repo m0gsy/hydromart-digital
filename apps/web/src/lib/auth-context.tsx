@@ -1,6 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, Fragment, useContext, useEffect, useMemo, useState } from 'react';
+
+import { SessionLockGate, useSessionLock } from '@/components/session-lock-gate';
 
 import { api } from './api';
 import { onDepotChanged, refreshNow } from './depot-signal';
@@ -12,6 +14,7 @@ import { forgetNotificationsSeen } from './unread';
 import { setLocation } from './location-store';
 import { forgetSessionFamily, rememberSessionFamily } from './session-device';
 import { getSession, setSession, subscribe } from './session-store';
+import { isNativeShell } from './platform';
 import { clearTokens, getRefreshToken, hasTokens, unlockTokens } from './token-store';
 import type { Customer, Session } from './types';
 
@@ -31,6 +34,16 @@ const REVALIDATE_MIN_MS = 60_000;
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setLocal] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  // Bumped when a locked session is opened, to remount what the lock left on error states.
+  const [epoch, setEpoch] = useState(0);
+  const lock = useSessionLock();
+
+  // The Keystore said there is no session to open (empty, unusable, or destroyed after three
+  // failed unlocks) while the cached profile still names someone. The profile is what every
+  // screen trusts, so leaving it makes the app render for a person with no token behind them.
+  useEffect(() => {
+    if (isNativeShell() && lock === 'signedOut' && getSession()) setSession(null);
+  }, [lock]);
 
   useEffect(() => {
     setLocal(getSession());
@@ -110,6 +123,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // A session opened from the lock screen. Android may have evicted the cached profile while
+  // the Keystore kept the token, and nothing re-runs the boot read, so rebuild it here before
+  // remounting — otherwise the user would stay on a login page holding a perfectly good token.
+  const onUnlocked = async () => {
+    if (!getSession()) {
+      try {
+        setSession({ customer: await api.get<Customer>(endpoints.auth.me, true) });
+      } catch {
+        /* the remount below shows whatever the server says; nothing to add here */
+      }
+    }
+    setEpoch((n) => n + 1);
+  };
+
   const value = useMemo<AuthValue>(
     () => ({
       session,
@@ -167,7 +194,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [session, ready],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <Fragment key={epoch}>{children}</Fragment>
+      <SessionLockGate onUnlocked={onUnlocked} />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthValue {

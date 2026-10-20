@@ -55,6 +55,17 @@ const RELOCK_AFTER_MS = 15 * 60_000;
  */
 const MAX_UNLOCK_FAILURES = 3;
 
+/**
+ * How long an unlock may go unanswered before the session is called `locked`.
+ *
+ * Every authenticated request waits on the unlock, so a prompt that is shown and never
+ * resolves — the OS tore it down while the app was backgrounded, or the plugin lost the
+ * callback — would hold every screen on a spinner for good, with no error and nothing to tap.
+ * Long enough for a person to find their glasses; short enough that a dead prompt is not a
+ * dead app. A late answer still counts: if the owner does unlock afterwards, the session opens.
+ */
+const UNLOCK_TIMEOUT_MS = 90_000;
+
 let tokens: Tokens | null = null;
 /** The last vault write, so a caller can wait for the disk before acting on the token. */
 let persisting: Promise<void> = Promise.resolve();
@@ -62,6 +73,59 @@ let persisting: Promise<void> = Promise.resolve();
 let unlocking: Promise<void> | null = null;
 /** Whether the last unlock ended because the prompt was dismissed, so a screen can offer another. */
 let cancelled = false;
+/**
+ * An unlock ended without opening the session while the Keystore still holds one: the prompt
+ * was dismissed, or it failed fewer than `MAX_UNLOCK_FAILURES` times. The account is NOT signed
+ * out — it is waiting for its owner — and every screen has to be told so, because the cached
+ * profile in localStorage still says "signed in" and nothing else would.
+ */
+let lockedOut = false;
+/** An unlock finished and found nothing to open: no entry, an unusable one, or one just destroyed. */
+let settledEmpty = false;
+
+/**
+ * Where the session stands, in the one place anything may ask.
+ *
+ * Until this existed the store answered only "is there a token?", and a `null` meant three
+ * different things — still being read, waiting for its owner, and gone — that call for three
+ * different screens. Reading them all as "no token" is how the app ended up rendering every
+ * screen for a profile whose token was not in memory, sending each request without a bearer,
+ * and showing the gateway's "Missing bearer token" on a session that was never in trouble.
+ *
+ *  - `pending`: the Keystore has not been read yet this launch (or this return from the
+ *    background). Callers wait; they do not decide.
+ *  - `open`: a token is in memory (always, on the web, where the cookie is not ours to hold).
+ *  - `locked`: a session exists on the device but its owner has not opened it.
+ *  - `signedOut`: there is no session to open. Whatever profile a screen still holds is stale.
+ */
+export type SessionLock = 'pending' | 'open' | 'locked' | 'signedOut';
+
+export function getSessionLock(): SessionLock {
+  // On the web the credential is an httpOnly cookie this module never sees, so there is
+  // nothing here to be locked or missing.
+  if (!isNativeShell()) return 'open';
+  if (tokens) return 'open';
+  if (lockedOut) return 'locked';
+  return settledEmpty ? 'signedOut' : 'pending';
+}
+
+type LockListener = (state: SessionLock) => void;
+const lockListeners = new Set<LockListener>();
+let announced: SessionLock | null = null;
+
+/** Subscribe to changes of `getSessionLock()`. Returns the unsubscribe. */
+export function onSessionLockChange(fn: LockListener): () => void {
+  lockListeners.add(fn);
+  return () => lockListeners.delete(fn);
+}
+
+function announce(): void {
+  const now = getSessionLock();
+  if (now === announced) return;
+  announced = now;
+  // A copy, so a listener that unsubscribes itself cannot skip the next one.
+  for (const fn of [...lockListeners]) fn(now);
+}
 
 function isTokens(value: unknown): value is Tokens {
   const t = value as Partial<Tokens> | null | undefined;
@@ -97,6 +161,11 @@ async function setFailures(count: number): Promise<void> {
  */
 export function primeTokens(next: Tokens | null): void {
   tokens = next;
+  if (next) {
+    lockedOut = false;
+    settledEmpty = false;
+  }
+  announce();
 }
 
 /**
@@ -121,7 +190,7 @@ export function unlockTokens(): Promise<void> {
   // between `AuthProvider` and the rest of the tree to get wrong. Kept after it resolves
   // because a second unlock would be a second biometric prompt for a session that is
   // already open, including right after a sign-out.
-  unlocking ??= restoreFromVault();
+  unlocking ??= restoreWithin(UNLOCK_TIMEOUT_MS);
   return unlocking;
 }
 
@@ -140,8 +209,24 @@ export function unlockWasCancelled(): boolean {
 /** Ask again, after a dismissal. The only thing allowed to forget a finished unlock. */
 export function retryUnlock(): Promise<void> {
   cancelled = false;
+  lockedOut = false;
   unlocking = null;
+  announce();
   return unlockTokens();
+}
+
+function restoreWithin(ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const unanswered = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      if (tokens === null && !settledEmpty) {
+        lockedOut = true;
+        announce();
+      }
+      resolve();
+    }, ms);
+  });
+  return Promise.race([restoreFromVault(), unanswered]).finally(() => clearTimeout(timer));
 }
 
 async function restoreFromVault(): Promise<void> {
@@ -152,40 +237,62 @@ async function restoreFromVault(): Promise<void> {
   // user opened thirty seconds ago with a code from an SMS.
   if (tokens) return;
   cancelled = false;
+  lockedOut = false;
+  settledEmpty = false;
 
-  const read = await vaultRead();
-  // A read that failed is a key the device can no longer use — Android invalidates one
-  // when a new fingerprint is enrolled. Leaving the entry in place would mean a prompt
-  // on every launch for a blob that can never be decrypted again, so it goes, and the
-  // user signs in once with an OTP. Deliberately not done for `unavailable`, which is a
-  // missing plugin rather than a broken key.
-  if (!read.ok) {
-    if (read.code !== 'unavailable') await vaultClear();
-    primeTokens(null);
-    return;
-  }
-  if (read.data === null) {
-    primeTokens(null);
-    return;
-  }
-
-  const outcome = await unlockDevice('Buka sesi Hydromart Anda');
-  if (outcome === 'ok' || outcome === 'unavailable') {
-    await setFailures(0);
-    primeTokens(parseTokens(read.data));
-    return;
-  }
-
-  cancelled = outcome === 'cancelled';
-  if (outcome === 'failed') {
-    const count = (await failures()) + 1;
-    await setFailures(count);
-    if (count >= MAX_UNLOCK_FAILURES) {
-      await setFailures(0);
-      await vaultClear();
+  // Whatever way this ends, the answer is announced exactly once, after the flags are final.
+  try {
+    const read = await vaultRead();
+    // A read that failed is a key the device can no longer use — Android invalidates one
+    // when a new fingerprint is enrolled. Leaving the entry in place would mean a prompt
+    // on every launch for a blob that can never be decrypted again, so it goes, and the
+    // user signs in once with an OTP. Deliberately not done for `unavailable`, which is a
+    // missing plugin rather than a broken key.
+    if (!read.ok) {
+      if (read.code !== 'unavailable') await vaultClear();
+      settledEmpty = true;
+      primeTokens(null);
+      return;
     }
+    if (read.data === null) {
+      settledEmpty = true;
+      primeTokens(null);
+      return;
+    }
+
+    const outcome = await unlockDevice('Buka sesi Hydromart Anda');
+    if (outcome === 'ok' || outcome === 'unavailable') {
+      await setFailures(0);
+      const restored = parseTokens(read.data);
+      // An entry that opened but holds nothing usable is as good as none: nothing will ever
+      // read it, and calling it "locked" would offer a prompt that can never succeed.
+      if (!restored) settledEmpty = true;
+      primeTokens(restored);
+      return;
+    }
+
+    cancelled = outcome === 'cancelled';
+    if (outcome === 'failed') {
+      const count = (await failures()) + 1;
+      await setFailures(count);
+      if (count >= MAX_UNLOCK_FAILURES) {
+        await setFailures(0);
+        await vaultClear();
+        settledEmpty = true;
+        primeTokens(null);
+        return;
+      }
+    }
+    // The session is intact and its owner has not opened it.
+    lockedOut = true;
+    primeTokens(null);
+  } catch {
+    // Reaching here means the vault or the prompt threw something the plugin layer did not
+    // classify. The entry is untouched, so the honest state is "waiting for its owner" — never
+    // an unexplained null, which is what let the app render screens with no token behind them.
+    lockedOut = true;
+    primeTokens(null);
   }
-  primeTokens(null);
 }
 
 export function getAccessToken(): string | null {
@@ -223,6 +330,11 @@ export function captureTokens(body: unknown): boolean {
 export function setTokens(next: Tokens | null): void {
   if (!isNativeShell()) return;
   tokens = next;
+  // A token written means a session is open; one cleared means the account was signed out,
+  // which is "nothing to open" rather than "still being read".
+  lockedOut = false;
+  settledEmpty = next === null;
+  announce();
   // Writing the Keystore is asynchronous where localStorage was not, so the write is
   // tracked rather than awaited here — `setTokens` is called from inside a synchronous
   // response handler. `tokensPersisted()` is how the one caller that must not run ahead
@@ -247,8 +359,8 @@ export function clearTokens(): void {
  *
  * `tokens = null` and not `setTokens(null)`: the second one wipes the vault, which would
  * turn "prove it is still you" into "sign in with an OTP again" — the opposite of the
- * point. Clearing `unlocking` is what makes the next authenticated request raise the
- * prompt, and every request already awaits `unlockTokens()`.
+ * point. Clearing `unlocking` re-arms the prompt, and the listener below raises it straight
+ * away.
  */
 if (typeof window !== 'undefined') {
   onResume((awayMs) => {
@@ -256,5 +368,13 @@ if (typeof window !== 'undefined') {
     tokens = null;
     unlocking = null;
     cancelled = false;
+    lockedOut = false;
+    settledEmpty = false;
+    announce();
+    // Ask NOW rather than leaving it to whichever request arrives first. The prompt used to
+    // appear in the middle of a fetch the user had not asked for, and a dismissal there left
+    // that fetch and everything after it to go out with no token at all. Asked here, a
+    // dismissal lands in `locked`, which every screen can see and offer a way out of.
+    void unlockTokens();
   });
 }

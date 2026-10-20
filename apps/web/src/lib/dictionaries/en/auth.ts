@@ -2,6 +2,14 @@ import { auth as base } from '../id/auth';
 
 // English — mirrors the shape of id/auth.ts (the source of truth for keys).
 export const auth: typeof base = {
+  lock: {
+    title: 'Session locked',
+    body: 'Your session is still stored on this device. Open it with your fingerprint or PIN to continue, no SMS code needed.',
+    unlock: 'Open session',
+    failed: 'Not unlocked. Try again, or sign in with an SMS code.',
+    useOtp: 'Sign in with an SMS code',
+    continueGuest: 'Continue without signing in',
+  },
   login: {
     biometricHint:
       'Your session is still stored on this device. Open it with a fingerprint or PIN, no SMS code needed.',

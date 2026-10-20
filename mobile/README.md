@@ -57,9 +57,18 @@ Every Play upload needs a `versionCode` higher than any before it, across both t
   `https://localhost`, and that exact string is how the gateway decides to issue bearer
   tokens instead of cookies (`session-bff.ts`) and how the web code knows it is native
   (`platform.ts`). Change the scheme and the app stops being able to log in.
-- **`MOBILE_API_URL`** at export time. Empty means `api.ts` falls back to
-  `http://localhost:8080`, which Android blocks as cleartext — the symptom is an
-  unreadable network error on every screen, not a clear failure.
+- **`NEXT_PUBLIC_API_URL`** at export time (CI fills it from the repo variable `MOBILE_API_URL`).
+  `build-mobile.mjs` does not read a variable called `MOBILE_API_URL` at all — setting that name
+  by hand produces an export with `http://localhost:8080` baked in, which Android blocks as
+  cleartext. The symptom is "tidak bisa menghubungi server" on every screen, not a clear failure.
+  Check with `grep -rhoE 'https?://[a-z.:0-9-]+' mobile/android/app/src/main/assets/public/_next | sort -u`.
+  Also: pass `MSYS_NO_PATHCONV=1` to gradle from Git Bash, or `-PhydromartLinkPrefix=/driver` is
+  rewritten to `C:/Program Files/Git/driver` and the manifest fails to link.
+- **The session lock (`token-store.ts` `getSessionLock`, `SessionLockGate`).** The Keystore session
+  can be `locked` (on the device, prompt dismissed) or `signedOut`. A request made while `locked`
+  is refused on the device with `CLIENT_SESSION_LOCKED` and never reaches the network; sending it
+  anyway is how Ops 1.14.0 showed "Missing bearer token" on every screen. Anything new that calls the
+  API must go through `api.ts` (which waits for the unlock), never a bare `fetch` with `authHeader()`.
 - **New Capacitor plugins.** Anything with `READ_MEDIA_IMAGES` in its manifest drags the
   Play Photo & Video declaration in with it — and it arrives through an AAR, not through
   any file a person reads. `npm run audit:manifest` lists every permission our manifest

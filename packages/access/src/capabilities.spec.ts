@@ -324,6 +324,19 @@ describe('the cancel button and the cancel route admit the same people', () => {
 });
 
 /*
+ * Dispatch needs the courier list. Found in production 2026-10-20: SUPERVISOR and
+ * ASSISTANT_SUPERVISOR held `tracking` (create a delivery) without `driverRosterRead`, so the
+ * picker's one request answered 403 and they could never choose a courier. A role that may assign
+ * a delivery must be able to see who to assign it to.
+ */
+describe('assigning a courier and listing couriers admit the same people', () => {
+  it('every role that holds tracking can read the courier list', () => {
+    const missing = CAPABILITIES.tracking.filter((role) => !CAPABILITIES.driverRosterRead.includes(role));
+    expect(missing).toEqual([]);
+  });
+});
+
+/*
  * `<x>Finance` is `<x>` plus FINANCE on one read route, so FINANCE's own screens stop opening
  * on a permission error without FINANCE being let through the door `<x>` guards. The console
  * gate script treats the two names as equivalent; this is what keeps that honest.

@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { FaceEmbedding } from '../../../prisma/generated/client';
@@ -16,6 +23,8 @@ import { EmployeeService } from './employee.service';
 
 @Injectable()
 export class FaceService {
+  private readonly logger = new Logger(FaceService.name);
+
   constructor(
     @Inject(FACE_VERIFIER) private readonly verifier: FaceVerifier,
     @Inject(FACE_EMBEDDING_REPOSITORY) private readonly repo: FaceEmbeddingRepository,
@@ -88,9 +97,12 @@ export class FaceService {
    * the stored frames behind them, and puts the employee back to "never asked". Face check-in
    * simply stops matching them; the PIN/manual path still works.
    */
-  async withdrawConsent(employee: { id: string }): Promise<{ deleted: number }> {
+  async withdrawConsent(
+    employee: { id: string; fullName?: string },
+  ): Promise<{ deleted: number }> {
     const stored = await this.repo.deleteForEmployee(employee.id);
     await this.employees.setFaceConsent(employee.id, null);
+    await this.removeRemote(employee);
     for (const key of new Set(stored.map(hrStorageKey).filter((k): k is string => !!k))) {
       if (!this.storage) break;
       try {
@@ -101,6 +113,24 @@ export class FaceService {
       }
     }
     return { deleted: stored.length };
+  }
+
+  /**
+   * Take the face out of the engine's own gallery as well. Until now a withdrawal cleared only our
+   * table, so the biometric stayed with the third party after the person took their consent back,
+   * and re-enrolling later collided with it. Best-effort on purpose: the local template is already
+   * gone, which is what makes the face unusable here, and a withdrawal must not fail because a
+   * provider is down — but it is logged at error level, never silent, so it can be swept.
+   */
+  private async removeRemote(employee: { id: string; fullName?: string }): Promise<boolean> {
+    if (!this.verifier.remove) return true;
+    try {
+      await this.verifier.remove({ userId: employee.id, userName: employee.fullName ?? '' });
+      return true;
+    } catch (err) {
+      this.logger.error(`face withdrawal: gallery delete failed for ${employee.id}: ${String(err)}`);
+      return false;
+    }
   }
 
   /** The employee behind a withdrawal request: HR admin by id, or the caller's own record. */

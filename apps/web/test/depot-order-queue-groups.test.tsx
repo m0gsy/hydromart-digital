@@ -20,7 +20,9 @@ const { get, post, patch, FakeApiError } = vi.hoisted(() => ({
 
 vi.mock('@/lib/api', () => ({ api: { get, post, patch }, ApiError: FakeApiError }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 's-1', role: 'STAFF_DEPOT' }, ready: true }),
+  // The depot head: assigning a courier needs the roster (`driverRosterRead`), which depot staff
+  // do not hold — see roster-capability.test.tsx.
+  useAuth: () => ({ customer: { id: 's-1', role: 'KEPALA_DEPOT' }, ready: true }),
 }));
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({

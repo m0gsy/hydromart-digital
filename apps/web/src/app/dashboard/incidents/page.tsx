@@ -20,6 +20,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { canReadRoster } from '@/lib/drivers-scope';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewIncidents } from '@/lib/roles';
@@ -370,6 +371,8 @@ function ReportForm({ depotId, onDone }: { depotId: string; onDone: () => void }
  */
 function CourierFieldIncidents({ depotId }: { depotId: string }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  const rosterReadable = canReadRoster(customer?.role);
   const incidents = useAsync<FieldIncident[]>(
     () => api.get<FieldIncident[]>(endpoints.deliveries.incidents.forDepot(depotId), true),
     [depotId],
@@ -377,8 +380,12 @@ function CourierFieldIncidents({ depotId }: { depotId: string }) {
   // The same roster dispatch uses. It is a name lookup, so its failure is not the list's:
   // an incident with an unresolved courier still reads, it just says less.
   const drivers = useAsync<Customer[]>(
-    () => api.get<Customer[]>(endpoints.auth.driversAt(depotId), true),
-    [depotId],
+    // SUPERVISOR reads incidents without holding the roster; the read would only 403.
+    () =>
+      rosterReadable
+        ? api.get<Customer[]>(endpoints.auth.driversAt(depotId), true)
+        : Promise.resolve([] as Customer[]),
+    [depotId, rosterReadable],
   );
   const nameOf = (driverId: string) =>
     drivers.data?.find((d) => d.id === driverId)?.fullName ?? t('dashB.incidents.courierUnknown');

@@ -161,6 +161,14 @@ export const canViewDepotFinance = (role: string | null | undefined) => can('dep
 // use the canUseXConsole() gates below instead.
 export const isDepotOperator = (role: string | null | undefined) => role === 'KEPALA_DEPOT';
 export const isDepotManager = (role: string | null | undefined) => role === 'MANAGER';
+
+/**
+ * Roles whose depots are a RESOLVED SET (own depot plus the supervision hierarchy), mirroring
+ * the platform's `DEPOT_SCOPED_ROLES`. auth-service refuses their roster read without a named
+ * depot when the set holds more than one, so screens must name one.
+ */
+export const isDepotResolvedRole = (role: string | null | undefined) =>
+  role === 'MANAGER' || role === 'SUPERVISOR' || role === 'ASSISTANT_SUPERVISOR';
 // GLOBAL-scope settings writes are SUPER_ADMIN-only server-side (settings.controller.ts);
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';

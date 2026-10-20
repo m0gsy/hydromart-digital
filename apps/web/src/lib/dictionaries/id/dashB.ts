@@ -193,6 +193,7 @@ export const dashB = {
     pickCourierError: 'Pilih kurir yang tersedia.',
     assignError: 'Gagal menugaskan kurir.',
     mustPrepare: 'Pesanan harus disiapkan (status Preparing) sebelum kurir bisa ditugaskan.',
+    noRosterAccess: 'Akun ini tidak bisa melihat daftar kurir, jadi penugasan dilakukan oleh kepala depot atau manajer.',
     openOrderDetail: 'Buka detail pesanan',
     availableCouriers: 'Kurir tersedia',
     noCouriers: 'Belum ada kurir aktif. Undang kurir di menu Staf & peran.',

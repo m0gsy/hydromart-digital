@@ -16,7 +16,7 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useAsync } from '@/lib/use-async';
-import { whenRosterScoped } from '@/lib/drivers-scope';
+import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import { usePagedList } from '@/lib/use-paged-list';
 import type { Customer, Delivery, Order, Page } from '@/lib/types';
@@ -96,6 +96,7 @@ function AssignPanel({
   order,
   drivers,
   loads,
+  canAssign,
   loading,
   error,
   onRetry,
@@ -105,6 +106,8 @@ function AssignPanel({
   order: Order | null;
   drivers: Customer[];
   loads: Map<string, number>;
+  /** False for a role that may see the queue but not the courier list: no picker is offered. */
+  canAssign: boolean;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
@@ -187,10 +190,10 @@ function AssignPanel({
         </p>
       </div>
 
-      {!NEEDS_ASSIGN(order) ? (
+      {!NEEDS_ASSIGN(order) || !canAssign ? (
         <div className="flex flex-col gap-3 rounded-2xl bg-[color:var(--surface-soft)] p-3 text-sm">
           <p className="text-[color:var(--text-muted)]">
-            {t('dashB.orders.mustPrepare')}
+            {canAssign ? t('dashB.orders.mustPrepare') : t('dashB.orders.noRosterAccess')}
           </p>
           <Button variant="secondary" onClick={onOpenDetail}>
             {t('dashB.orders.openOrderDetail')}
@@ -287,6 +290,8 @@ function QueueBody() {
   // banner said "Semua depot", so HQ saw one arbitrary depot's queue and called it empty.
   const { selectedId: depotFilterId, selected: scopedDepot } = useDepot();
   const driversEndpoint = useDriversUrl();
+  const { customer } = useAuth();
+  const rosterReadable = canReadRoster(customer?.role);
 
   /*
    * CA-2-40. The queue read 100 orders and grouped them into four tabs client-side, so on a
@@ -314,6 +319,9 @@ function QueueBody() {
    * to read, which is the honest failure for a number somebody assigns work by.
    */
   const roster = useAsync<{ drivers: Customer[]; loads: Map<string, number> }>(async () => {
+    // Depot staff and the supervisor roles may open this queue without being allowed the
+    // courier list; asking would 403 for every one of them and fail the panel for good.
+    if (!rosterReadable) return { drivers: [], loads: new Map<string, number>() };
     const [drivers, deliveries] = await Promise.all([
       whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true)),
       fetchAllPages<Delivery>(({ page, limit }) =>
@@ -325,7 +333,7 @@ function QueueBody() {
       if (ACTIVE_DELIVERY.includes(d.status)) loads.set(d.driverId, (loads.get(d.driverId) ?? 0) + 1);
     }
     return { drivers, loads };
-  }, [driversEndpoint]);
+  }, [driversEndpoint, rosterReadable]);
 
   const items = queue.rows;
   const needAssign = useMemo(() => items.filter(NEEDS_ASSIGN), [items]);
@@ -470,6 +478,7 @@ function QueueBody() {
           order={selected}
           drivers={roster.data?.drivers ?? []}
           loads={roster.data?.loads ?? new Map()}
+          canAssign={rosterReadable}
           loading={roster.loading}
           error={roster.error}
           onRetry={roster.reload}

@@ -14,7 +14,7 @@ import { useT, type TVars } from '@/lib/locale-context';
 import { canViewTracking } from '@/lib/roles';
 import { ACTIVE_DELIVERY_STATUSES } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
-import { whenRosterScoped } from '@/lib/drivers-scope';
+import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
 
@@ -221,9 +221,16 @@ function TrackingBody() {
   // 1c: resolve courier display names from the active-driver roster (delivery records carry
   // only driverId). Fail-soft — a roster miss falls back to the short id in the card.
   const driversEndpoint = useDriversUrl();
+  const { customer: viewer } = useAuth();
+  const rosterReadable = canReadRoster(viewer?.role);
   const drivers = useAsync<Customer[]>(
-    () => whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true)),
-    [driversEndpoint],
+    // A supervisor may watch the map without being allowed the courier list; skip the read that
+    // would only 403 and let the card fall back to the short id, as it does for any miss.
+    () =>
+      rosterReadable
+        ? whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true))
+        : Promise.resolve([] as Customer[]),
+    [driversEndpoint, rosterReadable],
   );
   const nameById = new Map((drivers.data ?? []).map((c) => [c.id, c.fullName]));
 

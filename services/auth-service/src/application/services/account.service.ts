@@ -19,7 +19,13 @@ import {
 // The locked-role set is the guards' own definition, imported rather than mirrored: the
 // two Role enums carry identical string values, so the cast is a type bridge, not a
 // second source of truth.
-import { ImportSummary, isDepotLocked, Role as PlatformRole, runImport } from '@hydromart/platform';
+import {
+  ImportSummary,
+  isDepotLocked,
+  isDepotResolved,
+  Role as PlatformRole,
+  runImport,
+} from '@hydromart/platform';
 import { canGrantRole } from '@hydromart/access';
 
 import { Customer } from '../../domain/customer/customer.entity';
@@ -105,14 +111,14 @@ export class AccountService {
     user: { sub: string; role: string; depotIds?: readonly string[] },
     requested?: string,
   ): Promise<string | undefined> {
-    // A MANAGER's depots come from the hierarchy (supervision chain + direct grants),
+    // A MANAGER's (and a SUPERVISOR's, and an ASSISTANT_SUPERVISOR's) depots come from the hierarchy (supervision chain + direct grants),
     // resolved once per request by DepotScopeGuard — they do NOT sit in this service's
     // `assignedDepotId` column, which is a depot-locked account's home depot. Reading that
     // column for a manager asked the wrong table: every manager scoped the platform's own
     // way answered 403 here while every other service accepted them, so `/auth/staff` and
     // `/auth/drivers` were empty on a console that had already drawn the screen.
-    if (user.role === Role.MANAGER) {
-      // MANAGER is a depot-RESOLVED role, so DepotScopeGuard always leaves an array here on
+    if (isDepotResolved(user.role as unknown as PlatformRole)) {
+      // These are depot-RESOLVED roles, so DepotScopeGuard always leaves an array here on
       // an authenticated route — possibly empty. `undefined` therefore means the guard did
       // not run, and the fail-closed reading is the only safe one: returning `requested`
       // would hand a manager every depot in the network the day someone forgets the guard.

@@ -177,6 +177,36 @@ describe('FaceService biometric consent (HR-3)', () => {
     expect(employees.consents).toEqual([{ id: 'e1', consent: null }]);
   });
 
+  // Until 2026-10-20 a withdrawal cleared only our table; the face stayed in the provider's
+  // gallery, and the next enroll collided with it.
+  it('also removes the face from the engine gallery', async () => {
+    const remove = jest.fn().mockResolvedValue(undefined);
+    const employees = fakeEmployees(new Date());
+    const svc = new FaceService(
+      { ...verifier([1, 0, 0]), remove } as never,
+      new FakeFaceRepo(),
+      employees.service,
+      config,
+    );
+    await expect(svc.withdrawConsent({ id: 'e1', fullName: 'Budi' })).resolves.toEqual({
+      deleted: 1,
+    });
+    expect(remove).toHaveBeenCalledWith({ userId: 'e1', userName: 'Budi' });
+  });
+
+  it('still withdraws locally when the engine gallery cannot be reached', async () => {
+    const remove = jest.fn().mockRejectedValue(new Error('NEO down'));
+    const employees = fakeEmployees(new Date());
+    const svc = new FaceService(
+      { ...verifier([1, 0, 0]), remove } as never,
+      new FakeFaceRepo(),
+      employees.service,
+      config,
+    );
+    await expect(svc.withdrawConsent({ id: 'e1' })).resolves.toEqual({ deleted: 1 });
+    expect(employees.consents).toEqual([{ id: 'e1', consent: null }]);
+  });
+
   it('resolves the subject of a withdrawal: by id for HR, own record for self', async () => {
     const { svc } = make([1, 0, 0]);
     await expect(svc.employeeFor(user, 'e1')).resolves.toMatchObject({ id: 'e1' });

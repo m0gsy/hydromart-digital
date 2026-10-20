@@ -51,4 +51,11 @@ export interface FaceVerifier {
    * from the same frame (`FaceVerifyResult.live`), never by the caller.
    */
   verify(image: Buffer, enrolled: number[][], identity?: FaceIdentity): Promise<FaceVerifyResult>;
+  /**
+   * Delete whatever the engine itself holds for one employee. Only a REMOTE gallery (neo) has
+   * anything to delete — the local drivers keep nothing outside our own table, which the face
+   * service already clears — so they leave this out. Resolves when the face is gone, including
+   * when it was never there; throws when the engine could not be reached or refused.
+   */
+  remove?(identity: FaceIdentity): Promise<void>;
 }

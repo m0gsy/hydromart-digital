@@ -31,6 +31,10 @@ vi.mock('@/lib/unread', () => ({ forgetNotificationsSeen: () => undefined }));
 vi.mock('@/lib/location-store', () => ({ setLocation: () => undefined }));
 vi.mock('@/lib/session-device', () => ({ forgetSessionFamily: () => undefined, rememberSessionFamily: () => undefined }));
 vi.mock('@/lib/token-store', () => ({
+  // The lock state the provider and the gate read; a session that is simply open.
+  getSessionLock: () => 'open',
+  onSessionLockChange: () => () => undefined,
+  retryUnlock: async () => undefined,
   clearTokens: () => undefined,
   getRefreshToken: () => null,
   hasTokens: () => true,
