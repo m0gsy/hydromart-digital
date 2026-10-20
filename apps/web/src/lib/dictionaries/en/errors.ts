@@ -20,6 +20,7 @@ export const errors = {
       'The product catalogue is busy right now. Wait a moment and try again.',
   },
   missingRouteId: 'This page was opened without the record it needs. Go back and pick one.',
+  sessionLocked: 'Your session is not unlocked. Open it with your fingerprint or PIN to continue.',
   geo: {
     denied: 'Location access denied. Allow location for this app in Settings, then try again.',
     unavailable: 'Could not get a location. Turn on Location/GPS on your device, then try again.',

@@ -331,3 +331,74 @@ describe('AccountController phone change (K1.4)', () => {
     );
   });
 });
+
+/*
+ * Owner decision 2026-10-20: SUPERVISOR and ASSISTANT_SUPERVISOR may read the courier list, because
+ * they dispatch (`tracking`) and could not pick a courier without it. They are depot-RESOLVED
+ * roles like MANAGER, so the roster read has to narrow them the way it narrows a manager. Before
+ * this, `resolveScopedDepot` only knew MANAGER and handed every other role whatever it asked for:
+ * granting the read alone would have let a supervisor list every depot's couriers by omitting
+ * `depotId`.
+ */
+describe.each([Role.SUPERVISOR, Role.ASSISTANT_SUPERVISOR])('GET /auth/drivers for %s', (role) => {
+  const ownDepot = '11111111-1111-4111-8111-111111111111';
+  const otherDepot = '22222222-2222-4222-8222-222222222222';
+  const phone = '+62811111111';
+
+  const account = {
+    getProfile: jest.fn(),
+    resolveScopedDepot: (u: never, d?: string) =>
+      AccountService.prototype.resolveScopedDepot.call(account, u, d),
+    listDrivers: jest.fn(),
+  };
+  const controller = new AccountController(
+    account as never,
+    {} as never,
+    {} as never,
+    phoneChangeStub(),
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    account.listDrivers.mockResolvedValue([]);
+  });
+
+  it('reads the one depot in scope when none is named', async () => {
+    await controller.listDrivers({}, { sub: 's-1', role, phone, depotIds: [ownDepot] });
+
+    expect(account.listDrivers).toHaveBeenCalledWith(ownDepot);
+  });
+
+  it('reads a named depot that is inside the scope', async () => {
+    await controller.listDrivers(
+      { depotId: otherDepot },
+      { sub: 's-1', role, phone, depotIds: [ownDepot, otherDepot] },
+    );
+
+    expect(account.listDrivers).toHaveBeenCalledWith(otherDepot);
+  });
+
+  it('refuses a depot outside the scope instead of rewriting it', async () => {
+    await expect(
+      controller.listDrivers({ depotId: otherDepot }, { sub: 's-1', role, phone, depotIds: [ownDepot] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listDrivers).not.toHaveBeenCalled();
+  });
+
+  it('makes a multi-depot caller name the depot rather than widening to every one of them', async () => {
+    await expect(
+      controller.listDrivers({}, { sub: 's-1', role, phone, depotIds: [ownDepot, otherDepot] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listDrivers).not.toHaveBeenCalled();
+  });
+
+  it('refuses an empty or never-resolved scope, rather than reading every depot', async () => {
+    await expect(
+      controller.listDrivers({}, { sub: 's-1', role, phone, depotIds: [] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.listDrivers({}, { sub: 's-1', role, phone })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(account.listDrivers).not.toHaveBeenCalled();
+  });
+});

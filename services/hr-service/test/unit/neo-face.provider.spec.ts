@@ -66,6 +66,95 @@ describe('NeoFaceProvider', () => {
     expect(enroll.body.trx_id).toBeTruthy();
   });
 
+  // Production 2026-10-20: "Database Error - UserID Already Exists" on every re-enroll by an
+  // employee who already had a face. `force_register` does not replace the user.
+  it('re-enrolls an existing user by deleting them first, then enrolling again', async () => {
+    let enrolls = 0;
+    const calls = mockFetch((url) => {
+      if (url.endsWith('enroll-face')) {
+        enrolls += 1;
+        return enrolls === 1
+          ? { body: { status: '400', status_message: 'Database Error - UserID Already Exists' } }
+          : { body: { status: '200' } };
+      }
+      return { body: { status: '200' } };
+    });
+
+    await new NeoFaceProvider(makeConfig()).enroll([Buffer.from('img')], identity);
+
+    const order = calls.map((c) => c.url.split('/').pop());
+    expect(order.filter((p) => p === 'enroll-face')).toHaveLength(2);
+    const del = calls.find((c) => c.url.endsWith('delete-face'))!;
+    expect(del.body).toMatchObject({ facegallery_id: 'g1', user_id: 'e1' });
+    expect(order.indexOf('delete-face')).toBeGreaterThan(order.indexOf('enroll-face'));
+    expect(order.lastIndexOf('enroll-face')).toBeGreaterThan(order.indexOf('delete-face'));
+  });
+
+  it('does not loop: a second refusal after the delete is the answer', async () => {
+    const calls = mockFetch((url) =>
+      url.endsWith('enroll-face')
+        ? { body: { status: '400', status_message: 'Database Error - UserID Already Exists' } }
+        : { body: { status: '200' } },
+    );
+
+    await expect(
+      new NeoFaceProvider(makeConfig()).enroll([Buffer.from('img')], identity),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(calls.filter((c) => c.url.endsWith('enroll-face'))).toHaveLength(2);
+    expect(calls.filter((c) => c.url.endsWith('delete-face'))).toHaveLength(1);
+  });
+
+  it('a different enroll failure is not retried and does not delete anybody', async () => {
+    const calls = mockFetch((url) =>
+      url.endsWith('enroll-face')
+        ? { body: { status: '400', status_message: 'No face detected' } }
+        : { body: { status: '200' } },
+    );
+
+    await expect(
+      new NeoFaceProvider(makeConfig()).enroll([Buffer.from('img')], identity),
+    ).rejects.toThrow(/No face detected/);
+    expect(calls.some((c) => c.url.endsWith('delete-face'))).toBe(false);
+  });
+
+  it('remove deletes the user from the gallery', async () => {
+    const methods: string[] = [];
+    const calls = mockFetch((_url, init) => {
+      methods.push(String(init.method));
+      return { body: { status: '200' } };
+    });
+    await new NeoFaceProvider(makeConfig()).remove(identity);
+    // The live gateway refuses POST on this route with 405; only DELETE reaches the gallery.
+    expect(methods).toEqual(['DELETE']);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url.endsWith('delete-face')).toBe(true);
+    expect(calls[0].body).toMatchObject({ facegallery_id: 'g1', user_id: 'e1' });
+  });
+
+  it('remove treats a user that is not in the gallery as already deleted', async () => {
+    // The exact answer the live gateway gave for an unknown user_id, 2026-10-20.
+    mockFetch(() => ({ body: { status: '416', status_message: 'Database Error - UserID Not Found' } }));
+    await expect(new NeoFaceProvider(makeConfig()).remove(identity)).resolves.toBeUndefined();
+  });
+
+  it('remove surfaces any other refusal, and a missing identity', async () => {
+    mockFetch(() => ({ body: { status: '500', status_message: 'Database Error' } }));
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.remove(identity)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(neo.remove({ userId: '', userName: '' })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  // NEO has answered with an empty body before (a gateway page that parses as `{}`): no status,
+  // no message. That is a failure in both directions, never a silent success.
+  it('treats an empty NEO answer as a failure for enroll and for remove', async () => {
+    mockFetch(() => ({ body: {} }));
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.enroll([Buffer.from('img')], identity)).rejects.toThrow(/enroll-face/);
+    await expect(neo.remove(identity)).rejects.toThrow(/delete-face: unknown error/);
+  });
+
   it('verify maps NEO verified/similarity to matched/score (percent → 0..1)', async () => {
     mockFetch(() => ({ body: { status: '200', verified: true, similarity: '92.5' } }));
     const neo = new NeoFaceProvider(makeConfig());

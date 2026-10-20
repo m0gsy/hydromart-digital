@@ -190,7 +190,19 @@ export const CAPABILITIES = {
   // auth-service — READ the courier list (`GET auth/drivers`) only. `driverRoster` is also
   // the roster WRITE gate (roles.ts `canManageRoster`), so FINANCE gets a separate read:
   // settlements and payment screens print a courier's name, not "#abc12345".
-  driverRosterRead: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
+  // SUPERVISOR and ASSISTANT_SUPERVISOR (owner decision 2026-10-20): they hold `tracking`, so they
+  // assign couriers, and could not pick one without the list. auth-service narrows them to their
+  // own depots exactly as it narrows a MANAGER (`resolveScopedDepot`).
+  driverRosterRead: [
+    'KEPALA_DEPOT',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'MANAGER',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'FINANCE',
+    'SUPER_ADMIN',
+  ],
   // crm-service — operational notification feed.
   opsNotif: [
     'KEPALA_DEPOT',

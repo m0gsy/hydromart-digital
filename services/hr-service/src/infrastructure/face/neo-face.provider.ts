@@ -53,14 +53,38 @@ export class NeoFaceProvider implements FaceVerifier {
     await this.ensureGallery();
     // One representative frame is enough for robust 1:1 verify and saves quota.
     // ponytail: single-template enroll; add multi-frame if verify FAR proves too high.
-    await this.call('POST', 'enroll-face', {
+    const body = {
       facegallery_id: this.gallery,
       user_id: id.userId,
       user_name: id.userName,
       force_register: true, // NEO wants a JSON bool, not a string
       image: toBase64(images[0]),
-    });
+    };
+    const first = await this.request('POST', 'enroll-face', body);
+    if (!isDuplicateUser(first)) {
+      this.ensureOk('enroll-face', first);
+      return { vector: [], quality: 1 };
+    }
+    // Seen in production 2026-10-20: `force_register` does NOT replace an existing user —
+    // NEO answers "Database Error - UserID Already Exists" and every re-enroll by an employee
+    // who already had a face failed, for good. Replacing means deleting first. Once: if the
+    // retry fails too, that is the answer, not another round.
+    await this.remove(id);
+    await this.call('POST', 'enroll-face', body);
     return { vector: [], quality: 1 };
+  }
+
+  /** Delete one employee's face from the shared gallery. Gone-already counts as deleted. */
+  async remove(identity: FaceIdentity): Promise<void> {
+    const id = this.requireIdentity(identity);
+    // DELETE, not POST: checked against the live gateway 2026-10-20 — POST answers
+    // `405 method not allowed`, DELETE answers `416 UserID Not Found` for an unknown user.
+    const res = await this.request('DELETE', 'delete-face', {
+      facegallery_id: this.gallery,
+      user_id: id.userId,
+    });
+    if (String(res.status ?? '').startsWith('2') || isMissingUser(res)) return;
+    throw this.unavailable(`delete-face: ${res.status_message ?? 'unknown error'}`);
   }
 
   async verify(
@@ -203,6 +227,21 @@ export class NeoFaceProvider implements FaceVerifier {
   private unavailable(reason: string): ServiceUnavailableException {
     return new ServiceUnavailableException(`Face engine (NEO) gagal: ${reason}`);
   }
+}
+
+/** NEO's refusal when the `user_id` is already in the gallery. */
+function isDuplicateUser(payload: NeoPayload): boolean {
+  return (
+    !String(payload.status ?? '').startsWith('2') &&
+    /already\s+exist/i.test(payload.status_message ?? '')
+  );
+}
+
+/** NEO's answer to deleting a `user_id` that is not in the gallery — which is the goal reached. */
+function isMissingUser(payload: NeoPayload): boolean {
+  return /(not\s+found|not\s+exist|does\s+not\s+exist|no\s+such)/i.test(
+    payload.status_message ?? '',
+  );
 }
 
 /** NEO wants a bare base64 JPEG/PNG — strip any data-URL prefix. */

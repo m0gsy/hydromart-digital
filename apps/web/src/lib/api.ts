@@ -11,6 +11,7 @@ import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
+  getSessionLock,
   hasTokens,
   tokensPersisted,
   unlockTokens,
@@ -31,6 +32,9 @@ const FILE_TIMEOUT_MS = 60_000;
 
 /** One automatic retry after a 429, capped so a long Retry-After never freezes the UI. */
 const MAX_RETRY_AFTER_MS = 3_000;
+
+/** `ApiError.code` of a request refused on the device because the stored session is not open. */
+export const SESSION_LOCKED_CODE = 'CLIENT_SESSION_LOCKED';
 
 export class ApiError extends Error {
   constructor(
@@ -344,6 +348,26 @@ function appHeaders(): Record<string, string> {
   return appTag;
 }
 
+/**
+ * Wait for the Keystore, then refuse to go on if the session is sitting there unopened.
+ *
+ * A session that is locked has a token on the device and none in memory. Sending the request
+ * anyway is the bug this exists to prevent: it left with no `Authorization`, came back as the
+ * gateway's "Missing bearer token", and every screen that had been drawn from the cached
+ * profile showed the same error at once — on an account that was signed in the whole time.
+ * Failing here costs no round trip, creates no 401 for the server to count as an attack, and
+ * carries a code the session gate recognises.
+ *
+ * Only `locked` refuses. `signedOut` still goes to the server, which is the authority on
+ * whether an endpoint needed a sign-in at all; the account provider clears the stale profile.
+ */
+async function waitForSession(): Promise<void> {
+  await unlockTokens();
+  if (isNativeShell() && getSessionLock() === 'locked') {
+    throw new ApiError(401, translate('errors.sessionLocked'), SESSION_LOCKED_CODE);
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   // F3b: nothing that needs a bearer may go out before the Keystore has been read.
   //
@@ -356,7 +380,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   // not, in the one place they all pass through.
   //
   // Resolved-promise no-op on the web and on every request after the first.
-  if (options.auth) await unlockTokens();
+  if (options.auth) await waitForSession();
   try {
     return await rawRequest<T>(path, options);
   } catch (err) {
@@ -435,7 +459,7 @@ export async function uploadFile<T = { url: string }>(
 ): Promise<T> {
   // Same wait as `request()`: the offline queue flushes proof-of-delivery photos on the
   // first signal after a cold start, which can be before the Keystore has been read.
-  await unlockTokens();
+  await waitForSession();
 
   if (missingPathSegment(path)) {
     throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
@@ -478,6 +502,9 @@ export async function uploadFile<T = { url: string }>(
  * and — once the native shell sends a bearer instead of a cookie — no auth at all.
  */
 export async function getBlob(path: string, _retry = false): Promise<Blob> {
+  // Same wait as `request()`: these two used to read the token the instant they were called,
+  // which on a cold start is before the Keystore has been opened.
+  await waitForSession();
   if (missingPathSegment(path)) {
     throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
   }
@@ -504,6 +531,7 @@ export async function getBlob(path: string, _retry = false): Promise<Blob> {
  * string. Same guarantees as `getBlob`: deadline, 401 refresh-retry, bearer-or-cookie auth.
  */
 export async function postBlob(path: string, body: unknown, _retry = false): Promise<Blob> {
+  await waitForSession();
   if (missingPathSegment(path)) {
     throw new ApiError(0, translate('errors.missingRouteId'), 'CLIENT_MISSING_ROUTE_ID');
   }

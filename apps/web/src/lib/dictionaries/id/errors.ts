@@ -41,6 +41,8 @@ export const errors = {
   // and show the server's 404, which reads as "this record was deleted" rather than
   // "you arrived here without naming one".
   missingRouteId: 'Halaman ini dibuka tanpa data yang diperlukan. Kembali lalu pilih ulang.',
+  // Sesi tersimpan di perangkat tapi belum dibuka pemiliknya (prompt sidik jari/PIN dibatalkan).
+  sessionLocked: 'Sesi belum dibuka. Buka dengan sidik jari atau PIN untuk melanjutkan.',
   // J1: the same four failures on staff screens, which have no city picker to fall back on.
   // The customer wording lives in `home.location` and keeps its "atau pilih kota" way out.
   geo: {

@@ -21,6 +21,15 @@ describe('driversUrl — which roster URL a console screen asks for', () => {
     );
   });
 
+  it.each(['SUPERVISOR', 'ASSISTANT_SUPERVISOR'])(
+    'names a concrete depot for a %s on "all depots" too — same refusal as a manager',
+    (role) => {
+      expect(driversUrl({ selectedId: null, scopedId: 'd-9', role })).toBe(
+        endpoints.auth.driversAt('d-9'),
+      );
+    },
+  );
+
   it('keeps the network-wide roster for head-office roles on "all depots"', () => {
     expect(driversUrl({ selectedId: null, scopedId: 'd-9', role: 'SUPER_ADMIN' })).toBe(
       endpoints.auth.drivers,

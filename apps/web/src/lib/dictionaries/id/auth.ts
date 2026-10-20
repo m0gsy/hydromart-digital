@@ -1,5 +1,14 @@
 // Auth screens (login / register / verify) + site footer. Bahasa source of truth.
 export const auth = {
+  // Layar penutup saat sesi tersimpan belum dibuka (prompt dibatalkan / gagal).
+  lock: {
+    title: 'Sesi terkunci',
+    body: 'Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN untuk melanjutkan, tanpa kode SMS.',
+    unlock: 'Buka sesi',
+    failed: 'Belum terbuka. Coba lagi, atau masuk dengan kode SMS.',
+    useOtp: 'Masuk dengan kode SMS',
+    continueGuest: 'Lanjut tanpa masuk',
+  },
   login: {
     biometricHint:
       'Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN, tanpa kode SMS.',

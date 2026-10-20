@@ -17,6 +17,7 @@ import { thermalErrorKey } from '@/lib/receipt-thermal';
 import { useDepotContact } from '@/lib/use-depot-contact';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
+import { canReadRoster } from '@/lib/drivers-scope';
 import { can, canConfirmPayment } from '@/lib/roles';
 import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
@@ -372,11 +373,14 @@ export function OrderDetail({
   // The depot's name and own line for the struk header. This screen has no cashier or shift
   // to name, only the depot the order belongs to.
   const depotContact = useDepotContact(order.depotId);
+  const { customer } = useAuth();
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const next = nextStatus(order.status);
   const canAdvance = staffCanAdvance(order.status, order.staffCanComplete) && next;
-  const canAssign = order.status === 'PREPARING';
+  // Picking a courier needs the roster; a role that may open the order without it has nothing
+  // to pick from, and the dropdown used to fail with a 403 it could never recover from.
+  const canAssign = order.status === 'PREPARING' && canReadRoster(customer?.role);
 
   async function advance() {
     if (!next) return;
