@@ -340,12 +340,18 @@ export class AccountService {
     const phone = PhoneNumber.create(rawPhone).value;
     const existing = await this.customers.findByPhone(phone);
     if (existing) {
+      const wasCustomer = existing.role === Role.CUSTOMER;
       existing.promoteToStaff(role, depotId);
       if (fullName !== undefined && fullName !== null && fullName !== '') {
         existing.updateProfile(fullName, undefined);
       }
       existing.setVehicle(vehicleType, plateNumber);
-      return { staff: toPublicCustomer(await this.customers.save(existing)), created: false };
+      const saved = await this.customers.save(existing);
+      // A customer turned staff keeps a live session whose cached profile still says
+      // CUSTOMER, so the staff app opens on the shop until they sign in again. Ending the
+      // sessions makes that sign-in (and its console redirect) happen now.
+      if (wasCustomer) await this.sessions.revokeAll(saved.id);
+      return { staff: toPublicCustomer(saved), created: false };
     }
     const created = await this.customers.create({
       phone,
@@ -560,8 +566,12 @@ export class AccountService {
     // depot changes, and `promoteToStaff` lifts SUSPENDED to ACTIVE — so editing a resigned
     // employee's depot handed their login back, with HR still reading RESIGNED and nothing
     // anywhere recording that the account had been reopened.
+    const wasCustomer = customer.role === Role.CUSTOMER;
     customer.assignRole(role, depot);
-    return toPublicCustomer(await this.customers.save(customer));
+    const saved = await this.customers.save(customer);
+    // Same reason as in `inviteStaffDetailed`: a customer session outlives the promotion.
+    if (wasCustomer) await this.sessions.revokeAll(saved.id);
+    return toPublicCustomer(saved);
   }
 
   /**
