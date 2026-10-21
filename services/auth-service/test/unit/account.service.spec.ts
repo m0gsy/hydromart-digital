@@ -472,6 +472,34 @@ describe('AccountService', () => {
       expect(revokeAll).toHaveBeenCalledWith(customer.id);
     });
 
+    // A customer session outlives the promotion and keeps a cached CUSTOMER profile, so the
+    // staff app opened on the shop until the person signed in again.
+    it('ends the sessions of a customer promoted to staff, but not of a staff re-invite', async () => {
+      const customer = makeCustomer({ phone: '+628995550020', role: Role.CUSTOMER });
+      customers.seed(customer);
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await service.inviteStaff('+628995550020', Role.FRANCHISE_OWNER, 'Widya');
+      expect(revokeAll).toHaveBeenCalledWith(customer.id);
+
+      revokeAll.mockClear();
+      await service.inviteStaff('+628995550020', Role.FRANCHISE_OWNER, 'Widya');
+      expect(revokeAll).not.toHaveBeenCalled();
+    });
+
+    it('ends the sessions of a customer given a staff role by account id', async () => {
+      const customer = makeCustomer({ phone: '+628995550021', role: Role.CUSTOMER });
+      customers.seed(customer);
+      const revokeAll = jest.spyOn(sessions, 'revokeAll');
+
+      await service.setStaffRole(customer.id, Role.STAFF_DEPOT, 'depot-1');
+      expect(revokeAll).toHaveBeenCalledWith(customer.id);
+
+      revokeAll.mockClear();
+      await service.setStaffRole(customer.id, Role.STAFF_DEPOT, 'depot-2');
+      expect(revokeAll).not.toHaveBeenCalled();
+    });
+
     it('refuses to switch off your own login from the console', async () => {
       const staff = await service.inviteStaff('+628995550013', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);
 

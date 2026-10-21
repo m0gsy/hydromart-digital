@@ -1,6 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { consoleHome, isStaff } from '@/lib/roles';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { endpoints } from '@/lib/endpoints';
@@ -21,6 +24,14 @@ import { ProductRecRail } from '@/components/product-rec-rail';
 
 export default function HomePage() {
   const { customer } = useAuth();
+  const router = useRouter();
+  // `/` is the customer shop. Any staff role (ops binary or web) belongs in its console, so a
+  // session that opens here — cold start, bookmark, back button — is sent on. The role comes
+  // from `/auth/me` on mount, so a stale cached CUSTOMER snapshot corrects itself too.
+  const staffRole = customer && isStaff(customer.role) ? customer.role : null;
+  useEffect(() => {
+    if (staffRole) router.replace(consoleHome(staffRole));
+  }, [staffRole, router]);
   const { location } = useLocation();
   const { t } = useT();
 
