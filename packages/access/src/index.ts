@@ -32,6 +32,13 @@ export type Role =
   | 'MARKETING'
   | 'SUPER_ADMIN';
 
+/**
+ * Any login role: a built-in `Role` or a SUPER_ADMIN-defined custom role. Custom keys are
+ * `C_` + a slug, so they can never collide with a built-in name. The compiled `CAPABILITIES`
+ * map only ever names built-ins; a custom role holds a capability solely through an override.
+ */
+export type RoleKey = Role | `C_${string}`;
+
 // ASSISTANT_SUPERVISOR and SUPERVISOR see MANY depots but hold deliberately WEAKER
 // powers than MANAGER: mostly oversight reads, no approvals. They are not read-only, though:
 // SUPERVISOR also writes incidents, disputes, targets and the cash book (`incidents`,
@@ -430,6 +437,13 @@ export const CAPABILITIES = {
    * roles, so the controller carries `@Can('kasbonApprove')`.
    */
   kasbonApprove: ['ASSISTANT_SUPERVISOR', 'MANAGER', 'HR', 'SUPER_ADMIN'],
+  // hr-service — a franchise owner reads the attendance of the people at THEIR OWN depots: the
+  // log, the face frame behind a punch, and the summary. Its own capability, not `hrView`, because
+  // hr-service scopes `hrView` reads by depot ROLE: an owner holding it would read every depot's
+  // attendance and face photos. These routes resolve the owner's depots from `Depot.ownerId` (the
+  // depot-service source of truth) and refuse any depot outside that set. Read-only: nothing here
+  // can approve, adjust or enter a punch.
+  hrViewOwn: ['FRANCHISE_OWNER'],
   // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
   // manager see their own depot (DepotScopeGuard keeps it to their depot).
   hrView: [
@@ -826,6 +840,10 @@ export const RESTRICTED_GRANTS: Partial<Record<Role, readonly Role[]>> = {
  * "fail closed" for every role, and it only ever held for the restricted ones).
  */
 export function canGrantRole(actorRole: Role | string | undefined | null, targetRole: Role | string): boolean {
+  // A custom role is the one place "absent from the map" must NOT mean unrestricted: it is
+  // minted by SUPER_ADMIN and carries whatever capabilities SUPER_ADMIN gave it, so letting a
+  // `staffAdmin` holder (HEAD_OFFICE) hand it out would be the same side door the map closes.
+  if (isCustomRoleKey(targetRole)) return actorRole === 'SUPER_ADMIN';
   const grantors = (RESTRICTED_GRANTS as Record<string, readonly string[] | undefined>)[targetRole];
   if (!grantors) return true;
   return actorRole != null && grantors.includes(actorRole);
@@ -838,6 +856,7 @@ export function canGrantRole(actorRole: Role | string | undefined | null, target
  * rather than as a fallback at each call site.
  */
 export function grantorsFor(targetRole: Role | string): readonly string[] {
+  if (isCustomRoleKey(targetRole)) return ['SUPER_ADMIN'];
   return (RESTRICTED_GRANTS as Record<string, readonly string[] | undefined>)[targetRole] ?? ['SUPER_ADMIN'];
 }
 
@@ -880,7 +899,7 @@ export type EmployableRole = (typeof EMPLOYABLE_ROLES)[number];
  * unreachable there are simply no entries, and every guard falls back to the defaults
  * shipped in the binary rather than locking the platform out.
  */
-export type CapabilityOverrides = Readonly<Record<string, readonly Role[]>>;
+export type CapabilityOverrides = Readonly<Record<string, readonly string[]>>;
 
 let overrides: CapabilityOverrides = {};
 
@@ -898,6 +917,134 @@ export function currentOverrides(): CapabilityOverrides {
   return overrides;
 }
 
+// ---------------------------------------------------------------------------------------
+// Custom roles and per-depot overrides
+// ---------------------------------------------------------------------------------------
+
+/** How far a custom role's reach goes — the same three shapes the built-ins already have. */
+export type CustomRoleScope = 'LOCKED' | 'RESOLVED' | 'GLOBAL';
+
+export interface CustomRoleDef {
+  readonly key: string;
+  readonly name: string;
+  readonly scope: CustomRoleScope;
+}
+
+/** One per-depot exception to the global matrix. DENY beats GRANT beats the global list. */
+export interface DepotOverride {
+  readonly capability: string;
+  readonly roleKey: string;
+  readonly depotId: string;
+  readonly effect: 'GRANT' | 'DENY';
+}
+
+/**
+ * Capabilities no custom role may hold, globally or per depot. Each one is a way to acquire
+ * more access: editing the matrix, inviting staff (and so minting roles), rewriting the
+ * hierarchy that decides depot scope, and the network-wide settings. The service refuses
+ * them at write time; `can()` refuses them again at read time, so a row that got into the
+ * table by hand still grants nothing.
+ */
+export const CUSTOM_FORBIDDEN: readonly Capability[] = [
+  'accessMatrixWrite',
+  'staffAdmin',
+  'staffDelete',
+  'hierarchyAdmin',
+  'settingsGlobal',
+  'platformAdmin',
+  // hr-service passes the caller's role into canGrantRole when it changes a jabatan, so holding
+  // hrAdmin / employeeAssign is a way to hand out built-in roles.
+  'hrAdmin',
+  'employeeAssign',
+];
+
+/**
+ * SUPER_ADMIN's settings for one BUILT-IN role. Sparse like the matrix: a role with no entry
+ * behaves exactly as compiled. `name`/`description` are display only. `scope` replaces the
+ * compiled depot reach, `disabled` makes the role hold nothing and be unassignable.
+ */
+export interface RoleSetting {
+  readonly roleKey: string;
+  readonly name?: string | null;
+  readonly description?: string | null;
+  readonly scope?: CustomRoleScope | null;
+  readonly disabled?: boolean;
+  /** ISO time of the last edit, so a form can send it back as `seenUpdatedAt`. Not enforced on read. */
+  readonly updatedAt?: string;
+}
+
+/** Roles that can never be disabled: the superuser, and the end customer every account starts as. */
+export const UNDISABLEABLE_ROLES: readonly Role[] = ['SUPER_ADMIN', 'CUSTOMER'];
+
+/**
+ * Roles whose depot reach is not a setting. SUPER_ADMIN and CUSTOMER are outside the depot model,
+ * and FRANCHISE_OWNER is scoped by `Depot.ownerId` (assertDepotOwnership), which a scope flag
+ * would only duplicate weakly.
+ */
+export const SCOPE_FIXED_ROLES: readonly Role[] = ['SUPER_ADMIN', 'CUSTOMER', 'FRANCHISE_OWNER'];
+
+export function isCustomRoleKey(role: string | null | undefined): boolean {
+  return typeof role === 'string' && role.startsWith('C_');
+}
+
+let customRoles: ReadonlyMap<string, CustomRoleDef> = new Map();
+let roleSettings: ReadonlyMap<string, RoleSetting> = new Map();
+let depotOverrides: ReadonlyMap<string, 'GRANT' | 'DENY'> = new Map();
+
+const SEP = '\u0000';
+const depotKey = (capability: string, roleKey: string, depotId: string): string =>
+  [capability, roleKey, depotId].join(SEP);
+
+/** Replace the ACTIVE custom roles (archived ones are simply absent). */
+export function loadCustomRoles(next: readonly CustomRoleDef[]): void {
+  customRoles = new Map(next.map((r) => [r.key, r]));
+}
+
+export function loadRoleSettings(next: readonly RoleSetting[]): void {
+  roleSettings = new Map(next.map((r) => [r.roleKey, r]));
+}
+
+export function currentRoleSettings(): readonly RoleSetting[] {
+  return [...roleSettings.values()];
+}
+
+/** Whether a built-in role has been switched off. SUPER_ADMIN and CUSTOMER cannot be. */
+export function isRoleDisabled(role: string | null | undefined): boolean {
+  if (role == null || (UNDISABLEABLE_ROLES as readonly string[]).includes(role)) return false;
+  return roleSettings.get(role)?.disabled === true;
+}
+
+/** A built-in role's scope as SUPER_ADMIN set it, if they did. Fixed roles never answer. */
+export function roleScopeSetting(role: string | null | undefined): CustomRoleScope | undefined {
+  if (role == null || (SCOPE_FIXED_ROLES as readonly string[]).includes(role)) return undefined;
+  return roleSettings.get(role)?.scope ?? undefined;
+}
+
+export function currentCustomRoles(): readonly CustomRoleDef[] {
+  return [...customRoles.values()];
+}
+
+export function loadDepotOverrides(next: readonly DepotOverride[]): void {
+  depotOverrides = new Map(next.map((o) => [depotKey(o.capability, o.roleKey, o.depotId), o.effect]));
+}
+
+export function currentDepotOverrides(): readonly DepotOverride[] {
+  return [...depotOverrides.entries()].map(([k, effect]) => {
+    const [capability, roleKey, depotId] = k.split(SEP);
+    return { capability, roleKey, depotId, effect };
+  });
+}
+
+/**
+ * The scope of a custom role, or `undefined` for a built-in. A custom key that is not in the
+ * active snapshot (archived, deleted, or simply not loaded yet) answers `LOCKED`: the
+ * narrowest shape, so an unknown role can only ever see less, never the whole network.
+ */
+export function customRoleScope(role: string | null | undefined): CustomRoleScope | undefined {
+  if (!isCustomRoleKey(role)) return undefined;
+  return customRoles.get(role as string)?.scope ?? 'LOCKED';
+}
+
 /**
  * Roles holding `capability` right now: the override if one exists, else the compiled
  * default. An unknown capability name resolves to nobody — a typo denies rather than
@@ -906,7 +1053,7 @@ export function currentOverrides(): CapabilityOverrides {
  * hasOwnProperty, not `overrides[capability] ?? …`: the patch is parsed from JSON off
  * the wire, so a key like `constructor` must not resolve through the prototype.
  */
-export function rolesFor(capability: string): readonly Role[] {
+export function rolesFor(capability: string): readonly string[] {
   if (Object.prototype.hasOwnProperty.call(overrides, capability)) {
     return overrides[capability];
   }
@@ -914,14 +1061,14 @@ export function rolesFor(capability: string): readonly Role[] {
   // `rolesFor('constructor')` with Object itself, and the `.includes()` below would
   // then throw on a function instead of denying.
   if (Object.prototype.hasOwnProperty.call(CAPABILITIES, capability)) {
-    return (CAPABILITIES as Record<string, readonly Role[]>)[capability];
+    return (CAPABILITIES as Record<string, readonly string[]>)[capability];
   }
   return [];
 }
 
 /** Every capability with the roles that hold it right now (defaults + overrides). */
-export function effectiveMatrix(): Record<Capability, readonly Role[]> {
-  const out = {} as Record<Capability, readonly Role[]>;
+export function effectiveMatrix(): Record<Capability, readonly string[]> {
+  const out = {} as Record<Capability, readonly string[]>;
   for (const capability of Object.keys(CAPABILITIES) as Capability[]) {
     out[capability] = rolesFor(capability);
   }
@@ -938,10 +1085,44 @@ export function capabilitiesFor(role: string | null | undefined): Capability[] {
  *
  * The short-circuit stays ABOVE the override lookup deliberately: even a corrupt or
  * hostile override row cannot lock the superuser out of the console that fixes it.
+ *
+ * `depotIds` is the depot(s) the request touches, when it names any. With it:
+ *   1. a DENY at any of them wins outright;
+ *   2. otherwise the global list decides;
+ *   3. otherwise a GRANT at EVERY one of them allows it (never a partial grant).
+ * Without it only the global list applies, so a depot-only GRANT never opens an endpoint
+ * that names no depot.
+ *
+ * A custom role is checked against the ACTIVE snapshot first. One that is archived,
+ * deleted or not yet loaded holds nothing, and `CUSTOM_FORBIDDEN` is refused here as well as
+ * at write time.
  */
-export function can(capability: Capability, role: string | null | undefined): boolean {
+export function can(
+  capability: Capability,
+  role: string | null | undefined,
+  depotIds?: readonly string[],
+): boolean {
   if (role === 'SUPER_ADMIN') {
     return true;
   }
-  return role != null && (rolesFor(capability) as readonly string[]).includes(role);
+  if (role == null) return false;
+  if (isRoleDisabled(role)) return false;
+  if (isCustomRoleKey(role)) {
+    if (!customRoles.has(role) || (CUSTOM_FORBIDDEN as readonly string[]).includes(capability)) {
+      return false;
+    }
+  }
+  const ids = depotIds ?? [];
+  if (ids.length > 0 && depotOverrides.size > 0) {
+    if (ids.some((id) => depotOverrides.get(depotKey(capability, role, id)) === 'DENY')) {
+      return false;
+    }
+  }
+  if ((rolesFor(capability) as readonly string[]).includes(role)) {
+    return true;
+  }
+  return (
+    ids.length > 0 &&
+    ids.every((id) => depotOverrides.get(depotKey(capability, role, id)) === 'GRANT')
+  );
 }

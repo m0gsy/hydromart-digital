@@ -16,6 +16,7 @@ export const ops = {
   },
   nav: {
     myFranchise: 'My Franchise',
+    ownerAttendance: 'Team attendance',
     operations: 'Operations',
     hqConsole: 'HQ console',
     search: 'Search',

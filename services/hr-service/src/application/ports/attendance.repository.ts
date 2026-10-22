@@ -64,6 +64,21 @@ export interface AttendanceSummary {
   pendingDays: number;
 }
 
+/** Attendance of one depot over a window, for the franchise owner's summary. */
+export interface DepotAttendanceSummary {
+  depotId: string | null;
+  present: number;
+  late: number;
+  absent: number;
+  leave: number;
+  holiday: number;
+  pending: number;
+  /** Minutes late, summed over the LATE rows. */
+  lateMinutes: number;
+  /** Distinct people with at least one row in the window. */
+  employees: number;
+}
+
 /** One attended day's clocked minutes (M24-17 overtime input). */
 export interface WorkedMinutesRow {
   workDate: Date;
@@ -155,4 +170,6 @@ export interface AttendanceRepository {
   /** Settle a PENDING offline punch (HR approve/reject). */
   patchStatus(id: string, status: AttendanceStatus): Promise<Attendance>;
   list(filter: AttendanceListFilter): Promise<{ rows: AttendanceListRow[]; total: number }>;
+  /** Per-depot counts by status for [from, to] (inclusive), limited to `depotIds`. */
+  summaryByDepot(depotIds: readonly string[], from: Date, to: Date): Promise<DepotAttendanceSummary[]>;
 }

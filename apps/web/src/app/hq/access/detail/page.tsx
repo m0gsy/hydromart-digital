@@ -9,6 +9,7 @@ import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 import { useEffectiveCapabilities } from '@/lib/use-effective-capabilities';
 import { useQueryParam } from '@/lib/use-query-param';
+import { roleLabel } from '@/lib/custom-role';
 
 const ALL_ROLES: Role[] = [
   'CUSTOMER',
@@ -63,7 +64,7 @@ export default function HqRoleDetailPage() {
         {back}
         <div className="flex items-center gap-2">
           <IdentificationBadge size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">{t(`hq.roles.${role}`)}</h1>
+          <h1 className="text-2xl font-bold">{roleLabel(t, role)}</h1>
         </div>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
           {t('hq.roleDetail.subtitle')}

@@ -1,39 +1,98 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 
 import {
   CAPABILITIES,
+  CUSTOM_FORBIDDEN,
+  currentCustomRoles,
+  currentDepotOverrides,
   currentOverrides,
   effectiveMatrix,
+  isCustomRoleKey,
+  loadCustomRoles,
+  loadDepotOverrides,
   loadOverrides,
+  loadRoleSettings,
+  rolesFor,
+  roleScopeSetting,
+  currentRoleSettings,
+  SCOPE_FIXED_ROLES,
+  UNDISABLEABLE_ROLES,
   type Capability,
   type CapabilityOverrides,
-  type Role as AccessRole,
+  type CustomRoleDef,
+  type CustomRoleScope,
+  type DepotOverride,
+  type RoleSetting,
 } from '@hydromart/access';
+import { assertFresh, effectiveScope } from '@hydromart/platform';
 
 import { CapabilityOverrideRepository } from '../ports/capability-override.repository';
+import { CustomRoleRecord, CustomRoleRepository } from '../ports/custom-role.repository';
 import { Role } from '../../domain/customer/role.enum';
 import { AUTH_TOKENS } from '../tokens';
+import { AuditService } from './audit.service';
 
 export interface AccessMatrixView {
   /** What the code ships with. */
-  defaults: Record<string, readonly AccessRole[]>;
+  defaults: Record<string, readonly string[]>;
   /** Only the capabilities a super admin has changed. */
   overrides: CapabilityOverrides;
   /** defaults with overrides applied — what the guards actually enforce. */
-  effective: Record<string, readonly AccessRole[]>;
+  effective: Record<string, readonly string[]>;
+  /** Active custom roles. */
+  customRoles: readonly CustomRoleDef[];
+  /** Per-depot GRANT/DENY exceptions. */
+  depotOverrides: readonly DepotOverride[];
+  /** SUPER_ADMIN's settings on built-in roles (name, description, scope, disabled). */
+  roleSettings: readonly RoleSetting[];
 }
 
-const VALID_ROLES = new Set<string>(Object.values(Role));
+/** What the other services poll: the same three things `can()` needs. */
+export interface AccessSnapshot {
+  overrides: CapabilityOverrides;
+  customRoles: readonly CustomRoleDef[];
+  depotOverrides: readonly DepotOverride[];
+  roleSettings: readonly RoleSetting[];
+}
+
+const BUILT_IN_ROLES = new Set<string>(Object.values(Role));
+const SCOPES: readonly CustomRoleScope[] = ['LOCKED', 'RESOLVED', 'GLOBAL'];
+const FORBIDDEN = new Set<string>(CUSTOM_FORBIDDEN);
+
+/** `Kasir Depot!` -> `C_kasir_depot`. Lower-case ASCII so a key is safe in a URL and a column. */
+export function customRoleKeyFor(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40);
+  return slug ? `C_${slug}` : '';
+}
 
 /**
- * Reads and edits the RBAC matrix. auth-service owns it because it already owns the
- * Role enum and the accounts the roles sit on; every other service polls the result.
+ * Reads and edits the RBAC matrix, the custom roles and the per-depot exceptions.
+ * auth-service owns them because it already owns the accounts the roles sit on; every other
+ * service polls the result.
  */
 @Injectable()
 export class AccessMatrixService {
+  private readonly logger = new Logger(AccessMatrixService.name);
+
   constructor(
     @Inject(AUTH_TOKENS.CapabilityOverrideRepository)
     private readonly overrides: CapabilityOverrideRepository,
+    @Inject(AUTH_TOKENS.CustomRoleRepository)
+    private readonly roles: CustomRoleRepository,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -45,52 +104,91 @@ export class AccessMatrixService {
    * edit refreshes the cache itself, so the only cost is what OTHER instances wait.
    */
   private static readonly PATCH_TTL_MS = 15_000;
-  private cached: { at: number; patch: CapabilityOverrides } | null = null;
+  private cached: { at: number; snapshot: AccessSnapshot } | null = null;
 
-  /** Load the patch from the database into this process's live map. */
-  async refresh(): Promise<CapabilityOverrides> {
-    const rows = await this.overrides.listAll();
-    const patch: Record<string, readonly AccessRole[]> = {};
+  /** Load everything from the database into this process's live maps. */
+  async refresh(): Promise<AccessSnapshot> {
+    const [rows, roleRows, depotRows, settingRows] = await Promise.all([
+      this.overrides.listAll(),
+      this.roles.listAll(),
+      this.roles.listDepotOverrides(),
+      this.roles.listRoleSettings(),
+    ]);
+    const patch: Record<string, readonly string[]> = {};
     for (const row of rows) {
       patch[row.capability] = row.roles;
     }
+    const customRoles: CustomRoleDef[] = roleRows
+      .filter((r) => r.archivedAt === null)
+      .map((r) => ({ key: r.key, name: r.name, scope: r.scope }));
+    const active = new Set(customRoles.map((r) => r.key));
+    // An exception for a role that is no longer active would be dead weight at best.
+    const depotOverrides: DepotOverride[] = depotRows
+      .filter((o) => BUILT_IN_ROLES.has(o.roleKey) || active.has(o.roleKey))
+      .map((o) => ({
+        capability: o.capability,
+        roleKey: o.roleKey,
+        depotId: o.depotId,
+        effect: o.effect,
+      }));
+    const roleSettings: RoleSetting[] = settingRows
+      .filter((r) => BUILT_IN_ROLES.has(r.roleKey))
+      .map((r) => ({
+        roleKey: r.roleKey,
+        name: r.name,
+        description: r.description,
+        scope: r.scope,
+        disabled: r.disabledAt !== null,
+        // Shown back to the form, so a save can say which version it was built on.
+        updatedAt: r.updatedAt.toISOString(),
+      }));
     loadOverrides(patch);
-    this.cached = { at: Date.now(), patch };
-    return patch;
+    loadCustomRoles(customRoles);
+    loadDepotOverrides(depotOverrides);
+    loadRoleSettings(roleSettings);
+    const snapshot = { overrides: patch, customRoles, depotOverrides, roleSettings };
+    this.cached = { at: Date.now(), snapshot };
+    return snapshot;
   }
 
-  /** The patch as the pollers consume it — from the last read while it is still fresh. */
-  async patch(): Promise<CapabilityOverrides> {
+  /** The snapshot as the pollers consume it — from the last read while it is still fresh. */
+  async snapshot(): Promise<AccessSnapshot> {
     if (this.cached && Date.now() - this.cached.at < AccessMatrixService.PATCH_TTL_MS) {
-      return this.cached.patch;
+      return this.cached.snapshot;
     }
     return this.refresh();
+  }
+
+  /**
+   * Just the matrix patch. NOT a source for `startCapabilityRefresh`: that would hand it a snapshot
+   * with no custom roles, depot exceptions or role settings, and it would clear them.
+   */
+  async patch(): Promise<CapabilityOverrides> {
+    return (await this.snapshot()).overrides;
   }
 
   async view(): Promise<AccessMatrixView> {
     await this.refresh();
     return {
-      defaults: CAPABILITIES as Record<string, readonly AccessRole[]>,
+      defaults: CAPABILITIES as Record<string, readonly string[]>,
       overrides: currentOverrides(),
       effective: effectiveMatrix(),
+      customRoles: currentCustomRoles(),
+      depotOverrides: currentDepotOverrides(),
+      roleSettings: currentRoleSettings(),
     };
   }
 
+  // ---------------------------------------------------------------- matrix
+
   async set(capability: string, roles: string[], actorId: string | null): Promise<void> {
     const known = this.assertKnown(capability);
-    const unknownRole = roles.find((r) => !VALID_ROLES.has(r));
-    if (unknownRole !== undefined) {
-      throw new BadRequestException(`Peran tidak dikenal: ${unknownRole}`);
-    }
-    // The one irreversible edit this endpoint could make: hand the key to the lock to
-    // nobody. can() short-circuits SUPER_ADMIN so the superuser could still get back in,
-    // but a matrix that CLAIMS otherwise is a trap for whoever reads it next.
-    if (known === 'accessMatrixWrite' && !roles.includes(Role.SUPER_ADMIN)) {
-      throw new BadRequestException('SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite.');
-    }
-    const unique = [...new Set(roles)] as AccessRole[];
+    await this.assertRolesAllowed(known, roles);
+    const unique = [...new Set(roles)];
+    const before = [...((await this.refresh()).overrides[known] ?? CAPABILITIES[known])];
     await this.overrides.upsert(known, unique, actorId);
     await this.refresh();
+    await this.record('access.matrix.changed', actorId, { changes: [{ capability: known, before, after: unique }] });
   }
 
   /**
@@ -108,29 +206,343 @@ export class AccessMatrixService {
     actorId: string | null,
   ): Promise<void> {
     const seen = new Set<string>();
-    const planned = changes.map((change) => {
+    const current = (await this.refresh()).overrides;
+    const audit: { capability: string; before: readonly string[]; after: readonly string[] | null }[] = [];
+    const planned: { capability: string; roles: string[] | null }[] = [];
+    for (const change of changes) {
       const known = this.assertKnown(change.capability);
       if (seen.has(known)) {
         throw new BadRequestException(`Capability disebut dua kali: ${known}`);
       }
       seen.add(known);
-      if (change.roles === null) return { capability: known, roles: null };
-      const unknownRole = change.roles.find((r) => !VALID_ROLES.has(r));
-      if (unknownRole !== undefined) {
-        throw new BadRequestException(`Peran tidak dikenal: ${unknownRole}`);
+      const before = current[known] ?? CAPABILITIES[known];
+      if (change.roles === null) {
+        planned.push({ capability: known, roles: null });
+        audit.push({ capability: known, before, after: null });
+        continue;
       }
-      if (known === 'accessMatrixWrite' && !change.roles.includes(Role.SUPER_ADMIN)) {
-        throw new BadRequestException('SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite.');
-      }
-      return { capability: known, roles: [...new Set(change.roles)] as AccessRole[] };
-    });
+      await this.assertRolesAllowed(known, change.roles);
+      const unique = [...new Set(change.roles)];
+      planned.push({ capability: known, roles: unique });
+      audit.push({ capability: known, before, after: unique });
+    }
     await this.overrides.applyAll(planned, actorId);
     await this.refresh();
+    await this.record('access.matrix.changed', actorId, { changes: audit });
   }
 
-  async reset(capability: string): Promise<void> {
-    await this.overrides.remove(this.assertKnown(capability));
+  async reset(capability: string, actorId: string | null = null): Promise<void> {
+    const known = this.assertKnown(capability);
+    const before = (await this.refresh()).overrides[known] ?? CAPABILITIES[known];
+    await this.overrides.remove(known);
     await this.refresh();
+    await this.record('access.matrix.reset', actorId, { changes: [{ capability: known, before, after: null }] });
+  }
+
+  // ---------------------------------------------------------------- roles
+
+  async listRoles(): Promise<CustomRoleRecord[]> {
+    return this.roles.listAll();
+  }
+
+  async createRole(
+    input: { name: string; description?: string | null; scope?: string; copyFrom?: string },
+    actorId: string | null,
+  ): Promise<CustomRoleRecord> {
+    const name = input.name.trim();
+    const source = input.copyFrom;
+    if (source !== undefined && (!BUILT_IN_ROLES.has(source) || source === Role.CUSTOMER)) {
+      throw new BadRequestException(`Peran sumber tidak dikenal: ${source}`);
+    }
+    // Copying a role starts from its reach; an explicit scope still wins.
+    const scope = this.assertScope(input.scope ?? (source ? effectiveScope(source) : 'LOCKED'));
+    const key = customRoleKeyFor(name);
+    if (!key) {
+      throw new BadRequestException('Nama peran harus memuat huruf atau angka.');
+    }
+    // Case-insensitive on the name as well: two roles a human cannot tell apart in a dropdown.
+    // An ARCHIVED role's name is free again, but its key is not: the key is the primary key and
+    // audit rows and old tokens still point at it.
+    const existing = await this.roles.listAll();
+    const archivedKey = existing.find((r) => r.key === key && r.archivedAt !== null);
+    if (archivedKey) {
+      throw new ConflictException(
+        `Peran ${key} pernah dibuat dan diarsipkan. Pakai nama lain agar kuncinya berbeda.`,
+      );
+    }
+    if (
+      existing.some(
+        (r) => r.archivedAt === null && (r.key === key || r.name.toLowerCase() === name.toLowerCase()),
+      )
+    ) {
+      throw new ConflictException(`Peran dengan nama itu sudah ada: ${name}`);
+    }
+    try {
+      await this.roles.create({
+        key,
+        name,
+        description: input.description?.trim() || null,
+        scope,
+        createdBy: actorId,
+      });
+    } catch (err) {
+      // Two creates of the same name racing past the check above: the primary key decides.
+      if ((err as { code?: string }).code === 'P2002') {
+        throw new ConflictException(`Peran dengan nama itu sudah ada: ${name}`);
+      }
+      throw err;
+    }
+    const copied = source ? await this.copyCapabilities(source, key, actorId) : [];
+    await this.refresh();
+    await this.record('access.role.created', actorId, { key, name, scope, copyFrom: source ?? null, copied });
+    return (await this.roles.find(key)) as CustomRoleRecord;
+  }
+
+  /**
+   * Give `key` every capability `source` holds right now, minus the ones no custom role may hold.
+   * One transaction. If it fails the role is archived again so no half-made copy is left behind.
+   */
+  private async copyCapabilities(source: string, key: string, actorId: string | null): Promise<string[]> {
+    // Read the matrix as it is NOW: a concurrent edit by another admin or replica must not be copied stale.
+    await this.refresh();
+    const copied = (Object.keys(CAPABILITIES) as Capability[]).filter(
+      (c) => !FORBIDDEN.has(c) && rolesFor(c).includes(source),
+    );
+    const changes = copied.map((c) => ({ capability: c, roles: [...new Set([...rolesFor(c), key])] }));
+    try {
+      await this.overrides.applyAll(changes, actorId);
+    } catch (err) {
+      // The original failure is the one the caller needs; a failed rollback must not replace it.
+      await this.roles.archive(key).catch((rollback: unknown) =>
+        this.logger.error(`Could not roll back custom role ${key}: ${String(rollback)}`),
+      );
+      throw err;
+    }
+    return copied;
+  }
+
+  async updateRole(
+    key: string,
+    input: { name?: string; description?: string | null; scope?: string; seenUpdatedAt?: string },
+    actorId: string | null,
+  ): Promise<CustomRoleRecord> {
+    const current = await this.requireActiveRole(key);
+    // Two admins on the same role: the second save must not silently erase the first.
+    assertFresh(current.updatedAt, input.seenUpdatedAt);
+    const patch: { name?: string; description?: string | null; scope?: CustomRoleScope } = {};
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (!name) throw new BadRequestException('Nama peran tidak boleh kosong.');
+      const clash = (await this.roles.listAll()).some(
+        (r) => r.key !== key && r.archivedAt === null && r.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (clash) throw new ConflictException(`Peran dengan nama itu sudah ada: ${name}`);
+      patch.name = name;
+    }
+    if (input.description !== undefined) patch.description = input.description?.trim() || null;
+    if (input.scope !== undefined) patch.scope = this.assertScope(input.scope);
+    await this.roles.update(key, patch);
+    const droppedRules = patch.scope === 'GLOBAL' ? await this.roles.removeDepotOverridesFor(key) : 0;
+    await this.refresh();
+    await this.record('access.role.updated', actorId, {
+      key,
+      before: { name: current.name, scope: current.scope },
+      after: patch,
+      droppedDepotRules: droppedRules,
+    });
+    return (await this.roles.find(key)) as CustomRoleRecord;
+  }
+
+  /** Archive. Refused while anyone still holds the role: they would silently lose every capability. */
+  async archiveRole(key: string, actorId: string | null): Promise<void> {
+    await this.requireActiveRole(key);
+    const holders = await this.roles.countHolders(key);
+    if (holders > 0) {
+      throw new ConflictException(`Peran masih dipakai ${holders} akun. Pindahkan akunnya dulu.`);
+    }
+    await this.roles.archive(key);
+    await this.refresh();
+    await this.record('access.role.archived', actorId, { key });
+  }
+
+  // ---------------------------------------------------------------- built-in roles
+
+  async listBuiltInRoles(): Promise<RoleSetting[]> {
+    await this.refresh();
+    return [...currentRoleSettings()];
+  }
+
+  /**
+   * Name, description and reach of a BUILT-IN role. The reach is a security setting: it is what
+   * stops a depot role from reading the whole network, so it is refused for roles outside the
+   * depot model, and audited with before and after like every other access change.
+   */
+  async updateBuiltInRole(
+    role: string,
+    input: {
+      name?: string | null;
+      description?: string | null;
+      scope?: string | null;
+      seenUpdatedAt?: string;
+    },
+    actorId: string | null,
+  ): Promise<void> {
+    this.assertBuiltIn(role);
+    // A role with no settings row yet has nothing to overwrite; once it has one, the form must say
+    // which version it was shown.
+    const stored = (await this.roles.listRoleSettings()).find((r) => r.roleKey === role);
+    assertFresh(stored?.updatedAt ?? null, input.seenUpdatedAt);
+    const patch: { name?: string | null; description?: string | null; scope?: CustomRoleScope | null } = {};
+    if (input.name !== undefined) patch.name = input.name?.trim() || null;
+    if (input.description !== undefined) patch.description = input.description?.trim() || null;
+    if (input.scope !== undefined) {
+      if (input.scope === null) {
+        patch.scope = null;
+      } else {
+        if ((SCOPE_FIXED_ROLES as readonly string[]).includes(role)) {
+          throw new BadRequestException(`Cakupan ${role} tidak bisa diubah.`);
+        }
+        patch.scope = this.assertScope(input.scope);
+      }
+    }
+    const before = { scope: effectiveScope(role), setting: roleScopeSetting(role) ?? null };
+    await this.roles.upsertRoleSetting(role, patch, actorId);
+    await this.refresh();
+    // A per-depot rule only means something for a role whose depot is fenced. If this edit made the
+    // role network-wide, its rules are now unenforceable: remove them rather than leave a promise.
+    let droppedRules = 0;
+    if (patch.scope !== undefined && effectiveScope(role) === 'GLOBAL') {
+      droppedRules = await this.roles.removeDepotOverridesFor(role);
+      if (droppedRules > 0) await this.refresh();
+    }
+    await this.record('access.builtin.updated', actorId, {
+      role,
+      before,
+      after: patch,
+      droppedDepotRules: droppedRules,
+    });
+  }
+
+  /** Switch a built-in role off (holds nothing, cannot be assigned) or back on. */
+  async setBuiltInDisabled(role: string, disabled: boolean, actorId: string | null): Promise<void> {
+    this.assertBuiltIn(role);
+    if (disabled) {
+      if ((UNDISABLEABLE_ROLES as readonly string[]).includes(role)) {
+        throw new BadRequestException(`${role} tidak bisa dinonaktifkan.`);
+      }
+      const holders = await this.roles.countHolders(role);
+      if (holders > 0) {
+        throw new ConflictException(`Peran masih dipakai ${holders} akun. Pindahkan akunnya dulu.`);
+      }
+    }
+    await this.roles.upsertRoleSetting(role, { disabledAt: disabled ? new Date() : null }, actorId);
+    await this.refresh();
+    await this.record(disabled ? 'access.builtin.disabled' : 'access.builtin.enabled', actorId, { role });
+  }
+
+  private assertBuiltIn(role: string): void {
+    if (!BUILT_IN_ROLES.has(role) || role === Role.CUSTOMER) {
+      throw new NotFoundException(`Peran bawaan tidak ditemukan: ${role}`);
+    }
+  }
+
+  // ---------------------------------------------------------------- per-depot
+
+  async setDepotOverride(
+    capability: string,
+    roleKey: string,
+    depotId: string,
+    effect: string,
+    actorId: string | null,
+  ): Promise<void> {
+    const known = this.assertKnown(capability);
+    if (effect !== 'GRANT' && effect !== 'DENY') {
+      throw new BadRequestException('Efek harus GRANT atau DENY.');
+    }
+    await this.assertRolesAllowed(known, [roleKey], { allowSuperAdmin: false });
+    // A per-depot rule is read from the depot a request NAMES, and only DepotScopeGuard ties that
+    // name to the caller's own depots. For a network-wide role nothing does, so a GRANT could be
+    // used with a depot id picked to match and a DENY would be skipped by naming none. Refuse the
+    // rule instead of storing something the guards cannot honour.
+    const reach = isCustomRoleKey(roleKey)
+      ? (currentCustomRoles().find((r) => r.key === roleKey)?.scope ?? 'LOCKED')
+      : effectiveScope(roleKey);
+    if (reach === 'GLOBAL') {
+      throw new BadRequestException(
+        'Aturan per depot hanya untuk peran yang dibatasi depot. Ubah cakupan peran ini dulu.',
+      );
+    }
+    if (effect === 'GRANT' && FORBIDDEN.has(known)) {
+      throw new BadRequestException(`${known} tidak bisa diberikan per depot.`);
+    }
+    await this.roles.setDepotOverride({ capability: known, roleKey, depotId, effect }, actorId);
+    await this.refresh();
+    await this.record('access.depotOverride.set', actorId, { capability: known, roleKey, depotId, effect, depotScope: depotId });
+  }
+
+  async resetDepotOverride(
+    capability: string,
+    roleKey: string,
+    depotId: string,
+    actorId: string | null,
+  ): Promise<void> {
+    const known = this.assertKnown(capability);
+    await this.roles.removeDepotOverride(known, roleKey, depotId);
+    await this.refresh();
+    await this.record('access.depotOverride.reset', actorId, { capability: known, roleKey, depotId });
+  }
+
+  // ---------------------------------------------------------------- validation
+
+  /**
+   * Every role named must exist (built-in, or an ACTIVE custom one), SUPER_ADMIN may not be
+   * dropped from the key to the lock, and a custom role may not hold a capability that is a way
+   * to gain more access. `allowSuperAdmin: false` is for a per-depot row: SUPER_ADMIN bypasses
+   * every check, so an exception for it could only ever mislead.
+   */
+  private async assertRolesAllowed(
+    capability: Capability,
+    roles: readonly string[],
+    opts: { allowSuperAdmin?: boolean } = {},
+  ): Promise<void> {
+    const active = new Set((await this.roles.listAll()).filter((r) => r.archivedAt === null).map((r) => r.key));
+    for (const r of roles) {
+      if (isCustomRoleKey(r)) {
+        if (!active.has(r)) throw new BadRequestException(`Peran tidak dikenal: ${r}`);
+        if (FORBIDDEN.has(capability)) {
+          throw new BadRequestException(`Peran custom tidak boleh memegang ${capability}.`);
+        }
+      } else if (!BUILT_IN_ROLES.has(r)) {
+        throw new BadRequestException(`Peran tidak dikenal: ${r}`);
+      } else if (r === Role.SUPER_ADMIN && opts.allowSuperAdmin === false) {
+        throw new BadRequestException('SUPER_ADMIN tidak memerlukan pengecualian per depot.');
+      }
+    }
+    // The one irreversible edit this endpoint could make: hand the key to the lock to
+    // nobody. can() short-circuits SUPER_ADMIN so the superuser could still get back in,
+    // but a matrix that CLAIMS otherwise is a trap for whoever reads it next.
+    if (
+      opts.allowSuperAdmin !== false &&
+      capability === 'accessMatrixWrite' &&
+      !roles.includes(Role.SUPER_ADMIN)
+    ) {
+      throw new BadRequestException('SUPER_ADMIN tidak boleh dilepas dari accessMatrixWrite.');
+    }
+  }
+
+  private assertScope(scope: string): CustomRoleScope {
+    if (!SCOPES.includes(scope as CustomRoleScope)) {
+      throw new BadRequestException('Cakupan harus LOCKED, RESOLVED, atau GLOBAL.');
+    }
+    return scope as CustomRoleScope;
+  }
+
+  private async requireActiveRole(key: string): Promise<CustomRoleRecord> {
+    const role = await this.roles.find(key);
+    if (!role || role.archivedAt !== null) {
+      throw new NotFoundException(`Peran tidak ditemukan: ${key}`);
+    }
+    return role;
   }
 
   /**
@@ -144,5 +556,20 @@ export class AccessMatrixService {
       throw new BadRequestException(`Capability tidak dikenal: ${capability}`);
     }
     return capability as Capability;
+  }
+
+  /**
+   * The audit interceptor flattens a request body to `[N item]`, so a batch edit would log
+   * that "something" changed. This writes the before and after of each capability instead.
+   */
+  private record(action: string, actorId: string | null, metadata: Record<string, unknown>): Promise<void> {
+    return this.audit.record({
+      customerId: actorId,
+      action,
+      success: true,
+      ipAddress: null,
+      userAgent: null,
+      metadata,
+    });
   }
 }

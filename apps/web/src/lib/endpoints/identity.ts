@@ -47,6 +47,17 @@ auth: {
   // and are still exercised by `scripts/f6-dynamic-matrix.mjs`; nothing in the app calls
   // them any more, so the client entry is gone with the loop.
   capabilityBatch: '/auth/api/v1/access/matrix',
+  // Custom roles (SUPER_ADMIN): list incl. archived, create, rename/rescope, archive.
+  accessRoles: '/auth/api/v1/access/roles',
+  accessRole: (key: string) => `/auth/api/v1/access/roles/${encodeURIComponent(key)}`,
+  // Built-in roles: PUT name/description/scope, PUT .../disabled to switch off or on.
+  accessBuiltIn: (role: string) => `/auth/api/v1/access/builtin/${encodeURIComponent(role)}`,
+  accessBuiltInDisabled: (role: string) =>
+    `/auth/api/v1/access/builtin/${encodeURIComponent(role)}/disabled`,
+  // One role's GRANT/DENY for one capability at one depot: PUT sets it (body is the decision alone,
+  // `{ effect }`), DELETE resets it.
+  depotOverride: (capability: string, depotId: string, roleKey: string) =>
+    `/auth/api/v1/access/matrix/${encodeURIComponent(capability)}/depots/${encodeURIComponent(depotId)}/${encodeURIComponent(roleKey)}`,
   // Current user's active device sessions (19b) + revoke one by id.
   sessions: '/auth/api/v1/sessions',
   revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,

@@ -163,6 +163,11 @@ const HR = R(`
 /hr/attendance/import /hr/payroll/import /hr/shift/import /hr/depot-requests
 `);
 
+// A franchise owner's own screens: their dashboard and the attendance of the people at their depots.
+const OWNER = R(`
+/dashboard/franchise /dashboard/franchise/attendance
+`);
+
 // All 8 `/m/manager` screens — including the two nobody had ever loaded.
 const MANAGER = R(`
 /m/manager /m/manager/account /m/manager/approvals /m/manager/approvals/detail
@@ -210,6 +215,8 @@ const ROLES = {
   manager: { phone: '+6281100000002', routes: MANAGER },
   courier: { phone: '+6281100000003', routes: DRIVER },
   hr: { phone: '+6281100000004', routes: HR },
+  // Seeded by seed.mjs (Pemilik Waralaba Dago); owns one depot.
+  franchise_owner: { phone: '+6281100000009', routes: OWNER },
   // Seeded by seed-hierarchy.mjs. Narrow with ROUTES=… — these roles own only a slice of /hq.
   finance: { phone: '+6281199000007', routes: HQ },
   marketing: { phone: '+6281199000008', routes: HQ },

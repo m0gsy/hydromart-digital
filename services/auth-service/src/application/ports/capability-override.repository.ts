@@ -1,8 +1,6 @@
-import type { Role } from '@hydromart/access';
-
 export interface CapabilityOverrideRecord {
   capability: string;
-  roles: Role[];
+  roles: string[];
   updatedBy: string | null;
   updatedAt: Date;
 }
@@ -16,7 +14,7 @@ export interface CapabilityOverrideRepository {
   /** Every override, for the matrix editor and the internal poll endpoint. */
   listAll(): Promise<CapabilityOverrideRecord[]>;
   /** Create or replace one capability's role list. */
-  upsert(capability: string, roles: Role[], updatedBy: string | null): Promise<void>;
+  upsert(capability: string, roles: string[], updatedBy: string | null): Promise<void>;
   /** Drop one capability's override, returning it to the compiled default. */
   remove(capability: string): Promise<void>;
   /**
@@ -29,7 +27,7 @@ export interface CapabilityOverrideRepository {
    * "Reset" then appeared to undo without touching the server at all.
    */
   applyAll(
-    changes: { capability: string; roles: Role[] | null }[],
+    changes: { capability: string; roles: string[] | null }[],
     updatedBy: string | null,
   ): Promise<void>;
 }

@@ -167,6 +167,12 @@
     "crm",
     "depots"
   ],
+  "/dashboard/franchise/attendance": [
+    "attendance",
+    "auth",
+    "crm",
+    "depots"
+  ],
   "/dashboard/handover": [
     "auth",
     "crm",

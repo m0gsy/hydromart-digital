@@ -13,6 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import type { Customer, CustomerSummary, LoyaltyAccount } from '@/lib/types';
+import { roleLabel } from '@/lib/custom-role';
 
 // Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup);
 // LTV + recent orders are real (order-service reports.customer); loyalty tier + points are
@@ -141,7 +142,7 @@ export default function HqCustomersPage() {
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-semibold">{t('hq.customers.profile')}</h2>
               <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-800">
-                {t(`hq.roles.${customer.role}`)}
+                {roleLabel(t, customer.role)}
               </span>
             </div>
             <p className="text-lg font-bold">{customer.fullName || customer.phone}</p>

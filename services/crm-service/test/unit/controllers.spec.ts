@@ -28,7 +28,8 @@ import {
 // call the real controller methods against mocked services, hitting every branch (guards,
 // found/not-found, error paths) the e2e specs don't reach for these routes.
 
-const user: AuthenticatedUser = { sub: 'user-1' } as AuthenticatedUser;
+// An HQ role: the depot scope reads a missing role as the narrowest shape (never "sees everything").
+const user: AuthenticatedUser = { sub: 'user-1', role: 'HEAD_OFFICE' } as AuthenticatedUser;
 
 const notifRecord = (over: Partial<NotificationRecord> = {}): NotificationRecord => ({
   id: 'n1',

@@ -130,6 +130,29 @@ export const hr = {
      */
     attendancePhoto: (id: string, which: 'in' | 'out') =>
       `/attendance/api/v1/attendance/${encodeURIComponent(id)}/photo/${which}`,
+    // A franchise owner reads attendance at the depots THEY OWN (`hrViewOwn`). Separate routes from
+    // the HR ones above: those are limited by depot role, which would show an owner every depot.
+    ownerAttendanceDepots: '/attendance/api/v1/attendance/owner/depots',
+    ownerAttendance: (
+      q: { depotId?: string; status?: string; from?: string; to?: string; page?: number; pageSize?: number } = {},
+    ) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.status) p.set('status', q.status);
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/attendance/api/v1/attendance/owner${qs ? `?${qs}` : ''}`;
+    },
+    ownerAttendanceSummary: (q: { depotId?: string; from: string; to: string }) => {
+      const p = new URLSearchParams({ from: q.from, to: q.to });
+      if (q.depotId) p.set('depotId', q.depotId);
+      return `/attendance/api/v1/attendance/owner/summary?${p.toString()}`;
+    },
+    ownerAttendancePhoto: (id: string, which: 'in' | 'out') =>
+      `/attendance/api/v1/attendance/owner/${encodeURIComponent(id)}/photo/${which}`,
     attendanceMe: (q: { from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);

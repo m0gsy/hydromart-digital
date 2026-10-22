@@ -22,6 +22,7 @@ import {
 } from '../../src/modules/dto/loan-request.dto';
 import { ListAuditDto } from '../../src/modules/dto/audit.dto';
 import {
+  ProvisionEmployeeDto,
   ImportEmployeeRowDto,
   ImportEmployeesDto,
   ListEmployeesDto,
@@ -171,5 +172,32 @@ describe('UpdateEmployeeDto.exitDate', () => {
     await expect(
       validate(plainToInstance(UpdateEmployeeDto, { exitDate: 'kemarin' })),
     ).resolves.not.toEqual([]);
+  });
+});
+
+describe('ProvisionEmployeeDto role', () => {
+  const base = {
+    authSubjectId: '11111111-1111-4111-8111-111111111111',
+    fullName: 'Kasir',
+    phone: '+628990004010',
+    position: 'Kasir',
+    joinDate: '2026-10-22',
+    employmentStatus: 'PERMANENT',
+    salaryType: 'MONTHLY',
+    monthlyRate: 1000000,
+  };
+  const errors = async (extra: Record<string, unknown>) =>
+    (await validate(plainToInstance(ProvisionEmployeeDto, { ...base, ...extra }))).filter(
+      (e) => e.property === 'role',
+    );
+
+  it('accepts no role (a custom role has no HR jabatan) and any employable one', async () => {
+    expect(await errors({})).toEqual([]);
+    expect(await errors({ role: 'FINANCE' })).toEqual([]);
+  });
+
+  it('still refuses CUSTOMER and a role it does not know', async () => {
+    expect(await errors({ role: 'CUSTOMER' })).toHaveLength(1);
+    expect(await errors({ role: 'C_kasir' })).toHaveLength(1);
   });
 });

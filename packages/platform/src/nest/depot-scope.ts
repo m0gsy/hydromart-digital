@@ -1,5 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 
+import { customRoleScope, roleScopeSetting, type CustomRoleScope } from '@hydromart/access';
+
 import { Role } from '../domain/role.enum';
 import { AuthenticatedUser } from '../http/authenticated-user';
 
@@ -33,18 +35,36 @@ export const DEPOT_SCOPED_ROLES: ReadonlySet<Role> = new Set([
   Role.MANAGER,
 ]);
 
-export function isDepotLocked(role: Role): boolean {
-  return DEPOT_LOCKED_ROLES.has(role);
+/**
+ * The depot reach of a role. Precedence: a SUPER_ADMIN's setting on a built-in role, then a
+ * custom role's declared scope (an unknown or archived custom key answers LOCKED), then the
+ * compiled sets above. So the only ways to see the whole network are a built-in that is
+ * compiled that way, or a role a SUPER_ADMIN deliberately declared GLOBAL.
+ */
+const KNOWN_ROLES: ReadonlySet<string> = new Set(Object.values(Role));
+
+export function effectiveScope(role: Role | string): CustomRoleScope {
+  const set = roleScopeSetting(role) ?? customRoleScope(role);
+  if (set) return set;
+  if (DEPOT_LOCKED_ROLES.has(role as Role)) return 'LOCKED';
+  if (DEPOT_SCOPED_ROLES.has(role as Role)) return 'RESOLVED';
+  // A string that is neither a built-in role nor a custom one is something this build does not
+  // know. Narrowest shape, so it can only ever see less - never the whole network.
+  return KNOWN_ROLES.has(role) ? 'GLOBAL' : 'LOCKED';
+}
+
+export function isDepotLocked(role: Role | string): boolean {
+  return effectiveScope(role) === 'LOCKED';
 }
 
 /** Whether this role sees a resolved SET of depots rather than one or all of them. */
-export function isDepotResolved(role: Role): boolean {
-  return DEPOT_SCOPED_ROLES.has(role);
+export function isDepotResolved(role: Role | string): boolean {
+  return effectiveScope(role) === 'RESOLVED';
 }
 
 /** Whether depot scoping applies at all. Everyone else (HQ, finance, system) sees all. */
-export function isDepotScoped(role: Role): boolean {
-  return isDepotLocked(role) || isDepotResolved(role);
+export function isDepotScoped(role: Role | string): boolean {
+  return effectiveScope(role) !== 'GLOBAL';
 }
 
 /**

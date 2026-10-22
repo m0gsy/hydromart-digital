@@ -96,9 +96,12 @@ export class AttendanceService {
    * WORKED at decides (the destination's manager runs a lent employee's days); off, the live
    * depot decides as it always did.
    */
+  private rowDepot(employee: Employee, row: Attendance): string | null {
+    return this.config.depotAssignmentEnabled ? (row.depotId ?? employee.depotId) : employee.depotId;
+  }
+
   private assertRowAccess(user: AuthenticatedUser, employee: Employee, row: Attendance): void {
-    const depot = this.config.depotAssignmentEnabled ? (row.depotId ?? employee.depotId) : employee.depotId;
-    assertDepotAccess(user, depot);
+    assertDepotAccess(user, this.rowDepot(employee, row));
   }
 
   /**
@@ -470,11 +473,37 @@ export class AttendanceService {
     id: string,
     which: 'in' | 'out',
   ): Promise<{ body: Buffer; contentType: string }> {
+    return this.loadPhoto(id, which, (employee, row) => this.assertRowAccess(user, employee, row));
+  }
+
+  /**
+   * The same frame for a franchise owner, who may read it only when the day was worked at one of
+   * the depots they own. Anything else answers 404, not 403: an owner must not be able to tell a
+   * row at somebody else's depot from a row that does not exist.
+   */
+  async photoForDepots(
+    ownedDepotIds: readonly string[],
+    id: string,
+    which: 'in' | 'out',
+  ): Promise<{ body: Buffer; contentType: string }> {
+    return this.loadPhoto(id, which, (employee, row) => {
+      const depot = this.rowDepot(employee, row);
+      if (!depot || !ownedDepotIds.includes(depot)) {
+        throw new NotFoundException('Data absensi tidak ditemukan');
+      }
+    });
+  }
+
+  private async loadPhoto(
+    id: string,
+    which: 'in' | 'out',
+    allow: (employee: Employee, row: Attendance) => void,
+  ): Promise<{ body: Buffer; contentType: string }> {
     const row = await this.repo.findById(id);
     if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
     const employee = await this.employees.findById(row.employeeId);
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
-    this.assertRowAccess(user, employee, row);
+    allow(employee, row);
 
     const key = this.storageKeyOf(which === 'in' ? row.checkInPhotoUrl : row.checkOutPhotoUrl);
     if (!key || !this.storage) throw new NotFoundException('Foto absensi tidak tersedia');

@@ -15,7 +15,15 @@ describe('rbacHealth', () => {
 
   it('reports a service whose bootstrap wired neither', () => {
     expect(rbacHealth()).toEqual({
-      capabilityMatrix: { overrides: null, ageSeconds: null, stale: false },
+      capabilityMatrix: {
+        overrides: null,
+        ageSeconds: null,
+        stale: false,
+        customRoles: null,
+        depotOverrides: null,
+        roleSettings: null,
+        dropped: null,
+      },
       depotScope: { configured: false, cached: 0 },
     });
   });
@@ -56,5 +64,25 @@ describe('rbacHealth', () => {
   it('reports the depot-scope resolver once configured', () => {
     configureDepotScope(async () => []);
     expect(rbacHealth().depotScope).toEqual({ configured: true, cached: 0 });
+  });
+
+  it('counts custom roles, depot exceptions, role settings and refused rows', async () => {
+    const stop = startCapabilityRefresh(async () => ({
+      overrides: {},
+      customRoles: [{ key: 'C_a', name: 'A', scope: 'LOCKED' as const }],
+      depotOverrides: [],
+      roleSettings: [{ roleKey: 'HR', disabled: true }],
+      dropped: 3,
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+    stop();
+    expect(rbacHealth().capabilityMatrix).toMatchObject({
+      overrides: 0,
+      customRoles: 1,
+      depotOverrides: 0,
+      roleSettings: 1,
+      dropped: 3,
+    });
   });
 });

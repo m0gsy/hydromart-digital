@@ -16,6 +16,8 @@ import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, DepotAdmin, Page } from '@/lib/types';
+import { roleLabel } from '@/lib/custom-role';
+import { useCustomRoles } from '@/lib/use-custom-roles';
 
 const FILTER_ROLES = [
   'STAFF_DEPOT',
@@ -89,6 +91,7 @@ export default function HqStaffPage() {
   const { t } = useT();
   // Deleting is SUPER_ADMIN-only; head office sees every other control on the row.
   const { customer } = useAuth();
+  const customRoles = useCustomRoles();
   // Every write on this page — invite, import, depot move, enable/disable — is gated
   // `staffAdmin` server-side, which this console's DIREKTUR does not hold.
   const canAdminStaff = can('staffAdmin', customer?.role);
@@ -153,9 +156,9 @@ export default function HqStaffPage() {
         <FilterChip active={roleFilter === ''} onClick={() => setRoleFilter('')}>
           {t('hq.staff.filterAll')}
         </FilterChip>
-        {FILTER_ROLES.map((r) => (
+        {[...FILTER_ROLES, ...customRoles.map((r) => r.key)].map((r) => (
           <FilterChip key={r} active={roleFilter === r} onClick={() => setRoleFilter(r)}>
-            {t(`hq.roles.${r}`)}
+            {roleLabel(t, r)}
           </FilterChip>
         ))}
       </div>
@@ -199,7 +202,7 @@ export default function HqStaffPage() {
                   )}
                 </div>
                 {canAdminStaff && <DepotPicker staff={s} depots={depots} onMoved={reloadAll} />}
-                <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
+                <Badge tone="brand">{roleLabel(t, s.role)}</Badge>
                 <Badge tone={active ? 'success' : 'neutral'}>
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
                 </Badge>

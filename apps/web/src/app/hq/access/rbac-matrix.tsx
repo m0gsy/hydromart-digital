@@ -4,15 +4,23 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Check } from '@phosphor-icons/react';
 
-import { CAPABILITIES, type Capability, type Role } from '@hydromart/access';
+import {
+  CAPABILITIES,
+  CUSTOM_FORBIDDEN,
+  type Capability,
+  type CustomRoleDef,
+  type Role,
+  type RoleSetting,
+} from '@hydromart/access';
 import { Button, Card, FormError } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { customRoleLabel } from '@/lib/custom-role';
 import { useT } from '@/lib/locale-context';
 
 // Staff roles (CUSTOMER is never in the matrix). Column order is canonical + used for
 // the generated diff so output is deterministic.
-const ROLES: Role[] = [
+const BUILT_IN_ROLES: Role[] = [
   'STAFF_DEPOT',
   'KEPALA_DEPOT',
   'ASSISTANT_SUPERVISOR',
@@ -156,7 +164,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'earningRules',
     ],
   },
-  { key: 'hr', caps: ['hrView', 'hrAdmin', 'employeeAssign', 'employeeAssignRequest', 'hrPayroll', 'leaveApprove'] },
+  { key: 'hr', caps: ['hrView', 'hrViewOwn', 'hrAdmin', 'employeeAssign', 'employeeAssignRequest', 'hrPayroll', 'leaveApprove'] },
 ];
 
 /**
@@ -170,13 +178,22 @@ const PLACED = new Set(CAP_SECTIONS.flatMap((s) => s.caps));
 const UNPLACED = (Object.keys(CAPABILITIES) as Capability[]).filter((c) => !PLACED.has(c));
 if (UNPLACED.length > 0) CAP_SECTIONS.push({ key: 'other', caps: UNPLACED });
 
-type Grid = Record<Capability, Role[]>;
+// A column is a built-in role or an active custom one; a custom column is named by its key.
+type Grid = Record<Capability, string[]>;
 
 // GET /access/matrix — effective is defaults + super-admin overrides, i.e. what the
 // Nest guards enforce right now.
-interface AccessMatrixResponse {
-  effective?: Partial<Record<Capability, Role[]>>;
+export interface AccessMatrixResponse {
+  effective?: Partial<Record<Capability, string[]>>;
+  customRoles?: CustomRoleDef[];
+  roleSettings?: RoleSetting[];
+  depotOverrides?: { capability: string; roleKey: string; depotId: string; effect: 'GRANT' | 'DENY' }[];
 }
+
+const FORBIDDEN = new Set<string>(CUSTOM_FORBIDDEN);
+const isCustom = (role: string): boolean => role.startsWith('C_');
+const abbr = (role: string, name?: string): string =>
+  isCustom(role) ? (name ?? customRoleLabel(role)).slice(0, 3) : ROLE_ABBR[role as Role];
 
 function cloneCaps(): Grid {
   const out = {} as Grid;
@@ -186,7 +203,7 @@ function cloneCaps(): Grid {
   return out;
 }
 
-function sameRoles(a: Role[], b: readonly Role[]): boolean {
+function sameRoles(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const sb = new Set(b);
   return a.every((r) => sb.has(r));
@@ -203,6 +220,21 @@ export function RbacMatrix() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Until the server's matrix has been read, the grid shows what this build was compiled with. Editing
+  // that and saving would diff against the wrong baseline and could overwrite real overrides.
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [customRoles, setCustomRoles] = useState<CustomRoleDef[]>([]);
+  const [builtInNames, setBuiltInNames] = useState<Map<string, string>>(new Map());
+  const ROLES = useMemo<string[]>(
+    () => [...BUILT_IN_ROLES, ...customRoles.map((r) => r.key)],
+    [customRoles],
+  );
+  // Display names: a custom role's own name, or a name a SUPER_ADMIN gave a built-in role.
+  const nameOf = useMemo(
+    () => new Map([...builtInNames, ...customRoles.map((r) => [r.key, r.name] as const)]),
+    [customRoles, builtInNames],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -213,13 +245,21 @@ export function RbacMatrix() {
         const next = cloneCaps();
         (Object.keys(next) as Capability[]).forEach((c) => {
           const roles = res.effective?.[c];
-          if (roles) next[c] = [...roles] as Role[];
+          if (roles) next[c] = [...roles];
         });
+        setCustomRoles(res.customRoles ?? []);
+        setBuiltInNames(
+          new Map(
+            (res.roleSettings ?? []).flatMap((r) => (r.name ? [[r.roleKey, r.name] as const] : [])),
+          ),
+        );
         setBaseline(next);
         setGrid(next);
+        setLoaded(true);
+        setLoadError(null);
       })
-      .catch(() => {
-        /* fall back to the compiled defaults already in state */
+      .catch((err: unknown) => {
+        if (alive) setLoadError(err instanceof Error ? err.message : String(err));
       });
     return () => {
       alive = false;
@@ -233,7 +273,8 @@ export function RbacMatrix() {
 
   const dirty = changed.length > 0;
 
-  function toggle(cap: Capability, role: Role) {
+  function toggle(cap: Capability, role: string) {
+    if (!loaded || (isCustom(role) && FORBIDDEN.has(cap))) return;
     setCopied(false);
     setGrid((prev) => {
       const has = prev[cap].includes(role);
@@ -244,12 +285,16 @@ export function RbacMatrix() {
 
   // Column bulk-toggle: if the role already holds every capability, clear it from all;
   // otherwise grant it to all. (spec 2a roleHeads.toggle)
-  function toggleRole(role: Role) {
+  function toggleRole(role: string) {
+    if (!loaded) return;
     setCopied(false);
     setGrid((prev) => {
-      const caps = Object.keys(prev) as Capability[];
+      // A custom role is never given a capability it may not hold, so "all" means "all it may".
+      const caps = (Object.keys(prev) as Capability[]).filter(
+        (c) => !(isCustom(role) && FORBIDDEN.has(c)),
+      );
       const hasAll = caps.every((c) => prev[c].includes(role));
-      const out = {} as Grid;
+      const out = { ...prev } as Grid;
       caps.forEach((c) => {
         out[c] = hasAll
           ? prev[c].filter((r) => r !== role)
@@ -264,10 +309,12 @@ export function RbacMatrix() {
   // Row bulk-toggle: grant the cap to every role, or clear it entirely if already full.
   // (spec 2a cap.toggleRow)
   function toggleCap(cap: Capability) {
+    if (!loaded) return;
     setCopied(false);
     setGrid((prev) => {
-      const hasAll = ROLES.every((r) => prev[cap].includes(r));
-      return { ...prev, [cap]: hasAll ? [] : [...ROLES] };
+      const eligible = ROLES.filter((r) => !(isCustom(r) && FORBIDDEN.has(cap)));
+      const hasAll = eligible.every((r) => prev[cap].includes(r));
+      return { ...prev, [cap]: hasAll ? [] : [...eligible] };
     });
   }
 
@@ -327,6 +374,14 @@ export function RbacMatrix() {
 
   return (
     <div className="flex flex-col gap-4">
+      {loadError && (
+        <div role="alert">
+          <Card className="border-danger p-4">
+            <p className="text-sm font-semibold text-danger">{t('hqFix.roles.loadFailed')}</p>
+            <p className="text-xs text-muted">{loadError}</p>
+          </Card>
+        </div>
+      )}
       {dirty && (
         <Card className="flex flex-wrap items-center justify-between gap-3 border-brand-400 bg-brand-50 p-4">
           <div className="min-w-0">
@@ -376,10 +431,10 @@ export function RbacMatrix() {
                   <button
                     type="button"
                     onClick={() => toggleRole(r)}
-                    title={`${t(`hq.roles.${r}`)} — ${t('hqFix.toggleCol')}`}
+                    title={`${nameOf.get(r) ?? t(`hq.roles.${r}`)} — ${t('hqFix.toggleCol')}`}
                     className="min-h-11 w-full rounded px-1 py-0.5 transition-colors hover:bg-brand-50 hover:text-brand-700"
                   >
-                    {ROLE_ABBR[r]}
+                    {abbr(r, nameOf.get(r))}
                   </button>
                   {/* /hq/access/detail was written, gated and reachable only by typing the
                       URL — the one screen that answers "what may THIS role do" in a readable
@@ -401,6 +456,9 @@ export function RbacMatrix() {
                 key={section.key}
                 section={section}
                 grid={grid}
+                roles={ROLES}
+                locked={!loaded}
+                nameOf={nameOf}
                 onToggle={toggle}
                 onToggleCap={toggleCap}
               />
@@ -417,12 +475,19 @@ export function RbacMatrix() {
 function SectionRows({
   section,
   grid,
+  roles,
+  locked,
+  nameOf,
   onToggle,
   onToggleCap,
 }: {
   section: { key: string; caps: Capability[] };
   grid: Grid;
-  onToggle: (cap: Capability, role: Role) => void;
+  roles: string[];
+  /** True until the server's matrix has been read: nothing may be edited against defaults. */
+  locked: boolean;
+  nameOf: Map<string, string>;
+  onToggle: (cap: Capability, role: string) => void;
   onToggleCap: (cap: Capability) => void;
 }) {
   const { t } = useT();
@@ -430,7 +495,7 @@ function SectionRows({
     <>
       <tr>
         <td
-          colSpan={ROLES.length + 1}
+          colSpan={roles.length + 1}
           className="sticky left-0 bg-[color:var(--surface-soft)] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted"
         >
           {t(`hq.access.groups.${section.key}`)}
@@ -448,18 +513,23 @@ function SectionRows({
               {t(`hq.access.caps.${cap}`)}
             </button>
           </td>
-          {ROLES.map((role) => {
+          {roles.map((role) => {
             const on = grid[cap].includes(role);
+            const blocked = isCustom(role) && FORBIDDEN.has(cap);
             return (
               <td key={role} className="px-1.5 py-1 text-center">
                 <button
                   type="button"
                   aria-pressed={on}
-                  aria-label={`${t(`hq.access.caps.${cap}`)} · ${t(`hq.roles.${role}`)}`}
+                  aria-label={`${t(`hq.access.caps.${cap}`)} · ${nameOf.get(role) ?? t(`hq.roles.${role}`)}`}
+                  disabled={blocked || locked}
+                  title={blocked ? t('hqFix.roles.forbidden') : undefined}
                   onClick={() => onToggle(cap, role)}
                   className={
                     'inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors ' +
-                    (on
+                    (blocked
+                      ? 'cursor-not-allowed border border-dashed border-app text-transparent opacity-40'
+                      : on
                       ? 'bg-brand-600 text-on-brand hover:bg-brand-700'
                       : 'border border-app text-transparent hover:bg-brand-50')
                   }

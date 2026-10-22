@@ -15,21 +15,6 @@ datasource db {
 /// Depot chain: STAFF_DEPOT -> KEPALA_DEPOT (both locked to one depot) ->
 /// ASSISTANT_SUPERVISOR -> SUPERVISOR -> MANAGER (each oversees a resolved SET of
 /// depots) -> DIREKTUR and the office roles (network-wide).
-enum Role {
-  CUSTOMER
-  STAFF_DEPOT
-  KEPALA_DEPOT
-  ASSISTANT_SUPERVISOR
-  SUPERVISOR
-  MANAGER
-  DIREKTUR
-  FRANCHISE_OWNER
-  HEAD_OFFICE
-  FINANCE
-  HR
-  MARKETING
-  SUPER_ADMIN
-}
 
 /// A SUPER_ADMIN edit to the compiled RBAC matrix in @hydromart/access.
 ///
@@ -43,11 +28,59 @@ model CapabilityOverride {
   capability String   @id
   /// Full replacement role list. An empty list means "SUPER_ADMIN only" — the
   /// superuser short-circuit sits above this lookup and cannot be edited away.
-  roles      Role[]
+  roles      String[]
   updatedBy  String?  @db.Uuid
   updatedAt  DateTime @updatedAt
 
   @@map("capability_overrides")
+}
+
+/// A role defined by a SUPER_ADMIN at runtime. `key` is `C_` + slug, so it can never collide with
+/// a built-in. Archived (never deleted) so audit rows and old tokens keep a name to resolve;
+/// an archived role holds nothing.
+model CustomRole {
+  key         String    @id
+  name        String
+  description String?
+  /// LOCKED | RESOLVED | GLOBAL - mirrors the three shapes the built-in roles already have.
+  scope       String
+  archivedAt  DateTime?
+  createdBy   String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("custom_roles")
+}
+
+/// SUPER_ADMIN's settings for one BUILT-IN role. Sparse: no row = behaves as compiled. `name` and
+/// `description` are display only; `scope` replaces the compiled depot reach; `disabledAt` makes
+/// the role hold nothing and be unassignable (refused while any account holds it).
+model RoleSetting {
+  roleKey     String    @id
+  name        String?
+  description String?
+  /// LOCKED | RESOLVED | GLOBAL, or null to keep the compiled reach.
+  scope       String?
+  disabledAt  DateTime?
+  updatedBy   String?   @db.Uuid
+  updatedAt   DateTime  @updatedAt
+
+  @@map("role_settings")
+}
+
+/// A per-depot exception to the global matrix. GRANT opens `capability` for `roleKey` at that
+/// depot only; DENY closes it there even when the global list allows it.
+model CapabilityDepotOverride {
+  capability String
+  roleKey    String
+  depotId    String   @db.Uuid
+  /// GRANT | DENY
+  effect     String
+  updatedBy  String?  @db.Uuid
+  updatedAt  DateTime @updatedAt
+
+  @@id([capability, roleKey, depotId])
+  @@map("capability_depot_overrides")
 }
 
 /// Lifecycle of an account.
@@ -75,7 +108,7 @@ model Customer {
   phone        String         @unique
   email        String?        @unique
   fullName     String?
-  role         Role           @default(CUSTOMER)
+  role         String         @default("CUSTOMER")
   status       CustomerStatus @default(PENDING_VERIFICATION)
   /// Google account subject id, set when a customer links Google Sign-In (FR-006).
   googleSub    String?        @unique

@@ -26,7 +26,7 @@ import {
   Role as PlatformRole,
   runImport,
 } from '@hydromart/platform';
-import { canGrantRole } from '@hydromart/access';
+import { canGrantRole, currentCustomRoles, isCustomRoleKey, isRoleDisabled } from '@hydromart/access';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { Role } from '../../domain/customer/role.enum';
@@ -75,6 +75,15 @@ export interface InviteStaffInput {
 /** Account self-service: profile, active sessions, and logout-everywhere (FR-009/010). */
 @Injectable()
 export class AccountService {
+  /**
+   * A role can be assigned only while it is ACTIVE: a custom one that is not archived, a built-in
+   * one that is not switched off. Either way the account would hold nothing, which reads as a bug later.
+   */
+  private static assignable(role: Role): boolean {
+    if (isRoleDisabled(role)) return false;
+    return !isCustomRoleKey(role) || currentCustomRoles().some((r) => r.key === role);
+  }
+
   constructor(
     @Inject(AUTH_TOKENS.CustomerRepository) private readonly customers: CustomerRepository,
     private readonly sessions: SessionService,
@@ -320,7 +329,7 @@ export class AccountService {
     vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
     grantedBy?: Role,
   ): Promise<{ staff: PublicCustomer; created: boolean }> {
-    if (role === Role.CUSTOMER) {
+    if (role === Role.CUSTOMER || !AccountService.assignable(role)) {
       throw new InvalidStaffRoleError();
     }
     // AUTHZ-1. Checked here, on the one write path both the console invite and the bulk
@@ -428,7 +437,10 @@ export class AccountService {
       authSubjectId: staff.id,
       fullName: staff.fullName ?? input.fullName ?? input.phone,
       phone: staff.phone,
-      role: input.role,
+      // A custom role has no HR jabatan (hr-service keeps its own closed list), so the employee is
+      // created without one. Sending the key would make hr-service refuse the whole invite and
+      // leave the account half-made.
+      role: isCustomRoleKey(input.role) ? undefined : input.role,
       depotId: input.depotId ?? undefined,
       position: input.position,
       joinDate: input.joinDate,
@@ -541,7 +553,7 @@ export class AccountService {
     depotId?: string | null,
     grantedBy?: Role,
   ): Promise<PublicCustomer> {
-    if (role === Role.CUSTOMER) {
+    if (role === Role.CUSTOMER || !AccountService.assignable(role)) {
       throw new InvalidStaffRoleError();
     }
     // SEC-AUDIT CORE-1. The invite path asked this question and this one did not, so a

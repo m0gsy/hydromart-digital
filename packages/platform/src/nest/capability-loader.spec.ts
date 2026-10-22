@@ -14,7 +14,7 @@ describe('httpCapabilityLoader', () => {
 
   it('reads the override patch with the internal key', async () => {
     ok({ overrides: { dashboard: ['SUPER_ADMIN'] } });
-    expect(await httpCapabilityLoader(CFG)()).toEqual({ dashboard: ['SUPER_ADMIN'] });
+    expect((await httpCapabilityLoader(CFG)()).overrides).toEqual({ dashboard: ['SUPER_ADMIN'] });
     const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
     expect(url).toBe('http://auth:3001/api/v1/access/internal/overrides');
     expect(init.headers['x-internal-key']).toBe('k');
@@ -49,17 +49,17 @@ describe('httpCapabilityLoader', () => {
       ['a non-object overrides', { overrides: 'nope' }],
     ])('returns an empty patch for %s', async (_case, body) => {
       ok(body);
-      expect(await httpCapabilityLoader(CFG)()).toEqual({});
+      expect((await httpCapabilityLoader(CFG)()).overrides).toEqual({});
     });
 
     it('drops a non-array value and keeps the well-formed siblings', async () => {
       ok({ overrides: { good: ['HR'], bad: 'HR', alsoBad: 7 } });
-      expect(await httpCapabilityLoader(CFG)()).toEqual({ good: ['HR'] });
+      expect((await httpCapabilityLoader(CFG)()).overrides).toEqual({ good: ['HR'] });
     });
 
     it('drops non-string members inside an otherwise valid array', async () => {
       ok({ overrides: { mixed: ['HR', 42, null, 'FINANCE'] } });
-      expect(await httpCapabilityLoader(CFG)()).toEqual({ mixed: ['HR', 'FINANCE'] });
+      expect((await httpCapabilityLoader(CFG)()).overrides).toEqual({ mixed: ['HR', 'FINANCE'] });
     });
 
     // A `__proto__` key in a JSON body is a prototype-pollution attempt, and this one
@@ -73,9 +73,90 @@ describe('httpCapabilityLoader', () => {
           real: ['HR'],
         },
       });
-      const out = await httpCapabilityLoader(CFG)();
+      const out = (await httpCapabilityLoader(CFG)()).overrides;
       expect(out).toEqual({ real: ['HR'] });
       expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+  });
+
+  describe('custom roles and depot overrides', () => {
+    const DEPOT = '11111111-1111-1111-1111-111111111111';
+
+    it('reads well-formed custom roles and per-depot exceptions', async () => {
+      ok({
+        overrides: {},
+        customRoles: [{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' }],
+        depotOverrides: [{ capability: 'dashboard', roleKey: 'C_kasir', depotId: DEPOT, effect: 'GRANT' }],
+      });
+      const out = await httpCapabilityLoader(CFG)();
+      expect(out.customRoles).toEqual([{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' }]);
+      expect(out.depotOverrides).toEqual([
+        { capability: 'dashboard', roleKey: 'C_kasir', depotId: DEPOT, effect: 'GRANT' },
+      ]);
+    });
+
+    it('drops every malformed custom role', async () => {
+      ok({
+        customRoles: [
+          null,
+          { key: 'MANAGER', name: 'x', scope: 'GLOBAL' },
+          { key: 'C_a', name: 7, scope: 'GLOBAL' },
+          { key: 'C_b', name: 'b', scope: 'EVERYWHERE' },
+          { key: 'C_ok', name: 'ok', scope: 'RESOLVED' },
+        ],
+      });
+      expect((await httpCapabilityLoader(CFG)()).customRoles).toEqual([
+        { key: 'C_ok', name: 'ok', scope: 'RESOLVED' },
+      ]);
+    });
+
+    it('drops every malformed depot exception, including a prototype capability', async () => {
+      ok({
+        depotOverrides: [
+          null,
+          { capability: '__proto__', roleKey: 'C_a', depotId: DEPOT, effect: 'GRANT' },
+          { capability: 'dashboard', roleKey: 'C_a', depotId: DEPOT, effect: 'MAYBE' },
+          { capability: 'dashboard', roleKey: 'C_a', depotId: 5, effect: 'GRANT' },
+          { capability: 'dashboard', roleKey: 'C_a', depotId: DEPOT, effect: 'DENY' },
+        ],
+      });
+      expect((await httpCapabilityLoader(CFG)()).depotOverrides).toEqual([
+        { capability: 'dashboard', roleKey: 'C_a', depotId: DEPOT, effect: 'DENY' },
+      ]);
+    });
+
+    it('reads role settings and drops malformed ones', async () => {
+      ok({
+        roleSettings: [
+          null,
+          { roleKey: '__proto__', disabled: true },
+          { roleKey: 5 },
+          { roleKey: 'MANAGER', name: 'Mgr', description: 7, scope: 'LOCKED', disabled: true },
+          { roleKey: 'HR', scope: 'EVERYWHERE' },
+        ],
+      });
+      expect((await httpCapabilityLoader(CFG)()).roleSettings).toEqual([
+        { roleKey: 'MANAGER', name: 'Mgr', description: null, scope: 'LOCKED', disabled: true },
+        { roleKey: 'HR', name: null, description: null, scope: null, disabled: false },
+      ]);
+    });
+
+    it('counts every row it refuses so the refresher can say so', async () => {
+      ok({
+        overrides: { good: ['HR'], bad: 'x', mixed: ['HR', 7] },
+        customRoles: [null, { key: 'MANAGER' }],
+        depotOverrides: [{ capability: 'dashboard' }],
+        roleSettings: [{ roleKey: 5 }],
+      });
+      // bad (1) + mixed's 7 (1) + 2 roles + 1 depot row + 1 setting
+      expect((await httpCapabilityLoader(CFG)()).dropped).toBe(6);
+    });
+
+    it('an old source that sends neither field yields none', async () => {
+      ok({ overrides: { a: ['HR'] } });
+      const out = await httpCapabilityLoader(CFG)();
+      expect(out.customRoles).toEqual([]);
+      expect(out.depotOverrides).toEqual([]);
     });
   });
 

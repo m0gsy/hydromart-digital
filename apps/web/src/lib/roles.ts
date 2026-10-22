@@ -17,14 +17,15 @@ export type { Capability };
 // super-admin override), delivered on the session and /auth/me. Held module-level for
 // the same reason CAPABILITIES is: every canX() wrapper reads it without threading a
 // context through 35 call sites.
-let session: { role: string; caps: ReadonlySet<string> } | null = null;
+let session: { role: string; caps: ReadonlySet<string>; scope?: string } | null = null;
 
 /** Called by the auth context whenever the signed-in account changes. */
 export function loadSessionCapabilities(
   role: string | null | undefined,
   capabilities: string[] | null | undefined,
+  scope?: string | null,
 ): void {
-  session = role && capabilities ? { role, caps: new Set(capabilities) } : null;
+  session = role && capabilities ? { role, caps: new Set(capabilities), scope: scope ?? undefined } : null;
 }
 
 /**
@@ -96,8 +97,17 @@ export const canWritePromoRules = (role: string | null | undefined) => can('prom
 // cannot import). promo-service answers 403 to a scoped role touching a network-wide rule
 // (depotId null), so the row's Edit/Remove are hidden instead of offered and refused.
 const DEPOT_SCOPED = ['STAFF_DEPOT', 'KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'MANAGER'];
+/**
+ * Whether a role is limited to some depots. For the SIGNED-IN role the server says so (a super
+ * admin can change a built-in role's reach, and a custom role declares its own); for any other
+ * role the compiled list is the answer to a different question.
+ */
+const isDepotScopedRole = (role: string | null | undefined): boolean =>
+  session && role === session.role && session.scope
+    ? session.scope !== 'GLOBAL'
+    : DEPOT_SCOPED.includes(role ?? '');
 export const canWritePromoRule = (role: string | null | undefined, rule: { depotId: string | null }) =>
-  canWritePromoRules(role) && (rule.depotId !== null || !DEPOT_SCOPED.includes(role ?? ''));
+  canWritePromoRules(role) && (rule.depotId !== null || !isDepotScopedRole(role));
 export const canManageCampaigns = (role: string | null | undefined) => can('campaignWrite', role);
 // Promotions are their own capability now, not CRM campaigns: /dashboard/promotions gated
 // on campaignRead (marketing-only) while promo-service answered a different list entirely,
@@ -118,6 +128,8 @@ export const canManageDepotLifecycle = (role: string | null | undefined) =>
 export const canReadDepotRecords = (role: string | null | undefined) => can('depotDirectory', role);
 export const canManagePricing = (role: string | null | undefined) => can('depotAdmin', role);
 export const canViewFranchise = (role: string | null | undefined) => can('franchise', role);
+// A franchise owner reading attendance at the depots they own: log, face frames, summary.
+export const canViewOwnAttendance = (role: string | null | undefined) => can('hrViewOwn', role);
 export const canViewPayout = (role: string | null | undefined) => can('payout', role);
 export const canManageStaff = (role: string | null | undefined) => can('staffAdmin', role);
 export const canViewOpsNotifications = (role: string | null | undefined) => can('opsNotif', role);
@@ -168,7 +180,9 @@ export const isDepotManager = (role: string | null | undefined) => role === 'MAN
  * depot when the set holds more than one, so screens must name one.
  */
 export const isDepotResolvedRole = (role: string | null | undefined) =>
-  role === 'MANAGER' || role === 'SUPERVISOR' || role === 'ASSISTANT_SUPERVISOR';
+  session && role === session.role && session.scope
+    ? session.scope === 'RESOLVED'
+    : role === 'MANAGER' || role === 'SUPERVISOR' || role === 'ASSISTANT_SUPERVISOR';
 // GLOBAL-scope settings writes are SUPER_ADMIN-only server-side (settings.controller.ts);
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';

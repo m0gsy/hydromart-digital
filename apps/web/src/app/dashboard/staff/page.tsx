@@ -13,6 +13,7 @@ import { useT } from '@/lib/locale-context';
 import { CAPABILITIES, canManageStaff, type Capability } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Page } from '@/lib/types';
+import { roleLabel } from '@/lib/custom-role';
 
 // Staff roles selectable in the invite form (CUSTOMER is not assignable here).
 const STAFF_ROLES = [
@@ -97,7 +98,7 @@ function StaffRow({ s }: { s: Customer }) {
           {s.status !== 'ACTIVE' ? ` · ${s.status}` : ''}
         </p>
       </div>
-      <Badge tone="brand">{t(`dashC.staff.roleLabel.${s.role}`)}</Badge>
+      <Badge tone="brand">{roleLabel(t, s.role, 'dashC.staff.roleLabel')}</Badge>
     </Card>
   );
 }

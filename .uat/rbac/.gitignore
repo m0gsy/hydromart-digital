@@ -1,0 +1,7 @@
+# Only the two checks are tracked. Logs, DB dumps, backups and the compose overlay stay local.
+*
+!.gitignore
+!rbac-live.mjs
+!ui-live.mjs
+!owner-attendance-live.mjs
+!ui-owner.mjs

@@ -19,4 +19,5 @@ export const AUTH_TOKENS = {
   CustomerDataPort: Symbol('CustomerDataPort'),
   ConsentRepository: Symbol('ConsentRepository'),
   CapabilityOverrideRepository: Symbol('CapabilityOverrideRepository'),
+  CustomRoleRepository: Symbol('CustomRoleRepository'),
 } as const;

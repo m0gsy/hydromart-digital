@@ -1,15 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { ArrowRight, ShieldCheck } from '@phosphor-icons/react';
 
+import { BuiltInRolesPanel } from './built-in-roles-panel';
+import { CustomRolesPanel, DepotRulesPanel } from './custom-roles-panels';
 import { RbacMatrix } from './rbac-matrix';
 import { useT } from '@/lib/locale-context';
 
-// Design 2a (HERO) — editable capability × role matrix. The matrix reads the LIVE
-// @hydromart/access map and edits only a local copy, generating a paste-ready diff.
+// Design 2a (HERO) — editable capability × role matrix. It reads the server's EFFECTIVE map
+// (compiled defaults + the super-admin overrides) and saves changes as one transaction.
+// Below it: the custom roles themselves, and per-depot exceptions to the matrix.
 export default function HqAccessPage() {
   const { t } = useT();
+  // Bumped when a role is created/renamed/archived so the matrix refetches its columns.
+  const [rev, setRev] = useState(0);
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -29,7 +35,10 @@ export default function HqAccessPage() {
         </Link>
       </div>
 
-      <RbacMatrix />
+      <BuiltInRolesPanel refreshKey={rev} onChanged={() => setRev((n) => n + 1)} />
+      <CustomRolesPanel onChanged={() => setRev((n) => n + 1)} />
+      <RbacMatrix key={rev} />
+      <DepotRulesPanel refreshKey={rev} />
     </div>
   );
 }

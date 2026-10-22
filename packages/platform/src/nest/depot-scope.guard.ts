@@ -95,7 +95,7 @@ export class DepotScopeGuard implements CanActivate {
    * it. Repeated query keys arrive as an array, so those count as separate values too, and
    * `depotIds=a,b` (the owner dashboard's batch form) is a selector like any other.
    */
-  private static requestedDepotIds(request: Request): string[] {
+  static requestedDepotIds(request: Request): string[] {
     const found = new Set<string>();
     const take = (value: unknown): void => {
       if (typeof value === 'string') {

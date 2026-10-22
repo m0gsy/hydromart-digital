@@ -22,6 +22,7 @@ import type {
   Page,
 } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
+import { roleLabel } from '@/lib/custom-role';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -295,7 +296,7 @@ export default function HqDepotDetailPage() {
               {staff.data.items.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                   <span className="min-w-0 truncate font-medium">{s.fullName || s.phone}</span>
-                  <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
+                  <Badge tone="brand">{roleLabel(t, s.role)}</Badge>
                 </li>
               ))}
             </ul>

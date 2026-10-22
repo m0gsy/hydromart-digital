@@ -5,7 +5,6 @@ import {
   IsArray,
   IsBoolean,
   IsDefined,
-  IsEnum,
   IsIn,
   IsISO8601,
   IsInt,
@@ -20,6 +19,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+import { IsRoleKey } from '../../../common/validators/is-role-key';
 import { Role } from '../../../domain/customer/role.enum';
 
 /**
@@ -49,7 +49,7 @@ export class ListStaffQueryDto {
 
   @ApiPropertyOptional({ enum: Role, description: 'Filter to a single role.' })
   @IsOptional()
-  @IsEnum(Role)
+  @IsRoleKey()
   role?: Role;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'Filter to staff assigned to one depot.' })
@@ -88,7 +88,7 @@ export class InviteStaffDto {
   phone!: string;
 
   @ApiProperty({ enum: Role, description: 'Staff role to assign (not CUSTOMER).' })
-  @IsEnum(Role)
+  @IsRoleKey()
   role!: Role;
 
   @ApiPropertyOptional({

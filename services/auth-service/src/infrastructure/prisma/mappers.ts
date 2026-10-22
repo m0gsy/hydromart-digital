@@ -2,7 +2,6 @@ import {
   Customer as PrismaCustomer,
   CustomerStatus as PrismaCustomerStatus,
   OtpPurpose as PrismaOtpPurpose,
-  Role as PrismaRole,
 } from '@prisma/client';
 
 import { Customer } from '../../domain/customer/customer.entity';
@@ -14,8 +13,11 @@ import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
  * Domain and Prisma enums intentionally share identical string members, so mapping
  * is a value-preserving cast. These helpers localize that coupling to one file.
  */
-export const toDomainRole = (role: PrismaRole): Role => role as unknown as Role;
-export const toPrismaRole = (role: Role): PrismaRole => role as unknown as PrismaRole;
+// The column is text since custom roles: a value may be a built-in or a `C_*` key. The domain
+// type stays the built-in enum (a custom key is carried through unchanged and judged by
+// @hydromart/access, which treats an unknown or archived key as holding nothing).
+export const toDomainRole = (role: string): Role => role as Role;
+export const toPrismaRole = (role: Role): string => role;
 
 export const toDomainStatus = (status: PrismaCustomerStatus): CustomerStatus =>
   status as unknown as CustomerStatus;

@@ -218,9 +218,13 @@ export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, [
    *
    * CUSTOMER stays out: an end customer is not staff, and this route only ever runs behind
    * auth-service's own staff-invite path.
+   *
+   * Optional because a SUPER_ADMIN-defined custom role has no HR jabatan; that employee is
+   * created with `role` null, exactly like a row imported before the column existed.
    */
+  @IsOptional()
   @IsIn(EMPLOYABLE_ROLES as readonly string[])
-  role!: EmployableRole;
+  role?: EmployableRole;
 }
 
 /**

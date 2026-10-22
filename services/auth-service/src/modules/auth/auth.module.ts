@@ -37,6 +37,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditLogPrismaRepository } from '../../infrastructure/prisma/repositories/audit-log.prisma.repository';
 import { ConsentPrismaRepository } from '../../infrastructure/prisma/repositories/consent.prisma.repository';
 import { CapabilityOverridePrismaRepository } from '../../infrastructure/prisma/repositories/capability-override.prisma.repository';
+import { CustomRolePrismaRepository } from '../../infrastructure/prisma/repositories/custom-role.prisma.repository';
 import { DataSubjectRequestPrismaRepository } from '../../infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../infrastructure/http/customer-data.http.adapter';
 import { HrDirectoryHttpAdapter } from '../../infrastructure/http/hr-directory.http.adapter';
@@ -94,6 +95,7 @@ const adapterProviders: Provider[] = [
     provide: AUTH_TOKENS.CapabilityOverrideRepository,
     useClass: CapabilityOverridePrismaRepository,
   },
+  { provide: AUTH_TOKENS.CustomRoleRepository, useClass: CustomRolePrismaRepository },
   { provide: AUTH_TOKENS.CryptoPort, useClass: CryptoService },
   { provide: AUTH_TOKENS.ClockPort, useClass: SystemClock },
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },

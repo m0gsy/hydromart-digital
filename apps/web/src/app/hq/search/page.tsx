@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import type { Customer, DepotAdmin, Order } from '@/lib/types';
+import { roleLabel } from '@/lib/custom-role';
 
 interface Results {
   depots: DepotAdmin[];
@@ -222,7 +223,7 @@ export default function HqSearchPage() {
                 <Link key={s.id} href="/hq/staff" className="block">
                   <ResultRow
                     title={s.fullName || s.phone}
-                    meta={`${s.phone} · ${t(`hq.roles.${s.role}`)}`}
+                    meta={`${s.phone} · ${roleLabel(t, s.role)}`}
                   />
                 </Link>
               ))}

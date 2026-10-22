@@ -8,6 +8,8 @@ import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useAuth } from '@/lib/auth-context';
 import { grantableRoles } from '@/lib/roles';
+import { roleLabel } from '@/lib/custom-role';
+import { useCustomRoles, useDisabledRoles } from '@/lib/use-custom-roles';
 import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, Page } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
@@ -43,7 +45,14 @@ function today(): string {
 export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
   const { customer } = useAuth();
-  const offered = grantableRoles(STAFF_ROLES, customer?.role);
+  // A custom role is grantable by SUPER_ADMIN alone (canGrantRole), and the list is empty for
+  // everyone else, so this never offers a button the server would refuse.
+  const customRoles = useCustomRoles();
+  const disabledRoles = useDisabledRoles();
+  const offered: string[] = [
+    ...grantableRoles(STAFF_ROLES, customer?.role).filter((r) => !disabledRoles.has(r)),
+    ...(customer?.role === 'SUPER_ADMIN' ? customRoles.map((r) => r.key) : []),
+  ];
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
@@ -155,7 +164,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
                   : 'border border-app text-muted hover:bg-brand-50')
               }
             >
-              {t(`hq.roles.${r}`)}
+              {roleLabel(t, r)}
             </button>
           ))}
         </div>

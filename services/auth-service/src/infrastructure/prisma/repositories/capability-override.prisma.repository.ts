@@ -1,13 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import type { Role } from '@hydromart/access';
-
 import {
   CapabilityOverrideRecord,
   CapabilityOverrideRepository,
 } from '../../../application/ports/capability-override.repository';
-import { Role as PrismaRole } from '@prisma/client';
-
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -18,14 +14,14 @@ export class CapabilityOverridePrismaRepository implements CapabilityOverrideRep
     const rows = await this.prisma.capabilityOverride.findMany({ orderBy: { capability: 'asc' } });
     return rows.map((r) => ({
       capability: r.capability,
-      roles: r.roles as unknown as Role[],
+      roles: r.roles,
       updatedBy: r.updatedBy,
       updatedAt: r.updatedAt,
     }));
   }
 
-  async upsert(capability: string, roles: Role[], updatedBy: string | null): Promise<void> {
-    const value = roles as unknown as PrismaRole[];
+  async upsert(capability: string, roles: string[], updatedBy: string | null): Promise<void> {
+    const value = roles;
     await this.prisma.capabilityOverride.upsert({
       where: { capability },
       create: { capability, roles: value, updatedBy },
@@ -34,7 +30,7 @@ export class CapabilityOverridePrismaRepository implements CapabilityOverrideRep
   }
 
   async applyAll(
-    changes: { capability: string; roles: Role[] | null }[],
+    changes: { capability: string; roles: string[] | null }[],
     updatedBy: string | null,
   ): Promise<void> {
     if (changes.length === 0) return;
@@ -43,7 +39,7 @@ export class CapabilityOverridePrismaRepository implements CapabilityOverrideRep
         if (c.roles === null) {
           return this.prisma.capabilityOverride.deleteMany({ where: { capability: c.capability } });
         }
-        const value = c.roles as unknown as PrismaRole[];
+        const value = c.roles;
         return this.prisma.capabilityOverride.upsert({
           where: { capability: c.capability },
           create: { capability: c.capability, roles: value, updatedBy },

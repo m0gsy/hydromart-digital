@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { loadCustomRoles, loadRoleSettings } from '@hydromart/access';
 import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
@@ -716,6 +717,54 @@ describe('AccountService', () => {
   // setStaffRole backs an HR jabatan change: the account already exists and only its role
   // (and possibly its depot) moves. It must never mint an account, and it enforces the same
   // depot rule as the invite path.
+  describe('custom roles', () => {
+    const ROLE = 'C_kasir' as unknown as Role;
+    afterEach(() => {
+      loadCustomRoles([]);
+      loadRoleSettings([]);
+    });
+
+    it('refuses a built-in role that has been switched off', async () => {
+      loadRoleSettings([{ roleKey: 'FINANCE', disabled: true }]);
+      await expect(
+        service.inviteStaff('+628990004009', Role.FINANCE, 'F', undefined, undefined, Role.SUPER_ADMIN),
+      ).rejects.toBeInstanceOf(InvalidStaffRoleError);
+    });
+
+    it('refuses a custom role that is not active, on invite and on role change', async () => {
+      await expect(
+        service.inviteStaff('+628990004001', ROLE, 'Kasir', 'depot-1', undefined, Role.SUPER_ADMIN),
+      ).rejects.toBeInstanceOf(InvalidStaffRoleError);
+      const staff = await service.inviteStaff('+628990004002', Role.HEAD_OFFICE, 'K', undefined, undefined, Role.SUPER_ADMIN);
+      await expect(service.setStaffRole(staff.id, ROLE, 'depot-1', Role.SUPER_ADMIN)).rejects.toBeInstanceOf(
+        InvalidStaffRoleError,
+      );
+    });
+
+    it('provisions the employee WITHOUT a jabatan, so hr-service accepts the invite', async () => {
+      loadCustomRoles([{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' }]);
+      await service.inviteStaffWithEmployee(
+        { ...EMPLOYMENT, phone: '+628990004010', role: ROLE, fullName: 'Kasir', depotId: 'depot-1' },
+        Role.SUPER_ADMIN,
+      );
+      const sent = hr.calls.at(-1);
+      expect(sent).toBeDefined();
+      expect(sent && 'role' in sent ? sent.role : 'absent').toBeUndefined();
+    });
+
+    it('lets SUPER_ADMIN assign an active one, refuses head office, and a LOCKED role needs a depot', async () => {
+      loadCustomRoles([{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' }]);
+      await expect(
+        service.inviteStaff('+628990004003', ROLE, 'Kasir', 'depot-1', undefined, Role.HEAD_OFFICE),
+      ).rejects.toBeInstanceOf(RoleEscalationError);
+      await expect(
+        service.inviteStaff('+628990004004', ROLE, 'Kasir', undefined, undefined, Role.SUPER_ADMIN),
+      ).rejects.toBeInstanceOf(StaffDepotRequiredError);
+      const ok = await service.inviteStaff('+628990004005', ROLE, 'Kasir', 'depot-1', undefined, Role.SUPER_ADMIN);
+      expect(ok.role).toBe('C_kasir');
+    });
+  });
+
   describe('setStaffRole', () => {
     it('rejects demoting to CUSTOMER and an unknown account', async () => {
       const staff = await service.inviteStaff('+628990003001', Role.HEAD_OFFICE, 'Kantor', undefined, undefined, Role.SUPER_ADMIN);

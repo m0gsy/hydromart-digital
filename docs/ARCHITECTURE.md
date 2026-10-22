@@ -132,6 +132,46 @@ Implements PRD Module 1 (Authentication, FR-001…010) and the related business 
 
 OTP codes and refresh tokens are **hashed at rest** (never stored in plaintext).
 
+## 4b. Roles, capabilities and depot reach (RBAC)
+
+One source of truth, `@hydromart/access`. Every service evaluates `can(capability, role, depotIds?)`
+against an in-memory snapshot that auth-service serves at `GET /access/internal/overrides` and each
+service polls every 30 s (`startCapabilityRefresh`). If the source is unreachable the service keeps
+the last snapshot for 5 minutes, then falls back to the compiled defaults (never a 503).
+
+What a SUPER_ADMIN can change at runtime, on `/hq/access`:
+
+| Layer | Stored in | Effect |
+|---|---|---|
+| Capability matrix | `capability_overrides` | Which roles hold a capability. Sparse: no row = compiled default. |
+| Built-in role settings | `role_settings` | Display name, description, depot **scope**, and **disabled**. SUPER_ADMIN and CUSTOMER can never be disabled; SUPER_ADMIN, CUSTOMER and FRANCHISE_OWNER have a fixed scope. |
+| Custom roles | `custom_roles` | Key `C_<slug>`, a scope (`LOCKED` one depot / `RESOLVED` assigned depots / `GLOBAL`), archived never deleted. Created empty or as a copy of a built-in role. |
+| Per-depot exceptions | `capability_depot_overrides` | `(capability, role, depot) -> GRANT | DENY`. |
+
+Evaluation, in order: SUPER_ADMIN always passes; a disabled role, an archived/unknown custom role, or a
+capability in `CUSTOM_FORBIDDEN` for a custom role fails; a DENY at any depot the request names fails;
+otherwise the global list decides; otherwise a GRANT at **every** named depot allows it. A request that
+names no depot only sees the global list, so a depot-only GRANT never opens an endpoint without a depot.
+
+Depot reach comes from `effectiveScope(role)` in `@hydromart/platform`: a SUPER_ADMIN setting on a built-in
+role, then a custom role's declared scope (unknown or archived = `LOCKED`), then the compiled sets. A role
+the system does not recognise is therefore narrowed, never widened. `DepotScopeGuard` still fences every
+depot id a request carries; the per-depot check runs in `RolesGuard` before it and cannot be used to
+reach a depot outside the caller's set.
+
+A franchise owner reads attendance at their own depots through `hrViewOwn` (owners only), not `hrView`:
+`hrView` reads are limited by depot ROLE, so an owner holding it would read every depot and every face
+photo. The owner routes (`GET /attendance/owner`, `/owner/summary`, `/owner/:id/photo/:which`) take the
+owner's depots from depot-service (`Depot.ownerId`) on every call, answer 403 for a depot outside that set
+and 404 for a photo outside it, give an owner with no depots an empty answer (never an unfiltered one) and
+fail with 503 when depot-service cannot be asked. They are read-only.
+
+Limits by design: a custom role can be assigned only by SUPER_ADMIN (`canGrantRole`), cannot hold
+`CUSTOM_FORBIDDEN` capabilities (matrix editing, staff admin, hierarchy admin, global settings), and does
+not open surfaces tied to a literal built-in role: the courier app (`@Roles(STAFF_DEPOT)`), the operator
+and manager consoles, attendance and payroll rules. HR and the staff import keep their closed role lists,
+so an employee file cannot mint a custom role. Every change is written to the audit trail with before/after.
+
 ## 5. MVP roadmap
 
 | Milestone | Scope                                           | Status |
