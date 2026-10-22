@@ -5,6 +5,8 @@ import { Request } from 'express';
 import { can, type Capability } from '@hydromart/access';
 
 import { AuthenticatedUser } from '../http/authenticated-user';
+import { isDepotLocked } from './depot-scope';
+import { DepotScopeGuard } from './depot-scope.guard';
 import { CAPABILITY_KEY, IS_PUBLIC_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
 
 /**
@@ -48,19 +50,32 @@ export class RolesGuard implements CanActivate {
       // the runtime backstop for whatever reaches production despite that.
       throw new ForbiddenException('This route has no authorisation rule.');
     }
-    const user = context.switchToHttp().getRequest<Request>().user as AuthenticatedUser | undefined;
+    const request = context.switchToHttp().getRequest<Request>();
+    const user = request.user as AuthenticatedUser | undefined;
     if (!user) {
       throw new ForbiddenException('You do not have permission to perform this action.');
     }
     // `can()` already short-circuits SUPER_ADMIN; the @Roles path repeats the bypass so
     // the two branches cannot drift, and so it survives an empty literal list.
     const allowed = capability
-      ? can(capability, user.role)
+      ? can(capability, user.role, RolesGuard.depotsOf(request, user))
       : user.role === 'SUPER_ADMIN' || (roles ?? []).includes(user.role);
     if (!allowed) {
       throw new ForbiddenException('You do not have permission to perform this action.');
     }
     return true;
+  }
+
+  /**
+   * The depots this request touches, for a per-depot grant or deny. A depot-locked caller who
+   * names none is acting at their own depot. `undefined` means the route names no depot, and
+   * then only the global matrix applies. DepotScopeGuard runs next and still refuses any depot
+   * outside the caller's set, so a forged depotId buys nothing here.
+   */
+  private static depotsOf(request: Request, user: AuthenticatedUser): string[] | undefined {
+    const named = DepotScopeGuard.requestedDepotIds(request);
+    if (named.length > 0) return named;
+    return isDepotLocked(user.role) && user.depotId ? [user.depotId] : undefined;
   }
 
   /**

@@ -5,7 +5,6 @@ import {
   can,
   loadOverrides,
   rolesFor,
-  type Role as AccessRole,
 } from '@hydromart/access';
 
 import {
@@ -14,6 +13,7 @@ import {
 } from '../../src/application/ports/capability-override.repository';
 import { AccessMatrixService } from '../../src/application/services/access-matrix.service';
 import { Role } from '../../src/domain/customer/role.enum';
+import { FakeAudit, FakeCustomRoles, asAudit } from '../support/fake-custom-roles';
 
 class FakeOverrides implements CapabilityOverrideRepository {
   rows = new Map<string, CapabilityOverrideRecord>();
@@ -22,7 +22,7 @@ class FakeOverrides implements CapabilityOverrideRepository {
     return Promise.resolve([...this.rows.values()]);
   }
 
-  upsert(capability: string, roles: AccessRole[], updatedBy: string | null): Promise<void> {
+  upsert(capability: string, roles: string[], updatedBy: string | null): Promise<void> {
     this.rows.set(capability, { capability, roles, updatedBy, updatedAt: new Date(0) });
     return Promise.resolve();
   }
@@ -36,7 +36,7 @@ class FakeOverrides implements CapabilityOverrideRepository {
   failOn: string | null = null;
 
   applyAll(
-    changes: { capability: string; roles: AccessRole[] | null }[],
+    changes: { capability: string; roles: string[] | null }[],
     updatedBy: string | null,
   ): Promise<void> {
     // A real `$transaction` writes nothing when any statement throws. The fake has to
@@ -64,7 +64,7 @@ describe('AccessMatrixService', () => {
 
   beforeEach(() => {
     repo = new FakeOverrides();
-    service = new AccessMatrixService(repo);
+    service = new AccessMatrixService(repo, new FakeCustomRoles(), asAudit(new FakeAudit()));
     loadOverrides({});
   });
 
@@ -178,7 +178,7 @@ describe('AccessMatrixService.applyAll', () => {
 
   beforeEach(() => {
     repo = new FakeOverrides();
-    service = new AccessMatrixService(repo);
+    service = new AccessMatrixService(repo, new FakeCustomRoles(), asAudit(new FakeAudit()));
     loadOverrides({});
   });
   afterEach(() => loadOverrides({}));

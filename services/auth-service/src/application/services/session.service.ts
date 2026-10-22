@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { CAPABILITIES, HQ_IDLE_LIMIT, type Role } from '@hydromart/access';
+import { HQ_IDLE_LIMIT, can } from '@hydromart/access';
 
 import { SecurityPolicyPort } from '../ports/security-policy.port';
 
@@ -188,7 +188,9 @@ export class SessionService {
     familyId: string,
     now: Date,
   ): Promise<void> {
-    if (!(CAPABILITIES.hqConsole as readonly Role[]).includes(customer.role as unknown as Role)) {
+    // can(), not the compiled map: a role that holds hqConsole only through an override (a custom
+    // role, or a built-in a SUPER_ADMIN widened) is an HQ session too.
+    if (!can('hqConsole', customer.role)) {
       return;
     }
     const limit = await this.securityPolicy.idleTimeoutMinutes();

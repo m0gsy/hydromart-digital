@@ -6,6 +6,8 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
+  Post,
   Put,
   UseGuards,
   UseInterceptors,
@@ -15,9 +17,11 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -26,6 +30,7 @@ import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 import {
   AccessMatrixService,
   AccessMatrixView,
+  AccessSnapshot,
 } from '../../application/services/access-matrix.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -56,6 +61,47 @@ export class CapabilityChangeDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   roles!: string[] | null;
+}
+
+export class CreateCustomRoleDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string | null;
+
+  @IsIn(['LOCKED', 'RESOLVED', 'GLOBAL'])
+  scope!: string;
+}
+
+export class UpdateCustomRoleDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string | null;
+
+  @IsOptional()
+  @IsIn(['LOCKED', 'RESOLVED', 'GLOBAL'])
+  scope?: string;
+}
+
+export class SetDepotOverrideDto {
+  @IsString()
+  @MaxLength(64)
+  roleKey!: string;
+
+  @IsIn(['GRANT', 'DENY'])
+  effect!: string;
 }
 
 export class ApplyMatrixDto {
@@ -136,8 +182,79 @@ export class AccessController {
   @Delete('matrix/:capability')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Drop one capability override, back to the compiled default' })
-  async reset(@Param('capability') capability: string): Promise<void> {
-    await this.matrix.reset(capability);
+  async reset(
+    @Param('capability') capability: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.matrix.reset(capability, user.sub);
+  }
+
+  // Custom roles. Read is staffAdmin so the staff console can offer them; writes are
+  // accessMatrixWrite, and only SUPER_ADMIN holds that.
+  @ApiOkResponse({ description: 'Every custom role, archived ones included.' })
+  @Can('staffAdmin')
+  @Get('roles')
+  @ApiOperation({ summary: 'List custom roles' })
+  listRoles(): Promise<unknown> {
+    return this.matrix.listRoles();
+  }
+
+  @ApiOkResponse({ description: 'The created role.' })
+  @Can('accessMatrixWrite')
+  @Post('roles')
+  @ApiOperation({ summary: 'Create a custom role' })
+  createRole(@Body() dto: CreateCustomRoleDto, @CurrentUser() user: AuthenticatedUser): Promise<unknown> {
+    return this.matrix.createRole(dto, user.sub);
+  }
+
+  @ApiOkResponse({ description: 'The updated role.' })
+  @Can('accessMatrixWrite')
+  @Put('roles/:key')
+  @ApiOperation({ summary: 'Rename a custom role or change its scope' })
+  updateRole(
+    @Param('key') key: string,
+    @Body() dto: UpdateCustomRoleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.matrix.updateRole(key, dto, user.sub);
+  }
+
+  @ApiOkResponse({ description: 'No content.' })
+  @Can('accessMatrixWrite')
+  @Delete('roles/:key')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Archive a custom role (refused while an account holds it)' })
+  async archiveRole(@Param('key') key: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    await this.matrix.archiveRole(key, user.sub);
+  }
+
+  // Per-depot exceptions to the matrix.
+  @ApiOkResponse({ description: 'No content.' })
+  @Can('accessMatrixWrite')
+  @Put('matrix/:capability/depots/:depotId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Grant or deny a capability for one role at one depot' })
+  async setDepotOverride(
+    @Param('capability') capability: string,
+    @Param('depotId', new ParseUUIDPipe()) depotId: string,
+    @Body() dto: SetDepotOverrideDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.matrix.setDepotOverride(capability, dto.roleKey, depotId, dto.effect, user.sub);
+  }
+
+  @ApiOkResponse({ description: 'No content.' })
+  @Can('accessMatrixWrite')
+  @Delete('matrix/:capability/depots/:depotId/:roleKey')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Drop one per-depot exception' })
+  async resetDepotOverride(
+    @Param('capability') capability: string,
+    @Param('depotId', new ParseUUIDPipe()) depotId: string,
+    @Param('roleKey') roleKey: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.matrix.resetDepotOverride(capability, roleKey, depotId, user.sub);
   }
 
   // What the other services poll. Internal key auth, not a user token: it is read by
@@ -148,7 +265,7 @@ export class AccessController {
   @ApiSecurity('internal-key')
   @Get('internal/overrides')
   @ApiOperation({ summary: 'Capability overrides for the service-side matrix cache' })
-  async internalOverrides(): Promise<{ overrides: Record<string, readonly string[]> }> {
-    return { overrides: await this.matrix.patch() };
+  internalOverrides(): Promise<AccessSnapshot> {
+    return this.matrix.snapshot();
   }
 }

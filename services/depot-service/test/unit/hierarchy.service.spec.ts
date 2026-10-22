@@ -50,6 +50,15 @@ describe('HierarchyService.scopedDepotIds', () => {
     }
   });
 
+  // A custom RESOLVED role has no place in the chain to walk from, so it sees exactly the
+  // depots it was granted by hand and nothing inherited - even if the id collides with a
+  // staff id that does sit in the chain.
+  it('gives a custom role only its direct grants', async () => {
+    expect(await service.scopedDepotIds('spv-1', 'C_kasir')).toEqual([]);
+    repo.direct.set('spv-1', ['orphan']);
+    expect(await service.scopedDepotIds('spv-1', 'C_kasir')).toEqual(['orphan']);
+  });
+
   it('adds a direct grant on top of the walk, without duplicating an inherited depot', async () => {
     repo.direct.set('spv-1', ['orphan', 'a0']);
     const ids = await service.scopedDepotIds('spv-1', 'SUPERVISOR');

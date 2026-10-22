@@ -15,8 +15,9 @@ import { AuthenticatedUser } from '../http/authenticated-user';
 export function assertCapability(
   user: Pick<AuthenticatedUser, 'role'> | undefined,
   capability: Capability,
+  depotId?: string | null,
 ): void {
-  if (!user || !can(capability, user.role)) {
+  if (!user || !can(capability, user.role, depotId ? [depotId] : undefined)) {
     throw new ForbiddenException('You do not have permission to perform this action.');
   }
 }

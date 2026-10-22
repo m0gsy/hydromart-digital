@@ -3,7 +3,6 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsEnum,
   IsIn,
   IsISO8601,
   IsOptional,
@@ -19,6 +18,7 @@ import {
   type StaffImportRole,
 } from '@hydromart/access';
 
+import { IsRoleKey } from '../../../common/validators/is-role-key';
 import { Role } from '../../../domain/customer/role.enum';
 
 /**
@@ -83,7 +83,7 @@ export class AssignStaffRoleDto {
    */
   @ApiPropertyOptional({ enum: Role, description: 'Role of the person making the change in hr-service.' })
   @IsOptional()
-  @IsEnum(Role)
+  @IsRoleKey()
   grantedBy?: Role;
 }
 
@@ -141,7 +141,7 @@ export class ProvisionManagedStaffDto extends ProvisionStaffBaseDto {
    */
   @ApiPropertyOptional({ enum: Role, description: 'Role of the person making the change in hr-service.' })
   @IsOptional()
-  @IsEnum(Role)
+  @IsRoleKey()
   grantedBy?: Role;
 }
 

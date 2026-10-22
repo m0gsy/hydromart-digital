@@ -26,7 +26,7 @@ import {
   Role as PlatformRole,
   runImport,
 } from '@hydromart/platform';
-import { canGrantRole } from '@hydromart/access';
+import { canGrantRole, currentCustomRoles, isCustomRoleKey } from '@hydromart/access';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { Role } from '../../domain/customer/role.enum';
@@ -75,6 +75,14 @@ export interface InviteStaffInput {
 /** Account self-service: profile, active sessions, and logout-everywhere (FR-009/010). */
 @Injectable()
 export class AccountService {
+  /**
+   * A custom role can be assigned only while it is ACTIVE. An archived or never-created key
+   * would give the account a role that holds nothing, which reads as a bug later.
+   */
+  private static assignable(role: Role): boolean {
+    return !isCustomRoleKey(role) || currentCustomRoles().some((r) => r.key === role);
+  }
+
   constructor(
     @Inject(AUTH_TOKENS.CustomerRepository) private readonly customers: CustomerRepository,
     private readonly sessions: SessionService,
@@ -320,7 +328,7 @@ export class AccountService {
     vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
     grantedBy?: Role,
   ): Promise<{ staff: PublicCustomer; created: boolean }> {
-    if (role === Role.CUSTOMER) {
+    if (role === Role.CUSTOMER || !AccountService.assignable(role)) {
       throw new InvalidStaffRoleError();
     }
     // AUTHZ-1. Checked here, on the one write path both the console invite and the bulk
@@ -541,7 +549,7 @@ export class AccountService {
     depotId?: string | null,
     grantedBy?: Role,
   ): Promise<PublicCustomer> {
-    if (role === Role.CUSTOMER) {
+    if (role === Role.CUSTOMER || !AccountService.assignable(role)) {
       throw new InvalidStaffRoleError();
     }
     // SEC-AUDIT CORE-1. The invite path asked this question and this one did not, so a

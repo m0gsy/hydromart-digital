@@ -441,7 +441,11 @@ describe('AccessController', () => {
     set: jest.fn().mockResolvedValue(undefined),
     reset: jest.fn().mockResolvedValue(undefined),
     applyAll: jest.fn().mockResolvedValue(undefined),
-    patch: jest.fn().mockResolvedValue({ staffAdmin: ['SUPER_ADMIN'] }),
+    snapshot: jest.fn().mockResolvedValue({
+      overrides: { staffAdmin: ['SUPER_ADMIN'] },
+      customRoles: [],
+      depotOverrides: [],
+    }),
   };
   const controller = new AccessController(matrix as never);
 
@@ -460,8 +464,8 @@ describe('AccessController', () => {
       } as never,
     );
     expect(matrix.set).toHaveBeenCalledWith('staffAdmin', ['SUPER_ADMIN'], 'admin-1');
-    await controller.reset('staffAdmin');
-    expect(matrix.reset).toHaveBeenCalledWith('staffAdmin');
+    await controller.reset('staffAdmin', { sub: 'admin-1' } as never);
+    expect(matrix.reset).toHaveBeenCalledWith('staffAdmin', 'admin-1');
   });
 
   it('passes a whole screenful of edits down as one call, null meaning reset', async () => {
@@ -498,6 +502,8 @@ describe('AccessController', () => {
   it('serves the override patch the other services poll', async () => {
     await expect(controller.internalOverrides()).resolves.toEqual({
       overrides: { staffAdmin: ['SUPER_ADMIN'] },
+      customRoles: [],
+      depotOverrides: [],
     });
   });
 });

@@ -1,5 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 
+import { customRoleScope } from '@hydromart/access';
+
 import { Role } from '../domain/role.enum';
 import { AuthenticatedUser } from '../http/authenticated-user';
 
@@ -33,17 +35,20 @@ export const DEPOT_SCOPED_ROLES: ReadonlySet<Role> = new Set([
   Role.MANAGER,
 ]);
 
-export function isDepotLocked(role: Role): boolean {
-  return DEPOT_LOCKED_ROLES.has(role);
+// A custom role carries its scope as data. An unknown or archived custom key answers LOCKED
+// (see customRoleScope), so the only way a custom role sees the whole network is a SUPER_ADMIN
+// having declared it GLOBAL.
+export function isDepotLocked(role: Role | string): boolean {
+  return DEPOT_LOCKED_ROLES.has(role as Role) || customRoleScope(role) === 'LOCKED';
 }
 
 /** Whether this role sees a resolved SET of depots rather than one or all of them. */
-export function isDepotResolved(role: Role): boolean {
-  return DEPOT_SCOPED_ROLES.has(role);
+export function isDepotResolved(role: Role | string): boolean {
+  return DEPOT_SCOPED_ROLES.has(role as Role) || customRoleScope(role) === 'RESOLVED';
 }
 
 /** Whether depot scoping applies at all. Everyone else (HQ, finance, system) sees all. */
-export function isDepotScoped(role: Role): boolean {
+export function isDepotScoped(role: Role | string): boolean {
   return isDepotLocked(role) || isDepotResolved(role);
 }
 
