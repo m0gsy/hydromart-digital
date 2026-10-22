@@ -159,6 +159,13 @@ the system does not recognise is therefore narrowed, never widened. `DepotScopeG
 depot id a request carries; the per-depot check runs in `RolesGuard` before it and cannot be used to
 reach a depot outside the caller's set.
 
+A franchise owner reads attendance at their own depots through `hrViewOwn` (owners only), not `hrView`:
+`hrView` reads are limited by depot ROLE, so an owner holding it would read every depot and every face
+photo. The owner routes (`GET /attendance/owner`, `/owner/summary`, `/owner/:id/photo/:which`) take the
+owner's depots from depot-service (`Depot.ownerId`) on every call, answer 403 for a depot outside that set
+and 404 for a photo outside it, give an owner with no depots an empty answer (never an unfiltered one) and
+fail with 503 when depot-service cannot be asked. They are read-only.
+
 Limits by design: a custom role can be assigned only by SUPER_ADMIN (`canGrantRole`), cannot hold
 `CUSTOM_FORBIDDEN` capabilities (matrix editing, staff admin, hierarchy admin, global settings), and does
 not open surfaces tied to a literal built-in role: the courier app (`@Roles(STAFF_DEPOT)`), the operator
