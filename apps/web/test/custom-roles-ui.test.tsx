@@ -60,7 +60,7 @@ beforeEach(() => {
       ];
     return {};
   });
-  getCached.mockResolvedValue({ items: [{ id: DEPOT, name: 'Depot A', code: 'A01' }] });
+  getCached.mockResolvedValue({ items: [{ id: DEPOT, name: 'Depot A', code: 'A01' }], total: 1 });
   put.mockResolvedValue(undefined);
   post.mockResolvedValue({});
   del.mockResolvedValue(undefined);
@@ -220,7 +220,7 @@ describe('DepotRulesPanel', () => {
   });
 
   it('shows an unknown depot instead of a raw id, and an error from the server', async () => {
-    getCached.mockResolvedValue({ items: [] });
+    getCached.mockResolvedValue({ items: [], total: 0 });
     wrap(<DepotRulesPanel refreshKey={0} />);
     await screen.findByText(/depot tidak dikenal|unknown depot/);
     get.mockRejectedValueOnce(new Error('boom'));
@@ -248,5 +248,84 @@ describe('roleScope from the session', () => {
     expect(canWritePromoRule('HR', rule)).toBe(false);
     expect(isDepotResolvedRole('MANAGER')).toBe(true);
     loadSessionCapabilities(null, null);
+  });
+});
+
+describe('a failed read is not shown as the live data', () => {
+  it('the matrix says so, and locks every cell', async () => {
+    get.mockRejectedValue(new Error('503 down'));
+    wrap(<RbacMatrix />);
+    await screen.findByText(/503 down/);
+    expect(screen.getByRole('alert').textContent).toMatch(/gagal dibaca|could not be read/);
+    const cells = screen.getAllByRole('button').filter((b) => b.hasAttribute('aria-pressed'));
+    expect(cells.length).toBeGreaterThan(0);
+    expect(cells.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it('the built-in panel will not open an edit form from settings it never read', async () => {
+    get.mockRejectedValue(new Error('503 down'));
+    wrap(<BuiltInRolesPanel refreshKey={0} onChanged={vi.fn()} />);
+    await screen.findByText(/503 down/);
+    const edits = screen.getAllByRole('button', { name: /^Ubah$|^Edit$/ });
+    expect(edits.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    const off = screen.getAllByRole('button', { name: /Nonaktifkan|Switch off/ });
+    expect(off.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it('the depot panel shows the raw id and a warning when the depot list could not be read', async () => {
+    getCached.mockRejectedValue(new Error('depots down'));
+    wrap(<DepotRulesPanel refreshKey={0} />);
+    await screen.findByText(DEPOT, { selector: 'td' });
+    expect(screen.queryByText(/depot tidak dikenal|unknown depot/)).toBeNull();
+    expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+  });
+
+  it('the depot panel treats a truncated depot list as incomplete, not as "unknown"', async () => {
+    getCached.mockResolvedValue({
+      items: Array.from({ length: 100 }, (_, i) => ({ id: `d-${i}`, name: `D${i}`, code: `C${i}` })),
+      total: 250,
+    });
+    wrap(<DepotRulesPanel refreshKey={0} />);
+    await screen.findByText(DEPOT, { selector: 'td' });
+    expect(screen.queryByText(/depot tidak dikenal|unknown depot/)).toBeNull();
+  });
+});
+
+describe('role pickers', () => {
+  it('useDisabledRoles / useCustomRoles read the matrix only for a role that may, and warn on failure', async () => {
+    vi.resetModules();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.doMock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: 'SUPER_ADMIN' } }) }));
+    const { useCustomRoles, useDisabledRoles } = await import('@/lib/use-custom-roles');
+    function Probe() {
+      const custom = useCustomRoles();
+      const off = useDisabledRoles();
+      return <p data-testid="p">{custom.map((r) => r.key).join(',')}|{[...off].join(',')}</p>;
+    }
+    getCached.mockResolvedValue(MATRIX);
+    render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('p').textContent).toBe('C_kasir|FINANCE'));
+    cleanup();
+
+    getCached.mockRejectedValue(new Error('down'));
+    render(<Probe />);
+    await waitFor(() => expect(warn).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('p').textContent).toBe('|');
+    warn.mockRestore();
+    vi.doUnmock('@/lib/auth-context');
+  });
+
+  it('a role without staffAdmin never makes the request', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: 'CUSTOMER' } }) }));
+    const { useCustomRoles } = await import('@/lib/use-custom-roles');
+    function Probe() {
+      return <p data-testid="q">{useCustomRoles().length}</p>;
+    }
+    getCached.mockClear();
+    render(<Probe />);
+    expect(screen.getByTestId('q').textContent).toBe('0');
+    expect(getCached).not.toHaveBeenCalled();
+    vi.doUnmock('@/lib/auth-context');
   });
 });

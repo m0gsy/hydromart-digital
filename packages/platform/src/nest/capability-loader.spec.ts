@@ -141,6 +141,17 @@ describe('httpCapabilityLoader', () => {
       ]);
     });
 
+    it('counts every row it refuses so the refresher can say so', async () => {
+      ok({
+        overrides: { good: ['HR'], bad: 'x', mixed: ['HR', 7] },
+        customRoles: [null, { key: 'MANAGER' }],
+        depotOverrides: [{ capability: 'dashboard' }],
+        roleSettings: [{ roleKey: 5 }],
+      });
+      // bad (1) + mixed's 7 (1) + 2 roles + 1 depot row + 1 setting
+      expect((await httpCapabilityLoader(CFG)()).dropped).toBe(6);
+    });
+
     it('an old source that sends neither field yields none', async () => {
       ok({ overrides: { a: ['HR'] } });
       const out = await httpCapabilityLoader(CFG)();

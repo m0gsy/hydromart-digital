@@ -41,12 +41,16 @@ export const DEPOT_SCOPED_ROLES: ReadonlySet<Role> = new Set([
  * compiled sets above. So the only ways to see the whole network are a built-in that is
  * compiled that way, or a role a SUPER_ADMIN deliberately declared GLOBAL.
  */
+const KNOWN_ROLES: ReadonlySet<string> = new Set(Object.values(Role));
+
 export function effectiveScope(role: Role | string): CustomRoleScope {
   const set = roleScopeSetting(role) ?? customRoleScope(role);
   if (set) return set;
   if (DEPOT_LOCKED_ROLES.has(role as Role)) return 'LOCKED';
   if (DEPOT_SCOPED_ROLES.has(role as Role)) return 'RESOLVED';
-  return 'GLOBAL';
+  // A string that is neither a built-in role nor a custom one is something this build does not
+  // know. Narrowest shape, so it can only ever see less - never the whole network.
+  return KNOWN_ROLES.has(role) ? 'GLOBAL' : 'LOCKED';
 }
 
 export function isDepotLocked(role: Role | string): boolean {

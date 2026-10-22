@@ -76,4 +76,6 @@ export interface CustomRoleRepository {
     updatedBy: string | null,
   ): Promise<void>;
   removeDepotOverride(capability: string, roleKey: string, depotId: string): Promise<void>;
+  /** Drop every per-depot exception of one role (its reach became network-wide). Returns how many. */
+  removeDepotOverridesFor(roleKey: string): Promise<number>;
 }

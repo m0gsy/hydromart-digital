@@ -1,4 +1,7 @@
 import {
+  currentCustomRoles,
+  currentDepotOverrides,
+  currentRoleSettings,
   loadCustomRoles,
   loadDepotOverrides,
   loadOverrides,
@@ -19,7 +22,16 @@ const DEFAULT_MAX_STALE_MS = 5 * 60_000;
  * matrix — a service whose bootstrap missed `startCapabilityRefresh` sits here forever,
  * serving compiled defaults, and that is exactly the state /health has to expose.
  */
-let lastLoad: { at: number; overrides: number } | null = null;
+interface LoadStats {
+  overrides: number;
+  customRoles: number;
+  depotOverrides: number;
+  roleSettings: number;
+  dropped: number;
+}
+
+let lastLoad: ({ at: number } & LoadStats) | null = null;
+
 
 export interface CapabilityMatrixStatus {
   /** Overrides in force, or null when this process has never loaded them. */
@@ -28,6 +40,16 @@ export interface CapabilityMatrixStatus {
   ageSeconds: number | null;
   /** True once a load has failed and no later one has succeeded. */
   stale: boolean;
+  /** Active custom roles, per-depot exceptions and built-in role settings in force. */
+  customRoles: number | null;
+  depotOverrides: number | null;
+  roleSettings: number | null;
+  /**
+   * Rows of the last payload this process refused as malformed. Anything above zero is a skew
+   * between auth-service and this service: a custom role or a depot DENY that is NOT being
+   * enforced here. It is the one number that tells that apart from a healthy snapshot.
+   */
+  dropped: number | null;
 }
 
 let refreshFailing = false;
@@ -42,6 +64,8 @@ export interface CapabilitySnapshot {
   customRoles: readonly CustomRoleDef[];
   depotOverrides: readonly DepotOverride[];
   roleSettings?: readonly RoleSetting[];
+  /** Rows the loader refused as malformed (see `sanitize`). */
+  dropped?: number;
 }
 
 function isSnapshot(x: CapabilitySnapshot | CapabilityOverrides): x is CapabilitySnapshot {
@@ -49,7 +73,7 @@ function isSnapshot(x: CapabilitySnapshot | CapabilityOverrides): x is Capabilit
   return Array.isArray(c.customRoles) && Array.isArray(c.depotOverrides);
 }
 
-function apply(next: CapabilitySnapshot | CapabilityOverrides): number {
+function apply(next: CapabilitySnapshot | CapabilityOverrides): LoadStats {
   const snap: CapabilitySnapshot = isSnapshot(next)
     ? next
     : { overrides: next, customRoles: [], depotOverrides: [], roleSettings: [] };
@@ -57,17 +81,35 @@ function apply(next: CapabilitySnapshot | CapabilityOverrides): number {
   loadCustomRoles(snap.customRoles);
   loadDepotOverrides(snap.depotOverrides);
   loadRoleSettings(snap.roleSettings ?? []);
-  return Object.keys(snap.overrides).length;
+  return {
+    overrides: Object.keys(snap.overrides).length,
+    customRoles: snap.customRoles.length,
+    depotOverrides: snap.depotOverrides.length,
+    roleSettings: (snap.roleSettings ?? []).length,
+    dropped: snap.dropped ?? 0,
+  };
 }
 
 export function capabilityMatrixStatus(): CapabilityMatrixStatus {
   if (!lastLoad) {
-    return { overrides: null, ageSeconds: null, stale: refreshFailing };
+    return {
+      overrides: null,
+      ageSeconds: null,
+      stale: refreshFailing,
+      customRoles: null,
+      depotOverrides: null,
+      roleSettings: null,
+      dropped: null,
+    };
   }
   return {
     overrides: lastLoad.overrides,
     ageSeconds: Math.round((Date.now() - lastLoad.at) / 1000),
     stale: refreshFailing,
+    customRoles: lastLoad.customRoles,
+    depotOverrides: lastLoad.depotOverrides,
+    roleSettings: lastLoad.roleSettings,
+    dropped: lastLoad.dropped,
   };
 }
 
@@ -116,12 +158,25 @@ export function startCapabilityRefresh(
   let stopped = false;
 
   let loadedOnce = false;
+  let lastDropped = 0;
 
   const tick = async (): Promise<void> => {
     try {
-      const count = apply(await load());
-      lastLoad = { at: Date.now(), overrides: count };
+      const stats = apply(await load());
+      const count = stats.overrides;
+      lastLoad = { at: Date.now(), ...stats };
       refreshFailing = false;
+      // A payload this service could only partly read is not a healthy snapshot: the missing
+      // rows may be a custom role or a depot DENY. Said once per change, not once per tick.
+      if (stats.dropped !== lastDropped) {
+        lastDropped = stats.dropped;
+        if (stats.dropped > 0) {
+          logger?.warn(
+            `Capability payload had ${stats.dropped} malformed row(s) that are NOT enforced here; ` +
+              'auth-service and this service may be on different versions.',
+          );
+        }
+      }
       if (!loadedOnce) {
         loadedOnce = true;
         // One line at boot naming the snapshot size. A service whose wiring was missed
@@ -144,12 +199,32 @@ export function startCapabilityRefresh(
       }
       // PLAT-6: the snapshot expires even though the source cannot say so.
       const age = lastLoad ? Date.now() - lastLoad.at : Number.POSITIVE_INFINITY;
-      if (lastLoad && age > maxStaleMs && lastLoad.overrides > 0) {
-        apply({});
-        lastLoad = { at: lastLoad.at, overrides: 0 };
+      const grants = currentDepotOverrides().filter((o) => o.effect === 'GRANT');
+      if (lastLoad && age > maxStaleMs && (lastLoad.overrides > 0 || grants.length > 0)) {
+        const dropping = lastLoad;
+        // Expiry only withdraws what WIDENS access: matrix grants and per-depot GRANTs. What
+        // NARROWS it (a DENY, a switched-off role, a reduced depot reach, a custom role's scope)
+        // stays, because an outage must not hand back access somebody took away.
+        apply({
+          overrides: {},
+          customRoles: currentCustomRoles(),
+          depotOverrides: currentDepotOverrides().filter((o) => o.effect === 'DENY'),
+          roleSettings: currentRoleSettings(),
+        });
+        lastLoad = {
+          at: lastLoad.at,
+          overrides: 0,
+          customRoles: lastLoad.customRoles,
+          depotOverrides: lastLoad.depotOverrides - grants.length,
+          roleSettings: lastLoad.roleSettings,
+          dropped: 0,
+        };
+        lastDropped = 0;
         logger?.warn(
           `Capability overrides are ${Math.round(age / 1000)}s stale; falling back to the ` +
-            'compiled default matrix until the source answers again.',
+            `compiled default matrix until the source answers again. Dropping ${dropping.overrides} ` +
+            `matrix override(s) and ${grants.length} per-depot GRANT(s); keeping every DENY, ` +
+            'switched-off role and reduced reach. Custom roles hold nothing here until the matrix returns.',
         );
       }
     }
@@ -218,15 +293,20 @@ function sanitize(body: RawSnapshot | null): CapabilitySnapshot {
   // `?.` because a literal `null` JSON body is a valid response and would otherwise
   // throw here rather than degrade to "no overrides".
   const raw = body?.overrides;
+  let dropped = 0;
   const out: Record<string, readonly string[]> = Object.create(null) as Record<
     string,
     readonly string[]
   >;
   if (raw !== null && typeof raw === 'object') {
     for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-      if (BAD_KEYS.has(key)) continue;
-      if (!Array.isArray(value)) continue;
-      out[key] = value.filter((r): r is string => typeof r === 'string');
+      if (BAD_KEYS.has(key) || !Array.isArray(value)) {
+        dropped += 1;
+        continue;
+      }
+      const roles = value.filter((r): r is string => typeof r === 'string');
+      dropped += value.length - roles.length;
+      out[key] = roles;
     }
   }
 
@@ -242,6 +322,8 @@ function sanitize(body: RawSnapshot | null): CapabilitySnapshot {
         SCOPES.has(r.scope)
       ) {
         customRoles.push({ key: r.key, name: r.name, scope: r.scope as CustomRoleDef['scope'] });
+      } else {
+        dropped += 1;
       }
     }
   }
@@ -264,6 +346,8 @@ function sanitize(body: RawSnapshot | null): CapabilitySnapshot {
           depotId: o.depotId,
           effect: o.effect as DepotOverride['effect'],
         });
+      } else {
+        dropped += 1;
       }
     }
   }
@@ -271,7 +355,10 @@ function sanitize(body: RawSnapshot | null): CapabilitySnapshot {
   const roleSettings: RoleSetting[] = [];
   if (Array.isArray(body?.roleSettings)) {
     for (const r of body.roleSettings as Array<Record<string, unknown> | null>) {
-      if (!r || typeof r.roleKey !== 'string' || BAD_KEYS.has(r.roleKey)) continue;
+      if (!r || typeof r.roleKey !== 'string' || BAD_KEYS.has(r.roleKey)) {
+        dropped += 1;
+        continue;
+      }
       roleSettings.push({
         roleKey: r.roleKey,
         name: typeof r.name === 'string' ? r.name : null,
@@ -281,5 +368,5 @@ function sanitize(body: RawSnapshot | null): CapabilitySnapshot {
       });
     }
   }
-  return { overrides: out, customRoles, depotOverrides, roleSettings };
+  return { overrides: out, customRoles, depotOverrides, roleSettings, dropped };
 }

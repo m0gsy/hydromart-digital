@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
-import { can, type Capability } from '@hydromart/access';
+import { can, isRoleDisabled, type Capability } from '@hydromart/access';
 
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { isDepotLocked } from './depot-scope';
@@ -59,7 +59,7 @@ export class RolesGuard implements CanActivate {
     // the two branches cannot drift, and so it survives an empty literal list.
     const allowed = capability
       ? can(capability, user.role, RolesGuard.depotsOf(request, user))
-      : user.role === 'SUPER_ADMIN' || (roles ?? []).includes(user.role);
+      : user.role === 'SUPER_ADMIN' || (!isRoleDisabled(user.role) && (roles ?? []).includes(user.role));
     if (!allowed) {
       throw new ForbiddenException('You do not have permission to perform this action.');
     }
@@ -71,6 +71,10 @@ export class RolesGuard implements CanActivate {
    * names none is acting at their own depot. `undefined` means the route names no depot, and
    * then only the global matrix applies. DepotScopeGuard runs next and still refuses any depot
    * outside the caller's set, so a forged depotId buys nothing here.
+   *
+   * Per-depot rules are therefore only ever attached to roles whose depot DepotScopeGuard fences
+   * (LOCKED / RESOLVED): for a GLOBAL role nothing ties the named depot to the data touched, so
+   * auth-service refuses to store a rule for one.
    */
   private static depotsOf(request: Request, user: AuthenticatedUser): string[] | undefined {
     const named = DepotScopeGuard.requestedDepotIds(request);

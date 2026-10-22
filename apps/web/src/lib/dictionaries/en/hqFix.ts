@@ -60,11 +60,12 @@ export const hqFix = {
       widen: 'Wider scope: accounts with this role will see more depots.',
     },
     forbidden: 'A custom role may not hold this',
+    loadFailed: 'The matrix could not be read from the server. This screen shows what the app was built with, not what is enforced - reload before changing anything.',
   },
   depotRules: {
     title: 'Per-depot capabilities',
     intro:
-      'An exception to the global matrix for one role at one depot. Deny always wins over the global list; grant only applies when the request names that depot.',
+      'An exception to the global matrix for one role at one depot, only for depot-limited roles. It applies to requests that name that depot (a one-depot role: always its own depot). Deny wins over the global list; grant only applies at that depot.',
     capability: 'Capability',
     role: 'Role',
     depot: 'Depot',
@@ -76,6 +77,7 @@ export const hqFix = {
     empty: 'No per-depot exceptions yet.',
     pickDepot: 'Pick a depot',
     unknownDepot: 'unknown depot',
+    depotsIncomplete: 'The depot list is incomplete, so depot names below may be blank. Depot ids are shown as they are.',
   },
   toggleCol: 'Grant/clear every capability for this role',
   roleDetail: 'See every capability this role holds',

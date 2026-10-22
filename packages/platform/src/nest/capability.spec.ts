@@ -1,7 +1,16 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { loadOverrides } from '@hydromart/access';
+import {
+  can,
+  currentCustomRoles,
+  currentDepotOverrides,
+  currentRoleSettings,
+  loadCustomRoles,
+  loadDepotOverrides,
+  loadOverrides,
+  loadRoleSettings,
+} from '@hydromart/access';
 
 import { Role } from '../domain/role.enum';
 import { assertCapability } from './capability';
@@ -9,7 +18,12 @@ import { startCapabilityRefresh } from './capability-refresh';
 import { CAPABILITY_KEY, ROLES_KEY, IS_PUBLIC_KEY, SELF_SCOPED_KEY } from './decorators';
 import { RolesGuard } from './roles.guard';
 
-afterEach(() => loadOverrides({}));
+afterEach(() => {
+  loadOverrides({});
+  loadCustomRoles([]);
+  loadDepotOverrides([]);
+  loadRoleSettings([]);
+});
 
 /** Context whose handler/class metadata is whatever the two maps say. */
 function contextWith(
@@ -228,3 +242,105 @@ function assertPasses(capability: string, role: string): boolean {
 function tick(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+describe('a per-depot DENY survives an outage', () => {
+  it('keeps the DENY (and expires only the matrix grant) after the source stays down', async () => {
+    const D2 = '22222222-2222-2222-2222-222222222222';
+    const warn = jest.fn();
+    let mode: 'ok' | 'fail' = 'ok';
+    const stop = startCapabilityRefresh(
+      async () => {
+        if (mode === 'fail') throw new Error('down');
+        return {
+          overrides: { approvals: ['SUPERVISOR'] },
+          customRoles: [],
+          depotOverrides: [{ capability: 'approvals', roleKey: 'SUPERVISOR', depotId: D2, effect: 'DENY' as const }],
+        };
+      },
+      { ttlMs: 5, maxStaleMs: 30, logger: { warn } },
+    );
+    await tick(20);
+    expect(can('approvals', 'SUPERVISOR')).toBe(true);
+    expect(can('approvals', 'SUPERVISOR', [D2])).toBe(false);
+    mode = 'fail';
+    await tick(80);
+    expect(can('approvals', 'SUPERVISOR')).toBe(false);
+    expect(currentDepotOverrides()).toHaveLength(1);
+    expect(can('approvals', 'SUPERVISOR', [D2])).toBe(false);
+    stop();
+  });
+});
+
+describe('startCapabilityRefresh with custom roles, depot exceptions and role settings', () => {
+  const D = '11111111-1111-1111-1111-111111111111';
+  const full = async () => ({
+    overrides: {},
+    customRoles: [{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' as const }],
+    depotOverrides: [{ capability: 'dashboard', roleKey: 'C_kasir', depotId: D, effect: 'GRANT' as const }],
+    roleSettings: [{ roleKey: 'HR', disabled: true }],
+  });
+
+  it('loads all of it, and keeps it across later ticks', async () => {
+    const stop = startCapabilityRefresh(full, { ttlMs: 5 });
+    await tick(30);
+    expect(currentCustomRoles()).toHaveLength(1);
+    expect(currentDepotOverrides()).toHaveLength(1);
+    expect(currentRoleSettings()).toHaveLength(1);
+    expect(can('dashboard', 'C_kasir', [D])).toBe(true);
+    stop();
+  });
+
+  it('a bare patch source reads as none, which is why auth-service must not feed one', async () => {
+    const stop = startCapabilityRefresh(full, { ttlMs: 5 });
+    await tick(20);
+    stop();
+    const stop2 = startCapabilityRefresh(async () => ({}), { ttlMs: 5 });
+    await tick(20);
+    expect(currentCustomRoles()).toHaveLength(0);
+    stop2();
+  });
+
+  it('on expiry withdraws what WIDENS access and keeps what NARROWS it', async () => {
+    const warn = jest.fn();
+    let mode: 'ok' | 'fail' = 'ok';
+    const stop = startCapabilityRefresh(
+      async () => {
+        if (mode === 'fail') throw new Error('down');
+        return full();
+      },
+      { ttlMs: 5, maxStaleMs: 30, logger: { warn } },
+    );
+    await tick(20);
+    expect(can('dashboard', 'C_kasir', [D])).toBe(true);
+    mode = 'fail';
+    await tick(80);
+    // The per-depot GRANT is gone, so the custom role holds nothing; but the role still exists with
+    // its LOCKED scope, and the switched-off HR role stays switched off.
+    expect(currentDepotOverrides()).toHaveLength(0);
+    expect(can('dashboard', 'C_kasir', [D])).toBe(false);
+    expect(currentCustomRoles()).toHaveLength(1);
+    expect(currentRoleSettings()).toHaveLength(1);
+    expect(can('orderQueue', 'HR')).toBe(false);
+    const msg = warn.mock.calls.map((c) => String(c[0])).find((m) => m.includes('stale')) ?? '';
+    expect(msg).toContain('1 per-depot GRANT(s)');
+    expect(msg).toContain('keeping every DENY');
+    stop();
+  });
+
+  it('warns once when the payload carried rows it could not read, and again only if that changes', async () => {
+    const warn = jest.fn();
+    let dropped = 2;
+    const stop = startCapabilityRefresh(async () => ({ ...(await full()), dropped }), {
+      ttlMs: 5,
+      logger: { warn },
+    });
+    await tick(40);
+    expect(warn.mock.calls.filter((c) => String(c[0]).includes('malformed'))).toHaveLength(1);
+    dropped = 0;
+    await tick(30);
+    dropped = 5;
+    await tick(30);
+    expect(warn.mock.calls.filter((c) => String(c[0]).includes('malformed'))).toHaveLength(2);
+    stop();
+  });
+});

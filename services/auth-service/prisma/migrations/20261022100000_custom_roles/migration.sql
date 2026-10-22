@@ -9,6 +9,7 @@
 --   CREATE TYPE "Role" AS ENUM ('CUSTOMER','STAFF_DEPOT','KEPALA_DEPOT','ASSISTANT_SUPERVISOR',
 --     'SUPERVISOR','MANAGER','DIREKTUR','FRANCHISE_OWNER','HEAD_OFFICE','FINANCE','HR','MARKETING','SUPER_ADMIN');
 --   ALTER TABLE "capability_overrides" ALTER COLUMN "roles" TYPE "Role"[] USING "roles"::"Role"[];
+--   ALTER TABLE "customers" DROP CONSTRAINT "customers_role_known";
 --   ALTER TABLE "customers" ALTER COLUMN "role" DROP DEFAULT;
 --   ALTER TABLE "customers" ALTER COLUMN "role" TYPE "Role" USING "role"::"Role";
 --   ALTER TABLE "customers" ALTER COLUMN "role" SET DEFAULT 'CUSTOMER';
@@ -21,6 +22,14 @@ ALTER TABLE "customers" ALTER COLUMN "role" TYPE TEXT USING "role"::TEXT;
 ALTER TABLE "customers" ALTER COLUMN "role" SET DEFAULT 'CUSTOMER';
 
 DROP TYPE "Role";
+
+-- The enum used to be the only thing keeping a stray value out of customers.role. Keep that
+-- guarantee: a built-in role, or a custom key (whose existence the service checks).
+ALTER TABLE "customers" ADD CONSTRAINT "customers_role_known" CHECK (
+    "role" IN ('CUSTOMER','STAFF_DEPOT','KEPALA_DEPOT','ASSISTANT_SUPERVISOR','SUPERVISOR','MANAGER',
+               'DIREKTUR','FRANCHISE_OWNER','HEAD_OFFICE','FINANCE','HR','MARKETING','SUPER_ADMIN')
+    OR "role" LIKE 'C\_%'
+);
 
 CREATE TABLE "custom_roles" (
     "key" TEXT NOT NULL,

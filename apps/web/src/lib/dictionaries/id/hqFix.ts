@@ -80,11 +80,12 @@ export const hqFix = {
       widen: 'Cakupan diperluas: akun peran ini akan melihat lebih banyak depot.',
     },
     forbidden: 'Tidak boleh dimiliki peran custom',
+    loadFailed: 'Matriks hak dari server gagal dibaca. Layar ini menampilkan bawaan aplikasi, bukan yang berlaku — muat ulang sebelum mengubah apa pun.',
   },
   depotRules: {
     title: 'Hak per depot',
     intro:
-      'Pengecualian dari matriks global untuk satu peran di satu depot. Tolak selalu menang atas global; beri hanya berlaku bila permintaan menyebut depot itu.',
+      'Pengecualian dari matriks global untuk satu peran di satu depot, hanya untuk peran yang dibatasi depot. Berlaku pada permintaan yang menyebut depot itu (peran satu depot: selalu depotnya sendiri). Tolak menang atas global; beri hanya berlaku di depot itu.',
     capability: 'Hak',
     role: 'Peran',
     depot: 'Depot',
@@ -96,6 +97,7 @@ export const hqFix = {
     empty: 'Belum ada pengecualian per depot.',
     pickDepot: 'Pilih depot',
     unknownDepot: 'depot tidak dikenal',
+    depotsIncomplete: 'Daftar depot tidak lengkap, jadi nama depot di bawah bisa kosong. Id depot ditampilkan apa adanya.',
   },
   toggleCol: 'Beri/cabut semua kapabilitas untuk peran ini',
   roleDetail: 'Lihat rincian hak peran ini',

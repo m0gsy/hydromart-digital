@@ -82,6 +82,17 @@ export class FakeCustomRoles implements CustomRoleRepository {
     return Promise.resolve();
   }
 
+  removeDepotOverridesFor(roleKey: string): Promise<number> {
+    let n = 0;
+    for (const [k, v] of this.depot) {
+      if (v.roleKey === roleKey) {
+        this.depot.delete(k);
+        n += 1;
+      }
+    }
+    return Promise.resolve(n);
+  }
+
   removeDepotOverride(capability: string, roleKey: string, depotId: string): Promise<void> {
     this.depot.delete(`${capability}|${roleKey}|${depotId}`);
     return Promise.resolve();

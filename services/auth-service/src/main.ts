@@ -33,7 +33,10 @@ async function bootstrap(): Promise<void> {
   // auth-service owns the override table, so it reads straight from the database
   // instead of calling its own HTTP endpoint. Same refresher, same fail-open rule.
   const matrix = app.get(AccessMatrixService);
-  startCapabilityRefresh(() => matrix.patch(), { logger });
+  // snapshot(), NOT patch(): the refresher applies whatever it is handed, and a bare patch reads as
+  // "no custom roles, no depot exceptions, no role settings" - it would wipe this process's own
+  // copy of them on every tick, while the console (which reads the database) looks correct.
+  startCapabilityRefresh(() => matrix.snapshot(), { logger });
 
   // The staff directory and the driver roster are read by supervisors and depot managers,
   // whose depots live in depot-service's hierarchy. Without this the DepotScopeGuard

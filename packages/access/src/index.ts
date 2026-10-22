@@ -941,8 +941,14 @@ export interface DepotOverride {
 export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'accessMatrixWrite',
   'staffAdmin',
+  'staffDelete',
   'hierarchyAdmin',
   'settingsGlobal',
+  'platformAdmin',
+  // hr-service passes the caller's role into canGrantRole when it changes a jabatan, so holding
+  // hrAdmin / employeeAssign is a way to hand out built-in roles.
+  'hrAdmin',
+  'employeeAssign',
 ];
 
 /**

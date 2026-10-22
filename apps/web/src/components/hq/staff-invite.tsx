@@ -9,7 +9,7 @@ import { useAsync } from '@/lib/use-async';
 import { useAuth } from '@/lib/auth-context';
 import { grantableRoles } from '@/lib/roles';
 import { roleLabel } from '@/lib/custom-role';
-import { useCustomRoles } from '@/lib/use-custom-roles';
+import { useCustomRoles, useDisabledRoles } from '@/lib/use-custom-roles';
 import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, Page } from '@/lib/types';
 import { todayWib } from '@/lib/wib';
@@ -48,8 +48,9 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   // A custom role is grantable by SUPER_ADMIN alone (canGrantRole), and the list is empty for
   // everyone else, so this never offers a button the server would refuse.
   const customRoles = useCustomRoles();
+  const disabledRoles = useDisabledRoles();
   const offered: string[] = [
-    ...grantableRoles(STAFF_ROLES, customer?.role),
+    ...grantableRoles(STAFF_ROLES, customer?.role).filter((r) => !disabledRoles.has(r)),
     ...(customer?.role === 'SUPER_ADMIN' ? customRoles.map((r) => r.key) : []),
   ];
   const [open, setOpen] = useState(false);

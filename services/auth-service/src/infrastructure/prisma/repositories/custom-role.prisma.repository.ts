@@ -108,6 +108,11 @@ export class CustomRolePrismaRepository implements CustomRoleRepository {
     });
   }
 
+  async removeDepotOverridesFor(roleKey: string): Promise<number> {
+    const { count } = await this.prisma.capabilityDepotOverride.deleteMany({ where: { roleKey } });
+    return count;
+  }
+
   async removeDepotOverride(capability: string, roleKey: string, depotId: string): Promise<void> {
     // deleteMany: resetting an exception that was never set is a no-op, like `remove` above.
     await this.prisma.capabilityDepotOverride.deleteMany({

@@ -52,6 +52,9 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
   const { t } = useT();
   const { confirm } = useConfirm();
   const [settings, setSettings] = useState<Map<string, RoleSetting>>(new Map());
+  // Editing pre-fills from the stored settings; before they are read that would be blank, and saving
+  // blank would wipe a name, description and reach somebody set.
+  const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -63,6 +66,7 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
     try {
       const res = await api.get<AccessMatrixResponse>(endpoints.auth.matrix, true);
       setSettings(new Map((res.roleSettings ?? []).map((r) => [r.roleKey, r] as const)));
+      setLoaded(true);
     } catch (err) {
       setError(message(err));
     }
@@ -72,6 +76,7 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
   }, [refreshKey]);
 
   function startEdit(role: string) {
+    if (!loaded) return;
     const cur = settings.get(role);
     setEditing(role);
     setName(cur?.name ?? '');
@@ -152,11 +157,11 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => startEdit(role)} disabled={busy}>
+                  <Button variant="secondary" onClick={() => startEdit(role)} disabled={busy || !loaded}>
                     {t('hqFix.roles.edit')}
                   </Button>
                   {!(UNDISABLEABLE_ROLES as readonly string[]).includes(role) && (
-                    <Button variant="ghost" onClick={() => toggle(role, !off)} disabled={busy}>
+                    <Button variant="ghost" onClick={() => toggle(role, !off)} disabled={busy || !loaded}>
                       {off ? t('hqFix.roles.builtIn.enable') : t('hqFix.roles.builtIn.disable')}
                     </Button>
                   )}

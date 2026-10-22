@@ -86,10 +86,12 @@ describe('AccessMatrixService', () => {
     await service.patch();
     expect(listAll).toHaveBeenCalledTimes(1);
 
-    // An edit refreshes the cache itself, so the next poll sees it without waiting.
+    // An edit reads the table fresh for the audit row's `before` (a cached one could be 15 s old)
+    // and refreshes the cache after writing, so the next poll sees it without waiting: two
+    // reads for the edit, none for the poll.
     await service.set('approvals', [Role.MANAGER], null);
     expect(await service.patch()).toEqual({ approvals: [Role.MANAGER] });
-    expect(listAll).toHaveBeenCalledTimes(2);
+    expect(listAll).toHaveBeenCalledTimes(3);
   });
 
   it('re-reads once the ttl has passed', async () => {

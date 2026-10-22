@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 
 import {
   CAPABILITIES,
@@ -78,6 +85,8 @@ export function customRoleKeyFor(name: string): string {
  */
 @Injectable()
 export class AccessMatrixService {
+  private readonly logger = new Logger(AccessMatrixService.name);
+
   constructor(
     @Inject(AUTH_TOKENS.CapabilityOverrideRepository)
     private readonly overrides: CapabilityOverrideRepository,
@@ -148,7 +157,10 @@ export class AccessMatrixService {
     return this.refresh();
   }
 
-  /** Just the matrix patch — the part auth-service's own boot and the old pollers read. */
+  /**
+   * Just the matrix patch. NOT a source for `startCapabilityRefresh`: that would hand it a snapshot
+   * with no custom roles, depot exceptions or role settings, and it would clear them.
+   */
   async patch(): Promise<CapabilityOverrides> {
     return (await this.snapshot()).overrides;
   }
@@ -171,7 +183,7 @@ export class AccessMatrixService {
     const known = this.assertKnown(capability);
     await this.assertRolesAllowed(known, roles);
     const unique = [...new Set(roles)];
-    const before = [...(await this.snapshot()).overrides[known] ?? CAPABILITIES[known]];
+    const before = [...((await this.refresh()).overrides[known] ?? CAPABILITIES[known])];
     await this.overrides.upsert(known, unique, actorId);
     await this.refresh();
     await this.record('access.matrix.changed', actorId, { changes: [{ capability: known, before, after: unique }] });
@@ -192,7 +204,7 @@ export class AccessMatrixService {
     actorId: string | null,
   ): Promise<void> {
     const seen = new Set<string>();
-    const current = (await this.snapshot()).overrides;
+    const current = (await this.refresh()).overrides;
     const audit: { capability: string; before: readonly string[]; after: readonly string[] | null }[] = [];
     const planned: { capability: string; roles: string[] | null }[] = [];
     for (const change of changes) {
@@ -219,7 +231,7 @@ export class AccessMatrixService {
 
   async reset(capability: string, actorId: string | null = null): Promise<void> {
     const known = this.assertKnown(capability);
-    const before = (await this.snapshot()).overrides[known] ?? CAPABILITIES[known];
+    const before = (await this.refresh()).overrides[known] ?? CAPABILITIES[known];
     await this.overrides.remove(known);
     await this.refresh();
     await this.record('access.matrix.reset', actorId, { changes: [{ capability: known, before, after: null }] });
@@ -247,11 +259,37 @@ export class AccessMatrixService {
       throw new BadRequestException('Nama peran harus memuat huruf atau angka.');
     }
     // Case-insensitive on the name as well: two roles a human cannot tell apart in a dropdown.
+    // An ARCHIVED role's name is free again, but its key is not: the key is the primary key and
+    // audit rows and old tokens still point at it.
     const existing = await this.roles.listAll();
-    if (existing.some((r) => r.key === key || r.name.toLowerCase() === name.toLowerCase())) {
+    const archivedKey = existing.find((r) => r.key === key && r.archivedAt !== null);
+    if (archivedKey) {
+      throw new ConflictException(
+        `Peran ${key} pernah dibuat dan diarsipkan. Pakai nama lain agar kuncinya berbeda.`,
+      );
+    }
+    if (
+      existing.some(
+        (r) => r.archivedAt === null && (r.key === key || r.name.toLowerCase() === name.toLowerCase()),
+      )
+    ) {
       throw new ConflictException(`Peran dengan nama itu sudah ada: ${name}`);
     }
-    await this.roles.create({ key, name, description: input.description?.trim() || null, scope, createdBy: actorId });
+    try {
+      await this.roles.create({
+        key,
+        name,
+        description: input.description?.trim() || null,
+        scope,
+        createdBy: actorId,
+      });
+    } catch (err) {
+      // Two creates of the same name racing past the check above: the primary key decides.
+      if ((err as { code?: string }).code === 'P2002') {
+        throw new ConflictException(`Peran dengan nama itu sudah ada: ${name}`);
+      }
+      throw err;
+    }
     const copied = source ? await this.copyCapabilities(source, key, actorId) : [];
     await this.refresh();
     await this.record('access.role.created', actorId, { key, name, scope, copyFrom: source ?? null, copied });
@@ -263,6 +301,8 @@ export class AccessMatrixService {
    * One transaction. If it fails the role is archived again so no half-made copy is left behind.
    */
   private async copyCapabilities(source: string, key: string, actorId: string | null): Promise<string[]> {
+    // Read the matrix as it is NOW: a concurrent edit by another admin or replica must not be copied stale.
+    await this.refresh();
     const copied = (Object.keys(CAPABILITIES) as Capability[]).filter(
       (c) => !FORBIDDEN.has(c) && rolesFor(c).includes(source),
     );
@@ -270,7 +310,10 @@ export class AccessMatrixService {
     try {
       await this.overrides.applyAll(changes, actorId);
     } catch (err) {
-      await this.roles.archive(key);
+      // The original failure is the one the caller needs; a failed rollback must not replace it.
+      await this.roles.archive(key).catch((rollback: unknown) =>
+        this.logger.error(`Could not roll back custom role ${key}: ${String(rollback)}`),
+      );
       throw err;
     }
     return copied;
@@ -287,7 +330,7 @@ export class AccessMatrixService {
       const name = input.name.trim();
       if (!name) throw new BadRequestException('Nama peran tidak boleh kosong.');
       const clash = (await this.roles.listAll()).some(
-        (r) => r.key !== key && r.name.toLowerCase() === name.toLowerCase(),
+        (r) => r.key !== key && r.archivedAt === null && r.name.toLowerCase() === name.toLowerCase(),
       );
       if (clash) throw new ConflictException(`Peran dengan nama itu sudah ada: ${name}`);
       patch.name = name;
@@ -295,11 +338,13 @@ export class AccessMatrixService {
     if (input.description !== undefined) patch.description = input.description?.trim() || null;
     if (input.scope !== undefined) patch.scope = this.assertScope(input.scope);
     await this.roles.update(key, patch);
+    const droppedRules = patch.scope === 'GLOBAL' ? await this.roles.removeDepotOverridesFor(key) : 0;
     await this.refresh();
     await this.record('access.role.updated', actorId, {
       key,
       before: { name: current.name, scope: current.scope },
       after: patch,
+      droppedDepotRules: droppedRules,
     });
     return (await this.roles.find(key)) as CustomRoleRecord;
   }
@@ -350,7 +395,19 @@ export class AccessMatrixService {
     const before = { scope: effectiveScope(role), setting: roleScopeSetting(role) ?? null };
     await this.roles.upsertRoleSetting(role, patch, actorId);
     await this.refresh();
-    await this.record('access.builtin.updated', actorId, { role, before, after: patch });
+    // A per-depot rule only means something for a role whose depot is fenced. If this edit made the
+    // role network-wide, its rules are now unenforceable: remove them rather than leave a promise.
+    let droppedRules = 0;
+    if (patch.scope !== undefined && effectiveScope(role) === 'GLOBAL') {
+      droppedRules = await this.roles.removeDepotOverridesFor(role);
+      if (droppedRules > 0) await this.refresh();
+    }
+    await this.record('access.builtin.updated', actorId, {
+      role,
+      before,
+      after: patch,
+      droppedDepotRules: droppedRules,
+    });
   }
 
   /** Switch a built-in role off (holds nothing, cannot be assigned) or back on. */
@@ -390,6 +447,21 @@ export class AccessMatrixService {
       throw new BadRequestException('Efek harus GRANT atau DENY.');
     }
     await this.assertRolesAllowed(known, [roleKey], { allowSuperAdmin: false });
+    // A per-depot rule is read from the depot a request NAMES, and only DepotScopeGuard ties that
+    // name to the caller's own depots. For a network-wide role nothing does, so a GRANT could be
+    // used with a depot id picked to match and a DENY would be skipped by naming none. Refuse the
+    // rule instead of storing something the guards cannot honour.
+    const reach = isCustomRoleKey(roleKey)
+      ? (currentCustomRoles().find((r) => r.key === roleKey)?.scope ?? 'LOCKED')
+      : effectiveScope(roleKey);
+    if (reach === 'GLOBAL') {
+      throw new BadRequestException(
+        'Aturan per depot hanya untuk peran yang dibatasi depot. Ubah cakupan peran ini dulu.',
+      );
+    }
+    if (effect === 'GRANT' && FORBIDDEN.has(known)) {
+      throw new BadRequestException(`${known} tidak bisa diberikan per depot.`);
+    }
     await this.roles.setDepotOverride({ capability: known, roleKey, depotId, effect }, actorId);
     await this.refresh();
     await this.record('access.depotOverride.set', actorId, { capability: known, roleKey, depotId, effect, depotScope: depotId });

@@ -215,6 +215,8 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
   const { t } = useT();
   const [data, setData] = useState<AccessMatrixResponse>({});
   const [depots, setDepots] = useState<DepotAdmin[]>([]);
+  // null = still loading, false = failed. An unresolved depot id is only "unknown" once the list loaded.
+  const [depotsLoaded, setDepotsLoaded] = useState<boolean | null>(null);
   const [capability, setCapability] = useState<Capability>('dashboard');
   const [roleKey, setRoleKey] = useState('STAFF_DEPOT');
   const [depotId, setDepotId] = useState('');
@@ -235,8 +237,14 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
   useEffect(() => {
     api
       .getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true)
-      .then((p) => setDepots(p.items))
-      .catch(() => setDepots([]));
+      .then((p) => {
+        setDepots(p.items);
+        setDepotsLoaded(p.items.length >= p.total || p.items.length < 100);
+      })
+      .catch((err: unknown) => {
+        setDepotsLoaded(false);
+        setError(message(err));
+      });
   }, []);
 
   const depotName = useMemo(() => new Map(depots.map((d) => [d.id, `${d.name} · ${d.code}`] as const)), [depots]);
@@ -336,6 +344,11 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
         </Button>
       </div>
       <FormError message={error} className="text-xs text-danger" />
+      {depotsLoaded === false && (
+        <p className="text-xs font-medium text-danger" role="alert">
+          {t('hqFix.depotRules.depotsIncomplete')}
+        </p>
+      )}
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted">{t('hqFix.depotRules.empty')}</p>
@@ -347,7 +360,10 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
                 <tr key={`${o.capability}|${o.roleKey}|${o.depotId}`} className="border-t border-app">
                   <td className="py-2 pr-3">{nameOf(o.roleKey)}</td>
                   <td className="py-2 pr-3">{t(`hq.access.caps.${o.capability}`)}</td>
-                  <td className="py-2 pr-3">{depotName.get(o.depotId) ?? t('hqFix.depotRules.unknownDepot')}</td>
+                  <td className="py-2 pr-3">
+                    {depotName.get(o.depotId) ??
+                      (depotsLoaded === true ? t('hqFix.depotRules.unknownDepot') : o.depotId)}
+                  </td>
                   <td className="py-2 pr-3 font-semibold">
                     {o.effect === 'GRANT' ? t('hqFix.depotRules.grant') : t('hqFix.depotRules.deny')}
                   </td>

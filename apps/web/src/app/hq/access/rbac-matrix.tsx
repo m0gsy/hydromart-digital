@@ -220,6 +220,10 @@ export function RbacMatrix() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Until the server's matrix has been read, the grid shows what this build was compiled with. Editing
+  // that and saving would diff against the wrong baseline and could overwrite real overrides.
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [customRoles, setCustomRoles] = useState<CustomRoleDef[]>([]);
   const [builtInNames, setBuiltInNames] = useState<Map<string, string>>(new Map());
   const ROLES = useMemo<string[]>(
@@ -251,9 +255,11 @@ export function RbacMatrix() {
         );
         setBaseline(next);
         setGrid(next);
+        setLoaded(true);
+        setLoadError(null);
       })
-      .catch(() => {
-        /* fall back to the compiled defaults already in state */
+      .catch((err: unknown) => {
+        if (alive) setLoadError(err instanceof Error ? err.message : String(err));
       });
     return () => {
       alive = false;
@@ -268,7 +274,7 @@ export function RbacMatrix() {
   const dirty = changed.length > 0;
 
   function toggle(cap: Capability, role: string) {
-    if (isCustom(role) && FORBIDDEN.has(cap)) return;
+    if (!loaded || (isCustom(role) && FORBIDDEN.has(cap))) return;
     setCopied(false);
     setGrid((prev) => {
       const has = prev[cap].includes(role);
@@ -280,6 +286,7 @@ export function RbacMatrix() {
   // Column bulk-toggle: if the role already holds every capability, clear it from all;
   // otherwise grant it to all. (spec 2a roleHeads.toggle)
   function toggleRole(role: string) {
+    if (!loaded) return;
     setCopied(false);
     setGrid((prev) => {
       // A custom role is never given a capability it may not hold, so "all" means "all it may".
@@ -302,6 +309,7 @@ export function RbacMatrix() {
   // Row bulk-toggle: grant the cap to every role, or clear it entirely if already full.
   // (spec 2a cap.toggleRow)
   function toggleCap(cap: Capability) {
+    if (!loaded) return;
     setCopied(false);
     setGrid((prev) => {
       const eligible = ROLES.filter((r) => !(isCustom(r) && FORBIDDEN.has(cap)));
@@ -366,6 +374,14 @@ export function RbacMatrix() {
 
   return (
     <div className="flex flex-col gap-4">
+      {loadError && (
+        <div role="alert">
+          <Card className="border-danger p-4">
+            <p className="text-sm font-semibold text-danger">{t('hqFix.roles.loadFailed')}</p>
+            <p className="text-xs text-muted">{loadError}</p>
+          </Card>
+        </div>
+      )}
       {dirty && (
         <Card className="flex flex-wrap items-center justify-between gap-3 border-brand-400 bg-brand-50 p-4">
           <div className="min-w-0">
@@ -441,6 +457,7 @@ export function RbacMatrix() {
                 section={section}
                 grid={grid}
                 roles={ROLES}
+                locked={!loaded}
                 nameOf={nameOf}
                 onToggle={toggle}
                 onToggleCap={toggleCap}
@@ -459,6 +476,7 @@ function SectionRows({
   section,
   grid,
   roles,
+  locked,
   nameOf,
   onToggle,
   onToggleCap,
@@ -466,6 +484,8 @@ function SectionRows({
   section: { key: string; caps: Capability[] };
   grid: Grid;
   roles: string[];
+  /** True until the server's matrix has been read: nothing may be edited against defaults. */
+  locked: boolean;
   nameOf: Map<string, string>;
   onToggle: (cap: Capability, role: string) => void;
   onToggleCap: (cap: Capability) => void;
@@ -502,7 +522,7 @@ function SectionRows({
                   type="button"
                   aria-pressed={on}
                   aria-label={`${t(`hq.access.caps.${cap}`)} · ${nameOf.get(role) ?? t(`hq.roles.${role}`)}`}
-                  disabled={blocked}
+                  disabled={blocked || locked}
                   title={blocked ? t('hqFix.roles.forbidden') : undefined}
                   onClick={() => onToggle(cap, role)}
                   className={

@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { loadCustomRoles, loadDepotOverrides, loadOverrides, loadRoleSettings } from '@hydromart/access';
 
 import { assertCapability } from './capability';
-import { CAPABILITY_KEY } from './decorators';
+import { CAPABILITY_KEY, ROLES_KEY } from './decorators';
 import { DepotScopeGuard } from './depot-scope.guard';
 import { effectiveScope, isDepotLocked, isDepotResolved, isDepotScoped } from './depot-scope';
 import { RolesGuard } from './roles.guard';
@@ -164,6 +164,28 @@ describe('scope setting on a built-in role', () => {
     expect(isDepotResolved('HR')).toBe(true);
     expect(isDepotScoped('STAFF_DEPOT')).toBe(false);
     expect(effectiveScope('FRANCHISE_OWNER')).toBe('GLOBAL');
+  });
+
+  it('a disabled built-in role also fails a literal @Roles route', () => {
+    const h = {};
+    const reflector = {
+      get: (key: string, target: unknown) => (target === h && key === ROLES_KEY ? ['STAFF_DEPOT'] : undefined),
+      getAllAndOverride: () => undefined,
+    } as unknown as Reflector;
+    const ctx = {
+      getHandler: () => h,
+      getClass: () => ({}),
+      switchToHttp: () => ({ getRequest: () => ({ user: { role: 'STAFF_DEPOT', depotId: A } }) }),
+    } as unknown as ExecutionContext;
+    expect(new RolesGuard(reflector).canActivate(ctx)).toBe(true);
+    loadRoleSettings([{ roleKey: 'STAFF_DEPOT', disabled: true }]);
+    expect(() => new RolesGuard(reflector).canActivate(ctx)).toThrow(ForbiddenException);
+  });
+
+  it('a role string this build does not know is LOCKED, never network-wide', () => {
+    expect(effectiveScope('WIZARD')).toBe('LOCKED');
+    expect(isDepotScoped('WIZARD')).toBe(true);
+    expect(effectiveScope('HEAD_OFFICE')).toBe('GLOBAL');
   });
 
   it('a disabled role fails the RolesGuard outright', () => {

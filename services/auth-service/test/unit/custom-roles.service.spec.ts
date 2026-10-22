@@ -1,4 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { startCapabilityRefresh } from '@hydromart/platform';
 
 import {
   can,
@@ -88,6 +92,34 @@ describe('custom roles', () => {
       );
       await service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null);
       await expect(service.createRole({ name: 'KASIR', scope: 'GLOBAL' }, null)).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('archived names and racing creates', () => {
+    it('frees the NAME of an archived role but not its KEY', async () => {
+      await service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null);
+      await service.archiveRole('C_kasir', null);
+      await expect(service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null)).rejects.toThrow('diarsipkan');
+      const r = await service.createRole({ name: 'Kasir Baru', scope: 'LOCKED' }, null);
+      expect(r.key).toBe('C_kasir_baru');
+      await service.createRole({ name: 'Gudang', scope: 'LOCKED' }, null);
+      await service.archiveRole('C_gudang', null);
+      await expect(service.updateRole('C_kasir_baru', { name: 'gudang' }, null)).resolves.toMatchObject({
+        name: 'gudang',
+      });
+    });
+
+    it('turns a unique-key race into a 409 and rethrows anything else', async () => {
+      jest.spyOn(roles, 'create').mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
+      await expect(service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null)).rejects.toThrow(ConflictException);
+      jest.spyOn(roles, 'create').mockRejectedValueOnce(new Error('db down'));
+      await expect(service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null)).rejects.toThrow('db down');
+    });
+
+    it('keeps the original error when the rollback itself fails', async () => {
+      jest.spyOn(overrides, 'applyAll').mockRejectedValueOnce(new Error('tx failed'));
+      jest.spyOn(roles, 'archive').mockRejectedValueOnce(new Error('archive failed'));
+      await expect(service.createRole({ name: 'Gagal', copyFrom: 'MANAGER' }, null)).rejects.toThrow('tx failed');
     });
   });
 
@@ -213,6 +245,43 @@ describe('custom roles', () => {
       );
     });
 
+    it('refuses a rule for a network-wide role, because no guard can honour it', async () => {
+      await expect(service.setDepotOverride('dashboard', 'HEAD_OFFICE', DEPOT, 'DENY', null)).rejects.toThrow(
+        'hanya untuk peran yang dibatasi depot',
+      );
+      await expect(service.setDepotOverride('dashboard', 'FINANCE', DEPOT, 'GRANT', null)).rejects.toThrow(
+        BadRequestException,
+      );
+      await service.createRole({ name: 'Pusat', scope: 'GLOBAL' }, null);
+      await expect(service.setDepotOverride('dashboard', 'C_pusat', DEPOT, 'GRANT', null)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('refuses to GRANT a forbidden capability per depot even to a depot-limited built-in role', async () => {
+      await expect(service.setDepotOverride('staffAdmin', 'MANAGER', DEPOT, 'GRANT', null)).rejects.toThrow(
+        'tidak bisa diberikan per depot',
+      );
+      // Taking it away is fine.
+      await service.setDepotOverride('staffAdmin', 'MANAGER', DEPOT, 'DENY', null);
+    });
+
+    it('drops the rules of a role whose reach becomes network-wide', async () => {
+      await service.setDepotOverride('dashboard', 'C_kasir', DEPOT, 'GRANT', null);
+      await service.setDepotOverride('dashboard', 'MANAGER', DEPOT, 'DENY', null);
+      expect(currentDepotOverrides()).toHaveLength(2);
+      await service.updateRole('C_kasir', { scope: 'GLOBAL' }, 'admin');
+      expect(currentDepotOverrides().map((o) => o.roleKey)).toEqual(['MANAGER']);
+      expect((audit.entries.at(-1)?.metadata as { droppedDepotRules: number }).droppedDepotRules).toBe(1);
+      await service.updateBuiltInRole('MANAGER', { scope: 'GLOBAL' }, 'admin');
+      expect(currentDepotOverrides()).toEqual([]);
+      // A change that leaves the role depot-limited drops nothing.
+      await service.updateBuiltInRole('MANAGER', { scope: 'LOCKED' }, 'admin');
+      await service.setDepotOverride('dashboard', 'MANAGER', DEPOT, 'DENY', null);
+      await service.updateBuiltInRole('MANAGER', { scope: null }, 'admin');
+      expect(currentDepotOverrides()).toHaveLength(1);
+    });
+
     it('refuses a bad effect, an unknown capability, SUPER_ADMIN and a forbidden capability', async () => {
       await expect(service.setDepotOverride('dashboard', 'C_kasir', DEPOT, 'MAYBE', null)).rejects.toThrow(
         BadRequestException,
@@ -300,6 +369,29 @@ describe('custom roles', () => {
       jest.spyOn(overrides, 'applyAll').mockRejectedValueOnce(new Error('tx failed'));
       await expect(service.createRole({ name: 'Gagal', copyFrom: 'MANAGER' }, null)).rejects.toThrow('tx failed');
       expect(roles.roles.get('C_gagal')?.archivedAt).not.toBeNull();
+    });
+  });
+
+  describe('auth-service feeds its own refresher the FULL snapshot', () => {
+    it('keeps custom roles, depot rules and role settings loaded across a poll tick', async () => {
+      await service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null);
+      await service.setDepotOverride('dashboard', 'C_kasir', DEPOT, 'GRANT', null);
+      await service.updateBuiltInRole('HR', { name: 'SDM' }, null);
+      const stop = startCapabilityRefresh(() => service.snapshot(), { ttlMs: 5 });
+      await new Promise((r) => setTimeout(r, 40));
+      stop();
+      expect(currentCustomRoles()).toHaveLength(1);
+      expect(currentDepotOverrides()).toHaveLength(1);
+      expect(currentRoleSettings()).toHaveLength(1);
+    });
+
+    // A bare patch reads as "none of it" and wipes this process's own copy on every tick, while
+    // the console (which reads the database) keeps looking right. main.ts is not loaded by any
+    // unit test, so the wiring itself is pinned here.
+    it('main.ts passes snapshot(), never patch(), to the refresher', () => {
+      const main = readFileSync(join(__dirname, '..', '..', 'src', 'main.ts'), 'utf8');
+      expect(main).toMatch(/startCapabilityRefresh\(\(\) => matrix\.snapshot\(\)/);
+      expect(main).not.toMatch(/startCapabilityRefresh\(\(\) => matrix\.patch\(\)/);
     });
   });
 
