@@ -25,7 +25,7 @@ const MATRIX = {
   effective: { dashboard: ['MANAGER', 'C_kasir'] },
   customRoles: [{ key: 'C_kasir', name: 'Kasir Depot', scope: 'LOCKED' }],
   roleSettings: [
-    { roleKey: 'MANAGER', name: 'Manajer Wilayah', description: 'wilayah', scope: 'LOCKED', disabled: false },
+    { roleKey: 'MANAGER', name: 'Manajer Wilayah', description: 'wilayah', scope: 'LOCKED', disabled: false, updatedAt: '2026-10-22T09:00:00.000Z' },
     { roleKey: 'FINANCE', disabled: true },
   ],
   depotOverrides: [{ capability: 'dashboard', roleKey: 'C_kasir', depotId: DEPOT, effect: 'GRANT' }],
@@ -55,8 +55,8 @@ beforeEach(() => {
     if (url.endsWith('/access/matrix')) return MATRIX;
     if (url.endsWith('/access/roles'))
       return [
-        { key: 'C_kasir', name: 'Kasir Depot', description: 'kasir', scope: 'LOCKED', archivedAt: null },
-        { key: 'C_old', name: 'Lama', description: null, scope: 'GLOBAL', archivedAt: '2026-01-01' },
+        { key: 'C_kasir', name: 'Kasir Depot', description: 'kasir', scope: 'LOCKED', archivedAt: null, updatedAt: '2026-10-22T10:00:00.000Z' },
+        { key: 'C_old', name: 'Lama', description: null, scope: 'GLOBAL', archivedAt: '2026-01-01', updatedAt: '2026-01-01T00:00:00.000Z' },
       ];
     return {};
   });
@@ -119,7 +119,8 @@ describe('BuiltInRolesPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Simpan|Save/ }));
     await waitFor(() => expect(put).toHaveBeenCalled());
     expect(put.mock.calls[0]?.[0]).toBe('/auth/api/v1/access/builtin/MANAGER');
-    expect(put.mock.calls[0]?.[1]).toMatchObject({ name: 'Manajer Wilayah', scope: 'LOCKED' });
+    // The form says which version of the settings it was shown, so a stale save is refused.
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ name: 'Manajer Wilayah', scope: 'LOCKED', seenUpdatedAt: '2026-10-22T09:00:00.000Z' });
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
@@ -179,6 +180,7 @@ describe('CustomRolesPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Simpan$|^Save$/ }));
     await waitFor(() => expect(put).toHaveBeenCalled());
     expect(put.mock.calls[0]?.[0]).toBe('/auth/api/v1/access/roles/C_kasir');
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ seenUpdatedAt: '2026-10-22T10:00:00.000Z' });
   });
 
   it('shows the server error and keeps the form open', async () => {
@@ -200,8 +202,8 @@ describe('DepotRulesPanel', () => {
     fireEvent.change(selects[2] as HTMLElement, { target: { value: DEPOT } });
     fireEvent.click(screen.getByRole('button', { name: /Tambah pengecualian|Add exception/ }));
     await waitFor(() => expect(put).toHaveBeenCalled());
-    expect(put.mock.calls[0]?.[0]).toBe(`/auth/api/v1/access/matrix/dashboard/depots/${DEPOT}`);
-    expect(put.mock.calls[0]?.[1]).toEqual({ roleKey: 'STAFF_DEPOT', effect: 'GRANT' });
+    expect(put.mock.calls[0]?.[0]).toBe(`/auth/api/v1/access/matrix/dashboard/depots/${DEPOT}/STAFF_DEPOT`);
+    expect(put.mock.calls[0]?.[1]).toEqual({ effect: 'GRANT' });
 
     fireEvent.click(screen.getByRole('button', { name: /^Hapus$|^Remove$/ }));
     await waitFor(() =>

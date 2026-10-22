@@ -26,6 +26,8 @@ import { AccessController } from '../../src/modules/auth/access.controller';
 import { FakeAudit, FakeCustomRoles, asAudit } from '../support/fake-custom-roles';
 
 const DEPOT = '11111111-1111-1111-1111-111111111111';
+/** The fake repository stamps every row at epoch, so this is the version a form would have been shown. */
+const SEEN = new Date(0).toISOString();
 const OTHER = '22222222-2222-2222-2222-222222222222';
 
 class FakeOverrides implements CapabilityOverrideRepository {
@@ -95,6 +97,37 @@ describe('custom roles', () => {
     });
   });
 
+  describe('two admins on the same role (stale writes)', () => {
+    it('refuses a custom-role edit built on an older copy, or on none', async () => {
+      await service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null);
+      await expect(
+        service.updateRole('C_kasir', { name: 'Kasir 2', seenUpdatedAt: '2000-01-01T00:00:00.000Z' }, null),
+      ).rejects.toThrow('sudah diubah orang lain');
+      await expect(service.updateRole('C_kasir', { name: 'Kasir 2' }, null)).rejects.toThrow('sudah diubah orang lain');
+      await expect(service.updateRole('C_kasir', { name: 'Kasir 2', seenUpdatedAt: 'junk' }, null)).rejects.toThrow(
+        'sudah diubah orang lain',
+      );
+      // The copy that WAS shown is accepted (control).
+      await expect(service.updateRole('C_kasir', { name: 'Kasir 2', seenUpdatedAt: SEEN }, null)).resolves.toBeDefined();
+    });
+
+    it('a built-in role with no settings yet has nothing to overwrite; once it has, the form must say what it saw', async () => {
+      await service.updateBuiltInRole('HR', { name: 'SDM' }, 'admin');
+      await expect(service.updateBuiltInRole('HR', { name: 'SDM 2' }, 'admin')).rejects.toThrow('sudah diubah orang lain');
+      await expect(
+        service.updateBuiltInRole('HR', { name: 'SDM 2', seenUpdatedAt: '2000-01-01T00:00:00.000Z' }, 'admin'),
+      ).rejects.toThrow('sudah diubah orang lain');
+      await service.updateBuiltInRole('HR', { name: 'SDM 2', seenUpdatedAt: SEEN }, 'admin');
+      expect((await service.listBuiltInRoles())[0].name).toBe('SDM 2');
+    });
+
+    it('hands the form the version it must send back', async () => {
+      await service.updateBuiltInRole('HR', { name: 'SDM' }, 'admin');
+      const view = await service.view();
+      expect(view.roleSettings[0]?.updatedAt).toBe(SEEN);
+    });
+  });
+
   describe('archived names and racing creates', () => {
     it('frees the NAME of an archived role but not its KEY', async () => {
       await service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null);
@@ -104,7 +137,7 @@ describe('custom roles', () => {
       expect(r.key).toBe('C_kasir_baru');
       await service.createRole({ name: 'Gudang', scope: 'LOCKED' }, null);
       await service.archiveRole('C_gudang', null);
-      await expect(service.updateRole('C_kasir_baru', { name: 'gudang' }, null)).resolves.toMatchObject({
+      await expect(service.updateRole('C_kasir_baru', { seenUpdatedAt: SEEN,  name: 'gudang' }, null)).resolves.toMatchObject({
         name: 'gudang',
       });
     });
@@ -130,21 +163,21 @@ describe('custom roles', () => {
     });
 
     it('renames, rescopes and audits before/after', async () => {
-      const r = await service.updateRole('C_kasir', { name: 'Kasir Utama', scope: 'RESOLVED', description: ' x ' }, 'a');
+      const r = await service.updateRole('C_kasir', { seenUpdatedAt: SEEN,  name: 'Kasir Utama', scope: 'RESOLVED', description: ' x ' }, 'a');
       expect(r).toMatchObject({ name: 'Kasir Utama', scope: 'RESOLVED', description: 'x' });
       expect(currentCustomRoles().find((c) => c.key === 'C_kasir')?.scope).toBe('RESOLVED');
       expect(audit.entries.at(-1)).toMatchObject({ action: 'access.role.updated' });
     });
 
     it('refuses an empty name, a taken name, a bad scope and an unknown role', async () => {
-      await expect(service.updateRole('C_kasir', { name: '  ' }, null)).rejects.toThrow(BadRequestException);
-      await expect(service.updateRole('C_kasir', { name: 'gudang' }, null)).rejects.toThrow(ConflictException);
-      await expect(service.updateRole('C_kasir', { scope: 'X' }, null)).rejects.toThrow(BadRequestException);
-      await expect(service.updateRole('C_nope', { name: 'zz' }, null)).rejects.toThrow(NotFoundException);
+      await expect(service.updateRole('C_kasir', { seenUpdatedAt: SEEN,  name: '  ' }, null)).rejects.toThrow(BadRequestException);
+      await expect(service.updateRole('C_kasir', { seenUpdatedAt: SEEN,  name: 'gudang' }, null)).rejects.toThrow(ConflictException);
+      await expect(service.updateRole('C_kasir', { seenUpdatedAt: SEEN, scope: 'X' }, null)).rejects.toThrow(BadRequestException);
+      await expect(service.updateRole('C_nope', { seenUpdatedAt: SEEN,  name: 'zz' }, null)).rejects.toThrow(NotFoundException);
     });
 
     it('a rename to its own name is not a clash, and description can be cleared', async () => {
-      const r = await service.updateRole('C_kasir', { name: 'Kasir', description: '' }, null);
+      const r = await service.updateRole('C_kasir', { seenUpdatedAt: SEEN,  name: 'Kasir', description: '' }, null);
       expect(r.description).toBeNull();
     });
   });
@@ -270,15 +303,15 @@ describe('custom roles', () => {
       await service.setDepotOverride('dashboard', 'C_kasir', DEPOT, 'GRANT', null);
       await service.setDepotOverride('dashboard', 'MANAGER', DEPOT, 'DENY', null);
       expect(currentDepotOverrides()).toHaveLength(2);
-      await service.updateRole('C_kasir', { scope: 'GLOBAL' }, 'admin');
+      await service.updateRole('C_kasir', { seenUpdatedAt: SEEN, scope: 'GLOBAL' }, 'admin');
       expect(currentDepotOverrides().map((o) => o.roleKey)).toEqual(['MANAGER']);
       expect((audit.entries.at(-1)?.metadata as { droppedDepotRules: number }).droppedDepotRules).toBe(1);
       await service.updateBuiltInRole('MANAGER', { scope: 'GLOBAL' }, 'admin');
       expect(currentDepotOverrides()).toEqual([]);
       // A change that leaves the role depot-limited drops nothing.
-      await service.updateBuiltInRole('MANAGER', { scope: 'LOCKED' }, 'admin');
+      await service.updateBuiltInRole('MANAGER', { scope: 'LOCKED', seenUpdatedAt: SEEN }, 'admin');
       await service.setDepotOverride('dashboard', 'MANAGER', DEPOT, 'DENY', null);
-      await service.updateBuiltInRole('MANAGER', { scope: null }, 'admin');
+      await service.updateBuiltInRole('MANAGER', { scope: null, seenUpdatedAt: SEEN }, 'admin');
       expect(currentDepotOverrides()).toHaveLength(1);
     });
 
@@ -303,10 +336,10 @@ describe('custom roles', () => {
       await service.updateBuiltInRole('MANAGER', { name: ' Manajer Wilayah ', description: 'x', scope: 'LOCKED' }, 'admin');
       expect(roleScopeSetting('MANAGER')).toBe('LOCKED');
       expect(currentRoleSettings()).toEqual([
-        { roleKey: 'MANAGER', name: 'Manajer Wilayah', description: 'x', scope: 'LOCKED', disabled: false },
+        { roleKey: 'MANAGER', name: 'Manajer Wilayah', description: 'x', scope: 'LOCKED', disabled: false, updatedAt: SEEN },
       ]);
       expect(audit.entries.at(-1)).toMatchObject({ action: 'access.builtin.updated' });
-      await service.updateBuiltInRole('MANAGER', { scope: null, name: '' }, 'admin');
+      await service.updateBuiltInRole('MANAGER', { scope: null, name: '', seenUpdatedAt: SEEN }, 'admin');
       expect(roleScopeSetting('MANAGER')).toBeUndefined();
       expect((await service.listBuiltInRoles())[0].name).toBeNull();
     });
@@ -436,7 +469,7 @@ describe('custom roles', () => {
       await c.createRole({ name: 'x', scope: 'LOCKED' } as never, u);
       await c.updateRole('C_x', { name: 'y' } as never, u);
       await c.archiveRole('C_x', u);
-      await c.setDepotOverride('dashboard', DEPOT, { roleKey: 'C_x', effect: 'GRANT' } as never, u);
+      await c.setDepotOverride('dashboard', DEPOT, 'C_x', { effect: 'GRANT' } as never, u);
       await c.resetDepotOverride('dashboard', DEPOT, 'C_x', u);
       await c.updateBuiltIn('MANAGER', { name: 'M' } as never, u);
       await c.setBuiltInDisabled('FINANCE', { disabled: true } as never, u);

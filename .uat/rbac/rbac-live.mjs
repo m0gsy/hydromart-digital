@@ -78,12 +78,12 @@ async function main() {
   check('an unknown role string never reaches the data', (await ORDERS(mintToken('WIZARD', { depotId: A }), A)).status === 403);
 
   // ---- 4. per-depot rules -----------------------------------------------------------------
-  r = await api('PUT', `/auth/api/v1/access/matrix/orderManageRead/depots/${A}`, { token: SA, body: { roleKey: 'HEAD_OFFICE', effect: 'DENY' } });
+  r = await api('PUT', `/auth/api/v1/access/matrix/orderManageRead/depots/${A}/HEAD_OFFICE`, { token: SA, body: { effect: 'DENY' } });
   check('a rule for a network-wide role is refused', r.status === 400, `status ${r.status}`);
-  r = await api('PUT', `/auth/api/v1/access/matrix/staffAdmin/depots/${A}`, { token: SA, body: { roleKey: 'MANAGER', effect: 'GRANT' } });
+  r = await api('PUT', `/auth/api/v1/access/matrix/staffAdmin/depots/${A}/MANAGER`, { token: SA, body: { effect: 'GRANT' } });
   check('GRANT of a forbidden capability per depot is refused', r.status === 400, `status ${r.status}`);
 
-  r = await api('PUT', `/auth/api/v1/access/matrix/orderManageRead/depots/${A}`, { token: SA, body: { roleKey: KEY, effect: 'DENY' } });
+  r = await api('PUT', `/auth/api/v1/access/matrix/orderManageRead/depots/${A}/${KEY}`, { token: SA, body: { effect: 'DENY' } });
   check('SUPER_ADMIN sets DENY at depot A', r.status === 204, `status ${r.status}`);
   const denied = await until(async () => (await ORDERS(kasirA, A)).status === 403, 'DENY enforced');
   check('DENY beats the global grant at depot A', denied);

@@ -71,4 +71,3 @@ CREATE TABLE "role_settings" (
     CONSTRAINT "role_settings_scope" CHECK ("scope" IS NULL OR "scope" IN ('LOCKED', 'RESOLVED', 'GLOBAL'))
 );
 
-CREATE INDEX "customers_role_idx" ON "customers"("role");

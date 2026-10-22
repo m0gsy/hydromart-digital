@@ -105,6 +105,8 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
       api.put(
         endpoints.auth.accessBuiltIn(role),
         {
+          // The version of this role's settings the form was shown (absent when it had none yet).
+          seenUpdatedAt: settings.get(role)?.updatedAt,
           name: name || null,
           description: description || null,
           ...(isFixed(role) ? {} : { scope: scope || null }),

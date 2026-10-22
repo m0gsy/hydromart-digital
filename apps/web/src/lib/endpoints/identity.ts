@@ -54,10 +54,9 @@ auth: {
   accessBuiltIn: (role: string) => `/auth/api/v1/access/builtin/${encodeURIComponent(role)}`,
   accessBuiltInDisabled: (role: string) =>
     `/auth/api/v1/access/builtin/${encodeURIComponent(role)}/disabled`,
-  // One role's GRANT/DENY for one capability at one depot (PUT), and its reset (DELETE).
-  depotOverride: (capability: string, depotId: string) =>
-    `/auth/api/v1/access/matrix/${encodeURIComponent(capability)}/depots/${encodeURIComponent(depotId)}`,
-  depotOverrideReset: (capability: string, depotId: string, roleKey: string) =>
+  // One role's GRANT/DENY for one capability at one depot: PUT sets it (body is the decision alone,
+  // `{ effect }`), DELETE resets it.
+  depotOverride: (capability: string, depotId: string, roleKey: string) =>
     `/auth/api/v1/access/matrix/${encodeURIComponent(capability)}/depots/${encodeURIComponent(depotId)}/${encodeURIComponent(roleKey)}`,
   // Current user's active device sessions (19b) + revoke one by id.
   sessions: '/auth/api/v1/sessions',

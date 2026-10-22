@@ -131,7 +131,6 @@ model Customer {
 
   @@index([status])
   @@index([assignedDepotId])
-  @@index([role])
   @@map("customers")
 }
 

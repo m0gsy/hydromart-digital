@@ -65,6 +65,14 @@ export class CapabilityChangeDto {
 }
 
 export class UpdateBuiltInRoleDto {
+  /**
+   * The `updatedAt` of the role's settings row as the form saw it, or absent when the role had no
+   * settings yet (nothing to overwrite). Refused when the row has moved since.
+   */
+  @IsOptional()
+  @IsString()
+  seenUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(60)
@@ -109,6 +117,10 @@ export class CreateCustomRoleDto {
 }
 
 export class UpdateCustomRoleDto {
+  /** The `updatedAt` the form was shown; the write is refused if the role has moved since. */
+  @IsString()
+  seenUpdatedAt!: string;
+
   @IsOptional()
   @IsString()
   @MinLength(2)
@@ -126,10 +138,6 @@ export class UpdateCustomRoleDto {
 }
 
 export class SetDepotOverrideDto {
-  @IsString()
-  @MaxLength(64)
-  roleKey!: string;
-
   @IsIn(['GRANT', 'DENY'])
   effect!: string;
 }
@@ -288,16 +296,17 @@ export class AccessController {
   // Per-depot exceptions to the matrix.
   @ApiOkResponse({ description: 'No content.' })
   @Can('accessMatrixWrite')
-  @Put('matrix/:capability/depots/:depotId')
+  @Put('matrix/:capability/depots/:depotId/:roleKey')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Grant or deny a capability for one role at one depot' })
   async setDepotOverride(
     @Param('capability') capability: string,
     @Param('depotId', new ParseUUIDPipe()) depotId: string,
+    @Param('roleKey') roleKey: string,
     @Body() dto: SetDepotOverrideDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.matrix.setDepotOverride(capability, dto.roleKey, depotId, dto.effect, user.sub);
+    await this.matrix.setDepotOverride(capability, roleKey, depotId, dto.effect, user.sub);
   }
 
   @ApiOkResponse({ description: 'No content.' })

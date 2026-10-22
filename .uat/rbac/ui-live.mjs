@@ -6,7 +6,7 @@
 import { createRequire } from 'node:module';
 import { api, mintToken } from '../lib.mjs';
 
-const require = createRequire('G:/VsCode/Hydromart/apps/web/package.json');
+const require = createRequire(new URL('../../apps/web/package.json', import.meta.url));
 const { chromium } = require('@playwright/test');
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3000';

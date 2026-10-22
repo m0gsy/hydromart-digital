@@ -4,7 +4,7 @@ import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { api, mintToken } from '../lib.mjs';
 
-const { chromium } = createRequire('G:/VsCode/Hydromart/apps/web/package.json')('@playwright/test');
+const { chromium } = createRequire(new URL('../../apps/web/package.json', import.meta.url))('@playwright/test');
 const WEB = 'http://localhost:3000';
 const DAGO = '79425d58-b76c-41ee-909c-40f11c53842c';
 const BDG = '020db071-25f6-426a-9dfb-f3cc9a395995';

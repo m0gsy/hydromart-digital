@@ -134,6 +134,10 @@ describe('HealthController', () => {
       overrides: null,
       ageSeconds: null,
       stale: false,
+      customRoles: null,
+      depotOverrides: null,
+      roleSettings: null,
+      dropped: null,
     });
     expect(res.checks.depotScope).toEqual({ configured: false, cached: 0 });
   });

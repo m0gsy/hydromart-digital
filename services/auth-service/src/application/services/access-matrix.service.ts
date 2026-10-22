@@ -31,7 +31,7 @@ import {
   type DepotOverride,
   type RoleSetting,
 } from '@hydromart/access';
-import { effectiveScope } from '@hydromart/platform';
+import { assertFresh, effectiveScope } from '@hydromart/platform';
 
 import { CapabilityOverrideRepository } from '../ports/capability-override.repository';
 import { CustomRoleRecord, CustomRoleRepository } from '../ports/custom-role.repository';
@@ -139,6 +139,8 @@ export class AccessMatrixService {
         description: r.description,
         scope: r.scope,
         disabled: r.disabledAt !== null,
+        // Shown back to the form, so a save can say which version it was built on.
+        updatedAt: r.updatedAt.toISOString(),
       }));
     loadOverrides(patch);
     loadCustomRoles(customRoles);
@@ -321,10 +323,12 @@ export class AccessMatrixService {
 
   async updateRole(
     key: string,
-    input: { name?: string; description?: string | null; scope?: string },
+    input: { name?: string; description?: string | null; scope?: string; seenUpdatedAt?: string },
     actorId: string | null,
   ): Promise<CustomRoleRecord> {
     const current = await this.requireActiveRole(key);
+    // Two admins on the same role: the second save must not silently erase the first.
+    assertFresh(current.updatedAt, input.seenUpdatedAt);
     const patch: { name?: string; description?: string | null; scope?: CustomRoleScope } = {};
     if (input.name !== undefined) {
       const name = input.name.trim();
@@ -375,10 +379,19 @@ export class AccessMatrixService {
    */
   async updateBuiltInRole(
     role: string,
-    input: { name?: string | null; description?: string | null; scope?: string | null },
+    input: {
+      name?: string | null;
+      description?: string | null;
+      scope?: string | null;
+      seenUpdatedAt?: string;
+    },
     actorId: string | null,
   ): Promise<void> {
     this.assertBuiltIn(role);
+    // A role with no settings row yet has nothing to overwrite; once it has one, the form must say
+    // which version it was shown.
+    const stored = (await this.roles.listRoleSettings()).find((r) => r.roleKey === role);
+    assertFresh(stored?.updatedAt ?? null, input.seenUpdatedAt);
     const patch: { name?: string | null; description?: string | null; scope?: CustomRoleScope | null } = {};
     if (input.name !== undefined) patch.name = input.name?.trim() || null;
     if (input.description !== undefined) patch.description = input.description?.trim() || null;

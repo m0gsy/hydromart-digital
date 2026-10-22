@@ -969,6 +969,8 @@ export interface RoleSetting {
   readonly description?: string | null;
   readonly scope?: CustomRoleScope | null;
   readonly disabled?: boolean;
+  /** ISO time of the last edit, so a form can send it back as `seenUpdatedAt`. Not enforced on read. */
+  readonly updatedAt?: string;
 }
 
 /** Roles that can never be disabled: the superuser, and the end customer every account starts as. */

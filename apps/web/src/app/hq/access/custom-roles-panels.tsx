@@ -23,6 +23,7 @@ interface RoleRow {
   description: string | null;
   scope: Scope;
   archivedAt: string | null;
+  updatedAt: string;
 }
 
 const DEPOT_RULE_ROLES = [
@@ -46,6 +47,8 @@ export function CustomRolesPanel({ onChanged }: { onChanged: () => void }) {
   const { confirm } = useConfirm();
   const [rows, setRows] = useState<RoleRow[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
+  // The `updatedAt` of the role the form was opened on, sent back so a stale save is refused.
+  const [editingUpdatedAt, setEditingUpdatedAt] = useState<string | undefined>(undefined);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [scope, setScope] = useState<Scope>('LOCKED');
@@ -68,6 +71,7 @@ export function CustomRolesPanel({ onChanged }: { onChanged: () => void }) {
 
   function startEdit(r: RoleRow | null) {
     setEditing(r ? r.key : '');
+    setEditingUpdatedAt(r?.updatedAt);
     setName(r?.name ?? '');
     setDescription(r?.description ?? '');
     setScope(r?.scope ?? 'LOCKED');
@@ -80,7 +84,13 @@ export function CustomRolesPanel({ onChanged }: { onChanged: () => void }) {
     setError(null);
     try {
       const body = { name, description: description || null, scope };
-      if (editing) await api.put(endpoints.auth.accessRole(editing), body, true);
+      if (editing) {
+        await api.put(
+          endpoints.auth.accessRole(editing),
+          { ...body, seenUpdatedAt: editingUpdatedAt },
+          true,
+        );
+      }
       else await api.post(endpoints.auth.accessRoles, copyFrom ? { ...body, copyFrom } : body, true);
       setEditing(null);
       await load();
@@ -262,7 +272,7 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
     setBusy(true);
     setError(null);
     try {
-      await api.put(endpoints.auth.depotOverride(safeCapability, depotId), { roleKey, effect }, true);
+      await api.put(endpoints.auth.depotOverride(safeCapability, depotId, roleKey), { effect }, true);
       await load();
     } catch (err) {
       setError(message(err));
@@ -275,7 +285,7 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
     setBusy(true);
     setError(null);
     try {
-      await api.del(endpoints.auth.depotOverrideReset(o.capability, o.depotId, o.roleKey), true);
+      await api.del(endpoints.auth.depotOverride(o.capability, o.depotId, o.roleKey), true);
       await load();
     } catch (err) {
       setError(message(err));

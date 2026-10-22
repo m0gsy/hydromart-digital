@@ -185,7 +185,8 @@ describe('staff can unstick a delivery the courier cannot (B2)', () => {
  */
 describe('DeliveryController staff escape hatches (B2)', () => {
   const id = '00000000-0000-4000-8000-0000000000aa';
-  const user = { sub: 'staff-1' } as AuthenticatedUser;
+  // An HQ role: the depot scope reads a missing role as the narrowest shape (never "sees everything").
+  const user = { sub: 'staff-1', role: 'HEAD_OFFICE' } as AuthenticatedUser;
   const deliveries = {
     releaseByStaff: jest.fn().mockResolvedValue({ id }),
     cancelByStaff: jest.fn().mockResolvedValue({ id }),
