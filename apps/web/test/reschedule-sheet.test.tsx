@@ -48,7 +48,8 @@ describe('reschedule sheet', () => {
   it('reads the slots of the order own depot', async () => {
     show();
     await waitFor(() => expect(screen.getByText('11.00-13.00')).toBeTruthy());
-    expect(get).toHaveBeenCalledWith(endpoints.orders.deliveryOptions('d-1'));
+    // auth = true: the route is not public, and a native shell has no cookie to stand in for the header.
+    expect(get).toHaveBeenCalledWith(endpoints.orders.deliveryOptions('d-1'), true);
   });
 
   it('posts the real instant of the chosen slot to the reschedule route, then finishes', async () => {

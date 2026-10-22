@@ -35,7 +35,9 @@ export function RescheduleSheet({
   const { t, locale } = useT();
   const { toast } = useToast();
   const options = useAsync<DeliveryOptions>(
-    () => api.get(endpoints.orders.deliveryOptions(order.depotId)),
+    // auth: true - this route is not public (SelfScoped); without the flag a native shell sends no
+    // bearer and the gateway answers "Missing bearer token".
+    () => api.get(endpoints.orders.deliveryOptions(order.depotId), true),
     [order.depotId],
   );
   const closed = new Set(options.data?.closedDates ?? []);
