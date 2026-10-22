@@ -43,6 +43,7 @@ export {
 } from './domain/import-runner';
 export { AuthenticatedUser, RequestContext } from './http/authenticated-user';
 export { getRequestContext, isTrustedProxyPeer } from './http/request-context';
+export { clientIpTracker, isInternalCall, perClientThrottle } from './http/per-client-throttle';
 export { TOKEN_ALGORITHM, TOKEN_AUDIENCE, TOKEN_ISSUER } from './nest/token-claims';
 export {
   Public,

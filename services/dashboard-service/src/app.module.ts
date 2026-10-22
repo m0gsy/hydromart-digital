@@ -4,7 +4,12 @@ import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
-import { AllExceptionsFilter, GlobalValidationPipe, LOG_REDACT_PATHS } from '@hydromart/platform';
+import {
+  AllExceptionsFilter,
+  GlobalValidationPipe,
+  LOG_REDACT_PATHS,
+  perClientThrottle,
+} from '@hydromart/platform';
 
 import { DashboardConfigService } from './config/dashboard-config.service';
 import { envValidationSchema } from './config/env.validation';
@@ -36,9 +41,10 @@ import { HealthController } from './modules/health.controller';
     ThrottlerModule.forRootAsync({
       inject: [DashboardConfigService],
       imports: [DashboardModule],
-      useFactory: (config: DashboardConfigService) => [
-        { ttl: config.rateLimit.ttlSeconds * 1000, limit: config.rateLimit.limit },
-      ],
+      useFactory: (config: DashboardConfigService) =>
+        perClientThrottle([
+          { ttl: config.rateLimit.ttlSeconds * 1000, limit: config.rateLimit.limit },
+        ]),
     }),
     DashboardModule,
   ],
