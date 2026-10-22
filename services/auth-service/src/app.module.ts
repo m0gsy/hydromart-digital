@@ -4,7 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
-import { redactPaths } from '@hydromart/platform';
+import { perClientThrottle, redactPaths } from '@hydromart/platform';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { GlobalValidationPipe } from './common/pipes/validation.pipe';
@@ -41,12 +41,13 @@ import { HealthModule } from './modules/health/health.module';
       inject: [AuthConfigService],
       // AuthConfigService is provided by AuthModule; import it so DI can resolve it.
       imports: [AuthModule],
-      useFactory: (config: AuthConfigService) => [
-        {
-          ttl: config.rateLimit.ttlSeconds * 1000,
-          limit: config.rateLimit.limit,
-        },
-      ],
+      useFactory: (config: AuthConfigService) =>
+        perClientThrottle([
+          {
+            ttl: config.rateLimit.ttlSeconds * 1000,
+            limit: config.rateLimit.limit,
+          },
+        ]),
     }),
     AuthModule,
     HealthModule,

@@ -17,6 +17,15 @@ x-shared: &shared
   # key is a two-step roll (old value here, new value above, redeploy at whatever pace
   # CI/CD allows) instead of a flag day across every service at once. Blank = no rotation.
   INTERNAL_SERVICE_KEY_PREVIOUS: ${INTERNAL_SERVICE_KEY_PREVIOUS:-}
+  # The per-client limit every BACKEND service applies, per source IP per minute. It was never
+  # passed to the services at all, so they ran the Joi default of 100 — and since every request
+  # reaches them through the gateway, that was 100 per minute for ALL users of a service
+  # together (the 101st request from anyone was a 429). The services now key on the client IP
+  # the gateway forwards (platform `perClientThrottle`) and let service-to-service calls through,
+  # so this is a per-client ceiling. It is a BACKSTOP, deliberately looser than the gateway's 600 per
+  # user: the gateway keys on the user and is the real limiter, while this one keys on the IP, so a depot
+  # whose staff share one wifi must not hit it first. The gateway block below overrides it for itself.
+  RATE_LIMIT_MAX: ${SERVICE_RATE_LIMIT_MAX:-3000}
   # Every service polls auth-service for the super admin's RBAC overrides. Shared rather
   # than per-service: a service that misses it silently serves the compiled defaults
   # forever, which looks like "the matrix edit did nothing" and is hard to spot.
