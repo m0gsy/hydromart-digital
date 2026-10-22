@@ -301,6 +301,7 @@ export const hq = {
       rewardHandover: 'Hand over a reward',
       pdpRequests: 'Data-subject requests (PDP)',
       hrView: 'View HR dashboards',
+      hrViewOwn: 'View attendance at their own depots (franchise)',
       hrAdmin: 'Manage employees & attendance',
       employeeAssign: 'Assign employees across depots',
       employeeAssignRequest: 'Request to borrow an employee for a depot',

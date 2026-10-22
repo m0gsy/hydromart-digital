@@ -128,6 +128,8 @@ export const canManageDepotLifecycle = (role: string | null | undefined) =>
 export const canReadDepotRecords = (role: string | null | undefined) => can('depotDirectory', role);
 export const canManagePricing = (role: string | null | undefined) => can('depotAdmin', role);
 export const canViewFranchise = (role: string | null | undefined) => can('franchise', role);
+// A franchise owner reading attendance at the depots they own: log, face frames, summary.
+export const canViewOwnAttendance = (role: string | null | undefined) => can('hrViewOwn', role);
 export const canViewPayout = (role: string | null | undefined) => can('payout', role);
 export const canManageStaff = (role: string | null | undefined) => can('staffAdmin', role);
 export const canViewOpsNotifications = (role: string | null | undefined) => can('opsNotif', role);

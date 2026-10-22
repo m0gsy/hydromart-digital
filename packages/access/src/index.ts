@@ -437,6 +437,13 @@ export const CAPABILITIES = {
    * roles, so the controller carries `@Can('kasbonApprove')`.
    */
   kasbonApprove: ['ASSISTANT_SUPERVISOR', 'MANAGER', 'HR', 'SUPER_ADMIN'],
+  // hr-service — a franchise owner reads the attendance of the people at THEIR OWN depots: the
+  // log, the face frame behind a punch, and the summary. Its own capability, not `hrView`, because
+  // hr-service scopes `hrView` reads by depot ROLE: an owner holding it would read every depot's
+  // attendance and face photos. These routes resolve the owner's depots from `Depot.ownerId` (the
+  // depot-service source of truth) and refuse any depot outside that set. Read-only: nothing here
+  // can approve, adjust or enter a punch.
+  hrViewOwn: ['FRANCHISE_OWNER'],
   // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
   // manager see their own depot (DepotScopeGuard keeps it to their depot).
   hrView: [

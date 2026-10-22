@@ -206,6 +206,7 @@ export const dashC = {
       leaveApprove: 'Setujui cuti',
       kasbonApprove: 'Setujui kasbon',
       hrView: 'Laporan HR (lihat)',
+      hrViewOwn: 'Absensi depot sendiri (waralaba)',
       rewardHandover: 'Serah terima hadiah',
       pdpRequests: 'Permintaan data pribadi (UU PDP)',
       priceOverrideDecide: 'Putuskan usulan harga depot',

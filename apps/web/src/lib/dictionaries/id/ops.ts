@@ -18,6 +18,7 @@ export const ops = {
   },
   nav: {
     myFranchise: 'Waralabaku',
+    ownerAttendance: 'Absensi tim',
     operations: 'Operasi',
     hqConsole: 'Konsol HQ',
     search: 'Pencarian',

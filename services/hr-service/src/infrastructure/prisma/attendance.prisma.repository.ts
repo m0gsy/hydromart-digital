@@ -12,6 +12,7 @@ import {
   CheckOutPatch,
   WorkedMinutesRow,
   CreateAttendanceInput,
+  DepotAttendanceSummary,
   ManualAttendanceInput,
 } from '../../application/ports/attendance.repository';
 import { PrismaService } from './prisma.service';
@@ -219,5 +220,47 @@ export class AttendancePrismaRepository implements AttendanceRepository {
       })),
       total,
     };
+  }
+
+  async summaryByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<DepotAttendanceSummary[]> {
+    if (depotIds.length === 0) return [];
+    const where = { depotId: { in: [...depotIds] }, workDate: { gte: from, lte: to } };
+    const [byStatus, people] = await Promise.all([
+      this.prisma.attendance.groupBy({
+        by: ['depotId', 'status'],
+        where,
+        _count: { _all: true },
+        _sum: { lateMinutes: true },
+      }),
+      // Distinct people per depot: group by (depot, employee) and count the groups.
+      this.prisma.attendance.groupBy({ by: ['depotId', 'employeeId'], where }),
+    ]);
+    const out = new Map<string | null, DepotAttendanceSummary>();
+    const entry = (depotId: string | null): DepotAttendanceSummary => {
+      let e = out.get(depotId);
+      if (!e) {
+        e = { depotId, present: 0, late: 0, absent: 0, leave: 0, holiday: 0, pending: 0, lateMinutes: 0, employees: 0 };
+        out.set(depotId, e);
+      }
+      return e;
+    };
+    for (const row of byStatus) {
+      const e = entry(row.depotId);
+      const n = row._count._all;
+      if (row.status === 'PRESENT') e.present += n;
+      else if (row.status === 'LATE') {
+        e.late += n;
+        e.lateMinutes += row._sum.lateMinutes ?? 0;
+      } else if (row.status === 'ABSENT') e.absent += n;
+      else if (row.status === 'LEAVE') e.leave += n;
+      else if (row.status === 'HOLIDAY') e.holiday += n;
+      else if (row.status === 'PENDING') e.pending += n;
+    }
+    for (const row of people) entry(row.depotId).employees += 1;
+    return [...out.values()];
   }
 }

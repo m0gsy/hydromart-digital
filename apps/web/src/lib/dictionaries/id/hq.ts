@@ -304,6 +304,7 @@ export const hq = {
       rewardHandover: 'Serah terima hadiah',
       pdpRequests: 'Permintaan data pribadi (UU PDP)',
       hrView: 'Lihat dashboard HR',
+      hrViewOwn: 'Lihat absensi depot sendiri (waralaba)',
       hrAdmin: 'Kelola karyawan & absensi',
       employeeAssign: 'Tugaskan karyawan lintas depot',
       employeeAssignRequest: 'Ajukan peminjaman karyawan untuk depot',

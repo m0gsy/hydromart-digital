@@ -93,6 +93,10 @@ class FakeAtt implements AttendanceRepository {
     this.row = { ...(this.row as Attendance), status };
     return this.row;
   }
+  summaryByDepot(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
+
   async list() {
     return { rows: [], total: 0 };
   }

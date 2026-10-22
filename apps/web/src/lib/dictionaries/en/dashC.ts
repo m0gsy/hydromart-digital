@@ -201,6 +201,7 @@ export const dashC = {
       leaveApprove: 'Approve leave',
       kasbonApprove: 'Approve cash advance',
       hrView: 'HR reports (view)',
+      hrViewOwn: 'Attendance at their own depots (franchise)',
       rewardHandover: 'Reward hand-over',
       pdpRequests: 'Personal-data requests (UU PDP)',
       priceOverrideDecide: 'Decide depot price proposals',

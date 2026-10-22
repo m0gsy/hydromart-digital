@@ -38,6 +38,10 @@ import { BONUS_RULE_REPOSITORY } from '../application/ports/bonus-rule.repositor
 import { LOAN_REPOSITORY } from '../application/ports/loan.repository';
 import { DEPOT_ASSIGNMENT_REPOSITORY } from '../application/ports/depot-assignment.repository';
 import { DEPOT_DIRECTORY_PORT } from '../application/ports/depot-directory.port';
+import { OWNED_DEPOTS_PORT } from '../application/ports/owned-depots.port';
+import { OwnerAttendanceService } from '../application/services/owner-attendance.service';
+import { OwnedDepotsHttpAdapter } from '../infrastructure/http/owned-depots.http.adapter';
+import { OwnerAttendanceController } from './owner-attendance.controller';
 import { LOAN_REQUEST_REPOSITORY } from '../application/ports/loan-request.repository';
 import { BonusRuleService } from '../application/services/bonus-rule.service';
 import { LoanService } from '../application/services/loan.service';
@@ -170,6 +174,8 @@ const providers: Provider[] = [
   { provide: DEPOT_ASSIGNMENT_REPOSITORY, useClass: DepotAssignmentPrismaRepository },
   DepotAssignmentService,
   { provide: DEPOT_DIRECTORY_PORT, useClass: DepotDirectoryHttpAdapter },
+  { provide: OWNED_DEPOTS_PORT, useClass: OwnedDepotsHttpAdapter },
+  OwnerAttendanceService,
   DepotAssignmentApplier,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
   // Outbound HR notifications (leave decisions, announcements) via crm-service.
@@ -209,6 +215,7 @@ const providers: Provider[] = [
     FaceController,
     SelfFaceController,
     AttendanceController,
+    OwnerAttendanceController,
     PayrollController,
     BonusController,
     DeductionController,

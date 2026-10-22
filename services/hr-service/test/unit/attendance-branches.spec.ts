@@ -77,6 +77,10 @@ class FakeAtt implements AttendanceRepository {
   async patchStatus(): Promise<Attendance> {
     return {} as Attendance;
   }
+  summaryByDepot(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
+
   async list(filter: AttendanceListFilter) {
     this.lastFilter = filter;
     // CA-1-01: the list row carries the employee's name now — the approval queue was

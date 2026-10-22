@@ -118,6 +118,8 @@ function build(opts: {
     summary: async () =>
       opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0, pendingDays: 0 },
     summaryMany: async () => new Map(),
+    // The franchise owner's summary: payroll never asks for it.
+    summaryByDepot: async () => [],
     listWorkedMinutes: async () =>
       (opts.workedMinutes ?? []).map((d) => ({
         workDate: new Date(`${d.workDate}T00:00:00.000Z`),
