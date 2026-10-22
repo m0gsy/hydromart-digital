@@ -69,6 +69,7 @@ import { hqGroupsForRole } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
+import { roleLabel } from '@/lib/custom-role';
 
 // Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
 // the palette (which imports HQ_GROUPS from here) — keeps the module graph acyclic.
@@ -269,7 +270,7 @@ export function HqRail() {
           <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted">
             <ShieldCheck size={15} className="text-brand-600" />
             {t('hq.role')}:{' '}
-            <strong className="text-[color:var(--text)]">{t(`hq.roles.${role}`)}</strong>
+            <strong className="text-[color:var(--text)]">{roleLabel(t, role)}</strong>
           </div>
         )}
         <ConsoleSignOut />

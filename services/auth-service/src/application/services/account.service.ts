@@ -437,7 +437,10 @@ export class AccountService {
       authSubjectId: staff.id,
       fullName: staff.fullName ?? input.fullName ?? input.phone,
       phone: staff.phone,
-      role: input.role,
+      // A custom role has no HR jabatan (hr-service keeps its own closed list), so the employee is
+      // created without one. Sending the key would make hr-service refuse the whole invite and
+      // leave the account half-made.
+      role: isCustomRoleKey(input.role) ? undefined : input.role,
       depotId: input.depotId ?? undefined,
       position: input.position,
       joinDate: input.joinDate,

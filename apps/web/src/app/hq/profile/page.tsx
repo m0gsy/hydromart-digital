@@ -13,6 +13,7 @@ import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { useAsync } from '@/lib/use-async';
 import type { AdminNotificationPrefs, NotificationChannelPref } from '@/lib/types';
+import { roleLabel } from '@/lib/custom-role';
 
 // Design 23a — admin profile & notification prefs. The account block is REAL (the signed-in
 // user IS auth.me). Language + theme controls are real. The per-EVENT channel matrix is now
@@ -46,7 +47,7 @@ export default function HqProfilePage() {
     { label: t('hq.profile.name'), value: customer.fullName ?? '—' },
     { label: t('hq.profile.phone'), value: customer.phone },
     { label: t('hq.profile.email'), value: customer.email ?? '—' },
-    { label: t('hq.profile.role'), value: customer.role ? t(`hq.roles.${customer.role}`) : '—' },
+    { label: t('hq.profile.role'), value: customer.role ? roleLabel(t, customer.role) : '—' },
   ];
 
   const channels: Channel[] = ['push', 'email', 'wa'];

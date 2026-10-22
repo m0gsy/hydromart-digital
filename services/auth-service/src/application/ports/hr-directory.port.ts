@@ -75,7 +75,8 @@ export interface ProvisionEmployeeInput {
   authSubjectId: string;
   fullName: string;
   phone: string;
-  role: string;
+  /** Absent for a custom role: hr-service has no jabatan for it. */
+  role?: string;
   depotId?: string;
   position: string;
   joinDate: string;

@@ -741,6 +741,17 @@ describe('AccountService', () => {
       );
     });
 
+    it('provisions the employee WITHOUT a jabatan, so hr-service accepts the invite', async () => {
+      loadCustomRoles([{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' }]);
+      await service.inviteStaffWithEmployee(
+        { ...EMPLOYMENT, phone: '+628990004010', role: ROLE, fullName: 'Kasir', depotId: 'depot-1' },
+        Role.SUPER_ADMIN,
+      );
+      const sent = hr.calls.at(-1);
+      expect(sent).toBeDefined();
+      expect(sent && 'role' in sent ? sent.role : 'absent').toBeUndefined();
+    });
+
     it('lets SUPER_ADMIN assign an active one, refuses head office, and a LOCKED role needs a depot', async () => {
       loadCustomRoles([{ key: 'C_kasir', name: 'Kasir', scope: 'LOCKED' }]);
       await expect(

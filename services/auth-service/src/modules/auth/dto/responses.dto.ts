@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 import { capabilitiesFor } from '@hydromart/access';
+import { effectiveScope } from '@hydromart/platform';
 
 import { CustomerStatus } from '../../../domain/customer/customer-status.enum';
 import { Role } from '../../../domain/customer/role.enum';
@@ -105,13 +106,27 @@ export class PublicCustomerDto {
   })
   capabilities?: string[];
 
+  @ApiProperty({
+    enum: ['LOCKED', 'RESOLVED', 'GLOBAL'],
+    required: false,
+    description:
+      'How many depots this role reaches (one / an assigned set / the whole network), as the ' +
+      'server enforces it right now. Sent with `capabilities`, so a screen can hide a control ' +
+      'the depot guard would refuse without keeping its own copy of the role table.',
+  })
+  roleScope?: 'LOCKED' | 'RESOLVED' | 'GLOBAL';
+
   static from(customer: PublicCustomer): PublicCustomerDto {
     return { ...customer };
   }
 
   /** As `from`, plus the live capability list. Use on session + profile responses. */
   static withCapabilities(customer: PublicCustomer): PublicCustomerDto {
-    return { ...customer, capabilities: capabilitiesFor(customer.role) };
+    return {
+      ...customer,
+      capabilities: capabilitiesFor(customer.role),
+      roleScope: effectiveScope(customer.role),
+    };
   }
 }
 

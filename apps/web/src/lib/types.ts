@@ -36,6 +36,8 @@ export interface Customer {
   // sent with the session + /auth/me. Absent on staff-listing rows, which describe
   // someone else's account rather than the caller's.
   capabilities?: string[];
+  // How many depots the role reaches, as the server enforces it. Sent with `capabilities`.
+  roleScope?: 'LOCKED' | 'RESOLVED' | 'GLOBAL';
 }
 
 export interface DepotTeamReport {

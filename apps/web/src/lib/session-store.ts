@@ -45,7 +45,11 @@ export function getSession(): Session | null {
  * the one place that needs to know.
  */
 function syncCapabilities(session: Session | null): void {
-  loadSessionCapabilities(session?.customer?.role, session?.customer?.capabilities);
+  loadSessionCapabilities(
+    session?.customer?.role,
+    session?.customer?.capabilities,
+    session?.customer?.roleScope,
+  );
 }
 
 export function setSession(session: Session | null): void {
