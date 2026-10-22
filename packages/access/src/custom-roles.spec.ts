@@ -11,6 +11,10 @@ import {
   loadCustomRoles,
   loadDepotOverrides,
   loadOverrides,
+  loadRoleSettings,
+  currentRoleSettings,
+  isRoleDisabled,
+  roleScopeSetting,
 } from './index';
 
 const A = '11111111-1111-1111-1111-111111111111';
@@ -111,5 +115,50 @@ describe('per-depot overrides', () => {
     const rows = [{ capability: 'dashboard', roleKey: 'C_kasir', depotId: A, effect: 'GRANT' as const }];
     loadDepotOverrides(rows);
     expect(currentDepotOverrides()).toEqual(rows);
+  });
+});
+
+describe('built-in role settings', () => {
+  afterEach(() => {
+    loadRoleSettings([]);
+    loadOverrides({});
+  });
+
+  it('a disabled built-in role holds nothing, but SUPER_ADMIN and CUSTOMER cannot be disabled', () => {
+    expect(can('orderQueue', 'STAFF_DEPOT')).toBe(true);
+    loadRoleSettings([
+      { roleKey: 'STAFF_DEPOT', disabled: true },
+      { roleKey: 'SUPER_ADMIN', disabled: true },
+      { roleKey: 'CUSTOMER', disabled: true },
+    ]);
+    expect(can('orderQueue', 'STAFF_DEPOT')).toBe(false);
+    expect(capabilitiesFor('STAFF_DEPOT')).toEqual([]);
+    expect(isRoleDisabled('STAFF_DEPOT')).toBe(true);
+    expect(can('dashboard', 'SUPER_ADMIN')).toBe(true);
+    expect(isRoleDisabled('SUPER_ADMIN')).toBe(false);
+    expect(isRoleDisabled('CUSTOMER')).toBe(false);
+    expect(isRoleDisabled(null)).toBe(false);
+  });
+
+  it('re-enabling restores the compiled behaviour', () => {
+    loadRoleSettings([{ roleKey: 'STAFF_DEPOT', disabled: true }]);
+    loadRoleSettings([{ roleKey: 'STAFF_DEPOT', disabled: false, name: 'Staf' }]);
+    expect(can('orderQueue', 'STAFF_DEPOT')).toBe(true);
+    expect(currentRoleSettings()).toHaveLength(1);
+  });
+
+  it('a scope setting answers for editable roles only', () => {
+    loadRoleSettings([
+      { roleKey: 'MANAGER', scope: 'LOCKED' },
+      { roleKey: 'FRANCHISE_OWNER', scope: 'GLOBAL' },
+      { roleKey: 'SUPER_ADMIN', scope: 'LOCKED' },
+      { roleKey: 'HR' },
+    ]);
+    expect(roleScopeSetting('MANAGER')).toBe('LOCKED');
+    expect(roleScopeSetting('FRANCHISE_OWNER')).toBeUndefined();
+    expect(roleScopeSetting('SUPER_ADMIN')).toBeUndefined();
+    expect(roleScopeSetting('HR')).toBeUndefined();
+    expect(roleScopeSetting('STAFF_DEPOT')).toBeUndefined();
+    expect(roleScopeSetting(null)).toBeUndefined();
   });
 });

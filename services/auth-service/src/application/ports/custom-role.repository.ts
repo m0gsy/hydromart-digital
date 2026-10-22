@@ -11,6 +11,16 @@ export interface CustomRoleRecord {
   updatedAt: Date;
 }
 
+export interface RoleSettingRecord {
+  roleKey: string;
+  name: string | null;
+  description: string | null;
+  scope: CustomRoleScope | null;
+  disabledAt: Date | null;
+  updatedBy: string | null;
+  updatedAt: Date;
+}
+
 export interface DepotOverrideRecord {
   capability: string;
   roleKey: string;
@@ -46,6 +56,19 @@ export interface CustomRoleRepository {
   archive(key: string): Promise<void>;
   /** Accounts that currently hold this role. Archiving is refused while this is above zero. */
   countHolders(key: string): Promise<number>;
+
+  listRoleSettings(): Promise<RoleSettingRecord[]>;
+  /** Create or replace the settings row of one built-in role. */
+  upsertRoleSetting(
+    roleKey: string,
+    patch: {
+      name?: string | null;
+      description?: string | null;
+      scope?: CustomRoleScope | null;
+      disabledAt?: Date | null;
+    },
+    updatedBy: string | null,
+  ): Promise<void>;
 
   listDepotOverrides(): Promise<DepotOverrideRecord[]>;
   setDepotOverride(

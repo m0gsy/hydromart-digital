@@ -1,12 +1,12 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { loadCustomRoles, loadDepotOverrides, loadOverrides } from '@hydromart/access';
+import { loadCustomRoles, loadDepotOverrides, loadOverrides, loadRoleSettings } from '@hydromart/access';
 
 import { assertCapability } from './capability';
 import { CAPABILITY_KEY } from './decorators';
 import { DepotScopeGuard } from './depot-scope.guard';
-import { isDepotLocked, isDepotResolved, isDepotScoped } from './depot-scope';
+import { effectiveScope, isDepotLocked, isDepotResolved, isDepotScoped } from './depot-scope';
 import { RolesGuard } from './roles.guard';
 
 const A = '11111111-1111-1111-1111-111111111111';
@@ -16,6 +16,7 @@ afterEach(() => {
   loadOverrides({});
   loadCustomRoles([]);
   loadDepotOverrides([]);
+  loadRoleSettings([]);
 });
 
 interface Req {
@@ -146,5 +147,29 @@ describe('assertCapability with a depot', () => {
     expect(() => assertCapability({ role: 'C_kasir' } as never, 'dashboard', B)).toThrow(ForbiddenException);
     expect(() => assertCapability({ role: 'C_kasir' } as never, 'dashboard')).toThrow(ForbiddenException);
     expect(() => assertCapability({ role: 'C_kasir' } as never, 'dashboard', null)).toThrow(ForbiddenException);
+  });
+});
+
+describe('scope setting on a built-in role', () => {
+  it('replaces the compiled reach, and fixed roles ignore it', () => {
+    expect(effectiveScope('MANAGER')).toBe('RESOLVED');
+    expect(effectiveScope('HR')).toBe('GLOBAL');
+    loadRoleSettings([
+      { roleKey: 'MANAGER', scope: 'LOCKED' },
+      { roleKey: 'HR', scope: 'RESOLVED' },
+      { roleKey: 'STAFF_DEPOT', scope: 'GLOBAL' },
+      { roleKey: 'FRANCHISE_OWNER', scope: 'LOCKED' },
+    ]);
+    expect(effectiveScope('MANAGER')).toBe('LOCKED');
+    expect(isDepotResolved('HR')).toBe(true);
+    expect(isDepotScoped('STAFF_DEPOT')).toBe(false);
+    expect(effectiveScope('FRANCHISE_OWNER')).toBe('GLOBAL');
+  });
+
+  it('a disabled role fails the RolesGuard outright', () => {
+    loadOverrides({ dashboard: ['HR'] });
+    expect(run({ user: { role: 'HR' } })).toBe(true);
+    loadRoleSettings([{ roleKey: 'HR', disabled: true }]);
+    expect(() => run({ user: { role: 'HR' } })).toThrow(ForbiddenException);
   });
 });

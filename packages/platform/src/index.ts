@@ -85,6 +85,7 @@ export {
   isDepotLocked,
   isDepotResolved,
   isDepotScoped,
+  effectiveScope,
   DEPOT_LOCKED_ROLES,
   DEPOT_SCOPED_ROLES,
 } from './nest/depot-scope';

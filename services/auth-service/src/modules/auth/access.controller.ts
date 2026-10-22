@@ -17,6 +17,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -63,6 +64,28 @@ export class CapabilityChangeDto {
   roles!: string[] | null;
 }
 
+export class UpdateBuiltInRoleDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string | null;
+
+  /** `null` returns the role to its compiled reach. */
+  @IsOptional()
+  @IsIn(['LOCKED', 'RESOLVED', 'GLOBAL'])
+  scope?: string | null;
+}
+
+export class SetBuiltInDisabledDto {
+  @IsBoolean()
+  disabled!: boolean;
+}
+
 export class CreateCustomRoleDto {
   @IsString()
   @MinLength(2)
@@ -74,8 +97,15 @@ export class CreateCustomRoleDto {
   @MaxLength(300)
   description?: string | null;
 
+  @IsOptional()
   @IsIn(['LOCKED', 'RESOLVED', 'GLOBAL'])
-  scope!: string;
+  scope?: string;
+
+  /** A built-in role to start from: its capabilities (minus the forbidden ones) and its reach. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  copyFrom?: string;
 }
 
 export class UpdateCustomRoleDto {
@@ -226,6 +256,33 @@ export class AccessController {
   @ApiOperation({ summary: 'Archive a custom role (refused while an account holds it)' })
   async archiveRole(@Param('key') key: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
     await this.matrix.archiveRole(key, user.sub);
+  }
+
+  // Built-in roles: rename / describe / rescope, and switch off or on.
+  @ApiOkResponse({ description: 'No content.' })
+  @Can('accessMatrixWrite')
+  @Put('builtin/:role')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Name, description and depot reach of a built-in role' })
+  async updateBuiltIn(
+    @Param('role') role: string,
+    @Body() dto: UpdateBuiltInRoleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.matrix.updateBuiltInRole(role, dto, user.sub);
+  }
+
+  @ApiOkResponse({ description: 'No content.' })
+  @Can('accessMatrixWrite')
+  @Put('builtin/:role/disabled')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Switch a built-in role off or back on (refused while accounts hold it)' })
+  async setBuiltInDisabled(
+    @Param('role') role: string,
+    @Body() dto: SetBuiltInDisabledDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.matrix.setBuiltInDisabled(role, dto.disabled, user.sub);
   }
 
   // Per-depot exceptions to the matrix.

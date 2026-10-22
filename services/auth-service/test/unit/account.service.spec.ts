@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { loadCustomRoles } from '@hydromart/access';
+import { loadCustomRoles, loadRoleSettings } from '@hydromart/access';
 import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
@@ -719,7 +719,17 @@ describe('AccountService', () => {
   // depot rule as the invite path.
   describe('custom roles', () => {
     const ROLE = 'C_kasir' as unknown as Role;
-    afterEach(() => loadCustomRoles([]));
+    afterEach(() => {
+      loadCustomRoles([]);
+      loadRoleSettings([]);
+    });
+
+    it('refuses a built-in role that has been switched off', async () => {
+      loadRoleSettings([{ roleKey: 'FINANCE', disabled: true }]);
+      await expect(
+        service.inviteStaff('+628990004009', Role.FINANCE, 'F', undefined, undefined, Role.SUPER_ADMIN),
+      ).rejects.toBeInstanceOf(InvalidStaffRoleError);
+    });
 
     it('refuses a custom role that is not active, on invite and on role change', async () => {
       await expect(

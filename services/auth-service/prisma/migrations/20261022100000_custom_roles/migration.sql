@@ -12,7 +12,7 @@
 --   ALTER TABLE "customers" ALTER COLUMN "role" DROP DEFAULT;
 --   ALTER TABLE "customers" ALTER COLUMN "role" TYPE "Role" USING "role"::"Role";
 --   ALTER TABLE "customers" ALTER COLUMN "role" SET DEFAULT 'CUSTOMER';
---   DROP TABLE "capability_depot_overrides"; DROP TABLE "custom_roles";
+--   DROP TABLE "capability_depot_overrides"; DROP TABLE "custom_roles"; DROP TABLE "role_settings";
 
 ALTER TABLE "capability_overrides" ALTER COLUMN "roles" TYPE TEXT[] USING "roles"::TEXT[];
 
@@ -47,6 +47,19 @@ CREATE TABLE "capability_depot_overrides" (
 
     CONSTRAINT "capability_depot_overrides_pkey" PRIMARY KEY ("capability", "roleKey", "depotId"),
     CONSTRAINT "capability_depot_overrides_effect" CHECK ("effect" IN ('GRANT', 'DENY'))
+);
+
+CREATE TABLE "role_settings" (
+    "roleKey" TEXT NOT NULL,
+    "name" TEXT,
+    "description" TEXT,
+    "scope" TEXT,
+    "disabledAt" TIMESTAMP(3),
+    "updatedBy" UUID,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "role_settings_pkey" PRIMARY KEY ("roleKey"),
+    CONSTRAINT "role_settings_scope" CHECK ("scope" IS NULL OR "scope" IN ('LOCKED', 'RESOLVED', 'GLOBAL'))
 );
 
 CREATE INDEX "customers_role_idx" ON "customers"("role");

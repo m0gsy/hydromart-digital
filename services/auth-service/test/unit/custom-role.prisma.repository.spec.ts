@@ -23,6 +23,10 @@ function setup() {
       upsert: jest.fn().mockResolvedValue(undefined),
       deleteMany: jest.fn().mockReturnValue('depot-delete'),
     },
+    roleSetting: {
+      findMany: jest.fn().mockResolvedValue([{ roleKey: 'MANAGER', scope: 'LOCKED' }]),
+      upsert: jest.fn().mockResolvedValue(undefined),
+    },
     customer: { count: jest.fn().mockResolvedValue(4) },
     $transaction: jest.fn().mockResolvedValue([]),
   };
@@ -81,6 +85,17 @@ describe('CustomRolePrismaRepository', () => {
     await repo.removeDepotOverride('dashboard', 'C_a', D);
     expect(prisma.capabilityDepotOverride.deleteMany).toHaveBeenCalledWith({
       where: { capability: 'dashboard', roleKey: 'C_a', depotId: D },
+    });
+  });
+
+  it('lists and upserts built-in role settings', async () => {
+    const { prisma, repo } = setup();
+    expect(await repo.listRoleSettings()).toEqual([{ roleKey: 'MANAGER', scope: 'LOCKED' }]);
+    await repo.upsertRoleSetting('MANAGER', { name: 'Mgr', disabledAt: null }, 'admin');
+    expect(prisma.roleSetting.upsert).toHaveBeenCalledWith({
+      where: { roleKey: 'MANAGER' },
+      create: { roleKey: 'MANAGER', name: 'Mgr', disabledAt: null, updatedBy: 'admin' },
+      update: { name: 'Mgr', disabledAt: null, updatedBy: 'admin' },
     });
   });
 });

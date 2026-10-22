@@ -125,6 +125,22 @@ describe('httpCapabilityLoader', () => {
       ]);
     });
 
+    it('reads role settings and drops malformed ones', async () => {
+      ok({
+        roleSettings: [
+          null,
+          { roleKey: '__proto__', disabled: true },
+          { roleKey: 5 },
+          { roleKey: 'MANAGER', name: 'Mgr', description: 7, scope: 'LOCKED', disabled: true },
+          { roleKey: 'HR', scope: 'EVERYWHERE' },
+        ],
+      });
+      expect((await httpCapabilityLoader(CFG)()).roleSettings).toEqual([
+        { roleKey: 'MANAGER', name: 'Mgr', description: null, scope: 'LOCKED', disabled: true },
+        { roleKey: 'HR', name: null, description: null, scope: null, disabled: false },
+      ]);
+    });
+
     it('an old source that sends neither field yields none', async () => {
       ok({ overrides: { a: ['HR'] } });
       const out = await httpCapabilityLoader(CFG)();

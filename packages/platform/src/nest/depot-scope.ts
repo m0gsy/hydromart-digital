@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 
-import { customRoleScope } from '@hydromart/access';
+import { customRoleScope, roleScopeSetting, type CustomRoleScope } from '@hydromart/access';
 
 import { Role } from '../domain/role.enum';
 import { AuthenticatedUser } from '../http/authenticated-user';
@@ -35,21 +35,32 @@ export const DEPOT_SCOPED_ROLES: ReadonlySet<Role> = new Set([
   Role.MANAGER,
 ]);
 
-// A custom role carries its scope as data. An unknown or archived custom key answers LOCKED
-// (see customRoleScope), so the only way a custom role sees the whole network is a SUPER_ADMIN
-// having declared it GLOBAL.
+/**
+ * The depot reach of a role. Precedence: a SUPER_ADMIN's setting on a built-in role, then a
+ * custom role's declared scope (an unknown or archived custom key answers LOCKED), then the
+ * compiled sets above. So the only ways to see the whole network are a built-in that is
+ * compiled that way, or a role a SUPER_ADMIN deliberately declared GLOBAL.
+ */
+export function effectiveScope(role: Role | string): CustomRoleScope {
+  const set = roleScopeSetting(role) ?? customRoleScope(role);
+  if (set) return set;
+  if (DEPOT_LOCKED_ROLES.has(role as Role)) return 'LOCKED';
+  if (DEPOT_SCOPED_ROLES.has(role as Role)) return 'RESOLVED';
+  return 'GLOBAL';
+}
+
 export function isDepotLocked(role: Role | string): boolean {
-  return DEPOT_LOCKED_ROLES.has(role as Role) || customRoleScope(role) === 'LOCKED';
+  return effectiveScope(role) === 'LOCKED';
 }
 
 /** Whether this role sees a resolved SET of depots rather than one or all of them. */
 export function isDepotResolved(role: Role | string): boolean {
-  return DEPOT_SCOPED_ROLES.has(role as Role) || customRoleScope(role) === 'RESOLVED';
+  return effectiveScope(role) === 'RESOLVED';
 }
 
 /** Whether depot scoping applies at all. Everyone else (HQ, finance, system) sees all. */
 export function isDepotScoped(role: Role | string): boolean {
-  return isDepotLocked(role) || isDepotResolved(role);
+  return effectiveScope(role) !== 'GLOBAL';
 }
 
 /**

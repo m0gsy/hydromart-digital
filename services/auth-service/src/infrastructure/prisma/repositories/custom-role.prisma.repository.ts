@@ -6,6 +6,7 @@ import {
   CustomRoleRecord,
   CustomRoleRepository,
   DepotOverrideRecord,
+  RoleSettingRecord,
 } from '../../../application/ports/custom-role.repository';
 import { PrismaService } from '../prisma.service';
 
@@ -58,6 +59,28 @@ export class CustomRolePrismaRepository implements CustomRoleRepository {
 
   countHolders(key: string): Promise<number> {
     return this.prisma.customer.count({ where: { role: key } });
+  }
+
+  async listRoleSettings(): Promise<RoleSettingRecord[]> {
+    const rows = await this.prisma.roleSetting.findMany({ orderBy: { roleKey: 'asc' } });
+    return rows.map((r) => ({ ...r, scope: r.scope as CustomRoleScope | null }));
+  }
+
+  async upsertRoleSetting(
+    roleKey: string,
+    patch: {
+      name?: string | null;
+      description?: string | null;
+      scope?: CustomRoleScope | null;
+      disabledAt?: Date | null;
+    },
+    updatedBy: string | null,
+  ): Promise<void> {
+    await this.prisma.roleSetting.upsert({
+      where: { roleKey },
+      create: { roleKey, ...patch, updatedBy },
+      update: { ...patch, updatedBy },
+    });
   }
 
   async listDepotOverrides(): Promise<DepotOverrideRecord[]> {

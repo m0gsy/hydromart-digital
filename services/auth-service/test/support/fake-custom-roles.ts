@@ -2,6 +2,7 @@ import {
   CustomRoleRecord,
   CustomRoleRepository,
   DepotOverrideRecord,
+  RoleSettingRecord,
 } from '../../src/application/ports/custom-role.repository';
 import { AuditService } from '../../src/application/services/audit.service';
 
@@ -39,6 +40,30 @@ export class FakeCustomRoles implements CustomRoleRepository {
 
   countHolders(key: string): Promise<number> {
     return Promise.resolve(this.holders.get(key) ?? 0);
+  }
+
+  settings = new Map<string, RoleSettingRecord>();
+
+  listRoleSettings(): Promise<RoleSettingRecord[]> {
+    return Promise.resolve([...this.settings.values()]);
+  }
+
+  upsertRoleSetting(
+    roleKey: string,
+    patch: Parameters<CustomRoleRepository['upsertRoleSetting']>[1],
+    updatedBy: string | null,
+  ): Promise<void> {
+    const cur = this.settings.get(roleKey) ?? {
+      roleKey,
+      name: null,
+      description: null,
+      scope: null,
+      disabledAt: null,
+      updatedBy: null,
+      updatedAt: new Date(0),
+    };
+    this.settings.set(roleKey, { ...cur, ...patch, updatedBy });
+    return Promise.resolve();
   }
 
   listDepotOverrides(): Promise<DepotOverrideRecord[]> {

@@ -26,7 +26,7 @@ import {
   Role as PlatformRole,
   runImport,
 } from '@hydromart/platform';
-import { canGrantRole, currentCustomRoles, isCustomRoleKey } from '@hydromart/access';
+import { canGrantRole, currentCustomRoles, isCustomRoleKey, isRoleDisabled } from '@hydromart/access';
 
 import { Customer } from '../../domain/customer/customer.entity';
 import { Role } from '../../domain/customer/role.enum';
@@ -76,10 +76,11 @@ export interface InviteStaffInput {
 @Injectable()
 export class AccountService {
   /**
-   * A custom role can be assigned only while it is ACTIVE. An archived or never-created key
-   * would give the account a role that holds nothing, which reads as a bug later.
+   * A role can be assigned only while it is ACTIVE: a custom one that is not archived, a built-in
+   * one that is not switched off. Either way the account would hold nothing, which reads as a bug later.
    */
   private static assignable(role: Role): boolean {
+    if (isRoleDisabled(role)) return false;
     return !isCustomRoleKey(role) || currentCustomRoles().some((r) => r.key === role);
   }
 

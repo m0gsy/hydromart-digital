@@ -945,11 +945,35 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'settingsGlobal',
 ];
 
+/**
+ * SUPER_ADMIN's settings for one BUILT-IN role. Sparse like the matrix: a role with no entry
+ * behaves exactly as compiled. `name`/`description` are display only. `scope` replaces the
+ * compiled depot reach, `disabled` makes the role hold nothing and be unassignable.
+ */
+export interface RoleSetting {
+  readonly roleKey: string;
+  readonly name?: string | null;
+  readonly description?: string | null;
+  readonly scope?: CustomRoleScope | null;
+  readonly disabled?: boolean;
+}
+
+/** Roles that can never be disabled: the superuser, and the end customer every account starts as. */
+export const UNDISABLEABLE_ROLES: readonly Role[] = ['SUPER_ADMIN', 'CUSTOMER'];
+
+/**
+ * Roles whose depot reach is not a setting. SUPER_ADMIN and CUSTOMER are outside the depot model,
+ * and FRANCHISE_OWNER is scoped by `Depot.ownerId` (assertDepotOwnership), which a scope flag
+ * would only duplicate weakly.
+ */
+export const SCOPE_FIXED_ROLES: readonly Role[] = ['SUPER_ADMIN', 'CUSTOMER', 'FRANCHISE_OWNER'];
+
 export function isCustomRoleKey(role: string | null | undefined): boolean {
   return typeof role === 'string' && role.startsWith('C_');
 }
 
 let customRoles: ReadonlyMap<string, CustomRoleDef> = new Map();
+let roleSettings: ReadonlyMap<string, RoleSetting> = new Map();
 let depotOverrides: ReadonlyMap<string, 'GRANT' | 'DENY'> = new Map();
 
 const SEP = '\u0000';
@@ -959,6 +983,26 @@ const depotKey = (capability: string, roleKey: string, depotId: string): string 
 /** Replace the ACTIVE custom roles (archived ones are simply absent). */
 export function loadCustomRoles(next: readonly CustomRoleDef[]): void {
   customRoles = new Map(next.map((r) => [r.key, r]));
+}
+
+export function loadRoleSettings(next: readonly RoleSetting[]): void {
+  roleSettings = new Map(next.map((r) => [r.roleKey, r]));
+}
+
+export function currentRoleSettings(): readonly RoleSetting[] {
+  return [...roleSettings.values()];
+}
+
+/** Whether a built-in role has been switched off. SUPER_ADMIN and CUSTOMER cannot be. */
+export function isRoleDisabled(role: string | null | undefined): boolean {
+  if (role == null || (UNDISABLEABLE_ROLES as readonly string[]).includes(role)) return false;
+  return roleSettings.get(role)?.disabled === true;
+}
+
+/** A built-in role's scope as SUPER_ADMIN set it, if they did. Fixed roles never answer. */
+export function roleScopeSetting(role: string | null | undefined): CustomRoleScope | undefined {
+  if (role == null || (SCOPE_FIXED_ROLES as readonly string[]).includes(role)) return undefined;
+  return roleSettings.get(role)?.scope ?? undefined;
 }
 
 export function currentCustomRoles(): readonly CustomRoleDef[] {
@@ -1047,6 +1091,7 @@ export function can(
     return true;
   }
   if (role == null) return false;
+  if (isRoleDisabled(role)) return false;
   if (isCustomRoleKey(role)) {
     if (!customRoles.has(role) || (CUSTOM_FORBIDDEN as readonly string[]).includes(capability)) {
       return false;

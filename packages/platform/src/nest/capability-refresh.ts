@@ -2,9 +2,11 @@ import {
   loadCustomRoles,
   loadDepotOverrides,
   loadOverrides,
+  loadRoleSettings,
   type CapabilityOverrides,
   type CustomRoleDef,
   type DepotOverride,
+  type RoleSetting,
 } from '@hydromart/access';
 
 const DEFAULT_TTL_MS = 30_000;
@@ -39,6 +41,7 @@ export interface CapabilitySnapshot {
   overrides: CapabilityOverrides;
   customRoles: readonly CustomRoleDef[];
   depotOverrides: readonly DepotOverride[];
+  roleSettings?: readonly RoleSetting[];
 }
 
 function isSnapshot(x: CapabilitySnapshot | CapabilityOverrides): x is CapabilitySnapshot {
@@ -49,10 +52,11 @@ function isSnapshot(x: CapabilitySnapshot | CapabilityOverrides): x is Capabilit
 function apply(next: CapabilitySnapshot | CapabilityOverrides): number {
   const snap: CapabilitySnapshot = isSnapshot(next)
     ? next
-    : { overrides: next, customRoles: [], depotOverrides: [] };
+    : { overrides: next, customRoles: [], depotOverrides: [], roleSettings: [] };
   loadOverrides(snap.overrides);
   loadCustomRoles(snap.customRoles);
   loadDepotOverrides(snap.depotOverrides);
+  loadRoleSettings(snap.roleSettings ?? []);
   return Object.keys(snap.overrides).length;
 }
 
@@ -197,6 +201,7 @@ interface RawSnapshot {
   overrides?: unknown;
   customRoles?: unknown;
   depotOverrides?: unknown;
+  roleSettings?: unknown;
 }
 
 const SCOPES = new Set(['LOCKED', 'RESOLVED', 'GLOBAL']);
@@ -262,5 +267,19 @@ function sanitize(body: RawSnapshot | null): CapabilitySnapshot {
       }
     }
   }
-  return { overrides: out, customRoles, depotOverrides };
+
+  const roleSettings: RoleSetting[] = [];
+  if (Array.isArray(body?.roleSettings)) {
+    for (const r of body.roleSettings as Array<Record<string, unknown> | null>) {
+      if (!r || typeof r.roleKey !== 'string' || BAD_KEYS.has(r.roleKey)) continue;
+      roleSettings.push({
+        roleKey: r.roleKey,
+        name: typeof r.name === 'string' ? r.name : null,
+        description: typeof r.description === 'string' ? r.description : null,
+        scope: typeof r.scope === 'string' && SCOPES.has(r.scope) ? (r.scope as CustomRoleDef['scope']) : null,
+        disabled: r.disabled === true,
+      });
+    }
+  }
+  return { overrides: out, customRoles, depotOverrides, roleSettings };
 }

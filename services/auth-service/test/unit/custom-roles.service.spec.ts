@@ -7,6 +7,10 @@ import {
   loadCustomRoles,
   loadDepotOverrides,
   loadOverrides,
+  loadRoleSettings,
+  isRoleDisabled,
+  roleScopeSetting,
+  currentRoleSettings,
 } from '@hydromart/access';
 
 import {
@@ -56,6 +60,7 @@ describe('custom roles', () => {
     loadOverrides({});
     loadCustomRoles([]);
     loadDepotOverrides([]);
+    loadRoleSettings([]);
   });
 
   describe('customRoleKeyFor', () => {
@@ -224,6 +229,80 @@ describe('custom roles', () => {
     });
   });
 
+  describe('built-in roles', () => {
+    it('renames, describes and rescopes a built-in role, audited with before/after', async () => {
+      await service.updateBuiltInRole('MANAGER', { name: ' Manajer Wilayah ', description: 'x', scope: 'LOCKED' }, 'admin');
+      expect(roleScopeSetting('MANAGER')).toBe('LOCKED');
+      expect(currentRoleSettings()).toEqual([
+        { roleKey: 'MANAGER', name: 'Manajer Wilayah', description: 'x', scope: 'LOCKED', disabled: false },
+      ]);
+      expect(audit.entries.at(-1)).toMatchObject({ action: 'access.builtin.updated' });
+      await service.updateBuiltInRole('MANAGER', { scope: null, name: '' }, 'admin');
+      expect(roleScopeSetting('MANAGER')).toBeUndefined();
+      expect((await service.listBuiltInRoles())[0].name).toBeNull();
+    });
+
+    it('refuses CUSTOMER, an unknown role, a bad scope and a scope on a fixed role', async () => {
+      await expect(service.updateBuiltInRole('CUSTOMER', { name: 'x' }, null)).rejects.toThrow(NotFoundException);
+      await expect(service.updateBuiltInRole('C_kasir', { name: 'x' }, null)).rejects.toThrow(NotFoundException);
+      await expect(service.updateBuiltInRole('MANAGER', { scope: 'MOON' }, null)).rejects.toThrow(BadRequestException);
+      for (const fixed of ['SUPER_ADMIN', 'FRANCHISE_OWNER']) {
+        await expect(service.updateBuiltInRole(fixed, { scope: 'LOCKED' }, null)).rejects.toThrow(BadRequestException);
+      }
+      // A name on a fixed role is fine; only its reach is off limits.
+      await service.updateBuiltInRole('SUPER_ADMIN', { name: 'Superuser' }, null);
+    });
+
+    it('disables and re-enables a built-in role; refused while held, and for SUPER_ADMIN', async () => {
+      roles.holders.set('FINANCE', 2);
+      await expect(service.setBuiltInDisabled('FINANCE', true, null)).rejects.toThrow(ConflictException);
+      await expect(service.setBuiltInDisabled('SUPER_ADMIN', true, null)).rejects.toThrow(BadRequestException);
+      roles.holders.set('FINANCE', 0);
+      await service.setBuiltInDisabled('FINANCE', true, 'admin');
+      expect(isRoleDisabled('FINANCE')).toBe(true);
+      expect(can('refundIssue', 'FINANCE')).toBe(false);
+      expect(audit.entries.at(-1)).toMatchObject({ action: 'access.builtin.disabled' });
+      await service.setBuiltInDisabled('FINANCE', false, 'admin');
+      expect(isRoleDisabled('FINANCE')).toBe(false);
+      expect(can('refundIssue', 'FINANCE')).toBe(true);
+      expect(audit.entries.at(-1)).toMatchObject({ action: 'access.builtin.enabled' });
+    });
+
+    it('drops a stored setting for a role that is not built-in', async () => {
+      roles.settings.set('C_x', { roleKey: 'C_x', name: null, description: null, scope: null, disabledAt: new Date(1), updatedBy: null, updatedAt: new Date(0) });
+      expect((await service.refresh()).roleSettings).toEqual([]);
+    });
+  });
+
+  describe('copy from a built-in role', () => {
+    it('starts from its capabilities and reach, minus the forbidden ones', async () => {
+      const r = await service.createRole({ name: 'Manajer Kecil', copyFrom: 'MANAGER' }, 'admin');
+      expect(r.scope).toBe('RESOLVED');
+      expect(can('approvals', 'C_manajer_kecil')).toBe(can('approvals', 'MANAGER'));
+      expect(can('refundIssue', 'C_manajer_kecil')).toBe(true);
+      // MANAGER may not hold these, but a role copied from HEAD_OFFICE must not inherit them either.
+      const ho = await service.createRole({ name: 'Kantor Kecil', copyFrom: 'HEAD_OFFICE', scope: 'GLOBAL' }, 'admin');
+      expect(ho.scope).toBe('GLOBAL');
+      for (const cap of ['staffAdmin', 'accessMatrixWrite', 'hierarchyAdmin', 'settingsGlobal'] as const) {
+        expect(can(cap, 'C_kantor_kecil')).toBe(false);
+      }
+      expect(can('hqConsole', 'C_kantor_kecil')).toBe(true);
+      expect(audit.entries.at(-1)).toMatchObject({ action: 'access.role.created' });
+    });
+
+    it('refuses a source that is CUSTOMER, custom or unknown', async () => {
+      for (const copyFrom of ['CUSTOMER', 'C_x', 'WIZARD']) {
+        await expect(service.createRole({ name: 'Salinan', copyFrom }, null)).rejects.toThrow(BadRequestException);
+      }
+    });
+
+    it('rolls the role back if copying the capabilities fails', async () => {
+      jest.spyOn(overrides, 'applyAll').mockRejectedValueOnce(new Error('tx failed'));
+      await expect(service.createRole({ name: 'Gagal', copyFrom: 'MANAGER' }, null)).rejects.toThrow('tx failed');
+      expect(roles.roles.get('C_gagal')?.archivedAt).not.toBeNull();
+    });
+  });
+
   describe('snapshot and view', () => {
     it('serves from cache within the TTL and carries all three parts', async () => {
       await service.createRole({ name: 'Kasir', scope: 'LOCKED' }, null);
@@ -254,6 +333,8 @@ describe('custom roles', () => {
         createRole: jest.fn().mockResolvedValue({}),
         updateRole: jest.fn().mockResolvedValue({}),
         archiveRole: jest.fn().mockResolvedValue(undefined),
+        updateBuiltInRole: jest.fn().mockResolvedValue(undefined),
+        setBuiltInDisabled: jest.fn().mockResolvedValue(undefined),
         setDepotOverride: jest.fn().mockResolvedValue(undefined),
         resetDepotOverride: jest.fn().mockResolvedValue(undefined),
       };
@@ -265,6 +346,10 @@ describe('custom roles', () => {
       await c.archiveRole('C_x', u);
       await c.setDepotOverride('dashboard', DEPOT, { roleKey: 'C_x', effect: 'GRANT' } as never, u);
       await c.resetDepotOverride('dashboard', DEPOT, 'C_x', u);
+      await c.updateBuiltIn('MANAGER', { name: 'M' } as never, u);
+      await c.setBuiltInDisabled('FINANCE', { disabled: true } as never, u);
+      expect(m.updateBuiltInRole).toHaveBeenCalledWith('MANAGER', { name: 'M' }, 'admin');
+      expect(m.setBuiltInDisabled).toHaveBeenCalledWith('FINANCE', true, 'admin');
       expect(m.createRole).toHaveBeenCalledWith({ name: 'x', scope: 'LOCKED' }, 'admin');
       expect(m.updateRole).toHaveBeenCalledWith('C_x', { name: 'y' }, 'admin');
       expect(m.archiveRole).toHaveBeenCalledWith('C_x', 'admin');
