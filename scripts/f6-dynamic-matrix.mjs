@@ -67,12 +67,21 @@ function check(label, ok, detail = '') {
 }
 
 const ADMIN = tokenFor('SUPER_ADMIN');
-// staffDirectory is a good probe: MANAGER holds it by default, it is a plain GET, and
+// staffDirectoryFinance is a good probe (GET auth/staff is gated by it, not by staffDirectory): MANAGER holds it by default, it is a plain GET, and
 // revoking it cannot break anything else mid-run.
-const PROBE = { capability: 'staffDirectory', role: 'MANAGER', path: '/auth/api/v1/auth/staff?limit=1' };
+const PROBE = { capability: 'staffDirectoryFinance', role: 'MANAGER', path: '/auth/api/v1/auth/staff?limit=1' };
+
+// A MANAGER's depots come from the hierarchy, so a random-sub token has none and /auth/staff answers
+// 403 ("hanya boleh melihat data depot") whatever the matrix says - which this probe read as "revoked".
+// Set F6_MANAGER_ID to a seeded manager whose scope is exactly ONE depot (a bare read then resolves it),
+// so a 403 can only mean the capability.
+const PROBE_MANAGER = process.env.F6_MANAGER_ID;
 
 async function reachable(role) {
-  const res = await call(PROBE.path, tokenFor(role));
+  const res = await call(
+    PROBE.path,
+    role === PROBE.role && PROBE_MANAGER ? tokenFor(role, PROBE_MANAGER) : tokenFor(role),
+  );
   return res.status !== 403;
 }
 

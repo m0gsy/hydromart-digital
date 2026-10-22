@@ -128,7 +128,7 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
     await run(() => api.put(endpoints.auth.accessBuiltInDisabled(role), { disabled }, true));
   }
 
-  const selectCls = 'surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm';
+  const selectCls = 'surface-elevated w-full min-w-0 rounded-lg border border-app px-3 py-2.5 text-sm';
 
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -168,7 +168,7 @@ export function BuiltInRolesPanel({ refreshKey, onChanged }: { refreshKey: numbe
                 </div>
               </div>
               {editing === role && (
-                <div className="grid gap-3 rounded-lg border border-app p-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-app p-3 sm:grid-cols-2">
                   <Field label={t('hqFix.roles.name')}>
                     <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
                   </Field>

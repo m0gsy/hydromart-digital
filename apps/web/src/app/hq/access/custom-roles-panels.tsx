@@ -127,7 +127,7 @@ export function CustomRolesPanel({ onChanged }: { onChanged: () => void }) {
       </div>
 
       {editing !== null && (
-        <div className="grid gap-3 rounded-lg border border-app p-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 rounded-lg border border-app p-3 sm:grid-cols-2">
           <Field label={t('hqFix.roles.name')}>
             <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
           </Field>
@@ -139,7 +139,7 @@ export function CustomRolesPanel({ onChanged }: { onChanged: () => void }) {
                   setCopyFrom(e.target.value);
                   if (e.target.value) setScope(compiledScope(e.target.value));
                 }}
-                className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
+                className="surface-elevated w-full min-w-0 rounded-lg border border-app px-3 py-2.5 text-sm"
               >
                 <option value="">{t('hqFix.roles.builtIn.copyNone')}</option>
                 {DEPOT_RULE_ROLES.map((r) => (
@@ -154,7 +154,7 @@ export function CustomRolesPanel({ onChanged }: { onChanged: () => void }) {
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as Scope)}
-              className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
+              className="surface-elevated w-full min-w-0 rounded-lg border border-app px-3 py-2.5 text-sm"
             >
               {SCOPES.map((s) => (
                 <option key={s} value={s}>
@@ -285,7 +285,7 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
   }
 
   const rows = data.depotOverrides ?? [];
-  const selectCls = 'surface-elevated min-w-0 rounded-lg border border-app px-3 py-2.5 text-sm';
+  const selectCls = 'surface-elevated w-full min-w-0 rounded-lg border border-app px-3 py-2.5 text-sm';
 
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -294,7 +294,7 @@ export function DepotRulesPanel({ refreshKey }: { refreshKey: number }) {
         <p className="max-w-3xl text-xs text-muted">{t('hqFix.depotRules.intro')}</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label={t('hqFix.depotRules.role')}>
           <select value={roleKey} onChange={(e) => setRoleKey(e.target.value)} className={selectCls}>
             {roleOptions.map((r) => (
