@@ -88,6 +88,9 @@ model VoucherGrant {
   voucherId  String
   customerId String
   createdAt  DateTime @default(now())
+  /// When the holder was told this voucher lapses soon. Claimed before the nudge is sent, so
+  /// a grant is mentioned once however often the sweep runs.
+  expiryNotifiedAt DateTime?
 
   @@unique([voucherId, customerId])
   @@index([customerId])
