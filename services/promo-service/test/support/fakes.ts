@@ -288,6 +288,17 @@ export class InMemoryVoucherRepository implements VoucherRepository {
   }
 
   grants: { voucherId: string; customerId: string }[] = [];
+  /** `voucherId:customerId` pairs whose expiry nudge has been claimed. */
+  expiryNudged = new Set<string>();
+  async claimExpiryNotice(voucherId: string, customerId: string): Promise<boolean> {
+    const key = `${voucherId}:${customerId}`;
+    if (!this.grants.some((g) => g.voucherId === voucherId && g.customerId === customerId)) {
+      return false;
+    }
+    if (this.expiryNudged.has(key)) return false;
+    this.expiryNudged.add(key);
+    return true;
+  }
   async findExpiringGrants(from: Date, to: Date, limit: number) {
     return this.grants
       .map((g) => ({ g, v: this.vouchers.find((x) => x.id === g.voucherId) }))
@@ -298,6 +309,7 @@ export class InMemoryVoucherRepository implements VoucherRepository {
           v.validUntil &&
           v.validUntil.getTime() >= from.getTime() &&
           v.validUntil.getTime() < to.getTime() &&
+          !this.expiryNudged.has(`${g.voucherId}:${g.customerId}`) &&
           !this.redemptions.some(
             (r) => r.voucherId === g.voucherId && r.customerId === g.customerId && !r.releasedAt,
           ),

@@ -104,6 +104,17 @@ export class ShiftPrismaRepository implements ShiftRepository {
     });
   }
 
+  async claimShiftReminder(employeeId: string, workDate: Date): Promise<boolean> {
+    // The unique key is the claim: a second insert for the same (employee, day) is refused.
+    try {
+      await this.prisma.shiftReminderSent.create({ data: { employeeId, workDate } });
+      return true;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') return false;
+      throw error;
+    }
+  }
+
   listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]> {
     return this.prisma.shiftAssignment.findMany({
       where: { effectiveFrom: { lte: onDate } },

@@ -1,7 +1,7 @@
 import { ShiftReminderService } from '../../src/application/services/shift-reminder.service';
 import { ShiftReminderController } from '../../src/modules/shift-reminder.controller';
 
-// 2026-10-23 (a Friday) 07:25 in Jakarta is 00:25 UTC. Shifts starting 07:55-08:10 are due.
+// 2026-10-23 (a Friday) 07:25 in Jakarta is 00:25 UTC. Shifts starting 07:40-08:10 are due.
 const NOW = new Date('2026-10-23T00:25:00.000Z');
 const WORK_DATE = new Date('2026-10-23T00:00:00.000Z');
 
@@ -23,12 +23,14 @@ function build(opts: {
   employee?: Record<string, unknown> | null;
   notify?: jest.Mock | null;
   holidays?: string[] | 'none';
+  claim?: boolean;
 }) {
   const notify = opts.notify === undefined ? jest.fn(async () => undefined) : opts.notify;
   const shifts = {
     listAllAssignmentsUpTo: jest.fn(async () => opts.assignments ?? [assignment({})]),
     findById: jest.fn(async (id: string) => opts.shifts?.[id] ?? null),
     findRotationById: jest.fn(async (id: string) => opts.rotations?.[id] ?? null),
+    claimShiftReminder: jest.fn(async () => opts.claim ?? true),
   };
   const holidayDates = jest.fn(async (_depot: string | null, from: Date) =>
     (opts.holidays === 'none' || opts.holidays === undefined ? [] : opts.holidays).filter(
@@ -67,7 +69,7 @@ function build(opts: {
 const MORNING = { 's-morning': { startTime: '08:00' } };
 
 describe('ShiftReminderService', () => {
-  it('reminds a rota employee whose shift starts 30-45 minutes from now', async () => {
+  it('reminds a rota employee whose shift starts within the next 15-45 minutes', async () => {
     const { service, notify } = build({ shifts: MORNING });
     expect(await service.remindStartingSoon(NOW)).toEqual({
       reminded: 1,
@@ -78,8 +80,34 @@ describe('ShiftReminderService', () => {
     expect(notify).toHaveBeenCalledWith('SHIFT_REMINDER', '0811', { name: 'Budi', time: '08:00' }, 'acct-1');
   });
 
-  it('leaves shifts outside the window, so none is mentioned twice', async () => {
-    const early = build({ shifts: { 's-morning': { startTime: '07:30' } } });
+  it('catches a shift a skipped tick left unreminded, down to 15 minutes before', async () => {
+    const soon = build({ shifts: { 's-morning': { startTime: '07:45' } } });
+    expect((await soon.service.remindStartingSoon(NOW)).reminded).toBe(1);
+  });
+
+  it('says it once however often a shift is seen', async () => {
+    const { service, shifts, notify } = build({ shifts: MORNING });
+    await service.remindStartingSoon(NOW);
+    shifts.claimShiftReminder.mockResolvedValue(false);
+    await service.remindStartingSoon(new Date(NOW.getTime() + 15 * 60_000));
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('claims before sending, and sends nothing when another sweep holds the claim', async () => {
+    const { service, notify, shifts } = build({ shifts: MORNING, claim: false });
+    expect(await service.remindStartingSoon(NOW)).toMatchObject({ reminded: 0, skipped: 1 });
+    expect(shifts.claimShiftReminder).toHaveBeenCalledWith('e1', WORK_DATE);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('does not claim a day it skipped, so a later tick can still remind', async () => {
+    const { service, shifts } = build({ shifts: MORNING, holidays: ['2026-10-23'] });
+    await service.remindStartingSoon(NOW);
+    expect(shifts.claimShiftReminder).not.toHaveBeenCalled();
+  });
+
+  it('leaves shifts outside the window', async () => {
+    const early = build({ shifts: { 's-morning': { startTime: '07:35' } } });
     const late = build({ shifts: { 's-morning': { startTime: '08:15' } } });
     expect((await early.service.remindStartingSoon(NOW)).reminded).toBe(0);
     expect((await late.service.remindStartingSoon(NOW)).reminded).toBe(0);

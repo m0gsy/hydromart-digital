@@ -144,19 +144,36 @@ export interface PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
-    /** Optional lower bound (inclusive) on `createdAt`: with `before`, a window of ages. */
-    after?: Date,
   ): Promise<PaymentRecord[]>;
   /**
-   * PAID rows of the given methods whose `paidAt` is in [from, to), oldest first, bounded.
-   * The reconciliation sweep reads it to find money whose order never confirmed.
+   * PENDING rows of the given methods created in [after, before) that have not been reminded,
+   * oldest first, bounded. Catch-up by design: a payment missed by one sweep is still due on
+   * the next, until it ages out at `after` (when the expiry sweep takes it).
    */
-  findPaidBetween(
-    from: Date,
-    to: Date,
+  findReminderDue(
+    before: Date,
+    after: Date,
     methods: readonly PaymentMethod[],
     limit: number,
   ): Promise<PaymentRecord[]>;
+  /**
+   * Claim the right to remind this payment: true for exactly one caller, and only while it is
+   * still PENDING. The claim is made BEFORE the nudge is sent, so a nudge is never doubled; the
+   * price is that a send that dies after the claim is not retried.
+   */
+  claimReminder(id: string): Promise<boolean>;
+  /**
+   * PAID rows of the given methods settled in [after, before) whose depot has not yet been
+   * told the order is unconfirmed, oldest first, bounded.
+   */
+  findUnconfirmedCandidates(
+    before: Date,
+    after: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]>;
+  /** Claim the right to tell the depot about this payment; true for exactly one caller. */
+  claimUnconfirmedNotice(id: string): Promise<boolean>;
   search(
     query: PaymentQuery,
   ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }>;

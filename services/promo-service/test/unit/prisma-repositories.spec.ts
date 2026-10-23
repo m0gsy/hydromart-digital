@@ -297,7 +297,12 @@ describe('VoucherPrismaRepository', () => {
     findUnique: jest.fn(),
     create: jest.fn(),
   };
-  const voucherGrant = { findUnique: jest.fn(), create: jest.fn(), findMany: jest.fn() };
+  const voucherGrant = {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
+    updateMany: jest.fn(),
+  };
   const $transaction = jest.fn();
   const $queryRaw = jest.fn();
   const prisma = {
@@ -666,7 +671,10 @@ describe('VoucherPrismaRepository', () => {
       expect(await repo.findExpiringGrants(FROM, TO, 50)).toEqual([]);
       expect(voucherGrant.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { voucher: { active: true, validUntil: { gte: FROM, lt: TO } } },
+          where: {
+            expiryNotifiedAt: null,
+            voucher: { active: true, validUntil: { gte: FROM, lt: TO } },
+          },
           orderBy: { createdAt: 'asc' },
           take: 50,
         }),
@@ -690,6 +698,16 @@ describe('VoucherPrismaRepository', () => {
       ]);
       voucherRedemption.findMany.mockResolvedValue([]);
       expect(await repo.findExpiringGrants(FROM, TO, 50)).toEqual([]);
+    });
+  });
+
+  it('claimExpiryNotice is a compare-and-set: true for the one caller that moved the marker', async () => {
+    voucherGrant.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    expect(await repo.claimExpiryNotice('v-1', 'c-1')).toBe(true);
+    expect(await repo.claimExpiryNotice('v-1', 'c-1')).toBe(false);
+    expect(voucherGrant.updateMany).toHaveBeenCalledWith({
+      where: { voucherId: 'v-1', customerId: 'c-1', expiryNotifiedAt: null },
+      data: { expiryNotifiedAt: expect.any(Date) },
     });
   });
 

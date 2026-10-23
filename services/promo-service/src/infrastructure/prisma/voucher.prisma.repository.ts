@@ -381,7 +381,10 @@ export class VoucherPrismaRepository implements VoucherRepository {
 
   async findExpiringGrants(from: Date, to: Date, limit: number): Promise<ExpiringGrant[]> {
     const grants = await this.prisma.voucherGrant.findMany({
-      where: { voucher: { active: true, validUntil: { gte: from, lt: to } } },
+      where: {
+        expiryNotifiedAt: null,
+        voucher: { active: true, validUntil: { gte: from, lt: to } },
+      },
       include: { voucher: { select: { code: true, description: true, validUntil: true } } },
       orderBy: { createdAt: 'asc' },
       take: limit,
@@ -407,6 +410,15 @@ export class VoucherPrismaRepository implements VoucherRepository {
         description: g.voucher.description,
         validUntil: g.voucher.validUntil as Date,
       }));
+  }
+
+  async claimExpiryNotice(voucherId: string, customerId: string): Promise<boolean> {
+    // The predicate is the claim: of two sweeps racing for the same grant, one sees count 1.
+    const claimed = await this.prisma.voucherGrant.updateMany({
+      where: { voucherId, customerId, expiryNotifiedAt: null },
+      data: { expiryNotifiedAt: new Date() },
+    });
+    return claimed.count === 1;
   }
 
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {

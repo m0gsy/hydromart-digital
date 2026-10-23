@@ -120,13 +120,12 @@ export class PaymentPrismaRepository implements PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
-    after?: Date,
   ): Promise<PaymentRecord[]> {
     const rows = await this.prisma.payment.findMany({
       where: {
         status: PaymentStatus.PENDING,
         method: { in: methods as PaymentMethod[] },
-        createdAt: after ? { lt: before, gte: after } : { lt: before },
+        createdAt: { lt: before },
       },
       // Oldest first: the sweep is bounded, so the rows that have been stuck longest are
       // the ones a bounded pass must reach.
@@ -136,9 +135,37 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
-  async findPaidBetween(
-    from: Date,
-    to: Date,
+  async findReminderDue(
+    before: Date,
+    after: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PENDING,
+        method: { in: methods as PaymentMethod[] },
+        createdAt: { lt: before, gte: after },
+        reminderSentAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
+  async claimReminder(id: string): Promise<boolean> {
+    // The predicate is the claim: of two sweeps racing for the same row, one sees count 1.
+    const claimed = await this.prisma.payment.updateMany({
+      where: { id, status: PaymentStatus.PENDING, reminderSentAt: null },
+      data: { reminderSentAt: new Date() },
+    });
+    return claimed.count === 1;
+  }
+
+  async findUnconfirmedCandidates(
+    before: Date,
+    after: Date,
     methods: readonly PaymentMethod[],
     limit: number,
   ): Promise<PaymentRecord[]> {
@@ -146,12 +173,21 @@ export class PaymentPrismaRepository implements PaymentRepository {
       where: {
         status: PaymentStatus.PAID,
         method: { in: methods as PaymentMethod[] },
-        paidAt: { gte: from, lt: to },
+        paidAt: { lt: before, gte: after },
+        unconfirmedNotifiedAt: null,
       },
       orderBy: { paidAt: 'asc' },
       take: limit,
     });
     return rows.map((row) => this.toRecord(row));
+  }
+
+  async claimUnconfirmedNotice(id: string): Promise<boolean> {
+    const claimed = await this.prisma.payment.updateMany({
+      where: { id, unconfirmedNotifiedAt: null },
+      data: { unconfirmedNotifiedAt: new Date() },
+    });
+    return claimed.count === 1;
   }
 
   async findByReference(reference: string): Promise<PaymentRecord | null> {

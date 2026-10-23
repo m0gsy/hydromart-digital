@@ -105,16 +105,15 @@ export class VoucherService {
   /**
    * Nudge holders of a wallet voucher that lapses in about three days.
    *
-   * No marker column: it runs hourly and looks only at vouchers whose expiry falls in the
-   * one-hour window that opens `EXPIRY_LEAD_DAYS` from now, so a voucher is in exactly one
-   * tick's window. ponytail: a skipped or doubled tick loses or repeats one nudge - move to
-   * a `GrantNotifiedAt` column (shipped a release ahead of its reader) if that ever matters.
-   * Already-redeemed vouchers are left out by the repository.
+   * Catch-up, not a window: every un-nudged grant whose voucher lapses within the next
+   * `EXPIRY_LEAD_DAYS` is due, so a skipped sweep is made good by the next. The claim is taken
+   * BEFORE the nudge goes out, so a holder hears it once however often this runs; ponytail: a
+   * send that dies after the claim is not retried (lose rather than duplicate, as review
+   * requests do). Already-redeemed vouchers are left out by the repository.
    */
   async notifyExpiring(now: Date): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
-    const from = new Date(now.getTime() + VoucherService.EXPIRY_LEAD_DAYS * 86_400_000);
-    const to = new Date(from.getTime() + 3_600_000);
-    const due = await this.repo.findExpiringGrants(from, to, VoucherService.EXPIRY_SWEEP_LIMIT);
+    const to = new Date(now.getTime() + VoucherService.EXPIRY_LEAD_DAYS * 86_400_000);
+    const due = await this.repo.findExpiringGrants(now, to, VoucherService.EXPIRY_SWEEP_LIMIT);
     let notified = 0;
     let skipped = 0;
     let failed = 0;
@@ -125,6 +124,7 @@ export class VoucherService {
           skipped += 1;
           continue;
         }
+        if (!(await this.repo.claimExpiryNotice(grant.voucherId, grant.customerId))) continue;
         await this.notifications.notify('VOUCHER_EXPIRING', contact.phone, grant.customerId, {
           name: contact.name,
           code: grant.code,
