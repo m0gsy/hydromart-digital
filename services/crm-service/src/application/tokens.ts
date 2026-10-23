@@ -12,4 +12,5 @@ export const CRM_TOKENS = {
   // F8: which staff an ops alert about a depot should wake.
   DepotStaff: Symbol('DepotStaff'),
   StaffPrefs: Symbol('StaffPrefs'),
+  DepotOverseers: Symbol('DepotOverseers'),
 } as const;

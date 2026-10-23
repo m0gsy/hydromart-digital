@@ -317,6 +317,20 @@ export const OPS_EVENTS: NotificationEvent[] = [
 ];
 
 /**
+ * The depot alerts a depot's OVERSEERS - assistant supervisor, supervisor, manager - are woken
+ * by as well as its own staff: the ones that say something is wrong at a depot they answer
+ * for. Routine flow (an order arriving, a receipt, the daily figures) stays with the depot's
+ * own people; a manager with sixty depots does not want sixty order feeds.
+ */
+export const OVERSEER_EVENTS: readonly NotificationEvent[] = [
+  NotificationEvent.STOCK_LOW,
+  NotificationEvent.STOCK_UNTRACKED,
+  NotificationEvent.METER_VARIANCE,
+  NotificationEvent.COURIER_INCIDENT,
+  NotificationEvent.DELIVERY_SLA_BREACHED,
+];
+
+/**
  * The staff settings switch ("Pesanan baru", "Stok menipis", ...) that governs each depot alert.
  * The ids are admin-service's DEPOT_EVENT_IDS. An event with no entry has no switch on any
  * screen - a leave decision, a payslip, a courier's own delivery - and is always pushed.

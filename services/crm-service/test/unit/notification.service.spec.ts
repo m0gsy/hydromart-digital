@@ -432,6 +432,63 @@ describe('F8 — an ops alert that can wake somebody', () => {
     });
   });
 
+  describe('supervisors and managers above the depot', () => {
+    const buildWithOverseers = (overseersOfDepot: jest.Mock) => {
+      const sent: string[] = [];
+      const push = {
+        sendToCustomer: jest.fn(async (id: string) => {
+          sent.push(id);
+          return { devices: 1, delivered: 1 };
+        }),
+      };
+      const service = new NotificationService(
+        { record: jest.fn(async (r: unknown) => r) } as never,
+        push as never,
+        undefined,
+        { staffIdsForDepot: jest.fn(async () => ['s-1', 's-2']) } as never,
+        undefined,
+        { overseersOfDepot } as never,
+      );
+      return { service, sent };
+    };
+
+    it('wakes them for an alert that says something is wrong at their depot', async () => {
+      const overseersOfDepot = jest.fn(async (_depot: string) => ['asv-1', 'mgr-1']);
+      const { service, sent } = buildWithOverseers(overseersOfDepot);
+      await service.notify(NotificationEvent.COURIER_INCIDENT, '+628000000000', { severity: 'HIGH', category: 'x', note: 'y' }, null, 'depot-1');
+      await flush();
+      expect(overseersOfDepot).toHaveBeenCalledWith('depot-1');
+      expect(sent.sort()).toEqual(['asv-1', 'mgr-1', 's-1', 's-2']);
+    });
+
+    it('does not page them twice when they are also rostered at the depot', async () => {
+      const { service, sent } = buildWithOverseers(jest.fn(async (_depot: string) => ['s-2', 'mgr-1']));
+      await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+      await flush();
+      expect(sent.sort()).toEqual(['mgr-1', 's-1', 's-2']);
+    });
+
+    it.each([
+      NotificationEvent.DEPOT_ORDER_INCOMING,
+      NotificationEvent.DEPOT_PAYMENT_PROOF,
+      NotificationEvent.DEPOT_SALES_UPDATE,
+    ])('leaves routine flow (%s) with the depot\'s own people', async (event) => {
+      const overseersOfDepot = jest.fn(async (_depot: string) => ['mgr-1']);
+      const { service, sent } = buildWithOverseers(overseersOfDepot);
+      await service.notify(event, '+628000000000', { orderNumber: 'HM-1' }, null, 'depot-1');
+      await flush();
+      expect(overseersOfDepot).not.toHaveBeenCalled();
+      expect(sent.sort()).toEqual(['s-1', 's-2']);
+    });
+
+    it('still wakes the depot\'s own staff when the overseers cannot be read', async () => {
+      const { service, sent } = buildWithOverseers(jest.fn(async (_depot: string) => Promise.reject(new Error('depot down'))));
+      await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+      await flush();
+      expect(sent.sort()).toEqual(['s-1', 's-2']);
+    });
+  });
+
   it('still writes the ops feed row when the roster cannot be read', async () => {
     const { service, repo, sent } = build({ throws: true });
     await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');

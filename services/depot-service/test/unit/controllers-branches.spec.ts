@@ -1285,6 +1285,15 @@ describe('DepotController', () => {
     expect(await c.internalAssistant(DEPOT)).toEqual({ assistantSupervisorId: 'asv-1' });
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: null });
     expect(await c.internalAssistant(DEPOT)).toEqual({ assistantSupervisorId: null });
+    // Who oversees it: the assistant and everyone above, ids only. Without the hierarchy
+    // service wired (a hand-built controller) the answer is simply nobody.
+    svc.get.mockResolvedValueOnce({ assistantSupervisorId: 'asv-1' });
+    const overseersOfAssistant = jest.fn().mockResolvedValue(['asv-1', 'spv-1']);
+    const wired = new DepotController(svc as never, storage as never, undefined, { overseersOfAssistant } as never);
+    expect(await wired.internalOverseers(DEPOT)).toEqual({ ids: ['asv-1', 'spv-1'] });
+    expect(overseersOfAssistant).toHaveBeenCalledWith('asv-1');
+    svc.get.mockResolvedValueOnce({ assistantSupervisorId: null });
+    expect(await c.internalOverseers(DEPOT)).toEqual({ ids: [] });
     await c.manage(user, {} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);

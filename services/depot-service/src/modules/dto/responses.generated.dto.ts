@@ -235,6 +235,11 @@ export class InternalActiveResponseDto {
   @ApiProperty() name!: string;
 }
 
+export class InternalOverseersResponseDto {
+  @ApiProperty({ type: [String], description: 'Assistant supervisor and everyone above them.' })
+  ids!: string[];
+}
+
 export class InternalAssistantResponseDto {
   @ApiProperty({ type: String, nullable: true })
   assistantSupervisorId!: string | null;
