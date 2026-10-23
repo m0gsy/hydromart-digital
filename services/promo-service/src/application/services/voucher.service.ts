@@ -24,7 +24,7 @@ import {
   VoucherRepository,
 } from '../ports/voucher.repository';
 import { PROMO_TOKENS } from '../tokens';
-import { assertFresh } from '@hydromart/platform';
+import { BUSINESS_TIME_ZONE, assertFresh, localDayKey } from '@hydromart/platform';
 
 export interface QuoteResult {
   code: string;
@@ -128,7 +128,7 @@ export class VoucherService {
         await this.notifications.notify('VOUCHER_EXPIRING', contact.phone, grant.customerId, {
           name: contact.name,
           code: grant.code,
-          expires: grant.validUntil.toISOString().slice(0, 10),
+          expires: localDayKey(grant.validUntil, BUSINESS_TIME_ZONE),
         });
         notified += 1;
       } catch (error) {

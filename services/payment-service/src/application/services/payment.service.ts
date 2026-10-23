@@ -593,7 +593,14 @@ export class PaymentService {
    * cancellation notice already says what happened.
    */
   async fail(id: string, changedBy: string, user?: AuthenticatedUser): Promise<PaymentRecord> {
-    const failed = await this.markFailed(id, changedBy, user);
+    const payment = await this.getAny(id);
+    await this.assertSettleableBy(user, payment);
+    this.assertTransition(payment.status, PaymentStatus.FAILED);
+    this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
+    const failed = await this.payments.update(id, {
+      status: PaymentStatus.FAILED,
+      failedAt: new Date(),
+    });
     await this.orderCoordination.notifyPaymentEvent(
       failed.orderId,
       'FAILED',
@@ -603,13 +610,9 @@ export class PaymentService {
     return failed;
   }
 
-  private async markFailed(
-    id: string,
-    changedBy: string,
-    user?: AuthenticatedUser,
-  ): Promise<PaymentRecord> {
+  /** The cancellation paths' FAILED: no staff depot check (order-service is the caller), no notice. */
+  private async markFailed(id: string, changedBy: string): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
-    await this.assertSettleableBy(user, payment);
     this.assertTransition(payment.status, PaymentStatus.FAILED);
     this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
     return this.payments.update(id, { status: PaymentStatus.FAILED, failedAt: new Date() });
