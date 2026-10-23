@@ -750,6 +750,13 @@ export class CounterQuoteResponseDto {
   firstOrder!: boolean;
 
   @ApiProperty({
+    example: false,
+    description:
+      "A new buyer who would have had the first-order promo, held back because this cashier reached the depot's daily ceiling.",
+  })
+  firstOrderCapped!: boolean;
+
+  @ApiProperty({
     type: () => [AppliedPromoDto],
     description: 'The auto-apply promos that changed this basket, biggest first.',
   })
@@ -764,9 +771,11 @@ export class CounterQuoteResponseDto {
     shippingFee: number;
     appliedPromos: AppliedPromoDto[];
     firstOrder: boolean;
+    firstOrderCapped: boolean;
   }): CounterQuoteResponseDto {
     return {
       firstOrder: quote.firstOrder,
+      firstOrderCapped: quote.firstOrderCapped,
       appliedPromos: quote.appliedPromos.map((p) => ({ name: p.name, effect: p.effect, amountIdr: p.amountIdr })),
       subtotalIdr: quote.subtotal,
       discountIdr: quote.discount,

@@ -13,6 +13,7 @@ import {
   StaleOrderStatusError,
 } from '../../domain/errors';
 import {
+  CashierFirstBuyers,
   CashierSales,
   CreateOrderData,
   CreateReviewData,
@@ -160,6 +161,8 @@ interface OrderRow {
  * revenue, customer-value and depot report filters both out through this one list.
  */
 const VOID_LIKE = [DbOrderStatus.CANCELLED, DbOrderStatus.VOIDED];
+/** One cashier's day of counter sales is hundreds of rows; this only bounds a runaway. */
+const FIRST_BUYER_SCAN_LIMIT = 5000;
 /**
  * The same exclusion for the raw-SQL reports (H-14).
  *
@@ -1230,6 +1233,46 @@ export class OrderPrismaRepository implements OrderRepository {
    * narrow read rather than `ordersForDepot` (full `OrderRecord`, every field, every item
    * column) run through a filter.
    */
+  async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {
+    const createdAt = {
+      ...(range.from ? { gte: range.from } : {}),
+      ...(range.to ? { lt: range.to } : {}),
+    };
+    // Cancelled orders never happened; voided ones DID reach the till, so they stay in this
+    // list even though they do not make a buyer "not new".
+    const sales = await this.prisma.order.findMany({
+      where: {
+        isWalkIn: true,
+        depotId,
+        cashierId: { not: null },
+        customerId: { not: ANONYMOUS_CUSTOMER_ID },
+        status: { not: DbOrderStatus.CANCELLED },
+        ...(range.from || range.to ? { createdAt } : {}),
+      },
+      select: { cashierId: true, customerId: true, createdAt: true },
+      take: FIRST_BUYER_SCAN_LIMIT,
+    });
+    if (sales.length === 0) return [];
+    const earliest = await this.prisma.order.groupBy({
+      by: ['customerId'],
+      where: {
+        customerId: { in: [...new Set(sales.map((s) => s.customerId))] },
+        status: { notIn: VOID_LIKE },
+      },
+      _min: { createdAt: true },
+    });
+    const firstValid = new Map(earliest.map((e) => [e.customerId, e._min.createdAt]));
+    const byCashier = new Map<string, number>();
+    for (const sale of sales) {
+      const first = firstValid.get(sale.customerId);
+      // Nothing valid before THIS sale: the earliest valid order is this one, or later, or none.
+      if (first && first < sale.createdAt) continue;
+      const id = sale.cashierId as string;
+      byCashier.set(id, (byCashier.get(id) ?? 0) + 1);
+    }
+    return [...byCashier].map(([cashierId, count]) => ({ cashierId, count }));
+  }
+
   async refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit> {
     const rows = await this.prisma.order.findMany({
       where: { ...this.reportWhere(range), depotId, isWalkIn: true },

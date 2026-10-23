@@ -269,6 +269,7 @@ export class OrderController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Price a counter basket without selling it (cashier screen)' })
   async walkInQuote(
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CounterQuoteDto,
     @Headers('authorization') authorization?: string,
   ): Promise<CounterQuoteResponseDto> {
@@ -281,6 +282,8 @@ export class OrderController {
         authorization,
         // C11: presence is the whole signal, same as the sale route next door.
         !!dto.deliveryAddress,
+        // The ceiling is per cashier, so the quote has to know who is asking.
+        user.sub,
       ),
     );
   }

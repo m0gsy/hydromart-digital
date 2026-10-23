@@ -189,6 +189,15 @@ export class OrderConfigService {
     return this.tunable('counterDelivery', this.num('ORDER_COUNTER_DELIVERY'), depotId) === 1;
   }
 
+  /** See the `counterFirstOrderDailyCap` setting: first-time buyers per cashier per day. */
+  counterFirstOrderDailyCap(depotId: string | null = null): number {
+    return this.tunable(
+      'counterFirstOrderDailyCap',
+      this.num('ORDER_COUNTER_FIRST_ORDER_DAILY_CAP'),
+      depotId,
+    );
+  }
+
   /**
    * Scheduled windows the depot offers, in the order they should be shown. Stored as one
    * comma-separated string because that is what the settings screen can edit; the write

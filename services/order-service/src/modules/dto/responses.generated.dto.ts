@@ -107,6 +107,8 @@ export class CashierDailyResponseDto {
   orders!: number;
   @ApiProperty({ type: Number })
   revenueIdr!: number;
+  @ApiProperty({ type: Number, description: 'Buyers this cashier sold to for the first time today.' })
+  newBuyers!: number;
 }
 
 /** Mirrors `DepotCourierDaily` exactly — generated for audit D-6, no field added or removed. */

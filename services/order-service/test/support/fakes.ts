@@ -9,6 +9,7 @@ import { OrderStatus } from '../../src/domain/order-status';
 import { galonQuantity } from '../../src/domain/pricing';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
+  CashierFirstBuyers,
   CashierSales,
   CreateOrderData,
   CreateReviewData,
@@ -754,6 +755,28 @@ export class InMemoryOrderRepository implements OrderRepository {
       by.set(key, cur);
     }
     return [...by.values()].sort((a, b) => b.revenue - a.revenue);
+  }
+
+  async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {
+    type Attributed = OrderRecord & { cashierId?: string | null };
+    const byCashier = new Map<string, number>();
+    for (const row of this.rows) {
+      const cashierId = (row as Attributed).cashierId ?? null;
+      if (row.depotId !== depotId || !row.isWalkIn || !cashierId) continue;
+      if (row.customerId === ANONYMOUS_CUSTOMER_ID || row.status === OrderStatus.CANCELLED) continue;
+      if (range.from && row.createdAt < range.from) continue;
+      if (range.to && row.createdAt >= range.to) continue;
+      const earlierValid = this.rows.some(
+        (p) =>
+          p.customerId === row.customerId &&
+          p.createdAt < row.createdAt &&
+          p.status !== OrderStatus.CANCELLED &&
+          p.status !== OrderStatus.VOIDED,
+      );
+      if (earlierValid) continue;
+      byCashier.set(cashierId, (byCashier.get(cashierId) ?? 0) + 1);
+    }
+    return [...byCashier].map(([cashierId, count]) => ({ cashierId, count }));
   }
 
   async refillSplitForDepot(depotId: string, range: ReportRange): Promise<RefillSplit> {
@@ -1557,6 +1580,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_REVIEW_REQUEST_DELAY_MINUTES: '30',
     ORDER_REVIEW_REQUEST_WINDOW_HOURS: '72',
     ORDER_COUNTER_DELIVERY: '1',
+    ORDER_COUNTER_FIRST_ORDER_DAILY_CAP: '5',
     ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
     ORDER_STAFF_COMPLETE_DELIVERED: '1',
     ORDER_SUBSCRIPTION_SWEEP_EXEMPT: '1',

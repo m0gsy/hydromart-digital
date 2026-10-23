@@ -151,9 +151,9 @@ describe('depotDailyPdf', () => {
         report({
           byHour,
           perCashier: [
-            { cashierId: 'c1', label: '+62811', orders: 3, revenueIdr: 120000 },
-            { cashierId: 'c2', label: null, orders: 1, revenueIdr: 40000 },
-            { cashierId: null, label: null, orders: 2, revenueIdr: 80000 },
+            { cashierId: 'c1', label: '+62811', orders: 3, revenueIdr: 120000, newBuyers: 1 },
+            { cashierId: 'c2', label: null, orders: 1, revenueIdr: 40000, newBuyers: 0 },
+            { cashierId: null, label: null, orders: 2, revenueIdr: 80000, newBuyers: 0 },
           ],
           perCourier: [
             { name: 'Agus', completed: 5, failed: 1, codIdr: 80000 },

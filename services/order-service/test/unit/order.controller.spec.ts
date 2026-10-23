@@ -35,6 +35,7 @@ function makeService(): Mocked {
       voucherCode: null,
       appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
       firstOrder: true,
+      firstOrderCapped: false,
     }),
     counterShiftSummary: jest.fn().mockResolvedValue({ orderCount: 3, revenueIdr: 90000 }),
     identifyCounterBuyer: jest.fn().mockResolvedValue({ customerId: 'buyer-9' }),
@@ -169,6 +170,8 @@ describe('OrderController', () => {
     });
   });
 
+  const cashier = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
+
   it('quotes a counter basket without a phone anywhere in the request', async () => {
     const dto = {
       depotId: 'depot-1',
@@ -177,7 +180,7 @@ describe('OrderController', () => {
       voucherCode: 'HEMAT10',
     } as never;
 
-    await expect(controller.walkInQuote(dto, 'Bearer t')).resolves.toEqual({
+    await expect(controller.walkInQuote(cashier, dto, 'Bearer t')).resolves.toEqual({
       subtotalIdr: 60000,
       discountIdr: 15000,
       totalIdr: 45000,
@@ -186,6 +189,7 @@ describe('OrderController', () => {
       agen: true,
       catalogFallback: null,
       firstOrder: true,
+      firstOrderCapped: false,
       appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
     });
     expect(service.quoteCounterBasket).toHaveBeenCalledWith(
@@ -196,12 +200,14 @@ describe('OrderController', () => {
       'Bearer t',
       // C11: pick-up unless the cashier sent an address.
       false,
+      // The daily first-order ceiling is per cashier, so the quote is told who is asking.
+      'op-1',
     );
   });
 
   it('quotes an unidentified basket as anonymous rather than guessing a buyer', async () => {
     const dto = { depotId: 'depot-1', lines: [{ productId: 'p1', quantity: 1 }] } as never;
-    await controller.walkInQuote(dto, 'Bearer t');
+    await controller.walkInQuote(cashier, dto, 'Bearer t');
     expect(service.quoteCounterBasket).toHaveBeenCalledWith(
       null,
       'depot-1',
@@ -209,6 +215,7 @@ describe('OrderController', () => {
       null,
       'Bearer t',
       false,
+      'op-1',
     );
   });
 

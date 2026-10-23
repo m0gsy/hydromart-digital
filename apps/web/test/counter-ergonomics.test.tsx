@@ -554,6 +554,26 @@ describe('a new customer', () => {
     expect(screen.getByText(/promo khusus pelanggan baru berlaku/i)).toBeTruthy();
   });
 
+  it('says why the new-customer promo is missing when the cashier is over the daily ceiling', async () => {
+    quoteExtras = { firstOrder: false, firstOrderCapped: true };
+    await openTill();
+    await userEvent.click(plus());
+    await userEvent.type(screen.getByLabelText(/nomor hp/i), '08123456789');
+    await userEvent.click(screen.getByRole('button', { name: /cek pelanggan/i }));
+    expect(await screen.findByText(/batas pembeli baru kasir ini hari ini tercapai/i)).toBeTruthy();
+    expect(screen.queryByText('Pelanggan baru')).toBeNull();
+    // The buyer can still be served.
+    await waitFor(() => expect(pay().disabled).toBe(false));
+  });
+
+  it('says nothing about a ceiling before the buyer is identified, or when it is not reached', async () => {
+    quoteExtras = { firstOrder: true, firstOrderCapped: false };
+    await openTill();
+    await userEvent.click(plus());
+    await waitFor(() => expect(pay().disabled).toBe(false));
+    expect(screen.queryByText(/batas pembeli baru/i)).toBeNull();
+  });
+
   it('is not badged for a returning customer', async () => {
     quoteExtras = { firstOrder: false };
     await openTill();

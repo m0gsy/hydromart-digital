@@ -1370,6 +1370,84 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
+  describe('firstTimeBuyersByCashier', () => {
+    const at = (h: number) => new Date(`2026-07-15T0${h}:00:00.000Z`);
+    const range = { from: new Date('2026-07-15T00:00:00.000Z'), to: new Date('2026-07-16T00:00:00.000Z') };
+
+    it('counts a sale to a customer with nothing valid before it, per cashier', async () => {
+      order.findMany.mockResolvedValue([
+        { cashierId: 'c-1', customerId: 'u-1', createdAt: at(1) },
+        { cashierId: 'c-1', customerId: 'u-2', createdAt: at(2) },
+        { cashierId: 'c-2', customerId: 'u-3', createdAt: at(3) },
+      ]);
+      order.groupBy.mockResolvedValue([
+        { customerId: 'u-1', _min: { createdAt: at(1) } }, // this very sale is their first
+        { customerId: 'u-2', _min: { createdAt: at(2) } },
+        { customerId: 'u-3', _min: { createdAt: at(3) } },
+      ]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([
+        { cashierId: 'c-1', count: 2 },
+        { cashierId: 'c-2', count: 1 },
+      ]);
+    });
+
+    it('does not count a buyer who already had a valid order earlier', async () => {
+      order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(5) }]);
+      order.groupBy.mockResolvedValue([{ customerId: 'u-1', _min: { createdAt: at(1) } }]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([]);
+    });
+
+    it('counts a buyer whose only earlier order was voided or cancelled (no valid order at all)', async () => {
+      order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(5) }]);
+      order.groupBy.mockResolvedValue([]); // the valid-order lookup found nothing for them
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([{ cashierId: 'c-1', count: 1 }]);
+    });
+
+    it('counts a sale again when the buyer first valid order is LATER (the earlier one was voided)', async () => {
+      order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(2) }]);
+      order.groupBy.mockResolvedValue([{ customerId: 'u-1', _min: { createdAt: at(4) } }]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([{ cashierId: 'c-1', count: 1 }]);
+    });
+
+    it('asks for counter sales at this depot with a cashier, never the anonymous buyer or cancelled ones', async () => {
+      order.findMany.mockResolvedValue([]);
+      await repo.firstTimeBuyersByCashier('depot-1', range);
+      expect(order.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isWalkIn: true,
+            depotId: 'depot-1',
+            cashierId: { not: null },
+            customerId: { not: '00000000-0000-0000-0000-000000000000' },
+            status: { not: 'CANCELLED' },
+            createdAt: { gte: range.from, lt: range.to },
+          }),
+        }),
+      );
+    });
+
+    it('does not look the buyers up when there were no sales, and treats an open range as no date filter', async () => {
+      order.findMany.mockResolvedValue([]);
+      order.groupBy.mockClear();
+      expect(await repo.firstTimeBuyersByCashier('depot-1', {})).toEqual([]);
+      expect(order.groupBy).not.toHaveBeenCalled();
+      const where = (order.findMany.mock.calls.at(-1)![0] as { where: Record<string, unknown> }).where;
+      expect('createdAt' in where).toBe(false);
+    });
+
+    it('asks only for valid earlier orders (voided and cancelled do not make a buyer "not new")', async () => {
+      order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(2) }]);
+      order.groupBy.mockResolvedValue([]);
+      await repo.firstTimeBuyersByCashier('depot-1', range);
+      expect(order.groupBy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          by: ['customerId'],
+          where: { customerId: { in: ['u-1'] }, status: { notIn: ['CANCELLED', 'VOIDED'] } },
+        }),
+      );
+    });
+  });
+
   // #27
   it('classifies counter sales into refill / partial / beli / not asked', async () => {
     const gallonLine = (quantity: number) => [{ isGallon: true, quantity }];

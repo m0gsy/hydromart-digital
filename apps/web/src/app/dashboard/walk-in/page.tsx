@@ -1101,6 +1101,13 @@ function WalkIn({ depotId }: { depotId: string }) {
                 : t('opsFix.walkIn.lookupNew')}
             </p>
           )}
+          {/* The buyer is new but this cashier is past the depot's daily ceiling: say so, or the
+              missing promo reads as a fault at the till. */}
+          {buyerId && quote.data?.firstOrderCapped && (
+            <p className="text-xs font-semibold text-[color:var(--danger)] sm:col-span-2" role="status">
+              {t('opsFix.walkIn.firstOrderCapped')}
+            </p>
+          )}
           {/* So the cashier knows a first-order promo is the reason the price just moved. */}
           {buyerId && quote.data?.firstOrder && (
             <p className="flex items-center gap-2 text-xs sm:col-span-2">

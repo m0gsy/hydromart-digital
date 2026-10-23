@@ -2823,6 +2823,8 @@ export interface DepotDailyCashier {
   label: string | null;
   orders: number;
   revenueIdr: number;
+  /** Buyers this cashier sold to for the first time today (absent from an older server). */
+  newBuyers?: number;
 }
 
 export interface DepotWeeklyReport {
@@ -3275,6 +3277,8 @@ export interface CounterQuote {
   appliedPromos?: AppliedPromo[];
   /** The identified buyer has no earlier order, so first-order-only promos apply. */
   firstOrder?: boolean;
+  /** A new buyer held back from that promo by this cashier's daily ceiling. */
+  firstOrderCapped?: boolean;
   subtotalIdr: number;
   discountIdr: number;
   totalIdr: number;

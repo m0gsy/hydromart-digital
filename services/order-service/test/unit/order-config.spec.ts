@@ -101,3 +101,36 @@ describe('OrderConfigService · counterDelivery', () => {
     expect(cfg.counterDelivery('d2')).toBe(true);
   });
 });
+
+/**
+ * How many first-time buyers one cashier may give the "pelanggan baru" promo to in a day.
+ * Per depot because it is a trust decision about that depot's own tills.
+ */
+describe('OrderConfigService · counterFirstOrderDailyCap', () => {
+  const env = new ConfigService({
+    ORDER_ABANDON_MINUTES: '60',
+    ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
+    ORDER_COUNTER_FIRST_ORDER_DAILY_CAP: '5',
+  } as never);
+
+  it('is the env value by default, for a named depot and for none', async () => {
+    const cache = cacheWith([]);
+    await cache.refresh();
+    const cfg = new OrderConfigService(env, cache);
+    expect(cfg.counterFirstOrderDailyCap('d1')).toBe(5);
+    expect(cfg.counterFirstOrderDailyCap()).toBe(5);
+  });
+
+  it('one depot can set its own ceiling, including 0, without touching the others', async () => {
+    const cache = cacheWith([
+      { scope: 'DEPOT', depotId: 'd1', key: 'counterFirstOrderDailyCap', value: '2' },
+      { scope: 'DEPOT', depotId: 'd2', key: 'counterFirstOrderDailyCap', value: '0' },
+    ]);
+    await cache.refresh();
+    const cfg = new OrderConfigService(env, cache);
+    expect(cfg.counterFirstOrderDailyCap('d1')).toBe(2);
+    // 0 is a real policy ("never at this counter"), not a missing value.
+    expect(cfg.counterFirstOrderDailyCap('d2')).toBe(0);
+    expect(cfg.counterFirstOrderDailyCap('d3')).toBe(5);
+  });
+});
