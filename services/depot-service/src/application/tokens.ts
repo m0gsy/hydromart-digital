@@ -18,6 +18,8 @@ export const DEPOT_TOKENS = {
   CustomerContact: Symbol('CustomerContact'),
   /** Customer-facing messages through crm-service; reports whether crm accepted. */
   CustomerNotification: Symbol('CustomerNotification'),
+  /** Role of each account in a set, from auth-service (who in a chain can decide an approval). */
+  AccountRoles: Symbol('AccountRoles'),
   FranchiseApplicationRepository: Symbol('FranchiseApplicationRepository'),
   PriceOverrideProposalRepository: Symbol('PriceOverrideProposalRepository'),
   IncidentRepository: Symbol('IncidentRepository'),
