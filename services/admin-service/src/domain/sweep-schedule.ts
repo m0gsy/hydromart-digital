@@ -36,6 +36,12 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   { job: 'orders/reminders/reorder', everyMinutes: 1440, label: 'Pengingat pesan ulang' },
   { job: 'orders/outbox/internal/process', everyMinutes: 10, label: 'Efek pesanan tertunda' },
   { job: 'payments/internal/expire-pending', everyMinutes: 60, label: 'Pembayaran kedaluwarsa' },
+  { job: 'payments/internal/remind-pending', everyMinutes: 60, label: 'Pengingat pembayaran' },
+  {
+    job: 'payments/internal/flag-unconfirmed',
+    everyMinutes: 60,
+    label: 'Bayar lunas, pesanan belum dikonfirmasi',
+  },
   { job: 'orders/internal/expire-abandoned', everyMinutes: 60, label: 'Pesanan terbengkalai' },
   { job: 'deliveries/internal/sla-sweep', everyMinutes: 10, label: 'Pengantaran lewat SLA' },
   {
@@ -45,6 +51,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   },
   { job: 'retention/internal/purge', everyMinutes: 1440, label: 'Penghapusan data UU PDP' },
   { job: 'announcements/publish-due', everyMinutes: 15, label: 'Pengumuman terbit' },
+  { job: 'shifts/internal/remind-starting', everyMinutes: 15, label: 'Pengingat shift' },
   {
     job: 'employees/internal/depot-moves/apply-due',
     everyMinutes: 15,
@@ -52,6 +59,11 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   },
   { job: 'campaigns/internal/process-sending', everyMinutes: 2, label: 'Kampanye terkirim' },
   { job: 'webhooks/deliveries/process', everyMinutes: 5, label: 'Webhook mitra' },
+  {
+    job: 'reports/internal/daily-sales-broadcast/pagi',
+    everyMinutes: 1440,
+    label: 'Ringkasan penjualan pagi',
+  },
   {
     job: 'reports/internal/daily-sales-broadcast/siang',
     everyMinutes: 1440,
@@ -71,6 +83,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
     label: 'Pengingat galon telat',
   },
   { job: 'orders/reminders/review', everyMinutes: 10, label: 'Permintaan ulasan' },
+  { job: 'vouchers/internal/notify-expiring', everyMinutes: 60, label: 'Voucher segera berakhir' },
   {
     job: 'loyalty/internal/expire',
     everyMinutes: 1440,

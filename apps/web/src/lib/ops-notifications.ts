@@ -42,6 +42,12 @@ export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
 export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   DEPOT_ORDER_INCOMING: 'orders',
   DEPOT_ORDER_RESCHEDULED: 'orders',
+  DEPOT_ORDER_CANCELLED: 'orders',
+  DEPOT_PAYMENT_PROOF: 'orders',
+  DEPOT_PAYMENT_UNCONFIRMED: 'orders',
+  APPROVAL_REQUESTED: 'orders',
+  COURIER_DELIVERY_ASSIGNED: 'courier',
+  DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',
   // A sale the depot has no stock line for, and a meter reading that disagrees with the
   // litres sold, are both "the stock ledger is wrong" — the same person chases them.
@@ -53,6 +59,9 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   LEAVE_APPROVED: 'hr',
   LEAVE_REJECTED: 'hr',
   HR_ANNOUNCEMENT: 'hr',
+  SHIFT_REMINDER: 'hr',
+  PAYSLIP_READY: 'hr',
+  ATTENDANCE_LATE: 'hr',
 };
 
 /** Pure: apply the chip filter. `read` decides unread-ness (server receipt + local overlay). */

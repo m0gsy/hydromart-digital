@@ -111,6 +111,8 @@ import { BonusController, DeductionController } from './adjustment.controller';
 import { BonusRuleController, LoanController } from './rules.controller';
 import { DepotAssignmentController } from './depot-assignment.controller';
 import { DepotMovesInternalController } from './depot-moves-internal.controller';
+import { ShiftReminderController } from './shift-reminder.controller';
+import { ShiftReminderService } from '../application/services/shift-reminder.service';
 import { LoanRequestController, SelfLoanRequestController } from './loan-request.controller';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
@@ -200,6 +202,7 @@ const providers: Provider[] = [
   AssetService,
   { provide: ANNOUNCEMENT_REPOSITORY, useClass: AnnouncementPrismaRepository },
   AnnouncementService,
+  ShiftReminderService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -226,6 +229,7 @@ const providers: Provider[] = [
     LoanRequestController,
     DepotAssignmentController,
     DepotMovesInternalController,
+    ShiftReminderController,
     PerformanceController,
     AuditController,
     ReportsController,

@@ -2,6 +2,7 @@ import {
   NOTIFICATION_TEMPLATES,
   NotificationEvent,
   OPS_EVENTS,
+  PERSONAL_OPS_EVENTS,
   renderMessage,
   templateFor,
 } from '../../src/domain/notification-event';
@@ -231,5 +232,57 @@ describe('ops events that must reach staff phones', () => {
   // OPS_EVENTS, notify() never fans it out to the depot's staff.
   it('includes the SLA breach alert', () => {
     expect(OPS_EVENTS).toContain(NotificationEvent.DELIVERY_SLA_BREACHED);
+  });
+});
+
+describe('wave-1 events are routed where their recipient will see them', () => {
+  const DEPOT = [
+    NotificationEvent.DEPOT_ORDER_CANCELLED,
+    NotificationEvent.DEPOT_PAYMENT_PROOF,
+    NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED,
+  ];
+  const PERSONAL = [
+    NotificationEvent.COURIER_DELIVERY_ASSIGNED,
+    NotificationEvent.APPROVAL_REQUESTED,
+    NotificationEvent.SHIFT_REMINDER,
+    NotificationEvent.PAYSLIP_READY,
+    NotificationEvent.ATTENDANCE_LATE,
+  ];
+
+  it.each([...DEPOT, ...PERSONAL])('%s is an ops event, never a customer-inbox row', (event) => {
+    expect(OPS_EVENTS).toContain(event);
+  });
+
+  // Salary period and a person's own lateness must not be readable by the rest of the depot.
+  it.each(PERSONAL)('%s is shown to its recipient only', (event) => {
+    expect(PERSONAL_OPS_EVENTS).toContain(event);
+  });
+
+  it('a depot-wide alert is not personal', () => {
+    for (const event of DEPOT) expect(PERSONAL_OPS_EVENTS).not.toContain(event);
+  });
+});
+
+describe('payment events', () => {
+  const CUSTOMER = [
+    NotificationEvent.PAYMENT_FAILED,
+    NotificationEvent.PAYMENT_REMINDER,
+    NotificationEvent.REFUND_PROCESSED,
+  ];
+
+  // OPS_EVENTS has no type guard: a customer event listed there would vanish from the
+  // customer's inbox into the staff feed.
+  it.each(CUSTOMER)('%s is a customer-inbox event, not an ops one', (event) => {
+    expect(OPS_EVENTS).not.toContain(event);
+  });
+
+  it('renders the amount and order number into the copy', () => {
+    const text = renderMessage(templateFor(NotificationEvent.REFUND_PROCESSED, 'id'), {
+      name: 'Budi',
+      orderNumber: 'HM-1',
+      amount: 'Rp 50.000',
+    });
+    expect(text).toContain('Rp 50.000');
+    expect(text).toContain('HM-1');
   });
 });

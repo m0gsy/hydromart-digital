@@ -300,6 +300,26 @@ export class InternalRefundDto {
   amount!: number;
 }
 
+/** Internal (payment-service): something happened to an order's payment that someone must hear. */
+export const PAYMENT_NOTICE_KINDS = ['FAILED', 'REMINDER', 'PROOF_UPLOADED', 'UNCONFIRMED'] as const;
+export type PaymentNoticeKind = (typeof PAYMENT_NOTICE_KINDS)[number];
+
+export class InternalPaymentNoticeDto {
+  @ApiProperty({ enum: PAYMENT_NOTICE_KINDS })
+  @IsIn(PAYMENT_NOTICE_KINDS as unknown as string[])
+  kind!: PaymentNoticeKind;
+
+  @ApiProperty({ example: 25000, description: 'The payment amount in rupiah.' })
+  @IsNumber()
+  @Min(0)
+  amount!: number;
+
+  @ApiPropertyOptional({ enum: ['REJECTED', 'EXPIRED'], description: 'Why a FAILED payment failed.' })
+  @IsOptional()
+  @IsIn(['REJECTED', 'EXPIRED'])
+  reason?: 'REJECTED' | 'EXPIRED';
+}
+
 /** Internal: batch-read the mean rating over a courier's delivered orders (design 4c). */
 export class RatingBatchDto {
   @ApiProperty({

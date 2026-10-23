@@ -34,6 +34,9 @@ export class LowStockAlertHttpAdapter implements LowStockAlertPort {
         body: JSON.stringify({
           event: 'STOCK_LOW',
           phone,
+          // crm pushes an ops alert to this depot's staff only when it knows the depot; without
+          // it the alert reached the ops number and the feed but never a device.
+          depotId: alert.depotId,
           vars: {
             depot: alert.depotName,
             item: alert.label,

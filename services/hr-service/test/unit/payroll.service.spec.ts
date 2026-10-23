@@ -98,6 +98,7 @@ function build(opts: {
   /** Depot SOP tiered late fines, "telat1,telat2,tidakAbsen"; '' = the old flat rate. */
   lateFineStaff?: string;
   lateFineManager?: string;
+  notifications?: import('../../src/application/ports/notification.port').NotificationPort;
   lateTier2After?: number;
   absentAfter?: number;
   /** A whole SalesPort double, for asserting the call was (or was not) made. */
@@ -144,6 +145,8 @@ function build(opts: {
   };
   const employees = {
     getById: async () =>
+      ({ id: 'e1', depotId: 'd1', salaryType: 'DAILY', ...opts.employee }) as Employee,
+    findByIdInternal: async () =>
       ({ id: 'e1', depotId: 'd1', salaryType: 'DAILY', ...opts.employee }) as Employee,
   } as unknown as EmployeeService;
   const config = {
@@ -206,6 +209,10 @@ function build(opts: {
       sales,
       undefined,
       opts.shifts,
+      undefined,
+      undefined,
+      undefined,
+      opts.notifications,
     ),
   };
 }
@@ -677,6 +684,65 @@ describe('PayrollService lifecycle', () => {
     repo.byId = { id: 'p1', employeeId: 'e1', status: 'APPROVED' } as PayrollWithItems;
     await svc.markPaid(user, 'p1');
     expect(repo.status).toBe('PAID');
+  });
+
+  // The employee hears their slip is final when it is PAID, not when it is merely approved:
+  // an approved slip can still be sent back to DRAFT.
+  describe('payslip notice', () => {
+    const paidFixture = { id: 'p1', employeeId: 'e1', status: 'APPROVED', periodMonth: '2026-10' };
+
+    it('tells the employee when the slip is paid, in a readable month', async () => {
+      const notify = jest.fn(async () => undefined);
+      const { repo, svc } = build({
+        employee: { id: 'e1', authSubjectId: 'acct-1', phone: '0811', fullName: 'Budi' },
+        notifications: { notify },
+      });
+      repo.byId = paidFixture as PayrollWithItems;
+      await svc.markPaid(user, 'p1');
+      expect(notify).toHaveBeenCalledWith('PAYSLIP_READY', '0811', { name: 'Budi', period: 'Oktober 2026' }, 'acct-1');
+    });
+
+    it('does not tell anyone on approve', async () => {
+      const notify = jest.fn(async () => undefined);
+      const { repo, svc } = build({
+        employee: { id: 'e1', authSubjectId: 'acct-1', phone: '0811', fullName: 'Budi' },
+        notifications: { notify },
+      });
+      repo.byId = { ...paidFixture, status: 'DRAFT' } as PayrollWithItems;
+      await svc.approve(user, 'p1');
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it('skips an employee with no login', async () => {
+      const notify = jest.fn(async () => undefined);
+      const { repo, svc } = build({
+        employee: { id: 'e1', authSubjectId: null, phone: '0811', fullName: 'Budi' },
+        notifications: { notify },
+      });
+      repo.byId = paidFixture as PayrollWithItems;
+      await svc.markPaid(user, 'p1');
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it('still marks the slip paid when the notice throws', async () => {
+      const notify = jest.fn(async () => {
+        throw new Error('crm down');
+      });
+      const { repo, svc } = build({
+        employee: { id: 'e1', authSubjectId: 'acct-1', phone: '0811', fullName: 'Budi' },
+        notifications: { notify },
+      });
+      repo.byId = paidFixture as PayrollWithItems;
+      await svc.markPaid(user, 'p1');
+      expect(repo.status).toBe('PAID');
+    });
+
+    it('works with no notification port wired', async () => {
+      const { repo, svc } = build({ employee: {} });
+      repo.byId = paidFixture as PayrollWithItems;
+      await svc.markPaid(user, 'p1');
+      expect(repo.status).toBe('PAID');
+    });
   });
 
   // Owner decision 2026-10-14. A slip is not signed off by the person who generated it,

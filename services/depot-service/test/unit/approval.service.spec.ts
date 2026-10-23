@@ -176,3 +176,134 @@ describe('ApprovalService', () => {
     });
   });
 });
+
+/*
+ * Telling the decider. The item goes to the TOP of the depot's supervision chain - that is
+ * where `approvals` (managers) sits - and to nobody when there is no chain, rather than
+ * somebody guessed.
+ */
+describe('ApprovalService - telling the approver', () => {
+  const ASSISTANT = '33333333-3333-3333-3333-333333333333';
+  const SUPERVISOR = '44444444-4444-4444-4444-444444444444';
+  const TOP_MANAGER = '55555555-5555-5555-5555-555555555555';
+
+  async function build(opts: {
+    assistant?: string | null;
+    superiors?: Record<string, string | null>;
+    alertPhone?: string;
+    send?: jest.Mock;
+  }) {
+    const depotRepo = new InMemoryDepotRepository();
+    const depot = await new DepotService(depotRepo).create({
+      code: 'JKT-02',
+      name: 'Depot Menteng',
+      ownershipType: OwnershipType.HKP,
+      address: 'a',
+      city: 'Jakarta',
+      province: 'DKI',
+      lat: -6.19,
+      lng: 106.84,
+      serviceRadiusKm: 5,
+      deliveryFee: 5000,
+      minOrderAmount: null,
+      ownerId: null,
+      operatingHours: {},
+      holidays: [],
+    });
+    if (opts.assistant !== undefined) {
+      (depotRepo as unknown as { rows: { id: string; assistantSupervisorId: string | null }[] }).rows
+        ?.filter((r) => r.id === depot.id)
+        .forEach((r) => (r.assistantSupervisorId = opts.assistant ?? null));
+    }
+    const send = opts.send ?? jest.fn(async () => true);
+    const hierarchy = {
+      superiorOf: jest.fn(async (id: string) => opts.superiors?.[id] ?? null),
+    } as never;
+    const config = buildTestConfig(opts.alertPhone === undefined ? {} : { DEPOT_ALERT_PHONE: opts.alertPhone });
+    const service = new ApprovalService(
+      new InMemoryApprovalRepository(),
+      depotRepo,
+      config,
+      hierarchy,
+      { send } as never,
+    );
+    return { service, depotId: depot.id, send, depotRepo };
+  }
+
+  const big = (service: ApprovalService, depotId: string) =>
+    service.create(
+      { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih opname', amountIdr: -500_000 },
+      SUBMITTER,
+    );
+
+  it('pages the top of the chain, not the assistant it starts from', async () => {
+    const { service, depotId, send } = await build({
+      assistant: ASSISTANT,
+      superiors: { [ASSISTANT]: SUPERVISOR, [SUPERVISOR]: TOP_MANAGER },
+      alertPhone: '0800-ops',
+    });
+    const approval = await big(service, depotId);
+    expect(send).toHaveBeenCalledWith(
+      'APPROVAL_REQUESTED',
+      '0800-ops',
+      TOP_MANAGER,
+      expect.objectContaining({ title: 'Selisih opname', approvalId: approval.id }),
+    );
+  });
+
+  it('says nothing for an item that auto-passed', async () => {
+    const { service, depotId, send } = await build({ assistant: ASSISTANT, alertPhone: '0800-ops' });
+    await service.create(
+      { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'kecil', amountIdr: -1_000 },
+      SUBMITTER,
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('pages nobody when the depot has no assistant supervisor', async () => {
+    const { service, depotId, send } = await build({ assistant: null, alertPhone: '0800-ops' });
+    await big(service, depotId);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('does not page the person who raised it', async () => {
+    const { service, depotId, send } = await build({ assistant: SUBMITTER, alertPhone: '0800-ops' });
+    await big(service, depotId);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('pages nobody when the depot cannot be read back', async () => {
+    const { service, depotId, send, depotRepo } = await build({
+      assistant: ASSISTANT,
+      alertPhone: '0800-ops',
+    });
+    jest.spyOn(depotRepo, 'findById').mockResolvedValue(null);
+    await big(service, depotId);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('survives a cycle in the supervision data', async () => {
+    const { service, depotId, send } = await build({
+      assistant: ASSISTANT,
+      superiors: { [ASSISTANT]: SUPERVISOR, [SUPERVISOR]: ASSISTANT },
+      alertPhone: '0800-ops',
+    });
+    await expect(big(service, depotId)).resolves.toBeDefined();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fail the item when the notice throws, or when there is no ops phone', async () => {
+    const boom = await build({
+      assistant: ASSISTANT,
+      alertPhone: '0800-ops',
+      send: jest.fn(async () => {
+        throw new Error('crm down');
+      }),
+    });
+    await expect(big(boom.service, boom.depotId)).resolves.toBeDefined();
+
+    const noPhone = await build({ assistant: ASSISTANT, alertPhone: '' });
+    await big(noPhone.service, noPhone.depotId);
+    expect(noPhone.send).not.toHaveBeenCalled();
+  });
+});

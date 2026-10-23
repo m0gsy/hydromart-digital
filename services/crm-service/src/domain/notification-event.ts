@@ -16,6 +16,29 @@ export enum NotificationEvent {
    * its day around the old one.
    */
   DEPOT_ORDER_RESCHEDULED = 'DEPOT_ORDER_RESCHEDULED',
+  /**
+   * The customer cancelled their own order — addressed to the DEPOT. The customer's own
+   * cancel is silent by design (they just did it), which left the depot preparing an order
+   * that no longer existed. Tokens: {{orderNumber}}, {{orderId}}, {{total}}.
+   */
+  DEPOT_ORDER_CANCELLED = 'DEPOT_ORDER_CANCELLED',
+  // Payment, customer-facing. A paid payment needs no event of its own: ORDER_CONFIRMED is
+  // sent the moment it settles, and a second message for the same instant would only be noise.
+  // Tokens: {{name}}, {{orderNumber}}, {{orderId}}; PAYMENT_FAILED adds {{reason}},
+  // PAYMENT_REMINDER and REFUND_PROCESSED add {{amount}}.
+  PAYMENT_FAILED = 'PAYMENT_FAILED',
+  PAYMENT_REMINDER = 'PAYMENT_REMINDER',
+  REFUND_PROCESSED = 'REFUND_PROCESSED',
+  // To the DEPOT: a customer uploaded a transfer receipt that is waiting to be verified.
+  // Tokens: {{orderNumber}}, {{orderId}}, {{amount}}.
+  DEPOT_PAYMENT_PROOF = 'DEPOT_PAYMENT_PROOF',
+  // To the DEPOT: money arrived for an order that is still unconfirmed half an hour later -
+  // the settle-then-confirm hand-off between payment and order service dropped it.
+  // Tokens: {{orderNumber}}, {{orderId}}, {{amount}}.
+  DEPOT_PAYMENT_UNCONFIRMED = 'DEPOT_PAYMENT_UNCONFIRMED',
+  // To the manager at the top of the depot's supervision chain: an item is waiting for a
+  // decision. Tokens: {{title}}, {{depot}}, {{amount}}, {{approvalId}}.
+  APPROVAL_REQUESTED = 'APPROVAL_REQUESTED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -25,6 +48,12 @@ export enum NotificationEvent {
   // right to cancel the moment a courier is assigned, and nothing told them — the button
   // simply stopped being there. Tokens: {{name}}, {{orderNumber}}, {{driver}}.
   ORDER_DRIVER_ASSIGNED = 'ORDER_DRIVER_ASSIGNED',
+  /**
+   * A delivery was assigned to a courier — addressed to that courier's own account. The
+   * customer is told by ORDER_DRIVER_ASSIGNED; the courier was told nothing and had to open
+   * the app to find out. Tokens: {{orderNumber}}, {{deliveryId}}.
+   */
+  COURIER_DELIVERY_ASSIGNED = 'COURIER_DELIVERY_ASSIGNED',
   // B4: delivery-service has been sending this since reschedule shipped and it was never a
   // member here, so `@IsEnum` answered 400 and the sending adapter logged the refusal as a
   // warning and moved on. Every reschedule notification was lost between two services that
@@ -75,6 +104,8 @@ export enum NotificationEvent {
   MEMBERSHIP_TIER_UPGRADED = 'MEMBERSHIP_TIER_UPGRADED',
   // Rewards/referral: fired when a voucher is granted. Tokens: {{name}}, {{code}}, {{description}}.
   VOUCHER_GRANTED = 'VOUCHER_GRANTED',
+  // A voucher in the customer's wallet lapses in about three days. Tokens: {{name}}, {{code}}, {{expires}}.
+  VOUCHER_EXPIRING = 'VOUCHER_EXPIRING',
   // K4.2, agen-facing. What a reseller pays used to change with no trail, no date and no
   // message — they found out at the till, arguing with a cashier who was reading the
   // correct new price. Fired by customer-service on an immediate change AND by its
@@ -116,6 +147,12 @@ export enum NotificationEvent {
   LOAN_REQUEST_APPROVED = 'LOAN_REQUEST_APPROVED',
   LOAN_REQUEST_REJECTED = 'LOAN_REQUEST_REJECTED',
   HR_ANNOUNCEMENT = 'HR_ANNOUNCEMENT',
+  // To the employee only: their payslip for a month is available. Tokens: {{name}}, {{period}}.
+  // To the employee only: their rota shift starts soon. Tokens: {{name}}, {{time}}.
+  SHIFT_REMINDER = 'SHIFT_REMINDER',
+  PAYSLIP_READY = 'PAYSLIP_READY',
+  // To the employee only: their check-in was recorded late. Tokens: {{name}}, {{minutes}}, {{date}}.
+  ATTENDANCE_LATE = 'ATTENDANCE_LATE',
   // Marketing broadcast (Module 12). The one event whose copy is NOT owned here: staff
   // author the whole message in the HQ broadcast console, so the template is a bare
   // passthrough. It still goes through the same path as every other notification — an
@@ -146,6 +183,28 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Pesanan baru masuk: {{orderNumber}} · {{total}}. Buka antrean untuk memprosesnya.',
   [NotificationEvent.DEPOT_ORDER_RESCHEDULED]:
     'Jadwal pesanan {{orderNumber}} diubah pelanggan ke {{when}}. Cek antrean untuk menyesuaikan.',
+  [NotificationEvent.APPROVAL_REQUESTED]:
+    'Menunggu persetujuan Anda: {{title}} ({{depot}}, {{amount}}). Buka menu Persetujuan untuk memutuskan.',
+  [NotificationEvent.PAYMENT_FAILED]:
+    'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
+  [NotificationEvent.PAYMENT_REMINDER]:
+    'Halo {{name}}, pesanan {{orderNumber}} masih menunggu pembayaran {{amount}}. Selesaikan pembayaran agar pesanan segera diproses.',
+  [NotificationEvent.REFUND_PROCESSED]:
+    'Halo {{name}}, refund {{amount}} untuk pesanan {{orderNumber}} sudah diproses. Dana kembali lewat metode pembayaranmu.',
+  [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]:
+    'Pembayaran {{amount}} untuk pesanan {{orderNumber}} sudah lunas tetapi pesanan belum dikonfirmasi. Buka pesanan dan konfirmasi manual.',
+  [NotificationEvent.DEPOT_PAYMENT_PROOF]:
+    'Bukti pembayaran masuk untuk pesanan {{orderNumber}} ({{amount}}). Buka menu Pembayaran untuk memverifikasinya.',
+  [NotificationEvent.DEPOT_ORDER_CANCELLED]:
+    'Pesanan {{orderNumber}} ({{total}}) dibatalkan oleh pelanggan. Stok dikembalikan; tidak perlu diproses lagi.',
+  [NotificationEvent.COURIER_DELIVERY_ASSIGNED]:
+    'Pengiriman baru untukmu: pesanan {{orderNumber}}. Buka aplikasi untuk alamat dan detailnya.',
+  [NotificationEvent.SHIFT_REMINDER]:
+    'Halo {{name}}, shift Anda mulai pukul {{time}}. Jangan lupa absen masuk.',
+  [NotificationEvent.PAYSLIP_READY]:
+    'Halo {{name}}, slip gaji {{period}} sudah tersedia. Buka menu Gaji saya untuk melihatnya.',
+  [NotificationEvent.ATTENDANCE_LATE]:
+    'Halo {{name}}, absen masuk Anda pada {{date}} tercatat terlambat {{minutes}} menit.',
   [NotificationEvent.ORDER_CONFIRMED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami konfirmasi dan sedang kami siapkan. Terima kasih sudah memesan di Hydromart 💧',
   [NotificationEvent.ORDER_ON_DELIVERY]:
@@ -184,6 +243,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Mantap, {{name}}! Kamu dapat +{{points}} poin dari pesanan {{orderNumber}}. Kumpulkan poin untuk tukar voucher & naik tier di aplikasi.',
   [NotificationEvent.VOUCHER_GRANTED]:
     'Ada voucher baru untukmu, {{name}}! Kode {{code}} — {{description}}. Pakai saat checkout sebelum masa berlaku habis 🎟️',
+  [NotificationEvent.VOUCHER_EXPIRING]:
+    'Halo {{name}}, voucher {{code}} berakhir {{expires}}. Pakai sebelum hangus 🎟️',
   [NotificationEvent.RESELLER_PRICE_CHANGED]:
     'Halo {{name}}, harga agen kamu diperbarui: {{terms}}. Berlaku mulai sekarang — cek detailnya di aplikasi sebelum belanja berikutnya.',
   [NotificationEvent.RESELLER_DEACTIVATED]:
@@ -222,6 +283,12 @@ export const OPS_EVENTS: NotificationEvent[] = [
   // settings screen, defaulted ON, since before anything could emit it.
   NotificationEvent.DEPOT_ORDER_INCOMING,
   NotificationEvent.DEPOT_ORDER_RESCHEDULED,
+  NotificationEvent.DEPOT_ORDER_CANCELLED,
+  NotificationEvent.DEPOT_PAYMENT_PROOF,
+  NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED,
+  // Addressed to one courier's account, so it is also in PERSONAL_OPS_EVENTS below.
+  NotificationEvent.COURIER_DELIVERY_ASSIGNED,
+  NotificationEvent.APPROVAL_REQUESTED,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -243,6 +310,10 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.LOAN_REQUEST_APPROVED,
   NotificationEvent.LOAN_REQUEST_REJECTED,
   NotificationEvent.HR_ANNOUNCEMENT,
+  // Personal to the employee (salary period, their own lateness): see PERSONAL_OPS_EVENTS.
+  NotificationEvent.SHIFT_REMINDER,
+  NotificationEvent.PAYSLIP_READY,
+  NotificationEvent.ATTENDANCE_LATE,
 ];
 
 /**
@@ -258,6 +329,11 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.LOAN_REQUEST_SUBMITTED,
   NotificationEvent.LOAN_REQUEST_APPROVED,
   NotificationEvent.LOAN_REQUEST_REJECTED,
+  NotificationEvent.COURIER_DELIVERY_ASSIGNED,
+  NotificationEvent.APPROVAL_REQUESTED,
+  NotificationEvent.SHIFT_REMINDER,
+  NotificationEvent.PAYSLIP_READY,
+  NotificationEvent.ATTENDANCE_LATE,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -269,6 +345,28 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'New order in: {{orderNumber}} · {{total}}. Open the queue to process it.',
   [NotificationEvent.DEPOT_ORDER_RESCHEDULED]:
     'The customer moved the delivery of order {{orderNumber}} to {{when}}. Check the queue to adjust.',
+  [NotificationEvent.APPROVAL_REQUESTED]:
+    'Waiting for your approval: {{title}} ({{depot}}, {{amount}}). Open Approvals to decide.',
+  [NotificationEvent.PAYMENT_FAILED]:
+    'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
+  [NotificationEvent.PAYMENT_REMINDER]:
+    'Hi {{name}}, order {{orderNumber}} is still waiting for its {{amount}} payment. Complete it so we can process your order.',
+  [NotificationEvent.REFUND_PROCESSED]:
+    'Hi {{name}}, your {{amount}} refund for order {{orderNumber}} has been processed. It returns through your payment method.',
+  [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]:
+    'The {{amount}} payment for order {{orderNumber}} is settled but the order is still unconfirmed. Open the order and confirm it manually.',
+  [NotificationEvent.DEPOT_PAYMENT_PROOF]:
+    'A payment receipt arrived for order {{orderNumber}} ({{amount}}). Open Payments to verify it.',
+  [NotificationEvent.DEPOT_ORDER_CANCELLED]:
+    'The customer cancelled order {{orderNumber}} ({{total}}). Stock is released; no need to process it.',
+  [NotificationEvent.COURIER_DELIVERY_ASSIGNED]:
+    'New delivery for you: order {{orderNumber}}. Open the app for the address and details.',
+  [NotificationEvent.SHIFT_REMINDER]:
+    'Hi {{name}}, your shift starts at {{time}}. Remember to check in.',
+  [NotificationEvent.PAYSLIP_READY]:
+    'Hi {{name}}, your {{period}} payslip is ready. Open My Payroll to view it.',
+  [NotificationEvent.ATTENDANCE_LATE]:
+    'Hi {{name}}, your check-in on {{date}} was recorded {{minutes}} minutes late.',
   [NotificationEvent.ORDER_CONFIRMED]:
     'Hi {{name}}! Order {{orderNumber}} is confirmed and we are preparing it. Thank you for ordering from Hydromart 💧',
   [NotificationEvent.ORDER_ON_DELIVERY]:
@@ -303,6 +401,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Nice one, {{name}}! You earned +{{points}} points from order {{orderNumber}}. Collect points for vouchers and a higher tier in the app.',
   [NotificationEvent.VOUCHER_GRANTED]:
     'A new voucher for you, {{name}}! Code {{code}} — {{description}}. Use it at checkout before it expires 🎟️',
+  [NotificationEvent.VOUCHER_EXPIRING]:
+    'Hi {{name}}, voucher {{code}} ends on {{expires}}. Use it before it is gone 🎟️',
   [NotificationEvent.RESELLER_PRICE_CHANGED]:
     'Hi {{name}}, your reseller price has been updated: {{terms}}. Effective now — check the details in the app before your next purchase.',
   [NotificationEvent.RESELLER_DEACTIVATED]:

@@ -23,6 +23,7 @@ describe('VoucherController', () => {
     redeem: jest.fn().mockResolvedValue({ discount: 1000, usageId: 'u1' }),
     create: jest.fn().mockResolvedValue({ id: 'v1' }),
     grant: jest.fn().mockResolvedValue({ voucher: { id: 'v1' }, granted: true }),
+    notifyExpiring: jest.fn().mockResolvedValue({ notified: 2, skipped: 0, failed: 0, ok: true }),
     update: jest.fn().mockResolvedValue({ id: 'v1' }),
     deactivate: jest.fn().mockResolvedValue({ id: 'v1', active: false }),
     getByCode: jest.fn().mockResolvedValue({ id: 'v1', code: 'HEMAT' }),
@@ -233,6 +234,16 @@ describe('VoucherController', () => {
   it('grant passes the voucher and the customer, and nothing else', async () => {
     await controller.grant('v1', { customerId: 'c1' } as unknown as GrantVoucherDto);
     expect(vouchers.grant).toHaveBeenCalledWith('v1', 'c1');
+  });
+
+  it('notifyExpiring runs the hourly nudge for the current instant', async () => {
+    await expect(controller.notifyExpiring()).resolves.toEqual({
+      notified: 2,
+      skipped: 0,
+      failed: 0,
+      ok: true,
+    });
+    expect(vouchers.notifyExpiring).toHaveBeenCalledWith(expect.any(Date));
   });
 
   it('update maps patch and parses provided dates', async () => {

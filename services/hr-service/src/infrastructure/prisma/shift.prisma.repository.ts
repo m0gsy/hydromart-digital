@@ -104,6 +104,14 @@ export class ShiftPrismaRepository implements ShiftRepository {
     });
   }
 
+  listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]> {
+    return this.prisma.shiftAssignment.findMany({
+      where: { effectiveFrom: { lte: onDate } },
+      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+      take: limit,
+    });
+  }
+
   listAssignments(employeeId: string): Promise<ShiftAssignment[]> {
     return this.prisma.shiftAssignment.findMany({
       where: { employeeId },

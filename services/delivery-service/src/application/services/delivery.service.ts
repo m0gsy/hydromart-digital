@@ -331,7 +331,38 @@ export class DeliveryService {
     this.logger.log(
       `Delivery ${delivery.id} ${existing ? 're-assigned' : 'assigned'} to driver ${input.driverId} by ${actorId}`,
     );
+    // A courier who claimed it themselves already knows. Everyone else learns from a push.
+    if (actorId !== input.driverId) {
+      await this.notifyCourierAssigned(delivery, input.driverId, input.driverPhone);
+    }
     return delivery;
+  }
+
+  /**
+   * Tell the courier a delivery is theirs. Addressed to their ACCOUNT (the push is keyed by
+   * account id); crm still requires some phone, so the courier's own number when the console
+   * sent one and the ops number otherwise. Fail-open like every notice here: the assignment
+   * is committed and a crm outage must not unwind it.
+   */
+  private async notifyCourierAssigned(
+    delivery: { id: string; orderNumber: string },
+    driverId: string,
+    driverPhone?: string | null,
+  ): Promise<void> {
+    if (!this.customerNotifications) return;
+    const phone = driverPhone || this.config.opsAlertPhone;
+    if (!phone) {
+      this.logger.warn(`Delivery ${delivery.id} assigned — no phone to address the courier push`);
+      return;
+    }
+    await this.customerNotifications
+      .notify(
+        'COURIER_DELIVERY_ASSIGNED',
+        phone,
+        { orderNumber: delivery.orderNumber, deliveryId: delivery.id },
+        driverId,
+      )
+      .catch((e: Error) => this.logger.warn(`Courier push for ${delivery.id} failed: ${e.message}`));
   }
 
   async pickup(driverId: string, id: string, authorization: string): Promise<DeliveryRecord> {

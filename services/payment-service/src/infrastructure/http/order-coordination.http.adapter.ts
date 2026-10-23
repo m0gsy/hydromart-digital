@@ -99,6 +99,19 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     );
   }
 
+  async notifyPaymentEvent(
+    orderId: string,
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
+    amount: number,
+    reason?: 'REJECTED' | 'EXPIRED',
+  ): Promise<void> {
+    await this.post(
+      `/api/v1/orders/${orderId}/internal-payment-notice`,
+      { kind, amount, ...(reason ? { reason } : {}) },
+      `Payment ${kind} notice skipped for ${orderId}`,
+    );
+  }
+
   async notifyRefunded(orderId: string, amount: number): Promise<void> {
     await this.post(
       `/api/v1/orders/${orderId}/internal-refund`,

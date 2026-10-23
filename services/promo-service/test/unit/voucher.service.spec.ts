@@ -490,3 +490,91 @@ describe('VoucherService · item scope (item 5 B)', () => {
     expect(cleared.productId).toBeNull();
   });
 });
+
+/*
+ * The "ends in three days" nudge. It runs hourly and looks at the one-hour window that opens
+ * three days from now, so each voucher is mentioned once; vouchers already spent, inactive
+ * or outside the window are left alone.
+ */
+describe('VoucherService · expiry nudge', () => {
+  const NOW = new Date('2026-10-23T03:30:00.000Z');
+  const in3Days = (extraMinutes: number) =>
+    new Date(NOW.getTime() + 3 * 86_400_000 + extraMinutes * 60_000);
+
+  let repo: InMemoryVoucherRepository;
+  let customers: FakeCustomerLookup;
+  let notifications: FakeNotification;
+  let service: VoucherService;
+
+  beforeEach(() => {
+    repo = new InMemoryVoucherRepository();
+    customers = new FakeCustomerLookup();
+    notifications = new FakeNotification();
+    service = new VoucherService(repo, customers, notifications);
+  });
+
+  const grantTo = async (code: string, validUntil: Date, customerId = 'cust-1') => {
+    const v = await service.create(baseVoucher({ code, validUntil }));
+    await service.grant(v.id, customerId);
+    notifications.calls.length = 0; // the grant's own "new voucher" notice is not under test
+    return v;
+  };
+
+  it('nudges the holder of a voucher that lapses in the window', async () => {
+    await grantTo('SEGERA', in3Days(20));
+    expect(await service.notifyExpiring(NOW)).toEqual({ notified: 1, skipped: 0, failed: 0, ok: true });
+    expect(notifications.calls).toEqual([
+      expect.objectContaining({
+        event: 'VOUCHER_EXPIRING',
+        customerId: 'cust-1',
+        vars: expect.objectContaining({ code: 'SEGERA', expires: '2026-10-26' }),
+      }),
+    ]);
+  });
+
+  it('leaves vouchers outside the window alone, so none is mentioned twice', async () => {
+    await grantTo('TERLALU-DINI', in3Days(-30));
+    await grantTo('TERLALU-LAMA', in3Days(90));
+    expect((await service.notifyExpiring(NOW)).notified).toBe(0);
+  });
+
+  it('leaves a voucher the holder already spent', async () => {
+    const v = await grantTo('SUDAH-DIPAKAI', in3Days(10));
+    repo.redemptions.push({
+      id: 'r1',
+      voucherId: v.id,
+      voucherCode: v.code,
+      customerId: 'cust-1',
+      orderId: 'o1',
+      discountApplied: 1000,
+      createdAt: NOW,
+      releasedAt: null,
+    } as never);
+    expect((await service.notifyExpiring(NOW)).notified).toBe(0);
+  });
+
+  it('still nudges when the only redemption was handed back by a voided order', async () => {
+    const v = await grantTo('DIKEMBALIKAN', in3Days(10));
+    repo.redemptions.push({
+      id: 'r1',
+      voucherId: v.id,
+      voucherCode: v.code,
+      customerId: 'cust-1',
+      orderId: 'o1',
+      discountApplied: 1000,
+      createdAt: NOW,
+      releasedAt: NOW,
+    } as never);
+    expect((await service.notifyExpiring(NOW)).notified).toBe(1);
+  });
+
+  it('skips a holder with no reachable contact and counts a send that throws', async () => {
+    await grantTo('TANPA-KONTAK', in3Days(10), 'cust-1');
+    customers.contact = null;
+    expect(await service.notifyExpiring(NOW)).toEqual({ notified: 0, skipped: 1, failed: 0, ok: true });
+
+    customers.contact = { name: 'Budi', phone: '+6281234567890' };
+    jest.spyOn(notifications, 'notify').mockRejectedValueOnce(new Error('crm down'));
+    expect(await service.notifyExpiring(NOW)).toEqual({ notified: 0, skipped: 0, failed: 1, ok: false });
+  });
+});

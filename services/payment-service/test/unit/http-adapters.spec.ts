@@ -201,6 +201,31 @@ describe('OrderCoordinationHttpAdapter', () => {
       ).resolves.toBeUndefined();
     });
 
+    it('notifyPaymentEvent: posts the kind, amount and reason to the notice endpoint', async () => {
+      fetchMock.mockResolvedValue(res({ ok: true }));
+      const adapter = new OrderCoordinationHttpAdapter(makeConfig());
+      await adapter.notifyPaymentEvent('o1', 'FAILED', 5000, 'EXPIRED');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://order:3002/api/v1/orders/o1/internal-payment-notice',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ kind: 'FAILED', amount: 5000, reason: 'EXPIRED' }),
+        }),
+      );
+      await adapter.notifyPaymentEvent('o1', 'REMINDER', 5000);
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        'http://order:3002/api/v1/orders/o1/internal-payment-notice',
+        expect.objectContaining({ body: JSON.stringify({ kind: 'REMINDER', amount: 5000 }) }),
+      );
+    });
+
+    it('notifyPaymentEvent: fails open when order-service errors', async () => {
+      fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).notifyPaymentEvent('o1', 'PROOF_UPLOADED', 1),
+      ).resolves.toBeUndefined();
+    });
+
     it('notifyRefunded: posts amount body on happy path', async () => {
       fetchMock.mockResolvedValue(res({ ok: true }));
       await new OrderCoordinationHttpAdapter(makeConfig()).notifyRefunded('o1', 5000);

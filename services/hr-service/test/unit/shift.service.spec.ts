@@ -102,6 +102,11 @@ class FakeRepo implements ShiftRepository {
   async listAssignments(employeeId: string): Promise<ShiftAssignment[]> {
     return this.assignments.filter((a) => a.employeeId === employeeId);
   }
+  async listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]> {
+    return this.assignments
+      .filter((a) => a.effectiveFrom.getTime() <= onDate.getTime())
+      .slice(0, limit);
+  }
 }
 
 function make() {

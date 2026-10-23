@@ -89,15 +89,36 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
+    after?: Date,
   ): Promise<PaymentRecord[]> {
     return this.rows
       .filter(
         (r) =>
           r.status === PaymentStatus.PENDING &&
           methods.includes(r.method) &&
-          r.createdAt.getTime() < before.getTime(),
+          r.createdAt.getTime() < before.getTime() &&
+          (!after || r.createdAt.getTime() >= after.getTime()),
       )
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+  async findPaidBetween(
+    from: Date,
+    to: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.status === PaymentStatus.PAID &&
+          methods.includes(r.method) &&
+          r.paidAt !== null &&
+          r.paidAt.getTime() >= from.getTime() &&
+          r.paidAt.getTime() < to.getTime(),
+      )
+      .sort((a, b) => a.paidAt!.getTime() - b.paidAt!.getTime())
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
@@ -325,6 +346,20 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   }
   async notifyRefunded(orderId: string, amount: number): Promise<void> {
     this.refunded.push({ orderId, amount });
+  }
+  notices: {
+    orderId: string;
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED';
+    amount: number;
+    reason?: 'REJECTED' | 'EXPIRED';
+  }[] = [];
+  async notifyPaymentEvent(
+    orderId: string,
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
+    amount: number,
+    reason?: 'REJECTED' | 'EXPIRED',
+  ): Promise<void> {
+    this.notices.push({ orderId, kind, amount, ...(reason ? { reason } : {}) });
   }
   /** orderId -> depot. Absent = order-service could not say (the caller fails closed). */
   orderDepots = new Map<string, string>();

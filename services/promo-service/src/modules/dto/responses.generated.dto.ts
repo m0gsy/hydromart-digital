@@ -274,3 +274,14 @@ export class AutoApplyQuoteResponseDto {
   @ApiProperty({ type: [PromoGiftResultDto] })
   gifts!: PromoGiftResultDto[];
 }
+
+export class NotifyExpiringVouchersResponseDto {
+  @ApiProperty({ type: Number, description: 'Holders reminded on this tick.' })
+  notified!: number;
+  @ApiProperty({ type: Number, description: 'Holders with no reachable contact.' })
+  skipped!: number;
+  @ApiProperty({ type: Number, description: 'Reminders that could not be sent.' })
+  failed!: number;
+  @ApiProperty({ type: Boolean, description: 'false when the round failed at something and reminded nobody.' })
+  ok!: boolean;
+}

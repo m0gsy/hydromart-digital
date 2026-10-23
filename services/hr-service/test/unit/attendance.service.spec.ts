@@ -118,6 +118,7 @@ function make(
     enrolled?: FaceEmbedding[];
     verify?: Awaited<ReturnType<FaceVerifier['verify']>>;
     att?: FakeAtt;
+    notifications?: import('../../src/application/ports/notification.port').NotificationPort;
   },
   cfg: HrConfigService = config,
 ) {
@@ -139,7 +140,14 @@ function make(
         ? null
         : ({ id: 'e1', depotId: 'd1', status: 'ACTIVE', ...opts.employee } as Employee),
   } as unknown as EmployeeRepository;
-  return { att, svc: new AttendanceService(att, verifier, faces, employees, cfg) };
+  return {
+    att,
+    svc: new AttendanceService(
+      att, verifier, faces, employees, cfg,
+      undefined, undefined, undefined, undefined,
+      opts.notifications,
+    ),
+  };
 }
 
 describe('AttendanceService', () => {
@@ -153,6 +161,48 @@ describe('AttendanceService', () => {
     const { att, svc } = make({});
     await svc.checkIn(user, punch, AT_0830);
     expect(att.created).toMatchObject({ status: 'LATE', lateMinutes: 30 });
+  });
+
+  describe('late-arrival notice', () => {
+    const person = { authSubjectId: 'acct-1', phone: '0811', fullName: 'Budi' };
+
+    it('tells the employee when the punch counts as LATE', async () => {
+      const notify = jest.fn(async () => undefined);
+      const { svc } = make({ employee: person, notifications: { notify } });
+      await svc.checkIn(user, punch, AT_0830);
+      expect(notify).toHaveBeenCalledWith(
+        'ATTENDANCE_LATE',
+        '0811',
+        expect.objectContaining({ name: 'Budi', minutes: '30' }),
+        'acct-1',
+      );
+    });
+
+    it('says nothing for an on-time punch', async () => {
+      const notify = jest.fn(async () => undefined);
+      const { svc } = make({ employee: person, notifications: { notify } });
+      await svc.checkIn(user, punch, AT_0810);
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it('says nothing without a login to address', async () => {
+      const notify = jest.fn(async () => undefined);
+      const { svc } = make({
+        employee: { ...person, authSubjectId: null },
+        notifications: { notify },
+      });
+      await svc.checkIn(user, punch, AT_0830);
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it('still records the punch when the notice throws', async () => {
+      const notify = jest.fn(async () => {
+        throw new Error('crm down');
+      });
+      const { att, svc } = make({ employee: person, notifications: { notify } });
+      await svc.checkIn(user, punch, AT_0830);
+      expect(att.created).toMatchObject({ status: 'LATE' });
+    });
   });
 
   it('rejects a second check-in the same day', async () => {

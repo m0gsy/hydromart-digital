@@ -61,6 +61,7 @@ function makeService(): Mocked {
     reviewOrder: jest.fn().mockResolvedValue({ id: 'r1' }),
     confirmPaid: jest.fn().mockResolvedValue({ id: 'o1', status: 'CONFIRMED' }),
     recordRefund: jest.fn().mockResolvedValue(undefined),
+    notifyPaymentEvent: jest.fn().mockResolvedValue(undefined),
     ratingSummary: jest.fn().mockResolvedValue({ average: 4.5, count: 2 }),
     updateStatus: jest.fn().mockResolvedValue({ id: 'o1', status: 'DELIVERED' }),
     deliveryOptions: jest.fn().mockResolvedValue({ slots: [], expressFee: 0 }),
@@ -626,6 +627,13 @@ describe('OrderController', () => {
       orderId: 'o1',
     });
     expect(service.recordRefund).toHaveBeenCalledWith('o1', 5000);
+  });
+
+  it('internalPaymentNotice: hands the event to the service and echoes the order id', async () => {
+    await expect(
+      controller.internalPaymentNotice('o1', { kind: 'FAILED', amount: 5000, reason: 'EXPIRED' }),
+    ).resolves.toEqual({ orderId: 'o1' });
+    expect(service.notifyPaymentEvent).toHaveBeenCalledWith('o1', 'FAILED', 5000, 'EXPIRED');
   });
 
   /*

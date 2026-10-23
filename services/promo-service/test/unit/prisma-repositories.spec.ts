@@ -652,6 +652,47 @@ describe('VoucherPrismaRepository', () => {
     expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 
+  describe('findExpiringGrants', () => {
+    const FROM = new Date('2026-10-26T03:00:00Z');
+    const TO = new Date('2026-10-26T04:00:00Z');
+    const grant = (voucherId: string, customerId: string) => ({
+      voucherId,
+      customerId,
+      voucher: { code: `C-${voucherId}`, description: null, validUntil: FROM },
+    });
+
+    it('asks for active vouchers lapsing in the window, oldest grant first, bounded', async () => {
+      voucherGrant.findMany.mockResolvedValue([]);
+      expect(await repo.findExpiringGrants(FROM, TO, 50)).toEqual([]);
+      expect(voucherGrant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { voucher: { active: true, validUntil: { gte: FROM, lt: TO } } },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        }),
+      );
+    });
+
+    it('drops grants the holder already spent, keeps handed-back ones', async () => {
+      voucherGrant.findMany.mockResolvedValue([grant('v1', 'c1'), grant('v2', 'c1')]);
+      // Only the unreleased redemption counts as spent (the query filters releasedAt: null).
+      voucherRedemption.findMany.mockResolvedValue([{ voucherId: 'v1', customerId: 'c1' }]);
+      const out = await repo.findExpiringGrants(FROM, TO, 50);
+      expect(out.map((g) => g.voucherId)).toEqual(['v2']);
+      expect(voucherRedemption.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ releasedAt: null }) }),
+      );
+    });
+
+    it('ignores a grant whose voucher somehow has no end date', async () => {
+      voucherGrant.findMany.mockResolvedValue([
+        { voucherId: 'v1', customerId: 'c1', voucher: { code: 'X', description: null, validUntil: null } },
+      ]);
+      voucherRedemption.findMany.mockResolvedValue([]);
+      expect(await repo.findExpiringGrants(FROM, TO, 50)).toEqual([]);
+    });
+  });
+
   it('grantVoucher returns false when a grant already exists', async () => {
     voucherGrant.findUnique.mockResolvedValue({ voucherId: 'v-1', customerId: 'c-1' });
     expect(await repo.grantVoucher('v-1', 'c-1')).toBe(false);

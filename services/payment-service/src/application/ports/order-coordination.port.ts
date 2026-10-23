@@ -15,6 +15,18 @@ export interface OrderCoordinationPort {
    */
   getOrderTotal(orderId: string): Promise<number | null>;
   /**
+   * Tells order-service something happened to this order's payment, so the right person
+   * hears of it: the buyer (failed, still waiting) or the depot (a receipt to verify). The
+   * contact details live on the order, so the words are chosen over there. Fail-open like
+   * `confirmPaid`: the payment change is already committed.
+   */
+  notifyPaymentEvent(
+    orderId: string,
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
+    amount: number,
+    reason?: 'REJECTED' | 'EXPIRED',
+  ): Promise<void>;
+  /**
    * PAY-4: the order's total AND who it belongs to, for the ownership check `initiate`
    * could not make. Null with the same meaning as `getOrderTotal`: coordination is not
    * configured (dev), so the caller skips both checks rather than refusing every payment.

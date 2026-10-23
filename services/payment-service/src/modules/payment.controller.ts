@@ -47,6 +47,8 @@ import { MulterExceptionFilter } from './multer-exception.filter';
 
 import {
   PaymentExpirySweepResult,
+  PaymentReminderSweepResult,
+  PaymentUnconfirmedSweepResult,
   PaymentService,
   RefundQueueRow,
   RevenueMethodRow,
@@ -81,6 +83,8 @@ import {
 import {
   CashByOrderResponseDto,
   ExpirePendingPaymentsResponseDto,
+  RemindPendingPaymentsResponseDto,
+  FlagUnconfirmedPaymentsResponseDto,
   InternalExportRowsResponseDto,
   CashCollectedResponseDto,
   PagedPaymentResponseDto,
@@ -181,6 +185,33 @@ export class PaymentController {
   @ApiOperation({ summary: 'Fail non-cash payments left PENDING too long (internal service auth)' })
   expirePending(): Promise<PaymentExpirySweepResult> {
     return this.payments.expireStalePending(new Date());
+  }
+
+  /** Paid for 30-90 minutes yet the order is still unconfirmed: tell the depot. Hourly. */
+  @ApiOkResponse({ type: FlagUnconfirmedPaymentsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/flag-unconfirmed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Flag settled payments whose order never confirmed (internal service auth)' })
+  flagUnconfirmed(): Promise<PaymentUnconfirmedSweepResult> {
+    return this.payments.flagUnconfirmed(new Date());
+  }
+
+  /**
+   * Halfway to expiry, nudge the buyer. Hourly; each payment falls in exactly one tick's
+   * window of ages (see `remindStalePending`).
+   */
+  @ApiOkResponse({ type: RemindPendingPaymentsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/remind-pending')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remind buyers of payments half-way to expiry (internal service auth)' })
+  remindPending(): Promise<PaymentReminderSweepResult> {
+    return this.payments.remindStalePending(new Date());
   }
 
   /**

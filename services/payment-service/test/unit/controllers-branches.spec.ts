@@ -19,6 +19,8 @@ const ISO = '2026-08-03T01:00:00.000Z';
 
 describe('PaymentController', () => {
   const svc = {
+    remindStalePending: jest.fn(),
+    flagUnconfirmed: jest.fn(),
     initiate: jest.fn(),
     listForCustomer: jest.fn(),
     listAll: jest.fn(),
@@ -223,6 +225,18 @@ describe('PaymentController', () => {
     svc.expireStalePending.mockResolvedValue({ expired: 2, failed: 0, ok: true });
     await expect(controller.expirePending()).resolves.toEqual({ expired: 2, failed: 0, ok: true });
     expect(svc.expireStalePending).toHaveBeenCalledWith(expect.any(Date));
+  });
+
+  it('remindPending runs the reminder sweep and returns its verdict', async () => {
+    svc.remindStalePending.mockResolvedValue({ reminded: 3, failed: 0, ok: true });
+    await expect(controller.remindPending()).resolves.toEqual({ reminded: 3, failed: 0, ok: true });
+    expect(svc.remindStalePending).toHaveBeenCalledWith(expect.any(Date));
+  });
+
+  it('flagUnconfirmed runs the reconciliation sweep and returns its verdict', async () => {
+    svc.flagUnconfirmed.mockResolvedValue({ flagged: 1, failed: 0, ok: true });
+    await expect(controller.flagUnconfirmed()).resolves.toEqual({ flagged: 1, failed: 0, ok: true });
+    expect(svc.flagUnconfirmed).toHaveBeenCalledWith(expect.any(Date));
   });
 
   it('depotCash forwards the window, open at both ends when unbounded', async () => {

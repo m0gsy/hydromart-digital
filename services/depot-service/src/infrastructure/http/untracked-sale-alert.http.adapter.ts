@@ -37,6 +37,7 @@ export class UntrackedSaleAlertHttpAdapter implements UntrackedSaleAlertPort {
         body: JSON.stringify({
           event: 'STOCK_UNTRACKED',
           phone,
+          depotId: alert.depotId,
           vars: {
             depot: alert.depotName,
             order: alert.orderId,

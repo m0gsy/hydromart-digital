@@ -144,6 +144,18 @@ export interface PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
+    /** Optional lower bound (inclusive) on `createdAt`: with `before`, a window of ages. */
+    after?: Date,
+  ): Promise<PaymentRecord[]>;
+  /**
+   * PAID rows of the given methods whose `paidAt` is in [from, to), oldest first, bounded.
+   * The reconciliation sweep reads it to find money whose order never confirmed.
+   */
+  findPaidBetween(
+    from: Date,
+    to: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
   ): Promise<PaymentRecord[]>;
   search(
     query: PaymentQuery,

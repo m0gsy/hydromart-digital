@@ -270,6 +270,9 @@ const REROUTABLE_STATUSES: ReadonlySet<OrderStatus> = new Set([
 /** "SILVER" → "Silver": a membership tier the way the customer reads it in a message. */
 const tierLabel = (tier: string): string => tier.charAt(0) + tier.slice(1).toLowerCase();
 
+/** "Rp 50.000", the way the rest of the notices in this file write money. */
+const rupiahLabel = (n: number): string => `Rp ${n.toLocaleString('id-ID')}`;
+
 @Injectable()
 export class OrderService {
   private static readonly MAX_LIMIT = 100;
@@ -1922,7 +1925,27 @@ export class OrderService {
       authorization,
     );
     await this.releaseStock(cancelled, authorization);
+    // The customer's own cancel is silent to the customer, which left the depot preparing an
+    // order that no longer existed. Fail-open like every notify: the order IS cancelled.
+    await this.notifyDepotOfCancel(cancelled, authorization);
     return cancelled;
+  }
+
+  /** The depot's side of a customer cancel; same addressing as `notifyDepotOfOrder`. */
+  private async notifyDepotOfCancel(order: OrderRecord, authorization: string): Promise<void> {
+    if (!order.depotId) return;
+    await this.notification.notify(
+      'DEPOT_ORDER_CANCELLED',
+      order.phone,
+      {
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        total: `Rp ${order.total.toLocaleString('id-ID')}`,
+      },
+      null,
+      authorization,
+      order.depotId,
+    );
   }
 
   /**
@@ -2882,8 +2905,64 @@ export class OrderService {
 
   /** Record a settled refund amount on the order (payment-service coordination, 22a). */
   async recordRefund(orderId: string, amount: number): Promise<void> {
-    await this.getAny(orderId); // 404 if the order doesn't exist
+    const order = await this.getAny(orderId); // 404 if the order doesn't exist
     await this.orders.recordRefund(orderId, amount);
+    // A refund is only recorded once it has SETTLED (an over-threshold one waits in HQ's
+    // queue and calls this when approved), so this is "your money is on its way", never a
+    // promise. Fail-open like every notify.
+    await this.notifyCustomer('REFUND_PROCESSED', order, { amount: rupiahLabel(amount) });
+  }
+
+  /**
+   * payment-service tells us something happened to a payment, and we say it to whoever needs
+   * to hear it: the buyer (failed, or still waiting) or the depot (a receipt to verify).
+   * The contact details live on the order, which is why this is here and not over there.
+   */
+  async notifyPaymentEvent(
+    orderId: string,
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
+    amount: number,
+    reason?: 'REJECTED' | 'EXPIRED',
+  ): Promise<void> {
+    const order = await this.getAny(orderId);
+    if (kind === 'PROOF_UPLOADED' || kind === 'UNCONFIRMED') {
+      if (!order.depotId) return;
+      await this.notification.notify(
+        kind === 'UNCONFIRMED' ? 'DEPOT_PAYMENT_UNCONFIRMED' : 'DEPOT_PAYMENT_PROOF',
+        order.phone,
+        { orderNumber: order.orderNumber, orderId: order.id, amount: rupiahLabel(amount) },
+        null,
+        '',
+        order.depotId,
+      );
+      return;
+    }
+    // A cancelled order has nothing left to pay: "please pay" would be wrong, and the
+    // cancellation already said what there was to say.
+    if (order.status === OrderStatus.CANCELLED) return;
+    if (kind === 'REMINDER') {
+      await this.notifyCustomer('PAYMENT_REMINDER', order, { amount: rupiahLabel(amount) });
+      return;
+    }
+    await this.notifyCustomer('PAYMENT_FAILED', order, {
+      reason: reason === 'EXPIRED' ? 'melewati batas waktu' : 'bukti pembayaran tidak sesuai',
+    });
+  }
+
+  /** One customer-addressed notice about an order; skips counter sales with no customer. */
+  private async notifyCustomer(
+    event: string,
+    order: OrderRecord,
+    vars: Record<string, string>,
+  ): Promise<void> {
+    if (!order.customerId || order.customerId === ANONYMOUS_CUSTOMER_ID) return;
+    await this.notification.notify(
+      event,
+      order.phone,
+      { name: order.recipientName, orderNumber: order.orderNumber, orderId: order.id, ...vars },
+      order.customerId,
+      '',
+    );
   }
 
   /**

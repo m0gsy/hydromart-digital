@@ -42,6 +42,7 @@ import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repos
 import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.repository';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
+import { NOTIFICATION_PORT, NotificationPort } from '../ports/notification.port';
 import {
   DEPOT_ASSIGNMENT_REPOSITORY,
   DepotAssignmentRepository,
@@ -74,6 +75,7 @@ export class AttendanceService {
     private readonly depotLedger?: DepotAssignmentRepository,
     // Only the history import asks it: a month whose slip is closed is not rewritten.
     @Optional() @Inject(PAYROLL_REPOSITORY) private readonly payrolls?: PayrollRepository,
+    @Optional() @Inject(NOTIFICATION_PORT) private readonly notifications?: NotificationPort,
   ) {}
 
   /**
@@ -185,7 +187,8 @@ export class AttendanceService {
       now.getTime() - offlineAt.getTime() >
         this.config.offlineAutoAcceptMinutes(workDepotId) * 60_000;
 
-    return this.repo.create({
+    const status = stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT';
+    const created = await this.repo.create({
       employeeId: employee.id,
       depotId: workDepotId,
       workDate,
@@ -195,8 +198,36 @@ export class AttendanceService {
       checkInLat: punch.lat,
       checkInLng: punch.lng,
       lateMinutes,
-      status: stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT',
+      status,
     });
+    // Only a punch that stands as LATE: one held for review (PENDING) has no verdict yet,
+    // and a replayed punch returned above before reaching here.
+    if (status === 'LATE') await this.notifyLate(employee, lateMinutes, workDate);
+    return created;
+  }
+
+  /** Tell the employee their own check-in counted as late. Fail-soft: the punch is saved. */
+  private async notifyLate(
+    employee: { id: string; phone: string; fullName: string; authSubjectId?: string | null },
+    lateMinutes: number,
+    workDate: Date,
+  ): Promise<void> {
+    if (!this.notifications || !employee.authSubjectId) return;
+    try {
+      await this.notifications.notify(
+        'ATTENDANCE_LATE',
+        employee.phone,
+        {
+          name: employee.fullName,
+          minutes: String(lateMinutes),
+          // tz-ok: workDate is the LOCAL day already, stored as UTC midnight (see localParts)
+          date: workDate.toISOString().slice(0, 10),
+        },
+        employee.authSubjectId,
+      );
+    } catch (e) {
+      this.logger.warn(`Late notice for ${employee.id} failed: ${(e as Error).message}`);
+    }
   }
 
   async checkOut(

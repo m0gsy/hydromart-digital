@@ -334,6 +334,58 @@ describe('DeliveryService', () => {
       );
     });
 
+    // The courier is the one party who used to learn of a new delivery only by opening the app.
+    it('pushes a new assignment to the courier account, not the customer', async () => {
+      const d = await withNotifier.assign(
+        staff,
+        {
+          orderId: randomUUID(),
+          orderNumber: 'HM-20',
+          driverId: driver,
+          driverPhone: '081200000000',
+          destinationAddress: 'Jl. Merdeka 10',
+          customerId: randomUUID(),
+        },
+        AUTH,
+      );
+      expect(notify).toHaveBeenCalledWith(
+        'COURIER_DELIVERY_ASSIGNED',
+        '081200000000',
+        { orderNumber: 'HM-20', deliveryId: d.id },
+        driver,
+      );
+    });
+
+    it('stays quiet when the courier claimed the order themselves', async () => {
+      await withNotifier.assign(
+        driver,
+        { orderId: randomUUID(), orderNumber: 'HM-21', driverId: driver, destinationAddress: 'X' },
+        AUTH,
+      );
+      expect(notify).not.toHaveBeenCalledWith(
+        'COURIER_DELIVERY_ASSIGNED',
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('does not fail the assignment when the push throws', async () => {
+      notify.mockRejectedValueOnce(new Error('crm down'));
+      const d = await withNotifier.assign(
+        staff,
+        {
+          orderId: randomUUID(),
+          orderNumber: 'HM-22',
+          driverId: driver,
+          driverPhone: '081200000000',
+          destinationAddress: 'X',
+        },
+        AUTH,
+      );
+      expect(d.status).toBe(DeliveryStatus.ASSIGNED);
+    });
+
     // A counter sale has nobody to call. Sending crm an empty string would be a 400 the
     // adapter swallows — silence that looks like success.
     // Rilis 2: the owner snapshotted at assignment reaches crm, so the notice threads into

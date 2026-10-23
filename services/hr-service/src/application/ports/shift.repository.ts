@@ -59,4 +59,9 @@ export interface ShiftRepository {
    */
   listAssignmentsUpTo(employeeId: string, onDate: Date): Promise<ShiftAssignment[]>;
   listAssignments(employeeId: string): Promise<ShiftAssignment[]>;
+  /**
+   * Every employee's assignments that had already started on `onDate`, oldest first, for the
+   * shift-reminder sweep. Bounded: the table is one row per roster decision, not per day.
+   */
+  listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]>;
 }

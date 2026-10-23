@@ -120,16 +120,35 @@ export class PaymentPrismaRepository implements PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
+    after?: Date,
   ): Promise<PaymentRecord[]> {
     const rows = await this.prisma.payment.findMany({
       where: {
         status: PaymentStatus.PENDING,
         method: { in: methods as PaymentMethod[] },
-        createdAt: { lt: before },
+        createdAt: after ? { lt: before, gte: after } : { lt: before },
       },
       // Oldest first: the sweep is bounded, so the rows that have been stuck longest are
       // the ones a bounded pass must reach.
       orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
+  async findPaidBetween(
+    from: Date,
+    to: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PAID,
+        method: { in: methods as PaymentMethod[] },
+        paidAt: { gte: from, lt: to },
+      },
+      orderBy: { paidAt: 'asc' },
       take: limit,
     });
     return rows.map((row) => this.toRecord(row));
