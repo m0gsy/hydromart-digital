@@ -148,7 +148,7 @@ jobs:
           path: sbom.cdx.json
           retention-days: 90
 
-  # Image scanning. All 19 runtime images are FROM the same node:22-alpine, so the OS
+  # Image scanning. All 19 runtime images are FROM the same node:22.23.4-alpine, so the OS
   # layer is one scan, not nineteen — the per-image delta is our own JS, which `sast` and
   # `npm run audit:ci` already cover. --ignore-unfixed because an alpine CVE with no
   # published fix is not something a rebuild can resolve.
@@ -166,7 +166,7 @@ jobs:
           #
           # `sort -u | head -1` collapsed all 38 FROM lines to a single string. That is
           # lossless only while every Dockerfile shares one base, and nothing enforces it:
-          # move one service to node:22-alpine and it sorts AFTER node:20-alpine, so head -1
+          # move one service to node:22.23.4-alpine and it sorts AFTER node:20-alpine, so head -1
           # keeps returning the old base, the new one is never scanned, and the job prints
           # "scanning node:20-alpine" and passes. Add a base sorting BEFORE it and the base
           # eighteen services actually run on stops being scanned instead.

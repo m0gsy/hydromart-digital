@@ -34,7 +34,7 @@ ports you actually serve are **8080** (API gateway) and **3000** (web).
   80–100 GB NVMe** is the recommended target for ~50 depots in registry mode; grow it if CPU p95 stays
   above 60% or `MemAvailable` falls under 1.5 GB. The per-container ceilings in the compose file
   (512 MB each) add up to more than 8 GB on purpose — they are ceilings, not reservations.
-- **Node.js 22+** on the host (`package.json` `engines` is `>=22.14 <23`; the containers are already
+- **Node.js 22+** on the host (`package.json` `engines` is `>=22.23.4 <23`; the containers are already
   `node:22`). The host runs the cron backup and the migration step. Node 20 reached end of life on
   30 April 2026 and AWS SDK v3 drops it in January 2027; `deploy.sh` reports a host below 22.
 - **Host firewall (required).** Allow only `22` (SSH) + `3000` + `8080` (or
