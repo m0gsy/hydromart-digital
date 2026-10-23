@@ -467,6 +467,20 @@ model ShiftAssignment {
   @@map("shift_assignments")
 }
 
+/// One row per employee per local day whose shift reminder has been claimed. The unique key
+/// is the claim: the sweep inserts first and sends only if the insert won, so a reminder is
+/// sent once however often the sweep runs. No foreign key: this is a send ledger, and it
+/// must not block (or be cascaded by) an employee being removed.
+model ShiftReminderSent {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  workDate   DateTime @db.Date
+  sentAt     DateTime @default(now())
+
+  @@unique([employeeId, workDate])
+  @@map("shift_reminders_sent")
+}
+
 /// A tracked piece of company property. `status` + `holderId` are the current state; how it
 /// got there lives in AssetMovement, which is append-only.
 model EmployeeAsset {
