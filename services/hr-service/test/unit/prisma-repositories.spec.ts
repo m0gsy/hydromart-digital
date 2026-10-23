@@ -65,6 +65,7 @@ const MODELS = [
   'announcementRead',
   'shiftRotation',
   'shiftAssignment',
+  'shiftReminderSent',
   'announcementTarget',
   'bonus',
   'deduction',
@@ -943,6 +944,43 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
     await expect(new ShiftPrismaRepository(asService(p)).assign(data)).resolves.toBe(out);
     expect(m(p, 'shiftAssignment').create).toHaveBeenCalledWith({ data });
     expect(m(p, 'shiftAssignment').update).not.toHaveBeenCalled();
+  });
+
+  it('listAllAssignmentsUpTo reads every employee up to a day, oldest first, bounded', async () => {
+    const p = makePrisma();
+    const onDate = new Date('2026-08-03T00:00:00.000Z');
+    m(p, 'shiftAssignment').findMany.mockResolvedValue([]);
+    await new ShiftPrismaRepository(asService(p)).listAllAssignmentsUpTo(onDate, 5000);
+    expect(m(p, 'shiftAssignment').findMany).toHaveBeenCalledWith({
+      where: { effectiveFrom: { lte: onDate } },
+      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+      take: 5000,
+    });
+  });
+
+  describe('claimShiftReminder', () => {
+    const day = new Date('2026-10-23T00:00:00.000Z');
+
+    it('wins the claim when the (employee, day) row is new', async () => {
+      const p = makePrisma();
+      m(p, 'shiftReminderSent').create.mockResolvedValue({});
+      await expect(new ShiftPrismaRepository(asService(p)).claimShiftReminder('e1', day)).resolves.toBe(true);
+      expect(m(p, 'shiftReminderSent').create).toHaveBeenCalledWith({
+        data: { employeeId: 'e1', workDate: day },
+      });
+    });
+
+    it('loses it when the unique key already exists', async () => {
+      const p = makePrisma();
+      m(p, 'shiftReminderSent').create.mockRejectedValue(Object.assign(new Error('dup'), { code: 'P2002' }));
+      await expect(new ShiftPrismaRepository(asService(p)).claimShiftReminder('e1', day)).resolves.toBe(false);
+    });
+
+    it('does not swallow any other database error', async () => {
+      const p = makePrisma();
+      m(p, 'shiftReminderSent').create.mockRejectedValue(new Error('connection lost'));
+      await expect(new ShiftPrismaRepository(asService(p)).claimShiftReminder('e1', day)).rejects.toThrow('connection lost');
+    });
   });
 
   it('listAssignmentsUpTo takes only what had already started, oldest first', async () => {

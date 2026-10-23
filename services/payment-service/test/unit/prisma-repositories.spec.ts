@@ -57,6 +57,7 @@ describe('PaymentPrismaRepository', () => {
     groupBy: jest.fn(),
     aggregate: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   };
   const prisma = { payment: model } as unknown as PrismaService;
   const repo = new PaymentPrismaRepository(prisma);
@@ -133,30 +134,59 @@ describe('PaymentPrismaRepository', () => {
     expect(EXPIRABLE_PENDING_METHODS).not.toContain(PaymentMethod.CASH);
   });
 
-  it('findStalePending can be bounded below, for a window of ages', async () => {
-    model.findMany.mockResolvedValue([]);
+  it('findReminderDue reads un-reminded PENDING rows between half and full lifetime, oldest first', async () => {
+    model.findMany.mockResolvedValue([fullRow()]);
     const before = new Date('2026-08-01T12:00:00.000Z');
-    const after = new Date('2026-08-01T11:00:00.000Z');
-    await repo.findStalePending(before, EXPIRABLE_PENDING_METHODS, 500, after);
-    expect(model.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ createdAt: { lt: before, gte: after } }) }),
-    );
+    const after = new Date('2026-08-01T00:00:00.000Z');
+    const rows = await repo.findReminderDue(before, after, EXPIRABLE_PENDING_METHODS, 500);
+    expect(rows).toHaveLength(1);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        status: PaymentStatus.PENDING,
+        method: { in: EXPIRABLE_PENDING_METHODS },
+        createdAt: { lt: before, gte: after },
+        reminderSentAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 500,
+    });
   });
 
-  it('findPaidBetween reads PAID rows settled in the window, oldest first, bounded', async () => {
+  it('claimReminder is a compare-and-set: true for the one caller that moved the marker', async () => {
+    model.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    expect(await repo.claimReminder('pay-1')).toBe(true);
+    expect(await repo.claimReminder('pay-1')).toBe(false);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pay-1', status: PaymentStatus.PENDING, reminderSentAt: null },
+      data: { reminderSentAt: expect.any(Date) },
+    });
+  });
+
+  it('findUnconfirmedCandidates reads PAID rows nobody has been told about, oldest first', async () => {
     model.findMany.mockResolvedValue([fullRow()]);
-    const from = new Date('2026-08-01T11:00:00.000Z');
-    const to = new Date('2026-08-01T12:00:00.000Z');
-    const rows = await repo.findPaidBetween(from, to, EXPIRABLE_PENDING_METHODS, 500);
+    const before = new Date('2026-08-01T12:00:00.000Z');
+    const after = new Date('2026-07-30T12:00:00.000Z');
+    const rows = await repo.findUnconfirmedCandidates(before, after, EXPIRABLE_PENDING_METHODS, 500);
     expect(rows).toHaveLength(1);
     expect(model.findMany).toHaveBeenCalledWith({
       where: {
         status: PaymentStatus.PAID,
         method: { in: EXPIRABLE_PENDING_METHODS },
-        paidAt: { gte: from, lt: to },
+        paidAt: { lt: before, gte: after },
+        unconfirmedNotifiedAt: null,
       },
       orderBy: { paidAt: 'asc' },
       take: 500,
+    });
+  });
+
+  it('claimUnconfirmedNotice is a compare-and-set on the marker', async () => {
+    model.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    expect(await repo.claimUnconfirmedNotice('pay-1')).toBe(true);
+    expect(await repo.claimUnconfirmedNotice('pay-1')).toBe(false);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pay-1', unconfirmedNotifiedAt: null },
+      data: { unconfirmedNotifiedAt: expect.any(Date) },
     });
   });
 

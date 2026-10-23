@@ -64,4 +64,10 @@ export interface ShiftRepository {
    * shift-reminder sweep. Bounded: the table is one row per roster decision, not per day.
    */
   listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]>;
+  /**
+   * Claim the shift reminder for this employee on this local day: true for exactly one caller.
+   * Taken BEFORE the reminder is sent, so it is never doubled; a send that dies after the
+   * claim is not retried (lose rather than duplicate).
+   */
+  claimShiftReminder(employeeId: string, workDate: Date): Promise<boolean>;
 }

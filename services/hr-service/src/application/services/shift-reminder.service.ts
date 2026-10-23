@@ -41,17 +41,20 @@ type Pattern = ReturnType<typeof parseRotationPattern>;
  * holidays (the depot's own and national, the same calendar payroll uses), and anyone with
  * an attendance row for the day (already in, or on approved leave).
  *
- * Runs every 15 minutes and looks only at shifts starting 30-45 minutes from now, so a shift
- * falls in exactly one tick's window and is mentioned once. Near midnight that window spills
- * into the next local day, whose roster is then read instead: a 00:10 shift is reminded at
- * 23:40 on the previous evening. ponytail: a skipped tick loses one reminder - the
- * `shift_reminders` marker table closes that (see the follow-up migration PR).
+ * Runs every 15 minutes over the shifts starting 15-45 minutes from now. Normally a shift is
+ * first seen 30-45 minutes ahead; if a tick was skipped the next one still catches it, down
+ * to 15 minutes before. `claimShiftReminder` is taken BEFORE the message goes out, so it is
+ * sent once however often a shift is seen. Near midnight the window spills into the next local
+ * day, whose roster is then read instead: a 00:10 shift is reminded at 23:40 the evening
+ * before. ponytail: a send that dies after the claim is not retried.
  */
 @Injectable()
 export class ShiftReminderService {
   private readonly logger = new Logger(ShiftReminderService.name);
-  private static readonly LEAD_MINUTES = 30;
-  private static readonly TICK_MINUTES = 15;
+  /** Too close to start is not a reminder: below this a shift is left alone. */
+  private static readonly MIN_LEAD_MINUTES = 15;
+  /** How far ahead a shift is first seen; the cron ticks every 15 minutes inside this. */
+  private static readonly LOOKAHEAD_MINUTES = 45;
   private static readonly DAY_MINUTES = 24 * 60;
   private static readonly ASSIGNMENT_LIMIT = 5000;
 
@@ -69,8 +72,9 @@ export class ShiftReminderService {
     const tz = this.config.timeZone;
     const todayKey = localDayKey(now, tz);
     const today = new Date(`${todayKey}T00:00:00.000Z`);
-    const from = localMinutesOfDay(now, tz) + ShiftReminderService.LEAD_MINUTES;
-    const to = from + ShiftReminderService.TICK_MINUTES;
+    const nowMinutes = localMinutesOfDay(now, tz);
+    const from = nowMinutes + ShiftReminderService.MIN_LEAD_MINUTES;
+    const to = nowMinutes + ShiftReminderService.LOOKAHEAD_MINUTES;
     const day = ShiftReminderService.DAY_MINUTES;
     if (to <= day) return [{ workDate: today, from, to }];
     const tomorrow = new Date(`${addDays(todayKey, 1)}T00:00:00.000Z`);
@@ -117,6 +121,11 @@ export class ShiftReminderService {
             continue;
           }
           if (await this.isHoliday(employee.depotId, segment.workDate)) {
+            skipped += 1;
+            continue;
+          }
+          // Last, so a day that was skipped above (holiday, off) is never claimed.
+          if (!(await this.shifts.claimShiftReminder(employeeId, segment.workDate))) {
             skipped += 1;
             continue;
           }

@@ -197,9 +197,16 @@ export interface VoucherRepository {
   grantVoucher(voucherId: string, customerId: string): Promise<boolean>;
   /**
    * Wallet vouchers still worth using that lapse inside [from, to): granted, active, not yet
-   * redeemed by the holder (a released redemption does not count as spent). Bounded.
+   * redeemed by the holder (a released redemption does not count as spent) and not yet
+   * nudged. With `from` = now this is a catch-up: a sweep that was skipped is made good by
+   * the next. Bounded.
    */
   findExpiringGrants(from: Date, to: Date, limit: number): Promise<ExpiringGrant[]>;
+  /**
+   * Claim the right to nudge this holder: true for exactly one caller. Taken BEFORE the nudge
+   * is sent, so it is never doubled; a send that dies after the claim is not retried.
+   */
+  claimExpiryNotice(voucherId: string, customerId: string): Promise<boolean>;
   /** PRM-4: whether this customer holds a grant for this voucher. */
   hasGrant(voucherId: string, customerId: string): Promise<boolean>;
 }

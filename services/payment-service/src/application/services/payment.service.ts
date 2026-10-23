@@ -179,10 +179,10 @@ export class PaymentService {
    * comes near it.
    */
   private static readonly EXPIRY_SWEEP_LIMIT = 500;
-  /** One scheduler tick: the reminder sweep runs hourly (scripts/scheduler/crontab). */
-  private static readonly REMINDER_WINDOW_MS = 3_600_000;
   /** How long a settled payment may sit beside an unconfirmed order before it is a problem. */
   private static readonly UNCONFIRMED_AFTER_MS = 30 * 60_000;
+  /** How far back the reconciliation looks, so a first run does not walk all of history. */
+  private static readonly UNCONFIRMED_LOOKBACK_MS = 48 * 3_600_000;
   private static readonly MAX_LIMIT = 100;
   private readonly logger = new Logger(PaymentService.name);
 
@@ -684,10 +684,11 @@ export class PaymentService {
   /**
    * A gentle nudge for a transfer/QRIS payment that is still PENDING halfway to its expiry.
    *
-   * No marker column: each hourly tick looks at payments whose age is in the one-hour window
-   * that starts at half the TTL, so a payment falls into exactly one tick's window and is
-   * reminded once. ponytail: a skipped or doubled tick loses or repeats a reminder - move to
-   * a `reminderSentAt` column (it must ship a release ahead of its reader) if that matters.
+   * Catch-up, not a window: every payment past half its lifetime (and not yet past all of it,
+   * when the expiry sweep takes over) that has not been reminded is due, so a sweep that was
+   * skipped or failed is made good by the next. `claimReminder` is taken BEFORE the nudge goes
+   * out, so two sweeps racing for a row remind it once; ponytail: a send that dies after the
+   * claim is not retried - the same lose-rather-than-duplicate rule review requests follow.
    */
   async remindStalePending(now: Date): Promise<PaymentReminderSweepResult> {
     const hours = this.config.pendingPaymentTtlHours;
@@ -695,18 +696,19 @@ export class PaymentService {
     if (hours <= 0) return { reminded: 0, failed: 0, ok: true };
 
     const before = new Date(now.getTime() - (hours / 2) * 3_600_000);
-    const after = new Date(before.getTime() - PaymentService.REMINDER_WINDOW_MS);
-    const due = await this.payments.findStalePending(
+    const after = new Date(now.getTime() - hours * 3_600_000);
+    const due = await this.payments.findReminderDue(
       before,
+      after,
       EXPIRABLE_PENDING_METHODS,
       PaymentService.EXPIRY_SWEEP_LIMIT,
-      after,
     );
 
     let reminded = 0;
     let failed = 0;
     for (const payment of due) {
       try {
+        if (!(await this.payments.claimReminder(payment.id))) continue; // someone else has it
         await this.orderCoordination.notifyPaymentEvent(
           payment.orderId,
           'REMINDER',
@@ -727,17 +729,18 @@ export class PaymentService {
    * A settled payment confirms its order through `confirmPaid`, which is fail-open on purpose:
    * the money is real, so an order-service hiccup must not undo it. The cost is that the two can
    * drift - paid here, still CREATED there - and nothing said so. This looks at transfer/QRIS
-   * payments settled 30-90 minutes ago (the sweep is hourly, so each falls in one window) and
-   * tells the depot about those whose order is still CREATED.
+   * payments settled more than 30 minutes (and less than two days) ago whose depot has not been
+   * told, and tells the depot about those whose order is still CREATED. The two-day floor keeps
+   * the first run from reaching back through history; the claim keeps it to once per payment.
    *
    * An order whose status cannot be read is left alone: no answer is not evidence of a problem.
    */
   async flagUnconfirmed(now: Date): Promise<PaymentUnconfirmedSweepResult> {
-    const to = new Date(now.getTime() - PaymentService.UNCONFIRMED_AFTER_MS);
-    const from = new Date(to.getTime() - PaymentService.REMINDER_WINDOW_MS);
-    const paid = await this.payments.findPaidBetween(
-      from,
-      to,
+    const before = new Date(now.getTime() - PaymentService.UNCONFIRMED_AFTER_MS);
+    const after = new Date(now.getTime() - PaymentService.UNCONFIRMED_LOOKBACK_MS);
+    const paid = await this.payments.findUnconfirmedCandidates(
+      before,
+      after,
       EXPIRABLE_PENDING_METHODS,
       PaymentService.EXPIRY_SWEEP_LIMIT,
     );
@@ -749,6 +752,7 @@ export class PaymentService {
     for (const payment of paid) {
       if (statuses.get(payment.orderId) !== 'CREATED') continue;
       try {
+        if (!(await this.payments.claimUnconfirmedNotice(payment.id))) continue;
         await this.orderCoordination.notifyPaymentEvent(
           payment.orderId,
           'UNCONFIRMED',
@@ -757,7 +761,9 @@ export class PaymentService {
         flagged += 1;
       } catch (error) {
         failed += 1;
-        this.logger.warn(`Unconfirmed notice for payment ${payment.id} failed: ${(error as Error).message}`);
+        this.logger.warn(
+          `Unconfirmed notice for payment ${payment.id} failed: ${(error as Error).message}`,
+        );
       }
     }
     return { flagged, failed, ok: failed === 0 || flagged > 0 };

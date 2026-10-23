@@ -105,7 +105,7 @@ describe('payment notices', () => {
 
   describe('flagUnconfirmed', () => {
     const paidMinutesAgo = async (method: PaymentMethod, minutes: number) => {
-      const row = await seedPending(method, hoursAgo(5));
+      const row = await seedPending(method, hoursAgo(80));
       await repo.update(row.id, {
         status: PaymentStatus.PAID,
         paidAt: new Date(Date.now() - minutes * 60_000),
@@ -120,6 +120,20 @@ describe('payment notices', () => {
       expect(orders.notices).toEqual([{ orderId: row.orderId, kind: 'UNCONFIRMED', amount: 45000 }]);
     });
 
+    it('says it once however often the sweep runs', async () => {
+      const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(row.orderId, 'CREATED');
+      await service.flagUnconfirmed(new Date());
+      await service.flagUnconfirmed(new Date());
+      expect(orders.notices).toHaveLength(1);
+    });
+
+    it('catches up on a payment an earlier sweep never reached', async () => {
+      const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 5 * 60); // five hours ago
+      orders.orderStatuses.set(row.orderId, 'CREATED');
+      expect((await service.flagUnconfirmed(new Date())).flagged).toBe(1);
+    });
+
     it('stays quiet when the order did confirm, or its status cannot be read', async () => {
       const confirmed = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
       orders.orderStatuses.set(confirmed.orderId, 'CONFIRMED');
@@ -128,18 +142,26 @@ describe('payment notices', () => {
       expect(orders.notices).toHaveLength(0);
     });
 
-    it('only looks at payments settled 30-90 minutes ago, so each is flagged once', async () => {
-      for (const minutes of [10, 120]) {
+    it('leaves a payment that is still fresh, and one from before the two-day lookback', async () => {
+      for (const minutes of [10, 3 * 24 * 60]) {
         const row = await paidMinutesAgo(PaymentMethod.TRANSFER, minutes);
         orders.orderStatuses.set(row.orderId, 'CREATED');
       }
       expect((await service.flagUnconfirmed(new Date())).flagged).toBe(0);
     });
 
-    it('does nothing at all when nothing was settled in the window', async () => {
+    it('does nothing at all when nothing is a candidate', async () => {
       const spy = jest.spyOn(orders, 'getOrderStatuses');
       expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 0, ok: true });
       expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('does not tell twice when another sweep claimed the payment first', async () => {
+      const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(row.orderId, 'CREATED');
+      jest.spyOn(repo, 'claimUnconfirmedNotice').mockResolvedValue(false);
+      expect((await service.flagUnconfirmed(new Date())).flagged).toBe(0);
+      expect(orders.notices).toHaveLength(0);
     });
 
     it('counts a notice that throws and carries on', async () => {
@@ -160,8 +182,8 @@ describe('payment notices', () => {
   });
 
   describe('remindStalePending', () => {
-    it('reminds a payment in the hour after it passes half its lifetime', async () => {
-      // The default TTL is 24h, so the window is ages 12h-13h.
+    it('reminds a payment once it is past half its lifetime', async () => {
+      // The default TTL is 24h, so anything older than 12h (and younger than 24h) is due.
       const row = await seedPending(PaymentMethod.TRANSFER, hoursAgo(12.5));
       expect(await service.remindStalePending(new Date())).toEqual({
         reminded: 1,
@@ -171,11 +193,22 @@ describe('payment notices', () => {
       expect(orders.notices).toEqual([{ orderId: row.orderId, kind: 'REMINDER', amount: 45000 }]);
     });
 
-    it('leaves a fresh payment, an older one, and CASH alone', async () => {
+    it('says it once however often the sweep runs', async () => {
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(13));
+      await service.remindStalePending(new Date());
+      await service.remindStalePending(new Date());
+      expect(orders.notices).toHaveLength(1);
+    });
+
+    it('catches up on a payment a skipped sweep never reached', async () => {
+      await seedPending(PaymentMethod.QRIS, hoursAgo(20)); // long past half, not yet expired
+      expect((await service.remindStalePending(new Date())).reminded).toBe(1);
+    });
+
+    it('leaves a fresh payment, one past its whole lifetime, and CASH alone', async () => {
       await seedPending(PaymentMethod.TRANSFER, hoursAgo(2));
-      await seedPending(PaymentMethod.TRANSFER, hoursAgo(11));
-      await seedPending(PaymentMethod.TRANSFER, hoursAgo(20));
-      await seedPending(PaymentMethod.CASH, hoursAgo(12.5));
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(30)); // the expiry sweep owns this one
+      await seedPending(PaymentMethod.CASH, hoursAgo(13));
       expect((await service.remindStalePending(new Date())).reminded).toBe(0);
       expect(orders.notices).toHaveLength(0);
     });
@@ -187,7 +220,7 @@ describe('payment notices', () => {
         orders,
         buildTestConfig({ PAYMENT_PENDING_TTL_HOURS: '0' }),
       );
-      await seedPending(PaymentMethod.TRANSFER, hoursAgo(12.5));
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(13));
       expect(await off.remindStalePending(new Date())).toEqual({
         reminded: 0,
         failed: 0,
@@ -195,9 +228,16 @@ describe('payment notices', () => {
       });
     });
 
+    it('does not remind a payment another sweep has already claimed', async () => {
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(13));
+      jest.spyOn(repo, 'claimReminder').mockResolvedValue(false);
+      expect((await service.remindStalePending(new Date())).reminded).toBe(0);
+      expect(orders.notices).toHaveLength(0);
+    });
+
     it('counts a reminder that throws and carries on with the rest', async () => {
-      await seedPending(PaymentMethod.TRANSFER, hoursAgo(12.5));
-      await seedPending(PaymentMethod.QRIS, hoursAgo(12.6));
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(13));
+      await seedPending(PaymentMethod.QRIS, hoursAgo(14));
       jest.spyOn(orders, 'notifyPaymentEvent').mockRejectedValueOnce(new Error('order-service down'));
       expect(await service.remindStalePending(new Date())).toEqual({
         reminded: 1,
@@ -207,7 +247,7 @@ describe('payment notices', () => {
     });
 
     it('reports ok=false when nothing could be reminded', async () => {
-      await seedPending(PaymentMethod.TRANSFER, hoursAgo(12.5));
+      await seedPending(PaymentMethod.TRANSFER, hoursAgo(13));
       jest.spyOn(orders, 'notifyPaymentEvent').mockRejectedValue(new Error('down'));
       expect(await service.remindStalePending(new Date())).toEqual({
         reminded: 0,

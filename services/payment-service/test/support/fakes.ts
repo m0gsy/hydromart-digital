@@ -89,7 +89,26 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
-    after?: Date,
+  ): Promise<PaymentRecord[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.status === PaymentStatus.PENDING &&
+          methods.includes(r.method) &&
+          r.createdAt.getTime() < before.getTime(),
+      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+  /** Ids the reminder / unconfirmed-notice claims were taken for (the "already told" markers). */
+  reminded = new Set<string>();
+  unconfirmedTold = new Set<string>();
+  async findReminderDue(
+    before: Date,
+    after: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
   ): Promise<PaymentRecord[]> {
     return this.rows
       .filter(
@@ -97,15 +116,22 @@ export class InMemoryPaymentRepository implements PaymentRepository {
           r.status === PaymentStatus.PENDING &&
           methods.includes(r.method) &&
           r.createdAt.getTime() < before.getTime() &&
-          (!after || r.createdAt.getTime() >= after.getTime()),
+          r.createdAt.getTime() >= after.getTime() &&
+          !this.reminded.has(r.id),
       )
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
-  async findPaidBetween(
-    from: Date,
-    to: Date,
+  async claimReminder(id: string): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== PaymentStatus.PENDING || this.reminded.has(id)) return false;
+    this.reminded.add(id);
+    return true;
+  }
+  async findUnconfirmedCandidates(
+    before: Date,
+    after: Date,
     methods: readonly PaymentMethod[],
     limit: number,
   ): Promise<PaymentRecord[]> {
@@ -115,12 +141,18 @@ export class InMemoryPaymentRepository implements PaymentRepository {
           r.status === PaymentStatus.PAID &&
           methods.includes(r.method) &&
           r.paidAt !== null &&
-          r.paidAt.getTime() >= from.getTime() &&
-          r.paidAt.getTime() < to.getTime(),
+          r.paidAt.getTime() < before.getTime() &&
+          r.paidAt.getTime() >= after.getTime() &&
+          !this.unconfirmedTold.has(r.id),
       )
       .sort((a, b) => a.paidAt!.getTime() - b.paidAt!.getTime())
       .slice(0, limit)
       .map((r) => ({ ...r }));
+  }
+  async claimUnconfirmedNotice(id: string): Promise<boolean> {
+    if (!this.rows.some((r) => r.id === id) || this.unconfirmedTold.has(id)) return false;
+    this.unconfirmedTold.add(id);
+    return true;
   }
   async findByReference(reference: string): Promise<PaymentRecord | null> {
     const row = this.rows.find((r) => r.reference === reference);
