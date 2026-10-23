@@ -1370,6 +1370,43 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
+  describe("the cashier's note", () => {
+    it('is written with the order', async () => {
+      order.create.mockResolvedValue(orderRow());
+      await repo.create({ ...createData, counterNote: 'bayar sisanya besok' });
+      expect(order.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ counterNote: 'bayar sisanya besok' }),
+        }),
+      );
+    });
+
+    it('never rides on the order record, so no customer route can return it', async () => {
+      // The row comes back from the database WITH the note; the record built from it must not.
+      order.findUnique.mockResolvedValue({ ...orderRow(), counterNote: 'bayar sisanya besok' });
+      const record = await repo.findById('ord-1');
+      expect(record).not.toBeNull();
+      expect('counterNote' in record!).toBe(false);
+      expect(JSON.stringify(record)).not.toContain('bayar sisanya besok');
+    });
+
+    it('is read back by id, only for orders that have one', async () => {
+      order.findMany.mockResolvedValue([{ id: 'o-1', counterNote: 'titip' }]);
+      const notes = await repo.counterNotesFor(['o-1', 'o-2']);
+      expect([...notes]).toEqual([['o-1', 'titip']]);
+      expect(order.findMany).toHaveBeenLastCalledWith({
+        where: { id: { in: ['o-1', 'o-2'] }, counterNote: { not: null } },
+        select: { id: true, counterNote: true },
+      });
+    });
+
+    it('does not query for an empty list', async () => {
+      order.findMany.mockClear();
+      expect((await repo.counterNotesFor([])).size).toBe(0);
+      expect(order.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('firstTimeBuyersByCashier', () => {
     const at = (h: number) => new Date(`2026-07-15T0${h}:00:00.000Z`);
     const range = { from: new Date('2026-07-15T00:00:00.000Z'), to: new Date('2026-07-16T00:00:00.000Z') };

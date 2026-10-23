@@ -886,6 +886,82 @@ describe('OrderService.walkInSale', () => {
       });
     });
 
+    describe("the cashier's note on a sale", () => {
+      const one = () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+        return [{ productId: p.id, quantity: 1 }];
+      };
+      const asRole = (role: string): AuthenticatedUser => ({ ...operator, role: role as never });
+
+      it('is stored with the sale and read back for the cashier', async () => {
+        const order = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: one(),
+          counterNote: 'bayar sisanya besok',
+        });
+        expect((await orders.counterNotesFor([order.id])).get(order.id)).toBe('bayar sisanya besok');
+        const [back] = await service.attachCounterNotes(operator, [order]);
+        expect(back?.counterNote).toBe('bayar sisanya besok');
+      });
+
+      it('is left off a sale that has none, with no empty key', async () => {
+        const order = await service.walkInSale(operator, { depotId: DEPOT, lines: one() });
+        const [back] = await service.attachCounterNotes(operator, [order]);
+        expect(back).toBeDefined();
+        expect('counterNote' in back!).toBe(false);
+      });
+
+      it('comes back on a replay of the same attempt, from the stored order', async () => {
+        const lines = one();
+        const first = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines,
+          counterNote: 'titip ke tetangga',
+          idempotencyKey: 'till-note-1',
+        });
+        const again = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines,
+          counterNote: 'titip ke tetangga',
+          idempotencyKey: 'till-note-1',
+        });
+        expect(again.id).toBe(first.id);
+        const [back] = await service.attachCounterNotes(operator, [again]);
+        expect(back?.counterNote).toBe('titip ke tetangga');
+      });
+
+      it.each(['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'])('is shown to %s, who can ring up a counter sale', async (role) => {
+        const order = await service.walkInSale(operator, { depotId: DEPOT, lines: one(), counterNote: 'x' });
+        const [back] = await service.attachCounterNotes(asRole(role), [order]);
+        expect(back?.counterNote).toBe('x');
+      });
+
+      it.each(['CUSTOMER', 'STAFF_DEPOT', 'HR', 'MARKETING'])(
+        'is never shown to %s, and the lookup is not even made',
+        async (role) => {
+          const order = await service.walkInSale(operator, { depotId: DEPOT, lines: one(), counterNote: 'x' });
+          const lookup = jest.spyOn(orders, 'counterNotesFor');
+          const [back] = await service.attachCounterNotes(asRole(role), [order]);
+          expect('counterNote' in back!).toBe(false);
+          expect(lookup).not.toHaveBeenCalled();
+        },
+      );
+
+      it('does nothing for an empty list', async () => {
+        const lookup = jest.spyOn(orders, 'counterNotesFor');
+        await expect(service.attachCounterNotes(operator, [])).resolves.toEqual([]);
+        expect(lookup).not.toHaveBeenCalled();
+      });
+
+      it('attaches each note to its own order across a page', async () => {
+        const a = await service.walkInSale(operator, { depotId: DEPOT, lines: one(), counterNote: 'A' });
+        const b = await service.walkInSale(operator, { depotId: DEPOT, lines: one() });
+        const c = await service.walkInSale(operator, { depotId: DEPOT, lines: one(), counterNote: 'C' });
+        const out = await service.attachCounterNotes(operator, [a, b, c]);
+        expect(out.map((o) => o.counterNote)).toEqual(['A', undefined, 'C']);
+      });
+    });
+
     describe('counterShiftSummary', () => {
       const lines = () => {
         const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });

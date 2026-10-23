@@ -205,13 +205,13 @@ export class OrderController {
     required: false,
     description: 'Unique per till attempt. Re-sending it returns the same sale, not a second one.',
   })
-  walkIn(
+  async walkIn(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: WalkInSaleDto,
     @Headers('authorization') authorization?: string,
     @Headers('idempotency-key') idempotencyKey?: string,
-  ): Promise<OrderRecord> {
-    return this.orders.walkInSale(
+  ): Promise<OrderRecord & { counterNote?: string }> {
+    const order = await this.orders.walkInSale(
       user,
       {
         depotId: dto.depotId,
@@ -222,6 +222,8 @@ export class OrderController {
         voucherCode: dto.voucherCode ?? null,
         idempotencyKey: idempotencyKey ?? null,
         emptiesReturned: dto.emptiesReturned ?? null,
+        // Blank is no note: a stray space must not be stored as one.
+        counterNote: dto.counterNote?.trim() || null,
         // C11: present = deliver it, absent = the counter behaviour that was always here.
         // Mapped field by field like checkout, so an optional DTO field cannot arrive as
         // `undefined` in a column the snapshot declares as nullable-but-present.
@@ -241,6 +243,10 @@ export class OrderController {
       },
       authorization,
     );
+    // The cashier ringing it up reads their own note back (a replay of the same attempt too,
+    // since it comes from the stored order, not from this request).
+    const [withNote] = await this.orders.attachCounterNotes(user, [order]);
+    return withNote!;
   }
 
   /**
@@ -451,7 +457,7 @@ export class OrderController {
   async listManaged(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListOrdersQueryDto,
-  ): Promise<Page<OrderRecord>> {
+  ): Promise<Page<OrderRecord & { counterNote?: string }>> {
     // Scope the list to the caller's depot for depot-locked roles (operator/manager can't
     // see other depots); HQ/finance/etc. keep the optional ?depotId filter, undefined = all.
     //
@@ -483,7 +489,9 @@ export class OrderController {
     // resolved set, and leaving a stale one on the input invites someone to read it again.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { depotId: _dropped, ...rest } = query;
-    return this.orders.listAll({ ...rest, depotIds });
+    const page = await this.orders.listAll({ ...rest, depotIds });
+    // Only for the roles that ring up counter sales: a courier reading this queue does not.
+    return { ...page, items: await this.orders.attachCounterNotes(user, page.items) };
   }
 
   @ApiOkResponse({ type: OrderResponseDto })
@@ -528,11 +536,12 @@ export class OrderController {
   async getManaged(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<OrderRecord> {
+  ): Promise<OrderRecord & { counterNote?: string }> {
     const order = await this.orders.getAny(id);
     // Close the by-id vector: a depot-locked operator/manager may only read their own depot's order.
     assertDepotAccess(user, order.depotId);
-    return order;
+    const [withNote] = await this.orders.attachCounterNotes(user, [order]);
+    return withNote!;
   }
 
   // Service-to-service: recommendation-service pulls completed orders for its rebuild

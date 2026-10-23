@@ -179,6 +179,12 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
    */
   emptiesReturned?: number | null;
   /**
+   * The cashier's internal note on a counter sale. Written only by the walk-in path and
+   * deliberately NOT on `OrderRecord`: that record is returned as-is by customer routes, and
+   * this is a note about the buyer, not for them. Read back through `counterNotesFor`.
+   */
+  counterNote?: string | null;
+  /**
    * Side effects the order owes the moment it exists, written in the same transaction
    * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
    * fan-out at creation rather than at a later transition.
@@ -719,6 +725,11 @@ export interface OrderRepository {
    * shape the rest of this file already refuses.
    */
   cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]>;
+  /**
+   * The cashier's note for each of these orders that has one (orders without a note are
+   * absent). Separate from the order read on purpose: see `CreateOrderData.counterNote`.
+   */
+  counterNotesFor(orderIds: readonly string[]): Promise<Map<string, string>>;
   /**
    * How many buyers each cashier at this depot sold to FOR THE FIRST TIME in the range — a
    * sale to a customer with no earlier order (voided and cancelled ones do not count as

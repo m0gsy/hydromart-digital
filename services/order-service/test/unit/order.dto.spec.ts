@@ -103,6 +103,25 @@ describe('request payload transforms', () => {
   });
 });
 
+describe("WalkInSaleDto · the cashier's note", () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+  const sale = (extra: Record<string, unknown> = {}) =>
+    plainToInstance(WalkInSaleDto, { depotId: id, lines: [{ productId: id, quantity: 1 }], ...extra });
+
+  it('is optional', async () => {
+    expect(await validate(sale())).toEqual([]);
+  });
+
+  it('accepts a note up to 255 characters', async () => {
+    expect(await validate(sale({ counterNote: 'a'.repeat(255) }))).toEqual([]);
+  });
+
+  it('refuses a longer one, and a non-string', async () => {
+    expect((await validate(sale({ counterNote: 'a'.repeat(256) }))).some((e) => e.property === 'counterNote')).toBe(true);
+    expect((await validate(sale({ counterNote: 42 }))).some((e) => e.property === 'counterNote')).toBe(true);
+  });
+});
+
 /*
  * The raw-water intake pair arrives from a form as strings. Both `@Type(() => Number)`
  * arrows have to run, or a reading typed at the tank is validated as text and stored as a

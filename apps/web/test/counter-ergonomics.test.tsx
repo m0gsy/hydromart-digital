@@ -75,6 +75,7 @@ let promoReads = 0;
 let qrisUrl: string | null = null;
 let shiftOpen = true;
 let closeCalls = 0;
+let recentItems: unknown[] = [];
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -92,6 +93,7 @@ beforeEach(() => {
   qrisUrl = null;
   shiftOpen = true;
   closeCalls = 0;
+  recentItems = [];
   post.mockReset().mockImplementation(async (path: string, body: Record<string, any>) => {
     const p = String(path);
     if (p.includes('/walk-in/quote')) {
@@ -128,6 +130,7 @@ beforeEach(() => {
         discount: 0,
         customerId: null,
         status: 'COMPLETED',
+        ...(body.counterNote ? { counterNote: body.counterNote } : {}),
         createdAt: '2026-10-23T03:00:00.000Z',
         recipientName: 'Budi',
         phone: '08123456789',
@@ -182,7 +185,7 @@ beforeEach(() => {
     if (p.includes('/inventory')) {
       return [{ id: 'i1', productId: 'p-air', quantity: available, reserved: 0, available, minimum: 0 }];
     }
-    if (p.includes('/orders/manage')) return { items: [], total: 0, page: 1, limit: 8 };
+    if (p.includes('/orders/manage')) return { items: recentItems, total: recentItems.length, page: 1, limit: 8 };
     if (p.includes('/products/batch')) return [AIR];
     return [];
   });
@@ -695,5 +698,82 @@ describe('after a sale', () => {
     const bar = pay().closest('.sticky') as HTMLElement;
     expect(bar).toBeTruthy();
     expect(within(bar).getByText('Total')).toBeTruthy();
+  });
+});
+
+describe("the cashier's note on a sale", () => {
+  const noteBox = () => screen.getByLabelText(/catatan penjualan/i) as HTMLInputElement;
+
+  it('says it is for staff only', async () => {
+    await openTill();
+    expect(screen.getByText('Hanya untuk staf. Tidak tampil ke pembeli.')).toBeTruthy();
+  });
+
+  it('is sent trimmed with the sale, and shown back on the last-sale card', async () => {
+    await openTill();
+    await userEvent.type(noteBox(), '  bayar sisanya besok  ');
+    await sellOne();
+    expect(saleBodies[0]?.counterNote).toBe('bayar sisanya besok');
+    expect(await screen.findByText('Catatan: bayar sisanya besok')).toBeTruthy();
+  });
+
+  it('is left out of the sale when blank', async () => {
+    await openTill();
+    await userEvent.type(noteBox(), '   ');
+    await sellOne();
+    // `undefined` is dropped when the request is serialised, so the wire carries no note.
+    expect(saleBodies[0]?.counterNote).toBeUndefined();
+    expect(JSON.stringify(saleBodies[0])).not.toContain('counterNote');
+  });
+
+  it('is cleared for the next buyer', async () => {
+    await openTill();
+    await userEvent.type(noteBox(), 'titip ke tetangga');
+    await sellOne();
+    expect(noteBox().value).toBe('');
+  });
+
+  it('stops at 255 characters, the most the server accepts', async () => {
+    await openTill();
+    expect(noteBox().maxLength).toBe(255);
+  });
+
+  it('survives holding the basket and resuming it', async () => {
+    await openTill();
+    await setQty(2);
+    await userEvent.type(noteBox(), 'ambil jam 5');
+    await userEvent.click(screen.getByRole('button', { name: /tahan keranjang/i }));
+    await screen.findByTestId('counter-held');
+    expect(noteBox().value).toBe('');
+    await userEvent.click(await screen.findByRole('button', { name: /lanjutkan —/i }));
+    expect(noteBox().value).toBe('ambil jam 5');
+  });
+
+  it('shows on a past sale in the list, and again on the screen that asks for a void reason', async () => {
+    recentItems = [
+      {
+        id: 'o-7',
+        orderNumber: 'WI-007',
+        total: 40000,
+        status: 'COMPLETED',
+        createdAt: '2026-10-23T02:00:00.000Z',
+        voidReason: null,
+        counterNote: 'bayar sisanya besok',
+      },
+    ];
+    await openTill();
+    expect(await screen.findByText('Catatan: bayar sisanya besok')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: /batalkan penjualan wi-007/i }));
+    // Once in the list, once where the cashier is about to reverse that sale.
+    await waitFor(() => expect(screen.getAllByText('Catatan: bayar sisanya besok')).toHaveLength(2));
+  });
+
+  it('shows nothing for a past sale that has no note', async () => {
+    recentItems = [
+      { id: 'o-8', orderNumber: 'WI-008', total: 20000, status: 'COMPLETED', createdAt: '2026-10-23T02:00:00.000Z', voidReason: null },
+    ];
+    await openTill();
+    await screen.findByText('WI-008');
+    expect(screen.queryByText(/^Catatan:/)).toBeNull();
   });
 });

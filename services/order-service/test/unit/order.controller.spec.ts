@@ -23,6 +23,8 @@ function makeService(): Mocked {
   return {
     checkout: jest.fn().mockResolvedValue({ id: 'o1' }),
     walkInSale: jest.fn().mockResolvedValue({ id: 'w1', isWalkIn: true }),
+    // Pass-through unless a test says the caller may read counter notes.
+    attachCounterNotes: jest.fn().mockImplementation(async (_user: unknown, orders: unknown[]) => [...orders]),
     publicTracking: jest.fn().mockResolvedValue({ orderNumber: 'HM-1', status: 'ON_DELIVERY' }),
     quoteCounterBasket: jest.fn().mockResolvedValue({
       subtotal: 60000,
@@ -172,6 +174,55 @@ describe('OrderController', () => {
 
   const cashier = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
 
+  it("walk-in: stores the cashier's note trimmed, and nothing for a blank one", async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const base = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 1 }] };
+    await controller.walkIn(staff, { ...base, counterNote: '  bayar sisanya besok  ' } as never, 'Bearer t');
+    expect(service.walkInSale.mock.calls.at(-1)![1].counterNote).toBe('bayar sisanya besok');
+    await controller.walkIn(staff, { ...base, counterNote: '   ' } as never, 'Bearer t');
+    expect(service.walkInSale.mock.calls.at(-1)![1].counterNote).toBeNull();
+  });
+
+  it('walk-in: gives the note back to the cashier who rang it up', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    service.attachCounterNotes.mockResolvedValueOnce([{ id: 'w1', isWalkIn: true, counterNote: 'titip' }]);
+    const dto = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 1 }], counterNote: 'titip' } as never;
+    await expect(controller.walkIn(staff, dto, 'Bearer t')).resolves.toEqual({
+      id: 'w1',
+      isWalkIn: true,
+      counterNote: 'titip',
+    });
+    expect(service.attachCounterNotes).toHaveBeenCalledWith(staff, [{ id: 'w1', isWalkIn: true }]);
+  });
+
+  it('listManaged: attaches notes to the page without losing its paging fields', async () => {
+    service.listAll.mockResolvedValueOnce({ items: [{ id: 'o1' }], nextCursor: 'c2' });
+    service.attachCounterNotes.mockResolvedValueOnce([{ id: 'o1', counterNote: 'titip' }]);
+    await expect(controller.listManaged(admin, { limit: 10 } as never)).resolves.toEqual({
+      items: [{ id: 'o1', counterNote: 'titip' }],
+      nextCursor: 'c2',
+    });
+    expect(service.attachCounterNotes).toHaveBeenCalledWith(admin, [{ id: 'o1' }]);
+  });
+
+  it('getManaged: attaches the note after the depot access check, never before', async () => {
+    const order: string[] = [];
+    service.getAny.mockResolvedValueOnce({ id: 'o1', depotId: 'd1' });
+    service.attachCounterNotes.mockImplementationOnce(async (_u: unknown, o: unknown[]) => {
+      order.push('attach');
+      return [...o];
+    });
+    await controller.getManaged(admin, 'o1');
+    expect(order).toEqual(['attach']);
+  });
+
+  it('getManaged: a caller refused for that depot never reaches the note lookup', async () => {
+    service.getAny.mockResolvedValueOnce({ id: 'o1', depotId: 'other-depot' });
+    const scoped = { sub: 'm-1', role: 'MANAGER', depotId: 'd1', depotIds: ['d1'] } as never;
+    await expect(controller.getManaged(scoped, 'o1')).rejects.toThrow();
+    expect(service.attachCounterNotes).not.toHaveBeenCalled();
+  });
+
   it('quotes a counter basket without a phone anywhere in the request', async () => {
     const dto = {
       depotId: 'depot-1',
@@ -276,6 +327,7 @@ describe('OrderController', () => {
       voucherCode: null,
       idempotencyKey: null,
       emptiesReturned: null,
+      counterNote: null,
     });
   });
 
