@@ -22,6 +22,7 @@ function build(opts: {
   attendance?: unknown;
   employee?: Record<string, unknown> | null;
   notify?: jest.Mock | null;
+  holidays?: string[] | 'none';
 }) {
   const notify = opts.notify === undefined ? jest.fn(async () => undefined) : opts.notify;
   const shifts = {
@@ -29,6 +30,11 @@ function build(opts: {
     findById: jest.fn(async (id: string) => opts.shifts?.[id] ?? null),
     findRotationById: jest.fn(async (id: string) => opts.rotations?.[id] ?? null),
   };
+  const holidayDates = jest.fn(async (_depot: string | null, from: Date) =>
+    (opts.holidays === 'none' || opts.holidays === undefined ? [] : opts.holidays).filter(
+      (d) => d === from.toISOString().slice(0, 10),
+    ),
+  );
   const attendance = { findByEmployeeAndDate: jest.fn(async () => opts.attendance ?? null) };
   const employees = {
     findByIdInternal: jest.fn(async () =>
@@ -36,6 +42,7 @@ function build(opts: {
         ? null
         : {
             id: 'e1',
+            depotId: 'depot-1',
             status: 'ACTIVE',
             authSubjectId: 'acct-1',
             phone: '0811',
@@ -50,8 +57,11 @@ function build(opts: {
     employees as never,
     { timeZone: 'Asia/Jakarta' } as never,
     notify ? ({ notify } as never) : undefined,
+    opts.holidays === 'none' || opts.holidays === undefined
+      ? undefined
+      : ({ listDates: holidayDates } as never),
   );
-  return { service, notify, shifts, attendance, employees };
+  return { service, notify, shifts, attendance, employees, holidayDates };
 }
 
 const MORNING = { 's-morning': { startTime: '08:00' } };
@@ -156,11 +166,55 @@ describe('ShiftReminderService', () => {
     expect(await service.remindStartingSoon(NOW)).toEqual({ reminded: 0, skipped: 0, failed: 0, ok: false });
   });
 
-  it('does nothing in the last 45 minutes of the local day, whose window is tomorrow\'s roster', async () => {
-    const lateNight = new Date('2026-10-23T16:30:00.000Z'); // 23:30 in Jakarta
-    const { service, shifts } = build({ shifts: MORNING });
-    expect(await service.remindStartingSoon(lateNight)).toEqual({ reminded: 0, skipped: 0, failed: 0, ok: true });
-    expect(shifts.listAllAssignmentsUpTo).not.toHaveBeenCalled();
+  describe('public holidays', () => {
+    it('does not remind on a holiday for the employee depot', async () => {
+      const { service, notify, holidayDates } = build({ shifts: MORNING, holidays: ['2026-10-23'] });
+      expect(await service.remindStartingSoon(NOW)).toMatchObject({ reminded: 0, skipped: 1 });
+      expect(notify).not.toHaveBeenCalled();
+      expect(holidayDates).toHaveBeenCalledWith('depot-1', WORK_DATE, WORK_DATE);
+    });
+
+    it('still reminds on an ordinary day', async () => {
+      const { service } = build({ shifts: MORNING, holidays: ['2026-12-25'] });
+      expect((await service.remindStartingSoon(NOW)).reminded).toBe(1);
+    });
+  });
+
+  // 23:40 in Jakarta is 16:40 UTC. The window (00:10-00:25 local) belongs to TOMORROW's roster.
+  describe('across midnight', () => {
+    const LATE = new Date('2026-10-23T16:40:00.000Z');
+    const TOMORROW = new Date('2026-10-24T00:00:00.000Z');
+
+    it('reminds a 00:10 shift the evening before, reading tomorrow\'s roster', async () => {
+      const { service, notify, shifts } = build({ shifts: { 's-morning': { startTime: '00:10' } } });
+      expect((await service.remindStartingSoon(LATE)).reminded).toBe(1);
+      expect(notify).toHaveBeenCalledWith('SHIFT_REMINDER', '0811', { name: 'Budi', time: '00:10' }, 'acct-1');
+      expect(shifts.listAllAssignmentsUpTo).toHaveBeenCalledWith(TOMORROW, expect.any(Number));
+    });
+
+    it('splits a window that straddles midnight between the two days', async () => {
+      // 23:20 local: the window is 23:50-00:05, half tonight and half tomorrow.
+      const straddle = new Date('2026-10-23T16:20:00.000Z');
+      const evening = build({ shifts: { 's-morning': { startTime: '23:55' } } });
+      const early = build({ shifts: { 's-morning': { startTime: '00:02' } } });
+      expect((await evening.service.remindStartingSoon(straddle)).reminded).toBe(1);
+      expect((await early.service.remindStartingSoon(straddle)).reminded).toBe(1);
+    });
+
+    it('checks the next day for attendance and holidays, not today', async () => {
+      const { service, attendance, holidayDates } = build({
+        shifts: { 's-morning': { startTime: '00:10' } },
+        holidays: ['2026-10-24'],
+      });
+      expect(await service.remindStartingSoon(LATE)).toMatchObject({ reminded: 0, skipped: 1 });
+      expect(attendance.findByEmployeeAndDate).toHaveBeenCalledWith('e1', TOMORROW);
+      expect(holidayDates).toHaveBeenCalledWith('depot-1', TOMORROW, TOMORROW);
+    });
+
+    it('does not remind a shift that starts well after the window tomorrow', async () => {
+      const { service } = build({ shifts: { 's-morning': { startTime: '08:00' } } });
+      expect((await service.remindStartingSoon(LATE)).reminded).toBe(0);
+    });
   });
 
   it('reads the roster for the local day it is running on', async () => {
