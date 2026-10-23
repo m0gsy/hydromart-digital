@@ -66,6 +66,12 @@ model Payment {
   proofUrl     String?
   paidAt       DateTime?
   failedAt     DateTime?
+  /// When the buyer was nudged that this PENDING payment is half-way to expiry. Claimed
+  /// before the nudge is sent, so a payment is reminded once however often the sweep runs.
+  reminderSentAt DateTime?
+  /// When the depot was told this settled payment still has an unconfirmed order. Same
+  /// claim-first rule as `reminderSentAt`.
+  unconfirmedNotifiedAt DateTime?
   /// Depot that took the money, set only for a counter sale. A delivery order's payment
   /// is not booked against a depot here — the order already carries that. Without it the
   /// cash in one depot's drawer cannot be told apart from the network's.
