@@ -107,6 +107,7 @@ depot|gallon_issues_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "
 depot|gallon_returns_orderId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_returns_orderId_key" ON "gallon_returns"("orderId")
 depot|gallon_reminders_depotId_customerId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "gallon_reminders_depotId_customerId_key" ON "gallon_reminders"("depotId", "customerId")
 depot|depot_monthly_closes_depotId_businessMonth_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "depot_monthly_closes_depotId_businessMonth_key" ON "depot_monthly_closes"("depotId", "businessMonth")
+hr|shift_reminders_sent_employeeId_workDate_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "shift_reminders_sent_employeeId_workDate_key" ON "shift_reminders_sent"("employeeId", "workDate")
 customer|customer_profiles_favoriteDepotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "customer_profiles_favoriteDepotId_idx" ON "customer_profiles"("favoriteDepotId")
 customer|reseller_price_changes_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_customerId_createdAt_idx" ON "reseller_price_changes"("customerId", "createdAt" DESC)
 customer|reseller_price_changes_appliedAt_effectiveAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reseller_price_changes_appliedAt_effectiveAt_idx" ON "reseller_price_changes"("appliedAt", "effectiveAt")
