@@ -1184,8 +1184,8 @@ describe('ReportService', () => {
 
       const rep = await svc.depotDaily(depot, day);
       expect(rep.perCashier).toEqual([
-        { cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50000 },
-        { cashierId: 'c-sari', label: '0822', orders: 1, revenueIdr: 20000 },
+        { cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50000, newBuyers: 2 },
+        { cashierId: 'c-sari', label: '0822', orders: 1, revenueIdr: 20000, newBuyers: 1 },
       ]);
     });
 
@@ -1198,8 +1198,9 @@ describe('ReportService', () => {
 
       const rep = await svc.depotDaily(depot, day);
       expect(rep.perCashier).toEqual([
-        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000 },
-        { cashierId: null, label: null, orders: 1, revenueIdr: 5000 },
+        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000, newBuyers: 1 },
+        // No cashier recorded, so there is nobody to count first-time buyers against.
+        { cashierId: null, label: null, orders: 1, revenueIdr: 5000, newBuyers: 0 },
       ]);
     });
 
@@ -1214,8 +1215,10 @@ describe('ReportService', () => {
       await counter(r, depot, 45000, null, OrderStatus.CONFIRMED, false); // a delivery order
 
       const rep = await svc.depotDaily(depot, day);
+      // `orders` leaves out the voided sale; `newBuyers` keeps it: the cashier did sell to that
+      // buyer for the first time, and selling then voiding must not hand the promo out again.
       expect(rep.perCashier).toEqual([
-        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000 },
+        { cashierId: 'c-budi', label: '0811', orders: 1, revenueIdr: 30000, newBuyers: 2 },
       ]);
     });
 

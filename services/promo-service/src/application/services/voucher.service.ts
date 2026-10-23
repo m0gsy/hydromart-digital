@@ -409,6 +409,23 @@ export class VoucherService {
     }));
   }
 
+  /**
+   * The vouchers a cashier can offer one identified buyer: only codes GRANTED to them (a
+   * PUBLIC campaign code is typed, not listed — a list of those at every till is a list of
+   * codes anyone behind the counter can spend), still spendable, and valid at this depot.
+   */
+  async grantedForCounter(customerId: string, depotId: string): Promise<WalletVoucher[]> {
+    const now = new Date();
+    const rows = await this.repo.listForCustomer(customerId);
+    return rows
+      .filter(({ voucher, granted }) => granted && (voucher.depotId == null || voucher.depotId === depotId))
+      .map(({ voucher, customerRedemptions }) => ({
+        voucher,
+        status: classifyVoucherStatus(voucher, now, customerRedemptions),
+      }))
+      .filter((w) => w.status === 'AVAILABLE');
+  }
+
   private async getById(id: string): Promise<VoucherRecord> {
     const voucher = await this.repo.findById(id);
     if (!voucher) throw new VoucherNotFoundError();

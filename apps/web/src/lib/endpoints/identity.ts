@@ -30,6 +30,9 @@ auth: {
   // Staff: resolve a phone to a customer (for voucher grant). 404 if none.
   customerLookup: (phone: string) =>
     `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
+  // Cashier: is this number already a customer? registered + first name only; never 404s.
+  customerCounterLookup: (phone: string) =>
+    `/auth/api/v1/auth/customers/counter-lookup?phone=${encodeURIComponent(phone)}`,
   // Staff: resolve customer ids → public profiles (reseller row-name labels). Array of Customer.
   customersByIds: (ids: string[]) =>
     `/auth/api/v1/auth/customers/by-ids?ids=${encodeURIComponent(ids.join(','))}`,

@@ -131,6 +131,11 @@ export interface CashierDaily {
   label: string | null;
   orders: number;
   revenueIdr: number;
+  /**
+   * Buyers this cashier sold to for the first time today. The same count the counter's daily
+   * first-order ceiling enforces, so what the owner reads is what the cap acted on.
+   */
+  newBuyers: number;
 }
 
 /**
@@ -739,7 +744,7 @@ export class ReportService {
     // payment is booked against the depot, and `depotCash` already counts it — asking for
     // both would put the same rupiah in two columns of the same report.
     const deliveryOrders = rows.filter((r) => r.isWalkIn !== true);
-    const [cashRows, drawer, returns, cashiers, refillSplit] = await Promise.all([
+    const [cashRows, drawer, returns, cashiers, refillSplit, firstBuyers] = await Promise.all([
       deliveryOrders.length > 0 && this.paymentCash
         ? this.paymentCash.cashByOrder(deliveryOrders.map((r) => r.id))
         : Promise.resolve(this.paymentCash ? [] : null),
@@ -749,7 +754,9 @@ export class ReportService {
         : Promise.resolve(null),
       this.orders.cashierSalesForDepot(depotId, { from, to }),
       this.orders.refillSplitForDepot(depotId, { from, to }),
+      this.orders.firstTimeBuyersByCashier(depotId, { from, to }),
     ]);
+    const newBuyersBy = new Map(firstBuyers.map((b) => [b.cashierId, b.count]));
     const cashBy = cashRows && new Map(cashRows.map((c) => [c.orderId, c.amountIdr]));
 
     return {
@@ -770,6 +777,7 @@ export class ReportService {
         label: c.cashierLabel,
         orders: c.orderCount,
         revenueIdr: Math.round(c.revenue),
+        newBuyers: c.cashierId ? (newBuyersBy.get(c.cashierId) ?? 0) : 0,
       })),
       refillSplit,
     };

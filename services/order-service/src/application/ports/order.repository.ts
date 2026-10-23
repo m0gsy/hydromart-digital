@@ -298,6 +298,11 @@ export interface PublicTrackingRecord {
  * every counter sale written before the column existed, which must be reported as exactly
  * that rather than attributed to whoever happens to be on shift when somebody opens the page.
  */
+export interface CashierFirstBuyers {
+  cashierId: string;
+  count: number;
+}
+
 export interface CashierSales {
   cashierId: string | null;
   cashierLabel: string | null;
@@ -714,6 +719,16 @@ export interface OrderRepository {
    * shape the rest of this file already refuses.
    */
   cashierSalesForDepot(depotId: string, range: ReportRange): Promise<CashierSales[]>;
+  /**
+   * How many buyers each cashier at this depot sold to FOR THE FIRST TIME in the range — a
+   * sale to a customer with no earlier order (voided and cancelled ones do not count as
+   * earlier). The anonymous sentinel is not a buyer. A voided first sale still counts for the
+   * cashier: selling to a made-up number and voiding it must not hand the promo out again.
+   *
+   * Feeds both the daily-cap check at the counter and the cashier column of the daily report,
+   * so the number the owner reads is the number the cap enforced.
+   */
+  firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]>;
   /**
    * #27: counter sales classified by whether the buyer handed over an empty galon AT the
    * sale — refill (every galon exchanged), beli (none exchanged), or partial (some but not

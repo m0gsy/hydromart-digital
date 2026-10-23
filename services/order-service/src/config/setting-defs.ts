@@ -119,6 +119,24 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1,
     envDefault: 1,
   },
+  /**
+   * How many first-time buyers one cashier may give the "pelanggan baru" promo to in a day.
+   *
+   * Per depot because it is a trust decision about that depot's tills. The counter mints an
+   * account for any number the cashier types, and a brand-new account is a "new customer" —
+   * so without a ceiling a typed-in number is a way to hand out a first-order promo. Past the
+   * ceiling the buyer is still served, at the price without that promo, and the screen says why.
+   * 0 means the counter never grants it.
+   */
+  {
+    key: 'counterFirstOrderDailyCap',
+    label: 'Batas pembeli baru per kasir per hari (promo pelanggan baru)',
+    type: 'int',
+    unit: 'pembeli',
+    min: 0,
+    max: 1000,
+    envDefault: 5,
+  },
   {
     key: 'expressFee',
     label: 'Biaya antar sekarang',

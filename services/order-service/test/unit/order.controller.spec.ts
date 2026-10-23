@@ -33,7 +33,11 @@ function makeService(): Mocked {
       catalogFallback: null,
       items: [],
       voucherCode: null,
+      appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
+      firstOrder: true,
+      firstOrderCapped: false,
     }),
+    counterShiftSummary: jest.fn().mockResolvedValue({ orderCount: 3, revenueIdr: 90000 }),
     identifyCounterBuyer: jest.fn().mockResolvedValue({ customerId: 'buyer-9' }),
     voidCounterSale: jest.fn().mockResolvedValue({ id: 'w1', status: 'VOIDED' }),
     expireAbandoned: jest.fn().mockResolvedValue({ cancelled: 3 }),
@@ -166,6 +170,8 @@ describe('OrderController', () => {
     });
   });
 
+  const cashier = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
+
   it('quotes a counter basket without a phone anywhere in the request', async () => {
     const dto = {
       depotId: 'depot-1',
@@ -174,7 +180,7 @@ describe('OrderController', () => {
       voucherCode: 'HEMAT10',
     } as never;
 
-    await expect(controller.walkInQuote(dto, 'Bearer t')).resolves.toEqual({
+    await expect(controller.walkInQuote(cashier, dto, 'Bearer t')).resolves.toEqual({
       subtotalIdr: 60000,
       discountIdr: 15000,
       totalIdr: 45000,
@@ -182,6 +188,9 @@ describe('OrderController', () => {
       shippingIdr: 0,
       agen: true,
       catalogFallback: null,
+      firstOrder: true,
+      firstOrderCapped: false,
+      appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
     });
     expect(service.quoteCounterBasket).toHaveBeenCalledWith(
       'buyer-9',
@@ -191,12 +200,14 @@ describe('OrderController', () => {
       'Bearer t',
       // C11: pick-up unless the cashier sent an address.
       false,
+      // The daily first-order ceiling is per cashier, so the quote is told who is asking.
+      'op-1',
     );
   });
 
   it('quotes an unidentified basket as anonymous rather than guessing a buyer', async () => {
     const dto = { depotId: 'depot-1', lines: [{ productId: 'p1', quantity: 1 }] } as never;
-    await controller.walkInQuote(dto, 'Bearer t');
+    await controller.walkInQuote(cashier, dto, 'Bearer t');
     expect(service.quoteCounterBasket).toHaveBeenCalledWith(
       null,
       'depot-1',
@@ -204,6 +215,21 @@ describe('OrderController', () => {
       null,
       'Bearer t',
       false,
+      'op-1',
+    );
+  });
+
+  it("reads the cashier's own shift tally for the caller, from the shift's opening time", async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
+    const result = await controller.walkInShiftSummary(staff, {
+      depotId: 'depot-1',
+      from: '2026-10-23T01:00:00.000Z',
+    });
+    expect(result).toEqual({ orderCount: 3, revenueIdr: 90000 });
+    expect(service.counterShiftSummary).toHaveBeenCalledWith(
+      staff,
+      'depot-1',
+      new Date('2026-10-23T01:00:00.000Z'),
     );
   });
 

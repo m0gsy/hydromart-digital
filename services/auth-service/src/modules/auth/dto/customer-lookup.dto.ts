@@ -12,3 +12,12 @@ export class CustomerLookupDto {
   @MaxLength(20)
   phone!: string;
 }
+
+/** What the counter learns about a typed number — deliberately nothing beyond this. */
+export class CounterLookupResponseDto {
+  @ApiProperty({ example: true })
+  registered!: boolean;
+
+  @ApiProperty({ nullable: true, type: String, example: 'Budi' })
+  firstName!: string | null;
+}

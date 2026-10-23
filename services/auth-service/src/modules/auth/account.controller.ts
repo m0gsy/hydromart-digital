@@ -15,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
 import { AccountService } from '../../application/services/account.service';
@@ -26,7 +27,7 @@ import { AuditMutationsInterceptor, Can, ImportSummary, SelfScoped } from '@hydr
 
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
-import { CustomerLookupDto } from './dto/customer-lookup.dto';
+import { CounterLookupResponseDto, CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { ConfirmPhoneChangeDto, RequestPhoneChangeDto } from './dto/change-phone.dto';
@@ -50,6 +51,13 @@ import {
   ImportResponseDto,
   ListStaff3ResponseDto,
 } from '../dto/responses.generated.dto';
+
+/**
+ * How many cashier phone lookups one client may make a minute. A cashier asks once per buyer,
+ * after they stop typing, so this is far above honest use; it exists to make walking through
+ * numbers to see which ones are customers slow instead of free.
+ */
+export const COUNTER_LOOKUP_LIMIT_PER_MINUTE = 30;
 
 @ApiTags('Account')
 @ApiBearerAuth()
@@ -145,6 +153,18 @@ export class AccountController {
   async lookupByPhone(@Query() query: CustomerLookupDto): Promise<PublicCustomerDto> {
     const customer = await this.account.lookupByPhone(query.phone);
     return PublicCustomerDto.from(customer);
+  }
+
+  // The cashier's read-only "is this number already a customer?" Same capability as the walk-in
+  // sale itself, because it exists for that screen alone; `customerPhoneLookup` would hand the
+  // whole customer record to a role that has no use for it. Declared before any `:id` route.
+  @Can('walkInSale')
+  @Throttle({ default: { limit: COUNTER_LOOKUP_LIMIT_PER_MINUTE, ttl: 60_000 } })
+  @Get('auth/customers/counter-lookup')
+  @ApiOperation({ summary: 'Cashier: is this phone already a customer? (registered + first name only)' })
+  @ApiOkResponse({ type: CounterLookupResponseDto })
+  counterLookup(@Query() query: CustomerLookupDto): Promise<CounterLookupResponseDto> {
+    return this.account.counterLookup(query.phone);
   }
 
   // Staff-only: resolve a batch of customer ids to names (reseller console row labels).

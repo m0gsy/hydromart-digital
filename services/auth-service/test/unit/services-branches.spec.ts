@@ -59,6 +59,39 @@ describe('AccountService branch gaps', () => {
     expect(found.id).toBe(customer.id);
   });
 
+  describe('counterLookup', () => {
+    it('says registered, with a first name only, for a customer', async () => {
+      customers.seed(makeCustomer({ phone: '+6281234567890', fullName: 'Budi Santoso' }));
+      await expect(service.counterLookup('081234567890')).resolves.toEqual({
+        registered: true,
+        firstName: 'Budi',
+      });
+    });
+
+    it('says registered without a name for an account nobody named', async () => {
+      customers.seed(makeCustomer({ phone: '+6281234567890', fullName: null }));
+      await expect(service.counterLookup('081234567890')).resolves.toEqual({
+        registered: true,
+        firstName: null,
+      });
+    });
+
+    it('says not registered, rather than 404, for an unknown number', async () => {
+      await expect(service.counterLookup('081299998888')).resolves.toEqual({
+        registered: false,
+        firstName: null,
+      });
+    });
+
+    it('does not confirm a staff number as an account', async () => {
+      customers.seed(makeCustomer({ phone: '+6281234567890', fullName: 'Rina', role: Role.KEPALA_DEPOT }));
+      await expect(service.counterLookup('081234567890')).resolves.toEqual({
+        registered: false,
+        firstName: null,
+      });
+    });
+  });
+
   it('404s a phone lookup with no match', async () => {
     await expect(service.lookupByPhone('081299998888')).rejects.toBeInstanceOf(
       CustomerNotFoundError,

@@ -58,6 +58,8 @@ import {
   CounterIdentifyDto,
   CounterQuoteDto,
   CounterQuoteResponseDto,
+  CounterShiftSummaryQueryDto,
+  CounterShiftSummaryResponseDto,
   CreateReviewDto,
   DeliveryOptionsResponseDto,
   InternalPaymentNoticeDto,
@@ -267,6 +269,7 @@ export class OrderController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Price a counter basket without selling it (cashier screen)' })
   async walkInQuote(
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CounterQuoteDto,
     @Headers('authorization') authorization?: string,
   ): Promise<CounterQuoteResponseDto> {
@@ -279,8 +282,23 @@ export class OrderController {
         authorization,
         // C11: presence is the whole signal, same as the sale route next door.
         !!dto.deliveryAddress,
+        // The ceiling is per cashier, so the quote has to know who is asking.
+        user.sub,
       ),
     );
+  }
+
+  // The cashier's own running tally for the open shift. Declared with the other static
+  // 'walk-in' segments, before any ':id' route.
+  @ApiOkResponse({ type: CounterShiftSummaryResponseDto })
+  @Can('walkInSale')
+  @Get('walk-in/shift-summary')
+  @ApiOperation({ summary: "The caller's own counter sales since their shift opened (cashier screen)" })
+  async walkInShiftSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: CounterShiftSummaryQueryDto,
+  ): Promise<CounterShiftSummaryResponseDto> {
+    return this.orders.counterShiftSummary(user, query.depotId, new Date(query.from));
   }
 
   /**

@@ -93,6 +93,9 @@ export const shop = {
     // C12: the deliberate tap that identifies a counter buyer, and the only one that may
     // create an account.
     walkInIdentify: '/orders/api/v1/orders/walk-in/identify',
+    // The cashier's own tally for the open shift (count + value, no drawer figure).
+    walkInShiftSummary: (depotId: string, from: string) =>
+      `/orders/api/v1/orders/walk-in/shift-summary?depotId=${encodeURIComponent(depotId)}&from=${encodeURIComponent(from)}`,
     // Undo a counter sale at the till (same day only).
     voidWalkIn: (id: string) => `/orders/api/v1/orders/walk-in/${id}/void`,
     checkout: '/orders/api/v1/orders/checkout',
@@ -202,6 +205,9 @@ export const shop = {
     usage: '/vouchers/api/v1/promotions/promo-rules/usage',
     // Try a basket against the active rules; records nothing.
     simulate: '/vouchers/api/v1/promotions/promo-rules/simulate',
+    // The cashier's strip: rules this depot's counter can fire right now (walkInSale).
+    active: (depotId: string) =>
+      `/vouchers/api/v1/promotions/promo-rules/active?depotId=${encodeURIComponent(depotId)}`,
   },
 
   referrals: {
@@ -258,6 +264,9 @@ export const shop = {
     quote: '/vouchers/api/v1/vouchers/quote',
     // The current customer's voucher wallet (active vouchers + per-customer status).
     me: '/vouchers/api/v1/vouchers/me',
+    // The cashier's one-tap list: an identified buyer's GRANTED vouchers usable at this depot.
+    counter: (customerId: string, depotId: string) =>
+      `/vouchers/api/v1/vouchers/counter?customerId=${encodeURIComponent(customerId)}&depotId=${encodeURIComponent(depotId)}`,
     // Grant a voucher to a customer's wallet (marketing/admin) → fires VOUCHER_GRANTED.
     grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
     // Admin CRUD (marketing/depot-manager/super-admin). Browse includes inactive.

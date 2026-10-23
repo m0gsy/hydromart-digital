@@ -31,6 +31,7 @@ export function CashierSales({ rows }: { rows: readonly DepotDailyCashier[] }) {
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted">
                 <th className="px-4 py-2 font-semibold">{t('opsFix.reports.cashier')}</th>
                 <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.orders')}</th>
+                <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.newBuyers')}</th>
                 <th className="px-4 py-2 text-right font-semibold">{t('opsFix.reports.revenue')}</th>
               </tr>
             </thead>
@@ -43,6 +44,7 @@ export function CashierSales({ rows }: { rows: readonly DepotDailyCashier[] }) {
                       : (r.label ?? r.cashierId)}
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{r.orders}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{r.newBuyers ?? '—'}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatIDR(r.revenueIdr)}</td>
                 </tr>
               ))}

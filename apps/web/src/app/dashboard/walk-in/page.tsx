@@ -27,20 +27,37 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { computeEffective } from '@/lib/pricing';
-import { printReceipt } from '@/lib/receipt';
+import { buildReceiptModel, printReceipt } from '@/lib/receipt';
 import { useDepotContact } from '@/lib/use-depot-contact';
 import { thermalErrorKey } from '@/lib/receipt-thermal';
 import { PrinterSetup } from '@/components/dashboard/printer-setup';
+import { CounterPromoStrip } from '@/components/dashboard/counter-promos';
+import { CounterHeldBaskets } from '@/components/dashboard/counter-held-baskets';
+import { CounterShiftTally } from '@/components/dashboard/counter-shift-tally';
+import {
+  MAX_HELD,
+  addHeld,
+  loadHeld,
+  removeHeld,
+  restoreQuantities,
+  saveHeld,
+  type HeldBasket,
+} from '@/lib/held-baskets';
+import { receiptToText, whatsappUrl } from '@/lib/receipt-text';
+import { openExternal } from '@/lib/platform';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
+  CounterCustomerLookup,
   CounterQuote,
   DepotPaymentPanel,
   InventoryItem,
+  MyVoucher,
   Order,
   Page,
   Payment,
   Product,
+  PromoRule,
   ResolvedPrice,
   CashierShift,
 } from '@/lib/types';
@@ -76,11 +93,19 @@ type Unpaid = {
  * faster than they can scan a barcode.
  */
 const STOCK_REFRESH_MS = 20000;
+/** At or below this the row says how many are left, so the stepper stopping is no surprise. */
+const LOW_STOCK = 5;
+/** A number is worth looking up once it could plausibly be a whole one. */
+const LOOKUP_MIN_DIGITS = 9;
+const LOOKUP_DEBOUNCE_MS = 500;
 /** Notes an Indonesian buyer actually hands over — same list the courier COD screen uses. */
 const NOTES = [50000, 100000, 150000, 200000];
 
 function WalkIn({ depotId }: { depotId: string }) {
   const { t, locale } = useT();
+  const { customer: me } = useAuth();
+  // Held baskets belong to this cashier at this depot, not to whoever uses the browser next.
+  const heldScope = `${depotId}.${me?.id ?? 'anon'}`;
   // K3.4: the depot record behind `depotId`, for the outlet line on the struk.
   const { depots } = useDepot();
   const depot = depots.find((d) => d.id === depotId) ?? null;
@@ -122,6 +147,32 @@ function WalkIn({ depotId }: { depotId: string }) {
    */
   const [buyerId, setBuyerId] = useState<string | null>(null);
   const [identifying, setIdentifying] = useState(false);
+  // Baskets set aside while a buyer fetches their money. Read after mount: this is a browser
+  // store, and the page is also rendered once on the server.
+  const [held, setHeld] = useState<HeldBasket[]>([]);
+  useEffect(() => setHeld(loadHeld(heldScope)), [heldScope]);
+  // What the typed number already is, if anything. Read-only: it never creates an account.
+  const [lookup, setLookup] = useState<CounterCustomerLookup | null>(null);
+  // Bumped after every sale and void so the shift tally follows without a poll.
+  const [salesTick, setSalesTick] = useState(0);
+  useEffect(() => {
+    setLookup(null);
+    // Once identified, the account is known and "Cek pelanggan" has answered; asking again
+    // would only repeat it.
+    if (buyerId || phone.replace(/\D/g, '').length < LOOKUP_MIN_DIGITS) return;
+    let alive = true;
+    const timer = setTimeout(() => {
+      api
+        .get<CounterCustomerLookup>(endpoints.auth.customerCounterLookup(phone.trim()), true)
+        .then((r) => alive && setLookup(r))
+        // A hint, never a gate: a malformed number or a down service just shows nothing.
+        .catch(() => alive && setLookup(null));
+    }, LOOKUP_DEBOUNCE_MS);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [phone, buyerId]);
   const [method, setMethod] = useState<CounterMethod>('CASH');
   const [busy, setBusy] = useState(false);
   /** Idempotency key for the sale being rung up; cleared once it is recorded. */
@@ -147,6 +198,16 @@ function WalkIn({ depotId }: { depotId: string }) {
    */
   const [shift, setShift] = useState<CashierShift | null | undefined>(undefined);
   const shiftOpen = shift === undefined ? undefined : shift !== null;
+  // A basket held across a closed drawer belongs to a sale that can no longer be made. Only
+  // the open -> closed move counts: "no shift yet" on arrival is not a close.
+  const wasShiftOpen = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (wasShiftOpen.current === true && shiftOpen === false) {
+      saveHeld(heldScope, []);
+      setHeld([]);
+    }
+    wasShiftOpen.current = shiftOpen;
+  }, [shiftOpen, heldScope]);
   /**
    * K3.4: who sold this, for the struk. Built at print time rather than stored, so a
    * receipt reprinted after the shift closed still names the shift it was rung up in.
@@ -167,6 +228,8 @@ function WalkIn({ depotId }: { depotId: string }) {
     order: Order;
     cash?: { cashReceived: number; change: number };
     method: CounterMethod;
+    /** As typed at the till, for "kirim struk"; the sale form is cleared by then. */
+    phone: string;
   } | null>(null);
   /** K3.2: the sale whose money is in the drawer but not yet in the ledger. */
   const [unpaid, setUnpaid] = useState<Unpaid | null>(null);
@@ -237,8 +300,13 @@ function WalkIn({ depotId }: { depotId: string }) {
 
   const stockReloadRef = useRef(stock.reload);
   stockReloadRef.current = stock.reload;
+  const promosReloadRef = useRef<() => void>(() => undefined);
   useEffect(() => {
-    const t = setInterval(() => stockReloadRef.current(), STOCK_REFRESH_MS);
+    const t = setInterval(() => {
+      stockReloadRef.current();
+      // A promo whose hours ended at noon should not still be on offer at one.
+      promosReloadRef.current();
+    }, STOCK_REFRESH_MS);
     return () => clearInterval(t);
   }, []);
   const availableById = useMemo(() => {
@@ -253,6 +321,16 @@ function WalkIn({ depotId }: { depotId: string }) {
     [catalog.data, availableById],
   );
   const ids = products.map((p) => p.id);
+  const productNameById = useMemo(() => {
+    const m = new Map((catalog.data ?? []).map((p) => [p.id, p.name]));
+    return (id: string) => m.get(id);
+  }, [catalog.data]);
+  // The strip is a courtesy: a failed load shows nothing rather than blocking the till.
+  const livePromos = useAsync<PromoRule[]>(
+    () => api.get(endpoints.promoRules.active(depotId), true),
+    [depotId],
+  );
+  promosReloadRef.current = livePromos.reload;
   // Quantities go with the ids so a wholesale band is priced for what is actually being sold
   // (design 16b). Without them the till quoted the list price for a 20-galon sale the order
   // then stored at the bulk price — the cashier collected Rp60.000 too much.
@@ -381,9 +459,51 @@ function WalkIn({ depotId }: { depotId: string }) {
     ],
   );
 
+  // Offered only for a buyer the cashier deliberately identified: the list is that buyer's
+  // own granted codes, so there is nothing to show (and nothing to fetch) before then. A
+  // failure leaves the typed field, which always worked.
+  const grantedVouchers = useAsync<MyVoucher[]>(
+    () =>
+      buyerId ? api.get(endpoints.vouchers.counter(buyerId, depotId), true) : Promise.resolve([]),
+    [buyerId, depotId],
+  );
+  const offeredVouchers = buyerId ? (grantedVouchers.data ?? []) : [];
+
   // No silent fall back to shelf prices: a total the server did not agree to is exactly the
   // bug this replaces. The Bayar button is disabled instead, and the reason is on screen.
   const total = quote.data?.totalIdr ?? null;
+  /*
+   * `useAsync` keeps the previous answer while the next one is in flight, and after it
+   * failed. So `total` right after a stepper tap (or an invalid voucher) is the PREVIOUS
+   * basket's number: the cash guard compared against it, the buyer was handed the goods,
+   * and the shortfall only surfaced when the payment was confirmed. The number may still be
+   * shown (no flicker), but it may only be charged once it belongs to this basket.
+   */
+  const quoteFresh = !quote.loading && !quote.error;
+  // What the empties box means for the report: a swap of all, some, or none. Informational —
+  // the sale is the same either way; only how it is counted differs.
+  const emptiesNum = Number(emptiesReturned);
+  const emptiesTyped = emptiesReturned.trim() === '' || Number.isNaN(emptiesNum) ? null : emptiesNum;
+  const emptiesHint =
+    emptiesTyped === null || emptiesTyped >= galonQty
+      ? t('opsFix.reports.emptiesReturnedHint')
+      : emptiesTyped > 0
+        ? t('opsFix.walkIn.emptiesSplit', {
+            x: emptiesTyped,
+            y: galonQty,
+            z: galonQty - emptiesTyped,
+          })
+        : t('opsFix.walkIn.emptiesNone', { y: galonQty });
+  // One definition for the button and for Enter in the cash box, so the keyboard can never
+  // sell something the button would have refused.
+  const payDisabled =
+    busy || lines.length === 0 || shiftOpen !== true || total === null || !quoteFresh;
+  const appliedPromos = quote.data?.appliedPromos ?? [];
+  // ORDER promos sit inside the discount line already; name them there rather than twice.
+  const orderPromoNames = appliedPromos
+    .filter((p) => p.effect === 'ORDER')
+    .map((p) => p.name)
+    .join(', ');
   const cashReceived = Number(cash.replace(/\D/g, '')) || 0;
   const change = total === null ? 0 : cashReceived - total;
   // K3.6: short only once a number has actually been typed — an empty field is a cashier
@@ -478,12 +598,122 @@ function WalkIn({ depotId }: { depotId: string }) {
     }
   }
 
+  /** Everything about the current buyer and basket, back to an empty till. */
+  function resetTill() {
+    setQty({});
+    setName('');
+    setPhone('');
+    // The next buyer is nobody until the cashier looks them up: a stale id would price their
+    // basket, and spend a voucher, as the previous buyer.
+    setBuyerId(null);
+    setCash('');
+    setVoucher('');
+    // C11: including the address, or the next buyer's pick-up quietly becomes a delivery to
+    // the previous buyer's house.
+    setDeliver(false);
+    setAddrName('');
+    setAddrPhone('');
+    setAddrLine('');
+    setAddrCity('');
+    setAddrNotes('');
+  }
+
+  /**
+   * Back to the first product's "+" after a sale, so the next buyer starts from the top.
+   * The button, not the quantity box: focusing a text field would raise the on-screen
+   * keyboard over the very list the cashier is about to tap.
+   */
+  function focusFirstProduct() {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0 });
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(
+          '[data-counter-first-product] button[aria-label="Increase quantity"]:not([disabled])',
+        )
+        ?.focus({ preventScroll: true });
+    });
+  }
+
+  function holdBasket() {
+    if (lines.length === 0) return;
+    const { list, added } = addHeld(held, {
+      id: crypto.randomUUID(),
+      savedAt: Date.now(),
+      qty: Object.fromEntries(lines.map((l) => [l.product.id, l.quantity])),
+      name,
+      phone,
+      voucher,
+      buyerId,
+      delivery: {
+        on: deliver,
+        recipient: addrName,
+        phone: addrPhone,
+        line: addrLine,
+        city: addrCity,
+        notes: addrNotes,
+      },
+    });
+    if (!added) return toast(t('opsFix.walkIn.heldFull', { max: MAX_HELD }), 'error');
+    // Cleared only once it is safely held: a basket that could not be stored must still be
+    // on the screen, not gone.
+    if (!saveHeld(heldScope, list)) return toast(t('opsFix.walkIn.heldStorageFailed'), 'error');
+    setHeld(list);
+    resetTill();
+    toast(t('opsFix.walkIn.heldSaved'));
+  }
+
+  function resumeBasket(b: HeldBasket) {
+    if (lines.length > 0) return toast(t('opsFix.walkIn.heldResumeBlocked'), 'error');
+    const { qty: restored, adjusted } = restoreQuantities(b, availableById);
+    // Nothing left to sell: say so and keep it held, rather than load an empty basket and
+    // lose the record that this buyer was waiting.
+    if (Object.keys(restored).length === 0) return toast(t('opsFix.walkIn.stockShort'), 'error');
+    setQty(restored);
+    setName(b.name);
+    setPhone(b.phone);
+    setVoucher(b.voucher);
+    setBuyerId(b.buyerId);
+    setCash('');
+    setDeliver(b.delivery?.on ?? false);
+    setAddrName(b.delivery?.recipient ?? '');
+    setAddrPhone(b.delivery?.phone ?? '');
+    setAddrLine(b.delivery?.line ?? '');
+    setAddrCity(b.delivery?.city ?? '');
+    setAddrNotes(b.delivery?.notes ?? '');
+    const rest = removeHeld(held, b.id);
+    saveHeld(heldScope, rest);
+    setHeld(rest);
+    if (adjusted > 0) toast(t('opsFix.walkIn.heldAdjusted', { n: adjusted }), 'error');
+  }
+
+  function discardHeld(id: string) {
+    const rest = removeHeld(held, id);
+    saveHeld(heldScope, rest);
+    setHeld(rest);
+  }
+
+  /** Opens the buyer's chat with the receipt already typed; the cashier presses send. */
+  function sendReceiptWhatsapp() {
+    if (!lastSale) return;
+    const model = buildReceiptModel(
+      lastSale.order,
+      (key) => t(key),
+      lastSale.cash,
+      lastSale.method,
+      outlet(),
+    );
+    const url = whatsappUrl(lastSale.phone, receiptToText(model));
+    if (!url) return;
+    if (!openExternal(url)) window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   async function submit() {
     if (lines.length === 0) return toast(t('opsFix.walkIn.pickProductFirst'), 'error');
     // C12: never sell against a total the server did not give. The old guard compared cash
     // to the SCREEN's sum of shelf prices, which is why an agen handing over exact money
     // was refused by the till — they were being asked for the retail number.
-    if (total === null) return toast(t('opsFix.walkIn.quoteUnavailable'), 'error');
+    if (total === null || !quoteFresh) return toast(t('opsFix.walkIn.quoteUnavailable'), 'error');
     if (method === 'CASH' && cashReceived < total) {
       return toast(t('hrFix.walkIn.cashShort'), 'error');
     }
@@ -567,28 +797,20 @@ function WalkIn({ depotId }: { depotId: string }) {
 
     const receipt =
       method === 'CASH' ? { cashReceived, change: cashReceived - order.total } : undefined;
-    setLastSale({ order, cash: receipt, method });
+    setLastSale({ order, cash: receipt, method, phone: phone.trim() });
     // C14: the sale just reserved stock, so the number on screen and the stepper's ceiling
     // are both wrong until this lands. One cashier is enough to make them wrong — this is
     // not about a second till.
     stockReloadRef.current();
+    // C6: the sale just made belongs in the till's own list too, not only in the card above.
+    void recent.reload();
     if (!printReceipt(order, { t, locale }, receipt, method, outlet(), thermalFailed)) {
       toast(t('hrFix.walkIn.receiptBlocked'), 'error');
     }
-    setQty({});
-    setName('');
-    setPhone('');
-    setCash('');
-    setVoucher('');
-    // C11: including the address, or the next buyer's pick-up quietly becomes a delivery to
-    // the previous buyer's house.
-    setDeliver(false);
-    setAddrName('');
-    setAddrPhone('');
-    setAddrLine('');
-    setAddrCity('');
-    setAddrNotes('');
+    resetTill();
+    setSalesTick((n) => n + 1);
     setBusy(false);
+    focusFirstProduct();
   }
 
   /**
@@ -620,6 +842,7 @@ function WalkIn({ depotId }: { depotId: string }) {
       // Stock came back, so what the counter may sell changed with it.
       await stock.reload();
       await recent.reload();
+      setSalesTick((n) => n + 1);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t('opsFix.walkIn.voidError'), 'error');
     } finally {
@@ -657,6 +880,9 @@ function WalkIn({ depotId }: { depotId: string }) {
       <PrinterSetup open={printerOpen} onClose={() => setPrinterOpen(false)} />
 
       <CashierShiftBar depotId={depotId} onChange={(s) => setShift(s)} />
+      {shift?.status === 'OPEN' && (
+        <CounterShiftTally depotId={depotId} openedAt={shift.openedAt} refreshKey={salesTick} />
+      )}
 
       {/*
         K3.2: an unrecorded payment is not a notification, it is a job. The toast that used
@@ -712,6 +938,11 @@ function WalkIn({ depotId }: { depotId: string }) {
               <Printer size={18} className="mr-1" />
               {t('opsFix.walkIn.reprint')}
             </Button>
+            {whatsappUrl(lastSale.phone, '') !== null && (
+              <Button variant="ghost" onClick={sendReceiptWhatsapp}>
+                {t('opsFix.walkIn.sendReceipt')}
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setVoiding(lastSale.order)} disabled={busy}>
               <ArrowUUpLeft size={18} className="mr-1" />
               {t('opsFix.walkIn.voidSale')}
@@ -751,108 +982,64 @@ function WalkIn({ depotId }: { depotId: string }) {
         </Card>
       )}
 
-      {/*
-        C6: the till's own recent counter sales.
-        
-        Two holes closed by one list. The Batalkan button used to hang off the sale still in
-        React state, so a refresh left the void endpoint reachable by NO UI at all — the
-        sale was still voidable on the server and there was no way in the application to
-        reach it. And nothing anywhere showed what had been voided, or why: a reversal left
-        no trace a person could look at.
-        
-        Scoped by the server to the caller's own depot (`/orders/manage` does that already),
-        so this is not a new way to see another depot's takings.
-      */}
-      <Card className="p-0">
-        <div className="flex items-center justify-between gap-2 border-b border-app p-3">
-          <span className="text-sm font-bold">{t('opsFix.walkIn.recentTitle')}</span>
-          <span className="text-xs text-muted">{t('opsFix.walkIn.recentHint')}</span>
-        </div>
-        {recent.loading && !recent.data ? (
-          <div className="p-3">
-            <Skeleton className="h-24" />
-          </div>
-        ) : recent.error ? (
-          <div className="p-3">
-            <ErrorState message={recent.error} onRetry={recent.reload} />
-          </div>
-        ) : (recent.data?.items ?? []).length === 0 ? (
-          <p className="p-3 text-sm text-muted">{t('opsFix.walkIn.recentEmpty')}</p>
-        ) : (
-          <div className="divide-y divide-[color:var(--border)]">
-            {(recent.data?.items ?? []).map((o) => {
-              const voided = o.status === 'VOIDED';
-              return (
-                <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold tabular-nums">{o.orderNumber}</span>
-                      {voided && (
-                        <span className="rounded-full bg-[color:var(--danger-bg)] px-2 py-0.5 text-[11px] font-bold text-[color:var(--danger)]">
-                          {t('opsFix.walkIn.voidedBadge')}
-                        </span>
-                      )}
-                    </div>
-                    {/* The reason is the whole point of a void report: a reversal with no
-                        account of itself is a hole in the drawer nobody can explain. */}
-                    <div className="truncate text-xs text-muted">
-                      {voided && o.voidReason ? o.voidReason : formatDateTime(o.createdAt)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-sm tabular-nums ${voided ? 'line-through text-muted' : 'font-bold'}`}
-                    >
-                      <Money amount={o.total} />
-                    </span>
-                    {!voided && (
-                      // Up to eight rows, plus the last-sale card, all carrying the same
-                      // visible words. Without a name of its own each button announces
-                      // "Batalkan penjualan" and says nothing about WHICH sale it reverses
-                      // — for a screen reader that is nine identical buttons over a money
-                      // mutation. The visible label stays short; only the accessible name
-                      // carries the order number.
-                      <Button
-                        variant="ghost"
-                        aria-label={t('opsFix.walkIn.voidSaleOf', { order: o.orderNumber })}
-                        onClick={() => setVoiding(o)}
-                        disabled={busy}
-                      >
-                        <ArrowUUpLeft size={16} className="mr-1" />
-                        {t('opsFix.walkIn.voidSale')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+      <CounterPromoStrip rules={livePromos.data ?? []} productName={productNameById} />
+      <CounterHeldBaskets
+        held={held}
+        canResume={lines.length === 0}
+        onResume={resumeBasket}
+        onDiscard={discardHeld}
+      />
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
-        {products.map((p) => (
-          <div key={p.id} className="flex items-center justify-between gap-3 p-3">
-            <div>
-              <p className="font-medium">{p.name}</p>
-              <p className="text-xs text-muted">
-                {p.sku} · <Money amount={priceById.get(p.id) ?? p.basePrice} />
-              </p>
+        {products.map((p, i) => {
+          const left = availableById.get(p.id) ?? 0;
+          return (
+            <div
+              key={p.id}
+              className="flex items-center justify-between gap-3 p-3"
+              {...(i === 0 ? { 'data-counter-first-product': '' } : {})}
+            >
+              <div>
+                <p className="font-medium">{p.name}</p>
+                <p className="text-xs text-muted">
+                  {p.sku} · <Money amount={priceById.get(p.id) ?? p.basePrice} />
+                  {left <= LOW_STOCK && (
+                    // Said before the stepper stops, not after: a "+" that goes dead is a
+                    // cashier wondering whether the till is broken with a buyer waiting.
+                    <span className="ml-1 font-semibold text-[color:var(--danger)]">
+                      · {t('opsFix.walkIn.stockLeft', { n: left })}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <QuantityStepper
+                editable
+                label={`Quantity: ${p.name}`}
+                value={qty[p.id] ?? 0}
+                min={0}
+                // Never let the counter ring up more than the depot holds: the reservation
+                // would reject the whole sale after the buyer already agreed to it.
+                max={left}
+                onChange={(next) => setQty((q) => ({ ...q, [p.id]: next }))}
+              />
             </div>
-            <QuantityStepper
-              value={qty[p.id] ?? 0}
-              min={0}
-              // Never let the counter ring up more than the depot holds: the reservation
-              // would reject the whole sale after the buyer already agreed to it.
-              max={availableById.get(p.id) ?? 0}
-              onChange={(next) => setQty((q) => ({ ...q, [p.id]: next }))}
-            />
-          </div>
-        ))}
+          );
+        })}
         {products.length === 0 && (
           <p className="p-6 text-center text-sm text-muted">{t('opsFix.walkIn.noProducts')}</p>
         )}
       </Card>
+
+      {lines.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={holdBasket} disabled={busy}>
+            {t('opsFix.walkIn.holdBasket')}
+          </Button>
+          <Button variant="ghost" onClick={() => setQty({})} disabled={busy}>
+            {t('opsFix.walkIn.clearBasket')}
+          </Button>
+        </div>
+      )}
 
       <Card className="space-y-3 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -880,6 +1067,9 @@ function WalkIn({ depotId }: { depotId: string }) {
                 // discount belong to whoever was actually looked up, not to whatever is
                 // in the box now.
                 setBuyerId(null);
+                // …and so does a voucher picked from that buyer's list: it is theirs, and
+                // the quote would refuse it for whoever the next number belongs to.
+                if (offeredVouchers.some((v) => v.code === voucher)) setVoucher('');
               }}
               inputMode="tel"
               placeholder={t('opsFix.walkIn.buyerPhonePlaceholder')}
@@ -901,6 +1091,32 @@ function WalkIn({ depotId }: { depotId: string }) {
             </Button>
             <span className="text-xs text-muted">{t('opsFix.walkIn.identifyHint')}</span>
           </div>
+          {/* Read-only: nothing is created until the cashier taps Cek pelanggan or sells. */}
+          {lookup && (
+            <p className="text-xs font-semibold sm:col-span-2" role="status">
+              {lookup.registered
+                ? lookup.firstName
+                  ? t('opsFix.walkIn.lookupRegistered', { name: lookup.firstName })
+                  : t('opsFix.walkIn.lookupRegisteredNoName')
+                : t('opsFix.walkIn.lookupNew')}
+            </p>
+          )}
+          {/* The buyer is new but this cashier is past the depot's daily ceiling: say so, or the
+              missing promo reads as a fault at the till. */}
+          {buyerId && quote.data?.firstOrderCapped && (
+            <p className="text-xs font-semibold text-[color:var(--danger)] sm:col-span-2" role="status">
+              {t('opsFix.walkIn.firstOrderCapped')}
+            </p>
+          )}
+          {/* So the cashier knows a first-order promo is the reason the price just moved. */}
+          {buyerId && quote.data?.firstOrder && (
+            <p className="flex items-center gap-2 text-xs sm:col-span-2">
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                {t('opsFix.walkIn.newCustomerBadge')}
+              </span>
+              <span className="text-muted">{t('opsFix.walkIn.newCustomerHint')}</span>
+            </p>
+          )}
         </div>
 
         {/*
@@ -980,18 +1196,27 @@ function WalkIn({ depotId }: { depotId: string }) {
           <Field
             label={t('opsFix.reports.emptiesReturnedLabel')}
             htmlFor="wi-empties"
-            hint={t('opsFix.reports.emptiesReturnedHint')}
+            hint={emptiesHint}
           >
-            <Input
-              id="wi-empties"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={galonQty}
-              value={emptiesReturned}
-              onChange={(e) => setEmptiesReturned(e.target.value)}
-              placeholder="0"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="wi-empties"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={galonQty}
+                value={emptiesReturned}
+                onChange={(e) => setEmptiesReturned(e.target.value)}
+                placeholder="0"
+              />
+              <button
+                type="button"
+                onClick={() => setEmptiesReturned(String(galonQty))}
+                className="shrink-0 rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold"
+              >
+                {t('opsFix.walkIn.emptiesSame')}
+              </button>
+            </div>
           </Field>
         )}
 
@@ -1007,6 +1232,35 @@ function WalkIn({ depotId }: { depotId: string }) {
             placeholder={t('opsFix.walkIn.voucherPlaceholder')}
           />
         </Field>
+        {offeredVouchers.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted">{t('opsFix.walkIn.grantedVouchers')}</p>
+            <div className="flex flex-wrap gap-2">
+              {offeredVouchers.map((v) => {
+                const picked = voucher === v.code;
+                const worth =
+                  v.discountType === 'FREE_SHIPPING'
+                    ? t('opsFix.walkIn.grantedVoucherFreeShipping')
+                    : v.discountType === 'PERCENTAGE'
+                      ? t('opsFix.walkIn.grantedVoucherPercent', { pct: v.value })
+                      : formatIDR(v.value);
+                return (
+                  <Button
+                    key={v.code}
+                    type="button"
+                    variant={picked ? 'primary' : 'ghost'}
+                    aria-pressed={picked}
+                    onClick={() => setVoucher(picked ? '' : v.code)}
+                  >
+                    {v.code} · {worth}
+                    {v.minSpend > 0 &&
+                      ` · ${t('opsFix.walkIn.grantedVoucherMin', { min: formatIDR(v.minSpend) })}`}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* C12: shelf prices are now a subtotal. The discount below is the layer only the
             server knows — tier, agen band, voucher — and it is why this screen stopped
@@ -1017,10 +1271,43 @@ function WalkIn({ depotId }: { depotId: string }) {
             <Money amount={subtotal} />
           </span>
         </div>
+        {/* Why the total is not subtotal minus discount: a price promo is already out of the
+            server's subtotal, so without these rows the screen reads as a sum that does not
+            add up. PRICE rows are real deductions; the rest say what else the buyer got. */}
+        {appliedPromos
+          .filter((p) => p.effect === 'PRICE')
+          .map((p, i) => (
+            <div key={`${p.name}-${i}`} className="flex items-center justify-between text-sm">
+              <span className="text-muted">{p.name}</span>
+              <span className="tabular-nums text-[color:var(--success)]">
+                −<Money amount={p.amountIdr} />
+              </span>
+            </div>
+          ))}
+        {appliedPromos
+          .filter((p) => p.effect === 'FREE' || p.effect === 'GIFT' || p.effect === 'SHIPPING')
+          .map((p, i) => (
+            <div
+              key={`${p.name}-${i}`}
+              className="flex items-center justify-between text-[12.5px] text-[color:var(--success)]"
+            >
+              <span>{p.name}</span>
+              <span>
+                {p.effect === 'SHIPPING'
+                  ? t('opsFix.walkIn.promoShippingSaved', { amount: formatIDR(p.amountIdr) })
+                  : t('opsFix.walkIn.promoFreeValue', { amount: formatIDR(p.amountIdr) })}
+              </span>
+            </div>
+          ))}
         {(quote.data?.discountIdr ?? 0) > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-2 text-muted">
               {t('opsFix.walkIn.discount')}
+              {orderPromoNames && (
+                <span className="text-[11.5px]">
+                  ({t('opsFix.walkIn.discountIncludes', { names: orderPromoNames })})
+                </span>
+              )}
               {quote.data?.agen && (
                 <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
                   {t('opsFix.walkIn.agenPrice')}
@@ -1042,12 +1329,6 @@ function WalkIn({ depotId }: { depotId: string }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-bold">{t('hrFix.walkIn.total')}</span>
-          <span className="text-lg font-extrabold">
-            {quote.loading ? '…' : total === null ? '—' : <Money amount={total} />}
-          </span>
-        </div>
         {/* The voucher is refused HERE, before Bayar, instead of after the goods have gone. */}
         {quote.error && lines.length > 0 && (
           <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
@@ -1087,6 +1368,17 @@ function WalkIn({ depotId }: { depotId: string }) {
             <p className="text-xs text-muted">{t('opsFix.walkIn.methodOffHint')}</p>
           )}
         </fieldset>
+
+        {(method === 'QRIS' || method === 'TRANSFER') && (
+          // The buyer is about to type this number into their own app. Said once, large, at
+          // the exact spot they are looking at, instead of leaving it to the small total row.
+          <div className="text-center">
+            <p className="text-xs text-muted">{t('opsFix.walkIn.payThisAmount')}</p>
+            <p className="text-3xl font-extrabold tabular-nums">
+              {quoteFresh && total !== null ? <Money amount={total} /> : '…'}
+            </p>
+          </div>
+        )}
 
         {method === 'QRIS' && qrisUrl && (
           // A depot-uploaded URL, not a bundled asset — next/image would need the host
@@ -1128,6 +1420,13 @@ function WalkIn({ depotId }: { depotId: string }) {
                 id="wi-cash"
                 value={cash}
                 onChange={(e) => setCash(e.target.value.replace(/[^0-9]/g, ''))}
+                onKeyDown={(e) => {
+                  // Same gate as the button: Enter can never sell what the button would refuse.
+                  if (e.key === 'Enter' && !payDisabled) {
+                    e.preventDefault();
+                    void submit();
+                  }
+                }}
                 inputMode="numeric"
                 placeholder={t('opsFix.walkIn.cashPlaceholder')}
               />
@@ -1169,31 +1468,124 @@ function WalkIn({ depotId }: { depotId: string }) {
           </>
         )}
 
-        <Button
-          className="w-full"
-          onClick={() => void submit()}
-          /*
-            K3.3. `shiftOpen === undefined` — the bar has not answered yet — used to leave
-            this ENABLED, defended as "a slow check never blocks a queue of buyers, and the
-            server refuses anyway". The server does refuse, so nothing was sold twice; what
-            the cashier got was a refusal with no reason, in front of the buyer, because a
-            read had not landed. Waiting and saying so is the same protection with an
-            explanation attached.
-          */
-          // A name-based locator cannot find a button whose label changes with the state
-          // being diagnosed — which is exactly what K3.3 made this label do.
-          data-testid="counter-pay"
-          disabled={busy || lines.length === 0 || shiftOpen !== true || total === null}
-        >
-          <Printer size={18} className="mr-1" />
-          {shiftOpen === undefined
-            ? t('opsFix.walkIn.checkingShift')
-            : shiftOpen === false
-              ? t('opsFix.walkIn.openShiftFirst')
-              : method === 'CASH'
-                ? t('opsFix.walkIn.saveAndPrint')
-                : t('opsFix.walkIn.paidAndPrint')}
-        </Button>
+        {/*
+          The total and Bayar stay on screen while the cashier scrolls the form above them.
+          On a tablet the form is several screens long, and the button used to be at the very
+          end of it. The bottom padding follows the safe-area inset (custom property first,
+          env() as the fallback) so it is never under a system bar.
+        */}
+        <div className="surface sticky bottom-0 z-10 -mx-4 -mb-4 space-y-2 rounded-b-2xl border-t border-app p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-bold">{t('hrFix.walkIn.total')}</span>
+            <span className="text-lg font-extrabold">
+              {quote.loading ? '…' : total === null ? '—' : <Money amount={total} />}
+            </span>
+          </div>
+          <Button
+            className="w-full"
+            onClick={() => void submit()}
+            /*
+              K3.3. `shiftOpen === undefined` — the bar has not answered yet — used to leave
+              this ENABLED, defended as "a slow check never blocks a queue of buyers, and the
+              server refuses anyway". The server does refuse, so nothing was sold twice; what
+              the cashier got was a refusal with no reason, in front of the buyer, because a
+              read had not landed. Waiting and saying so is the same protection with an
+              explanation attached.
+            */
+            // A name-based locator cannot find a button whose label changes with the state
+            // being diagnosed — which is exactly what K3.3 made this label do.
+            data-testid="counter-pay"
+            disabled={payDisabled}
+          >
+            <Printer size={18} className="mr-1" />
+            {shiftOpen === undefined
+              ? t('opsFix.walkIn.checkingShift')
+              : shiftOpen === false
+                ? t('opsFix.walkIn.openShiftFirst')
+                : method === 'CASH'
+                  ? t('opsFix.walkIn.saveAndPrint')
+                  : t('opsFix.walkIn.paidAndPrint')}
+          </Button>
+        </div>
+      </Card>
+
+      {/*
+        C6: the till's own recent counter sales.
+
+        Two holes closed by one list. The Batalkan button used to hang off the sale still in
+        React state, so a refresh left the void endpoint reachable by NO UI at all — the
+        sale was still voidable on the server and there was no way in the application to
+        reach it. And nothing anywhere showed what had been voided, or why: a reversal left
+        no trace a person could look at.
+
+        Scoped by the server to the caller's own depot (`/orders/manage` does that already),
+        so this is not a new way to see another depot's takings.
+      */}
+      <Card className="p-0">
+        <div className="flex items-center justify-between gap-2 border-b border-app p-3">
+          <span className="text-sm font-bold">{t('opsFix.walkIn.recentTitle')}</span>
+          <span className="text-xs text-muted">{t('opsFix.walkIn.recentHint')}</span>
+        </div>
+        {recent.loading && !recent.data ? (
+          <div className="p-3">
+            <Skeleton className="h-24" />
+          </div>
+        ) : recent.error ? (
+          <div className="p-3">
+            <ErrorState message={recent.error} onRetry={recent.reload} />
+          </div>
+        ) : (recent.data?.items ?? []).length === 0 ? (
+          <p className="p-3 text-sm text-muted">{t('opsFix.walkIn.recentEmpty')}</p>
+        ) : (
+          <div className="divide-y divide-[color:var(--border)]">
+            {(recent.data?.items ?? []).map((o) => {
+              const voided = o.status === 'VOIDED';
+              return (
+                <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold tabular-nums">{o.orderNumber}</span>
+                      {voided && (
+                        <span className="rounded-full bg-[color:var(--danger-bg)] px-2 py-0.5 text-[11px] font-bold text-[color:var(--danger)]">
+                          {t('opsFix.walkIn.voidedBadge')}
+                        </span>
+                      )}
+                    </div>
+                    {/* The reason is the whole point of a void report: a reversal with no
+                        account of itself is a hole in the drawer nobody can explain. */}
+                    <div className="truncate text-xs text-muted">
+                      {voided && o.voidReason ? o.voidReason : formatDateTime(o.createdAt)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-sm tabular-nums ${voided ? 'line-through text-muted' : 'font-bold'}`}
+                    >
+                      <Money amount={o.total} />
+                    </span>
+                    {!voided && (
+                      // Up to eight rows, plus the last-sale card, all carrying the same
+                      // visible words. Without a name of its own each button announces
+                      // "Batalkan penjualan" and says nothing about WHICH sale it reverses
+                      // — for a screen reader that is nine identical buttons over a money
+                      // mutation. The visible label stays short; only the accessible name
+                      // carries the order number.
+                      <Button
+                        variant="ghost"
+                        aria-label={t('opsFix.walkIn.voidSaleOf', { order: o.orderNumber })}
+                        onClick={() => setVoiding(o)}
+                        disabled={busy}
+                      >
+                        <ArrowUUpLeft size={16} className="mr-1" />
+                        {t('opsFix.walkIn.voidSale')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
     </div>
   );

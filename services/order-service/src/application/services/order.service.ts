@@ -58,12 +58,18 @@ import {
   SCHEDULE_HORIZON_DAYS,
   validateSchedule,
 } from '../../domain/delivery-schedule';
-import { computePpn } from '@hydromart/platform';
+import { computePpn, dayStartUtc } from '@hydromart/platform';
 import { TaxRatePort } from '../ports/tax-rate.port';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
-import { applyPromoQuote, stockLinesFor, voucherLinesFor } from '../../domain/promo-adjustment';
+import {
+  AppliedPromoSummary,
+  applyPromoQuote,
+  stockLinesFor,
+  summarizeAppliedPromos,
+  voucherLinesFor,
+} from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -164,6 +170,12 @@ export interface CounterBasketQuote {
   /** Item 5 (#11): the order discount already inside `discount`, and the rule that gave it. */
   promoOrderDiscount: number;
   orderDiscountRuleId: string | null;
+  /** The promos that changed this basket, by name — what the cashier's screen lists. */
+  appliedPromos: AppliedPromoSummary[];
+  /** No earlier active/completed order for this buyer, AND the cashier is under their daily ceiling. */
+  firstOrder: boolean;
+  /** A new buyer who would have had the first-order promo, held back by the cashier's daily ceiling. */
+  firstOrderCapped: boolean;
   /** I-3: the shipping-promo fields `walkInSale`'s audit call needs, carried out of the
    *  single quote `priceCounterBasket` now runs — 0/null for a pick-up. */
   shippingAppliedRuleId: string | null;
@@ -1170,6 +1182,7 @@ export class OrderService {
       input.lines,
       input.voucherCode,
       wantsDelivery,
+      user.sub,
     );
 
     // #27: validated against the PRICED basket's own galon count, not the raw line
@@ -2351,6 +2364,28 @@ export class OrderService {
    * first-order discount handed to a repeat customer by mistake costs more than one withheld
    * from a new customer by a failed read.
    */
+  /**
+   * Whether this cashier has already given the first-order promo to as many buyers today as the
+   * depot allows. Fails CLOSED like `isFirstOrder`: if today's count cannot be read the promo is
+   * withheld, never handed out unchecked — the sale itself is not blocked either way.
+   * No cashier named (an internal caller) means no ceiling to apply.
+   */
+  private async counterFirstOrderCapReached(depotId: string, cashierId?: string): Promise<boolean> {
+    if (!cashierId) return false;
+    try {
+      const tz = this.config.businessTimeZone;
+      const now = new Date();
+      const rows = await this.orders.firstTimeBuyersByCashier(depotId, {
+        from: dayStartUtc(localDayKey(now, tz), tz),
+        to: new Date(now.getTime() + 1000),
+      });
+      const served = rows.find((r) => r.cashierId === cashierId)?.count ?? 0;
+      return served >= this.config.counterFirstOrderDailyCap(depotId);
+    } catch {
+      return true;
+    }
+  }
+
   private async isFirstOrder(customerId: string): Promise<boolean> {
     if (customerId === ANONYMOUS_CUSTOMER_ID) return false;
     try {
@@ -2560,6 +2595,9 @@ export class OrderService {
      * delivery one is how a till loses the difference.
      */
     wantsDelivery = false,
+    /** Who is at the till: the first-order daily ceiling is per cashier, and the quote must
+     *  apply the same one the sale will. */
+    cashierId?: string,
   ): Promise<CounterBasketQuote> {
     if (lines.length === 0) throw new EmptyCartError();
     void authorization;
@@ -2578,7 +2616,33 @@ export class OrderService {
       lines,
       voucherCode,
       wantsDelivery,
+      cashierId,
     );
+  }
+
+  /**
+   * A cashier's own tally since their shift opened: how many sales and how much, all payment
+   * methods together.
+   *
+   * Deliberately NOT the drawer: no cash/non-cash split and no "should be in the till". The
+   * close counts the drawer blind — the cashier enters what they counted and the server knows
+   * what it should hold — and a number that revealed the second would let a short drawer be
+   * counted into balance. Voids are already excluded by the report query.
+   */
+  async counterShiftSummary(
+    user: AuthenticatedUser,
+    depotId: string,
+    from: Date,
+    now: Date = new Date(),
+  ): Promise<{ orderCount: number; revenueIdr: number }> {
+    assertDepotAccess(user, depotId);
+    // `to` is exclusive in the report query; a second of slack keeps a sale rung this instant.
+    const rows = await this.orders.cashierSalesForDepot(depotId, {
+      from,
+      to: new Date(now.getTime() + 1000),
+    });
+    const mine = rows.find((r) => r.cashierId === user.sub);
+    return { orderCount: mine?.orderCount ?? 0, revenueIdr: mine?.revenue ?? 0 };
   }
 
   /**
@@ -2635,6 +2699,8 @@ export class OrderService {
      *  charged at all. The fee itself is computed below, from the SAME promo quote the
      *  item-level pricing uses. */
     wantsDelivery = false,
+    /** The cashier ringing this up, for the daily first-order ceiling. Absent = not capped. */
+    cashierId?: string,
   ): Promise<CounterBasketQuote> {
     const { items: pricedItems, tierPricedTotal, tieredProductIds, categoryIdByProductId, catalogFallback } =
       await this.priceLines(depotId, lines);
@@ -2643,7 +2709,11 @@ export class OrderService {
     // Global Constraints). `channel: 'COUNTER'` is how a Senin-Optimis-style counter-only
     // rule distinguishes itself from an app order. ONE call for both the item-level discount
     // below and the shipping-fee math (Fix I-3) — see the method doc.
-    const firstOrder = await this.isFirstOrder(customerId);
+    const isNewBuyer = await this.isFirstOrder(customerId);
+    const firstOrderCapped = isNewBuyer && (await this.counterFirstOrderCapReached(depotId, cashierId));
+    // A buyer over the cashier's daily ceiling is still served — just without the promo that
+    // is only for new customers. Quote and sale both pass through here, so they cannot differ.
+    const firstOrder = isNewBuyer && !firstOrderCapped;
     const autoPromoQuote = await this.promoAutoApply.quote(
       depotId,
       'COUNTER',
@@ -2669,6 +2739,7 @@ export class OrderService {
     let shippingAppliedRuleId: string | null = null;
     let shippingFeeOverride: number | null = null;
     let originalShippingFee = 0;
+    let shippingSaved = 0;
     if (wantsDelivery) {
       const depots = await this.depotDirectory.listActiveDepots();
       const depot = depots?.find((d) => d.id === depotId);
@@ -2684,6 +2755,7 @@ export class OrderService {
       const perGalonFee =
         shippingFeeOverride != null ? Math.min(shippingFeeOverride, depot.deliveryFee) : depot.deliveryFee;
       shippingFee = money(perGalonFee * galonQuantity(items));
+      shippingSaved = money((depot.deliveryFee - perGalonFee) * galonQuantity(items));
     }
 
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
@@ -2717,6 +2789,15 @@ export class OrderService {
       promoGifts,
       promoOrderDiscount,
       orderDiscountRuleId: autoPromoQuote.orderDiscountRuleId ?? null,
+      firstOrder,
+      firstOrderCapped,
+      appliedPromos: summarizeAppliedPromos({
+        appliedLines,
+        orderDiscount: { ruleId: autoPromoQuote.orderDiscountRuleId ?? null, amount: promoOrderDiscount },
+        shipping: { ruleId: shippingAppliedRuleId, saved: shippingSaved },
+        gifts: promoGifts.audit,
+        ruleNames: autoPromoQuote.ruleNames ?? {},
+      }),
       shippingAppliedRuleId,
       shippingFeeOverride,
       originalShippingFee,

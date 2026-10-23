@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
@@ -29,6 +30,7 @@ import {
   AutoApplyApplyDto,
   AutoApplyQuoteDto,
   CreatePromoRuleDto,
+  ActivePromoRulesQueryDto,
   SimulatePromoRulesDto,
   UpdatePromoRuleDto,
 } from './dto/promo-rule.dto';
@@ -56,6 +58,7 @@ const toQuoteResponse = (result: QuoteOutput): AutoApplyQuoteResponseDto => ({
   orderDiscountRuleId: result.orderDiscount.appliedRuleId,
   orderDiscountAmount: result.orderDiscount.amount,
   gifts: result.gifts,
+  ruleNames: result.ruleNames,
 });
 
 @ApiTags('Promo Rules')
@@ -87,6 +90,22 @@ export class PromoRuleController {
       totalDiscount: r.totalDiscount,
       lastAppliedAt: r.lastAppliedAt ? r.lastAppliedAt.toISOString() : null,
     }));
+  }
+
+  // The cashier's "promo aktif" strip. Declared BEFORE `promo-rules/:id`. `walkInSale`, not
+  // `promoRuleRead`: the people ringing up a sale need to see what the till will apply, and
+  // that should not be a reason to hand them the rule editor's read access.
+  @ApiOkResponse({ type: PromoRuleResponseDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('walkInSale')
+  @Get('promo-rules/active')
+  @ApiOperation({ summary: 'Rules a counter at this depot can fire right now (cashier screen)' })
+  active(
+    @Query() query: ActivePromoRulesQueryDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<PromoRuleRecord[]> {
+    assertDepotAccess(user, query.depotId);
+    return this.promoRules.activeNow(query.depotId, 'COUNTER');
   }
 
   @ApiOkResponse({ type: AutoApplyQuoteResponseDto })

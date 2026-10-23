@@ -1,6 +1,6 @@
 import { CreateOrderItemData } from '../../src/application/ports/order.repository';
 import { AutoApplyQuoteResult } from '../../src/application/ports/promo-auto-apply.port';
-import { applyPromoQuote, stockLinesFor } from '../../src/domain/promo-adjustment';
+import { applyPromoQuote, stockLinesFor, summarizeAppliedPromos } from '../../src/domain/promo-adjustment';
 
 const item = (overrides: Partial<CreateOrderItemData> = {}): CreateOrderItemData => ({
   productId: 'p1',
@@ -182,5 +182,105 @@ describe('applyPromoQuote matches quote.lines to items BY POSITION', () => {
       { productId: 'p1', unitPrice: 8000, quantity: 4, appliedRuleIds: ['bogo-1'], unitPriceAfter: 8000, freeQty: 1 },
       { productId: 'p1', unitPrice: 8000, quantity: 1, appliedRuleIds: [], unitPriceAfter: 8000, freeQty: 0 },
     ]);
+  });
+});
+
+describe('summarizeAppliedPromos', () => {
+  const line = (o: Partial<Parameters<typeof summarizeAppliedPromos>[0]['appliedLines'][number]> = {}) => ({
+    productId: 'p1',
+    unitPrice: 8000,
+    quantity: 3,
+    appliedRuleIds: [] as string[],
+    unitPriceAfter: 8000,
+    freeQty: 0,
+    ...o,
+  });
+  const none = {
+    orderDiscount: { ruleId: null, amount: 0 },
+    shipping: { ruleId: null, saved: 0 },
+    gifts: [],
+  };
+
+  it('values a price cut as the unit drop times the quantity', () => {
+    const out = summarizeAppliedPromos({
+      ...none,
+      appliedLines: [line({ appliedRuleIds: ['r1'], unitPriceAfter: 6000 })],
+      ruleNames: { r1: 'Jumat Berkah' },
+    });
+    expect(out).toEqual([{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }]);
+  });
+
+  it('values free units at their post-discount price, the way apply() records them', () => {
+    const out = summarizeAppliedPromos({
+      ...none,
+      appliedLines: [line({ appliedRuleIds: ['b1'], freeQty: 3, unitPriceAfter: 8000 })],
+      ruleNames: { b1: 'Beli 1 Gratis 1' },
+    });
+    expect(out).toEqual([{ name: 'Beli 1 Gratis 1', effect: 'FREE', amountIdr: 24000 }]);
+  });
+
+  it('keeps a price rule and a free-unit rule on the same line apart', () => {
+    const out = summarizeAppliedPromos({
+      ...none,
+      appliedLines: [line({ appliedRuleIds: ['p1', 'b1'], unitPriceAfter: 6000, freeQty: 1 })],
+      ruleNames: { p1: 'Harga Khusus', b1: 'Beli 3 Gratis 1' },
+    });
+    expect(out).toEqual([
+      { name: 'Harga Khusus', effect: 'PRICE', amountIdr: 6000 },
+      { name: 'Beli 3 Gratis 1', effect: 'FREE', amountIdr: 6000 },
+    ]);
+  });
+
+  it('adds one rule across several lines into a single entry, biggest first', () => {
+    const out = summarizeAppliedPromos({
+      ...none,
+      appliedLines: [
+        line({ productId: 'a', appliedRuleIds: ['r1'], unitPriceAfter: 7000, quantity: 1 }),
+        line({ productId: 'b', appliedRuleIds: ['r1'], unitPriceAfter: 7000, quantity: 2 }),
+        line({ productId: 'c', appliedRuleIds: ['r2'], unitPriceAfter: 7500, quantity: 1 }),
+      ],
+      ruleNames: { r1: 'A', r2: 'B' },
+    });
+    expect(out).toEqual([
+      { name: 'A', effect: 'PRICE', amountIdr: 3000 },
+      { name: 'B', effect: 'PRICE', amountIdr: 500 },
+    ]);
+  });
+
+  it('lists the order discount, the shipping saving and the gift', () => {
+    const out = summarizeAppliedPromos({
+      appliedLines: [],
+      orderDiscount: { ruleId: 'o1', amount: 5000 },
+      shipping: { ruleId: 's1', saved: 1500 },
+      gifts: [{ promoRuleId: 'g1', value: 3000 }],
+      ruleNames: { o1: 'Belanja Hemat', s1: 'Ongkir Murah', g1: 'Bonus Tutup' },
+    });
+    expect(out).toEqual([
+      { name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 5000 },
+      { name: 'Bonus Tutup', effect: 'GIFT', amountIdr: 3000 },
+      { name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 1500 },
+    ]);
+  });
+
+  it('skips a rule with nothing taken off, and a rule whose name was not sent', () => {
+    const out = summarizeAppliedPromos({
+      appliedLines: [line({ appliedRuleIds: ['unnamed'], unitPriceAfter: 6000 })],
+      orderDiscount: { ruleId: 'o1', amount: 0 },
+      shipping: { ruleId: 's1', saved: 0 },
+      gifts: [],
+      ruleNames: {},
+    });
+    expect(out).toEqual([]);
+  });
+
+  it('does not guess when a line claims more rules than it won', () => {
+    // promo-service pushes exactly one id per win; a mismatch means the line is not what it
+    // says, and a wrong name on the till is worse than none.
+    const out = summarizeAppliedPromos({
+      ...none,
+      appliedLines: [line({ appliedRuleIds: ['r1', 'r2'], unitPriceAfter: 6000 })],
+      ruleNames: { r1: 'A', r2: 'B' },
+    });
+    expect(out).toEqual([]);
   });
 });

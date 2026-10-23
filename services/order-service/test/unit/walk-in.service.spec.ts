@@ -73,6 +73,7 @@ describe('OrderService.walkInSale', () => {
   let resellerDiscount: FakeResellerDiscount;
   let service: OrderService;
 
+  let config: ReturnType<typeof buildTestConfig>;
   const operator: AuthenticatedUser = {
     sub: 'op-1',
     role: 'KEPALA_DEPOT' as never,
@@ -102,6 +103,7 @@ describe('OrderService.walkInSale', () => {
     shift = new FakeCashierShift();
     paymentReversal = new FakePaymentReversal();
     depots.owners.set(DEPOT, 'owner-1');
+    config = buildTestConfig();
     service = new OrderService(
       orders,
       cart,
@@ -118,7 +120,7 @@ describe('OrderService.walkInSale', () => {
       promoAutoApply,
       inventory,
       buildCartService(cart, catalog),
-      buildTestConfig(),
+      config,
       recommendation,
       forecast,
       franchiseRevenue,
@@ -726,6 +728,234 @@ describe('OrderService.walkInSale', () => {
         null,
       );
       expect(quote.shippingFee).toBe(0);
+    });
+
+    it('names the promos behind the total, so the till can say why it is not subtotal minus discount', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 3 }];
+      const base = await service.quoteCounterBasket(null, DEPOT, lines, null, '', true);
+      const depotFee = base.shippingFee / 3;
+
+      promoAutoApply.quoteResult = {
+        lines: [
+          { productId: product.id, appliedRuleIds: ['price-1'], unitPriceAfter: 18000, freeQty: 0, lineTotal: 54000 },
+        ],
+        shippingAppliedRuleId: 'ship-1',
+        shippingFeeOverride: depotFee - 100,
+        orderDiscountRuleId: 'ord-1',
+        orderDiscountAmount: 2000,
+        ruleNames: { 'price-1': 'Jumat Berkah', 'ship-1': 'Ongkir Murah', 'ord-1': 'Belanja Hemat' },
+      };
+
+      const quote = await service.quoteCounterBasket(null, DEPOT, lines, null, '', true);
+
+      expect(quote.appliedPromos).toEqual([
+        { name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 },
+        { name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 2000 },
+        { name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 300 },
+      ]);
+      // The numbers the names explain: price cut out of the subtotal, order discount inside
+      // `discount`, ongkir already reduced by the override.
+      expect(quote.subtotal).toBe(54000);
+      expect(quote.discount).toBe(2000);
+      expect(quote.shippingFee).toBe((depotFee - 100) * 3);
+    });
+
+    describe('the first-order promo has a daily ceiling per cashier', () => {
+      const newBuyer = () => randomUUID();
+      const lines = () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+        return [{ productId: p.id, quantity: 1 }];
+      };
+      // The in-memory repository stamps its own clock; the ceiling counts "today", so the rows
+      // are moved onto the real clock.
+      // In creation order, a second apart: two sales to one buyer are never in the same instant.
+      const today = () => {
+        const base = Date.now() - 60_000;
+        orders.rows.forEach((r, i) => (r.createdAt = new Date(base + i * 1000)));
+      };
+      const sellTo = async (user: AuthenticatedUser, buyer: string) => {
+        await service.walkInSale(user, { depotId: DEPOT, lines: lines(), customerId: buyer });
+        today();
+      };
+      const quoteFor = (buyer: string, cashier?: string) =>
+        service.quoteCounterBasket(buyer, DEPOT, lines(), null, '', false, cashier);
+      const otherCashier: AuthenticatedUser = { ...operator, sub: 'op-9', phone: '09' };
+
+      beforeEach(() => {
+        jest.spyOn(config, 'counterFirstOrderDailyCap').mockReturnValue(2);
+      });
+
+      it('still gives the promo while the cashier is under the ceiling', async () => {
+        await sellTo(operator, newBuyer());
+        const q = await quoteFor(newBuyer(), operator.sub);
+        expect(q.firstOrder).toBe(true);
+        expect(q.firstOrderCapped).toBe(false);
+      });
+
+      it('withholds it from the next new buyer once the ceiling is reached, and says why', async () => {
+        await sellTo(operator, newBuyer());
+        await sellTo(operator, newBuyer());
+        const q = await quoteFor(newBuyer(), operator.sub);
+        expect(q.firstOrder).toBe(false);
+        expect(q.firstOrderCapped).toBe(true);
+        // The buyer is still priced and can still be served.
+        expect(q.total).toBeGreaterThan(0);
+      });
+
+      it('applies the same ceiling to the sale, so the till never quotes a price the sale does not charge', async () => {
+        await sellTo(operator, newBuyer());
+        await sellTo(operator, newBuyer());
+        const third = newBuyer();
+        const quote = await quoteFor(third, operator.sub);
+        await service.walkInSale(operator, { depotId: DEPOT, lines: lines(), customerId: third });
+        expect(promoAutoApply.quoteCalls.at(-1)?.firstOrder).toBe(false);
+        expect(quote.firstOrder).toBe(false);
+      });
+
+      it('does not spend the ceiling on a buyer who has bought before', async () => {
+        const regular = newBuyer();
+        await sellTo(operator, regular);
+        await sellTo(operator, regular); // not a first-time sale
+        await sellTo(operator, regular);
+        const q = await quoteFor(newBuyer(), operator.sub);
+        expect(q.firstOrder).toBe(true);
+      });
+
+      it('counts per cashier, not for the whole till', async () => {
+        await sellTo(operator, newBuyer());
+        await sellTo(operator, newBuyer());
+        expect((await quoteFor(newBuyer(), operator.sub)).firstOrderCapped).toBe(true);
+        expect((await quoteFor(newBuyer(), otherCashier.sub)).firstOrder).toBe(true);
+      });
+
+      it('counts only today: yesterday’s new buyers do not use today’s ceiling', async () => {
+        await sellTo(operator, newBuyer());
+        await sellTo(operator, newBuyer());
+        orders.rows.forEach((r) => (r.createdAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)));
+        expect((await quoteFor(newBuyer(), operator.sub)).firstOrder).toBe(true);
+      });
+
+      it('still counts a first sale that was voided, so sell-then-void cannot hand the promo out again', async () => {
+        jest.spyOn(config, 'counterFirstOrderDailyCap').mockReturnValue(1);
+        await sellTo(operator, newBuyer());
+        orders.rows[0]!.status = 'VOIDED' as never;
+        expect((await quoteFor(newBuyer(), operator.sub)).firstOrderCapped).toBe(true);
+      });
+
+      it('lets a depot switch the promo off at its counter with a ceiling of 0', async () => {
+        jest.spyOn(config, 'counterFirstOrderDailyCap').mockReturnValue(0);
+        const q = await quoteFor(newBuyer(), operator.sub);
+        expect(q.firstOrder).toBe(false);
+        expect(q.firstOrderCapped).toBe(true);
+      });
+
+      it('withholds the promo, and still quotes, when today’s count cannot be read', async () => {
+        jest.spyOn(orders, 'firstTimeBuyersByCashier').mockRejectedValue(new Error('db down'));
+        const q = await quoteFor(newBuyer(), operator.sub);
+        expect(q.firstOrder).toBe(false);
+        expect(q.firstOrderCapped).toBe(true);
+        expect(q.total).toBeGreaterThan(0);
+      });
+
+      it('applies no ceiling when no cashier is named, and none to a buyer who is not new', async () => {
+        jest.spyOn(config, 'counterFirstOrderDailyCap').mockReturnValue(0);
+        expect((await quoteFor(newBuyer())).firstOrder).toBe(true);
+        expect((await service.quoteCounterBasket(null, DEPOT, lines(), null, '', false, operator.sub)).firstOrderCapped).toBe(false);
+      });
+    });
+
+    describe('firstOrder', () => {
+      const BUYER = '22222222-2222-4222-8222-222222222222';
+      const oneGalon = () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+        return [{ productId: p.id, quantity: 1 }];
+      };
+
+      it('is false for a buyer nobody has identified', async () => {
+        const quote = await service.quoteCounterBasket(null, DEPOT, oneGalon(), null);
+        expect(quote.firstOrder).toBe(false);
+      });
+
+      it('is true for an identified buyer with no order yet, and false once they have one', async () => {
+        const lines = oneGalon();
+        expect((await service.quoteCounterBasket(BUYER, DEPOT, lines, null)).firstOrder).toBe(true);
+
+        await service.walkInSale(operator, { depotId: DEPOT, lines, customerId: BUYER });
+        expect((await service.quoteCounterBasket(BUYER, DEPOT, lines, null)).firstOrder).toBe(false);
+      });
+    });
+
+    describe('counterShiftSummary', () => {
+      const lines = () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+        return [{ productId: p.id, quantity: 1 }];
+      };
+      // The in-memory repository stamps its own deterministic clock, so the window is built
+      // from the sale's own createdAt rather than from the wall clock.
+      const SHIFT_OPENED = new Date(0);
+      const NOW = new Date('2999-01-01T00:00:00Z');
+      const other: AuthenticatedUser = { ...operator, sub: 'op-2', phone: '09' };
+
+      it("counts this cashier's sales and their value, and nobody else's", async () => {
+        await service.walkInSale(operator, { depotId: DEPOT, lines: lines() });
+        await service.walkInSale(operator, { depotId: DEPOT, lines: lines() });
+        await service.walkInSale(other, { depotId: DEPOT, lines: lines() });
+
+        await expect(service.counterShiftSummary(operator, DEPOT, SHIFT_OPENED, NOW)).resolves.toEqual({
+          orderCount: 2,
+          revenueIdr: 40000,
+        });
+        await expect(service.counterShiftSummary(other, DEPOT, SHIFT_OPENED, NOW)).resolves.toEqual({
+          orderCount: 1,
+          revenueIdr: 20000,
+        });
+      });
+
+      it('leaves out sales from before the shift opened', async () => {
+        const sale = await service.walkInSale(operator, { depotId: DEPOT, lines: lines() });
+        const afterSale = new Date(sale.createdAt.getTime() + 1);
+        await expect(service.counterShiftSummary(operator, DEPOT, afterSale, NOW)).resolves.toEqual({
+          orderCount: 0,
+          revenueIdr: 0,
+        });
+        await expect(service.counterShiftSummary(operator, DEPOT, sale.createdAt, NOW)).resolves.toEqual({
+          orderCount: 1,
+          revenueIdr: 20000,
+        });
+      });
+
+      it('is zero for a cashier who has sold nothing', async () => {
+        await expect(service.counterShiftSummary(operator, DEPOT, SHIFT_OPENED, NOW)).resolves.toEqual({
+          orderCount: 0,
+          revenueIdr: 0,
+        });
+      });
+
+      it("refuses another depot's tally", async () => {
+        await expect(
+          service.counterShiftSummary(operator, '99999999-9999-4999-8999-999999999999', SHIFT_OPENED, NOW),
+        ).rejects.toThrow();
+      });
+    });
+
+    it('lists no promos for a basket nothing applied to', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const quote = await service.quoteCounterBasket(null, DEPOT, [{ productId: product.id, quantity: 1 }], null);
+      expect(quote.appliedPromos).toEqual([]);
+    });
+
+    it('lists no shipping saving for a pick-up even when a shipping rule matched', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      promoAutoApply.quoteResult = {
+        lines: [],
+        shippingAppliedRuleId: 'ship-1',
+        shippingFeeOverride: 0,
+        ruleNames: { 'ship-1': 'Ongkir Murah' },
+      };
+      const quote = await service.quoteCounterBasket(null, DEPOT, [{ productId: product.id, quantity: 2 }], null);
+      expect(quote.shippingFee).toBe(0);
+      expect(quote.appliedPromos).toEqual([]);
     });
 
     it('sells nothing: no stock held, no order written', async () => {

@@ -44,6 +44,8 @@ export interface AutoApplyQuoteResult {
   orderDiscountRuleId?: string | null;
   orderDiscountAmount?: number;
   gifts?: AutoApplyGift[];
+  /** Display name of every rule that won something, by rule id. Absent on an older promo-service. */
+  ruleNames?: Record<string, string>;
 }
 
 /** One cart line as it was ORIGINALLY priced, plus what a prior `quote()` call decided for it. */

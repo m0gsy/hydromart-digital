@@ -13,6 +13,7 @@ import {
   evaluateLine,
   evaluateOrderDiscount,
   evaluateShipping,
+  ruleIsLive,
 } from '../../domain/promo-rule';
 import { PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
 import {
@@ -43,6 +44,8 @@ export interface QuoteOutput {
   orderDiscount: OrderDiscountResult;
   /** Free products from BUNDLE_GIFT rules. The caller decides whether it can deliver them. */
   gifts: GiftResult[];
+  /** Display name of every rule that won anything above, keyed by rule id (for the receipt/till). */
+  ruleNames: Record<string, string>;
 }
 
 export interface ApplyOriginalLine {
@@ -158,12 +161,38 @@ export class PromoRuleService {
     // The subtotal an ORDER_DISCOUNT is judged on: every line after its item promos (a
     // wholesale line comes back untouched, at its own price).
     const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
-    return {
-      lines,
-      shipping: evaluateShipping(candidates, ctx),
-      orderDiscount: evaluateOrderDiscount(candidates, ctx, subtotal),
-      gifts: evaluateGifts(candidates, input.lines, ctx),
+    const shipping = evaluateShipping(candidates, ctx);
+    const orderDiscount = evaluateOrderDiscount(candidates, ctx, subtotal);
+    const gifts = evaluateGifts(candidates, input.lines, ctx);
+    const won = new Set<string>([
+      ...lines.flatMap((l) => l.appliedRuleIds),
+      ...gifts.map((g) => g.promoRuleId),
+    ]);
+    if (shipping.appliedRuleId) won.add(shipping.appliedRuleId);
+    if (orderDiscount.appliedRuleId) won.add(orderDiscount.appliedRuleId);
+    const ruleNames: Record<string, string> = {};
+    for (const r of candidates) if (won.has(r.id)) ruleNames[r.id] = r.name;
+    return { lines, shipping, orderDiscount, gifts, ruleNames };
+  }
+
+  /**
+   * Rules a counter at `depotId` could fire right now, for the cashier's "promo aktif" strip:
+   * the same live-ness test the quote uses (window, weekday, hours, channel), minus anything
+   * that depends on the basket. A first-order-only rule is listed — the strip says so.
+   */
+  async activeNow(
+    depotId: string,
+    channel: PromoRuleChannel,
+    occurredAt: Date = new Date(),
+  ): Promise<PromoRuleRecord[]> {
+    const candidates = await this.repo.findActiveCandidates([depotId], occurredAt);
+    const ctx: EvaluationContext = {
+      channel,
+      occurredAt,
+      timeZone: this.config.businessTimeZone,
+      depotId,
     };
+    return candidates.filter((r) => ruleIsLive(r, ctx)) as PromoRuleRecord[];
   }
 
   /**

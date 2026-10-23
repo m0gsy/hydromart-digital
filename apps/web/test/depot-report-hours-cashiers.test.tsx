@@ -108,8 +108,8 @@ describe('HourChart', () => {
 
 describe('CashierSales', () => {
   const rows: DepotDailyCashier[] = [
-    { cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50_000 },
-    { cashierId: 'c-sari', label: null, orders: 1, revenueIdr: 20_000 },
+    { cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50_000, newBuyers: 3 },
+    { cashierId: 'c-sari', label: null, orders: 1, revenueIdr: 20_000, newBuyers: 0 },
   ];
 
   it('lists each cashier with their orders and revenue, and falls back to the id when there is no label', () => {
@@ -119,9 +119,26 @@ describe('CashierSales', () => {
     );
     expect(cells[0]?.[0]).toBe('0811');
     expect(cells[0]?.[1]).toBe('2');
-    expect(cells[0]?.[2]).toMatch(/50\.000/);
+    expect(cells[0]?.[3]).toMatch(/50\.000/);
     expect(cells[1]?.[0]).toBe('c-sari');
     expect(cells[1]?.[1]).toBe('1');
+  });
+
+  it('shows how many first-time buyers each cashier served, the number the daily ceiling counts', () => {
+    const { container } = render(<CashierSales rows={rows} />);
+    const cells = Array.from(container.querySelectorAll('tbody tr')).map((tr) =>
+      Array.from(tr.children).map((td) => td.textContent),
+    );
+    expect(screen.getByText('opsFix.reports.newBuyers')).toBeTruthy();
+    expect(cells[0]?.[2]).toBe('3');
+    expect(cells[1]?.[2]).toBe('0');
+  });
+
+  it('shows a dash, not 0, against a server that predates the count', () => {
+    const { container } = render(
+      <CashierSales rows={[{ cashierId: 'c-budi', label: '0811', orders: 2, revenueIdr: 50_000 }]} />,
+    );
+    expect(container.querySelector('tbody tr')?.children[2]?.textContent).toBe('—');
   });
 
   it('shows sales rung before the cashier was recorded as their own line, and explains it once', () => {
