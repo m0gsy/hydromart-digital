@@ -59,16 +59,23 @@ export class PushService {
    * Push a payload to every device a customer registered. Best-effort: dead endpoints
    * (404/410) are pruned; other failures are swallowed (the notification is already stored).
    */
-  async sendToCustomer(customerId: string, payload: PushPayload): Promise<void> {
+  async sendToCustomer(
+    customerId: string,
+    payload: PushPayload,
+  ): Promise<{ devices: number; delivered: number }> {
     const subs = await this.subs.listForCustomer(customerId);
-    await Promise.all(
+    const results = await Promise.all(
       subs.map(async (sub) => {
         const res = await this.sender.send(sub, payload);
         if (res.gone) {
           await this.subs.deleteByEndpoint(sub.endpoint, customerId);
           this.logger.log(`Pruned expired push subscription for customer ${customerId}`);
         }
+        return res.ok;
       }),
     );
+    // Counts are for the caller's log: a staff member with zero devices is the signature of
+    // an app that never registered, and was invisible until now.
+    return { devices: subs.length, delivered: results.filter(Boolean).length };
   }
 }

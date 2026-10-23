@@ -30,6 +30,8 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/m/manager',
   useSearchParams: () => new URLSearchParams('id=a-1'),
 }));
+// The device-push switch is covered by ops-push.test.tsx; this file is about the shortcuts.
+vi.mock('@/components/dashboard/ops-push', () => ({ DevicePushRow: () => null }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'a-1' }));
 vi.mock('@/components/confirm', () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),

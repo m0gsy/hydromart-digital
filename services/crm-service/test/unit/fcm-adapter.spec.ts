@@ -102,6 +102,9 @@ describe('FcmSenderAdapter — sending', () => {
         token: 'DEVICE-TOKEN',
         notification: { title: PAYLOAD.title, body: PAYLOAD.body },
         data: { url: '/orders' },
+        // HIGH so a phone in Doze or with the app killed is woken now rather than at the
+        // next maintenance window; the channel must match the app's own.
+        android: { priority: 'HIGH', notification: { channel_id: 'hydromart_orders' } },
       },
     });
   });

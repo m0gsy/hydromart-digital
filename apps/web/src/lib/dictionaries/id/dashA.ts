@@ -11,6 +11,12 @@ export const dashA = {
       lowStock: { label: 'Stok kritis', sub: 'Saat stok di bawah ambang' },
       dailySummary: { label: 'Ringkasan harian', sub: 'Rekap operasional tiap pagi' },
     },
+    devicePush: {
+      label: 'Notifikasi di HP ini',
+      sub: 'Pesanan masuk dan peringatan sampai ke HP ini meski aplikasi ditutup.',
+      denied: 'Notifikasi diblokir. Aktifkan di pengaturan aplikasi pada HP.',
+      failed: 'Gagal mengaktifkan notifikasi. Periksa koneksi lalu coba lagi.',
+    },
     pin: { label: 'PIN persetujuan', sub: 'Ubah PIN untuk menyetujui aksi' },
     devices: { label: 'Perangkat masuk', sub: 'Kelola sesi & perangkat aktif' },
     gateTitle: 'Khusus staf',

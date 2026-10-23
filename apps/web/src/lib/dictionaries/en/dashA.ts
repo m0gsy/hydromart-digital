@@ -10,6 +10,12 @@ export const dashA = {
       lowStock: { label: 'Low stock', sub: 'When stock falls below threshold' },
       dailySummary: { label: 'Daily summary', sub: 'Operations recap every morning' },
     },
+    devicePush: {
+      label: 'Notifications on this phone',
+      sub: 'New orders and alerts reach this phone even when the app is closed.',
+      denied: "Notifications are blocked. Turn them on in the phone's app settings.",
+      failed: 'Could not turn notifications on. Check your connection and try again.',
+    },
     pin: { label: 'Approval PIN', sub: 'Change the PIN used to approve actions' },
     devices: { label: 'Signed-in devices', sub: 'Manage active sessions & devices' },
     gateTitle: 'Staff only',

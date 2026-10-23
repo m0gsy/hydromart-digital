@@ -26,7 +26,7 @@ vi.mock('@/lib/depot-signal', () => ({
   },
 }));
 vi.mock('@/lib/endpoints', () => ({ endpoints: { auth: { me: '/auth/me', logout: '/auth/logout' } } }));
-vi.mock('@/lib/push', () => ({ unsubscribeFromPush: async () => undefined }));
+vi.mock('@/lib/push', () => ({ unsubscribeFromPush: async () => undefined, forgetPushAsk: () => {} }));
 vi.mock('@/lib/unread', () => ({ forgetNotificationsSeen: () => undefined }));
 vi.mock('@/lib/location-store', () => ({ setLocation: () => undefined }));
 vi.mock('@/lib/session-device', () => ({ forgetSessionFamily: () => undefined, rememberSessionFamily: () => undefined }));

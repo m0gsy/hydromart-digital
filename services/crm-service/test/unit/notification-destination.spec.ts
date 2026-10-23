@@ -45,6 +45,16 @@ describe('destinationFor', () => {
     expect(destinationFor(event, {})).toBe(url);
   });
 
+  // O6: "new order in" must open the order in the ops queue, not the notification list.
+  // `/dashboard/orders?order=<id>` is the screen the queue already deep-links with.
+  it.each([NotificationEvent.DEPOT_ORDER_INCOMING, NotificationEvent.DEPOT_ORDER_RESCHEDULED])(
+    '%s opens that order in the ops queue',
+    (event) => {
+      expect(destinationFor(event, { orderId: 'ord-1' })).toBe('/dashboard/orders?order=ord-1');
+      expect(destinationFor(event, {})).toBe('/dashboard/orders');
+    },
+  );
+
   it('leaves staff-facing events on the inbox, which is where they are never pushed from', () => {
     expect(destinationFor(NotificationEvent.STOCK_LOW, {})).toBe('/notifications');
     expect(destinationFor(NotificationEvent.HR_ANNOUNCEMENT)).toBe('/notifications');

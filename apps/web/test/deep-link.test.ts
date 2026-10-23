@@ -35,6 +35,12 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('https://hydromart.example/rewards')).toBe('/rewards');
   });
 
+  // The destination of a "new order in" push to depot staff; it must reach the ops queue
+  // untouched, with its ?order= intact, not be rewritten or sent home.
+  it('passes the ops queue deep link through unchanged', () => {
+    expect(resolveDeepLink('/dashboard/orders?order=ord-1')).toBe('/dashboard/orders?order=ord-1');
+  });
+
   it('keeps any other query parameters the link carried', () => {
     expect(resolveDeepLink('/orders/ord-1?placed=1')).toBe('/orders/detail?id=ord-1&placed=1');
   });

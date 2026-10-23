@@ -23,6 +23,7 @@ import { CrmConfigService } from '../../config/crm-config.service';
  */
 export const FCM_PREFIX = 'fcm:';
 
+const ANDROID_CHANNEL_ID = 'hydromart_orders';
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 /** Google issues one-hour tokens; re-mint a minute early so none is spent in flight. */
@@ -87,6 +88,11 @@ export class FcmSenderAdapter implements PushSenderPort {
             // Data values must be strings — FCM rejects the whole message otherwise, and
             // the click handler reads `url` from here.
             data: payload.url ? { url: payload.url } : {},
+            // HIGH wakes a phone in Doze or with the app killed; the default priority can
+            // sit until the next maintenance window, which is a new order arriving late.
+            // The channel id must equal the one the app creates (`ensureChannel` in
+            // apps/web/src/lib/push.ts) and the manifest default.
+            android: { priority: 'HIGH', notification: { channel_id: ANDROID_CHANNEL_ID } },
           },
         },
       );

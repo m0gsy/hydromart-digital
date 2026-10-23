@@ -313,6 +313,20 @@ jobs:
         with:
           node-version: '22'
 
+      # The debug APKs use the same applicationIds as the release builds, so the same file
+      # applies. Without it the Gradle plugin is skipped and an APK installed for device
+      # testing can never register for push. Not fatal when the secret is absent (a fork's
+      # pull request has none): the build still proves the app compiles.
+      - name: Firebase config (debug, optional)
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > mobile/android/app/google-services.json
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON_BASE64 is empty - these debug APKs cannot receive push"
+          fi
+
       - name: Customer — sync
         run: npm run sync:customer --prefix mobile
 

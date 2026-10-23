@@ -12,6 +12,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { DevicePushRow } from '@/components/dashboard/ops-push';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, Toggle } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -68,6 +69,7 @@ function AccountBody() {
           {t('dashA.account.accountSection')}
         </p>
         <Card className="divide-y divide-app p-0">
+          <DevicePushRow />
           <div className="flex items-center gap-3 p-4">
             <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
               <DeviceMobile size={18} weight="fill" />

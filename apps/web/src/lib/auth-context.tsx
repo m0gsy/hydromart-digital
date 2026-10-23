@@ -9,7 +9,7 @@ import { onDepotChanged, refreshNow } from './depot-signal';
 import { reconcileDepot } from './depot-follow';
 import { setDepot } from './depot-store';
 import { endpoints } from './endpoints';
-import { unsubscribeFromPush } from './push';
+import { forgetPushAsk, unsubscribeFromPush } from './push';
 import { forgetNotificationsSeen } from './unread';
 import { setLocation } from './location-store';
 import { forgetSessionFamily, rememberSessionFamily } from './session-device';
@@ -165,6 +165,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // now belonged to somebody else. Fire-and-forget — a failed release must never stop
         // somebody signing out, and the server-side row is replaced on the next subscribe.
         void unsubscribeFromPush().catch(() => {});
+        // And forget the ask, so whoever signs in next on this phone is registered (push.ts).
+        forgetPushAsk();
         /*
          * CA-3-56 / CA-3-59 — two things that belong to the PERSON and were stored against
          * the DEVICE, and so survived them leaving.

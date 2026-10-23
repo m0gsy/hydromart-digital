@@ -1,6 +1,7 @@
 'use client';
 
 import { OperatorShell } from '@/components/operator/operator-shell';
+import { OpsPushPrompt } from '@/components/dashboard/ops-push';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
 import { AllDepotsNotice } from '@/components/dashboard/all-depots-notice';
 import { OpsRail } from '@/components/dashboard/ops-rail';
@@ -38,6 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <RequireAuth>
       <DepotProvider>
+        <OpsPushPrompt />
         <ConsoleFrame>{children}</ConsoleFrame>
       </DepotProvider>
     </RequireAuth>

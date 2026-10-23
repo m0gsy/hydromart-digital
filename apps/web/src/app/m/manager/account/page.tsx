@@ -11,6 +11,7 @@ import {
   UsersThree,
 } from '@phosphor-icons/react';
 
+import { DevicePushRow } from '@/components/dashboard/ops-push';
 import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -120,6 +121,7 @@ export default function ManagerAccountPage() {
       )}
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
+        <DevicePushRow />
         <div className="flex items-center gap-3 p-4">
           <span className="flex size-8 items-center justify-center rounded-xl bg-black/5 text-brand-700">
             <Translate size={19} weight="fill" />
