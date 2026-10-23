@@ -421,3 +421,9 @@ export class AutoApplyApplyDto {
   @Type(() => AppliedGiftDto)
   gifts?: AppliedGiftDto[];
 }
+
+export class ActivePromoRulesQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'The depot whose counter is asking.' })
+  @IsUUID()
+  depotId!: string;
+}

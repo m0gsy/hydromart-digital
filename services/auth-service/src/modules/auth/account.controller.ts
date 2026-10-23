@@ -26,7 +26,7 @@ import { AuditMutationsInterceptor, Can, ImportSummary, SelfScoped } from '@hydr
 
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
-import { CustomerLookupDto } from './dto/customer-lookup.dto';
+import { CounterLookupResponseDto, CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import { ConfirmPhoneChangeDto, RequestPhoneChangeDto } from './dto/change-phone.dto';
@@ -145,6 +145,17 @@ export class AccountController {
   async lookupByPhone(@Query() query: CustomerLookupDto): Promise<PublicCustomerDto> {
     const customer = await this.account.lookupByPhone(query.phone);
     return PublicCustomerDto.from(customer);
+  }
+
+  // The cashier's read-only "is this number already a customer?" Same capability as the walk-in
+  // sale itself, because it exists for that screen alone; `customerPhoneLookup` would hand the
+  // whole customer record to a role that has no use for it. Declared before any `:id` route.
+  @Can('walkInSale')
+  @Get('auth/customers/counter-lookup')
+  @ApiOperation({ summary: 'Cashier: is this phone already a customer? (registered + first name only)' })
+  @ApiOkResponse({ type: CounterLookupResponseDto })
+  counterLookup(@Query() query: CustomerLookupDto): Promise<CounterLookupResponseDto> {
+    return this.account.counterLookup(query.phone);
   }
 
   // Staff-only: resolve a batch of customer ids to names (reseller console row labels).

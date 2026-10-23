@@ -46,7 +46,25 @@ describe('PromoAutoApplyHttpAdapter', () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => expected }) as unknown as typeof fetch;
       const adapter = new PromoAutoApplyHttpAdapter(config());
       const result = await adapter.quote('depot-1', 'APP', []);
-      expect(result).toEqual({ ...expected, orderDiscountRuleId: null, orderDiscountAmount: 0, gifts: [] });
+      expect(result).toEqual({
+        ...expected,
+        orderDiscountRuleId: null,
+        orderDiscountAmount: 0,
+        gifts: [],
+        ruleNames: {},
+      });
+    });
+
+    it('carries the rule names promo-service sends, so the till can print them', async () => {
+      const body = {
+        lines: [],
+        shippingAppliedRuleId: null,
+        shippingFeeOverride: null,
+        ruleNames: { r1: 'Jumat Berkah' },
+      };
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => body }) as unknown as typeof fetch;
+      const result = await new PromoAutoApplyHttpAdapter(config()).quote('depot-1', 'COUNTER', []);
+      expect(result.ruleNames).toEqual({ r1: 'Jumat Berkah' });
     });
 
     it('sends firstOrder and per-line skipPromo, and parses the order discount and gifts', async () => {
@@ -96,6 +114,7 @@ describe('PromoAutoApplyHttpAdapter', () => {
         orderDiscountRuleId: null,
         orderDiscountAmount: 0,
         gifts: [],
+        ruleNames: {},
       });
     });
 
@@ -110,6 +129,7 @@ describe('PromoAutoApplyHttpAdapter', () => {
         orderDiscountRuleId: null,
         orderDiscountAmount: 0,
         gifts: [],
+        ruleNames: {},
       });
     });
 
@@ -125,6 +145,7 @@ describe('PromoAutoApplyHttpAdapter', () => {
         orderDiscountRuleId: null,
         orderDiscountAmount: 0,
         gifts: [],
+        ruleNames: {},
       });
       expect(fetchMock).not.toHaveBeenCalled();
     });

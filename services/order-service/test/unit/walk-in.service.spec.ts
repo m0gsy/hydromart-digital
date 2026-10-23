@@ -728,6 +728,130 @@ describe('OrderService.walkInSale', () => {
       expect(quote.shippingFee).toBe(0);
     });
 
+    it('names the promos behind the total, so the till can say why it is not subtotal minus discount', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 3 }];
+      const base = await service.quoteCounterBasket(null, DEPOT, lines, null, '', true);
+      const depotFee = base.shippingFee / 3;
+
+      promoAutoApply.quoteResult = {
+        lines: [
+          { productId: product.id, appliedRuleIds: ['price-1'], unitPriceAfter: 18000, freeQty: 0, lineTotal: 54000 },
+        ],
+        shippingAppliedRuleId: 'ship-1',
+        shippingFeeOverride: depotFee - 100,
+        orderDiscountRuleId: 'ord-1',
+        orderDiscountAmount: 2000,
+        ruleNames: { 'price-1': 'Jumat Berkah', 'ship-1': 'Ongkir Murah', 'ord-1': 'Belanja Hemat' },
+      };
+
+      const quote = await service.quoteCounterBasket(null, DEPOT, lines, null, '', true);
+
+      expect(quote.appliedPromos).toEqual([
+        { name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 },
+        { name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 2000 },
+        { name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 300 },
+      ]);
+      // The numbers the names explain: price cut out of the subtotal, order discount inside
+      // `discount`, ongkir already reduced by the override.
+      expect(quote.subtotal).toBe(54000);
+      expect(quote.discount).toBe(2000);
+      expect(quote.shippingFee).toBe((depotFee - 100) * 3);
+    });
+
+    describe('firstOrder', () => {
+      const BUYER = '22222222-2222-4222-8222-222222222222';
+      const oneGalon = () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+        return [{ productId: p.id, quantity: 1 }];
+      };
+
+      it('is false for a buyer nobody has identified', async () => {
+        const quote = await service.quoteCounterBasket(null, DEPOT, oneGalon(), null);
+        expect(quote.firstOrder).toBe(false);
+      });
+
+      it('is true for an identified buyer with no order yet, and false once they have one', async () => {
+        const lines = oneGalon();
+        expect((await service.quoteCounterBasket(BUYER, DEPOT, lines, null)).firstOrder).toBe(true);
+
+        await service.walkInSale(operator, { depotId: DEPOT, lines, customerId: BUYER });
+        expect((await service.quoteCounterBasket(BUYER, DEPOT, lines, null)).firstOrder).toBe(false);
+      });
+    });
+
+    describe('counterShiftSummary', () => {
+      const lines = () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+        return [{ productId: p.id, quantity: 1 }];
+      };
+      // The in-memory repository stamps its own deterministic clock, so the window is built
+      // from the sale's own createdAt rather than from the wall clock.
+      const SHIFT_OPENED = new Date(0);
+      const NOW = new Date('2999-01-01T00:00:00Z');
+      const other: AuthenticatedUser = { ...operator, sub: 'op-2', phone: '09' };
+
+      it("counts this cashier's sales and their value, and nobody else's", async () => {
+        await service.walkInSale(operator, { depotId: DEPOT, lines: lines() });
+        await service.walkInSale(operator, { depotId: DEPOT, lines: lines() });
+        await service.walkInSale(other, { depotId: DEPOT, lines: lines() });
+
+        await expect(service.counterShiftSummary(operator, DEPOT, SHIFT_OPENED, NOW)).resolves.toEqual({
+          orderCount: 2,
+          revenueIdr: 40000,
+        });
+        await expect(service.counterShiftSummary(other, DEPOT, SHIFT_OPENED, NOW)).resolves.toEqual({
+          orderCount: 1,
+          revenueIdr: 20000,
+        });
+      });
+
+      it('leaves out sales from before the shift opened', async () => {
+        const sale = await service.walkInSale(operator, { depotId: DEPOT, lines: lines() });
+        const afterSale = new Date(sale.createdAt.getTime() + 1);
+        await expect(service.counterShiftSummary(operator, DEPOT, afterSale, NOW)).resolves.toEqual({
+          orderCount: 0,
+          revenueIdr: 0,
+        });
+        await expect(service.counterShiftSummary(operator, DEPOT, sale.createdAt, NOW)).resolves.toEqual({
+          orderCount: 1,
+          revenueIdr: 20000,
+        });
+      });
+
+      it('is zero for a cashier who has sold nothing', async () => {
+        await expect(service.counterShiftSummary(operator, DEPOT, SHIFT_OPENED, NOW)).resolves.toEqual({
+          orderCount: 0,
+          revenueIdr: 0,
+        });
+      });
+
+      it("refuses another depot's tally", async () => {
+        await expect(
+          service.counterShiftSummary(operator, '99999999-9999-4999-8999-999999999999', SHIFT_OPENED, NOW),
+        ).rejects.toThrow();
+      });
+    });
+
+    it('lists no promos for a basket nothing applied to', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const quote = await service.quoteCounterBasket(null, DEPOT, [{ productId: product.id, quantity: 1 }], null);
+      expect(quote.appliedPromos).toEqual([]);
+    });
+
+    it('lists no shipping saving for a pick-up even when a shipping rule matched', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      promoAutoApply.quoteResult = {
+        lines: [],
+        shippingAppliedRuleId: 'ship-1',
+        shippingFeeOverride: 0,
+        ruleNames: { 'ship-1': 'Ongkir Murah' },
+      };
+      const quote = await service.quoteCounterBasket(null, DEPOT, [{ productId: product.id, quantity: 2 }], null);
+      expect(quote.shippingFee).toBe(0);
+      expect(quote.appliedPromos).toEqual([]);
+    });
+
     it('sells nothing: no stock held, no order written', async () => {
       const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
 

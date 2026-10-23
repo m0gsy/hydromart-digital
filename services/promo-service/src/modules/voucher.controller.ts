@@ -22,6 +22,7 @@ import {
   Public,
   Role,
   Roles,
+  assertDepotAccess,
 } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
@@ -34,6 +35,7 @@ import {
 import { UpdateVoucherData, VoucherRecord } from '../application/ports/voucher.repository';
 import {
   BrowseQueryDto,
+  CounterVouchersQueryDto,
   CreateVoucherDto,
   GrantVoucherDto,
   InternalQuoteVoucherDto,
@@ -96,6 +98,21 @@ export class VoucherController {
   @ApiOperation({ summary: "The current customer's voucher wallet (spec 4a)" })
   async myVouchers(@CurrentUser() user: AuthenticatedUser): Promise<MyVoucherDto[]> {
     const wallet = await this.vouchers.myVouchers(user.sub);
+    return wallet.map((w) => MyVoucherDto.from(w));
+  }
+
+  // Declared before `@Get(':code')`. The cashier's one-tap list: the buyer's GRANTED codes only.
+  @ApiOkResponse({ type: MyVoucherDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('walkInSale')
+  @Get('counter')
+  @ApiOperation({ summary: "An identified buyer's granted vouchers usable at this depot (cashier screen)" })
+  async counterWallet(
+    @Query() query: CounterVouchersQueryDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<MyVoucherDto[]> {
+    assertDepotAccess(user, query.depotId);
+    const wallet = await this.vouchers.grantedForCounter(query.customerId, query.depotId);
     return wallet.map((w) => MyVoucherDto.from(w));
   }
 

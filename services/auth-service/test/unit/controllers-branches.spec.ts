@@ -50,6 +50,7 @@ describe('AccountController delegation', () => {
       AccountService.prototype.resolveScopedDepot.call(account, u, d),
     updateProfile: jest.fn(),
     lookupByPhone: jest.fn(),
+    counterLookup: jest.fn(),
     listDrivers: jest.fn(),
     countNewCustomers: jest.fn(),
     inviteStaff: jest.fn(),
@@ -90,6 +91,15 @@ describe('AccountController delegation', () => {
     account.lookupByPhone.mockResolvedValue(publicCustomer());
     await controller.lookupByPhone({ phone: '081234567890' });
     expect(account.lookupByPhone).toHaveBeenCalledWith('081234567890');
+  });
+
+  it('hands the cashier lookup straight to the service, and returns only what it answers', async () => {
+    account.counterLookup.mockResolvedValue({ registered: true, firstName: 'Budi' });
+    await expect(controller.counterLookup({ phone: '081234567890' })).resolves.toEqual({
+      registered: true,
+      firstName: 'Budi',
+    });
+    expect(account.counterLookup).toHaveBeenCalledWith('081234567890');
   });
 
   it('lists drivers for dispatch', async () => {

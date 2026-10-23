@@ -63,7 +63,13 @@ import { TaxRatePort } from '../ports/tax-rate.port';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { isOpenAt } from '../../domain/opening-hours';
-import { applyPromoQuote, stockLinesFor, voucherLinesFor } from '../../domain/promo-adjustment';
+import {
+  AppliedPromoSummary,
+  applyPromoQuote,
+  stockLinesFor,
+  summarizeAppliedPromos,
+  voucherLinesFor,
+} from '../../domain/promo-adjustment';
 import {
   galonQuantity,
   priceLines,
@@ -164,6 +170,10 @@ export interface CounterBasketQuote {
   /** Item 5 (#11): the order discount already inside `discount`, and the rule that gave it. */
   promoOrderDiscount: number;
   orderDiscountRuleId: string | null;
+  /** The promos that changed this basket, by name — what the cashier's screen lists. */
+  appliedPromos: AppliedPromoSummary[];
+  /** No earlier active/completed order for this buyer (an anonymous buyer counts as one). */
+  firstOrder: boolean;
   /** I-3: the shipping-promo fields `walkInSale`'s audit call needs, carried out of the
    *  single quote `priceCounterBasket` now runs — 0/null for a pick-up. */
   shippingAppliedRuleId: string | null;
@@ -2582,6 +2592,31 @@ export class OrderService {
   }
 
   /**
+   * A cashier's own tally since their shift opened: how many sales and how much, all payment
+   * methods together.
+   *
+   * Deliberately NOT the drawer: no cash/non-cash split and no "should be in the till". The
+   * close counts the drawer blind — the cashier enters what they counted and the server knows
+   * what it should hold — and a number that revealed the second would let a short drawer be
+   * counted into balance. Voids are already excluded by the report query.
+   */
+  async counterShiftSummary(
+    user: AuthenticatedUser,
+    depotId: string,
+    from: Date,
+    now: Date = new Date(),
+  ): Promise<{ orderCount: number; revenueIdr: number }> {
+    assertDepotAccess(user, depotId);
+    // `to` is exclusive in the report query; a second of slack keeps a sale rung this instant.
+    const rows = await this.orders.cashierSalesForDepot(depotId, {
+      from,
+      to: new Date(now.getTime() + 1000),
+    });
+    const mine = rows.find((r) => r.cashierId === user.sub);
+    return { orderCount: mine?.orderCount ?? 0, revenueIdr: mine?.revenue ?? 0 };
+  }
+
+  /**
    * C12: resolve a counter buyer by phone, because the cashier asked for it.
    *
    * The one place in the counter flow that may mint an account, and it only runs on a
@@ -2669,6 +2704,7 @@ export class OrderService {
     let shippingAppliedRuleId: string | null = null;
     let shippingFeeOverride: number | null = null;
     let originalShippingFee = 0;
+    let shippingSaved = 0;
     if (wantsDelivery) {
       const depots = await this.depotDirectory.listActiveDepots();
       const depot = depots?.find((d) => d.id === depotId);
@@ -2684,6 +2720,7 @@ export class OrderService {
       const perGalonFee =
         shippingFeeOverride != null ? Math.min(shippingFeeOverride, depot.deliveryFee) : depot.deliveryFee;
       shippingFee = money(perGalonFee * galonQuantity(items));
+      shippingSaved = money((depot.deliveryFee - perGalonFee) * galonQuantity(items));
     }
 
     const voucherCode = voucherCodeInput?.trim().toUpperCase() || null;
@@ -2717,6 +2754,14 @@ export class OrderService {
       promoGifts,
       promoOrderDiscount,
       orderDiscountRuleId: autoPromoQuote.orderDiscountRuleId ?? null,
+      firstOrder,
+      appliedPromos: summarizeAppliedPromos({
+        appliedLines,
+        orderDiscount: { ruleId: autoPromoQuote.orderDiscountRuleId ?? null, amount: promoOrderDiscount },
+        shipping: { ruleId: shippingAppliedRuleId, saved: shippingSaved },
+        gifts: promoGifts.audit,
+        ruleNames: autoPromoQuote.ruleNames ?? {},
+      }),
       shippingAppliedRuleId,
       shippingFeeOverride,
       originalShippingFee,

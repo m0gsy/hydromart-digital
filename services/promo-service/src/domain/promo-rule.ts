@@ -110,20 +110,16 @@ function localDayAndTime(occurredAt: Date, timeZone: string): { day: number; hhm
   return { day: days.indexOf(weekdayShort), hhmm: `${hour === '24' ? '00' : hour}:${minute}` };
 }
 
-/** True when a rule's filters (scope, schedule, channel, qty) all match a cart line. */
-export function ruleMatchesLine(
-  rule: PromoRuleCandidate,
-  line: CartLine,
-  ctx: EvaluationContext,
-): boolean {
+/**
+ * True when a rule is open for business right now at this depot/channel — depot, validity
+ * window, weekday, time of day and channel. The cart-independent half of `ruleMatchesLine`,
+ * also what the counter's "promo aktif" strip lists.
+ */
+export function ruleIsLive(rule: PromoRuleCandidate, ctx: EvaluationContext): boolean {
   // Defense in depth: the repository is expected to pre-filter candidates to the caller's
   // depot or network-wide, but this layer stays correct on its own rather than trusting that
   // blindly (mirrors how Voucher's domain-level validation does its own checks).
   if (rule.depotId !== null && rule.depotId !== ctx.depotId) return false;
-  if (rule.productId !== null && rule.productId !== line.productId) return false;
-  if (rule.productId === null && rule.categoryId !== null && rule.categoryId !== line.categoryId) {
-    return false;
-  }
   if (rule.validFrom !== null && rule.validFrom > ctx.occurredAt) return false;
   if (rule.validUntil !== null && rule.validUntil < ctx.occurredAt) return false;
 
@@ -134,7 +130,20 @@ export function ruleMatchesLine(
   // so a rule ending at "12:00" matches any instant inside that minute, e.g. 12:00:59.
   if (rule.endTime !== null && hhmm > rule.endTime) return false;
 
-  if (rule.channels.length > 0 && !rule.channels.includes(ctx.channel)) return false;
+  return rule.channels.length === 0 || rule.channels.includes(ctx.channel);
+}
+
+/** True when a rule's filters (scope, schedule, channel, qty) all match a cart line. */
+export function ruleMatchesLine(
+  rule: PromoRuleCandidate,
+  line: CartLine,
+  ctx: EvaluationContext,
+): boolean {
+  if (!ruleIsLive(rule, ctx)) return false;
+  if (rule.productId !== null && rule.productId !== line.productId) return false;
+  if (rule.productId === null && rule.categoryId !== null && rule.categoryId !== line.categoryId) {
+    return false;
+  }
   // "Pelanggan baru": a customer we cannot show to be new is treated as not new.
   if (rule.firstOrderOnly && ctx.firstOrder !== true) return false;
 

@@ -16,6 +16,7 @@ const EMPTY_QUOTE: AutoApplyQuoteResult = {
   orderDiscountRuleId: null,
   orderDiscountAmount: 0,
   gifts: [],
+  ruleNames: {},
 };
 
 @Injectable()
@@ -66,6 +67,7 @@ export class PromoAutoApplyHttpAdapter implements PromoAutoApplyPort {
         orderDiscountRuleId: body.orderDiscountRuleId ?? null,
         orderDiscountAmount: body.orderDiscountAmount ?? 0,
         gifts: body.gifts ?? [],
+        ruleNames: body.ruleNames ?? {},
       };
     } catch (error) {
       this.logger.warn(`Auto-apply promo quote unreachable: ${(error as Error).message}`);

@@ -177,6 +177,24 @@ export class AccountService {
   }
 
   /**
+   * The counter's "is this buyer already ours?" — the cashier typed a number and wants to know
+   * whether it belongs to somebody, WITHOUT creating anything.
+   *
+   * Answers with the least a cashier needs to be sure it is the right person: registered or
+   * not, and a first name. No id, no email, no full name, no phone back. It is open to every
+   * counter role, so it must not be a way to read a customer record by guessing numbers — and
+   * a number that belongs to STAFF is reported as unregistered rather than confirmed as an
+   * account, since "this number is an employee" is not the counter's business.
+   */
+  async counterLookup(rawPhone: string): Promise<{ registered: boolean; firstName: string | null }> {
+    const phone = PhoneNumber.create(rawPhone).value;
+    const customer = await this.customers.findByPhone(phone);
+    if (!customer || customer.role !== Role.CUSTOMER) return { registered: false, firstName: null };
+    const first = customer.fullName?.trim().split(/\s+/)[0];
+    return { registered: true, firstName: first || null };
+  }
+
+  /**
    * Resolve a batch of customer ids to their public profiles (reseller-name display).
    * Deduplicates, caps the batch, and silently drops ids with no account — callers only
    * need names for the ids they already hold, order is not guaranteed.

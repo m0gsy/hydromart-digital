@@ -58,6 +58,8 @@ import {
   CounterIdentifyDto,
   CounterQuoteDto,
   CounterQuoteResponseDto,
+  CounterShiftSummaryQueryDto,
+  CounterShiftSummaryResponseDto,
   CreateReviewDto,
   DeliveryOptionsResponseDto,
   InternalPaymentNoticeDto,
@@ -281,6 +283,19 @@ export class OrderController {
         !!dto.deliveryAddress,
       ),
     );
+  }
+
+  // The cashier's own running tally for the open shift. Declared with the other static
+  // 'walk-in' segments, before any ':id' route.
+  @ApiOkResponse({ type: CounterShiftSummaryResponseDto })
+  @Can('walkInSale')
+  @Get('walk-in/shift-summary')
+  @ApiOperation({ summary: "The caller's own counter sales since their shift opened (cashier screen)" })
+  async walkInShiftSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: CounterShiftSummaryQueryDto,
+  ): Promise<CounterShiftSummaryResponseDto> {
+    return this.orders.counterShiftSummary(user, query.depotId, new Date(query.from));
   }
 
   /**

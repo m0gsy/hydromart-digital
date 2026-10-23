@@ -354,6 +354,16 @@ export class MyVoucherDto {
   }
 }
 
+export class CounterVouchersQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'The buyer the cashier identified.' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'The depot whose counter is asking.' })
+  @IsUUID()
+  depotId!: string;
+}
+
 export class BrowseQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsInt()

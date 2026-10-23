@@ -800,7 +800,7 @@ export type VoucherStatus = 'AVAILABLE' | 'USED' | 'EXPIRED' | 'UPCOMING' | 'SOL
 export interface MyVoucher {
   code: string;
   description: string | null;
-  discountType: 'PERCENTAGE' | 'FIXED';
+  discountType: 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
   value: number;
   minSpend: number;
   maxDiscount: number | null;
@@ -3251,7 +3251,30 @@ export interface ShiftHandover {
  * cashier screen stopped adding shelf prices up itself, because the discount layer (tier,
  * agen band, voucher) only ever existed on the server.
  */
+/** What the counter learns about a typed phone number — nothing beyond this. */
+export interface CounterCustomerLookup {
+  registered: boolean;
+  firstName: string | null;
+}
+
+/** The cashier's own tally for the open shift. Not the drawer: no cash figure. */
+export interface CounterShiftSummary {
+  orderCount: number;
+  revenueIdr: number;
+}
+
+export interface AppliedPromo {
+  name: string;
+  /** PRICE is already out of the subtotal; ORDER is inside discountIdr; SHIPPING inside the ongkir. */
+  effect: 'PRICE' | 'FREE' | 'ORDER' | 'SHIPPING' | 'GIFT';
+  amountIdr: number;
+}
+
 export interface CounterQuote {
+  /** Absent from a server that predates the promo breakdown. */
+  appliedPromos?: AppliedPromo[];
+  /** The identified buyer has no earlier order, so first-order-only promos apply. */
+  firstOrder?: boolean;
   subtotalIdr: number;
   discountIdr: number;
   totalIdr: number;

@@ -273,6 +273,12 @@ export class AutoApplyQuoteResponseDto {
   orderDiscountAmount!: number;
   @ApiProperty({ type: [PromoGiftResultDto] })
   gifts!: PromoGiftResultDto[];
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'Display name of every rule that won something, keyed by rule id.',
+  })
+  ruleNames!: Record<string, string>;
 }
 
 export class NotifyExpiringVouchersResponseDto {

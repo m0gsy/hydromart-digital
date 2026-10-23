@@ -689,6 +689,20 @@ export class CounterIdentifyDto {
 }
 
 /** C12: the priced basket. `total` is what the till charges — the screen stops adding up. */
+export class AppliedPromoDto {
+  @ApiProperty({ example: 'Jumat Berkah' })
+  name!: string;
+
+  @ApiProperty({
+    enum: ['PRICE', 'FREE', 'ORDER', 'SHIPPING', 'GIFT'],
+    description: 'Where it lands: PRICE is out of the subtotal, ORDER inside the discount, SHIPPING inside the ongkir.',
+  })
+  effect!: 'PRICE' | 'FREE' | 'ORDER' | 'SHIPPING' | 'GIFT';
+
+  @ApiProperty({ example: 6000, description: 'Rupiah this promo took off the basket.' })
+  amountIdr!: number;
+}
+
 export class CounterQuoteResponseDto {
   @ApiProperty({
     example: 60000,
@@ -729,6 +743,18 @@ export class CounterQuoteResponseDto {
   })
   catalogFallback!: string | null;
 
+  @ApiProperty({
+    example: false,
+    description: 'The buyer has no earlier active/completed order, so first-order-only promos apply.',
+  })
+  firstOrder!: boolean;
+
+  @ApiProperty({
+    type: () => [AppliedPromoDto],
+    description: 'The auto-apply promos that changed this basket, biggest first.',
+  })
+  appliedPromos!: AppliedPromoDto[];
+
   static from(quote: {
     subtotal: number;
     discount: number;
@@ -736,8 +762,12 @@ export class CounterQuoteResponseDto {
     agen: boolean;
     catalogFallback: string | null;
     shippingFee: number;
+    appliedPromos: AppliedPromoDto[];
+    firstOrder: boolean;
   }): CounterQuoteResponseDto {
     return {
+      firstOrder: quote.firstOrder,
+      appliedPromos: quote.appliedPromos.map((p) => ({ name: p.name, effect: p.effect, amountIdr: p.amountIdr })),
       subtotalIdr: quote.subtotal,
       discountIdr: quote.discount,
       totalIdr: quote.total,
@@ -746,6 +776,25 @@ export class CounterQuoteResponseDto {
       catalogFallback: quote.catalogFallback,
     };
   }
+}
+
+/** The cashier's running tally for their own open shift: what they have rung up, nothing more. */
+export class CounterShiftSummaryQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'When the shift opened.' })
+  @IsISO8601()
+  from!: string;
+}
+
+export class CounterShiftSummaryResponseDto {
+  @ApiProperty({ example: 12, description: 'Counter sales this cashier has rung up since `from`, voids excluded.' })
+  orderCount!: number;
+
+  @ApiProperty({ example: 480000, description: 'Their total, all payment methods together.' })
+  revenueIdr!: number;
 }
 
 /** C12: who the cashier just identified. The screen re-quotes with this id. */

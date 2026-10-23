@@ -103,3 +103,60 @@ export function stockLinesFor(
   }
   return [...totals.entries()].map(([productId, quantity]) => ({ productId, quantity }));
 }
+
+/**
+ * How a promo reaches the total, because the screen has to show each differently:
+ * PRICE cuts the unit price (so it is already out of the subtotal the server quotes),
+ * ORDER is inside `discount`, SHIPPING is inside the ongkir, FREE/GIFT add goods at no charge.
+ */
+export type AppliedPromoEffect = 'PRICE' | 'FREE' | 'ORDER' | 'SHIPPING' | 'GIFT';
+
+/** One promo that changed this basket, as the cashier's screen lists it. */
+export interface AppliedPromoSummary {
+  name: string;
+  effect: AppliedPromoEffect;
+  /** Rupiah the promo took off (a free item is valued at what it would have cost). */
+  amountIdr: number;
+}
+
+/**
+ * The promos behind a counter quote, one entry per rule, biggest first.
+ *
+ * Reads the SAME result the price was built from, valuing each win the way promo-service's
+ * `apply()` records it (a price cut = the unit drop x quantity; a free unit = at its
+ * post-discount price) so the screen, the audit row and the report agree to the rupiah.
+ * A rule whose name the promo-service did not send is left out rather than shown as an id.
+ */
+export function summarizeAppliedPromos(input: {
+  appliedLines: readonly AutoApplyAppliedLine[];
+  orderDiscount: { ruleId: string | null; amount: number };
+  shipping: { ruleId: string | null; saved: number };
+  gifts: readonly { promoRuleId: string; value: number }[];
+  ruleNames: Readonly<Record<string, string>>;
+}): AppliedPromoSummary[] {
+  const byRule = new Map<string, { effect: AppliedPromoEffect; amount: number }>();
+  const add = (ruleId: string | null, effect: AppliedPromoEffect, amount: number) => {
+    if (!ruleId || amount <= 0) return;
+    const hit = byRule.get(ruleId);
+    byRule.set(ruleId, { effect, amount: (hit?.amount ?? 0) + amount });
+  };
+
+  for (const l of input.appliedLines) {
+    const priceWon = l.unitPrice > l.unitPriceAfter;
+    const bogoWon = l.freeQty > 0;
+    // promo-service pushes the price winner first and the free-unit winner last; anything
+    // else means the lines do not describe what they claim, and a wrong attribution on the
+    // till is worse than a missing one.
+    if (l.appliedRuleIds.length !== (priceWon ? 1 : 0) + (bogoWon ? 1 : 0)) continue;
+    if (priceWon) add(l.appliedRuleIds[0], 'PRICE', (l.unitPrice - l.unitPriceAfter) * l.quantity);
+    if (bogoWon) add(l.appliedRuleIds[l.appliedRuleIds.length - 1], 'FREE', l.freeQty * l.unitPriceAfter);
+  }
+  add(input.orderDiscount.ruleId, 'ORDER', input.orderDiscount.amount);
+  add(input.shipping.ruleId, 'SHIPPING', input.shipping.saved);
+  for (const g of input.gifts) add(g.promoRuleId, 'GIFT', g.value);
+
+  return [...byRule.entries()]
+    .filter(([id]) => input.ruleNames[id] !== undefined)
+    .map(([id, v]) => ({ name: input.ruleNames[id], effect: v.effect, amountIdr: money(v.amount) }))
+    .sort((a, b) => b.amountIdr - a.amountIdr);
+}

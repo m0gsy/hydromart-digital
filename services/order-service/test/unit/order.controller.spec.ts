@@ -33,7 +33,10 @@ function makeService(): Mocked {
       catalogFallback: null,
       items: [],
       voucherCode: null,
+      appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
+      firstOrder: true,
     }),
+    counterShiftSummary: jest.fn().mockResolvedValue({ orderCount: 3, revenueIdr: 90000 }),
     identifyCounterBuyer: jest.fn().mockResolvedValue({ customerId: 'buyer-9' }),
     voidCounterSale: jest.fn().mockResolvedValue({ id: 'w1', status: 'VOIDED' }),
     expireAbandoned: jest.fn().mockResolvedValue({ cancelled: 3 }),
@@ -182,6 +185,8 @@ describe('OrderController', () => {
       shippingIdr: 0,
       agen: true,
       catalogFallback: null,
+      firstOrder: true,
+      appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
     });
     expect(service.quoteCounterBasket).toHaveBeenCalledWith(
       'buyer-9',
@@ -204,6 +209,20 @@ describe('OrderController', () => {
       null,
       'Bearer t',
       false,
+    );
+  });
+
+  it("reads the cashier's own shift tally for the caller, from the shift's opening time", async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'depot-1' } as never;
+    const result = await controller.walkInShiftSummary(staff, {
+      depotId: 'depot-1',
+      from: '2026-10-23T01:00:00.000Z',
+    });
+    expect(result).toEqual({ orderCount: 3, revenueIdr: 90000 });
+    expect(service.counterShiftSummary).toHaveBeenCalledWith(
+      staff,
+      'depot-1',
+      new Date('2026-10-23T01:00:00.000Z'),
     );
   });
 
