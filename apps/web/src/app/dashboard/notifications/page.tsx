@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo } from 'react';
-import { Bell, Lock, Package, Siren, Warning, type Icon } from '@phosphor-icons/react';
+import { Bell, CaretRight, Lock, Package, Siren, Warning, type Icon } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { notificationHref } from '@/lib/notification-link';
 import { useT, type TVars } from '@/lib/locale-context';
 import { OPS_FILTERS, groupOpsFeedByDay, useOpsNotifications } from '@/lib/ops-notifications';
 import { canViewOpsNotifications } from '@/lib/roles';
@@ -36,24 +38,35 @@ function NotifRow({ n, read, onToggle }: { n: OpsNotification; read: boolean; on
   const style = EVENT_STYLE[n.event];
   const RIcon = style?.icon ?? FALLBACK_STYLE.icon;
   const failed = n.status === 'FAILED';
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[color:var(--surface-soft)] ${read ? 'opacity-65' : ''}`}
-    >
+  // The row opens what the alert is about (an order, the payments screen); tapping it also
+  // marks it read. A row with nowhere to go keeps its old behaviour: tap to toggle read.
+  const href = notificationHref(n.destination);
+  const className = `flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[color:var(--surface-soft)] ${read ? 'opacity-65' : ''}`;
+  const title = style ? t(style.labelKey) : t(`notifications.events.${n.event}`);
+  const inner = (
+    <>
       <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${style?.bgClass ?? FALLBACK_STYLE.bgClass}`}>
         <RIcon size={17} weight="fill" className={style?.iconClass ?? FALLBACK_STYLE.iconClass} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold">{style ? t(style.labelKey) : n.event}</p>
+          <p className="text-sm font-semibold">{title}</p>
           {failed && <Badge tone="danger">{t('dashB.notifications.sendFailed')}</Badge>}
         </div>
         <p className="mt-0.5 text-sm text-muted">{n.message}</p>
         <p className="mt-1 text-xs tabular-nums text-muted">{new Date(n.createdAt).toLocaleString('id-ID')}</p>
       </div>
       {!read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[color:var(--danger)]" aria-hidden />}
+      {href && <CaretRight size={16} className="mt-2.5 shrink-0 text-[color:var(--text-muted)]" aria-hidden />}
+    </>
+  );
+  return href ? (
+    <Link href={href} onClick={onToggle} className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" onClick={onToggle} className={className}>
+      {inner}
     </button>
   );
 }

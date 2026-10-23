@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo } from 'react';
-import { Bell, Siren, WarningOctagon, type Icon } from '@phosphor-icons/react';
+import { Bell, CaretRight, Siren, WarningOctagon, type Icon } from '@phosphor-icons/react';
 
 import { Badge, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { notificationHref } from '@/lib/notification-link';
 import { OPS_FILTERS, groupOpsFeedByDay, useOpsNotifications } from '@/lib/ops-notifications';
 import type { OpsNotification } from '@/lib/types';
 
@@ -28,20 +30,21 @@ function NotifRow({ n, read, onRead }: { n: OpsNotification; read: boolean; onRe
   const { t } = useT();
   const style = EVENT_STYLE[n.event] ?? { icon: Bell, wrap: 'bg-brand-50', fg: 'text-brand-700' };
   const Glyph = style.icon;
-  const label = t(`mgrFix.mMgr.events.${n.event}`);
-  return (
-    // Plain button, not <Card>: a Card renders a <div>, which a <button> may not contain.
-    <button
-      type="button"
-      onClick={onRead}
-      className={`surface flex w-full items-start gap-3 rounded-2xl border border-app p-3.5 text-left shadow-card transition-opacity ${read ? 'opacity-65' : ''}`}
-    >
+  const specific = t(`mgrFix.mMgr.events.${n.event}`);
+  // The manager dictionary only names the two original events; every other one takes the
+  // shared notification title rather than showing the raw event key.
+  const label = specific.startsWith('mgrFix.') ? t(`notifications.events.${n.event}`) : specific;
+  const href = notificationHref(n.destination);
+  // Plain button / link, not <Card>: a Card renders a <div>, which a <button> may not contain.
+  const className = `surface flex w-full items-start gap-3 rounded-2xl border border-app p-3.5 text-left shadow-card transition-opacity ${read ? 'opacity-65' : ''}`;
+  const inner = (
+    <>
       <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${style.wrap}`}>
         <Glyph size={16} weight="fill" className={style.fg} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold">{label.startsWith('mgrFix.') ? n.event : label}</p>
+          <p className="text-sm font-semibold">{label}</p>
           {n.status === 'FAILED' && <Badge tone="danger">{t('dashB.notifications.sendFailed')}</Badge>}
         </div>
         <p className="mt-0.5 text-sm text-[color:var(--text-muted)]">{n.message}</p>
@@ -50,6 +53,16 @@ function NotifRow({ n, read, onRead }: { n: OpsNotification; read: boolean; onRe
         </p>
       </div>
       {!read && <span className="mt-2 size-2 shrink-0 rounded-full bg-[color:var(--danger)]" aria-hidden />}
+      {href && <CaretRight size={16} className="mt-2.5 shrink-0 text-[color:var(--text-muted)]" aria-hidden />}
+    </>
+  );
+  return href ? (
+    <Link href={href} onClick={onRead} className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" onClick={onRead} className={className}>
+      {inner}
     </button>
   );
 }
