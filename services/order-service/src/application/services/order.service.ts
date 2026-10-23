@@ -58,6 +58,7 @@ import {
   SCHEDULE_HORIZON_DAYS,
   validateSchedule,
 } from '../../domain/delivery-schedule';
+import { can } from '@hydromart/access';
 import { computePpn, dayStartUtc } from '@hydromart/platform';
 import { TaxRatePort } from '../ports/tax-rate.port';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
@@ -208,6 +209,8 @@ export interface WalkInSaleInput {
    * validated against the priced basket's own galon count once that is known.
    */
   emptiesReturned?: number | null;
+  /** The cashier's internal note on this sale; never shown to the buyer. */
+  counterNote?: string | null;
 }
 
 export interface CheckoutInput {
@@ -1220,6 +1223,7 @@ export class OrderService {
         cashierId: user.sub,
         cashierLabel: user.phone ?? user.sub,
         emptiesReturned: input.emptiesReturned ?? null,
+        counterNote: input.counterNote ?? null,
         idempotencyKey,
         // A pick-up is born COMPLETED, so it earns the fan-out at creation rather than at a
         // later transition. A DELIVERY has completed nothing yet: its stock, points and
@@ -2618,6 +2622,29 @@ export class OrderService {
       wantsDelivery,
       cashierId,
     );
+  }
+
+  /**
+   * Puts each order's cashier note on it - for the people allowed to ring up a counter sale
+   * and nobody else.
+   *
+   * The note is about the buyer ("bayar sisanya besok"), so it is not part of `OrderRecord`,
+   * which customer routes return as-is. Staff routes call this instead. A caller without
+   * `walkInSale` (a courier reading the depot's queue, anyone else) gets the orders back
+   * untouched, and the lookup is not even made.
+   */
+  async attachCounterNotes<T extends { id: string }>(
+    user: AuthenticatedUser,
+    orders: readonly T[],
+  ): Promise<(T & { counterNote?: string })[]> {
+    if (orders.length === 0 || !can('walkInSale', user.role, user.depotId ? [user.depotId] : undefined)) {
+      return [...orders];
+    }
+    const notes = await this.orders.counterNotesFor(orders.map((o) => o.id));
+    return orders.map((o) => {
+      const note = notes.get(o.id);
+      return note ? { ...o, counterNote: note } : { ...o };
+    });
   }
 
   /**

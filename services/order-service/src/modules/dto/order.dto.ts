@@ -573,6 +573,15 @@ export class WalkInSaleDto {
   lines!: WalkInLineDto[];
 
   @ApiPropertyOptional({
+    example: 'Bayar sisanya besok',
+    description: "The cashier's own note on this sale. Staff only: the buyer never sees it.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  counterNote?: string;
+
+  @ApiPropertyOptional({
     format: 'uuid',
     description: 'Resolved customer. Omit for an anonymous sale — no points, no CRM row.',
   })

@@ -151,6 +151,8 @@ export class InMemoryCartRepository implements CartRepository {
 
 export class InMemoryOrderRepository implements OrderRepository {
   rows: OrderRecord[] = [];
+  /** Cashier notes by order id: kept apart from `rows` because they are not on the record. */
+  counterNotes = new Map<string, string>();
   /**
    * The outbox the real repository writes to in the SAME transaction as the order (H-10).
    * Wired in by the tests so an order can never appear here without its effects being owed.
@@ -243,7 +245,9 @@ export class InMemoryOrderRepository implements OrderRepository {
   async create(data: CreateOrderData): Promise<OrderRecord> {
     // `outbox` is consumed below and must not land on the record — the real repository
     // destructures it out the same way.
-    const { items, outbox, ...rest } = data;
+    // `counterNote` is kept off the record, as the real repository does: it is read back only
+    // through `counterNotesFor`, so a test cannot pass by leaning on it being on the order.
+    const { items, outbox, counterNote, ...rest } = data;
     const now = nextDate();
     const opening = rest.status ?? OrderStatus.CREATED;
     // The unique index is the whole of B-13's in-flight guard, so the fake has to have it
@@ -279,6 +283,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       updatedAt: now,
     };
     this.rows.push(rec);
+    if (counterNote) this.counterNotes.set(rec.id, counterNote);
     if (dupeKey) this.byIdempotencyKey.set(dupeKey, rec.id);
     if (outbox?.length) {
       this.outbox?.enqueue(outbox.map((m) => ({ ...m, orderId: rec.id })));
@@ -755,6 +760,15 @@ export class InMemoryOrderRepository implements OrderRepository {
       by.set(key, cur);
     }
     return [...by.values()].sort((a, b) => b.revenue - a.revenue);
+  }
+
+  async counterNotesFor(orderIds: readonly string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (const id of orderIds) {
+      const note = this.counterNotes.get(id);
+      if (note) out.set(id, note);
+    }
+    return out;
   }
 
   async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {

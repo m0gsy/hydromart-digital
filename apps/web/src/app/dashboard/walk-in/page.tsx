@@ -120,6 +120,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [phone, setPhone] = useState('');
   const [cash, setCash] = useState('');
   const [voucher, setVoucher] = useState('');
+  // The cashier's own note on this sale. Staff only; the server never sends it to the buyer.
+  const [saleNote, setSaleNote] = useState('');
   // #27: how many empty galon the buyer handed over for THIS sale. '' means not asked yet —
   // kept as a string so an empty box is distinct from a typed 0, and parsed only at submit.
   const [emptiesReturned, setEmptiesReturned] = useState('');
@@ -608,6 +610,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     setBuyerId(null);
     setCash('');
     setVoucher('');
+    setSaleNote('');
     // C11: including the address, or the next buyer's pick-up quietly becomes a delivery to
     // the previous buyer's house.
     setDeliver(false);
@@ -645,6 +648,7 @@ function WalkIn({ depotId }: { depotId: string }) {
       phone,
       voucher,
       buyerId,
+      note: saleNote,
       delivery: {
         on: deliver,
         recipient: addrName,
@@ -673,6 +677,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     setName(b.name);
     setPhone(b.phone);
     setVoucher(b.voucher);
+    setSaleNote(b.note ?? '');
     setBuyerId(b.buyerId);
     setCash('');
     setDeliver(b.delivery?.on ?? false);
@@ -750,6 +755,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           // C12: the buyer the cashier identified, so the sale prices exactly as the quote did.
           customerId: buyerId ?? undefined,
           voucherCode: voucher.trim().toUpperCase() || undefined,
+          counterNote: saleNote.trim() || undefined,
           // C11: the same object the quote was priced from, so the sale cannot be a
           // different journey than the one the buyer was quoted.
           deliveryAddress: deliveryReady ? deliveryAddress : undefined,
@@ -920,6 +926,11 @@ function WalkIn({ depotId }: { depotId: string }) {
             {t('opsFix.walkIn.lastSale')}{' '}
             <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
             <Money amount={lastSale.order.total} />
+            {lastSale.order.counterNote && (
+              <span className="mt-0.5 block text-xs text-muted">
+                {t('opsFix.walkIn.saleNoteShown', { note: lastSale.order.counterNote })}
+              </span>
+            )}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -958,6 +969,11 @@ function WalkIn({ depotId }: { depotId: string }) {
               {t('opsFix.walkIn.voidConfirm', { order: voiding.orderNumber })}
             </p>
             <p className="text-sm text-muted">{t('opsFix.walkIn.voidBody')}</p>
+            {voiding.counterNote && (
+              <p className="mt-1 text-sm font-semibold">
+                {t('opsFix.walkIn.saleNoteShown', { note: voiding.counterNote })}
+              </p>
+            )}
           </div>
           <Field
             label={t('opsFix.walkIn.voidReason')}
@@ -1262,6 +1278,20 @@ function WalkIn({ depotId }: { depotId: string }) {
           </div>
         )}
 
+        <Field
+          label={t('opsFix.walkIn.saleNote')}
+          htmlFor="wi-note"
+          hint={t('opsFix.walkIn.saleNoteHint')}
+        >
+          <Input
+            id="wi-note"
+            value={saleNote}
+            maxLength={255}
+            onChange={(e) => setSaleNote(e.target.value)}
+            placeholder={t('opsFix.walkIn.saleNotePlaceholder')}
+          />
+        </Field>
+
         {/* C12: shelf prices are now a subtotal. The discount below is the layer only the
             server knows — tier, agen band, voucher — and it is why this screen stopped
             adding anything up itself. */}
@@ -1556,6 +1586,11 @@ function WalkIn({ depotId }: { depotId: string }) {
                     <div className="truncate text-xs text-muted">
                       {voided && o.voidReason ? o.voidReason : formatDateTime(o.createdAt)}
                     </div>
+                    {o.counterNote && (
+                      <div className="truncate text-xs text-muted">
+                        {t('opsFix.walkIn.saleNoteShown', { note: o.counterNote })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span

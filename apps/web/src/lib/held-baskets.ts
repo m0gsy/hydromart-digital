@@ -14,6 +14,8 @@ export interface HeldBasket {
   phone: string;
   voucher: string;
   buyerId: string | null;
+  /** The cashier's note on this sale, kept so holding a basket does not lose it. */
+  note?: string;
   /**
    * The delivery form as it was. Held with the basket because a basket restored as a pick-up
    * would quote without the ongkir and silently be a different sale from the one set aside.
@@ -64,6 +66,7 @@ const isBasket = (v: unknown): v is HeldBasket => {
     typeof b.phone === 'string' &&
     typeof b.voucher === 'string' &&
     (b.buyerId === null || typeof b.buyerId === 'string') &&
+    (b.note === undefined || typeof b.note === 'string') &&
     (b.delivery === undefined || isDelivery(b.delivery))
   );
 };

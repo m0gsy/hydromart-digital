@@ -111,6 +111,12 @@ model Order {
   /// that still nets an empty returned later through the existing return flow.
   emptiesReturned Int?
 
+  /// A cashier's own note on a counter sale ("titip ke tetangga", "bayar sisanya besok").
+  /// Internal by design: it is NOT the delivery-address `notes` column, which the buyer sees
+  /// on their own order detail. Never mapped onto `OrderRecord` (that rides every order
+  /// response, customer routes included); staff routes attach it explicitly.
+  counterNote String?
+
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 

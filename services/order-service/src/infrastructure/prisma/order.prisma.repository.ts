@@ -1233,6 +1233,15 @@ export class OrderPrismaRepository implements OrderRepository {
    * narrow read rather than `ordersForDepot` (full `OrderRecord`, every field, every item
    * column) run through a filter.
    */
+  async counterNotesFor(orderIds: readonly string[]): Promise<Map<string, string>> {
+    if (orderIds.length === 0) return new Map();
+    const rows = await this.prisma.order.findMany({
+      where: { id: { in: [...orderIds] }, counterNote: { not: null } },
+      select: { id: true, counterNote: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.counterNote as string]));
+  }
+
   async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),

@@ -460,6 +460,8 @@ export interface DeliveryOptions {
 }
 
 export interface Order extends DeliveryAddress {
+  /** The cashier's own note on a counter sale. Staff routes only; a customer never receives it. */
+  counterNote?: string | null;
   id: string;
   orderNumber: string;
   /** #34: the public "lacak pesanan" link's key. Null for an order placed before it existed. */
