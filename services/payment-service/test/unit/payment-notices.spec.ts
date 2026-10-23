@@ -103,6 +103,62 @@ describe('payment notices', () => {
     expect(orders.notices).toHaveLength(0);
   });
 
+  describe('flagUnconfirmed', () => {
+    const paidMinutesAgo = async (method: PaymentMethod, minutes: number) => {
+      const row = await seedPending(method, hoursAgo(5));
+      await repo.update(row.id, {
+        status: PaymentStatus.PAID,
+        paidAt: new Date(Date.now() - minutes * 60_000),
+      });
+      return row;
+    };
+
+    it('tells the depot when money arrived but the order is still CREATED', async () => {
+      const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(row.orderId, 'CREATED');
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 1, failed: 0, ok: true });
+      expect(orders.notices).toEqual([{ orderId: row.orderId, kind: 'UNCONFIRMED', amount: 45000 }]);
+    });
+
+    it('stays quiet when the order did confirm, or its status cannot be read', async () => {
+      const confirmed = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(confirmed.orderId, 'CONFIRMED');
+      await paidMinutesAgo(PaymentMethod.QRIS, 50); // no status known for this one
+      expect((await service.flagUnconfirmed(new Date())).flagged).toBe(0);
+      expect(orders.notices).toHaveLength(0);
+    });
+
+    it('only looks at payments settled 30-90 minutes ago, so each is flagged once', async () => {
+      for (const minutes of [10, 120]) {
+        const row = await paidMinutesAgo(PaymentMethod.TRANSFER, minutes);
+        orders.orderStatuses.set(row.orderId, 'CREATED');
+      }
+      expect((await service.flagUnconfirmed(new Date())).flagged).toBe(0);
+    });
+
+    it('does nothing at all when nothing was settled in the window', async () => {
+      const spy = jest.spyOn(orders, 'getOrderStatuses');
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 0, ok: true });
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('counts a notice that throws and carries on', async () => {
+      const a = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      const b = await paidMinutesAgo(PaymentMethod.QRIS, 46);
+      orders.orderStatuses.set(a.orderId, 'CREATED');
+      orders.orderStatuses.set(b.orderId, 'CREATED');
+      jest.spyOn(orders, 'notifyPaymentEvent').mockRejectedValueOnce(new Error('down'));
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 1, failed: 1, ok: true });
+    });
+
+    it('reports ok=false when no notice could be sent', async () => {
+      const a = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(a.orderId, 'CREATED');
+      jest.spyOn(orders, 'notifyPaymentEvent').mockRejectedValue(new Error('down'));
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 1, ok: false });
+    });
+  });
+
   describe('remindStalePending', () => {
     it('reminds a payment in the hour after it passes half its lifetime', async () => {
       // The default TTL is 24h, so the window is ages 12h-13h.

@@ -48,6 +48,7 @@ import { MulterExceptionFilter } from './multer-exception.filter';
 import {
   PaymentExpirySweepResult,
   PaymentReminderSweepResult,
+  PaymentUnconfirmedSweepResult,
   PaymentService,
   RefundQueueRow,
   RevenueMethodRow,
@@ -83,6 +84,7 @@ import {
   CashByOrderResponseDto,
   ExpirePendingPaymentsResponseDto,
   RemindPendingPaymentsResponseDto,
+  FlagUnconfirmedPaymentsResponseDto,
   InternalExportRowsResponseDto,
   CashCollectedResponseDto,
   PagedPaymentResponseDto,
@@ -183,6 +185,18 @@ export class PaymentController {
   @ApiOperation({ summary: 'Fail non-cash payments left PENDING too long (internal service auth)' })
   expirePending(): Promise<PaymentExpirySweepResult> {
     return this.payments.expireStalePending(new Date());
+  }
+
+  /** Paid for 30-90 minutes yet the order is still unconfirmed: tell the depot. Hourly. */
+  @ApiOkResponse({ type: FlagUnconfirmedPaymentsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/flag-unconfirmed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Flag settled payments whose order never confirmed (internal service auth)' })
+  flagUnconfirmed(): Promise<PaymentUnconfirmedSweepResult> {
+    return this.payments.flagUnconfirmed(new Date());
   }
 
   /**

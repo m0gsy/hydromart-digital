@@ -106,6 +106,7 @@ export function destinationFor(
     case NotificationEvent.DEPOT_ORDER_INCOMING:
     case NotificationEvent.DEPOT_ORDER_RESCHEDULED:
     case NotificationEvent.DEPOT_ORDER_CANCELLED:
+    case NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED:
       return vars.orderId
         ? `/dashboard/orders?order=${encodeURIComponent(vars.orderId)}`
         : '/dashboard/orders';
@@ -131,6 +132,9 @@ export function destinationFor(
       return '/hr/me/payroll';
     case NotificationEvent.ATTENDANCE_LATE:
       return '/hr/me/attendance';
+    // The reminder is about punching in, so it opens the check-in screen.
+    case NotificationEvent.SHIFT_REMINDER:
+      return '/hr/me/check-in';
     default:
       return INBOX;
   }

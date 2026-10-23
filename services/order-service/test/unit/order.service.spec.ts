@@ -4344,6 +4344,15 @@ describe('OrderService', () => {
       expect(call!.customerId).toBeNull();
     });
 
+    it('tells the depot when money arrived but the order never confirmed', async () => {
+      const order = await place();
+      await service.notifyPaymentEvent(order.id, 'UNCONFIRMED', 20000);
+      const call = notification.calls.find((c) => c.event === 'DEPOT_PAYMENT_UNCONFIRMED');
+      expect(call!.depotId).toBe(order.depotId);
+      expect(call!.customerId).toBeNull();
+      expect(call!.vars.amount).toContain('20.000');
+    });
+
     it('does not ask for payment on an order that was cancelled meanwhile', async () => {
       const order = await place();
       await service.cancel(customer, order.id);

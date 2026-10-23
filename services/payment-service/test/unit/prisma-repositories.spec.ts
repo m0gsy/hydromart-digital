@@ -133,6 +133,33 @@ describe('PaymentPrismaRepository', () => {
     expect(EXPIRABLE_PENDING_METHODS).not.toContain(PaymentMethod.CASH);
   });
 
+  it('findStalePending can be bounded below, for a window of ages', async () => {
+    model.findMany.mockResolvedValue([]);
+    const before = new Date('2026-08-01T12:00:00.000Z');
+    const after = new Date('2026-08-01T11:00:00.000Z');
+    await repo.findStalePending(before, EXPIRABLE_PENDING_METHODS, 500, after);
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ createdAt: { lt: before, gte: after } }) }),
+    );
+  });
+
+  it('findPaidBetween reads PAID rows settled in the window, oldest first, bounded', async () => {
+    model.findMany.mockResolvedValue([fullRow()]);
+    const from = new Date('2026-08-01T11:00:00.000Z');
+    const to = new Date('2026-08-01T12:00:00.000Z');
+    const rows = await repo.findPaidBetween(from, to, EXPIRABLE_PENDING_METHODS, 500);
+    expect(rows).toHaveLength(1);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        status: PaymentStatus.PAID,
+        method: { in: EXPIRABLE_PENDING_METHODS },
+        paidAt: { gte: from, lt: to },
+      },
+      orderBy: { paidAt: 'asc' },
+      take: 500,
+    });
+  });
+
   it('findByReference queries by reference and maps / returns null', async () => {
     model.findFirst.mockResolvedValue(fullRow());
     expect((await repo.findByReference('ref-1'))?.id).toBe('pay-1');

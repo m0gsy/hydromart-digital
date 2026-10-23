@@ -56,6 +56,7 @@ describe('destinationFor', () => {
     NotificationEvent.DEPOT_ORDER_INCOMING,
     NotificationEvent.DEPOT_ORDER_RESCHEDULED,
     NotificationEvent.DEPOT_ORDER_CANCELLED,
+    NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED,
   ])(
     '%s opens that order in the ops queue',
     (event) => {
@@ -81,6 +82,7 @@ describe('destinationFor', () => {
   it.each([
     [NotificationEvent.PAYSLIP_READY, '/hr/me/payroll'],
     [NotificationEvent.ATTENDANCE_LATE, '/hr/me/attendance'],
+    [NotificationEvent.SHIFT_REMINDER, '/hr/me/check-in'],
   ])('%s opens the employee self-service page %s', (event, url) => {
     expect(destinationFor(event, {})).toBe(url);
   });

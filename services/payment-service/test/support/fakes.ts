@@ -103,6 +103,25 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
+  async findPaidBetween(
+    from: Date,
+    to: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.status === PaymentStatus.PAID &&
+          methods.includes(r.method) &&
+          r.paidAt !== null &&
+          r.paidAt.getTime() >= from.getTime() &&
+          r.paidAt.getTime() < to.getTime(),
+      )
+      .sort((a, b) => a.paidAt!.getTime() - b.paidAt!.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
   async findByReference(reference: string): Promise<PaymentRecord | null> {
     const row = this.rows.find((r) => r.reference === reference);
     return row ? { ...row } : null;
@@ -330,13 +349,13 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   }
   notices: {
     orderId: string;
-    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED';
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED';
     amount: number;
     reason?: 'REJECTED' | 'EXPIRED';
   }[] = [];
   async notifyPaymentEvent(
     orderId: string,
-    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED',
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
     amount: number,
     reason?: 'REJECTED' | 'EXPIRED',
   ): Promise<void> {

@@ -23,6 +23,8 @@ export const notifications = {
     DEPOT_ORDER_RESCHEDULED: 'Jadwal pesanan diubah',
     DEPOT_ORDER_CANCELLED: 'Pesanan dibatalkan pelanggan',
     DEPOT_PAYMENT_PROOF: 'Bukti pembayaran masuk',
+    DEPOT_PAYMENT_UNCONFIRMED: 'Bayar lunas, pesanan belum dikonfirmasi',
+    SHIFT_REMINDER: 'Shift segera dimulai',
     APPROVAL_REQUESTED: 'Menunggu persetujuan',
     PAYMENT_FAILED: 'Pembayaran belum berhasil',
     PAYMENT_REMINDER: 'Selesaikan pembayaran',

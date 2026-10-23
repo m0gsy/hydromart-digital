@@ -301,7 +301,7 @@ export class InternalRefundDto {
 }
 
 /** Internal (payment-service): something happened to an order's payment that someone must hear. */
-export const PAYMENT_NOTICE_KINDS = ['FAILED', 'REMINDER', 'PROOF_UPLOADED'] as const;
+export const PAYMENT_NOTICE_KINDS = ['FAILED', 'REMINDER', 'PROOF_UPLOADED', 'UNCONFIRMED'] as const;
 export type PaymentNoticeKind = (typeof PAYMENT_NOTICE_KINDS)[number];
 
 export class InternalPaymentNoticeDto {

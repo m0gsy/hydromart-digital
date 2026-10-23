@@ -2920,15 +2920,15 @@ export class OrderService {
    */
   async notifyPaymentEvent(
     orderId: string,
-    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED',
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
     amount: number,
     reason?: 'REJECTED' | 'EXPIRED',
   ): Promise<void> {
     const order = await this.getAny(orderId);
-    if (kind === 'PROOF_UPLOADED') {
+    if (kind === 'PROOF_UPLOADED' || kind === 'UNCONFIRMED') {
       if (!order.depotId) return;
       await this.notification.notify(
-        'DEPOT_PAYMENT_PROOF',
+        kind === 'UNCONFIRMED' ? 'DEPOT_PAYMENT_UNCONFIRMED' : 'DEPOT_PAYMENT_PROOF',
         order.phone,
         { orderNumber: order.orderNumber, orderId: order.id, amount: rupiahLabel(amount) },
         null,

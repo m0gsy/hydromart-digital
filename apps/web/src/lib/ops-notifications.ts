@@ -44,6 +44,7 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   DEPOT_ORDER_RESCHEDULED: 'orders',
   DEPOT_ORDER_CANCELLED: 'orders',
   DEPOT_PAYMENT_PROOF: 'orders',
+  DEPOT_PAYMENT_UNCONFIRMED: 'orders',
   APPROVAL_REQUESTED: 'orders',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
@@ -58,6 +59,7 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   LEAVE_APPROVED: 'hr',
   LEAVE_REJECTED: 'hr',
   HR_ANNOUNCEMENT: 'hr',
+  SHIFT_REMINDER: 'hr',
   PAYSLIP_READY: 'hr',
   ATTENDANCE_LATE: 'hr',
 };

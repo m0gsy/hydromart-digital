@@ -101,7 +101,7 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
 
   async notifyPaymentEvent(
     orderId: string,
-    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED',
+    kind: 'FAILED' | 'REMINDER' | 'PROOF_UPLOADED' | 'UNCONFIRMED',
     amount: number,
     reason?: 'REJECTED' | 'EXPIRED',
   ): Promise<void> {

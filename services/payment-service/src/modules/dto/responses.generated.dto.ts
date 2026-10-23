@@ -186,6 +186,15 @@ export class PurgeProofsResponseDto {
 }
 
 /** K2.2: what one stale-payment sweep did, in the shape J7 gave every sweep. */
+export class FlagUnconfirmedPaymentsResponseDto {
+  @ApiProperty({ type: Number, description: 'Depots told about an unconfirmed paid order on this tick.' })
+  flagged!: number;
+  @ApiProperty({ type: Number, description: 'Notices that could not be sent.' })
+  failed!: number;
+  @ApiProperty({ type: Boolean, description: 'false when the round failed at something and flagged nothing.' })
+  ok!: boolean;
+}
+
 export class RemindPendingPaymentsResponseDto {
   @ApiProperty({ type: Number, description: 'Buyers reminded on this tick.' })
   reminded!: number;

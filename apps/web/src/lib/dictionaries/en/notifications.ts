@@ -21,6 +21,8 @@ export const notifications = {
     DEPOT_ORDER_INCOMING: 'New order arrived',
     DEPOT_ORDER_CANCELLED: 'Order cancelled by customer',
     DEPOT_PAYMENT_PROOF: 'Payment receipt received',
+    DEPOT_PAYMENT_UNCONFIRMED: 'Paid but order unconfirmed',
+    SHIFT_REMINDER: 'Shift starting soon',
     APPROVAL_REQUESTED: 'Waiting for approval',
     PAYMENT_FAILED: 'Payment did not go through',
     PAYMENT_REMINDER: 'Complete your payment',

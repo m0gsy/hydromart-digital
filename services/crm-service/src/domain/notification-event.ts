@@ -32,6 +32,10 @@ export enum NotificationEvent {
   // To the DEPOT: a customer uploaded a transfer receipt that is waiting to be verified.
   // Tokens: {{orderNumber}}, {{orderId}}, {{amount}}.
   DEPOT_PAYMENT_PROOF = 'DEPOT_PAYMENT_PROOF',
+  // To the DEPOT: money arrived for an order that is still unconfirmed half an hour later -
+  // the settle-then-confirm hand-off between payment and order service dropped it.
+  // Tokens: {{orderNumber}}, {{orderId}}, {{amount}}.
+  DEPOT_PAYMENT_UNCONFIRMED = 'DEPOT_PAYMENT_UNCONFIRMED',
   // To the manager at the top of the depot's supervision chain: an item is waiting for a
   // decision. Tokens: {{title}}, {{depot}}, {{amount}}, {{approvalId}}.
   APPROVAL_REQUESTED = 'APPROVAL_REQUESTED',
@@ -144,6 +148,8 @@ export enum NotificationEvent {
   LOAN_REQUEST_REJECTED = 'LOAN_REQUEST_REJECTED',
   HR_ANNOUNCEMENT = 'HR_ANNOUNCEMENT',
   // To the employee only: their payslip for a month is available. Tokens: {{name}}, {{period}}.
+  // To the employee only: their rota shift starts soon. Tokens: {{name}}, {{time}}.
+  SHIFT_REMINDER = 'SHIFT_REMINDER',
   PAYSLIP_READY = 'PAYSLIP_READY',
   // To the employee only: their check-in was recorded late. Tokens: {{name}}, {{minutes}}, {{date}}.
   ATTENDANCE_LATE = 'ATTENDANCE_LATE',
@@ -185,12 +191,16 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Halo {{name}}, pesanan {{orderNumber}} masih menunggu pembayaran {{amount}}. Selesaikan pembayaran agar pesanan segera diproses.',
   [NotificationEvent.REFUND_PROCESSED]:
     'Halo {{name}}, refund {{amount}} untuk pesanan {{orderNumber}} sudah diproses. Dana kembali lewat metode pembayaranmu.',
+  [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]:
+    'Pembayaran {{amount}} untuk pesanan {{orderNumber}} sudah lunas tetapi pesanan belum dikonfirmasi. Buka pesanan dan konfirmasi manual.',
   [NotificationEvent.DEPOT_PAYMENT_PROOF]:
     'Bukti pembayaran masuk untuk pesanan {{orderNumber}} ({{amount}}). Buka menu Pembayaran untuk memverifikasinya.',
   [NotificationEvent.DEPOT_ORDER_CANCELLED]:
     'Pesanan {{orderNumber}} ({{total}}) dibatalkan oleh pelanggan. Stok dikembalikan; tidak perlu diproses lagi.',
   [NotificationEvent.COURIER_DELIVERY_ASSIGNED]:
     'Pengiriman baru untukmu: pesanan {{orderNumber}}. Buka aplikasi untuk alamat dan detailnya.',
+  [NotificationEvent.SHIFT_REMINDER]:
+    'Halo {{name}}, shift Anda mulai pukul {{time}}. Jangan lupa absen masuk.',
   [NotificationEvent.PAYSLIP_READY]:
     'Halo {{name}}, slip gaji {{period}} sudah tersedia. Buka menu Gaji saya untuk melihatnya.',
   [NotificationEvent.ATTENDANCE_LATE]:
@@ -275,6 +285,7 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.DEPOT_ORDER_RESCHEDULED,
   NotificationEvent.DEPOT_ORDER_CANCELLED,
   NotificationEvent.DEPOT_PAYMENT_PROOF,
+  NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED,
   // Addressed to one courier's account, so it is also in PERSONAL_OPS_EVENTS below.
   NotificationEvent.COURIER_DELIVERY_ASSIGNED,
   NotificationEvent.APPROVAL_REQUESTED,
@@ -300,6 +311,7 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.LOAN_REQUEST_REJECTED,
   NotificationEvent.HR_ANNOUNCEMENT,
   // Personal to the employee (salary period, their own lateness): see PERSONAL_OPS_EVENTS.
+  NotificationEvent.SHIFT_REMINDER,
   NotificationEvent.PAYSLIP_READY,
   NotificationEvent.ATTENDANCE_LATE,
 ];
@@ -319,6 +331,7 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.LOAN_REQUEST_REJECTED,
   NotificationEvent.COURIER_DELIVERY_ASSIGNED,
   NotificationEvent.APPROVAL_REQUESTED,
+  NotificationEvent.SHIFT_REMINDER,
   NotificationEvent.PAYSLIP_READY,
   NotificationEvent.ATTENDANCE_LATE,
 ];
@@ -340,12 +353,16 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Hi {{name}}, order {{orderNumber}} is still waiting for its {{amount}} payment. Complete it so we can process your order.',
   [NotificationEvent.REFUND_PROCESSED]:
     'Hi {{name}}, your {{amount}} refund for order {{orderNumber}} has been processed. It returns through your payment method.',
+  [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]:
+    'The {{amount}} payment for order {{orderNumber}} is settled but the order is still unconfirmed. Open the order and confirm it manually.',
   [NotificationEvent.DEPOT_PAYMENT_PROOF]:
     'A payment receipt arrived for order {{orderNumber}} ({{amount}}). Open Payments to verify it.',
   [NotificationEvent.DEPOT_ORDER_CANCELLED]:
     'The customer cancelled order {{orderNumber}} ({{total}}). Stock is released; no need to process it.',
   [NotificationEvent.COURIER_DELIVERY_ASSIGNED]:
     'New delivery for you: order {{orderNumber}}. Open the app for the address and details.',
+  [NotificationEvent.SHIFT_REMINDER]:
+    'Hi {{name}}, your shift starts at {{time}}. Remember to check in.',
   [NotificationEvent.PAYSLIP_READY]:
     'Hi {{name}}, your {{period}} payslip is ready. Open My Payroll to view it.',
   [NotificationEvent.ATTENDANCE_LATE]:

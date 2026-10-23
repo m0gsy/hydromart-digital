@@ -44,6 +44,8 @@
 # never touched — a COD payment is PENDING by design until the courier confirms.
 25 * * * * sh /scripts/sweep.sh payments/internal/expire-pending payment:3005
 40 * * * * sh /scripts/sweep.sh payments/internal/remind-pending payment:3005
+# Paid 30-90 minutes ago but the order is still unconfirmed: the confirm hand-off was dropped.
+55 * * * * sh /scripts/sweep.sh payments/internal/flag-unconfirmed payment:3005
 # Release the stock held by orders nobody ever confirmed. Also unscheduled until now, so a
 # reservation from an abandoned checkout was never given back — a slow leak into false
 # out-of-stock. Hourly is enough: the threshold is measured in minutes-to-hours, and the
@@ -71,6 +73,9 @@
 # console lets HR pick a time to the minute, and an hourly sweep would make "kirim jam 9"
 # arrive at 10. Nothing is sent twice — publishedAt is the latch.
 */15 * * * * sh /scripts/sweep.sh announcements/publish-due hr:3018
+# Shift reminders: 30-45 minutes before a rota employee shift. Every 15 minutes so each shift
+# is in exactly one tick window (see ShiftReminderService).
+*/15 * * * * sh /scripts/sweep.sh shifts/internal/remind-starting hr:3018
 # Broadcast campaigns (B-17): send the next batch for every campaign still SENDING. The
 # send endpoint only CLAIMS the campaign now — this sweep is what actually messages
 # customers. Every 2 minutes: staff press "kirim" and expect it to be moving, not to wait

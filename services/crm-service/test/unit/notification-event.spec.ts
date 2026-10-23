@@ -236,10 +236,15 @@ describe('ops events that must reach staff phones', () => {
 });
 
 describe('wave-1 events are routed where their recipient will see them', () => {
-  const DEPOT = [NotificationEvent.DEPOT_ORDER_CANCELLED, NotificationEvent.DEPOT_PAYMENT_PROOF];
+  const DEPOT = [
+    NotificationEvent.DEPOT_ORDER_CANCELLED,
+    NotificationEvent.DEPOT_PAYMENT_PROOF,
+    NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED,
+  ];
   const PERSONAL = [
     NotificationEvent.COURIER_DELIVERY_ASSIGNED,
     NotificationEvent.APPROVAL_REQUESTED,
+    NotificationEvent.SHIFT_REMINDER,
     NotificationEvent.PAYSLIP_READY,
     NotificationEvent.ATTENDANCE_LATE,
   ];

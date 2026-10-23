@@ -115,6 +115,13 @@ export interface PaymentExpirySweepResult {
   ok: boolean;
 }
 
+/** The unconfirmed-order round; `ok` follows the same rule as the expiry's. */
+export interface PaymentUnconfirmedSweepResult {
+  flagged: number;
+  failed: number;
+  ok: boolean;
+}
+
 /** The pending-payment reminder round; `ok` follows the same rule as the expiry's. */
 export interface PaymentReminderSweepResult {
   reminded: number;
@@ -174,6 +181,8 @@ export class PaymentService {
   private static readonly EXPIRY_SWEEP_LIMIT = 500;
   /** One scheduler tick: the reminder sweep runs hourly (scripts/scheduler/crontab). */
   private static readonly REMINDER_WINDOW_MS = 3_600_000;
+  /** How long a settled payment may sit beside an unconfirmed order before it is a problem. */
+  private static readonly UNCONFIRMED_AFTER_MS = 30 * 60_000;
   private static readonly MAX_LIMIT = 100;
   private readonly logger = new Logger(PaymentService.name);
 
@@ -710,6 +719,48 @@ export class PaymentService {
       }
     }
     return { reminded, failed, ok: failed === 0 || reminded > 0 };
+  }
+
+  /**
+   * Money that arrived for an order which never confirmed.
+   *
+   * A settled payment confirms its order through `confirmPaid`, which is fail-open on purpose:
+   * the money is real, so an order-service hiccup must not undo it. The cost is that the two can
+   * drift - paid here, still CREATED there - and nothing said so. This looks at transfer/QRIS
+   * payments settled 30-90 minutes ago (the sweep is hourly, so each falls in one window) and
+   * tells the depot about those whose order is still CREATED.
+   *
+   * An order whose status cannot be read is left alone: no answer is not evidence of a problem.
+   */
+  async flagUnconfirmed(now: Date): Promise<PaymentUnconfirmedSweepResult> {
+    const to = new Date(now.getTime() - PaymentService.UNCONFIRMED_AFTER_MS);
+    const from = new Date(to.getTime() - PaymentService.REMINDER_WINDOW_MS);
+    const paid = await this.payments.findPaidBetween(
+      from,
+      to,
+      EXPIRABLE_PENDING_METHODS,
+      PaymentService.EXPIRY_SWEEP_LIMIT,
+    );
+    if (paid.length === 0) return { flagged: 0, failed: 0, ok: true };
+
+    const statuses = await this.orderCoordination.getOrderStatuses(paid.map((p) => p.orderId));
+    let flagged = 0;
+    let failed = 0;
+    for (const payment of paid) {
+      if (statuses.get(payment.orderId) !== 'CREATED') continue;
+      try {
+        await this.orderCoordination.notifyPaymentEvent(
+          payment.orderId,
+          'UNCONFIRMED',
+          payment.amount,
+        );
+        flagged += 1;
+      } catch (error) {
+        failed += 1;
+        this.logger.warn(`Unconfirmed notice for payment ${payment.id} failed: ${(error as Error).message}`);
+      }
+    }
+    return { flagged, failed, ok: failed === 0 || flagged > 0 };
   }
 
   /**

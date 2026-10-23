@@ -136,6 +136,24 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
+  async findPaidBetween(
+    from: Date,
+    to: Date,
+    methods: readonly PaymentMethod[],
+    limit: number,
+  ): Promise<PaymentRecord[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PAID,
+        method: { in: methods as PaymentMethod[] },
+        paidAt: { gte: from, lt: to },
+      },
+      orderBy: { paidAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async findByReference(reference: string): Promise<PaymentRecord | null> {
     const row = await this.prisma.payment.findFirst({ where: { reference } });
     return row ? this.toRecord(row) : null;
