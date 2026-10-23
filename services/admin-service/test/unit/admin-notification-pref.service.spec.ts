@@ -63,6 +63,12 @@ describe('AdminNotificationPrefService', () => {
       email: false,
       wa: false,
     });
+    // The sales updates and the morning recap are on unless somebody opts out.
+    expect(prefs.channels.find((c) => c.id === 'dailySummary')).toMatchObject({
+      push: true,
+      email: false,
+      wa: false,
+    });
   });
 
   it('serves both lists in ALL scope', async () => {
@@ -125,9 +131,9 @@ describe('AdminNotificationPrefService', () => {
     });
 
     it('treats an account that never saved anything as the toggle default, not as off', async () => {
-      // newOrder defaults ON, dailySummary defaults OFF.
+      // Every depot toggle defaults to push ON, the daily summary included.
       expect(await service.pushDisabledFor(['acc-9'], 'newOrder')).toEqual([]);
-      expect(await service.pushDisabledFor(['acc-9'], 'dailySummary')).toEqual(['acc-9']);
+      expect(await service.pushDisabledFor(['acc-9'], 'dailySummary')).toEqual([]);
     });
 
     it('a saved row for another toggle does not change this one', async () => {

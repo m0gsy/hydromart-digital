@@ -48,14 +48,16 @@ const HQ_DEFAULTS: NotificationChannelPref[] = [
   { id: 'dailyDigest', push: false, email: true, wa: false },
 ];
 
-// A depot's day: the two that interrupt work default to push-only (an operator is on the
-// floor, not in an inbox), and the digest defaults off — nobody asked for a daily email.
+// A depot's day: everything defaults to push-only (an operator is on the floor, not in an
+// inbox) and nothing to email or WhatsApp. `dailySummary` is on too: it is the depot's sales
+// update (three a day) and the morning recap, the SOP reports a depot is expected to see, and
+// a switch that defaults off would mean nobody receives them until they find the setting.
 const DEPOT_DEFAULTS: NotificationChannelPref[] = [
   { id: 'newOrder', push: true, email: false, wa: false },
   { id: 'lowStock', push: true, email: false, wa: false },
   { id: 'courierFail', push: true, email: false, wa: false },
   { id: 'approval', push: true, email: false, wa: false },
-  { id: 'dailySummary', push: false, email: false, wa: false },
+  { id: 'dailySummary', push: true, email: false, wa: false },
 ];
 
 function defaultsFor(scope: NotificationScope): NotificationChannelPref[] {

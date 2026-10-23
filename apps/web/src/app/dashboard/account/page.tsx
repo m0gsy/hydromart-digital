@@ -23,7 +23,7 @@ import { usePushPrefs } from '@/lib/notif-prefs';
 const ALERTS: { id: string; icon: Icon; def: boolean }[] = [
   { id: 'approval', icon: Bell, def: true },
   { id: 'lowStock', icon: WarningCircle, def: true },
-  { id: 'dailySummary', icon: Sun, def: false },
+  { id: 'dailySummary', icon: Sun, def: true },
 ];
 
 function AccountBody() {
