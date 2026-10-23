@@ -255,6 +255,9 @@ const RELEASE_CONFIG = [
   ['mobile.yml', 'testable', 'MOBILE_WEB_HOST', 'default'],
   ['mobile.yml', 'testable', 'SENTRY_DSN_MOBILE', 'warn'],
   ['mobile.yml', 'testable', 'SENTRY_ENVIRONMENT', 'default'],
+  // A debug APK without it still builds and installs, it just cannot register for push, so say so
+  // in the log rather than refuse: a fork's pull request has no secrets at all.
+  ['mobile.yml', 'testable', 'GOOGLE_SERVICES_JSON_BASE64', 'warn'],
   // Opt-in on purpose: there is no account to publish to yet and a tag has to stay green
   // without one. It must not be SILENT about it — a run that uploaded nothing looked exactly
   // like a run that published, which is why this is `warn` and not `default`.
