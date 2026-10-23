@@ -3,6 +3,7 @@ import {
   NotificationEvent,
   OPS_EVENTS,
   PERSONAL_OPS_EVENTS,
+  STAFF_TOGGLE_FOR_EVENT,
   renderMessage,
   templateFor,
 } from '../../src/domain/notification-event';
@@ -284,5 +285,25 @@ describe('payment events', () => {
     });
     expect(text).toContain('Rp 50.000');
     expect(text).toContain('HM-1');
+  });
+});
+
+describe('the staff switch for each depot alert', () => {
+  it('only maps ops events (a customer event has no staff switch)', () => {
+    for (const event of Object.keys(STAFF_TOGGLE_FOR_EVENT)) {
+      expect(OPS_EVENTS).toContain(event);
+    }
+  });
+
+  it('puts every depot-wide alert on a switch the settings screen offers', () => {
+    // admin-service's DEPOT_EVENT_IDS; "courierFail" and the rest must match it exactly.
+    const offered = ['newOrder', 'lowStock', 'courierFail', 'approval', 'dailySummary'];
+    for (const toggle of Object.values(STAFF_TOGGLE_FOR_EVENT)) expect(offered).toContain(toggle);
+  });
+
+  it('leaves personal HR alerts without a switch, so they are always pushed', () => {
+    for (const event of [NotificationEvent.PAYSLIP_READY, NotificationEvent.SHIFT_REMINDER, NotificationEvent.LEAVE_APPROVED]) {
+      expect(STAFF_TOGGLE_FOR_EVENT[event]).toBeUndefined();
+    }
   });
 });

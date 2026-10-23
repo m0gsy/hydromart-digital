@@ -84,6 +84,24 @@ export class AdminNotificationPrefService {
   }
 
   /**
+   * Which of these accounts have switched PUSH off for one depot toggle.
+   *
+   * crm-service asks this before it pushes a depot alert to staff, so the switches on the
+   * settings screens decide what a phone buzzes for. An account that never saved anything has
+   * the default for that toggle (see DEPOT_DEFAULTS), so "no row" is not "all on". Only depot
+   * toggles are answerable: an HQ toggle has no depot alert behind it.
+   */
+  async pushDisabledFor(accountIds: readonly string[], toggle: string): Promise<string[]> {
+    const def = DEPOT_DEFAULTS.find((d) => d.id === toggle);
+    if (!def) return [];
+    const saved = new Map((await this.repo.getMany(accountIds)).map((r) => [r.accountId, r]));
+    return accountIds.filter((id) => {
+      const row = saved.get(id)?.channels.find((c) => c.id === toggle);
+      return !(row ? !!row.push : def.push);
+    });
+  }
+
+  /**
    * Replace the caller's prefs for the events IN THEIR SCOPE.
    *
    * Rows outside the scope are carried over untouched rather than dropped: the depot

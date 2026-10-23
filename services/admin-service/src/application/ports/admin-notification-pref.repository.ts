@@ -15,6 +15,8 @@ export interface AdminNotificationPrefRecord {
 export interface AdminNotificationPrefRepository {
   /** Prefs for one account, or null when the account has never saved any. */
   get(accountId: string): Promise<AdminNotificationPrefRecord | null>;
+  /** Prefs for several accounts in one read; accounts that never saved any are simply absent. */
+  getMany(accountIds: readonly string[]): Promise<AdminNotificationPrefRecord[]>;
   /** Create-or-replace an account's prefs (PUT semantics). */
   save(
     accountId: string,

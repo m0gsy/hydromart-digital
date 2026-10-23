@@ -555,6 +555,9 @@ services:
     environment:
       <<: *shared
       CRM_SERVICE_PORT: 3012
+      # Staff push switches live in admin-service; crm asks before waking a phone. Blank = every
+      # switch reads as on (the behaviour before they were wired).
+      ADMIN_SERVICE_URL: http://admin:3017
       CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CUSTOMER_SERVICE_URL: http://customer:3002
       # The ACTIVITY half of a broadcast segment (lapsed / new / frequent / ordered-at-depot)

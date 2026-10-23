@@ -114,4 +114,38 @@ describe('AdminNotificationPrefService', () => {
       email: true,
     });
   });
+
+  describe('pushDisabledFor', () => {
+    const off = { push: false, email: false, wa: false };
+
+    it('names the accounts that switched push off for the toggle', async () => {
+      await service.save('acc-1', [{ id: 'newOrder', ...off }], 'DEPOT');
+      await service.save('acc-2', [{ id: 'newOrder', push: true, email: false, wa: false }], 'DEPOT');
+      expect(await service.pushDisabledFor(['acc-1', 'acc-2', 'acc-3'], 'newOrder')).toEqual(['acc-1']);
+    });
+
+    it('treats an account that never saved anything as the toggle default, not as off', async () => {
+      // newOrder defaults ON, dailySummary defaults OFF.
+      expect(await service.pushDisabledFor(['acc-9'], 'newOrder')).toEqual([]);
+      expect(await service.pushDisabledFor(['acc-9'], 'dailySummary')).toEqual(['acc-9']);
+    });
+
+    it('a saved row for another toggle does not change this one', async () => {
+      await service.save('acc-1', [{ id: 'lowStock', ...off }], 'DEPOT');
+      expect(await service.pushDisabledFor(['acc-1'], 'newOrder')).toEqual([]);
+      expect(await service.pushDisabledFor(['acc-1'], 'lowStock')).toEqual(['acc-1']);
+    });
+
+    it('answers nothing for a toggle that is not a depot alert', async () => {
+      await service.save('acc-1', [{ id: 'criticalSla', ...off }]);
+      expect(await service.pushDisabledFor(['acc-1'], 'criticalSla')).toEqual([]);
+      expect(await service.pushDisabledFor(['acc-1'], 'nonsense')).toEqual([]);
+    });
+
+    it('asks for no accounts without touching the store', async () => {
+      const spy = jest.spyOn(repo, 'getMany');
+      expect(await service.pushDisabledFor([], 'newOrder')).toEqual([]);
+      expect(spy).toHaveBeenCalledWith([]);
+    });
+  });
 });
