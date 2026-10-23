@@ -264,6 +264,20 @@ export async function requestPushOnce(): Promise<void> {
   }
 }
 
+/**
+ * Forget that this install was asked. Called at sign-out: the flag is the DEVICE's, but the
+ * registration it guards is the ACCOUNT's, and sign-out deletes that registration. Left
+ * set, the next person to sign in here (or the same one signing back in) was never
+ * registered, because `requestPushOnce` saw "already asked" and returned.
+ */
+export function forgetPushAsk(): void {
+  try {
+    window.localStorage.removeItem(ASKED_KEY);
+  } catch {
+    /* no storage, no flag to forget */
+  }
+}
+
 /** Current push state without prompting for permission. */
 export async function getPushState(): Promise<PushState> {
   if (!pushSupported()) return 'unsupported';

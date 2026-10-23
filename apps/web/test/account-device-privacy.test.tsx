@@ -18,7 +18,10 @@ vi.mock('@/lib/api', () => ({
   },
   ApiError: class ApiError extends Error {},
 }));
-vi.mock('@/lib/push', () => ({ unsubscribeFromPush: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/push', () => ({
+  unsubscribeFromPush: vi.fn().mockResolvedValue(undefined),
+  forgetPushAsk: vi.fn(),
+}));
 vi.mock('@/lib/token-store', () => ({
   // The lock state the provider and the gate read; a session that is simply open.
   getSessionLock: () => 'open',

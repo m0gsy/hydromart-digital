@@ -92,6 +92,17 @@ export function destinationFor(
      */
     case NotificationEvent.LOAN_REQUEST_SUBMITTED:
       return '/hr/loans/requests';
+    /*
+     * O6: a new or rescheduled order for the depot opens in the ops queue, which deep-links
+     * with `?order=<id>` (dashboard/orders/page.tsx). Without a case these fell to the inbox
+     * — the push woke the phone and left the operator to find the order by hand.
+     * `/dashboard` is served by the ops binary (only `hq` and the HR console are pruned).
+     */
+    case NotificationEvent.DEPOT_ORDER_INCOMING:
+    case NotificationEvent.DEPOT_ORDER_RESCHEDULED:
+      return vars.orderId
+        ? `/dashboard/orders?order=${encodeURIComponent(vars.orderId)}`
+        : '/dashboard/orders';
     case NotificationEvent.LOAN_REQUEST_APPROVED:
     case NotificationEvent.LOAN_REQUEST_REJECTED:
       return '/hr/me/kasbon';

@@ -23,7 +23,8 @@ vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
   return { ...actual, api: { ...actual.api, post, get: vi.fn().mockResolvedValue(null) } };
 });
-vi.mock('@/lib/push', () => ({ unsubscribeFromPush }));
+const { forgetPushAsk } = vi.hoisted(() => ({ forgetPushAsk: vi.fn() }));
+vi.mock('@/lib/push', () => ({ unsubscribeFromPush, forgetPushAsk }));
 vi.mock('@/lib/token-store', async () => {
   const actual = await vi.importActual<typeof import('@/lib/token-store')>('@/lib/token-store');
   return { ...actual, clearTokens, getRefreshToken: () => 'rt-1', hasTokens: () => true };
@@ -56,6 +57,20 @@ describe('signOut', () => {
     signOut!();
 
     await waitFor(() => expect(unsubscribeFromPush).toHaveBeenCalledTimes(1));
+  });
+
+  // The "already asked" flag is the device's but the registration it guards is the
+  // account's: the next sign-in on this phone must be asked again.
+  it('forgets that the device was asked for push', async () => {
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(signOut).not.toBeNull());
+    signOut!();
+
+    await waitFor(() => expect(forgetPushAsk).toHaveBeenCalledTimes(1));
   });
 
   it('issues the release BEFORE the credential it needs is dropped', async () => {

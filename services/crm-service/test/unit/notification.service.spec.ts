@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NotificationService } from '../../src/application/services/notification.service';
 import { PushService } from '../../src/application/services/push.service';
 import { MessageLocale, NotificationEvent } from '../../src/domain/notification-event';
@@ -341,6 +342,26 @@ describe('F8 — an ops alert that can wake somebody', () => {
     await flush();
     expect(sent.map((s) => s.customerId).sort()).toEqual(['s-1', 's-2']);
     expect(sent[0]!.body).toContain('truk terguling');
+  });
+
+  it('logs staff, devices and deliveries so an unregistered app is visible', async () => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const push = {
+      sendToCustomer: jest
+        .fn()
+        .mockResolvedValueOnce({ devices: 2, delivered: 1 })
+        .mockRejectedValueOnce(new Error('boom')),
+    };
+    const service = new NotificationService(
+      { record: jest.fn(async (r: unknown) => r) } as never,
+      push as never,
+      undefined,
+      { staffIdsForDepot: jest.fn(async () => staffIds) } as never,
+    );
+    await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+    await flush();
+    expect(log).toHaveBeenCalledWith('STOCK_LOW depot depot-1: 2 staff, 2 devices, 1 delivered');
+    log.mockRestore();
   });
 
   it('still writes the ops feed row when the roster cannot be read', async () => {

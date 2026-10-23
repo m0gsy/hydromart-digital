@@ -19,6 +19,7 @@ import { Card, CenterState, Chip, Toggle } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canUseOperatorConsole } from '@/lib/roles';
+import { DevicePushRow } from '@/components/dashboard/ops-push';
 import { usePushPrefs } from '@/lib/notif-prefs';
 
 const OPS_NOTIF: { id: string; icon: Icon; label: string; def: boolean }[] = [
@@ -54,6 +55,7 @@ function OperatorSettingsBody() {
           {t('dashB.operatorSettings.notifSection')}
         </p>
         <Card className="divide-y divide-app p-0">
+          <DevicePushRow />
           {OPS_NOTIF.map((n) => {
             const NIcon = n.icon;
             return (

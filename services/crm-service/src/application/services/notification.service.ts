@@ -130,7 +130,7 @@ export class NotificationService {
           this.logger.warn(`${event} for depot ${depotId}: no staff to push to`);
           return;
         }
-        await Promise.allSettled(
+        const results = await Promise.allSettled(
           ids.map((id) =>
             this.push.sendToCustomer(id, {
               title: 'Hydromart',
@@ -138,6 +138,19 @@ export class NotificationService {
               url: destinationFor(event, vars),
             }),
           ),
+        );
+        // One line per alert: how many staff, how many had a registered device, how many
+        // got it. "0 devices" means nobody has registered the app, not that FCM failed.
+        let devices = 0;
+        let delivered = 0;
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value) {
+            devices += r.value.devices;
+            delivered += r.value.delivered;
+          }
+        }
+        this.logger.log(
+          `${event} depot ${depotId}: ${ids.length} staff, ${devices} devices, ${delivered} delivered`,
         );
       })
       .catch((e) => this.logger.warn(`Ops push for ${event} failed: ${(e as Error).message}`));

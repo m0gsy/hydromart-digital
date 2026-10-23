@@ -226,6 +226,9 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
   NotificationEvent.COURIER_INCIDENT,
+  // Emitted by delivery-service with a depotId; only an OPS event is fanned out to the
+  // depot's staff and shown in their feed.
+  NotificationEvent.DELIVERY_SLA_BREACHED,
   NotificationEvent.DEPOT_SALES_UPDATE,
   // HR events go to staff, so they belong in the ops feed, not a customer inbox. The
   // employee's own leave decisions included — the recipient is an employee either way.

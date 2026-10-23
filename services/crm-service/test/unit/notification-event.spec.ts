@@ -225,3 +225,11 @@ describe('K5.3 · the English table', () => {
     );
   });
 });
+
+describe('ops events that must reach staff phones', () => {
+  // DELIVERY_SLA_BREACHED is emitted by delivery-service with a depotId; without being in
+  // OPS_EVENTS, notify() never fans it out to the depot's staff.
+  it('includes the SLA breach alert', () => {
+    expect(OPS_EVENTS).toContain(NotificationEvent.DELIVERY_SLA_BREACHED);
+  });
+});
