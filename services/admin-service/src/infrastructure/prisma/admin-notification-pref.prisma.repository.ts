@@ -22,6 +22,18 @@ export class AdminNotificationPrefPrismaRepository implements AdminNotificationP
     };
   }
 
+  async getMany(accountIds: readonly string[]): Promise<AdminNotificationPrefRecord[]> {
+    if (accountIds.length === 0) return [];
+    const rows = await this.prisma.adminNotificationPref.findMany({
+      where: { accountId: { in: [...accountIds] } },
+    });
+    return rows.map((row) => ({
+      accountId: row.accountId,
+      channels: row.channels as unknown as NotificationChannelPref[],
+      updatedAt: row.updatedAt,
+    }));
+  }
+
   async save(
     accountId: string,
     channels: NotificationChannelPref[],

@@ -1,10 +1,23 @@
+import { cpus } from 'node:os';
+
 import { defineConfig } from 'vitest/config';
+
+/*
+ * Local runs only. Vitest starts one jsdom worker per logical core minus one, and every one of
+ * them imports the whole app. On a developer laptop (16 logical cores, 8 physical, plus the
+ * coverage instrumentation) that oversubscribes the CPU badly enough that a different
+ * timing-sensitive test lost its race on every full run - `session-lock-gate`, `customer-rest`,
+ * `hq-hierarchy` - while each passed alone. Half the cores is slower on paper and finishes
+ * green. CI keeps the default: its runner is small and its time budget is measured.
+ */
+const localForks = process.env.CI ? undefined : Math.max(2, Math.floor(cpus().length / 2));
 
 export default defineConfig({
   test: {
     // Logic tests default to node; render tests opt into jsdom per-file via a
     // `// @vitest-environment jsdom` docblock (keeps the fast path fast).
     environment: 'node',
+    ...(localForks ? { poolOptions: { forks: { minForks: 1, maxForks: localForks } } } : {}),
     include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['test/setup.ts'],
     /*

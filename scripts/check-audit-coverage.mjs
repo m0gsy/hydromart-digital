@@ -42,6 +42,10 @@ const EXEMPT = new Map([
    */
   ['admin-service:sweep.controller.ts:record', 'sweep heartbeat, one row per tick per job'],
   [
+    'admin-service:notification-prefs-internal.controller.ts:pushDisabled',
+    'a READ over POST (the body carries up to 500 ids) that crm calls on every depot alert - it changes nothing',
+  ],
+  [
     'admin-service:webhook-delivery.controller.ts:publish',
     'partner event ingest — the highest-volume write in the service',
   ],

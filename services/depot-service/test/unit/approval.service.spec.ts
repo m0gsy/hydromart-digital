@@ -192,6 +192,8 @@ describe('ApprovalService - telling the approver', () => {
     superiors?: Record<string, string | null>;
     alertPhone?: string;
     send?: jest.Mock;
+    /** Roles auth-service reports; `null` = unreadable, undefined = no roles port wired. */
+    roles?: Record<string, string> | null;
   }) {
     const depotRepo = new InMemoryDepotRepository();
     const depot = await new DepotService(depotRepo).create({
@@ -216,6 +218,13 @@ describe('ApprovalService - telling the approver', () => {
         .forEach((r) => (r.assistantSupervisorId = opts.assistant ?? null));
     }
     const send = opts.send ?? jest.fn(async () => true);
+    const roleMap = opts.roles;
+    const rolesPort =
+      roleMap === undefined
+        ? undefined
+        : ({
+            rolesOf: jest.fn(async () => (roleMap === null ? null : new Map(Object.entries(roleMap)))),
+          } as never);
     const hierarchy = {
       superiorOf: jest.fn(async (id: string) => opts.superiors?.[id] ?? null),
     } as never;
@@ -226,6 +235,7 @@ describe('ApprovalService - telling the approver', () => {
       config,
       hierarchy,
       { send } as never,
+      rolesPort,
     );
     return { service, depotId: depot.id, send, depotRepo };
   }
@@ -235,6 +245,78 @@ describe('ApprovalService - telling the approver', () => {
       { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih opname', amountIdr: -500_000 },
       SUBMITTER,
     );
+
+  describe('by role', () => {
+    const chain = { [ASSISTANT]: SUPERVISOR, [SUPERVISOR]: TOP_MANAGER };
+
+    it('tells only the people in the chain whose role can decide it', async () => {
+      const { service, depotId, send } = await build({
+        assistant: ASSISTANT,
+        superiors: chain,
+        alertPhone: '0800-ops',
+        roles: { [ASSISTANT]: 'ASSISTANT_SUPERVISOR', [SUPERVISOR]: 'SUPERVISOR', [TOP_MANAGER]: 'MANAGER' },
+      });
+      await big(service, depotId);
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0]![2]).toBe(TOP_MANAGER);
+    });
+
+    it('tells a manager who sits in the MIDDLE of the chain, not just the top', async () => {
+      const { service, depotId, send } = await build({
+        assistant: ASSISTANT,
+        superiors: chain,
+        alertPhone: '0800-ops',
+        // A director-level account above the manager that cannot decide anything.
+        roles: { [ASSISTANT]: 'ASSISTANT_SUPERVISOR', [SUPERVISOR]: 'MANAGER', [TOP_MANAGER]: 'DIREKTUR' },
+      });
+      await big(service, depotId);
+      expect(send.mock.calls.map((c) => c[2])).toEqual([SUPERVISOR]);
+    });
+
+    it('tells every decider when there are several', async () => {
+      const { service, depotId, send } = await build({
+        assistant: ASSISTANT,
+        superiors: chain,
+        alertPhone: '0800-ops',
+        roles: { [ASSISTANT]: 'ASSISTANT_SUPERVISOR', [SUPERVISOR]: 'MANAGER', [TOP_MANAGER]: 'SUPER_ADMIN' },
+      });
+      await big(service, depotId);
+      expect(send.mock.calls.map((c) => c[2]).sort()).toEqual([SUPERVISOR, TOP_MANAGER].sort());
+    });
+
+    it('tells nobody when no one in the chain can decide it', async () => {
+      const { service, depotId, send } = await build({
+        assistant: ASSISTANT,
+        superiors: chain,
+        alertPhone: '0800-ops',
+        roles: { [ASSISTANT]: 'ASSISTANT_SUPERVISOR', [SUPERVISOR]: 'SUPERVISOR', [TOP_MANAGER]: 'DIREKTUR' },
+      });
+      await big(service, depotId);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('does not tell the decider who raised it', async () => {
+      const { service, depotId, send } = await build({
+        assistant: SUBMITTER,
+        superiors: { [SUBMITTER]: TOP_MANAGER },
+        alertPhone: '0800-ops',
+        roles: { [SUBMITTER]: 'MANAGER', [TOP_MANAGER]: 'MANAGER' },
+      });
+      await big(service, depotId);
+      expect(send.mock.calls.map((c) => c[2])).toEqual([TOP_MANAGER]);
+    });
+
+    it('falls back to the top of the chain when the roles cannot be read', async () => {
+      const { service, depotId, send } = await build({
+        assistant: ASSISTANT,
+        superiors: chain,
+        alertPhone: '0800-ops',
+        roles: null,
+      });
+      await big(service, depotId);
+      expect(send.mock.calls.map((c) => c[2])).toEqual([TOP_MANAGER]);
+    });
+  });
 
   it('pages the top of the chain, not the assistant it starts from', async () => {
     const { service, depotId, send } = await build({

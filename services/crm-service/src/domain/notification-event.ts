@@ -317,6 +317,28 @@ export const OPS_EVENTS: NotificationEvent[] = [
 ];
 
 /**
+ * The staff settings switch ("Pesanan baru", "Stok menipis", ...) that governs each depot alert.
+ * The ids are admin-service's DEPOT_EVENT_IDS. An event with no entry has no switch on any
+ * screen - a leave decision, a payslip, a courier's own delivery - and is always pushed.
+ */
+export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' | 'dailySummary';
+
+export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
+  [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
+  [NotificationEvent.DEPOT_ORDER_RESCHEDULED]: 'newOrder',
+  [NotificationEvent.DEPOT_ORDER_CANCELLED]: 'newOrder',
+  [NotificationEvent.DEPOT_PAYMENT_PROOF]: 'newOrder',
+  [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]: 'newOrder',
+  [NotificationEvent.STOCK_LOW]: 'lowStock',
+  [NotificationEvent.STOCK_UNTRACKED]: 'lowStock',
+  [NotificationEvent.METER_VARIANCE]: 'lowStock',
+  [NotificationEvent.COURIER_INCIDENT]: 'courierFail',
+  [NotificationEvent.DELIVERY_SLA_BREACHED]: 'courierFail',
+  [NotificationEvent.APPROVAL_REQUESTED]: 'approval',
+  [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
+};
+
+/**
  * CRM-3: ops events addressed to ONE employee — their leave, their kasbon. They carry the
  * amount, the rejection reason and the phone, and no depot (an HR decision is not a depot
  * alert), so the depot filter let every staff account in the network read them. They are

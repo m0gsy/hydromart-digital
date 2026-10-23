@@ -57,6 +57,10 @@ export class CrmConfigService {
   get authServiceUrl(): string {
     return this.config.get<string>('AUTH_SERVICE_URL', '').trim();
   }
+  /** admin-service base URL, for staff push-toggle preferences. Blank = every toggle reads as on. */
+  get adminServiceUrl(): string {
+    return this.config.get<string>('ADMIN_SERVICE_URL', '').trim();
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '').trim();
   }

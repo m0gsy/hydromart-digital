@@ -876,6 +876,15 @@ export type NotificationEvent =
   | 'DEPOT_PAYMENT_PROOF'
   | 'DEPOT_PAYMENT_UNCONFIRMED'
   | 'SHIFT_REMINDER'
+  | 'LOAN_REQUEST_SUBMITTED'
+  | 'LOAN_REQUEST_APPROVED'
+  | 'LOAN_REQUEST_REJECTED'
+  // Customer-facing events crm has always sent. They were missing here, so their inbox title
+  // rendered as the raw dictionary key. test/notification-event-parity guards the list now.
+  | 'PHONE_CHANGED'
+  | 'RESELLER_DEACTIVATED'
+  | 'RESELLER_PRICE_CHANGED'
+  | 'SUBSCRIPTION_PAUSED'
   | 'PAYMENT_FAILED'
   | 'PAYMENT_REMINDER'
   | 'REFUND_PROCESSED'
@@ -935,6 +944,9 @@ export const OPS_EVENTS = [
   'LEAVE_APPROVED',
   'LEAVE_REJECTED',
   'HR_ANNOUNCEMENT',
+  'LOAN_REQUEST_SUBMITTED',
+  'LOAN_REQUEST_APPROVED',
+  'LOAN_REQUEST_REJECTED',
   'SHIFT_REMINDER',
   'PAYSLIP_READY',
   'ATTENDANCE_LATE',

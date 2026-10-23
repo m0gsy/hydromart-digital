@@ -343,6 +343,7 @@ services:
       CRM_SERVICE_PORT: 3012
       CRM_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_crm?schema=public&connection_limit=5
       CUSTOMER_SERVICE_URL: http://customer:3002
+      ADMIN_SERVICE_URL: http://admin:3017
       # Activity half of a broadcast segment; blank would fail closed, not send wider.
       ORDER_SERVICE_URL: http://order:3004
     healthcheck:

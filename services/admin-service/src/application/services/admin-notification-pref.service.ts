@@ -48,14 +48,16 @@ const HQ_DEFAULTS: NotificationChannelPref[] = [
   { id: 'dailyDigest', push: false, email: true, wa: false },
 ];
 
-// A depot's day: the two that interrupt work default to push-only (an operator is on the
-// floor, not in an inbox), and the digest defaults off — nobody asked for a daily email.
+// A depot's day: everything defaults to push-only (an operator is on the floor, not in an
+// inbox) and nothing to email or WhatsApp. `dailySummary` is on too: it is the depot's sales
+// update (three a day) and the morning recap, the SOP reports a depot is expected to see, and
+// a switch that defaults off would mean nobody receives them until they find the setting.
 const DEPOT_DEFAULTS: NotificationChannelPref[] = [
   { id: 'newOrder', push: true, email: false, wa: false },
   { id: 'lowStock', push: true, email: false, wa: false },
   { id: 'courierFail', push: true, email: false, wa: false },
   { id: 'approval', push: true, email: false, wa: false },
-  { id: 'dailySummary', push: false, email: false, wa: false },
+  { id: 'dailySummary', push: true, email: false, wa: false },
 ];
 
 function defaultsFor(scope: NotificationScope): NotificationChannelPref[] {
@@ -81,6 +83,24 @@ export class AdminNotificationPrefService {
       channels: this.merge(saved, scope),
       updatedAt: existing?.updatedAt ?? new Date(0),
     };
+  }
+
+  /**
+   * Which of these accounts have switched PUSH off for one depot toggle.
+   *
+   * crm-service asks this before it pushes a depot alert to staff, so the switches on the
+   * settings screens decide what a phone buzzes for. An account that never saved anything has
+   * the default for that toggle (see DEPOT_DEFAULTS), so "no row" is not "all on". Only depot
+   * toggles are answerable: an HQ toggle has no depot alert behind it.
+   */
+  async pushDisabledFor(accountIds: readonly string[], toggle: string): Promise<string[]> {
+    const def = DEPOT_DEFAULTS.find((d) => d.id === toggle);
+    if (!def) return [];
+    const saved = new Map((await this.repo.getMany(accountIds)).map((r) => [r.accountId, r]));
+    return accountIds.filter((id) => {
+      const row = saved.get(id)?.channels.find((c) => c.id === toggle);
+      return !(row ? !!row.push : def.push);
+    });
   }
 
   /**

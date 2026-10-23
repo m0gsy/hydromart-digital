@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
+import { can } from '@hydromart/access';
+
 import {
   Approval,
   ApprovalPayload,
@@ -18,6 +20,7 @@ import { ApprovalRepository, PendingCounts } from '../ports/approval.repository'
 import { DepotRepository } from '../ports/depot.repository';
 import { HIERARCHY_REPOSITORY, HierarchyRepository } from '../ports/hierarchy.repository';
 import { CustomerNotificationPort } from '../ports/customer-notification.port';
+import { AccountRolesPort } from '../ports/account-roles.port';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface CreateApprovalInput {
@@ -65,6 +68,10 @@ export class ApprovalService {
     @Optional()
     @Inject(DEPOT_TOKENS.CustomerNotification)
     private readonly notifications?: CustomerNotificationPort,
+    // Optional like the other two: without it the notice falls back to the top of the chain.
+    @Optional()
+    @Inject(DEPOT_TOKENS.AccountRoles)
+    private readonly roles?: AccountRolesPort,
   ) {}
 
   private readonly logger = new Logger(ApprovalService.name);
@@ -73,38 +80,51 @@ export class ApprovalService {
   private static readonly CHAIN_LIMIT = 6;
 
   /**
-   * Tell the person who can decide it that an item is waiting.
+   * Tell the people who can decide it that an item is waiting.
    *
-   * The decider is the TOP of the depot's supervision chain - assistant supervisor, then up
-   * through whoever each one reports to - because that is where `approvals` (managers) sits.
-   * The depot's own staff are not told: they raised it, and `ApprovalSelfDecideError` stops
-   * them signing it off. A depot with no assistant supervisor has no chain, and nobody is
-   * paged rather than somebody guessed. Fail-soft: the item is already saved.
+   * The candidates are the depot's supervision chain - assistant supervisor, then up through
+   * whoever each one reports to - and the ones told are those whose ROLE holds `approvals`
+   * (managers, and the superuser), because a supervisor in the chain cannot decide it and a
+   * notice they cannot act on is noise. The depot's own staff are not told: they raised it, and
+   * `ApprovalSelfDecideError` stops them signing it off.
+   *
+   * If the roles cannot be read, the top of the chain is told instead - the old rule, and the
+   * likeliest manager. A depot with no assistant supervisor has no chain and nobody is paged
+   * rather than somebody guessed. Fail-soft: the item is already saved.
    */
   private async notifyApprover(approval: Approval): Promise<void> {
     if (!this.hierarchy || !this.notifications) return;
     try {
       const depot = await this.depots.findById(approval.depotId, false);
       if (!depot) return;
+      const chain: string[] = [];
       let current = depot.assistantSupervisorId;
-      let top: string | null = null;
-      const seen = new Set<string>();
       for (let hops = 0; current && hops < ApprovalService.CHAIN_LIMIT; hops++) {
-        if (seen.has(current)) break; // a cycle in the data must not loop the request
-        seen.add(current);
-        top = current;
+        if (chain.includes(current)) break; // a cycle in the data must not loop the request
+        chain.push(current);
         current = await this.hierarchy.superiorOf(current);
       }
-      if (!top || top === approval.submittedBy) return;
+      if (chain.length === 0) return;
+
+      const roles = this.roles ? await this.roles.rolesOf(chain) : null;
+      const deciders = roles
+        ? chain.filter((id) => can('approvals', roles.get(id)))
+        : [chain[chain.length - 1]!];
+      const recipients = deciders.filter((id) => id !== approval.submittedBy);
+      if (recipients.length === 0) return;
+
       // crm requires some phone on the call; the push itself is addressed by account id.
       const phone = this.config.alertPhone;
       if (!phone) return;
-      await this.notifications.send('APPROVAL_REQUESTED', phone, top, {
+      const vars = {
         title: approval.title,
         depot: depot.name,
         amount: `Rp ${Math.abs(approval.amountIdr).toLocaleString('id-ID')}`,
         approvalId: approval.id,
-      });
+      };
+      await Promise.all(
+        recipients.map((id) => this.notifications!.send('APPROVAL_REQUESTED', phone, id, vars)),
+      );
     } catch (error) {
       this.logger.warn(`Approval ${approval.id} notice not sent: ${(error as Error).message}`);
     }

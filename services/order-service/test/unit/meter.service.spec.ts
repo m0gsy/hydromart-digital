@@ -93,7 +93,7 @@ class FakeMeterRepo implements MeterReadingRepository {
 }
 
 class SpyNotification implements NotificationPort {
-  calls: { event: string; phone: string; vars: Record<string, string> }[] = [];
+  calls: { event: string; phone: string; vars: Record<string, string>; depotId?: string | null }[] = [];
   throwOnNotify = false;
 
   async notify(
@@ -102,9 +102,10 @@ class SpyNotification implements NotificationPort {
     vars: Record<string, string>,
     _customerId: string | null,
     _authorization: string,
+    depotId?: string | null,
   ): Promise<boolean> {
     if (this.throwOnNotify) throw new Error('crm down');
-    this.calls.push({ event, phone, vars });
+    this.calls.push({ event, phone, vars, depotId });
     return true;
   }
 }
@@ -343,6 +344,8 @@ describe('MeterService variance alert', () => {
     expect(notifications.calls).toHaveLength(1);
     expect(notifications.calls[0].event).toBe('METER_VARIANCE');
     expect(notifications.calls[0].vars.variance).toBe('7570');
+    // Addressed to the depot, so crm can push it to that depot's staff.
+    expect(notifications.calls[0].depotId).toBe(DEPOT);
     expect(repo.alerted).toEqual([`${DEPOT}|${DATE}`]);
   });
 

@@ -78,6 +78,7 @@ import { SweepService } from '../application/services/sweep.service';
 import { SweepRunPrismaRepository } from '../infrastructure/prisma/sweep-run.prisma.repository';
 import { SecurityPolicyController } from './security-policy.controller';
 import { NotificationPrefsController } from './notification-prefs.controller';
+import { NotificationPrefsInternalController } from './notification-prefs-internal.controller';
 import { OnboardingController } from './onboarding.controller';
 
 const providers: Provider[] = [
@@ -168,6 +169,7 @@ const providers: Provider[] = [
     SweepController,
     SecurityPolicyController,
     NotificationPrefsController,
+    NotificationPrefsInternalController,
     OnboardingController,
   ],
   providers,

@@ -275,6 +275,9 @@ export class MeterService {
         },
         null,
         authorization,
+        // The depot id is what makes crm push this to the depot's STAFF; without it the alert
+        // reached the ops number and the feed, never a device.
+        reading.depotId,
       );
       await this.readings.markAlerted(reading.depotId, reading.date);
     } catch (error) {

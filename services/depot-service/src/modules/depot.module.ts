@@ -63,6 +63,7 @@ import { GallonIssuePrismaRepository } from '../infrastructure/prisma/gallon-iss
 import { GallonReminderPrismaRepository } from '../infrastructure/prisma/gallon-reminder.prisma.repository';
 import { CustomerContactHttpAdapter } from '../infrastructure/http/customer-contact.http.adapter';
 import { CustomerNotificationHttpAdapter } from '../infrastructure/http/customer-notification.http.adapter';
+import { AccountRolesHttpAdapter } from '../infrastructure/http/account-roles.http.adapter';
 import { FranchiseApplicationPrismaRepository } from '../infrastructure/prisma/franchise-application.prisma.repository';
 import { PriceOverrideProposalPrismaRepository } from '../infrastructure/prisma/price-override-proposal.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
@@ -181,6 +182,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.GallonReminderRepository, useClass: GallonReminderPrismaRepository },
   { provide: DEPOT_TOKENS.CustomerContact, useClass: CustomerContactHttpAdapter },
   { provide: DEPOT_TOKENS.CustomerNotification, useClass: CustomerNotificationHttpAdapter },
+  { provide: DEPOT_TOKENS.AccountRoles, useClass: AccountRolesHttpAdapter },
   {
     provide: DEPOT_TOKENS.FranchiseApplicationRepository,
     useClass: FranchiseApplicationPrismaRepository,
