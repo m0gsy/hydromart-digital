@@ -220,6 +220,7 @@ export class AttendanceService {
         {
           name: employee.fullName,
           minutes: String(lateMinutes),
+          // tz-ok: workDate is the LOCAL day already, stored as UTC midnight (see localParts)
           date: workDate.toISOString().slice(0, 10),
         },
         employee.authSubjectId,
