@@ -24,6 +24,7 @@ import { InboxBroadcastDelivery } from '../infrastructure/notification/inbox-bro
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
 import { DepotStaffHttpAdapter } from '../infrastructure/http/depot-staff.http.adapter';
 import { StaffPrefsHttpAdapter } from '../infrastructure/http/staff-prefs.http.adapter';
+import { DepotOverseersHttpAdapter } from '../infrastructure/http/depot-overseers.http.adapter';
 import { NotificationPreferenceHttpAdapter } from '../infrastructure/http/notification-preference.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../infrastructure/http/activity-segment.http.adapter';
 import { CampaignController } from './campaign.controller';
@@ -49,6 +50,7 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.NotificationPreference, useClass: NotificationPreferenceHttpAdapter },
   { provide: CRM_TOKENS.DepotStaff, useClass: DepotStaffHttpAdapter },
   { provide: CRM_TOKENS.StaffPrefs, useClass: StaffPrefsHttpAdapter },
+  { provide: CRM_TOKENS.DepotOverseers, useClass: DepotOverseersHttpAdapter },
   { provide: CRM_TOKENS.ActivitySegment, useClass: ActivitySegmentHttpAdapter },
   { provide: CRM_TOKENS.PushSubscriptionRepository, useClass: PushSubscriptionPrismaRepository },
   // Both transports are always constructed; the composite routes per subscription by the

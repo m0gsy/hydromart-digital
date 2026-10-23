@@ -42,6 +42,7 @@ import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { DepotService } from '../application/services/depot.service';
+import { HierarchyService } from '../application/services/hierarchy.service';
 import { DepotConfigService } from '../config/depot-config.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
@@ -62,6 +63,7 @@ import {
   InternalOwnedResponseDto,
   InternalActiveResponseDto,
   InternalAssistantResponseDto,
+  InternalOverseersResponseDto,
   InternalOwnerResponseDto,
   NearbyDepotResponseDto,
   PagedDepotResponseDto,
@@ -88,6 +90,7 @@ export class DepotController {
     // Optional so the controller specs that build it by hand keep compiling; the module
     // always provides it.
     @Optional() private readonly config?: DepotConfigService,
+    @Optional() private readonly hierarchy?: HierarchyService,
   ) {}
 
   // Anonymous browse: the trimmed projection only. Serving the whole DepotRecord here
@@ -169,6 +172,23 @@ export class DepotController {
   ): Promise<{ assistantSupervisorId: string | null }> {
     const depot = await this.depots.get(id, false);
     return { assistantSupervisorId: depot.assistantSupervisorId };
+  }
+
+  /**
+   * Service-to-service: crm-service asks who oversees a depot, so a supervisor or manager can
+   * be woken by the alerts that are theirs (stock, meters, couriers) and not only the staff
+   * assigned to the depot. Ids only - the roster is not a directory.
+   *
+   * Declared before `:id` so that param route does not swallow it.
+   */
+  @ApiOkResponse({ type: InternalOverseersResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/:id/overseers')
+  @ApiOperation({ summary: 'Account ids that oversee one depot (internal service auth)' })
+  async internalOverseers(@Param('id', ParseUUIDPipe) id: string): Promise<{ ids: string[] }> {
+    const depot = await this.depots.get(id, false);
+    return { ids: (await this.hierarchy?.overseersOfAssistant(depot.assistantSupervisorId)) ?? [] };
   }
 
   /**

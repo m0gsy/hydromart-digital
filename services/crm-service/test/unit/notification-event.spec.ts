@@ -3,6 +3,7 @@ import {
   NotificationEvent,
   OPS_EVENTS,
   PERSONAL_OPS_EVENTS,
+  OVERSEER_EVENTS,
   STAFF_TOGGLE_FOR_EVENT,
   renderMessage,
   templateFor,
@@ -304,6 +305,20 @@ describe('the staff switch for each depot alert', () => {
   it('leaves personal HR alerts without a switch, so they are always pushed', () => {
     for (const event of [NotificationEvent.PAYSLIP_READY, NotificationEvent.SHIFT_REMINDER, NotificationEvent.LEAVE_APPROVED]) {
       expect(STAFF_TOGGLE_FOR_EVENT[event]).toBeUndefined();
+    }
+  });
+});
+
+describe('the alerts supervisors and managers are woken by', () => {
+  it('are depot alerts about something being wrong, never routine flow', () => {
+    for (const event of OVERSEER_EVENTS) expect(OPS_EVENTS).toContain(event);
+    for (const routine of [
+      NotificationEvent.DEPOT_ORDER_INCOMING,
+      NotificationEvent.DEPOT_ORDER_CANCELLED,
+      NotificationEvent.DEPOT_PAYMENT_PROOF,
+      NotificationEvent.DEPOT_SALES_UPDATE,
+    ]) {
+      expect(OVERSEER_EVENTS).not.toContain(routine);
     }
   });
 });

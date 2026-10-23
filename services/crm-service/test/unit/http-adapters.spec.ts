@@ -5,6 +5,7 @@ import { ActivitySegmentHttpAdapter } from '../../src/infrastructure/http/activi
 import { NotificationPreferenceHttpAdapter } from '../../src/infrastructure/http/notification-preference.http.adapter';
 import { DepotStaffHttpAdapter } from '../../src/infrastructure/http/depot-staff.http.adapter';
 import { StaffPrefsHttpAdapter } from '../../src/infrastructure/http/staff-prefs.http.adapter';
+import { DepotOverseersHttpAdapter } from '../../src/infrastructure/http/depot-overseers.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, query-string segment, authorization
 // header, res.ok branch, fail-CLOSED catch, response parsing) against a mocked global.fetch —
@@ -396,5 +397,38 @@ describe('StaffPrefsHttpAdapter', () => {
     expect([...(await new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1'], 'newOrder'))]).toEqual(['s-1']);
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as never);
     expect((await new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1'], 'newOrder')).size).toBe(0);
+  });
+});
+
+describe('DepotOverseersHttpAdapter', () => {
+  const cfg = (over: Record<string, unknown> = {}) =>
+    ({ depotServiceUrl: 'http://depot.test', internalServiceKey: 'k', ...over }) as never;
+
+  it('returns the ids depot-service reports, with the internal key', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ids: ['a', 'b'] }) } as never);
+    expect(await new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).toEqual(['a', 'b']);
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(String(url)).toBe('http://depot.test/api/v1/depots/internal/d-1/overseers');
+    expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
+  });
+
+  it('is an empty list, with no request, when it is not configured', async () => {
+    expect(await new DepotOverseersHttpAdapter(cfg({ depotServiceUrl: '' })).overseersOfDepot('d-1')).toEqual([]);
+    expect(await new DepotOverseersHttpAdapter(cfg({ internalServiceKey: '' })).overseersOfDepot('d-1')).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws on a refusal and on an unreachable service, so the caller can say so', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 } as never);
+    await expect(new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).rejects.toThrow('500');
+    fetchMock.mockRejectedValue(new Error('timeout'));
+    await expect(new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).rejects.toThrow('timeout');
+  });
+
+  it('drops anything that is not an id and tolerates a body with no list', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ids: ['a', 7, null] }) } as never);
+    expect(await new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).toEqual(['a']);
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as never);
+    expect(await new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).toEqual([]);
   });
 });

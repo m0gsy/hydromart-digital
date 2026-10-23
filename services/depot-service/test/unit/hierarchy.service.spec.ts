@@ -141,3 +141,37 @@ describe('HierarchyService.setSuperior', () => {
     });
   });
 });
+
+describe('HierarchyService.overseersOfAssistant', () => {
+  let repo: FakeHierarchy;
+  let service: HierarchyService;
+
+  beforeEach(() => {
+    repo = new FakeHierarchy();
+    service = new HierarchyService(repo);
+    repo.superiors.set('asv-1', 'spv-1');
+    repo.superiors.set('spv-1', 'mgr-1');
+  });
+
+  it('is the assistant and everyone above them, nearest first', async () => {
+    expect(await service.overseersOfAssistant('asv-1')).toEqual(['asv-1', 'spv-1', 'mgr-1']);
+  });
+
+  it('is empty for a depot with no assistant supervisor', async () => {
+    expect(await service.overseersOfAssistant(null)).toEqual([]);
+  });
+
+  it('stops at the top of the line', async () => {
+    expect(await service.overseersOfAssistant('mgr-1')).toEqual(['mgr-1']);
+  });
+
+  it('survives a loop already in the data', async () => {
+    repo.superiors.set('mgr-1', 'asv-1');
+    expect(await service.overseersOfAssistant('asv-1')).toEqual(['asv-1', 'spv-1', 'mgr-1']);
+  });
+
+  it('is bounded even for a very long line', async () => {
+    for (let i = 0; i < 30; i += 1) repo.superiors.set(`n${i}`, `n${i + 1}`);
+    expect((await service.overseersOfAssistant('n0')).length).toBeLessThanOrEqual(8);
+  });
+});

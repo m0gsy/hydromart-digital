@@ -5,6 +5,7 @@ import {
   MessageLocale,
   NotificationEvent,
   OPS_EVENTS,
+  OVERSEER_EVENTS,
   STAFF_TOGGLE_FOR_EVENT,
   renderMessage,
   templateFor,
@@ -18,6 +19,7 @@ import {
 import { DepotStaffPort } from '../ports/depot-staff.port';
 import { NotificationPreferencePort } from '../ports/notification-preference.port';
 import { StaffPrefsPort } from '../ports/staff-prefs.port';
+import { DepotOverseersPort } from '../ports/depot-overseers.port';
 import { PushService } from './push.service';
 import { CRM_TOKENS } from '../tokens';
 
@@ -49,6 +51,10 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.StaffPrefs)
     private readonly staffPrefs?: StaffPrefsPort,
+    // Optional too: without it only the depot's own staff are woken, as before.
+    @Optional()
+    @Inject(CRM_TOKENS.DepotOverseers)
+    private readonly overseers?: DepotOverseersPort,
   ) {}
 
   /**
@@ -128,10 +134,25 @@ export class NotificationService {
    * alert. `Promise.allSettled` because one staff member's dead endpoint must not silence
    * the rest of the shift.
    */
+  /**
+   * Who a depot alert is for: the depot's own staff and, for the alerts that say something is
+   * wrong (stock, meters, couriers), the supervisors and managers above it. An unreadable
+   * overseer lookup costs only those extra people, never the depot's own staff.
+   */
+  private async recipientsForDepot(event: NotificationEvent, depotId: string): Promise<string[]> {
+    const own = await this.depotStaff!.staffIdsForDepot(depotId);
+    if (!this.overseers || !OVERSEER_EVENTS.includes(event)) return own;
+    try {
+      return [...new Set([...own, ...(await this.overseers.overseersOfDepot(depotId))])];
+    } catch (e) {
+      this.logger.warn(`overseers of depot ${depotId} unreadable, depot staff only: ${(e as Error).message}`);
+      return own;
+    }
+  }
+
   private pushToDepotStaff(event: NotificationEvent, message: string, depotId: string, vars: Record<string, string>): void {
     if (!this.depotStaff) return;
-    void this.depotStaff
-      .staffIdsForDepot(depotId)
+    void this.recipientsForDepot(event, depotId)
       .then(async (ids) => {
         if (ids.length === 0) {
           this.logger.warn(`${event} for depot ${depotId}: no staff to push to`);

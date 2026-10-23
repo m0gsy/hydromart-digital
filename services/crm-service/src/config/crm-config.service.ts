@@ -57,6 +57,10 @@ export class CrmConfigService {
   get authServiceUrl(): string {
     return this.config.get<string>('AUTH_SERVICE_URL', '').trim();
   }
+  /** depot-service base URL, for who oversees a depot. Blank = only the depot's own staff are woken. */
+  get depotServiceUrl(): string {
+    return this.config.get<string>('DEPOT_SERVICE_URL', '').trim();
+  }
   /** admin-service base URL, for staff push-toggle preferences. Blank = every toggle reads as on. */
   get adminServiceUrl(): string {
     return this.config.get<string>('ADMIN_SERVICE_URL', '').trim();

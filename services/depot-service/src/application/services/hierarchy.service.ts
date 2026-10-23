@@ -62,6 +62,24 @@ export class HierarchyService {
     return this.repo.setDepotAssistant(depotId, staffId, actorId);
   }
 
+  /**
+   * Everyone who oversees a depot: its assistant supervisor and everyone above them in the
+   * reporting line. crm uses it to put supervisors and managers on the short list of alerts
+   * that are theirs to know about (stock, meters, couriers), not only the staff assigned to the
+   * depot. Direct depot grants are not included: the table is keyed by person, not depot.
+   *
+   * Bounded and cycle-safe: a loop already in the data must not hang an alert.
+   */
+  async overseersOfAssistant(assistantSupervisorId: string | null): Promise<string[]> {
+    const chain: string[] = [];
+    let cursor = assistantSupervisorId;
+    while (cursor && !chain.includes(cursor) && chain.length < 8) {
+      chain.push(cursor);
+      cursor = await this.repo.superiorOf(cursor);
+    }
+    return chain;
+  }
+
   async setSuperior(staffId: string, superiorId: string, actorId: string | null): Promise<void> {
     if (staffId === superiorId) {
       throw new BadRequestException('Seseorang tidak bisa menjadi atasan dirinya sendiri.');
