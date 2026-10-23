@@ -8,7 +8,10 @@ import {
 import { Request } from 'express';
 
 import { AccessController } from '../../src/modules/auth/access.controller';
-import { AccountController } from '../../src/modules/auth/account.controller';
+import {
+  AccountController,
+  COUNTER_LOOKUP_LIMIT_PER_MINUTE,
+} from '../../src/modules/auth/account.controller';
 import { AccountService } from '../../src/application/services/account.service';
 import { AuditController } from '../../src/modules/auth/audit.controller';
 import { AvatarController } from '../../src/modules/auth/avatar.controller';
@@ -100,6 +103,18 @@ describe('AccountController delegation', () => {
       firstName: 'Budi',
     });
     expect(account.counterLookup).toHaveBeenCalledWith('081234567890');
+  });
+
+  it('slows the cashier number lookup down, so it cannot be used to walk through numbers', () => {
+    const limit = Reflect.getMetadata(
+      'THROTTLER:LIMITdefault',
+      AccountController.prototype.counterLookup,
+    );
+    const ttl = Reflect.getMetadata('THROTTLER:TTLdefault', AccountController.prototype.counterLookup);
+    expect(limit).toBe(COUNTER_LOOKUP_LIMIT_PER_MINUTE);
+    expect(ttl).toBe(60_000);
+    // Tighter than the service default of 100 a minute, or the override does nothing.
+    expect(COUNTER_LOOKUP_LIMIT_PER_MINUTE).toBeLessThan(100);
   });
 
   it('lists drivers for dispatch', async () => {

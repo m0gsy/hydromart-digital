@@ -103,6 +103,9 @@ const NOTES = [50000, 100000, 150000, 200000];
 
 function WalkIn({ depotId }: { depotId: string }) {
   const { t, locale } = useT();
+  const { customer: me } = useAuth();
+  // Held baskets belong to this cashier at this depot, not to whoever uses the browser next.
+  const heldScope = `${depotId}.${me?.id ?? 'anon'}`;
   // K3.4: the depot record behind `depotId`, for the outlet line on the struk.
   const { depots } = useDepot();
   const depot = depots.find((d) => d.id === depotId) ?? null;
@@ -147,7 +150,7 @@ function WalkIn({ depotId }: { depotId: string }) {
   // Baskets set aside while a buyer fetches their money. Read after mount: this is a browser
   // store, and the page is also rendered once on the server.
   const [held, setHeld] = useState<HeldBasket[]>([]);
-  useEffect(() => setHeld(loadHeld(depotId)), [depotId]);
+  useEffect(() => setHeld(loadHeld(heldScope)), [heldScope]);
   // What the typed number already is, if anything. Read-only: it never creates an account.
   const [lookup, setLookup] = useState<CounterCustomerLookup | null>(null);
   // Bumped after every sale and void so the shift tally follows without a poll.
@@ -195,6 +198,16 @@ function WalkIn({ depotId }: { depotId: string }) {
    */
   const [shift, setShift] = useState<CashierShift | null | undefined>(undefined);
   const shiftOpen = shift === undefined ? undefined : shift !== null;
+  // A basket held across a closed drawer belongs to a sale that can no longer be made. Only
+  // the open -> closed move counts: "no shift yet" on arrival is not a close.
+  const wasShiftOpen = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (wasShiftOpen.current === true && shiftOpen === false) {
+      saveHeld(heldScope, []);
+      setHeld([]);
+    }
+    wasShiftOpen.current = shiftOpen;
+  }, [shiftOpen, heldScope]);
   /**
    * K3.4: who sold this, for the struk. Built at print time rather than stored, so a
    * receipt reprinted after the shift closed still names the shift it was rung up in.
@@ -644,7 +657,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     if (!added) return toast(t('opsFix.walkIn.heldFull', { max: MAX_HELD }), 'error');
     // Cleared only once it is safely held: a basket that could not be stored must still be
     // on the screen, not gone.
-    if (!saveHeld(depotId, list)) return toast(t('opsFix.walkIn.heldStorageFailed'), 'error');
+    if (!saveHeld(heldScope, list)) return toast(t('opsFix.walkIn.heldStorageFailed'), 'error');
     setHeld(list);
     resetTill();
     toast(t('opsFix.walkIn.heldSaved'));
@@ -669,14 +682,14 @@ function WalkIn({ depotId }: { depotId: string }) {
     setAddrCity(b.delivery?.city ?? '');
     setAddrNotes(b.delivery?.notes ?? '');
     const rest = removeHeld(held, b.id);
-    saveHeld(depotId, rest);
+    saveHeld(heldScope, rest);
     setHeld(rest);
     if (adjusted > 0) toast(t('opsFix.walkIn.heldAdjusted', { n: adjusted }), 'error');
   }
 
   function discardHeld(id: string) {
     const rest = removeHeld(held, id);
-    saveHeld(depotId, rest);
+    saveHeld(heldScope, rest);
     setHeld(rest);
   }
 

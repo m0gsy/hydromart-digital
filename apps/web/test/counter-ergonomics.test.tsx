@@ -74,6 +74,7 @@ let summary = { orderCount: 3, revenueIdr: 90000 };
 let promoReads = 0;
 let qrisUrl: string | null = null;
 let shiftOpen = true;
+let closeCalls = 0;
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -90,6 +91,7 @@ beforeEach(() => {
   promoReads = 0;
   qrisUrl = null;
   shiftOpen = true;
+  closeCalls = 0;
   post.mockReset().mockImplementation(async (path: string, body: Record<string, any>) => {
     const p = String(path);
     if (p.includes('/walk-in/quote')) {
@@ -107,6 +109,11 @@ beforeEach(() => {
         catalogFallback: null,
         ...quoteExtras,
       };
+    }
+    if (p.includes('/cashier-shifts/') && p.endsWith('/close')) {
+      closeCalls += 1;
+      shiftOpen = false;
+      return { id: 's-1', status: 'CLOSED', cashierName: 'Rina', openingFloat: 0, expectedCash: 0, countedCash: 0, variance: 0 };
     }
     if (p.includes('/walk-in/identify')) return { customerId: 'buyer-1' };
     if (p.includes('/products/batch')) return [AIR];
@@ -279,7 +286,7 @@ describe('holding a basket', () => {
     expect(card.textContent).toContain('2 item');
     expect(qtyBox().value).toBe('0');
     expect((screen.getByLabelText(/nama pembeli/i) as HTMLInputElement).value).toBe('');
-    expect(JSON.parse(window.localStorage.getItem('hm.walkin.held.depot-1') as string)).toHaveLength(1);
+    expect(JSON.parse(window.localStorage.getItem('hm.walkin.held.depot-1.s1') as string)).toHaveLength(1);
   });
 
   it('brings the whole basket back, and removes it from the held list', async () => {
@@ -292,7 +299,7 @@ describe('holding a basket', () => {
     expect(qtyBox().value).toBe('2');
     expect((screen.getByLabelText(/nama pembeli/i) as HTMLInputElement).value).toBe('Budi');
     expect(screen.queryByTestId('counter-held')).toBeNull();
-    expect(window.localStorage.getItem('hm.walkin.held.depot-1')).toBeNull();
+    expect(window.localStorage.getItem('hm.walkin.held.depot-1.s1')).toBeNull();
   });
 
   it('will not load a held basket over one being rung up', async () => {
@@ -308,7 +315,7 @@ describe('holding a basket', () => {
 
   it('cuts a held line to the stock that is left, and says so', async () => {
     window.localStorage.setItem(
-      'hm.walkin.held.depot-1',
+      'hm.walkin.held.depot-1.s1',
       JSON.stringify([
         { id: 'h1', savedAt: Date.now(), qty: { 'p-air': 20 }, name: 'Sari', phone: '', voucher: '', buyerId: null },
       ]),
@@ -342,9 +349,52 @@ describe('holding a basket', () => {
     }
   });
 
+  it("never shows another cashier's held baskets", async () => {
+    window.localStorage.setItem(
+      'hm.walkin.held.depot-1.someone-else',
+      JSON.stringify([
+        { id: 'h9', savedAt: Date.now(), qty: { 'p-air': 1 }, name: 'Orang lain', phone: '0899', voucher: '', buyerId: null },
+      ]),
+    );
+    await openTill();
+    expect(screen.queryByTestId('counter-held')).toBeNull();
+    expect(document.body.textContent).not.toContain('Orang lain');
+  });
+
+  it('clears the held baskets when the shift is closed, since that sale can no longer be made', async () => {
+    window.localStorage.setItem(
+      'hm.walkin.held.depot-1.s1',
+      JSON.stringify([
+        { id: 'h1', savedAt: Date.now(), qty: { 'p-air': 1 }, name: 'Sari', phone: '', voucher: '', buyerId: null },
+      ]),
+    );
+    await openTill();
+    await screen.findByTestId('counter-held');
+
+    await userEvent.click(screen.getByRole('button', { name: /tutup shift/i }));
+    await userEvent.type(document.getElementById('shift-counted') as HTMLInputElement, '100000');
+    await userEvent.click(screen.getByRole('button', { name: /tutup & hitung selisih/i }));
+
+    await waitFor(() => expect(closeCalls).toBe(1));
+    await waitFor(() => expect(screen.queryByTestId('counter-held')).toBeNull());
+    expect(window.localStorage.getItem('hm.walkin.held.depot-1.s1')).toBeNull();
+  });
+
+  it('does not clear them just because no shift is open yet when the page loads', async () => {
+    shiftOpen = false;
+    window.localStorage.setItem(
+      'hm.walkin.held.depot-1.s1',
+      JSON.stringify([
+        { id: 'h1', savedAt: Date.now(), qty: { 'p-air': 1 }, name: 'Sari', phone: '', voucher: '', buyerId: null },
+      ]),
+    );
+    await openTill();
+    expect(await screen.findByTestId('counter-held')).toBeTruthy();
+  });
+
   it('discards a held basket without touching the one on the till', async () => {
     window.localStorage.setItem(
-      'hm.walkin.held.depot-1',
+      'hm.walkin.held.depot-1.s1',
       JSON.stringify([
         { id: 'h1', savedAt: Date.now(), qty: { 'p-air': 1 }, name: 'Sari', phone: '', voucher: '', buyerId: null },
       ]),

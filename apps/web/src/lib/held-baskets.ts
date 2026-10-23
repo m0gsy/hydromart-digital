@@ -35,7 +35,12 @@ export const MAX_HELD = 5;
 /** Long enough to cover a lunch break, short enough that yesterday's basket is gone. */
 export const HELD_TTL_MS = 12 * 60 * 60 * 1000;
 
-const key = (depotId: string) => `hm.walkin.held.${depotId}`;
+/**
+ * `scope` is depot AND cashier. A till is often one browser used by several people over a
+ * day, and a basket carries a buyer's name and number: it should be the cashier's own, not
+ * whoever signs in next.
+ */
+const key = (scope: string) => `hm.walkin.held.${scope}`;
 
 const isDelivery = (v: unknown): v is HeldDelivery => {
   if (typeof v !== 'object' || v === null) return false;
@@ -64,9 +69,9 @@ const isBasket = (v: unknown): v is HeldBasket => {
 };
 
 /** Whatever is still worth showing. Unreadable, malformed and expired entries are dropped. */
-export function loadHeld(depotId: string, now: number = Date.now()): HeldBasket[] {
+export function loadHeld(scope: string, now: number = Date.now()): HeldBasket[] {
   try {
-    const raw = window.localStorage.getItem(key(depotId));
+    const raw = window.localStorage.getItem(key(scope));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -80,10 +85,10 @@ export function loadHeld(depotId: string, now: number = Date.now()): HeldBasket[
 }
 
 /** Best effort: a till whose storage is full or blocked still sells, it just cannot hold. */
-export function saveHeld(depotId: string, list: HeldBasket[]): boolean {
+export function saveHeld(scope: string, list: HeldBasket[]): boolean {
   try {
-    if (list.length === 0) window.localStorage.removeItem(key(depotId));
-    else window.localStorage.setItem(key(depotId), JSON.stringify(list));
+    if (list.length === 0) window.localStorage.removeItem(key(scope));
+    else window.localStorage.setItem(key(scope), JSON.stringify(list));
     return true;
   } catch {
     return false;

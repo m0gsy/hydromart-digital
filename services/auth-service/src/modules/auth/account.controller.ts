@@ -15,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 
 import { AccountService } from '../../application/services/account.service';
@@ -50,6 +51,13 @@ import {
   ImportResponseDto,
   ListStaff3ResponseDto,
 } from '../dto/responses.generated.dto';
+
+/**
+ * How many cashier phone lookups one client may make a minute. A cashier asks once per buyer,
+ * after they stop typing, so this is far above honest use; it exists to make walking through
+ * numbers to see which ones are customers slow instead of free.
+ */
+export const COUNTER_LOOKUP_LIMIT_PER_MINUTE = 30;
 
 @ApiTags('Account')
 @ApiBearerAuth()
@@ -151,6 +159,7 @@ export class AccountController {
   // sale itself, because it exists for that screen alone; `customerPhoneLookup` would hand the
   // whole customer record to a role that has no use for it. Declared before any `:id` route.
   @Can('walkInSale')
+  @Throttle({ default: { limit: COUNTER_LOOKUP_LIMIT_PER_MINUTE, ttl: 60_000 } })
   @Get('auth/customers/counter-lookup')
   @ApiOperation({ summary: 'Cashier: is this phone already a customer? (registered + first name only)' })
   @ApiOkResponse({ type: CounterLookupResponseDto })
