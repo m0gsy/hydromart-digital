@@ -5,6 +5,7 @@ import {
   MessageLocale,
   NotificationEvent,
   OPS_EVENTS,
+  STAFF_TOGGLE_FOR_EVENT,
   renderMessage,
   templateFor,
 } from '../../domain/notification-event';
@@ -16,6 +17,7 @@ import {
 } from '../ports/notification.repository';
 import { DepotStaffPort } from '../ports/depot-staff.port';
 import { NotificationPreferencePort } from '../ports/notification-preference.port';
+import { StaffPrefsPort } from '../ports/staff-prefs.port';
 import { PushService } from './push.service';
 import { CRM_TOKENS } from '../tokens';
 
@@ -42,6 +44,11 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.DepotStaff)
     private readonly depotStaff?: DepotStaffPort,
+    // Optional like the two above: without it every staff switch reads as on, which is how
+    // crm behaved before the switches were wired to anything.
+    @Optional()
+    @Inject(CRM_TOKENS.StaffPrefs)
+    private readonly staffPrefs?: StaffPrefsPort,
   ) {}
 
   /**
@@ -130,8 +137,10 @@ export class NotificationService {
           this.logger.warn(`${event} for depot ${depotId}: no staff to push to`);
           return;
         }
+        const wanted = await this.withoutOptedOut(ids, event);
+        const optedOut = ids.length - wanted.length;
         const results = await Promise.allSettled(
-          ids.map((id) =>
+          wanted.map((id) =>
             this.push.sendToCustomer(id, {
               title: 'Hydromart',
               body: message,
@@ -150,10 +159,28 @@ export class NotificationService {
           }
         }
         this.logger.log(
-          `${event} depot ${depotId}: ${ids.length} staff, ${devices} devices, ${delivered} delivered`,
+          `${event} depot ${depotId}: ${ids.length} staff, ${optedOut} opted out, ${devices} devices, ${delivered} delivered`,
         );
       })
       .catch((e) => this.logger.warn(`Ops push for ${event} failed: ${(e as Error).message}`));
+  }
+
+  /**
+   * Drop the staff who switched push off for this kind of alert on their settings screen.
+   *
+   * Fails OPEN: if admin-service cannot be reached nobody is dropped, because an alert nobody
+   * sees costs more than one a person asked not to get. An event without a switch is untouched.
+   */
+  private async withoutOptedOut(ids: string[], event: NotificationEvent): Promise<string[]> {
+    const toggle = STAFF_TOGGLE_FOR_EVENT[event];
+    if (!toggle || !this.staffPrefs || ids.length === 0) return ids;
+    try {
+      const off = await this.staffPrefs.pushDisabled(ids, toggle);
+      return off.size === 0 ? ids : ids.filter((id) => !off.has(id));
+    } catch (e) {
+      this.logger.warn(`staff prefs unreadable for ${event}, sending to all: ${(e as Error).message}`);
+      return ids;
+    }
   }
 
   async notify(
@@ -205,8 +232,10 @@ export class NotificationService {
 
     if (customerId) {
       void this.pushAllowedFor(customerId)
-        .then((allowed) =>
-          allowed
+        // An alert addressed to one staff account (an approval waiting on them) honours that
+        // person's own switch, exactly as a depot-wide one does.
+        .then(async (allowed) =>
+          allowed && (await this.withoutOptedOut([customerId], event)).length > 0
             ? this.push.sendToCustomer(customerId, {
                 title: 'Hydromart',
                 body: message,

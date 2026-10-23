@@ -747,6 +747,14 @@ export class InMemorySecurityPolicyRepository implements SecurityPolicyRepositor
 }
 
 export class InMemoryAdminNotificationPrefRepository implements AdminNotificationPrefRepository {
+  async getMany(accountIds: readonly string[]) {
+    const out = [];
+    for (const id of accountIds) {
+      const row = await this.get(id);
+      if (row) out.push(row);
+    }
+    return out;
+  }
   rows = new Map<string, AdminNotificationPrefRecord>();
 
   async get(accountId: string): Promise<AdminNotificationPrefRecord | null> {

@@ -59,6 +59,8 @@ describe('CrmConfigService', () => {
     // which is why both are read as trimmed strings rather than getOrThrow.
     expect(cfg({ ORDER_SERVICE_URL: '  http://order  ' }).orderServiceUrl).toBe('http://order');
     expect(cfg({}).orderServiceUrl).toBe('');
+    expect(cfg({ ADMIN_SERVICE_URL: '  http://admin  ' }).adminServiceUrl).toBe('http://admin');
+    expect(cfg({}).adminServiceUrl).toBe('');
     expect(cfg({ INTERNAL_SERVICE_KEY: ' sekret ' }).internalServiceKey).toBe('sekret');
     expect(cfg({}).internalServiceKey).toBe('');
   });

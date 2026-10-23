@@ -13,6 +13,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.
   CUSTOMER_SERVICE_URL: Joi.string().allow('').default(''),
+  ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
   // Optional: order-service base URL for the ACTIVITY half of a segment (lapsed/new/
   // frequent/ordered-at-depot). Blank makes an activity segment fail closed, never wider.
   ORDER_SERVICE_URL: Joi.string().allow('').default(''),

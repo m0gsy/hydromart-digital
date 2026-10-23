@@ -360,8 +360,76 @@ describe('F8 — an ops alert that can wake somebody', () => {
     );
     await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
     await flush();
-    expect(log).toHaveBeenCalledWith('STOCK_LOW depot depot-1: 2 staff, 2 devices, 1 delivered');
+    expect(log).toHaveBeenCalledWith('STOCK_LOW depot depot-1: 2 staff, 0 opted out, 2 devices, 1 delivered');
     log.mockRestore();
+  });
+
+  describe('the staff settings switches', () => {
+    const buildWithPrefs = (pushDisabled: jest.Mock) => {
+      const sent: string[] = [];
+      const push = {
+        sendToCustomer: jest.fn(async (id: string) => {
+          sent.push(id);
+          return { devices: 1, delivered: 1 };
+        }),
+      };
+      const service = new NotificationService(
+        { record: jest.fn(async (r: unknown) => r) } as never,
+        push as never,
+        undefined,
+        { staffIdsForDepot: jest.fn(async () => ['s-1', 's-2', 's-3']) } as never,
+        { pushDisabled } as never,
+      );
+      return { service, sent };
+    };
+
+    it('does not push to staff who switched that alert off', async () => {
+      const pushDisabled = jest.fn(async (_ids: string[], _toggle: string) => new Set(['s-2']));
+      const { service, sent } = buildWithPrefs(pushDisabled);
+      await service.notify(NotificationEvent.DEPOT_ORDER_INCOMING, '+628000000000', { orderNumber: 'HM-1' }, null, 'depot-1');
+      await flush();
+      expect(pushDisabled).toHaveBeenCalledWith(['s-1', 's-2', 's-3'], 'newOrder');
+      expect(sent.sort()).toEqual(['s-1', 's-3']);
+    });
+
+    it('asks about the switch that belongs to the alert', async () => {
+      const pushDisabled = jest.fn(async (_ids: string[], _toggle: string) => new Set<string>());
+      const { service } = buildWithPrefs(pushDisabled);
+      await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+      await service.notify(NotificationEvent.COURIER_INCIDENT, '+628000000000', {}, null, 'depot-1');
+      await service.notify(NotificationEvent.DEPOT_SALES_UPDATE, '+628000000000', {}, null, 'depot-1');
+      await flush();
+      expect(pushDisabled.mock.calls.map((c) => c[1])).toEqual(['lowStock', 'courierFail', 'dailySummary']);
+    });
+
+    it('sends to everyone when the preferences cannot be read', async () => {
+      const { service, sent } = buildWithPrefs(jest.fn(async () => Promise.reject(new Error('admin down'))));
+      await service.notify(NotificationEvent.STOCK_LOW, '+628000000000', {}, null, 'depot-1');
+      await flush();
+      expect(sent.sort()).toEqual(['s-1', 's-2', 's-3']);
+    });
+
+    it('honours one staff member\'s switch for an alert addressed to them alone', async () => {
+      const pushDisabled = jest.fn(async (_ids: string[], _toggle: string) => new Set(['mgr-1']));
+      const { service, sent } = buildWithPrefs(pushDisabled);
+      await service.notify(NotificationEvent.APPROVAL_REQUESTED, '+628000000000', { title: 'x' }, 'mgr-1');
+      await flush();
+      expect(pushDisabled).toHaveBeenCalledWith(['mgr-1'], 'approval');
+      expect(sent).toEqual([]);
+      pushDisabled.mockResolvedValue(new Set());
+      await service.notify(NotificationEvent.APPROVAL_REQUESTED, '+628000000000', { title: 'x' }, 'mgr-1');
+      await flush();
+      expect(sent).toEqual(['mgr-1']);
+    });
+
+    it('never filters an alert that has no switch, such as a payslip', async () => {
+      const pushDisabled = jest.fn(async (_ids: string[], _toggle: string) => new Set(['emp-1']));
+      const { service, sent } = buildWithPrefs(pushDisabled);
+      await service.notify(NotificationEvent.PAYSLIP_READY, '+628000000000', { name: 'x', period: 'y' }, 'emp-1');
+      await flush();
+      expect(pushDisabled).not.toHaveBeenCalled();
+      expect(sent).toEqual(['emp-1']);
+    });
   });
 
   it('still writes the ops feed row when the roster cannot be read', async () => {

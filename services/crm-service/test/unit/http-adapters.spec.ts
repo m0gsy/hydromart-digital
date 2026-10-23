@@ -4,6 +4,7 @@ import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/cust
 import { ActivitySegmentHttpAdapter } from '../../src/infrastructure/http/activity-segment.http.adapter';
 import { NotificationPreferenceHttpAdapter } from '../../src/infrastructure/http/notification-preference.http.adapter';
 import { DepotStaffHttpAdapter } from '../../src/infrastructure/http/depot-staff.http.adapter';
+import { StaffPrefsHttpAdapter } from '../../src/infrastructure/http/staff-prefs.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, query-string segment, authorization
 // header, res.ok branch, fail-CLOSED catch, response parsing) against a mocked global.fetch —
@@ -352,5 +353,48 @@ describe('DepotStaffHttpAdapter — a body that is not the shape it promised', (
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as never);
     const cfg = { authServiceUrl: 'http://auth.test', internalServiceKey: 'k' } as never;
     expect(await new DepotStaffHttpAdapter(cfg).staffIdsForDepot('d-1')).toEqual([]);
+  });
+});
+
+/*
+ * Staff push switches. Unlike the roster above this THROWS when it cannot find out, so the
+ * caller can tell "nobody opted out" from "could not ask" - and for an alert, send to everyone.
+ */
+describe('StaffPrefsHttpAdapter', () => {
+  const cfg = (over: Record<string, unknown> = {}) =>
+    ({ adminServiceUrl: 'http://admin.test', internalServiceKey: 'k', ...over }) as never;
+
+  it('asks admin-service which accounts have push off, with the internal key', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ disabled: ['s-2'] }) } as never);
+    const off = await new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1', 's-2'], 'newOrder');
+    expect([...off]).toEqual(['s-2']);
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(String(url)).toBe('http://admin.test/api/v1/notification-prefs/internal/push-disabled');
+    expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      accountIds: ['s-1', 's-2'],
+      toggle: 'newOrder',
+    });
+  });
+
+  it('is a no-op (nobody opted out) when it is not configured, or has nobody to ask about', async () => {
+    expect((await new StaffPrefsHttpAdapter(cfg({ adminServiceUrl: '' })).pushDisabled(['s-1'], 'newOrder')).size).toBe(0);
+    expect((await new StaffPrefsHttpAdapter(cfg({ internalServiceKey: '' })).pushDisabled(['s-1'], 'newOrder')).size).toBe(0);
+    expect((await new StaffPrefsHttpAdapter(cfg()).pushDisabled([], 'newOrder')).size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws on a refusal and on an unreachable service, so the caller can fail open', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 } as never);
+    await expect(new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1'], 'newOrder')).rejects.toThrow('500');
+    fetchMock.mockRejectedValue(new Error('timeout'));
+    await expect(new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1'], 'newOrder')).rejects.toThrow('timeout');
+  });
+
+  it('drops anything in the list that is not an id, and tolerates a body with no list', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ disabled: ['s-1', 7, null] }) } as never);
+    expect([...(await new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1'], 'newOrder'))]).toEqual(['s-1']);
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as never);
+    expect((await new StaffPrefsHttpAdapter(cfg()).pushDisabled(['s-1'], 'newOrder')).size).toBe(0);
   });
 });

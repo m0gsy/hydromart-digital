@@ -28,7 +28,7 @@ import { TicketAuthorType, TicketPriority, TicketStatus } from '../../src/domain
 const now = new Date('2026-07-19T00:00:00.000Z');
 
 describe('AdminNotificationPrefPrismaRepository', () => {
-  const model = { findUnique: jest.fn(), upsert: jest.fn() };
+  const model = { findUnique: jest.fn(), findMany: jest.fn(), upsert: jest.fn() };
   const prisma = { adminNotificationPref: model } as unknown as PrismaService;
   const repo = new AdminNotificationPrefPrismaRepository(prisma);
   const channels = [{ id: 'order.new', push: true, email: false, wa: true }];
@@ -40,6 +40,18 @@ describe('AdminNotificationPrefPrismaRepository', () => {
     const rec = await repo.get('acc-1');
     expect(model.findUnique).toHaveBeenCalledWith({ where: { accountId: 'acc-1' } });
     expect(rec).toEqual({ accountId: 'acc-1', channels, updatedAt: now });
+  });
+
+  it('getMany reads several accounts in one query and maps each row', async () => {
+    model.findMany.mockResolvedValue([{ accountId: 'acc-1', channels, updatedAt: now }]);
+    const rows = await repo.getMany(['acc-1', 'acc-2']);
+    expect(model.findMany).toHaveBeenCalledWith({ where: { accountId: { in: ['acc-1', 'acc-2'] } } });
+    expect(rows).toEqual([{ accountId: 'acc-1', channels, updatedAt: now }]);
+  });
+
+  it('getMany of nobody does not query', async () => {
+    expect(await repo.getMany([])).toEqual([]);
+    expect(model.findMany).not.toHaveBeenCalled();
   });
 
   it('get returns null when the account has no prefs', async () => {
