@@ -60,6 +60,7 @@ import {
   CounterQuoteResponseDto,
   CreateReviewDto,
   DeliveryOptionsResponseDto,
+  InternalPaymentNoticeDto,
   InternalRefundDto,
   ListOrdersQueryDto,
   OrderValueBatchDto,
@@ -868,6 +869,23 @@ export class OrderController {
     @Body() dto: InternalRefundDto,
   ): Promise<{ orderId: string }> {
     await this.orders.recordRefund(id, dto.amount);
+    return { orderId: id };
+  }
+
+  // payment-service reports a payment event (failed / still pending / receipt uploaded) so the
+  // right party is told. Same internal service-auth path as internal-confirm.
+  @ApiOkResponse({ type: InternalRefund2ResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post(':id/internal-payment-notice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Notify about a payment event on an order (internal service auth)' })
+  async internalPaymentNotice(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: InternalPaymentNoticeDto,
+  ): Promise<{ orderId: string }> {
+    await this.orders.notifyPaymentEvent(id, dto.kind, dto.amount, dto.reason);
     return { orderId: id };
   }
 

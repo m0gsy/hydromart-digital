@@ -63,6 +63,9 @@ export interface WalletVoucher {
 @Injectable()
 export class VoucherService {
   private static readonly MAX_LIMIT = 100;
+  /** How far ahead of its end a wallet voucher is flagged. */
+  private static readonly EXPIRY_LEAD_DAYS = 3;
+  private static readonly EXPIRY_SWEEP_LIMIT = 500;
   private readonly logger = new Logger(VoucherService.name);
 
   constructor(
@@ -97,6 +100,43 @@ export class VoucherService {
       }
     }
     return { voucher, granted };
+  }
+
+  /**
+   * Nudge holders of a wallet voucher that lapses in about three days.
+   *
+   * No marker column: it runs hourly and looks only at vouchers whose expiry falls in the
+   * one-hour window that opens `EXPIRY_LEAD_DAYS` from now, so a voucher is in exactly one
+   * tick's window. ponytail: a skipped or doubled tick loses or repeats one nudge - move to
+   * a `GrantNotifiedAt` column (shipped a release ahead of its reader) if that ever matters.
+   * Already-redeemed vouchers are left out by the repository.
+   */
+  async notifyExpiring(now: Date): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
+    const from = new Date(now.getTime() + VoucherService.EXPIRY_LEAD_DAYS * 86_400_000);
+    const to = new Date(from.getTime() + 3_600_000);
+    const due = await this.repo.findExpiringGrants(from, to, VoucherService.EXPIRY_SWEEP_LIMIT);
+    let notified = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const grant of due) {
+      try {
+        const contact = await this.customers.resolve(grant.customerId);
+        if (!contact) {
+          skipped += 1;
+          continue;
+        }
+        await this.notifications.notify('VOUCHER_EXPIRING', contact.phone, grant.customerId, {
+          name: contact.name,
+          code: grant.code,
+          expires: grant.validUntil.toISOString().slice(0, 10),
+        });
+        notified += 1;
+      } catch (error) {
+        failed += 1;
+        this.logger.warn(`Expiry nudge for ${grant.code} failed: ${(error as Error).message}`);
+      }
+    }
+    return { notified, skipped, failed, ok: failed === 0 || notified > 0 };
   }
 
   /**

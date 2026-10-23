@@ -63,6 +63,7 @@ import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.reposito
 import { BONUS_RULE_REPOSITORY, BonusRuleRepository } from '../ports/bonus-rule.repository';
 import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
 import { SALES_PORT, SalesPort } from '../ports/sales.port';
+import { NOTIFICATION_PORT, NotificationPort } from '../ports/notification.port';
 import {
   BONUS_REPOSITORY,
   BonusRepository,
@@ -87,6 +88,18 @@ import {
 import { EmployeeService } from './employee.service';
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+/** "2026-10" -> "Oktober 2026"; anything that is not a period is returned as given. */
+function periodLabel(periodMonth: string): string {
+  if (!PERIOD_RE.test(periodMonth)) return periodMonth;
+  const [y, m] = periodMonth.split('-');
+  return `${MONTH_NAMES[Number(m) - 1]} ${y}`;
+}
 /** getUTCDay: 0 = Sunday. Friday is the one weekday with its own break length (D2). */
 const FRIDAY = 5;
 
@@ -129,6 +142,7 @@ export class PayrollService {
     private readonly depotLedger?: DepotAssignmentRepository,
     @Optional() private readonly audit?: AuditService,
     @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
+    @Optional() @Inject(NOTIFICATION_PORT) private readonly notifications?: NotificationPort,
   ) {}
 
   /**
@@ -812,7 +826,30 @@ export class PayrollService {
         `Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`,
       );
     }
-    return this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
+    const paid = await this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
+    await this.notifyPayslipReady(paid);
+    return paid;
+  }
+
+  /**
+   * Tell the employee their slip is final. Sent at PAID rather than APPROVED: an approved
+   * slip can still be sent back to DRAFT (`unapprove`), and "your payslip is ready" followed
+   * by a retraction is worse than a message a day later. Fail-soft - the money has moved.
+   */
+  private async notifyPayslipReady(payroll: { employeeId: string; periodMonth: string }): Promise<void> {
+    if (!this.notifications) return;
+    try {
+      const employee = await this.employees.findByIdInternal(payroll.employeeId);
+      if (!employee?.authSubjectId) return;
+      await this.notifications.notify(
+        'PAYSLIP_READY',
+        employee.phone,
+        { name: employee.fullName, period: periodLabel(payroll.periodMonth) },
+        employee.authSubjectId,
+      );
+    } catch (e) {
+      this.logger.warn(`Payslip notice for ${payroll.employeeId} failed: ${(e as Error).message}`);
+    }
   }
 
   /**

@@ -424,8 +424,8 @@ export class ReportController {
     // slots separate sweep locks, which is what you want — siang must not block sore.
     @Param('slot') slot: string,
   ): Promise<DailySalesBroadcastResult> {
-    if (slot !== 'siang' && slot !== 'sore') {
-      throw new BadRequestException('slot must be siang or sore');
+    if (slot !== 'pagi' && slot !== 'siang' && slot !== 'sore') {
+      throw new BadRequestException('slot must be pagi, siang or sore');
     }
     return this.reports.broadcastDailySales(slot);
   }

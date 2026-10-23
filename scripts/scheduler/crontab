@@ -43,6 +43,7 @@
 # bounded at 500 rows, and whatever it does not reach is still stale next hour. CASH is
 # never touched — a COD payment is PENDING by design until the courier confirms.
 25 * * * * sh /scripts/sweep.sh payments/internal/expire-pending payment:3005
+40 * * * * sh /scripts/sweep.sh payments/internal/remind-pending payment:3005
 # Release the stock held by orders nobody ever confirmed. Also unscheduled until now, so a
 # reservation from an abandoned checkout was never given back — a slow leak into false
 # out-of-stock. Hourly is enough: the threshold is measured in minutes-to-hours, and the
@@ -84,6 +85,7 @@
 # far today, sent to the depot's own number. 13:00 (siang) and 21:00 (sore) WIB. The slot
 # is a path segment rather than a body because sweep.sh posts an empty one; it also gives
 # the two runs separate locks, so a slow siang never swallows sore.
+30 7 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/pagi
 0 13 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/siang
 0 21 * * * sh /scripts/sweep.sh reports/internal/daily-sales-broadcast/sore
 # Scheduled reports (15c): produce every report whose time has come. Hourly rather than
@@ -122,6 +124,9 @@
 # on. scripts/check-scheduler-targets.mjs now requires every line here to name a port and a route
 # that the target service really has.
 45 3 * * * sh /scripts/sweep.sh loyalty/internal/expire loyalty:3009
+# Wallet vouchers that lapse in about three days. Hourly: each voucher is in exactly one tick's
+# one-hour window, so it is mentioned once (no marker column; see VoucherService.notifyExpiring).
+50 * * * * sh /scripts/sweep.sh vouchers/internal/notify-expiring promo:3010
 
 # Gallon-return reminders: ask every customer still holding a depot's gallons past that
 # depot's loan limit to bring them back, at most once per the depot's own reminder interval

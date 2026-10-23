@@ -1326,6 +1326,32 @@ describe('OrderService', () => {
       expect(ops[0].customerId).toBeNull();
     });
 
+    // The customer's own cancel is silent to them, which left the depot preparing an order
+    // that no longer existed.
+    it('tells the depot — not the buyer — when the customer cancels', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      notification.calls.length = 0;
+
+      await service.cancel(customer, order.id, 'ganti hari');
+
+      const ops = notification.calls.filter((c) => c.event === 'DEPOT_ORDER_CANCELLED');
+      expect(ops).toHaveLength(1);
+      expect(ops[0].depotId).toBe(order.depotId);
+      expect(ops[0].customerId).toBeNull();
+      expect(ops[0].vars.orderId).toBe(order.id);
+    });
+
+    it('does not tell the depot when STAFF cancel (the customer is told instead)', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      notification.calls.length = 0;
+
+      await service.updateStatus(order.id, OrderStatus.CANCELLED, 'staff-1', 'stok habis');
+
+      expect(notification.calls.some((c) => c.event === 'DEPOT_ORDER_CANCELLED')).toBe(false);
+    });
+
     it('still sends the customer their own confirmation', async () => {
       await addToCart(20000, 2);
       await service.checkout(customer, { deliveryAddress: address });
@@ -4273,6 +4299,67 @@ describe('OrderService', () => {
       OrderNotFoundError,
     );
   });
+  describe('payment notices', () => {
+    const place = async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      notification.calls.length = 0;
+      return order;
+    };
+
+    it('tells the customer a refund was processed', async () => {
+      const order = await place();
+      await service.recordRefund(order.id, 15000);
+      const call = notification.calls.find((c) => c.event === 'REFUND_PROCESSED');
+      expect(call).toBeDefined();
+      expect(call!.customerId).toBe(customer);
+      expect(call!.vars).toMatchObject({ orderNumber: order.orderNumber, orderId: order.id });
+      expect(call!.vars.amount).toContain('15.000');
+    });
+
+    it('tells the customer a payment failed, with the reason in words', async () => {
+      const order = await place();
+      await service.notifyPaymentEvent(order.id, 'FAILED', 20000, 'EXPIRED');
+      const call = notification.calls.find((c) => c.event === 'PAYMENT_FAILED');
+      expect(call!.customerId).toBe(customer);
+      expect(call!.vars.reason).toBe('melewati batas waktu');
+      await service.notifyPaymentEvent(order.id, 'FAILED', 20000, 'REJECTED');
+      expect(notification.calls.filter((c) => c.event === 'PAYMENT_FAILED')[1]!.vars.reason).toBe(
+        'bukti pembayaran tidak sesuai',
+      );
+    });
+
+    it('reminds the customer what is still owed', async () => {
+      const order = await place();
+      await service.notifyPaymentEvent(order.id, 'REMINDER', 20000);
+      const call = notification.calls.find((c) => c.event === 'PAYMENT_REMINDER');
+      expect(call!.vars.amount).toContain('20.000');
+    });
+
+    it('tells the depot — not the buyer — that a receipt arrived', async () => {
+      const order = await place();
+      await service.notifyPaymentEvent(order.id, 'PROOF_UPLOADED', 20000);
+      const call = notification.calls.find((c) => c.event === 'DEPOT_PAYMENT_PROOF');
+      expect(call!.depotId).toBe(order.depotId);
+      expect(call!.customerId).toBeNull();
+    });
+
+    it('does not ask for payment on an order that was cancelled meanwhile', async () => {
+      const order = await place();
+      await service.cancel(customer, order.id);
+      notification.calls.length = 0;
+      await service.notifyPaymentEvent(order.id, 'REMINDER', 20000);
+      await service.notifyPaymentEvent(order.id, 'FAILED', 20000, 'EXPIRED');
+      expect(notification.calls).toHaveLength(0);
+    });
+
+    it('404s on an unknown order', async () => {
+      await expect(service.notifyPaymentEvent(randomUUID(), 'REMINDER', 1)).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
+    });
+  });
+
   /*
    * An order priced from the CATALOG because the depot's own prices could not be read is a
    * money difference: the customer is billed at a number the depot did not set. It used to

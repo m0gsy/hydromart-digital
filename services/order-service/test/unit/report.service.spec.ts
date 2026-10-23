@@ -1855,7 +1855,21 @@ describe('ReportService.broadcastDailySales', () => {
       },
       null,
       '',
+      expect.any(String), // the depot id: crm pushes to that depot's staff with it
     );
+  });
+
+  // The morning recap is yesterday's finished day, worded "kemarin", and carries the depot
+  // id so crm can push it to the depot's staff.
+  it("the 'pagi' slot reports yesterday, labelled kemarin", async () => {
+    const { svc, notify } = build([{ id: 'd1', name: 'Depot Cikini', contactPhone: '0811' }]);
+    const depotDaily = jest.spyOn(svc, 'depotDaily');
+    await svc.broadcastDailySales('pagi');
+    expect(notify.mock.calls[0]?.[2]).toMatchObject({ slot: 'kemarin' });
+    expect(notify.mock.calls[0]?.[5]).toBe('d1');
+    const today = new Date(NOW).getTime();
+    const asked = new Date(`${depotDaily.mock.calls[0]?.[1]}T12:00:00Z`).getTime();
+    expect(Math.round((today - asked) / 86_400_000)).toBe(1);
   });
 
   // The number in the message is the number on the screen: both come out of depotDaily, so a

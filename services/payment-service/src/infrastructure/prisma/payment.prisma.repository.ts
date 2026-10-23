@@ -120,12 +120,13 @@ export class PaymentPrismaRepository implements PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
+    after?: Date,
   ): Promise<PaymentRecord[]> {
     const rows = await this.prisma.payment.findMany({
       where: {
         status: PaymentStatus.PENDING,
         method: { in: methods as PaymentMethod[] },
-        createdAt: { lt: before },
+        createdAt: after ? { lt: before, gte: after } : { lt: before },
       },
       // Oldest first: the sweep is bounded, so the rows that have been stuck longest are
       // the ones a bounded pass must reach.

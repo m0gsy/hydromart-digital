@@ -347,7 +347,7 @@ describe('ReportController', () => {
     expect(service.broadcastDailySales).toHaveBeenCalledWith('sore');
   });
 
-  it('internalDailySalesBroadcast: rejects a slot that is not siang or sore', () => {
+  it('internalDailySalesBroadcast: rejects a slot that is not pagi, siang or sore', () => {
     expect(() => controller.internalDailySalesBroadcast('malam')).toThrow(BadRequestException);
     expect(service.broadcastDailySales).not.toHaveBeenCalled();
   });

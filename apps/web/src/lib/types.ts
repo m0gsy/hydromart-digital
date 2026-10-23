@@ -872,6 +872,15 @@ export type NotificationEvent =
   // O6: addressed to a DEPOT rather than to a buyer — the depot's own "an order arrived".
   | 'DEPOT_ORDER_INCOMING'
   | 'DEPOT_ORDER_RESCHEDULED'
+  | 'DEPOT_ORDER_CANCELLED'
+  | 'DEPOT_PAYMENT_PROOF'
+  | 'PAYMENT_FAILED'
+  | 'PAYMENT_REMINDER'
+  | 'REFUND_PROCESSED'
+  | 'APPROVAL_REQUESTED'
+  | 'VOUCHER_EXPIRING'
+  | 'COURIER_DELIVERY_ASSIGNED'
+  | 'DELIVERY_SLA_BREACHED'
   | 'STOCK_LOW'
   | 'STOCK_UNTRACKED'
   | 'METER_VARIANCE'
@@ -894,6 +903,8 @@ export type NotificationEvent =
   | 'LEAVE_APPROVED'
   | 'LEAVE_REJECTED'
   | 'HR_ANNOUNCEMENT'
+  | 'PAYSLIP_READY'
+  | 'ATTENDANCE_LATE'
   | 'BROADCAST';
 
 /**
@@ -907,6 +918,11 @@ export type NotificationEvent =
 export const OPS_EVENTS = [
   'DEPOT_ORDER_INCOMING',
   'DEPOT_ORDER_RESCHEDULED',
+  'DEPOT_ORDER_CANCELLED',
+  'DEPOT_PAYMENT_PROOF',
+  'APPROVAL_REQUESTED',
+  'COURIER_DELIVERY_ASSIGNED',
+  'DELIVERY_SLA_BREACHED',
   'STOCK_LOW',
   'STOCK_UNTRACKED',
   'METER_VARIANCE',
@@ -916,6 +932,8 @@ export const OPS_EVENTS = [
   'LEAVE_APPROVED',
   'LEAVE_REJECTED',
   'HR_ANNOUNCEMENT',
+  'PAYSLIP_READY',
+  'ATTENDANCE_LATE',
 ] as const satisfies readonly NotificationEvent[];
 
 // A row from the customer's notification feed (crm-service audit trail).

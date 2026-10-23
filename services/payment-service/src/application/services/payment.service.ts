@@ -115,6 +115,13 @@ export interface PaymentExpirySweepResult {
   ok: boolean;
 }
 
+/** The pending-payment reminder round; `ok` follows the same rule as the expiry's. */
+export interface PaymentReminderSweepResult {
+  reminded: number;
+  failed: number;
+  ok: boolean;
+}
+
 export interface WebhookPayload {
   reference: string;
   event: WebhookEvent;
@@ -165,6 +172,8 @@ export class PaymentService {
    * comes near it.
    */
   private static readonly EXPIRY_SWEEP_LIMIT = 500;
+  /** One scheduler tick: the reminder sweep runs hourly (scripts/scheduler/crontab). */
+  private static readonly REMINDER_WINDOW_MS = 3_600_000;
   private static readonly MAX_LIMIT = 100;
   private readonly logger = new Logger(PaymentService.name);
 
@@ -317,8 +326,19 @@ export class PaymentService {
    * goes into dispute is exactly when somebody goes looking for it.
    */
   async attachProof(customerId: string, id: string, proofUrl: string): Promise<PaymentRecord> {
-    await this.getForCustomer(customerId, id);
-    return this.payments.attachProof(id, proofUrl);
+    const payment = await this.getForCustomer(customerId, id);
+    const updated = await this.payments.attachProof(id, proofUrl);
+    // Only a receipt on a payment still waiting to be checked is news to the depot. One
+    // attached after the fact is evidence for a dispute, not a task, and a re-upload on the
+    // same pending payment must not page the depot a second time.
+    if (payment.status === PaymentStatus.PENDING && !payment.proofUrl) {
+      await this.orderCoordination.notifyPaymentEvent(
+        payment.orderId,
+        'PROOF_UPLOADED',
+        payment.amount,
+      );
+    }
+    return updated;
   }
 
   /**
@@ -557,7 +577,28 @@ export class PaymentService {
     return updated;
   }
 
+  /**
+   * Staff reject a payment (a receipt that does not match). The buyer is told, because
+   * their order is waiting on money the depot says did not arrive. Cancellations reach the
+   * same transition through `markFailed` and are NOT announced here - the order's own
+   * cancellation notice already says what happened.
+   */
   async fail(id: string, changedBy: string, user?: AuthenticatedUser): Promise<PaymentRecord> {
+    const failed = await this.markFailed(id, changedBy, user);
+    await this.orderCoordination.notifyPaymentEvent(
+      failed.orderId,
+      'FAILED',
+      failed.amount,
+      'REJECTED',
+    );
+    return failed;
+  }
+
+  private async markFailed(
+    id: string,
+    changedBy: string,
+    user?: AuthenticatedUser,
+  ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     await this.assertSettleableBy(user, payment);
     this.assertTransition(payment.status, PaymentStatus.FAILED);
@@ -604,7 +645,17 @@ export class PaymentService {
           status: PaymentStatus.FAILED,
           failedAt: now,
         });
-        if (moved) expired += 1;
+        if (moved) {
+          expired += 1;
+          // After the compare-and-set, so a payment that landed in the same instant (and so
+          // was NOT expired) is never announced as failed.
+          await this.orderCoordination.notifyPaymentEvent(
+            payment.orderId,
+            'FAILED',
+            payment.amount,
+            'EXPIRED',
+          );
+        }
       } catch (error) {
         // One row's failure is its own; the rest of the batch still has to run. Counted,
         // because J7: a round that could not expire anything must not look like a round
@@ -619,6 +670,46 @@ export class PaymentService {
       this.logger.log(`Expired ${expired} stale PENDING payment(s) older than ${hours}h`);
     }
     return { expired, failed, ok: failed === 0 || expired > 0 };
+  }
+
+  /**
+   * A gentle nudge for a transfer/QRIS payment that is still PENDING halfway to its expiry.
+   *
+   * No marker column: each hourly tick looks at payments whose age is in the one-hour window
+   * that starts at half the TTL, so a payment falls into exactly one tick's window and is
+   * reminded once. ponytail: a skipped or doubled tick loses or repeats a reminder - move to
+   * a `reminderSentAt` column (it must ship a release ahead of its reader) if that matters.
+   */
+  async remindStalePending(now: Date): Promise<PaymentReminderSweepResult> {
+    const hours = this.config.pendingPaymentTtlHours;
+    // Same kill switch as the expiry: no TTL, nothing is about to expire, nothing to nudge.
+    if (hours <= 0) return { reminded: 0, failed: 0, ok: true };
+
+    const before = new Date(now.getTime() - (hours / 2) * 3_600_000);
+    const after = new Date(before.getTime() - PaymentService.REMINDER_WINDOW_MS);
+    const due = await this.payments.findStalePending(
+      before,
+      EXPIRABLE_PENDING_METHODS,
+      PaymentService.EXPIRY_SWEEP_LIMIT,
+      after,
+    );
+
+    let reminded = 0;
+    let failed = 0;
+    for (const payment of due) {
+      try {
+        await this.orderCoordination.notifyPaymentEvent(
+          payment.orderId,
+          'REMINDER',
+          payment.amount,
+        );
+        reminded += 1;
+      } catch (error) {
+        failed += 1;
+        this.logger.warn(`Reminder for payment ${payment.id} failed: ${(error as Error).message}`);
+      }
+    }
+    return { reminded, failed, ok: failed === 0 || reminded > 0 };
   }
 
   /**
@@ -757,7 +848,7 @@ export class PaymentService {
     const active = await this.payments.findActiveByOrder(orderId);
     if (!active) return null;
     if (active.status === PaymentStatus.PENDING) {
-      return this.fail(active.id, changedBy);
+      return this.markFailed(active.id, changedBy);
     }
     // Straight to REFUNDED, never the HQ approval queue: a counter void hands cash back
     // across the counter there and then, and parking it for approval would mean the buyer
@@ -791,7 +882,7 @@ export class PaymentService {
     // Nothing was ever collected, so there is nothing to hand back — but the row must stop
     // being active, or it goes on blocking the order it belongs to.
     if (active.status === PaymentStatus.PENDING) {
-      return this.fail(active.id, changedBy);
+      return this.markFailed(active.id, changedBy);
     }
     return this.refund(active.id, changedBy, reason);
   }

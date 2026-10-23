@@ -144,6 +144,8 @@ export interface PaymentRepository {
     before: Date,
     methods: readonly PaymentMethod[],
     limit: number,
+    /** Optional lower bound (inclusive) on `createdAt`: with `before`, a window of ages. */
+    after?: Date,
   ): Promise<PaymentRecord[]>;
   search(
     query: PaymentQuery,

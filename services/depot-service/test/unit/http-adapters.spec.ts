@@ -81,6 +81,7 @@ describe('LowStockAlertHttpAdapter', () => {
     expect(body).toMatchObject({
       event: 'STOCK_LOW',
       phone: '628123456789',
+      depotId: alert().depotId,
       vars: { depot: 'Depot Pusat', item: 'Galon 19L', quantity: '3', minimum: '10' },
     });
   });
@@ -124,6 +125,7 @@ describe('UntrackedSaleAlertHttpAdapter', () => {
     expect(body).toMatchObject({
       event: 'STOCK_UNTRACKED',
       phone: '628123456789',
+      depotId: sale().depotId,
       vars: { depot: 'Depot Pusat', order: 'o-9', count: '2' },
     });
   });

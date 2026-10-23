@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
   Approval,
@@ -16,6 +16,8 @@ import {
 import { DepotConfigService } from '../../config/depot-config.service';
 import { ApprovalRepository, PendingCounts } from '../ports/approval.repository';
 import { DepotRepository } from '../ports/depot.repository';
+import { HIERARCHY_REPOSITORY, HierarchyRepository } from '../ports/hierarchy.repository';
+import { CustomerNotificationPort } from '../ports/customer-notification.port';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface CreateApprovalInput {
@@ -59,7 +61,54 @@ export class ApprovalService {
     @Inject(DEPOT_TOKENS.ApprovalRepository) private readonly approvals: ApprovalRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly config: DepotConfigService,
+    @Optional() @Inject(HIERARCHY_REPOSITORY) private readonly hierarchy?: HierarchyRepository,
+    @Optional()
+    @Inject(DEPOT_TOKENS.CustomerNotification)
+    private readonly notifications?: CustomerNotificationPort,
   ) {}
+
+  private readonly logger = new Logger(ApprovalService.name);
+
+  /** A supervision chain is four levels deep (depot, assistant, supervisor, manager). */
+  private static readonly CHAIN_LIMIT = 6;
+
+  /**
+   * Tell the person who can decide it that an item is waiting.
+   *
+   * The decider is the TOP of the depot's supervision chain - assistant supervisor, then up
+   * through whoever each one reports to - because that is where `approvals` (managers) sits.
+   * The depot's own staff are not told: they raised it, and `ApprovalSelfDecideError` stops
+   * them signing it off. A depot with no assistant supervisor has no chain, and nobody is
+   * paged rather than somebody guessed. Fail-soft: the item is already saved.
+   */
+  private async notifyApprover(approval: Approval): Promise<void> {
+    if (!this.hierarchy || !this.notifications) return;
+    try {
+      const depot = await this.depots.findById(approval.depotId, false);
+      if (!depot) return;
+      let current = depot.assistantSupervisorId;
+      let top: string | null = null;
+      const seen = new Set<string>();
+      for (let hops = 0; current && hops < ApprovalService.CHAIN_LIMIT; hops++) {
+        if (seen.has(current)) break; // a cycle in the data must not loop the request
+        seen.add(current);
+        top = current;
+        current = await this.hierarchy.superiorOf(current);
+      }
+      if (!top || top === approval.submittedBy) return;
+      // crm requires some phone on the call; the push itself is addressed by account id.
+      const phone = this.config.alertPhone;
+      if (!phone) return;
+      await this.notifications.send('APPROVAL_REQUESTED', phone, top, {
+        title: approval.title,
+        depot: depot.name,
+        amount: `Rp ${Math.abs(approval.amountIdr).toLocaleString('id-ID')}`,
+        approvalId: approval.id,
+      });
+    } catch (error) {
+      this.logger.warn(`Approval ${approval.id} notice not sent: ${(error as Error).message}`);
+    }
+  }
 
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
@@ -82,7 +131,7 @@ export class ApprovalService {
     );
     const autoPass = !needsApproval(amountIdr, threshold);
     const now = new Date();
-    return this.approvals.create({
+    const created = await this.approvals.create({
       depotId: input.depotId,
       type: input.type,
       status: autoPass ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
@@ -96,6 +145,9 @@ export class ApprovalService {
       decidedBy: null,
       decidedAt: autoPass ? now : null,
     });
+    // Only an item that is actually waiting is news; one that auto-passed needs no one.
+    if (created.status === ApprovalStatus.PENDING) await this.notifyApprover(created);
+    return created;
   }
 
   async list(depotId: string, status?: ApprovalStatus): Promise<Approval[]> {

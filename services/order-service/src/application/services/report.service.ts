@@ -1113,7 +1113,7 @@ export class ReportService {
    * actually left the building, and a cron line reading "sent 12" while WhatsApp was down
    * is the kind of false all-clear that keeps an outage quiet for a week.
    */
-  async broadcastDailySales(slot: 'siang' | 'sore'): Promise<DailySalesBroadcastResult> {
+  async broadcastDailySales(slot: 'pagi' | 'siang' | 'sore'): Promise<DailySalesBroadcastResult> {
     // J7: a missing port is not "nothing to do". Both of these used to answer
     // `{ attempted: 0, skipped: 0 }` — the body of a clean, idle sweep — while the
     // broadcast could not be attempted at all, and the scheduler heartbeat was written
@@ -1124,7 +1124,14 @@ export class ReportService {
     const contacts = await this.depotDirectory.listContacts();
     if (!contacts) return { attempted: 0, skipped: 0, failed: 0, ok: false };
 
-    const today = localDayKey(new Date(), this.config.businessTimeZone);
+    // 'pagi' is the morning recap: YESTERDAY's finished figures, worded "kemarin" in the same
+    // message. The siang/sore updates are today so far.
+    const now = new Date();
+    const today = localDayKey(
+      slot === 'pagi' ? new Date(now.getTime() - DAY_MS) : now,
+      this.config.businessTimeZone,
+    );
+    const slotLabel = slot === 'pagi' ? 'kemarin' : slot;
     const fallback = this.config.alertPhone;
     let attempted = 0;
     let skipped = 0;
@@ -1145,7 +1152,7 @@ export class ReportService {
           'DEPOT_SALES_UPDATE',
           phone,
           {
-            slot,
+            slot: slotLabel,
             depot: depot.name,
             gallons: String(day.gallonsDelivered),
             orders: String(day.orders),
@@ -1155,6 +1162,9 @@ export class ReportService {
           },
           null,
           '',
+          // The depot id is what makes crm push this to the depot's STAFF; without it the
+          // update only reached the depot's phone number and the ops feed, never a device.
+          depot.id,
         );
         attempted++;
       } catch (error) {

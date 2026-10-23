@@ -4,6 +4,7 @@ import { VoucherNotFoundError } from '../../domain/errors';
 import { DiscountType } from '../../domain/voucher';
 import {
   CreateVoucherData,
+  ExpiringGrant,
   RedemptionAnalytics,
   UpdateVoucherData,
   VoucherRecord,
@@ -376,6 +377,36 @@ export class VoucherPrismaRepository implements VoucherRepository {
       where: { voucherId_customerId: { voucherId, customerId } },
     });
     return grant !== null;
+  }
+
+  async findExpiringGrants(from: Date, to: Date, limit: number): Promise<ExpiringGrant[]> {
+    const grants = await this.prisma.voucherGrant.findMany({
+      where: { voucher: { active: true, validUntil: { gte: from, lt: to } } },
+      include: { voucher: { select: { code: true, description: true, validUntil: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    if (grants.length === 0) return [];
+    // Spent vouchers are not worth a nudge. A redemption handed back by a voided order
+    // (`releasedAt`) leaves the voucher usable again, so only unreleased ones count.
+    const spent = await this.prisma.voucherRedemption.findMany({
+      where: {
+        releasedAt: null,
+        voucherId: { in: grants.map((g) => g.voucherId) },
+        customerId: { in: grants.map((g) => g.customerId) },
+      },
+      select: { voucherId: true, customerId: true },
+    });
+    const used = new Set(spent.map((r) => `${r.voucherId}:${r.customerId}`));
+    return grants
+      .filter((g) => !used.has(`${g.voucherId}:${g.customerId}`) && g.voucher.validUntil)
+      .map((g) => ({
+        voucherId: g.voucherId,
+        customerId: g.customerId,
+        code: g.voucher.code,
+        description: g.voucher.description,
+        validUntil: g.voucher.validUntil as Date,
+      }));
   }
 
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {

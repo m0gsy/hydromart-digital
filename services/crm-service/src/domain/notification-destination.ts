@@ -44,6 +44,10 @@ const ORDER_EVENTS = new Set<NotificationEvent>([
   NotificationEvent.DELIVERY_RESCHEDULED,
   // The rating form is on the order itself — tapping "how was it?" must land on the order.
   NotificationEvent.REVIEW_REQUEST,
+  // The order the money is about: pay it again, see its refund.
+  NotificationEvent.PAYMENT_FAILED,
+  NotificationEvent.PAYMENT_REMINDER,
+  NotificationEvent.REFUND_PROCESSED,
 ]);
 
 export function destinationFor(
@@ -62,6 +66,7 @@ export function destinationFor(
     case NotificationEvent.MEMBERSHIP_TIER_UPGRADED:
       return '/rewards';
     case NotificationEvent.VOUCHER_GRANTED:
+    case NotificationEvent.VOUCHER_EXPIRING:
       return '/vouchers';
     // "Your gallon is probably running low" — the point of the message is to reorder,
     // so it opens the catalogue, not a record of what was ordered before.
@@ -100,12 +105,32 @@ export function destinationFor(
      */
     case NotificationEvent.DEPOT_ORDER_INCOMING:
     case NotificationEvent.DEPOT_ORDER_RESCHEDULED:
+    case NotificationEvent.DEPOT_ORDER_CANCELLED:
       return vars.orderId
         ? `/dashboard/orders?order=${encodeURIComponent(vars.orderId)}`
         : '/dashboard/orders';
+    // The receipt is verified from the payments screen, not the order queue.
+    case NotificationEvent.DEPOT_PAYMENT_PROOF:
+      return '/dashboard/payments';
     case NotificationEvent.LOAN_REQUEST_APPROVED:
     case NotificationEvent.LOAN_REQUEST_REJECTED:
       return '/hr/me/kasbon';
+    // The courier's own delivery; `/driver/deliveries/detail` is in the ops binary (asserted
+    // by build-mobile.mjs). Falls back to the list when an emitter sent no delivery id.
+    case NotificationEvent.COURIER_DELIVERY_ASSIGNED:
+      return vars.deliveryId
+        ? `/driver/deliveries/detail?id=${encodeURIComponent(vars.deliveryId)}`
+        : '/driver';
+    // The manager's phone console; `/m/manager` is asserted by build-mobile.mjs.
+    case NotificationEvent.APPROVAL_REQUESTED:
+      return vars.approvalId
+        ? `/m/manager/approvals/detail?id=${encodeURIComponent(vars.approvalId)}`
+        : '/m/manager/approvals';
+    // Self-service HR pages, open to any signed-in employee.
+    case NotificationEvent.PAYSLIP_READY:
+      return '/hr/me/payroll';
+    case NotificationEvent.ATTENDANCE_LATE:
+      return '/hr/me/attendance';
     default:
       return INBOX;
   }

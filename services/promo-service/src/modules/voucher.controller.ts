@@ -50,6 +50,7 @@ import { VoucherLine } from '../domain/voucher';
 import {
   BurnSummary3ResponseDto,
   Grant3ResponseDto,
+  NotifyExpiringVouchersResponseDto,
   PagedVoucherResponseDto,
   QuoteResponseDto,
   RedeemResponseDto,
@@ -210,6 +211,18 @@ export class VoucherController {
       productId: dto.productId,
       categoryId: dto.categoryId,
     });
+  }
+
+  // Hourly scheduler tick: tell wallet-voucher holders theirs lapses in about three days.
+  @ApiOkResponse({ type: NotifyExpiringVouchersResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/notify-expiring')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remind holders of vouchers about to lapse (internal service auth)' })
+  notifyExpiring(): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
+    return this.vouchers.notifyExpiring(new Date());
   }
 
   @ApiOkResponse({ type: Grant3ResponseDto })

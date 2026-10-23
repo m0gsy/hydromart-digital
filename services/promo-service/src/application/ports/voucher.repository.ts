@@ -98,6 +98,14 @@ export interface RedemptionAnalytics {
   orderIds: string[];
 }
 
+export interface ExpiringGrant {
+  voucherId: string;
+  customerId: string;
+  code: string;
+  description: string | null;
+  validUntil: Date;
+}
+
 export interface VoucherRepository {
   findById(id: string): Promise<VoucherRecord | null>;
   findByCode(code: string): Promise<VoucherRecord | null>;
@@ -187,6 +195,11 @@ export interface VoucherRepository {
   /** Record a grant of the voucher to a customer. Returns true only when newly created
    *  (idempotent per voucher+customer) so the notification fires once. */
   grantVoucher(voucherId: string, customerId: string): Promise<boolean>;
+  /**
+   * Wallet vouchers still worth using that lapse inside [from, to): granted, active, not yet
+   * redeemed by the holder (a released redemption does not count as spent). Bounded.
+   */
+  findExpiringGrants(from: Date, to: Date, limit: number): Promise<ExpiringGrant[]>;
   /** PRM-4: whether this customer holds a grant for this voucher. */
   hasGrant(voucherId: string, customerId: string): Promise<boolean>;
 }

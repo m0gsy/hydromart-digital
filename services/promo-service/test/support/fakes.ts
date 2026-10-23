@@ -288,6 +288,29 @@ export class InMemoryVoucherRepository implements VoucherRepository {
   }
 
   grants: { voucherId: string; customerId: string }[] = [];
+  async findExpiringGrants(from: Date, to: Date, limit: number) {
+    return this.grants
+      .map((g) => ({ g, v: this.vouchers.find((x) => x.id === g.voucherId) }))
+      .filter(
+        ({ g, v }) =>
+          v &&
+          v.active &&
+          v.validUntil &&
+          v.validUntil.getTime() >= from.getTime() &&
+          v.validUntil.getTime() < to.getTime() &&
+          !this.redemptions.some(
+            (r) => r.voucherId === g.voucherId && r.customerId === g.customerId && !r.releasedAt,
+          ),
+      )
+      .slice(0, limit)
+      .map(({ g, v }) => ({
+        voucherId: g.voucherId,
+        customerId: g.customerId,
+        code: v!.code,
+        description: v!.description ?? null,
+        validUntil: v!.validUntil as Date,
+      }));
+  }
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {
     if (this.grants.some((g) => g.voucherId === voucherId && g.customerId === customerId)) {
       return false;

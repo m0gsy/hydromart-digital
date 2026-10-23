@@ -15,6 +15,10 @@ describe('destinationFor', () => {
     NotificationEvent.ORDER_CANCELLED,
     // The rating form is on the order itself.
     NotificationEvent.REVIEW_REQUEST,
+    // Money about an order opens that order.
+    NotificationEvent.PAYMENT_FAILED,
+    NotificationEvent.PAYMENT_REMINDER,
+    NotificationEvent.REFUND_PROCESSED,
   ];
 
   it.each(ORDER_EVENTS)('%s opens that order in the query-param route', (event) => {
@@ -34,6 +38,7 @@ describe('destinationFor', () => {
   it.each([
     [NotificationEvent.POINTS_EARNED, '/rewards'],
     [NotificationEvent.VOUCHER_GRANTED, '/vouchers'],
+    [NotificationEvent.VOUCHER_EXPIRING, '/vouchers'],
     [NotificationEvent.REORDER_REMINDER, '/products'],
     // The customer's own gallon deposit card is on the account screen — what they hold and
     // what deposit is waiting for them is exactly what the reminder is about.
@@ -47,13 +52,44 @@ describe('destinationFor', () => {
 
   // O6: "new order in" must open the order in the ops queue, not the notification list.
   // `/dashboard/orders?order=<id>` is the screen the queue already deep-links with.
-  it.each([NotificationEvent.DEPOT_ORDER_INCOMING, NotificationEvent.DEPOT_ORDER_RESCHEDULED])(
+  it.each([
+    NotificationEvent.DEPOT_ORDER_INCOMING,
+    NotificationEvent.DEPOT_ORDER_RESCHEDULED,
+    NotificationEvent.DEPOT_ORDER_CANCELLED,
+  ])(
     '%s opens that order in the ops queue',
     (event) => {
       expect(destinationFor(event, { orderId: 'ord-1' })).toBe('/dashboard/orders?order=ord-1');
       expect(destinationFor(event, {})).toBe('/dashboard/orders');
     },
   );
+
+  it("opens a courier's new delivery on its detail screen, or the console without an id", () => {
+    expect(destinationFor(NotificationEvent.COURIER_DELIVERY_ASSIGNED, { deliveryId: 'd 1' })).toBe(
+      '/driver/deliveries/detail?id=d%201',
+    );
+    expect(destinationFor(NotificationEvent.COURIER_DELIVERY_ASSIGNED, {})).toBe('/driver');
+  });
+
+  it("opens a manager's pending approval, or the queue without an id", () => {
+    expect(destinationFor(NotificationEvent.APPROVAL_REQUESTED, { approvalId: 'a 1' })).toBe(
+      '/m/manager/approvals/detail?id=a%201',
+    );
+    expect(destinationFor(NotificationEvent.APPROVAL_REQUESTED, {})).toBe('/m/manager/approvals');
+  });
+
+  it.each([
+    [NotificationEvent.PAYSLIP_READY, '/hr/me/payroll'],
+    [NotificationEvent.ATTENDANCE_LATE, '/hr/me/attendance'],
+  ])('%s opens the employee self-service page %s', (event, url) => {
+    expect(destinationFor(event, {})).toBe(url);
+  });
+
+  it('opens the payments screen for a receipt waiting to be verified', () => {
+    expect(destinationFor(NotificationEvent.DEPOT_PAYMENT_PROOF, { orderId: 'o1' })).toBe(
+      '/dashboard/payments',
+    );
+  });
 
   it('leaves staff-facing events on the inbox, which is where they are never pushed from', () => {
     expect(destinationFor(NotificationEvent.STOCK_LOW, {})).toBe('/notifications');

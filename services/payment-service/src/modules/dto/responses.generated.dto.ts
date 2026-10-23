@@ -186,6 +186,18 @@ export class PurgeProofsResponseDto {
 }
 
 /** K2.2: what one stale-payment sweep did, in the shape J7 gave every sweep. */
+export class RemindPendingPaymentsResponseDto {
+  @ApiProperty({ type: Number, description: 'Buyers reminded on this tick.' })
+  reminded!: number;
+  @ApiProperty({ type: Number, description: 'Reminders that could not be sent.' })
+  failed!: number;
+  @ApiProperty({
+    type: Boolean,
+    description: 'false when the round failed at something and reminded nobody; sweep.sh withholds the heartbeat.',
+  })
+  ok!: boolean;
+}
+
 export class ExpirePendingPaymentsResponseDto {
   @ApiProperty({ type: Number, description: 'Stale PENDING payments failed on this tick.' })
   expired!: number;

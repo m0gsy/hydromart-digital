@@ -10,7 +10,7 @@
  */
 export interface CustomerNotificationPort {
   send(
-    event: 'GALLON_RETURN_REMINDER',
+    event: 'GALLON_RETURN_REMINDER' | 'APPROVAL_REQUESTED',
     phone: string,
     customerId: string,
     vars: Record<string, string>,
