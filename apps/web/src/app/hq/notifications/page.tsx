@@ -52,7 +52,7 @@ export default function HqNotificationsPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{n.event}</p>
+                    <p className="text-sm font-semibold">{t(`notifications.events.${n.event}`)}</p>
                     {n.status === 'FAILED' && <Badge tone="danger">{t('hq.notifications.failed')}</Badge>}
                   </div>
                   <p className="mt-0.5 text-sm text-muted">{n.message}</p>

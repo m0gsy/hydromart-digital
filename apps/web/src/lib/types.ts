@@ -1861,6 +1861,11 @@ export interface OpsNotification {
   createdAt: string;
   /** When the *calling* staff member read it; null = unread by them. */
   readAt: string | null;
+  /**
+   * The in-app screen a tap on this row opens (an order in the queue, the payments screen...),
+   * or null when it opens nothing. Older rows carry null and stay plain text.
+   */
+  destination?: string | null;
 }
 
 // Retur galon (depot-service GallonReturn). Empties handed back + deposit refunded.

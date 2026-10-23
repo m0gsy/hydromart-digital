@@ -23,7 +23,7 @@ import Link from 'next/link';
 
 import { useRouter } from 'next/navigation';
 
-import { resolveDeepLink } from '@/lib/deep-link';
+import { notificationHref } from '@/lib/notification-link';
 
 import { RequireAuth } from '@/components/require-auth';
 import { CenterState, ErrorState, Skeleton, Spinner } from '@/components/ui';
@@ -156,23 +156,8 @@ function Feed() {
               const style = EVENT_STYLE[n.event] ?? FALLBACK_STYLE;
               const Ic = style.icon;
               const unread = n.createdAt > lastSeen;
-              /*
-               * O1b: the row opens what the message is about. Two guards, because the
-               * column is a server-written string and an href is not a tap:
-               *  - an absolute URL is refused outright. `resolveDeepLink` strips the origin
-               *    and hands back the path, which is right for a tap and wrong for a link.
-               *  - `/` is refused unless the row actually asked for `/`. That is what the
-               *    resolver answers for a route this binary does not carry, and a row about
-               *    an order must not quietly become a link to the home screen.
-               * Anything left is a route this app serves; anything else stays plain text,
-               * because an affordance that leads nowhere is worse than none.
-               */
-              const internal =
-                n.destination && n.destination.startsWith('/') && !n.destination.startsWith('//')
-                  ? n.destination
-                  : null;
-              const resolved = internal ? resolveDeepLink(internal) : null;
-              const href = resolved === '/' && internal !== '/' ? null : resolved;
+              // O1b: the row opens what the message is about (see notificationHref for the guards).
+              const href = notificationHref(n.destination);
               const className = `flex items-start gap-3 rounded-[14px] border border-app px-3.5 py-[13px] ${
                 unread ? 'bg-brand-50/40' : 'surface'
               }`;
