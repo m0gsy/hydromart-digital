@@ -2,6 +2,7 @@ import { DepotConfigService } from '../../src/config/depot-config.service';
 import { LowStockAlert } from '../../src/application/ports/low-stock-alert.port';
 import { LowStockAlertHttpAdapter } from '../../src/infrastructure/http/low-stock-alert.http.adapter';
 import { UntrackedSaleAlert } from '../../src/application/ports/untracked-sale-alert.port';
+import { AccountRolesHttpAdapter } from '../../src/infrastructure/http/account-roles.http.adapter';
 import { UntrackedSaleAlertHttpAdapter } from '../../src/infrastructure/http/untracked-sale-alert.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../../src/infrastructure/http/order-subscription.http.adapter';
@@ -428,5 +429,40 @@ describe('HqComplaintHttpAdapter', () => {
     );
     await adapter.open({ ...complaint, orderRef: null });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).orderRef).toBeUndefined();
+  });
+});
+
+describe('AccountRolesHttpAdapter', () => {
+  const cfg = (over: Record<string, unknown> = {}) =>
+    ({ authServiceUrl: 'http://auth.test', internalServiceKey: 'k', ...over }) as never;
+
+  it('maps each account id to its role, with the internal key', async () => {
+    fetchMock.mockResolvedValue(
+      { ok: true, json: async () => [{ id: 'a', role: 'MANAGER' }, { id: 'b', role: 'SUPERVISOR' }] } as never,
+    );
+    const roles = await new AccountRolesHttpAdapter(cfg()).rolesOf(['a', 'b']);
+    expect(roles).toEqual(new Map([['a', 'MANAGER'], ['b', 'SUPERVISOR']]));
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(String(url)).toBe('http://auth.test/api/v1/auth/internal/customers/by-ids');
+    expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ ids: ['a', 'b'] });
+  });
+
+  it('answers null (not an empty map) when it cannot find out', async () => {
+    expect(await new AccountRolesHttpAdapter(cfg({ authServiceUrl: '' })).rolesOf(['a'])).toBeNull();
+    expect(await new AccountRolesHttpAdapter(cfg({ internalServiceKey: '' })).rolesOf(['a'])).toBeNull();
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }) as never);
+    expect(await new AccountRolesHttpAdapter(cfg()).rolesOf(['a'])).toBeNull();
+    fetchMock.mockRejectedValue(new Error('timeout'));
+    expect(await new AccountRolesHttpAdapter(cfg()).rolesOf(['a'])).toBeNull();
+  });
+
+  it('is an empty map, with no request, for nobody; and skips malformed rows', async () => {
+    expect(await new AccountRolesHttpAdapter(cfg()).rolesOf([])).toEqual(new Map());
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [{ id: 'a' }, { role: 'X' }, null, { id: 'c', role: 'MANAGER' }] } as never);
+    expect(await new AccountRolesHttpAdapter(cfg()).rolesOf(['a', 'c'])).toEqual(new Map([['c', 'MANAGER']]));
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ not: 'a list' }) } as never);
+    expect(await new AccountRolesHttpAdapter(cfg()).rolesOf(['a'])).toEqual(new Map());
   });
 });
