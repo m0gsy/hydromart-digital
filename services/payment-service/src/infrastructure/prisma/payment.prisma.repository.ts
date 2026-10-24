@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { nextCursor, pageArgs } from '@hydromart/platform';
 
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../prisma/generated/client';
 
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
