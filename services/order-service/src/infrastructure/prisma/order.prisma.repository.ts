@@ -1026,7 +1026,8 @@ export class OrderPrismaRepository implements OrderRepository {
         depotId: true,
         updatedAt: true,
       },
-      orderBy: { updatedAt: 'desc' },
+      // `id` breaks a tie, so two orders touched in the same millisecond keep their place.
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take: limit,
     });
     return rows.map((r) => ({

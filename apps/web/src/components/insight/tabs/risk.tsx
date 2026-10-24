@@ -105,7 +105,7 @@ export function RiskTab({ ctx }: { ctx: InsightCtx }) {
               value={incidentsReady ? String(incidents.length) : dash}
               hint={incidentsReady ? t('insight.risk.highHint', { n: high }) : undefined}
               definition={t('insight.risk.incidentsDef')}
-              tone={high > 0 ? 'danger' : undefined}
+              tone={incidentsReady && high > 0 ? 'danger' : undefined}
               goodWhen="down"
             />
           )}

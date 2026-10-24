@@ -1416,7 +1416,7 @@ describe('OrderPrismaRepository', () => {
       expect(Object.keys(args.select).sort()).toEqual(
         ['depotId', 'id', 'isWalkIn', 'orderNumber', 'status', 'total', 'updatedAt'].sort(),
       );
-      expect(args.orderBy).toEqual({ updatedAt: 'desc' });
+      expect(args.orderBy).toEqual([{ updatedAt: 'desc' }, { id: 'desc' }]);
       expect(args.where).toEqual({ depotId: { in: ['depot-a'] } });
       expect(args.take).toBe(20);
       expect(out[0]).toMatchObject({ id: 'o-1', total: 50000, isWalkIn: true });
