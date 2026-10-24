@@ -37,6 +37,26 @@ export const insight = {
     label: 'Depot',
     all: 'All depots',
   },
+  menu: {
+    label: 'Card menu',
+    fullscreen: 'Full screen',
+    exitFullscreen: 'Exit full screen',
+    csv: 'Download CSV',
+    viewData: 'View data',
+    hideData: 'Hide data',
+  },
+  unavailable: {
+    title: 'Not available yet',
+    note: 'These figures have no data source in Hydromart yet, so they are left out rather than filled with an estimate.',
+    items: {
+      dau: 'Daily and monthly active users',
+      ltv: 'Customer lifetime value',
+      openRate: 'Broadcast open rate',
+      paySuccess: 'Payment success rate',
+      conversion: 'Campaign conversion',
+      churn: 'Customer churn rate',
+    },
+  },
   state: {
     empty: 'No data in this period yet.',
     unavailable: 'Not available yet',

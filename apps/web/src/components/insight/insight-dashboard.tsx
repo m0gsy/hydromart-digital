@@ -56,6 +56,9 @@ function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
  * static files for the native shells, and every other detail screen already moves its
  * variable into the query for that reason.
  */
+/** How often the wall-screen view re-reads its figures. */
+const TV_REFRESH_MS = 60_000;
+
 export function InsightDashboard() {
   const ready = useInsightStrings();
   return ready ? <InsightDashboardBody /> : <Skeleton className="h-64 w-full" />;
@@ -66,6 +69,11 @@ function InsightDashboardBody() {
   const { customer } = useAuth();
   const role = customer?.role;
   const [tabParam, setTabParam] = useQueryState('tab');
+  // `?tv=1` is the wall-screen view: no controls, larger type, and the figures re-read on a
+  // timer. The timer pauses while the page is hidden, so a forgotten tab does not keep asking.
+  const [tvParam] = useQueryState('tv');
+  const tv = tvParam === '1';
+  const [tick, setTick] = useState(0);
 
   const [preset, setPreset] = useState<Preset>('month');
   const [custom, setCustom] = useState(() => {
@@ -77,7 +85,17 @@ function InsightDashboardBody() {
 
   // One clock reading for the page: a window that moved between two widgets' requests would
   // make the same screen disagree with itself.
-  const now = useMemo(() => new Date(), []);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!tv) return;
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      setNow(new Date());
+      setTick((n) => n + 1);
+    }, TV_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [tv]);
 
   const range = useMemo(
     () => rangeFor(preset, now, preset === 'custom' ? custom : undefined),
@@ -129,31 +147,35 @@ function InsightDashboardBody() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className={`flex flex-col gap-5 ${tv ? 'text-lg' : ''}`}>
       <div>
-        <h1 className="text-xl font-bold">{t('insight.title')}</h1>
+        <h1 className={`${tv ? 'text-3xl' : 'text-xl'} font-bold`}>{t('insight.title')}</h1>
         <p className="text-sm text-muted">{t('insight.subtitle')}</p>
       </div>
 
-      <InsightTabs
-        tabs={tabs}
-        active={active.id}
-        onSelect={(id: InsightTabId) => setTabParam(id)}
-      />
+      {!tv && (
+        <InsightTabs
+          tabs={tabs}
+          active={active.id}
+          onSelect={(id: InsightTabId) => setTabParam(id)}
+        />
+      )}
 
-      <DateRangeBar
-        preset={preset}
-        onPreset={setPreset}
-        custom={custom}
-        onCustom={setCustom}
-        valid={valid}
-        grouping={grouping}
-        groupings={groupings}
-        onGrouping={setGrouping}
-        depots={depots}
-        depotId={depotParam}
-        onDepot={setDepotParam}
-      />
+      {!tv && (
+        <DateRangeBar
+          preset={preset}
+          onPreset={setPreset}
+          custom={custom}
+          onCustom={setCustom}
+          valid={valid}
+          grouping={grouping}
+          groupings={groupings}
+          onGrouping={setGrouping}
+          depots={depots}
+          depotId={depotParam}
+          onDepot={setDepotParam}
+        />
+      )}
 
       <div
         role="tabpanel"
@@ -167,7 +189,7 @@ function InsightDashboardBody() {
           // view), so wait for them rather than ask twice: once without, once with.
           <Skeleton className="h-64 w-full" />
         ) : (
-          <TabBody id={active.id} ctx={ctx} />
+          <TabBody key={tick} id={active.id} ctx={ctx} />
         )}
       </div>
     </div>

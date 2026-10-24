@@ -6,6 +6,7 @@ import { GaugeChart } from '@/components/hq/charts';
 import type { InsightCtx } from '@/components/insight/context';
 import { KpiCard } from '@/components/insight/kpi-card';
 import { SalesSeriesCard } from '@/components/insight/widgets/sales-series';
+import { UnavailableCard } from '@/components/insight/widgets/unavailable';
 import { WidgetCard } from '@/components/insight/widget-card';
 import { Card, Money } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -373,6 +374,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
           </Card>
         )}
       </div>
+      <UnavailableCard />
     </div>
   );
 }

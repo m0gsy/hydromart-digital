@@ -39,6 +39,26 @@ export const insight = {
     label: 'Depot',
     all: 'Semua depot',
   },
+  menu: {
+    label: 'Menu kartu',
+    fullscreen: 'Layar penuh',
+    exitFullscreen: 'Keluar layar penuh',
+    csv: 'Unduh CSV',
+    viewData: 'Lihat data',
+    hideData: 'Sembunyikan data',
+  },
+  unavailable: {
+    title: 'Belum tersedia',
+    note: 'Angka ini belum punya sumber data di Hydromart, jadi tidak ditampilkan daripada diisi perkiraan.',
+    items: {
+      dau: 'Pengguna aktif harian dan bulanan',
+      ltv: 'Nilai seumur hidup pelanggan',
+      openRate: 'Tingkat buka siaran',
+      paySuccess: 'Tingkat keberhasilan pembayaran',
+      conversion: 'Konversi kampanye',
+      churn: 'Tingkat churn pelanggan',
+    },
+  },
   state: {
     empty: 'Belum ada data pada periode ini.',
     unavailable: 'Belum tersedia',
