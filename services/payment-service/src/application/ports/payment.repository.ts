@@ -79,6 +79,13 @@ export interface PaymentQuery {
   cursor?: string;
 }
 
+/** One unsettled payment, with only what aging it needs. */
+export interface PendingPaymentAge {
+  method: PaymentMethod;
+  amount: number;
+  createdAt: Date;
+}
+
 /** One method's unsettled (PENDING) total + transaction count, network-wide. */
 export interface UnsettledMethodAggregate {
   method: PaymentMethod;
@@ -215,6 +222,11 @@ export interface PaymentRepository {
   }>;
   /** Network-wide unsettled (PENDING) payments grouped by method over a date range. */
   aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
+  /**
+   * Every PENDING payment, OLDEST first, at most `limit` of them. The oldest first because the
+   * ones that matter most are the ones that have waited longest: a cut-off must drop the new.
+   */
+  listPendingForAging(limit: number): Promise<PendingPaymentAge[]>;
   /** Network-wide collected (PAID) revenue grouped by method over a date range. */
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /**

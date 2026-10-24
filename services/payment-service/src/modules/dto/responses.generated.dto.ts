@@ -89,6 +89,28 @@ export class UnsettledMethodAggregateResponseDto {
   count!: number;
 }
 
+/** One method's unsettled money by age bucket. Mirrors `UnsettledAging['rows'][number]`. */
+export class UnsettledAgingRowResponseDto {
+  @ApiProperty({ enum: ['CASH', 'TRANSFER', 'QRIS', 'EWALLET', 'VA'] })
+  method!: string;
+  @ApiProperty({ type: [Number], description: 'Rupiah per bucket, in the order of `buckets`.' })
+  amounts!: number[];
+  @ApiProperty({ type: [Number], description: 'Payments per bucket, in the order of `buckets`.' })
+  counts!: number[];
+}
+
+/** Mirrors `UnsettledAging` exactly. */
+export class UnsettledAgingResponseDto {
+  @ApiProperty({ type: String })
+  asOf!: string;
+  @ApiProperty({ type: [String], example: ['0-1', '2-3', '4-7', '8+'] })
+  buckets!: string[];
+  @ApiProperty({ type: Boolean, description: 'True when the oldest rows were read and newer ones left out.' })
+  truncated!: boolean;
+  @ApiProperty({ type: [UnsettledAgingRowResponseDto] })
+  rows!: UnsettledAgingRowResponseDto[];
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class WebhookResponseDto {
   @ApiProperty({ type: Boolean })

@@ -52,6 +52,7 @@ import {
   PaymentService,
   RefundQueueRow,
   RevenueMethodRow,
+  UnsettledAging,
 } from '../application/services/payment.service';
 import {
   CashCollectedSummary,
@@ -93,6 +94,7 @@ import {
   PurgeProofsResponseDto,
   DepotRefundsResponseDto,
   RefundCountsResponseDto,
+  UnsettledAgingResponseDto,
   UnsettledMethodAggregateResponseDto,
   Webhook3ResponseDto,
 } from './dto/responses.generated.dto';
@@ -460,6 +462,17 @@ export class PaymentController {
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
     });
+  }
+
+  // The same unsettled money by how long it has waited (finance heatmap). Static segment, declared
+  // before ':id'. Network-wide on purpose: payments are only depot-tagged for counter sales, and
+  // the capability is held by head office and finance, who are not depot-scoped.
+  @ApiOkResponse({ type: UnsettledAgingResponseDto })
+  @Get('unsettled-aging')
+  @Can('settlementRead')
+  @ApiOperation({ summary: 'Network unsettled payments by method and age in WIB days (finance)' })
+  unsettledAging(): Promise<UnsettledAging> {
+    return this.payments.unsettledAging();
   }
 
   // HQ report export (design 10a): network-wide collected (PAID) revenue grouped by

@@ -11,6 +11,7 @@ import {
   PaymentRecord,
   PaymentRepository,
   PaymentStatusPatch,
+  PendingPaymentAge,
   UnsettledMethodAggregate,
 } from '../../application/ports/payment.repository';
 import { PaymentAlreadyExistsError } from '../../domain/errors';
@@ -293,6 +294,20 @@ export class PaymentPrismaRepository implements PaymentRepository {
       this.prisma.payment.count({ where }),
     ]);
     return { items: rows.map((r) => this.toRecord(r)), total };
+  }
+
+  async listPendingForAging(limit: number): Promise<PendingPaymentAge[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: { status: PaymentStatus.PENDING },
+      select: { method: true, amount: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      method: r.method as PaymentMethod,
+      amount: Number(r.amount),
+      createdAt: r.createdAt,
+    }));
   }
 
   async aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {

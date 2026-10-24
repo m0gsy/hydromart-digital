@@ -12,6 +12,7 @@ import {
   PaymentRecord,
   PaymentRepository,
   PaymentStatusPatch,
+  PendingPaymentAge,
   UnsettledMethodAggregate,
 } from '../../src/application/ports/payment.repository';
 import {
@@ -239,6 +240,14 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       total: all.length,
     };
   }
+  async listPendingForAging(limit: number): Promise<PendingPaymentAge[]> {
+    return this.rows
+      .filter((r) => r.status === PaymentStatus.PENDING)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ method: r.method, amount: r.amount, createdAt: r.createdAt }));
+  }
+
   async aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
     const map = new Map<PaymentMethod, { amount: number; count: number }>();
     for (const r of this.rows) {

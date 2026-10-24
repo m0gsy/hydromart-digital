@@ -70,3 +70,32 @@ describe('PrismaService lifecycle', () => {
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PaymentPrismaRepository.listPendingForAging', () => {
+  const model = { findMany: jest.fn() };
+  const prisma = { payment: model } as unknown as PrismaService;
+  const repo = new PaymentPrismaRepository(prisma);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('reads only what is still pending, oldest first, at most the limit, and only what aging needs', async () => {
+    model.findMany.mockResolvedValue([]);
+    await repo.listPendingForAging(50);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { status: PaymentStatus.PENDING },
+      select: { method: true, amount: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+  });
+
+  it('turns a decimal amount into a number', async () => {
+    const createdAt = new Date('2026-10-01T00:00:00.000Z');
+    model.findMany.mockResolvedValue([
+      { method: 'QRIS', amount: { toString: () => '12500.50' }, createdAt },
+    ]);
+    expect(await repo.listPendingForAging(10)).toEqual([
+      { method: PaymentMethod.QRIS, amount: 12500.5, createdAt },
+    ]);
+  });
+});
