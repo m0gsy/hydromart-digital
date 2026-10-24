@@ -206,24 +206,57 @@ describe('who sees which tab', () => {
 
   it('gives each role only the tabs it holds a widget capability for', () => {
     const ids = (role: string) => visibleTabs(role).map((t) => t.id);
-    expect(ids('HEAD_OFFICE')).toEqual(['overview', 'sales', 'operations', 'customers', 'finance']);
-    // Finance reads payments and the executive numbers; it has no customer or order-report access.
-    expect(ids('FINANCE')).toEqual(['overview', 'sales', 'operations', 'finance']);
-    // A depot head has the day's report, its stock and its own customers here, and nothing else.
-    expect(ids('KEPALA_DEPOT')).toEqual(['operations', 'customers']);
-    // Marketing reads loyalty, vouchers and churn: the customers tab only.
+    expect(ids('HEAD_OFFICE')).toEqual([
+      'overview',
+      'sales',
+      'operations',
+      'customers',
+      'finance',
+      'gallons',
+      'people',
+      'cash',
+      'couriers',
+      'meter',
+    ]);
+    expect(ids('FINANCE')).toEqual([
+      'overview',
+      'sales',
+      'operations',
+      'finance',
+      'gallons',
+      'people',
+      'couriers',
+    ]);
+    expect(ids('KEPALA_DEPOT')).toEqual([
+      'operations',
+      'customers',
+      'gallons',
+      'cash',
+      'couriers',
+      'meter',
+    ]);
     expect(ids('MARKETING')).toEqual(['customers']);
+    // HR reads the people tab and customers (CRM) and nothing else here.
+    expect(ids('HR')).toEqual(['customers', 'people']);
+    // Supervisors hold the executive numbers, so they get the finance and sales views of them.
+    expect(ids('SUPERVISOR')).toEqual([
+      'overview',
+      'sales',
+      'operations',
+      'customers',
+      'finance',
+      'gallons',
+      'people',
+      'couriers',
+      'meter',
+    ]);
+    // Roles that read one thing get one tab, because the tab is the capability.
+    expect(ids('FRANCHISE_OWNER')).toEqual(['gallons']);
+    expect(ids('STAFF_DEPOT')).toEqual(['meter']);
   });
 
   it('opens nothing to the roles with no source behind it', () => {
-    for (const role of [
-      'STAFF_DEPOT',
-      'FRANCHISE_OWNER',
-      'CUSTOMER',
-      null,
-      undefined,
-      'C_unknown',
-    ]) {
+    for (const role of ['CUSTOMER', null, undefined, 'C_unknown']) {
       expect(canViewInsight(role), String(role)).toBe(false);
       expect(visibleTabs(role)).toEqual([]);
     }
@@ -232,7 +265,7 @@ describe('who sees which tab', () => {
   it('falls back to the first tab the role may see when asked for one it may not', () => {
     expect(resolveTab('HEAD_OFFICE', 'nope')?.id).toBe('overview');
     expect(resolveTab('HEAD_OFFICE', '')?.id).toBe('overview');
-    expect(resolveTab('STAFF_DEPOT', 'overview')).toBeNull();
+    expect(resolveTab('CUSTOMER', 'overview')).toBeNull();
     expect(resolveTab('KEPALA_DEPOT', 'overview')?.id).toBe('operations');
     expect(resolveTab('MARKETING', 'finance')?.id).toBe('customers');
   });

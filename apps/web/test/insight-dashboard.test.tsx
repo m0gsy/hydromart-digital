@@ -143,6 +143,9 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       return Promise.resolve({
         depotId: 'd1',
         date: '2026-10-15',
+        cashInDrawerIdr: 750_000,
+        codCollectedIdr: 320_000,
+        perCashier: [{ cashierId: 'k1', label: 'Dewi', orders: 6, revenueIdr: 450_000 }],
         byHour: Array.from({ length: 24 }, (_, hour) => ({
           hour,
           orders: hour === 9 ? 4 : 0,
@@ -276,6 +279,195 @@ function serve(overrides: Record<string, () => unknown> = {}) {
         netOperatingProfitIdr: null,
         marginPct: null,
       });
+    }
+    if (p.includes('/gallon-outstanding')) {
+      return Promise.resolve([
+        {
+          depotId: 'd1',
+          issued: 100,
+          returned: 60,
+          outstanding: 40,
+          depositHeld: 4_000_000,
+          depositRefunded: 2_400_000,
+          netDeposit: 1_600_000,
+        },
+        {
+          depotId: 'd2',
+          issued: 50,
+          returned: 10,
+          outstanding: 90,
+          depositHeld: 2_000_000,
+          depositRefunded: 400_000,
+          netDeposit: 1_600_000,
+        },
+      ]);
+    }
+    if (p.includes('/gallon-issues/summary'))
+      return Promise.resolve({ issues: 12, gallons: 70, depositHeld: 3_500_000 });
+    if (p.includes('/returns/summary'))
+      return Promise.resolve({ returns: 9, gallons: 55, damaged: 2, depositRefunded: 2_750_000 });
+    if (p.includes('/hr-reports/dashboard')) {
+      return Promise.resolve({
+        depotId: null,
+        periodMonth: '2026-10',
+        workDate: '2026-10-15',
+        headcount: { total: 14, byStatus: [], byEmploymentStatus: [] },
+        attendanceToday: [
+          { key: 'PRESENT', count: 9 },
+          { key: 'LATE', count: 2 },
+          { key: 'ABSENT', count: 1 },
+        ],
+        payroll: {
+          totals: {
+            gross: 99_000_000,
+            totalBonus: 0,
+            totalDeduction: 0,
+            net: 88_000_000,
+            count: 14,
+          },
+          byStatus: [
+            { key: 'DRAFT', count: 4 },
+            { key: 'PAID', count: 10 },
+          ],
+        },
+        documentsExpiring: [
+          {
+            employeeId: 'e1',
+            employeeCode: 'E1',
+            fullName: 'Rina Dokumen',
+            type: 'KTP',
+            expiresAt: '2026-10-20',
+          },
+        ],
+        employmentsEnding: [
+          {
+            employeeId: 'e2',
+            employeeCode: 'E2',
+            fullName: 'Tono Kontrak',
+            employmentStatus: 'CONTRACT',
+            contractEndDate: '2026-10-30',
+          },
+        ],
+      });
+    }
+    if (p.includes('/cashier-shifts')) {
+      return Promise.resolve({
+        open: [
+          {
+            id: 's1',
+            depotId: 'd1',
+            cashierId: 'k1',
+            cashierName: 'Dewi',
+            status: 'OPEN',
+            openingFloat: 100_000,
+            openedAt: '2026-10-15T01:00:00.000Z',
+            closedAt: null,
+            countedCash: null,
+            expectedCash: null,
+            variance: null,
+            note: null,
+          },
+        ],
+        closed: [
+          {
+            id: 's2',
+            depotId: 'd1',
+            cashierId: 'k2',
+            cashierName: 'Eko',
+            status: 'CLOSED',
+            openingFloat: 100_000,
+            openedAt: '2026-10-14T01:00:00.000Z',
+            closedAt: '2026-10-14T10:00:00.000Z',
+            countedCash: 480_000,
+            expectedCash: 500_000,
+            variance: -20_000,
+            note: null,
+          },
+          {
+            id: 's3',
+            depotId: 'd1',
+            cashierId: 'k3',
+            cashierName: 'Fani',
+            status: 'CLOSED',
+            openingFloat: 100_000,
+            openedAt: '2026-10-13T01:00:00.000Z',
+            closedAt: '2026-10-13T10:00:00.000Z',
+            countedCash: 300_000,
+            expectedCash: 300_000,
+            variance: 0,
+            note: null,
+          },
+        ],
+      });
+    }
+    if (p.includes('/deliveries/api/v1/shifts')) {
+      return Promise.resolve([
+        { id: 'h1', driverId: 'drv-aaaaaa', depotId: 'd1', status: 'ONLINE' },
+        { id: 'h2', driverId: 'drv-bbbbbb', depotId: 'd1', status: 'ONLINE' },
+        { id: 'h3', driverId: 'drv-cccccc', depotId: 'd1', status: 'BREAK' },
+        { id: 'h4', driverId: 'drv-dddddd', depotId: 'd1', status: 'ENDED' },
+      ]);
+    }
+    if (p.includes('/reports/depot-team')) {
+      return Promise.resolve({
+        from: '',
+        to: '',
+        couriers: [
+          { driverId: 'drv-aaaaaa', delivered: 30, onTimeRate: 0.9, failed: 2, rating: 4.8 },
+          { driverId: 'drv-bbbbbb', delivered: 0, onTimeRate: 0, failed: 0, rating: null },
+        ],
+        operators: [],
+      });
+    }
+    if (p.includes('/deliveries/api/v1/commission')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        from: '',
+        to: '',
+        couriers: [
+          {
+            courierId: 'drv-aaaaaa',
+            delivered: 30,
+            paidDeliveries: 30,
+            grossIdr: 300_000,
+            shortfallIdr: 15_000,
+            netIdr: 285_000,
+          },
+        ],
+        totalIdr: null,
+        source: 'unavailable',
+      });
+    }
+    if (p.includes('/auth/api/v1/auth/drivers')) {
+      return Promise.resolve([{ id: 'drv-aaaaaa', fullName: 'Agus Kurir' }]);
+    }
+    if (p.includes('/reports/meter/')) {
+      return Promise.resolve([
+        {
+          day: '2026-10-13',
+          meterLiters: 1000,
+          soldLiters: 900,
+          varianceLiters: 100,
+          varianceGallons: 5,
+          roYieldPct: 60,
+        },
+        {
+          day: '2026-10-14',
+          meterLiters: 1200,
+          soldLiters: 1250,
+          varianceLiters: -50,
+          varianceGallons: -2.5,
+          roYieldPct: 70,
+        },
+        {
+          day: '2026-10-15',
+          meterLiters: null,
+          soldLiters: 400,
+          varianceLiters: null,
+          varianceGallons: null,
+          roYieldPct: null,
+        },
+      ]);
     }
     if (p.includes('/reports/rating-by-depot')) {
       return Promise.resolve({
@@ -456,7 +648,7 @@ describe('a role that holds only some of the capabilities', () => {
   });
 
   it('opens nothing for a role with no dashboard section, and says so', () => {
-    asRole('STAFF_DEPOT');
+    asRole('CUSTOMER');
     renderPage();
     expect(screen.getByText('Akun ini belum punya bagian dasbor yang bisa dibuka.')).toBeTruthy();
     expect(get).not.toHaveBeenCalled();
@@ -969,5 +1161,211 @@ describe('the finance tab', () => {
     expect(
       await screen.findByText(/Laba rugi dibaca per bulan, jadi yang tampil adalah bulan 2026-10/),
     ).toBeTruthy();
+  });
+});
+
+const pickDepot = async (id = 'd1') =>
+  fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: id } });
+
+describe('the gallons tab', () => {
+  it('ranks depots by empties still out, and totals every column for the network', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('gallons');
+    renderPage();
+    const worst = await inList('Depot Dua');
+    const other = await inList('Depot Satu');
+    expect(worst.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 40 + 90 empties out, 3.200.000 net deposit between them.
+    expect(await screen.findByText('130')).toBeTruthy();
+    expect(screen.getAllByText(/3\.200\.000/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Semua dihitung sejak awal/)).toBeTruthy();
+  });
+
+  it('shows one depot’s gallon and deposit figures only once it is chosen, labelled as since the start', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('gallons');
+    renderPage();
+    expect(await screen.findByText(/Pilih satu depot untuk melihat galon/)).toBeTruthy();
+    expect(requested('/gallon-issues/summary')).toBe(false);
+    await pickDepot();
+    expect(await screen.findByText('70')).toBeTruthy();
+    expect(screen.getByText('55')).toBeTruthy();
+    expect((await screen.findAllByText('sejak awal')).length).toBeGreaterThan(0);
+  });
+
+  it('gives finance the network table and never asks for one depot’s summaries it cannot read', async () => {
+    asRole('FINANCE');
+    openTab('gallons');
+    renderPage();
+    expect(await inList('Depot Dua')).toBeTruthy();
+    expect(requested('/gallon-issues/summary')).toBe(false);
+    expect(requested('/returns/summary')).toBe(false);
+  });
+});
+
+describe('the people tab', () => {
+  it('shows who is at work today and what needs HR attention, without the payroll amounts', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('people');
+    renderPage();
+    expect(await screen.findByText('Karyawan')).toBeTruthy();
+    expect(await screen.findByText('9')).toBeTruthy();
+    expect(screen.getByText('Rina Dokumen')).toBeTruthy();
+    expect(screen.getByText('Tono Kontrak')).toBeTruthy();
+    // Payroll: how many are in each status. The money is not on this screen.
+    expect(screen.getByText('Draf')).toBeTruthy();
+    expect(screen.getByText('Dibayar')).toBeTruthy();
+    expect(screen.queryByText(/88\.000\.000/)).toBeNull();
+    expect(screen.queryByText(/99\.000\.000/)).toBeNull();
+  });
+
+  it('reads the payroll month from the window and asks for it by name', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('people');
+    renderPage();
+    await screen.findByText('Karyawan');
+    const call = String(
+      get.mock.calls.find((c) => String(c[0]).includes('/hr-reports/dashboard'))?.[0],
+    );
+    expect(call).toContain('periodMonth=2026-10');
+  });
+});
+
+describe('the cash tab', () => {
+  it('lists the shifts with their variance and counts only the closed ones that are off', async () => {
+    asRole('MANAGER');
+    openTab('cash');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Eko')).toBeTruthy();
+    // One closed shift is short by 20.000; the other balanced; the open one is not counted yet.
+    expect(screen.getAllByText(/20\.000/).length).toBeGreaterThan(0);
+    expect(screen.getByText('sedang buka')).toBeTruthy();
+    const card = screen.getByText('Shift dengan selisih').parentElement?.parentElement;
+    expect(card?.textContent).toContain('1');
+  });
+
+  it('asks for a depot first, and then reads the cash of THIS day', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('cash');
+    renderPage();
+    // Head office holds the daily report but not the cashier shifts.
+    expect(await screen.findByText(/Pilih satu depot untuk melihat kas/)).toBeTruthy();
+    expect(requested('/cashier-shifts')).toBe(false);
+    await pickDepot();
+    await waitFor(() => expect(requested('/reports/depot-daily')).toBe(true));
+    expect(requested('/cashier-shifts')).toBe(false);
+  });
+});
+
+describe('the couriers tab', () => {
+  it('counts the couriers on shift by status and leaves out the ones whose shift ended', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('couriers');
+    renderPage();
+    const card = async (label: string) =>
+      (await screen.findByText(label)).parentElement?.parentElement;
+    expect((await card('Kurir siaga'))?.textContent).toContain('2');
+    expect((await card('Kurir istirahat'))?.textContent).toContain('1');
+    expect((await card('Kurir offline'))?.textContent).toContain('0');
+  });
+
+  it('names a courier from the depot’s driver list and falls back to a short id for one it cannot find', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect((await screen.findAllByText('Agus Kurir')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Kurir drv-bb')).toBeTruthy();
+  });
+
+  it('shows a dash for the on-time rate of a courier with no deliveries, never 0%', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Kurir drv-bb');
+    const row = screen.getByText('Kurir drv-bb').closest('tr')!;
+    expect(row.textContent).not.toContain('0%');
+    expect(row.textContent).toContain('—');
+  });
+
+  it('says the commission total is unavailable instead of inventing one', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText(/belum bisa dibaca dari layanan pembayaran/)).toBeTruthy();
+    expect(screen.getByText(/selisih COD/)).toBeTruthy();
+  });
+
+  it('always sends a start for the shifts on duty: the server has no default window', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Kurir siaga');
+    const call = String(
+      get.mock.calls.find((c) => String(c[0]).includes('/deliveries/api/v1/shifts'))?.[0],
+    );
+    expect(new URL(call, 'http://x').searchParams.get('from')).toBe('2026-10-14T17:00:00.000Z');
+  });
+});
+
+describe('the meter tab', () => {
+  it('shows the gap as an indication, counts only the days the meter was read, and flags the unread day', async () => {
+    asRole('MANAGER');
+    openTab('meter');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    // 100 L over one day and 50 L under on another: 50 L net, over the two days read.
+    expect(await screen.findByText('50 L')).toBeTruthy();
+    expect(screen.getByText('2 dari 3 hari terbaca')).toBeTruthy();
+    const unread = screen.getByText('Hari tanpa bacaan meter').parentElement?.parentElement;
+    expect(unread?.textContent).toContain('1');
+    // Yield averages the days it exists for (60 and 70), not the day with no reading.
+    expect(screen.getByText('65%')).toBeTruthy();
+  });
+
+  it('sends both bounds, ends no later than tomorrow, and never asks for more than 92 days', async () => {
+    asRole('MANAGER');
+    openTab('meter');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Hari tanpa bacaan meter');
+    const q = new URL(
+      String(get.mock.calls.find((c) => String(c[0]).includes('/reports/meter/'))?.[0]),
+      'http://x',
+    ).searchParams;
+    expect(q.get('from')).toBe('2026-09-30T17:00:00.000Z');
+    // The month ends on 31 October but the meter has nothing after today.
+    expect(q.get('to')).toBe('2026-10-15T17:00:00.000Z');
+    expect(screen.queryByText(/lebih panjang dari yang dibaca server/)).toBeNull();
+  });
+
+  it('tells a reader that a window longer than the server reads was cut, and asks for the last 92 days', async () => {
+    asRole('MANAGER');
+    openTab('meter');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Hari tanpa bacaan meter');
+    fireEvent.click(screen.getByRole('button', { name: 'Rentang' }));
+    const inputs = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(inputs[0] as HTMLInputElement, { target: { value: '2026-01-01' } });
+    fireEvent.change(inputs[1] as HTMLInputElement, { target: { value: '2026-10-15' } });
+    expect(await screen.findByText(/lebih panjang dari yang dibaca server/)).toBeTruthy();
+    const calls = get.mock.calls.filter((c) => String(c[0]).includes('/reports/meter/'));
+    const q = new URL(String(calls[calls.length - 1]?.[0]), 'http://x').searchParams;
+    const days =
+      (Date.parse(q.get('to') as string) - Date.parse(q.get('from') as string)) / 86_400_000;
+    expect(days).toBeLessThanOrEqual(92);
+  });
+
+  it('does not ask a depot with no depot chosen, and says why', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('meter');
+    renderPage();
+    expect(await screen.findByText(/Pilih satu depot untuk melihat meter air/)).toBeTruthy();
+    expect(requested('/reports/meter/')).toBe(false);
   });
 });
