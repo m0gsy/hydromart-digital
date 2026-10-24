@@ -38,9 +38,33 @@ describe('VoucherController', () => {
     expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false);
   });
 
-  it('burnSummary delegates', async () => {
-    await controller.burnSummary();
-    expect(vouchers.burnSummary).toHaveBeenCalled();
+  // `voucherRead` admits MANAGER, a depot-scoped role: the summary is narrowed to the caller's
+  // depots, and only a network-wide role gets the whole network.
+  it('burnSummary reads the whole network for head office', async () => {
+    await controller.burnSummary({ sub: 'hq-1', role: 'HEAD_OFFICE' } as unknown as AuthenticatedUser);
+    expect(vouchers.burnSummary).toHaveBeenCalledWith(undefined);
+  });
+
+  it("burnSummary narrows a manager to the depots they are responsible for", async () => {
+    await controller.burnSummary({
+      sub: 'mgr-1',
+      role: 'MANAGER',
+      depotId: 'd-1',
+      depotIds: ['d-1', 'd-2'],
+    } as unknown as AuthenticatedUser);
+    expect(vouchers.burnSummary).toHaveBeenCalledWith(['d-1', 'd-2']);
+  });
+
+  it('burnSummary refuses a scoped account that is responsible for no depot', () => {
+    expect(() =>
+      controller.burnSummary({
+        sub: 'mgr-2',
+        role: 'MANAGER',
+        depotId: null,
+        depotIds: [],
+      } as unknown as AuthenticatedUser),
+    ).toThrow();
+    expect(vouchers.burnSummary).not.toHaveBeenCalled();
   });
 
   it('myVouchers maps the wallet through MyVoucherDto.from', async () => {

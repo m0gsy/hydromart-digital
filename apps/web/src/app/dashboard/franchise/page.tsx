@@ -42,7 +42,7 @@ function FranchiseBody() {
 
   const { depots, totals, deliverySla, hr, crm, sources } = data;
   const unavailable = Object.entries(sources)
-    .filter(([, v]) => v === 'unavailable')
+    .filter(([, v]) => v !== 'ok')
     .map(([k]) => k);
 
   return (

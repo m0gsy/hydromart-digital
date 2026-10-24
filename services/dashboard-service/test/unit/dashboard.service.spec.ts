@@ -342,6 +342,101 @@ describe('DashboardService', () => {
     expect(out.sources.order).toBe('partial');
   });
 
+  /*
+   * Insight dashboard audit. The owner view read the NETWORK's top-100 and looked its own
+   * depots up in it, so an owned depot ranked 101st or lower read a confident "Rp 0" while
+   * `sources.order` still said 'ok' — and that zero went into the owner's totals. The report
+   * is now asked for the owned depots only, so the ranking cannot push any of them out.
+   */
+  describe('franchise revenue for owned depots outside the network top-N', () => {
+    const OWNED = [
+      { id: 'own-1', code: 'O-1', name: 'Depot 1', active: true, ownershipType: 'FRANCHISE' },
+      { id: 'own-2', code: 'O-2', name: 'Depot 2', active: true, ownershipType: 'FRANCHISE' },
+    ];
+    const franchiseSources = (topDepots: jest.Mock, depots: unknown = OWNED) =>
+      ({
+        myDepots: jest.fn().mockResolvedValue(depots),
+        topDepots,
+        deliverySla: jest.fn().mockResolvedValue(null),
+        lowStockMany: jest.fn().mockResolvedValue(new Map()),
+        hrSummaryMany: jest.fn().mockResolvedValue([]),
+        crmSummaryMany: jest.fn().mockResolvedValue([]),
+      }) as unknown as DashboardSourcesPort;
+
+    it('asks for the owned depots only, so a low network rank cannot read as zero', async () => {
+      const topDepots = jest.fn(async (_r, _l, _t, ids?: string[]) =>
+        ids
+          ? {
+              items: [
+                { depotId: 'own-1', orderCount: 7, revenue: 70_000, commissionBase: 70_000 },
+                { depotId: 'own-2', orderCount: 2, revenue: 20_000, commissionBase: 20_000 },
+              ],
+            }
+          : { items: [] },
+      );
+      const out = await new DashboardService(
+        franchiseSources(topDepots as unknown as jest.Mock),
+        dashboardTestConfig(),
+        noNames,
+      ).franchise({}, 'Bearer t');
+
+      expect(topDepots).toHaveBeenCalledWith(expect.anything(), expect.any(Number), 'Bearer t', [
+        'own-1',
+        'own-2',
+      ]);
+      expect(out.depots.map((d) => d.revenue)).toEqual([70_000, 20_000]);
+      expect(out.totals).toMatchObject({ revenue: 90_000, orderCount: 9 });
+      expect(out.sources.order).toBe('ok');
+    });
+
+    it('reports order as partial when the scoped report came back as full as it can', async () => {
+      const full = Array.from({ length: 100 }, (_, i) => ({
+        depotId: `own-${i + 1}`,
+        orderCount: 1,
+        revenue: 1000,
+        commissionBase: 1000,
+      }));
+      const out = await new DashboardService(
+        franchiseSources(jest.fn().mockResolvedValue({ items: full })),
+        dashboardTestConfig(),
+        noNames,
+      ).franchise({}, 'Bearer t');
+      expect(out.sources.order).toBe('partial');
+    });
+
+    it('does not ask for revenue when the owner has no depots, and stays ok', async () => {
+      const topDepots = jest.fn();
+      const out = await new DashboardService(
+        franchiseSources(topDepots, []),
+        dashboardTestConfig(),
+        noNames,
+      ).franchise({}, 'Bearer t');
+      expect(topDepots).not.toHaveBeenCalled();
+      expect(out.depots).toEqual([]);
+      expect(out.sources.order).toBe('ok');
+    });
+
+    it('marks order unavailable when the owner directory is down (nothing to scope by)', async () => {
+      const topDepots = jest.fn();
+      const out = await new DashboardService(
+        franchiseSources(topDepots, null),
+        dashboardTestConfig(),
+        noNames,
+      ).franchise({}, 'Bearer t');
+      expect(topDepots).not.toHaveBeenCalled();
+      expect(out.sources.order).toBe('unavailable');
+    });
+
+    it('marks order unavailable when the revenue report itself fails', async () => {
+      const out = await new DashboardService(
+        franchiseSources(jest.fn().mockResolvedValue(null)),
+        dashboardTestConfig(),
+        noNames,
+      ).franchise({}, 'Bearer t');
+      expect(out.sources.order).toBe('unavailable');
+    });
+  });
+
   it('marks order unavailable in the roll-up but still lists depots + SLA', async () => {
     const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig(), noNames);
     const result = await service.network({}, 'Bearer t');

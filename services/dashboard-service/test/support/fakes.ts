@@ -90,8 +90,17 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   async topCustomers(_range: DateRange, _limit: number, _token: string): Promise<TopCustomers | null> {
     return this.orderDown ? null : TOP_CUSTOMERS;
   }
-  async topDepots(_range: DateRange, _limit: number, _token: string): Promise<TopDepots | null> {
-    return this.orderDown ? null : TOP_DEPOTS;
+  async topDepots(
+    _range: DateRange,
+    _limit: number,
+    _token: string,
+    depotIds?: string[],
+  ): Promise<TopDepots | null> {
+    if (this.orderDown) return null;
+    // Like the real adapter, a named scope narrows the report to those depots.
+    return depotIds
+      ? { ...TOP_DEPOTS, items: TOP_DEPOTS.items.filter((i) => depotIds.includes(i.depotId)) }
+      : TOP_DEPOTS;
   }
   async deliverySla(
     _range: DateRange,

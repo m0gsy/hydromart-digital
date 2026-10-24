@@ -122,10 +122,15 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return agg._sum.discountApplied ?? 0;
   }
 
-  async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
+  async sumRedemptionsByVoucher(
+    depotIds?: readonly string[],
+  ): Promise<{ voucherId: string; burned: number }[]> {
     const grouped = await this.prisma.voucherRedemption.groupBy({
       by: ['voucherId'],
-      where: { releasedAt: null },
+      // `{ in: [] }` matches no voucher, which is exactly what a caller with no depots means.
+      where: depotIds
+        ? { releasedAt: null, voucher: { depotId: { in: [...depotIds] } } }
+        : { releasedAt: null },
       _sum: { discountApplied: true },
     });
     return grouped.map((g) => ({

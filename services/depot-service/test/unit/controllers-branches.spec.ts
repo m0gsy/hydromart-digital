@@ -1836,9 +1836,52 @@ describe('Inventory controllers', () => {
     expect(inventory.restockForOrder).toHaveBeenCalledWith(DEPOT, 'o', [], 'order-service');
   });
 
+  /**
+   * Insight dashboard audit: `low-stock` with no depot named read "no filter", so a KEPALA_DEPOT,
+   * MANAGER or SUPERVISOR (all hold `inventoryRead`) listed every depot's stock lines.
+   * DepotScopeGuard only checks depots a request names.
+   */
+  describe('low-stock scope', () => {
+    const manager = {
+      sub: 'm-1',
+      role: Role.MANAGER,
+      depotId: null,
+      depotIds: [DEPOT, ID],
+    } as unknown as AuthenticatedUser;
+    const kepala = { sub: 'k-1', role: Role.KEPALA_DEPOT, depotId: DEPOT } as AuthenticatedUser;
+
+    it('narrows a resolved-set role to its own depots when none is named', async () => {
+      await itemC.lowStock(undefined, undefined, manager);
+      expect(inventory.listLowStock).toHaveBeenCalledWith([DEPOT, ID]);
+    });
+
+    it('narrows a depot-locked role to its single depot when none is named', async () => {
+      await itemC.lowStock(undefined, undefined, kepala);
+      expect(inventory.listLowStock).toHaveBeenCalledWith([DEPOT]);
+    });
+
+    it('keeps a named depot (the guard already refused one outside the set)', async () => {
+      await itemC.lowStock(ID, undefined, manager);
+      expect(inventory.listLowStock).toHaveBeenCalledWith([ID]);
+      await itemC.lowStock(undefined, `${DEPOT}, ${ID}`, manager);
+      expect(inventory.listLowStock).toHaveBeenLastCalledWith([DEPOT, ID]);
+    });
+
+    it('refuses a scoped account with no depots instead of listing everything', () => {
+      const none = { ...manager, depotIds: [] } as unknown as AuthenticatedUser;
+      expect(() => itemC.lowStock(undefined, undefined, none)).toThrow(ForbiddenException);
+      expect(inventory.listLowStock).not.toHaveBeenCalled();
+    });
+
+    it('leaves head office unfiltered', async () => {
+      await itemC.lowStock(undefined, undefined, user);
+      expect(inventory.listLowStock).toHaveBeenCalledWith(undefined);
+    });
+  });
+
   it('handles low-stock, wastage (with/without dates), get, update, adjust, opname and per-line movements', async () => {
-    await itemC.lowStock(DEPOT);
-    expect(inventory.listLowStock).toHaveBeenCalledWith(DEPOT);
+    await itemC.lowStock(DEPOT, undefined, user);
+    expect(inventory.listLowStock).toHaveBeenCalledWith([DEPOT]);
     await itemC.wastage({ depotId: DEPOT } as never);
     expect(inventory.wastageSummary).toHaveBeenCalledWith(DEPOT, undefined, undefined);
     await itemC.wastage({ depotId: DEPOT, from: ISO, to: ISO } as never);

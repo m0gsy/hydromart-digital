@@ -273,9 +273,15 @@ export class VoucherService {
    * HQ voucher governance (design 14b): real rupiah discount burned per voucher plus
    * the network total. `byVoucher` is keyed by voucher id; vouchers with no redemption
    * are absent (the UI defaults them to 0). No budget cap exists as data.
+   *
+   * `depotIds` narrows it to the vouchers of a depot-scoped caller's own depots (omitted =
+   * head office, the whole network): `voucherRead` admits MANAGER, and this used to hand a
+   * manager every depot's voucher spend.
    */
-  async burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
-    const rows = await this.repo.sumRedemptionsByVoucher();
+  async burnSummary(
+    depotIds?: readonly string[],
+  ): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    const rows = await this.repo.sumRedemptionsByVoucher(depotIds);
     const byVoucher: Record<string, number> = {};
     let totalUsed = 0;
     for (const r of rows) {

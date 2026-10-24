@@ -549,22 +549,23 @@ export class DashboardService {
    * executive BFF.
    */
   async franchise(range: DateRange, token: string): Promise<FranchiseDashboard> {
-    // Owner's depots + global-ish top-depots first; both feed the per-depot rollup.
-    const [depots, topDepots] = await Promise.all([
-      this.sources.myDepots(token),
-      this.sources.topDepots(range, DashboardService.FRANCHISE_TOP_LIMIT, token),
-    ]);
+    // The owner's depots come first: they scope every other read below.
+    const depots = await this.sources.myDepots(token);
+    const depotIds = (depots ?? []).map((d) => d.id);
 
-    const revenueByDepot = new Map<string, { orderCount: number; revenue: number }>();
-    for (const item of topDepots?.items ?? []) {
-      revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
-    }
+    // Revenue is asked for the OWNED depots only. It used to read the network's top-N and look
+    // the owner's depots up in it, so a depot ranked past the Nth read "Rp 0" with the source
+    // still 'ok'. Without the owner's depots there is nothing to scope by, so no revenue call:
+    // that is 'unavailable' when the directory is down and an honest empty 'ok' for no depots.
+    const topDepotsP =
+      depotIds.length > 0
+        ? this.sources.topDepots(range, DashboardService.FRANCHISE_TOP_LIMIT, token, depotIds)
+        : Promise.resolve(null);
 
     // SLA scoped to the owner's depots + low-stock rollup, once depot ids are known.
     // SLA needs ≥1 depot to scope (empty depotIds would read as global) — null when
     // the directory is down or the owner has no depots. Null calls mark their source
     // 'unavailable' but never fail the whole response.
-    const depotIds = (depots ?? []).map((d) => d.id);
     const deliverySlaP =
       depotIds.length > 0 ? this.sources.deliverySla(range, token, depotIds) : Promise.resolve(null);
     // One call per source for the whole set of owned depots, not one per depot (audit
@@ -579,13 +580,31 @@ export class DashboardService {
     // HR + CRM per-depot summaries (Fase 5) — internal-key batch, best-effort per depot.
     const hrP = this.sources.hrSummaryMany(depotIds);
     const crmP = this.sources.crmSummaryMany(depotIds);
-    const [deliverySla, lowStockLists, hrList, crmList] = await Promise.all([
+    const [topDepots, deliverySla, lowStockLists, hrList, crmList] = await Promise.all([
+      topDepotsP,
       deliverySlaP,
       lowStockP,
       hrP,
       crmP,
     ]);
     let inventoryOk = depots !== null;
+
+    const revenueByDepot = new Map<string, { orderCount: number; revenue: number }>();
+    for (const item of topDepots?.items ?? []) {
+      revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
+    }
+    // A scoped report that came back at its limit may have been cut short, and a depot absent
+    // from a cut-short report is unmeasured rather than zero. Reachable only past 100 owned depots.
+    const orderStatus: 'ok' | 'partial' | 'unavailable' =
+      depots === null
+        ? 'unavailable'
+        : depotIds.length === 0
+          ? 'ok'
+          : topDepots === null
+            ? 'unavailable'
+            : topDepots.items.length >= DashboardService.FRANCHISE_TOP_LIMIT
+              ? 'partial'
+              : 'ok';
 
     const summaries: FranchiseDepotSummary[] = (depots ?? []).map((d, i) => {
       const rev = revenueByDepot.get(d.id);
@@ -661,7 +680,7 @@ export class DashboardService {
       crm,
       sources: {
         depot: depots !== null ? 'ok' : 'unavailable',
-        order: topDepots !== null ? 'ok' : 'unavailable',
+        order: orderStatus,
         delivery: deliverySla !== null ? 'ok' : 'unavailable',
         inventory: inventoryOk ? 'ok' : 'unavailable',
         hr: hr !== null ? 'ok' : 'unavailable',

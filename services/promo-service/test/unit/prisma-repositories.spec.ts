@@ -527,6 +527,26 @@ describe('VoucherPrismaRepository', () => {
     ]);
   });
 
+  it('sumRedemptionsByVoucher narrows to the vouchers of the depots asked for', async () => {
+    voucherRedemption.groupBy.mockResolvedValue([]);
+    await repo.sumRedemptionsByVoucher(['depot-a', 'depot-b']);
+    expect(voucherRedemption.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { releasedAt: null, voucher: { depotId: { in: ['depot-a', 'depot-b'] } } },
+      }),
+    );
+    // No scope is still every voucher — head office reads the same summary.
+    await repo.sumRedemptionsByVoucher();
+    expect(voucherRedemption.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { releasedAt: null } }),
+    );
+    // An empty set is a caller with no depots: it matches no voucher, never every one.
+    await repo.sumRedemptionsByVoucher([]);
+    expect(voucherRedemption.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { releasedAt: null, voucher: { depotId: { in: [] } } } }),
+    );
+  });
+
   it('listForCustomer tallies redemptions in memory and marks the granted ones', async () => {
     $transaction.mockResolvedValue([
       [voucherRow(), { ...voucherRow(), id: 'v-2' }],

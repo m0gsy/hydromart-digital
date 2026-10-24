@@ -2105,6 +2105,62 @@ describe('ReportService historical-import merge', () => {
     ]);
   });
 
+  /*
+   * Insight dashboard audit. Imported history is keyed by a free-text product label with no
+   * depot, so it cannot be narrowed to a depot set. A depot-scoped report therefore leaves it
+   * out rather than leaking the whole network's history into one depot's numbers.
+   */
+  it('hands the depot scope to the repository and skips the unscoped product import', async () => {
+    const DEPOT_X = randomUUID();
+    const revenueByProduct = jest.fn(async () => [
+      { productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 },
+    ]);
+    const sumByProduct = jest.fn(async () => [
+      { productLabel: 'galon 19l', orders: 10, revenue: 200000 },
+    ]);
+    const svc = new ReportService(
+      { revenueByProduct } as never,
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { sumByProduct } as never,
+    );
+    const { items } = await svc.revenueByProduct({}, 10, [DEPOT_X]);
+    expect(revenueByProduct).toHaveBeenCalledWith({}, 10, [DEPOT_X]);
+    expect(sumByProduct).not.toHaveBeenCalled();
+    expect(items).toEqual([expect.objectContaining({ productId: 'p1', revenue: 100000 })]);
+  });
+
+  it('still merges the product import for an unscoped (head office) report', async () => {
+    const sumByProduct = jest.fn(async () => [
+      { productLabel: 'galon 19l', orders: 10, revenue: 200000 },
+    ]);
+    const svc = new ReportService(
+      fakeOrders([], [{ productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 }]),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { sumByProduct } as never,
+    );
+    const { items } = await svc.revenueByProduct({}, 10);
+    expect(sumByProduct).toHaveBeenCalled();
+    expect(items[0]).toMatchObject({ revenue: 300000 });
+  });
+
+  it('hands the depot scope to the retention cohort query', async () => {
+    const DEPOT_X = randomUUID();
+    const retentionCohort = jest.fn(async () => []);
+    const svc = new ReportService({ retentionCohort } as never, reportTestConfig());
+    await svc.retentionCohort({}, [DEPOT_X]);
+    expect(retentionCohort).toHaveBeenCalledWith({}, expect.any(String), [DEPOT_X]);
+  });
+
   it('leaves live-only totals untouched when no SalesImportService is wired', async () => {
     const DEPOT_ID = randomUUID();
     const svc = new ReportService(

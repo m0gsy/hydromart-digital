@@ -327,11 +327,14 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       )
       .map((x) => ({ ...x }));
   }
-  async listLowStock(depotId?: string): Promise<InventoryItemRecord[]> {
+  async listLowStock(depotIds?: string | readonly string[]): Promise<InventoryItemRecord[]> {
+    // Same contract as the real repository: one id, a set, or nothing (every depot). An EMPTY
+    // set is a caller with no depots and matches no line.
+    const wanted = depotIds === undefined ? undefined : ([] as string[]).concat(depotIds);
     return this.items
       .filter(
         (x) =>
-          (!depotId || x.depotId === depotId) &&
+          (!wanted || wanted.includes(x.depotId)) &&
           x.minimumStock > 0 &&
           available(x.quantity, x.reserved) <= x.minimumStock,
       )

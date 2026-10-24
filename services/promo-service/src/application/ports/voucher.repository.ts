@@ -144,8 +144,14 @@ export interface VoucherRepository {
     orderIds?: readonly string[],
   ): Promise<RedemptionAnalytics>;
 
-  /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */
-  sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]>;
+  /**
+   * Total rupiah discount burned per voucher (SUM discountApplied). Network-wide when
+   * `depotIds` is omitted; otherwise only the vouchers that belong to those depots (a
+   * network-wide voucher, with no depot, belongs to none of them). An empty set matches nothing.
+   */
+  sumRedemptionsByVoucher(
+    depotIds?: readonly string[],
+  ): Promise<{ voucherId: string; burned: number }[]>;
 
   /** Total rupiah discount burned by one voucher (for the budget cap). */
   sumRedemptionsFor(voucherId: string): Promise<number>;

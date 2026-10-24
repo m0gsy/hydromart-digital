@@ -267,13 +267,53 @@ describe('ReportController', () => {
   });
 
   it('revenueByCategory: delegates to revenueByProduct with default limit 10', async () => {
-    await expect(controller.revenueByCategory({} as never)).resolves.toBe('revenue');
-    expect(service.revenueByProduct).toHaveBeenCalledWith({ from: undefined, to: undefined }, 10);
+    await expect(controller.revenueByCategory({} as never, headOffice())).resolves.toBe('revenue');
+    expect(service.revenueByProduct).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      10,
+      undefined,
+    );
   });
 
   it('retentionCohort: delegates with the parsed range', async () => {
-    await expect(controller.retentionCohort({} as never)).resolves.toBe('retention');
-    expect(service.retentionCohort).toHaveBeenCalledWith({ from: undefined, to: undefined });
+    await expect(controller.retentionCohort({} as never, headOffice())).resolves.toBe('retention');
+    expect(service.retentionCohort).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      undefined,
+    );
+  });
+
+  /*
+   * Insight dashboard audit. `orderReports` admits MANAGER, a depot-scoped role, and these two
+   * were left out of the ORD-1 / CA-4-06 sweep: neither carries a depotId, so a manager over one
+   * depot read the whole network's revenue per product and customer retention.
+   */
+  describe('revenue-by-category and retention-cohort narrow to the caller', () => {
+    it("scopes a manager's revenue-by-category and retention-cohort to their own depots", async () => {
+      const mgr = manager(DEPOT_A, DEPOT_B);
+      await controller.revenueByCategory({} as never, mgr);
+      await controller.retentionCohort({} as never, mgr);
+      expect(service.revenueByProduct).toHaveBeenCalledWith(expect.anything(), 10, [
+        DEPOT_A,
+        DEPOT_B,
+      ]);
+      expect(service.retentionCohort).toHaveBeenCalledWith(expect.anything(), [DEPOT_A, DEPOT_B]);
+    });
+
+    it('honours an explicit depotIds list on revenue-by-category', async () => {
+      await controller.revenueByCategory({ depotIds: `${DEPOT_A}, ${DEPOT_B}` } as never, headOffice());
+      expect(service.revenueByProduct).toHaveBeenCalledWith(expect.anything(), 10, [
+        DEPOT_A,
+        DEPOT_B,
+      ]);
+    });
+
+    it('refuses a scoped account that is responsible for no depot at all', () => {
+      expect(() => controller.revenueByCategory({} as never, manager())).toThrow();
+      expect(() => controller.retentionCohort({} as never, manager())).toThrow();
+      expect(service.revenueByProduct).not.toHaveBeenCalled();
+      expect(service.retentionCohort).not.toHaveBeenCalled();
+    });
   });
 
   it('depotDaily: uses today when no date is supplied, else the given date', async () => {

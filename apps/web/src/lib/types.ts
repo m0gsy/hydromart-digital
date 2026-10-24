@@ -1335,7 +1335,9 @@ export interface FranchiseDashboard {
   crm: FranchiseCrm | null;
   sources: {
     depot: 'ok' | 'unavailable';
-    order: 'ok' | 'unavailable';
+    // 'partial': the revenue report came back at its limit, so a depot missing from it is
+    // unmeasured rather than zero.
+    order: 'ok' | 'partial' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
     hr: 'ok' | 'unavailable';

@@ -23,6 +23,7 @@ import {
   InternalAuthGuard,
   Public,
   ImportSummary,
+  reportScopeIds,
 } from '@hydromart/platform';
 
 import {
@@ -283,15 +284,17 @@ export class InventoryController {
   lowStock(
     @Query('depotId') depotId?: string,
     @Query('depotIds') depotIds?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<ItemView[]> {
     // `depotIds` (comma-separated) is the batch form the owner dashboard uses — one call
     // for every depot it owns instead of one per depot (audit S-1). `depotId` stays for
     // the single-depot console.
-    const many = (depotIds ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    return this.inventory.listLowStock(many.length > 0 ? many : depotId);
+    //
+    // A depot named here has already been checked by DepotScopeGuard. One that is NOT named
+    // used to read "no filter", so a depot-scoped caller (all of them hold `inventoryRead`)
+    // listed every depot's stock lines: it now narrows to the caller's own depots, and only
+    // a network-wide role stays unfiltered.
+    return this.inventory.listLowStock(reportScopeIds(user, depotIds || depotId));
   }
 
   // Static segment: declared before ':itemId' so it wins the route match.

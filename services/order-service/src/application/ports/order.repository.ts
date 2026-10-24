@@ -684,14 +684,26 @@ export interface OrderRepository {
    * scoping (OrderReview has no depotId of its own).
    */
   depotRatings(depotId: string, range: ReportRange): Promise<DepotRatingsDetail>;
-  /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */
-  revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]>;
+  /**
+   * Revenue per product in the window (CANCELLED excluded), highest first (22b).
+   * `depotIds` narrows it to a set of depots; omitted is the whole network (head office).
+   */
+  revenueByProduct(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<ProductRevenue[]>;
   /**
    * Retention cells: for each first-order cohort month, distinct customers still
    * ordering `monthIndex` months later (CANCELLED excluded). The service pivots
-   * these into per-cohort retention rows (22b).
+   * these into per-cohort retention rows (22b). `depotIds` narrows it to a set of depots:
+   * a customer is then filed by their first order AT those depots.
    */
-  retentionCohort(range: ReportRange, tz: string): Promise<RetentionCell[]>;
+  retentionCohort(
+    range: ReportRange,
+    tz: string,
+    depotIds?: readonly string[],
+  ): Promise<RetentionCell[]>;
   /** One customer's lifetime revenue/order-count/first-last dates (17e). */
   customerLifetime(customerId: string): Promise<CustomerLifetime>;
   /** Per-customer order aggregates for a depot's CRM lifecycle (Fase 4, CANCELLED excluded). */

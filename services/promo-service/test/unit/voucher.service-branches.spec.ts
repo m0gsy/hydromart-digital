@@ -110,6 +110,49 @@ describe('VoucherService branch gaps', () => {
   });
 
   /*
+   * Insight dashboard audit. `voucherRead` admits MANAGER, a depot-scoped role, and the burn
+   * summary carried no depot dimension — a manager read every voucher's spend network-wide.
+   * A scoped caller now sees only the vouchers that belong to their own depots; a network-wide
+   * voucher (no depot) belongs to head office, not to any one depot.
+   */
+  describe('burnSummary narrowed to a depot scope', () => {
+    const DEPOT_A = randomUUID();
+    const DEPOT_B = randomUUID();
+    const burnAll = async () => {
+      const mine = await service.create(
+        baseVoucher({ code: 'MINE', discountType: DiscountType.FIXED, value: 5000, depotId: DEPOT_A }),
+      );
+      const other = await service.create(
+        baseVoucher({ code: 'OTHER', discountType: DiscountType.FIXED, value: 7000, depotId: DEPOT_B }),
+      );
+      const network = await service.create(
+        baseVoucher({ code: 'NET', discountType: DiscountType.FIXED, value: 3000 }),
+      );
+      // A depot voucher can only be spent at its own depot; a network-wide one anywhere.
+      await service.redeem('MINE', randomUUID(), randomUUID(), 60000, 0, DEPOT_A);
+      await service.redeem('OTHER', randomUUID(), randomUUID(), 60000, 0, DEPOT_B);
+      await service.redeem('NET', randomUUID(), randomUUID(), 60000, 0, DEPOT_A);
+      return { mine, other, network };
+    };
+
+    it("counts only the scoped caller's own vouchers", async () => {
+      const { mine } = await burnAll();
+      const summary = await service.burnSummary([DEPOT_A]);
+      expect(summary).toEqual({ totalUsed: 5000, byVoucher: { [mine.id]: 5000 } });
+    });
+
+    it('lets head office (no scope) read every voucher, network-wide ones included', async () => {
+      await burnAll();
+      expect((await service.burnSummary()).totalUsed).toBe(15000);
+    });
+
+    it('reports nothing for a caller responsible for no depot', async () => {
+      await burnAll();
+      expect(await service.burnSummary([])).toEqual({ totalUsed: 0, byVoucher: {} });
+    });
+  });
+
+  /*
    * CA-2-53. A discount two people edited at once used to end up as whichever of them saved
    * last, with the other's change gone and neither told.
    */
