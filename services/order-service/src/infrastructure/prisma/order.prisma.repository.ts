@@ -836,7 +836,13 @@ export class OrderPrismaRepository implements OrderRepository {
   ): Promise<CustomerSales[]> {
     const rows = await this.prisma.order.groupBy({
       by: ['customerId'],
-      where: { ...this.reportWhere(range), ...OrderPrismaRepository.depotIn(depotIds) },
+      where: {
+        ...this.reportWhere(range),
+        ...OrderPrismaRepository.depotIn(depotIds),
+        // Every phone-less walk-in sale shares the anonymous sentinel, so they all grouped
+        // into ONE "customer" that outranked every real one at a busy counter. It is no one.
+        customerId: { not: ANONYMOUS_CUSTOMER_ID },
+      },
       _sum: { total: true },
       _count: { _all: true },
       orderBy: { _sum: { total: 'desc' } },
@@ -1015,12 +1021,16 @@ export class OrderPrismaRepository implements OrderRepository {
     };
   }
 
-  async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {
+  async revenueByProduct(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<ProductRevenue[]> {
     // Group the line items whose parent order is non-cancelled & in-window. OrderItem
     // has no category column, so this is a per-PRODUCT breakdown (see ProductRevenue).
     const rows = await this.prisma.orderItem.groupBy({
       by: ['productId', 'productName'],
-      where: { order: this.reportWhere(range) },
+      where: { order: { ...this.reportWhere(range), ...OrderPrismaRepository.depotIn(depotIds) } },
       _sum: { lineTotal: true },
       _count: { _all: true },
       orderBy: { _sum: { lineTotal: 'desc' } },
@@ -1034,10 +1044,28 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async retentionCohort(range: ReportRange, tz: string): Promise<RetentionCell[]> {
-    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
+  async retentionCohort(
+    range: ReportRange,
+    tz: string,
+    depotIds?: readonly string[],
+  ): Promise<RetentionCell[]> {
+    // An empty set is a caller with no depots: it matches nothing (and `IN ()` is not SQL).
+    if (depotIds && depotIds.length === 0) return [];
+    // Phone-less walk-ins all share the anonymous sentinel: left in, they count as one
+    // customer who "returns" every month. It is no one, so it belongs in no cohort.
+    const conds: Prisma.Sql[] = [
+      NOT_VOID_SQL,
+      Prisma.sql`"customerId" <> ${ANONYMOUS_CUSTOMER_ID}::uuid`,
+    ];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
+    // Each id cast to uuid, like `salesSeries` above: the column is `@db.Uuid` and a bound
+    // string is text, so a bare `IN ($1)` is "operator does not exist: uuid = text".
+    if (depotIds) {
+      conds.push(
+        Prisma.sql`"depotId" IN (${Prisma.join(depotIds.map((id) => Prisma.sql`${id}::uuid`))})`,
+      );
+    }
     const where = Prisma.join(conds, ' AND ');
     const rows = await this.prisma.$queryRaw<
       { cohort: string; monthIndex: number; customers: bigint }[]
@@ -1242,7 +1270,10 @@ export class OrderPrismaRepository implements OrderRepository {
     return new Map(rows.map((r) => [r.id, r.counterNote as string]));
   }
 
-  async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {
+  async firstTimeBuyersByCashier(
+    depotId: string,
+    range: ReportRange,
+  ): Promise<CashierFirstBuyers[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
       ...(range.to ? { lt: range.to } : {}),

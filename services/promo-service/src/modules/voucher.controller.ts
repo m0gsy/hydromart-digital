@@ -23,6 +23,7 @@ import {
   Role,
   Roles,
   assertDepotAccess,
+  depotScopeIds,
 } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
@@ -63,7 +64,11 @@ import {
 // RBAC role groups come from the shared @hydromart/access capability map (voucherRead/voucherWrite).
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
 const toLines = (lines?: VoucherLineDto[]): VoucherLine[] | undefined =>
-  lines?.map((l) => ({ productId: l.productId, categoryId: l.categoryId ?? null, lineTotal: l.lineTotal }));
+  lines?.map((l) => ({
+    productId: l.productId,
+    categoryId: l.categoryId ?? null,
+    lineTotal: l.lineTotal,
+  }));
 
 @ApiTags('Vouchers')
 @Controller({ path: 'vouchers', version: '1' })
@@ -75,22 +80,31 @@ export class VoucherController {
   @Can('voucherRead')
   @Get()
   @ApiOperation({ summary: 'List all vouchers (admin, includes inactive)' })
-  browse(@Query() query: BrowseQueryDto): Promise<Page<VoucherRecord>> {
-    return this.vouchers.browse(query.page, query.limit, false);
+  browse(
+    @Query() query: BrowseQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Page<VoucherRecord>> {
+    // `voucherRead` admits MANAGER, a depot-scoped role: narrow to their own depots (plus the
+    // network-wide vouchers); only a network-wide role lists every depot's.
+    return this.vouchers.browse(query.page, query.limit, false, depotScopeIds(user));
   }
 
-  // HQ voucher governance (14b): real burn per voucher + network total. Declared before
-  // `@Get(':code')` so "burn-summary" is not captured as a code.
+  // HQ voucher governance (14b): real burn per voucher + network total. Declared before the
+  // by-code route below so "burn-summary" is not captured as a code.
   @ApiOkResponse({ type: BurnSummary3ResponseDto })
   @ApiBearerAuth()
   @Can('voucherRead')
   @Get('burn-summary')
   @ApiOperation({ summary: 'Rupiah discount burned per voucher + network total (admin)' })
-  burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
-    return this.vouchers.burnSummary();
+  burnSummary(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    // `voucherRead` admits MANAGER, a depot-scoped role: narrow to their own depots; only a
+    // network-wide role reads every voucher.
+    return this.vouchers.burnSummary(depotScopeIds(user));
   }
 
-  // Declared before the `@Get(':code')` route below so "me" is not captured as a code.
+  // Declared before the by-code route below so "me" is not captured as a code.
   @ApiOkResponse({ type: MyVoucherDto, isArray: true })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
@@ -106,7 +120,9 @@ export class VoucherController {
   @ApiBearerAuth()
   @Can('walkInSale')
   @Get('counter')
-  @ApiOperation({ summary: "An identified buyer's granted vouchers usable at this depot (cashier screen)" })
+  @ApiOperation({
+    summary: "An identified buyer's granted vouchers usable at this depot (cashier screen)",
+  })
   async counterWallet(
     @Query() query: CounterVouchersQueryDto,
     @CurrentUser() user?: AuthenticatedUser,

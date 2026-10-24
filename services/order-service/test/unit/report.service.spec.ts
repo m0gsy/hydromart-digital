@@ -2022,7 +2022,10 @@ describe('ReportService historical-import merge', () => {
       sumByDepot: async () => [{ depotId: DEPOT_HISTORY_ONLY, orders: 4, revenue: 160000 }],
     } as never;
     const svc = new ReportService(
-      fakeOrders([{ depotId: DEPOT_LIVE, orderCount: 2, revenue: 50000, commissionBase: 50000 }], []),
+      fakeOrders(
+        [{ depotId: DEPOT_LIVE, orderCount: 2, revenue: 50000, commissionBase: 50000 }],
+        [],
+      ),
       reportTestConfig(),
       undefined,
       undefined,
@@ -2071,7 +2074,10 @@ describe('ReportService historical-import merge', () => {
       sumByProduct: async () => [{ productLabel: 'galon 19l', orders: 10, revenue: 200000 }],
     } as never;
     const svc = new ReportService(
-      fakeOrders([], [{ productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 }]),
+      fakeOrders(
+        [],
+        [{ productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 }],
+      ),
       reportTestConfig(),
       undefined,
       undefined,
@@ -2087,7 +2093,9 @@ describe('ReportService historical-import merge', () => {
 
   it('gives an unmatched historical label its own row with no real productId', async () => {
     const salesImport = {
-      sumByProduct: async () => [{ productLabel: 'Galon Tua (sistem lama)', orders: 1, revenue: 15000 }],
+      sumByProduct: async () => [
+        { productLabel: 'Galon Tua (sistem lama)', orders: 1, revenue: 15000 },
+      ],
     } as never;
     const svc = new ReportService(
       fakeOrders([], []),
@@ -2101,8 +2109,71 @@ describe('ReportService historical-import merge', () => {
     );
     const { items } = await svc.revenueByProduct({}, 10);
     expect(items).toEqual([
-      expect.objectContaining({ productId: '', productName: 'Galon Tua (sistem lama)', revenue: 15000 }),
+      expect.objectContaining({
+        productId: '',
+        productName: 'Galon Tua (sistem lama)',
+        revenue: 15000,
+      }),
     ]);
+  });
+
+  /*
+   * Insight dashboard audit. Imported history is keyed by a free-text product label with no
+   * depot, so it cannot be narrowed to a depot set. A depot-scoped report therefore leaves it
+   * out rather than leaking the whole network's history into one depot's numbers.
+   */
+  it('hands the depot scope to the repository and skips the unscoped product import', async () => {
+    const DEPOT_X = randomUUID();
+    const revenueByProduct = jest.fn(async () => [
+      { productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 },
+    ]);
+    const sumByProduct = jest.fn(async () => [
+      { productLabel: 'galon 19l', orders: 10, revenue: 200000 },
+    ]);
+    const svc = new ReportService(
+      { revenueByProduct } as never,
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { sumByProduct } as never,
+    );
+    const { items } = await svc.revenueByProduct({}, 10, [DEPOT_X]);
+    expect(revenueByProduct).toHaveBeenCalledWith({}, 10, [DEPOT_X]);
+    expect(sumByProduct).not.toHaveBeenCalled();
+    expect(items).toEqual([expect.objectContaining({ productId: 'p1', revenue: 100000 })]);
+  });
+
+  it('still merges the product import for an unscoped (head office) report', async () => {
+    const sumByProduct = jest.fn(async () => [
+      { productLabel: 'galon 19l', orders: 10, revenue: 200000 },
+    ]);
+    const svc = new ReportService(
+      fakeOrders(
+        [],
+        [{ productId: 'p1', productName: 'Galon 19L', orderCount: 5, revenue: 100000 }],
+      ),
+      reportTestConfig(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { sumByProduct } as never,
+    );
+    const { items } = await svc.revenueByProduct({}, 10);
+    expect(sumByProduct).toHaveBeenCalled();
+    expect(items[0]).toMatchObject({ revenue: 300000 });
+  });
+
+  it('hands the depot scope to the retention cohort query', async () => {
+    const DEPOT_X = randomUUID();
+    const retentionCohort = jest.fn(async () => []);
+    const svc = new ReportService({ retentionCohort } as never, reportTestConfig());
+    await svc.retentionCohort({}, [DEPOT_X]);
+    expect(retentionCohort).toHaveBeenCalledWith({}, expect.any(String), [DEPOT_X]);
   });
 
   it('leaves live-only totals untouched when no SalesImportService is wired', async () => {
@@ -2112,7 +2183,9 @@ describe('ReportService historical-import merge', () => {
       reportTestConfig(),
     );
     const { items } = await svc.topDepots({}, 10);
-    expect(items).toEqual([{ depotId: DEPOT_ID, orderCount: 1, revenue: 10000, commissionBase: 10000 }]);
+    expect(items).toEqual([
+      { depotId: DEPOT_ID, orderCount: 1, revenue: 10000, commissionBase: 10000 },
+    ]);
   });
 
   it('scopes the historical merge to the given depotIds, excluding the rest', async () => {
@@ -2135,7 +2208,9 @@ describe('ReportService historical-import merge', () => {
       salesImport,
     );
     const { items } = await svc.topDepots({}, 10, [DEPOT_IN]);
-    expect(items).toEqual([{ depotId: DEPOT_IN, orderCount: 1, revenue: 10000, commissionBase: 0 }]);
+    expect(items).toEqual([
+      { depotId: DEPOT_IN, orderCount: 1, revenue: 10000, commissionBase: 0 },
+    ]);
   });
 
   it('leaves depot totals untouched when the depotIds filter excludes every historical row', async () => {
@@ -2154,7 +2229,9 @@ describe('ReportService historical-import merge', () => {
       salesImport,
     );
     const { items } = await svc.topDepots({}, 10, [DEPOT_LIVE]);
-    expect(items).toEqual([{ depotId: DEPOT_LIVE, orderCount: 1, revenue: 5000, commissionBase: 5000 }]);
+    expect(items).toEqual([
+      { depotId: DEPOT_LIVE, orderCount: 1, revenue: 5000, commissionBase: 5000 },
+    ]);
   });
 
   it('leaves product totals untouched when SalesImportService has no historical rows at all', async () => {

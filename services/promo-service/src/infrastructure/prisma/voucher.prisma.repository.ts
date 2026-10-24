@@ -86,8 +86,13 @@ export class VoucherPrismaRepository implements VoucherRepository {
     page: number,
     limit: number,
     activeOnly: boolean,
+    depotIds?: readonly string[],
   ): Promise<{ items: VoucherRecord[]; total: number }> {
-    const where = activeOnly ? { active: true } : {};
+    const where = {
+      ...(activeOnly ? { active: true } : {}),
+      // A scoped caller: own depots' vouchers + the network-wide ones. Never another depot's.
+      ...(depotIds ? { OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] } : {}),
+    };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.voucher.findMany({
         where,
@@ -122,10 +127,15 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return agg._sum.discountApplied ?? 0;
   }
 
-  async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
+  async sumRedemptionsByVoucher(
+    depotIds?: readonly string[],
+  ): Promise<{ voucherId: string; burned: number }[]> {
     const grouped = await this.prisma.voucherRedemption.groupBy({
       by: ['voucherId'],
-      where: { releasedAt: null },
+      // `{ in: [] }` matches no voucher, which is exactly what a caller with no depots means.
+      where: depotIds
+        ? { releasedAt: null, voucher: { depotId: { in: [...depotIds] } } }
+        : { releasedAt: null },
       _sum: { discountApplied: true },
     });
     return grouped.map((g) => ({

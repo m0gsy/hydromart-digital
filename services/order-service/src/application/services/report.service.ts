@@ -510,9 +510,20 @@ export class ReportService {
    * 1:1 onto this one. A label with no live match becomes its own row with `productId: ''`,
    * which is not a real id and never resolves to a product page; it is a display label only.
    */
-  async revenueByProduct(range: ReportRange, limit: number): Promise<RevenueByProductReport> {
-    const items = await this.orders.revenueByProduct(range, ReportService.clampLimit(limit));
-    const merged = await this.mergeHistoricalProducts(items, range);
+  async revenueByProduct(
+    range: ReportRange,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<RevenueByProductReport> {
+    const items = await this.orders.revenueByProduct(
+      range,
+      ReportService.clampLimit(limit),
+      depotIds,
+    );
+    // Imported history is keyed by a free-text product label and carries no depot, so it cannot
+    // be narrowed to a depot set. A depot-scoped report leaves it out rather than leaking the
+    // whole network's history into one depot's numbers; head office (no scope) still gets it.
+    const merged = depotIds ? items : await this.mergeHistoricalProducts(items, range);
     const total = merged.reduce((s, i) => s + i.revenue, 0);
     return {
       grouping: 'product',
@@ -547,8 +558,11 @@ export class ReportService {
     return [...byName.values()].sort((a, b) => b.revenue - a.revenue);
   }
 
-  async retentionCohort(range: ReportRange): Promise<RetentionCohortReport> {
-    const cells = await this.orders.retentionCohort(range, this.config.businessTimeZone);
+  async retentionCohort(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<RetentionCohortReport> {
+    const cells = await this.orders.retentionCohort(range, this.config.businessTimeZone, depotIds);
     const byCohort = new Map<string, Map<number, number>>();
     for (const c of cells) {
       const m = byCohort.get(c.cohort) ?? new Map<number, number>();

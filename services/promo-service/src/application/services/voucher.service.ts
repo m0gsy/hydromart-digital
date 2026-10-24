@@ -111,7 +111,9 @@ export class VoucherService {
    * send that dies after the claim is not retried (lose rather than duplicate, as review
    * requests do). Already-redeemed vouchers are left out by the repository.
    */
-  async notifyExpiring(now: Date): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
+  async notifyExpiring(
+    now: Date,
+  ): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
     const to = new Date(now.getTime() + VoucherService.EXPIRY_LEAD_DAYS * 86_400_000);
     const due = await this.repo.findExpiringGrants(now, to, VoucherService.EXPIRY_SWEEP_LIMIT);
     let notified = 0;
@@ -262,10 +264,20 @@ export class VoucherService {
     };
   }
 
-  async browse(page = 1, limit = 20, activeOnly = false): Promise<Page<VoucherRecord>> {
+  /**
+   * `depotIds` narrows the admin list to a depot-scoped caller's reach (their own depots'
+   * vouchers and the network-wide ones). `voucherRead` admits MANAGER, who used to read every
+   * depot's vouchers with their budget caps and usage counters.
+   */
+  async browse(
+    page = 1,
+    limit = 20,
+    activeOnly = false,
+    depotIds?: readonly string[],
+  ): Promise<Page<VoucherRecord>> {
     const p = Math.max(1, page);
     const l = Math.min(VoucherService.MAX_LIMIT, Math.max(1, limit));
-    const { items, total } = await this.repo.search(p, l, activeOnly);
+    const { items, total } = await this.repo.search(p, l, activeOnly, depotIds);
     return buildPage(items, total, p, l);
   }
 
@@ -273,9 +285,15 @@ export class VoucherService {
    * HQ voucher governance (design 14b): real rupiah discount burned per voucher plus
    * the network total. `byVoucher` is keyed by voucher id; vouchers with no redemption
    * are absent (the UI defaults them to 0). No budget cap exists as data.
+   *
+   * `depotIds` narrows it to the vouchers of a depot-scoped caller's own depots (omitted =
+   * head office, the whole network): `voucherRead` admits MANAGER, and this used to hand a
+   * manager every depot's voucher spend.
    */
-  async burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
-    const rows = await this.repo.sumRedemptionsByVoucher();
+  async burnSummary(
+    depotIds?: readonly string[],
+  ): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    const rows = await this.repo.sumRedemptionsByVoucher(depotIds);
     const byVoucher: Record<string, number> = {};
     let totalUsed = 0;
     for (const r of rows) {
@@ -310,7 +328,11 @@ export class VoucherService {
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
     // computeDiscount is pure and never throws, so it can run before validation — the
     // budget rule needs this order's own discount to enforce a hard cap.
-    const discount = computeDiscount(voucher, eligibleSubtotal(voucher, subtotal, lines), shippingFee);
+    const discount = computeDiscount(
+      voucher,
+      eligibleSubtotal(voucher, subtotal, lines),
+      shippingFee,
+    );
     validateVoucher(
       voucher,
       subtotal,
@@ -374,7 +396,11 @@ export class VoucherService {
     const redemption = await this.repo.redeemAtomic(
       { voucherId: voucher.id, voucherCode: voucher.code, customerId, orderId },
       ({ usedCount, customerRedemptions, burned }) => {
-        const discount = computeDiscount(voucher, eligibleSubtotal(voucher, subtotal, lines), shippingFee);
+        const discount = computeDiscount(
+          voucher,
+          eligibleSubtotal(voucher, subtotal, lines),
+          shippingFee,
+        );
         // Throws on a cap violation, which rolls the transaction back — so a voucher that
         // ran out between quote and redeem burns nothing.
         validateVoucher(
@@ -418,7 +444,10 @@ export class VoucherService {
     const now = new Date();
     const rows = await this.repo.listForCustomer(customerId);
     return rows
-      .filter(({ voucher, granted }) => granted && (voucher.depotId == null || voucher.depotId === depotId))
+      .filter(
+        ({ voucher, granted }) =>
+          granted && (voucher.depotId == null || voucher.depotId === depotId),
+      )
       .map(({ voucher, customerRedemptions }) => ({
         voucher,
         status: classifyVoucherStatus(voucher, now, customerRedemptions),

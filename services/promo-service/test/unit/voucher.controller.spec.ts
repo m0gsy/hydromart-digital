@@ -34,13 +34,74 @@ describe('VoucherController', () => {
   afterEach(() => jest.clearAllMocks());
 
   it('browse delegates page/limit and forces includeInactive=false', async () => {
-    await controller.browse({ page: 2, limit: 10 } as unknown as BrowseQueryDto);
-    expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false);
+    await controller.browse(
+      { page: 2, limit: 10 } as unknown as BrowseQueryDto,
+      { sub: 'hq-1', role: 'HEAD_OFFICE' } as unknown as AuthenticatedUser,
+    );
+    // Head office is network-wide, so the scope it passes is "no filter".
+    expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false, undefined);
   });
 
-  it('burnSummary delegates', async () => {
-    await controller.burnSummary();
-    expect(vouchers.burnSummary).toHaveBeenCalled();
+  // `voucherRead` admits MANAGER, a depot-scoped role: the list used to hand a manager every
+  // depot's vouchers, with their budget caps and usage counters.
+  it("browse narrows a manager's list to the depots they are responsible for", async () => {
+    await controller.browse(
+      { page: 1, limit: 20 } as unknown as BrowseQueryDto,
+      {
+        sub: 'mgr-1',
+        role: 'MANAGER',
+        depotId: 'd-1',
+        depotIds: ['d-1', 'd-2'],
+      } as unknown as AuthenticatedUser,
+    );
+    expect(vouchers.browse).toHaveBeenCalledWith(1, 20, false, ['d-1', 'd-2']);
+  });
+
+  it('browse refuses a scoped account that is responsible for no depot', () => {
+    expect(() =>
+      controller.browse(
+        {} as unknown as BrowseQueryDto,
+        {
+          sub: 'mgr-2',
+          role: 'MANAGER',
+          depotId: null,
+          depotIds: [],
+        } as unknown as AuthenticatedUser,
+      ),
+    ).toThrow();
+    expect(vouchers.browse).not.toHaveBeenCalled();
+  });
+
+  // `voucherRead` admits MANAGER, a depot-scoped role: the summary is narrowed to the caller's
+  // depots, and only a network-wide role gets the whole network.
+  it('burnSummary reads the whole network for head office', async () => {
+    await controller.burnSummary({
+      sub: 'hq-1',
+      role: 'HEAD_OFFICE',
+    } as unknown as AuthenticatedUser);
+    expect(vouchers.burnSummary).toHaveBeenCalledWith(undefined);
+  });
+
+  it('burnSummary narrows a manager to the depots they are responsible for', async () => {
+    await controller.burnSummary({
+      sub: 'mgr-1',
+      role: 'MANAGER',
+      depotId: 'd-1',
+      depotIds: ['d-1', 'd-2'],
+    } as unknown as AuthenticatedUser);
+    expect(vouchers.burnSummary).toHaveBeenCalledWith(['d-1', 'd-2']);
+  });
+
+  it('burnSummary refuses a scoped account that is responsible for no depot', () => {
+    expect(() =>
+      controller.burnSummary({
+        sub: 'mgr-2',
+        role: 'MANAGER',
+        depotId: null,
+        depotIds: [],
+      } as unknown as AuthenticatedUser),
+    ).toThrow();
+    expect(vouchers.burnSummary).not.toHaveBeenCalled();
   });
 
   it('myVouchers maps the wallet through MyVoucherDto.from', async () => {
@@ -84,7 +145,14 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as QuoteVoucherDto);
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 5000, undefined, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith(
+      'HEMAT',
+      'user-1',
+      100000,
+      5000,
+      undefined,
+      undefined,
+    );
   });
 
   // Counter sale: the caller is the cashier, so the wallet being quoted must be named
@@ -95,7 +163,14 @@ describe('VoucherController', () => {
       customerId: 'buyer-9',
       subtotal: 100000,
     } as unknown as QuoteVoucherDto & { customerId: string });
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 0, undefined, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith(
+      'HEMAT',
+      'buyer-9',
+      100000,
+      0,
+      undefined,
+      undefined,
+    );
   });
 
   it('quoteFor passes the shippingFee through when provided', async () => {
@@ -105,7 +180,14 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as QuoteVoucherDto & { customerId: string });
-    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 5000, undefined, undefined);
+    expect(vouchers.quote).toHaveBeenCalledWith(
+      'HEMAT',
+      'buyer-9',
+      100000,
+      5000,
+      undefined,
+      undefined,
+    );
   });
 
   it('quote defaults shippingFee to 0 when omitted', async () => {
@@ -124,7 +206,15 @@ describe('VoucherController', () => {
       subtotal: 100000,
       shippingFee: 5000,
     } as unknown as RedeemVoucherDto);
-    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 5000, undefined, undefined);
+    expect(vouchers.redeem).toHaveBeenCalledWith(
+      'HEMAT',
+      'c1',
+      'o1',
+      100000,
+      5000,
+      undefined,
+      undefined,
+    );
   });
 
   it('redeem defaults shippingFee to 0 when omitted', async () => {
@@ -134,7 +224,15 @@ describe('VoucherController', () => {
       orderId: 'o1',
       subtotal: 100000,
     } as unknown as RedeemVoucherDto);
-    expect(vouchers.redeem).toHaveBeenCalledWith('HEMAT', 'c1', 'o1', 100000, 0, undefined, undefined);
+    expect(vouchers.redeem).toHaveBeenCalledWith(
+      'HEMAT',
+      'c1',
+      'o1',
+      100000,
+      0,
+      undefined,
+      undefined,
+    );
   });
 
   /*
@@ -156,23 +254,57 @@ describe('VoucherController', () => {
       subtotal: 100000,
       depotId: 'd-1',
     } as never);
-    expect(vouchers.redeem).toHaveBeenLastCalledWith('HEMAT', 'c1', 'o1', 100000, 0, 'd-1', undefined);
+    expect(vouchers.redeem).toHaveBeenLastCalledWith(
+      'HEMAT',
+      'c1',
+      'o1',
+      100000,
+      0,
+      'd-1',
+      undefined,
+    );
   });
 
   it('passes basket lines through on quote, quoteFor and redeem, defaulting a missing categoryId to null', async () => {
-    const lines = [{ productId: 'p-1', lineTotal: 40000 }, { productId: 'p-2', categoryId: 'c-1', lineTotal: 10000 }];
+    const lines = [
+      { productId: 'p-1', lineTotal: 40000 },
+      { productId: 'p-2', categoryId: 'c-1', lineTotal: 10000 },
+    ];
     const mapped = [
       { productId: 'p-1', categoryId: null, lineTotal: 40000 },
       { productId: 'p-2', categoryId: 'c-1', lineTotal: 10000 },
     ];
-    await controller.quote(user, { code: 'HEMAT', subtotal: 50000, lines } as unknown as QuoteVoucherDto);
+    await controller.quote(user, {
+      code: 'HEMAT',
+      subtotal: 50000,
+      lines,
+    } as unknown as QuoteVoucherDto);
     expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'user-1', 50000, 0, undefined, mapped);
 
-    await controller.quoteFor({ code: 'HEMAT', customerId: 'b-1', subtotal: 50000, lines } as never);
+    await controller.quoteFor({
+      code: 'HEMAT',
+      customerId: 'b-1',
+      subtotal: 50000,
+      lines,
+    } as never);
     expect(vouchers.quote).toHaveBeenLastCalledWith('HEMAT', 'b-1', 50000, 0, undefined, mapped);
 
-    await controller.redeem({ code: 'HEMAT', customerId: 'c1', orderId: 'o1', subtotal: 50000, lines } as never);
-    expect(vouchers.redeem).toHaveBeenLastCalledWith('HEMAT', 'c1', 'o1', 50000, 0, undefined, mapped);
+    await controller.redeem({
+      code: 'HEMAT',
+      customerId: 'c1',
+      orderId: 'o1',
+      subtotal: 50000,
+      lines,
+    } as never);
+    expect(vouchers.redeem).toHaveBeenLastCalledWith(
+      'HEMAT',
+      'c1',
+      'o1',
+      50000,
+      0,
+      undefined,
+      mapped,
+    );
   });
 
   it('create maps full dto and parses dates', async () => {
@@ -252,19 +384,23 @@ describe('VoucherController', () => {
       value: 15,
       validFrom: '2026-03-01T00:00:00.000Z',
     } as unknown as UpdateVoucherDto);
-    expect(vouchers.update).toHaveBeenCalledWith('v1', {
-      description: 'new',
-      discountType: undefined,
-      value: 15,
-      minSpend: undefined,
-      maxDiscount: undefined,
-      validFrom: new Date('2026-03-01T00:00:00.000Z'),
-      validUntil: undefined,
-      usageLimit: undefined,
-      perCustomerLimit: undefined,
-      active: undefined,
-      // CA-2-53: the version travels beside the body; this call names none.
-    }, undefined);
+    expect(vouchers.update).toHaveBeenCalledWith(
+      'v1',
+      {
+        description: 'new',
+        discountType: undefined,
+        value: 15,
+        minSpend: undefined,
+        maxDiscount: undefined,
+        validFrom: new Date('2026-03-01T00:00:00.000Z'),
+        validUntil: undefined,
+        usageLimit: undefined,
+        perCustomerLimit: undefined,
+        active: undefined,
+        // CA-2-53: the version travels beside the body; this call names none.
+      },
+      undefined,
+    );
   });
 
   it('deactivate delegates with the id', async () => {
@@ -323,5 +459,4 @@ describe('Voucher DTO @Type coercion', () => {
     expect(browse.page).toBe(2);
     expect(browse.limit).toBe(10);
   });
-
 });

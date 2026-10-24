@@ -217,15 +217,25 @@ export class ReportController {
   @ApiOkResponse({ type: RevenueByProductReportResponseDto })
   @Get('revenue-by-category')
   @ApiOperation({ summary: 'Revenue share per product (22b; per-product — no category column)' })
-  revenueByCategory(@Query() q: TopReportQueryDto): Promise<RevenueByProductReport> {
-    return this.reports.revenueByProduct(toRange(q), q.limit ?? 10);
+  revenueByCategory(
+    @Query() q: TopReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RevenueByProductReport> {
+    return this.reports.revenueByProduct(
+      toRange(q),
+      q.limit ?? 10,
+      ReportController.reportScope(user, q.depotIds),
+    );
   }
 
   @ApiOkResponse({ type: RetentionCohortReportResponseDto })
   @Get('retention-cohort')
   @ApiOperation({ summary: 'Customer retention by first-order-month cohort (22b)' })
-  retentionCohort(@Query() q: RangeReportQueryDto): Promise<RetentionCohortReport> {
-    return this.reports.retentionCohort(toRange(q));
+  retentionCohort(
+    @Query() q: RangeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RetentionCohortReport> {
+    return this.reports.retentionCohort(toRange(q), ReportController.reportScope(user));
   }
 
   @ApiOkResponse({ type: DepotDailyReportResponseDto })

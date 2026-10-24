@@ -1,5 +1,5 @@
 {
-  "count": 66,
+  "count": 64,
   "routes": [
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
@@ -63,8 +63,6 @@
     "services/promo-service/src/modules/promotion.controller.ts Delete :id @Can(promotionWrite)",
     "services/promo-service/src/modules/promotion.controller.ts Patch :id @Can(promotionWrite)",
     "services/promo-service/src/modules/voucher.controller.ts Delete :id @Can(voucherWrite)",
-    "services/promo-service/src/modules/voucher.controller.ts Get :code @Can(voucherRead)",
-    "services/promo-service/src/modules/voucher.controller.ts Get :code @Can(voucherRead)",
     "services/promo-service/src/modules/voucher.controller.ts Patch :id @Can(voucherWrite)",
     "services/promo-service/src/modules/voucher.controller.ts Post :id/grant @Can(voucherWrite)"
   ]

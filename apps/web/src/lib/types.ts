@@ -256,7 +256,13 @@ export interface PromoRuleUsage {
 
 /** The answer to promo-rules/simulate: the same shape the checkout's promo quote uses. */
 export interface PromoSimulation {
-  lines: { productId: string; appliedRuleIds: string[]; unitPriceAfter: number; freeQty: number; lineTotal: number }[];
+  lines: {
+    productId: string;
+    appliedRuleIds: string[];
+    unitPriceAfter: number;
+    freeQty: number;
+    lineTotal: number;
+  }[];
   shippingAppliedRuleId: string | null;
   shippingFeeOverride: number | null;
   orderDiscountRuleId: string | null;
@@ -1335,7 +1341,9 @@ export interface FranchiseDashboard {
   crm: FranchiseCrm | null;
   sources: {
     depot: 'ok' | 'unavailable';
-    order: 'ok' | 'unavailable';
+    // 'partial': the revenue report came back at its limit, so a depot missing from it is
+    // unmeasured rather than zero.
+    order: 'ok' | 'partial' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
     hr: 'ok' | 'unavailable';

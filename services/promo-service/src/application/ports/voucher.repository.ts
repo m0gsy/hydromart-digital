@@ -112,10 +112,16 @@ export interface VoucherRepository {
   create(data: CreateVoucherData): Promise<VoucherRecord>;
   update(id: string, data: UpdateVoucherData): Promise<VoucherRecord>;
 
+  /**
+   * The admin voucher list. `depotIds` narrows it to a depot-scoped caller's reach: their own
+   * depots' vouchers PLUS the network-wide ones (no depot), which a manager may grant but
+   * never sees another depot's. Omitted is every voucher (head office).
+   */
   search(
     page: number,
     limit: number,
     activeOnly: boolean,
+    depotIds?: readonly string[],
   ): Promise<{ items: VoucherRecord[]; total: number }>;
 
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
@@ -144,8 +150,14 @@ export interface VoucherRepository {
     orderIds?: readonly string[],
   ): Promise<RedemptionAnalytics>;
 
-  /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */
-  sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]>;
+  /**
+   * Total rupiah discount burned per voucher (SUM discountApplied). Network-wide when
+   * `depotIds` is omitted; otherwise only the vouchers that belong to those depots (a
+   * network-wide voucher, with no depot, belongs to none of them). An empty set matches nothing.
+   */
+  sumRedemptionsByVoucher(
+    depotIds?: readonly string[],
+  ): Promise<{ voucherId: string; burned: number }[]>;
 
   /** Total rupiah discount burned by one voucher (for the budget cap). */
   sumRedemptionsFor(voucherId: string): Promise<number>;

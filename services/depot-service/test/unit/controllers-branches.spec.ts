@@ -305,9 +305,9 @@ describe('DisputeController', () => {
   // DPT-2: the internal erasure route, with and without the number an incident keys on.
   it('passes the erasure subject through, defaulting a missing phone to null', async () => {
     svc.erasePerson.mockResolvedValue({ erased: 3 });
-    await expect(c.pdpAnonymise({ customerId: 'cust-1', phone: '+628123' } as never)).resolves.toEqual(
-      { erased: 3 },
-    );
+    await expect(
+      c.pdpAnonymise({ customerId: 'cust-1', phone: '+628123' } as never),
+    ).resolves.toEqual({ erased: 3 });
     expect(svc.erasePerson).toHaveBeenCalledWith('cust-1', '+628123');
     await c.pdpAnonymise({ customerId: 'cust-1' } as never);
     expect(svc.erasePerson).toHaveBeenLastCalledWith('cust-1', null);
@@ -1223,9 +1223,13 @@ describe('DepotController', () => {
   });
 
   it('gallonDeposit: answers the depot rate, 404s through get(), and is 0 when no config is wired', async () => {
-    const withConfig = new DepotController(svc as never, storage as never, {
-      gallonDepositIdr: (id: string) => (id === DEPOT ? 25000 : 0),
-    } as never);
+    const withConfig = new DepotController(
+      svc as never,
+      storage as never,
+      {
+        gallonDepositIdr: (id: string) => (id === DEPOT ? 25000 : 0),
+      } as never,
+    );
     await expect(withConfig.gallonDeposit(DEPOT)).resolves.toEqual({ gallonDepositIdr: 25000 });
     expect(svc.get).toHaveBeenCalledWith(DEPOT, true);
     await expect(c.gallonDeposit(DEPOT)).resolves.toEqual({ gallonDepositIdr: 0 });
@@ -1289,7 +1293,9 @@ describe('DepotController', () => {
     // service wired (a hand-built controller) the answer is simply nobody.
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: 'asv-1' });
     const overseersOfAssistant = jest.fn().mockResolvedValue(['asv-1', 'spv-1']);
-    const wired = new DepotController(svc as never, storage as never, undefined, { overseersOfAssistant } as never);
+    const wired = new DepotController(svc as never, storage as never, undefined, {
+      overseersOfAssistant,
+    } as never);
     expect(await wired.internalOverseers(DEPOT)).toEqual({ ids: ['asv-1', 'spv-1'] });
     expect(overseersOfAssistant).toHaveBeenCalledWith('asv-1');
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: null });
@@ -1836,9 +1842,52 @@ describe('Inventory controllers', () => {
     expect(inventory.restockForOrder).toHaveBeenCalledWith(DEPOT, 'o', [], 'order-service');
   });
 
+  /**
+   * Insight dashboard audit: `low-stock` with no depot named read "no filter", so a KEPALA_DEPOT,
+   * MANAGER or SUPERVISOR (all hold `inventoryRead`) listed every depot's stock lines.
+   * DepotScopeGuard only checks depots a request names.
+   */
+  describe('low-stock scope', () => {
+    const manager = {
+      sub: 'm-1',
+      role: Role.MANAGER,
+      depotId: null,
+      depotIds: [DEPOT, ID],
+    } as unknown as AuthenticatedUser;
+    const kepala = { sub: 'k-1', role: Role.KEPALA_DEPOT, depotId: DEPOT } as AuthenticatedUser;
+
+    it('narrows a resolved-set role to its own depots when none is named', async () => {
+      await itemC.lowStock(undefined, undefined, manager);
+      expect(inventory.listLowStock).toHaveBeenCalledWith([DEPOT, ID]);
+    });
+
+    it('narrows a depot-locked role to its single depot when none is named', async () => {
+      await itemC.lowStock(undefined, undefined, kepala);
+      expect(inventory.listLowStock).toHaveBeenCalledWith([DEPOT]);
+    });
+
+    it('keeps a named depot (the guard already refused one outside the set)', async () => {
+      await itemC.lowStock(ID, undefined, manager);
+      expect(inventory.listLowStock).toHaveBeenCalledWith([ID]);
+      await itemC.lowStock(undefined, `${DEPOT}, ${ID}`, manager);
+      expect(inventory.listLowStock).toHaveBeenLastCalledWith([DEPOT, ID]);
+    });
+
+    it('refuses a scoped account with no depots instead of listing everything', () => {
+      const none = { ...manager, depotIds: [] } as unknown as AuthenticatedUser;
+      expect(() => itemC.lowStock(undefined, undefined, none)).toThrow(ForbiddenException);
+      expect(inventory.listLowStock).not.toHaveBeenCalled();
+    });
+
+    it('leaves head office unfiltered', async () => {
+      await itemC.lowStock(undefined, undefined, user);
+      expect(inventory.listLowStock).toHaveBeenCalledWith(undefined);
+    });
+  });
+
   it('handles low-stock, wastage (with/without dates), get, update, adjust, opname and per-line movements', async () => {
-    await itemC.lowStock(DEPOT);
-    expect(inventory.listLowStock).toHaveBeenCalledWith(DEPOT);
+    await itemC.lowStock(DEPOT, undefined, user);
+    expect(inventory.listLowStock).toHaveBeenCalledWith([DEPOT]);
     await itemC.wastage({ depotId: DEPOT } as never);
     expect(inventory.wastageSummary).toHaveBeenCalledWith(DEPOT, undefined, undefined);
     await itemC.wastage({ depotId: DEPOT, from: ISO, to: ISO } as never);

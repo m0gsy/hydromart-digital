@@ -665,10 +665,12 @@ describe('OrderPrismaRepository', () => {
       scheduledFor: new Date('2026-09-01T04:00:00Z'),
       deliveryWindow: '11.00-13.00',
     });
-    const out = await repo.rescheduleSlot('ord-1', new Date('2026-09-01T04:00:00Z'), '11.00-13.00', [
-      OrderStatus.CREATED,
-      OrderStatus.CONFIRMED,
-    ]);
+    const out = await repo.rescheduleSlot(
+      'ord-1',
+      new Date('2026-09-01T04:00:00Z'),
+      '11.00-13.00',
+      [OrderStatus.CREATED, OrderStatus.CONFIRMED],
+    );
     expect(out.scheduledFor).toEqual(new Date('2026-09-01T04:00:00Z'));
     expect(order.updateMany).toHaveBeenCalledWith({
       where: { id: 'ord-1', status: { in: [OrderStatus.CREATED, OrderStatus.CONFIRMED] } },
@@ -1221,6 +1223,75 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
+  /*
+   * Insight dashboard audit. Every walk-in sale with no phone shares ANONYMOUS_CUSTOMER_ID, so
+   * they all grouped into ONE "customer" that outranked every real one on a busy counter.
+   * `depotCustomerAggregates` already excludes it; this ranking did not.
+   */
+  it('leaves the anonymous walk-in sentinel out of the top customers', async () => {
+    order.groupBy.mockResolvedValue([]);
+    await repo.topCustomers({}, 5);
+    expect(order.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          customerId: { not: '00000000-0000-0000-0000-000000000000' },
+        }),
+      }),
+    );
+  });
+
+  it('narrows revenue by product to the depots asked for', async () => {
+    orderItem.groupBy.mockResolvedValue([]);
+    await repo.revenueByProduct({}, 10, ['depot-a']);
+    expect(orderItem.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { order: expect.objectContaining({ depotId: { in: ['depot-a'] } }) },
+      }),
+    );
+    // No scope is still the whole network — head office reads the same report.
+    await repo.revenueByProduct({}, 10);
+    const where = orderItem.groupBy.mock.calls.at(-1)![0].where as { order: object };
+    expect(where.order).not.toHaveProperty('depotId');
+    // An empty set is a caller with no depots: it must match nothing, never everything.
+    await repo.revenueByProduct({}, 10, []);
+    expect(orderItem.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { order: expect.objectContaining({ depotId: { in: [] } }) },
+      }),
+    );
+  });
+
+  it('narrows the retention cohort to the depots asked for', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.retentionCohort({}, 'Asia/Jakarta', ['depot-a', 'depot-b']);
+    let q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).toContain('"depotId" IN');
+    expect(q.values).toEqual(expect.arrayContaining(['depot-a', 'depot-b']));
+    // `"depotId"` is a uuid column and a bound string is text: no cast is a 500 against a real
+    // database that a mocked client cannot raise (the same defect the sales series had).
+    expect(twoHop(q)).toMatch(/"depotId" IN \(\?::uuid,\?::uuid\)/);
+
+    await repo.retentionCohort({}, 'Asia/Jakarta');
+    q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).not.toContain('"depotId"');
+  });
+
+  // The same sentinel the top-customers ranking drops: every phone-less walk-in shares it, so
+  // the cohort would count them as ONE returning customer.
+  it('leaves the anonymous walk-in sentinel out of the retention cohort', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.retentionCohort({}, 'Asia/Jakarta');
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    expect(twoHop(q)).toContain('"customerId" <> ');
+    expect(q.values).toContain('00000000-0000-0000-0000-000000000000');
+  });
+
+  it('answers an empty retention cohort for a caller with no depots without querying', async () => {
+    $queryRaw.mockClear();
+    expect(await repo.retentionCohort({}, 'Asia/Jakarta', [])).toEqual([]);
+    expect($queryRaw).not.toHaveBeenCalled();
+  });
+
   it('cuts retention cohorts on the LOCAL month, not on UTC', async () => {
     $queryRaw.mockResolvedValue([]);
     await repo.retentionCohort({}, 'Asia/Jakarta');
@@ -1409,7 +1480,10 @@ describe('OrderPrismaRepository', () => {
 
   describe('firstTimeBuyersByCashier', () => {
     const at = (h: number) => new Date(`2026-07-15T0${h}:00:00.000Z`);
-    const range = { from: new Date('2026-07-15T00:00:00.000Z'), to: new Date('2026-07-16T00:00:00.000Z') };
+    const range = {
+      from: new Date('2026-07-15T00:00:00.000Z'),
+      to: new Date('2026-07-16T00:00:00.000Z'),
+    };
 
     it('counts a sale to a customer with nothing valid before it, per cashier', async () => {
       order.findMany.mockResolvedValue([
@@ -1437,13 +1511,17 @@ describe('OrderPrismaRepository', () => {
     it('counts a buyer whose only earlier order was voided or cancelled (no valid order at all)', async () => {
       order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(5) }]);
       order.groupBy.mockResolvedValue([]); // the valid-order lookup found nothing for them
-      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([{ cashierId: 'c-1', count: 1 }]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([
+        { cashierId: 'c-1', count: 1 },
+      ]);
     });
 
     it('counts a sale again when the buyer first valid order is LATER (the earlier one was voided)', async () => {
       order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(2) }]);
       order.groupBy.mockResolvedValue([{ customerId: 'u-1', _min: { createdAt: at(4) } }]);
-      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([{ cashierId: 'c-1', count: 1 }]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([
+        { cashierId: 'c-1', count: 1 },
+      ]);
     });
 
     it('asks for counter sales at this depot with a cashier, never the anonymous buyer or cancelled ones', async () => {
@@ -1468,7 +1546,8 @@ describe('OrderPrismaRepository', () => {
       order.groupBy.mockClear();
       expect(await repo.firstTimeBuyersByCashier('depot-1', {})).toEqual([]);
       expect(order.groupBy).not.toHaveBeenCalled();
-      const where = (order.findMany.mock.calls.at(-1)![0] as { where: Record<string, unknown> }).where;
+      const where = (order.findMany.mock.calls.at(-1)![0] as { where: Record<string, unknown> })
+        .where;
       expect('createdAt' in where).toBe(false);
     });
 

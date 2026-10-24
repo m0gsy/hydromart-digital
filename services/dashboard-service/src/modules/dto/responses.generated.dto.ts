@@ -280,7 +280,7 @@ export class FranchiseCrmResponseDto {
 export class FranchiseDashboardSourcesResponseDto {
   @ApiProperty({ enum: ['ok', 'unavailable'] })
   depot!: string;
-  @ApiProperty({ enum: ['ok', 'unavailable'] })
+  @ApiProperty({ enum: ['ok', 'partial', 'unavailable'] })
   order!: string;
   @ApiProperty({ enum: ['ok', 'unavailable'] })
   delivery!: string;

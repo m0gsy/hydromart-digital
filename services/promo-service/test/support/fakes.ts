@@ -120,9 +120,12 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     page: number,
     limit: number,
     activeOnly: boolean,
+    depotIds?: readonly string[],
   ): Promise<{ items: VoucherRecord[]; total: number }> {
     const all = this.vouchers
       .filter((v) => (activeOnly ? v.active : true))
+      // Like the real repository: own depots' vouchers plus the network-wide ones.
+      .filter((v) => !depotIds || !v.depotId || depotIds.includes(v.depotId))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const start = (page - 1) * limit;
     return { items: all.slice(start, start + limit).map((v) => ({ ...v })), total: all.length };
@@ -162,10 +165,17 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     return this.grants.some((g) => g.voucherId === voucherId && g.customerId === customerId);
   }
 
-  async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
+  async sumRedemptionsByVoucher(
+    depotIds?: readonly string[],
+  ): Promise<{ voucherId: string; burned: number }[]> {
     const map = new Map<string, number>();
     for (const r of this.redemptions) {
       if (r.releasedAt) continue; // PRM-8: returned, so it burned nothing.
+      if (depotIds) {
+        // Like the real repository: only vouchers that belong to one of these depots.
+        const owner = this.vouchers.find((v) => v.id === r.voucherId)?.depotId;
+        if (!owner || !depotIds.includes(owner)) continue;
+      }
       map.set(r.voucherId, (map.get(r.voucherId) ?? 0) + r.discountApplied);
     }
     return [...map.entries()].map(([voucherId, burned]) => ({ voucherId, burned }));

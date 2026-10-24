@@ -42,7 +42,7 @@ function FranchiseBody() {
 
   const { depots, totals, deliverySla, hr, crm, sources } = data;
   const unavailable = Object.entries(sources)
-    .filter(([, v]) => v === 'unavailable')
+    .filter(([, v]) => v !== 'ok')
     .map(([k]) => k);
 
   return (
@@ -66,12 +66,23 @@ function FranchiseBody() {
         <Stat
           label={t('dashboard.franchise.lowStock')}
           value={String(totals.lowStockCount)}
-          hint={totals.lowStockCount > 0 ? t('dashboard.franchise.linesBelowMin') : t('dashboard.franchise.allStocked')}
+          hint={
+            totals.lowStockCount > 0
+              ? t('dashboard.franchise.linesBelowMin')
+              : t('dashboard.franchise.allStocked')
+          }
         />
         <Stat
           label={t('dashboard.franchise.slaOnTime')}
           value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
-          hint={deliverySla ? t('dashboard.franchise.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
+          hint={
+            deliverySla
+              ? t('dashboard.franchise.delivered', {
+                  onTime: deliverySla.onTime,
+                  total: deliverySla.totalDelivered,
+                })
+              : undefined
+          }
         />
       </div>
 
@@ -93,8 +104,14 @@ function FranchiseBody() {
               <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                 <Stat label={t('dashboard.franchise.lateToday')} value={String(hr.lateToday)} />
                 <Stat label={t('dashboard.franchise.absentToday')} value={String(hr.absentToday)} />
-                <Stat label={t('dashboard.franchise.headcount')} value={String(hr.activeHeadcount)} />
-                <Stat label={t('dashboard.franchise.payrollMtd')} value={`Rp ${hr.payrollMtdNet.toLocaleString('id-ID')}`} />
+                <Stat
+                  label={t('dashboard.franchise.headcount')}
+                  value={String(hr.activeHeadcount)}
+                />
+                <Stat
+                  label={t('dashboard.franchise.payrollMtd')}
+                  value={`Rp ${hr.payrollMtdNet.toLocaleString('id-ID')}`}
+                />
               </div>
             </Card>
           )}
@@ -108,7 +125,11 @@ function FranchiseBody() {
                 <Stat label={t('dashboard.franchise.crmActive')} value={String(crm.aktif)} />
                 <Stat label={t('dashboard.franchise.crmNew')} value={String(crm.baru)} />
                 <Stat label={t('dashboard.franchise.crmInactive')} value={String(crm.inactive)} />
-                <Stat label={t('dashboard.franchise.followUps')} value={String(crm.followUpCount)} hint={t('dashboard.franchise.repeatRate', { pct: crm.repeatRatePct })} />
+                <Stat
+                  label={t('dashboard.franchise.followUps')}
+                  value={String(crm.followUpCount)}
+                  hint={t('dashboard.franchise.repeatRate', { pct: crm.repeatRatePct })}
+                />
               </div>
             </Card>
           )}
@@ -166,7 +187,10 @@ function Gate() {
   const { customer } = useAuth();
   if (!canViewFranchise(customer?.role)) {
     return (
-      <CenterState title={t('dashboard.franchise.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+      <CenterState
+        title={t('dashboard.franchise.gateTitle')}
+        icon={<Lock size={40} weight="fill" />}
+      >
         {t('dashboard.franchise.gateBody')}
       </CenterState>
     );
