@@ -92,13 +92,60 @@ function yearBack(date: string): string {
   return `${String(year).padStart(4, '0')}-${m}-${day}`;
 }
 
-/** The same window one calendar year earlier, for "vs the same period last year". */
+/**
+ * The same window one calendar year earlier, for "vs the same period last year".
+ *
+ * `to` is the start plus the SAME number of days, not the end moved back a year: moving both
+ * bounds independently turns a one-day window on 28 February of a leap year into from == to
+ * (the 29th lands on the 28th), which the server refuses.
+ */
 export function yearAgoRange(range: InsightRange): InsightRange {
+  const fromDate = yearBack(todayWib(new Date(range.from)));
+  // A month is compared with the same CALENDAR month: 29 days of February must not borrow 1 March.
+  if (range.preset === 'month') {
+    return { ...monthRangeWib(new Date(dayStartWib(fromDate))), preset: 'month' };
+  }
   return {
-    from: dayStartWib(yearBack(todayWib(new Date(range.from)))),
-    to: dayStartWib(yearBack(todayWib(new Date(range.to)))),
+    from: dayStartWib(fromDate),
+    to: dayStartWib(addDays(fromDate, spanDays(range))),
     preset: range.preset,
   };
+}
+
+/**
+ * The windows a figure is compared against.
+ *
+ * A month, week or day PRESET is the whole period, so partway through it the figure is
+ * "so far". Compared with a finished month that reads as a collapse nobody had. So when the
+ * window has not ended, the windows it is compared with are cut to the same number of days
+ * (through today inclusive) and `partial` says so, for the screen to state it.
+ *
+ * A single day has no honest comparison until it ends — today so far against all of
+ * yesterday — so it is reported as `comparable: false` and the figures say there is no base.
+ */
+export interface Comparison {
+  prev: InsightRange;
+  year: InsightRange;
+  /** The window is still running and the comparison windows were cut to the same days. */
+  partial: boolean;
+  /** False when there is nothing honest to compare with yet (a day that has not ended). */
+  comparable: boolean;
+}
+
+export function comparisonFor(range: InsightRange, now: Date = new Date()): Comparison {
+  const prev = previousRange(range);
+  const year = yearAgoRange(range);
+  const tomorrow = dayStartWib(addDays(todayWib(now), 1));
+  const running = Date.parse(range.to) > Date.parse(tomorrow);
+  const todayRunning = range.preset === 'today' && Date.parse(range.to) > now.getTime();
+  if (todayRunning) return { prev, year, partial: false, comparable: false };
+  if (!running) return { prev, year, partial: false, comparable: true };
+  const days = spanDays({ from: range.from, to: tomorrow });
+  const cut = (w: InsightRange): InsightRange => {
+    const end = dayStartWib(addDays(todayWib(new Date(w.from)), days));
+    return { ...w, to: Date.parse(end) < Date.parse(w.to) ? end : w.to };
+  };
+  return { prev: cut(prev), year: cut(year), partial: true, comparable: true };
 }
 
 /** The business date of an ISO instant, for labelling a window. */
@@ -133,6 +180,8 @@ export function regroup(
     }
     // week: the Monday of the week the day falls in, as a plain date.
     const parts = period.split('-');
+    // A monthly label (YYYY-MM) has no day to fold: keep it rather than build an Invalid Date.
+    if (parts.length < 3) return period;
     const d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
     // tz-ok: built at UTC midnight from a plain date, so the slice reads the same date back.

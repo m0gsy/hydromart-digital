@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { compare, formatPct } from '@/lib/insight/delta';
 import {
+  comparisonFor,
   granularityFor,
   groupingsFor,
   isValidRange,
@@ -127,6 +128,20 @@ describe('yearAgoRange', () => {
     const normal = rangeFor('custom', EARLY, { from: '2028-03-01', to: '2028-03-01' });
     expect(yearAgoRange(normal).from).toBe('2027-02-28T17:00:00.000Z');
   });
+
+  it('never returns an empty window, even for the day before a leap day', () => {
+    // 28 Feb 2024 alone: moving both bounds back a year would give from == to.
+    const day = rangeFor('custom', EARLY, { from: '2024-02-28', to: '2024-02-28' });
+    const ago = yearAgoRange(day);
+    expect(spanDays(ago)).toBe(1);
+    expect(isValidRange(ago)).toBe(true);
+  });
+
+  it('compares a month with the same CALENDAR month, so February of a leap year stays whole', () => {
+    const feb = rangeFor('month', new Date('2028-02-10T05:00:00.000Z'));
+    expect(spanDays(feb)).toBe(29);
+    expect(spanDays(yearAgoRange(feb))).toBe(28);
+  });
 });
 
 describe('regroup', () => {
@@ -218,5 +233,66 @@ describe('compare', () => {
   it('prints one decimal with a comma', () => {
     expect(formatPct(12.34)).toBe('12,3');
     expect(formatPct(100)).toBe('100,0');
+  });
+});
+
+describe('comparisonFor', () => {
+  // 2026-10-15 12:00 WIB: the 15th day of a 31-day month.
+  const MID = new Date('2026-10-15T05:00:00.000Z');
+
+  it('cuts the comparison windows to the days elapsed, so a month so far is not set against a whole month', () => {
+    const c = comparisonFor(rangeFor('month', MID), MID);
+    expect(c.partial).toBe(true);
+    expect(c.comparable).toBe(true);
+    // Through the 15th inclusive = 15 days, in the previous month and a year ago.
+    expect(spanDays(c.prev)).toBe(15);
+    expect(c.prev.from).toBe('2026-08-31T17:00:00.000Z');
+    expect(spanDays(c.year)).toBe(15);
+    expect(c.year.from).toBe('2025-09-30T17:00:00.000Z');
+  });
+
+  it('cuts a week in progress the same way', () => {
+    // 2026-10-15 is a Thursday: four days of the week have started.
+    const c = comparisonFor(rangeFor('week', MID), MID);
+    expect(c.partial).toBe(true);
+    expect(spanDays(c.prev)).toBe(4);
+  });
+
+  it('leaves the windows whole for a period that has ended', () => {
+    const LATER = new Date('2026-11-20T05:00:00.000Z');
+    const c = comparisonFor(rangeFor('month', MID), LATER);
+    expect(c.partial).toBe(false);
+    expect(c.comparable).toBe(true);
+    expect(spanDays(c.prev)).toBe(30);
+  });
+
+  it('never cuts a comparison window longer than it is', () => {
+    // 31 October against a 30-day September: the cut must stop at the end of September.
+    const LAST = new Date('2026-10-31T05:00:00.000Z');
+    const c = comparisonFor(rangeFor('month', LAST), LAST);
+    expect(spanDays(c.prev)).toBe(30);
+    expect(c.prev.to).toBe('2026-09-30T17:00:00.000Z');
+  });
+
+  it('has no honest comparison for a day that has not ended', () => {
+    const c = comparisonFor(rangeFor('today', MID), MID);
+    expect(c.comparable).toBe(false);
+    expect(c.partial).toBe(false);
+  });
+
+  it('compares yesterday as a finished day', () => {
+    const range = rangeFor('custom', MID, { from: '2026-10-14', to: '2026-10-14' });
+    const c = comparisonFor(range, MID);
+    expect(c.comparable).toBe(true);
+    expect(c.partial).toBe(false);
+  });
+});
+
+describe('regroup on the wrong granularity', () => {
+  it('leaves a monthly label alone when asked for weeks or days, instead of building an Invalid Date', () => {
+    const monthly = [{ period: '2026-10', orderCount: 1, revenue: 10 }];
+    expect(() => regroup(monthly, 'week')).not.toThrow();
+    expect(regroup(monthly, 'week')).toEqual(monthly);
+    expect(regroup(monthly, 'day')).toEqual(monthly);
   });
 });

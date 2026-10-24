@@ -71,7 +71,7 @@ function Attention({
 /** Ringkasan: the headline numbers, how they moved, and what needs doing now. */
 export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
   const { t } = useT();
-  const { role, range, prev, year, grouping, depotIds, depotId } = ctx;
+  const { role, range, prev, year, partial, comparable, grouping, depotIds, depotId } = ctx;
   const mayReports = can('orderReports', role);
   const mayExecutive = can('dashboardFinance', role);
   const mayTargets = can('depotTargets', role);
@@ -83,8 +83,16 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
       true,
     );
   const execNow = useInsightData(exec(range), [range.from, range.to, depotId], mayExecutive);
-  const execPrev = useInsightData(exec(prev), [prev.from, prev.to, depotId], mayExecutive);
-  const execYear = useInsightData(exec(year), [year.from, year.to, depotId], mayExecutive);
+  const execPrev = useInsightData(
+    exec(prev),
+    [prev.from, prev.to, depotId],
+    mayExecutive && comparable,
+  );
+  const execYear = useInsightData(
+    exec(year),
+    [year.from, year.to, depotId],
+    mayExecutive && comparable,
+  );
 
   const network = useInsightData(
     () => api.get<NetworkDashboard>(endpoints.hq.rollup({ from: range.from, to: range.to }), true),
@@ -205,6 +213,10 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
         </Card>
       )}
 
+      {showKpis && partial && comparable && (
+        <p className="text-xs text-muted">{t('insight.compare.partial')}</p>
+      )}
+
       {showKpis && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiCard
@@ -296,7 +308,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
           </WidgetCard>
         )}
 
-        {mayTargets && depotId != null && targetMonth != null && (
+        {mayTargets && mayExecutive && now != null && depotId != null && targetMonth != null && (
           <WidgetCard
             title={t('insight.overview.targetTitle')}
             source={target}
@@ -318,7 +330,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
         )}
       </div>
 
-      {mayTargets && (depotId == null || targetMonth == null) && (
+      {mayTargets && mayExecutive && (depotId == null || targetMonth == null) && (
         <p className="text-xs text-muted">
           {depotId == null
             ? t('insight.overview.targetNeedDepot')
@@ -365,10 +377,18 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
             {(() => {
               const unrouted = summary.data?.live.unrouted ?? 0;
               const waiting = approvals.data?.total ?? 0;
-              const none = unrouted === 0 && lowStock === 0 && waiting === 0;
+              // "All clear" is a claim about every source: one that failed, or is still loading,
+              // is not a zero. Only sources this role asks (and is allowed) count.
+              const answered =
+                (!mayReports || summary.forbidden || summary.data != null) &&
+                (!mayExecutive || network.forbidden || network.data != null) &&
+                (!(mayApprovals && depotId != null) ||
+                  approvals.forbidden ||
+                  approvals.data != null);
+              const none = answered && unrouted === 0 && lowStock === 0 && waiting === 0;
               return (
                 <>
-                  {none && !summary.loading && !network.loading && (
+                  {none && (
                     <p className="text-xs text-muted">{t('insight.overview.attentionNone')}</p>
                   )}
                   {summary.data && (

@@ -39,6 +39,7 @@ export const insight = {
     prev: 'vs periode lalu',
     year: 'vs tahun lalu',
     none: 'Belum ada data pembanding',
+    partial: 'Periode ini belum selesai, jadi pembandingnya dipotong ke jumlah hari yang sama.',
     up: 'naik',
     down: 'turun',
     flat: 'tetap',

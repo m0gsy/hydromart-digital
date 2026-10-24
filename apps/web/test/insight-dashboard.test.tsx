@@ -98,6 +98,17 @@ function serve(overrides: Record<string, () => unknown> = {}) {
         ],
       });
     }
+    if (p.includes('/reports/sales') && p.includes('granularity=monthly')) {
+      return Promise.resolve({
+        granularity: 'monthly',
+        from: null,
+        to: null,
+        buckets: [
+          { period: '2026-08', orderCount: 9, revenue: 900_000 },
+          { period: '2026-09', orderCount: 7, revenue: 600_000 },
+        ],
+      });
+    }
     if (p.includes('/reports/sales')) {
       return Promise.resolve({
         granularity: 'daily',
@@ -369,5 +380,87 @@ describe('a single depot', () => {
     await screen.findByText(/1\.100\.000/);
     expect(requested('/depot-targets')).toBe(false);
     expect(screen.getByText('Pilih satu depot untuk melihat targetnya.')).toBeTruthy();
+  });
+});
+
+describe('review fixes', () => {
+  it('survives switching a long window from months to weeks (no Invalid Date from a monthly series)', async () => {
+    asRole('HEAD_OFFICE');
+    const { container } = renderPage();
+    await screen.findByText(/1.100.000/);
+    fireEvent.click(screen.getByRole('button', { name: 'Rentang' }));
+    await waitFor(() => expect(document.querySelectorAll('input[type="date"]')).toHaveLength(2));
+    const inputs = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(inputs[0] as HTMLInputElement, { target: { value: '2026-08-01' } });
+    fireEvent.change(inputs[1] as HTMLInputElement, { target: { value: '2026-09-29' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Bulan' }));
+    await waitFor(() =>
+      expect(container.querySelector('table.sr-only')?.textContent).toContain('2026-08'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Minggu' }));
+    // 1 October 2026 is a Thursday: its week is labelled by Monday the 28th.
+    await waitFor(() =>
+      expect(container.querySelector('table.sr-only')?.textContent).toContain('2026-09-28'),
+    );
+    expect(container.textContent).not.toMatch(/Invalid|NaN/);
+  });
+
+  it('says the comparison is cut when the period is still running, and not otherwise', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    expect(await screen.findByText(/belum selesai, jadi pembandingnya dipotong/)).toBeTruthy();
+    // The windows asked for are 15 days (through the 15th), not the whole of September.
+    const prevCall = String(
+      get.mock.calls.find((c) =>
+        String(c[0]).includes('/dashboard/executive?from=2026-08-31T17'),
+      )?.[0],
+    );
+    expect(new URL(prevCall, 'http://x').searchParams.get('to')).toBe('2026-09-15T17:00:00.000Z');
+  });
+
+  it('does not compare a day that has not ended: no windows are asked for, and it says there is no base', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    await screen.findByText(/1.100.000/);
+    get.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Hari ini' }));
+    await waitFor(() => expect(requested('/dashboard/executive?from=2026-10-14T17')).toBe(true));
+    expect(requested('from=2026-10-13T17')).toBe(false);
+    expect(screen.queryByText(/belum selesai, jadi pembandingnya/)).toBeNull();
+  });
+
+  it('does not call it all clear when a source failed, only when every source answered and found nothing', async () => {
+    asRole('HEAD_OFFICE');
+    serve({
+      '/dashboard/network': () => {
+        throw new ApiError(500, 'down');
+      },
+      '/reports/status-summary': () => ({
+        window: { cancelRate: 0 },
+        live: { inProgress: 0, unrouted: 0, byStatus: {} },
+      }),
+    });
+    renderPage();
+    await screen.findByText(/1.100.000/);
+    await waitFor(() => expect(screen.getByText('Pesanan belum dapat kurir')).toBeTruthy());
+    expect(screen.queryByText('Tidak ada yang perlu ditindak sekarang.')).toBeNull();
+  });
+
+  it('says all clear when every source answered with nothing to do', async () => {
+    asRole('HEAD_OFFICE');
+    serve({
+      '/dashboard/network': () => ({
+        depots: [
+          { depotId: 'd1', name: 'Depot Satu', revenue: 1, orderCount: 1, lowStockCount: 0 },
+        ],
+        sources: {},
+      }),
+      '/reports/status-summary': () => ({
+        window: { cancelRate: 0 },
+        live: { inProgress: 0, unrouted: 0, byStatus: {} },
+      }),
+    });
+    renderPage();
+    expect(await screen.findByText('Tidak ada yang perlu ditindak sekarang.')).toBeTruthy();
   });
 });

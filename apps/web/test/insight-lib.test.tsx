@@ -219,6 +219,19 @@ describe('useInsightData', () => {
     expect(out()).toBe('data:second');
   });
 
+  it('drops the old answer while the new one is on its way, instead of showing it as current', async () => {
+    let release: (v: string) => void = () => undefined;
+    const slow = new Promise<string>((r) => {
+      release = r;
+    });
+    const { rerender } = render(<Probe loader={() => Promise.resolve('one')} dep={1} />);
+    await waitFor(() => expect(out()).toBe('data:one'));
+    rerender(<Probe loader={() => slow} dep={2} />);
+    await waitFor(() => expect(out()).toBe('loading'));
+    release('two');
+    await waitFor(() => expect(out()).toBe('data:two'));
+  });
+
   it('does not keep an old answer or error when it is switched off', async () => {
     const { rerender } = render(<Probe loader={() => Promise.resolve('x')} />);
     await waitFor(() => expect(out()).toBe('data:x'));

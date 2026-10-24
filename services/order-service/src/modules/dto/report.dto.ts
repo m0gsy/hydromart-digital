@@ -171,6 +171,10 @@ export class StatusSummaryQueryDto {
   @ApiPropertyOptional({ description: 'Comma-separated depot ids to scope the report to.' })
   @IsOptional()
   @IsString()
+  // Each element a UUID and at most 100 of them: a bare string reached a uuid column as a 500.
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,99}$/i,
+  )
   depotIds?: string;
 }
 

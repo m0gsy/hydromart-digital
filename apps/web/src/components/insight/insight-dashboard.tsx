@@ -10,13 +10,12 @@ import { CenterState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
-import { resolveTab, visibleTabs, type InsightTabId } from '@/lib/insight/access';
+import { canViewInsight, resolveTab, visibleTabs, type InsightTabId } from '@/lib/insight/access';
 import {
   groupingsFor,
   isValidRange,
-  previousRange,
+  comparisonFor,
   rangeFor,
-  yearAgoRange,
   type Grouping,
   type Preset,
 } from '@/lib/insight/range';
@@ -56,8 +55,7 @@ export function InsightDashboard() {
     [preset, now, custom],
   );
   const valid = isValidRange(range);
-  const prev = useMemo(() => previousRange(range), [range]);
-  const year = useMemo(() => yearAgoRange(range), [range]);
+  const comparison = useMemo(() => comparisonFor(range, now), [range, now]);
   const groupings = useMemo(() => groupingsFor(range), [range]);
 
   // The grouping must be one the window supports: a year read by the day is unreadable.
@@ -71,7 +69,7 @@ export function InsightDashboard() {
   const depotList = useInsightData(
     () => api.getCached<Depot[]>(endpoints.depots.scope, true),
     [],
-    role != null,
+    role != null && canViewInsight(role),
   );
   const depots: DepotOption[] = useMemo(
     () => (depotList.data ?? []).map((d) => ({ id: d.id, name: d.name })),
@@ -126,8 +124,10 @@ export function InsightDashboard() {
               ctx={{
                 role,
                 range,
-                prev,
-                year,
+                prev: comparison.prev,
+                year: comparison.year,
+                partial: comparison.partial,
+                comparable: comparison.comparable,
                 grouping,
                 depotIds: depotParam ? [depotParam] : undefined,
                 depotId: depotId || null,

@@ -235,6 +235,22 @@ describe('StatusSummaryQueryDto', () => {
     ).toContain('to');
   });
 
+  it('refuses a depotIds that is not a list of UUIDs, or has more than a hundred', async () => {
+    expect((await run({ from, to, depotIds: 'not-a-uuid' })).map((e) => e.property)).toContain(
+      'depotIds',
+    );
+    expect((await run({ from, to, depotIds: `${DEPOT_A},` })).map((e) => e.property)).toContain(
+      'depotIds',
+    );
+    expect(
+      (await run({ from, to, depotIds: `${DEPOT_A}, ${DEPOT_B}` })).map((e) => e.property),
+    ).toContain('depotIds');
+    const many = Array.from({ length: 101 }, () => DEPOT_A).join(',');
+    expect((await run({ from, to, depotIds: many })).map((e) => e.property)).toContain('depotIds');
+    const hundred = Array.from({ length: 100 }, () => DEPOT_A).join(',');
+    expect(await run({ from, to, depotIds: hundred })).toEqual([]);
+  });
+
   it('refuses a malformed date', async () => {
     expect((await run({ from: 'yesterday', to })).map((e) => e.property)).toContain('from');
   });

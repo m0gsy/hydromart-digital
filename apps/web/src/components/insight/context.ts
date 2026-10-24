@@ -7,6 +7,10 @@ export interface InsightCtx {
   /** The window right before `range`, and the same window a year earlier. */
   prev: InsightRange;
   year: InsightRange;
+  /** The window is still running, so `prev` and `year` were cut to the same number of days. */
+  partial: boolean;
+  /** False when there is nothing honest to compare with yet (a day that has not ended). */
+  comparable: boolean;
   grouping: Grouping;
   /**
    * The depot the report is narrowed to, or undefined for "everything this role reaches" (the

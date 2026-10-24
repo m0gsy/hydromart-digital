@@ -48,7 +48,9 @@ export function useInsightData<T>(
       return undefined;
     }
     let alive = true;
-    setState((s) => ({ ...s, loading: true, error: null, forbidden: false }));
+    // The previous answer is dropped, not kept on screen: it belongs to inputs that are gone, and
+    // showing it as current is how a figure for one window ends up beside another's base.
+    setState({ data: null, loading: true, forbidden: false, error: null });
     run()
       .then((data) => alive && setState({ data, loading: false, forbidden: false, error: null }))
       .catch((e: unknown) => {
