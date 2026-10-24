@@ -34,6 +34,22 @@ export const insight = {
 
   // HQ analytics reports (order-service, HEAD_OFFICE/MANAGER/SUPER_ADMIN; customer is HQ-only).
   reports: {
+    // The sales series. `granularity` is what the SERVER buckets by (daily or monthly, in WIB);
+    // week and quarter are folded from those on screen. A window with only one bound is an
+    // open scan, so the dashboard always sends both.
+    sales: (q: {
+      from: string;
+      to: string;
+      granularity: 'daily' | 'monthly';
+      depotIds?: readonly string[];
+    }) => {
+      const p = new URLSearchParams({ from: q.from, to: q.to, granularity: q.granularity });
+      if (q.depotIds && q.depotIds.length > 0) p.set('depotIds', q.depotIds.join(','));
+      return `/orders/api/v1/reports/sales?${p}`;
+    },
+    // Average rating per depot with its review count, so a network figure can be weighted.
+    ratingByDepot: (q: { from: string; to: string }) =>
+      `/orders/api/v1/reports/rating-by-depot?${new URLSearchParams({ from: q.from, to: q.to })}`,
     // Revenue share per product (22b). Grouped by product — order-service has no category column.
     revenueByCategory: (q: { from?: string; to?: string; limit?: number } = {}) => {
       const p = new URLSearchParams();
@@ -51,6 +67,13 @@ export const insight = {
       return `/orders/api/v1/reports/retention-cohort${qs ? `?${qs}` : ''}`;
     },
     customer: (customerId: string) => `/orders/api/v1/reports/customer/${customerId}`,
+    // Order health for a window: counts by status, cancel/refund rate, app vs counter sales,
+    // plus what is in flight right now. BOTH bounds are required (an open end scans every order).
+    statusSummary: (q: { from: string; to: string; depotIds?: readonly string[] }) => {
+      const p = new URLSearchParams({ from: q.from, to: q.to });
+      if (q.depotIds && q.depotIds.length > 0) p.set('depotIds', q.depotIds.join(','));
+      return `/orders/api/v1/reports/status-summary?${p}`;
+    },
     // Shipping (ongkir) billed per depot over a window (reconciliation 22a).
     shippingByDepot: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

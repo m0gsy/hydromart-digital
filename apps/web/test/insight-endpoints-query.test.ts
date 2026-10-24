@@ -102,3 +102,25 @@ describe('segments.estimate guards on null, not on truthiness', () => {
     expect(url).not.toContain('lapsedDays');
   });
 });
+
+describe('status-summary builder', () => {
+  const from = '2026-09-30T17:00:00.000Z';
+  const to = '2026-10-31T17:00:00.000Z';
+
+  it('always carries both bounds: an open end is a scan of every order', () => {
+    const url = r.statusSummary({ from, to });
+    noPlaceholders(url);
+    const q = new URL(url, 'http://x').searchParams;
+    expect(url.startsWith('/orders/api/v1/reports/status-summary?')).toBe(true);
+    expect(q.get('from')).toBe(from);
+    expect(q.get('to')).toBe(to);
+    expect(q.has('depotIds')).toBe(false);
+  });
+
+  it('joins the depots with a comma, and sends nothing for an empty list', () => {
+    const q = (ids: string[]) =>
+      new URL(r.statusSummary({ from, to, depotIds: ids }), 'http://x').searchParams;
+    expect(q(['d-1', 'd-2']).get('depotIds')).toBe('d-1,d-2');
+    expect(q([]).has('depotIds')).toBe(false);
+  });
+});

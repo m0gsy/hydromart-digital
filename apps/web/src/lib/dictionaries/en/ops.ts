@@ -18,6 +18,7 @@ export const ops = {
     myFranchise: 'My Franchise',
     ownerAttendance: 'Team attendance',
     operations: 'Operations',
+    insight: 'Dashboard',
     hqConsole: 'HQ console',
     search: 'Search',
     orders: 'Order queue',

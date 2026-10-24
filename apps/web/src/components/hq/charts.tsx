@@ -206,3 +206,199 @@ export function CohortGrid({
     </div>
   );
 }
+
+/** One line of a {@link MultiLine} chart. */
+export interface LineSeries {
+  label: string;
+  values: number[];
+  /** Which vertical scale the line is read against: orders and rupiah need their own. */
+  axis: 'left' | 'right';
+  tone: 'brand' | 'amber';
+  /** Rupiah values are printed compact ("1,4jt"); counts are printed as they are. */
+  money?: boolean;
+}
+
+const LINE_COLOR: Record<LineSeries['tone'], string> = {
+  brand: 'var(--brand-600, #0c97ac)',
+  amber: 'var(--amber-500, #d97706)',
+};
+
+function printValue(value: number, money?: boolean): string {
+  return money ? compactIdr(value) : String(Math.round(value));
+}
+
+/**
+ * Two series on two vertical scales over the same labels (revenue and order count, say).
+ *
+ * The scale of each axis is that axis's own maximum, so a line of 40 orders and a line of
+ * 4,000,000 rupiah both use the full height; the legend states each maximum so the reader
+ * can still tell what a line's height means. Every value is also in the DOM as an
+ * `sr-only` table: a phone has no hover, and a screen reader has no picture.
+ */
+export function MultiLine({
+  labels,
+  series,
+  height = 180,
+  ariaLabel,
+}: {
+  labels: string[];
+  series: LineSeries[];
+  height?: number;
+  ariaLabel: string;
+}) {
+  if (labels.length === 0 || series.length === 0) {
+    return <div className="text-xs text-muted">—</div>;
+  }
+  const width = 600;
+  const pad = 8;
+  const innerW = width - pad * 2;
+  const innerH = height - pad * 2;
+  const maxFor = (axis: LineSeries['axis']) =>
+    Math.max(1, ...series.filter((s) => s.axis === axis).flatMap((s) => s.values));
+  const maxes = { left: maxFor('left'), right: maxFor('right') };
+  const x = (i: number) => (labels.length === 1 ? width / 2 : pad + (i / (labels.length - 1)) * innerW);
+  const y = (v: number, axis: LineSeries['axis']) =>
+    pad + innerH - (Math.max(0, v) / maxes[axis]) * innerH;
+  return (
+    <figure className="m-0">
+      <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {series.map((s) => (
+          <li key={s.label} className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: LINE_COLOR[s.tone] }}
+            />
+            <span className="font-medium text-[color:var(--text)]">{s.label}</span>
+            <span className="tabular-nums">max {printValue(maxes[s.axis], s.money)}</span>
+          </li>
+        ))}
+      </ul>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        style={{ width: '100%', height }}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {[0, 0.5, 1].map((f) => (
+          <line
+            key={f}
+            x1={pad}
+            x2={width - pad}
+            y1={pad + innerH * f}
+            y2={pad + innerH * f}
+            stroke="var(--border, #e9e7df)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        {series.map((s) => (
+          <g key={s.label}>
+            {labels.length > 1 && (
+              <polyline
+                points={s.values.map((v, i) => `${x(i)},${y(v, s.axis)}`).join(' ')}
+                fill="none"
+                stroke={LINE_COLOR[s.tone]}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+            {labels.length <= 31 &&
+              s.values.map((v, i) => (
+                <circle key={i} cx={x(i)} cy={y(v, s.axis)} r={2.5} fill={LINE_COLOR[s.tone]} />
+              ))}
+          </g>
+        ))}
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] text-muted">
+        <span>{labels[0]}</span>
+        {labels.length > 2 && <span>{labels[Math.floor((labels.length - 1) / 2)]}</span>}
+        {labels.length > 1 && <span>{labels[labels.length - 1]}</span>}
+      </div>
+      <table className="sr-only">
+        <caption>{ariaLabel}</caption>
+        <thead>
+          <tr>
+            <th scope="col" />
+            {series.map((s) => (
+              <th key={s.label} scope="col">
+                {s.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {labels.map((l, i) => (
+            <tr key={`${l}-${i}`}>
+              <th scope="row">{l}</th>
+              {series.map((s) => (
+                <td key={s.label}>{printValue(s.values[i] ?? 0, s.money)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </figure>
+  );
+}
+
+/**
+ * A half-circle progress gauge (revenue against a target).
+ *
+ * The number printed in the middle is the TRUE percentage, which may pass 100; only the arc is
+ * clipped at full. A gauge that stops at 100% would say "target met" for a depot that doubled
+ * it, and one that clips the number says the same thing quieter. A non-positive `max` has no
+ * percentage to show, so nothing is drawn rather than a misleading empty arc.
+ */
+export function GaugeChart({
+  value,
+  max,
+  caption,
+  ariaLabel,
+}: {
+  value: number;
+  max: number;
+  caption?: string;
+  ariaLabel: string;
+}) {
+  if (!(max > 0) || !Number.isFinite(value) || !Number.isFinite(max)) {
+    return <div className="text-xs text-muted">—</div>;
+  }
+  const pct = Math.round((Math.max(0, value) / max) * 100);
+  const shown = Math.min(1, Math.max(0, value) / max);
+  const cx = 100;
+  const cy = 100;
+  const r = 80;
+  // Angle runs 0 (left) to PI (right) along the top half.
+  const theta = shown * Math.PI;
+  const end = { x: cx - r * Math.cos(theta), y: cy - r * Math.sin(theta) };
+  return (
+    <div className="relative mx-auto w-full max-w-[260px]" role="img" aria-label={ariaLabel}>
+      <svg viewBox="0 0 200 110" className="w-full" aria-hidden="true">
+        <path
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none"
+          stroke="var(--surface-muted, #faf9f5)"
+          strokeWidth={16}
+          strokeLinecap="round"
+        />
+        {shown > 0 && (
+          <path
+            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`}
+            fill="none"
+            stroke="var(--brand-600, #0c97ac)"
+            strokeWidth={16}
+            strokeLinecap="round"
+          />
+        )}
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 text-center">
+        <p className="text-2xl font-bold tabular-nums">{pct}%</p>
+        {caption && <p className="text-xs text-muted">{caption}</p>}
+      </div>
+    </div>
+  );
+}

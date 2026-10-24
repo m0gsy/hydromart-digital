@@ -19,6 +19,7 @@ import { dashB } from './id/dashB';
 import { dashC } from './id/dashC';
 import { driver } from './id/driver';
 import { hq } from './id/hq';
+import { insight } from './id/insight';
 import { privacy } from './id/privacy';
 import { deleteAccount } from './id/deleteAccount';
 import { franchise } from './id/franchise';
@@ -249,6 +250,7 @@ export const id = {
   dashC,
   driver,
   hq,
+  insight,
   privacy,
   deleteAccount,
   franchise,

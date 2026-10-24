@@ -20,6 +20,7 @@ import {
   RefillSplit,
   ReportRange,
   SalesBucket,
+  StatusSummaryRaw,
 } from '../ports/order.repository';
 import { depotDailyPdf } from './depot-daily-pdf';
 import { revenueExportPdf, type RevenueExportPdfInput } from './revenue-export-pdf';
@@ -62,6 +63,55 @@ export interface SalesReport extends ReportRangeView {
   granularity: 'daily' | 'monthly';
   buckets: SalesBucket[];
 }
+
+/**
+ * Order health for the insight dashboard. Definitions, because the numbers are only as honest
+ * as what they count:
+ * - `orders` / `revenue`: every order that is neither CANCELLED nor VOIDED, by the day it was
+ *   PLACED, gross of refunds, unpaid ones and delivery fees included. Same as the sales series.
+ * - `cancelRate`: cancelled / (orders + cancelled). A VOIDED sale is a cashier's undo at the
+ *   till, not a customer cancelling, so it is in neither number. `null` with nothing placed.
+ * - `refundRate`: refunded sales / sales. `null` with no sales.
+ * - `live`: orders in flight RIGHT NOW whatever day they were placed; the window does not apply.
+ *   `unrouted` is the part with no courier yet (CONFIRMED, PREPARING).
+ */
+export interface StatusSummaryReport extends ReportRangeView {
+  window: {
+    orders: number;
+    revenue: number;
+    aov: number | null;
+    cancelled: number;
+    voided: number;
+    completed: number;
+    walkIn: number;
+    app: number;
+    refundedOrders: number;
+    refundedAmount: number;
+    cancelRate: number | null;
+    refundRate: number | null;
+    /** Every status, zero when absent, so the shape never changes. */
+    byStatus: Record<string, number>;
+  };
+  live: {
+    inProgress: number;
+    unrouted: number;
+    byStatus: Record<string, number>;
+  };
+}
+
+/** Statuses an order passes through before it is delivered; the keys of `live.byStatus`. */
+const IN_FLIGHT_STATUSES = [
+  OrderStatus.CREATED,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+  OrderStatus.DRIVER_ASSIGNED,
+  OrderStatus.PICKED_UP,
+  OrderStatus.ON_DELIVERY,
+];
+/** Accepted, but no courier assigned yet. */
+const UNROUTED_STATUSES = [OrderStatus.CONFIRMED, OrderStatus.PREPARING];
+/** Not sales: an order that never happened, and a sale undone at the till. */
+const NOT_A_SALE = [OrderStatus.CANCELLED, OrderStatus.VOIDED];
 
 export interface RevenueByProductReport extends ReportRangeView {
   /** Always 'product' — order-service has no category column (see revenueByProduct). */
@@ -472,6 +522,53 @@ export class ReportService {
   ): Promise<ReportRangeView & { items: DepotRefund[] }> {
     const items = await this.orders.refundsByDepot(range, depotIds);
     return { ...ReportService.rangeView(range), items };
+  }
+
+  /** Order health for the insight dashboard; see {@link StatusSummaryReport} for the definitions. */
+  async statusSummary(
+    range: ReportRange,
+    depotIds?: readonly string[],
+  ): Promise<StatusSummaryReport> {
+    const raw: StatusSummaryRaw = await this.orders.statusSummary(range, depotIds);
+    const inWindow = (status: string): number =>
+      raw.window.byStatus.filter((r) => r.status === status).reduce((n, r) => n + r.count, 0);
+    const inFlight = (status: string): number =>
+      raw.live.byStatus.filter((r) => r.status === status).reduce((n, r) => n + r.count, 0);
+
+    const windowByStatus = Object.fromEntries(
+      Object.values(OrderStatus).map((s) => [s, inWindow(s)]),
+    );
+    const sales = raw.window.byStatus.filter((r) => !NOT_A_SALE.includes(r.status as OrderStatus));
+    const orders = sales.reduce((n, r) => n + r.count, 0);
+    const revenue = sales.reduce((n, r) => n + r.revenue, 0);
+    const cancelled = inWindow(OrderStatus.CANCELLED);
+    const placed = orders + cancelled;
+    const liveByStatus = Object.fromEntries(IN_FLIGHT_STATUSES.map((s) => [s, inFlight(s)]));
+
+    return {
+      ...ReportService.rangeView(range),
+      window: {
+        orders,
+        revenue,
+        // Whole rupiah: there is no smaller unit to report.
+        aov: orders > 0 ? Math.round(revenue / orders) : null,
+        cancelled,
+        voided: inWindow(OrderStatus.VOIDED),
+        completed: inWindow(OrderStatus.COMPLETED),
+        walkIn: raw.window.channel.walkIn,
+        app: raw.window.channel.app,
+        refundedOrders: raw.window.refunds.orders,
+        refundedAmount: raw.window.refunds.amount,
+        cancelRate: placed > 0 ? cancelled / placed : null,
+        refundRate: orders > 0 ? raw.window.refunds.orders / orders : null,
+        byStatus: windowByStatus,
+      },
+      live: {
+        inProgress: IN_FLIGHT_STATUSES.reduce((n, s) => n + inFlight(s), 0),
+        unrouted: UNROUTED_STATUSES.reduce((n, s) => n + inFlight(s), 0),
+        byStatus: liveByStatus,
+      },
+    };
   }
 
   async ratingByDepot(

@@ -39,6 +39,7 @@ import {
   ReviewRequestTarget,
   SalesBucket,
   SegmentConditions,
+  StatusSummaryRaw,
 } from '../../application/ports/order.repository';
 import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
@@ -161,6 +162,18 @@ interface OrderRow {
  * revenue, customer-value and depot report filters both out through this one list.
  */
 const VOID_LIKE = [DbOrderStatus.CANCELLED, DbOrderStatus.VOIDED];
+/**
+ * Orders still moving: placed, but not yet delivered. DELIVERED waits only for the proof-of-
+ * delivery close, and a cancelled or voided order is not moving at all.
+ */
+const IN_FLIGHT = [
+  DbOrderStatus.CREATED,
+  DbOrderStatus.CONFIRMED,
+  DbOrderStatus.PREPARING,
+  DbOrderStatus.DRIVER_ASSIGNED,
+  DbOrderStatus.PICKED_UP,
+  DbOrderStatus.ON_DELIVERY,
+];
 /** One cashier's day of counter sales is hundreds of rows; this only bounds a runaway. */
 const FIRST_BUYER_SCAN_LIMIT = 5000;
 /**
@@ -881,6 +894,63 @@ export class OrderPrismaRepository implements OrderRepository {
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
       commissionBase: r._sum.subtotal ? r._sum.subtotal.toNumber() : 0,
     }));
+  }
+
+  async statusSummary(range: ReportRange, depotIds?: readonly string[]): Promise<StatusSummaryRaw> {
+    // An EMPTY depot set is a caller with no depots: `{ in: [] }` matches nothing, so every read
+    // below answers zero rather than the network.
+    const depot = OrderPrismaRepository.depotIn(depotIds);
+    const created = {
+      ...(range.from || range.to
+        ? {
+            createdAt: {
+              ...(range.from ? { gte: range.from } : {}),
+              ...(range.to ? { lt: range.to } : {}),
+            },
+          }
+        : {}),
+    };
+    // Channel and refunds describe SALES: a cancelled or voided order is not one.
+    const sales = { ...this.reportWhere(range), ...depot };
+    const [byStatus, channel, refunds, live] = await Promise.all([
+      // Every status, cancelled and voided included: that is where the cancel rate comes from.
+      this.prisma.order.groupBy({
+        by: ['status'],
+        where: { ...created, ...depot },
+        _count: { _all: true },
+        _sum: { total: true },
+      }),
+      this.prisma.order.groupBy({ by: ['isWalkIn'], where: sales, _count: { _all: true } }),
+      this.prisma.order.aggregate({
+        where: { ...sales, refundedAmount: { gt: 0 } },
+        _count: { _all: true },
+        _sum: { refundedAmount: true },
+      }),
+      // What is in flight right now, whatever day it was placed: the window does not apply.
+      this.prisma.order.groupBy({
+        by: ['status'],
+        where: { status: { in: IN_FLIGHT }, ...depot },
+        _count: { _all: true },
+      }),
+    ]);
+    return {
+      window: {
+        byStatus: byStatus.map((r) => ({
+          status: r.status,
+          count: r._count._all,
+          revenue: r._sum.total ? r._sum.total.toNumber() : 0,
+        })),
+        channel: {
+          walkIn: channel.find((r) => r.isWalkIn)?._count._all ?? 0,
+          app: channel.find((r) => !r.isWalkIn)?._count._all ?? 0,
+        },
+        refunds: {
+          orders: refunds._count._all,
+          amount: refunds._sum.refundedAmount ? refunds._sum.refundedAmount.toNumber() : 0,
+        },
+      },
+      live: { byStatus: live.map((r) => ({ status: r.status, count: r._count._all })) },
+    };
   }
 
   async shippingByDepot(

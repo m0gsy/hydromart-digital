@@ -344,6 +344,26 @@ export interface DepotRefund {
   refunded: number;
 }
 
+/**
+ * What the insight dashboard needs to judge order health, as the database counted it: the
+ * window's orders by status, the channel and refund splits of its SALES, and what is in
+ * flight right now. Raw counts only; the service turns them into rates.
+ *
+ * `status` is a plain string so the port does not depend on the database enum.
+ */
+export interface StatusSummaryRaw {
+  window: {
+    /** Every status present in the window, cancelled and voided included. */
+    byStatus: { status: string; count: number; revenue: number }[];
+    /** Sales only (neither cancelled nor voided), split by where they were rung up. */
+    channel: { walkIn: number; app: number };
+    /** Sales that carry a refund. */
+    refunds: { orders: number; amount: number };
+  };
+  /** In-flight orders by status, whatever day they were placed: the window does not apply. */
+  live: { byStatus: { status: string; count: number }[] };
+}
+
 /** Average customer rating (1..5) per depot over a range — depot compare 14d. */
 export interface DepotRating {
   depotId: string;
@@ -676,6 +696,12 @@ export interface OrderRepository {
   refundsByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRefund[]>;
   /** Record the refunded amount on an order (payment-service coordination). Idempotent set. */
   recordRefund(orderId: string, amount: number): Promise<void>;
+  /**
+   * Order health for the insight dashboard (see {@link StatusSummaryRaw}). `depotIds`
+   * narrows every read to a set of depots; omitted is the whole network, and an empty set
+   * matches nothing.
+   */
+  statusSummary(range: ReportRange, depotIds?: readonly string[]): Promise<StatusSummaryRaw>;
   /** Average rating per depot (orders in-window that have a review), 14d. */
   ratingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRating[]>;
   /**

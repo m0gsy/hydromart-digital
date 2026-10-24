@@ -149,6 +149,35 @@ export class DepotWeeklyQueryDto {
   to?: string;
 }
 
+/**
+ * Order health for a window. BOTH bounds are required: `IsWithinDays` only fires when both are
+ * present, and a status summary with an open end is a scan of every order ever placed.
+ */
+export class StatusSummaryQueryDto {
+  @ApiProperty({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsISO8601()
+  from!: string;
+
+  @ApiProperty({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsISO8601()
+  @IsNotBefore('from')
+  @IsWithinDays('from')
+  to!: string;
+
+  /**
+   * Comma-separated depot ids the report is narrowed to. Omitted, a depot-scoped caller is
+   * narrowed to their own depots by the controller — never widened to the network.
+   */
+  @ApiPropertyOptional({ description: 'Comma-separated depot ids to scope the report to.' })
+  @IsOptional()
+  @IsString()
+  // Each element a UUID and at most 100 of them: a bare string reached a uuid column as a 500.
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,99}$/i,
+  )
+  depotIds?: string;
+}
+
 export class DepotCompareQueryDto {
   @ApiPropertyOptional({ description: 'Comma-separated depot ids to compare.' })
   @IsString()
