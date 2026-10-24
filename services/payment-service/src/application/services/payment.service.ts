@@ -39,8 +39,7 @@ import {
   isRefundable,
   isWebhookFresh,
   webhookSigningPayload,
-  wholeDaysBetween,
-  wibDay,
+  BUSINESS_TZ,
 } from '../../domain/payment';
 import { PaymentConfigService } from '../../config/payment-config.service';
 import { Page, buildPage } from '../pagination';
@@ -166,14 +165,10 @@ const AGING_BUCKETS: readonly { label: string; maxDays: number }[] = [
 ];
 export const UNSETTLED_AGING_BUCKETS: readonly string[] = AGING_BUCKETS.map((b) => b.label);
 
-/** Most pending payments one aging read will take (the oldest are kept); beyond it, `truncated`. */
-export const UNSETTLED_AGING_LIMIT = 20_000;
-
 /** Unsettled money by method and age. `amounts[i]` and `counts[i]` belong to `buckets[i]`. */
 export interface UnsettledAging {
   asOf: string;
   buckets: string[];
-  truncated: boolean;
   rows: { method: PaymentMethod; amounts: number[]; counts: number[] }[];
 }
 
@@ -859,32 +854,30 @@ export class PaymentService {
 
   /**
    * Network-wide unsettled (PENDING) payments by method and AGE: how long the money has waited,
-   * counted in WIB calendar days (a payment made at 03:00 WIB is yesterday in UTC, and aging it by
-   * the UTC date would put it a day older than the people who made it). Oldest rows are kept if
-   * there are more than the limit, because those are the ones that matter; `truncated` says so.
+   * counted in WIB calendar days (a payment made at 03:00 WIB is yesterday in UTC, and aging it
+   * by the UTC date would put it a day older than the people who made it). Aggregated in the
+   * database, so every pending payment counts however many there are.
    */
   async unsettledAging(now: Date = new Date()): Promise<UnsettledAging> {
-    const fetched = await this.payments.listPendingForAging(UNSETTLED_AGING_LIMIT + 1);
-    const truncated = fetched.length > UNSETTLED_AGING_LIMIT;
-    const rows = truncated ? fetched.slice(0, UNSETTLED_AGING_LIMIT) : fetched;
-    const today = wibDay(now);
+    const cells = await this.payments.aggregateUnsettledAging(
+      now,
+      BUSINESS_TZ,
+      AGING_BUCKETS.slice(0, -1).map((b) => b.maxDays),
+    );
     const byMethod = new Map<PaymentMethod, { amounts: number[]; counts: number[] }>();
-    for (const r of rows) {
-      // A payment cannot be younger than today: a clock a little behind must not make a negative age.
-      const age = Math.max(0, wholeDaysBetween(wibDay(r.createdAt), today));
-      const bucket = AGING_BUCKETS.findIndex((b) => age <= b.maxDays);
-      const entry = byMethod.get(r.method) ?? {
+    for (const c of cells) {
+      const entry = byMethod.get(c.method) ?? {
         amounts: AGING_BUCKETS.map(() => 0),
         counts: AGING_BUCKETS.map(() => 0),
       };
-      entry.amounts[bucket] = (entry.amounts[bucket] ?? 0) + r.amount;
-      entry.counts[bucket] = (entry.counts[bucket] ?? 0) + 1;
-      byMethod.set(r.method, entry);
+      const bucket = Math.min(c.bucket, AGING_BUCKETS.length - 1);
+      entry.amounts[bucket] = (entry.amounts[bucket] ?? 0) + c.amount;
+      entry.counts[bucket] = (entry.counts[bucket] ?? 0) + c.count;
+      byMethod.set(c.method, entry);
     }
     return {
       asOf: now.toISOString(),
       buckets: [...UNSETTLED_AGING_BUCKETS],
-      truncated,
       rows: [...byMethod.entries()].map(([method, v]) => ({ method, ...v })),
     };
   }

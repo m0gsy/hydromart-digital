@@ -4,11 +4,10 @@ import { CAPABILITY_KEY } from '@hydromart/platform';
 
 import {
   UNSETTLED_AGING_BUCKETS,
-  UNSETTLED_AGING_LIMIT,
   PaymentService,
 } from '../../src/application/services/payment.service';
 import { PaymentController } from '../../src/modules/payment.controller';
-import { PaymentMethod, PaymentStatus, wibDay, wholeDaysBetween } from '../../src/domain/payment';
+import { PaymentMethod, PaymentStatus } from '../../src/domain/payment';
 import {
   FakeGateway,
   FakeOrderCoordination,
@@ -51,7 +50,6 @@ describe('PaymentService.unsettledAging', () => {
     expect(out.buckets).toEqual([...UNSETTLED_AGING_BUCKETS]);
     expect(out.asOf).toBe(NOW.toISOString());
     expect(out.rows).toEqual([]);
-    expect(out.truncated).toBe(false);
   });
 
   it.each([
@@ -116,53 +114,11 @@ describe('PaymentService.unsettledAging', () => {
     p.createdAt = new Date(NOW.getTime() + 3 * 24 * 60 * 60 * 1000);
     expect(row(await service.unsettledAging(NOW), PaymentMethod.CASH)!.counts[0]).toBe(1);
   });
-
-  it('keeps the oldest rows and says so when there are more than it will read', async () => {
-    const template = await pending(PaymentMethod.QRIS, 1_000, 40);
-    repo.rows = [];
-    for (let i = 0; i < UNSETTLED_AGING_LIMIT + 5; i += 1) {
-      repo.rows.push({
-        ...template,
-        id: randomUUID(),
-        // The first `LIMIT` are old; the last five are new and are the ones left out.
-        createdAt: new Date(NOW.getTime() - (i < UNSETTLED_AGING_LIMIT ? 40 : 0) * 86_400_000),
-      });
-    }
-    const out = await service.unsettledAging(NOW);
-    expect(out.truncated).toBe(true);
-    const r = row(out, PaymentMethod.QRIS)!;
-    expect(r.counts.reduce((n, c) => n + c, 0)).toBe(UNSETTLED_AGING_LIMIT);
-    expect(r.counts[3]).toBe(UNSETTLED_AGING_LIMIT);
-  });
-
-  it('is not truncated at exactly the limit', async () => {
-    const template = await pending(PaymentMethod.QRIS, 1, 0);
-    repo.rows = Array.from({ length: UNSETTLED_AGING_LIMIT }, () => ({
-      ...template,
-      id: randomUUID(),
-    }));
-    expect((await service.unsettledAging(NOW)).truncated).toBe(false);
-  });
-});
-
-describe('WIB day helpers', () => {
-  it('names the business day of an instant, not the UTC one', () => {
-    expect(wibDay(new Date('2026-10-14T20:00:00.000Z'))).toBe('2026-10-15');
-    expect(wibDay(new Date('2026-10-14T16:59:59.000Z'))).toBe('2026-10-14');
-  });
-
-  it('counts whole calendar days across month, year and leap boundaries', () => {
-    expect(wholeDaysBetween('2026-10-15', '2026-10-15')).toBe(0);
-    expect(wholeDaysBetween('2026-09-30', '2026-10-01')).toBe(1);
-    expect(wholeDaysBetween('2026-12-31', '2027-01-01')).toBe(1);
-    expect(wholeDaysBetween('2028-02-28', '2028-03-01')).toBe(2);
-    expect(wholeDaysBetween('2027-02-28', '2027-03-01')).toBe(1);
-  });
 });
 
 describe('PaymentController.unsettledAging', () => {
   it('hands the answer through and is gated by the settlement capability', async () => {
-    const aging = { asOf: 'x', buckets: [], truncated: false, rows: [] };
+    const aging = { asOf: 'x', buckets: [], rows: [] };
     const svc = { unsettledAging: jest.fn().mockResolvedValue(aging) };
     const controller = Object.create(PaymentController.prototype) as PaymentController;
     (controller as unknown as { payments: unknown }).payments = svc;

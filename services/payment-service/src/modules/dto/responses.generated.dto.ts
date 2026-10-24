@@ -105,8 +105,6 @@ export class UnsettledAgingResponseDto {
   asOf!: string;
   @ApiProperty({ type: [String], example: ['0-1', '2-3', '4-7', '8+'] })
   buckets!: string[];
-  @ApiProperty({ type: Boolean, description: 'True when the oldest rows were read and newer ones left out.' })
-  truncated!: boolean;
   @ApiProperty({ type: [UnsettledAgingRowResponseDto] })
   rows!: UnsettledAgingRowResponseDto[];
 }

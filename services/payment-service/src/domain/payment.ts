@@ -134,17 +134,8 @@ const FIXED_HOLIDAYS = new Set(['01-01', '05-01', '06-01', '08-17', '12-25']);
 /** The business zone the promise is counted in (WIB). A refund asked at 20:00 UTC is already tomorrow here. */
 const PROMISE_TZ = 'Asia/Jakarta';
 
-/** The business day (`YYYY-MM-DD`, WIB) an instant falls on. A payment at 03:00 WIB is UTC's yesterday. */
-export function wibDay(d: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: PROMISE_TZ }).format(d);
-}
-
-/** Whole calendar days from `from` to `to` (both `YYYY-MM-DD`); negative when `to` is earlier. */
-export function wholeDaysBetween(from: string, to: string): number {
-  return Math.round(
-    (Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86_400_000,
-  );
-}
+/** The business zone as a name a database can use (`AT TIME ZONE`). */
+export const BUSINESS_TZ = PROMISE_TZ;
 
 /**
  * True for a weekend, a fixed national holiday, or a date in the configured list — judged

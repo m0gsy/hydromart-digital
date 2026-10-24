@@ -79,11 +79,13 @@ export interface PaymentQuery {
   cursor?: string;
 }
 
-/** One unsettled payment, with only what aging it needs. */
-export interface PendingPaymentAge {
+/** Unsettled money in one (method, age bucket) cell. */
+export interface UnsettledAgingCell {
   method: PaymentMethod;
+  /** Index into the boundaries the caller passed. */
+  bucket: number;
   amount: number;
-  createdAt: Date;
+  count: number;
 }
 
 /** One method's unsettled (PENDING) total + transaction count, network-wide. */
@@ -223,10 +225,19 @@ export interface PaymentRepository {
   /** Network-wide unsettled (PENDING) payments grouped by method over a date range. */
   aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /**
-   * Every PENDING payment, OLDEST first, at most `limit` of them. The oldest first because the
-   * ones that matter most are the ones that have waited longest: a cut-off must drop the new.
+   * PENDING payments by method and by AGE, aggregated in the database.
+   *
+   * Age is the number of WIB calendar days between the day the payment was made and the day of
+   * `asOf`, never below 0. `maxDays[i]` is the oldest age that still belongs to bucket `i`; an
+   * age past the last boundary falls in the bucket after it. Aggregated here, not in Node,
+   * because pending rows never expire: reading them all would drop the newest once there were
+   * enough of them, and those are the ones finance looks at first.
    */
-  listPendingForAging(limit: number): Promise<PendingPaymentAge[]>;
+  aggregateUnsettledAging(
+    asOf: Date,
+    tz: string,
+    maxDays: readonly number[],
+  ): Promise<UnsettledAgingCell[]>;
   /** Network-wide collected (PAID) revenue grouped by method over a date range. */
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /**

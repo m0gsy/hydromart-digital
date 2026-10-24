@@ -177,7 +177,9 @@ export const insight = {
     pointsGiven: 'Points given',
     churnTitle: 'Customers at risk of leaving',
     churnEmpty: 'No customers at risk in the last 90 days.',
-    churnNote: 'Out of {n} customers scored. This is a risk list, not a count of lost customers.',
+    churnNote:
+      'Out of the {n} most at-risk customers scored (at most 100). This is a risk list, not a count of lost customers.',
+    tier: { REGULAR: 'Regular', SILVER: 'Silver', GOLD: 'Gold', PLATINUM: 'Platinum' },
     risk: { HIGH: 'High risk', MEDIUM: 'Medium risk', LOW: 'Low risk' },
     reviewsTitle: 'Latest reviews',
     reviewsEmpty: 'No reviews in this period yet.',
@@ -187,7 +189,7 @@ export const insight = {
     monthNote: 'Profit and loss is read by month, so what is shown is {month}.',
     needDepot: 'Choose a single depot to see that depot’s profit and loss.',
     waiting: 'Money not yet settled',
-    waitingCount: '{n} payments',
+    waitingCount: '{n} payments, whole network',
     waitingDef: 'Payments with a waiting status in this period, whole network.',
     refundQueue: 'Refund queue',
     refundQueueDef: 'Large refunds waiting for head office approval.',
@@ -204,8 +206,6 @@ export const insight = {
     agingAria: 'Waiting payments by method and by how long they have waited',
     agingNote:
       'Age is counted in WIB calendar days since the payment was made, whole network, with no period limit.',
-    agingTruncated:
-      'Too many payments are waiting: what is shown is the oldest, and newer ones are not counted.',
     networkTitle: 'Network profit and loss {month}',
     depot: 'Depot',
     networkNote:

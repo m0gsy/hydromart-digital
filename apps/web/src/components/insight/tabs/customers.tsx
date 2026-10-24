@@ -188,7 +188,7 @@ export function CustomersTab({ ctx }: { ctx: InsightCtx }) {
                 {tiers && (
                   <DonutChart
                     segments={Object.entries(tiers).map(([tier, value]) => ({
-                      label: tier,
+                      label: t(`insight.customers.tier.${tier}`),
                       value,
                     }))}
                     total={t('insight.customers.members')}

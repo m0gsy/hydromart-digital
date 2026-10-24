@@ -71,31 +71,51 @@ describe('PrismaService lifecycle', () => {
   });
 });
 
-describe('PaymentPrismaRepository.listPendingForAging', () => {
-  const model = { findMany: jest.fn() };
-  const prisma = { payment: model } as unknown as PrismaService;
+describe('PaymentPrismaRepository.aggregateUnsettledAging', () => {
+  const queryRaw = jest.fn();
+  const prisma = { $queryRaw: queryRaw } as unknown as PrismaService;
   const repo = new PaymentPrismaRepository(prisma);
+  const asOf = new Date('2026-10-15T05:00:00.000Z');
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('reads only what is still pending, oldest first, at most the limit, and only what aging needs', async () => {
-    model.findMany.mockResolvedValue([]);
-    await repo.listPendingForAging(50);
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { status: PaymentStatus.PENDING },
-      select: { method: true, amount: true, createdAt: true },
-      orderBy: { createdAt: 'asc' },
-      take: 50,
-    });
+  it('asks the database to age only what is pending, in the business zone, against the given boundaries', async () => {
+    queryRaw.mockResolvedValue([]);
+    await repo.aggregateUnsettledAging(asOf, 'Asia/Jakarta', [1, 3, 7]);
+    const q = queryRaw.mock.calls[0]![0] as { strings: string[]; values: unknown[] };
+    const sql = q.strings.join('?');
+    // Pending only, and the status is cast to its enum type.
+    expect(sql).toContain('FROM "payments"');
+    expect(sql).toContain('"status" = ');
+    expect(sql).toContain('::"PaymentStatus"');
+    // "createdAt" is a naive UTC timestamp: labelled UTC, then read in the zone.
+    expect(sql).toContain("AT TIME ZONE 'UTC' AT TIME ZONE");
+    expect(sql).toContain('GREATEST(');
+    // Nothing is interpolated: the boundaries, the zone, the instant and the status are parameters.
+    expect(q.values).toEqual(
+      expect.arrayContaining([1, 3, 7, 'Asia/Jakarta', asOf, PaymentStatus.PENDING]),
+    );
+    expect(sql).not.toContain('Asia/Jakarta');
   });
 
-  it('turns a decimal amount into a number', async () => {
-    const createdAt = new Date('2026-10-01T00:00:00.000Z');
-    model.findMany.mockResolvedValue([
-      { method: 'QRIS', amount: { toString: () => '12500.50' }, createdAt },
+  it('writes one WHEN per boundary and an ELSE for everything older', async () => {
+    queryRaw.mockResolvedValue([]);
+    await repo.aggregateUnsettledAging(asOf, 'Asia/Jakarta', [1, 3, 7]);
+    const q = queryRaw.mock.calls[0]![0] as { strings: string[]; values: unknown[] };
+    const sql = q.strings.join('?');
+    expect(sql.match(/WHEN/g)).toHaveLength(3);
+    // Bucket indexes 0,1,2 for the WHENs and 3 (the boundary count) for the ELSE.
+    expect(q.values.filter((v) => v === 3).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('turns decimal sums and bigint counts into numbers', async () => {
+    queryRaw.mockResolvedValue([
+      { method: 'QRIS', bucket: 0, amount: { toString: () => '12500.50' }, count: BigInt(2) },
+      { method: 'CASH', bucket: 3, amount: null, count: BigInt(1) },
     ]);
-    expect(await repo.listPendingForAging(10)).toEqual([
-      { method: PaymentMethod.QRIS, amount: 12500.5, createdAt },
+    expect(await repo.aggregateUnsettledAging(asOf, 'Asia/Jakarta', [1, 3, 7])).toEqual([
+      { method: PaymentMethod.QRIS, bucket: 0, amount: 12500.5, count: 2 },
+      { method: PaymentMethod.CASH, bucket: 3, amount: 0, count: 1 },
     ]);
   });
 });

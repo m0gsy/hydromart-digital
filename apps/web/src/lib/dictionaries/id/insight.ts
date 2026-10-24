@@ -180,7 +180,9 @@ export const insight = {
     pointsGiven: 'Poin diberikan',
     churnTitle: 'Risiko pelanggan pergi',
     churnEmpty: 'Tidak ada pelanggan berisiko pada 90 hari terakhir.',
-    churnNote: 'Dari {n} pelanggan yang dinilai. Ini daftar risiko, bukan angka pelanggan hilang.',
+    churnNote:
+      'Dari {n} pelanggan paling berisiko yang dinilai (paling banyak 100). Ini daftar risiko, bukan angka pelanggan hilang.',
+    tier: { REGULAR: 'Reguler', SILVER: 'Perak', GOLD: 'Emas', PLATINUM: 'Platinum' },
     risk: { HIGH: 'Risiko tinggi', MEDIUM: 'Risiko sedang', LOW: 'Risiko rendah' },
     reviewsTitle: 'Ulasan terbaru',
     reviewsEmpty: 'Belum ada ulasan pada periode ini.',
@@ -190,7 +192,7 @@ export const insight = {
     monthNote: 'Laba rugi dibaca per bulan, jadi yang tampil adalah bulan {month}.',
     needDepot: 'Pilih satu depot untuk melihat laba rugi depot itu.',
     waiting: 'Uang belum diselesaikan',
-    waitingCount: '{n} pembayaran',
+    waitingCount: '{n} pembayaran, seluruh jaringan',
     waitingDef: 'Pembayaran berstatus menunggu pada periode ini, seluruh jaringan.',
     refundQueue: 'Antrean refund',
     refundQueueDef: 'Refund besar yang menunggu persetujuan kantor pusat.',
@@ -207,8 +209,6 @@ export const insight = {
     agingAria: 'Pembayaran menunggu menurut metode dan lamanya menunggu',
     agingNote:
       'Umur dihitung dalam hari kalender WIB sejak pembayaran dibuat, seluruh jaringan, tanpa batas periode.',
-    agingTruncated:
-      'Terlalu banyak pembayaran menunggu: yang tampil adalah yang paling lama, yang baru tidak ikut dihitung.',
     networkTitle: 'Laba rugi jaringan {month}',
     depot: 'Depot',
     networkNote:

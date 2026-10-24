@@ -230,7 +230,6 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       return Promise.resolve({
         asOf: '2026-10-15T05:00:00.000Z',
         buckets: ['0-1', '2-3', '4-7', '8+'],
-        truncated: false,
         rows: [
           { method: 'TRANSFER', amounts: [500_000, 0, 0, 400_000], counts: [2, 0, 0, 1] },
           { method: 'QRIS', amounts: [100_000, 0, 0, 0], counts: [2, 0, 0, 0] },
@@ -857,6 +856,9 @@ describe('the customers tab', () => {
     expect(await screen.findByText('40')).toBeTruthy();
     expect(screen.getByText('62%')).toBeTruthy();
     expect(await screen.findByText('4200')).toBeTruthy();
+    // Tiers are named for a person, not by their enum.
+    expect(await screen.findByText('Reguler')).toBeTruthy();
+    expect(screen.queryByText('REGULAR')).toBeNull();
     expect(await screen.findByText('42%')).toBeTruthy();
     // A review shows what was said and the initials of who said it, not the name.
     expect(await screen.findByText('Cepat dan ramah')).toBeTruthy();
@@ -872,7 +874,7 @@ describe('the customers tab', () => {
     openTab('customers');
     renderPage();
     expect(await screen.findByText('Risiko tinggi')).toBeTruthy();
-    expect(screen.getByText(/Dari 3 pelanggan yang dinilai/)).toBeTruthy();
+    expect(screen.getByText(/Dari 3 pelanggan paling berisiko yang dinilai/)).toBeTruthy();
   });
 
   it('gives marketing the network widgets and never asks for CRM or reviews it cannot read', async () => {
@@ -937,20 +939,24 @@ describe('the finance tab', () => {
     expect(call).toContain('month=2026-10');
   });
 
-  it('warns when the oldest rows were read and newer ones left out', async () => {
+  it('does not call a profit incomplete just because there was no revenue to take a margin of', async () => {
     asRole('HEAD_OFFICE');
     openTab('finance');
     serve({
-      '/payments/unsettled-aging': () => ({
-        asOf: 'x',
-        buckets: ['0-1', '2-3', '4-7', '8+'],
-        truncated: true,
-        rows: [{ method: 'QRIS', amounts: [1, 0, 0, 0], counts: [1, 0, 0, 0] }],
+      '/dashboard/monthly-pnl': () => ({
+        revenueIdr: 0,
+        cogsIdr: 0,
+        opexIdr: 400_000,
+        grossProfitIdr: 0,
+        netOperatingProfitIdr: -400_000,
+        marginPct: null,
       }),
     });
     renderPage();
-    expect(await screen.findByRole('status')).toBeTruthy();
-    expect(screen.getByText(/yang tampil adalah yang paling lama/)).toBeTruthy();
+    fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: 'd1' } });
+    // A real loss, stated as one, and no claim that the costs were missing.
+    expect(await screen.findByText(/400.000/)).toBeTruthy();
+    expect(screen.queryByText('Biaya belum lengkap')).toBeNull();
   });
 
   it('says the P&L month when the window is not a month', async () => {

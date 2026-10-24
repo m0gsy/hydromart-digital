@@ -2254,12 +2254,10 @@ export interface UnsettledMethodBucket {
 /**
  * `GET payments/unsettled-aging`: unsettled money by method and by how long it has waited, in WIB
  * calendar days. The server names the buckets; `amounts[i]` and `counts[i]` belong to `buckets[i]`.
- * `truncated` means the oldest rows were read and newer ones left out.
  */
 export interface UnsettledAging {
   asOf: string;
   buckets: string[];
-  truncated: boolean;
   rows: { method: PaymentMethod; amounts: number[]; counts: number[] }[];
 }
 

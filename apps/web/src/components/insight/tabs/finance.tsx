@@ -120,11 +120,13 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
               label={t('insight.finance.operatingProfit')}
               value={money(depotPnl.data?.netOperatingProfitIdr)}
               hint={
-                depotPnl.data?.marginPct != null
-                  ? t('insight.finance.margin', { pct: Math.round(depotPnl.data.marginPct) })
-                  : depotPnl.data
+                depotPnl.data == null
+                  ? undefined
+                  : depotPnl.data.netOperatingProfitIdr == null
                     ? t('insight.finance.costsIncomplete')
-                    : undefined
+                    : depotPnl.data.marginPct != null
+                      ? t('insight.finance.margin', { pct: Math.round(depotPnl.data.marginPct) })
+                      : undefined
               }
               definition={t('insight.finance.operatingProfitDef')}
             />
@@ -158,11 +160,6 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
                 ariaLabel={t('insight.finance.agingAria')}
               />
               <p className="text-[11px] text-muted">{t('insight.finance.agingNote')}</p>
-              {d.truncated && (
-                <p role="status" className="text-[11px] text-[color:var(--danger)]">
-                  {t('insight.finance.agingTruncated')}
-                </p>
-              )}
             </div>
           )}
         </WidgetCard>
