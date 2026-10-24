@@ -169,11 +169,7 @@ export function StockBar({
 }
 
 /** Retention cohort grid — rows = cohorts, cells shaded by retention ratio (0..1). */
-export function CohortGrid({
-  rows,
-}: {
-  rows: { label: string; cells: number[] }[];
-}) {
+export function CohortGrid({ rows }: { rows: { label: string; cells: number[] }[] }) {
   return (
     <div className="min-w-0 overflow-x-auto">
       <table className="w-full border-separate" style={{ borderSpacing: 3 }}>
@@ -256,7 +252,8 @@ export function MultiLine({
   const maxFor = (axis: LineSeries['axis']) =>
     Math.max(1, ...series.filter((s) => s.axis === axis).flatMap((s) => s.values));
   const maxes = { left: maxFor('left'), right: maxFor('right') };
-  const x = (i: number) => (labels.length === 1 ? width / 2 : pad + (i / (labels.length - 1)) * innerW);
+  const x = (i: number) =>
+    labels.length === 1 ? width / 2 : pad + (i / (labels.length - 1)) * innerW;
   const y = (v: number, axis: LineSeries['axis']) =>
     pad + innerH - (Math.max(0, v) / maxes[axis]) * innerH;
   return (
@@ -400,5 +397,118 @@ export function GaugeChart({
         {caption && <p className="text-xs text-muted">{caption}</p>}
       </div>
     </div>
+  );
+}
+
+/**
+ * Whole-number percentages of a set of positive values that add up to exactly 100
+ * (largest remainder). Rounding each one on its own makes three equal slices read 33+33+33.
+ * A value too small to earn a point gets 0, which the caller prints as "<1%".
+ */
+export function wholeShares(values: readonly number[]): number[] {
+  const sum = values.reduce((n, v) => n + v, 0);
+  if (!(sum > 0)) return values.map(() => 0);
+  const exact = values.map((v) => (v / sum) * 100);
+  const floors = exact.map((x) => Math.floor(x));
+  let left = 100 - floors.reduce((n, x) => n + x, 0);
+  const byRemainder = exact
+    .map((x, i) => ({ i, rem: x - Math.floor(x) }))
+    .sort((a, b) => b.rem - a.rem || a.i - b.i);
+  for (const { i } of byRemainder) {
+    if (left <= 0) break;
+    floors[i] = (floors[i] ?? 0) + 1;
+    left -= 1;
+  }
+  return floors;
+}
+
+/** One slice of a {@link DonutChart}. */
+export interface DonutSegment {
+  label: string;
+  value: number;
+}
+
+/** Slice colours, brand first. A legend with the label and the number is what tells them apart. */
+const DONUT_COLORS = [
+  'var(--brand-600, #0c97ac)',
+  'var(--amber-500, #d97706)',
+  'var(--brand-300, #6cc7d3)',
+  'var(--amber-300, #fcd34d)',
+  'var(--brand-800, #0a6573)',
+  'var(--text-muted, #64757c)',
+];
+
+/**
+ * A ring of shares with its total in the middle and a legend that says every figure in text.
+ *
+ * The legend, not the colours, is how a slice is identified: it lists the label, the share and
+ * the value for every slice, so the chart reads the same in greyscale, on a phone in sun, and
+ * to a screen reader. Slices of zero are left out (a 0% slice is a legend line about nothing),
+ * and a ring with no value at all draws nothing rather than an empty circle.
+ */
+export function DonutChart({
+  segments,
+  total,
+  format = (n: number) => String(Math.round(n)),
+  ariaLabel,
+}: {
+  segments: DonutSegment[];
+  /** Printed under the number in the middle ("Total"). */
+  total: string;
+  format?: (value: number) => string;
+  ariaLabel: string;
+}) {
+  const shown = segments.filter((s) => Number.isFinite(s.value) && s.value > 0);
+  const sum = shown.reduce((n, s) => n + s.value, 0);
+  if (sum <= 0) return <div className="text-xs text-muted">—</div>;
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  const shares = wholeShares(shown.map((s) => s.value));
+  return (
+    <figure className="m-0 flex flex-wrap items-center gap-4" aria-label={ariaLabel}>
+      <div className="relative h-36 w-36 shrink-0">
+        <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+          {shown.map((s, i) => {
+            const len = (s.value / sum) * c;
+            const el = (
+              <circle
+                key={`${i}-${s.label}`}
+                cx="50"
+                cy="50"
+                r={r}
+                fill="none"
+                stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
+                strokeWidth={14}
+                strokeDasharray={`${len} ${c - len}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += len;
+            return el;
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="text-base font-bold tabular-nums">{format(sum)}</span>
+          <span className="text-[10px] text-muted">{total}</span>
+        </div>
+      </div>
+      <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-1.5 p-0 text-xs">
+        {shown.map((s, i) => (
+          <li key={`${i}-${s.label}`} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }}
+            />
+            <span className="min-w-0 flex-1 truncate">{s.label}</span>
+            <span className="shrink-0 tabular-nums text-muted">{format(s.value)}</span>
+            <span className="w-10 shrink-0 text-right font-semibold tabular-nums">
+              {shares[i] === 0 ? '<1%' : `${shares[i]}%`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </figure>
   );
 }

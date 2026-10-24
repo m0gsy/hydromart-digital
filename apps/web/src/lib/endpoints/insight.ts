@@ -51,11 +51,14 @@ export const insight = {
     ratingByDepot: (q: { from: string; to: string }) =>
       `/orders/api/v1/reports/rating-by-depot?${new URLSearchParams({ from: q.from, to: q.to })}`,
     // Revenue share per product (22b). Grouped by product — order-service has no category column.
-    revenueByCategory: (q: { from?: string; to?: string; limit?: number } = {}) => {
+    revenueByCategory: (
+      q: { from?: string; to?: string; limit?: number; depotIds?: readonly string[] } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);
       if (q.to) p.set('to', q.to);
       if (q.limit) p.set('limit', String(q.limit));
+      if (q.depotIds && q.depotIds.length > 0) p.set('depotIds', q.depotIds.join(','));
       const qs = p.toString();
       return `/orders/api/v1/reports/revenue-by-category${qs ? `?${qs}` : ''}`;
     },
@@ -267,7 +270,8 @@ export const insight = {
     },
     // At-risk customers ranked by churn score (depot-scoped when depotId set).
     // eslint-disable-next-line max-len -- one line on purpose: the endpoints-table scanners read `name: (…) => '/path'` on a SINGLE line and a block-bodied builder is invisible to them, so /hq/churn had no server capability to check its rail gate against.
-    churn: (q: { depotId?: string; limit?: number; days?: number } = {}) => `/forecast/api/v1/forecast/churn${insightQuery(q)}`,
+    churn: (q: { depotId?: string; limit?: number; days?: number } = {}) =>
+      `/forecast/api/v1/forecast/churn${insightQuery(q)}`,
   },
 
   crm: {

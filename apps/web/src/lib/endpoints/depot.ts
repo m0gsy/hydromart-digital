@@ -96,6 +96,10 @@ export const depot = {
   },
 
   inventory: {
+    // Every depot's lines at or under their minimum, in the caller's reach. Name a depot to narrow
+    // it; naming none is the caller's whole scope (the server narrows a depot-scoped role itself).
+    lowStock: (depotId?: string) =>
+      `/depots/api/v1/inventory/low-stock${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     // Stock lines for one depot (staff).
     lines: (depotId: string, q: { itemType?: string; lowStockOnly?: boolean } = {}) => {
       const p = new URLSearchParams();

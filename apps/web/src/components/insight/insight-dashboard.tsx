@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
+import type { InsightCtx } from '@/components/insight/context';
 import { DateRangeBar, type DepotOption } from '@/components/insight/date-range-bar';
 import { InsightTabs } from '@/components/insight/insight-tabs';
+import { OperationsTab } from '@/components/insight/tabs/operations';
 import { OverviewTab } from '@/components/insight/tabs/overview';
+import { SalesTab } from '@/components/insight/tabs/sales';
 import { CenterState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -24,6 +27,13 @@ import { useT } from '@/lib/locale-context';
 import { useQueryState } from '@/lib/use-query-param';
 import { todayWib } from '@/lib/wib';
 import type { Depot } from '@/lib/types';
+
+/** The body of the tab in view. One place maps a tab id to its component. */
+function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
+  if (id === 'sales') return <SalesTab ctx={ctx} />;
+  if (id === 'operations') return <OperationsTab ctx={ctx} />;
+  return <OverviewTab ctx={ctx} />;
+}
 
 /**
  * The tabbed dashboard, shared by `/hq/dashboard` and `/dashboard/insight`.
@@ -86,6 +96,19 @@ export function InsightDashboard() {
     return <CenterState icon={<Lock size={48} weight="thin" />} title={t('insight.denied')} />;
   }
 
+  const ctx: InsightCtx = {
+    role,
+    range,
+    prev: comparison.prev,
+    year: comparison.year,
+    partial: comparison.partial,
+    comparable: comparison.comparable,
+    grouping,
+    depotIds: depotParam ? [depotParam] : undefined,
+    depotId: depotId || null,
+    depotNames: Object.fromEntries(depots.map((d) => [d.id, d.name])),
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -118,24 +141,14 @@ export function InsightDashboard() {
         id={`insight-panel-${active.id}`}
         aria-labelledby={`insight-tab-${active.id}`}
       >
-        {valid ? (
-          active.id === 'overview' && (
-            <OverviewTab
-              ctx={{
-                role,
-                range,
-                prev: comparison.prev,
-                year: comparison.year,
-                partial: comparison.partial,
-                comparable: comparison.comparable,
-                grouping,
-                depotIds: depotParam ? [depotParam] : undefined,
-                depotId: depotId || null,
-              }}
-            />
-          )
-        ) : (
+        {!valid ? (
           <p className="text-sm text-muted">{t('insight.range.invalid')}</p>
+        ) : depotList.loading ? (
+          // The depots in reach decide what a widget asks for (one depot in reach IS the depot in
+          // view), so wait for them rather than ask twice: once without, once with.
+          <Skeleton className="h-64 w-full" />
+        ) : (
+          <TabBody id={active.id} ctx={ctx} />
         )}
       </div>
     </div>
