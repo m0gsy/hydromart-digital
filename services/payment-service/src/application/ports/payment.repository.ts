@@ -79,6 +79,15 @@ export interface PaymentQuery {
   cursor?: string;
 }
 
+/** Unsettled money in one (method, age bucket) cell. */
+export interface UnsettledAgingCell {
+  method: PaymentMethod;
+  /** Index into the boundaries the caller passed. */
+  bucket: number;
+  amount: number;
+  count: number;
+}
+
 /** One method's unsettled (PENDING) total + transaction count, network-wide. */
 export interface UnsettledMethodAggregate {
   method: PaymentMethod;
@@ -215,6 +224,20 @@ export interface PaymentRepository {
   }>;
   /** Network-wide unsettled (PENDING) payments grouped by method over a date range. */
   aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
+  /**
+   * PENDING payments by method and by AGE, aggregated in the database.
+   *
+   * Age is the number of WIB calendar days between the day the payment was made and the day of
+   * `asOf`, never below 0. `maxDays[i]` is the oldest age that still belongs to bucket `i`; an
+   * age past the last boundary falls in the bucket after it. Aggregated here, not in Node,
+   * because pending rows never expire: reading them all would drop the newest once there were
+   * enough of them, and those are the ones finance looks at first.
+   */
+  aggregateUnsettledAging(
+    asOf: Date,
+    tz: string,
+    maxDays: readonly number[],
+  ): Promise<UnsettledAgingCell[]>;
   /** Network-wide collected (PAID) revenue grouped by method over a date range. */
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /**

@@ -12,6 +12,7 @@ import {
   PaymentRecord,
   PaymentRepository,
   PaymentStatusPatch,
+  UnsettledAgingCell,
   UnsettledMethodAggregate,
 } from '../../src/application/ports/payment.repository';
 import {
@@ -239,6 +240,30 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       total: all.length,
     };
   }
+  async aggregateUnsettledAging(
+    asOf: Date,
+    tz: string,
+    maxDays: readonly number[],
+  ): Promise<UnsettledAgingCell[]> {
+    const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+    const cells = new Map<string, UnsettledAgingCell>();
+    for (const r of this.rows) {
+      if (r.status !== PaymentStatus.PENDING) continue;
+      const age = Math.max(
+        0,
+        Math.round((Date.parse(day(asOf)) - Date.parse(day(r.createdAt))) / 86_400_000),
+      );
+      const found = maxDays.findIndex((limit) => age <= limit);
+      const bucket = found === -1 ? maxDays.length : found;
+      const key = `${r.method}#${bucket}`;
+      const cell = cells.get(key) ?? { method: r.method, bucket, amount: 0, count: 0 };
+      cell.amount += r.amount;
+      cell.count += 1;
+      cells.set(key, cell);
+    }
+    return [...cells.values()];
+  }
+
   async aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
     const map = new Map<PaymentMethod, { amount: number; count: number }>();
     for (const r of this.rows) {

@@ -39,6 +39,7 @@ import {
   isRefundable,
   isWebhookFresh,
   webhookSigningPayload,
+  BUSINESS_TZ,
 } from '../../domain/payment';
 import { PaymentConfigService } from '../../config/payment-config.service';
 import { Page, buildPage } from '../pagination';
@@ -150,6 +151,26 @@ export type RefundQueueRow = PaymentRecord & {
    */
   orderStatus: string | null;
 };
+
+/**
+ * How long unsettled money has waited, in the buckets the finance heatmap shows. They live HERE
+ * so the screen cannot invent its own boundaries: `maxDays` is the oldest age (in WIB calendar
+ * days) a payment may have and still belong to the bucket; the last one is open-ended.
+ */
+const AGING_BUCKETS: readonly { label: string; maxDays: number }[] = [
+  { label: '0-1', maxDays: 1 },
+  { label: '2-3', maxDays: 3 },
+  { label: '4-7', maxDays: 7 },
+  { label: '8+', maxDays: Number.POSITIVE_INFINITY },
+];
+export const UNSETTLED_AGING_BUCKETS: readonly string[] = AGING_BUCKETS.map((b) => b.label);
+
+/** Unsettled money by method and age. `amounts[i]` and `counts[i]` belong to `buckets[i]`. */
+export interface UnsettledAging {
+  asOf: string;
+  buckets: string[];
+  rows: { method: PaymentMethod; amounts: number[]; counts: number[] }[];
+}
 
 @Injectable()
 export class PaymentService {
@@ -829,6 +850,36 @@ export class PaymentService {
    */
   async unsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
     return this.payments.aggregateUnsettledByMethod(range);
+  }
+
+  /**
+   * Network-wide unsettled (PENDING) payments by method and AGE: how long the money has waited,
+   * counted in WIB calendar days (a payment made at 03:00 WIB is yesterday in UTC, and aging it
+   * by the UTC date would put it a day older than the people who made it). Aggregated in the
+   * database, so every pending payment counts however many there are.
+   */
+  async unsettledAging(now: Date = new Date()): Promise<UnsettledAging> {
+    const cells = await this.payments.aggregateUnsettledAging(
+      now,
+      BUSINESS_TZ,
+      AGING_BUCKETS.slice(0, -1).map((b) => b.maxDays),
+    );
+    const byMethod = new Map<PaymentMethod, { amounts: number[]; counts: number[] }>();
+    for (const c of cells) {
+      const entry = byMethod.get(c.method) ?? {
+        amounts: AGING_BUCKETS.map(() => 0),
+        counts: AGING_BUCKETS.map(() => 0),
+      };
+      const bucket = Math.min(c.bucket, AGING_BUCKETS.length - 1);
+      entry.amounts[bucket] = (entry.amounts[bucket] ?? 0) + c.amount;
+      entry.counts[bucket] = (entry.counts[bucket] ?? 0) + c.count;
+      byMethod.set(c.method, entry);
+    }
+    return {
+      asOf: now.toISOString(),
+      buckets: [...UNSETTLED_AGING_BUCKETS],
+      rows: [...byMethod.entries()].map(([method, v]) => ({ method, ...v })),
+    };
   }
 
   /**

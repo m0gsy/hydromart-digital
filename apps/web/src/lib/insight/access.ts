@@ -9,7 +9,7 @@
  */
 import { can, type Capability } from '@/lib/roles';
 
-export type InsightTabId = 'overview' | 'sales' | 'operations';
+export type InsightTabId = 'overview' | 'sales' | 'operations' | 'customers' | 'finance';
 
 export interface InsightTabDef {
   id: InsightTabId;
@@ -34,6 +34,16 @@ export const INSIGHT_TABS: readonly InsightTabDef[] = [
     id: 'operations',
     labelKey: 'insight.tabs.operations',
     caps: ['dashboardFinance', 'orderReports', 'orderReportsDepot', 'inventoryRead'],
+  },
+  {
+    id: 'customers',
+    labelKey: 'insight.tabs.customers',
+    caps: ['depotCrm', 'loyaltyRead', 'voucherRead', 'churn', 'hqBackOffice', 'orderReports'],
+  },
+  {
+    id: 'finance',
+    labelKey: 'insight.tabs.finance',
+    caps: ['dashboard', 'settlementRead', 'refundQueueRead'],
   },
 ];
 

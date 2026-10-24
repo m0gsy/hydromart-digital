@@ -134,6 +134,9 @@ const FIXED_HOLIDAYS = new Set(['01-01', '05-01', '06-01', '08-17', '12-25']);
 /** The business zone the promise is counted in (WIB). A refund asked at 20:00 UTC is already tomorrow here. */
 const PROMISE_TZ = 'Asia/Jakarta';
 
+/** The business zone as a name a database can use (`AT TIME ZONE`). */
+export const BUSINESS_TZ = PROMISE_TZ;
+
 /**
  * True for a weekend, a fixed national holiday, or a date in the configured list — judged
  * on the LOCAL calendar day, because that is the day a customer reads in the promise.

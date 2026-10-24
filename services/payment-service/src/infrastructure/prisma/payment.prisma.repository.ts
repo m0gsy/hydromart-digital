@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { nextCursor, pageArgs } from '@hydromart/platform';
 
+import { Prisma } from '../../../prisma/generated/client';
+
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
   CashCollectedSummary,
@@ -11,6 +13,7 @@ import {
   PaymentRecord,
   PaymentRepository,
   PaymentStatusPatch,
+  UnsettledAgingCell,
   UnsettledMethodAggregate,
 } from '../../application/ports/payment.repository';
 import { PaymentAlreadyExistsError } from '../../domain/errors';
@@ -293,6 +296,48 @@ export class PaymentPrismaRepository implements PaymentRepository {
       this.prisma.payment.count({ where }),
     ]);
     return { items: rows.map((r) => this.toRecord(r)), total };
+  }
+
+  async aggregateUnsettledAging(
+    asOf: Date,
+    tz: string,
+    maxDays: readonly number[],
+  ): Promise<UnsettledAgingCell[]> {
+    // One WHEN per boundary, each bound as a parameter: the buckets are defined once, in the
+    // service, and this query cannot drift from them. The last bucket is "everything older".
+    const cases = Prisma.join(
+      maxDays.map((limit, i) => Prisma.sql`WHEN "age" <= ${limit}::int THEN ${i}::int`),
+      ' ',
+    );
+    const rows = await this.prisma.$queryRaw<
+      { method: string; bucket: number; amount: Prisma.Decimal | null; count: bigint }[]
+    >(Prisma.sql`
+      -- Age in whole calendar days in the business zone: "createdAt" is a naive timestamp that
+      -- holds UTC, so label it UTC, then read it in the zone. A payment made at 03:00 WIB is
+      -- UTC's yesterday, and aging it by the UTC date would make it a day older than it is.
+      SELECT "method"::text AS method,
+             CASE ${cases} ELSE ${maxDays.length}::int END AS bucket,
+             COALESCE(SUM("amount"), 0) AS amount,
+             COUNT(*)::bigint AS count
+      FROM (
+        SELECT "method", "amount",
+               GREATEST(
+                 0,
+                 (${asOf}::timestamptz AT TIME ZONE ${tz})::date
+                   - ("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${tz})::date
+               ) AS "age"
+        FROM "payments"
+        WHERE "status" = ${PaymentStatus.PENDING}::"PaymentStatus"
+      ) pending
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `);
+    return rows.map((r) => ({
+      method: r.method as PaymentMethod,
+      bucket: Number(r.bucket),
+      amount: r.amount ? Number(r.amount) : 0,
+      count: Number(r.count),
+    }));
   }
 
   async aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {

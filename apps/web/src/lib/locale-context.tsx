@@ -39,11 +39,11 @@ const LocaleContext = createContext<LocaleValue | null>(null);
  * The cache is module-level so a second toggle is free, and the promise is memoised so
  * two components flipping the switch in the same tick share one download.
  */
-const loaded: Partial<Record<Locale, Dictionary>> = { id };
+const loaded: Partial<Record<Locale, Dictionary>> = { id: id as Dictionary };
 let enLoading: Promise<Dictionary> | null = null;
 
 function loadDictionary(locale: Locale): Promise<Dictionary> {
-  if (locale === 'id') return Promise.resolve(id);
+  if (locale === 'id') return Promise.resolve(id as Dictionary);
   if (!enLoading) {
     enLoading = import('./dictionaries/en').then((m) => {
       loaded.en = m.en;
@@ -62,7 +62,7 @@ function loadDictionary(locale: Locale): Promise<Dictionary> {
  * with "Cannot reach the server" under `lang="id"`. Defaults to Indonesian, the bundled
  * dictionary, and follows the reader once the provider has mounted.
  */
-let currentDict: Dictionary = id;
+let currentDict: Dictionary = id as Dictionary;
 
 export function translate(key: string, vars?: TVars): string {
   return resolve(currentDict, key, vars);
@@ -79,9 +79,7 @@ function resolve(dict: Dictionary, key: string, vars?: TVars): string {
     .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
   if (typeof value !== 'string') return key;
   if (!vars) return value;
-  return value.replace(/\{(\w+)\}/g, (m, name) =>
-    name in vars ? String(vars[name]) : m,
-  );
+  return value.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
@@ -109,7 +107,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   // In an effect, not in render: `translate()` is module state and writing it while
   // rendering makes the same tree produce different output on a replay.
   useEffect(() => {
-    currentDict = loaded[locale] ?? id;
+    currentDict = loaded[locale] ?? (id as Dictionary);
     // `revision` is the signal that `loaded` changed — it has no other reader here either.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale, revision]);
@@ -131,7 +129,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, [locale]);
 
   const t = useCallback(
-    (key: string, vars?: TVars) => resolve(loaded[locale] ?? id, key, vars),
+    (key: string, vars?: TVars) => resolve(loaded[locale] ?? (id as Dictionary), key, vars),
     // `revision` is the signal that `loaded` changed — it has no other reader.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [locale, revision],
@@ -143,6 +141,31 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+
+let insightLoading: Promise<void> | null = null;
+
+/** Fetch the insight dashboard's Indonesian strings once and graft them onto the default dictionary. */
+function loadInsightStrings(): Promise<void> {
+  if ('insight' in id) return Promise.resolve();
+  insightLoading ??= import('./dictionaries/id/insight').then((m) => {
+    Object.assign(id, { insight: m.insight });
+  });
+  return insightLoading;
+}
+
+/** True once the insight strings can be read; the dashboard draws nothing before that. */
+export function useInsightStrings(): boolean {
+  const [ready, setReady] = useState('insight' in id);
+  useEffect(() => {
+    if (ready) return;
+    let alive = true;
+    void loadInsightStrings().then(() => alive && setReady(true));
+    return () => {
+      alive = false;
+    };
+  }, [ready]);
+  return ready;
 }
 
 export function useT(): LocaleValue {
