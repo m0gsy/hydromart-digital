@@ -108,7 +108,7 @@ const R = (list) => list.trim().split(/\s+/);
 const HQ = R(`
 /hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/audit /hq/broadcast
 /hq/campaigns /hq/catalog /hq/churn /hq/compare /hq/content /hq/customers /hq/depots
-/hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
+/hq/dashboard /hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
 /hq/forms/segment /hq/forms/voucher /hq/franchise /hq/fraud /hq/health /hq/hierarchy
 /hq/incidents /hq/inventory /hq/invoice-template /hq/loyalty /hq/notifications
 /hq/onboarding /hq/orders /hq/payments /hq/pdp /hq/pricing /hq/profile /hq/promo-rules /hq/promotions
@@ -131,7 +131,7 @@ const OPS = R(`
 /dashboard/customers/import-addresses /dashboard/returns/import
 /dashboard/depot-settings /dashboard/depots /dashboard/disputes /dashboard/earning-rules
 /dashboard/expense-claims /dashboard/forecast /dashboard/franchise /dashboard/handover
-/dashboard/huddle /dashboard/incidents /dashboard/inventory /dashboard/inventory/import
+/dashboard/huddle /dashboard/incidents /dashboard/insight /dashboard/inventory /dashboard/inventory/import
 /dashboard/loyalty /dashboard/maintenance /dashboard/meter /dashboard/monthly-pnl
 /dashboard/monthly-review /dashboard/notifications /dashboard/onboarding
 /dashboard/operator-settings /dashboard/orders /dashboard/payment-recon
