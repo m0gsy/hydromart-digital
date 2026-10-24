@@ -1164,6 +1164,84 @@ export class StatusSummaryResponseDto {
   live!: StatusSummaryLiveResponseDto;
 }
 
+/** Mirrors `TimeAreaReport['byWeekday'][number]` exactly. */
+export class TimeAreaWeekdayResponseDto {
+  @ApiProperty({ type: Number, description: '0 = Monday .. 6 = Sunday.' })
+  weekday!: number;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+}
+
+/** Mirrors `TimeAreaReport['byArea'][number]` exactly. */
+export class TimeAreaAreaResponseDto {
+  @ApiProperty({ type: String })
+  area!: string;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+}
+
+/** Mirrors `NonNullable<TimeAreaReport['otherAreas']>` exactly. */
+export class TimeAreaOtherResponseDto {
+  @ApiProperty({ type: Number })
+  areas!: number;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+}
+
+/** Mirrors `TimeAreaReport` exactly. */
+export class TimeAreaResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  from!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  to!: string | null;
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'array', items: { type: 'number' } },
+    description: 'Orders by [weekday 0 = Monday .. 6][hour 0..23], business time zone.',
+  })
+  heat!: number[][];
+  @ApiProperty({ type: [TimeAreaWeekdayResponseDto] })
+  byWeekday!: TimeAreaWeekdayResponseDto[];
+  @ApiProperty({ type: [TimeAreaAreaResponseDto] })
+  byArea!: TimeAreaAreaResponseDto[];
+  @ApiProperty({ type: TimeAreaOtherResponseDto, nullable: true })
+  otherAreas!: TimeAreaOtherResponseDto | null;
+}
+
+/** Mirrors `RecentActivityReport['items'][number]` exactly. */
+export class RecentActivityItemResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string;
+  @ApiProperty({ type: String })
+  orderNumber!: string;
+  @ApiProperty({ type: String })
+  status!: string;
+  @ApiProperty({ type: Number })
+  total!: number;
+  @ApiProperty({ type: Boolean })
+  isWalkIn!: boolean;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  depotId!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+}
+
+/** Mirrors `RecentActivityReport` exactly. */
+export class RecentActivityResponseDto {
+  @ApiProperty({ type: [RecentActivityItemResponseDto] })
+  items!: RecentActivityItemResponseDto[];
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class ExpireAbandoned2ResponseDto {
   @ApiProperty({ type: Number })

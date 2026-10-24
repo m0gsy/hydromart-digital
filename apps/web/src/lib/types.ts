@@ -1091,6 +1091,36 @@ export interface StatusSummary {
   live: { inProgress: number; unrouted: number; byStatus: Record<string, number> };
 }
 
+/**
+ * Orders by weekday and hour, and by delivery city (GET reports/time-area). Sales only (neither
+ * cancelled nor voided), by the day and hour they were PLACED in the business zone.
+ * `heat[weekday][hour]` is orders with weekday 0 = Monday .. 6 = Sunday. An order with no city is
+ * in no area, so the areas can add up to fewer than `orders`.
+ */
+export interface TimeAreaReport {
+  from: string | null;
+  to: string | null;
+  orders: number;
+  revenue: number;
+  heat: number[][];
+  byWeekday: { weekday: number; orders: number; revenue: number }[];
+  byArea: { area: string; orders: number; revenue: number }[];
+  otherAreas: { areas: number; orders: number; revenue: number } | null;
+}
+
+/** One line of the recent-activity feed: where an order stands, never who it is for. */
+export interface RecentActivity {
+  items: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    total: number;
+    isWalkIn: boolean;
+    depotId: string | null;
+    updatedAt: string;
+  }[];
+}
+
 export interface TopCustomers {
   from: string | null;
   to: string | null;

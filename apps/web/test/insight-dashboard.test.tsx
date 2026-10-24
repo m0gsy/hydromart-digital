@@ -121,6 +121,196 @@ function serve(overrides: Record<string, () => unknown> = {}) {
         total: 1,
       });
     }
+    if (p.includes('/procurement/api/v1/purchase-orders')) {
+      return Promise.resolve([
+        {
+          id: 'po1',
+          depotId: 'd1',
+          poNumber: 'PO-001',
+          supplierId: 's1',
+          supplierName: 'CV Galon Jaya',
+          status: 'SENT',
+          lines: [],
+          subtotalIdr: 900_000,
+          shippingIdr: 50_000,
+          totalIdr: 950_000,
+          expectedAt: '2026-10-20T00:00:00.000Z',
+          receivedAt: null,
+          createdAt: '2026-10-10T00:00:00.000Z',
+        },
+        {
+          id: 'po2',
+          depotId: 'd1',
+          poNumber: 'PO-002',
+          supplierId: 's1',
+          supplierName: 'CV Galon Jaya',
+          status: 'RECEIVED',
+          lines: [],
+          subtotalIdr: 100_000,
+          shippingIdr: 0,
+          totalIdr: 100_000,
+          expectedAt: null,
+          receivedAt: '2026-10-05T00:00:00.000Z',
+          createdAt: '2026-10-01T00:00:00.000Z',
+        },
+      ]);
+    }
+    if (p.includes('/inventory/wastage')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        from: null,
+        to: null,
+        totalLossIdr: 45_000,
+        byItem: [
+          { label: 'Galon 19L', qty: 3, lossIdr: 45_000 },
+          { label: 'Segel tutup', qty: 10 },
+        ],
+      });
+    }
+    if (p.includes('/incidents/api/v1/incidents')) {
+      const status = new URL(p, 'http://x').searchParams.get('status');
+      const base = {
+        depotId: 'd1',
+        type: 'OTHER',
+        description: 'rahasia',
+        reportedBy: 'u1',
+        courierName: null,
+        orderRef: 'HM-SECRET',
+        customerPhone: '0811000111',
+        hqTicketRef: null,
+        resolutionNote: null,
+        resolvedBy: null,
+        resolvedAt: null,
+        updatedAt: '2026-10-14T00:00:00.000Z',
+      };
+      return Promise.resolve(
+        status === 'OPEN'
+          ? [
+              {
+                ...base,
+                id: 'i1',
+                title: 'Listrik padam',
+                severity: 'HIGH',
+                status: 'OPEN',
+                createdAt: '2026-10-14T00:00:00.000Z',
+              },
+            ]
+          : [
+              {
+                ...base,
+                id: 'i2',
+                title: 'Galon bocor',
+                severity: 'LOW',
+                status: 'IN_PROGRESS',
+                createdAt: '2026-10-13T00:00:00.000Z',
+              },
+            ],
+      );
+    }
+    if (p.includes('/depots/api/v1/order-disputes')) {
+      return Promise.resolve([
+        {
+          id: 'x1',
+          depotId: 'd1',
+          orderRef: 'HM-SECRET',
+          customerName: 'Rahasia Pelanggan',
+          category: 'NOT_RECEIVED',
+          description: 'tidak sampai',
+          amountIdr: 60_000,
+          courierName: null,
+          status: 'OPEN',
+          resolution: null,
+          resolutionNote: null,
+          raisedBy: 'u1',
+          resolvedBy: null,
+          resolvedAt: null,
+          createdAt: '2026-10-12T00:00:00.000Z',
+          updatedAt: '2026-10-12T00:00:00.000Z',
+        },
+      ]);
+    }
+    if (p.includes('/approvals/api/v1/approvals/counts')) {
+      return Promise.resolve({
+        total: 3,
+        byType: { OPNAME_VARIANCE: 2, DEPOSIT_REFUND: 1, COD_VARIANCE: 0, GALLON_VARIANCE: 0 },
+      });
+    }
+    if (p.includes('/depots/api/v1/maintenance-items')) {
+      return Promise.resolve([
+        {
+          id: 'm1',
+          depotId: 'd1',
+          name: 'Filter RO',
+          category: 'RO',
+          intervalDays: 90,
+          lastServicedAt: null,
+          nextDueAt: '2026-10-01T00:00:00.000Z',
+          status: 'DUE',
+          note: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        {
+          id: 'm2',
+          depotId: 'd1',
+          name: 'Pompa',
+          category: 'PUMP',
+          intervalDays: 90,
+          lastServicedAt: null,
+          nextDueAt: '2027-01-01T00:00:00.000Z',
+          status: 'HEALTHY',
+          note: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ]);
+    }
+    if (p.includes('/reports/time-area')) {
+      const heat = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
+      heat[0]![8] = 4;
+      heat[6]![23] = 2;
+      return Promise.resolve({
+        from: null,
+        to: null,
+        orders: 6,
+        revenue: 600_000,
+        heat,
+        byWeekday: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+          weekday,
+          orders: weekday === 0 ? 4 : weekday === 6 ? 2 : 0,
+          revenue: weekday === 0 ? 400_000 : weekday === 6 ? 200_000 : 0,
+        })),
+        byArea: [
+          { area: 'Bekasi', orders: 5, revenue: 500_000 },
+          { area: 'Depok', orders: 1, revenue: 100_000 },
+        ],
+        otherAreas: { areas: 3, orders: 2, revenue: 80_000 },
+      });
+    }
+    if (p.includes('/reports/recent-activity')) {
+      return Promise.resolve({
+        items: [
+          {
+            id: 'o1',
+            orderNumber: 'HM-20261015-000001',
+            status: 'ON_DELIVERY',
+            total: 75_000,
+            isWalkIn: false,
+            depotId: 'd1',
+            updatedAt: '2026-10-15T04:00:00.000Z',
+          },
+          {
+            id: 'o2',
+            orderNumber: 'HM-20261015-000002',
+            status: 'VOIDED',
+            total: 20_000,
+            isWalkIn: true,
+            depotId: null,
+            updatedAt: '2026-10-15T03:00:00.000Z',
+          },
+        ],
+      });
+    }
     if (p.includes('/reports/status-summary')) {
       return Promise.resolve({
         from: null,
@@ -1540,5 +1730,156 @@ describe('the promo usage and forecast widgets', () => {
     renderPage();
     await screen.findByText('Tingkat churn pelanggan');
     expect(screen.queryByText('Peta depot')).toBeNull();
+  });
+});
+
+describe('the time and area tab', () => {
+  it('names the busiest hour and day, draws the grid, and folds the small cities into one line', async () => {
+    asRole('MANAGER');
+    openTab('time');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    // Monday 08.00 has 4 orders, the most of any hour.
+    expect(await screen.findByText('Sen 08.00')).toBeTruthy();
+    expect(screen.getByRole('table', { name: /menurut hari dalam seminggu dan jam/ })).toBeTruthy();
+    expect(screen.getByText('Dan 3 kota lain: 2 pesanan.')).toBeTruthy();
+    expect(screen.getAllByText('Bekasi').length).toBeGreaterThan(0);
+  });
+
+  it('asks for the window with both bounds and the depot scope', async () => {
+    asRole('MANAGER');
+    openTab('time');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Sen 08.00');
+    const q = new URL(
+      String(get.mock.calls.find((c) => String(c[0]).includes('/reports/time-area'))?.[0]),
+      'http://x',
+    ).searchParams;
+    expect(q.get('from')).toBe(THIS_MONTH_FROM);
+    expect(q.get('to')).not.toBeNull();
+  });
+
+  it('says there are no orders instead of drawing an empty grid', async () => {
+    asRole('MANAGER');
+    openTab('time');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    serve({
+      '/reports/time-area': () => ({
+        from: null,
+        to: null,
+        orders: 0,
+        revenue: 0,
+        heat: Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0)),
+        byWeekday: [],
+        byArea: [],
+        otherAreas: null,
+      }),
+    });
+    renderPage();
+    expect(
+      (await screen.findAllByText('Belum ada pesanan pada periode ini.')).length,
+    ).toBeGreaterThan(0);
+  });
+});
+
+describe('the recent activity feed', () => {
+  it('lists the latest orders with their stage and channel, and no customer detail', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    const row = (await screen.findByText('HM-20261015-000001')).closest('li')!;
+    expect(row.textContent).toContain('Dalam pengiriman');
+    expect(row.textContent).toContain('aplikasi');
+    const voided = screen.getByText('HM-20261015-000002').closest('li')!;
+    expect(voided.textContent).toContain('Dibatalkan di kasir');
+    expect(voided.textContent).toContain('kasir');
+  });
+});
+
+describe('the stock and procurement tab', () => {
+  it('counts the purchases still open with their value, and the loss for the period', async () => {
+    asRole('MANAGER');
+    openTab('stock');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    // PO-001 is sent and not received; PO-002 is history.
+    const row = (await screen.findByText('PO-001')).closest('tr')!;
+    expect(row.textContent).toContain('CV Galon Jaya');
+    expect(row.textContent).toContain('Dikirim');
+    expect(screen.queryByText('PO-002')).toBeNull();
+    const open = screen.getByText('Pembelian berjalan').parentElement?.parentElement;
+    expect(open?.textContent).toContain('1');
+    expect(await screen.findByText('Galon 19L')).toBeTruthy();
+    // An item with no selling price shows a quantity and no value, never Rp 0.
+    const noPrice = screen.getByText('Segel tutup').closest('li')!;
+    expect(noPrice.textContent).not.toMatch(/Rp/);
+  });
+
+  it('asks for a depot before it reads purchase orders or loss', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('stock');
+    renderPage();
+    expect(
+      await screen.findByText(/Pilih satu depot untuk melihat pesanan pembelian/),
+    ).toBeTruthy();
+    expect(requested('/procurement/api/v1/purchase-orders')).toBe(false);
+    expect(requested('/inventory/wastage')).toBe(false);
+  });
+});
+
+describe('the risk and compliance tab', () => {
+  it('lists the open incidents worst first, and never draws who complained or what they wrote', async () => {
+    asRole('MANAGER');
+    openTab('risk');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const first = (await screen.findByText('Listrik padam')).closest('li')!;
+    expect(first.textContent).toContain('Berat');
+    const all = document.body.textContent ?? '';
+    expect(all.indexOf('Listrik padam')).toBeLessThan(all.indexOf('Galon bocor'));
+    for (const secret of ['rahasia', 'HM-SECRET', '0811000111', 'Rahasia Pelanggan']) {
+      expect(all).not.toContain(secret);
+    }
+  });
+
+  it('shows disputes, approvals by type, and only the equipment that is overdue', async () => {
+    asRole('MANAGER');
+    openTab('risk');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Tidak diterima')).toBeTruthy();
+    expect(await screen.findByText('Selisih stok opname')).toBeTruthy();
+    expect(screen.queryByText('Selisih setoran COD')).toBeNull();
+    expect(await screen.findByText('Filter RO')).toBeTruthy();
+    expect(screen.queryByText('Pompa')).toBeNull();
+  });
+
+  it('reads an incident list that failed as a failure, not as no incidents', async () => {
+    asRole('MANAGER');
+    openTab('risk');
+    serve({
+      '/incidents/api/v1/incidents': () => {
+        throw new ApiError(500, 'down');
+      },
+    });
+    // serve() resets the depot list, so the single depot is set after it.
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Insiden terbuka', { selector: 'h2' });
+    const card = screen
+      .getByText('Insiden terbuka', { selector: 'h2' })
+      .closest('div')!.parentElement!;
+    await waitFor(() => expect(card.querySelector('button')).not.toBeNull());
+    expect(screen.queryByText('Tidak ada insiden terbuka.')).toBeNull();
+  });
+
+  it('asks for a depot first', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('risk');
+    renderPage();
+    await waitFor(() =>
+      expect(screen.queryByText(/Pilih satu depot untuk melihat insiden/)).toBeTruthy(),
+    );
+    expect(requested('/incidents/api/v1/incidents')).toBe(false);
   });
 });

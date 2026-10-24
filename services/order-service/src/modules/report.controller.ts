@@ -41,6 +41,8 @@ import {
   SalesReportQueryDto,
   SegmentEstimateQueryDto,
   StatusSummaryQueryDto,
+  TimeAreaQueryDto,
+  RecentActivityQueryDto,
   TopReportQueryDto,
 } from './dto/report.dto';
 import {
@@ -56,6 +58,8 @@ import {
   RevenueByProductReport,
   SalesReport,
   StatusSummaryReport,
+  TimeAreaReport,
+  RecentActivityReport,
 } from '../application/services/report.service';
 import {
   CustomerSales,
@@ -85,6 +89,8 @@ import {
   RetentionCohortReportResponseDto,
   RevenueByProductReportResponseDto,
   StatusSummaryResponseDto,
+  TimeAreaResponseDto,
+  RecentActivityResponseDto,
   SalesReportResponseDto,
   SegmentEstimate3ResponseDto,
   ShippingByDepotResponseDto,
@@ -159,6 +165,33 @@ export class ReportController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<StatusSummaryReport> {
     return this.reports.statusSummary(toRange(q), ReportController.reportScope(user, q.depotIds));
+  }
+
+  @ApiOkResponse({ type: TimeAreaResponseDto })
+  @Get('time-area')
+  @ApiOperation({
+    summary: 'Orders by weekday and hour, and by delivery city, for a window (sales only)',
+  })
+  timeArea(
+    @Query() q: TimeAreaQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<TimeAreaReport> {
+    return this.reports.timeArea(toRange(q), ReportController.reportScope(user, q.depotIds));
+  }
+
+  @ApiOkResponse({ type: RecentActivityResponseDto })
+  @Get('recent-activity')
+  @ApiOperation({
+    summary: 'The orders touched most recently (number, status, total, channel; no customer data)',
+  })
+  recentActivity(
+    @Query() q: RecentActivityQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<RecentActivityReport> {
+    return this.reports.recentActivity(
+      q.limit ?? 20,
+      ReportController.reportScope(user, q.depotIds),
+    );
   }
 
   @ApiOkResponse({ type: TopCustomersResponseDto })

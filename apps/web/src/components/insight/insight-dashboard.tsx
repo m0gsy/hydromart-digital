@@ -12,6 +12,9 @@ import { CustomersTab } from '@/components/insight/tabs/customers';
 import { FinanceTab } from '@/components/insight/tabs/finance';
 import { GallonsTab } from '@/components/insight/tabs/gallons';
 import { MeterTab } from '@/components/insight/tabs/meter';
+import { RiskTab } from '@/components/insight/tabs/risk';
+import { StockTab } from '@/components/insight/tabs/stock';
+import { TimeTab } from '@/components/insight/tabs/time';
 import { OperationsTab } from '@/components/insight/tabs/operations';
 import { OverviewTab } from '@/components/insight/tabs/overview';
 import { PeopleTab } from '@/components/insight/tabs/people';
@@ -46,6 +49,9 @@ function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
   if (id === 'cash') return <CashTab ctx={ctx} />;
   if (id === 'couriers') return <CouriersTab ctx={ctx} />;
   if (id === 'meter') return <MeterTab ctx={ctx} />;
+  if (id === 'time') return <TimeTab ctx={ctx} />;
+  if (id === 'stock') return <StockTab ctx={ctx} />;
+  if (id === 'risk') return <RiskTab ctx={ctx} />;
   return <OverviewTab ctx={ctx} />;
 }
 

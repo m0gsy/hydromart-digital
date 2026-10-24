@@ -178,6 +178,27 @@ export class StatusSummaryQueryDto {
   depotIds?: string;
 }
 
+/** When orders come in and where they go: the same window and scope as the status summary. */
+export class TimeAreaQueryDto extends StatusSummaryQueryDto {}
+
+export class RecentActivityQueryDto {
+  @ApiPropertyOptional({ description: 'Comma-separated depot ids to scope the feed to.' })
+  @IsOptional()
+  @IsString()
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,99}$/i,
+  )
+  depotIds?: string;
+
+  @ApiPropertyOptional({ description: 'How many lines, 1..50 (default 20).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 export class DepotCompareQueryDto {
   @ApiPropertyOptional({ description: 'Comma-separated depot ids to compare.' })
   @IsString()
