@@ -262,10 +262,20 @@ export class VoucherService {
     };
   }
 
-  async browse(page = 1, limit = 20, activeOnly = false): Promise<Page<VoucherRecord>> {
+  /**
+   * `depotIds` narrows the admin list to a depot-scoped caller's reach (their own depots'
+   * vouchers and the network-wide ones). `voucherRead` admits MANAGER, who used to read every
+   * depot's vouchers with their budget caps and usage counters.
+   */
+  async browse(
+    page = 1,
+    limit = 20,
+    activeOnly = false,
+    depotIds?: readonly string[],
+  ): Promise<Page<VoucherRecord>> {
     const p = Math.max(1, page);
     const l = Math.min(VoucherService.MAX_LIMIT, Math.max(1, limit));
-    const { items, total } = await this.repo.search(p, l, activeOnly);
+    const { items, total } = await this.repo.search(p, l, activeOnly, depotIds);
     return buildPage(items, total, p, l);
   }
 

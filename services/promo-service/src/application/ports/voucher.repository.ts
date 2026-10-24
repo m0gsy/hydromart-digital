@@ -112,10 +112,16 @@ export interface VoucherRepository {
   create(data: CreateVoucherData): Promise<VoucherRecord>;
   update(id: string, data: UpdateVoucherData): Promise<VoucherRecord>;
 
+  /**
+   * The admin voucher list. `depotIds` narrows it to a depot-scoped caller's reach: their own
+   * depots' vouchers PLUS the network-wide ones (no depot), which a manager may grant but
+   * never sees another depot's. Omitted is every voucher (head office).
+   */
   search(
     page: number,
     limit: number,
     activeOnly: boolean,
+    depotIds?: readonly string[],
   ): Promise<{ items: VoucherRecord[]; total: number }>;
 
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;

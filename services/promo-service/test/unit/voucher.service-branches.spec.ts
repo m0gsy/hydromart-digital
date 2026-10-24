@@ -93,6 +93,29 @@ describe('VoucherService branch gaps', () => {
     expect(page.items).toHaveLength(3);
   });
 
+  describe('browse narrowed to a depot scope', () => {
+    const DEPOT_A = randomUUID();
+    const DEPOT_B = randomUUID();
+    const seed = async () => {
+      await service.create(baseVoucher({ code: 'MINE', depotId: DEPOT_A }));
+      await service.create(baseVoucher({ code: 'OTHER', depotId: DEPOT_B }));
+      await service.create(baseVoucher({ code: 'NET' }));
+    };
+    const codes = (page: { items: { code: string }[] }) => page.items.map((v) => v.code).sort();
+
+    it("lists a scoped caller's own depots' vouchers and the network-wide ones, never another depot's", async () => {
+      await seed();
+      const page = await service.browse(1, 20, false, [DEPOT_A]);
+      expect(codes(page)).toEqual(['MINE', 'NET']);
+      expect(page.total).toBe(2);
+    });
+
+    it('lists everything for head office (no scope)', async () => {
+      await seed();
+      expect(codes(await service.browse(1, 20, false))).toEqual(['MINE', 'NET', 'OTHER']);
+    });
+  });
+
   it('burnSummary totals redemptions per voucher and across the network', async () => {
     const a = await service.create(
       baseVoucher({ code: 'A', discountType: DiscountType.FIXED, value: 5000 }),

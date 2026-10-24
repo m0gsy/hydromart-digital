@@ -120,9 +120,12 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     page: number,
     limit: number,
     activeOnly: boolean,
+    depotIds?: readonly string[],
   ): Promise<{ items: VoucherRecord[]; total: number }> {
     const all = this.vouchers
       .filter((v) => (activeOnly ? v.active : true))
+      // Like the real repository: own depots' vouchers plus the network-wide ones.
+      .filter((v) => !depotIds || !v.depotId || depotIds.includes(v.depotId))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const start = (page - 1) * limit;
     return { items: all.slice(start, start + limit).map((v) => ({ ...v })), total: all.length };

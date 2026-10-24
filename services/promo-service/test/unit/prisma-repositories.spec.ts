@@ -527,6 +527,24 @@ describe('VoucherPrismaRepository', () => {
     ]);
   });
 
+  it('search narrows to the depots asked for plus the network-wide vouchers', async () => {
+    $transaction.mockResolvedValue([[], 0]);
+    await repo.search(1, 20, false, ['depot-a']);
+    expect(voucher.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] } }),
+    );
+    // Combined with the active-only filter, never replacing it.
+    await repo.search(1, 20, true, ['depot-a']);
+    expect(voucher.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { active: true, OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] },
+      }),
+    );
+    // No scope is still every voucher — head office reads the same list.
+    await repo.search(1, 20, false);
+    expect(voucher.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: {} }));
+  });
+
   it('sumRedemptionsByVoucher narrows to the vouchers of the depots asked for', async () => {
     voucherRedemption.groupBy.mockResolvedValue([]);
     await repo.sumRedemptionsByVoucher(['depot-a', 'depot-b']);

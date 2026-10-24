@@ -34,8 +34,36 @@ describe('VoucherController', () => {
   afterEach(() => jest.clearAllMocks());
 
   it('browse delegates page/limit and forces includeInactive=false', async () => {
-    await controller.browse({ page: 2, limit: 10 } as unknown as BrowseQueryDto);
-    expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false);
+    await controller.browse(
+      { page: 2, limit: 10 } as unknown as BrowseQueryDto,
+      { sub: 'hq-1', role: 'HEAD_OFFICE' } as unknown as AuthenticatedUser,
+    );
+    // Head office is network-wide, so the scope it passes is "no filter".
+    expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false, undefined);
+  });
+
+  // `voucherRead` admits MANAGER, a depot-scoped role: the list used to hand a manager every
+  // depot's vouchers, with their budget caps and usage counters.
+  it("browse narrows a manager's list to the depots they are responsible for", async () => {
+    await controller.browse({ page: 1, limit: 20 } as unknown as BrowseQueryDto, {
+      sub: 'mgr-1',
+      role: 'MANAGER',
+      depotId: 'd-1',
+      depotIds: ['d-1', 'd-2'],
+    } as unknown as AuthenticatedUser);
+    expect(vouchers.browse).toHaveBeenCalledWith(1, 20, false, ['d-1', 'd-2']);
+  });
+
+  it('browse refuses a scoped account that is responsible for no depot', () => {
+    expect(() =>
+      controller.browse({} as unknown as BrowseQueryDto, {
+        sub: 'mgr-2',
+        role: 'MANAGER',
+        depotId: null,
+        depotIds: [],
+      } as unknown as AuthenticatedUser),
+    ).toThrow();
+    expect(vouchers.browse).not.toHaveBeenCalled();
   });
 
   // `voucherRead` admits MANAGER, a depot-scoped role: the summary is narrowed to the caller's

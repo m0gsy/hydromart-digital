@@ -76,8 +76,13 @@ export class VoucherController {
   @Can('voucherRead')
   @Get()
   @ApiOperation({ summary: 'List all vouchers (admin, includes inactive)' })
-  browse(@Query() query: BrowseQueryDto): Promise<Page<VoucherRecord>> {
-    return this.vouchers.browse(query.page, query.limit, false);
+  browse(
+    @Query() query: BrowseQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Page<VoucherRecord>> {
+    // `voucherRead` admits MANAGER, a depot-scoped role: narrow to their own depots (plus the
+    // network-wide vouchers); only a network-wide role lists every depot's.
+    return this.vouchers.browse(query.page, query.limit, false, depotScopeIds(user));
   }
 
   // HQ voucher governance (14b): real burn per voucher + network total. Declared before the

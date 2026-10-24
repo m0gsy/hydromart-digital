@@ -86,8 +86,13 @@ export class VoucherPrismaRepository implements VoucherRepository {
     page: number,
     limit: number,
     activeOnly: boolean,
+    depotIds?: readonly string[],
   ): Promise<{ items: VoucherRecord[]; total: number }> {
-    const where = activeOnly ? { active: true } : {};
+    const where = {
+      ...(activeOnly ? { active: true } : {}),
+      // A scoped caller: own depots' vouchers + the network-wide ones. Never another depot's.
+      ...(depotIds ? { OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] } : {}),
+    };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.voucher.findMany({
         where,
