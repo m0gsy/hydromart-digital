@@ -150,6 +150,134 @@ function serve(overrides: Record<string, () => unknown> = {}) {
         })),
       });
     }
+    if (p.includes('/customers/crm/dashboard')) {
+      return Promise.resolve({
+        counts: { baru: 4, aktif: 30, inactive: 6, total: 40 },
+        repeatRatePct: 62.4,
+        followUps: [
+          {
+            customerId: 'c9',
+            name: 'Rahasia',
+            phone: '0811',
+            lastOrderAt: null,
+            daysSinceLastOrder: 30,
+            orderCount: 1,
+          },
+        ],
+      });
+    }
+    if (p.includes('/loyalty/depot-summary')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        totalMembers: 25,
+        pointsOutstanding: 4200,
+        redeemedThisMonth: 300,
+        tiers: { REGULAR: 15, SILVER: 7, GOLD: 3, PLATINUM: 0 },
+      });
+    }
+    if (p.includes('/referrals/depot-summary')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        invited: 12,
+        qualified: 5,
+        conversionPct: 41.6,
+        pointsAwarded: 500,
+        topReferrers: [],
+      });
+    }
+    if (p.includes('/forecast/churn')) {
+      return Promise.resolve({
+        customers: [
+          { customerId: 'a', customerName: 'A', riskBand: 'HIGH' },
+          { customerId: 'b', customerName: 'B', riskBand: 'HIGH' },
+          { customerId: 'c', customerName: 'C', riskBand: 'LOW' },
+        ],
+      });
+    }
+    if (p.includes('/vouchers/burn-summary'))
+      return Promise.resolve({ totalUsed: 1_250_000, byVoucher: {} });
+    if (p.includes('/subscriptions/admin/summary')) {
+      return Promise.resolve({
+        activeSubscriptions: 18,
+        activeSubscribers: 15,
+        estMonthlyDeliveries: 72,
+        plans: [],
+      });
+    }
+    if (p.includes('/reports/depot-ratings')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        average: 4.5,
+        count: 8,
+        distribution: { '1': 0, '2': 0, '3': 1, '4': 2, '5': 5 },
+        recent: [
+          {
+            customerName: 'Budi Santoso',
+            stars: 5,
+            comment: 'Cepat dan ramah',
+            createdAt: '2026-10-14T01:00:00.000Z',
+          },
+        ],
+      });
+    }
+    if (p.includes('/payments/unsettled-by-method')) {
+      return Promise.resolve([
+        { method: 'TRANSFER', amount: 900_000, count: 3 },
+        { method: 'QRIS', amount: 100_000, count: 2 },
+      ]);
+    }
+    if (p.includes('/payments/unsettled-aging')) {
+      return Promise.resolve({
+        asOf: '2026-10-15T05:00:00.000Z',
+        buckets: ['0-1', '2-3', '4-7', '8+'],
+        truncated: false,
+        rows: [
+          { method: 'TRANSFER', amounts: [500_000, 0, 0, 400_000], counts: [2, 0, 0, 1] },
+          { method: 'QRIS', amounts: [100_000, 0, 0, 0], counts: [2, 0, 0, 0] },
+        ],
+      });
+    }
+    if (p.includes('/payments/refunds/queue'))
+      return Promise.resolve({ items: [], total: 3, page: 1, limit: 1 });
+    if (p.includes('/dashboard/network-pnl')) {
+      return Promise.resolve({
+        month: '2026-10',
+        depots: [
+          {
+            depotId: 'd1',
+            code: 'D1',
+            name: 'Depot Satu',
+            active: true,
+            revenueIdr: 800_000,
+            cogsIdr: 300_000,
+            payrollIdr: null,
+            courierCommissionIdr: 20_000,
+            expenseClaimIdr: 5_000,
+            refundIdr: 99_000,
+            netProfitIdr: 123_456,
+          },
+        ],
+        totals: {
+          revenueIdr: 800_000,
+          cogsIdr: 300_000,
+          payrollIdr: null,
+          courierCommissionIdr: 20_000,
+          expenseClaimIdr: 5_000,
+          refundIdr: 99_000,
+          netProfitIdr: 123_456,
+        },
+      });
+    }
+    if (p.includes('/dashboard/monthly-pnl')) {
+      return Promise.resolve({
+        revenueIdr: 800_000,
+        cogsIdr: null,
+        opexIdr: 50_000,
+        grossProfitIdr: null,
+        netOperatingProfitIdr: null,
+        marginPct: null,
+      });
+    }
     if (p.includes('/reports/rating-by-depot')) {
       return Promise.resolve({
         from: null,
@@ -329,7 +457,7 @@ describe('a role that holds only some of the capabilities', () => {
   });
 
   it('opens nothing for a role with no dashboard section, and says so', () => {
-    asRole('HR');
+    asRole('STAFF_DEPOT');
     renderPage();
     expect(screen.getByText('Akun ini belum punya bagian dasbor yang bisa dibuka.')).toBeTruthy();
     expect(get).not.toHaveBeenCalled();
@@ -649,9 +777,7 @@ describe('the operations tab', () => {
     // 5 in flight, 3 of them with no courier yet — and that count is the alarm colour.
     expect(card('Pesanan berjalan')?.textContent).toContain('5');
     expect(card('Pesanan belum dapat kurir')?.textContent).toContain('3');
-    expect(
-      card('Pesanan belum dapat kurir')?.querySelector('[class*="--danger"]'),
-    ).not.toBeNull();
+    expect(card('Pesanan belum dapat kurir')?.querySelector('[class*="--danger"]')).not.toBeNull();
     expect(screen.getByText('Dalam pengiriman')).toBeTruthy();
   });
 
@@ -708,5 +834,134 @@ describe('the operations tab', () => {
       get.mock.calls.find((c) => String(c[0]).includes('/inventory/low-stock'))?.[0],
     );
     expect(stock).toContain('depotId=d1');
+  });
+});
+
+describe('the customers tab', () => {
+  it('asks for a depot before the figures that belong to one, and shows the network ones at once', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('customers');
+    renderPage();
+    expect(await screen.findByText(/Pilih satu depot untuk melihat data pelanggan/)).toBeTruthy();
+    expect(requested('/customers/crm/dashboard')).toBe(false);
+    // Voucher spend and subscriptions are the network's, so they do not wait for a depot.
+    expect(await screen.findByText(/1\.250\.000/)).toBeTruthy();
+    expect(screen.getByText('18')).toBeTruthy();
+  });
+
+  it('shows one depot’s customers, loyalty, referrals and reviews once it is chosen', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('customers');
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: 'd1' } });
+    expect(await screen.findByText('40')).toBeTruthy();
+    expect(screen.getByText('62%')).toBeTruthy();
+    expect(await screen.findByText('4200')).toBeTruthy();
+    expect(await screen.findByText('42%')).toBeTruthy();
+    // A review shows what was said and the initials of who said it, not the name.
+    expect(await screen.findByText('Cepat dan ramah')).toBeTruthy();
+    expect(screen.getByText('B. S.')).toBeTruthy();
+    expect(screen.queryByText(/Budi Santoso/)).toBeNull();
+    // The follow-up list holds names and phone numbers: it is not on this screen.
+    expect(screen.queryByText('Rahasia')).toBeNull();
+    expect(screen.queryByText('0811')).toBeNull();
+  });
+
+  it('counts customers at risk by band and says it is a list, not lost customers', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('customers');
+    renderPage();
+    expect(await screen.findByText('Risiko tinggi')).toBeTruthy();
+    expect(screen.getByText(/Dari 3 pelanggan yang dinilai/)).toBeTruthy();
+  });
+
+  it('gives marketing the network widgets and never asks for CRM or reviews it cannot read', async () => {
+    asRole('MARKETING');
+    openTab('customers');
+    renderPage();
+    expect(await screen.findByText(/1\.250\.000/)).toBeTruthy();
+    expect(requested('/customers/crm/dashboard')).toBe(false);
+    expect(requested('/reports/depot-ratings')).toBe(false);
+    expect(requested('/subscriptions/admin/summary')).toBe(false);
+  });
+});
+
+describe('the finance tab', () => {
+  it('shows what has waited, in which bucket, with the numbers in the cells', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('finance');
+    renderPage();
+    expect(await screen.findByText('Umur uang yang belum diselesaikan')).toBeTruthy();
+    // Transfer: 500.000 fresh, 400.000 in the 8+ day bucket, 900.000 in all.
+    expect(await screen.findByText(/500\.000/)).toBeTruthy();
+    expect(screen.getAllByText(/900\.000/).length).toBeGreaterThan(0);
+    expect(screen.getByText('8+ hari')).toBeTruthy();
+    // The queue of big refunds waiting for head office.
+    expect(await screen.findByText('3')).toBeTruthy();
+  });
+
+  it('shows the cost columns of the network P&L with a dash for what could not be read, and leaves out the unreliable ones', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('finance');
+    renderPage();
+    expect(await screen.findByText('Laba rugi jaringan 2026-10')).toBeTruthy();
+    expect(await screen.findByText('Harga pokok')).toBeTruthy();
+    // Payroll was not readable: a dash, never Rp 0.
+    expect((await screen.findAllByText('—')).length).toBeGreaterThan(0);
+    // The refund and net-profit columns are not shown, nor their figures.
+    expect(screen.queryByText('Refund')).toBeNull();
+    expect(screen.queryByText(/123\.456/)).toBeNull();
+    expect(screen.queryByText(/99\.000/)).toBeNull();
+    expect(screen.getByText(/Kolom refund dan laba bersih tidak ditampilkan/)).toBeTruthy();
+  });
+
+  it('gives finance the unsettled money but no P&L, which needs a capability it does not hold', async () => {
+    asRole('FINANCE');
+    openTab('finance');
+    renderPage();
+    expect(await screen.findByText('Umur uang yang belum diselesaikan')).toBeTruthy();
+    expect(requested('/dashboard/network-pnl')).toBe(false);
+    expect(requested('/dashboard/monthly-pnl')).toBe(false);
+  });
+
+  it('says plainly that costs are incomplete instead of showing a profit', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('finance');
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: 'd1' } });
+    expect(await screen.findByText('Biaya belum lengkap')).toBeTruthy();
+    const call = String(
+      get.mock.calls.find((c) => String(c[0]).includes('/dashboard/monthly-pnl'))?.[0],
+    );
+    expect(call).toContain('depotId=d1');
+    expect(call).toContain('month=2026-10');
+  });
+
+  it('warns when the oldest rows were read and newer ones left out', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('finance');
+    serve({
+      '/payments/unsettled-aging': () => ({
+        asOf: 'x',
+        buckets: ['0-1', '2-3', '4-7', '8+'],
+        truncated: true,
+        rows: [{ method: 'QRIS', amounts: [1, 0, 0, 0], counts: [1, 0, 0, 0] }],
+      }),
+    });
+    renderPage();
+    expect(await screen.findByRole('status')).toBeTruthy();
+    expect(screen.getByText(/yang tampil adalah yang paling lama/)).toBeTruthy();
+  });
+
+  it('says the P&L month when the window is not a month', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('finance');
+    renderPage();
+    await screen.findByText('Umur uang yang belum diselesaikan');
+    expect(screen.queryByText(/Laba rugi dibaca per bulan/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Minggu ini' }));
+    expect(
+      await screen.findByText(/Laba rugi dibaca per bulan, jadi yang tampil adalah bulan 2026-10/),
+    ).toBeTruthy();
   });
 });

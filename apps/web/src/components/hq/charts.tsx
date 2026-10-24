@@ -512,3 +512,86 @@ export function DonutChart({
     </figure>
   );
 }
+
+/** One row of a {@link HeatTable}: a label and one value per column. */
+export interface HeatRow {
+  label: string;
+  values: number[];
+}
+
+/**
+ * A grid of amounts shaded by size (how long money has waited, by method).
+ *
+ * The number is IN the cell: shade is a second channel, never the only one, so the table reads
+ * the same in greyscale and to a screen reader. A zero prints as a dash rather than a faint
+ * "0", and a row total on the right says what the row adds up to.
+ */
+export function HeatTable({
+  columns,
+  rows,
+  format,
+  rowHeader,
+  totalLabel,
+  ariaLabel,
+}: {
+  columns: string[];
+  rows: HeatRow[];
+  format: (value: number) => string;
+  rowHeader: string;
+  totalLabel: string;
+  ariaLabel: string;
+}) {
+  const max = Math.max(0, ...rows.flatMap((r) => r.values));
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[420px] border-collapse text-xs" aria-label={ariaLabel}>
+        <thead>
+          <tr>
+            <th scope="col" className="p-2 text-left font-medium text-muted">
+              {rowHeader}
+            </th>
+            {columns.map((c) => (
+              <th key={c} scope="col" className="p-2 text-right font-medium text-muted">
+                {c}
+              </th>
+            ))}
+            <th scope="col" className="p-2 text-right font-semibold">
+              {totalLabel}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label}>
+              <th scope="row" className="p-2 text-left font-semibold">
+                {r.label}
+              </th>
+              {columns.map((c, i) => {
+                const v = r.values[i] ?? 0;
+                const strength = max > 0 && v > 0 ? Math.max(8, Math.round((v / max) * 50)) : 0;
+                return (
+                  <td
+                    key={c}
+                    className="p-2 text-right tabular-nums"
+                    style={
+                      strength > 0
+                        ? {
+                            background: `color-mix(in srgb, var(--brand-600, #0c97ac) ${strength}%, transparent)`,
+                          }
+                        : undefined
+                    }
+                  >
+                    {v > 0 ? format(v) : <span className="text-muted">—</span>}
+                  </td>
+                );
+              })}
+              <td className="p-2 text-right font-semibold tabular-nums">
+                {format(r.values.reduce((n, v) => n + v, 0))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

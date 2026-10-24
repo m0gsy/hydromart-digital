@@ -6,6 +6,8 @@ import { Lock } from '@phosphor-icons/react';
 import type { InsightCtx } from '@/components/insight/context';
 import { DateRangeBar, type DepotOption } from '@/components/insight/date-range-bar';
 import { InsightTabs } from '@/components/insight/insight-tabs';
+import { CustomersTab } from '@/components/insight/tabs/customers';
+import { FinanceTab } from '@/components/insight/tabs/finance';
 import { OperationsTab } from '@/components/insight/tabs/operations';
 import { OverviewTab } from '@/components/insight/tabs/overview';
 import { SalesTab } from '@/components/insight/tabs/sales';
@@ -32,6 +34,8 @@ import type { Depot } from '@/lib/types';
 function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
   if (id === 'sales') return <SalesTab ctx={ctx} />;
   if (id === 'operations') return <OperationsTab ctx={ctx} />;
+  if (id === 'customers') return <CustomersTab ctx={ctx} />;
+  if (id === 'finance') return <FinanceTab ctx={ctx} />;
   return <OverviewTab ctx={ctx} />;
 }
 

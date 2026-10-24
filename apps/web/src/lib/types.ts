@@ -2251,6 +2251,18 @@ export interface UnsettledMethodBucket {
   count: number;
 }
 
+/**
+ * `GET payments/unsettled-aging`: unsettled money by method and by how long it has waited, in WIB
+ * calendar days. The server names the buckets; `amounts[i]` and `counts[i]` belong to `buckets[i]`.
+ * `truncated` means the oldest rows were read and newer ones left out.
+ */
+export interface UnsettledAging {
+  asOf: string;
+  buckets: string[];
+  truncated: boolean;
+  rows: { method: PaymentMethod; amounts: number[]; counts: number[] }[];
+}
+
 // HQ payout-release queue (6a): an owner with a positive network balance awaiting
 // release. payout-service does not own owner/depot names, so only the owner id is
 // exposed (residual gap — the console shortens it for display).

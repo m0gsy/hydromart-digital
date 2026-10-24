@@ -46,6 +46,8 @@ export const money = {
     // Multipart, one call: upload and attach together, because the customer is online.
     proof: (id: string) => `/payments/api/v1/payments/${id}/proof`,
     // HQ settlement dashboard (6a): network unsettled payments by method (FINANCE/SUPER_ADMIN).
+    // The same unsettled money by how long it has waited (finance only, network-wide).
+    unsettledAging: '/payments/api/v1/payments/unsettled-aging',
     unsettledByMethod: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);

@@ -2,7 +2,8 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DonutChart, GaugeChart, MultiLine, wholeShares } from '@/components/hq/charts';
+import { DonutChart, GaugeChart, HeatTable, MultiLine, wholeShares } from '@/components/hq/charts';
+import { initials } from '@/components/insight/tabs/customers';
 import { INSIGHT_TABS, canViewInsight, resolveTab, visibleTabs } from '@/lib/insight/access';
 import { overviewSentence } from '@/lib/insight/sentences';
 import { useInsightData } from '@/lib/insight/use-insight-data';
@@ -205,17 +206,18 @@ describe('who sees which tab', () => {
 
   it('gives each role only the tabs it holds a widget capability for', () => {
     const ids = (role: string) => visibleTabs(role).map((t) => t.id);
-    expect(ids('HEAD_OFFICE')).toEqual(['overview', 'sales', 'operations']);
-    expect(ids('FINANCE')).toEqual(['overview', 'sales', 'operations']);
-    // A depot head has the day's report and its stock here, and nothing else.
-    expect(ids('KEPALA_DEPOT')).toEqual(['operations']);
+    expect(ids('HEAD_OFFICE')).toEqual(['overview', 'sales', 'operations', 'customers', 'finance']);
+    // Finance reads payments and the executive numbers; it has no customer or order-report access.
+    expect(ids('FINANCE')).toEqual(['overview', 'sales', 'operations', 'finance']);
+    // A depot head has the day's report, its stock and its own customers here, and nothing else.
+    expect(ids('KEPALA_DEPOT')).toEqual(['operations', 'customers']);
+    // Marketing reads loyalty, vouchers and churn: the customers tab only.
+    expect(ids('MARKETING')).toEqual(['customers']);
   });
 
   it('opens nothing to the roles with no source behind it', () => {
     for (const role of [
       'STAFF_DEPOT',
-      'MARKETING',
-      'HR',
       'FRANCHISE_OWNER',
       'CUSTOMER',
       null,
@@ -232,6 +234,7 @@ describe('who sees which tab', () => {
     expect(resolveTab('HEAD_OFFICE', '')?.id).toBe('overview');
     expect(resolveTab('STAFF_DEPOT', 'overview')).toBeNull();
     expect(resolveTab('KEPALA_DEPOT', 'overview')?.id).toBe('operations');
+    expect(resolveTab('MARKETING', 'finance')?.id).toBe('customers');
   });
 
   it('has one i18n label key per tab, under insight.tabs', () => {
@@ -335,5 +338,69 @@ describe('useInsightData', () => {
     await waitFor(() => expect(out()).toBe('data:x'));
     rerender(<Probe loader={() => Promise.resolve('x')} enabled={false} />);
     await waitFor(() => expect(out()).toBe('data:null'));
+  });
+});
+
+describe('HeatTable', () => {
+  const props = {
+    columns: ['0-1 hari', '2-3 hari'],
+    rowHeader: 'Metode',
+    totalLabel: 'Total',
+    ariaLabel: 'umur',
+    format: (n: number) => 'Rp ' + n,
+  };
+
+  it('puts the number in every cell, with a dash for nothing and a total per row', () => {
+    const { container } = render(
+      <HeatTable
+        {...props}
+        rows={[
+          { label: 'QRIS', values: [300, 0] },
+          { label: 'Tunai', values: [100, 50] },
+        ]}
+      />,
+    );
+    const text = container.textContent ?? '';
+    expect(text).toContain('Rp 300');
+    expect(text).toContain('Rp 150');
+    // QRIS has nothing in the second column: a dash, not a faint zero.
+    const qris = [...container.querySelectorAll('tbody tr')][0]!;
+    expect(qris.querySelectorAll('td')[1]?.textContent).toBe('—');
+    expect(qris.querySelectorAll('td')[2]?.textContent).toBe('Rp 300');
+  });
+
+  it('shades by size but never relies on shade: the biggest cell is shaded most, a zero not at all', () => {
+    const { container } = render(
+      <HeatTable
+        {...props}
+        rows={[
+          { label: 'A', values: [1000, 0] },
+          { label: 'B', values: [100, 0] },
+        ]}
+      />,
+    );
+    const cell = (r: number, c: number) =>
+      container.querySelectorAll('tbody tr')[r]!.querySelectorAll('td')[c] as HTMLElement;
+    expect(cell(0, 0).style.background).toContain('50%');
+    expect(cell(1, 0).style.background).toContain('%');
+    expect(cell(1, 0).style.background).not.toContain('50%');
+    expect(cell(0, 1).style.background).toBe('');
+  });
+
+  it('survives having nothing at all', () => {
+    const { container } = render(<HeatTable {...props} rows={[]} />);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(0);
+    expect(container.innerHTML).not.toContain('NaN');
+  });
+});
+
+describe('initials', () => {
+  it('keeps at most two letters, so a review is not a name tag', () => {
+    expect(initials('Budi Santoso')).toBe('B. S.');
+    expect(initials('  siti   nur  aini ')).toBe('S. N.');
+    expect(initials('Madonna')).toBe('M.');
+    expect(initials('')).toBe('');
+    expect(initials(null)).toBe('');
+    expect(initials(undefined)).toBe('');
   });
 });
