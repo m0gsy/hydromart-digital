@@ -19,7 +19,7 @@ import { dashB } from './id/dashB';
 import { dashC } from './id/dashC';
 import { driver } from './id/driver';
 import { hq } from './id/hq';
-import { insight } from './id/insight';
+import type { insight } from './id/insight';
 import { privacy } from './id/privacy';
 import { deleteAccount } from './id/deleteAccount';
 import { franchise } from './id/franchise';
@@ -100,7 +100,8 @@ export const id = {
       overdue: 'Lewat batas 3x24 jam',
       requestExport: 'Minta salinan data',
       requestDelete: 'Minta hapus akun',
-      deleteConfirm: 'Akun dan identitasmu dihapus permanen setelah disetujui. Riwayat pembayaran tetap disimpan tanpa identitas karena kewajiban pajak. Lanjutkan?',
+      deleteConfirm:
+        'Akun dan identitasmu dihapus permanen setelah disetujui. Riwayat pembayaran tetap disimpan tanpa identitas karena kewajiban pajak. Lanjutkan?',
       submitted: 'Permintaan terkirim. Kantor pusat akan meninjau.',
       submitError: 'Gagal mengirim permintaan.',
       empty: 'Belum ada permintaan.',
@@ -186,7 +187,10 @@ export const id = {
       // F1b: berhenti dari info promo TANPA ikut mematikan update pesanan. Dua hal berbeda,
       // dan menggabungkannya berarti pelanggan yang cuma tidak mau dipromosikan harus ikut
       // membutakan dirinya dari status antar.
-      marketing: { title: 'Info promo & penawaran', body: 'Kabar diskon dari depotmu. Matikan kapan saja.' },
+      marketing: {
+        title: 'Info promo & penawaran',
+        body: 'Kabar diskon dari depotmu. Matikan kapan saja.',
+      },
       // F1: kunci email/whatsapp DIHAPUS bersama toggle-nya — dua kanal yang tidak ada di
       // sistem ini. Jangan dihidupkan lagi tanpa transport yang benar-benar mengirim.
       saveError: 'Gagal menyimpan preferensi.',
@@ -250,7 +254,6 @@ export const id = {
   dashC,
   driver,
   hq,
-  insight,
   privacy,
   deleteAccount,
   franchise,
@@ -264,4 +267,9 @@ export const id = {
   errors,
 };
 
-export type Dictionary = typeof id;
+/**
+ * The insight dashboard's strings are NOT in `id`: they ship as their own chunk, fetched by
+ * `useInsightStrings` when the dashboard opens, because every other route would otherwise carry
+ * them in the shared bundle. `en` is a lazy chunk already, so it holds them inline.
+ */
+export type Dictionary = typeof id & { insight: typeof insight };

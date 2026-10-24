@@ -25,7 +25,7 @@ import {
   type Preset,
 } from '@/lib/insight/range';
 import { useInsightData } from '@/lib/insight/use-insight-data';
-import { useT } from '@/lib/locale-context';
+import { useInsightStrings, useT } from '@/lib/locale-context';
 import { useQueryState } from '@/lib/use-query-param';
 import { todayWib } from '@/lib/wib';
 import type { Depot } from '@/lib/types';
@@ -47,6 +47,11 @@ function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
  * variable into the query for that reason.
  */
 export function InsightDashboard() {
+  const ready = useInsightStrings();
+  return ready ? <InsightDashboardBody /> : <Skeleton className="h-64 w-full" />;
+}
+
+function InsightDashboardBody() {
   const { t } = useT();
   const { customer } = useAuth();
   const role = customer?.role;
