@@ -88,6 +88,39 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       // A depot that did not exist a year ago: no base to compare with.
       if (from === LAST_YEAR_FROM) return Promise.resolve(exec(0, 0));
     }
+    if (p.includes('/promotions/promo-rules/usage')) {
+      return Promise.resolve([
+        {
+          promoRuleId: 'r1',
+          orders: 12,
+          totalDiscount: 240_000,
+          lastAppliedAt: '2026-10-10T03:00:00.000Z',
+        },
+        { promoRuleId: 'r2', orders: 3, totalDiscount: 30_000, lastAppliedAt: null },
+      ]);
+    }
+    if (p.includes('/promotions/promo-rules') && !p.includes('/usage')) {
+      return Promise.resolve([
+        { id: 'r1', name: 'Diskon Galon Isi Ulang' },
+        { id: 'r2', name: 'Gratis Ongkir' },
+      ]);
+    }
+    if (p.includes('/forecast/sales')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        avgDaily: 500_000,
+        trendSlope: 1,
+        predictedDaily: [520_000, 530_000],
+        predictedTotal: 1_050_000,
+        history: [480_000, 500_000, 510_000],
+      });
+    }
+    if (p.includes('/depots/api/v1/depots') && p.includes('limit=100')) {
+      return Promise.resolve({
+        items: [{ id: 'd1', name: 'Depot Satu', lat: -6.2, lng: 106.8, active: true }],
+        total: 1,
+      });
+    }
     if (p.includes('/reports/status-summary')) {
       return Promise.resolve({
         from: null,
@@ -1446,6 +1479,8 @@ describe('the wall-screen view', () => {
     renderPage();
     await screen.findByText(/1.100.000/);
     expect(screen.queryByRole('tablist')).toBeNull();
+    // Dark whatever the reader chose, and the choice is given back on leaving.
+    expect(document.documentElement.dataset.theme).toBe('dark');
     expect(screen.queryByRole('button', { name: 'Rentang' })).toBeNull();
     const tick = timers.mock.calls.find((c) => c[1] === 60_000)?.[0] as () => void;
     expect(tick).toBeTypeOf('function');
@@ -1462,5 +1497,48 @@ describe('the wall-screen view', () => {
     await Promise.resolve();
     expect(reads()).toBe(mid);
     timers.mockRestore();
+    cleanup();
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+});
+
+describe('the promo usage and forecast widgets', () => {
+  it('ranks the rules by the discount given, with their names, and says what the numbers are', async () => {
+    asRole('MANAGER');
+    openTab('sales');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const row = (await screen.findByText('Diskon Galon Isi Ulang')).closest('tr')!;
+    expect(row.textContent).toContain('12');
+    expect(screen.getByText(/bukan omzet tambahan/)).toBeTruthy();
+    expect(screen.getByText('Gratis Ongkir').closest('tr')!.textContent).toContain('—');
+  });
+
+  it('forecasts one depot’s revenue, and asks for a depot when there are several', async () => {
+    asRole('MANAGER');
+    openTab('sales');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Perkiraan 2 hari ke depan')).toBeTruthy();
+    cleanup();
+
+    getCached.mockResolvedValue([
+      { id: 'd1', name: 'Depot Satu' },
+      { id: 'd2', name: 'Depot Dua' },
+    ]);
+    renderPage();
+    expect(await screen.findByText(/Pilih satu depot untuk melihat perkiraan omzet/)).toBeTruthy();
+  });
+
+  it('shows the depot map to head office only', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    expect(await screen.findByText('Peta depot')).toBeTruthy();
+    cleanup();
+    asRole('MANAGER');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Tingkat churn pelanggan');
+    expect(screen.queryByText('Peta depot')).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import { HqRail } from '@/components/hq/hq-rail';
 import { capForHqPath } from '@/lib/hq-nav';
 import { RequireAuth } from '@/components/require-auth';
 import { useAuth } from '@/lib/auth-context';
+import { useWallScreen } from '@/lib/insight/wall-screen';
 import { can, isHq } from '@/lib/roles';
 import { hasPartialHqDoor, mayOpenHqPath } from '@/lib/hq-nav';
 
@@ -46,8 +47,19 @@ function HqGate({ children }: { children: React.ReactNode }) {
 
 export default function HqLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const wall = useWallScreen();
 
   if (pathname === '/hq/login') return <>{children}</>;
+  // The wall-screen view: the same gates, none of the chrome.
+  if (wall) {
+    return (
+      <RequireAuth>
+        <HqGate>
+          <div className="px-6 py-6">{children}</div>
+        </HqGate>
+      </RequireAuth>
+    );
+  }
 
   return (
     <RequireAuth>

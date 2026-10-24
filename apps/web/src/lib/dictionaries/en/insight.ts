@@ -57,6 +57,26 @@ export const insight = {
       churn: 'Customer churn rate',
     },
   },
+  depotMap: { title: 'Depot map', empty: 'No depot with coordinates yet.' },
+  promoRoi: {
+    title: 'Promo usage',
+    empty: 'No promo rule has been used yet.',
+    note: 'Counted since each rule was created, not by the period above. It shows the discount given and the orders it touched, not the extra revenue a promo brought in.',
+    col: { rule: 'Rule', orders: 'Orders', discount: 'Discount', last: 'Last used' },
+  },
+  forecast: {
+    needDepot: 'Choose a single depot to see its revenue forecast.',
+    title: 'Revenue forecast',
+    empty: 'Not enough sales history to make a forecast yet.',
+    total: 'Forecast, next {days} days',
+    totalDef:
+      'The sum of the daily revenue expected for the coming days, from the last 30 days’ trend.',
+    avg: 'Daily average',
+    avgDef: 'Average daily revenue over the last 30 days.',
+    line: 'Daily revenue (actual, then forecast)',
+    aria: 'Line chart of daily revenue for the last 30 days followed by a 14-day forecast',
+    note: 'The left part is days already gone (-30 to -1), the right part is the forecast (+1 onward). A trend projection, not a promise.',
+  },
   state: {
     empty: 'No data in this period yet.',
     unavailable: 'Not available yet',

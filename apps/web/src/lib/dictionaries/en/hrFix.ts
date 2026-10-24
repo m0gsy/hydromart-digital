@@ -2339,6 +2339,7 @@ export const hrFix = {
     account: 'Account',
   },
   opNav: {
+    insight: 'Dashboard',
     summary: 'Overview',
     queue: 'Queue',
     sales: 'Counter sales',

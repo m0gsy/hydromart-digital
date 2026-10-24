@@ -8,6 +8,7 @@ import { OpsRail } from '@/components/dashboard/ops-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { DepotProvider } from '@/lib/depot-context';
 import { useAuth } from '@/lib/auth-context';
+import { useWallScreen } from '@/lib/insight/wall-screen';
 import { isDepotOperator } from '@/lib/roles';
 
 // Ops console shell, role-aware. KEPALA_DEPOT gets the top-tab operator console
@@ -16,6 +17,10 @@ import { isDepotOperator } from '@/lib/roles';
 // under /dashboard/* and share DepotProvider/RequireAuth.
 function ConsoleFrame({ children }: { children: React.ReactNode }) {
   const { customer } = useAuth();
+  const wall = useWallScreen();
+
+  // The wall-screen view: the figures and nothing around them.
+  if (wall) return <div className="px-6 py-6">{children}</div>;
 
   if (isDepotOperator(customer?.role)) {
     return <OperatorShell>{children}</OperatorShell>;

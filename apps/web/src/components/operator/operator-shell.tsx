@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Bell, Drop } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
+import { canViewInsight } from '@/lib/insight/access';
 import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
 import {
@@ -55,6 +56,7 @@ const primaryTabs: Tab[] = [
 ];
 
 const manageTabs: Tab[] = [
+  { label: 'hrFix.opNav.insight', href: '/dashboard/insight', match: (p) => p.startsWith('/dashboard/insight'), show: canViewInsight },
   { label: 'hrFix.opNav.customers', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
   { label: 'hrFix.opNav.incidents', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
   { label: 'hrFix.opNav.promotions', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions') },
