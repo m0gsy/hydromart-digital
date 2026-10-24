@@ -364,6 +364,29 @@ export interface StatusSummaryRaw {
   live: { byStatus: { status: string; count: number }[] };
 }
 
+/**
+ * Orders by day-of-week and hour, and by delivery area, for the insight dashboard.
+ *
+ * Both count SALES only (neither cancelled nor voided). `weekday` is ISO, 1 = Monday .. 7 = Sunday,
+ * and `hour` 0..23, both read in the business time zone. Cells with no order are absent. An area
+ * is the order's delivery city as typed, trimmed and compared without case.
+ */
+export interface TimeAreaRaw {
+  heat: { weekday: number; hour: number; orders: number; revenue: number }[];
+  areas: { area: string; orders: number; revenue: number }[];
+}
+
+/** One line of the recent-activity feed: an order and where it stands, with no customer detail. */
+export interface RecentActivityRow {
+  id: string;
+  orderNumber: string;
+  status: string;
+  total: number;
+  isWalkIn: boolean;
+  depotId: string | null;
+  updatedAt: Date;
+}
+
 /** Average customer rating (1..5) per depot over a range — depot compare 14d. */
 export interface DepotRating {
   depotId: string;
@@ -702,6 +725,10 @@ export interface OrderRepository {
    * matches nothing.
    */
   statusSummary(range: ReportRange, depotIds?: readonly string[]): Promise<StatusSummaryRaw>;
+  /** Orders by weekday-hour and by area (see {@link TimeAreaRaw}). `tz` is the business zone. */
+  timeArea(range: ReportRange, tz: string, depotIds?: readonly string[]): Promise<TimeAreaRaw>;
+  /** The orders touched most recently, newest first, narrowed to `depotIds` when given. */
+  recentActivity(limit: number, depotIds?: readonly string[]): Promise<RecentActivityRow[]>;
   /** Average rating per depot (orders in-window that have a review), 14d. */
   ratingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRating[]>;
   /**

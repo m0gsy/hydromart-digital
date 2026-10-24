@@ -217,6 +217,9 @@ describe('who sees which tab', () => {
       'cash',
       'couriers',
       'meter',
+      'time',
+      'stock',
+      'risk',
     ]);
     expect(ids('FINANCE')).toEqual([
       'overview',
@@ -234,6 +237,8 @@ describe('who sees which tab', () => {
       'cash',
       'couriers',
       'meter',
+      'stock',
+      'risk',
     ]);
     expect(ids('MARKETING')).toEqual(['customers']);
     // HR reads the people tab and customers (CRM) and nothing else here.
@@ -249,6 +254,8 @@ describe('who sees which tab', () => {
       'people',
       'couriers',
       'meter',
+      'stock',
+      'risk',
     ]);
     // Roles that read one thing get one tab, because the tab is the capability.
     expect(ids('FRANCHISE_OWNER')).toEqual(['gallons']);

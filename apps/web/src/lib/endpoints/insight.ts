@@ -77,6 +77,12 @@ export const insight = {
       if (q.depotIds && q.depotIds.length > 0) p.set('depotIds', q.depotIds.join(','));
       return `/orders/api/v1/reports/status-summary?${p}`;
     },
+    // When orders come in (weekday x hour) and where they go (delivery city). BOTH bounds required.
+    // eslint-disable-next-line max-len -- one line on purpose: the endpoint scanners read a builder on a SINGLE line.
+    timeArea: (q: { from: string; to: string; depotIds?: string }) => `/orders/api/v1/reports/time-area${insightQuery(q)}`,
+    // The orders touched most recently (number, status, total, channel; no customer data).
+    // eslint-disable-next-line max-len -- one line on purpose: the endpoint scanners read a builder on a SINGLE line.
+    recentActivity: (q: { limit?: number; depotIds?: string } = {}) => `/orders/api/v1/reports/recent-activity${insightQuery(q)}`,
     // Shipping (ongkir) billed per depot over a window (reconciliation 22a).
     shippingByDepot: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

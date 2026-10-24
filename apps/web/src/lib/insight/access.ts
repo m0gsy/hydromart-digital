@@ -19,7 +19,10 @@ export type InsightTabId =
   | 'people'
   | 'cash'
   | 'couriers'
-  | 'meter';
+  | 'meter'
+  | 'time'
+  | 'stock'
+  | 'risk';
 
 export interface InsightTabDef {
   id: InsightTabId;
@@ -64,6 +67,13 @@ export const INSIGHT_TABS: readonly InsightTabDef[] = [
     caps: ['trackingRead', 'deliveryReports', 'courierSettle'],
   },
   { id: 'meter', labelKey: 'insight.tabs.meter', caps: ['meterRead'] },
+  { id: 'time', labelKey: 'insight.tabs.time', caps: ['orderReports'] },
+  { id: 'stock', labelKey: 'insight.tabs.stock', caps: ['inventoryRead', 'procurement'] },
+  {
+    id: 'risk',
+    labelKey: 'insight.tabs.risk',
+    caps: ['incidents', 'depotDisputes', 'approvals', 'depotMaintenance'],
+  },
 ];
 
 type Role = string | null | undefined;

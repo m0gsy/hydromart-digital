@@ -1338,6 +1338,101 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
+  describe('timeArea', () => {
+    const from = new Date('2026-09-30T17:00:00.000Z');
+    const to = new Date('2026-10-31T17:00:00.000Z');
+    const sql = () => {
+      const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+      return { text: q.sql.replace(/\s+/g, ' '), values: q.values };
+    };
+
+    it('maps both reads and turns bigint counts and a missing sum into numbers', async () => {
+      $queryRaw
+        .mockResolvedValueOnce([
+          { weekday: 1, hour: 8, orders: BigInt(4), revenue: 400000 },
+          { weekday: 2, hour: 9, orders: BigInt(1), revenue: null },
+        ])
+        .mockResolvedValueOnce([{ area: 'Bekasi', orders: BigInt(5), revenue: 500000 }]);
+      expect(await repo.timeArea({ from, to }, 'Asia/Jakarta')).toEqual({
+        heat: [
+          { weekday: 1, hour: 8, orders: 4, revenue: 400000 },
+          { weekday: 2, hour: 9, orders: 1, revenue: 0 },
+        ],
+        areas: [{ area: 'Bekasi', orders: 5, revenue: 0 + 500000 }],
+      });
+    });
+
+    it('reads the weekday and hour in the business zone, never in UTC', async () => {
+      $queryRaw.mockResolvedValue([]);
+      await repo.timeArea({ from, to }, 'Asia/Jakarta');
+      const heat = $queryRaw.mock.calls[0]![0] as { sql: string; values: unknown[] };
+      expect(heat.sql.replace(/\s+/g, ' ')).toContain(
+        "EXTRACT(ISODOW FROM \"createdAt\" AT TIME ZONE 'UTC' AT TIME ZONE ?)",
+      );
+      expect(heat.values).toContain('Asia/Jakarta');
+    });
+
+    it('leaves cancelled and voided orders out, and orders with no city out of the areas', async () => {
+      $queryRaw.mockResolvedValue([]);
+      await repo.timeArea({}, 'Asia/Jakarta');
+      const areas = $queryRaw.mock.calls[1]![0] as { sql: string };
+      expect(areas.sql.replace(/\s+/g, ' ')).toContain('"status" NOT IN');
+      expect(areas.sql.replace(/\s+/g, ' ')).toContain("btrim(\"city\") <> ''");
+    });
+
+    it('narrows to the depots asked for, casting each id, and to nothing for an empty set', async () => {
+      $queryRaw.mockResolvedValue([]);
+      await repo.timeArea({ from, to }, 'Asia/Jakarta', ['depot-a', 'depot-b']);
+      expect(sql().text).toMatch(/"depotId" IN \(\?::uuid,\?::uuid\)/);
+      await repo.timeArea({ from, to }, 'Asia/Jakarta', []);
+      expect(sql().text).toContain('false');
+      expect(sql().text).not.toContain('"depotId" IN');
+      await repo.timeArea({}, 'Asia/Jakarta');
+      expect(sql().text).not.toContain('"depotId"');
+      expect(sql().text).not.toContain('"createdAt" >=');
+    });
+  });
+
+  describe('recentActivity', () => {
+    it('selects only the columns the feed shows, newest touched first', async () => {
+      order.findMany.mockResolvedValue([
+        {
+          id: 'o-1',
+          orderNumber: 'HM-1',
+          status: 'CONFIRMED',
+          total: dec(50000),
+          isWalkIn: true,
+          depotId: 'depot-a',
+          updatedAt: new Date('2026-10-15T05:00:00.000Z'),
+        },
+      ]);
+      const out = await repo.recentActivity(20, ['depot-a']);
+      const args = order.findMany.mock.calls.at(-1)![0] as {
+        select: Record<string, boolean>;
+        where: unknown;
+        orderBy: unknown;
+        take: number;
+      };
+      expect(Object.keys(args.select).sort()).toEqual(
+        ['depotId', 'id', 'isWalkIn', 'orderNumber', 'status', 'total', 'updatedAt'].sort(),
+      );
+      expect(args.orderBy).toEqual({ updatedAt: 'desc' });
+      expect(args.where).toEqual({ depotId: { in: ['depot-a'] } });
+      expect(args.take).toBe(20);
+      expect(out[0]).toMatchObject({ id: 'o-1', total: 50000, isWalkIn: true });
+    });
+
+    it('is unfiltered with no scope, and empty for an empty scope', async () => {
+      order.findMany.mockResolvedValue([]);
+      await repo.recentActivity(5);
+      expect((order.findMany.mock.calls.at(-1)![0] as { where: unknown }).where).toEqual({});
+      await repo.recentActivity(5, []);
+      expect((order.findMany.mock.calls.at(-1)![0] as { where: unknown }).where).toEqual({
+        depotId: { in: [] },
+      });
+    });
+  });
+
   it('narrows top customers and top depots to the depots asked for', async () => {
     order.groupBy.mockResolvedValue([]);
     await repo.topCustomers({}, 5, ['depot-a']);

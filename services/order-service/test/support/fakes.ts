@@ -37,6 +37,8 @@ import {
   SegmentConditions,
   DeliveryAddressSnapshot,
   StatusSummaryRaw,
+  TimeAreaRaw,
+  RecentActivityRow,
 } from '../../src/application/ports/order.repository';
 import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
@@ -560,6 +562,59 @@ export class InMemoryOrderRepository implements OrderRepository {
       },
       live: { byStatus: [...live].map(([status, count]) => ({ status, count })) },
     };
+  }
+
+  /**
+   * In-memory stand-in: weekdays and hours are read in UTC+7 by arithmetic (the fake has no time
+   * zone database), which is what Asia/Jakarta is. The real SQL is covered by the Prisma spec.
+   */
+  async timeArea(
+    range: ReportRange,
+    _tz: string,
+    depotIds?: readonly string[],
+  ): Promise<TimeAreaRaw> {
+    const WIB_MS = 7 * 3_600_000;
+    const rows = this.reportRows(range).filter(
+      (r) => !depotIds || (r.depotId !== null && depotIds.includes(r.depotId)),
+    );
+    const heat = new Map<string, { weekday: number; hour: number; orders: number; revenue: number }>();
+    const areas = new Map<string, { area: string; orders: number; revenue: number }>();
+    for (const r of rows) {
+      const local = new Date(r.createdAt.getTime() + WIB_MS);
+      const weekday = local.getUTCDay() === 0 ? 7 : local.getUTCDay();
+      const hour = local.getUTCHours();
+      const key = `${weekday}-${hour}`;
+      const cell = heat.get(key) ?? { weekday, hour, orders: 0, revenue: 0 };
+      cell.orders += 1;
+      cell.revenue += r.total;
+      heat.set(key, cell);
+      const label = r.city.trim();
+      if (label === '') continue;
+      const a = areas.get(label.toLowerCase()) ?? { area: label, orders: 0, revenue: 0 };
+      a.orders += 1;
+      a.revenue += r.total;
+      areas.set(label.toLowerCase(), a);
+    }
+    return {
+      heat: [...heat.values()],
+      areas: [...areas.values()].sort((a, b) => b.orders - a.orders || a.area.localeCompare(b.area)),
+    };
+  }
+
+  async recentActivity(limit: number, depotIds?: readonly string[]): Promise<RecentActivityRow[]> {
+    return this.rows
+      .filter((r) => !depotIds || (r.depotId !== null && depotIds.includes(r.depotId)))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({
+        id: r.id,
+        orderNumber: r.orderNumber,
+        status: r.status,
+        total: r.total,
+        isWalkIn: r.isWalkIn,
+        depotId: r.depotId,
+        updatedAt: r.updatedAt,
+      }));
   }
 
   async topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]> {

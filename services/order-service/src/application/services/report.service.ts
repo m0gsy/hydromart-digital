@@ -21,6 +21,7 @@ import {
   ReportRange,
   SalesBucket,
   StatusSummaryRaw,
+  RecentActivityRow,
 } from '../ports/order.repository';
 import { depotDailyPdf } from './depot-daily-pdf';
 import { revenueExportPdf, type RevenueExportPdfInput } from './revenue-export-pdf';
@@ -98,6 +99,32 @@ export interface StatusSummaryReport extends ReportRangeView {
     byStatus: Record<string, number>;
   };
 }
+
+/**
+ * When orders come in, and where they go. Sales only (neither cancelled nor voided), by the day
+ * and hour they were PLACED in the business zone.
+ * - `heat[weekday][hour]`: orders, `weekday` 0 = Monday .. 6 = Sunday, always 7 x 24.
+ * - `byWeekday`: the same seven days with their revenue.
+ * - `byArea`: the ten delivery cities with the most orders, then `otherAreas` for the rest.
+ *   An area is the order's delivery city as typed; an order with none is in no area, so the
+ *   areas can add up to fewer than `orders`.
+ */
+export interface TimeAreaReport extends ReportRangeView {
+  orders: number;
+  revenue: number;
+  heat: number[][];
+  byWeekday: { weekday: number; orders: number; revenue: number }[];
+  byArea: { area: string; orders: number; revenue: number }[];
+  otherAreas: { areas: number; orders: number; revenue: number } | null;
+}
+
+/** One line of the feed: where an order stands, never who it is for. */
+export interface RecentActivityReport {
+  items: (Omit<RecentActivityRow, 'updatedAt'> & { updatedAt: string })[];
+}
+
+const TOP_AREAS = 10;
+const MAX_ACTIVITY = 50;
 
 /** Statuses an order passes through before it is delivered; the keys of `live.byStatus`. */
 const IN_FLIGHT_STATUSES = [
@@ -569,6 +596,52 @@ export class ReportService {
         byStatus: liveByStatus,
       },
     };
+  }
+
+  /** When orders come in and where they go; see {@link TimeAreaReport} for the definitions. */
+  async timeArea(range: ReportRange, depotIds?: readonly string[]): Promise<TimeAreaReport> {
+    const raw = await this.orders.timeArea(range, this.config.businessTimeZone, depotIds);
+    const heat = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
+    const byWeekday = Array.from({ length: 7 }, (_, weekday) => ({
+      weekday,
+      orders: 0,
+      revenue: 0,
+    }));
+    for (const cell of raw.heat) {
+      const day = cell.weekday - 1;
+      if (day < 0 || day > 6 || cell.hour < 0 || cell.hour > 23) continue;
+      heat[day]![cell.hour]! += cell.orders;
+      byWeekday[day]!.orders += cell.orders;
+      byWeekday[day]!.revenue += cell.revenue;
+    }
+    const orders = byWeekday.reduce((n, d) => n + d.orders, 0);
+    const revenue = byWeekday.reduce((n, d) => n + d.revenue, 0);
+    const rest = raw.areas.slice(TOP_AREAS);
+    return {
+      ...ReportService.rangeView(range),
+      orders,
+      revenue,
+      heat,
+      byWeekday,
+      byArea: raw.areas.slice(0, TOP_AREAS),
+      otherAreas:
+        rest.length === 0
+          ? null
+          : {
+              areas: rest.length,
+              orders: rest.reduce((n, a) => n + a.orders, 0),
+              revenue: rest.reduce((n, a) => n + a.revenue, 0),
+            },
+    };
+  }
+
+  /** The orders touched most recently, for the dashboard's feed. */
+  async recentActivity(limit: number, depotIds?: readonly string[]): Promise<RecentActivityReport> {
+    const rows = await this.orders.recentActivity(
+      Math.min(MAX_ACTIVITY, Math.max(1, Math.floor(limit))),
+      depotIds,
+    );
+    return { items: rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() })) };
   }
 
   async ratingByDepot(

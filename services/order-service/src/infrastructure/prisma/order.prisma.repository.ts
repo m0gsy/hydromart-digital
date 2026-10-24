@@ -40,6 +40,8 @@ import {
   SalesBucket,
   SegmentConditions,
   StatusSummaryRaw,
+  TimeAreaRaw,
+  RecentActivityRow,
 } from '../../application/ports/order.repository';
 import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
@@ -951,6 +953,91 @@ export class OrderPrismaRepository implements OrderRepository {
       },
       live: { byStatus: live.map((r) => ({ status: r.status, count: r._count._all })) },
     };
+  }
+
+  async timeArea(
+    range: ReportRange,
+    tz: string,
+    depotIds?: readonly string[],
+  ): Promise<TimeAreaRaw> {
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
+    if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
+    // The empty set is a caller with no depots: false, never "everything". Ids cast to uuid for
+    // the same reason as the sales series.
+    if (depotIds) {
+      conds.push(
+        depotIds.length === 0
+          ? Prisma.sql`false`
+          : Prisma.sql`"depotId" IN (${Prisma.join(depotIds.map((id) => Prisma.sql`${id}::uuid`))})`,
+      );
+    }
+    const where = Prisma.join(conds, ' AND ');
+    const [heat, areas] = await Promise.all([
+      this.prisma.$queryRaw<
+        { weekday: number; hour: number; orders: bigint; revenue: Prisma.Decimal | null }[]
+      >(Prisma.sql`
+        -- The column is a naive timestamp holding UTC: label it UTC, then read it in the business
+        -- zone, so an order at 23:30 WIB on a Sunday is Sunday's and not Monday's.
+        SELECT EXTRACT(ISODOW FROM "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${tz})::int AS weekday,
+               EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${tz})::int AS hour,
+               COUNT(*)::bigint AS orders,
+               COALESCE(SUM("total"), 0) AS revenue
+        FROM "orders"
+        WHERE ${where}
+        GROUP BY 1, 2
+      `),
+      this.prisma.$queryRaw<
+        { area: string; orders: bigint; revenue: Prisma.Decimal | null }[]
+      >(Prisma.sql`
+        SELECT MIN(btrim("city")) AS area,
+               COUNT(*)::bigint AS orders,
+               COALESCE(SUM("total"), 0) AS revenue
+        FROM "orders"
+        WHERE ${where} AND btrim("city") <> ''
+        GROUP BY lower(btrim("city"))
+        ORDER BY orders DESC, area ASC
+      `),
+    ]);
+    return {
+      heat: heat.map((r) => ({
+        weekday: r.weekday,
+        hour: r.hour,
+        orders: Number(r.orders),
+        revenue: r.revenue ? Number(r.revenue) : 0,
+      })),
+      areas: areas.map((r) => ({
+        area: r.area,
+        orders: Number(r.orders),
+        revenue: r.revenue ? Number(r.revenue) : 0,
+      })),
+    };
+  }
+
+  async recentActivity(limit: number, depotIds?: readonly string[]): Promise<RecentActivityRow[]> {
+    const rows = await this.prisma.order.findMany({
+      where: OrderPrismaRepository.depotIn(depotIds),
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        total: true,
+        isWalkIn: true,
+        depotId: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      orderNumber: r.orderNumber,
+      status: r.status,
+      total: r.total.toNumber(),
+      isWalkIn: r.isWalkIn,
+      depotId: r.depotId,
+      updatedAt: r.updatedAt,
+    }));
   }
 
   async shippingByDepot(
