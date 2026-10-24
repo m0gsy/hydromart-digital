@@ -274,7 +274,8 @@ export const insight = {
       'Uang tunai yang dibawa kurir dari pesanan antar hari ini. Tidak termasuk penjualan kasir.',
     todayHint: 'hari ini',
     shiftsOff: 'Shift dengan selisih',
-    shiftsOffDef: 'Shift yang sudah ditutup dengan uang hitungan berbeda dari yang seharusnya.',
+    shiftsOffDef:
+      'Dari dua puluh shift terakhir yang sudah ditutup: yang uang hitungannya berbeda dari yang seharusnya.',
     shiftsTitle: 'Shift kasir',
     shiftsEmpty: 'Belum ada shift kasir.',
     shiftsNote:
@@ -320,15 +321,16 @@ export const insight = {
   meter: {
     needDepot: 'Pilih satu depot untuk melihat meter air depot itu.',
     capped:
-      'Periode ini lebih panjang dari yang dibaca server, jadi yang tampil adalah 92 hari terakhir sampai hari ini.',
+      'Periode ini lebih panjang dari yang dibaca server, jadi yang tampil adalah 92 hari terakhir dari periode ini.',
     gap: 'Selisih meter dan penjualan',
     gapDef:
       'Liter menurut meter dikurangi liter pada baris pesanan. Ini indikasi, bukan bukti kebocoran: baris pesanan tanpa volume tidak ikut dihitung.',
-    daysRead: '{n} dari {total} hari terbaca',
+    daysRead: '{n} dari {total} hari tercatat',
     yield: 'Rata-rata hasil RO',
     yieldDef: 'Rata-rata persentase hasil mesin RO pada hari yang meternya terbaca.',
-    unread: 'Hari tanpa bacaan meter',
-    unreadDef: 'Hari pada periode ini yang meternya belum dicatat.',
+    unread: 'Hari dengan meter belum ditutup',
+    unreadDef:
+      'Hari yang sudah punya bacaan meter pembuka tetapi belum penutup. Hari tanpa bacaan sama sekali tidak tercatat di server, jadi tidak ikut dihitung.',
     title: 'Produksi menurut meter dan penjualan per hari',
     empty: 'Belum ada bacaan meter pada periode ini.',
     aria: 'Grafik liter menurut meter dan liter terjual per hari',

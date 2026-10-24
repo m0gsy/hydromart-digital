@@ -37,14 +37,18 @@ export function MeterTab({ ctx }: { ctx: InsightCtx }) {
   const from = capped ? dayStartWib(addDaysFrom(until, -MAX_METER_DAYS)) : range.from;
   // A window that is entirely in the future has nothing to read, and the server refuses it.
   const readable = Date.parse(from) < Date.parse(until);
+  // The server slices these to the UTC date, so plain WIB dates are sent: the first day in the
+  // window and the last one (`until` is exclusive).
+  const fromDay = todayWib(new Date(from));
+  const toDay = todayWib(new Date(Date.parse(until) - 1));
 
   const history = useInsightData(
     () =>
       api.get<MeterHistoryRow[]>(
-        endpoints.reports.meterHistory(depotId as string, { from, to: until }),
+        endpoints.reports.meterHistory(depotId as string, { from: fromDay, to: toDay }),
         true,
       ),
-    [depotId, from, until],
+    [depotId, fromDay, toDay],
     mayRead && depotId != null && readable,
   );
   const rows = history.data ?? [];
@@ -81,7 +85,7 @@ export function MeterTab({ ctx }: { ctx: InsightCtx }) {
           />
           <KpiCard
             label={t('insight.meter.unread')}
-            value={history.data ? String(rows.length - measured.length) : dash}
+            value={history.data && rows.length > 0 ? String(rows.length - measured.length) : dash}
             definition={t('insight.meter.unreadDef')}
             tone={rows.length - measured.length > 0 ? 'danger' : undefined}
             goodWhen="down"
@@ -99,18 +103,20 @@ export function MeterTab({ ctx }: { ctx: InsightCtx }) {
         >
           {(d) => (
             <MultiLine
-              labels={d.map((r) => r.day)}
+              labels={d.filter((r) => r.meterLiters != null).map((r) => r.day)}
               ariaLabel={t('insight.meter.aria')}
               series={[
                 {
                   label: t('insight.meter.produced'),
-                  values: d.map((r) => r.meterLiters ?? 0),
+                  values: d
+                    .filter((r) => r.meterLiters != null)
+                    .map((r) => r.meterLiters as number),
                   axis: 'left',
                   tone: 'brand',
                 },
                 {
                   label: t('insight.meter.sold'),
-                  values: d.map((r) => r.soldLiters),
+                  values: d.filter((r) => r.meterLiters != null).map((r) => r.soldLiters),
                   axis: 'left',
                   tone: 'amber',
                 },

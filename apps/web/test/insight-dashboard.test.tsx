@@ -803,6 +803,7 @@ describe('review fixes', () => {
     renderPage();
     expect(await screen.findByText(/belum selesai, jadi pembandingnya dipotong/)).toBeTruthy();
     // The windows asked for are 15 days (through the 15th), not the whole of September.
+    await waitFor(() => expect(requested('/dashboard/executive?from=2026-08-31T17')).toBe(true));
     const prevCall = String(
       get.mock.calls.find((c) =>
         String(c[0]).includes('/dashboard/executive?from=2026-08-31T17'),
@@ -1265,9 +1266,9 @@ describe('the couriers tab', () => {
     renderPage();
     const card = async (label: string) =>
       (await screen.findByText(label)).parentElement?.parentElement;
-    expect((await card('Kurir siaga'))?.textContent).toContain('2');
-    expect((await card('Kurir istirahat'))?.textContent).toContain('1');
-    expect((await card('Kurir offline'))?.textContent).toContain('0');
+    await waitFor(async () => expect((await card('Kurir siaga'))?.textContent).toContain('2'));
+    await waitFor(async () => expect((await card('Kurir istirahat'))?.textContent).toContain('1'));
+    await waitFor(async () => expect((await card('Kurir offline'))?.textContent).toContain('0'));
   });
 
   it('names a courier from the depot’s driver list and falls back to a short id for one it cannot find', async () => {
@@ -1299,6 +1300,22 @@ describe('the couriers tab', () => {
     expect(screen.getByText(/selisih COD/)).toBeTruthy();
   });
 
+  it('reads an unreadable payout service as unavailable, not as no commission', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    const base = get.getMockImplementation() as (p: string) => Promise<unknown>;
+    get.mockImplementation((p: string) =>
+      p.includes('/commission')
+        ? Promise.resolve({ from: '', to: '', couriers: [], totalIdr: null, source: 'unavailable' })
+        : base(p),
+    );
+    renderPage();
+    expect(await screen.findByText(/belum bisa dibaca dari layanan pembayaran/)).toBeTruthy();
+    expect(screen.queryByText('Belum ada komisi pada periode ini.')).toBeNull();
+    get.mockImplementation(base);
+  });
+
   it('always sends a start for the shifts on duty: the server has no default window', async () => {
     asRole('MANAGER');
     openTab('couriers');
@@ -1320,8 +1337,8 @@ describe('the meter tab', () => {
     renderPage();
     // 100 L over one day and 50 L under on another: 50 L net, over the two days read.
     expect(await screen.findByText('50 L')).toBeTruthy();
-    expect(screen.getByText('2 dari 3 hari terbaca')).toBeTruthy();
-    const unread = screen.getByText('Hari tanpa bacaan meter').parentElement?.parentElement;
+    expect(screen.getByText('2 dari 3 hari tercatat')).toBeTruthy();
+    const unread = screen.getByText('Hari dengan meter belum ditutup').parentElement?.parentElement;
     expect(unread?.textContent).toContain('1');
     // Yield averages the days it exists for (60 and 70), not the day with no reading.
     expect(screen.getByText('65%')).toBeTruthy();
@@ -1332,14 +1349,15 @@ describe('the meter tab', () => {
     openTab('meter');
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
-    await screen.findByText('Hari tanpa bacaan meter');
+    await screen.findByText('Hari dengan meter belum ditutup');
     const q = new URL(
       String(get.mock.calls.find((c) => String(c[0]).includes('/reports/meter/'))?.[0]),
       'http://x',
     ).searchParams;
-    expect(q.get('from')).toBe('2026-09-30T17:00:00.000Z');
+    // Plain WIB dates: the server slices to the UTC date, so an instant would start a day early.
+    expect(q.get('from')).toBe('2026-10-01');
     // The month ends on 31 October but the meter has nothing after today.
-    expect(q.get('to')).toBe('2026-10-15T17:00:00.000Z');
+    expect(q.get('to')).toBe('2026-10-15');
     expect(screen.queryByText(/lebih panjang dari yang dibaca server/)).toBeNull();
   });
 
@@ -1348,7 +1366,7 @@ describe('the meter tab', () => {
     openTab('meter');
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
-    await screen.findByText('Hari tanpa bacaan meter');
+    await screen.findByText('Hari dengan meter belum ditutup');
     fireEvent.click(screen.getByRole('button', { name: 'Rentang' }));
     const inputs = document.querySelectorAll('input[type="date"]');
     fireEvent.change(inputs[0] as HTMLInputElement, { target: { value: '2026-01-01' } });
@@ -1359,6 +1377,17 @@ describe('the meter tab', () => {
     const days =
       (Date.parse(q.get('to') as string) - Date.parse(q.get('from') as string)) / 86_400_000;
     expect(days).toBeLessThanOrEqual(92);
+    expect(q.get('to')).toBe('2026-10-15');
+  });
+
+  it('leaves a day with no closing reading out of the chart instead of plotting 0 L', async () => {
+    asRole('MANAGER');
+    openTab('meter');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('65%');
+    expect(document.body.textContent).toContain('2026-10-14');
+    expect(document.body.textContent).not.toContain('2026-10-15');
   });
 
   it('does not ask a depot with no depot chosen, and says why', async () => {

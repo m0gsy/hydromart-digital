@@ -271,7 +271,8 @@ export const insight = {
       'Cash couriers brought back from delivery orders today. Counter sales are not included.',
     todayHint: 'today',
     shiftsOff: 'Shifts with a variance',
-    shiftsOffDef: 'Closed shifts whose counted cash differs from what it should be.',
+    shiftsOffDef:
+      'Of the twenty most recently closed shifts, those whose counted cash differs from what it should be.',
     shiftsTitle: 'Cashier shifts',
     shiftsEmpty: 'No cashier shifts yet.',
     shiftsNote:
@@ -317,15 +318,16 @@ export const insight = {
   meter: {
     needDepot: 'Choose a single depot to see its water meter.',
     capped:
-      'This period is longer than the server reads, so what is shown is the last 92 days up to today.',
+      'This period is longer than the server reads, so what is shown is the last 92 days of this period.',
     gap: 'Gap between meter and sales',
     gapDef:
       'Liters by the meter less liters on the order lines. An indication, not proof of a leak: order lines with no volume are not counted.',
-    daysRead: '{n} of {total} days read',
+    daysRead: '{n} of {total} days recorded',
     yield: 'Average RO yield',
     yieldDef: 'The average RO machine yield percentage on days the meter was read.',
-    unread: 'Days with no meter reading',
-    unreadDef: 'Days in this period with no meter reading recorded.',
+    unread: 'Days with the meter not closed',
+    unreadDef:
+      'Days with an opening meter reading but no closing one. Days with no reading at all are not recorded by the server, so they are not counted.',
     title: 'Meter production and sales per day',
     empty: 'No meter readings in this period yet.',
     aria: 'Line chart of liters by the meter and liters sold per day',

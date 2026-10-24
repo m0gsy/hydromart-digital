@@ -37,7 +37,8 @@ export function GallonsTab({ ctx }: { ctx: InsightCtx }) {
   );
 
   const rows = (network.data ?? [])
-    .filter((d) => depotId == null || d.depotId === depotId)
+    // The network answer is not scoped for every role, so only depots this reader can name stay.
+    .filter((d) => depotNames[d.depotId] != null && (depotId == null || d.depotId === depotId))
     // Most empties still out first: that is where the follow-up is.
     .sort((a, b) => b.outstanding - a.outstanding);
   const sum = (key: keyof GallonOutstanding) =>

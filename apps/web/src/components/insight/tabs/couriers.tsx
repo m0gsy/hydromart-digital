@@ -125,7 +125,7 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
                         {c.failed}
                       </td>
                       <td className="p-2 text-right tabular-nums">
-                        {c.rating != null ? c.rating.toFixed(2).replace('.', ',') : dash}
+                        {c.rating != null ? c.rating.toFixed(1).replace('.', ',') : dash}
                       </td>
                     </tr>
                   ))}
@@ -140,7 +140,9 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
         <WidgetCard
           title={t('insight.couriers.commissionTitle')}
           source={commission}
-          isEmpty={(d) => d.couriers.length === 0}
+          // An unreadable payout service answers with no couriers and a null total: that is
+          // "could not read", not "no commission".
+          isEmpty={(d) => d.couriers.length === 0 && d.totalIdr != null}
           emptyText={t('insight.couriers.commissionEmpty')}
           detailHref="/dashboard/commission"
         >
