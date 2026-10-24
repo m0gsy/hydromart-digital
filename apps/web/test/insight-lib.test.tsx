@@ -2,7 +2,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { GaugeChart, MultiLine } from '@/components/hq/charts';
+import { DonutChart, GaugeChart, MultiLine, wholeShares } from '@/components/hq/charts';
 import { INSIGHT_TABS, canViewInsight, resolveTab, visibleTabs } from '@/lib/insight/access';
 import { overviewSentence } from '@/lib/insight/sentences';
 import { useInsightData } from '@/lib/insight/use-insight-data';
@@ -98,8 +98,97 @@ describe('GaugeChart', () => {
   });
 });
 
+describe('wholeShares', () => {
+  it('adds up to exactly 100, where rounding each slice would give 99', () => {
+    expect(wholeShares([1, 1, 1])).toEqual([34, 33, 33]);
+    expect(wholeShares([1, 1, 1]).reduce((n, x) => n + x, 0)).toBe(100);
+    expect(wholeShares([50, 30, 20])).toEqual([50, 30, 20]);
+  });
+
+  it('gives a slice too small to earn a point none, and still totals 100', () => {
+    const out = wholeShares([100_000, 1]);
+    expect(out[1]).toBe(0);
+    expect(out.reduce((n, x) => n + x, 0)).toBe(100);
+  });
+
+  it('has no shares when there is nothing to share', () => {
+    expect(wholeShares([])).toEqual([]);
+    expect(wholeShares([0, 0])).toEqual([0, 0]);
+    expect(wholeShares([-5, 0])).toEqual([0, 0]);
+  });
+});
+
+describe('DonutChart', () => {
+  const money = (n: number) => 'Rp ' + n;
+
+  it('says every slice in text: label, value and share, with the total in the middle', () => {
+    const { container } = render(
+      <DonutChart
+        total="Total"
+        format={money}
+        ariaLabel="pembagian"
+        segments={[
+          { label: 'Galon', value: 750 },
+          { label: 'Botol', value: 250 },
+        ]}
+      />,
+    );
+    const text = container.textContent ?? '';
+    expect(text).toContain('Galon');
+    expect(text).toContain('Rp 750');
+    expect(text).toContain('75%');
+    expect(text).toContain('25%');
+    // The ring's middle: the sum of what is drawn.
+    expect(text).toContain('Rp 1000');
+    expect(container.querySelectorAll('circle')).toHaveLength(2);
+  });
+
+  it('leaves out a slice with no value, and prints "<1%" for one too small to read as a point', () => {
+    const { container } = render(
+      <DonutChart
+        total="Total"
+        ariaLabel="x"
+        segments={[
+          { label: 'Besar', value: 100_000 },
+          { label: 'Kecil', value: 1 },
+          { label: 'Nol', value: 0 },
+          { label: 'Minus', value: -50 },
+        ]}
+      />,
+    );
+    const text = container.textContent ?? '';
+    expect(text).toContain('<1%');
+    expect(text).not.toContain('Nol');
+    expect(text).not.toContain('Minus');
+    expect(container.querySelectorAll('circle')).toHaveLength(2);
+  });
+
+  it('keeps two slices that share a name instead of dropping one', () => {
+    const { container } = render(
+      <DonutChart
+        total="Total"
+        ariaLabel="x"
+        segments={[
+          { label: 'Galon', value: 10 },
+          { label: 'Galon', value: 5 },
+        ]}
+      />,
+    );
+    expect(container.querySelectorAll('li')).toHaveLength(2);
+    expect(container.querySelectorAll('circle')).toHaveLength(2);
+  });
+
+  it('draws nothing at all when no slice has a value', () => {
+    for (const segments of [[], [{ label: 'a', value: 0 }]]) {
+      const { container } = render(<DonutChart total="Total" ariaLabel="x" segments={segments} />);
+      expect(container.textContent).toBe('—');
+      cleanup();
+    }
+  });
+});
+
 describe('who sees which tab', () => {
-  it('opens the overview to every role that holds one of its widgets', () => {
+  it('opens something to every role that holds one of the widgets', () => {
     for (const role of [
       'SUPER_ADMIN',
       'HEAD_OFFICE',
@@ -108,14 +197,22 @@ describe('who sees which tab', () => {
       'MANAGER',
       'SUPERVISOR',
       'ASSISTANT_SUPERVISOR',
+      'KEPALA_DEPOT',
     ]) {
       expect(canViewInsight(role), role).toBe(true);
     }
   });
 
+  it('gives each role only the tabs it holds a widget capability for', () => {
+    const ids = (role: string) => visibleTabs(role).map((t) => t.id);
+    expect(ids('HEAD_OFFICE')).toEqual(['overview', 'sales', 'operations']);
+    expect(ids('FINANCE')).toEqual(['overview', 'sales', 'operations']);
+    // A depot head has the day's report and its stock here, and nothing else.
+    expect(ids('KEPALA_DEPOT')).toEqual(['operations']);
+  });
+
   it('opens nothing to the roles with no source behind it', () => {
     for (const role of [
-      'KEPALA_DEPOT',
       'STAFF_DEPOT',
       'MARKETING',
       'HR',
@@ -133,7 +230,8 @@ describe('who sees which tab', () => {
   it('falls back to the first tab the role may see when asked for one it may not', () => {
     expect(resolveTab('HEAD_OFFICE', 'nope')?.id).toBe('overview');
     expect(resolveTab('HEAD_OFFICE', '')?.id).toBe('overview');
-    expect(resolveTab('KEPALA_DEPOT', 'overview')).toBeNull();
+    expect(resolveTab('STAFF_DEPOT', 'overview')).toBeNull();
+    expect(resolveTab('KEPALA_DEPOT', 'overview')?.id).toBe('operations');
   });
 
   it('has one i18n label key per tab, under insight.tabs', () => {

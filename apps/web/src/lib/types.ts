@@ -1136,6 +1136,12 @@ export interface CustomerSummary {
   }[];
 }
 
+/** `GET vouchers/burn-summary`: rupiah of discount actually spent, in total and per voucher. */
+export interface VoucherBurnSummary {
+  totalUsed: number;
+  byVoucher: Record<string, number>;
+}
+
 // 18c — HQ network subscription aggregate. estMonthlyDeliveries is an estimate (no
 // rupiah MRR is derivable — subscriptions snapshot no price).
 export interface SubscriptionNetworkSummary {
@@ -1988,6 +1994,8 @@ export interface InventoryItem {
   /** quantity − reserved. */
   available: number;
   lowStock: boolean;
+  /** A deactivated product's line: still in the table, no longer something the depot sells. */
+  hidden?: boolean;
 }
 
 /** An order's live hold on a stock line — what the "dipesan" column is made of. */

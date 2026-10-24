@@ -2,15 +2,16 @@
 
 import { useMemo } from 'react';
 
-import { GaugeChart, MultiLine } from '@/components/hq/charts';
+import { GaugeChart } from '@/components/hq/charts';
 import type { InsightCtx } from '@/components/insight/context';
 import { KpiCard } from '@/components/insight/kpi-card';
+import { SalesSeriesCard } from '@/components/insight/widgets/sales-series';
 import { WidgetCard } from '@/components/insight/widget-card';
 import { Card, Money } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { compare } from '@/lib/insight/delta';
-import { granularityFor, regroup, type InsightRange } from '@/lib/insight/range';
+import type { InsightRange } from '@/lib/insight/range';
 import { overviewSentence } from '@/lib/insight/sentences';
 import { useInsightData } from '@/lib/insight/use-insight-data';
 import { formatIDR } from '@/lib/format';
@@ -23,7 +24,6 @@ import type {
   ExecutiveDashboard,
   NetworkDashboard,
   RatingByDepotReport,
-  SalesReport,
   StatusSummary,
 } from '@/lib/types';
 
@@ -71,7 +71,7 @@ function Attention({
 /** Ringkasan: the headline numbers, how they moved, and what needs doing now. */
 export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
   const { t } = useT();
-  const { role, range, prev, year, partial, comparable, grouping, depotIds, depotId } = ctx;
+  const { role, range, prev, year, partial, comparable, depotIds, depotId } = ctx;
   const mayReports = can('orderReports', role);
   const mayExecutive = can('dashboardFinance', role);
   const mayTargets = can('depotTargets', role);
@@ -115,20 +115,6 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
         true,
       ),
     [range.from, range.to],
-    mayReports,
-  );
-  const series = useInsightData(
-    () =>
-      api.get<SalesReport>(
-        endpoints.reports.sales({
-          from: range.from,
-          to: range.to,
-          granularity: granularityFor(grouping),
-          depotIds,
-        }),
-        true,
-      ),
-    [range.from, range.to, grouping, depotIds?.join(',')],
     mayReports,
   );
 
@@ -186,10 +172,6 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
   }, [rating.data, depotId]);
 
   const sentence = overviewSentence(revenueDeltas.prev, ordersDeltas.prev);
-  const seriesRows = useMemo(
-    () => (series.data ? regroup(series.data.buckets, grouping) : []),
-    [series.data, grouping],
-  );
 
   const rows = (network.data?.depots ?? [])
     .filter((d) => depotId == null || d.depotId === depotId)
@@ -276,37 +258,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {mayReports && (
-          <WidgetCard
-            title={t('insight.overview.seriesTitle')}
-            source={series}
-            isEmpty={(d) => d.buckets.length === 0}
-            detailHref="/hq/analytics"
-            className="lg:col-span-2"
-          >
-            {() => (
-              <MultiLine
-                labels={seriesRows.map((b) => b.period)}
-                ariaLabel={t('insight.overview.seriesAria')}
-                series={[
-                  {
-                    label: t('insight.overview.seriesRevenue'),
-                    values: seriesRows.map((b) => b.revenue),
-                    axis: 'left',
-                    tone: 'brand',
-                    money: true,
-                  },
-                  {
-                    label: t('insight.overview.seriesOrders'),
-                    values: seriesRows.map((b) => b.orderCount),
-                    axis: 'right',
-                    tone: 'amber',
-                  },
-                ]}
-              />
-            )}
-          </WidgetCard>
-        )}
+        <SalesSeriesCard ctx={ctx} detailHref="/hq/analytics" className="lg:col-span-2" />
 
         {mayTargets && mayExecutive && now != null && depotId != null && targetMonth != null && (
           <WidgetCard

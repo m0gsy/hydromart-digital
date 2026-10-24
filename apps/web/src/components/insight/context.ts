@@ -19,4 +19,6 @@ export interface InsightCtx {
   depotIds: readonly string[] | undefined;
   /** A single depot, chosen or the only one in reach: what a per-depot figure needs. */
   depotId: string | null;
+  /** Names of the depots in reach, for a row that only carries an id. */
+  depotNames: Readonly<Record<string, string>>;
 }

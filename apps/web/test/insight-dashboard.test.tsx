@@ -84,8 +84,70 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       return Promise.resolve({
         from: null,
         to: null,
-        window: { cancelRate: 0.2, orders: 10 },
-        live: { inProgress: 5, unrouted: 3, byStatus: {} },
+        window: { cancelRate: 0.2, orders: 10, walkIn: 3, app: 7, completed: 6 },
+        live: { inProgress: 5, unrouted: 3, byStatus: { CONFIRMED: 2, ON_DELIVERY: 3 } },
+      });
+    }
+    if (p.includes('/reports/revenue-by-category')) {
+      return Promise.resolve({
+        grouping: 'product',
+        items: [
+          {
+            productId: 'p1',
+            productName: 'Galon 19L',
+            orderCount: 6,
+            revenue: 750_000,
+            share: 0.75,
+          },
+          {
+            productId: 'p2',
+            productName: 'Botol 600ml',
+            orderCount: 4,
+            revenue: 250_000,
+            share: 0.25,
+          },
+        ],
+      });
+    }
+    if (p.includes('/payments/revenue-by-method')) {
+      return Promise.resolve([
+        { method: 'QRIS', amount: 600_000, count: 5 },
+        { method: 'CASH', amount: 400_000, count: 4 },
+      ]);
+    }
+    if (p.includes('/inventory/low-stock')) {
+      return Promise.resolve([
+        {
+          id: 'i1',
+          depotId: 'd1',
+          label: 'Tutup galon',
+          quantity: 5,
+          reserved: 0,
+          available: 5,
+          minimumStock: 20,
+          hidden: false,
+        },
+        {
+          id: 'i2',
+          depotId: 'd2',
+          label: 'Produk lama',
+          quantity: 0,
+          reserved: 0,
+          available: 0,
+          minimumStock: 10,
+          hidden: true,
+        },
+      ]);
+    }
+    if (p.includes('/reports/depot-daily')) {
+      return Promise.resolve({
+        depotId: 'd1',
+        date: '2026-10-15',
+        byHour: Array.from({ length: 24 }, (_, hour) => ({
+          hour,
+          orders: hour === 9 ? 4 : 0,
+          revenueIdr: hour === 9 ? 400_000 : 0,
+        })),
       });
     }
     if (p.includes('/reports/rating-by-depot')) {
@@ -133,6 +195,8 @@ function serve(overrides: Record<string, () => unknown> = {}) {
             revenue: 800_000,
             orderCount: 6,
             lowStockCount: 2,
+            slaRate: 0.95,
+            avgMinutes: 38,
           },
           {
             depotId: 'd2',
@@ -142,6 +206,19 @@ function serve(overrides: Record<string, () => unknown> = {}) {
             revenue: 300_000,
             orderCount: 4,
             lowStockCount: 1,
+            slaRate: 0.7,
+            avgMinutes: 61,
+          },
+          {
+            depotId: 'd3',
+            code: 'D3',
+            name: 'Depot Tiga',
+            active: true,
+            revenue: 100_000,
+            orderCount: 1,
+            lowStockCount: 0,
+            slaRate: null,
+            avgMinutes: null,
           },
         ],
         sources: { depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok' },
@@ -223,9 +300,6 @@ describe('the dashboard for head office', () => {
   it('lists the top depots by revenue with names, highest first', async () => {
     asRole('HEAD_OFFICE');
     renderPage();
-    // The names also sit in the depot picker's options; the ranking is the list.
-    const inList = async (name: string) =>
-      (await screen.findAllByText(name)).find((el) => el.tagName !== 'OPTION') as HTMLElement;
     const first = await inList('Depot Satu');
     const second = await inList('Depot Dua');
     expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -255,7 +329,7 @@ describe('a role that holds only some of the capabilities', () => {
   });
 
   it('opens nothing for a role with no dashboard section, and says so', () => {
-    asRole('KEPALA_DEPOT');
+    asRole('HR');
     renderPage();
     expect(screen.getByText('Akun ini belum punya bagian dasbor yang bisa dibuka.')).toBeTruthy();
     expect(get).not.toHaveBeenCalled();
@@ -462,5 +536,177 @@ describe('review fixes', () => {
     });
     renderPage();
     expect(await screen.findByText('Tidak ada yang perlu ditindak sekarang.')).toBeTruthy();
+  });
+});
+
+const openTab = (tab: string) => window.history.replaceState(null, '', `/hq/dashboard?tab=${tab}`);
+// The names also sit in the depot picker's options, which are there first: wait for the LIST.
+const inList = (name: string) =>
+  waitFor(() => {
+    const el = screen.queryAllByText(name).find((e) => e.tagName !== 'OPTION');
+    expect(el).toBeTruthy();
+    return el as HTMLElement;
+  });
+
+describe('the sales tab', () => {
+  it('splits revenue by product and by payment method, in words and numbers', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('sales');
+    renderPage();
+    expect(await screen.findByText('Galon 19L')).toBeTruthy();
+    expect(screen.getByText('Botol 600ml')).toBeTruthy();
+    // 750.000 of 1.000.000 is 75%, and the note says it is per product, not per category.
+    expect(screen.getByText('75%')).toBeTruthy();
+    expect(screen.getByText(/Per produk, bukan per kategori/)).toBeTruthy();
+    // Payment methods are named for a person, not by their enum.
+    expect(await screen.findByText('Tunai')).toBeTruthy();
+    expect(screen.getByText('QRIS')).toBeTruthy();
+    expect(screen.getByText(/tidak mengikuti pilihan depot/)).toBeTruthy();
+  });
+
+  it('shows how many orders came through the app and how many at the counter', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('sales');
+    renderPage();
+    expect(await screen.findByText('Pesanan lewat aplikasi')).toBeTruthy();
+    expect(screen.getByText('7 · 70%')).toBeTruthy();
+    expect(screen.getByText('3 · 30%')).toBeTruthy();
+  });
+
+  it('lists the top customers by name', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('sales');
+    serve({
+      '/dashboard/executive': () => ({
+        ...exec(1, 1),
+        topCustomers: {
+          items: [
+            { customerId: 'c1', customerName: 'Bu Sari', orderCount: 9, revenue: 500_000 },
+            { customerId: 'c2', customerName: null, orderCount: 2, revenue: 100_000 },
+          ],
+        },
+      }),
+    });
+    renderPage();
+    expect(await screen.findByText('Bu Sari')).toBeTruthy();
+    expect(screen.getByText('Tanpa nama')).toBeTruthy();
+  });
+
+  it('shows customer names only to a role that may read customers, and a rank to the rest', async () => {
+    const withNames = () =>
+      serve({
+        '/dashboard/executive': () => ({
+          ...exec(1, 1),
+          topCustomers: {
+            items: [{ customerId: 'c1', customerName: 'Bu Sari', orderCount: 9, revenue: 500_000 }],
+          },
+        }),
+      });
+    asRole('FINANCE');
+    openTab('sales');
+    withNames();
+    renderPage();
+    expect(await screen.findByText('Pelanggan 1')).toBeTruthy();
+    expect(screen.queryByText('Bu Sari')).toBeNull();
+    cleanup();
+    asRole('HEAD_OFFICE');
+    withNames();
+    renderPage();
+    expect(await screen.findByText('Bu Sari')).toBeTruthy();
+  });
+
+  it('gives finance the payment methods and nothing it cannot read', async () => {
+    asRole('FINANCE');
+    openTab('sales');
+    renderPage();
+    expect(await screen.findByText('Tunai')).toBeTruthy();
+    expect(requested('/reports/')).toBe(false);
+  });
+
+  it('narrows the product split to the chosen depot but leaves the network-wide payments alone', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('sales');
+    renderPage();
+    await screen.findByText('Galon 19L');
+    get.mockClear();
+    fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: 'd1' } });
+    await waitFor(() => expect(requested('/reports/revenue-by-category')).toBe(true));
+    const product = String(
+      get.mock.calls.find((c) => String(c[0]).includes('/revenue-by-category'))?.[0],
+    );
+    expect(new URL(product, 'http://x').searchParams.get('depotIds')).toBe('d1');
+    expect(requested('/payments/revenue-by-method')).toBe(false);
+  });
+});
+
+describe('the operations tab', () => {
+  it('shows what is moving right now, with the part that still needs a courier flagged', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('operations');
+    renderPage();
+    const card = (label: string) => screen.getByText(label).parentElement?.parentElement;
+    expect(await screen.findByText('Dikonfirmasi')).toBeTruthy();
+    // 5 in flight, 3 of them with no courier yet — and that count is the alarm colour.
+    expect(card('Pesanan berjalan')?.textContent).toContain('5');
+    expect(card('Pesanan belum dapat kurir')?.textContent).toContain('3');
+    expect(
+      card('Pesanan belum dapat kurir')?.querySelector('[class*="--danger"]'),
+    ).not.toBeNull();
+    expect(screen.getByText('Dalam pengiriman')).toBeTruthy();
+  });
+
+  it('ranks depots by on-time delivery, worst first, and puts one with no deliveries last as unmeasured', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('operations');
+    renderPage();
+    const worst = await inList('Depot Dua');
+    const best = await inList('Depot Satu');
+    const none = await inList('Depot Tiga');
+    expect(worst.compareDocumentPosition(best) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(best.compareDocumentPosition(none) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('belum ada pengiriman')).toBeTruthy();
+  });
+
+  it('lists low stock without the lines of deactivated products', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('operations');
+    renderPage();
+    expect(await screen.findByText('Tutup galon')).toBeTruthy();
+    expect(screen.getByText('sisa 5 / min 20')).toBeTruthy();
+    expect(screen.queryByText('Produk lama')).toBeNull();
+  });
+
+  it("asks for today's orders by hour only once one depot is in view", async () => {
+    asRole('HEAD_OFFICE');
+    openTab('operations');
+    renderPage();
+    expect(
+      await screen.findByText('Pilih satu depot untuk melihat pesanan per jam hari ini.'),
+    ).toBeTruthy();
+    expect(requested('/reports/depot-daily')).toBe(false);
+    fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: 'd1' } });
+    expect(await screen.findByText('Pesanan masuk per jam hari ini')).toBeTruthy();
+    const call = String(
+      get.mock.calls.find((c) => String(c[0]).includes('/reports/depot-daily'))?.[0],
+    );
+    expect(call).toContain('depotId=d1');
+    // Always today, whatever window the date bar holds.
+    expect(call).toContain('date=2026-10-15');
+  });
+
+  it('lets a depot head see stock and the day by hour, and nothing it cannot read', async () => {
+    asRole('KEPALA_DEPOT');
+    openTab('operations');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Tutup galon')).toBeTruthy();
+    expect(await screen.findByText('Pesanan masuk per jam hari ini')).toBeTruthy();
+    expect(requested('/reports/status-summary')).toBe(false);
+    expect(requested('/dashboard/')).toBe(false);
+    // Its stock is asked for its own depot by name.
+    const stock = String(
+      get.mock.calls.find((c) => String(c[0]).includes('/inventory/low-stock'))?.[0],
+    );
+    expect(stock).toContain('depotId=d1');
   });
 });
