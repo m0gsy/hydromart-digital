@@ -2360,6 +2360,7 @@ export const hrFix = {
     account: 'Akun',
   },
   opNav: {
+    insight: 'Dasbor',
     summary: 'Ringkasan',
     queue: 'Antrean',
     sales: 'Penjualan',

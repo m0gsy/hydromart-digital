@@ -3,6 +3,8 @@
 import { DonutChart } from '@/components/hq/charts';
 import type { InsightCtx } from '@/components/insight/context';
 import { WidgetCard } from '@/components/insight/widget-card';
+import { PromoRoiCard } from '@/components/insight/widgets/promo-roi';
+import { SalesForecastCard } from '@/components/insight/widgets/sales-forecast';
 import { SalesSeriesCard } from '@/components/insight/widgets/sales-series';
 import { Card, Money } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -216,6 +218,9 @@ export function SalesTab({ ctx }: { ctx: InsightCtx }) {
           </WidgetCard>
         )}
       </div>
+
+      <PromoRoiCard ctx={ctx} />
+      <SalesForecastCard ctx={ctx} />
 
       {!mayReports && !mayMethods && !mayExecutive && (
         <Card className="p-4 text-sm text-muted">{t('insight.denied')}</Card>

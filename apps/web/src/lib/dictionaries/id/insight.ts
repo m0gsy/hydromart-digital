@@ -59,6 +59,26 @@ export const insight = {
       churn: 'Tingkat churn pelanggan',
     },
   },
+  depotMap: { title: 'Peta depot', empty: 'Belum ada depot dengan koordinat.' },
+  promoRoi: {
+    title: 'Pemakaian promo',
+    empty: 'Belum ada aturan promo yang dipakai.',
+    note: 'Dihitung sejak aturan dibuat, tidak mengikuti periode di atas. Yang tampil potongan harga dan jumlah pesanannya, bukan omzet tambahan yang dibawa promo.',
+    col: { rule: 'Aturan', orders: 'Pesanan', discount: 'Potongan', last: 'Terakhir dipakai' },
+  },
+  forecast: {
+    needDepot: 'Pilih satu depot untuk melihat perkiraan omzetnya.',
+    title: 'Perkiraan omzet',
+    empty: 'Belum cukup riwayat penjualan untuk membuat perkiraan.',
+    total: 'Perkiraan {days} hari ke depan',
+    totalDef:
+      'Jumlah omzet harian yang diperkirakan untuk hari-hari ke depan, dari tren 30 hari terakhir.',
+    avg: 'Rata-rata harian',
+    avgDef: 'Rata-rata omzet harian pada 30 hari terakhir.',
+    line: 'Omzet harian (aktual lalu perkiraan)',
+    aria: 'Grafik omzet harian 30 hari terakhir diikuti perkiraan 14 hari ke depan',
+    note: 'Garis kiri adalah hari-hari yang sudah lewat (-30 sampai -1), garis kanan adalah perkiraan (+1 dan seterusnya). Ini proyeksi tren, bukan janji.',
+  },
   state: {
     empty: 'Belum ada data pada periode ini.',
     unavailable: 'Belum tersedia',

@@ -75,6 +75,19 @@ function InsightDashboardBody() {
   const tv = tvParam === '1';
   const [tick, setTick] = useState(0);
 
+  // A wall screen reads from across a room, so it is dark whatever the reader chose; the saved
+  // choice is untouched and comes back when the view is left.
+  useEffect(() => {
+    if (!tv) return;
+    const el = document.documentElement;
+    const before = el.dataset.theme;
+    el.dataset.theme = 'dark';
+    return () => {
+      if (before) el.dataset.theme = before;
+      else delete el.dataset.theme;
+    };
+  }, [tv]);
+
   const [preset, setPreset] = useState<Preset>('month');
   const [custom, setCustom] = useState(() => {
     const today = todayWib();
