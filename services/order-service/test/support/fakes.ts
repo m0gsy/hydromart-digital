@@ -36,6 +36,7 @@ import {
   SalesBucket,
   SegmentConditions,
   DeliveryAddressSnapshot,
+  StatusSummaryRaw,
 } from '../../src/application/ports/order.repository';
 import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
@@ -511,6 +512,54 @@ export class InMemoryOrderRepository implements OrderRepository {
     return [...buckets.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([period, v]) => ({ period, ...v }));
+  }
+
+  /**
+   * Same contract as the real repository, from the rows held here. The fake's records carry no
+   * refund amount, so its refund split is always zero; the real one is covered by the Prisma spec.
+   */
+  async statusSummary(range: ReportRange, depotIds?: readonly string[]): Promise<StatusSummaryRaw> {
+    const inScope = (r: OrderRecord) =>
+      !depotIds || (r.depotId !== null && depotIds.includes(r.depotId));
+    const windowRows = this.rows.filter(
+      (r) =>
+        inScope(r) &&
+        (!range.from || r.createdAt >= range.from) &&
+        (!range.to || r.createdAt < range.to),
+    );
+    const byStatus = new Map<string, { count: number; revenue: number }>();
+    for (const r of windowRows) {
+      const cur = byStatus.get(r.status) ?? { count: 0, revenue: 0 };
+      cur.count += 1;
+      cur.revenue += r.total;
+      byStatus.set(r.status, cur);
+    }
+    const sales = windowRows.filter(
+      (r) => r.status !== OrderStatus.CANCELLED && r.status !== OrderStatus.VOIDED,
+    );
+    const inFlight = new Set<string>([
+      OrderStatus.CREATED,
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+    ]);
+    const live = new Map<string, number>();
+    for (const r of this.rows.filter((x) => inScope(x) && inFlight.has(x.status))) {
+      live.set(r.status, (live.get(r.status) ?? 0) + 1);
+    }
+    return {
+      window: {
+        byStatus: [...byStatus].map(([status, v]) => ({ status, ...v })),
+        channel: {
+          walkIn: sales.filter((r) => r.isWalkIn).length,
+          app: sales.filter((r) => !r.isWalkIn).length,
+        },
+        refunds: { orders: 0, amount: 0 },
+      },
+      live: { byStatus: [...live].map(([status, count]) => ({ status, count })) },
+    };
   }
 
   async topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]> {

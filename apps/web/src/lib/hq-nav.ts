@@ -116,6 +116,9 @@ export const HQ_GROUPS: HqRailGroup[] = [
   {
     headKey: 'analytics',
     items: [
+      // The tabbed dashboard. First of this group (not beside `/hq`) so the roles that land on the
+      // first readable row, and the three phone tabs, are the same as before it existed.
+      { href: '/hq/dashboard', labelKey: 'insight', cap: 'dashboardFinance' },
       { href: '/hq/analytics', labelKey: 'analytics', cap: 'dashboard' },
       { href: '/hq/scorecard', labelKey: 'scorecard', cap: 'dashboard' },
       { href: '/hq/compare', labelKey: 'compare', cap: 'dashboard' },

@@ -40,6 +40,7 @@ import {
   RevenueExportPdfDto,
   SalesReportQueryDto,
   SegmentEstimateQueryDto,
+  StatusSummaryQueryDto,
   TopReportQueryDto,
 } from './dto/report.dto';
 import {
@@ -54,6 +55,7 @@ import {
   RetentionCohortReport,
   RevenueByProductReport,
   SalesReport,
+  StatusSummaryReport,
 } from '../application/services/report.service';
 import {
   CustomerSales,
@@ -82,6 +84,7 @@ import {
   ResellerRollupReportResponseDto,
   RetentionCohortReportResponseDto,
   RevenueByProductReportResponseDto,
+  StatusSummaryResponseDto,
   SalesReportResponseDto,
   SegmentEstimate3ResponseDto,
   ShippingByDepotResponseDto,
@@ -143,6 +146,19 @@ export class ReportController {
       toRange(q),
       ReportController.reportScope(user, q.depotIds),
     );
+  }
+
+  @ApiOkResponse({ type: StatusSummaryResponseDto })
+  @Get('status-summary')
+  @ApiOperation({
+    summary:
+      'Order health for a window (counts by status, cancel/refund rate, app vs counter) plus what is in flight now',
+  })
+  statusSummary(
+    @Query() q: StatusSummaryQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StatusSummaryReport> {
+    return this.reports.statusSummary(toRange(q), ReportController.reportScope(user, q.depotIds));
   }
 
   @ApiOkResponse({ type: TopCustomersResponseDto })

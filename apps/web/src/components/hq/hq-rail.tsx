@@ -114,6 +114,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/roster': Truck,
   '/hq/orders': ClipboardText,
   '/hq/notifications': Bell,
+  '/hq/dashboard': SquaresFour,
   '/hq/analytics': TrendUp,
   '/hq/scorecard': Trophy,
   '/hq/compare': ChartBar,

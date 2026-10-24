@@ -121,3 +121,17 @@ export function monthRangeWib(at: Date = new Date()): { from: string; to: string
   };
   return { from: at0(year, month - 1), to: at0(year, month) };
 }
+
+/**
+ * The instant a business day BEGINS: `YYYY-MM-DD` -> 00:00 in the business zone, as the ISO
+ * instant the API takes (17:00 UTC the evening before, at +07:00).
+ *
+ * The same construction as `monthRangeWib`, for any day. A date-only string sent as-is is
+ * parsed by the server as UTC midnight, which is 07:00 WIB, so a window built from one drops
+ * the first seven hours of its first day.
+ */
+export function dayStartWib(date: string): string {
+  const parts = date.split('-');
+  const asIfUtc = Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  return new Date(asIfUtc - wibOffsetMs(new Date(asIfUtc))).toISOString();
+}

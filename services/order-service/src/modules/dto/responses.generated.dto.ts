@@ -1112,6 +1112,58 @@ export class RatingByDepotResponseDto {
   items!: DepotRatingResponseDto[];
 }
 
+/** Mirrors `StatusSummaryReport['window']` exactly. */
+export class StatusSummaryWindowResponseDto {
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  revenue!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  aov!: number | null;
+  @ApiProperty({ type: Number })
+  cancelled!: number;
+  @ApiProperty({ type: Number })
+  voided!: number;
+  @ApiProperty({ type: Number })
+  completed!: number;
+  @ApiProperty({ type: Number })
+  walkIn!: number;
+  @ApiProperty({ type: Number })
+  app!: number;
+  @ApiProperty({ type: Number })
+  refundedOrders!: number;
+  @ApiProperty({ type: Number })
+  refundedAmount!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  cancelRate!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  refundRate!: number | null;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } })
+  byStatus!: Record<string, number>;
+}
+
+/** Mirrors `StatusSummaryReport['live']` exactly. */
+export class StatusSummaryLiveResponseDto {
+  @ApiProperty({ type: Number })
+  inProgress!: number;
+  @ApiProperty({ type: Number })
+  unrouted!: number;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } })
+  byStatus!: Record<string, number>;
+}
+
+/** Mirrors `StatusSummaryReport` exactly. */
+export class StatusSummaryResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  from!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  to!: string | null;
+  @ApiProperty({ type: StatusSummaryWindowResponseDto })
+  window!: StatusSummaryWindowResponseDto;
+  @ApiProperty({ type: StatusSummaryLiveResponseDto })
+  live!: StatusSummaryLiveResponseDto;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class ExpireAbandoned2ResponseDto {
   @ApiProperty({ type: Number })

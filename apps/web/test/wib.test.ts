@@ -1,7 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { currentPeriod } from '@/lib/hr';
-import { mondayWib, monthRangeWib, monthWib, todayWib, wibParts } from '@/lib/wib';
+import { dayStartWib, mondayWib, monthRangeWib, monthWib, todayWib, wibParts } from '@/lib/wib';
+
+describe('dayStartWib', () => {
+  it('starts a business day at 00:00 WIB, which is 17:00 UTC the evening before', () => {
+    expect(dayStartWib('2026-10-01')).toBe('2026-09-30T17:00:00.000Z');
+    expect(dayStartWib('2026-03-10')).toBe('2026-03-09T17:00:00.000Z');
+  });
+
+  it('crosses month and year boundaries on the business calendar', () => {
+    expect(dayStartWib('2027-01-01')).toBe('2026-12-31T17:00:00.000Z');
+    expect(dayStartWib('2026-03-01')).toBe('2026-02-28T17:00:00.000Z');
+  });
+
+  it('agrees with monthRangeWib for the first of the month', () => {
+    const { from, to } = monthRangeWib(new Date('2026-10-15T05:00:00.000Z'));
+    expect(dayStartWib('2026-10-01')).toBe(from);
+    expect(dayStartWib('2026-11-01')).toBe(to);
+  });
+});
 
 /**
  * C3 — the business day in the browser.

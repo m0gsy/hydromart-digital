@@ -1202,6 +1202,142 @@ describe('OrderPrismaRepository', () => {
     expect(twoHop(q)).not.toContain('"depotId"');
   });
 
+  describe('statusSummary', () => {
+    const from = new Date('2026-09-30T17:00:00.000Z');
+    const to = new Date('2026-10-31T17:00:00.000Z');
+
+    /** The four reads, answered by the shape each one asks for. */
+    const answer = () => {
+      order.groupBy.mockImplementation(async (args: { by: string[] }) => {
+        if (args.by[0] === 'isWalkIn') {
+          return [
+            { isWalkIn: true, _count: { _all: 3 } },
+            { isWalkIn: false, _count: { _all: 5 } },
+          ];
+        }
+        return [{ status: 'COMPLETED', _count: { _all: 6 }, _sum: { total: dec(600000) } }];
+      });
+      order.aggregate.mockResolvedValue({
+        _count: { _all: 2 },
+        _sum: { refundedAmount: dec(30000) },
+      });
+    };
+    const groupByCalls = () =>
+      order.groupBy.mock.calls.map((c) => c[0] as { by: string[]; where: Record<string, unknown> });
+
+    beforeEach(() => {
+      order.groupBy.mockReset();
+      order.aggregate.mockReset();
+    });
+
+    it('maps the four reads into one raw summary', async () => {
+      answer();
+      order.groupBy.mockImplementation(
+        async (args: { by: string[]; where: { status?: unknown } }) => {
+          if (args.by[0] === 'isWalkIn') {
+            return [
+              { isWalkIn: true, _count: { _all: 3 } },
+              { isWalkIn: false, _count: { _all: 5 } },
+            ];
+          }
+          // The live read is the one filtered to in-flight statuses and carries no date.
+          return args.where.status && 'in' in (args.where.status as object)
+            ? [{ status: 'CONFIRMED', _count: { _all: 2 } }]
+            : [{ status: 'COMPLETED', _count: { _all: 6 }, _sum: { total: dec(600000) } }];
+        },
+      );
+      expect(await repo.statusSummary({ from, to })).toEqual({
+        window: {
+          byStatus: [{ status: 'COMPLETED', count: 6, revenue: 600000 }],
+          channel: { walkIn: 3, app: 5 },
+          refunds: { orders: 2, amount: 30000 },
+        },
+        live: { byStatus: [{ status: 'CONFIRMED', count: 2 }] },
+      });
+    });
+
+    it('treats a missing sum as zero', async () => {
+      order.groupBy.mockImplementation(async (args: { by: string[] }) =>
+        args.by[0] === 'isWalkIn'
+          ? []
+          : [{ status: 'CREATED', _count: { _all: 1 }, _sum: { total: null } }],
+      );
+      order.aggregate.mockResolvedValue({ _count: { _all: 0 }, _sum: { refundedAmount: null } });
+      const out = await repo.statusSummary({ from, to });
+      expect(out.window.byStatus).toEqual([{ status: 'CREATED', count: 1, revenue: 0 }]);
+      expect(out.window.channel).toEqual({ walkIn: 0, app: 0 });
+      expect(out.window.refunds).toEqual({ orders: 0, amount: 0 });
+    });
+
+    it('counts every status in the window, but only sales for channel and refunds', async () => {
+      answer();
+      await repo.statusSummary({ from, to }, ['depot-a']);
+      const calls = groupByCalls();
+      const byStatus = calls.find(
+        (c) => c.by[0] === 'status' && !('in' in ((c.where.status as object) ?? {})),
+      )!;
+      // The status split must NOT drop cancelled or voided: that is where the cancel rate comes from.
+      expect(byStatus.where).not.toHaveProperty('status');
+      expect(byStatus.where).toMatchObject({
+        createdAt: { gte: from, lt: to },
+        depotId: { in: ['depot-a'] },
+      });
+      const channel = calls.find((c) => c.by[0] === 'isWalkIn')!;
+      expect(channel.where).toMatchObject({
+        status: { notIn: ['CANCELLED', 'VOIDED'] },
+        createdAt: { gte: from, lt: to },
+        depotId: { in: ['depot-a'] },
+      });
+      expect(order.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { notIn: ['CANCELLED', 'VOIDED'] },
+            refundedAmount: { gt: 0 },
+            depotId: { in: ['depot-a'] },
+          }),
+        }),
+      );
+    });
+
+    it('leaves the date filter off a bound that was not given', async () => {
+      answer();
+      const windowed = () =>
+        groupByCalls().find(
+          (c) => c.by[0] === 'status' && !('in' in ((c.where.status as object) ?? {})),
+        )!;
+      await repo.statusSummary({});
+      expect(windowed().where).not.toHaveProperty('createdAt');
+      order.groupBy.mockClear();
+      await repo.statusSummary({ from });
+      expect(windowed().where.createdAt).toEqual({ gte: from });
+      order.groupBy.mockClear();
+      await repo.statusSummary({ to });
+      expect(windowed().where.createdAt).toEqual({ lt: to });
+    });
+
+    it('reads what is in flight with no date window, only the in-flight statuses', async () => {
+      answer();
+      await repo.statusSummary({ from, to }, ['depot-a']);
+      const live = groupByCalls().find(
+        (c) => c.by[0] === 'status' && 'in' in ((c.where.status as object) ?? {}),
+      )!;
+      expect(live.where).not.toHaveProperty('createdAt');
+      expect(live.where.depotId).toEqual({ in: ['depot-a'] });
+      expect((live.where.status as { in: string[] }).in.sort()).toEqual(
+        ['CONFIRMED', 'CREATED', 'DRIVER_ASSIGNED', 'ON_DELIVERY', 'PICKED_UP', 'PREPARING'].sort(),
+      );
+    });
+
+    it('leaves the depot filter off for head office and matches nothing for an empty set', async () => {
+      answer();
+      await repo.statusSummary({ from, to });
+      for (const c of groupByCalls()) expect(c.where).not.toHaveProperty('depotId');
+      order.groupBy.mockClear();
+      await repo.statusSummary({ from, to }, []);
+      for (const c of groupByCalls()) expect(c.where.depotId).toEqual({ in: [] });
+    });
+  });
+
   it('narrows top customers and top depots to the depots asked for', async () => {
     order.groupBy.mockResolvedValue([]);
     await repo.topCustomers({}, 5, ['depot-a']);

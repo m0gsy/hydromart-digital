@@ -52,6 +52,7 @@ export const hq = {
     roster: 'Roster kurir',
     orders: 'Pesanan',
     notifications: 'Notifikasi',
+    insight: 'Dasbor',
     analytics: 'Analitik jaringan',
     scorecard: 'Peringkat depot',
     compare: 'Bandingkan depot',

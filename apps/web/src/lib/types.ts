@@ -1061,6 +1061,36 @@ export interface SalesReport {
   buckets: { period: string; orderCount: number; revenue: number }[];
 }
 
+/**
+ * Order health for a window (`GET reports/status-summary`). What each number counts matters:
+ * - `orders` / `revenue`: orders that are neither cancelled nor voided, by the day they were
+ *   placed, gross of refunds, unpaid and delivery fees included.
+ * - `cancelRate`: cancelled / (orders + cancelled); a voided sale (a cashier's undo) is in
+ *   neither. `null` when nothing was placed. `refundRate` is refunded sales / sales.
+ * - `live` is what is in flight RIGHT NOW whatever day it was placed; the window does not
+ *   apply. `unrouted` is the part with no courier yet.
+ */
+export interface StatusSummary {
+  from: string | null;
+  to: string | null;
+  window: {
+    orders: number;
+    revenue: number;
+    aov: number | null;
+    cancelled: number;
+    voided: number;
+    completed: number;
+    walkIn: number;
+    app: number;
+    refundedOrders: number;
+    refundedAmount: number;
+    cancelRate: number | null;
+    refundRate: number | null;
+    byStatus: Record<string, number>;
+  };
+  live: { inProgress: number; unrouted: number; byStatus: Record<string, number> };
+}
+
 export interface TopCustomers {
   from: string | null;
   to: string | null;
@@ -3325,4 +3355,11 @@ export interface PriceChange {
   fromPrice: number;
   toPrice: number;
   changedAt: string;
+}
+
+/** `GET reports/rating-by-depot`: the average per depot with how many reviews it rests on. */
+export interface RatingByDepotReport {
+  from: string | null;
+  to: string | null;
+  items: { depotId: string; rating: number; reviewCount: number }[];
 }

@@ -1,0 +1,99 @@
+// The tabbed dashboard (/hq/dashboard and /dashboard/insight). Indonesian is the source of
+// truth; en/insight.ts mirrors this exact key shape.
+export const insight = {
+  title: 'Dasbor',
+  subtitle: 'Kinerja jaringan dalam satu layar',
+  tabsAria: 'Bagian dasbor',
+  tabs: {
+    overview: 'Ringkasan',
+  },
+  denied: 'Akun ini belum punya bagian dasbor yang bisa dibuka.',
+  range: {
+    label: 'Periode',
+    today: 'Hari ini',
+    week: 'Minggu ini',
+    month: 'Bulan ini',
+    custom: 'Rentang',
+    from: 'Dari',
+    to: 'Sampai',
+    invalid:
+      'Rentang tidak valid: tanggal akhir tidak boleh sebelum tanggal awal, dan maksimal 366 hari.',
+  },
+  grouping: {
+    label: 'Kelompokkan',
+    day: 'Hari',
+    week: 'Minggu',
+    month: 'Bulan',
+    quarter: 'Kuartal',
+  },
+  depot: {
+    label: 'Depot',
+    all: 'Semua depot',
+  },
+  state: {
+    empty: 'Belum ada data pada periode ini.',
+    unavailable: 'Belum tersedia',
+    retry: 'Coba lagi',
+  },
+  compare: {
+    prev: 'vs periode lalu',
+    year: 'vs tahun lalu',
+    none: 'Belum ada data pembanding',
+    up: 'naik',
+    down: 'turun',
+    flat: 'tetap',
+  },
+  seeDetail: 'Lihat detail',
+  kpi: {
+    revenue: 'Omzet',
+    revenueDef:
+      'Omzet bruto: semua pesanan yang tidak dibatalkan atau di-void, termasuk yang belum dibayar dan ongkir, menurut tanggal pesanan dibuat. Belum dikurangi refund.',
+    orders: 'Pesanan',
+    ordersDef: 'Jumlah pesanan yang tidak dibatalkan atau di-void, menurut tanggal pesanan dibuat.',
+    aov: 'Rata-rata per pesanan',
+    aovDef: 'Omzet dibagi jumlah pesanan pada periode yang sama.',
+    cancelRate: 'Tingkat batal',
+    cancelRateDef:
+      'Pesanan batal dibagi pesanan yang masuk. Void kasir tidak dihitung, karena itu pembatalan di kasir, bukan pelanggan.',
+    sla: 'Ketepatan kirim',
+    slaDef:
+      'Pengiriman tepat waktu dibagi pengiriman yang selesai. Waktu dihitung sejak kurir ditugaskan, bukan sejak pesanan dibuat.',
+    rating: 'Rating pelanggan',
+    ratingDef:
+      'Rata-rata bintang dari ulasan pelanggan, ditimbang menurut jumlah ulasan tiap depot.',
+    whatIsThis: 'Arti angka ini',
+    reviews: '{count} ulasan',
+    minutes: 'rata-rata {minutes} menit',
+  },
+  overview: {
+    insightTitle: 'Kesehatan bisnis',
+    seriesTitle: 'Omzet dan pesanan',
+    seriesAria: 'Grafik garis omzet dan jumlah pesanan menurut periode',
+    seriesRevenue: 'Omzet',
+    seriesOrders: 'Pesanan',
+    topDepotsTitle: 'Depot dengan omzet tertinggi',
+    topDepotsCaption: '{orders} pesanan',
+    targetTitle: 'Target omzet bulan ini',
+    targetCaption: '{value} dari {target}',
+    targetAria: 'Pencapaian omzet terhadap target bulanan',
+    targetNeedMonth: 'Target dibaca per bulan. Pilih periode "Bulan ini" untuk melihatnya.',
+    targetNeedDepot: 'Pilih satu depot untuk melihat targetnya.',
+    targetEmpty: 'Target belum diisi untuk depot dan bulan ini.',
+    attentionTitle: 'Perlu tindakan',
+    attentionNone: 'Tidak ada yang perlu ditindak sekarang.',
+    unrouted: 'Pesanan belum dapat kurir',
+    unroutedHint: 'Sudah diterima, belum ada kurir yang ditugaskan.',
+    lowStock: 'Item stok menipis',
+    lowStockHint: 'Jumlah item di bawah stok minimum pada depot yang dilihat.',
+    approvals: 'Persetujuan menunggu',
+    approvalsHint: 'Menunggu keputusan manajer.',
+  },
+  sentence: {
+    upBoth: 'Omzet naik {revenue}% dan jumlah pesanan naik {orders}% dibanding periode lalu.',
+    revenueUp: 'Omzet naik {revenue}% dibanding periode lalu, sementara jumlah pesanan tidak naik.',
+    downBoth: 'Omzet turun {revenue}% dan jumlah pesanan turun {orders}% dibanding periode lalu.',
+    revenueDown:
+      'Omzet turun {revenue}% dibanding periode lalu, sementara jumlah pesanan tidak turun.',
+    flat: 'Omzet hampir sama dengan periode lalu.',
+  },
+};

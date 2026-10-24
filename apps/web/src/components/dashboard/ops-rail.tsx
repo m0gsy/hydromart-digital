@@ -37,6 +37,7 @@ import {
   Scroll,
   ShieldCheck,
   Sparkle,
+  SquaresFour,
   Stack,
   Star,
   Storefront,
@@ -102,6 +103,7 @@ import {
   isStaff,
   canViewResellers,
 } from '@/lib/roles';
+import { canViewInsight } from '@/lib/insight/access';
 
 type Role = string | null | undefined;
 
@@ -139,6 +141,7 @@ export const GROUPS: RailGroup[] = [
         show: canViewOwnAttendance,
       },
       { href: '/dashboard', labelKey: 'operations', icon: ChartLineUp, show: canViewDashboard },
+      { href: '/dashboard/insight', labelKey: 'insight', icon: SquaresFour, show: canViewInsight },
       { href: '/dashboard/search', labelKey: 'search', icon: MagnifyingGlass, show: (role) => can('depotDirectory', role) },
       // The way back out. Console routes carry no shop nav, so without this an HQ account
       // that stepped into the depot console had no link home either — the same missing

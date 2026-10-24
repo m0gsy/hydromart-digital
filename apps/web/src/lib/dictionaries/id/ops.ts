@@ -20,6 +20,7 @@ export const ops = {
     myFranchise: 'Waralabaku',
     ownerAttendance: 'Absensi tim',
     operations: 'Operasi',
+    insight: 'Dasbor',
     hqConsole: 'Konsol HQ',
     search: 'Pencarian',
     orders: 'Antrean pesanan',

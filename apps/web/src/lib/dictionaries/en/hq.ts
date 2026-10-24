@@ -50,6 +50,7 @@ export const hq = {
     roster: 'Courier roster',
     orders: 'Orders',
     notifications: 'Notifications',
+    insight: 'Dashboard',
     analytics: 'Network analytics',
     scorecard: 'Depot scorecard',
     compare: 'Compare depots',
