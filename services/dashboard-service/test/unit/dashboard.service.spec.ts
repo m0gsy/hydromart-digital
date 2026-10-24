@@ -6,12 +6,10 @@ import { DashboardConfigService } from '../../src/config/dashboard-config.servic
 /** Names decorate the executive card; nothing here is about them. */
 const noNames = async () => new Map<string, string>();
 
-
 /** Only `businessTimeZone` is read; WIB pinned so a UTC month-window regression (H-16)
  * fails here rather than in a depot's P&L. */
 const dashboardTestConfig = (timeZone = 'Asia/Jakarta'): DashboardConfigService =>
   ({ businessTimeZone: timeZone }) as DashboardConfigService;
-
 
 const DEPOT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -24,11 +22,13 @@ const pnlSources = (
   } = {},
 ) =>
   ({
-    depotMonthly: jest.fn().mockResolvedValue(
-      options.orderDown
-        ? null
-        : { depotId: DEPOT_ID, month: '2026-07', orders: 12, revenueIdr: 1_000_000 },
-    ),
+    depotMonthly: jest
+      .fn()
+      .mockResolvedValue(
+        options.orderDown
+          ? null
+          : { depotId: DEPOT_ID, month: '2026-07', orders: 12, revenueIdr: 1_000_000 },
+      ),
     operationalCosts: jest.fn().mockResolvedValue(
       options.depotDown
         ? null
@@ -37,7 +37,8 @@ const pnlSources = (
             from: '2026-07-01T00:00:00.000Z',
             to: '2026-08-01T00:00:00.000Z',
             reportType: 'OPERATIONAL_MANAGEMENT',
-            disclaimer: 'Operational management report only; not statutory accounting or a tax statement.',
+            disclaimer:
+              'Operational management report only; not statutory accounting or a tax statement.',
             cogs: {
               amountIdr: options.partialCogs ? null : 400_000,
               coveredAmountIdr: options.partialCogs ? 250_000 : 400_000,
@@ -47,7 +48,15 @@ const pnlSources = (
               status: options.partialCogs ? 'partial' : 'complete',
               valuationMethod: 'LATEST_RECEIVED_DIRECT_PRODUCT_COST',
               uncoveredItems: options.partialCogs
-                ? [{ itemId: 'item-1', itemType: 'PRODUK', label: 'Refill', units: 40, reason: 'NO_MATCHING_RECEIVED_PO' }]
+                ? [
+                    {
+                      itemId: 'item-1',
+                      itemType: 'PRODUK',
+                      label: 'Refill',
+                      units: 40,
+                      reason: 'NO_MATCHING_RECEIVED_PO',
+                    },
+                  ]
                 : [],
             },
             opex: {
@@ -83,7 +92,11 @@ describe('DashboardService', () => {
   });
 
   it('keeps revenue but nulls COGS-derived totals when cost coverage is partial', async () => {
-    const service = new DashboardService(pnlSources({ partialCogs: true }), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      pnlSources({ partialCogs: true }),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.revenueIdr).toBe(1_000_000);
@@ -97,7 +110,11 @@ describe('DashboardService', () => {
   });
 
   it('keeps real costs but nulls revenue-derived totals when order-service is unavailable', async () => {
-    const service = new DashboardService(pnlSources({ orderDown: true }), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      pnlSources({ orderDown: true }),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.revenueIdr).toBeNull();
@@ -110,7 +127,11 @@ describe('DashboardService', () => {
   });
 
   it('marks depot costs partial when a PO-category outflow cannot be verified', async () => {
-    const service = new DashboardService(pnlSources({ unverifiedProcurement: true }), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      pnlSources({ unverifiedProcurement: true }),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.opexIdr).toBeNull();
@@ -121,7 +142,11 @@ describe('DashboardService', () => {
   });
 
   it('keeps revenue but nulls every cost/derived value when depot-service is unavailable', async () => {
-    const service = new DashboardService(pnlSources({ depotDown: true }), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      pnlSources({ depotDown: true }),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.revenueIdr).toBe(1_000_000);
@@ -134,7 +159,11 @@ describe('DashboardService', () => {
   });
 
   it('composes all four sections and marks both sources ok', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      new InMemoryDashboardSources(),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.executive({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
 
     expect(result.from).toBe('2026-06-01');
@@ -218,7 +247,11 @@ describe('DashboardService', () => {
   });
 
   it('marks order unavailable and nulls order sections when order calls fail', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      new InMemoryDashboardSources(true),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.executive({}, 'Bearer t');
 
     expect(result.sales).toBeNull();
@@ -231,23 +264,58 @@ describe('DashboardService', () => {
   });
 
   it('scopes revenue + low-stock to owned depots and rolls up totals', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      new InMemoryDashboardSources(),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.franchise({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
 
     expect(result.depots).toHaveLength(2);
     // depot-1 is in the top-depots report → real revenue/count + one low-stock line.
     const one = result.depots.find((d) => d.depotId === 'depot-1');
-    expect(one).toMatchObject({ code: 'DPT-1', active: true, orderCount: 30, revenue: 900_000, lowStockCount: 1 });
+    expect(one).toMatchObject({
+      code: 'DPT-1',
+      active: true,
+      orderCount: 30,
+      revenue: 900_000,
+      lowStockCount: 1,
+    });
     // depot-2 is not in the top list → reads 0 revenue, still listed.
     const two = result.depots.find((d) => d.depotId === 'depot-2');
     expect(two).toMatchObject({ active: false, orderCount: 0, revenue: 0, lowStockCount: 0 });
 
-    expect(result.totals).toEqual({ depotCount: 2, revenue: 900_000, orderCount: 30, lowStockCount: 1 });
+    expect(result.totals).toEqual({
+      depotCount: 2,
+      revenue: 900_000,
+      orderCount: 30,
+      lowStockCount: 1,
+    });
     expect(result.deliverySla?.slaRate).toBe(0.92);
-    expect(result.sources).toEqual({ depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok', hr: 'ok', crm: 'ok' });
+    expect(result.sources).toEqual({
+      depot: 'ok',
+      order: 'ok',
+      delivery: 'ok',
+      inventory: 'ok',
+      hr: 'ok',
+      crm: 'ok',
+    });
     // HR + CRM owner roll-up across the 2 owned depots (Fase 5).
-    expect(result.hr).toEqual({ lateToday: 2, absentToday: 4, presentToday: 10, payrollMtdNet: 6_000_000, activeHeadcount: 16 });
-    expect(result.crm).toEqual({ baru: 2, aktif: 6, inactive: 4, total: 12, followUpCount: 2, repeatRatePct: 50 });
+    expect(result.hr).toEqual({
+      lateToday: 2,
+      absentToday: 4,
+      presentToday: 10,
+      payrollMtdNet: 6_000_000,
+      activeHeadcount: 16,
+    });
+    expect(result.crm).toEqual({
+      baru: 2,
+      aktif: 6,
+      inactive: 4,
+      total: 12,
+      followUpCount: 2,
+      repeatRatePct: 50,
+    });
   });
 
   // Audit S-1 / Q-17 baseline. The old shape asked each source once PER OWNED DEPOT, so an
@@ -278,7 +346,11 @@ describe('DashboardService', () => {
   });
 
   it('rolls up every depot with revenue, SLA and low-stock, null SLA when none in range', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      new InMemoryDashboardSources(),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.network({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
 
     expect(result.depots).toHaveLength(2);
@@ -294,7 +366,13 @@ describe('DashboardService', () => {
     });
     const two = result.depots.find((d) => d.depotId === 'depot-2');
     // Not in top-depots or sla-by-depot → 0 revenue, null SLA, still listed.
-    expect(two).toMatchObject({ active: false, revenue: 0, orderCount: 0, slaRate: null, lowStockCount: 0 });
+    expect(two).toMatchObject({
+      active: false,
+      revenue: 0,
+      orderCount: 0,
+      slaRate: null,
+      lowStockCount: 0,
+    });
     expect(result.sources).toEqual({ depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok' });
   });
 
@@ -438,7 +516,11 @@ describe('DashboardService', () => {
   });
 
   it('marks order unavailable in the roll-up but still lists depots + SLA', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      new InMemoryDashboardSources(true),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.network({}, 'Bearer t');
 
     expect(result.depots).toHaveLength(2);
@@ -454,7 +536,11 @@ describe('DashboardService', () => {
   });
 
   it('marks depot + order unavailable and empties depots when the owner directory is down', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig(), noNames);
+    const service = new DashboardService(
+      new InMemoryDashboardSources(true),
+      dashboardTestConfig(),
+      noNames,
+    );
     const result = await service.franchise({}, 'Bearer t');
 
     expect(result.depots).toEqual([]);
@@ -500,7 +586,10 @@ describe('DashboardService with every upstream down', () => {
   const range = { from: null, to: null } as never;
 
   it('network reports no depots and marks every source unavailable', async () => {
-    const out = await new DashboardService(allDown(), dashboardTestConfig(), noNames).network(range, 'Bearer t');
+    const out = await new DashboardService(allDown(), dashboardTestConfig(), noNames).network(
+      range,
+      'Bearer t',
+    );
 
     expect(out.depots).toEqual([]);
     expect(out.sources).toEqual({
@@ -512,7 +601,10 @@ describe('DashboardService with every upstream down', () => {
   });
 
   it('franchise reports no depots and marks every source unavailable', async () => {
-    const out = await new DashboardService(allDown(), dashboardTestConfig(), noNames).franchise(range, 'Bearer t');
+    const out = await new DashboardService(allDown(), dashboardTestConfig(), noNames).franchise(
+      range,
+      'Bearer t',
+    );
 
     expect(out.depots).toEqual([]);
     expect(Object.values(out.sources)).toContain('unavailable');
@@ -521,7 +613,13 @@ describe('DashboardService with every upstream down', () => {
 
 describe('DashboardService when the depots list survives but nothing else does', () => {
   const depots = [
-    { id: 'dep-1', code: 'JKT-01', name: 'Depot Cikini', active: true, ownershipType: 'MILIK_SENDIRI' },
+    {
+      id: 'dep-1',
+      code: 'JKT-01',
+      name: 'Depot Cikini',
+      active: true,
+      ownershipType: 'MILIK_SENDIRI',
+    },
   ];
   const partial = () =>
     ({
@@ -556,7 +654,10 @@ describe('DashboardService when the depots list survives but nothing else does',
   const range = { from: null, to: null } as never;
 
   it('reports the depot with nulls, not zeros, for what it could not measure', async () => {
-    const out = await new DashboardService(partial(), dashboardTestConfig(), noNames).network(range, 'Bearer t');
+    const out = await new DashboardService(partial(), dashboardTestConfig(), noNames).network(
+      range,
+      'Bearer t',
+    );
 
     expect(out.depots[0]).toMatchObject({
       depotId: 'dep-1',
@@ -571,13 +672,19 @@ describe('DashboardService when the depots list survives but nothing else does',
   });
 
   it('the franchise view does the same, and a depot with no customers is 0% repeat', async () => {
-    const out = await new DashboardService(partial(), dashboardTestConfig(), noNames).franchise(range, 'Bearer t');
+    const out = await new DashboardService(partial(), dashboardTestConfig(), noNames).franchise(
+      range,
+      'Bearer t',
+    );
 
     expect(out.depots[0]).toMatchObject({ orderCount: 0, revenue: 0, lowStockCount: 0 });
   });
 
   it('the executive view marks delivery unavailable while order data still loads', async () => {
-    const out = await new DashboardService(partial(), dashboardTestConfig(), noNames).executive(range, 'Bearer t');
+    const out = await new DashboardService(partial(), dashboardTestConfig(), noNames).executive(
+      range,
+      'Bearer t',
+    );
 
     // topDepots is the order source for this view; with it down the whole source reads as
     // unavailable rather than as an empty leaderboard.
@@ -679,7 +786,6 @@ describe('networkPnl (CA-2-59)', () => {
     expect(out.depots[1]!.refundIdr).toBe(0);
     expect(out.totals.refundIdr).toBe(100_000);
   });
-
 
   it('reports every source unavailable when depot-service cannot list the depots', async () => {
     const { sources, svc } = build();

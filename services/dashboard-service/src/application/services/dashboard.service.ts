@@ -216,8 +216,7 @@ export class DashboardService {
     const revenueIdr = order?.revenueIdr ?? null;
     const cogsIdr = costs?.cogs.amountIdr ?? null;
     const opexIdr = costs?.opex.amountIdr ?? null;
-    const grossProfitIdr =
-      revenueIdr !== null && cogsIdr !== null ? revenueIdr - cogsIdr : null;
+    const grossProfitIdr = revenueIdr !== null && cogsIdr !== null ? revenueIdr - cogsIdr : null;
     const netOperatingProfitIdr =
       grossProfitIdr !== null && opexIdr !== null ? grossProfitIdr - opexIdr : null;
     const marginPct =
@@ -275,7 +274,9 @@ export class DashboardService {
       this.sources.topDepots(range, DashboardService.TOP_LIMIT, token, scope),
       // An EMPTY scope must not read as "no filter" here: delivery-service treats an empty
       // `depotIds` as global, so the empty case is answered without asking.
-      scope && scope.length === 0 ? Promise.resolve(null) : this.sources.deliverySla(range, token, scope),
+      scope && scope.length === 0
+        ? Promise.resolve(null)
+        : this.sources.deliverySla(range, token, scope),
     ]);
 
     const orderOk = sales !== null && topCustomers !== null && topDepots !== null;
@@ -533,8 +534,7 @@ export class DashboardService {
       depots: rows,
       sources: {
         depot: depots !== null ? 'ok' : 'unavailable',
-        order:
-          topDepots === null ? 'unavailable' : missingFromReport ? 'partial' : 'ok',
+        order: topDepots === null ? 'unavailable' : missingFromReport ? 'partial' : 'ok',
         delivery: slaByDepot !== null ? 'ok' : 'unavailable',
         inventory: inventoryOk ? 'ok' : 'unavailable',
       },
@@ -567,7 +567,9 @@ export class DashboardService {
     // the directory is down or the owner has no depots. Null calls mark their source
     // 'unavailable' but never fail the whole response.
     const deliverySlaP =
-      depotIds.length > 0 ? this.sources.deliverySla(range, token, depotIds) : Promise.resolve(null);
+      depotIds.length > 0
+        ? this.sources.deliverySla(range, token, depotIds)
+        : Promise.resolve(null);
     // One call per source for the whole set of owned depots, not one per depot (audit
     // S-1): an owner with 12 depots used to open this page with 36 HTTP requests.
     // Still best-effort per source — a null keeps that section 'unavailable' and the rest
@@ -651,7 +653,14 @@ export class DashboardService {
     const crmRows = crmList.filter((c): c is NonNullable<typeof c> => c !== null);
     let crm: FranchiseCrm | null = null;
     if (depotIds.length > 0 && crmRows.length > 0) {
-      const acc = { baru: 0, aktif: 0, inactive: 0, total: 0, followUpCount: 0, repeatCustomers: 0 };
+      const acc = {
+        baru: 0,
+        aktif: 0,
+        inactive: 0,
+        total: 0,
+        followUpCount: 0,
+        repeatCustomers: 0,
+      };
       for (const c of crmRows) {
         acc.baru += c.counts.baru;
         acc.aktif += c.counts.aktif;

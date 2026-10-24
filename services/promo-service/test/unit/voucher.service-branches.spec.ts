@@ -47,17 +47,13 @@ describe('VoucherService branch gaps', () => {
   });
 
   it('grant throws when the voucher is missing', async () => {
-    await expect(service.grant('missing', 'cust-1')).rejects.toBeInstanceOf(
-      VoucherNotFoundError,
-    );
+    await expect(service.grant('missing', 'cust-1')).rejects.toBeInstanceOf(VoucherNotFoundError);
   });
 
   it('grant throws when the voucher is inactive', async () => {
     const v = await service.create(baseVoucher({ code: 'OFF' }));
     await service.deactivate(v.id);
-    await expect(service.grant(v.id, 'cust-1')).rejects.toBeInstanceOf(
-      VoucherNotFoundError,
-    );
+    await expect(service.grant(v.id, 'cust-1')).rejects.toBeInstanceOf(VoucherNotFoundError);
   });
 
   it('grant is a no-op notification when the customer contact cannot be resolved', async () => {
@@ -143,10 +139,20 @@ describe('VoucherService branch gaps', () => {
     const DEPOT_B = randomUUID();
     const burnAll = async () => {
       const mine = await service.create(
-        baseVoucher({ code: 'MINE', discountType: DiscountType.FIXED, value: 5000, depotId: DEPOT_A }),
+        baseVoucher({
+          code: 'MINE',
+          discountType: DiscountType.FIXED,
+          value: 5000,
+          depotId: DEPOT_A,
+        }),
       );
       const other = await service.create(
-        baseVoucher({ code: 'OTHER', discountType: DiscountType.FIXED, value: 7000, depotId: DEPOT_B }),
+        baseVoucher({
+          code: 'OTHER',
+          discountType: DiscountType.FIXED,
+          value: 7000,
+          depotId: DEPOT_B,
+        }),
       );
       const network = await service.create(
         baseVoucher({ code: 'NET', discountType: DiscountType.FIXED, value: 3000 }),

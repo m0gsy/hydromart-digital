@@ -305,9 +305,9 @@ describe('DisputeController', () => {
   // DPT-2: the internal erasure route, with and without the number an incident keys on.
   it('passes the erasure subject through, defaulting a missing phone to null', async () => {
     svc.erasePerson.mockResolvedValue({ erased: 3 });
-    await expect(c.pdpAnonymise({ customerId: 'cust-1', phone: '+628123' } as never)).resolves.toEqual(
-      { erased: 3 },
-    );
+    await expect(
+      c.pdpAnonymise({ customerId: 'cust-1', phone: '+628123' } as never),
+    ).resolves.toEqual({ erased: 3 });
     expect(svc.erasePerson).toHaveBeenCalledWith('cust-1', '+628123');
     await c.pdpAnonymise({ customerId: 'cust-1' } as never);
     expect(svc.erasePerson).toHaveBeenLastCalledWith('cust-1', null);
@@ -1223,9 +1223,13 @@ describe('DepotController', () => {
   });
 
   it('gallonDeposit: answers the depot rate, 404s through get(), and is 0 when no config is wired', async () => {
-    const withConfig = new DepotController(svc as never, storage as never, {
-      gallonDepositIdr: (id: string) => (id === DEPOT ? 25000 : 0),
-    } as never);
+    const withConfig = new DepotController(
+      svc as never,
+      storage as never,
+      {
+        gallonDepositIdr: (id: string) => (id === DEPOT ? 25000 : 0),
+      } as never,
+    );
     await expect(withConfig.gallonDeposit(DEPOT)).resolves.toEqual({ gallonDepositIdr: 25000 });
     expect(svc.get).toHaveBeenCalledWith(DEPOT, true);
     await expect(c.gallonDeposit(DEPOT)).resolves.toEqual({ gallonDepositIdr: 0 });
@@ -1289,7 +1293,9 @@ describe('DepotController', () => {
     // service wired (a hand-built controller) the answer is simply nobody.
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: 'asv-1' });
     const overseersOfAssistant = jest.fn().mockResolvedValue(['asv-1', 'spv-1']);
-    const wired = new DepotController(svc as never, storage as never, undefined, { overseersOfAssistant } as never);
+    const wired = new DepotController(svc as never, storage as never, undefined, {
+      overseersOfAssistant,
+    } as never);
     expect(await wired.internalOverseers(DEPOT)).toEqual({ ids: ['asv-1', 'spv-1'] });
     expect(overseersOfAssistant).toHaveBeenCalledWith('asv-1');
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: null });

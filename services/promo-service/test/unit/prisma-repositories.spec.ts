@@ -178,7 +178,9 @@ describe('PromoRulePrismaRepository', () => {
     $transaction.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' }));
     promoApplication.count.mockResolvedValue(1);
     await expect(
-      repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
+      repo.recordApplications('o-1', [
+        { promoRuleId: 'rule-1', productId: null, discountValue: 1000 },
+      ]),
     ).resolves.toBeUndefined();
     expect(promoApplication.count).toHaveBeenCalledWith({ where: { orderId: 'o-1' } });
   });
@@ -188,7 +190,9 @@ describe('PromoRulePrismaRepository', () => {
     $transaction.mockRejectedValueOnce(dup);
     promoApplication.count.mockResolvedValue(0);
     await expect(
-      repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
+      repo.recordApplications('o-1', [
+        { promoRuleId: 'rule-1', productId: null, discountValue: 1000 },
+      ]),
     ).rejects.toBe(dup);
   });
 
@@ -196,7 +200,9 @@ describe('PromoRulePrismaRepository', () => {
     const boom = new Error('boom');
     $transaction.mockRejectedValueOnce(boom);
     await expect(
-      repo.recordApplications('o-1', [{ promoRuleId: 'rule-1', productId: null, discountValue: 1000 }]),
+      repo.recordApplications('o-1', [
+        { promoRuleId: 'rule-1', productId: null, discountValue: 1000 },
+      ]),
     ).rejects.toBe(boom);
   });
 
@@ -531,7 +537,9 @@ describe('VoucherPrismaRepository', () => {
     $transaction.mockResolvedValue([[], 0]);
     await repo.search(1, 20, false, ['depot-a']);
     expect(voucher.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] } }),
+      expect.objectContaining({
+        where: { OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] },
+      }),
     );
     // Combined with the active-only filter, never replacing it.
     await repo.search(1, 20, true, ['depot-a']);
@@ -732,7 +740,11 @@ describe('VoucherPrismaRepository', () => {
 
     it('ignores a grant whose voucher somehow has no end date', async () => {
       voucherGrant.findMany.mockResolvedValue([
-        { voucherId: 'v1', customerId: 'c1', voucher: { code: 'X', description: null, validUntil: null } },
+        {
+          voucherId: 'v1',
+          customerId: 'c1',
+          voucher: { code: 'X', description: null, validUntil: null },
+        },
       ]);
       voucherRedemption.findMany.mockResolvedValue([]);
       expect(await repo.findExpiringGrants(FROM, TO, 50)).toEqual([]);
@@ -842,4 +854,3 @@ describe('VoucherPrismaRepository.redeemAtomic', () => {
     expect(seen[0].burned).toBe(0);
   });
 });
-

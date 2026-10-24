@@ -31,13 +31,16 @@ function makeService(): Mocked {
     audienceReach: jest.fn().mockResolvedValue('reach'),
     segmentEstimate: jest.fn().mockResolvedValue('segment'),
     segmentCustomers: jest.fn().mockResolvedValue({ customerIds: ['c1'], truncated: false }),
-    exportRows: jest
-      .fn()
-      .mockResolvedValue({ rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }], truncated: false }),
+    exportRows: jest.fn().mockResolvedValue({
+      rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }],
+      truncated: false,
+    }),
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
-    depotDailyPdf: jest.fn().mockResolvedValue({ file: Buffer.from('%PDF-fake'), day: '2026-08-04' }),
+    depotDailyPdf: jest
+      .fn()
+      .mockResolvedValue({ file: Buffer.from('%PDF-fake'), day: '2026-08-04' }),
     revenueExportPdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-revenue-fake')),
     depotDailyGallons: jest.fn().mockResolvedValue([]),
     broadcastDailySales: jest.fn().mockResolvedValue({ attempted: 2, skipped: 0 }),
@@ -51,7 +54,13 @@ const kepalaDepot = (depotId: string) =>
 const headOffice = () => ({ sub: 'hq-1', role: 'HEAD_OFFICE', phone: '0822' }) as never;
 // A manager's depots are the SET DepotScopeGuard resolved onto the request, not a token claim.
 const manager = (...depotIds: string[]) =>
-  ({ sub: 'mgr-1', role: 'MANAGER', phone: '0833', depotId: depotIds[0] ?? null, depotIds }) as never;
+  ({
+    sub: 'mgr-1',
+    role: 'MANAGER',
+    phone: '0833',
+    depotId: depotIds[0] ?? null,
+    depotIds,
+  }) as never;
 
 describe('ReportController', () => {
   let service: Mocked;
@@ -85,7 +94,10 @@ describe('ReportController', () => {
 
     it('leaves head office able to export any depot', async () => {
       await expect(
-        controller.depotDailyExport({ depotId: DEPOT_B, date: '2026-08-04' } as never, headOffice()),
+        controller.depotDailyExport(
+          { depotId: DEPOT_B, date: '2026-08-04' } as never,
+          headOffice(),
+        ),
       ).resolves.toBe('dailyRows');
       expect(service.depotDailyRows).toHaveBeenCalledWith(DEPOT_B, '2026-08-04');
     });
@@ -161,15 +173,22 @@ describe('ReportController', () => {
 
   it('sales: defaults granularity to daily and parses an empty range to undefined bounds', async () => {
     await expect(controller.sales({} as never, headOffice())).resolves.toBe('sales');
-    expect(service.sales).toHaveBeenCalledWith('daily', { from: undefined, to: undefined }, undefined);
+    expect(service.sales).toHaveBeenCalledWith(
+      'daily',
+      { from: undefined, to: undefined },
+      undefined,
+    );
   });
 
   it('sales: forwards explicit granularity and parses from/to into Dates', async () => {
-    await controller.sales({
-      granularity: 'monthly',
-      from: '2026-01-01',
-      to: '2026-02-01',
-    } as never, headOffice());
+    await controller.sales(
+      {
+        granularity: 'monthly',
+        from: '2026-01-01',
+        to: '2026-02-01',
+      } as never,
+      headOffice(),
+    );
     const [granularity, range] = service.sales.mock.calls[0];
     expect(granularity).toBe('monthly');
     expect(range.from).toBeInstanceOf(Date);
@@ -235,9 +254,18 @@ describe('ReportController', () => {
     await expect(controller.refundsByDepot({} as never, headOffice())).resolves.toBe('refunds');
     await expect(controller.ratingByDepot({} as never, headOffice())).resolves.toBe('rating');
     // Head office is network-wide, so the scope it passes is "no filter" — unchanged.
-    expect(service.shippingByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
-    expect(service.refundsByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
-    expect(service.ratingByDepot).toHaveBeenCalledWith({ from: undefined, to: undefined }, undefined);
+    expect(service.shippingByDepot).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      undefined,
+    );
+    expect(service.refundsByDepot).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      undefined,
+    );
+    expect(service.ratingByDepot).toHaveBeenCalledWith(
+      { from: undefined, to: undefined },
+      undefined,
+    );
   });
 
   /*
@@ -301,7 +329,10 @@ describe('ReportController', () => {
     });
 
     it('honours an explicit depotIds list on revenue-by-category', async () => {
-      await controller.revenueByCategory({ depotIds: `${DEPOT_A}, ${DEPOT_B}` } as never, headOffice());
+      await controller.revenueByCategory(
+        { depotIds: `${DEPOT_A}, ${DEPOT_B}` } as never,
+        headOffice(),
+      );
       expect(service.revenueByProduct).toHaveBeenCalledWith(expect.anything(), 10, [
         DEPOT_A,
         DEPOT_B,
@@ -362,9 +393,9 @@ describe('ReportController', () => {
     expect(() =>
       controller.depotMonthly({ depotId: 'd2', month: '2026-02' } as never, kepala),
     ).toThrow();
-    expect(
-      Reflect.getMetadata(CAPABILITY_KEY, ReportController.prototype.depotMonthly),
-    ).toBe('orderReportsDepot');
+    expect(Reflect.getMetadata(CAPABILITY_KEY, ReportController.prototype.depotMonthly)).toBe(
+      'orderReportsDepot',
+    );
   });
 
   it('internalDepotDailyGallons: forwards the day keys and echoes the depotId', async () => {

@@ -64,7 +64,11 @@ import {
 // RBAC role groups come from the shared @hydromart/access capability map (voucherRead/voucherWrite).
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
 const toLines = (lines?: VoucherLineDto[]): VoucherLine[] | undefined =>
-  lines?.map((l) => ({ productId: l.productId, categoryId: l.categoryId ?? null, lineTotal: l.lineTotal }));
+  lines?.map((l) => ({
+    productId: l.productId,
+    categoryId: l.categoryId ?? null,
+    lineTotal: l.lineTotal,
+  }));
 
 @ApiTags('Vouchers')
 @Controller({ path: 'vouchers', version: '1' })
@@ -116,7 +120,9 @@ export class VoucherController {
   @ApiBearerAuth()
   @Can('walkInSale')
   @Get('counter')
-  @ApiOperation({ summary: "An identified buyer's granted vouchers usable at this depot (cashier screen)" })
+  @ApiOperation({
+    summary: "An identified buyer's granted vouchers usable at this depot (cashier screen)",
+  })
   async counterWallet(
     @Query() query: CounterVouchersQueryDto,
     @CurrentUser() user?: AuthenticatedUser,

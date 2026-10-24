@@ -651,7 +651,12 @@ export class InMemorySupplierRepository implements SupplierRepository {
   rows: Supplier[] = [];
 
   async create(data: CreateSupplierData): Promise<Supplier> {
-    const row: Supplier = { id: randomUUID(), ...data, createdAt: nextDate(), updatedAt: nextDate() };
+    const row: Supplier = {
+      id: randomUUID(),
+      ...data,
+      createdAt: nextDate(),
+      updatedAt: nextDate(),
+    };
     this.rows.push(row);
     return { ...row };
   }
@@ -690,24 +695,26 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
 
   async receivedTotalInRange(depotId: string, from: Date, to: Date): Promise<number> {
     // By receivedAt: a PO raised in June and delivered in July is July's stock.
-    return this.rows
-      .filter(
-        (r) =>
-          r.depotId === depotId &&
-          r.receivedAt !== null &&
-          r.receivedAt >= from &&
-          r.receivedAt < to,
-      )
-      // CA-2-55: what ARRIVED, not what was ordered — the same rule as the Prisma
-      // repository. Two implementations of one port that disagree about money is a bug
-      // waiting for whichever one the next test happens to use.
-      .reduce(
-        (sum, r) =>
-          sum +
-          r.lines.reduce((n, l) => n + receivedOf(l) * l.unitCostIdr, 0) +
-          (r.shippingIdr ?? 0),
-        0,
-      );
+    return (
+      this.rows
+        .filter(
+          (r) =>
+            r.depotId === depotId &&
+            r.receivedAt !== null &&
+            r.receivedAt >= from &&
+            r.receivedAt < to,
+        )
+        // CA-2-55: what ARRIVED, not what was ordered — the same rule as the Prisma
+        // repository. Two implementations of one port that disagree about money is a bug
+        // waiting for whichever one the next test happens to use.
+        .reduce(
+          (sum, r) =>
+            sum +
+            r.lines.reduce((n, l) => n + receivedOf(l) * l.unitCostIdr, 0) +
+            (r.shippingIdr ?? 0),
+          0,
+        )
+    );
   }
 
   async create(data: CreatePurchaseOrderData): Promise<PurchaseOrder> {

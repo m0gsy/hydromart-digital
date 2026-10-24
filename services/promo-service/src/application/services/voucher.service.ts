@@ -111,7 +111,9 @@ export class VoucherService {
    * send that dies after the claim is not retried (lose rather than duplicate, as review
    * requests do). Already-redeemed vouchers are left out by the repository.
    */
-  async notifyExpiring(now: Date): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
+  async notifyExpiring(
+    now: Date,
+  ): Promise<{ notified: number; skipped: number; failed: number; ok: boolean }> {
     const to = new Date(now.getTime() + VoucherService.EXPIRY_LEAD_DAYS * 86_400_000);
     const due = await this.repo.findExpiringGrants(now, to, VoucherService.EXPIRY_SWEEP_LIMIT);
     let notified = 0;
@@ -326,7 +328,11 @@ export class VoucherService {
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
     // computeDiscount is pure and never throws, so it can run before validation — the
     // budget rule needs this order's own discount to enforce a hard cap.
-    const discount = computeDiscount(voucher, eligibleSubtotal(voucher, subtotal, lines), shippingFee);
+    const discount = computeDiscount(
+      voucher,
+      eligibleSubtotal(voucher, subtotal, lines),
+      shippingFee,
+    );
     validateVoucher(
       voucher,
       subtotal,
@@ -390,7 +396,11 @@ export class VoucherService {
     const redemption = await this.repo.redeemAtomic(
       { voucherId: voucher.id, voucherCode: voucher.code, customerId, orderId },
       ({ usedCount, customerRedemptions, burned }) => {
-        const discount = computeDiscount(voucher, eligibleSubtotal(voucher, subtotal, lines), shippingFee);
+        const discount = computeDiscount(
+          voucher,
+          eligibleSubtotal(voucher, subtotal, lines),
+          shippingFee,
+        );
         // Throws on a cap violation, which rolls the transaction back — so a voucher that
         // ran out between quote and redeem burns nothing.
         validateVoucher(
@@ -434,7 +444,10 @@ export class VoucherService {
     const now = new Date();
     const rows = await this.repo.listForCustomer(customerId);
     return rows
-      .filter(({ voucher, granted }) => granted && (voucher.depotId == null || voucher.depotId === depotId))
+      .filter(
+        ({ voucher, granted }) =>
+          granted && (voucher.depotId == null || voucher.depotId === depotId),
+      )
       .map(({ voucher, customerRedemptions }) => ({
         voucher,
         status: classifyVoucherStatus(voucher, now, customerRedemptions),

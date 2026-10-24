@@ -1270,7 +1270,10 @@ export class OrderPrismaRepository implements OrderRepository {
     return new Map(rows.map((r) => [r.id, r.counterNote as string]));
   }
 
-  async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {
+  async firstTimeBuyersByCashier(
+    depotId: string,
+    range: ReportRange,
+  ): Promise<CashierFirstBuyers[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
       ...(range.to ? { lt: range.to } : {}),

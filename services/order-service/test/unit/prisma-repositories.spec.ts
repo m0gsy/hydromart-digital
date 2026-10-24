@@ -665,10 +665,12 @@ describe('OrderPrismaRepository', () => {
       scheduledFor: new Date('2026-09-01T04:00:00Z'),
       deliveryWindow: '11.00-13.00',
     });
-    const out = await repo.rescheduleSlot('ord-1', new Date('2026-09-01T04:00:00Z'), '11.00-13.00', [
-      OrderStatus.CREATED,
-      OrderStatus.CONFIRMED,
-    ]);
+    const out = await repo.rescheduleSlot(
+      'ord-1',
+      new Date('2026-09-01T04:00:00Z'),
+      '11.00-13.00',
+      [OrderStatus.CREATED, OrderStatus.CONFIRMED],
+    );
     expect(out.scheduledFor).toEqual(new Date('2026-09-01T04:00:00Z'));
     expect(order.updateMany).toHaveBeenCalledWith({
       where: { id: 'ord-1', status: { in: [OrderStatus.CREATED, OrderStatus.CONFIRMED] } },
@@ -1478,7 +1480,10 @@ describe('OrderPrismaRepository', () => {
 
   describe('firstTimeBuyersByCashier', () => {
     const at = (h: number) => new Date(`2026-07-15T0${h}:00:00.000Z`);
-    const range = { from: new Date('2026-07-15T00:00:00.000Z'), to: new Date('2026-07-16T00:00:00.000Z') };
+    const range = {
+      from: new Date('2026-07-15T00:00:00.000Z'),
+      to: new Date('2026-07-16T00:00:00.000Z'),
+    };
 
     it('counts a sale to a customer with nothing valid before it, per cashier', async () => {
       order.findMany.mockResolvedValue([
@@ -1506,13 +1511,17 @@ describe('OrderPrismaRepository', () => {
     it('counts a buyer whose only earlier order was voided or cancelled (no valid order at all)', async () => {
       order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(5) }]);
       order.groupBy.mockResolvedValue([]); // the valid-order lookup found nothing for them
-      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([{ cashierId: 'c-1', count: 1 }]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([
+        { cashierId: 'c-1', count: 1 },
+      ]);
     });
 
     it('counts a sale again when the buyer first valid order is LATER (the earlier one was voided)', async () => {
       order.findMany.mockResolvedValue([{ cashierId: 'c-1', customerId: 'u-1', createdAt: at(2) }]);
       order.groupBy.mockResolvedValue([{ customerId: 'u-1', _min: { createdAt: at(4) } }]);
-      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([{ cashierId: 'c-1', count: 1 }]);
+      expect(await repo.firstTimeBuyersByCashier('depot-1', range)).toEqual([
+        { cashierId: 'c-1', count: 1 },
+      ]);
     });
 
     it('asks for counter sales at this depot with a cashier, never the anonymous buyer or cancelled ones', async () => {
@@ -1537,7 +1546,8 @@ describe('OrderPrismaRepository', () => {
       order.groupBy.mockClear();
       expect(await repo.firstTimeBuyersByCashier('depot-1', {})).toEqual([]);
       expect(order.groupBy).not.toHaveBeenCalled();
-      const where = (order.findMany.mock.calls.at(-1)![0] as { where: Record<string, unknown> }).where;
+      const where = (order.findMany.mock.calls.at(-1)![0] as { where: Record<string, unknown> })
+        .where;
       expect('createdAt' in where).toBe(false);
     });
 
