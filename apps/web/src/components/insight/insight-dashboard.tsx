@@ -6,10 +6,15 @@ import { Lock } from '@phosphor-icons/react';
 import type { InsightCtx } from '@/components/insight/context';
 import { DateRangeBar, type DepotOption } from '@/components/insight/date-range-bar';
 import { InsightTabs } from '@/components/insight/insight-tabs';
+import { CashTab } from '@/components/insight/tabs/cash';
+import { CouriersTab } from '@/components/insight/tabs/couriers';
 import { CustomersTab } from '@/components/insight/tabs/customers';
 import { FinanceTab } from '@/components/insight/tabs/finance';
+import { GallonsTab } from '@/components/insight/tabs/gallons';
+import { MeterTab } from '@/components/insight/tabs/meter';
 import { OperationsTab } from '@/components/insight/tabs/operations';
 import { OverviewTab } from '@/components/insight/tabs/overview';
+import { PeopleTab } from '@/components/insight/tabs/people';
 import { SalesTab } from '@/components/insight/tabs/sales';
 import { CenterState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -36,6 +41,11 @@ function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
   if (id === 'operations') return <OperationsTab ctx={ctx} />;
   if (id === 'customers') return <CustomersTab ctx={ctx} />;
   if (id === 'finance') return <FinanceTab ctx={ctx} />;
+  if (id === 'gallons') return <GallonsTab ctx={ctx} />;
+  if (id === 'people') return <PeopleTab ctx={ctx} />;
+  if (id === 'cash') return <CashTab ctx={ctx} />;
+  if (id === 'couriers') return <CouriersTab ctx={ctx} />;
+  if (id === 'meter') return <MeterTab ctx={ctx} />;
   return <OverviewTab ctx={ctx} />;
 }
 

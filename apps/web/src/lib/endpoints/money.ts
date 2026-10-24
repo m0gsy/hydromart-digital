@@ -246,6 +246,9 @@ export const money = {
   // Counter chain of custody: who is on the till and what their drawer settled at.
   cashierShifts: {
     open: '/depots/api/v1/cashier-shifts',
+    // A depot's open shifts and its twenty most recently closed ones.
+    list: (depotId: string) =>
+      `/depots/api/v1/cashier-shifts?depotId=${encodeURIComponent(depotId)}`,
     current: (depotId: string) =>
       `/depots/api/v1/cashier-shifts/current?depotId=${encodeURIComponent(depotId)}`,
     // (list removed, audit F: the till screens open a shift, read `current` and close it.
