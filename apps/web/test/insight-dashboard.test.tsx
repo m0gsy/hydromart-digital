@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, getCached } = vi.hoisted(() => ({ get: vi.fn(), getCached: vi.fn() }));
+const { get, getCached, downloadCsv } = vi.hoisted(() => ({
+  get: vi.fn(),
+  getCached: vi.fn(),
+  downloadCsv: vi.fn(),
+}));
 
 const auth = { customer: null as { id: string; role: string } | null };
 
@@ -16,6 +20,10 @@ vi.mock('@/lib/api', () => ({
       super(message);
     }
   },
+}));
+vi.mock('@/lib/csv', async (orig) => ({
+  ...(await orig<typeof import('@/lib/csv')>()),
+  downloadCsv,
 }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: auth.customer, ready: true }),
@@ -1396,5 +1404,63 @@ describe('the meter tab', () => {
     renderPage();
     expect(await screen.findByText(/Pilih satu depot untuk melihat meter air/)).toBeTruthy();
     expect(requested('/reports/meter/')).toBe(false);
+  });
+});
+
+describe('the overview’s list of what is not available', () => {
+  it('names the metrics that have no source instead of estimating them', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    expect(await screen.findByText('Tingkat churn pelanggan')).toBeTruthy();
+    expect(screen.getByText('Konversi kampanye')).toBeTruthy();
+  });
+});
+
+describe('the card menu', () => {
+  it('shows the rows behind a table widget and downloads them as CSV', async () => {
+    asRole('MANAGER');
+    openTab('gallons');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await inList('Depot Satu');
+    const card = screen.getByText('Galon beredar per depot').closest('div')!.parentElement!;
+    fireEvent.click(card.querySelector('button[aria-label="Menu kartu"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Lihat data' }));
+    expect(screen.getByRole('columnheader', { name: 'depotId' })).toBeTruthy();
+
+    fireEvent.click(card.querySelector('button[aria-label="Menu kartu"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unduh CSV' }));
+    expect(downloadCsv).toHaveBeenCalledTimes(1);
+    expect(String(downloadCsv.mock.calls[0]?.[0])).toMatch(
+      /^galon-beredar-per-depot-\d{4}-\d{2}-\d{2}\.csv$/,
+    );
+  });
+});
+
+describe('the wall-screen view', () => {
+  it('hides the controls and re-reads the figures every minute while the page is visible', async () => {
+    asRole('HEAD_OFFICE');
+    window.history.replaceState(null, '', '/hq/dashboard?tv=1');
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    const timers = vi.spyOn(globalThis, 'setInterval');
+    renderPage();
+    await screen.findByText(/1.100.000/);
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rentang' })).toBeNull();
+    const tick = timers.mock.calls.find((c) => c[1] === 60_000)?.[0] as () => void;
+    expect(tick).toBeTypeOf('function');
+    const reads = () =>
+      get.mock.calls.filter((c) => String(c[0]).includes('/dashboard/executive')).length;
+    const before = reads();
+    act(() => tick());
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+
+    // A hidden page does not keep asking.
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    const mid = reads();
+    act(() => tick());
+    await Promise.resolve();
+    expect(reads()).toBe(mid);
+    timers.mockRestore();
   });
 });
