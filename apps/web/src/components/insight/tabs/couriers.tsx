@@ -306,7 +306,8 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
         <WidgetCard
           title={t('insight.couriers.heldTitle')}
           source={heldCash}
-          isEmpty={(d) => d.couriers.length === 0}
+          // An unreadable second half is not "nothing held": keep the card so it can say so.
+          isEmpty={(d) => d.couriers.length === 0 && d.failedCashSource === 'ok'}
           emptyText={t('insight.couriers.heldEmpty')}
           detailHref="/dashboard/settlements"
         >
@@ -318,10 +319,24 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
                   n: d.deliveries,
                 })}
               </p>
+              {d.failedCashIdr > 0 && (
+                <p className="m-0 text-xs text-muted">
+                  {t('insight.couriers.heldFailed', { amount: formatIDR(d.failedCashIdr) })}
+                </p>
+              )}
               <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm">
                 {d.couriers.map((c) => (
                   <li key={c.driverId} className="flex justify-between gap-2">
-                    <span className="min-w-0 truncate font-semibold">{nameOf(c.driverId)}</span>
+                    <span className="min-w-0 truncate font-semibold">
+                      {nameOf(c.driverId)}
+                      {c.failedCashIdr > 0 && (
+                        <span className="ml-2 text-xs font-normal text-muted">
+                          {t('insight.couriers.heldCourierFailed', {
+                            amount: formatIDR(c.failedCashIdr),
+                          })}
+                        </span>
+                      )}
+                    </span>
                     <span className="shrink-0 tabular-nums">
                       {formatIDR(c.amountIdr)}
                       <span className="ml-2 text-xs text-muted">
@@ -331,6 +346,11 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
                   </li>
                 ))}
               </ul>
+              {d.failedCashSource === 'unavailable' && (
+                <p role="status" className="text-[11px] text-muted">
+                  {t('insight.couriers.heldUnavailable')}
+                </p>
+              )}
               <p className="text-[11px] text-muted">{t('insight.couriers.heldNote')}</p>
             </div>
           )}

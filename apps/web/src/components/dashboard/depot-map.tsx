@@ -14,7 +14,7 @@ import type { DepotAdmin } from '@/lib/types';
 // distances read true and active status shows at a glance. Swap for Leaflet/Mapbox if
 // tiles get allowlisted.
 
-const dotClass = (active: boolean) => (active ? 'bg-brand-600' : 'bg-[color:var(--text-muted)]');
+const dotClass = (active: boolean) => (active ? 'bg-[color:var(--brand-pill)]' : 'bg-[color:var(--text-muted)]');
 
 export function DepotMap({
   depots,
@@ -85,7 +85,7 @@ export function DepotMap({
             >
               {many ? (
                 <span
-                  className={`flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white ring-2 ring-white ${dotClass(
+                  className={`flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-bold text-on-brand ring-2 ring-white ${dotClass(
                     g.members.some((m) => m.active),
                   )}`}
                 >

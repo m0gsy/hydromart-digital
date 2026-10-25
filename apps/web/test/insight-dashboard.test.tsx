@@ -356,10 +356,13 @@ function serve(overrides: Record<string, () => unknown> = {}) {
         since: '2026-09-15T00:00:00.000Z',
         deliveries: 3,
         amountIdr: 180_000,
+        failedCashIdr: 0,
+        failedCashSource: 'ok',
         couriers: [
           {
             driverId: 'drv-aaaaaa',
             deliveries: 2,
+            failedCashIdr: 0,
             amountIdr: 140_000,
             oldestDeliveredAt: '2026-10-10T05:00:00.000Z',
           },
@@ -2296,7 +2299,7 @@ describe('delivered COD not yet deposited', () => {
       .find((li) => li?.textContent?.includes('tertua'))!;
     expect(row.textContent).toContain('140.000');
     expect(row.textContent).toContain('tertua 5 hari');
-    expect(screen.getByText(/tidak ikut dihitung/)).toBeTruthy();
+    expect(screen.getByText(/sudah dikembalikan kurir di tempat tidak ikut/)).toBeTruthy();
   });
 
   it('asks the server for the depot in view only', async () => {
@@ -2384,5 +2387,183 @@ describe('a card with no base to compare against', () => {
     await waitFor(() => expect(card.textContent).toContain('Belum ada data pembanding'));
     expect(card.textContent).toContain('vs periode lalu dan tahun lalu');
     expect(card.textContent?.match(/Belum ada data pembanding/g)).toHaveLength(1);
+  });
+});
+
+describe('cash from deliveries handed back', () => {
+  const report = (over: Record<string, unknown>) => ({
+    since: '2026-09-15T00:00:00.000Z',
+    deliveries: 3,
+    amountIdr: 180_000,
+    failedCashIdr: 0,
+    failedCashSource: 'ok',
+    couriers: [],
+    ...over,
+  });
+
+  it('shows how much of the total is cash from failed or rescheduled deliveries, per courier too', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    serve({
+      '/deliveries/api/v1/settlements/unsettled': () =>
+        report({
+          failedCashIdr: 60_000,
+          couriers: [
+            {
+              driverId: 'drv-aaaaaa',
+              deliveries: 3,
+              amountIdr: 180_000,
+              failedCashIdr: 60_000,
+              oldestDeliveredAt: '2026-10-10T05:00:00.000Z',
+            },
+          ],
+        }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(
+      await screen.findByText(/Termasuk Rp\s?60\.000 uang tunai dari pengiriman gagal/),
+    ).toBeTruthy();
+    expect(screen.getByText(/termasuk Rp\s?60\.000 dari pengiriman gagal/)).toBeTruthy();
+  });
+
+  it('says the failed-delivery half could not be read, and keeps the card, instead of "nothing held"', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    serve({
+      '/deliveries/api/v1/settlements/unsettled': () =>
+        report({ deliveries: 0, amountIdr: 0, failedCashSource: 'unavailable', couriers: [] }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(
+      await screen.findByText(
+        /belum bisa dibaca dari layanan pembayaran, jadi angka ini hanya COD terkirim/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('Tidak ada COD terkirim yang belum masuk setoran.')).toBeNull();
+  });
+
+  it('says there is nothing held only when both halves were read and are empty', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    serve({
+      '/deliveries/api/v1/settlements/unsettled': () =>
+        report({ deliveries: 0, amountIdr: 0, couriers: [] }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(
+      await screen.findByText('Tidak ada COD terkirim yang belum masuk setoran.'),
+    ).toBeTruthy();
+  });
+});
+
+describe('the tab strip', () => {
+  it('moves between tabs with the arrow keys, Home and End, and keeps one tab stop', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    await screen.findByText(/1\.100\.000/);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.filter((t) => t.getAttribute('tabindex') === '0')).toHaveLength(1);
+    fireEvent.keyDown(tabs[0]!, { key: 'ArrowRight' });
+    await waitFor(() =>
+      expect(screen.getAllByRole('tab')[1]!.getAttribute('aria-selected')).toBe('true'),
+    );
+    fireEvent.keyDown(screen.getAllByRole('tab')[1]!, { key: 'End' });
+    await waitFor(() => {
+      const all = screen.getAllByRole('tab');
+      expect(all[all.length - 1]!.getAttribute('aria-selected')).toBe('true');
+    });
+    fireEvent.keyDown(screen.getAllByRole('tab').at(-1)!, { key: 'ArrowRight' });
+    await waitFor(() =>
+      expect(screen.getAllByRole('tab')[0]!.getAttribute('aria-selected')).toBe('true'),
+    );
+    fireEvent.keyDown(screen.getAllByRole('tab')[0]!, { key: 'ArrowLeft' });
+    await waitFor(() => {
+      const all = screen.getAllByRole('tab');
+      expect(all[all.length - 1]!.getAttribute('aria-selected')).toBe('true');
+    });
+    fireEvent.keyDown(screen.getAllByRole('tab').at(-1)!, { key: 'Home' });
+    await waitFor(() =>
+      expect(screen.getAllByRole('tab')[0]!.getAttribute('aria-selected')).toBe('true'),
+    );
+    // A key that is not for the strip is left alone.
+    fireEvent.keyDown(screen.getAllByRole('tab')[0]!, { key: 'a' });
+    expect(screen.getAllByRole('tab')[0]!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('scrolls the tab in use into view', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    asRole('HEAD_OFFICE');
+    renderPage();
+    await screen.findByText(/1\.100\.000/);
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('is at least 44px tall to touch', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    await screen.findByText(/1\.100\.000/);
+    for (const tab of screen.getAllByRole('tab')) expect(tab.className).toContain('min-h-11');
+  });
+});
+
+describe('controls a tab does not use', () => {
+  it('shows no period or grouping on the risk tab, only the depot', async () => {
+    asRole('MANAGER');
+    openTab('risk');
+    getCached.mockResolvedValue([
+      { id: 'd1', name: 'Depot Satu' },
+      { id: 'd2', name: 'Depot Dua' },
+    ]);
+    renderPage();
+    await screen.findByText(/Pilih satu depot untuk melihat insiden/);
+    expect(screen.queryByRole('button', { name: 'Hari ini' })).toBeNull();
+    expect(screen.queryByText('Periode')).toBeNull();
+    expect(screen.getByLabelText('Depot')).toBeTruthy();
+  });
+
+  it('still shows them on a tab that reads a window', async () => {
+    asRole('MANAGER');
+    openTab('sales');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Hari ini' })).toBeTruthy();
+  });
+});
+
+describe('the time grid on a phone', () => {
+  it('says to swipe, and keeps the day names in view', async () => {
+    asRole('MANAGER');
+    openTab('time');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Geser ke samping untuk melihat semua jam.')).toBeTruthy();
+    const dayCell = screen.getAllByRole('rowheader').find((e) => e.textContent === 'Sen')!;
+    expect(dayCell.className).toContain('sticky');
+  });
+});
+
+describe('the lead number', () => {
+  it('draws revenue larger than its neighbours', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    const value = await screen.findByText(/Rp\s?1\.100\.000/, { selector: 'p' });
+    expect(value.className).toContain('text-4xl');
+    const orders = (await screen.findAllByText('10', { selector: 'p' }))[0]!;
+    expect(orders.className).toContain('text-2xl');
+  });
+});
+
+describe('a cancelled order in the feed', () => {
+  it('reads in the warning colour, a live one does not', async () => {
+    asRole('HEAD_OFFICE');
+    renderPage();
+    const cancelled = (await screen.findByText('HM-20261015-000002')).closest('li')!;
+    expect(cancelled.querySelector('p.text-\\[color\\:var\\(--danger\\)\\]')).not.toBeNull();
+    const live = screen.getByText('HM-20261015-000001').closest('li')!;
+    expect(live.querySelector('p.text-muted')).not.toBeNull();
   });
 });

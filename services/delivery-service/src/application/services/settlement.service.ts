@@ -47,15 +47,26 @@ export interface ResolveInput {
 /** How far back the unsettled-COD read looks. */
 export const UNSETTLED_DAYS = 30;
 
-/** Delivered COD no settlement covers yet, per courier (see SettlementService.unsettledCod). */
+/** At most this many unfinished deliveries are checked against payment-service in one read. */
+export const UNFINISHED_PROBE = 500;
+
+/**
+ * Cash couriers hold and no settlement covers yet, per courier (see SettlementService.unsettledCod).
+ * `amountIdr` is the delivered COD plus `failedCashIdr`, the cash payment-service still reports as
+ * PAID on deliveries handed back unfinished. `failedCashSource` says whether that second half
+ * could be read: 'unavailable' means the totals are the delivered part only.
+ */
 export interface UnsettledCodReport {
   since: string;
   deliveries: number;
   amountIdr: number;
+  failedCashIdr: number;
+  failedCashSource: 'ok' | 'unavailable';
   couriers: {
     driverId: string;
     deliveries: number;
     amountIdr: number;
+    failedCashIdr: number;
     oldestDeliveredAt: string;
   }[];
 }
@@ -374,19 +385,80 @@ export class SettlementService {
    * does not ask. The window bounds the query, so an old delivery nobody ever settled drops off
    * after a month rather than growing the answer forever; it is still in the settlement queue.
    */
-  async unsettledCod(depotId: string, now: Date = new Date()): Promise<UnsettledCodReport> {
+  async unsettledCod(
+    depotId: string,
+    authorization = '',
+    now: Date = new Date(),
+  ): Promise<UnsettledCodReport> {
     const since = new Date(now.getTime() - UNSETTLED_DAYS * 86_400_000);
-    const rows = await this.deliveries.unsettledCod(depotId, since);
-    return {
-      since: since.toISOString(),
-      deliveries: rows.reduce((n, r) => n + r.deliveries, 0),
-      amountIdr: rows.reduce((n, r) => n + r.amountIdr, 0),
-      couriers: rows.map((r) => ({
+    const [delivered, unfinished] = await Promise.all([
+      this.deliveries.unsettledCod(depotId, since),
+      this.deliveries.unsettledUnfinished(depotId, since, UNFINISHED_PROBE),
+    ]);
+
+    // Cash taken on a delivery that was then handed back: only payment-service knows. A courier who
+    // gave it back at the door has it REFUNDED and it drops out on its own (owner decision D1).
+    const held = new Map<string, { n: number; amount: number; oldest: Date }>();
+    let failedCashSource: 'ok' | 'unavailable' = 'ok';
+    if (unfinished.length > 0) {
+      try {
+        const collected = await this.cash.sumCollected(
+          unfinished.map((u) => u.orderId),
+          authorization,
+        );
+        const paid = new Map(collected.byOrder.map((o) => [o.orderId, o.amountIdr]));
+        for (const u of unfinished) {
+          const amount = paid.get(u.orderId) ?? 0;
+          if (amount <= 0) continue;
+          const cur = held.get(u.driverId);
+          held.set(u.driverId, {
+            n: (cur?.n ?? 0) + 1,
+            amount: (cur?.amount ?? 0) + amount,
+            oldest: cur && cur.oldest.getTime() < u.at.getTime() ? cur.oldest : u.at,
+          });
+        }
+      } catch (error) {
+        // Not guessed and not hidden: the delivered half is still true, and the report says the
+        // other half could not be read.
+        this.logger.error('unfinished-delivery cash read failed: ' + (error as Error).message);
+        failedCashSource = 'unavailable';
+      }
+    }
+
+    const byDriver = new Map<string, UnsettledCodReport['couriers'][number]>();
+    for (const r of delivered) {
+      byDriver.set(r.driverId, {
         driverId: r.driverId,
         deliveries: r.deliveries,
         amountIdr: r.amountIdr,
+        failedCashIdr: 0,
         oldestDeliveredAt: r.oldestDeliveredAt.toISOString(),
-      })),
+      });
+    }
+    for (const [driverId, h] of held) {
+      const cur = byDriver.get(driverId);
+      const oldest =
+        cur && Date.parse(cur.oldestDeliveredAt) < h.oldest.getTime()
+          ? cur.oldestDeliveredAt
+          : h.oldest.toISOString();
+      byDriver.set(driverId, {
+        driverId,
+        deliveries: (cur?.deliveries ?? 0) + h.n,
+        amountIdr: (cur?.amountIdr ?? 0) + h.amount,
+        failedCashIdr: h.amount,
+        oldestDeliveredAt: oldest,
+      });
+    }
+    const couriers = [...byDriver.values()].sort(
+      (a, b) => b.amountIdr - a.amountIdr || a.driverId.localeCompare(b.driverId),
+    );
+    return {
+      since: since.toISOString(),
+      deliveries: couriers.reduce((n, c) => n + c.deliveries, 0),
+      amountIdr: couriers.reduce((n, c) => n + c.amountIdr, 0),
+      failedCashIdr: couriers.reduce((n, c) => n + c.failedCashIdr, 0),
+      failedCashSource,
+      couriers,
     };
   }
 

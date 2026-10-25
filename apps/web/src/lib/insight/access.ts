@@ -26,6 +26,8 @@ export type InsightTabId =
 
 export interface InsightTabDef {
   id: InsightTabId;
+  /** False for a tab whose figures are not for a window (open incidents, gallons since the start). */
+  usesPeriod?: boolean;
   /** i18n key under `insight.tabs.*`. */
   labelKey: string;
   /** The capabilities its widgets need. A role holding any one of them sees the tab. */
@@ -58,7 +60,12 @@ export const INSIGHT_TABS: readonly InsightTabDef[] = [
     labelKey: 'insight.tabs.finance',
     caps: ['dashboard', 'settlementRead', 'refundQueueRead'],
   },
-  { id: 'gallons', labelKey: 'insight.tabs.gallons', caps: ['returnsRead', 'returnsReadFinance'] },
+  {
+    id: 'gallons',
+    labelKey: 'insight.tabs.gallons',
+    usesPeriod: false,
+    caps: ['returnsRead', 'returnsReadFinance'],
+  },
   { id: 'people', labelKey: 'insight.tabs.people', caps: ['hrView'] },
   {
     id: 'cash',
@@ -76,6 +83,7 @@ export const INSIGHT_TABS: readonly InsightTabDef[] = [
   {
     id: 'risk',
     labelKey: 'insight.tabs.risk',
+    usesPeriod: false,
     caps: ['incidents', 'depotDisputes', 'approvals', 'depotMaintenance'],
   },
 ];

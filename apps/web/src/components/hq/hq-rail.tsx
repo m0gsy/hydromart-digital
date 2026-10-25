@@ -76,7 +76,6 @@ import { roleLabel } from '@/lib/custom-role';
 // Paired with the same literal in command-palette.tsx.
 const HQ_COMMAND_EVENT = 'hq:command-open';
 
-
 /**
  * The picture for each door.
  *
@@ -178,7 +177,9 @@ export function HqRail() {
           <span className="block truncate text-[12.5px] font-extrabold tracking-tight">
             {t('hq.rail.title')}
           </span>
-          <span className="block truncate text-[10.5px] text-white/70">{t('hq.rail.subtitle')}</span>
+          <span className="block truncate text-[10.5px] text-white/70">
+            {t('hq.rail.subtitle')}
+          </span>
         </span>
       </div>
 
@@ -232,7 +233,7 @@ export function HqRail() {
             <Command size={15} weight="bold" />
             {t('hq.common.palette.title')}
           </span>
-          <kbd className="rounded border border-app bg-[color:var(--surface-soft)] px-1.5 py-0.5 text-[10px] font-bold">
+          <kbd className="rounded border border-app bg-[color:var(--surface-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[color:var(--text)]">
             {t('hq.common.kbd')}
           </kbd>
         </button>
@@ -246,7 +247,11 @@ export function HqRail() {
               title={t('hq.common.theme.toggle')}
               className="flex h-7 w-7 items-center justify-center rounded-full border border-app text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
             >
-              {resolved === 'dark' ? <Sun size={15} weight="fill" /> : <Moon size={15} weight="fill" />}
+              {resolved === 'dark' ? (
+                <Sun size={15} weight="fill" />
+              ) : (
+                <Moon size={15} weight="fill" />
+              )}
             </button>
             <div className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold">
               {(['id', 'en'] as const).map((l) => (
@@ -257,7 +262,7 @@ export function HqRail() {
                   aria-pressed={locale === l}
                   className={`px-2.5 py-1 uppercase transition-colors ${
                     locale === l
-                      ? 'bg-brand-600 text-on-brand'
+                      ? 'bg-[color:var(--brand-pill)] text-on-brand'
                       : 'text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
                 >

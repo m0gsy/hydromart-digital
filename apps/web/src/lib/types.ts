@@ -1770,14 +1770,25 @@ export interface Shift {
 export type SettlementStatus = 'SUBMITTED' | 'VERIFIED' | 'DISPUTED';
 
 /**
- * COD delivered in the last 30 days that no settlement lists yet (GET settlements/unsettled).
- * The COD RECORDED on delivered orders: cash taken on a failed or rescheduled delivery is not in it.
+ * Cash couriers hold that no settlement lists yet (GET settlements/unsettled): the COD recorded
+ * on deliveries made in the last 30 days, plus the PAID cash payment-service still reports on
+ * deliveries handed back unfinished.
  */
 export interface UnsettledCodReport {
   since: string;
   deliveries: number;
   amountIdr: number;
-  couriers: { driverId: string; deliveries: number; amountIdr: number; oldestDeliveredAt: string }[];
+  /** Of amountIdr: PAID cash on deliveries handed back unfinished. */
+  failedCashIdr: number;
+  /** 'unavailable': payment-service could not be read, so failedCashIdr is unknown, not zero. */
+  failedCashSource: 'ok' | 'unavailable';
+  couriers: {
+    driverId: string;
+    deliveries: number;
+    amountIdr: number;
+    failedCashIdr: number;
+    oldestDeliveredAt: string;
+  }[];
 }
 
 export interface CashSettlement {

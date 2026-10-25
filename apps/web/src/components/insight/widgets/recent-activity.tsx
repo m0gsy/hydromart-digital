@@ -40,7 +40,13 @@ export function RecentActivityCard({ ctx }: { ctx: InsightCtx }) {
             <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <div className="min-w-0">
                 <p className="m-0 font-semibold">{x.orderNumber}</p>
-                <p className="m-0 text-xs text-muted">
+                <p
+                  className={`m-0 text-xs ${
+                    x.status === 'CANCELLED' || x.status === 'VOIDED'
+                      ? 'text-[color:var(--danger)]'
+                      : 'text-muted'
+                  }`}
+                >
                   {t(`insight.activity.status.${x.status}`)} ·{' '}
                   {x.isWalkIn ? t('insight.activity.counter') : t('insight.activity.app')}
                   {x.depotId && depotNames[x.depotId] ? ` · ${depotNames[x.depotId]}` : ''}

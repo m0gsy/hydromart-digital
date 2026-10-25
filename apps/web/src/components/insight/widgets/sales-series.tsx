@@ -7,6 +7,7 @@ import type { InsightCtx } from '@/components/insight/context';
 import { WidgetCard } from '@/components/insight/widget-card';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { periodLabel } from '@/lib/insight/label';
 import { granularityFor, regroup } from '@/lib/insight/range';
 import { useInsightData } from '@/lib/insight/use-insight-data';
 import { useT } from '@/lib/locale-context';
@@ -29,7 +30,7 @@ export function SalesSeriesCard({
   detailHref?: string;
   className?: string;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { role, range, grouping, depotIds } = ctx;
   const series = useInsightData(
     () =>
@@ -61,6 +62,7 @@ export function SalesSeriesCard({
       {() => (
         <MultiLine
           labels={rows.map((b) => b.period)}
+          formatLabel={(l) => periodLabel(l, locale)}
           ariaLabel={t('insight.overview.seriesAria')}
           series={[
             {

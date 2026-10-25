@@ -427,6 +427,8 @@ export class UnsettledCodCourierResponseDto {
   deliveries!: number;
   @ApiProperty({ type: Number })
   amountIdr!: number;
+  @ApiProperty({ type: Number, description: 'Of amountIdr: PAID cash on deliveries handed back unfinished.' })
+  failedCashIdr!: number;
   @ApiProperty({ type: String, format: 'date-time' })
   oldestDeliveredAt!: string;
 }
@@ -439,6 +441,10 @@ export class UnsettledCodResponseDto {
   deliveries!: number;
   @ApiProperty({ type: Number })
   amountIdr!: number;
+  @ApiProperty({ type: Number })
+  failedCashIdr!: number;
+  @ApiProperty({ enum: ['ok', 'unavailable'], description: "'unavailable': payment-service could not be read, so failedCashIdr is 0 and unknown." })
+  failedCashSource!: 'ok' | 'unavailable';
   @ApiProperty({ type: [UnsettledCodCourierResponseDto] })
   couriers!: UnsettledCodCourierResponseDto[];
 }

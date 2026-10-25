@@ -33,6 +33,9 @@ export default defineConfig({
      * a genuinely hung test still fails, twenty seconds later.
      */
     testTimeout: 20_000,
+    // The same reasoning for the hooks around a test (RTL cleanup, a `beforeEach` that renders): a
+    // hook that loses to the clock fails the whole FILE with no failed test to point at.
+    hookTimeout: 20_000,
     /*
      * Every one of the 18 services and both shared packages gate at 98%. apps/web — the
      * only code a customer actually touches, and the same code both APK binaries load

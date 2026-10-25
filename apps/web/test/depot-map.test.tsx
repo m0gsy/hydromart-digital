@@ -40,6 +40,14 @@ describe('DepotMap', () => {
     expect(screen.queryByText('BKS-01')).toBeNull();
   });
 
+  it('draws the count of a bubble in the on-brand ink on the pill colour, never white on light teal', () => {
+    render(<DepotMap depots={[BKS1, BKS2, MLG]} onSelect={vi.fn()} />);
+    const count = screen.getByText('2');
+    expect(count.className).toContain('text-on-brand');
+    expect(count.className).not.toContain('text-white');
+    expect(count.className).toContain('--brand-pill');
+  });
+
   it('names a bubble by its count when the depots span more than one city', () => {
     const near = depot('4', 'BKS-03', 'Jakarta Timur', -6.2351, 106.9899);
     render(<DepotMap depots={[BKS1, near, MLG]} onSelect={vi.fn()} />);

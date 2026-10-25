@@ -13,6 +13,7 @@ import {
   CreateDeliveryData,
   CodBearing,
   UnsettledCod,
+  UnfinishedDelivery,
   DeliveredRow,
   DeliveryQuery,
   DeliveryPingState,
@@ -260,6 +261,24 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     return [...byDriver.values()].sort(
       (a, b) => b.amountIdr - a.amountIdr || a.driverId.localeCompare(b.driverId),
     );
+  }
+
+  async unsettledUnfinished(
+    depotId: string,
+    since: Date,
+    limit: number,
+  ): Promise<UnfinishedDelivery[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.depotId === depotId &&
+          (r.status === DeliveryStatus.FAILED || r.status === DeliveryStatus.RESCHEDULED) &&
+          r.updatedAt.getTime() >= since.getTime() &&
+          !this.settledOrderIds.has(r.orderId),
+      )
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ driverId: r.driverId, orderId: r.orderId, at: r.updatedAt }));
   }
 
   async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {

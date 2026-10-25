@@ -72,7 +72,7 @@ function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
 /** How often the wall-screen view re-reads its figures. */
 const TV_REFRESH_MS = 60_000;
 /** How much larger the wall-screen view draws everything. */
-const TV_ZOOM = 1.3;
+const TV_ZOOM = 1.5;
 
 export function InsightDashboard() {
   const ready = useInsightStrings();
@@ -210,6 +210,7 @@ function InsightDashboardBody() {
           depots={depots}
           depotId={depotParam}
           onDepot={setDepotParam}
+          showPeriod={active.usesPeriod !== false}
         />
       )}
 

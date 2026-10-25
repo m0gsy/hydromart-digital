@@ -13,6 +13,7 @@
   --color-brand-400: #45b1c1;
   --color-brand-500: #1ba2b5;
   --color-brand-600: #0c97ac;
+  --brand-pill: #0a7f92; /* the selected pill: white text on #0c97ac was 3.5:1, on this 4.7:1 */
   --color-brand-700: #0a7f92;
   --color-brand-800: #0b4d57;
   --color-brand-900: #0b3b43;
@@ -76,6 +77,7 @@
     --color-brand-400: #33bbd1;
     --color-brand-500: #45c6d9;
     --color-brand-600: #33bbd1;
+    --brand-pill: #33bbd1;
     --color-brand-700: #5ccbdd;
     --color-brand-800: #bfe9f0;
     --color-brand-900: #d5f0f5;
@@ -115,6 +117,7 @@
   --color-brand-400: #33bbd1;
   --color-brand-500: #45c6d9;
   --color-brand-600: #33bbd1;
+  --brand-pill: #33bbd1;
   --color-brand-700: #5ccbdd;
   --color-brand-800: #bfe9f0;
   --color-brand-900: #d5f0f5;
@@ -149,6 +152,7 @@
   --color-brand-400: #45b1c1;
   --color-brand-500: #1ba2b5;
   --color-brand-600: #0c97ac;
+  --brand-pill: #0a7f92; /* the selected pill: white text on #0c97ac was 3.5:1, on this 4.7:1 */
   --color-brand-700: #0a7f92;
   --color-brand-800: #0b4d57;
   --color-brand-900: #0b3b43;

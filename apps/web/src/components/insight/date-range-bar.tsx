@@ -25,6 +25,7 @@ export function DateRangeBar({
   depots,
   depotId,
   onDepot,
+  showPeriod = true,
 }: {
   preset: Preset;
   onPreset: (next: Preset) => void;
@@ -37,6 +38,8 @@ export function DateRangeBar({
   depots: readonly DepotOption[];
   depotId: string;
   onDepot: (next: string) => void;
+  /** False on a tab that reads no window: the depot is then the only control. */
+  showPeriod?: boolean;
 }) {
   const { t } = useT();
   const presets: { value: Preset; label: string }[] = [
@@ -49,18 +52,23 @@ export function DateRangeBar({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-medium text-muted">{t('insight.range.label')}</span>
-        {/* One line per pill: wrapped, "Hari ini" broke in two on a 360px phone. */}
-        <div className="max-w-full [&_button]:whitespace-nowrap [&_button]:px-2.5">
-          <Segmented value={preset} options={presets} onChange={onPreset} />
-        </div>
-        {groupingOptions.length > 1 && (
+        {showPeriod && (
           <>
-            <span className="text-xs font-medium text-muted">{t('insight.grouping.label')}</span>
+            <span className="text-xs font-medium text-muted">{t('insight.range.label')}</span>
             {/* One line per pill: wrapped, "Hari ini" broke in two on a 360px phone. */}
             <div className="max-w-full [&_button]:whitespace-nowrap [&_button]:px-2.5">
-              <Segmented value={grouping} options={groupingOptions} onChange={onGrouping} />
+              <Segmented value={preset} options={presets} onChange={onPreset} />
             </div>
+            {groupingOptions.length > 1 && (
+              <>
+                <span className="text-xs font-medium text-muted">
+                  {t('insight.grouping.label')}
+                </span>
+                <div className="max-w-full [&_button]:whitespace-nowrap [&_button]:px-2.5">
+                  <Segmented value={grouping} options={groupingOptions} onChange={onGrouping} />
+                </div>
+              </>
+            )}
           </>
         )}
         {depots.length > 1 && (
@@ -81,7 +89,7 @@ export function DateRangeBar({
           </label>
         )}
       </div>
-      {preset === 'custom' && (
+      {showPeriod && preset === 'custom' && (
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs font-medium text-muted">
             {t('insight.range.from')}
