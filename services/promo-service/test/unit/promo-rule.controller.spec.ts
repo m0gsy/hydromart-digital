@@ -37,6 +37,7 @@ describe('PromoRuleController', () => {
       }),
       apply: jest.fn().mockResolvedValue(undefined),
       usage: jest.fn().mockResolvedValue([]),
+      usageWithValue: jest.fn().mockResolvedValue([]),
     }) as unknown as PromoRuleService;
 
   const rule = (overrides: Partial<{ id: string; depotId: string | null }> = {}) => ({
@@ -519,6 +520,58 @@ describe('PromoRuleController', () => {
       expect(result).toEqual([
         { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: '2026-10-08T01:00:00.000Z' },
         { promoRuleId: 'r2', orders: 0, totalDiscount: 0, lastAppliedAt: null },
+      ]);
+    });
+  });
+
+  describe('usageValue', () => {
+    it('is scoped to the caller, serialises the date, and keeps an unknown value null', async () => {
+      const service = makeService();
+      (service.usageWithValue as jest.Mock).mockResolvedValue([
+        {
+          promoRuleId: 'r1',
+          orders: 2,
+          totalDiscount: 5000,
+          lastAppliedAt: new Date('2026-10-08T01:00:00Z'),
+          valuedOrders: 2,
+          valuedDiscount: 5000,
+          grossOrderValue: 90000,
+          valueSource: 'ok',
+        },
+        {
+          promoRuleId: 'r2',
+          orders: 1,
+          totalDiscount: 100,
+          lastAppliedAt: null,
+          valuedOrders: 0,
+          valuedDiscount: 0,
+          grossOrderValue: null,
+          valueSource: 'unavailable',
+        },
+      ]);
+      const result = await new PromoRuleController(service).usageValue(managerOwnDepot);
+      expect(service.usageWithValue).toHaveBeenCalledWith(['depot-a']);
+      expect(result).toEqual([
+        {
+          promoRuleId: 'r1',
+          orders: 2,
+          totalDiscount: 5000,
+          lastAppliedAt: '2026-10-08T01:00:00.000Z',
+          valuedOrders: 2,
+          valuedDiscount: 5000,
+          grossOrderValue: 90000,
+          valueSource: 'ok',
+        },
+        {
+          promoRuleId: 'r2',
+          orders: 1,
+          totalDiscount: 100,
+          lastAppliedAt: null,
+          valuedOrders: 0,
+          valuedDiscount: 0,
+          grossOrderValue: null,
+          valueSource: 'unavailable',
+        },
       ]);
     });
   });

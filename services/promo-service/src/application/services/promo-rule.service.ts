@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { assertFresh } from '@hydromart/platform';
 
 import {
@@ -18,15 +18,31 @@ import {
 import { PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
 import {
   CreatePromoRuleData,
+  PromoRuleOrderSample,
   PromoRuleRecord,
   PromoRuleRepository,
   PromoRuleUsage,
   UpdatePromoRuleData,
 } from '../ports/promo-rule.repository';
+import { OrderValuePort } from '../ports/order-value.port';
 import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
 
 export { PromoRuleValidationError } from '../../domain/errors';
+
+/** How many of a rule's most recent orders are valued: one dashboard load must stay bounded. */
+export const VALUE_SAMPLE = 300;
+
+/** A rule's usage plus the value of the orders it was applied to (see usageWithValue). */
+export interface PromoRuleValueUsage extends PromoRuleUsage {
+  /** Orders in the sample whose value order-service returned. */
+  valuedOrders: number;
+  /** Rupiah the rule took off those orders. */
+  valuedDiscount: number;
+  /** Total of those orders; null when order-service could not be read. */
+  grossOrderValue: number | null;
+  valueSource: 'ok' | 'unavailable';
+}
 
 export interface QuoteInput {
   depotId: string | null;
@@ -88,6 +104,8 @@ export class PromoRuleService {
   constructor(
     @Inject(PROMO_TOKENS.PromoRuleRepository) private readonly repo: PromoRuleRepository,
     private readonly config: PromoConfigService,
+    // Optional so a caller that only edits rules (and its tests) need not stand up order-service.
+    @Optional() @Inject(PROMO_TOKENS.OrderValues) private readonly orderValues?: OrderValuePort,
   ) {}
 
   findAll(depotIds?: readonly string[]): Promise<PromoRuleRecord[]> {
@@ -139,6 +157,43 @@ export class PromoRuleService {
   /** How often each visible rule has fired. Rules that never fired are simply absent. */
   usage(depotIds?: readonly string[]): Promise<PromoRuleUsage[]> {
     return this.repo.usageByRule(depotIds);
+  }
+
+  /**
+   * What each rule cost against what it was applied to.
+   *
+   * `grossOrderValue` is the total of the orders the rule was applied to (after the discount, as
+   * order-service stores it) over the rule's `VALUE_SAMPLE` most recent orders; `valuedDiscount`
+   * is what the rule took off those same orders, so the two are directly comparable. It is NOT
+   * revenue the rule caused: an order might have been placed without the promo. Null when
+   * order-service could not be read: absence is "not known", never zero.
+   */
+  async usageWithValue(depotIds?: readonly string[]): Promise<PromoRuleValueUsage[]> {
+    const usage = await this.repo.usageByRule(depotIds);
+    if (usage.length === 0) return [];
+    const sample = await this.repo.recentOrdersByRule(depotIds, VALUE_SAMPLE);
+    const orderIds = [...new Set(sample.map((s) => s.orderId))];
+    const values = this.orderValues ? await this.orderValues.findOrderValues(orderIds) : null;
+    const totalOf = new Map((values ?? []).map((v) => [v.orderId, v.totalIdr]));
+    const byRule = new Map<string, PromoRuleOrderSample[]>();
+    for (const s of sample) byRule.set(s.promoRuleId, [...(byRule.get(s.promoRuleId) ?? []), s]);
+    return usage.map((u) => {
+      if (!values) {
+        return { ...u, valuedOrders: 0, valuedDiscount: 0, grossOrderValue: null, valueSource: 'unavailable' };
+      }
+      // Only the sampled orders order-service actually returned are valued.
+      const valued = (byRule.get(u.promoRuleId) ?? []).flatMap((s) => {
+        const total = totalOf.get(s.orderId);
+        return total === undefined ? [] : [{ discount: s.discount, total }];
+      });
+      return {
+        ...u,
+        valuedOrders: valued.length,
+        valuedDiscount: valued.reduce((n, v) => n + v.discount, 0),
+        grossOrderValue: valued.reduce((n, v) => n + v.total, 0),
+        valueSource: 'ok',
+      };
+    });
   }
 
   async quote(input: QuoteInput): Promise<QuoteOutput> {

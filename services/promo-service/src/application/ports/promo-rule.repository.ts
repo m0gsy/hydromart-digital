@@ -20,6 +20,14 @@ export interface PromoRuleUsage {
   lastAppliedAt: Date | null;
 }
 
+/** One order a rule applied to, with what the rule took off that order. */
+export interface PromoRuleOrderSample {
+  promoRuleId: string;
+  orderId: string;
+  /** Rupiah this rule took off this order, summed over its audit rows. */
+  discount: number;
+}
+
 export interface PromoRuleRepository {
   findById(id: string): Promise<PromoRuleRecord | null>;
   create(data: CreatePromoRuleData): Promise<PromoRuleRecord>;
@@ -38,6 +46,17 @@ export interface PromoRuleRepository {
    * has never fired has no row here: absence means zero, and the caller fills it in.
    */
   usageByRule(depotIds?: readonly string[]): Promise<PromoRuleUsage[]>;
+
+  /**
+   * For every visible rule, its `perRule` most recently applied orders (each order once) with
+   * the discount the rule gave on it. A sample, not the history: the order values have to be
+   * fetched from order-service, and a busy rule has more orders than one dashboard load can ask
+   * for. `depotIds` narrows the rules exactly as {@link usageByRule} does.
+   */
+  recentOrdersByRule(
+    depotIds: readonly string[] | undefined,
+    perRule: number,
+  ): Promise<PromoRuleOrderSample[]>;
 
   /**
    * Active rules a checkout at `depotId` may match at `now`: `active=true`, depot-visible

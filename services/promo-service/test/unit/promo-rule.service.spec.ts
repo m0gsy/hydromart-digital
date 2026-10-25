@@ -4,6 +4,7 @@ import { StaleWriteError } from '@hydromart/platform';
 
 import {
   CreatePromoRuleData,
+  PromoRuleOrderSample,
   PromoRuleRecord,
   PromoRuleRepository,
   PromoRuleUsage,
@@ -52,6 +53,11 @@ class InMemoryPromoRuleRepository implements PromoRuleRepository {
   }
   async findAll(): Promise<PromoRuleRecord[]> {
     return this.rows;
+  }
+  /** What `recentOrdersByRule` answers; tests set it. */
+  sample: PromoRuleOrderSample[] = [];
+  async recentOrdersByRule(): Promise<PromoRuleOrderSample[]> {
+    return this.sample;
   }
   async usageByRule(depotIds?: readonly string[]): Promise<PromoRuleUsage[]> {
     const visible = new Set(
@@ -773,6 +779,100 @@ describe('PromoRuleService', () => {
         { promoRuleId: mine.id, orders: 2, totalDiscount: 5000, lastAppliedAt: null },
       ]);
       expect(await service.usage()).toHaveLength(2);
+    });
+  });
+
+  describe('usageWithValue', () => {
+    const valuesFor = (totals: Record<string, number>) => ({
+      findOrderValues: jest.fn(async (ids: string[]) =>
+        ids.map((orderId) => ({ orderId, totalIdr: totals[orderId] ?? 0, depotId: null })),
+      ),
+    });
+
+    it('totals the orders a rule was applied to next to what it took off those same orders', async () => {
+      const rule = await repo.create(baseInput({ depotId: 'depot-a' }));
+      repo.applications.push(
+        { orderId: 'o1', promoRuleId: rule.id, productId: 'p1', discountValue: 2000 },
+        { orderId: 'o2', promoRuleId: rule.id, productId: 'p1', discountValue: 3000 },
+      );
+      repo.sample = [
+        { promoRuleId: rule.id, orderId: 'o1', discount: 2000 },
+        { promoRuleId: rule.id, orderId: 'o2', discount: 3000 },
+      ];
+      const orderValues = valuesFor({ o1: 50_000, o2: 70_000 });
+      const svc = new PromoRuleService(repo, fakeConfig, orderValues);
+      const [row] = await svc.usageWithValue(['depot-a']);
+      expect(row).toMatchObject({
+        orders: 2,
+        totalDiscount: 5000,
+        valuedOrders: 2,
+        valuedDiscount: 5000,
+        grossOrderValue: 120_000,
+        valueSource: 'ok',
+      });
+      expect(orderValues.findOrderValues).toHaveBeenCalledWith(['o1', 'o2']);
+    });
+
+    it('asks order-service once for an order two rules shared, and values it for each', async () => {
+      const a = await repo.create(baseInput({ depotId: 'depot-a' }));
+      const b = await repo.create(baseInput({ depotId: 'depot-a' }));
+      repo.applications.push(
+        { orderId: 'o1', promoRuleId: a.id, productId: 'p1', discountValue: 1000 },
+        { orderId: 'o1', promoRuleId: b.id, productId: 'p2', discountValue: 500 },
+      );
+      repo.sample = [
+        { promoRuleId: a.id, orderId: 'o1', discount: 1000 },
+        { promoRuleId: b.id, orderId: 'o1', discount: 500 },
+      ];
+      const orderValues = valuesFor({ o1: 40_000 });
+      const svc = new PromoRuleService(repo, fakeConfig, orderValues);
+      const rows = await svc.usageWithValue();
+      expect(orderValues.findOrderValues).toHaveBeenCalledTimes(1);
+      expect(orderValues.findOrderValues).toHaveBeenCalledWith(['o1']);
+      expect(rows.map((r) => r.grossOrderValue)).toEqual([40_000, 40_000]);
+    });
+
+    it('says the value is unknown, never zero, when order-service cannot be read', async () => {
+      const rule = await repo.create(baseInput({ depotId: 'depot-a' }));
+      repo.applications.push({ orderId: 'o1', promoRuleId: rule.id, productId: 'p1', discountValue: 2000 });
+      repo.sample = [{ promoRuleId: rule.id, orderId: 'o1', discount: 2000 }];
+      const down = { findOrderValues: jest.fn(async () => null) };
+      const [row] = await new PromoRuleService(repo, fakeConfig, down).usageWithValue();
+      expect(row).toMatchObject({ valueSource: 'unavailable', grossOrderValue: null, valuedOrders: 0 });
+      expect(row!.totalDiscount).toBe(2000);
+      // No port wired at all reads the same way.
+      const [bare] = await new PromoRuleService(repo, fakeConfig).usageWithValue();
+      expect(bare).toMatchObject({ valueSource: 'unavailable', grossOrderValue: null });
+    });
+
+    it('values a rule with no sampled orders as zero orders, not as unknown', async () => {
+      const rule = await repo.create(baseInput({ depotId: 'depot-a' }));
+      repo.applications.push({ orderId: 'o1', promoRuleId: rule.id, productId: 'p1', discountValue: 2000 });
+      repo.sample = [];
+      const [row] = await new PromoRuleService(repo, fakeConfig, valuesFor({})).usageWithValue();
+      expect(row).toMatchObject({ valueSource: 'ok', valuedOrders: 0, valuedDiscount: 0, grossOrderValue: 0 });
+    });
+
+    it('does not call order-service for a caller who sees no rule', async () => {
+      const orderValues = valuesFor({});
+      const svc = new PromoRuleService(repo, fakeConfig, orderValues);
+      expect(await svc.usageWithValue(['depot-z'])).toEqual([]);
+      expect(orderValues.findOrderValues).not.toHaveBeenCalled();
+    });
+
+    it('leaves a sampled order out of the totals when order-service did not return it', async () => {
+      const rule = await repo.create(baseInput({ depotId: 'depot-a' }));
+      repo.applications.push(
+        { orderId: 'o1', promoRuleId: rule.id, productId: 'p1', discountValue: 2000 },
+        { orderId: 'o2', promoRuleId: rule.id, productId: 'p1', discountValue: 3000 },
+      );
+      repo.sample = [
+        { promoRuleId: rule.id, orderId: 'o1', discount: 2000 },
+        { promoRuleId: rule.id, orderId: 'o2', discount: 3000 },
+      ];
+      const partial = { findOrderValues: jest.fn(async () => [{ orderId: 'o1', totalIdr: 10_000, depotId: null }]) };
+      const [row] = await new PromoRuleService(repo, fakeConfig, partial).usageWithValue();
+      expect(row).toMatchObject({ valuedOrders: 1, valuedDiscount: 2000, grossOrderValue: 10_000 });
     });
   });
 

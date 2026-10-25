@@ -113,6 +113,18 @@ export class PromoRuleUsageResponseDto {
   lastAppliedAt!: string | null;
 }
 
+/** One promo rule's usage and the value of the orders it was applied to (most recent sample). */
+export class PromoRuleValueUsageResponseDto extends PromoRuleUsageResponseDto {
+  @ApiProperty({ type: Number, description: 'Sampled orders whose value was read from order-service.' })
+  valuedOrders!: number;
+  @ApiProperty({ type: Number, description: 'Rupiah the rule took off those same orders.' })
+  valuedDiscount!: number;
+  @ApiProperty({ type: Number, nullable: true, description: 'Total of those orders; null when unreadable.' })
+  grossOrderValue!: number | null;
+  @ApiProperty({ enum: ['ok', 'unavailable'] })
+  valueSource!: 'ok' | 'unavailable';
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class GrantResponseDto {
   @ApiProperty({ type: VoucherResponseDto })
