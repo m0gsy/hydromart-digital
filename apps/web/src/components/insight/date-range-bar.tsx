@@ -50,11 +50,17 @@ export function DateRangeBar({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs font-medium text-muted">{t('insight.range.label')}</span>
-        <Segmented value={preset} options={presets} onChange={onPreset} />
+        {/* One line per pill: wrapped, "Hari ini" broke in two on a 360px phone. */}
+        <div className="max-w-full [&_button]:whitespace-nowrap [&_button]:px-2.5">
+          <Segmented value={preset} options={presets} onChange={onPreset} />
+        </div>
         {groupingOptions.length > 1 && (
           <>
             <span className="text-xs font-medium text-muted">{t('insight.grouping.label')}</span>
-            <Segmented value={grouping} options={groupingOptions} onChange={onGrouping} />
+            {/* One line per pill: wrapped, "Hari ini" broke in two on a 360px phone. */}
+            <div className="max-w-full [&_button]:whitespace-nowrap [&_button]:px-2.5">
+              <Segmented value={grouping} options={groupingOptions} onChange={onGrouping} />
+            </div>
           </>
         )}
         {depots.length > 1 && (

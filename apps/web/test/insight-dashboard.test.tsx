@@ -2378,10 +2378,11 @@ describe('a card with no base to compare against', () => {
     asRole('HEAD_OFFICE');
     serve({ '/dashboard/executive': () => exec(0, 0) });
     renderPage();
-    const lines = await screen.findAllByText(/Belum ada data pembanding/);
-    expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line.textContent).toContain('vs periode lalu dan tahun lalu');
-    // And never the two-line form for the same card.
-    expect(screen.queryByText(/(vs tahun lalu)/)).toBeNull();
+    // The revenue card, once its (zero) number is in.
+    const label = (await screen.findAllByText('Omzet')).find((e) => e.tagName === 'P')!;
+    const card = label.closest('div')!.parentElement!;
+    await waitFor(() => expect(card.textContent).toContain('Belum ada data pembanding'));
+    expect(card.textContent).toContain('vs periode lalu dan tahun lalu');
+    expect(card.textContent?.match(/Belum ada data pembanding/g)).toHaveLength(1);
   });
 });
