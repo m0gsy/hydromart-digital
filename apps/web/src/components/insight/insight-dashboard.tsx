@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Lock } from '@phosphor-icons/react';
 
 import type { InsightCtx } from '@/components/insight/context';
@@ -23,7 +24,13 @@ import { CenterState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
-import { canViewInsight, resolveTab, visibleTabs, type InsightTabId } from '@/lib/insight/access';
+import {
+  canViewInsight,
+  fullDetailLink,
+  resolveTab,
+  visibleTabs,
+  type InsightTabId,
+} from '@/lib/insight/access';
 import {
   groupingsFor,
   isValidRange,
@@ -147,6 +154,7 @@ function InsightDashboardBody() {
 
   if (!customer) return <Skeleton className="h-96 w-full" />;
   const tabs = visibleTabs(role);
+  const fullDetail = fullDetailLink(role);
   const active = resolveTab(role, tabParam);
   if (!active) {
     return <CenterState icon={<Lock size={48} weight="thin" />} title={t('insight.denied')} />;
@@ -170,6 +178,11 @@ function InsightDashboardBody() {
       <div>
         <h1 className={`${tv ? 'text-3xl' : 'text-xl'} font-bold`}>{t('insight.title')}</h1>
         <p className="text-sm text-muted">{t('insight.subtitle')}</p>
+        {fullDetail && !tv && (
+          <Link href={fullDetail.href} className="text-sm font-semibold text-brand-700 underline">
+            {t(fullDetail.labelKey)}
+          </Link>
+        )}
       </div>
 
       {!tv && (

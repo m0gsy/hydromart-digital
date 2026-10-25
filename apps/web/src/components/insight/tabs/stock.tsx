@@ -9,10 +9,21 @@ import { formatDate, formatIDR } from '@/lib/format';
 import { useInsightData } from '@/lib/insight/use-insight-data';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
-import type { InventoryItem, InventoryWastageSummary, PurchaseOrder } from '@/lib/types';
+import type {
+  ForecastItem,
+  InventoryItem,
+  InventoryWastageSummary,
+  PurchaseOrder,
+} from '@/lib/types';
 
 const dash = '—';
 const TOP = 8;
+const DEMAND_HISTORY_DAYS = 30;
+const DEMAND_HORIZON_DAYS = 14;
+
+/** A quantity to one decimal, with the Indonesian comma; whole numbers stay whole. */
+const formatQty = (n: number): string =>
+  Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
 
 /** Stok & Pengadaan: what is running low, what has been ordered, and what was lost. */
 export function StockTab({ ctx }: { ctx: InsightCtx }) {
@@ -43,6 +54,21 @@ export function StockTab({ ctx }: { ctx: InsightCtx }) {
       ),
     [depotId, range.from, range.to],
     mayStock && depotId != null,
+  );
+
+  const mayForecast = can('forecast', role);
+  const demand = useInsightData(
+    () =>
+      api.get<ForecastItem[]>(
+        endpoints.forecast.depot(depotId as string, {
+          historyDays: DEMAND_HISTORY_DAYS,
+          horizonDays: DEMAND_HORIZON_DAYS,
+          limit: TOP,
+        }),
+        true,
+      ),
+    [depotId],
+    mayForecast && depotId != null,
   );
 
   // A hidden line is one the depot has switched off: it is not "running low", it is not sold.
@@ -164,6 +190,58 @@ export function StockTab({ ctx }: { ctx: InsightCtx }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </WidgetCard>
+      )}
+
+      {mayForecast && depotId != null && (
+        <WidgetCard
+          title={t('insight.stock.demandTitle', { days: DEMAND_HORIZON_DAYS })}
+          source={demand}
+          isEmpty={(d) => d.length === 0}
+          emptyText={t('insight.stock.demandEmpty')}
+          detailHref="/dashboard/forecast"
+        >
+          {(d) => (
+            <div className="flex flex-col gap-2">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] border-collapse text-xs">
+                  <thead>
+                    <tr>
+                      {['product', 'avg', 'total', 'reorder'].map((c, i) => (
+                        <th
+                          key={c}
+                          scope="col"
+                          className={`p-2 font-medium text-muted ${i === 0 ? 'text-left' : 'text-right'}`}
+                        >
+                          {t(`insight.stock.demandCol.${c}`)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.map((i) => (
+                      <tr key={i.productId}>
+                        <th scope="row" className="p-2 text-left font-semibold">
+                          {i.name ?? i.productId.slice(0, 8)}
+                        </th>
+                        <td className="p-2 text-right tabular-nums">
+                          {formatQty(i.avgDaily)}
+                          {i.unit ? ` ${i.unit}` : ''}
+                        </td>
+                        <td className="p-2 text-right tabular-nums">
+                          {formatQty(i.predictedTotal)}
+                        </td>
+                        <td className="p-2 text-right tabular-nums">
+                          {i.reorderSuggestion > 0 ? formatQty(i.reorderSuggestion) : dash}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-muted">{t('insight.stock.demandNote')}</p>
             </div>
           )}
         </WidgetCard>

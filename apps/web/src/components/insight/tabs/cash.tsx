@@ -3,6 +3,7 @@
 import type { InsightCtx } from '@/components/insight/context';
 import { KpiCard } from '@/components/insight/kpi-card';
 import { WidgetCard } from '@/components/insight/widget-card';
+import { BooksCard } from '@/components/insight/widgets/books';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
@@ -57,9 +58,8 @@ export function CashTab({ ctx }: { ctx: InsightCtx }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {(mayShifts || mayDaily) && depotId == null && (
-        <p className="text-xs text-muted">{t('insight.cash.needDepot')}</p>
-      )}
+      {(mayShifts || mayDaily || can('depotFinance', role) || can('dailyClose', role)) &&
+        depotId == null && <p className="text-xs text-muted">{t('insight.cash.needDepot')}</p>}
 
       {depotId != null && mayDaily && !daily.forbidden && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -175,6 +175,8 @@ export function CashTab({ ctx }: { ctx: InsightCtx }) {
           )}
         </WidgetCard>
       )}
+
+      <BooksCard ctx={ctx} />
     </div>
   );
 }
