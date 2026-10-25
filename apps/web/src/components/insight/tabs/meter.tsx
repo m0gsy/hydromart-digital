@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { dayStartWib, todayWib } from '@/lib/wib';
 import { useInsightData } from '@/lib/insight/use-insight-data';
+import { periodLabel } from '@/lib/insight/label';
 import { spanDays } from '@/lib/insight/range';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
@@ -25,7 +26,7 @@ const liters = (n: number): string => `${Math.round(n).toLocaleString('id-ID')} 
  * order lines, and lines recorded with no volume are not in it. It is not proof of a leak.
  */
 export function MeterTab({ ctx }: { ctx: InsightCtx }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { role, range, depotId } = ctx;
   const mayRead = can('meterRead', role);
   // The server reads at most 92 days and defaults `to` to the UTC date, so both bounds are sent:
@@ -104,6 +105,7 @@ export function MeterTab({ ctx }: { ctx: InsightCtx }) {
           {(d) => (
             <MultiLine
               labels={d.filter((r) => r.meterLiters != null).map((r) => r.day)}
+              formatLabel={(l) => periodLabel(l, locale)}
               ariaLabel={t('insight.meter.aria')}
               series={[
                 {

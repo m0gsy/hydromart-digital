@@ -358,6 +358,23 @@ describe('DeliveryPrismaRepository', () => {
     expect(q.values).toEqual(expect.arrayContaining(['depot-1', since]));
   });
 
+  it('unsettledUnfinished lists handed-back deliveries no settlement covers, newest first, bounded', async () => {
+    const since = new Date('2026-09-25T00:00:00Z');
+    const at = new Date('2026-10-20T01:00:00Z');
+    $queryRaw.mockResolvedValue([{ driverId: 'drv-1', orderId: 'ord-1', at }]);
+    expect(await repo.unsettledUnfinished('depot-1', since, 500)).toEqual([
+      { driverId: 'drv-1', orderId: 'ord-1', at },
+    ]);
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    const text = q.sql.replace(/\s+/g, ' ');
+    expect(text).toContain('d."depotId" = ?::uuid');
+    expect(text).toContain('d."status" IN (?::"DeliveryStatus", ?::"DeliveryStatus")');
+    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain('ORDER BY d."updatedAt" DESC');
+    expect(text).toContain('LIMIT ?');
+    expect(q.values).toEqual(expect.arrayContaining(['depot-1', 'FAILED', 'RESCHEDULED', since, 500]));
+  });
+
   it('codBearingInWindow maps to order ids with their COD and how they ended', async () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-01-31');

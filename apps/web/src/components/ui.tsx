@@ -126,10 +126,7 @@ export function Field({
     isValidElement(only) &&
     (typeof only.type !== 'string' || LABELLABLE_TAGS.has(only.type as string));
   const adoptable =
-    !htmlFor &&
-    labellable &&
-    isValidElement<{ id?: string }>(only) &&
-    only.props.id === undefined;
+    !htmlFor && labellable && isValidElement<{ id?: string }>(only) && only.props.id === undefined;
   const fieldId = htmlFor ?? (adoptable ? generatedId : undefined);
 
   /*
@@ -577,13 +574,7 @@ export function LoadError({ onRetry, className }: { onRetry: () => void; classNa
  * `message` is nullable so a caller passes its state straight in: `<FormError
  * message={error} />` renders nothing when there is nothing to say.
  */
-export function FormError({
-  message,
-  className,
-}: {
-  message?: string | null;
-  className?: string;
-}) {
+export function FormError({ message, className }: { message?: string | null; className?: string }) {
   if (!message) return null;
   return (
     <p role="alert" className={cx('text-sm font-medium text-[color:var(--danger)]', className)}>
@@ -678,7 +669,7 @@ export function Segmented<T extends string>({
             // ~6px away, so the pseudo-element is kept to what closes the 40px gap without
             // two adjacent segments overlapping each other's target.
             'relative before:absolute before:-inset-y-[7px] before:-inset-x-[2px] before:content-[""]',
-            option.value === value ? 'bg-brand-600 text-on-brand' : 'text-muted',
+            option.value === value ? 'bg-[color:var(--brand-pill)] text-on-brand' : 'text-muted',
           )}
         >
           {option.label}

@@ -209,6 +209,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiCard
             label={t('insight.kpi.revenue')}
+            lead
             value={now ? formatIDR(now.revenue) : dash}
             definition={t('insight.kpi.revenueDef')}
             deltas={revenueDeltas}

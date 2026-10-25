@@ -236,11 +236,14 @@ export function MultiLine({
   series,
   height = 180,
   ariaLabel,
+  formatLabel = (l) => l,
 }: {
   labels: string[];
   series: LineSeries[];
   height?: number;
   ariaLabel: string;
+  /** How a label reads on the axis and in the short list; the screen-reader table keeps the raw one. */
+  formatLabel?: (label: string) => string;
 }) {
   if (labels.length === 0 || series.length === 0) {
     return <div className="text-xs text-muted">—</div>;
@@ -271,50 +274,70 @@ export function MultiLine({
           </li>
         ))}
       </ul>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height }}
-        role="img"
-        aria-label={ariaLabel}
-      >
-        {[0, 0.5, 1].map((f) => (
-          <line
-            key={f}
-            x1={pad}
-            x2={width - pad}
-            y1={pad + innerH * f}
-            y2={pad + innerH * f}
-            stroke="var(--border, #e9e7df)"
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-        {series.map((s) => (
-          <g key={s.label}>
-            {labels.length > 1 && (
-              <polyline
-                points={s.values.map((v, i) => `${x(i)},${y(v, s.axis)}`).join(' ')}
-                fill="none"
-                stroke={LINE_COLOR[s.tone]}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
+      {labels.length < 3 ? (
+        // One or two points make no line: a dot floating in an empty plot says less than the numbers.
+        <ul aria-hidden="true" className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
+          {labels.map((l, i) => (
+            <li key={`${l}-${i}`} className="flex flex-wrap items-baseline gap-x-3">
+              <span className="font-semibold">{formatLabel(l)}</span>
+              {series.map((s) => (
+                <span key={s.label} className="tabular-nums text-muted">
+                  {s.label}: {printValue(s.values[i] ?? 0, s.money)}
+                </span>
+              ))}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="none"
+            style={{ width: '100%', height }}
+            role="img"
+            aria-label={ariaLabel}
+          >
+            {[0, 0.5, 1].map((f) => (
+              <line
+                key={f}
+                x1={pad}
+                x2={width - pad}
+                y1={pad + innerH * f}
+                y2={pad + innerH * f}
+                stroke="var(--border, #e9e7df)"
+                strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
+            ))}
+            {series.map((s) => (
+              <g key={s.label}>
+                {labels.length > 1 && (
+                  <polyline
+                    points={s.values.map((v, i) => `${x(i)},${y(v, s.axis)}`).join(' ')}
+                    fill="none"
+                    stroke={LINE_COLOR[s.tone]}
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+                {labels.length <= 31 &&
+                  s.values.map((v, i) => (
+                    <circle key={i} cx={x(i)} cy={y(v, s.axis)} r={2.5} fill={LINE_COLOR[s.tone]} />
+                  ))}
+              </g>
+            ))}
+          </svg>
+          <div className="mt-1 flex justify-between text-[10px] text-muted">
+            <span>{formatLabel(labels[0] ?? '')}</span>
+            {labels.length > 2 && (
+              <span>{formatLabel(labels[Math.floor((labels.length - 1) / 2)] ?? '')}</span>
             )}
-            {labels.length <= 31 &&
-              s.values.map((v, i) => (
-                <circle key={i} cx={x(i)} cy={y(v, s.axis)} r={2.5} fill={LINE_COLOR[s.tone]} />
-              ))}
-          </g>
-        ))}
-      </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-muted">
-        <span>{labels[0]}</span>
-        {labels.length > 2 && <span>{labels[Math.floor((labels.length - 1) / 2)]}</span>}
-        {labels.length > 1 && <span>{labels[labels.length - 1]}</span>}
-      </div>
+            {labels.length > 1 && <span>{formatLabel(labels[labels.length - 1] ?? '')}</span>}
+          </div>
+        </>
+      )}
       {/* The wrapper clips it: `sr-only` on a table itself does not, and its width pushed a phone-wide page sideways. */}
       <div className="sr-only">
         <table>
@@ -537,7 +560,10 @@ export function HeatTable({
   rowHeader,
   totalLabel,
   ariaLabel,
+  scrollHint,
 }: {
+  /** Said under the grid when it is wider than the screen (phones). */
+  scrollHint?: string;
   columns: string[];
   rows: HeatRow[];
   format: (value: number) => string;
@@ -547,55 +573,68 @@ export function HeatTable({
 }) {
   const max = Math.max(0, ...rows.flatMap((r) => r.values));
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[420px] border-collapse text-xs" aria-label={ariaLabel}>
-        <thead>
-          <tr>
-            <th scope="col" className="p-2 text-left font-medium text-muted">
-              {rowHeader}
-            </th>
-            {columns.map((c) => (
-              <th key={c} scope="col" className="p-2 text-right font-medium text-muted">
-                {c}
+    <div className="flex flex-col gap-1">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] border-collapse text-xs" aria-label={ariaLabel}>
+          <thead>
+            <tr>
+              <th
+                scope="col"
+                className="sticky left-0 bg-[color:var(--surface)] p-2 text-left font-medium text-muted"
+              >
+                {rowHeader}
               </th>
-            ))}
-            <th scope="col" className="p-2 text-right font-semibold">
-              {totalLabel}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.label}>
-              <th scope="row" className="p-2 text-left font-semibold">
-                {r.label}
+              {columns.map((c) => (
+                <th
+                  key={c}
+                  scope="col"
+                  className="min-w-[2.25rem] p-2 text-right font-medium text-muted"
+                >
+                  {c}
+                </th>
+              ))}
+              <th scope="col" className="p-2 text-right font-semibold">
+                {totalLabel}
               </th>
-              {columns.map((c, i) => {
-                const v = r.values[i] ?? 0;
-                const strength = max > 0 && v > 0 ? Math.max(8, Math.round((v / max) * 50)) : 0;
-                return (
-                  <td
-                    key={c}
-                    className="p-2 text-right tabular-nums"
-                    style={
-                      strength > 0
-                        ? {
-                            background: `color-mix(in srgb, var(--brand-600, #0c97ac) ${strength}%, transparent)`,
-                          }
-                        : undefined
-                    }
-                  >
-                    {v > 0 ? format(v) : <span className="text-muted">—</span>}
-                  </td>
-                );
-              })}
-              <td className="p-2 text-right font-semibold tabular-nums">
-                {format(r.values.reduce((n, v) => n + v, 0))}
-              </td>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label}>
+                <th
+                  scope="row"
+                  className="sticky left-0 bg-[color:var(--surface)] p-2 text-left font-semibold"
+                >
+                  {r.label}
+                </th>
+                {columns.map((c, i) => {
+                  const v = r.values[i] ?? 0;
+                  const strength = max > 0 && v > 0 ? Math.max(8, Math.round((v / max) * 50)) : 0;
+                  return (
+                    <td
+                      key={c}
+                      className="p-2 text-right tabular-nums"
+                      style={
+                        strength > 0
+                          ? {
+                              background: `color-mix(in srgb, var(--brand-600, #0c97ac) ${strength}%, transparent)`,
+                            }
+                          : undefined
+                      }
+                    >
+                      {v > 0 ? format(v) : <span className="text-muted">—</span>}
+                    </td>
+                  );
+                })}
+                <td className="p-2 text-right font-semibold tabular-nums">
+                  {format(r.values.reduce((n, v) => n + v, 0))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {scrollHint && <p className="m-0 text-[11px] text-muted sm:hidden">{scrollHint}</p>}
     </div>
   );
 }

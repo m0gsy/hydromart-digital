@@ -100,6 +100,7 @@ export function TimeTab({ ctx }: { ctx: InsightCtx }) {
             rowHeader={t('insight.time.dayHeader')}
             totalLabel={t('insight.time.total')}
             ariaLabel={t('insight.time.heatAria')}
+            scrollHint={t('insight.time.scrollHint')}
           />
         )}
       </WidgetCard>

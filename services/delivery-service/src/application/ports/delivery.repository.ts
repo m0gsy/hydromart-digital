@@ -208,6 +208,13 @@ export interface DeliveryPingState {
  * more. Reading `codAmount` on those would invent a debt out of a delivery that never
  * happened.
  */
+/** A delivery a courier handed back unfinished, that no settlement lists (see unsettledUnfinished). */
+export interface UnfinishedDelivery {
+  driverId: string;
+  orderId: string;
+  at: Date;
+}
+
 /** One courier's delivered COD that no settlement covers yet (see unsettledCod). */
 export interface UnsettledCod {
   driverId: string;
@@ -271,6 +278,13 @@ export interface DeliveryRepository {
    * delivery left in a courier's pocket is a payment-service fact this read cannot see.
    */
   unsettledCod(depotId: string, since: Date): Promise<UnsettledCod[]>;
+  /**
+   * FAILED and RESCHEDULED deliveries of a depot touched since `since` that no settlement lists:
+   * the orders a courier handed back without finishing. They carry no COD of their own to
+   * settle, but a courier may still be holding cash taken at the door, which only
+   * payment-service knows. At most `limit` rows, newest first.
+   */
+  unsettledUnfinished(depotId: string, since: Date, limit: number): Promise<UnfinishedDelivery[]>;
   /**
    * Deliveries the driver DELIVERED in [from, to) — timestamps + order id, for the
    * weekly performance roll-up (count, per-day bars, on-time rate, rating batch). 4c.

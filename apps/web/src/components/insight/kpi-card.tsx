@@ -23,7 +23,7 @@ function DeltaLine({
   if (delta.kind === 'none') {
     return (
       <p className="text-xs text-muted">
-        {t('insight.compare.none')} <span className="opacity-70">({label})</span>
+        {t('insight.compare.none')} <span>({label})</span>
       </p>
     );
   }
@@ -66,6 +66,7 @@ export function KpiCard({
   deltas,
   goodWhen = 'up',
   tone,
+  lead = false,
 }: {
   label: string;
   value: string;
@@ -74,6 +75,8 @@ export function KpiCard({
   deltas?: { prev: Delta; year: Delta };
   goodWhen?: GoodWhen;
   tone?: 'danger';
+  /** The one number the screen is for: drawn larger than its neighbours. */
+  lead?: boolean;
 }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -86,13 +89,14 @@ export function KpiCard({
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={`${t('insight.kpi.whatIsThis')}: ${label}`}
-          className="rounded-full p-1 text-muted hover:text-[color:var(--text)]"
+          // 14px icon in a 34px hit area, pulled back with a negative margin so the card does not grow.
+          className="-m-2 rounded-full p-2.5 text-muted hover:text-[color:var(--text)]"
         >
           <Info size={14} aria-hidden="true" />
         </button>
       </div>
       <p
-        className={`text-2xl font-bold tabular-nums ${tone === 'danger' ? 'text-[color:var(--danger)]' : ''}`}
+        className={`${lead ? 'text-4xl' : 'text-2xl'} font-bold tabular-nums ${tone === 'danger' ? 'text-[color:var(--danger)]' : ''}`}
       >
         {value}
       </p>

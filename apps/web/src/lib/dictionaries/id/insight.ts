@@ -75,6 +75,7 @@ export const insight = {
     peakOrders: '{n} pesanan',
     heatTitle: 'Pesanan menurut hari dan jam',
     heatAria: 'Jumlah pesanan menurut hari dalam seminggu dan jam',
+    scrollHint: 'Geser ke samping untuk melihat semua jam.',
     dayHeader: 'Hari',
     total: 'Jumlah',
     empty: 'Belum ada pesanan pada periode ini.',
@@ -510,7 +511,11 @@ export const insight = {
     heldTotal: '{amount} dari {n} pengiriman',
     heldAge: 'tertua {days} hari',
     heldNote:
-      'COD yang tercatat pada pengiriman terkirim dalam 30 hari terakhir dan belum tercantum di setoran mana pun. Uang tunai dari pengiriman gagal atau dijadwal ulang tidak ikut dihitung.',
+      'COD yang tercatat pada pengiriman terkirim dalam 30 hari terakhir, ditambah uang tunai yang masih tercatat lunas di layanan pembayaran pada pengiriman yang gagal atau dijadwal ulang, yang belum tercantum di setoran mana pun. Uang yang sudah dikembalikan kurir di tempat tidak ikut.',
+    heldFailed: 'Termasuk {amount} uang tunai dari pengiriman gagal atau dijadwal ulang.',
+    heldCourierFailed: '(termasuk {amount} dari pengiriman gagal)',
+    heldUnavailable:
+      'Uang tunai dari pengiriman gagal belum bisa dibaca dari layanan pembayaran, jadi angka ini hanya COD terkirim dan bisa lebih kecil dari yang sebenarnya.',
     failedTitle: 'Pengiriman gagal',
     failedEmpty: 'Tidak ada pengiriman gagal pada periode ini.',
     failedCount: '{n} pengiriman gagal',

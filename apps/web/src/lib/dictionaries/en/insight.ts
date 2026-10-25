@@ -73,6 +73,7 @@ export const insight = {
     peakOrders: '{n} orders',
     heatTitle: 'Orders by day and hour',
     heatAria: 'Number of orders by day of the week and hour',
+    scrollHint: 'Swipe sideways to see every hour.',
     dayHeader: 'Day',
     total: 'Total',
     empty: 'No orders in this period yet.',
@@ -506,7 +507,11 @@ export const insight = {
     heldTotal: '{amount} from {n} deliveries',
     heldAge: 'oldest {days} days',
     heldNote:
-      'The COD recorded on deliveries made in the last 30 days that no deposit lists yet. Cash taken on failed or rescheduled deliveries is not counted.',
+      'The COD recorded on deliveries made in the last 30 days, plus the cash payment-service still shows as paid on deliveries that failed or were rescheduled, that no deposit lists yet. Cash a courier already handed back at the door is not counted.',
+    heldFailed: 'Includes {amount} in cash from failed or rescheduled deliveries.',
+    heldCourierFailed: '(includes {amount} from failed deliveries)',
+    heldUnavailable:
+      'Cash from failed deliveries could not be read from the payment service, so this is delivered COD only and may be lower than the real figure.',
     failedTitle: 'Failed deliveries',
     failedEmpty: 'No failed deliveries in this period.',
     failedCount: '{n} failed deliveries',

@@ -8,6 +8,7 @@ import {
   CreateDeliveryData,
   CodBearing,
   UnsettledCod,
+  UnfinishedDelivery,
   DeliveredRow,
   DeliveryItem,
   DeliveryPingState,
@@ -299,6 +300,29 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       amountIdr: Number(r.amount),
       oldestDeliveredAt: r.oldest,
     }));
+  }
+
+  async unsettledUnfinished(
+    depotId: string,
+    since: Date,
+    limit: number,
+  ): Promise<UnfinishedDelivery[]> {
+    // RESCHEDULED has no completion column of its own, so `updatedAt` bounds both; a later touch
+    // can keep an old row inside the window, which only makes the read slightly wider.
+    const rows = await this.prisma.$queryRaw<{ driverId: string; orderId: string; at: Date }[]>(
+      Prisma.sql`
+      SELECT d."driverId", d."orderId", d."updatedAt" AS "at"
+      FROM "deliveries" d
+      WHERE d."depotId" = ${depotId}::uuid
+        AND d."status" IN (${DeliveryStatus.FAILED}::"DeliveryStatus", ${DeliveryStatus.RESCHEDULED}::"DeliveryStatus")
+        AND d."updatedAt" >= ${since}
+        AND NOT EXISTS (
+          SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds")
+        )
+      ORDER BY d."updatedAt" DESC, d."orderId" ASC
+      LIMIT ${limit}`,
+    );
+    return rows.map((r) => ({ driverId: r.driverId, orderId: r.orderId, at: r.at }));
   }
 
   async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {

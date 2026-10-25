@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
@@ -85,8 +86,11 @@ export class SettlementController {
   @ApiOperation({
     summary: "COD a depot's couriers delivered in the last 30 days that no settlement covers yet",
   })
-  unsettled(@Query() query: UnsettledQueryDto): Promise<UnsettledCodReport> {
-    return this.settlements.unsettledCod(query.depotId);
+  unsettled(
+    @Query() query: UnsettledQueryDto,
+    @Headers('authorization') authorization = '',
+  ): Promise<UnsettledCodReport> {
+    return this.settlements.unsettledCod(query.depotId, authorization);
   }
 
   @ApiOkResponse({ type: SettlementResponseDto, isArray: true })

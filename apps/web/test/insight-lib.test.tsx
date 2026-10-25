@@ -43,12 +43,31 @@ describe('MultiLine', () => {
     expect(legend).toContain('max 7');
   });
 
-  it('draws a single point and survives an empty series', () => {
+  it('writes one or two points out instead of drawing a lone dot, and survives an empty series', () => {
     const one = render(
-      <MultiLine labels={['2026-10']} series={[{ ...series[0]!, values: [5] }]} ariaLabel="x" />,
+      <MultiLine
+        labels={['2026-10-22']}
+        series={[{ ...series[0]!, values: [5] }]}
+        ariaLabel="x"
+        formatLabel={(l) => `tgl ${l.slice(-2)}`}
+      />,
     );
-    expect(one.container.querySelectorAll('circle')).toHaveLength(1);
-    expect(one.container.querySelector('polyline')).toBeNull();
+    // No picture to misread: the label as the reader says it, and the value.
+    expect(one.container.querySelector('svg')).toBeNull();
+    expect(one.container.textContent).toContain('tgl 22');
+    expect(one.container.textContent).toContain(`${series[0]!.label}: 5`);
+    // The screen-reader table still carries the raw label.
+    expect(one.container.querySelector('.sr-only table')?.textContent).toContain('2026-10-22');
+    cleanup();
+    const three = render(
+      <MultiLine
+        labels={['a', 'b', 'c']}
+        series={[{ ...series[0]!, values: [1, 2, 3] }]}
+        ariaLabel="x"
+      />,
+    );
+    expect(three.container.querySelector('svg')).not.toBeNull();
+    cleanup();
     cleanup();
     const none = render(<MultiLine labels={[]} series={[]} ariaLabel="x" />);
     expect(none.container.textContent).toBe('—');
