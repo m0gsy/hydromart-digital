@@ -95,6 +95,26 @@ describe('PromoRulePrismaRepository', () => {
     });
   });
 
+  it('recentOrdersByRule reads nothing when no rule is visible', async () => {
+    model.findMany.mockResolvedValue([]);
+    expect(await repo.recentOrdersByRule(['depot-a'], 300)).toEqual([]);
+    expect($queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('recentOrdersByRule counts an order once per rule and bounds each rule to its newest orders', async () => {
+    model.findMany.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }]);
+    $queryRaw.mockResolvedValue([{ promoRuleId: 'r1', orderId: 'o1', discount: BigInt(3000) }]);
+    expect(await repo.recentOrdersByRule(['depot-a'], 300)).toEqual([
+      { promoRuleId: 'r1', orderId: 'o1', discount: 3000 },
+    ]);
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    const text = q.sql.replace(/\s+/g, ' ');
+    expect(text).toContain('GROUP BY a."promoRuleId", a."orderId"');
+    expect(text).toContain('PARTITION BY "promoRuleId" ORDER BY "at" DESC');
+    expect(text).toContain('"rn" <=');
+    expect(q.values).toEqual(expect.arrayContaining(['r1', 'r2', 300]));
+  });
+
   it('findAll with no depotIds sees every rule (unscoped caller)', async () => {
     model.findMany.mockResolvedValue([row]);
     expect(await repo.findAll()).toEqual([row]);

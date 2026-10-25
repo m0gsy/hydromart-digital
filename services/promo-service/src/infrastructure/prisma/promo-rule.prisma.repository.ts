@@ -3,6 +3,7 @@ import { Prisma } from '../../../prisma/generated/client';
 
 import {
   CreatePromoRuleData,
+  PromoRuleOrderSample,
   PromoRuleRecord,
   PromoRuleRepository,
   PromoRuleUsage,
@@ -77,6 +78,42 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
       orders: Number(r.orders),
       totalDiscount: Number(r.discount),
       lastAppliedAt: r.lastAppliedAt,
+    }));
+  }
+
+  async recentOrdersByRule(
+    depotIds: readonly string[] | undefined,
+    perRule: number,
+  ): Promise<PromoRuleOrderSample[]> {
+    const visible = await this.prisma.promoRule.findMany({
+      where: depotVisibleWhere(depotIds),
+      select: { id: true },
+    });
+    if (visible.length === 0) return [];
+    // One row per (rule, order): a rule that won several products on one order wrote several audit
+    // rows, and counting the order (or its value) once per row would multiply it.
+    const rows = await this.prisma.$queryRaw<
+      { promoRuleId: string; orderId: string; discount: bigint }[]
+    >(Prisma.sql`
+      WITH per_order AS (
+        SELECT a."promoRuleId", a."orderId",
+               SUM(a."discountValue") AS "discount",
+               MAX(a."createdAt") AS "at"
+        FROM "promo_applications" a
+        WHERE a."promoRuleId" IN (${Prisma.join(visible.map((v) => v.id))})
+        GROUP BY a."promoRuleId", a."orderId"
+      ), ranked AS (
+        SELECT per_order.*,
+               ROW_NUMBER() OVER (
+                 PARTITION BY "promoRuleId" ORDER BY "at" DESC, "orderId" ASC
+               ) AS "rn"
+        FROM per_order
+      )
+      SELECT "promoRuleId", "orderId", "discount" FROM ranked WHERE "rn" <= ${perRule}`);
+    return rows.map((r) => ({
+      promoRuleId: r.promoRuleId,
+      orderId: r.orderId,
+      discount: Number(r.discount),
     }));
   }
 

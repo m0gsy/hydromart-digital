@@ -203,6 +203,8 @@ export const shop = {
     detail: (id: string) => `/vouchers/api/v1/promotions/promo-rules/${id}`,
     // How often each visible rule has fired, from the audit trail.
     usage: '/vouchers/api/v1/promotions/promo-rules/usage',
+    // The same, plus the value of the orders each rule was applied to (a recent sample).
+    usageValue: '/vouchers/api/v1/promotions/promo-rules/usage-value',
     // Try a basket against the active rules; records nothing.
     simulate: '/vouchers/api/v1/promotions/promo-rules/simulate',
     // The cashier's strip: rules this depot's counter can fire right now (walkInSale).

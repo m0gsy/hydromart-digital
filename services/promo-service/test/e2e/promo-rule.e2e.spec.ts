@@ -67,11 +67,18 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
         findActiveCandidates: jest.fn().mockResolvedValue([]),
         hasApplicationFor: jest.fn().mockResolvedValue(false),
         recordApplications: jest.fn().mockResolvedValue(undefined),
+        recentOrdersByRule: jest
+          .fn()
+          .mockResolvedValue([{ promoRuleId: 'r1', orderId: 'o1', discount: 5000 }]),
         usageByRule: jest
           .fn()
           .mockResolvedValue([
             { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: new Date('2026-10-08T01:00:00Z') },
           ]),
+      })
+      .overrideProvider(PROMO_TOKENS.OrderValues)
+      .useValue({
+        findOrderValues: jest.fn().mockResolvedValue([{ orderId: 'o1', totalIdr: 80000, depotId: null }]),
       })
       .compile();
 
@@ -114,6 +121,29 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
       expect(res.body).toEqual([
         { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: '2026-10-08T01:00:00.000Z' },
       ]);
+    });
+
+    it('GET promo-rules/usage-value is reachable (not read as an id) and carries the order value', async () => {
+      const res = await request(server())
+        .get('/api/v1/promotions/promo-rules/usage-value')
+        .set(auth(token(Role.SUPER_ADMIN)))
+        .expect(200);
+      expect(res.body).toEqual([
+        {
+          promoRuleId: 'r1',
+          orders: 2,
+          totalDiscount: 5000,
+          lastAppliedAt: '2026-10-08T01:00:00.000Z',
+          valuedOrders: 1,
+          valuedDiscount: 5000,
+          grossOrderValue: 80000,
+          valueSource: 'ok',
+        },
+      ]);
+      await request(server())
+        .get('/api/v1/promotions/promo-rules/usage-value')
+        .set(auth(token(Role.CUSTOMER)))
+        .expect(403);
     });
 
     it('both routes refuse a customer', async () => {

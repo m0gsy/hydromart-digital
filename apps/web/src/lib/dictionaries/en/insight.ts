@@ -169,10 +169,18 @@ export const insight = {
   },
   depotMap: { title: 'Depot map', empty: 'No depot with coordinates yet.' },
   promoRoi: {
-    title: 'Promo usage',
+    title: 'Promo cost against order value',
     empty: 'No promo rule has been used yet.',
-    note: 'Counted since each rule was created, not by the period above. It shows the discount given and the orders it touched, not the extra revenue a promo brought in.',
-    col: { rule: 'Rule', orders: 'Orders', discount: 'Discount', last: 'Last used' },
+    note: 'Orders and discount are counted since each rule was created, not by the period above. Order value and the share come only from each rule’s most recent orders (up to 300), and the share compares the discount with the value of those same orders. It is not extra revenue: those orders might have been placed without the promo.',
+    unreadable: 'Order value could not be read from the order service, so that column is empty.',
+    col: {
+      rule: 'Rule',
+      orders: 'Orders',
+      discount: 'Discount',
+      value: 'Recent order value',
+      share: 'Discount / value',
+      last: 'Last used',
+    },
   },
   forecast: {
     needDepot: 'Choose a single depot to see its revenue forecast.',

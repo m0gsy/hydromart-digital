@@ -38,6 +38,7 @@ import {
   AutoApplyQuoteResponseDto,
   PromoRuleResponseDto,
   PromoRuleUsageResponseDto,
+  PromoRuleValueUsageResponseDto,
 } from './dto/responses.generated.dto';
 
 const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefined);
@@ -89,6 +90,30 @@ export class PromoRuleController {
       orders: r.orders,
       totalDiscount: r.totalDiscount,
       lastAppliedAt: r.lastAppliedAt ? r.lastAppliedAt.toISOString() : null,
+    }));
+  }
+
+  // Declared BEFORE `promo-rules/:id`, for the same reason as `usage`.
+  @ApiOkResponse({ type: PromoRuleValueUsageResponseDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('promoRuleRead')
+  @Get('promo-rules/usage-value')
+  @ApiOperation({
+    summary: 'Usage plus the value of the orders each visible rule was applied to (admin)',
+  })
+  async usageValue(
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<PromoRuleValueUsageResponseDto[]> {
+    const rows = await this.promoRules.usageWithValue(depotScopeIds(user));
+    return rows.map((r) => ({
+      promoRuleId: r.promoRuleId,
+      orders: r.orders,
+      totalDiscount: r.totalDiscount,
+      lastAppliedAt: r.lastAppliedAt ? r.lastAppliedAt.toISOString() : null,
+      valuedOrders: r.valuedOrders,
+      valuedDiscount: r.valuedDiscount,
+      grossOrderValue: r.grossOrderValue,
+      valueSource: r.valueSource,
     }));
   }
 

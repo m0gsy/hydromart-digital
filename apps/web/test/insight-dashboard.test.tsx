@@ -88,6 +88,30 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       // A depot that did not exist a year ago: no base to compare with.
       if (from === LAST_YEAR_FROM) return Promise.resolve(exec(0, 0));
     }
+    if (p.includes('/promotions/promo-rules/usage-value')) {
+      return Promise.resolve([
+        {
+          promoRuleId: 'r1',
+          orders: 12,
+          totalDiscount: 240_000,
+          lastAppliedAt: '2026-10-10T03:00:00.000Z',
+          valuedOrders: 12,
+          valuedDiscount: 240_000,
+          grossOrderValue: 2_400_000,
+          valueSource: 'ok',
+        },
+        {
+          promoRuleId: 'r2',
+          orders: 3,
+          totalDiscount: 30_000,
+          lastAppliedAt: null,
+          valuedOrders: 0,
+          valuedDiscount: 0,
+          grossOrderValue: null,
+          valueSource: 'unavailable',
+        },
+      ]);
+    }
     if (p.includes('/promotions/promo-rules/usage')) {
       return Promise.resolve([
         {
@@ -1700,8 +1724,15 @@ describe('the promo usage and forecast widgets', () => {
     renderPage();
     const row = (await screen.findByText('Diskon Galon Isi Ulang')).closest('tr')!;
     expect(row.textContent).toContain('12');
-    expect(screen.getByText(/bukan omzet tambahan/)).toBeTruthy();
-    expect(screen.getByText('Gratis Ongkir').closest('tr')!.textContent).toContain('—');
+    // 240.000 off 2.400.000 of orders is 10,0%.
+    expect(row.textContent).toContain('10,0%');
+    expect(row.textContent).toContain('2.400.000');
+    expect(screen.getByText(/Ini bukan omzet tambahan/)).toBeTruthy();
+    // A rule whose orders could not be valued shows dashes, never Rp 0 or 0%, and says why.
+    const unknown = screen.getByText('Gratis Ongkir').closest('tr')!;
+    expect(unknown.textContent).not.toContain('0,0%');
+    expect(unknown.textContent).toContain('—');
+    expect(screen.getByRole('status', { name: '' }).textContent).toMatch(/belum bisa dibaca/);
   });
 
   it('forecasts one depot’s revenue, and asks for a depot when there are several', async () => {

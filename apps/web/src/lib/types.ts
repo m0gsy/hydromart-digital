@@ -254,6 +254,19 @@ export interface PromoRuleUsage {
   lastAppliedAt: string | null;
 }
 
+/**
+ * A rule's usage plus the value of the orders it was applied to (promo-rules/usage-value).
+ * The value covers the rule's most recent sampled orders only: `valuedOrders` of `orders`.
+ * `grossOrderValue` is null when order-service could not be read — unknown, never zero. It is
+ * the total of orders that used the promo, not revenue the promo caused.
+ */
+export interface PromoRuleValueUsage extends PromoRuleUsage {
+  valuedOrders: number;
+  valuedDiscount: number;
+  grossOrderValue: number | null;
+  valueSource: 'ok' | 'unavailable';
+}
+
 /** The answer to promo-rules/simulate: the same shape the checkout's promo quote uses. */
 export interface PromoSimulation {
   lines: {

@@ -172,10 +172,18 @@ export const insight = {
   },
   depotMap: { title: 'Peta depot', empty: 'Belum ada depot dengan koordinat.' },
   promoRoi: {
-    title: 'Pemakaian promo',
+    title: 'Biaya promo terhadap nilai pesanan',
     empty: 'Belum ada aturan promo yang dipakai.',
-    note: 'Dihitung sejak aturan dibuat, tidak mengikuti periode di atas. Yang tampil potongan harga dan jumlah pesanannya, bukan omzet tambahan yang dibawa promo.',
-    col: { rule: 'Aturan', orders: 'Pesanan', discount: 'Potongan', last: 'Terakhir dipakai' },
+    note: 'Pesanan dan potongan dihitung sejak aturan dibuat, tidak mengikuti periode di atas. Nilai pesanan dan persentasenya hanya dari pesanan terbaru tiap aturan (sampai 300), dan persentase membandingkan potongan dengan nilai pesanan yang sama. Ini bukan omzet tambahan: pesanan itu mungkin tetap terjadi tanpa promo.',
+    unreadable: 'Nilai pesanan belum bisa dibaca dari layanan pesanan, jadi kolomnya kosong.',
+    col: {
+      rule: 'Aturan',
+      orders: 'Pesanan',
+      discount: 'Potongan',
+      value: 'Nilai pesanan terbaru',
+      share: 'Potongan / nilai',
+      last: 'Terakhir dipakai',
+    },
   },
   forecast: {
     needDepot: 'Pilih satu depot untuk melihat perkiraan omzetnya.',
