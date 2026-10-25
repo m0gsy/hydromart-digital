@@ -315,29 +315,32 @@ export function MultiLine({
         {labels.length > 2 && <span>{labels[Math.floor((labels.length - 1) / 2)]}</span>}
         {labels.length > 1 && <span>{labels[labels.length - 1]}</span>}
       </div>
-      <table className="sr-only">
-        <caption>{ariaLabel}</caption>
-        <thead>
-          <tr>
-            <th scope="col" />
-            {series.map((s) => (
-              <th key={s.label} scope="col">
-                {s.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {labels.map((l, i) => (
-            <tr key={`${l}-${i}`}>
-              <th scope="row">{l}</th>
+      {/* The wrapper clips it: `sr-only` on a table itself does not, and its width pushed a phone-wide page sideways. */}
+      <div className="sr-only">
+        <table>
+          <caption>{ariaLabel}</caption>
+          <thead>
+            <tr>
+              <th scope="col" />
               {series.map((s) => (
-                <td key={s.label}>{printValue(s.values[i] ?? 0, s.money)}</td>
+                <th key={s.label} scope="col">
+                  {s.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {labels.map((l, i) => (
+              <tr key={`${l}-${i}`}>
+                <th scope="row">{l}</th>
+                {series.map((s) => (
+                  <td key={s.label}>{printValue(s.values[i] ?? 0, s.money)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

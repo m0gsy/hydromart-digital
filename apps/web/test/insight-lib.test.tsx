@@ -27,7 +27,7 @@ describe('MultiLine', () => {
 
   it('prints every value as text for a reader with no hover and no picture', () => {
     const { container } = render(<MultiLine labels={labels} series={series} ariaLabel="grafik" />);
-    const table = container.querySelector('table.sr-only')!;
+    const table = container.querySelector('.sr-only table')!;
     expect(table.textContent).toContain('2026-10-02');
     // Money is compact, counts are plain, and a zero is a zero rather than a missing cell.
     expect(table.textContent).toContain('1,4jt');

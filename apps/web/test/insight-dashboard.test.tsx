@@ -965,8 +965,8 @@ describe('the dashboard for head office', () => {
     asRole('HEAD_OFFICE');
     const { container } = renderPage();
     await screen.findByText(/1\.100\.000/);
-    await waitFor(() => expect(container.querySelector('table.sr-only')).not.toBeNull());
-    const text = container.querySelector('table.sr-only')?.textContent ?? '';
+    await waitFor(() => expect(container.querySelector('.sr-only table')).not.toBeNull());
+    const text = container.querySelector('.sr-only table')?.textContent ?? '';
     expect(text).toContain('2026-10-01');
     expect(text).toContain('2026-10-02');
   });
@@ -1151,12 +1151,12 @@ describe('review fixes', () => {
     fireEvent.change(inputs[1] as HTMLInputElement, { target: { value: '2026-09-29' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Bulan' }));
     await waitFor(() =>
-      expect(container.querySelector('table.sr-only')?.textContent).toContain('2026-08'),
+      expect(container.querySelector('.sr-only table')?.textContent).toContain('2026-08'),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Minggu' }));
     // 1 October 2026 is a Thursday: its week is labelled by Monday the 28th.
     await waitFor(() =>
-      expect(container.querySelector('table.sr-only')?.textContent).toContain('2026-09-28'),
+      expect(container.querySelector('.sr-only table')?.textContent).toContain('2026-09-28'),
     );
     expect(container.textContent).not.toMatch(/Invalid|NaN/);
   });
