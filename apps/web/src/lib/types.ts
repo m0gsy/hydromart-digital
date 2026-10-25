@@ -1769,6 +1769,17 @@ export interface Shift {
 // Courier end-of-shift COD settlement (delivery-service, design 2d/9a).
 export type SettlementStatus = 'SUBMITTED' | 'VERIFIED' | 'DISPUTED';
 
+/**
+ * COD delivered in the last 30 days that no settlement lists yet (GET settlements/unsettled).
+ * The COD RECORDED on delivered orders: cash taken on a failed or rescheduled delivery is not in it.
+ */
+export interface UnsettledCodReport {
+  since: string;
+  deliveries: number;
+  amountIdr: number;
+  couriers: { driverId: string; deliveries: number; amountIdr: number; oldestDeliveredAt: string }[];
+}
+
 export interface CashSettlement {
   id: string;
   shiftId: string;

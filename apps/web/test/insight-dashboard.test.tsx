@@ -351,6 +351,27 @@ function serve(overrides: Record<string, () => unknown> = {}) {
             },
       );
     }
+    if (p.includes('/deliveries/api/v1/settlements/unsettled')) {
+      return Promise.resolve({
+        since: '2026-09-15T00:00:00.000Z',
+        deliveries: 3,
+        amountIdr: 180_000,
+        couriers: [
+          {
+            driverId: 'drv-aaaaaa',
+            deliveries: 2,
+            amountIdr: 140_000,
+            oldestDeliveredAt: '2026-10-10T05:00:00.000Z',
+          },
+          {
+            driverId: 'drv-bb',
+            deliveries: 1,
+            amountIdr: 40_000,
+            oldestDeliveredAt: '2026-10-15T01:00:00.000Z',
+          },
+        ],
+      });
+    }
     if (p.includes('/deliveries/api/v1/settlements')) {
       const status = new URL(p, 'http://x').searchParams.get('status');
       const row = (id: string, deposited: number) => ({
@@ -373,6 +394,38 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       return Promise.resolve(
         status === 'SUBMITTED' ? [row('c1', 120_000), row('c2', 80_000)] : [row('c3', 50_000)],
       );
+    }
+    if (p.includes('/deliveries/api/v1/deliveries?') && p.includes('status=FAILED')) {
+      const mk = (id: string, reason: string | null, failedAt: string) => ({
+        id,
+        orderId: 'o' + id,
+        orderNumber: 'HM-F' + id,
+        driverId: 'drv-aaaaaa',
+        depotId: 'd1',
+        status: 'FAILED',
+        destinationAddress: 'rahasia',
+        destinationLat: null,
+        destinationLng: null,
+        lastLat: null,
+        lastLng: null,
+        lastLocationAt: null,
+        assignedAt: failedAt,
+        failedAt,
+        failureReason: reason,
+      });
+      return Promise.resolve({
+        items: [
+          mk('1', 'Pelanggan tidak di tempat', '2026-10-14T03:00:00.000Z'),
+          mk('2', ' pelanggan tidak di tempat ', '2026-10-13T03:00:00.000Z'),
+          mk('3', 'Alamat tidak ketemu', '2026-10-12T03:00:00.000Z'),
+          mk('4', null, '2026-10-11T03:00:00.000Z'),
+          // Outside the month in view: left out of the count.
+          mk('5', 'Pelanggan tidak di tempat', '2026-08-01T03:00:00.000Z'),
+        ],
+        total: 5,
+        page: 1,
+        limit: 100,
+      });
     }
     if (p.includes('/deliveries/api/v1/deliveries?')) {
       const mk = (id: string, driverId: string) => ({
@@ -2223,5 +2276,95 @@ describe('open incidents in the needs-doing strip', () => {
     await screen.findByText('Pesanan belum dapat kurir');
     await new Promise((r) => setTimeout(r, 100));
     expect(screen.queryByText('Tidak ada yang perlu ditindak sekarang.')).toBeNull();
+  });
+});
+
+describe('delivered COD not yet deposited', () => {
+  it('shows the amount per courier with how long the oldest has waited, and says what it leaves out', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText(/180\.000 dari 3 pengiriman/)).toBeTruthy();
+    // 2026-10-10 to the pinned "now" of 2026-10-15 is 5 days.
+    const row = (await screen.findAllByText('Agus Kurir'))
+      .map((e) => e.closest('li'))
+      .find((li) => li?.textContent?.includes('tertua'))!;
+    expect(row.textContent).toContain('140.000');
+    expect(row.textContent).toContain('tertua 5 hari');
+    expect(screen.getByText(/tidak ikut dihitung/)).toBeTruthy();
+  });
+
+  it('asks the server for the depot in view only', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText(/dari 3 pengiriman/);
+    expect(requested('/deliveries/api/v1/settlements/unsettled?depotId=d1')).toBe(true);
+  });
+});
+
+describe('failed deliveries and why', () => {
+  it('counts the failures inside the period and groups the same reason typed two ways', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('4 pengiriman gagal')).toBeTruthy();
+    const top = screen.getByText('Pelanggan tidak di tempat').closest('li')!;
+    expect(top.textContent).toContain('2');
+    expect(screen.getByText('Tanpa alasan tercatat').closest('li')!.textContent).toContain('1');
+    expect(document.body.textContent).not.toContain('rahasia');
+  });
+
+  it('says only the newest page was read when the list is longer than what it fetched', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    serve({
+      '/deliveries/api/v1/deliveries?status=FAILED': () => ({
+        items: [
+          {
+            id: 'f1',
+            orderId: 'of1',
+            orderNumber: 'HM-F1',
+            driverId: 'drv-aaaaaa',
+            depotId: 'd1',
+            status: 'FAILED',
+            destinationAddress: 'x',
+            destinationLat: null,
+            destinationLng: null,
+            lastLat: null,
+            lastLng: null,
+            lastLocationAt: null,
+            assignedAt: '2026-10-02T00:00:00.000Z',
+            failedAt: '2026-10-02T00:00:00.000Z',
+            failureReason: 'Hujan deras',
+          },
+        ],
+        total: 250,
+        page: 1,
+        limit: 100,
+      }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText(/Hanya 1 pengiriman gagal terbaru yang dibaca/)).toBeTruthy();
+  });
+
+  it('says there were none rather than drawing an empty list', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    serve({
+      '/deliveries/api/v1/deliveries?status=FAILED': () => ({
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 100,
+      }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Tidak ada pengiriman gagal pada periode ini.')).toBeTruthy();
   });
 });

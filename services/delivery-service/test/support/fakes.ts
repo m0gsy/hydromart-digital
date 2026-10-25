@@ -12,6 +12,7 @@ import { StaleDeliveryStatusError } from '../../src/domain/errors';
 import {
   CreateDeliveryData,
   CodBearing,
+  UnsettledCod,
   DeliveredRow,
   DeliveryQuery,
   DeliveryPingState,
@@ -230,6 +231,37 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
+  /** Order ids a settlement already lists; tests set it (the fake has no settlement table). */
+  settledOrderIds = new Set<string>();
+  async unsettledCod(depotId: string, since: Date): Promise<UnsettledCod[]> {
+    const byDriver = new Map<string, UnsettledCod>();
+    for (const r of this.rows) {
+      if (
+        r.depotId !== depotId ||
+        r.status !== DeliveryStatus.DELIVERED ||
+        !(r.codAmount && r.codAmount > 0) ||
+        !r.deliveredAt ||
+        r.deliveredAt.getTime() < since.getTime() ||
+        this.settledOrderIds.has(r.orderId)
+      ) {
+        continue;
+      }
+      const cur = byDriver.get(r.driverId);
+      byDriver.set(r.driverId, {
+        driverId: r.driverId,
+        deliveries: (cur?.deliveries ?? 0) + 1,
+        amountIdr: (cur?.amountIdr ?? 0) + r.codAmount,
+        oldestDeliveredAt:
+          cur && cur.oldestDeliveredAt.getTime() < r.deliveredAt.getTime()
+            ? cur.oldestDeliveredAt
+            : r.deliveredAt,
+      });
+    }
+    return [...byDriver.values()].sort(
+      (a, b) => b.amountIdr - a.amountIdr || a.driverId.localeCompare(b.driverId),
+    );
+  }
+
   async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {
     // Mirrors the Prisma query: each ending is matched on the timestamp it actually writes.
     // RESCHEDULED has none of its own, so the status-history row is the anchor there too

@@ -419,6 +419,30 @@ export class Upload2ResponseDto {
   url!: string;
 }
 
+/** Mirrors `UnsettledCodReport['couriers'][number]` exactly. */
+export class UnsettledCodCourierResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  driverId!: string;
+  @ApiProperty({ type: Number })
+  deliveries!: number;
+  @ApiProperty({ type: Number })
+  amountIdr!: number;
+  @ApiProperty({ type: String, format: 'date-time' })
+  oldestDeliveredAt!: string;
+}
+
+/** Mirrors `UnsettledCodReport` exactly. */
+export class UnsettledCodResponseDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  since!: string;
+  @ApiProperty({ type: Number })
+  deliveries!: number;
+  @ApiProperty({ type: Number })
+  amountIdr!: number;
+  @ApiProperty({ type: [UnsettledCodCourierResponseDto] })
+  couriers!: UnsettledCodCourierResponseDto[];
+}
+
 /** Mirrors `DepositedCod` exactly — generated for audit D-6, no field added or removed. */
 export class DepositedCodResponseDto {
   @ApiProperty({ type: Number })

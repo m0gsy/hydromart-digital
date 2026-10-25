@@ -197,6 +197,9 @@ export const money = {
     // The surplus-note threshold the cashier's note states. Read rather than restated: the
     // rule that refuses the deposit and the sentence describing it are one number.
     rules: '/deliveries/api/v1/settlements/rules',
+    // COD delivered in the last 30 days that no settlement covers yet, per courier.
+    // eslint-disable-next-line max-len -- one line on purpose: the endpoint scanners read a builder on a SINGLE line.
+    unsettled: (depotId: string) => `/deliveries/api/v1/settlements/unsettled?depotId=${encodeURIComponent(depotId)}`,
     verify: (id: string) => `/deliveries/api/v1/settlements/${id}/verify`,
     dispute: (id: string) => `/deliveries/api/v1/settlements/${id}/dispute`,
     // Second signature on a shortfall charge (approvals capability, never the raiser).

@@ -500,6 +500,20 @@ export const insight = {
       'COD deposits couriers have handed in that the cashier has not verified yet. Cash couriers still hold and have not deposited is not visible here.',
     disputed: 'Disputed deposits',
     disputedDef: 'COD deposits flagged as a problem and not yet settled.',
+    heldTitle: 'Delivered COD not yet deposited',
+    heldEmpty: 'No delivered COD is waiting for a deposit.',
+    heldTotal: '{amount} from {n} deliveries',
+    heldAge: 'oldest {days} days',
+    heldNote:
+      'The COD recorded on deliveries made in the last 30 days that no deposit lists yet. Cash taken on failed or rescheduled deliveries is not counted.',
+    failedTitle: 'Failed deliveries',
+    failedEmpty: 'No failed deliveries in this period.',
+    failedCount: '{n} failed deliveries',
+    failedNoReason: 'No reason recorded',
+    failedMore:
+      'Only the latest {shown} failed deliveries were read, so this period may hold more.',
+    failedNote:
+      'Reasons are typed by the courier; the same reason written differently is counted separately.',
     teamTitle: 'Courier performance',
     teamEmpty: 'No deliveries in this period yet.',
     commissionTitle: 'Courier commission',
