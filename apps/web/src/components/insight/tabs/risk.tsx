@@ -6,14 +6,14 @@ import { WidgetCard } from '@/components/insight/widget-card';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDate, formatIDR } from '@/lib/format';
-import { useInsightData, type InsightData } from '@/lib/insight/use-insight-data';
+import { useOpenIncidents } from '@/lib/insight/use-open-incidents';
+import { useInsightData } from '@/lib/insight/use-insight-data';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
-import type { ApprovalCounts, DepotIncident, MaintenanceItem, OrderDispute } from '@/lib/types';
+import type { ApprovalCounts, MaintenanceItem, OrderDispute } from '@/lib/types';
 
 const dash = '—';
 const TOP = 8;
-const SEVERITY_RANK = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const;
 
 /**
  * Risiko & Kepatuhan: what is open and needs somebody to act: incidents, disputes, approvals
@@ -31,24 +31,8 @@ export function RiskTab({ ctx }: { ctx: InsightCtx }) {
   const mayMaintain = can('depotMaintenance', role);
   const has = depotId != null;
 
-  const fresh = useInsightData(
-    () =>
-      api.get<DepotIncident[]>(
-        endpoints.incidents.list({ depotId: depotId as string, status: 'OPEN' }),
-        true,
-      ),
-    [depotId],
-    mayIncidents && has,
-  );
-  const working = useInsightData(
-    () =>
-      api.get<DepotIncident[]>(
-        endpoints.incidents.list({ depotId: depotId as string, status: 'IN_PROGRESS' }),
-        true,
-      ),
-    [depotId],
-    mayIncidents && has,
-  );
+  const { source: incidentSource, incidents, high } = useOpenIncidents(depotId, mayIncidents);
+  const incidentsReady = incidentSource.data != null;
   const disputes = useInsightData(
     () =>
       api.get<OrderDispute[]>(
@@ -69,25 +53,6 @@ export function RiskTab({ ctx }: { ctx: InsightCtx }) {
     mayMaintain && has,
   );
 
-  const incidents = [...(fresh.data ?? []), ...(working.data ?? [])].sort(
-    (a, b) =>
-      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
-      Date.parse(b.createdAt) - Date.parse(a.createdAt),
-  );
-  const incidentsReady = fresh.data != null && working.data != null;
-  // Two reads (open, in progress) shown as one answer: ready only when both are, failed or
-  // refused when either is.
-  const incidentSource: InsightData<DepotIncident[]> = {
-    data: incidentsReady ? incidents : null,
-    loading: fresh.loading || working.loading,
-    forbidden: fresh.forbidden || working.forbidden,
-    error: fresh.error ?? working.error,
-    reload: () => {
-      fresh.reload();
-      working.reload();
-    },
-  };
-  const high = incidents.filter((i) => i.severity === 'HIGH').length;
   const disputeValue = (disputes.data ?? []).reduce((n, d) => n + d.amountIdr, 0);
   const overdue = (upkeep.data ?? []).filter((m) => m.status === 'DUE');
 
@@ -99,7 +64,7 @@ export function RiskTab({ ctx }: { ctx: InsightCtx }) {
 
       {has && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {mayIncidents && !fresh.forbidden && !working.forbidden && (
+          {mayIncidents && !incidentSource.forbidden && (
             <KpiCard
               label={t('insight.risk.incidents')}
               value={incidentsReady ? String(incidents.length) : dash}

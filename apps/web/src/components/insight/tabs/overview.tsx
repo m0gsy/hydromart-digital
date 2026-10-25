@@ -17,6 +17,7 @@ import { compare } from '@/lib/insight/delta';
 import type { InsightRange } from '@/lib/insight/range';
 import { overviewSentence } from '@/lib/insight/sentences';
 import { useInsightData } from '@/lib/insight/use-insight-data';
+import { useOpenIncidents } from '@/lib/insight/use-open-incidents';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
@@ -79,6 +80,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
   const mayExecutive = can('dashboardFinance', role);
   const mayTargets = can('depotTargets', role);
   const mayApprovals = can('approvals', role);
+  const mayIncidents = can('incidents', role);
 
   const exec = (r: InsightRange) => () =>
     api.get<ExecutiveDashboard>(
@@ -132,6 +134,7 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
     [depotId, targetMonth],
     mayTargets && depotId != null && targetMonth != null,
   );
+  const openIncidents = useOpenIncidents(depotId, mayIncidents);
   const approvals = useInsightData(
     () => api.get<ApprovalCounts>(endpoints.approvals.counts(depotId as string), true),
     [depotId],
@@ -326,12 +329,13 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
           </WidgetCard>
         )}
 
-        {(mayReports || mayExecutive || (mayApprovals && depotId != null)) && (
+        {(mayReports || mayExecutive || ((mayApprovals || mayIncidents) && depotId != null)) && (
           <Card className="flex flex-col gap-3 p-4">
             <h2 className="text-sm font-semibold">{t('insight.overview.attentionTitle')}</h2>
             {(() => {
               const unrouted = summary.data?.live.unrouted ?? 0;
               const waiting = approvals.data?.total ?? 0;
+              const incidentCount = openIncidents.incidents.length;
               // "All clear" is a claim about every source: one that failed, or is still loading,
               // is not a zero. Only sources this role asks (and is allowed) count.
               const answered =
@@ -339,8 +343,16 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
                 (!mayExecutive || network.forbidden || network.data != null) &&
                 (!(mayApprovals && depotId != null) ||
                   approvals.forbidden ||
-                  approvals.data != null);
-              const none = answered && unrouted === 0 && lowStock === 0 && waiting === 0;
+                  approvals.data != null) &&
+                (!(mayIncidents && depotId != null) ||
+                  openIncidents.source.forbidden ||
+                  openIncidents.source.data != null);
+              const none =
+                answered &&
+                unrouted === 0 &&
+                lowStock === 0 &&
+                waiting === 0 &&
+                incidentCount === 0;
               return (
                 <>
                   {none && (
@@ -360,6 +372,14 @@ export function OverviewTab({ ctx }: { ctx: InsightCtx }) {
                       hint={t('insight.overview.lowStockHint')}
                       value={lowStock}
                       danger={lowStock > 0}
+                    />
+                  )}
+                  {openIncidents.source.data && (
+                    <Attention
+                      label={t('insight.overview.incidents')}
+                      hint={t('insight.overview.incidentsHint', { n: openIncidents.high })}
+                      value={incidentCount}
+                      danger={openIncidents.high > 0}
                     />
                   )}
                   {approvals.data && (

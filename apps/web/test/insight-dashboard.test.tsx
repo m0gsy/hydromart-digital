@@ -2,10 +2,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, getCached, downloadCsv } = vi.hoisted(() => ({
+const { get, getCached, downloadCsv, downloadXlsx } = vi.hoisted(() => ({
   get: vi.fn(),
   getCached: vi.fn(),
   downloadCsv: vi.fn(),
+  downloadXlsx: vi.fn(),
 }));
 
 const auth = { customer: null as { id: string; role: string } | null };
@@ -24,6 +25,10 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/lib/csv', async (orig) => ({
   ...(await orig<typeof import('@/lib/csv')>()),
   downloadCsv,
+}));
+vi.mock('@/lib/xlsx', async (orig) => ({
+  ...(await orig<typeof import('@/lib/xlsx')>()),
+  downloadXlsx,
 }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: auth.customer, ready: true }),
@@ -288,6 +293,109 @@ function serve(overrides: Record<string, () => unknown> = {}) {
           updatedAt: '',
         },
       ]);
+    }
+    if (p.includes('/forecast/api/v1/forecast/depot/')) {
+      return Promise.resolve([
+        {
+          productId: 'pr1',
+          name: 'Galon isi ulang 19L',
+          sku: 'G19',
+          unit: 'galon',
+          avgDaily: 42.5,
+          trendSlope: 0.3,
+          predictedTotal: 610,
+          reorderSuggestion: 120,
+        },
+        {
+          productId: 'pr2',
+          name: 'Tutup galon',
+          sku: 'T1',
+          unit: null,
+          avgDaily: 3,
+          trendSlope: 0,
+          predictedTotal: 42,
+          reorderSuggestion: 0,
+        },
+      ]);
+    }
+    if (p.includes('/depots/api/v1/cashbook')) {
+      return Promise.resolve({
+        entries: [],
+        summary: { inIdr: 1_500_000, outIdr: 400_000, netIdr: 1_100_000 },
+      });
+    }
+    if (p.includes('/monthly-close')) {
+      return Promise.resolve({
+        close: null,
+        missingDays: ['2026-10-01', '2026-10-02', '2026-10-03'],
+      });
+    }
+    if (p.includes('/daily-close')) {
+      const day = new URL(p, 'http://x').searchParams.get('businessDate');
+      return Promise.resolve(
+        day === '2026-10-15'
+          ? {
+              close: { businessDate: day, closedAt: '2026-10-15T14:00:00.000Z', reopenedAt: null },
+              lateEntries: 2,
+              lateAmountIdr: 80_000,
+            }
+          : {
+              // Closed and then reopened: the books are open again.
+              close: {
+                businessDate: day,
+                closedAt: '2026-10-14T14:00:00.000Z',
+                reopenedAt: '2026-10-15T01:00:00.000Z',
+              },
+              lateEntries: 0,
+              lateAmountIdr: 0,
+            },
+      );
+    }
+    if (p.includes('/deliveries/api/v1/settlements')) {
+      const status = new URL(p, 'http://x').searchParams.get('status');
+      const row = (id: string, deposited: number) => ({
+        id,
+        shiftId: 's1',
+        driverId: 'drv-aaaaaa',
+        depotId: 'd1',
+        status,
+        orderIds: [],
+        expectedAmount: deposited,
+        depositedAmount: deposited,
+        variance: 0,
+        chargedToDriver: false,
+        note: null,
+        verifiedBy: null,
+        verifiedAt: null,
+        createdAt: '2026-10-14T00:00:00.000Z',
+        updatedAt: '2026-10-14T00:00:00.000Z',
+      });
+      return Promise.resolve(
+        status === 'SUBMITTED' ? [row('c1', 120_000), row('c2', 80_000)] : [row('c3', 50_000)],
+      );
+    }
+    if (p.includes('/deliveries/api/v1/deliveries?')) {
+      const mk = (id: string, driverId: string) => ({
+        id,
+        orderId: 'o' + id,
+        orderNumber: 'HM-' + id,
+        driverId,
+        depotId: 'd1',
+        status: 'ON_DELIVERY',
+        destinationAddress: 'rahasia',
+        destinationLat: null,
+        destinationLng: null,
+        lastLat: null,
+        lastLng: null,
+        lastLocationAt: null,
+        assignedAt: '2026-10-15T01:00:00.000Z',
+      });
+      return Promise.resolve({
+        items: [mk('1', 'drv-aaaaaa'), mk('2', 'drv-aaaaaa'), mk('3', 'drv-bb')],
+        total: 3,
+        page: 1,
+        limit: 100,
+      });
     }
     if (p.includes('/reports/time-area')) {
       const heat = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
@@ -1532,7 +1640,7 @@ describe('the couriers tab', () => {
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
     expect((await screen.findAllByText('Agus Kurir')).length).toBeGreaterThan(0);
-    expect(screen.getByText('Kurir drv-bb')).toBeTruthy();
+    expect(screen.getAllByText('Kurir drv-bb').length).toBeGreaterThan(0);
   });
 
   it('shows a dash for the on-time rate of a courier with no deliveries, never 0%', async () => {
@@ -1540,8 +1648,11 @@ describe('the couriers tab', () => {
     openTab('couriers');
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
-    await screen.findByText('Kurir drv-bb');
-    const row = screen.getByText('Kurir drv-bb').closest('tr')!;
+    await screen.findAllByText('Kurir drv-bb');
+    const row = screen
+      .getAllByText('Kurir drv-bb')
+      .map((e) => e.closest('tr'))
+      .find(Boolean)!;
     expect(row.textContent).not.toContain('0%');
     expect(row.textContent).toContain('—');
   });
@@ -1912,5 +2023,205 @@ describe('the risk and compliance tab', () => {
       expect(screen.queryByText(/Pilih satu depot untuk melihat insiden/)).toBeTruthy(),
     );
     expect(requested('/incidents/api/v1/incidents')).toBe(false);
+  });
+});
+
+describe('the Excel export', () => {
+  it('builds a workbook from the rows behind the card, named for the card and the day', async () => {
+    asRole('MANAGER');
+    openTab('gallons');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await inList('Depot Satu');
+    const card = screen.getByText('Galon beredar per depot').closest('div')!.parentElement!;
+    fireEvent.click(card.querySelector('button[aria-label="Menu kartu"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unduh Excel' }));
+    await waitFor(() => expect(downloadXlsx).toHaveBeenCalledTimes(1));
+    const [name, headers, rows, sheet] = downloadXlsx.mock.calls[0] as [
+      string,
+      string[],
+      unknown[][],
+      string,
+    ];
+    expect(name).toMatch(/^galon-beredar-per-depot-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(headers).toContain('depotId');
+    expect(rows.length).toBeGreaterThan(0);
+    expect(sheet).toBe('Galon beredar per depot');
+  });
+
+  it('says so when the workbook cannot be made', async () => {
+    downloadXlsx.mockRejectedValueOnce(new Error('exceljs failed to load'));
+    asRole('MANAGER');
+    openTab('gallons');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await inList('Depot Satu');
+    const card = screen.getByText('Galon beredar per depot').closest('div')!.parentElement!;
+    fireEvent.click(card.querySelector('button[aria-label="Menu kartu"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unduh Excel' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toMatch(/gagal dibuat/);
+  });
+});
+
+describe('the links to the fuller screens', () => {
+  it('sends human resources to its own page and a franchise owner to the franchise overview', async () => {
+    asRole('HR');
+    renderPage();
+    expect(
+      (await screen.findByRole('link', { name: 'Buka halaman SDM lengkap' })).getAttribute('href'),
+    ).toBe('/hr');
+    cleanup();
+    asRole('FRANCHISE_OWNER');
+    renderPage();
+    expect(
+      (await screen.findByRole('link', { name: 'Buka ringkasan waralaba lengkap' })).getAttribute(
+        'href',
+      ),
+    ).toBe('/dashboard/franchise');
+  });
+
+  it('offers no such link to a role that has the whole dashboard', async () => {
+    asRole('MANAGER');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Tingkat churn pelanggan');
+    expect(screen.queryByRole('link', { name: /Buka/ })).toBeNull();
+  });
+});
+
+describe('demand per product', () => {
+  it('ranks products by forecast demand with the suggested order, a dash when none is needed', async () => {
+    asRole('MANAGER');
+    openTab('stock');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const row = (await screen.findByText('Galon isi ulang 19L')).closest('tr')!;
+    expect(row.textContent).toContain('42,5 galon');
+    expect(row.textContent).toContain('610');
+    expect(row.textContent).toContain('120');
+    expect(
+      screen.getByText('Tutup galon', { selector: 'th' }).closest('tr')!.textContent,
+    ).toContain('—');
+  });
+});
+
+describe('the cash book and closing the books', () => {
+  it('sums the window’s cash in and out, and reads the close state of today, yesterday and the month', async () => {
+    asRole('MANAGER');
+    openTab('cash');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText(/1\.500\.000/)).toBeTruthy();
+    expect(screen.getByText(/400\.000/)).toBeTruthy();
+    // Today is closed, with two entries that arrived after.
+    const today = (await screen.findByText(/Hari ini: ditutup/)).textContent ?? '';
+    expect(today).toContain('2 catatan masuk setelah ditutup');
+    // Yesterday was closed and reopened: open again, not "closed".
+    expect(screen.getByText(/Kemarin: belum ditutup/)).toBeTruthy();
+    expect(screen.getByText(/Bulan ini: belum ditutup, 3 hari belum ditutup/)).toBeTruthy();
+  });
+
+  it('asks the cash book for the whole window, its upper bound inclusive', async () => {
+    asRole('MANAGER');
+    openTab('cash');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText(/1\.500\.000/);
+    const q = new URL(
+      String(get.mock.calls.find((c) => String(c[0]).includes('/depots/api/v1/cashbook'))?.[0]),
+      'http://x',
+    ).searchParams;
+    expect(q.get('from')).toBe(THIS_MONTH_FROM);
+    // The window is exclusive of its end and the book inclusive: one millisecond earlier.
+    expect(q.get('to')).toMatch(/T16:59:59\.999Z$/);
+  });
+
+  it('shows dashes, not zero, when the book cannot be read', async () => {
+    asRole('MANAGER');
+    openTab('cash');
+    serve({
+      '/depots/api/v1/cashbook': () => {
+        throw new ApiError(500, 'down');
+      },
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    expect(await screen.findByText('Kas masuk')).toBeTruthy();
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/gagal dimuat|Gagal memuat|belum bisa dimuat/i),
+    );
+    const inCard = screen.getByText('Kas masuk').parentElement?.parentElement;
+    expect(inCard?.textContent).not.toMatch(/Rp\s?0/);
+  });
+});
+
+describe('the couriers’ load and waiting deposits', () => {
+  it('counts the deliveries each courier still holds, busiest first, and never draws the address', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const first = (await screen.findAllByText('Agus Kurir'))
+      .map((e) => e.closest('li'))
+      .find(Boolean)!;
+    expect(first.textContent).toContain('2 pengiriman');
+    expect(document.body.textContent).not.toContain('rahasia');
+    expect(requested('statuses=ASSIGNED%2CPICKED_UP%2CON_DELIVERY')).toBe(true);
+  });
+
+  it('counts the deposits waiting and the disputed ones, and says what it cannot see', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const waiting = (await screen.findByText('Setoran menunggu verifikasi')).parentElement
+      ?.parentElement;
+    await waitFor(() => expect(waiting?.textContent).toContain('2'));
+    expect(waiting?.textContent).toContain('200.000');
+    const disputed = screen.getByText('Setoran disengketakan').parentElement?.parentElement;
+    await waitFor(() => expect(disputed?.textContent).toContain('1'));
+  });
+});
+
+describe('open incidents in the needs-doing strip', () => {
+  it('counts the unresolved incidents of the one depot in view, and flags the severe ones', async () => {
+    asRole('MANAGER');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const row = (await screen.findByText('Insiden terbuka', { selector: 'p, span, div' })).closest(
+      'div',
+    )!;
+    await waitFor(() => expect(row.parentElement?.textContent).toContain('1 di antaranya berat'));
+    expect(screen.queryByText('Tidak ada yang perlu ditindak sekarang.')).toBeNull();
+  });
+
+  it('does not call it all clear when the incident list could not be read', async () => {
+    asRole('MANAGER');
+    serve({
+      '/dashboard/network': () => ({
+        depots: [
+          { depotId: 'd1', name: 'Depot Satu', revenue: 1, orderCount: 1, lowStockCount: 0 },
+        ],
+        sources: {},
+      }),
+      '/approvals/api/v1/approvals/counts': () => ({ total: 0, byType: {} }),
+      '/incidents/api/v1/incidents': () => {
+        throw new ApiError(500, 'down');
+      },
+      '/reports/status-summary': () => ({
+        from: null,
+        to: null,
+        window: { cancelRate: 0, orders: 0, walkIn: 0, app: 0, completed: 0 },
+        live: { inProgress: 0, unrouted: 0, byStatus: {} },
+      }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    await screen.findByText('Perlu tindakan');
+    await waitFor(() => expect(requested('/incidents/api/v1/incidents')).toBe(true));
+    await screen.findByText('Pesanan belum dapat kurir');
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.queryByText('Tidak ada yang perlu ditindak sekarang.')).toBeNull();
   });
 });

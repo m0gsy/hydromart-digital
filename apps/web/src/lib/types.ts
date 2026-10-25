@@ -3204,6 +3204,19 @@ export interface CashierShiftBoard {
   closed: CashierShift[];
 }
 
+/** Whether a depot's day is closed (tutup buku) and what arrived after (GET daily-close). */
+export interface DailyCloseView {
+  close: { businessDate: string; closedAt: string; reopenedAt: string | null } | null;
+  lateEntries: number;
+  lateAmountIdr: number;
+}
+
+/** The same for a month, plus the days of it still open (GET monthly-close). */
+export interface MonthlyCloseView {
+  close: { businessMonth: string; closedAt: string; reopenedAt: string | null } | null;
+  missingDays: string[];
+}
+
 export interface CashbookResponse {
   entries: CashbookEntry[];
   summary: { inIdr: number; outIdr: number; netIdr: number };

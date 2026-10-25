@@ -43,6 +43,7 @@ export function WidgetCard<T>({
   const cardRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showData, setShowData] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
   if (source.forbidden) return null;
   const table = source.data != null && !source.error ? exportTable(source.data) : null;
   const canFullscreen = typeof document !== 'undefined' && !!document.fullscreenEnabled;
@@ -51,14 +52,29 @@ export function WidgetCard<T>({
     if (document.fullscreenElement) void document.exitFullscreen();
     else void cardRef.current?.requestFullscreen?.();
   };
-  const exportCsv = () => {
-    setMenuOpen(false);
-    if (!table) return;
+  const fileBase = (): string => {
     const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
-    downloadCsv(`${slug || 'data'}-${todayWib()}.csv`, toCsv(table.headers, table.rows));
+    return `${slug || 'data'}-${todayWib()}`;
+  };
+  const exportCsv = () => {
+    setMenuOpen(false);
+    if (!table) return;
+    downloadCsv(`${fileBase()}.csv`, toCsv(table.headers, table.rows));
+  };
+  // The spreadsheet library is loaded only when somebody asks for a workbook.
+  const exportXlsx = async () => {
+    setMenuOpen(false);
+    if (!table) return;
+    setExportFailed(false);
+    try {
+      const { downloadXlsx } = await import('@/lib/xlsx');
+      await downloadXlsx(`${fileBase()}.xlsx`, table.headers, table.rows, title);
+    } catch {
+      setExportFailed(true);
+    }
   };
   const showMenu = !source.error && source.data != null && (table != null || canFullscreen);
   return (
@@ -113,6 +129,14 @@ export function WidgetCard<T>({
                           role="menuitem"
                           type="button"
                           className="p-2 text-left"
+                          onClick={() => void exportXlsx()}
+                        >
+                          {t('insight.menu.xlsx')}
+                        </button>
+                        <button
+                          role="menuitem"
+                          type="button"
+                          className="p-2 text-left"
                           onClick={() => {
                             setMenuOpen(false);
                             setShowData((v) => !v);
@@ -136,6 +160,11 @@ export function WidgetCard<T>({
           <p className="text-xs text-muted">{emptyText ?? t('insight.state.empty')}</p>
         ) : (
           children(source.data)
+        )}
+        {exportFailed && (
+          <p role="alert" className="text-xs text-[color:var(--danger)]">
+            {t('insight.menu.exportFailed')}
+          </p>
         )}
         {showData && table && (
           <div className="overflow-x-auto">
