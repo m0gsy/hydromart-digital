@@ -228,6 +228,7 @@ describe('who sees which tab', () => {
       'finance',
       'gallons',
       'people',
+      'cash',
       'couriers',
     ]);
     expect(ids('KEPALA_DEPOT')).toEqual([
@@ -252,6 +253,7 @@ describe('who sees which tab', () => {
       'finance',
       'gallons',
       'people',
+      'cash',
       'couriers',
       'meter',
       'stock',

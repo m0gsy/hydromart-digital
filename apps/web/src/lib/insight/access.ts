@@ -60,7 +60,11 @@ export const INSIGHT_TABS: readonly InsightTabDef[] = [
   },
   { id: 'gallons', labelKey: 'insight.tabs.gallons', caps: ['returnsRead', 'returnsReadFinance'] },
   { id: 'people', labelKey: 'insight.tabs.people', caps: ['hrView'] },
-  { id: 'cash', labelKey: 'insight.tabs.cash', caps: ['cashierShift', 'orderReportsDepot'] },
+  {
+    id: 'cash',
+    labelKey: 'insight.tabs.cash',
+    caps: ['cashierShift', 'orderReportsDepot', 'depotFinance', 'dailyClose'],
+  },
   {
     id: 'couriers',
     labelKey: 'insight.tabs.couriers',
@@ -80,6 +84,18 @@ type Role = string | null | undefined;
 
 export function visibleTabs(role: Role): InsightTabDef[] {
   return INSIGHT_TABS.filter((tab) => tab.caps.some((cap) => can(cap, role)));
+}
+
+/**
+ * Roles whose own screens say more than this dashboard does. A human-resources account and a
+ * franchise owner reach only a tab or two here, and their full views already exist.
+ */
+export function fullDetailLink(role: Role): { href: string; labelKey: string } | null {
+  if (role === 'HR') return { href: '/hr', labelKey: 'insight.fullDetail.hr' };
+  if (role === 'FRANCHISE_OWNER') {
+    return { href: '/dashboard/franchise', labelKey: 'insight.fullDetail.franchise' };
+  }
+  return null;
 }
 
 /** Whether the role has anything to see at all: the question the nav rows ask. */

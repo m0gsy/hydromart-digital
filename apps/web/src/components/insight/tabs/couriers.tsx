@@ -10,9 +10,21 @@ import { useInsightData } from '@/lib/insight/use-insight-data';
 import { dayStartWib, todayWib } from '@/lib/wib';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
-import type { CommissionRun, Customer, DepotTeamReport, Shift } from '@/lib/types';
+import type {
+  CashSettlement,
+  CommissionRun,
+  Customer,
+  DepotTeamReport,
+  Delivery,
+  Page,
+  Shift,
+} from '@/lib/types';
 
 const dash = '—';
+/** Deliveries a courier still has to finish: assigned, picked up, or on the road. */
+const IN_HAND = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'] as const;
+/** One page is all the board reads; more than this is said, not hidden. */
+const WORKLOAD_PAGE = 100;
 const pct = (rate: number): string => `${Math.round(rate * 100)}%`;
 
 /** Armada & Kurir: who is on shift, how each courier is doing, and what the month's runs earned. */
@@ -40,6 +52,38 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
     [depotId, range.from, range.to],
     mayTeam && depotId != null,
   );
+  const mayLoad = can('trackingRead', role) && depotId != null;
+  const load = useInsightData(
+    () =>
+      api.get<Page<Delivery>>(
+        endpoints.deliveries.list({
+          statuses: IN_HAND,
+          depotId: depotId as string,
+          limit: WORKLOAD_PAGE,
+        }),
+        true,
+      ),
+    [depotId],
+    mayLoad,
+  );
+  const deposits = useInsightData(
+    () =>
+      api.get<CashSettlement[]>(
+        endpoints.settlements.list({ depotId: depotId as string, status: 'SUBMITTED' }),
+        true,
+      ),
+    [depotId],
+    mayPay && depotId != null,
+  );
+  const disputed = useInsightData(
+    () =>
+      api.get<CashSettlement[]>(
+        endpoints.settlements.list({ depotId: depotId as string, status: 'DISPUTED' }),
+        true,
+      ),
+    [depotId],
+    mayPay && depotId != null,
+  );
   const commission = useInsightData(
     () =>
       api.get<CommissionRun>(
@@ -60,6 +104,15 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
     return found ?? t('insight.couriers.unknown', { id: id.slice(0, 6) });
   };
 
+  // Deliveries in hand per courier, busiest first.
+  const perCourier = new Map<string, number>();
+  for (const d of load.data?.items ?? []) {
+    perCourier.set(d.driverId, (perCourier.get(d.driverId) ?? 0) + 1);
+  }
+  const loadRows = [...perCourier].sort((a, b) => b[1] - a[1]);
+  const loadTruncated = load.data != null && load.data.total > load.data.items.length;
+  const waiting = deposits.data ?? [];
+  const waitingAmount = waiting.reduce((n, s) => n + s.depositedAmount, 0);
   const active = (onDuty.data ?? []).filter((s) => s.status !== 'ENDED');
   const count = (status: Shift['status']) => active.filter((s) => s.status === status).length;
 
@@ -134,6 +187,63 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
             </div>
           )}
         </WidgetCard>
+      )}
+
+      {mayLoad && (
+        <WidgetCard
+          title={t('insight.couriers.loadTitle')}
+          source={load}
+          isEmpty={() => loadRows.length === 0}
+          emptyText={t('insight.couriers.loadEmpty')}
+          detailHref="/dashboard/tracking"
+        >
+          {() => (
+            <div className="flex flex-col gap-2">
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm">
+                {loadRows.map(([courierId, n]) => (
+                  <li key={courierId} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate font-semibold">
+                      {mayTeam || mayPay ? nameOf(courierId) : courierId.slice(0, 6)}
+                    </span>
+                    <span className="shrink-0 tabular-nums">
+                      {t('insight.couriers.loadLine', { n })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {loadTruncated && load.data && (
+                <p className="text-[11px] text-muted">
+                  {t('insight.couriers.loadMore', {
+                    shown: load.data.items.length,
+                    total: load.data.total,
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+        </WidgetCard>
+      )}
+
+      {mayPay && depotId != null && !deposits.forbidden && (
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <KpiCard
+            label={t('insight.couriers.waiting')}
+            value={deposits.data ? String(waiting.length) : dash}
+            hint={deposits.data ? formatIDR(waitingAmount) : undefined}
+            definition={t('insight.couriers.waitingDef')}
+            tone={waiting.length > 0 ? 'danger' : undefined}
+            goodWhen="down"
+          />
+          {!disputed.forbidden && (
+            <KpiCard
+              label={t('insight.couriers.disputed')}
+              value={disputed.data ? String(disputed.data.length) : dash}
+              definition={t('insight.couriers.disputedDef')}
+              tone={(disputed.data?.length ?? 0) > 0 ? 'danger' : undefined}
+              goodWhen="down"
+            />
+          )}
+        </section>
       )}
 
       {mayPay && depotId != null && (
