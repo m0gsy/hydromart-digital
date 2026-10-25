@@ -71,6 +71,8 @@ function TabBody({ id, ctx }: { id: InsightTabId; ctx: InsightCtx }) {
  */
 /** How often the wall-screen view re-reads its figures. */
 const TV_REFRESH_MS = 60_000;
+/** How much larger the wall-screen view draws everything. */
+const TV_ZOOM = 1.3;
 
 export function InsightDashboard() {
   const ready = useInsightStrings();
@@ -174,9 +176,11 @@ function InsightDashboardBody() {
   };
 
   return (
-    <div className={`flex flex-col gap-5 ${tv ? 'text-lg' : ''}`}>
+    // zoom, not a font size: a wall screen is read from across a room, and the tiles, numbers and
+    // charts all have to grow together. Chromium, WebKit and current Firefox all honour it.
+    <div className="flex flex-col gap-5" style={tv ? { zoom: TV_ZOOM } : undefined}>
       <div>
-        <h1 className={`${tv ? 'text-3xl' : 'text-xl'} font-bold`}>{t('insight.title')}</h1>
+        <h1 className="text-xl font-bold">{t('insight.title')}</h1>
         <p className="text-sm text-muted">{t('insight.subtitle')}</p>
         {fullDetail && !tv && (
           <Link href={fullDetail.href} className="text-sm font-semibold text-brand-700 underline">

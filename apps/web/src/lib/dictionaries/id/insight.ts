@@ -238,6 +238,7 @@ export const insight = {
   compare: {
     prev: 'vs periode lalu',
     year: 'vs tahun lalu',
+    prevAndYear: 'vs periode lalu dan tahun lalu',
     none: 'Belum ada data pembanding',
     partial: 'Periode ini belum selesai, jadi pembandingnya dipotong ke jumlah hari yang sama.',
     up: 'naik',
@@ -504,6 +505,19 @@ export const insight = {
       'Setoran COD yang sudah diserahkan kurir dan belum diverifikasi kasir. Uang COD yang masih dipegang kurir dan belum disetor tidak terlihat di sini.',
     disputed: 'Setoran disengketakan',
     disputedDef: 'Setoran COD yang ditandai bermasalah dan belum selesai.',
+    heldTitle: 'COD terkirim belum disetor',
+    heldEmpty: 'Tidak ada COD terkirim yang belum masuk setoran.',
+    heldTotal: '{amount} dari {n} pengiriman',
+    heldAge: 'tertua {days} hari',
+    heldNote:
+      'COD yang tercatat pada pengiriman terkirim dalam 30 hari terakhir dan belum tercantum di setoran mana pun. Uang tunai dari pengiriman gagal atau dijadwal ulang tidak ikut dihitung.',
+    failedTitle: 'Pengiriman gagal',
+    failedEmpty: 'Tidak ada pengiriman gagal pada periode ini.',
+    failedCount: '{n} pengiriman gagal',
+    failedNoReason: 'Tanpa alasan tercatat',
+    failedMore:
+      'Hanya {shown} pengiriman gagal terbaru yang dibaca, jadi angka periode ini bisa lebih besar.',
+    failedNote: 'Alasan diketik kurir; yang sama ditulis berbeda dihitung terpisah.',
     teamTitle: 'Kinerja kurir',
     teamEmpty: 'Belum ada pengiriman pada periode ini.',
     commissionTitle: 'Komisi kurir',

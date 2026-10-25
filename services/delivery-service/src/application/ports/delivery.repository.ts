@@ -208,6 +208,14 @@ export interface DeliveryPingState {
  * more. Reading `codAmount` on those would invent a debt out of a delivery that never
  * happened.
  */
+/** One courier's delivered COD that no settlement covers yet (see unsettledCod). */
+export interface UnsettledCod {
+  driverId: string;
+  deliveries: number;
+  amountIdr: number;
+  oldestDeliveredAt: Date;
+}
+
 export interface CodBearing {
   orderId: string;
   codAmount: number | null;
@@ -254,6 +262,15 @@ export interface DeliveryRepository {
    * slot, not when the courier gave it back).
    */
   codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]>;
+  /**
+   * Cash-on-delivery a depot's couriers delivered since `since` that no settlement covers yet:
+   * per courier, how many deliveries, the COD recorded on them, and when the oldest was
+   * delivered. A delivery counts until its order id appears in ANY settlement (submitted,
+   * verified or disputed), because from then on the money is the cashier's to chase, not the
+   * courier's to hand in. Only DELIVERED rows with a COD amount: what a failed or rescheduled
+   * delivery left in a courier's pocket is a payment-service fact this read cannot see.
+   */
+  unsettledCod(depotId: string, since: Date): Promise<UnsettledCod[]>;
   /**
    * Deliveries the driver DELIVERED in [from, to) — timestamps + order id, for the
    * weekly performance roll-up (count, per-day bars, on-time rate, rating batch). 4c.

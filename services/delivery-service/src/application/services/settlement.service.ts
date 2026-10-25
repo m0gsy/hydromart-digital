@@ -44,6 +44,22 @@ export interface ResolveInput {
   note?: string;
 }
 
+/** How far back the unsettled-COD read looks. */
+export const UNSETTLED_DAYS = 30;
+
+/** Delivered COD no settlement covers yet, per courier (see SettlementService.unsettledCod). */
+export interface UnsettledCodReport {
+  since: string;
+  deliveries: number;
+  amountIdr: number;
+  couriers: {
+    driverId: string;
+    deliveries: number;
+    amountIdr: number;
+    oldestDeliveredAt: string;
+  }[];
+}
+
 @Injectable()
 export class SettlementService {
   private static readonly HISTORY_LIMIT = 30;
@@ -347,6 +363,31 @@ export class SettlementService {
       throw new SettlementNotFoundError();
     }
     return settlement;
+  }
+
+  /**
+   * What the couriers of a depot delivered as cash-on-delivery in the last `UNSETTLED_DAYS`
+   * days and have not handed in: no settlement lists those orders yet.
+   *
+   * It is the COD RECORDED on delivered orders, not a count of cash in anyone's pocket: cash a
+   * courier took on a failed or rescheduled delivery sits in payment-service, which this read
+   * does not ask. The window bounds the query, so an old delivery nobody ever settled drops off
+   * after a month rather than growing the answer forever; it is still in the settlement queue.
+   */
+  async unsettledCod(depotId: string, now: Date = new Date()): Promise<UnsettledCodReport> {
+    const since = new Date(now.getTime() - UNSETTLED_DAYS * 86_400_000);
+    const rows = await this.deliveries.unsettledCod(depotId, since);
+    return {
+      since: since.toISOString(),
+      deliveries: rows.reduce((n, r) => n + r.deliveries, 0),
+      amountIdr: rows.reduce((n, r) => n + r.amountIdr, 0),
+      couriers: rows.map((r) => ({
+        driverId: r.driverId,
+        deliveries: r.deliveries,
+        amountIdr: r.amountIdr,
+        oldestDeliveredAt: r.oldestDeliveredAt.toISOString(),
+      })),
+    };
   }
 
   /** Cashier queue for a depot, optionally filtered by status. */

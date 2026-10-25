@@ -18,7 +18,10 @@ import {
   Public,
 } from '@hydromart/platform';
 
-import { SettlementService } from '../application/services/settlement.service';
+import {
+  SettlementService,
+  UnsettledCodReport,
+} from '../application/services/settlement.service';
 import { SURPLUS_NOTE_THRESHOLD_IDR } from '../domain/settlement';
 import { DepositedCod, SettlementRecord } from '../application/ports/settlement.repository';
 import {
@@ -26,9 +29,14 @@ import {
   DisputeSettlementDto,
   SettlementQueryDto,
   SettlementRulesDto,
+  UnsettledQueryDto,
   VerifySettlementDto,
 } from './dto/settlement.dto';
-import { DepositedCodResponseDto, SettlementResponseDto } from './dto/responses.generated.dto';
+import {
+  DepositedCodResponseDto,
+  SettlementResponseDto,
+  UnsettledCodResponseDto,
+} from './dto/responses.generated.dto';
 
 /** Cashier-facing COD settlement: verify or dispute a courier's deposit (design 6a). */
 @ApiTags('Settlements')
@@ -69,6 +77,16 @@ export class SettlementController {
   @ApiOperation({ summary: 'Settlement rules a cashier screen states (C1)' })
   rules(): SettlementRulesDto {
     return { surplusNoteThresholdIdr: SURPLUS_NOTE_THRESHOLD_IDR };
+  }
+
+  // Static segment, declared before any `:id`.
+  @ApiOkResponse({ type: UnsettledCodResponseDto })
+  @Get('unsettled')
+  @ApiOperation({
+    summary: "COD a depot's couriers delivered in the last 30 days that no settlement covers yet",
+  })
+  unsettled(@Query() query: UnsettledQueryDto): Promise<UnsettledCodReport> {
+    return this.settlements.unsettledCod(query.depotId);
   }
 
   @ApiOkResponse({ type: SettlementResponseDto, isArray: true })

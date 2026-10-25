@@ -8,6 +8,7 @@ import { Card, LoadError, Skeleton } from '@/components/ui';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { exportTable } from '@/lib/insight/export';
 import type { InsightData } from '@/lib/insight/use-insight-data';
+import { useWallScreen } from '@/lib/insight/wall-screen';
 import { useT } from '@/lib/locale-context';
 import { todayWib } from '@/lib/wib';
 
@@ -40,6 +41,8 @@ export function WidgetCard<T>({
   children: (data: T) => ReactNode;
 }) {
   const { t } = useT();
+  // A wall screen has nobody to click: the menu and the link out are clutter there.
+  const wall = useWallScreen();
   const cardRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showData, setShowData] = useState(false);
@@ -76,14 +79,15 @@ export function WidgetCard<T>({
       setExportFailed(true);
     }
   };
-  const showMenu = !source.error && source.data != null && (table != null || canFullscreen);
+  const showMenu =
+    !wall && !source.error && source.data != null && (table != null || canFullscreen);
   return (
     <Card className={`flex flex-col gap-3 p-4 ${className ?? ''}`}>
       <div ref={cardRef} className="flex flex-col gap-3 bg-[color:var(--surface,transparent)]">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">{title}</h2>
           <div className="relative flex items-center gap-2">
-            {detailHref && (
+            {detailHref && !wall && (
               <Link href={detailHref} className="text-xs font-semibold text-brand-700 underline">
                 {t('insight.seeDetail')}
               </Link>

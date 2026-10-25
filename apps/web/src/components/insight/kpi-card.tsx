@@ -102,8 +102,27 @@ export function KpiCard({
       )}
       {deltas && (
         <div className="mt-1 flex flex-col gap-0.5">
-          <DeltaLine delta={deltas.prev} label={t('insight.compare.prev')} goodWhen={goodWhen} />
-          <DeltaLine delta={deltas.year} label={t('insight.compare.year')} goodWhen={goodWhen} />
+          {deltas.prev.kind === 'none' && deltas.year.kind === 'none' ? (
+            // The same sentence twice says nothing the first did not.
+            <DeltaLine
+              delta={deltas.prev}
+              label={t('insight.compare.prevAndYear')}
+              goodWhen={goodWhen}
+            />
+          ) : (
+            <>
+              <DeltaLine
+                delta={deltas.prev}
+                label={t('insight.compare.prev')}
+                goodWhen={goodWhen}
+              />
+              <DeltaLine
+                delta={deltas.year}
+                label={t('insight.compare.year')}
+                goodWhen={goodWhen}
+              />
+            </>
+          )}
         </div>
       )}
     </Card>

@@ -13,6 +13,7 @@ import { can } from '@/lib/roles';
 import type {
   CashSettlement,
   CommissionRun,
+  UnsettledCodReport,
   Customer,
   DepotTeamReport,
   Delivery,
@@ -21,6 +22,9 @@ import type {
 } from '@/lib/types';
 
 const dash = '—';
+/** Whole days from an instant to now, never negative. */
+const daysSince = (iso: string): number =>
+  Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86_400_000));
 /** Deliveries a courier still has to finish: assigned, picked up, or on the road. */
 const IN_HAND = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'] as const;
 /** One page is all the board reads; more than this is said, not hidden. */
@@ -75,6 +79,25 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
     [depotId],
     mayPay && depotId != null,
   );
+  const heldCash = useInsightData(
+    () => api.get<UnsettledCodReport>(endpoints.settlements.unsettled(depotId as string), true),
+    [depotId],
+    mayPay && depotId != null,
+  );
+  // Failed deliveries come newest first; the list has no date filter, so the window is applied here.
+  const failed = useInsightData(
+    () =>
+      api.get<Page<Delivery>>(
+        endpoints.deliveries.list({
+          status: 'FAILED',
+          depotId: depotId as string,
+          limit: WORKLOAD_PAGE,
+        }),
+        true,
+      ),
+    [depotId],
+    mayLoad,
+  );
   const disputed = useInsightData(
     () =>
       api.get<CashSettlement[]>(
@@ -111,6 +134,27 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
   }
   const loadRows = [...perCourier].sort((a, b) => b[1] - a[1]);
   const loadTruncated = load.data != null && load.data.total > load.data.items.length;
+  const failedInRange = (failed.data?.items ?? []).filter(
+    (d) =>
+      d.failedAt != null &&
+      Date.parse(d.failedAt) >= Date.parse(range.from) &&
+      Date.parse(d.failedAt) < Date.parse(range.to),
+  );
+  const byReason = new Map<string, { label: string; n: number }>();
+  for (const d of failedInRange) {
+    const label = (d.failureReason ?? '').trim().slice(0, 60);
+    const key = label.toLowerCase();
+    const cur = byReason.get(key);
+    byReason.set(key, { label: cur?.label ?? label, n: (cur?.n ?? 0) + 1 });
+  }
+  const reasons = [...byReason.values()].sort((a, b) => b.n - a.n).slice(0, 6);
+  // Only the newest page was read: if the oldest of it is still inside the window there may be more.
+  const failedCut =
+    failed.data != null &&
+    failed.data.total > failed.data.items.length &&
+    failed.data.items.length > 0 &&
+    Date.parse(failed.data.items[failed.data.items.length - 1]?.failedAt ?? '') >=
+      Date.parse(range.from);
   const waiting = deposits.data ?? [];
   const waitingAmount = waiting.reduce((n, s) => n + s.depositedAmount, 0);
   const active = (onDuty.data ?? []).filter((s) => s.status !== 'ENDED');
@@ -219,6 +263,75 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
                   })}
                 </p>
               )}
+            </div>
+          )}
+        </WidgetCard>
+      )}
+
+      {mayLoad && (
+        <WidgetCard
+          title={t('insight.couriers.failedTitle')}
+          source={failed}
+          isEmpty={() => failedInRange.length === 0}
+          emptyText={t('insight.couriers.failedEmpty')}
+          detailHref="/dashboard/tracking"
+        >
+          {() => (
+            <div className="flex flex-col gap-2">
+              <p className="m-0 text-sm font-semibold">
+                {t('insight.couriers.failedCount', { n: failedInRange.length })}
+              </p>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm">
+                {reasons.map((r) => (
+                  <li key={r.label} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {r.label || t('insight.couriers.failedNoReason')}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{r.n}</span>
+                  </li>
+                ))}
+              </ul>
+              {failedCut && (
+                <p className="text-[11px] text-muted">
+                  {t('insight.couriers.failedMore', { shown: failed.data?.items.length ?? 0 })}
+                </p>
+              )}
+              <p className="text-[11px] text-muted">{t('insight.couriers.failedNote')}</p>
+            </div>
+          )}
+        </WidgetCard>
+      )}
+
+      {mayPay && depotId != null && !heldCash.forbidden && (
+        <WidgetCard
+          title={t('insight.couriers.heldTitle')}
+          source={heldCash}
+          isEmpty={(d) => d.couriers.length === 0}
+          emptyText={t('insight.couriers.heldEmpty')}
+          detailHref="/dashboard/settlements"
+        >
+          {(d) => (
+            <div className="flex flex-col gap-2">
+              <p className="m-0 text-sm font-bold tabular-nums">
+                {t('insight.couriers.heldTotal', {
+                  amount: formatIDR(d.amountIdr),
+                  n: d.deliveries,
+                })}
+              </p>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 text-sm">
+                {d.couriers.map((c) => (
+                  <li key={c.driverId} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate font-semibold">{nameOf(c.driverId)}</span>
+                    <span className="shrink-0 tabular-nums">
+                      {formatIDR(c.amountIdr)}
+                      <span className="ml-2 text-xs text-muted">
+                        {t('insight.couriers.heldAge', { days: daysSince(c.oldestDeliveredAt) })}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-muted">{t('insight.couriers.heldNote')}</p>
             </div>
           )}
         </WidgetCard>

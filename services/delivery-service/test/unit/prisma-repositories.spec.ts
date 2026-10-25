@@ -343,6 +343,21 @@ describe('DeliveryPrismaRepository', () => {
   //
   // CA-4-03: and the status, because the caller owes a DELIVERED order its COD but owes a
   // FAILED or RESCHEDULED one only the cash payment-service still reports as PAID.
+  it('unsettledCod maps the grouped rows, and asks only for delivered COD no settlement lists', async () => {
+    const since = new Date('2026-09-25T00:00:00Z');
+    const oldest = new Date('2026-10-20T01:00:00Z');
+    $queryRaw.mockResolvedValue([{ driverId: 'drv-1', deliveries: 2n, amount: 80000n, oldest }]);
+    expect(await repo.unsettledCod('depot-1', since)).toEqual([
+      { driverId: 'drv-1', deliveries: 2, amountIdr: 80000, oldestDeliveredAt: oldest },
+    ]);
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    const text = q.sql.replace(/\s+/g, ' ');
+    expect(text).toContain('d."depotId" = ?::uuid');
+    expect(text).toContain('d."codAmount" > 0');
+    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(q.values).toEqual(expect.arrayContaining(['depot-1', since]));
+  });
+
   it('codBearingInWindow maps to order ids with their COD and how they ended', async () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-01-31');

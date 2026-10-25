@@ -496,7 +496,8 @@ export function DonutChart({
           <span className="text-[10px] text-muted">{total}</span>
         </div>
       </div>
-      <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-1.5 p-0 text-xs">
+      {/* 11rem floor: below it the legend wraps under the ring instead of squeezing beside it and pushing a 320px page sideways. */}
+      <ul className="m-0 flex min-w-[11rem] flex-1 list-none flex-col gap-1.5 p-0 text-xs">
         {shown.map((s, i) => (
           <li key={`${i}-${s.label}`} className="flex items-center gap-2">
             <span

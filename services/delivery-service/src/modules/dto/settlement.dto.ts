@@ -65,6 +65,13 @@ export class DepositedCodQueryDto {
   to!: string;
 }
 
+/** The depot whose delivered-but-unsettled COD to read. */
+export class UnsettledQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot whose couriers to read.' })
+  @IsUUID()
+  depotId!: string;
+}
+
 export class SettlementQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot whose settlements to list.' })
   @IsUUID()

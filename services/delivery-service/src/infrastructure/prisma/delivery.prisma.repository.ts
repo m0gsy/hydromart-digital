@@ -7,6 +7,7 @@ import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
   CodBearing,
+  UnsettledCod,
   DeliveredRow,
   DeliveryItem,
   DeliveryPingState,
@@ -270,6 +271,34 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       total,
       nextCursor: nextCursor(rows, query.limit),
     };
+  }
+
+  async unsettledCod(depotId: string, since: Date): Promise<UnsettledCod[]> {
+    // The NOT EXISTS is the whole point: a delivery stops being "held" the moment any settlement
+    // lists its order. `orderIds` is a uuid[] and so is the delivery's `orderId`.
+    const rows = await this.prisma.$queryRaw<
+      { driverId: string; deliveries: bigint; amount: bigint; oldest: Date }[]
+    >(Prisma.sql`
+      SELECT d."driverId",
+             COUNT(*)::bigint AS "deliveries",
+             COALESCE(SUM(d."codAmount"), 0)::bigint AS "amount",
+             MIN(d."deliveredAt") AS "oldest"
+      FROM "deliveries" d
+      WHERE d."depotId" = ${depotId}::uuid
+        AND d."status" = ${DeliveryStatus.DELIVERED}::"DeliveryStatus"
+        AND d."codAmount" > 0
+        AND d."deliveredAt" >= ${since}
+        AND NOT EXISTS (
+          SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds")
+        )
+      GROUP BY d."driverId"
+      ORDER BY "amount" DESC, d."driverId" ASC`);
+    return rows.map((r) => ({
+      driverId: r.driverId,
+      deliveries: Number(r.deliveries),
+      amountIdr: Number(r.amount),
+      oldestDeliveredAt: r.oldest,
+    }));
   }
 
   async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {
