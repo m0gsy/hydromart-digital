@@ -235,6 +235,7 @@ export const insight = {
   compare: {
     prev: 'vs previous period',
     year: 'vs last year',
+    prevAndYear: 'vs previous period and last year',
     none: 'No comparison data yet',
     partial:
       'This period has not ended, so what it is compared with is cut to the same number of days.',

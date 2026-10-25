@@ -1860,6 +1860,10 @@ describe('the wall-screen view', () => {
     // Dark whatever the reader chose, and the choice is given back on leaving.
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(screen.queryByRole('button', { name: 'Rentang' })).toBeNull();
+    // Nobody can click a wall screen: no card menu and no link out.
+    await screen.findByText('Omzet dan pesanan');
+    expect(screen.queryByLabelText('Menu kartu')).toBeNull();
+    expect(screen.queryByText('Lihat detail')).toBeNull();
     const tick = timers.mock.calls.find((c) => c[1] === 60_000)?.[0] as () => void;
     expect(tick).toBeTypeOf('function');
     const reads = () =>
@@ -2366,5 +2370,18 @@ describe('failed deliveries and why', () => {
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
     expect(await screen.findByText('Tidak ada pengiriman gagal pada periode ini.')).toBeTruthy();
+  });
+});
+
+describe('a card with no base to compare against', () => {
+  it('says so once, not the same sentence for the previous period and again for last year', async () => {
+    asRole('HEAD_OFFICE');
+    serve({ '/dashboard/executive': () => exec(0, 0) });
+    renderPage();
+    const lines = await screen.findAllByText(/Belum ada data pembanding/);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line.textContent).toContain('vs periode lalu dan tahun lalu');
+    // And never the two-line form for the same card.
+    expect(screen.queryByText(/(vs tahun lalu)/)).toBeNull();
   });
 });

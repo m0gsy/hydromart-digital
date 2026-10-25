@@ -238,6 +238,7 @@ export const insight = {
   compare: {
     prev: 'vs periode lalu',
     year: 'vs tahun lalu',
+    prevAndYear: 'vs periode lalu dan tahun lalu',
     none: 'Belum ada data pembanding',
     partial: 'Periode ini belum selesai, jadi pembandingnya dipotong ke jumlah hari yang sama.',
     up: 'naik',
