@@ -130,6 +130,16 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
     return rows.map((row) => this.toDomain(row));
   }
 
+  async depotIdsWithReadings(from: string, to: string, limit: number): Promise<string[]> {
+    const rows = await this.prisma.meterReading.groupBy({
+      by: ['depotId'],
+      where: { readingDate: { gte: toDate(from), lte: toDate(to) } },
+      orderBy: { depotId: 'asc' },
+      take: limit,
+    });
+    return rows.map((r) => r.depotId);
+  }
+
   async markAlerted(depotId: string, date: string): Promise<void> {
     await this.prisma.meterReading.update({
       where: { depotId_readingDate: { depotId, readingDate: toDate(date) } },

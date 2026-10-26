@@ -94,6 +94,13 @@ class InMemoryMeterReadings implements MeterReadingRepository {
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  async depotIdsWithReadings(from: string, to: string, limit: number): Promise<string[]> {
+    const ids = new Set(
+      [...this.rows.values()].filter((r) => r.date >= from && r.date <= to).map((r) => r.depotId),
+    );
+    return [...ids].sort().slice(0, limit);
+  }
+
   async markAlerted(depotId: string, date: string): Promise<void> {
     const key = `${depotId}|${date}`;
     const row = this.rows.get(key);

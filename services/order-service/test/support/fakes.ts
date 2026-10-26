@@ -22,7 +22,9 @@ import {
   DepotRefund,
   DepotShipping,
   OrderQuery,
+  NewVsRepeatRow,
   OrderRecord,
+  OrderTableRow,
   OrderRepository,
   OrderReviewRecord,
   OrderValue,
@@ -918,6 +920,64 @@ export class InMemoryOrderRepository implements OrderRepository {
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
     return this.segmentMatches(conditions).length;
+  }
+
+  async ordersForTable(range: ReportRange, limit: number): Promise<OrderTableRow[]> {
+    return this.rows
+      .filter((r) => !range.from || r.createdAt >= range.from)
+      .filter((r) => !range.to || r.createdAt < range.to)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({
+        id: r.id,
+        orderNumber: r.orderNumber,
+        createdAt: r.createdAt,
+        status: r.status,
+        depotId: r.depotId,
+        customerId: r.customerId,
+        driverName: r.driverName,
+        isWalkIn: r.isWalkIn === true,
+        subtotal: r.subtotal,
+        discount: r.discount,
+        deliveryFee: r.deliveryFee,
+        total: r.total,
+      }));
+  }
+
+  async newVsRepeatByDepot(range: ReportRange, limit: number): Promise<NewVsRepeatRow[]> {
+    const valid = this.rows.filter(
+      (r) =>
+        r.status !== OrderStatus.CANCELLED &&
+        r.status !== OrderStatus.VOIDED &&
+        r.customerId !== ANONYMOUS_CUSTOMER_ID,
+    );
+    const first = new Map<string, Date>();
+    for (const r of valid) {
+      const cur = first.get(r.customerId);
+      if (!cur || r.createdAt < cur) first.set(r.customerId, r.createdAt);
+    }
+    const byDepot = new Map<string, { buyers: Map<string, boolean>; orders: number; revenue: number }>();
+    for (const r of valid) {
+      if (!r.depotId) continue;
+      if (range.from && r.createdAt < range.from) continue;
+      if (range.to && r.createdAt >= range.to) continue;
+      const cur = byDepot.get(r.depotId) ?? { buyers: new Map(), orders: 0, revenue: 0 };
+      const firstAt = first.get(r.customerId) as Date;
+      cur.buyers.set(r.customerId, !range.from || firstAt >= range.from);
+      cur.orders += 1;
+      cur.revenue += r.total;
+      byDepot.set(r.depotId, cur);
+    }
+    return [...byDepot]
+      .map(([depotId, v]) => ({
+        depotId,
+        newCustomers: [...v.buyers.values()].filter(Boolean).length,
+        repeatCustomers: [...v.buyers.values()].filter((n) => !n).length,
+        orders: v.orders,
+        revenue: v.revenue,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
   }
 
   async segmentCustomerIds(conditions: SegmentConditions, limit: number): Promise<string[]> {

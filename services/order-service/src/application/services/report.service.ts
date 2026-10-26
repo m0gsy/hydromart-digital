@@ -7,6 +7,7 @@ import {
   localHour,
 } from '@hydromart/platform';
 
+import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { OrderStatus } from '../../domain/order-status';
 import {
   CustomerSales,
@@ -46,6 +47,17 @@ import { ORDER_TOKENS } from '../tokens';
  * nobody at all and answer with a body that reads like an ordinary quiet round — which
  * `sweep.sh` then wrote the scheduler heartbeat for.
  */
+/**
+ * The shape every scheduled-report dataset beyond the original revenue three is exchanged in
+ * (admin-service reads it). Rows are arrays aligned to `columns`; `date` cells are ISO
+ * strings, `money` is whole rupiah, `percent` is 0–100.
+ */
+export interface ReportTable {
+  columns: { key: string; label: string; type: 'text' | 'int' | 'money' | 'date' | 'percent' }[];
+  rows: (string | number | null)[][];
+  truncated: boolean;
+}
+
 export interface DailySalesBroadcastResult {
   attempted: number;
   /** Depots with no number to send to — a configuration gap, not a failure. */
@@ -436,6 +448,9 @@ export class ReportService {
    * and the aggregates behind it are already top-N, so this is the N.
    */
   private static readonly EXPORT_ROWS = 100;
+  /** Rows per `report-table` export, and ids per payment-service cash lookup. */
+  private static readonly TABLE_ROWS = 5000;
+  private static readonly CASH_BATCH = 500;
   private readonly logger = new Logger(ReportService.name);
 
   constructor(
@@ -870,6 +885,102 @@ export class ReportService {
       })),
       truncated: items.length >= ReportService.EXPORT_ROWS,
     };
+  }
+
+  /**
+   * The table behind a scheduled ORDERS_DETAIL / NEW_VS_REPEAT report, in the shared
+   * `report-table` shape admin-service renders without knowing which dataset produced it.
+   *
+   * Capped like every export: one row past the cap is read to learn whether anything was cut,
+   * and the caller is told rather than handed a spreadsheet that quietly stops.
+   */
+  async reportTable(
+    dataset: 'ORDERS_DETAIL' | 'NEW_VS_REPEAT',
+    range: ReportRange,
+  ): Promise<ReportTable> {
+    const cap = ReportService.TABLE_ROWS;
+    const names = await this.depotNames();
+    const depot = (id: string | null): string | null => (id ? (names.get(id) ?? id) : null);
+
+    if (dataset === 'NEW_VS_REPEAT') {
+      const rows = await this.orders.newVsRepeatByDepot(range, cap + 1);
+      return {
+        columns: [
+          { key: 'depot', label: 'Depot', type: 'text' },
+          { key: 'newCustomers', label: 'Pelanggan baru', type: 'int' },
+          { key: 'repeatCustomers', label: 'Pelanggan repeat', type: 'int' },
+          { key: 'orders', label: 'Pesanan', type: 'int' },
+          { key: 'revenue', label: 'Pendapatan', type: 'money' },
+          { key: 'repeatPct', label: 'Repeat (%)', type: 'percent' },
+        ],
+        rows: rows.slice(0, cap).map((r) => {
+          const buyers = r.newCustomers + r.repeatCustomers;
+          return [
+            depot(r.depotId),
+            r.newCustomers,
+            r.repeatCustomers,
+            r.orders,
+            Math.round(r.revenue),
+            buyers > 0 ? Math.round((r.repeatCustomers / buyers) * 1000) / 10 : 0,
+          ];
+        }),
+        truncated: rows.length > cap,
+      };
+    }
+
+    const fetched = await this.orders.ordersForTable(range, cap + 1);
+    const shown = fetched.slice(0, cap);
+    const cash = await this.cashPaidByOrder(shown.map((o) => o.id));
+    return {
+      columns: [
+        { key: 'orderNumber', label: 'No. pesanan', type: 'text' },
+        { key: 'createdAt', label: 'Dibuat', type: 'date' },
+        { key: 'status', label: 'Status', type: 'text' },
+        { key: 'channel', label: 'Kanal', type: 'text' },
+        { key: 'depot', label: 'Depot', type: 'text' },
+        { key: 'customer', label: 'Pelanggan (ref)', type: 'text' },
+        { key: 'courier', label: 'Kurir', type: 'text' },
+        // Payment METHOD lives in payment-service, not on the order. What this service can
+        // truthfully say is the cash that service recorded as PAID; null = it was unreachable.
+        { key: 'cashPaid', label: 'Dibayar tunai', type: 'money' },
+        { key: 'subtotal', label: 'Subtotal', type: 'money' },
+        { key: 'discount', label: 'Diskon', type: 'money' },
+        { key: 'deliveryFee', label: 'Ongkir', type: 'money' },
+        { key: 'total', label: 'Total', type: 'money' },
+      ],
+      rows: shown.map((o) => [
+        o.orderNumber,
+        o.createdAt.toISOString(),
+        o.status,
+        o.isWalkIn ? 'Kasir' : 'Antar',
+        depot(o.depotId),
+        o.customerId === ANONYMOUS_CUSTOMER_ID ? 'Walk-in' : o.customerId,
+        o.driverName,
+        cash ? (cash.get(o.id) ?? 0) : null,
+        Math.round(o.subtotal),
+        Math.round(o.discount),
+        Math.round(o.deliveryFee),
+        Math.round(o.total),
+      ]),
+      truncated: fetched.length > cap,
+    };
+  }
+
+  private async depotNames(): Promise<Map<string, string>> {
+    const contacts = (await this.depotDirectory?.listContacts()) ?? [];
+    return new Map(contacts.map((d) => [d.id, d.name]));
+  }
+
+  /** PAID cash per order id, or null when payment-service could not answer for any batch. */
+  private async cashPaidByOrder(ids: string[]): Promise<Map<string, number> | null> {
+    if (!this.paymentCash) return null;
+    const out = new Map<string, number>();
+    for (let i = 0; i < ids.length; i += ReportService.CASH_BATCH) {
+      const rows = await this.paymentCash.cashByOrder(ids.slice(i, i + ReportService.CASH_BATCH));
+      if (!rows) return null;
+      for (const r of rows) out.set(r.orderId, (out.get(r.orderId) ?? 0) + r.amountIdr);
+    }
+    return out;
   }
 
   async customerSummary(customerId: string): Promise<CustomerSummary> {

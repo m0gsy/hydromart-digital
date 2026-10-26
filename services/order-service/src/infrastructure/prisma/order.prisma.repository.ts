@@ -25,8 +25,10 @@ import {
   DepotRatingsDetail,
   DepotRefund,
   DepotShipping,
+  NewVsRepeatRow,
   OrderQuery,
   OrderRecord,
+  OrderTableRow,
   OrderRepository,
   OrderReviewRecord,
   OrderValue,
@@ -1554,5 +1556,89 @@ export class OrderPrismaRepository implements OrderRepository {
       LIMIT ${limit}
     `);
     return rows.map((r) => r.customerId);
+  }
+
+  async ordersForTable(range: ReportRange, limit: number): Promise<OrderTableRow[]> {
+    const createdAt = {
+      ...(range.from ? { gte: range.from } : {}),
+      ...(range.to ? { lt: range.to } : {}),
+    };
+    const rows = await this.prisma.order.findMany({
+      where: range.from || range.to ? { createdAt } : {},
+      select: {
+        id: true,
+        orderNumber: true,
+        createdAt: true,
+        status: true,
+        depotId: true,
+        customerId: true,
+        driverName: true,
+        isWalkIn: true,
+        subtotal: true,
+        discount: true,
+        deliveryFee: true,
+        total: true,
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map((r) => ({
+      ...r,
+      status: r.status as unknown as OrderStatus,
+      subtotal: r.subtotal.toNumber(),
+      discount: r.discount.toNumber(),
+      deliveryFee: r.deliveryFee.toNumber(),
+      total: r.total.toNumber(),
+    }));
+  }
+
+  async newVsRepeatByDepot(range: ReportRange, limit: number): Promise<NewVsRepeatRow[]> {
+    const conds: Prisma.Sql[] = [
+      NOT_VOID_SQL,
+      Prisma.sql`"customerId" <> ${ANONYMOUS_CUSTOMER_ID}::uuid`,
+      Prisma.sql`"depotId" IS NOT NULL`,
+    ];
+    if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
+    // "New" = the customer's earliest valid order, anywhere in the network, is inside the
+    // window. With no lower bound everyone is new, which is what a from-the-start report means.
+    const isNew = range.from ? Prisma.sql`f.first_at >= ${range.from}` : Prisma.sql`TRUE`;
+    const rows = await this.prisma.$queryRaw<
+      {
+        depotId: string;
+        newCustomers: bigint;
+        repeatCustomers: bigint;
+        orders: bigint;
+        revenue: Prisma.Decimal | null;
+      }[]
+    >(Prisma.sql`
+      WITH win AS (
+        SELECT "depotId", "customerId", COUNT(*) AS orders, SUM("total") AS revenue
+        FROM "orders" WHERE ${Prisma.join(conds, ' AND ')}
+        GROUP BY "depotId", "customerId"
+      ),
+      f AS (
+        SELECT "customerId", MIN("createdAt") AS first_at
+        FROM "orders"
+        WHERE "customerId" IN (SELECT "customerId" FROM win) AND ${NOT_VOID_SQL}
+        GROUP BY "customerId"
+      )
+      SELECT w."depotId" AS "depotId",
+             COUNT(*) FILTER (WHERE ${isNew})::bigint AS "newCustomers",
+             COUNT(*) FILTER (WHERE NOT (${isNew}))::bigint AS "repeatCustomers",
+             SUM(w.orders)::bigint AS orders,
+             SUM(w.revenue) AS revenue
+      FROM win w JOIN f ON f."customerId" = w."customerId"
+      GROUP BY w."depotId"
+      ORDER BY SUM(w.revenue) DESC, w."depotId"
+      LIMIT ${limit}
+    `);
+    return rows.map((r) => ({
+      depotId: r.depotId,
+      newCustomers: Number(r.newCustomers),
+      repeatCustomers: Number(r.repeatCustomers),
+      orders: Number(r.orders),
+      revenue: r.revenue ? Number(r.revenue) : 0,
+    }));
   }
 }

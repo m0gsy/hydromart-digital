@@ -26,6 +26,8 @@ export interface MeterReadingRepository {
   upsertForDate(data: UpsertMeterReadingData): Promise<MeterReading | null>;
   findForDate(depotId: string, date: string): Promise<MeterReading | null>;
   listForRange(depotId: string, from: string, to: string): Promise<MeterReading[]>;
+  /** Depots with at least one reading in [from, to] ('YYYY-MM-DD', inclusive), by id, capped. */
+  depotIdsWithReadings(from: string, to: string, limit: number): Promise<string[]>;
   /** Stamps `alertedAt` so the variance alert fires once per day, not once per save. */
   markAlerted(depotId: string, date: string): Promise<void>;
 }

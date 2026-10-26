@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { assertFresh, addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
 
@@ -20,7 +20,8 @@ import { MeterReadingRepository, UpsertMeterReadingData } from '../ports/meter-r
 import { OrderRecord, OrderRepository } from '../ports/order.repository';
 import { OrderStatus } from '../../domain/order-status';
 import { ORDER_TOKENS } from '../tokens';
-import { gallonQty, isDelivered } from './report.service';
+import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { gallonQty, isDelivered, type ReportTable } from './report.service';
 
 /** The sales side of one day, from that day's orders. CANCELLED never counts. */
 function totalsFrom(rows: OrderRecord[]): SoldTotals {
@@ -64,6 +65,8 @@ const TANK_HISTORY_DAYS = 7;
  */
 @Injectable()
 export class MeterService {
+  /** Depots per METER_READINGS report; the same ceiling `report-table` uses elsewhere. */
+  private static readonly TABLE_ROWS = 5000;
   private readonly logger = new Logger(MeterService.name);
 
   constructor(
@@ -72,7 +75,69 @@ export class MeterService {
     @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
     @Inject(ORDER_TOKENS.Notification) private readonly notifications: NotificationPort,
     private readonly config: OrderConfigService,
+    // Only the scheduled report names depots; optional so a build with four args still works.
+    @Optional()
+    @Inject(ORDER_TOKENS.DepotDirectory)
+    private readonly depotDirectory?: DepotDirectoryPort,
   ) {}
+
+  /**
+   * The METER_READINGS scheduled report: per depot with a reading in the window, built from
+   * `history()` — the same reconciliation the meter screen draws, so the file cannot disagree
+   * with it about litres, variance or RO recovery.
+   *
+   * The window arrives as instants (WIB midnights); readings are keyed by local day, so both
+   * ends are converted to day keys and `to` is exclusive like every other report window.
+   */
+  async reportTable(range: { from?: Date; to?: Date }): Promise<ReportTable> {
+    const tz = this.config.businessTimeZone;
+    const from = range.from ? localDayKey(range.from, tz) : '2000-01-01';
+    const to = range.to
+      ? localDayKey(new Date(range.to.getTime() - 1), tz)
+      : localDayKey(new Date(), tz);
+    const cap = MeterService.TABLE_ROWS;
+    const ids = from > to ? [] : await this.readings.depotIdsWithReadings(from, to, cap + 1);
+    const names = new Map(
+      ((await this.depotDirectory?.listContacts()) ?? []).map((d) => [d.id, d.name]),
+    );
+
+    const rows: ReportTable['rows'] = [];
+    for (const depotId of ids.slice(0, cap)) {
+      const days = await this.history(depotId, from, to);
+      const sum = (pick: (r: MeterHistoryRow) => number | null): number | null => {
+        const vals = days.map(pick).filter((v): v is number => v !== null);
+        return vals.length === 0 ? null : Math.round(vals.reduce((s, v) => s + v, 0));
+      };
+      const yields = days.map((r) => r.roYieldPct).filter((v): v is number => v !== null);
+      const iso = (day: string): string => dayStartUtc(day, tz).toISOString();
+      rows.push([
+        names.get(depotId) ?? depotId,
+        days.length,
+        iso(days[0].day),
+        iso(days[days.length - 1].day),
+        sum((r) => r.meterLiters),
+        sum((r) => r.soldLiters),
+        sum((r) => r.varianceLiters),
+        yields.length === 0
+          ? null
+          : Math.round((yields.reduce((s, v) => s + v, 0) / yields.length) * 10) / 10,
+      ]);
+    }
+    return {
+      columns: [
+        { key: 'depot', label: 'Depot', type: 'text' },
+        { key: 'readingDays', label: 'Hari ada bacaan', type: 'int' },
+        { key: 'firstReading', label: 'Bacaan pertama', type: 'date' },
+        { key: 'lastReading', label: 'Bacaan terakhir', type: 'date' },
+        { key: 'meterLiters', label: 'Air lewat meter (L)', type: 'int' },
+        { key: 'soldLiters', label: 'Air terjual (L)', type: 'int' },
+        { key: 'varianceLiters', label: 'Selisih meter vs jual (L)', type: 'int' },
+        { key: 'roYieldPct', label: 'Rata-rata RO recovery (%)', type: 'percent' },
+      ],
+      rows,
+      truncated: ids.length > cap,
+    };
+  }
 
   /**
    * Partial upsert: the morning call carries `openingM3`, the evening one `closingM3`.

@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { CAPABILITY_KEY } from '@hydromart/platform';
 
+import { MeterService } from '../../src/application/services/meter.service';
 import { ReportController } from '../../src/modules/report.controller';
 import { ReportService } from '../../src/application/services/report.service';
 
@@ -35,6 +36,7 @@ function makeService(): Mocked {
       rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }],
       truncated: false,
     }),
+    reportTable: jest.fn().mockResolvedValue({ columns: [], rows: [], truncated: false }),
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
@@ -65,10 +67,16 @@ const manager = (...depotIds: string[]) =>
 describe('ReportController', () => {
   let service: Mocked;
   let controller: ReportController;
+  const meter = {
+    reportTable: jest.fn().mockResolvedValue({ columns: [], rows: [], truncated: false }),
+  };
 
   beforeEach(() => {
     service = makeService();
-    controller = new ReportController(service as unknown as ReportService);
+    controller = new ReportController(
+      service as unknown as ReportService,
+      meter as unknown as MeterService,
+    );
   });
 
   /*
@@ -457,6 +465,29 @@ describe('ReportController', () => {
       from: new Date('2026-08-01T00:00:00.000Z'),
       to: undefined,
     });
+  });
+
+  it('internalReportTable: forwards the dataset and the window, returns the table as-is', async () => {
+    const q = { dataset: 'ORDERS_DETAIL', from: '2026-08-01T00:00:00.000Z' } as never;
+    await expect(controller.internalReportTable(q)).resolves.toEqual({
+      columns: [],
+      rows: [],
+      truncated: false,
+    });
+    expect(service.reportTable).toHaveBeenCalledWith('ORDERS_DETAIL', {
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: undefined,
+    });
+  });
+
+  it('internalReportTable: METER_READINGS is answered by the meter service, not the order report', async () => {
+    const q = { dataset: 'METER_READINGS', to: '2026-09-01T00:00:00.000Z' } as never;
+    await controller.internalReportTable(q);
+    expect(meter.reportTable).toHaveBeenCalledWith({
+      from: undefined,
+      to: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    expect(service.reportTable).not.toHaveBeenCalled();
   });
 
   it('resellerRollup: splits the customerIds CSV and forwards depot + month', async () => {
