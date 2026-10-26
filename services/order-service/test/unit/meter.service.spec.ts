@@ -84,6 +84,13 @@ class FakeMeterRepo implements MeterReadingRepository {
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  async depotIdsWithReadings(from: string, to: string, limit: number): Promise<string[]> {
+    const ids = new Set(
+      [...this.rows.values()].filter((r) => r.date >= from && r.date <= to).map((r) => r.depotId),
+    );
+    return [...ids].sort().slice(0, limit);
+  }
+
   async markAlerted(depotId: string, date: string): Promise<void> {
     this.alerted.push(`${depotId}|${date}`);
     const key = `${depotId}|${date}`;
@@ -93,7 +100,8 @@ class FakeMeterRepo implements MeterReadingRepository {
 }
 
 class SpyNotification implements NotificationPort {
-  calls: { event: string; phone: string; vars: Record<string, string>; depotId?: string | null }[] = [];
+  calls: { event: string; phone: string; vars: Record<string, string>; depotId?: string | null }[] =
+    [];
   throwOnNotify = false;
 
   async notify(

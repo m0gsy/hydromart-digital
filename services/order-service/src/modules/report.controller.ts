@@ -24,6 +24,7 @@ import {
 } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
+import { MeterService } from '../application/services/meter.service';
 import { DailySalesBroadcastResult, ReportService } from '../application/services/report.service';
 import {
   AudienceReachQueryDto,
@@ -118,7 +119,10 @@ function toRange(q: { from?: string; to?: string }): ReportRange {
 @Can('orderReports')
 @Controller({ path: 'reports', version: '1' })
 export class ReportController {
-  constructor(private readonly reports: ReportService) {}
+  constructor(
+    private readonly reports: ReportService,
+    private readonly meter: MeterService,
+  ) {}
 
   /**
    * The depots one of these three network reports may cover, decided from the CALLER.
@@ -480,7 +484,10 @@ export class ReportController {
   @Get('internal/report-table')
   @ApiOperation({ summary: 'Table rows for a scheduled report (internal service auth)' })
   internalReportTable(@Query() q: ReportTableQueryDto): Promise<ReportTable> {
-    return this.reports.reportTable(q.dataset, toRange(q));
+    // Meter data is reconciled by MeterService; everything else is built from orders.
+    return q.dataset === 'METER_READINGS'
+      ? this.meter.reportTable(toRange(q))
+      : this.reports.reportTable(q.dataset, toRange(q));
   }
 
   /**

@@ -143,7 +143,7 @@ describe('ReportController time-area and recent-activity', () => {
       timeArea: jest.fn().mockResolvedValue('grid'),
       recentActivity: jest.fn().mockResolvedValue('feed'),
     };
-    controller = new ReportController(service as unknown as ReportService);
+    controller = new ReportController(service as unknown as ReportService, {} as never);
   });
 
   it('hands head office the network and a manager only their depots', async () => {

@@ -4,6 +4,7 @@ import { validate } from 'class-validator';
 import { CAPABILITY_KEY } from '@hydromart/platform';
 
 import { ReportService } from '../../src/application/services/report.service';
+import { MeterService } from '../../src/application/services/meter.service';
 import { ReportController } from '../../src/modules/report.controller';
 import { StatusSummaryQueryDto } from '../../src/modules/dto/report.dto';
 import { OrderConfigService } from '../../src/config/order-config.service';
@@ -168,10 +169,16 @@ describe('ReportController.statusSummary', () => {
   } as StatusSummaryQueryDto;
   let service: { statusSummary: jest.Mock };
   let controller: ReportController;
+  const meter = {
+    reportTable: jest.fn().mockResolvedValue({ columns: [], rows: [], truncated: false }),
+  };
 
   beforeEach(() => {
     service = { statusSummary: jest.fn().mockResolvedValue('summary') };
-    controller = new ReportController(service as unknown as ReportService);
+    controller = new ReportController(
+      service as unknown as ReportService,
+      meter as unknown as MeterService,
+    );
   });
 
   it('hands head office the whole network', async () => {
