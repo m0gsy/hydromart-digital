@@ -114,7 +114,7 @@ const HQ = R(`
 /hq/onboarding /hq/orders /hq/payments /hq/pdp /hq/pricing /hq/profile /hq/promo-rules /hq/promotions
 /hq/reconciliation /hq/refunds /hq/reports/export /hq/retention /hq/returns /hq/roster
 /hq/scheduled-reports /hq/scorecard /hq/search /hq/security /hq/sitemap /hq/sla-policy
-/hq/staff /hq/staff/import /hq/catalog/import /hq/catalog/import-categories /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
+/hq/staff /hq/staff/import /hq/depots/import /hq/catalog/import /hq/catalog/import-categories /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
 /hq/webhooks /hq/wizard /hq/access/landing
 /hq/access/detail /hq/applications/detail /hq/depots/detail /hq/forecast-models
 /hq/orders/detail /hq/pnl
