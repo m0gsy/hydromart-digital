@@ -1,4 +1,5 @@
 import { OwnershipType } from '../../domain/inventory';
+import type { ServiceArea } from '../../domain/service-area';
 
 export interface DayHours {
   open: string;
@@ -39,6 +40,8 @@ export interface DepotRecord {
   paymentQrisImageUrl: string | null;
   operatingHours: OperatingHours;
   holidays: Holiday[];
+  /** Drawn polygons; null/absent = serve by `serviceRadiusKm`. Not read by routing yet. */
+  serviceArea?: ServiceArea | null;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -76,6 +79,7 @@ export interface CreateDepotData {
   paymentQrisImageUrl?: string | null;
   operatingHours: OperatingHours;
   holidays: Holiday[];
+  serviceArea?: ServiceArea | null;
 }
 
 export type UpdateDepotData = Partial<CreateDepotData & { active: boolean }>;

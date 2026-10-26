@@ -90,6 +90,8 @@ import { CashierShiftPrismaRepository } from '../infrastructure/prisma/cashier-s
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { DepotController } from './depot.controller';
+import { DepotImportController } from './depot-import.controller';
+import { DepotImportService } from '../application/services/depot-import.service';
 import { HierarchyController } from './hierarchy.controller';
 import { HIERARCHY_REPOSITORY } from '../application/ports/hierarchy.repository';
 import { HierarchyPrismaRepository } from '../infrastructure/prisma/hierarchy.prisma.repository';
@@ -134,6 +136,7 @@ const providers: Provider[] = [
   DepotConfigService,
   SettingsService,
   DepotService,
+  DepotImportService,
   InventoryService,
   StockTransferService,
   PricingService,
@@ -235,6 +238,7 @@ const providers: Provider[] = [
   imports: [JwtModule.register({})],
   controllers: [
     DepotController,
+    DepotImportController,
     HierarchyController,
     DepotInventoryController,
     StockTransferController,

@@ -1,5 +1,16 @@
 /** HR console — EN mirror of id/hrFix.ts. Same shape, key for key. */
 export const hrFix = {
+  depotImport: {
+    notATime: '"{value}" is not a time. Write HH:MM (08:00), and format the time columns as Text.',
+    notADate: '"{value}" is not a date. Write YYYY-MM-DD (2026-08-17).',
+    badCoordinate: '"{value}" is not a coordinate. Use a number with a decimal point (-6.1944).',
+    badPair: '"{value}" is not a lat,lng pair. Example: -6.2,106.8',
+    scientific: '"{value}" was turned into scientific notation by Excel. Format the column as Text and retype it.',
+    modeLabel: 'Import mode',
+    modeCreate: 'Create new depots only (existing codes are skipped)',
+    modeUpsert: 'Create new and update existing (blank cells never clear a value)',
+    areaNote: 'The service area is stored but not yet used to pick the serving depot; until that is switched on, the radius still applies.',
+  },
   ownerAttendance: {
     title: 'Team attendance',
     subtitle: 'Attendance of the people at the depots you own. Read-only: nothing on this screen can be changed.',
@@ -1933,6 +1944,8 @@ export const hrFix = {
         'Upload an Excel or CSV file to create many stock lines at once. PRODUCT rows must carry sku (the catalogue code) or productId; raw stock rows must leave both blank. The name and unit of a PRODUCT row come from the catalogue, whatever the label column says.',
       pricing:
         'Every row becomes a proposed price override and still waits on HQ approval — none of it takes effect immediately.',
+      depots:
+        'Upload Excel or CSV to create many depots at once, with opening hours, holidays, depot settings and service area. Hours: one column pair per weekday (leave a day blank = closed). hariLibur: 2026-08-17:Independence Day|2026-12-25. areaLayanan: lat,lng|lat,lng|lat,lng (separate polygons with #), dot decimals. In update mode only filled cells change.',
       staff:
         'Upload an Excel or CSV file to create many staff accounts at once. They sign in by OTP with the number written here, and every row also opens an employee record in HR. A number that already has an account is not duplicated — its role is updated. The depot column is required for Courier and Depot Head; fill dailyRate for daily pay, monthlyRate for monthly.',
       adjustments:
@@ -1957,6 +1970,7 @@ export const hrFix = {
     salesHistory: 'Import sales transaction history',
     salesHistoryBody:
       "For moving this depot's sales history over from the old system. Rows are stored as historical records, not live orders — no loyalty points, notifications, or stock deduction. The same receipt number (externalRef) imported twice is skipped, not duplicated.",
+    depots: 'Bulk depot import',
     staff: 'Bulk staff import',
     deductions: 'Import deductions',
     allowances: 'Import allowances',

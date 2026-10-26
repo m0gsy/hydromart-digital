@@ -132,6 +132,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/forms/commission': Percent,
   '/hq/forms/segment': UsersThree,
   '/hq/staff/import': UploadSimple,
+  '/hq/depots/import': UploadSimple,
   '/hq/broadcast': Broadcast,
   '/hq/incidents': WarningOctagon,
   '/hq/tickets': ChatCircleDots,

@@ -617,6 +617,10 @@
     "depots",
     "orders"
   ],
+  "/hq/depots/import": [
+    "auth",
+    "depots"
+  ],
   "/hq/exports": [
     "admin",
     "auth"

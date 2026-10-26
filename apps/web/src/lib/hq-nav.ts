@@ -149,6 +149,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/forms/commission', labelKey: 'formCommission', cap: 'commissionRead' },
       { href: '/hq/forms/segment', labelKey: 'formSegment', cap: 'campaignWrite' },
       { href: '/hq/staff/import', labelKey: 'staffImport', cap: 'staffAdmin' },
+      { href: '/hq/depots/import', labelKey: 'depotImport', cap: 'depotLifecycle' },
       { href: '/hq/broadcast', labelKey: 'broadcast', cap: 'campaignWrite' },
     ],
   },

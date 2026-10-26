@@ -6,7 +6,16 @@ import { MagnifyingGlass, Storefront } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { DepotForm } from '@/components/hq/depot-form';
-import { Badge, Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Input,
+  LinkButton,
+  Skeleton,
+} from '@/components/ui';
 import { fetchAllDepots } from '@/lib/all-depots';
 import type { DepotForm as DepotFormValues } from '@/lib/depots';
 import { useAuth } from '@/lib/auth-context';
@@ -87,7 +96,14 @@ export default function HqDepotsPage() {
         subtitle={t('hq.depots.subtitle')}
         action={
           <>
-            {!creating && canOnboard && <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>}
+            {!creating && canOnboard && (
+              <LinkButton href="/hq/depots/import" variant="secondary">
+                {t('hq.depots.import')}
+              </LinkButton>
+            )}
+            {!creating && canOnboard && (
+              <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>
+            )}
           </>
         }
       />
@@ -123,7 +139,10 @@ export default function HqDepotsPage() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
-        <CenterState title={t('hq.depots.emptyAll')} icon={<Storefront size={40} weight="fill" />} />
+        <CenterState
+          title={t('hq.depots.emptyAll')}
+          icon={<Storefront size={40} weight="fill" />}
+        />
       ) : filtered.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted">{t('hq.depots.empty')}</p>
       ) : (
