@@ -411,6 +411,23 @@ describe('DepotPrismaRepository', () => {
     expect(await repo.findByCode('X')).toBeNull();
   });
 
+  describe('findManyByCodes', () => {
+    it('asks once for the de-duplicated codes, active or not', async () => {
+      model.findMany.mockResolvedValue([row]);
+      const out = await repo.findManyByCodes(['DPT001', 'DPT001', 'DPT002']);
+      expect(model.findMany).toHaveBeenCalledWith({
+        where: { code: { in: ['DPT001', 'DPT002'] } },
+      });
+      expect(out).toHaveLength(1);
+    });
+
+    it('does not query at all for an empty list', async () => {
+      model.findMany.mockClear();
+      await expect(repo.findManyByCodes([])).resolves.toEqual([]);
+      expect(model.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   it('finds by owner ordered by code', async () => {
     model.findMany.mockResolvedValue([row]);
     const out = await repo.findByOwner('own-1');

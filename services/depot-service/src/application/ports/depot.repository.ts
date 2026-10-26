@@ -3,6 +3,9 @@ import { OwnershipType } from '../../domain/inventory';
 export interface DayHours {
   open: string;
   close: string;
+  /** Both or neither; the break is inside open..close. The JSON column and order-service carry it. */
+  breakStart?: string;
+  breakEnd?: string;
 }
 export type OperatingHours = Partial<
   Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', DayHours>
@@ -95,6 +98,12 @@ export interface DepotRepository {
    */
   exists(id: string): Promise<boolean>;
   findByCode(code: string): Promise<DepotRecord | null>;
+  /**
+   * Several codes in one query, for the bulk import that must know which of 500 rows already
+   * exist. Codes with no depot are simply absent; active and inactive depots both count,
+   * because `code` is unique across both.
+   */
+  findManyByCodes(codes: string[]): Promise<DepotRecord[]>;
   /** All depots owned by an owner (active and inactive — an owner manages their own). */
   findByOwner(ownerId: string): Promise<DepotRecord[]>;
   create(data: CreateDepotData): Promise<DepotRecord>;

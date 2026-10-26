@@ -125,6 +125,12 @@ export class DepotPrismaRepository implements DepotRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async findManyByCodes(codes: string[]): Promise<DepotRecord[]> {
+    if (codes.length === 0) return [];
+    const rows = await this.prisma.depot.findMany({ where: { code: { in: [...new Set(codes)] } } });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async findByOwner(ownerId: string): Promise<DepotRecord[]> {
     const rows = await this.prisma.depot.findMany({
       where: { ownerId },
