@@ -11,12 +11,22 @@ import { ReportSourceHttpAdapter } from '../../src/infrastructure/http/report-so
 const FROM = new Date('2026-08-01T00:00:00.000Z');
 const TO = new Date('2026-08-02T00:00:00.000Z');
 
-const config = (over: Partial<Record<string, unknown>> = {}): AdminConfigService =>
+const config = (
+  over: Partial<Record<string, unknown>> = {},
+  peers: Record<string, string> = {},
+): AdminConfigService =>
   ({
-    orderServiceUrl: 'http://order:3004',
-    paymentServiceUrl: 'http://payment:3005',
     internalServiceKey: 'k',
     ...over,
+    peerUrl: (key: string) =>
+      (
+        ({
+          ORDER_SERVICE_URL: 'http://order:3004',
+          PAYMENT_SERVICE_URL: 'http://payment:3005',
+          DELIVERY_SERVICE_URL: 'http://delivery:3006',
+          ...peers,
+        }) as Record<string, string>
+      )[key] ?? '',
   }) as unknown as AdminConfigService;
 
 const fetchMock = jest.fn();
@@ -84,12 +94,14 @@ describe('ReportSourceHttpAdapter', () => {
   });
 
   it.each([
-    ['order-service has no URL', { orderServiceUrl: '' }, ReportDataset.REVENUE_BY_DEPOT],
-    ['payment-service has no URL', { paymentServiceUrl: '' }, ReportDataset.REVENUE_BY_METHOD],
+    ['order-service has no URL', { ORDER_SERVICE_URL: '' }, ReportDataset.REVENUE_BY_DEPOT],
+    ['payment-service has no URL', { PAYMENT_SERVICE_URL: '' }, ReportDataset.REVENUE_BY_METHOD],
     ['the internal key is unset', { internalServiceKey: '' }, ReportDataset.REVENUE_BY_DEPOT],
   ])('throws when %s', async (_case, over, dataset) => {
+    const peers = Object.fromEntries(Object.entries(over).filter(([k]) => k.endsWith('_URL')));
+    const own = Object.fromEntries(Object.entries(over).filter(([k]) => !k.endsWith('_URL')));
     await expect(
-      new ReportSourceHttpAdapter(config(over)).rowsFor(dataset, FROM, TO),
+      new ReportSourceHttpAdapter(config(own, peers)).rowsFor(dataset, FROM, TO),
     ).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });

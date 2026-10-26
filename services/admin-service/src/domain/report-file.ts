@@ -1,7 +1,8 @@
-import { localDayKey } from '@hydromart/platform';
+import { BUSINESS_TIME_ZONE, localDayKey } from '@hydromart/platform';
 
 import { ExportFormat } from './export';
 import { ReportRow } from '../application/ports/report-source.port';
+import { ReportCell, ReportColumnType, ReportTable, revenueTable } from './report-table';
 
 // exceljs is a runtime dependency loaded lazily, the same way hr-service loads it: typecheck
 // and dev do not need it installed, `npm ci` provides it in CI and prod, and a missing
@@ -37,8 +38,7 @@ type PdfModule = new (opts?: Record<string, unknown>) => PdfDoc;
 
 const PDF_MARGIN = 40;
 const PDF_LINE = 14;
-
-const HEADERS = ['Label', 'Pesanan', 'Pendapatan'] as const;
+const PDF_GAP = 6;
 
 /**
  * RFC 4180 quoting, plus ADM-9: a cell is data, never a formula.
@@ -59,11 +59,45 @@ export function csvCell(value: string | number): string {
   return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
-/** The same rows as the CSV/XLSX siblings, as a one-table printable PDF sheet. */
-function renderPdf(rows: ReportRow[], title: string, compress: boolean): Promise<Buffer> {
+/** A cell as a spreadsheet/CSV value: dates read on the business calendar, never as raw UTC. */
+function cellValue(type: ReportColumnType, v: ReportCell): string | number {
+  if (v === null || v === undefined) return '';
+  if (type === 'date' && typeof v === 'string') {
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return v;
+    // sv-SE reads "2026-10-26 07:00" — sortable, and unambiguous in every locale.
+    return new Intl.DateTimeFormat('sv-SE', {
+      timeZone: BUSINESS_TIME_ZONE,
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(d);
+  }
+  return v;
+}
+
+/** The PDF's version of a cell: money and counts get Indonesian grouping. */
+function pdfValue(type: ReportColumnType, v: ReportCell): string {
+  const raw = cellValue(type, v);
+  if (typeof raw === 'string') return raw;
+  if (type === 'money') return `Rp${Math.round(raw).toLocaleString('id-ID')}`;
+  if (type === 'percent') return `${raw.toLocaleString('id-ID')}%`;
+  return raw.toLocaleString('id-ID');
+}
+
+const isNumeric = (t: ReportColumnType): boolean => t === 'int' || t === 'money' || t === 'percent';
+
+function renderPdf(table: ReportTable, title: string, compress: boolean): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const PDFDocument = require('pdfkit') as PdfModule;
-  const doc = new PDFDocument({ size: 'A4', margin: PDF_MARGIN, compress });
+  // Wide tables (an order list has a dozen columns) get a landscape page and a smaller face;
+  // squeezing them onto portrait A4 made every cell an ellipsis.
+  const wide = table.columns.length > 6;
+  const doc = new PDFDocument({
+    size: 'A4',
+    layout: wide ? 'landscape' : 'portrait',
+    margin: PDF_MARGIN,
+    compress,
+  });
   const chunks: Buffer[] = [];
   const done = new Promise<Buffer>((resolve) => {
     doc.on('data', (c) => c && chunks.push(c));
@@ -73,6 +107,7 @@ function renderPdf(rows: ReportRow[], title: string, compress: boolean): Promise
   const left = PDF_MARGIN;
   const width = doc.page.width - PDF_MARGIN * 2;
   const bottom = doc.page.height - PDF_MARGIN;
+  const fontSize = wide ? 7 : 9;
   let y = PDF_MARGIN;
 
   const room = (h: number, repeat?: () => void): void => {
@@ -82,28 +117,41 @@ function renderPdf(rows: ReportRow[], title: string, compress: boolean): Promise
     repeat?.();
   };
 
-  const cols = [
-    { x: left, w: 300 },
-    { x: left + 310, w: 80, right: true },
-    { x: left + 400, w: 115, right: true },
-  ];
+  // Text columns take twice the share of a numeric one — names are the long cells.
+  const weights = table.columns.map((c) => (isNumeric(c.type) ? 1 : 2));
+  const unit = (width - PDF_GAP * (table.columns.length - 1)) / weights.reduce((a, b) => a + b, 0);
+  let x = left;
+  const cols = table.columns.map((c, i) => {
+    const w = weights[i] * unit;
+    const col = { x, w, right: isNumeric(c.type) };
+    x += w + PDF_GAP;
+    return col;
+  });
   const rowOf = (values: string[], bold = false): void => {
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
     cols.forEach((c, i) =>
       doc.text(values[i] ?? '', c.x, y, {
         width: c.w,
         align: c.right ? 'right' : 'left',
         lineBreak: false,
+        ellipsis: true,
       }),
     );
     y += PDF_LINE;
   };
   const rule = (): void => {
-    doc.strokeColor('#999999').moveTo(left, y).lineTo(left + width, y).stroke();
+    doc
+      .strokeColor('#999999')
+      .moveTo(left, y)
+      .lineTo(left + width, y)
+      .stroke();
     y += 4;
   };
   const head = (): void => {
-    rowOf([...HEADERS], true);
+    rowOf(
+      table.columns.map((c) => c.label),
+      true,
+    );
     rule();
   };
 
@@ -114,19 +162,23 @@ function renderPdf(rows: ReportRow[], title: string, compress: boolean): Promise
 
   room(PDF_LINE * 2);
   head();
-  if (rows.length === 0) {
+  if (table.rows.length === 0) {
     room(PDF_LINE);
-    rowOf(['Tidak ada data pada periode ini.', '', '']);
+    rowOf(['Tidak ada data pada periode ini.']);
   } else {
-    for (const r of rows) {
+    for (const r of table.rows) {
       room(PDF_LINE, head);
-      rowOf([r.label, String(r.orders), `Rp${Math.round(r.revenue).toLocaleString('id-ID')}`]);
+      rowOf(table.columns.map((c, i) => pdfValue(c.type, r[i] ?? null)));
     }
-    room(PDF_LINE * 2);
-    y += 6;
-    const totalOrders = rows.reduce((s, r) => s + r.orders, 0);
-    const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
-    rowOf(['Total', String(totalOrders), `Rp${Math.round(totalRevenue).toLocaleString('id-ID')}`], true);
+    if (table.totals) {
+      room(PDF_LINE * 2);
+      y += 6;
+      const totals = table.totals;
+      rowOf(
+        table.columns.map((c, i) => (totals[i] == null ? '' : pdfValue(c.type, totals[i]))),
+        true,
+      );
+    }
   }
 
   doc.end();
@@ -134,25 +186,27 @@ function renderPdf(rows: ReportRow[], title: string, compress: boolean): Promise
 }
 
 /**
- * Render report rows as the requested file. The SAME rows the XLSX/CSV siblings write, so
- * the three formats can never disagree — see revenue-export-pdf.ts in order-service for the
- * identical reasoning.
+ * Render a table as the requested file. One table, three renderers, so the formats can never
+ * disagree — see revenue-export-pdf.ts in order-service for the identical reasoning.
  */
-export async function renderReport(
-  rows: ReportRow[],
+export async function renderTable(
+  table: ReportTable,
   format: ExportFormat,
   sheetName: string,
   opts: { pdfCompress?: boolean } = {},
 ): Promise<Buffer> {
-  const values = rows.map((r) => [r.label, r.orders, r.revenue] as (string | number)[]);
+  const headers = table.columns.map((c) => c.label);
+  const values = table.rows.map((r) =>
+    table.columns.map((c, i) => cellValue(c.type, r[i] ?? null)),
+  );
 
   if (format === ExportFormat.CSV) {
-    const lines = [HEADERS.join(','), ...values.map((row) => row.map(csvCell).join(','))];
+    const lines = [headers.join(','), ...values.map((row) => row.map(csvCell).join(','))];
     // BOM so Excel opens a UTF-8 file as UTF-8 rather than as the system codepage.
     return Buffer.from(`﻿${lines.join('\r\n')}\r\n`, 'utf8');
   }
   if (format === ExportFormat.PDF) {
-    return renderPdf(rows, sheetName.slice(0, 80), opts.pdfCompress ?? true);
+    return renderPdf(table, sheetName.slice(0, 80), opts.pdfCompress ?? true);
   }
   if (format !== ExportFormat.XLSX) {
     throw new Error(`Format ${format} belum didukung — tidak ada renderer-nya di repo ini.`);
@@ -167,11 +221,21 @@ export async function renderReport(
   }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(sheetName.slice(0, 31)); // Excel sheet-name limit
-  ws.addRow([...HEADERS]);
+  ws.addRow(headers);
   ws.getRow(1).font = { bold: true };
   for (const row of values) ws.addRow(row);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+}
+
+/** The three-column revenue rows, rendered. Kept for callers that still hold plain rows. */
+export function renderReport(
+  rows: ReportRow[],
+  format: ExportFormat,
+  sheetName: string,
+  opts: { pdfCompress?: boolean } = {},
+): Promise<Buffer> {
+  return renderTable(revenueTable(rows), format, sheetName, opts);
 }
 
 /** `laporan-harian-2026-08-12.xlsx` — the window, not the run time, so reruns collide by name. */

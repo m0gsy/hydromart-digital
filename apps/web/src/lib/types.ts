@@ -2512,7 +2512,18 @@ export interface SavedSegment {
 
 export type ReportCadence = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 /** What goes IN a scheduled report — the three groupings hq/reports/export really has. */
-export type ReportDataset = 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT' | 'REVENUE_BY_METHOD';
+export type ReportDataset =
+  | 'REVENUE_BY_DEPOT'
+  | 'REVENUE_BY_PRODUCT'
+  | 'REVENUE_BY_METHOD'
+  | 'ORDERS_DETAIL'
+  | 'NEW_VS_REPEAT'
+  | 'COD_UNSETTLED'
+  | 'FAILED_DELIVERIES'
+  | 'PROMO_COST'
+  | 'KASBON_BALANCE'
+  | 'STOCK_LEVELS'
+  | 'METER_READINGS';
 export interface ScheduledReport {
   id: string;
   name: string;

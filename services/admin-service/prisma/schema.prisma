@@ -85,13 +85,21 @@ enum ExportStatus {
   FAILED
 }
 
-/// Which revenue grouping a scheduled report renders. Matches the three groupings
-/// hq/reports/export draws from real endpoints — order-service owns the first two,
-/// payment-service the third.
+/// What a scheduled report renders. The three REVENUE_* groupings come from order- and
+/// payment-service; every other value is a table the owning service answers on
+/// `internal/report-table` (see report-source.http.adapter.ts for the routing).
 enum ReportDataset {
   REVENUE_BY_DEPOT
   REVENUE_BY_PRODUCT
   REVENUE_BY_METHOD
+  ORDERS_DETAIL
+  NEW_VS_REPEAT
+  COD_UNSETTLED
+  FAILED_DELIVERIES
+  PROMO_COST
+  KASBON_BALANCE
+  STOCK_LEVELS
+  METER_READINGS
 }
 
 /// Recurrence of a scheduled report.

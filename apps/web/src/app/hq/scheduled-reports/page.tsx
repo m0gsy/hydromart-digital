@@ -40,7 +40,19 @@ import type {
 // configured, mailed to the recipients as an attachment (best-effort, fail-open).
 const CADENCES: ReportCadence[] = ['DAILY', 'WEEKLY', 'MONTHLY'];
 const FORMATS: ExportFormat[] = ['XLSX', 'CSV', 'PDF'];
-const DATASETS: ReportDataset[] = ['REVENUE_BY_DEPOT', 'REVENUE_BY_PRODUCT', 'REVENUE_BY_METHOD'];
+const DATASETS: ReportDataset[] = [
+  'REVENUE_BY_DEPOT',
+  'REVENUE_BY_PRODUCT',
+  'REVENUE_BY_METHOD',
+  'ORDERS_DETAIL',
+  'NEW_VS_REPEAT',
+  'COD_UNSETTLED',
+  'FAILED_DELIVERIES',
+  'PROMO_COST',
+  'KASBON_BALANCE',
+  'STOCK_LEVELS',
+  'METER_READINGS',
+];
 
 export default function HqScheduledReportsPage() {
   const { t, locale } = useT();
@@ -50,9 +62,7 @@ export default function HqScheduledReportsPage() {
   );
   // Best-effort: the cards are complete without it, so a failing log read costs the
   // "last file" line and nothing else.
-  const logs = useAsync<Page<ExportLogEntry>>(() =>
-    api.get(endpoints.admin.exportLogs({ limit: 100, status: 'DONE' }), true),
-  );
+  const logs = useAsync<Page<ExportLogEntry>>(() => api.get(endpoints.admin.exportLogsDone, true));
   const [fileBusy, setFileBusy] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ScheduledReport | null>(null);

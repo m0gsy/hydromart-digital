@@ -30,7 +30,7 @@ function matches(ip: string, entry: string): boolean {
   if (a === null || b === null) return false;
   if (bits === 0) return true;
   const mask = bits === 32 ? 0xffffffff : (0xffffffff << (32 - bits)) >>> 0;
-  return ((a & mask) >>> 0) === ((b & mask) >>> 0);
+  return (a & mask) >>> 0 === (b & mask) >>> 0;
 }
 
 function toInt(ip: string): number | null {

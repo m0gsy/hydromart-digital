@@ -37,8 +37,13 @@ export function isBlockedAddress(address: string): boolean {
   const lower = address.toLowerCase();
   // ::, ::1, unique-local (fc/fd) and link-local (fe80::) are the v6 equivalents.
   return (
-    lower === '::' || lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') ||
-    lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') ||
+    lower === '::' ||
+    lower === '::1' ||
+    lower.startsWith('fc') ||
+    lower.startsWith('fd') ||
+    lower.startsWith('fe8') ||
+    lower.startsWith('fe9') ||
+    lower.startsWith('fea') ||
     lower.startsWith('feb')
   );
 }
@@ -46,8 +51,7 @@ export function isBlockedAddress(address: string): boolean {
 export type AddressLookup = (hostname: string) => Promise<{ address: string }[]>;
 
 /** The real resolver. Named (not an inline default) so both callers share one, testable. */
-export const defaultAddressLookup: AddressLookup = (hostname) =>
-  dnsLookup(hostname, { all: true });
+export const defaultAddressLookup: AddressLookup = (hostname) => dnsLookup(hostname, { all: true });
 
 /**
  * Throws unless `url` is an https/http URL whose hostname resolves ONLY to public
@@ -81,7 +85,9 @@ export async function assertSendableWebhookUrl(url: string, lookup: AddressLooku
     // open costs the private network.
     throw new WebhookDestinationBlockedError(`${hostname} does not resolve`);
   }
-  if (addresses.length === 0) throw new WebhookDestinationBlockedError(`${hostname} has no address`);
+  if (addresses.length === 0)
+    throw new WebhookDestinationBlockedError(`${hostname} has no address`);
   const blocked = addresses.find((a) => isBlockedAddress(a.address));
-  if (blocked) throw new WebhookDestinationBlockedError(`${hostname} resolves to ${blocked.address}`);
+  if (blocked)
+    throw new WebhookDestinationBlockedError(`${hostname} resolves to ${blocked.address}`);
 }
