@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 
 import { VoucherNotFoundError } from '../../domain/errors';
 import { DiscountType } from '../../domain/voucher';
@@ -6,6 +6,7 @@ import {
   CreateVoucherData,
   ExpiringGrant,
   RedemptionAnalytics,
+  RedemptionInWindow,
   UpdateVoucherData,
   VoucherRecord,
   VoucherRedemptionRecord,
@@ -142,6 +143,15 @@ export class VoucherPrismaRepository implements VoucherRepository {
       voucherId: g.voucherId,
       burned: g._sum.discountApplied ?? 0,
     }));
+  }
+
+  async redemptionsInWindow(from: Date, to: Date, limit: number): Promise<RedemptionInWindow[]> {
+    return this.prisma.voucherRedemption.findMany({
+      where: { releasedAt: null, createdAt: { gte: from, lt: to } },
+      select: { voucherId: true, voucherCode: true, orderId: true, discountApplied: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
   }
 
   async listForCustomer(

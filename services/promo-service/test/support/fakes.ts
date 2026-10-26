@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
 import { localDayKey } from '@hydromart/platform';
@@ -18,6 +18,7 @@ import {
   VoucherRedemptionRecord,
   VoucherRepository,
   RedemptionAnalytics,
+  RedemptionInWindow,
 } from '../../src/application/ports/voucher.repository';
 
 let seq = 0;
@@ -129,6 +130,12 @@ export class InMemoryVoucherRepository implements VoucherRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const start = (page - 1) * limit;
     return { items: all.slice(start, start + limit).map((v) => ({ ...v })), total: all.length };
+  }
+
+  /** What edemptionsInWindow answers; tests set it. */
+  windowRedemptions: RedemptionInWindow[] = [];
+  async redemptionsInWindow(_from: Date, _to: Date, limit: number): Promise<RedemptionInWindow[]> {
+    return this.windowRedemptions.slice(0, limit);
   }
 
   async countRedemptions(voucherId: string, customerId?: string): Promise<number> {

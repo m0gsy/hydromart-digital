@@ -13,7 +13,7 @@ describe('PromoRulePrismaRepository', () => {
     delete: jest.fn(),
     findMany: jest.fn(),
   };
-  const promoApplication = { createMany: jest.fn(), count: jest.fn() };
+  const promoApplication = { createMany: jest.fn(), count: jest.fn(), findMany: jest.fn() };
   const $transaction: jest.Mock<Promise<unknown>, [(tx: unknown) => unknown]> = jest.fn((fn) =>
     Promise.resolve(fn({ promoApplication })),
   );
@@ -113,6 +113,24 @@ describe('PromoRulePrismaRepository', () => {
     expect(text).toContain('PARTITION BY "promoRuleId" ORDER BY "at" DESC');
     expect(text).toContain('"rn" <=');
     expect(q.values).toEqual(expect.arrayContaining(['r1', 'r2', 300]));
+  });
+
+  it('applicationsInWindow reads the audit rows of [from, to) oldest first, with the rule name', async () => {
+    promoApplication.findMany.mockResolvedValue([
+      { promoRuleId: 'r1', orderId: 'o1', discountValue: 1500, promoRule: { name: 'Jumat Berkah' } },
+    ]);
+    const from = new Date('2026-10-25T17:00:00Z');
+    const to = new Date('2026-10-26T17:00:00Z');
+    expect(await repo.applicationsInWindow(from, to, 21)).toEqual([
+      { promoRuleId: 'r1', ruleName: 'Jumat Berkah', orderId: 'o1', discount: 1500 },
+    ]);
+    expect(promoApplication.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { createdAt: { gte: from, lt: to } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: 21,
+      }),
+    );
   });
 
   it('findAll with no depotIds sees every rule (unscoped caller)', async () => {
@@ -339,6 +357,20 @@ describe('VoucherPrismaRepository', () => {
     $queryRaw,
   } as unknown as PrismaService;
   const repo = new VoucherPrismaRepository(prisma);
+
+  it('redemptionsInWindow reads only spent redemptions of [from, to), bounded', async () => {
+    const rows = [{ voucherId: 'v1', voucherCode: 'HEMAT10', orderId: 'o1', discountApplied: 10000 }];
+    voucherRedemption.findMany.mockResolvedValue(rows);
+    const from = new Date('2026-10-25T17:00:00Z');
+    const to = new Date('2026-10-26T17:00:00Z');
+    expect(await repo.redemptionsInWindow(from, to, 21)).toBe(rows);
+    expect(voucherRedemption.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { releasedAt: null, createdAt: { gte: from, lt: to } },
+        take: 21,
+      }),
+    );
+  });
 
   const voucherRow = () => ({
     id: 'v-1',

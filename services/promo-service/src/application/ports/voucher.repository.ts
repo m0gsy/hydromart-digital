@@ -1,4 +1,4 @@
-import { DiscountType } from '../../domain/voucher';
+﻿import { DiscountType } from '../../domain/voucher';
 
 export interface VoucherRecord {
   id: string;
@@ -106,6 +106,14 @@ export interface ExpiringGrant {
   validUntil: Date;
 }
 
+/** One redemption that is still spent (not released), inside a report window. */
+export interface RedemptionInWindow {
+  voucherId: string;
+  voucherCode: string;
+  orderId: string;
+  discountApplied: number;
+}
+
 export interface VoucherRepository {
   findById(id: string): Promise<VoucherRecord | null>;
   findByCode(code: string): Promise<VoucherRecord | null>;
@@ -125,6 +133,8 @@ export interface VoucherRepository {
   ): Promise<{ items: VoucherRecord[]; total: number }>;
 
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
+  /** Spent redemptions made in [from, to), oldest first, at most limit. */
+  redemptionsInWindow(from: Date, to: Date, limit: number): Promise<RedemptionInWindow[]>;
   findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null>;
   findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]>;
   /**

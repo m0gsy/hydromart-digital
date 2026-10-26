@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../../prisma/generated/client';
 
 import {
   CreatePromoRuleData,
+  PromoApplicationInWindow,
   PromoRuleOrderSample,
   PromoRuleRecord,
   PromoRuleRepository,
@@ -114,6 +115,26 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
       promoRuleId: r.promoRuleId,
       orderId: r.orderId,
       discount: Number(r.discount),
+    }));
+  }
+
+  async applicationsInWindow(from: Date, to: Date, limit: number): Promise<PromoApplicationInWindow[]> {
+    const rows = await this.prisma.promoApplication.findMany({
+      where: { createdAt: { gte: from, lt: to } },
+      select: {
+        promoRuleId: true,
+        orderId: true,
+        discountValue: true,
+        promoRule: { select: { name: true } },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map((r) => ({
+      promoRuleId: r.promoRuleId,
+      ruleName: r.promoRule.name,
+      orderId: r.orderId,
+      discount: r.discountValue,
     }));
   }
 

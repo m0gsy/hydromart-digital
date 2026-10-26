@@ -67,6 +67,9 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
         findActiveCandidates: jest.fn().mockResolvedValue([]),
         hasApplicationFor: jest.fn().mockResolvedValue(false),
         recordApplications: jest.fn().mockResolvedValue(undefined),
+        applicationsInWindow: jest
+          .fn()
+          .mockResolvedValue([{ promoRuleId: 'r1', ruleName: 'Jumat Berkah', orderId: 'o1', discount: 5000 }]),
         recentOrdersByRule: jest
           .fn()
           .mockResolvedValue([{ promoRuleId: 'r1', orderId: 'o1', discount: 5000 }]),
@@ -166,6 +169,39 @@ describe('Promo rule auto-apply HTTP flows (e2e)', () => {
         .post('/api/v1/promotions/promo-rules/simulate')
         .set(auth(token(Role.SUPER_ADMIN)))
         .send({ ...quoteBody, channel: 'WEB' })
+        .expect(400);
+    });
+  });
+
+  describe('internal report-table', () => {
+    const url =
+      '/api/v1/promotions/internal/report-table?from=2026-10-25T17:00:00.000Z&to=2026-10-26T17:00:00.000Z';
+
+    it('needs the internal key', async () => {
+      await request(server()).get(`${url}&dataset=PROMO_COST`).expect(401);
+      await request(server())
+        .get(`${url}&dataset=PROMO_COST`)
+        .set(internal('wrong-key'))
+        .expect(401);
+    });
+
+    it('answers columns + rows for PROMO_COST, valued against the order', async () => {
+      const res = await request(server())
+        .get(`${url}&dataset=PROMO_COST`)
+        .set(internal(INTERNAL_KEY))
+        .expect(200);
+      expect(res.body.truncated).toBe(false);
+      expect(res.body.columns.map((c: { key: string }) => c.key)).toEqual([
+        'kind', 'name', 'orders', 'cost', 'orderValue', 'costPct',
+      ]);
+      expect(res.body.rows).toEqual([['Aturan promo', 'Jumat Berkah', 1, 5000, 80000, 6.3]]);
+    });
+
+    it('refuses an unknown dataset or a bad date with 400', async () => {
+      await request(server()).get(`${url}&dataset=NOPE`).set(internal(INTERNAL_KEY)).expect(400);
+      await request(server())
+        .get('/api/v1/promotions/internal/report-table?dataset=PROMO_COST&from=x&to=y')
+        .set(internal(INTERNAL_KEY))
         .expect(400);
     });
   });

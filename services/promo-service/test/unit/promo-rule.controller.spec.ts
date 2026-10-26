@@ -38,6 +38,7 @@ describe('PromoRuleController', () => {
       apply: jest.fn().mockResolvedValue(undefined),
       usage: jest.fn().mockResolvedValue([]),
       usageWithValue: jest.fn().mockResolvedValue([]),
+      costReport: jest.fn().mockResolvedValue({ columns: [], rows: [], truncated: false }),
     }) as unknown as PromoRuleService;
 
   const rule = (overrides: Partial<{ id: string; depotId: string | null }> = {}) => ({
@@ -521,6 +522,24 @@ describe('PromoRuleController', () => {
         { promoRuleId: 'r1', orders: 2, totalDiscount: 5000, lastAppliedAt: '2026-10-08T01:00:00.000Z' },
         { promoRuleId: 'r2', orders: 0, totalDiscount: 0, lastAppliedAt: null },
       ]);
+    });
+  });
+
+  describe('reportTable', () => {
+    it('parses the window and hands the table back unchanged', async () => {
+      const service = makeService();
+      const table = { columns: [], rows: [], truncated: false };
+      (service.costReport as jest.Mock).mockResolvedValue(table);
+      const out = await new PromoRuleController(service).reportTable({
+        dataset: 'PROMO_COST',
+        from: '2026-10-25T17:00:00.000Z',
+        to: '2026-10-26T17:00:00.000Z',
+      });
+      expect(out).toBe(table);
+      expect(service.costReport).toHaveBeenCalledWith(
+        new Date('2026-10-25T17:00:00.000Z'),
+        new Date('2026-10-26T17:00:00.000Z'),
+      );
     });
   });
 

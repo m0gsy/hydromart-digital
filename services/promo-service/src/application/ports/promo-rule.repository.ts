@@ -1,4 +1,4 @@
-import { PromoRuleCandidate } from '../../domain/promo-rule';
+﻿import { PromoRuleCandidate } from '../../domain/promo-rule';
 
 export interface PromoRuleRecord extends PromoRuleCandidate {
   active: boolean;
@@ -25,6 +25,14 @@ export interface PromoRuleOrderSample {
   promoRuleId: string;
   orderId: string;
   /** Rupiah this rule took off this order, summed over its audit rows. */
+  discount: number;
+}
+
+/** One audit row of a rule taking something off an order, inside a report window. */
+export interface PromoApplicationInWindow {
+  promoRuleId: string;
+  ruleName: string;
+  orderId: string;
   discount: number;
 }
 
@@ -80,6 +88,12 @@ export interface PromoRuleRepository {
     orderId: string,
     rows: { promoRuleId: string; productId: string | null; discountValue: number }[],
   ): Promise<void>;
+
+  /**
+   * Audit rows written in [from, to), oldest first, at most limit. A scheduled report asks
+   * for cap + 1 so it can tell a cut-off window from a complete one.
+   */
+  applicationsInWindow(from: Date, to: Date, limit: number): Promise<PromoApplicationInWindow[]>;
 
   /** True if any PromoApplication row already exists for this order (idempotency check). */
   hasApplicationFor(orderId: string): Promise<boolean>;

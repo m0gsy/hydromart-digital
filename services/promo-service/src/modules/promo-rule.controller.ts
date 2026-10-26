@@ -1,4 +1,4 @@
-import {
+﻿import {
   Body,
   Controller,
   Delete,
@@ -25,12 +25,13 @@ import {
 } from '@hydromart/platform';
 
 import { PromoRuleRecord } from '../application/ports/promo-rule.repository';
-import { PromoRuleService, QuoteOutput } from '../application/services/promo-rule.service';
+import { PromoRuleService, QuoteOutput, ReportTable } from '../application/services/promo-rule.service';
 import {
   AutoApplyApplyDto,
   AutoApplyQuoteDto,
   CreatePromoRuleDto,
   ActivePromoRulesQueryDto,
+  ReportTableQueryDto,
   SimulatePromoRulesDto,
   UpdatePromoRuleDto,
 } from './dto/promo-rule.dto';
@@ -74,6 +75,21 @@ export class PromoRuleController {
   @ApiOperation({ summary: 'List promo rules visible to the caller (admin)' })
   list(@CurrentUser() user?: AuthenticatedUser): Promise<PromoRuleRecord[]> {
     return this.promoRules.findAll(depotScopeIds(user));
+  }
+
+  /**
+   * The rows behind a scheduled report, for admin-service's report sweep (15c). Internal-key:
+   * the caller is cron and holds no bearer. Network-wide on purpose: the report goes to head
+   * office, not to a depot.
+   */
+  @ApiOkResponse({ description: 'columns + rows (+ truncated) for the requested dataset.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/report-table')
+  @ApiOperation({ summary: 'Promo cost rows for a scheduled report (internal service auth)' })
+  reportTable(@Query() q: ReportTableQueryDto): Promise<ReportTable> {
+    return this.promoRules.costReport(new Date(q.from), new Date(q.to));
   }
 
   // Declared BEFORE `promo-rules/:id`, or "usage" would be read as an id and refused by the
