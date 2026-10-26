@@ -1644,10 +1644,13 @@ describe('the people tab', () => {
     openTab('people');
     renderPage();
     await screen.findByText('Karyawan');
-    const call = String(
-      get.mock.calls.find((c) => String(c[0]).includes('/hr-reports/dashboard'))?.[0],
-    );
-    expect(call).toContain('periodMonth=2026-10');
+    // Waited for, not read once: the heading can paint before the dashboard request is issued,
+    // which made this fail about one run in three.
+    await waitFor(() => {
+      const call = get.mock.calls.find((c) => String(c[0]).includes('/hr-reports/dashboard'));
+      expect(call).toBeDefined();
+      expect(String(call?.[0])).toContain('periodMonth=2026-10');
+    });
   });
 });
 
