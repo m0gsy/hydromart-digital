@@ -1,3 +1,4 @@
+import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { encodeCursor } from '@hydromart/platform';
 import { ApprovalPrismaRepository } from '../../src/infrastructure/prisma/approval.prisma.repository';
@@ -465,6 +466,64 @@ describe('DepotPrismaRepository', () => {
       data: { name: 'R2', operatingHours: { mon: '10-19' }, holidays: [{ date: 'x' }] },
     });
   });
+
+  describe('service area', () => {
+    const ring = [
+      [
+        { lat: 0, lng: 0 },
+        { lat: 0, lng: 1 },
+        { lat: 1, lng: 1 },
+      ],
+    ];
+
+    it('writes the drawn area on create, and leaves the column unset without one', async () => {
+      model.create.mockResolvedValue(row);
+      await repo.create({
+        code: 'A',
+        operatingHours: {},
+        holidays: [],
+        serviceArea: ring,
+      } as never);
+      expect(model.create).toHaveBeenLastCalledWith({
+        data: { code: 'A', operatingHours: {}, holidays: [], serviceArea: ring },
+      });
+      await repo.create({
+        code: 'B',
+        operatingHours: {},
+        holidays: [],
+        serviceArea: null,
+      } as never);
+      expect(model.create).toHaveBeenLastCalledWith({
+        data: { code: 'B', operatingHours: {}, holidays: [] },
+      });
+    });
+
+    it('on update: sets, clears with a database NULL, or leaves it alone', async () => {
+      model.update.mockResolvedValue(row);
+      await repo.update('depot-1', { serviceArea: ring } as never);
+      expect(model.update).toHaveBeenLastCalledWith({
+        where: { id: 'depot-1' },
+        data: { serviceArea: ring },
+      });
+      await repo.update('depot-1', { serviceArea: null } as never);
+      expect(model.update).toHaveBeenLastCalledWith({
+        where: { id: 'depot-1' },
+        data: { serviceArea: Prisma.DbNull },
+      });
+      await repo.update('depot-1', { name: 'x' } as never);
+      expect(model.update).toHaveBeenLastCalledWith({
+        where: { id: 'depot-1' },
+        data: { name: 'x' },
+      });
+    });
+
+    it('reads the stored area back, and a missing one as null', async () => {
+      model.findUnique.mockResolvedValue({ ...row, serviceArea: ring });
+      expect((await repo.findByCode('DPT001'))?.serviceArea).toEqual(ring);
+      model.findUnique.mockResolvedValue({ ...row, serviceArea: undefined });
+      expect((await repo.findByCode('DPT001'))?.serviceArea).toBeNull();
+    });
+  });
 });
 
 describe('DisputePrismaRepository', () => {
@@ -513,7 +572,10 @@ describe('DisputePrismaRepository', () => {
     await expect(repo.erasePerson('cust-1', '+628123')).resolves.toBe(7);
     expect(updateMany).toHaveBeenCalledWith({
       where: { customerId: 'cust-1' },
-      data: { customerName: 'Pengguna dihapus', description: '[dihapus atas permintaan pemilik data]' },
+      data: {
+        customerName: 'Pengguna dihapus',
+        description: '[dihapus atas permintaan pemilik data]',
+      },
     });
     expect(updateMany).toHaveBeenCalledWith({
       where: { customerPhone: '+628123' },
@@ -689,7 +751,9 @@ describe('FranchiseApplicationPrismaRepository', () => {
 
 describe('GallonReminderPrismaRepository', () => {
   const model = { findMany: jest.fn(), upsert: jest.fn() };
-  const repo = new GallonReminderPrismaRepository({ gallonReminder: model } as unknown as PrismaService);
+  const repo = new GallonReminderPrismaRepository({
+    gallonReminder: model,
+  } as unknown as PrismaService);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -2360,13 +2424,29 @@ describe('PurchaseOrderPrismaRepository', () => {
       {
         // 40 of 60 galon arrived, the rest cancelled; 200 of 200 segel arrived.
         lines: [
-          { itemType: 'GALON', label: 'Galon', quantity: 60, unitCostIdr: 20_000, receivedQuantity: 40, shortfallNote: 'batal' },
-          { itemType: 'SEGEL', label: 'Segel', quantity: 200, unitCostIdr: 100, receivedQuantity: 200 },
+          {
+            itemType: 'GALON',
+            label: 'Galon',
+            quantity: 60,
+            unitCostIdr: 20_000,
+            receivedQuantity: 40,
+            shortfallNote: 'batal',
+          },
+          {
+            itemType: 'SEGEL',
+            label: 'Segel',
+            quantity: 200,
+            unitCostIdr: 100,
+            receivedQuantity: 200,
+          },
         ],
         shippingIdr: 5_000,
       },
       // A historical row: no receivedQuantity anywhere, which reads as zero, not as full.
-      { lines: [{ itemType: 'AIR', label: 'Air', quantity: 10, unitCostIdr: 1_000 }], shippingIdr: 0 },
+      {
+        lines: [{ itemType: 'AIR', label: 'Air', quantity: 10, unitCostIdr: 1_000 }],
+        shippingIdr: 0,
+      },
       // A row whose lines column is null at all.
       { lines: null, shippingIdr: 2_000 },
     ]);

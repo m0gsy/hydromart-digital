@@ -1156,6 +1156,25 @@ describe('DepotController', () => {
     expect(near.acceptsQris).toBe(true);
   });
 
+  it('publishes the drawn service area only when it is asked for', async () => {
+    const area = [[{ lat: 1, lng: 1 }]];
+    const rows = [
+      { id: 'a', serviceArea: area, operatingHours: {}, holidays: [] },
+      { id: 'b', serviceArea: null, operatingHours: {}, holidays: [] },
+      { id: 'c', operatingHours: {}, holidays: [] },
+    ];
+    svc.browse.mockResolvedValue({ items: rows, total: 3, page: 1, limit: 20, totalPages: 1 });
+    svc.get.mockResolvedValue(rows[0]);
+
+    const plain = await c.browse({ page: 1 } as never);
+    expect(plain.items.some((i) => 'serviceArea' in i)).toBe(false);
+    expect('serviceArea' in (await c.get(DEPOT, {}))).toBe(false);
+
+    const withArea = await c.browse({ page: 1, includeArea: true } as never);
+    expect(withArea.items.map((i) => i.serviceArea)).toEqual([area, null, null]);
+    expect((await c.get(DEPOT, { includeArea: true })).serviceArea).toEqual(area);
+  });
+
   // UAT-M11-09: the public routes used to serve the whole DepotRecord, publishing every
   // depot's bank account to anonymous callers.
   it('keeps bank details and ownership out of the public browse/detail/nearby payloads', async () => {
@@ -1168,7 +1187,7 @@ describe('DepotController', () => {
       'ownershipType',
     ];
     const page = await c.browse({ page: 1 } as never);
-    const one = await c.get(DEPOT);
+    const one = await c.get(DEPOT, {});
     // `nearby` is anonymous too and was still returning the whole DepotRecord — the same
     // leak this test was written to close, one route over.
     const near = await c.nearby({ lat: 1, lng: 2 } as never);
@@ -1304,7 +1323,7 @@ describe('DepotController', () => {
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);
     expect(svc.listMine).toHaveBeenCalledWith('user-1');
-    await c.get(ID);
+    await c.get(ID, {});
     expect(svc.get).toHaveBeenCalledWith(ID, true);
     await c.remove(ID);
     expect(svc.deactivate).toHaveBeenCalledWith(ID);

@@ -7,15 +7,20 @@
  * the depot's real area would be told they are outside it. So a bad ring is rejected here,
  * at import time, rather than discovered at checkout.
  *
- * Pure and dependency-free so the same algorithm can be mirrored byte-for-byte by
- * order-service and the web checkout; `test/fixtures/service-area-cases.json` is the shared
- * set of points all three must agree on.
+ * The membership test itself (`pointInServiceArea`) lives in @hydromart/platform so
+ * depot-service, order-service and customer-service cannot disagree about the same point;
+ * only the validation of user-supplied rings is here, because only the import writes one.
  */
-export interface LatLng {
-  lat: number;
-  lng: number;
-}
-export type ServiceArea = LatLng[][];
+import {
+  areaCross as cross,
+  areaWithin as within,
+  pointInServiceArea,
+  type LatLng,
+  type ServiceArea,
+} from '@hydromart/platform';
+
+export { pointInServiceArea };
+export type { LatLng, ServiceArea };
 
 export type AreaParsed = { ok: true; value: ServiceArea | null } | { ok: false; error: string };
 
@@ -41,17 +46,6 @@ function validPoint(p: unknown): p is LatLng {
   );
 }
 
-/** Twice the signed area of triangle (a, b, c); 0 when collinear. */
-const cross = (a: LatLng, b: LatLng, c: LatLng): number =>
-  (b.lng - a.lng) * (c.lat - a.lat) - (b.lat - a.lat) * (c.lng - a.lng);
-
-/** c is on segment a-b, given the three are collinear. */
-const within = (a: LatLng, b: LatLng, c: LatLng): boolean =>
-  Math.min(a.lng, b.lng) <= c.lng &&
-  c.lng <= Math.max(a.lng, b.lng) &&
-  Math.min(a.lat, b.lat) <= c.lat &&
-  c.lat <= Math.max(a.lat, b.lat);
-
 /** Do segments a-b and c-d share any point (crossing, touching or overlapping)? */
 function segmentsMeet(a: LatLng, b: LatLng, c: LatLng, d: LatLng): boolean {
   const d1 = Math.sign(cross(a, b, c));
@@ -72,7 +66,10 @@ function ringError(ring: LatLng[]): string | null {
     const b = ring[(i + 1) % n];
     // Two consecutive edges that double back on themselves: a zero-width spike.
     const c = ring[(i + 2) % n];
-    if (cross(a, b, c) === 0 && (b.lng - a.lng) * (c.lng - b.lng) + (b.lat - a.lat) * (c.lat - b.lat) < 0) {
+    if (
+      cross(a, b, c) === 0 &&
+      (b.lng - a.lng) * (c.lng - b.lng) + (b.lat - a.lat) * (c.lat - b.lat) < 0
+    ) {
       return 'ada sisi yang berbalik arah pada garis yang sama';
     }
     for (let j = i + 2; j < n; j += 1) {
@@ -100,7 +97,8 @@ function ringError(ring: LatLng[]): string | null {
  */
 export function parseServiceArea(input: unknown): AreaParsed {
   if (input === undefined || input === null) return { ok: true, value: null };
-  if (!Array.isArray(input)) return { ok: false, error: 'area layanan harus berupa daftar poligon' };
+  if (!Array.isArray(input))
+    return { ok: false, error: 'area layanan harus berupa daftar poligon' };
   if (input.length === 0) return { ok: true, value: null };
   if (input.length > MAX_RINGS) {
     return { ok: false, error: `area layanan maksimal ${MAX_RINGS} poligon` };
@@ -132,27 +130,4 @@ export function parseServiceArea(input: unknown): AreaParsed {
     rings.push(ring);
   }
   return { ok: true, value: rings };
-}
-
-function inRing(point: LatLng, ring: LatLng[]): boolean {
-  const n = ring.length;
-  let inside = false;
-  for (let i = 0, j = n - 1; i < n; j = i, i += 1) {
-    const a = ring[i];
-    const b = ring[j];
-    // On an edge counts as inside, so a customer standing exactly on a drawn boundary is served.
-    if (cross(a, b, point) === 0 && within(a, b, point)) return true;
-    if (
-      a.lat > point.lat !== b.lat > point.lat &&
-      point.lng < ((b.lng - a.lng) * (point.lat - a.lat)) / (b.lat - a.lat) + a.lng
-    ) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-/** Is the point inside any ring (boundary included)? */
-export function pointInServiceArea(point: LatLng, area: ServiceArea): boolean {
-  return area.some((ring) => inRing(point, ring));
 }
