@@ -216,6 +216,10 @@ export class InMemoryDepotRepository implements DepotRepository {
     const r = this.rows.find((x) => x.code === code);
     return r ? { ...r } : null;
   }
+  async findManyByCodes(codes: string[]): Promise<DepotRecord[]> {
+    const wanted = new Set(codes);
+    return this.rows.filter((x) => wanted.has(x.code)).map((x) => ({ ...x }));
+  }
   async findByOwner(ownerId: string): Promise<DepotRecord[]> {
     return this.rows
       .filter((x) => x.ownerId === ownerId)

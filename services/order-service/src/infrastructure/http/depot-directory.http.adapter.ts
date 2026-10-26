@@ -23,6 +23,7 @@ interface DepotResponse {
 }
 interface DepotPage {
   items: DepotResponse[];
+  totalPages?: number;
 }
 
 /**
@@ -34,24 +35,38 @@ interface DepotPage {
 export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
   private static readonly TIMEOUT_MS = 5000;
   private static readonly PAGE_LIMIT = 100;
+  // Backstop against a depot-service that keeps claiming more pages: 100 × 50 = 5000 depots,
+  // the same ceiling `DepotService.findNearby` scans.
+  private static readonly MAX_PAGES = 50;
   private readonly logger = new Logger(DepotDirectoryHttpAdapter.name);
 
   constructor(private readonly config: OrderConfigService) {}
 
+  /**
+   * Walks every page: the endpoint caps `limit` at 100, so reading only the first page made
+   * the 101st depot invisible to routing — an address near it was told it is out of area.
+   * One failing page fails the whole read (null) rather than returning a partial list that
+   * would silently route to the wrong depot.
+   */
   async listActiveDepots(): Promise<DepotLocation[] | null> {
-    const url = `${this.config.depotServiceUrl}/api/v1/depots?limit=${DepotDirectoryHttpAdapter.PAGE_LIMIT}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotDirectoryHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(url, {
-        headers: { accept: 'application/json' },
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        throw new Error(`depot-service responded ${res.status}`);
+      const items: DepotResponse[] = [];
+      for (let page = 1; page <= DepotDirectoryHttpAdapter.MAX_PAGES; page += 1) {
+        const url = `${this.config.depotServiceUrl}/api/v1/depots?limit=${DepotDirectoryHttpAdapter.PAGE_LIMIT}&page=${page}`;
+        const res = await fetch(url, {
+          headers: { accept: 'application/json' },
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`depot-service responded ${res.status}`);
+        }
+        const body = (await res.json()) as DepotPage;
+        items.push(...body.items);
+        if (typeof body.totalPages !== 'number' || page >= body.totalPages) break;
       }
-      const body = (await res.json()) as DepotPage;
-      return body.items.map((d) => ({
+      return items.map((d) => ({
         id: d.id,
         lat: d.lat,
         lng: d.lng,

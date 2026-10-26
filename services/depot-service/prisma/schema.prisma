@@ -61,6 +61,8 @@ model Depot {
   lng            Float
   /// Service/delivery radius in km (FR-077/FR-078).
   serviceRadiusKm Float        @default(5)
+  /// Drawn service area: [[{lat,lng},...], ...] (outer rings). Null = serve by serviceRadiusKm.
+  serviceArea    Json?
   /// Flat delivery fee for this depot in IDR (FR-079).
   deliveryFee    Decimal       @db.Decimal(12, 2)
   /// Minimum order amount in IDR; per-depot policy. Null = no minimum.

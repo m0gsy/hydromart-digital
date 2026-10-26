@@ -242,6 +242,42 @@ describe('DepotDirectoryHttpAdapter', () => {
     expect(out![1].minOrderAmount).toBeNull();
   });
 
+  const depotRow = (id: string) => ({
+    id,
+    lat: 1,
+    lng: 2,
+    serviceRadiusKm: 5,
+    deliveryFee: 3000,
+  });
+
+  it('reads every page, so depot 101 onward is routable', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res({ body: { items: [depotRow('d1')], totalPages: 3 } }))
+      .mockResolvedValueOnce(res({ body: { items: [depotRow('d2')], totalPages: 3 } }))
+      .mockResolvedValueOnce(res({ body: { items: [depotRow('d3')], totalPages: 3 } }));
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
+    expect(out!.map((d) => d.id)).toEqual(['d1', 'd2', 'd3']);
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      'http://depot:3007/api/v1/depots?limit=100&page=1',
+      'http://depot:3007/api/v1/depots?limit=100&page=2',
+      'http://depot:3007/api/v1/depots?limit=100&page=3',
+    ]);
+  });
+
+  it('returns null, not a partial list, when a later page fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res({ body: { items: [depotRow('d1')], totalPages: 2 } }))
+      .mockResolvedValueOnce(res({ ok: false, status: 503 }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots()).toBeNull();
+  });
+
+  it('stops at the page ceiling when depot-service never stops claiming more', async () => {
+    fetchMock.mockResolvedValue(res({ body: { items: [depotRow('d1')], totalPages: 9999 } }));
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
+    expect(fetchMock).toHaveBeenCalledTimes(50);
+    expect(out).toHaveLength(50);
+  });
+
   // The happy-path case above sends neither field, which only ever exercises the "absent"
   // arm of both guards. The opening-hours reader is what decides whether an order can be
   // placed at all, so the arm that actually carries a schedule needs its own proof — and
