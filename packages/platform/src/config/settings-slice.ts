@@ -104,7 +104,15 @@ export abstract class SettingsSliceService {
     return { defs: this.defs, effective };
   }
 
-  async put(input: PutSettingInput): Promise<void> {
+  /**
+   * Every check `put` makes before it writes, runnable on its own. A bulk import validates
+   * all of a row's settings first and writes only if they all pass, so a bad third value
+   * cannot leave the first two stored.
+   */
+  validate(input: Pick<PutSettingInput, 'scope' | 'depotId' | 'key' | 'value'>): {
+    def: SettingDef;
+    coerced: number | string;
+  } {
     const def = this.defByKey[input.key];
     if (!def) {
       throw new BadRequestException(`Unknown setting: ${input.key}`);
@@ -129,6 +137,11 @@ export abstract class SettingsSliceService {
         throw new BadRequestException(`${input.key} above max ${def.max}`);
       }
     }
+    return { def, coerced };
+  }
+
+  async put(input: PutSettingInput): Promise<void> {
+    const { def, coerced } = this.validate(input);
     // The value being replaced, read before the write, because "changed to 5" without
     // "from 0" does not answer the question anybody asks this trail.
     const previous = this.cache.effective(

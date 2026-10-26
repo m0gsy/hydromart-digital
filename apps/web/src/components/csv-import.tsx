@@ -101,16 +101,19 @@ export function numberCell(raw: string, t: Translate = passthrough): number {
  */
 export function dateCell(raw: string, t: Translate = passthrough): string {
   const value = raw.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(t('opsFix.import.dateFormat', { value: raw }));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new Error(t('opsFix.import.dateFormat', { value: raw }));
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) throw new Error(t('opsFix.import.dateInvalid', { value: raw }));
+  if (Number.isNaN(parsed.getTime()))
+    throw new Error(t('opsFix.import.dateInvalid', { value: raw }));
   return parsed.toISOString();
 }
 
 /** Payroll period cell, "YYYY-MM" — the same shape the server's PERIOD regex accepts. */
 export function periodCell(raw: string, t: Translate = passthrough): string {
   const value = raw.trim();
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error(t('opsFix.import.periodFormat', { value: raw }));
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value))
+    throw new Error(t('opsFix.import.periodFormat', { value: raw }));
   return value;
 }
 
@@ -118,7 +121,8 @@ export function periodCell(raw: string, t: Translate = passthrough): string {
 export function enumCell(allowed: readonly string[]) {
   return (raw: string, t: Translate = passthrough): string => {
     const value = raw.toUpperCase();
-    if (!allowed.includes(value)) throw new Error(t('opsFix.import.oneOf', { allowed: allowed.join('/') }));
+    if (!allowed.includes(value))
+      throw new Error(t('opsFix.import.oneOf', { allowed: allowed.join('/') }));
     return value;
   };
 }
@@ -160,6 +164,25 @@ function parserFor(column: ImportColumn): (raw: string, t: Translate) => unknown
   return (raw) => raw;
 }
 
+/**
+ * `field: 'operatingHours.mon.open'` writes into a nested object, so one flat spreadsheet row
+ * can fill a structured payload (hours per weekday, settings by key). A plain field is the
+ * same as before. Blank cells never reach here, so an untouched group stays absent entirely.
+ */
+function setPath(target: Record<string, unknown>, path: string, value: unknown): void {
+  const keys = path.split('.');
+  let node = target;
+  for (const key of keys.slice(0, -1)) {
+    const next = node[key];
+    node = (typeof next === 'object' && next !== null ? next : (node[key] = {})) as Record<
+      string,
+      unknown
+    >;
+  }
+  const last = keys[keys.length - 1];
+  if (last !== undefined) node[last] = value;
+}
+
 /** Validate + shape each record into the JSON payload; a rejected row carries its reason. */
 export function prepareRows(
   records: CsvRecord[],
@@ -172,11 +195,12 @@ export function prepareRows(
     for (const col of columns) {
       const cell = raw[col.key] ?? '';
       if (cell === '') {
-        if (col.required) return { row, raw, error: t('opsFix.import.columnRequired', { column: col.key }) };
+        if (col.required)
+          return { row, raw, error: t('opsFix.import.columnRequired', { column: col.key }) };
         continue;
       }
       try {
-        payload[col.field ?? col.key] = parserFor(col)(cell, t);
+        setPath(payload, col.field ?? col.key, parserFor(col)(cell, t));
       } catch (err) {
         return {
           row,
@@ -282,7 +306,9 @@ export function CsvImport({
     }
     const missing = columns.filter((c) => c.required && !(c.key in first));
     if (missing.length > 0) {
-      setFileError(t('opsFix.import.missingColumns', { columns: missing.map((c) => c.key).join(', ') }));
+      setFileError(
+        t('opsFix.import.missingColumns', { columns: missing.map((c) => c.key).join(', ') }),
+      );
       return;
     }
     setRows(prepareRows(records, columns, t));
@@ -351,7 +377,9 @@ export function CsvImport({
       <Card className="flex flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <Button variant="secondary" onClick={downloadTemplate}>
-            <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadTemplate')}</Button>
+            <DownloadSimple size={16} weight="bold" />
+            {t('opsFix.import.downloadTemplate')}
+          </Button>
           {/*
            * `sr-only`, not `hidden`.
            *
@@ -372,7 +400,9 @@ export function CsvImport({
               className="sr-only"
             />
             <span className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white">
-              <UploadSimple size={16} weight="bold" />{t('opsFix.import.pickFile')}</span>
+              <UploadSimple size={16} weight="bold" />
+              {t('opsFix.import.pickFile')}
+            </span>
           </label>
         </div>
         <p className="text-[12.5px] text-muted">
@@ -452,7 +482,9 @@ export function CsvImport({
             </Button>
             {invalid.length > 0 && (
               <Button variant="secondary" onClick={() => void downloadFailed()}>
-                <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadProblemRows')}</Button>
+                <DownloadSimple size={16} weight="bold" />
+                {t('opsFix.import.downloadProblemRows')}
+              </Button>
             )}
           </div>
         </Card>
@@ -477,8 +509,14 @@ export function CsvImport({
               ))}
           </ul>
           {(result.failed > 0 || invalid.length > 0) && (
-            <Button variant="secondary" onClick={() => void downloadFailed()} className="self-start">
-              <DownloadSimple size={16} weight="bold" />{t('opsFix.import.downloadFailedRows')}</Button>
+            <Button
+              variant="secondary"
+              onClick={() => void downloadFailed()}
+              className="self-start"
+            >
+              <DownloadSimple size={16} weight="bold" />
+              {t('opsFix.import.downloadFailedRows')}
+            </Button>
           )}
         </Card>
       )}

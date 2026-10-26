@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { OwnershipType } from '../../domain/inventory';
+import type { ServiceArea } from '../../domain/service-area';
 import {
   CreateDepotData,
   DepotQuery,
@@ -35,6 +36,7 @@ interface DepotRow {
   paymentQrisImageUrl: string | null;
   operatingHours: unknown;
   holidays: unknown;
+  serviceArea?: unknown;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -52,6 +54,7 @@ export class DepotPrismaRepository implements DepotRepository {
       minOrderAmount: row.minOrderAmount ? row.minOrderAmount.toNumber() : null,
       operatingHours: (row.operatingHours ?? {}) as OperatingHours,
       holidays: (row.holidays ?? []) as Holiday[],
+      serviceArea: (row.serviceArea ?? null) as ServiceArea | null,
     };
   }
 
@@ -140,18 +143,20 @@ export class DepotPrismaRepository implements DepotRepository {
   }
 
   async create(data: CreateDepotData): Promise<DepotRecord> {
+    const { serviceArea, ...rest } = data;
     const row = await this.prisma.depot.create({
       data: {
-        ...data,
+        ...rest,
         operatingHours: data.operatingHours as Prisma.InputJsonValue,
         holidays: data.holidays as unknown as Prisma.InputJsonValue,
+        ...(serviceArea ? { serviceArea: serviceArea as unknown as Prisma.InputJsonValue } : {}),
       },
     });
     return this.toRecord(row);
   }
 
   async update(id: string, patch: UpdateDepotData): Promise<DepotRecord> {
-    const { operatingHours, holidays, ...rest } = patch;
+    const { operatingHours, holidays, serviceArea, ...rest } = patch;
     const row = await this.prisma.depot.update({
       where: { id },
       data: {
@@ -161,6 +166,15 @@ export class DepotPrismaRepository implements DepotRepository {
           : {}),
         ...(holidays !== undefined
           ? { holidays: holidays as unknown as Prisma.InputJsonValue }
+          : {}),
+        // null clears the drawn area (back to radius routing); undefined leaves it alone.
+        ...(serviceArea !== undefined
+          ? {
+              serviceArea:
+                serviceArea === null
+                  ? Prisma.DbNull
+                  : (serviceArea as unknown as Prisma.InputJsonValue),
+            }
           : {}),
       },
     });

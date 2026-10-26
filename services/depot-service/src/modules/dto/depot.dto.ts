@@ -1,6 +1,10 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsIn,
+  IsNotEmpty,
+  ValidateNested,
   IsISO8601,
   IsArray,
   IsBoolean,
@@ -342,4 +346,54 @@ export class DepotPaymentInfoView {
       paymentQrisImageUrl: d.paymentQrisImageUrl,
     };
   }
+}
+
+/**
+ * One spreadsheet row. Everything but `code` is optional because an UPSERT row may fill in
+ * only what it changes; for a CREATE row the service enforces the fields `CreateDepotDto`
+ * requires and names the missing ones, so the person sees one message per row rather than
+ * a validation wall.
+ */
+export class ImportDepotRowDto extends PartialType(OmitType(CreateDepotDto, ['code'] as const)) {
+  @ApiProperty({ example: 'JKT-01' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  code!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Drawn service area: a list of polygons, each a list of { lat, lng }. Empty list ' +
+      'clears it. Parsed strictly by the service (no self-crossing, 3-200 points, max 5).',
+  })
+  @IsOptional()
+  @IsArray()
+  serviceArea?: unknown[];
+
+  @ApiPropertyOptional({
+    description:
+      'Per-depot settings by key (gallonDepositIdr, gallonMaxHoldDays, gallonReminderEveryDays, ' +
+      'approvalAutoPassIdr). A blank value is skipped.',
+  })
+  @IsOptional()
+  @IsObject()
+  settings?: Record<string, string | number | null>;
+}
+
+export class ImportDepotsDto {
+  @ApiProperty({
+    enum: ['create', 'upsert'],
+    description:
+      '`create` skips codes that already exist. `upsert` also updates them from the filled ' +
+      'cells (blank cells never clear a value) and needs the depot-admin capability too.',
+  })
+  @IsIn(['create', 'upsert'])
+  mode!: 'create' | 'upsert';
+
+  @ApiProperty({ type: [ImportDepotRowDto], description: 'Max 500 depots per file.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportDepotRowDto)
+  rows!: ImportDepotRowDto[];
 }

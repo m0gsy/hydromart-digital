@@ -42,6 +42,8 @@ export const depot = {
       return `/depots/api/v1/depots/manage${qs ? `?${qs}` : ''}`;
     },
     create: '/depots/api/v1/depots',
+    // Bulk create/update from the HQ spreadsheet wizard (body: { mode, rows }).
+    import: '/depots/api/v1/depots/import',
     // PATCH to update (incl. active:true to reactivate); DELETE to deactivate.
     // GET on this path returns the PUBLIC projection only — no bank details, no ownerId.
     detail: (id: string) => `/depots/api/v1/depots/${id}`,

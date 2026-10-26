@@ -328,4 +328,57 @@ describe('SettingsSliceService audit trail (CA-2-67)', () => {
     await Promise.resolve();
     expect(posts).toHaveLength(0);
   });
+
+  describe('validate', () => {
+    const make = () => build().service;
+
+    it('returns the def and the stored form without writing anything', () => {
+      const { service: svc, repo } = build();
+      expect(svc.validate({ scope: 'DEPOT', depotId: 'd1', key: 'fee', value: '7500' })).toEqual({
+        def: BY_KEY.fee,
+        coerced: 7500,
+      });
+      expect(repo.upserts).toHaveLength(0);
+    });
+
+    it.each([
+      [
+        'an unknown key',
+        { scope: 'GLOBAL', depotId: null, key: 'nope', value: '1' },
+        'Unknown setting',
+      ],
+      [
+        'a DEPOT scope without a depot',
+        { scope: 'DEPOT', depotId: null, key: 'fee', value: '1' },
+        'depotId required',
+      ],
+      [
+        'a per-depot override of a global key',
+        { scope: 'DEPOT', depotId: 'd1', key: 'netWide', value: '1' },
+        'global-only',
+      ],
+      [
+        'a fraction in a whole field',
+        { scope: 'GLOBAL', depotId: null, key: 'goldDiscountPct', value: '0.05' },
+        'Enter the percentage',
+      ],
+      [
+        'a value below min',
+        { scope: 'GLOBAL', depotId: null, key: 'radiusKm', value: '0' },
+        'below min',
+      ],
+      [
+        'a value above max',
+        { scope: 'GLOBAL', depotId: null, key: 'radiusKm', value: '99' },
+        'above max',
+      ],
+      [
+        'a string off its pattern',
+        { scope: 'GLOBAL', depotId: null, key: 'slots', value: 'x' },
+        'must match',
+      ],
+    ] as const)('refuses %s', (_n, input, msg) => {
+      expect(() => make().validate({ ...input })).toThrow(msg);
+    });
+  });
 });

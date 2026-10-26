@@ -11,6 +11,17 @@
  * silently missing copy.
  */
 export const hrFix = {
+  depotImport: {
+    notATime: '"{value}" bukan jam. Tulis HH:MM (08:00), dan format kolom jam sebagai Teks.',
+    notADate: '"{value}" bukan tanggal. Tulis YYYY-MM-DD (2026-08-17).',
+    badCoordinate: '"{value}" bukan koordinat. Pakai angka dengan titik desimal (-6.1944).',
+    badPair: '"{value}" bukan pasangan lat,lng. Contoh: -6.2,106.8',
+    scientific: '"{value}" rusak jadi notasi ilmiah oleh Excel. Format kolom sebagai Teks lalu ketik ulang.',
+    modeLabel: 'Mode impor',
+    modeCreate: 'Buat depot baru saja (kode yang sudah ada dilewati)',
+    modeUpsert: 'Buat baru dan perbarui yang sudah ada (sel kosong tidak menghapus)',
+    areaNote: 'Area layanan tersimpan tetapi belum dipakai untuk menentukan depot pelayanan; sampai itu aktif, radius tetap berlaku.',
+  },
   ownerAttendance: {
     title: 'Absensi tim',
     subtitle: 'Kehadiran karyawan di depot milik Anda. Hanya baca: tidak ada yang bisa diubah dari layar ini.',
@@ -1954,6 +1965,8 @@ export const hrFix = {
         'Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi sku (kode produk di katalog) atau productId; baris stok mentah harus mengosongkan keduanya. Nama dan satuan baris PRODUK diambil dari katalog, apa pun yang ditulis di kolom label.',
       pricing:
         'Setiap baris menjadi usulan override harga dan tetap menunggu persetujuan HQ — tidak langsung berlaku.',
+      depots:
+        'Unggah Excel atau CSV untuk membuat banyak depot sekaligus, lengkap dengan jam operasional, hari libur, setting depot, dan area layanan. Jam: kolom per hari (kosongkan semuanya = tutup). hariLibur: 2026-08-17:Hari Kemerdekaan|2026-12-25. areaLayanan: lat,lng|lat,lng|lat,lng (pisahkan poligon dengan #), titik desimal. Pada mode perbarui hanya sel yang terisi yang diubah.',
       staff:
         'Unggah Excel atau CSV untuk membuat banyak akun staf sekaligus. Mereka masuk lewat OTP dengan nomor yang ditulis, dan setiap baris juga membuka kartu karyawan di HR. Nomor yang sudah punya akun tidak digandakan — perannya diperbarui. Kolom depot wajib diisi untuk peran Kurir dan Kepala Depot; isi dailyRate untuk gaji harian, monthlyRate untuk bulanan.',
       adjustments:
@@ -1979,6 +1992,7 @@ export const hrFix = {
     salesHistory: 'Import Riwayat Transaksi Penjualan',
     salesHistoryBody:
       'Untuk memindahkan riwayat penjualan dari sistem lama depot ini. Baris disimpan sebagai catatan historis, bukan pesanan hidup — tidak memicu poin loyalitas, notifikasi, atau potongan stok. Nomor nota (externalRef) yang sama diimpor dua kali akan dilewati, bukan digandakan.',
+    depots: 'Impor Depot Massal',
     staff: 'Impor Staf Massal',
     deductions: 'Import Potongan',
     allowances: 'Import Tunjangan',
