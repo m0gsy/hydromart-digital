@@ -258,10 +258,33 @@ describe('DepotDirectoryHttpAdapter', () => {
     const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
     expect(out!.map((d) => d.id)).toEqual(['d1', 'd2', 'd3']);
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
-      'http://depot:3007/api/v1/depots?limit=100&page=1',
-      'http://depot:3007/api/v1/depots?limit=100&page=2',
-      'http://depot:3007/api/v1/depots?limit=100&page=3',
+      'http://depot:3007/api/v1/depots?limit=100&page=1&includeArea=true',
+      'http://depot:3007/api/v1/depots?limit=100&page=2&includeArea=true',
+      'http://depot:3007/api/v1/depots?limit=100&page=3&includeArea=true',
     ]);
+  });
+
+  it('asks for the drawn area and reads it, treating a malformed one as radius routing', async () => {
+    const ring = [
+      { lat: 0, lng: 0 },
+      { lat: 0, lng: 1 },
+      { lat: 1, lng: 1 },
+    ];
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          items: [
+            { ...depotRow('poly'), serviceArea: [ring] },
+            { ...depotRow('none') },
+            { ...depotRow('bad'), serviceArea: [[{ lat: 'x' }]] },
+          ],
+          totalPages: 1,
+        },
+      }),
+    );
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
+    expect(String(fetchMock.mock.calls[0][0])).toContain('includeArea=true');
+    expect(out!.map((d) => d.serviceArea)).toEqual([[ring], null, null]);
   });
 
   it('returns null, not a partial list, when a later page fails', async () => {
@@ -743,7 +766,9 @@ describe('LoyaltyCoordinationHttpAdapter', () => {
 
     // The tier the earn lifted the customer into rides along; anything that is not a
     // non-empty string (an older loyalty-service omits it) reads as "no upgrade".
-    fetchMock.mockResolvedValue(res({ ok: true, body: { pointsEarned: 1000, tierUpgradedTo: 'SILVER' } }));
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: { pointsEarned: 1000, tierUpgradedTo: 'SILVER' } }),
+    );
     await expect(
       new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
     ).resolves.toEqual({ points: 1000, tierUpgradedTo: 'SILVER' });

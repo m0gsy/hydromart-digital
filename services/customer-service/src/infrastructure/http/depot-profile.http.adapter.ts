@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { readServiceArea } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import { DepotGeo, DepotProfilePort } from '../../application/ports/depot-profile.port';
@@ -13,6 +14,9 @@ import { DepotGeo, DepotProfilePort } from '../../application/ports/depot-profil
  * service radius. No internal key is needed for it, and inventing an internal twin of a
  * route that already answers this would be a second thing to keep in step.
  */
+// What the public projection sends; the area is `unknown` until `readServiceArea` vouches for it.
+type GeoBody = Partial<Omit<DepotGeo, 'serviceArea'>> & { serviceArea?: unknown };
+
 @Injectable()
 export class DepotProfileHttpAdapter implements DepotProfilePort {
   private static readonly TIMEOUT_MS = 5000;
@@ -23,8 +27,8 @@ export class DepotProfileHttpAdapter implements DepotProfilePort {
   async geo(depotId: string): Promise<DepotGeo | null> {
     const base = this.config.depotServiceUrl;
     if (!base) return null;
-    const body = await this.read<Partial<DepotGeo>>(
-      `${base}/api/v1/depots/${encodeURIComponent(depotId)}`,
+    const body = await this.read<GeoBody>(
+      `${base}/api/v1/depots/${encodeURIComponent(depotId)}?includeArea=true`,
       {},
       `depot location for ${depotId}`,
     );
@@ -33,7 +37,12 @@ export class DepotProfileHttpAdapter implements DepotProfilePort {
     // A depot with no coordinates cannot judge an address; saying so is better than
     // answering "0 km away", which would put every address inside every radius.
     if (typeof lat !== 'number' || typeof lng !== 'number') return null;
-    return { lat, lng, serviceRadiusKm: typeof serviceRadiusKm === 'number' ? serviceRadiusKm : 0 };
+    return {
+      lat,
+      lng,
+      serviceRadiusKm: typeof serviceRadiusKm === 'number' ? serviceRadiusKm : 0,
+      serviceArea: readServiceArea(body.serviceArea),
+    };
   }
 
   async subscriberIds(depotId: string): Promise<string[] | null> {

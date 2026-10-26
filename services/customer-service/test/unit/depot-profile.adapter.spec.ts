@@ -34,20 +34,37 @@ describe('DepotProfileHttpAdapter', () => {
   });
 
   it('reads location from the PUBLIC depot projection, which already carries it', async () => {
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ lat: -6.9, lng: 107.6, serviceRadiusKm: 5 }),
-      });
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ lat: -6.9, lng: 107.6, serviceRadiusKm: 5 }),
+    });
     setFetch(fetchMock);
 
     await expect(new DepotProfileHttpAdapter(configured).geo(DEPOT)).resolves.toEqual({
       lat: -6.9,
       lng: 107.6,
       serviceRadiusKm: 5,
+      serviceArea: null,
     });
-    expect(fetchMock.mock.calls[0][0]).toBe(`http://depot:3007/api/v1/depots/${DEPOT}`);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `http://depot:3007/api/v1/depots/${DEPOT}?includeArea=true`,
+    );
+  });
+
+  it('carries the drawn service area when the depot has one', async () => {
+    const ring = [
+      { lat: 0, lng: 0 },
+      { lat: 0, lng: 1 },
+      { lat: 1, lng: 1 },
+    ];
+    setFetch(
+      jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ lat: -6.9, lng: 107.6, serviceRadiusKm: 5, serviceArea: [ring] }),
+      }),
+    );
+    const geo = await new DepotProfileHttpAdapter(configured).geo(DEPOT);
+    expect(geo?.serviceArea).toEqual([ring]);
   });
 
   // A depot with no coordinates cannot judge an address. "0 km away, in range" would put
@@ -65,6 +82,7 @@ describe('DepotProfileHttpAdapter', () => {
       lat: -6.9,
       lng: 107.6,
       serviceRadiusKm: 0,
+      serviceArea: null,
     });
   });
 

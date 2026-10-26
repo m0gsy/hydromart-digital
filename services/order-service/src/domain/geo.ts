@@ -1,4 +1,4 @@
-import { haversineKm } from '@hydromart/platform';
+import { haversineKm, pointInServiceArea } from '@hydromart/platform';
 
 import { DepotLocation } from '../application/ports/depot-directory.port';
 
@@ -8,8 +8,11 @@ import { DepotLocation } from '../application/ports/depot-directory.port';
 export { haversineKm };
 
 /**
- * Picks the nearest depot whose service radius covers the point, or null when no
- * depot is in range (or none are known). Deterministic: ties break by depot id.
+ * Picks the nearest depot that serves the point, or null when none does (or none are known).
+ * A depot serves a point when it is inside the depot's drawn area if it has one, otherwise
+ * when it is within `serviceRadiusKm`. "Nearest" is still by distance to the depot itself,
+ * so among the depots that serve an address the closest one fulfils it.
+ * Deterministic: ties break by depot id.
  */
 export function selectNearestDepot(
   lat: number,
@@ -22,11 +25,19 @@ export function selectNearestDepot(
     // NaN comparison is false — so `distance > radius` would NOT skip it and `!best`
     // would elect it, silently making one bad row swallow every address on earth.
     // Skip such rows outright: an unroutable depot is never a candidate.
-    if (!Number.isFinite(depot.serviceRadiusKm)) {
+    const area = depot.serviceArea;
+    if (!area?.length && !Number.isFinite(depot.serviceRadiusKm)) {
       continue;
     }
     const distance = haversineKm(lat, lng, depot.lat, depot.lng);
-    if (!Number.isFinite(distance) || distance > depot.serviceRadiusKm) {
+    // The distance ranks the candidates, so it must be a number even when an area decides.
+    if (!Number.isFinite(distance)) {
+      continue;
+    }
+    const serves = area?.length
+      ? pointInServiceArea({ lat, lng }, area)
+      : distance <= depot.serviceRadiusKm;
+    if (!serves) {
       continue;
     }
     if (

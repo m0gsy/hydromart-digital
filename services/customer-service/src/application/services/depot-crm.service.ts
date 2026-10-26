@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { DEFAULT_MAX_ROWS, haversineKm } from '@hydromart/platform';
+import { DEFAULT_MAX_ROWS, haversineKm, pointInServiceArea } from '@hydromart/platform';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
@@ -144,6 +144,23 @@ function snapshotMatches(s: DepotCustomerOrderStats, q: string): boolean {
  * `isSubscriber` (depot subscriptions have no customer id to match on), `churnRisk`
  * (forecast-service has no port here) and address `inRadius` (needs depot serviceRadiusKm).
  */
+/**
+ * Does the depot serve this address? Its drawn area when it has one, else its radius, the
+ * same two rules order-service routes checkout by, so the CRM card never says "in range"
+ * for an address the shop would refuse. Null when the address or the depot cannot be placed.
+ */
+function servedBy(
+  geo: DepotGeo | null,
+  lat: number | null,
+  lng: number | null,
+  distanceKm: number | null,
+): boolean | null {
+  if (geo === null || lat === null || lng === null || distanceKm === null) return null;
+  return geo.serviceArea?.length
+    ? pointInServiceArea({ lat, lng }, geo.serviceArea)
+    : distanceKm <= geo.serviceRadiusKm;
+}
+
 @Injectable()
 export class DepotCrmService {
   constructor(
@@ -446,7 +463,10 @@ export class DepotCrmService {
   ): { overdueGallons: number | null; oldestGallonAt: string | null } {
     if (!ledgerRead) return { overdueGallons: null, oldestGallonAt: null };
     if (!row) return { overdueGallons: 0, oldestGallonAt: null };
-    return { overdueGallons: row.overdueGallons ?? null, oldestGallonAt: row.oldestIssuedAt ?? null };
+    return {
+      overdueGallons: row.overdueGallons ?? null,
+      oldestGallonAt: row.oldestIssuedAt ?? null,
+    };
   }
 
   private toAddress(a: AddressRecord, geo: DepotGeo | null): DepotCrmAddress {
@@ -471,7 +491,7 @@ export class DepotCrmService {
       latitude: a.latitude,
       longitude: a.longitude,
       isPrimary: a.isPrimary,
-      inRadius: distanceKm === null ? null : distanceKm <= (geo as DepotGeo).serviceRadiusKm,
+      inRadius: servedBy(geo, a.latitude, a.longitude, distanceKm),
       distanceKm,
     };
   }
