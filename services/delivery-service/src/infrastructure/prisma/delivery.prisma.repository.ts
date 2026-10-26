@@ -9,6 +9,8 @@ import {
   CodBearing,
   UnsettledCod,
   UnfinishedDelivery,
+  CodHeldRow,
+  FailedDeliveryRow,
   DeliveredRow,
   DeliveryItem,
   DeliveryPingState,
@@ -323,6 +325,48 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       LIMIT ${limit}`,
     );
     return rows.map((r) => ({ driverId: r.driverId, orderId: r.orderId, at: r.at }));
+  }
+
+  async codHeldByCourier(since: Date, until: Date, limit: number): Promise<CodHeldRow[]> {
+    const rows = await this.prisma.$queryRaw<
+      { driverId: string; depotId: string | null; deliveries: bigint; amount: bigint; oldest: Date }[]
+    >(Prisma.sql`
+      SELECT d."driverId", d."depotId",
+             COUNT(*)::bigint AS "deliveries",
+             COALESCE(SUM(d."codAmount"), 0)::bigint AS "amount",
+             MIN(d."deliveredAt") AS "oldest"
+      FROM "deliveries" d
+      WHERE d."status" = ${DeliveryStatus.DELIVERED}::"DeliveryStatus"
+        AND d."codAmount" > 0
+        AND d."deliveredAt" >= ${since}
+        AND d."deliveredAt" < ${until}
+        AND NOT EXISTS (
+          SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds")
+        )
+      GROUP BY d."driverId", d."depotId"
+      ORDER BY "amount" DESC, d."driverId" ASC, d."depotId" ASC
+      LIMIT ${limit}`);
+    return rows.map((r) => ({
+      driverId: r.driverId,
+      depotId: r.depotId,
+      deliveries: Number(r.deliveries),
+      amountIdr: Number(r.amount),
+      oldestDeliveredAt: r.oldest,
+    }));
+  }
+
+  async failedInWindow(from: Date, to: Date, limit: number): Promise<FailedDeliveryRow[]> {
+    // RESCHEDULED has no `failedAt`, so `updatedAt` stands in for it, as in unsettledUnfinished.
+    return this.prisma.$queryRaw<FailedDeliveryRow[]>(Prisma.sql`
+      SELECT d."orderNumber", d."driverId", d."depotId", d."status"::text AS "status",
+             COALESCE(d."failedAt", d."updatedAt") AS "at",
+             COALESCE(d."failureReason", d."rescheduleNote") AS "reason"
+      FROM "deliveries" d
+      WHERE d."status" IN (${DeliveryStatus.FAILED}::"DeliveryStatus", ${DeliveryStatus.RESCHEDULED}::"DeliveryStatus")
+        AND COALESCE(d."failedAt", d."updatedAt") >= ${from}
+        AND COALESCE(d."failedAt", d."updatedAt") < ${to}
+      ORDER BY "at" DESC, d."orderNumber" ASC
+      LIMIT ${limit}`);
   }
 
   async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {

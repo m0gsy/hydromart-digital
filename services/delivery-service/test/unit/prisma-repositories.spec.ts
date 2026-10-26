@@ -358,6 +358,37 @@ describe('DeliveryPrismaRepository', () => {
     expect(q.values).toEqual(expect.arrayContaining(['depot-1', since]));
   });
 
+  it('codHeldByCourier groups by courier AND depot inside [since, until), skipping settled orders', async () => {
+    const since = new Date('2026-09-25T00:00:00Z');
+    const until = new Date('2026-10-26T00:00:00Z');
+    const oldest = new Date('2026-10-20T01:00:00Z');
+    $queryRaw.mockResolvedValue([
+      { driverId: 'drv-1', depotId: 'dep-1', deliveries: 2n, amount: 80000n, oldest },
+    ]);
+    expect(await repo.codHeldByCourier(since, until, 5001)).toEqual([
+      { driverId: 'drv-1', depotId: 'dep-1', deliveries: 2, amountIdr: 80000, oldestDeliveredAt: oldest },
+    ]);
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    const text = q.sql.replace(/\s+/g, ' ');
+    expect(text).toContain('GROUP BY d."driverId", d."depotId"');
+    expect(text).toContain('d."deliveredAt" < ?');
+    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(q.values).toEqual(expect.arrayContaining([since, until, 5001]));
+  });
+
+  it('failedInWindow reads FAILED and RESCHEDULED in [from, to), newest first, bounded', async () => {
+    const from = new Date('2026-10-25T00:00:00Z');
+    const to = new Date('2026-10-26T00:00:00Z');
+    const row = { orderNumber: 'HM-1', driverId: 'drv-1', depotId: null, status: 'FAILED', at: from, reason: 'x' };
+    $queryRaw.mockResolvedValue([row]);
+    expect(await repo.failedInWindow(from, to, 5001)).toEqual([row]);
+    const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
+    const text = q.sql.replace(/\s+/g, ' ');
+    expect(text).toContain('COALESCE(d."failedAt", d."updatedAt") >= ?');
+    expect(text).toContain('LIMIT ?');
+    expect(q.values).toEqual(expect.arrayContaining([from, to, 5001]));
+  });
+
   it('unsettledUnfinished lists handed-back deliveries no settlement covers, newest first, bounded', async () => {
     const since = new Date('2026-09-25T00:00:00Z');
     const at = new Date('2026-10-20T01:00:00Z');

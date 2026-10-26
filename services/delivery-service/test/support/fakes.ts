@@ -14,6 +14,8 @@ import {
   CodBearing,
   UnsettledCod,
   UnfinishedDelivery,
+  CodHeldRow,
+  FailedDeliveryRow,
   DeliveredRow,
   DeliveryQuery,
   DeliveryPingState,
@@ -279,6 +281,57 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
       .slice(0, limit)
       .map((r) => ({ driverId: r.driverId, orderId: r.orderId, at: r.updatedAt }));
+  }
+
+  async codHeldByCourier(since: Date, until: Date, limit: number): Promise<CodHeldRow[]> {
+    const groups = new Map<string, CodHeldRow>();
+    for (const r of this.rows) {
+      if (
+        r.status !== DeliveryStatus.DELIVERED ||
+        !(r.codAmount && r.codAmount > 0) ||
+        !r.deliveredAt ||
+        r.deliveredAt.getTime() < since.getTime() ||
+        r.deliveredAt.getTime() >= until.getTime() ||
+        this.settledOrderIds.has(r.orderId)
+      ) {
+        continue;
+      }
+      const key = `${r.driverId}|${r.depotId}`;
+      const cur = groups.get(key);
+      groups.set(key, {
+        driverId: r.driverId,
+        depotId: r.depotId,
+        deliveries: (cur?.deliveries ?? 0) + 1,
+        amountIdr: (cur?.amountIdr ?? 0) + r.codAmount,
+        oldestDeliveredAt:
+          cur && cur.oldestDeliveredAt.getTime() < r.deliveredAt.getTime()
+            ? cur.oldestDeliveredAt
+            : r.deliveredAt,
+      });
+    }
+    return [...groups.values()]
+      .sort((a, b) => b.amountIdr - a.amountIdr || a.driverId.localeCompare(b.driverId))
+      .slice(0, limit);
+  }
+
+  async failedInWindow(from: Date, to: Date, limit: number): Promise<FailedDeliveryRow[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          (r.status === DeliveryStatus.FAILED || r.status === DeliveryStatus.RESCHEDULED) &&
+          (r.failedAt ?? r.updatedAt).getTime() >= from.getTime() &&
+          (r.failedAt ?? r.updatedAt).getTime() < to.getTime(),
+      )
+      .map((r) => ({
+        orderNumber: r.orderNumber,
+        driverId: r.driverId,
+        depotId: r.depotId,
+        status: r.status,
+        at: r.failedAt ?? r.updatedAt,
+        reason: r.failureReason ?? r.rescheduleNote ?? null,
+      }))
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .slice(0, limit);
   }
 
   async codBearingInWindow(driverId: string, from: Date, to: Date): Promise<CodBearing[]> {

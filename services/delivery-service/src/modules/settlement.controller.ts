@@ -23,11 +23,13 @@ import {
   SettlementService,
   UnsettledCodReport,
 } from '../application/services/settlement.service';
+import { ReportTable } from '../domain/report-table';
 import { SURPLUS_NOTE_THRESHOLD_IDR } from '../domain/settlement';
 import { DepositedCod, SettlementRecord } from '../application/ports/settlement.repository';
 import {
   DepositedCodQueryDto,
   DisputeSettlementDto,
+  ReportTableQueryDto,
   SettlementQueryDto,
   SettlementRulesDto,
   UnsettledQueryDto,
@@ -35,6 +37,7 @@ import {
 } from './dto/settlement.dto';
 import {
   DepositedCodResponseDto,
+  ReportTableResponseDto,
   SettlementResponseDto,
   UnsettledCodResponseDto,
 } from './dto/responses.generated.dto';
@@ -66,6 +69,20 @@ export class SettlementController {
       new Date(query.from),
       new Date(query.to),
     );
+  }
+
+  /**
+   * The rows behind a scheduled report, for admin-service's report sweep (15c). Internal key: the
+   * caller is cron and holds no bearer. Static segment, so it is declared before any `:id`.
+   */
+  @ApiOkResponse({ type: ReportTableResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/report-table')
+  @ApiOperation({ summary: 'A courier-cash report as a flat table (internal service auth)' })
+  reportTable(@Query() query: ReportTableQueryDto): Promise<ReportTable> {
+    return this.settlements.reportTable(query.dataset, new Date(query.from), new Date(query.to));
   }
 
   /*
