@@ -35,6 +35,7 @@ function makeService(): Mocked {
       rows: [{ label: 'Depot A', orders: 2, revenue: 5000 }],
       truncated: false,
     }),
+    reportTable: jest.fn().mockResolvedValue({ columns: [], rows: [], truncated: false }),
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
     depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
@@ -454,6 +455,19 @@ describe('ReportController', () => {
       truncated: false,
     });
     expect(service.exportRows).toHaveBeenCalledWith('REVENUE_BY_DEPOT', {
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: undefined,
+    });
+  });
+
+  it('internalReportTable: forwards the dataset and the window, returns the table as-is', async () => {
+    const q = { dataset: 'ORDERS_DETAIL', from: '2026-08-01T00:00:00.000Z' } as never;
+    await expect(controller.internalReportTable(q)).resolves.toEqual({
+      columns: [],
+      rows: [],
+      truncated: false,
+    });
+    expect(service.reportTable).toHaveBeenCalledWith('ORDERS_DETAIL', {
       from: new Date('2026-08-01T00:00:00.000Z'),
       to: undefined,
     });

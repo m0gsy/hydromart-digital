@@ -285,6 +285,24 @@ export class ExportRowsQueryDto {
   to?: string;
 }
 
+/** Which table-shaped dataset a scheduled report wants, over which window. */
+export class ReportTableQueryDto {
+  @ApiProperty({ enum: ['ORDERS_DETAIL', 'NEW_VS_REPEAT'] })
+  @IsIn(['ORDERS_DETAIL', 'NEW_VS_REPEAT'])
+  dataset!: 'ORDERS_DETAIL' | 'NEW_VS_REPEAT';
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  @IsNotBefore('from')
+  to?: string;
+}
+
 export class TopReportQueryDto {
   @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
   @IsOptional()

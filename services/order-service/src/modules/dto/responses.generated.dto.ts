@@ -1505,6 +1505,24 @@ export class ExportRowResponseDto {
   revenue!: number;
 }
 
+export class ReportTableColumnResponseDto {
+  @ApiProperty() key!: string;
+  @ApiProperty() label!: string;
+  @ApiProperty({ enum: ['text', 'int', 'money', 'date', 'percent'] })
+  type!: 'text' | 'int' | 'money' | 'date' | 'percent';
+}
+
+export class InternalReportTableResponseDto {
+  @ApiProperty({ type: [ReportTableColumnResponseDto] })
+  columns!: ReportTableColumnResponseDto[];
+  /** Each row is aligned to `columns`. */
+  @ApiProperty({ type: 'array', items: { type: 'array', items: {} } })
+  rows!: (string | number | null)[][];
+  /** True when the row cap was hit and the table is missing everything past it. */
+  @ApiProperty()
+  truncated!: boolean;
+}
+
 export class InternalExportRowsResponseDto {
   @ApiProperty({ type: [ExportRowResponseDto] })
   rows!: ExportRowResponseDto[];

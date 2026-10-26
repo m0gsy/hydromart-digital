@@ -2,6 +2,30 @@ import { OrderStatus } from '../../domain/order-status';
 
 import { OutboxWrite } from './outbox.repository';
 
+/** What the ORDERS_DETAIL report reads of an order — never the address, phone or items. */
+export interface OrderTableRow {
+  id: string;
+  orderNumber: string;
+  createdAt: Date;
+  status: OrderStatus;
+  depotId: string | null;
+  customerId: string;
+  driverName: string | null;
+  isWalkIn: boolean;
+  subtotal: number;
+  discount: number;
+  deliveryFee: number;
+  total: number;
+}
+
+export interface NewVsRepeatRow {
+  depotId: string;
+  newCustomers: number;
+  repeatCustomers: number;
+  orders: number;
+  revenue: number;
+}
+
 export interface OrderItemRecord {
   id: string;
   productId: string;
@@ -775,6 +799,18 @@ export interface OrderRepository {
    * is indistinguishable from one that worked.
    */
   segmentCustomerIds(conditions: SegmentConditions, limit: number): Promise<string[]>;
+  /**
+   * One narrow row per order in the window, oldest first, INCLUDING cancelled and voided ones
+   * (the status column says which). Backs the ORDERS_DETAIL scheduled report; `limit` is a
+   * hard cap and the caller asks for one more than it shows to learn whether it cut anything.
+   */
+  ordersForTable(range: ReportRange, limit: number): Promise<OrderTableRow[]>;
+  /**
+   * Per depot: how many of the window's buyers placed their first-ever order inside it and how
+   * many had ordered before, with the window's own order count and revenue. Voided, cancelled
+   * and phone-less walk-in orders are out, like every other customer report.
+   */
+  newVsRepeatByDepot(range: ReportRange, limit: number): Promise<NewVsRepeatRow[]>;
   /**
    * Every order (INCLUDING cancelled) for one depot within the range, oldest first.
    * Backs the depot daily/weekly composites (design 2d/7d) — the service partitions

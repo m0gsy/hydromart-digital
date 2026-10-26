@@ -35,6 +35,7 @@ import {
   DepotRatingsQueryDto,
   DepotWeeklyQueryDto,
   ExportRowsQueryDto,
+  ReportTableQueryDto,
   RangeReportQueryDto,
   ResellerRollupQueryDto,
   RevenueExportPdfDto,
@@ -60,6 +61,7 @@ import {
   StatusSummaryReport,
   TimeAreaReport,
   RecentActivityReport,
+  ReportTable,
 } from '../application/services/report.service';
 import {
   CustomerSales,
@@ -72,6 +74,7 @@ import {
   InternalDailySalesBroadcastResponseDto,
   InternalDepotDailyGallonsResponseDto,
   InternalExportRowsResponseDto,
+  InternalReportTableResponseDto,
   InternalSegmentCustomersResponseDto,
 } from './dto/responses.generated.dto';
 import {
@@ -463,6 +466,21 @@ export class ReportController {
     @Query() q: ExportRowsQueryDto,
   ): Promise<{ rows: { label: string; orders: number; revenue: number }[]; truncated: boolean }> {
     return this.reports.exportRows(q.dataset, toRange(q));
+  }
+
+  /**
+   * The table behind a scheduled ORDERS_DETAIL / NEW_VS_REPEAT report, in the shared
+   * `{ columns, rows, truncated }` shape. Internal-key for the same reason as
+   * `internal/export-rows`: the caller is cron and holds no bearer.
+   */
+  @ApiOkResponse({ type: InternalReportTableResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/report-table')
+  @ApiOperation({ summary: 'Table rows for a scheduled report (internal service auth)' })
+  internalReportTable(@Query() q: ReportTableQueryDto): Promise<ReportTable> {
+    return this.reports.reportTable(q.dataset, toRange(q));
   }
 
   /**
