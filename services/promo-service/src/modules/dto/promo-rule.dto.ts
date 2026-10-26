@@ -427,3 +427,20 @@ export class ActivePromoRulesQueryDto {
   @IsUUID()
   depotId!: string;
 }
+
+/** Datasets promotions/internal/report-table can answer (admin-service scheduled reports). */
+export const REPORT_TABLE_DATASETS = ['PROMO_COST'] as const;
+
+export class ReportTableQueryDto {
+  @ApiProperty({ enum: REPORT_TABLE_DATASETS })
+  @IsIn(REPORT_TABLE_DATASETS)
+  dataset!: (typeof REPORT_TABLE_DATASETS)[number];
+
+  @ApiProperty({ description: 'Window start, inclusive (ISO 8601).' })
+  @IsISO8601()
+  from!: string;
+
+  @ApiProperty({ description: 'Window end, exclusive (ISO 8601).' })
+  @IsISO8601()
+  to!: string;
+}

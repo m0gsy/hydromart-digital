@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+﻿import { Inject, Injectable, Optional } from '@nestjs/common';
 import { assertFresh } from '@hydromart/platform';
 
 import {
@@ -25,6 +25,7 @@ import {
   UpdatePromoRuleData,
 } from '../ports/promo-rule.repository';
 import { OrderValuePort } from '../ports/order-value.port';
+import { VoucherRepository } from '../ports/voucher.repository';
 import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
 
@@ -43,6 +44,18 @@ export interface PromoRuleValueUsage extends PromoRuleUsage {
   grossOrderValue: number | null;
   valueSource: 'ok' | 'unavailable';
 }
+
+/** The tabular shape every service answers internal/report-table with (admin-service reads it). */
+export interface ReportTable {
+  columns: { key: string; label: string; type: 'text' | 'int' | 'money' | 'date' | 'percent' }[];
+  rows: (string | number | null)[][];
+  truncated: boolean;
+}
+
+/** Audit rows read for one report. Past it the window is cut and the report says so. */
+export const REPORT_AUDIT_CAP = 20_000;
+/** Rows a report may return. */
+export const REPORT_ROW_CAP = 5_000;
 
 export interface QuoteInput {
   depotId: string | null;
@@ -106,6 +119,10 @@ export class PromoRuleService {
     private readonly config: PromoConfigService,
     // Optional so a caller that only edits rules (and its tests) need not stand up order-service.
     @Optional() @Inject(PROMO_TOKENS.OrderValues) private readonly orderValues?: OrderValuePort,
+    // Optional for the same reason: only the scheduled report reads redemptions.
+    @Optional()
+    @Inject(PROMO_TOKENS.VoucherRepository)
+    private readonly vouchers?: VoucherRepository,
   ) {}
 
   findAll(depotIds?: readonly string[]): Promise<PromoRuleRecord[]> {
@@ -194,6 +211,66 @@ export class PromoRuleService {
         valueSource: 'ok',
       };
     });
+  }
+
+  /**
+   * Scheduled report PROMO_COST: per promo rule and per voucher used in [from, to), what it
+   * took off against the value of the orders it was used on (same cost view as
+   * usageWithValue: not revenue the promo caused). Order values are unknown, not zero, when
+   * order-service cannot be read, and the Nilai pesanan / Biaya % cells stay null.
+   * A voucher that was released (order voided) is not a cost and is left out.
+   */
+  async costReport(from: Date, to: Date): Promise<ReportTable> {
+    const [apps, reds] = await Promise.all([
+      this.repo.applicationsInWindow(from, to, REPORT_AUDIT_CAP + 1),
+      this.vouchers?.redemptionsInWindow(from, to, REPORT_AUDIT_CAP + 1) ?? Promise.resolve([]),
+    ]);
+    const truncated = apps.length > REPORT_AUDIT_CAP || reds.length > REPORT_AUDIT_CAP;
+    const groups = new Map<
+      string,
+      { kind: string; name: string; orders: Set<string>; cost: number }
+    >();
+    const add = (key: string, kind: string, name: string, orderId: string, cost: number) => {
+      const g = groups.get(key) ?? { kind, name, orders: new Set<string>(), cost: 0 };
+      g.orders.add(orderId);
+      g.cost += cost;
+      groups.set(key, g);
+    };
+    for (const a of apps.slice(0, REPORT_AUDIT_CAP)) {
+      add(`P:${a.promoRuleId}`, 'Aturan promo', a.ruleName, a.orderId, a.discount);
+    }
+    for (const r of reds.slice(0, REPORT_AUDIT_CAP)) {
+      add(`V:${r.voucherId}`, 'Voucher', r.voucherCode, r.orderId, r.discountApplied);
+    }
+
+    const orderIds = [...new Set([...groups.values()].flatMap((g) => [...g.orders]))];
+    const values = this.orderValues ? await this.orderValues.findOrderValues(orderIds) : null;
+    const totalOf = new Map((values ?? []).map((v) => [v.orderId, v.totalIdr]));
+
+    const sorted = [...groups.values()].sort((a, b) => b.cost - a.cost || a.name.localeCompare(b.name));
+    const rows = sorted.slice(0, REPORT_ROW_CAP).map((g) => {
+      const gross = values ? [...g.orders].reduce((n, id) => n + (totalOf.get(id) ?? 0), 0) : null;
+      return [
+        g.kind,
+        g.name,
+        g.orders.size,
+        g.cost,
+        gross,
+        gross ? Math.round((g.cost / gross) * 1000) / 10 : null,
+      ];
+    });
+    return {
+      columns: [
+        { key: 'kind', label: 'Jenis', type: 'text' },
+        { key: 'name', label: 'Promo / kode', type: 'text' },
+        { key: 'orders', label: 'Pesanan', type: 'int' },
+        { key: 'cost', label: 'Biaya diskon', type: 'money' },
+        { key: 'orderValue', label: 'Nilai pesanan', type: 'money' },
+        { key: 'costPct', label: 'Biaya % nilai pesanan', type: 'percent' },
+      ],
+      rows,
+      truncated: truncated || sorted.length > REPORT_ROW_CAP,
+    };
   }
 
   async quote(input: QuoteInput): Promise<QuoteOutput> {

@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 
 import { StaleWriteError } from '@hydromart/platform';
 
 import {
   CreatePromoRuleData,
+  PromoApplicationInWindow,
   PromoRuleOrderSample,
   PromoRuleRecord,
   PromoRuleRepository,
@@ -14,9 +15,12 @@ import { PromoRuleCandidate } from '../../src/domain/promo-rule';
 import {
   PromoRuleService,
   PromoRuleValidationError,
+  REPORT_AUDIT_CAP,
+  REPORT_ROW_CAP,
 } from '../../src/application/services/promo-rule.service';
 import { PromoRuleInUseError, PromoRuleNotFoundError } from '../../src/domain/errors';
 import { PromoConfigService } from '../../src/config/promo-config.service';
+import { InMemoryVoucherRepository } from '../support/fakes';
 
 class InMemoryPromoRuleRepository implements PromoRuleRepository {
   rows: PromoRuleRecord[] = [];
@@ -53,6 +57,11 @@ class InMemoryPromoRuleRepository implements PromoRuleRepository {
   }
   async findAll(): Promise<PromoRuleRecord[]> {
     return this.rows;
+  }
+  /** What `applicationsInWindow` answers; tests set it. */
+  windowApps: PromoApplicationInWindow[] = [];
+  async applicationsInWindow(_from: Date, _to: Date, limit: number): Promise<PromoApplicationInWindow[]> {
+    return this.windowApps.slice(0, limit);
   }
   /** What `recentOrdersByRule` answers; tests set it. */
   sample: PromoRuleOrderSample[] = [];
@@ -1007,4 +1016,83 @@ describe('PromoRuleService', () => {
       expect(repo.applications).toEqual([]);
     });
   });
-});
+
+  describe('costReport', () => {
+    const from = new Date('2026-10-25T17:00:00Z');
+    const to = new Date('2026-10-26T17:00:00Z');
+    const values = (totals: Record<string, number>) => ({
+      findOrderValues: jest.fn(async (ids: string[]) =>
+        ids.map((orderId) => ({ orderId, totalIdr: totals[orderId] ?? 0, depotId: null })),
+      ),
+    });
+    const app = (promoRuleId: string, ruleName: string, orderId: string, discount: number) => ({
+      promoRuleId,
+      ruleName,
+      orderId,
+      discount,
+    });
+
+    it('prices each promo and voucher against the orders it was used on, costliest first', async () => {
+      repo.windowApps = [
+        app('r1', 'Jumat Berkah', 'o1', 1000),
+        app('r1', 'Jumat Berkah', 'o1', 500), // two products on one order: one order
+        app('r1', 'Jumat Berkah', 'o2', 2000),
+      ];
+      const vouchers = new InMemoryVoucherRepository();
+      vouchers.windowRedemptions = [
+        { voucherId: 'v1', voucherCode: 'HEMAT10', orderId: 'o3', discountApplied: 10_000 },
+      ];
+      const ov = values({ o1: 40_000, o2: 60_000, o3: 100_000 });
+      const svc = new PromoRuleService(repo, fakeConfig, ov, vouchers);
+
+      const table = await svc.costReport(from, to);
+
+      expect(table.columns.map((c) => c.key)).toEqual([
+        'kind', 'name', 'orders', 'cost', 'orderValue', 'costPct',
+      ]);
+      expect(table.rows).toEqual([
+        ['Voucher', 'HEMAT10', 1, 10_000, 100_000, 10],
+        ['Aturan promo', 'Jumat Berkah', 2, 3500, 100_000, 3.5],
+      ]);
+      expect(table.truncated).toBe(false);
+      expect(ov.findOrderValues).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the order value and share null, never zero, when order-service cannot be read', async () => {
+      repo.windowApps = [app('r1', 'Jumat Berkah', 'o1', 1000)];
+      const down = { findOrderValues: jest.fn(async () => null) };
+      const table = await new PromoRuleService(repo, fakeConfig, down).costReport(from, to);
+      expect(table.rows).toEqual([['Aturan promo', 'Jumat Berkah', 1, 1000, null, null]]);
+      const bare = await new PromoRuleService(repo, fakeConfig).costReport(from, to);
+      expect(bare.rows).toEqual([['Aturan promo', 'Jumat Berkah', 1, 1000, null, null]]);
+    });
+
+    it('keeps the share null when the orders are worth nothing', async () => {
+      repo.windowApps = [app('r1', 'Gratis', 'o1', 1000)];
+      const table = await new PromoRuleService(repo, fakeConfig, values({})).costReport(from, to);
+      expect(table.rows[0].slice(4)).toEqual([0, null]);
+    });
+
+    it('is an empty, complete table for a quiet window', async () => {
+      const table = await new PromoRuleService(repo, fakeConfig, values({})).costReport(from, to);
+      expect(table).toMatchObject({ rows: [], truncated: false });
+    });
+
+    it('says so when the audit window is cut off', async () => {
+      repo.windowApps = Array.from({ length: REPORT_AUDIT_CAP + 1 }, (_, i) =>
+        app('r1', 'Jumat Berkah', 'o' + i, 1),
+      );
+      const table = await new PromoRuleService(repo, fakeConfig).costReport(from, to);
+      expect(table.truncated).toBe(true);
+      expect(table.rows[0][2]).toBe(REPORT_AUDIT_CAP);
+    });
+
+    it('says so when more promos than the row cap were used', async () => {
+      repo.windowApps = Array.from({ length: REPORT_ROW_CAP + 1 }, (_, i) =>
+        app('r' + i, 'P' + i, 'o' + i, 1),
+      );
+      const table = await new PromoRuleService(repo, fakeConfig).costReport(from, to);
+      expect(table.rows).toHaveLength(REPORT_ROW_CAP);
+      expect(table.truncated).toBe(true);
+    });
+  });});
