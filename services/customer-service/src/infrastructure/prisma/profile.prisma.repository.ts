@@ -133,7 +133,7 @@ export class ProfilePrismaRepository implements ProfileRepository {
       FROM "customer_profiles" p
       JOIN "addresses" a
         ON a."customerId" = p."customerId" AND a."isPrimary" = true
-      WHERE p."customerId" = ${customerId}
+      WHERE p."customerId" = ${customerId}::uuid
       ORDER BY p."customerId"
     `;
     return rows[0] ?? null;
