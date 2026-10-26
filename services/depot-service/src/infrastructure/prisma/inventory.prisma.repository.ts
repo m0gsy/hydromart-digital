@@ -20,6 +20,7 @@ import {
   RecordMovementData,
   ReservationRecord,
   StockMovementRecord,
+  StockSnapshotRow,
   UpdateInventoryItemData,
 } from '../../application/ports/inventory.repository';
 import { NegativeStockError } from '../../domain/errors';
@@ -392,6 +393,33 @@ export class InventoryPrismaRepository implements InventoryRepository {
           ? null
           : Number(r.item.sellPrice),
       delta: r.delta,
+    }));
+  }
+
+  async stockSnapshot(limit: number): Promise<StockSnapshotRow[]> {
+    const rows = await this.prisma.inventoryItem.findMany({
+      where: { hidden: false },
+      orderBy: [{ depot: { code: 'asc' } }, { label: 'asc' }],
+      take: limit,
+      select: {
+        label: true,
+        unit: true,
+        quantity: true,
+        reserved: true,
+        minimumStock: true,
+        depot: { select: { code: true, name: true } },
+        movements: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+    return rows.map((r) => ({
+      depotCode: r.depot.code,
+      depotName: r.depot.name,
+      label: r.label,
+      unit: r.unit,
+      quantity: r.quantity,
+      reserved: r.reserved,
+      minimumStock: r.minimumStock,
+      lastMovementAt: r.movements[0]?.createdAt ?? null,
     }));
   }
 

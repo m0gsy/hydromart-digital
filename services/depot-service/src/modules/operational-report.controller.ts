@@ -11,6 +11,8 @@ import {
   DepotGovernance,
   DepotGovernanceService,
 } from '../application/services/depot-governance.service';
+import { ReportTable, ReportTableService } from '../application/services/report-table.service';
+import { ReportTableQueryDto } from './dto/report-table.dto';
 import { OperationalCostQueryDto } from './dto/operational-report.dto';
 import { DepotGovernanceQueryDto } from './dto/depot-governance.dto';
 import {
@@ -26,6 +28,7 @@ export class OperationalReportController {
   constructor(
     private readonly reports: OperationalReportService,
     private readonly governance: DepotGovernanceService,
+    private readonly tables: ReportTableService,
   ) {}
 
   /**
@@ -46,6 +49,24 @@ export class OperationalReportController {
     const to = new Date(query.to);
     if (from >= to) throw new BadRequestException('from must be earlier than to');
     return this.governance.inRange(query.depotId, from, to);
+  }
+
+  /**
+   * A table for admin-service's scheduled-report sweep. Internal key: the caller is cron and
+   * holds no bearer. Only the datasets this service owns are accepted — anything else is a
+   * 400 from the DTO rather than an empty file.
+   */
+  @ApiOkResponse({ description: '`{ columns, rows, truncated }` — the scheduled-report table shape.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/report-table')
+  @ApiOperation({ summary: 'A scheduled report table (internal service auth)' })
+  async reportTable(@Query() query: ReportTableQueryDto): Promise<ReportTable> {
+    if (new Date(query.from) >= new Date(query.to)) {
+      throw new BadRequestException('from must be earlier than to');
+    }
+    return this.tables.stockLevels();
   }
 
   @ApiOkResponse({ type: OperationalCostReportResponseDto })

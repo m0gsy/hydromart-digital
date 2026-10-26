@@ -30,6 +30,7 @@ import {
   RecordMovementData,
   ReservationRecord,
   StockMovementRecord,
+  StockSnapshotRow,
   UpdateInventoryItemData,
 } from '../../src/application/ports/inventory.repository';
 import { available, ReservationStatus, StockMovementType } from '../../src/domain/inventory';
@@ -472,6 +473,28 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .map((m) => ({ move: m, item: this.items.find((x) => x.id === m.itemId) }))
       .filter((x) => x.item?.depotId === depotId)
       .map(({ move, item }) => ({ sellPrice: item!.sellPrice, delta: move.delta }));
+  }
+
+  async stockSnapshot(limit: number): Promise<StockSnapshotRow[]> {
+    return this.items
+      .filter((i) => !i.hidden)
+      .sort((a, b) => a.depotId.localeCompare(b.depotId) || a.label.localeCompare(b.label))
+      .slice(0, limit)
+      .map((i) => {
+        const last = this.moves
+          .filter((m) => m.itemId === i.id)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+        return {
+          depotCode: i.depotId,
+          depotName: i.depotId,
+          label: i.label,
+          unit: i.unit,
+          quantity: i.quantity,
+          reserved: i.reserved,
+          minimumStock: i.minimumStock,
+          lastMovementAt: last?.createdAt ?? null,
+        };
+      });
   }
 
   async findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null> {

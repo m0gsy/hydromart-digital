@@ -1810,6 +1810,47 @@ describe('InventoryPrismaRepository', () => {
     ]);
   });
 
+  it('reads the stock snapshot with depot and last movement, bounded by the limit', async () => {
+    const last = new Date('2026-07-01T00:00:00Z');
+    inventoryItem.findMany.mockResolvedValue([
+      {
+        label: 'Galon 19L',
+        unit: 'pcs',
+        quantity: 10,
+        reserved: 2,
+        minimumStock: 5,
+        depot: { code: 'JKT-01', name: 'Jakarta' },
+        movements: [{ createdAt: last }],
+      },
+      {
+        label: 'Air RO',
+        unit: 'liter',
+        quantity: 0,
+        reserved: 0,
+        minimumStock: 0,
+        depot: { code: 'JKT-02', name: 'Bekasi' },
+        movements: [],
+      },
+    ]);
+    const out = await repo.stockSnapshot(5001);
+    expect(inventoryItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { hidden: false }, take: 5001 }),
+    );
+    expect(out).toEqual([
+      {
+        depotCode: 'JKT-01',
+        depotName: 'Jakarta',
+        label: 'Galon 19L',
+        unit: 'pcs',
+        quantity: 10,
+        reserved: 2,
+        minimumStock: 5,
+        lastMovementAt: last,
+      },
+      expect.objectContaining({ depotCode: 'JKT-02', lastMovementAt: null }),
+    ]);
+  });
+
   it('asks for opname movements with no range at all when none is given', async () => {
     stockMovement.findMany.mockResolvedValue([]);
     await repo.opnameVariances('depot-1', {});
