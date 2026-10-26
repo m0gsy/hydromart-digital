@@ -349,7 +349,8 @@ describe('HolidayController / ShiftController', () => {
   it('kasbon controllers delegate, self and decision sides apart', () => {
     const requests = svcMock(['listSelf', 'submit', 'cancel', 'listAll', 'decide']);
     const self = new SelfLoanRequestController(requests as never);
-    const queue = new LoanRequestController(requests as never);
+    const loans = svcMock(['reportTable']);
+    const queue = new LoanRequestController(requests as never, loans as never);
 
     self.list(user);
     expect(requests.listSelf).toHaveBeenCalledWith(user);
@@ -372,6 +373,13 @@ describe('HolidayController / ShiftController', () => {
     } as never;
     queue.decide('lr1', decision, user);
     expect(requests.decide).toHaveBeenCalledWith(user, 'lr1', decision);
+
+    queue.internalReportTable({
+      dataset: 'KASBON_BALANCE',
+      from: '2026-10-01T00:00:00Z',
+      to: '2026-11-01T00:00:00Z',
+    } as never);
+    expect(loans.reportTable).toHaveBeenCalledWith(new Date('2026-11-01T00:00:00Z'));
   });
 
   it('documents delegate, including the internal retention purge', () => {

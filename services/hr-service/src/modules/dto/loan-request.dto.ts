@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
@@ -40,6 +41,18 @@ export class DecideLoanRequestDto {
   startPeriod?: string;
   /** CA-2-53: the version of the request this decision was made against. */
   @IsOptional() @IsString() seenUpdatedAt?: string;
+}
+
+/** The only table this service renders for admin-service's scheduled reports. */
+export enum LoanReportDataset {
+  KASBON_BALANCE = 'KASBON_BALANCE',
+}
+
+export class LoanReportTableQueryDto {
+  @IsEnum(LoanReportDataset) dataset!: LoanReportDataset;
+  /** Window start. Unused: a balance is a snapshot at `to`, not a flow over the window. */
+  @IsDateString() from!: string;
+  @IsDateString() to!: string;
 }
 
 export class ListLoanRequestDto {

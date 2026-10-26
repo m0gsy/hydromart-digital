@@ -1,13 +1,32 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, SelfScoped } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  SelfScoped,
+} from '@hydromart/platform';
 
 import { LoanRequest } from '../../prisma/generated/client';
+import { LoanService, LoanReportTable } from '../application/services/loan.service';
 import { LoanRequestService } from '../application/services/loan-request.service';
 import {
   DecideLoanRequestDto,
   ListLoanRequestDto,
+  LoanReportTableQueryDto,
   SubmitLoanRequestDto,
 } from './dto/loan-request.dto';
 import { LoanRequestResponseDto, PagedLoanRequestResponseDto } from './dto/responses.generated.dto';
@@ -62,7 +81,25 @@ export class SelfLoanRequestController {
 @ApiBearerAuth()
 @Controller({ path: 'loan-requests', version: '1' })
 export class LoanRequestController {
-  constructor(private readonly requests: LoanRequestService) {}
+  constructor(
+    private readonly requests: LoanRequestService,
+    private readonly loans: LoanService,
+  ) {}
+
+  /**
+   * Kasbon balances for admin-service's scheduled reports. Internal-key: the caller is the
+   * report sweep, which holds no bearer. Declared first and a literal path, so it can never
+   * be read as an `:id`.
+   */
+  @ApiOkResponse({ description: 'columns + rows + truncated (scheduled-report table contract)' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/report-table')
+  @ApiOperation({ summary: 'Kasbon balance table for a scheduled report (internal service auth)' })
+  internalReportTable(@Query() q: LoanReportTableQueryDto): Promise<LoanReportTable> {
+    return this.loans.reportTable(new Date(q.to));
+  }
 
   @ApiOkResponse({ type: PagedLoanRequestResponseDto })
   @Can('kasbonApprove')
