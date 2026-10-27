@@ -18,6 +18,18 @@ export interface InventoryItemRecord {
   updatedAt: Date;
 }
 
+/** One stock line as a scheduled report reads it. */
+export interface StockSnapshotRow {
+  depotCode: string;
+  depotName: string;
+  label: string;
+  unit: string;
+  quantity: number;
+  reserved: number;
+  minimumStock: number;
+  lastMovementAt: Date | null;
+}
+
 /** A depot's price override for one product. */
 export interface DepotProductPrice {
   productId: string;
@@ -191,6 +203,12 @@ export interface InventoryRepository {
     depotId: string,
     range: { from?: Date; to?: Date },
   ): Promise<{ sellPrice: number | null; delta: number }[]>;
+
+  /**
+   * Every visible stock line in the network with its depot and last movement, ordered by
+   * depot code then label. For a scheduled report; `limit` bounds the read.
+   */
+  stockSnapshot(limit: number): Promise<StockSnapshotRow[]>;
 
   /** The reservation this order holds on this line, if any (any status). */
   findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null>;

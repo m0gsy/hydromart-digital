@@ -2,14 +2,17 @@ import { BadRequestException } from '@nestjs/common';
 
 import { DepotGovernanceService } from '../../src/application/services/depot-governance.service';
 import { OperationalReportService } from '../../src/application/services/operational-report.service';
+import { ReportTableService } from '../../src/application/services/report-table.service';
 import { OperationalReportController } from '../../src/modules/operational-report.controller';
 
 describe('OperationalReportController', () => {
   const report = jest.fn();
   const inRange = jest.fn();
+  const stockLevels = jest.fn();
   const controller = new OperationalReportController(
     { report } as unknown as OperationalReportService,
     { inRange } as unknown as DepotGovernanceService,
+    { stockLevels } as unknown as ReportTableService,
   );
 
   beforeEach(() => jest.clearAllMocks());
@@ -51,6 +54,24 @@ describe('OperationalReportController', () => {
       controller.governanceInRange({
         depotId: '11111111-1111-4111-8111-111111111111',
         from: '2026-08-02T00:00:00.000Z',
+        to: '2026-08-01T00:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('serves the stock table, and refuses a reversed window', async () => {
+    stockLevels.mockResolvedValue({ columns: [], rows: [], truncated: false });
+    await expect(
+      controller.reportTable({
+        dataset: 'STOCK_LEVELS',
+        from: '2026-07-01T00:00:00.000Z',
+        to: '2026-08-01T00:00:00.000Z',
+      }),
+    ).resolves.toEqual({ columns: [], rows: [], truncated: false });
+    await expect(
+      controller.reportTable({
+        dataset: 'STOCK_LEVELS',
+        from: '2026-08-01T00:00:00.000Z',
         to: '2026-08-01T00:00:00.000Z',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
