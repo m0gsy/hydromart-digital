@@ -20,6 +20,14 @@ export {
 } from './domain/tax';
 export { haversineKm } from './domain/geo';
 export {
+  pointInServiceArea,
+  readServiceArea,
+  cross as areaCross,
+  within as areaWithin,
+  type LatLng,
+  type ServiceArea,
+} from './domain/service-area';
+export {
   BUSINESS_TIME_ZONE,
   addLocalDays,
   addLocalMonths,

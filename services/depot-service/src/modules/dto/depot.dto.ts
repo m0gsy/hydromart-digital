@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsIn,
@@ -28,6 +28,12 @@ import { OwnershipType } from '../../domain/inventory';
 import { DepotRecord } from '../../application/ports/depot.repository';
 
 export class BrowseDepotsQueryDto {
+  @ApiPropertyOptional({ description: 'Also return each depot drawn service area.' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeArea?: boolean;
+
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
@@ -258,7 +264,23 @@ export class PublicDepotView {
    */
   @ApiProperty() acceptsTransfer!: boolean;
   @ApiProperty() acceptsQris!: boolean;
+  /**
+   * The drawn service area, ONLY when the caller asks for it (`?includeArea=true`): it can be
+   * tens of KB per depot and the storefront never needs the shape, only `withinService`.
+   * order-service asks, because it has to decide membership itself. Absent otherwise.
+   */
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'array', items: { type: 'object' } },
+    nullable: true,
+  })
+  serviceArea?: unknown[][] | null;
 
+  /**
+   * A single-parameter on purpose: it is passed straight to `Array.map`, which would hand a
+   * second parameter the index — and every depot after the first would publish its polygons.
+   * The variant that includes the area is a different function, `fromWithArea`.
+   */
   static from(d: DepotRecord): PublicDepotView {
     return {
       id: d.id,
@@ -280,6 +302,19 @@ export class PublicDepotView {
       acceptsQris: (d.paymentQrisImageUrl ?? '').trim().length > 0,
     };
   }
+}
+
+export function publicDepotWithArea(d: DepotRecord): PublicDepotView {
+  return { ...PublicDepotView.from(d), serviceArea: d.serviceArea ?? null };
+}
+
+/** `?includeArea=true` on the browse and detail routes. */
+export class IncludeAreaQueryDto {
+  @ApiPropertyOptional({ description: 'Also return the drawn service area (serviceArea).' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeArea?: boolean;
 }
 
 /**

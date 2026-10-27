@@ -67,4 +67,43 @@ describe('DepotService.findNearby', () => {
     const result = await service.findNearby(REF.lat, REF.lng, 2);
     expect(result.map((r) => r.code)).toEqual(['A', 'B']);
   });
+
+  describe('with a drawn service area', () => {
+    // A 0.1 x 0.1 degree square around the reference point.
+    const square = [
+      [
+        { lat: REF.lat - 0.05, lng: REF.lng - 0.05 },
+        { lat: REF.lat - 0.05, lng: REF.lng + 0.05 },
+        { lat: REF.lat + 0.05, lng: REF.lng + 0.05 },
+        { lat: REF.lat + 0.05, lng: REF.lng - 0.05 },
+      ],
+    ];
+    const withArea = async (code: string, radius: number, serviceArea: unknown) => {
+      await service.create({ ...at(code, REF.lat, REF.lng, radius), serviceArea } as never);
+    };
+
+    it('judges the point by the polygon, not the radius', async () => {
+      // Inside the polygon but 8 km from the depot, past its 1 km radius: served.
+      await withArea('POLY', 1, square);
+      const [far] = await service.findNearby(REF.lat, REF.lng + 0.045, 10);
+      expect(far.distanceKm).toBeGreaterThan(1);
+      expect(far.withinService).toBe(true);
+      // Just outside the polygon: not served, however generous the radius.
+      repo.rows[0].serviceRadiusKm = 500;
+      const [out] = await service.findNearby(REF.lat, REF.lng + 0.06, 10);
+      expect(out.withinService).toBe(false);
+    });
+
+    it.each([
+      ['no area', null],
+      ['an empty area', []],
+      ['a malformed area', [[{ lat: 1 }]]],
+    ])('falls back to the radius for %s', async (_n, area) => {
+      await withArea('R', 5, area);
+      const [near] = await service.findNearby(REF.lat, REF.lng, 10);
+      expect(near.withinService).toBe(true);
+      const [far] = await service.findNearby(REF.lat + 2, REF.lng, 10);
+      expect(far.withinService).toBe(false);
+    });
+  });
 });

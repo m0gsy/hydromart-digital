@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
+import {
+  assertFresh,
+  isDecisionOnlyPatch,
+  pointInServiceArea,
+  readServiceArea,
+} from '@hydromart/platform';
 
 import { OwnershipType } from '../../domain/inventory';
 import {
@@ -113,7 +118,9 @@ export class DepotService {
 
   /**
    * Active depots nearest to (lat,lng), nearest first, each annotated with distance and whether
-   * the caller falls inside that depot's service radius.
+   * the caller falls inside that depot's service area: its drawn polygons when it has any,
+   * otherwise its service radius. order-service makes the same call at checkout, with the
+   * same `pointInServiceArea`, so this list and the order that follows cannot disagree.
    */
   async findNearby(lat: number, lng: number, limit: number): Promise<NearbyDepot[]> {
     const take = Math.min(DepotService.NEARBY_MAX, Math.max(1, limit || 10));
@@ -127,10 +134,13 @@ export class DepotService {
       .filter((d) => d.lat != null && d.lng != null)
       .map((d) => {
         const distanceKm = haversineKm(lat, lng, d.lat, d.lng);
+        const area = readServiceArea(d.serviceArea);
         return {
           ...d,
           distanceKm,
-          withinService: d.serviceRadiusKm != null && distanceKm <= d.serviceRadiusKm,
+          withinService: area
+            ? pointInServiceArea({ lat, lng }, area)
+            : d.serviceRadiusKm != null && distanceKm <= d.serviceRadiusKm,
         };
       })
       .sort((a, b) => a.distanceKm - b.distanceKm)

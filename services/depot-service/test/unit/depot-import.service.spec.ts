@@ -7,7 +7,12 @@ import { SettingsService } from '../../src/application/services/settings.service
 import { DuplicateDepotCodeError } from '../../src/domain/errors';
 import { OwnershipType } from '../../src/domain/inventory';
 import { DepotImportController } from '../../src/modules/depot-import.controller';
-import { ImportDepotRowDto } from '../../src/modules/dto/depot.dto';
+import {
+  BrowseDepotsQueryDto,
+  ImportDepotRowDto,
+  IncludeAreaQueryDto,
+} from '../../src/modules/dto/depot.dto';
+import { plainToInstance } from 'class-transformer';
 import { InMemoryDepotRepository, InMemorySettingsRepository } from '../support/fakes';
 
 const OWNER = '11111111-1111-4111-8111-111111111111';
@@ -425,5 +430,22 @@ describe('DepotImportController', () => {
     const { controller, imports } = make();
     await controller.import({ mode: 'upsert', rows: [] }, ADMIN);
     expect(imports.import).toHaveBeenCalledWith('upsert', [], ADMIN);
+  });
+});
+
+describe('includeArea query flag', () => {
+  const parse = (value: unknown) =>
+    plainToInstance(IncludeAreaQueryDto, { includeArea: value }).includeArea;
+
+  it.each([
+    ['true', true],
+    [true, true],
+    ['false', false],
+    ['1', false],
+    ['', false],
+    [undefined, false],
+  ])('reads %p as %p', (input, out) => {
+    expect(parse(input)).toBe(out);
+    expect(plainToInstance(BrowseDepotsQueryDto, { includeArea: input }).includeArea).toBe(out);
   });
 });

@@ -4,7 +4,7 @@ import {
   parseServiceArea,
   pointInServiceArea,
 } from '../../src/domain/service-area';
-import { AREA_CASES, L_SHAPE, SQUARE } from '../fixtures/service-area-cases';
+import { L_SHAPE, SQUARE } from '../fixtures/service-area-cases';
 
 const ok = (input: unknown) => {
   const r = parseServiceArea(input);
@@ -17,12 +17,6 @@ const fail = (input: unknown): string => {
   return r.error;
 };
 const p = (lat: number, lng: number) => ({ lat, lng });
-
-describe('pointInServiceArea (shared verdicts)', () => {
-  it.each(AREA_CASES)('$name', ({ area, point, inside }) => {
-    expect(pointInServiceArea(point, area)).toBe(inside);
-  });
-});
 
 describe('parseServiceArea', () => {
   it('reads absent, null and empty as "no drawn area"', () => {

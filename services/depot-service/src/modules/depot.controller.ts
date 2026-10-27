@@ -52,10 +52,12 @@ import {
   DepotContactView,
   DepotGallonDepositView,
   DepotPaymentInfoView,
+  IncludeAreaQueryDto,
   NearbyDepotsQueryDto,
   NearbyDepotView,
   PublicDepotView,
   UpdateDepotDto,
+  publicDepotWithArea,
 } from './dto/depot.dto';
 import {
   DepotResponseDto,
@@ -101,7 +103,9 @@ export class DepotController {
   @ApiOperation({ summary: 'Browse depots (paginated, active only)' })
   async browse(@Query() query: BrowseDepotsQueryDto): Promise<Page<PublicDepotView>> {
     const page = await this.depots.browse(query, true);
-    return { ...page, items: page.items.map(PublicDepotView.from) };
+    // Separate function, not a flag: see PublicDepotView.from.
+    const project = query.includeArea ? publicDepotWithArea : PublicDepotView.from;
+    return { ...page, items: page.items.map((d) => project(d)) };
   }
 
   // Static `nearby` segment declared before `:id` so it is not swallowed by the param route.
@@ -386,8 +390,12 @@ export class DepotController {
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get an active depot by id (public projection)' })
-  async get(@Param('id', ParseUUIDPipe) id: string): Promise<PublicDepotView> {
-    return PublicDepotView.from(await this.depots.get(id, true));
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: IncludeAreaQueryDto,
+  ): Promise<PublicDepotView> {
+    const depot = await this.depots.get(id, true);
+    return query.includeArea ? publicDepotWithArea(depot) : PublicDepotView.from(depot);
   }
 
   @ApiOkResponse({ type: DepotResponseDto })
