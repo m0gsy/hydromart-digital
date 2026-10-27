@@ -508,3 +508,22 @@ export class DriverSettingsResponseDto {
   @ApiProperty({ type: Number })
   courierSelfClaimWaitMinutes!: number;
 }
+
+export class ReportTableColumnResponseDto {
+  @ApiProperty({ type: String })
+  key!: string;
+  @ApiProperty({ type: String })
+  label!: string;
+  @ApiProperty({ enum: ['text', 'int', 'money', 'date', 'percent'] })
+  type!: 'text' | 'int' | 'money' | 'date' | 'percent';
+}
+
+/** Mirrors `ReportTable` exactly. */
+export class ReportTableResponseDto {
+  @ApiProperty({ type: [ReportTableColumnResponseDto] })
+  columns!: ReportTableColumnResponseDto[];
+  @ApiProperty({ description: 'Rows aligned to `columns`; date cells are ISO strings.' })
+  rows!: (string | number | null)[][];
+  @ApiProperty({ type: Boolean })
+  truncated!: boolean;
+}

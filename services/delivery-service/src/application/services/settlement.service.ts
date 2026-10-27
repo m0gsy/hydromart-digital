@@ -26,6 +26,11 @@ import {
   appendNote,
 } from '../../domain/settlement';
 import { DeliveryStatus } from '../../domain/delivery-status';
+import {
+  DeliveryReportDataset,
+  REPORT_TABLE_ROW_CAP,
+  ReportTable,
+} from '../../domain/report-table';
 import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
@@ -462,6 +467,60 @@ export class SettlementService {
     };
   }
 
+  /**
+   * The rows behind a scheduled report (admin-service), as one flat table.
+   *
+   * COD_UNSETTLED is the DELIVERED half of `unsettledCod` for the whole network: cash recorded on
+   * deliveries made in [until - UNSETTLED_DAYS, until) that no settlement lists, per courier and
+   * depot. Cash taken on handed-back deliveries is not here, because payment-service wants a
+   * bearer and a scheduler holds none. Couriers and depots are refs: this service stores no names.
+   */
+  async reportTable(dataset: DeliveryReportDataset, from: Date, to: Date): Promise<ReportTable> {
+    const limit = REPORT_TABLE_ROW_CAP + 1;
+    if (dataset === DeliveryReportDataset.COD_UNSETTLED) {
+      const since = new Date(to.getTime() - UNSETTLED_DAYS * 86_400_000);
+      const all = await this.deliveries.codHeldByCourier(since, to, limit);
+      return {
+        columns: [
+          { key: 'courier', label: 'Kurir', type: 'text' },
+          { key: 'depot', label: 'Depot', type: 'text' },
+          { key: 'deliveries', label: 'Pengiriman', type: 'int' },
+          { key: 'amount', label: 'COD ditahan', type: 'money' },
+          { key: 'oldest', label: 'Pengiriman tertua', type: 'date' },
+          { key: 'ageDays', label: 'Umur (hari)', type: 'int' },
+        ],
+        rows: all.slice(0, REPORT_TABLE_ROW_CAP).map((r) => [
+          r.driverId,
+          r.depotId,
+          r.deliveries,
+          r.amountIdr,
+          r.oldestDeliveredAt.toISOString(),
+          Math.max(0, Math.floor((to.getTime() - r.oldestDeliveredAt.getTime()) / 86_400_000)),
+        ]),
+        truncated: all.length > REPORT_TABLE_ROW_CAP,
+      };
+    }
+    const all = await this.deliveries.failedInWindow(from, to, limit);
+    return {
+      columns: [
+        { key: 'at', label: 'Tanggal', type: 'date' },
+        { key: 'order', label: 'No. pesanan', type: 'text' },
+        { key: 'courier', label: 'Kurir', type: 'text' },
+        { key: 'depot', label: 'Depot', type: 'text' },
+        { key: 'status', label: 'Status', type: 'text' },
+        { key: 'reason', label: 'Alasan', type: 'text' },
+      ],
+      rows: all.slice(0, REPORT_TABLE_ROW_CAP).map((r) => [
+        r.at.toISOString(),
+        r.orderNumber,
+        r.driverId,
+        r.depotId,
+        r.status === DeliveryStatus.FAILED ? 'Gagal' : 'Dijadwalkan ulang',
+        r.reason,
+      ]),
+      truncated: all.length > REPORT_TABLE_ROW_CAP,
+    };
+  }
   /** Cashier queue for a depot, optionally filtered by status. */
   async searchForDepot(depotId: string, status?: SettlementStatus): Promise<SettlementRecord[]> {
     return this.settlements.search({ depotId, status });

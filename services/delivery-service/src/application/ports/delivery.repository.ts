@@ -215,6 +215,25 @@ export interface UnfinishedDelivery {
   at: Date;
 }
 
+/** Delivered COD no settlement covers, per courier and depot (see codHeldByCourier). */
+export interface CodHeldRow {
+  driverId: string;
+  depotId: string | null;
+  deliveries: number;
+  amountIdr: number;
+  oldestDeliveredAt: Date;
+}
+
+/** A delivery handed back unfinished inside a report window (see failedInWindow). */
+export interface FailedDeliveryRow {
+  orderNumber: string;
+  driverId: string;
+  depotId: string | null;
+  status: DeliveryStatus;
+  at: Date;
+  reason: string | null;
+}
+
 /** One courier's delivered COD that no settlement covers yet (see unsettledCod). */
 export interface UnsettledCod {
   driverId: string;
@@ -285,6 +304,13 @@ export interface DeliveryRepository {
    * payment-service knows. At most `limit` rows, newest first.
    */
   unsettledUnfinished(depotId: string, since: Date, limit: number): Promise<UnfinishedDelivery[]>;
+  /**
+   * Network-wide twin of `unsettledCod` for the scheduled report: DELIVERED COD in [since, until)
+   * that no settlement lists, grouped by courier AND depot, biggest first. At most `limit` rows.
+   */
+  codHeldByCourier(since: Date, until: Date, limit: number): Promise<CodHeldRow[]>;
+  /** FAILED and RESCHEDULED deliveries handed back in [from, to), newest first. At most `limit` rows. */
+  failedInWindow(from: Date, to: Date, limit: number): Promise<FailedDeliveryRow[]>;
   /**
    * Deliveries the driver DELIVERED in [from, to) — timestamps + order id, for the
    * weekly performance roll-up (count, per-day bars, on-time rate, rating batch). 4c.

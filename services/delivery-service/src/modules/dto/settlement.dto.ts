@@ -13,6 +13,7 @@ import {
   Min,
 } from 'class-validator';
 
+import { DeliveryReportDataset } from '../../domain/report-table';
 import { SettlementStatus } from '../../domain/settlement';
 
 export class SubmitSettlementDto {
@@ -61,6 +62,21 @@ export class DepositedCodQueryDto {
   from!: string;
 
   @ApiProperty({ example: '2026-08-05T00:00:00.000Z' })
+  @IsISO8601()
+  to!: string;
+}
+
+/** Which table, and which window, a scheduled report asks for. */
+export class ReportTableQueryDto {
+  @ApiProperty({ enum: DeliveryReportDataset })
+  @IsEnum(DeliveryReportDataset)
+  dataset!: DeliveryReportDataset;
+
+  @ApiProperty({ example: '2026-08-04T00:00:00.000Z', description: 'Inclusive.' })
+  @IsISO8601()
+  from!: string;
+
+  @ApiProperty({ example: '2026-08-05T00:00:00.000Z', description: 'Exclusive.' })
   @IsISO8601()
   to!: string;
 }
