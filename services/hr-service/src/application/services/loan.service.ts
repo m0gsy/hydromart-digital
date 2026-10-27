@@ -3,6 +3,7 @@ import {
   AuthenticatedUser,
   depotScopeIds,
   ImportSummary,
+  localDayKey,
   localMonthKey,
   runImport,
 } from '@hydromart/platform';
@@ -15,6 +16,26 @@ import { PAYROLL_REPOSITORY, PayrollRepository } from '../ports/payroll.reposito
 import { EmployeeService } from './employee.service';
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Rows a scheduled-report table may carry; admin-service's contract caps tables here. */
+const REPORT_ROW_CAP = 5000;
+
+export interface LoanReportTable {
+  columns: { key: string; label: string; type: 'text' | 'int' | 'money' | 'date' | 'percent' }[];
+  rows: (string | number | null)[][];
+  truncated: boolean;
+}
+
+interface ReportAgg {
+  name: string;
+  code: string;
+  loans: number;
+  principal: number;
+  repaid: number;
+  remaining: number;
+  installment: number;
+  oldest: Date;
+}
 
 /** A network-wide row: the same computed balance, plus who it belongs to. */
 export interface LoanListView extends LoanListRow {
@@ -194,6 +215,88 @@ export class LoanService {
         };
       }),
       total,
+    };
+  }
+
+  /**
+   * Scheduled-report table: who still owes kasbon, one row per employee, as of the end of
+   * the window. Same ledger as the screens (CA-1-05) — the balance is what payroll really
+   * deducted, not what the calendar says it should have.
+   *
+   * Name and staff code only: the file is mailed as an attachment, so it carries no phone,
+   * ID or bank detail. Depot and department are left out on purpose — the depot lives in
+   * depot-service and a name column would need a cross-service read per row.
+   */
+  async reportTable(to: Date): Promise<LoanReportTable> {
+    // `to` is the exclusive end of the window, so the month it covers is the instant before.
+    const period = localMonthKey(new Date(to.getTime() - 1), this.config.timeZone);
+    // One extra row says "there was more" without a count query.
+    const { rows: loans } = await this.repo.listAll({
+      activeOnly: true,
+      skip: 0,
+      take: REPORT_ROW_CAP + 1,
+    });
+    const loanCut = loans.length > REPORT_ROW_CAP;
+    const kept = loans.slice(0, REPORT_ROW_CAP);
+    const repaid = await this.payrolls.deductedBySourceRefBefore(
+      null,
+      nextPeriod(period),
+      kept.map((l) => l.id),
+    );
+
+    const byEmployee = new Map<string, ReportAgg>();
+    for (const l of kept) {
+      const terms = {
+        principal: Number(l.principal),
+        installmentAmount: Number(l.installmentAmount),
+        startPeriod: l.startPeriod,
+      };
+      const paid = repaid.get(l.id) ?? 0;
+      if (loanIsSettled(terms, period, paid)) continue;
+      const agg = byEmployee.get(l.employeeId) ?? {
+        name: l.employeeName ?? '—',
+        code: l.employeeCode ?? '',
+        loans: 0,
+        principal: 0,
+        repaid: 0,
+        remaining: 0,
+        installment: 0,
+        oldest: l.createdAt,
+      };
+      agg.loans += 1;
+      agg.principal += terms.principal;
+      agg.repaid += Math.min(terms.principal, paid);
+      agg.remaining += loanRemainingAfter(terms, period, paid);
+      agg.installment += terms.installmentAmount;
+      if (l.createdAt < agg.oldest) agg.oldest = l.createdAt;
+      byEmployee.set(l.employeeId, agg);
+    }
+
+    const all = [...byEmployee.values()].sort((a, b) => b.remaining - a.remaining);
+    return {
+      columns: [
+        { key: 'employee', label: 'Karyawan', type: 'text' },
+        { key: 'code', label: 'Kode staf', type: 'text' },
+        { key: 'loans', label: 'Kasbon aktif', type: 'int' },
+        { key: 'principal', label: 'Pokok', type: 'money' },
+        { key: 'repaid', label: 'Sudah dibayar', type: 'money' },
+        { key: 'remaining', label: 'Sisa saldo', type: 'money' },
+        { key: 'installment', label: 'Cicilan per bulan', type: 'money' },
+        { key: 'oldest', label: 'Kasbon tertua', type: 'date' },
+      ],
+      rows: all
+        .slice(0, REPORT_ROW_CAP)
+        .map((a) => [
+          a.name,
+          a.code,
+          a.loans,
+          Math.round(a.principal),
+          Math.round(a.repaid),
+          Math.round(a.remaining),
+          Math.round(a.installment),
+          localDayKey(a.oldest, this.config.timeZone),
+        ]),
+      truncated: loanCut || all.length > REPORT_ROW_CAP,
     };
   }
 }
