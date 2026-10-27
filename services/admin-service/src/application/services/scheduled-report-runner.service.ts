@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ExportStatus } from '../../domain/export';
-import { renderReport, reportFileName } from '../../domain/report-file';
+import { renderTable, reportFileName } from '../../domain/report-file';
 import { nextRunAfter, reportWindow } from '../../domain/report-window';
 import { ExportLogRepository } from '../ports/export-log.repository';
 import { ReportMailer } from '../ports/report-mailer.port';
@@ -89,14 +89,17 @@ export class ScheduledReportRunnerService {
   ): Promise<{ ok: boolean; error: string | null }> {
     const { from, to } = reportWindow(schedule.cadence, now);
     try {
-      const rows = await this.source.rowsFor(schedule.dataset, from, to);
-      const content = await renderReport(rows, schedule.format, schedule.name);
+      // The period before this one, for the revenue datasets' comparison columns: the window a
+      // run at `from` would have reported on.
+      const previous = reportWindow(schedule.cadence, from);
+      const table = await this.source.tableFor(schedule.dataset, from, to, previous);
+      const content = await renderTable(table, schedule.format, schedule.name);
       const fileName = reportFileName(schedule.name, from, schedule.format);
       await this.logs.create({
         dataset: schedule.dataset,
         requestedByEmail: schedule.recipients[0] ?? 'scheduler',
         format: schedule.format,
-        rowCount: rows.length,
+        rowCount: table.rows.length,
         status: ExportStatus.DONE,
         content,
         fileName,

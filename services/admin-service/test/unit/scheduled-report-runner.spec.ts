@@ -1,6 +1,7 @@
 import { ExportFormat, ExportStatus } from '../../src/domain/export';
 import { ReportCadence } from '../../src/domain/report-cadence';
 import { ReportDataset } from '../../src/domain/report-dataset';
+import { revenueTable } from '../../src/domain/report-table';
 import { nextRunAfter, reportWindow } from '../../src/domain/report-window';
 import { renderReport, reportFileName } from '../../src/domain/report-file';
 import { ScheduledReportRunnerService } from '../../src/application/services/scheduled-report-runner.service';
@@ -18,7 +19,15 @@ function makeRunner(rowsFor: jest.Mock) {
   const schedules = new InMemoryScheduledReportRepository();
   const logs = new InMemoryExportLogRepository();
   const mailer = { send: jest.fn().mockResolvedValue(true) };
-  const runner = new ScheduledReportRunnerService(schedules, logs, { rowsFor } as never, mailer);
+  const runner = new ScheduledReportRunnerService(
+    schedules,
+    logs,
+    {
+      rowsFor,
+      tableFor: async (d: ReportDataset, f: Date, t: Date) => revenueTable(await rowsFor(d, f, t)),
+    } as never,
+    mailer,
+  );
   return { schedules, logs, runner, mailer };
 }
 

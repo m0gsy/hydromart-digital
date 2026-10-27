@@ -67,6 +67,8 @@ export const admin = {
     },
     // The file a scheduled run produced (15c). Before the executor existed this table
     // recorded exports and never held one.
+    // The newest finished files, for the scheduled-reports cards (a fixed path: the call site stays checkable).
+    exportLogsDone: '/admin/api/v1/export-logs?status=DONE&limit=100',
     exportLogDownload: (id: string) => `/admin/api/v1/export-logs/${id}/download`,
     // Scheduled reports (15c) — HEAD_OFFICE + SUPER_ADMIN.
     scheduledReports: {

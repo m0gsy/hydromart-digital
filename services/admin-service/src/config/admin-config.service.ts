@@ -43,6 +43,15 @@ export class AdminConfigService {
     return this.config.get<string>('PAYMENT_SERVICE_URL', '').trim();
   }
 
+  /**
+   * Base URL of a peer by its env key (see service-registry.ts), blank when unset. The
+   * report sweep reaches six services, so naming a getter per peer would be six copies of
+   * this line.
+   */
+  peerUrl(envKey: string): string {
+    return this.config.get<string>(envKey, '').trim().replace(/\/+$/, '');
+  }
+
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
