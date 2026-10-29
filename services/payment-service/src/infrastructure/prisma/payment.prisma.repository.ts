@@ -476,11 +476,16 @@ export class PaymentPrismaRepository implements PaymentRepository {
     id: string,
     expected: PaymentStatus[],
     patch: PaymentStatusPatch,
+    onlyIf?: { refundApproval?: RefundApproval },
   ): Promise<PaymentRecord | null> {
     // updateMany carries the predicate; `update` cannot filter on anything but a unique
     // field, which is exactly why the old write matched on `id` alone (B-9).
     const claimed = await this.prisma.payment.updateMany({
-      where: { id, status: { in: expected } },
+      where: {
+        id,
+        status: { in: expected },
+        ...(onlyIf?.refundApproval ? { refundApproval: onlyIf.refundApproval } : {}),
+      },
       data: patch,
     });
     if (claimed.count === 0) return null;

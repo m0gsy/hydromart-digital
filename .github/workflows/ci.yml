@@ -784,6 +784,20 @@ jobs:
     name: test (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # A throwaway Postgres for the `test:race` specs (real concurrent writers, not fakes).
+    # Each spec migrates a schema of its own inside it; nothing here is shared or persistent.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: race
+          POSTGRES_PASSWORD: race
+          POSTGRES_DB: race
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U race" --health-interval 5s --health-timeout 5s
+          --health-retries 10
     strategy:
       fail-fast: false
       matrix:
@@ -851,6 +865,22 @@ jobs:
             echo "::endgroup::"
           done
           [ -z "$failed" ] || { echo "coverage gate failed:$failed" >&2; exit 1; }
+
+      # Concurrency specs against a real database. The unit specs simulate an interleaving
+      # with fakes, which proves the loser's logic but not that Postgres serialises two
+      # writers; these start the writers together and check the outcome. Only workspaces
+      # that define `test:race` run it (`--if-present`).
+      - name: Race specs (real Postgres) — ${{ matrix.shard }}
+        env:
+          RACE_DATABASE_URL: postgresql://race:race@localhost:5432/race
+        run: |
+          failed=""
+          for ws in ${{ matrix.workspaces }}; do
+            echo "::group::$ws"
+            npm run test:race --workspace "$ws" --if-present || failed="$failed $ws"
+            echo "::endgroup::"
+          done
+          [ -z "$failed" ] || { echo "race specs failed:$failed" >&2; exit 1; }
 
   # M5 — the browser half, off the critical path.
   #

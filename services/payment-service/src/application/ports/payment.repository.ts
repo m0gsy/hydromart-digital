@@ -276,10 +276,16 @@ export interface PaymentRepository {
    * and both reached the gateway — the customer was paid back twice. A status predicate on
    * the write is what makes exactly one caller win, and it has to be claimed BEFORE the
    * gateway call, not after.
+   *
+   * `onlyIf.refundApproval` narrows the claim further: a refund request lives on a PAID row
+   * (status does not move until HQ approves), so "still PAID" cannot tell an approved or
+   * rejected request from the pending one the caller read. Without it a reject that read
+   * PENDING could write over an approval that had already paid the customer.
    */
   updateIfStatus(
     id: string,
     expected: PaymentStatus[],
     patch: PaymentStatusPatch,
+    onlyIf?: { refundApproval?: RefundApproval },
   ): Promise<PaymentRecord | null>;
 }
