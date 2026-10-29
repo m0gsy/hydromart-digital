@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { loadCustomRoles, loadRoleSettings } from '@hydromart/access';
 import {
   CustomerNotFoundError,
@@ -380,6 +380,55 @@ describe('AccountService', () => {
 
       expect(off.status).toBe(CustomerStatus.SUSPENDED);
       expect(hr.activeCalls).toEqual([]);
+    });
+
+    // A switched-off owner would keep accruing their depot share into an account nobody can
+    // reach, so the switch-off is refused until the share is moved.
+    describe('a franchise owner who still holds depot shares', () => {
+      const build = (count: () => Promise<number>) =>
+        new AccountService(customers, sessions, new AuditService(audit), hr, {
+          countOwned: count,
+        });
+
+      it('is refused, and stays active', async () => {
+        const owner = makeCustomer({ phone: '+628995550010', role: Role.FRANCHISE_OWNER });
+        customers.seed(owner);
+        await expect(
+          build(async () => 2).setStaffActive(owner.id, false),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect((await customers.findById(owner.id))?.status).toBe(CustomerStatus.ACTIVE);
+      });
+
+      it('is switched off once the shares are gone, and can always be switched back on', async () => {
+        const owner = makeCustomer({ phone: '+628995550011', role: Role.FRANCHISE_OWNER });
+        customers.seed(owner);
+        const counted = jest.fn(async () => 0);
+        const off = await build(counted).setStaffActive(owner.id, false);
+        expect(off.status).toBe(CustomerStatus.SUSPENDED);
+        expect(counted).toHaveBeenCalledWith(owner.id);
+
+        const asked = jest.fn(async () => 5);
+        const on = await build(asked).setStaffActive(owner.id, true);
+        expect(on.status).toBe(CustomerStatus.ACTIVE);
+        expect(asked).not.toHaveBeenCalled();
+      });
+
+      it('is refused when depot-service cannot be asked', async () => {
+        const owner = makeCustomer({ phone: '+628995550012', role: Role.FRANCHISE_OWNER });
+        customers.seed(owner);
+        await expect(
+          build(async () => {
+            throw new ServiceUnavailableException('down');
+          }).setStaffActive(owner.id, false),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      });
+
+      it('does not ask about any other role', async () => {
+        const staff = await service.inviteStaff('+628995550013', Role.STAFF_DEPOT, 'Eko', 'depot-1');
+        const counted = jest.fn(async () => 9);
+        await build(counted).setStaffActive(staff.id, false);
+        expect(counted).not.toHaveBeenCalled();
+      });
     });
 
     it('refuses an unknown account and an end customer', async () => {
