@@ -36,6 +36,26 @@ describe('OwnedDepotsHttpAdapter', () => {
     await expect(new OwnedDepotsHttpAdapter(config()).countOwned('o')).resolves.toBe(0);
   });
 
+  // A depot-service that accepts the connection and never answers must not hang the console.
+  it('gives up on a depot-service that never answers', async () => {
+    jest.useFakeTimers();
+    try {
+      fetchMock.mockImplementation(
+        (_url: string, init: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+          }),
+      );
+      const pending = expect(new OwnedDepotsHttpAdapter(config()).countOwned('o')).rejects.toThrow(
+        /tidak terjangkau: aborted/,
+      );
+      await jest.advanceTimersByTimeAsync(10_000);
+      await pending;
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('raises when unconfigured, unreachable, refused, or answered with garbage', async () => {
     await expect(
       new OwnedDepotsHttpAdapter(config('', 'k')).countOwned('o'),
