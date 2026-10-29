@@ -110,7 +110,7 @@ export function OwnersEditor({
           </Button>
           {!single && (
             <span
-              className={`text-xs ${Math.round(total * 100) === 10_000 ? 'text-brand-700' : 'text-red-600'}`}
+              className={`text-xs ${Math.round(total * 100) === 10_000 ? 'text-brand-700' : 'text-[color:var(--danger)]'}`}
             >
               {t('hq.depots.form.ownerTotal', { total: String(Math.round(total * 100) / 100) })}
             </span>
