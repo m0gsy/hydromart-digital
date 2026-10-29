@@ -7,11 +7,11 @@ import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosp
 import { RemoteImage } from '@/components/remote-image';
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { DepotDetail } from '@/components/dashboard/depot-detail';
-import { OwnerSelect } from '@/components/hq/owner-select';
+import { OwnersEditor } from '@/components/hq/owners-editor';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
-import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
+import { EMPTY_DEPOT_FORM, ownerRowsFromDepot, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
@@ -143,7 +143,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     code: d.code,
     name: d.name,
     ownershipType: d.ownershipType,
-    ownerId: d.ownerId ?? '',
+    owners: ownerRowsFromDepot(d),
     address: d.address,
     city: d.city,
     province: d.province,
@@ -210,7 +210,11 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
           </select>
         </Field>
         {form.ownershipType === 'WARALABA' && (
-          <OwnerSelect value={form.ownerId} onChange={set('ownerId')} id="d-owner-ops" />
+          <OwnersEditor
+            value={form.owners}
+            onChange={(owners) => setForm((f) => ({ ...f, owners }))}
+            idPrefix="d-owner-ops"
+          />
         )}
         <Field label={t('dashboard.depots.city')} htmlFor="d-city">
           <Input id="d-city" value={form.city} onChange={set('city')} placeholder={t('hrFix.depots.cityHint')} />

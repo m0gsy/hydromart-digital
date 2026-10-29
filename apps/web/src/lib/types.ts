@@ -1558,6 +1558,13 @@ export interface DepotPaymentPanel extends DepotPaymentInfo {
   name: string;
 }
 
+/** One owner of a franchise depot and their percent of its revenue (shares sum to 100). */
+export interface DepotOwnerShare {
+  ownerId: string;
+  sharePct: number;
+  isPrimary: boolean;
+}
+
 // Full admin record (from GET /depots/manage) + the create/update payload shape.
 export interface DepotAdmin extends Depot, DepotPaymentInfo {
   ownershipType: string;
@@ -1571,6 +1578,8 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   active: boolean;
   // Franchise owner account id (null for company-owned depots) — drives the payout card.
   ownerId?: string | null;
+  /** Every owner of a franchise depot and their revenue share (empty for a company depot). */
+  owners?: DepotOwnerShare[];
   /** The depot's own WhatsApp number for the SOP sales update; null = use the ops number. */
   contactPhone?: string | null;
   operatingHours?: Record<string, DepotHours>;
@@ -1606,6 +1615,8 @@ export interface DepotPayload {
   ownershipType: string;
   // Required by depot-service for WARALABA; null clears it on a company-owned depot.
   ownerId: string | null;
+  /** All owners and shares (empty clears them on a company depot). `ownerId` is the primary. */
+  owners: DepotOwnerShare[];
   address: string;
   city: string;
   province: string;

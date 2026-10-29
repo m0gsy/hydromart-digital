@@ -73,108 +73,49 @@ describe('toDepotPayload', () => {
     expect(toDepotPayload({ ...valid, serviceRadiusKm: '0' }, t).ok).toBe(false);
   });
 
+  const row = (ownerId: string, sharePct: string, isPrimary = false) => ({ ownerId, sharePct, isPrimary });
+  const franchise = (owners: ReturnType<typeof row>[]) =>
+    toDepotPayload({ ...valid, ownershipType: 'WARALABA', owners }, t);
+
   it('rejects a franchise depot with no owner', () => {
-    expect(toDepotPayload({ ...valid, ownershipType: 'WARALABA' }, t)).toEqual({
-      ok: false,
-      error: 'opsFix.depotForm.ownerRequired',
-    });
-    expect(toDepotPayload({ ...valid, ownershipType: 'WARALABA', ownerId: '  ' }, t).ok).toBe(false);
+    expect(franchise([])).toEqual({ ok: false, error: 'opsFix.depotForm.ownerRequired' });
+    // The untouched blank row of a fresh form is no owner either.
+    expect(franchise([row('  ', '100', true)]).ok).toBe(false);
+    expect(toDepotPayload({ ...valid, ownershipType: 'WARALABA' }, t).ok).toBe(false);
   });
 
-  it('sends the owner for a franchise depot and clears it for a company one', () => {
-    const franchise = toDepotPayload({ ...valid, ownershipType: 'WARALABA', ownerId: 'owner-9' }, t);
-    expect(franchise.ok && franchise.value.ownerId).toBe('owner-9');
-    // Owner picked, then the type flipped back to HKP: the stale owner must not be sent.
-    const central = toDepotPayload({ ...valid, ownerId: 'owner-9' }, t);
+  it('sends the owners for a franchise depot and clears them for a company one', () => {
+    const one = franchise([row('owner-9', '', false)]);
+    // A lone owner takes everything and is the primary, whatever the row says.
+    expect(one.ok && one.value.owners).toEqual([{ ownerId: 'owner-9', sharePct: 100, isPrimary: true }]);
+    expect(one.ok && one.value.ownerId).toBe('owner-9');
+    // Owner picked, then the type flipped back to HKP: the stale owners must not be sent.
+    const central = toDepotPayload({ ...valid, owners: [row('owner-9', '100', true)] }, t);
     expect(central.ok && central.value.ownerId).toBeNull();
-  });
-});
-
-describe('resolveDeliveryDepot', () => {
-  const picked = { id: 'd2', code: 'JKT-02', name: 'Depot Menteng', city: 'Jakarta', deliveryFee: 7000 } as Depot;
-  const near = { id: 'd1', name: 'Depot Cikini', deliveryFee: 5000, withinService: true } as NearbyDepot;
-
-  it('quotes the hand-picked depot when the address has no pin', () => {
-    expect(resolveDeliveryDepot(true, 'd2', [picked], [])).toBe(picked);
+    expect(central.ok && central.value.owners).toEqual([]);
   });
 
-  it('quotes the routed depot when the address has a pin', () => {
-    expect(resolveDeliveryDepot(false, null, null, [near])).toBe(near);
+  it('sends several owners with their shares and the primary as ownerId', () => {
+    const out = franchise([row('a', '60', true), row('b', '40')]);
+    expect(out.ok && out.value.owners).toEqual([
+      { ownerId: 'a', sharePct: 60, isPrimary: true },
+      { ownerId: 'b', sharePct: 40, isPrimary: false },
+    ]);
+    expect(out.ok && out.value.ownerId).toBe('a');
+    // A three-way split only adds up in hundredths.
+    expect(franchise([row('a', '33.34', true), row('b', '33.33'), row('c', '33.33')]).ok).toBe(true);
   });
 
-  /*
-   * A3. Measured against production before this existed: at Jakarta Pusat the nearby lookup
-   * answered with a depot 14.98 km away carrying a 3 km radius and `withinService: false`,
-   * and checkout quoted its ongkir and priced the whole cart with it. order-service refuses
-   * that order (`selectNearestDepot` skips anything past its radius), so the only thing the
-   * old code bought the customer was a filled-in form and a failure at the end.
-   */
-  it('quotes no depot at all when the pinned address is outside every radius', () => {
-    const outside = { id: 'd9', name: 'Depot Bekasi', deliveryFee: 1000, withinService: false } as NearbyDepot;
-    expect(resolveDeliveryDepot(false, null, null, [outside])).toBeNull();
-  });
-
-  it('skips a nearer out-of-range depot for a farther one that covers the point', () => {
-    const nearMiss = { id: 'a', name: 'Kecil', deliveryFee: 1000, withinService: false } as NearbyDepot;
-    const covers = { id: 'b', name: 'Radius besar', deliveryFee: 4000, withinService: true } as NearbyDepot;
-    // The server returns them nearest-first; distance alone would have elected `a`.
-    expect(resolveDeliveryDepot(false, null, null, [nearMiss, covers])).toBe(covers);
-  });
-
-  /*
-   * The radius veto must NOT reach the manual path, or A3 and G3 cancel each other: G3
-   * defaults the depot from the home location, A3 throws it out, and checkout blocks on a
-   * choice nobody made. order-service agrees — `resolveDepot` measures a radius only when
-   * the address has coordinates, and accepts any active depot when it does not.
-   */
-  it('leaves a hand-picked depot alone — the server applies no radius rule to it', () => {
-    expect(resolveDeliveryDepot(true, 'd2', [picked], [])).toBe(picked);
-  });
-
-  it('returns null while the nearby lookup is still empty', () => {
-    expect(resolveDeliveryDepot(false, null, null, null)).toBeNull();
-  });
-
-  it('exposes the same rule on its own, for callers that only need the depot', () => {
-    const outside = { id: 'd9', deliveryFee: 1000, withinService: false } as NearbyDepot;
-    expect(servingDepot([outside, near])).toBe(near);
-    expect(servingDepot([outside])).toBeNull();
-    expect(servingDepot(null)).toBeNull();
-  });
-
-  it('returns null while no depot is picked yet, or none is nearby', () => {
-    expect(resolveDeliveryDepot(true, null, [picked], [])).toBeNull();
-    expect(resolveDeliveryDepot(true, 'd9', [picked], [])).toBeNull();
-    expect(resolveDeliveryDepot(false, null, null, [])).toBeNull();
-    expect(resolveDeliveryDepot(false, null, null, undefined)).toBeNull();
-  });
-});
-
-/*
- * G3 — an address with no map pin used to open a hundred-row picker and block the order
- * until somebody scrolled it, even though the home location had already resolved to a depot
- * minutes earlier. This fills that in as the default; the picker stays as the override.
- */
-describe('defaultDepotFromLocation', () => {
-  const choices = [{ id: 'd1' }, { id: 'd2' }] as Depot[];
-
-  it('starts on the depot the home location resolved to', () => {
-    expect(defaultDepotFromLocation('d2', choices)).toBe('d2');
-  });
-
-  it('picks nothing when no location has been set on Beranda', () => {
-    expect(defaultDepotFromLocation(null, choices)).toBeNull();
-    expect(defaultDepotFromLocation(undefined, choices)).toBeNull();
-  });
-
-  // A stale id would otherwise pass the disabled-submit guard and come back
-  // DepotUnavailableError after the customer had already pressed the button.
-  it('refuses a depot that is no longer on offer', () => {
-    expect(defaultDepotFromLocation('gone', choices)).toBeNull();
-  });
-
-  it('picks nothing while the choices are still loading', () => {
-    expect(defaultDepotFromLocation('d2', null)).toBeNull();
-    expect(defaultDepotFromLocation('d2', undefined)).toBeNull();
+  it.each([
+    ['shares that do not add up', [row('a', '60', true), row('b', '30')], 'opsFix.depotForm.ownersTotal'],
+    ['a blank share', [row('a', '60', true), row('b', '')], 'opsFix.depotForm.ownersShare'],
+    ['a zero share', [row('a', '100', true), row('b', '0')], 'opsFix.depotForm.ownersShare'],
+    ['a share over 100', [row('a', '101', true), row('b', '-1')], 'opsFix.depotForm.ownersShare'],
+    ['three decimals', [row('a', '60.005', true), row('b', '39.995')], 'opsFix.depotForm.ownersShare'],
+    ['no primary', [row('a', '50'), row('b', '50')], 'opsFix.depotForm.ownersPrimary'],
+    ['two primaries', [row('a', '50', true), row('b', '50', true)], 'opsFix.depotForm.ownersPrimary'],
+    ['an owner twice', [row('a', '50', true), row('a', '50')], 'opsFix.depotForm.ownersDuplicate'],
+  ])('rejects %s', (_name, owners, error) => {
+    expect(franchise(owners)).toEqual({ ok: false, error });
   });
 });

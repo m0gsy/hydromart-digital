@@ -61,6 +61,16 @@ function currentOwners(depot: DepotRecord): DepotOwnerShare[] {
   return depot.ownerId ? soleOwner(depot.ownerId) : [];
 }
 
+/** Same owners, same shares, same primary - order aside. */
+function sameOwners(a: readonly DepotOwnerShare[], b: readonly DepotOwnerShare[]): boolean {
+  if (a.length !== b.length) return false;
+  const byId = new Map(b.map((o) => [o.ownerId, o]));
+  return a.every((o) => {
+    const other = byId.get(o.ownerId);
+    return other !== undefined && other.sharePct === o.sharePct && other.isPrimary === o.isPrimary;
+  });
+}
+
 /** Depot management (PRD FR-075..080): public browse + admin CRUD. Delete = soft. */
 @Injectable()
 export class DepotService {
@@ -161,7 +171,10 @@ export class DepotService {
    */
   private ownersAfter(current: DepotRecord, patch: UpdateDepotData): DepotOwnerShare[] | undefined {
     if (patch.owners !== undefined) {
-      return patch.owners.length > 0 ? assertValidOwners(patch.owners) : [];
+      const next = patch.owners.length > 0 ? assertValidOwners(patch.owners) : [];
+      // An edit form resends the whole owner list on every save. Unchanged is not a change of
+      // owners: it must neither open a new generation nor be refused to a manager.
+      return sameOwners(next, currentOwners(current)) ? undefined : next;
     }
     if (patch.ownerId === undefined) return undefined;
     if (patch.ownerId === null) return [];

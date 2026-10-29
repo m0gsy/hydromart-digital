@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { fetchAllDepots } from '@/lib/all-depots';
+import { depotOwnerIds } from '@/lib/depots';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionScheme, Customer, DepotAdmin, Page, PendingPayout } from '@/lib/types';
 
@@ -58,9 +59,11 @@ export default function HqFranchisePage() {
 
   // An ownerless franchise depot books its revenue to nobody. New ones are refused outright;
   // these are the rows created before that rule, and they are the reason this count is shown.
-  const orphans = items.filter((d) => !d.ownerId).length;
-  const pendingTotal = items.reduce(
-    (sum, d) => sum + (d.ownerId ? (pendingByOwner.get(d.ownerId) ?? 0) : 0),
+  const orphans = items.filter((d) => depotOwnerIds(d).length === 0).length;
+  // Per OWNER, not per depot: an owner's pending balance is theirs across the whole network, so
+  // summing it once for every depot they hold (or co-hold) counted the same rupiah several times.
+  const pendingTotal = [...new Set(items.flatMap((d) => depotOwnerIds(d)))].reduce(
+    (sum, id) => sum + (pendingByOwner.get(id) ?? 0),
     0,
   );
 
@@ -108,7 +111,11 @@ export default function HqFranchisePage() {
         <div className="flex flex-col gap-3">
           {items.map((d) => {
             const pct = pctByDepot.get(d.id);
-            const pending = d.ownerId ? pendingByOwner.get(d.ownerId) : undefined;
+            const ids = depotOwnerIds(d);
+            const shares = new Map((d.owners ?? []).map((o) => [o.ownerId, o.sharePct]));
+            const known = ids.filter((id) => pendingByOwner.has(id));
+            const pending =
+              known.length > 0 ? known.reduce((sum, id) => sum + (pendingByOwner.get(id) ?? 0), 0) : undefined;
             return (
               <Card
                 key={d.id}
@@ -121,8 +128,14 @@ export default function HqFranchisePage() {
                     {!d.active && <Badge tone="warning">{t('hq.franchise.inactive')}</Badge>}
                   </div>
                   <p className="mt-1 text-sm">
-                    {d.ownerId ? (
-                      (ownerName.get(d.ownerId) ?? t('hq.franchise.ownerUnknown'))
+                    {ids.length > 0 ? (
+                      ids
+                        .map((id) => {
+                          const name = ownerName.get(id) ?? t('hq.franchise.ownerUnknown');
+                          const share = shares.get(id);
+                          return ids.length > 1 && share !== undefined ? `${name} ${share}%` : name;
+                        })
+                        .join(' · ')
                     ) : (
                       <span className="font-medium text-[color:var(--danger)]">{t('hq.franchise.noOwner')}</span>
                     )}

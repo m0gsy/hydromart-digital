@@ -338,6 +338,18 @@ describe('DepotService multi-owner', () => {
     expect(same.name).toBe('Renamed');
   });
 
+  it('treats a resent, unchanged owner list as no change - also for a manager', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const same = await service.update(
+      d.id,
+      { owners: [...split(60, 40)].reverse(), name: 'Renamed' },
+      d.updatedAt.toISOString(),
+      false,
+    );
+    expect(same.owners).toEqual(split(60, 40));
+    expect(repo.history).toHaveLength(0);
+  });
+
   it('names a different bare ownerId as the new sole owner', async () => {
     const d = await franchise({ owners: split(60, 40) });
     const moved = await service.update(d.id, { ownerId: C }, d.updatedAt.toISOString());
