@@ -63,10 +63,37 @@ export class LoanRequestPrismaRepository implements LoanRequestRepository {
     };
   }
 
-  decide(id: string, decision: LoanRequestDecision): Promise<LoanRequest> {
-    return this.prisma.loanRequest.update({
-      where: { id },
+  async decide(id: string, decision: LoanRequestDecision): Promise<LoanRequest | null> {
+    // The PENDING guard is part of the write: only one of two concurrent deciders matches.
+    const { count } = await this.prisma.loanRequest.updateMany({
+      where: { id, status: 'PENDING' },
       data: { ...decision, decidedAt: new Date() },
     });
+    return count === 0 ? null : this.prisma.loanRequest.findUnique({ where: { id } });
+  }
+
+  attachLoan(id: string, loanId: string): Promise<LoanRequest> {
+    return this.prisma.loanRequest.update({ where: { id }, data: { loanId } });
+  }
+
+  async reopen(id: string): Promise<void> {
+    const decided = { status: 'APPROVED' as const, loanId: null };
+    try {
+      await this.prisma.loanRequest.updateMany({
+        where: { id, ...decided },
+        data: { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null },
+      });
+    } catch (error) {
+      // One PENDING request per employee (partial unique index): they filed another while
+      // this one was APPROVED. Cancel this one rather than fail the unwind.
+      if ((error as { code?: string })?.code !== 'P2002') throw error;
+      await this.prisma.loanRequest.updateMany({
+        where: { id, ...decided },
+        data: {
+          status: 'CANCELLED',
+          decisionNote: 'Kasbon gagal dibuat; silakan ajukan ulang.',
+        },
+      });
+    }
   }
 }

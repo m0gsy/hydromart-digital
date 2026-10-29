@@ -42,7 +42,12 @@ export interface LeaveListFilter {
 export interface LeaveRepository {
   create(data: LeaveRequestWrite): Promise<LeaveRequest>;
   findById(id: string): Promise<LeaveRequest | null>;
-  decide(id: string, decision: LeaveDecision): Promise<LeaveRequest>;
+  /**
+   * Moves a request out of `fromStatus` — and only if it is still there; null when somebody
+   * else decided it first. The service's own status check is a read: two approvers both
+   * passed it, both ran the settlement, and the quota was charged twice.
+   */
+  decide(id: string, fromStatus: LeaveStatus, decision: LeaveDecision): Promise<LeaveRequest | null>;
   /**
    * PG-06 — the approval queue, with the name of the person asking on every row.
    *
@@ -56,8 +61,13 @@ export interface LeaveRepository {
   findBalance(employeeId: string, year: number): Promise<LeaveBalance | null>;
   /** Create the year's row on first use with the configured quota. */
   ensureBalance(employeeId: string, year: number, quotaDays: number): Promise<LeaveBalance>;
-  /** Move usedDays by a signed amount (approval adds; nothing subtracts today). */
-  addUsedDays(employeeId: string, year: number, days: number): Promise<LeaveBalance>;
+  /**
+   * Charge `days` against the year's quota, atomically: false when it would exceed
+   * `quotaDays` (or there is no balance row), in which case nothing is charged.
+   */
+  claimUsedDays(employeeId: string, year: number, days: number): Promise<boolean>;
+  /** Hand back days claimed for an approval that then lost the race. Never goes below zero. */
+  releaseUsedDays(employeeId: string, year: number, days: number): Promise<void>;
   /**
    * Set the year's quota AND days already taken outright — the opening-balance import, which
    * is the one caller allowed to move usedDays to an arbitrary number (it is carrying over
