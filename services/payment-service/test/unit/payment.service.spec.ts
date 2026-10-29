@@ -344,7 +344,9 @@ describe('PaymentService', () => {
 
     await service.refund(payment.id, 'finance');
 
-    expect(order).toEqual(['claim', 'gateway']);
+    // The trailing 'claim' is the settle write after the gateway, now conditional on REFUNDED
+    // too. What this pins is that the FIRST claim precedes the gateway call.
+    expect(order).toEqual(['claim', 'gateway', 'claim']);
   });
 
   it('does not pay a customer twice when a second refund loses the claim', async () => {
