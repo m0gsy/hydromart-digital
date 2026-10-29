@@ -112,14 +112,22 @@ export async function buildTemplateXlsx(
         const letter = lists.getColumn(listColumns).letter;
         formula = `Lists!$${letter}$1:$${letter}$${options.length}`;
       }
-      for (let rowNumber = 2; rowNumber <= TEMPLATE_VALIDATION_ROWS + 1; rowNumber++) {
-        sheet.getCell(rowNumber, index + 1).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          showErrorMessage: true,
-          formulae: [formula],
-        };
-      }
+      // ONE range per column. Assigning `cell.dataValidation` row by row looks equivalent, but
+      // exceljs then merges the cells back into ranges and writes overlapping ones ("D2:D501"
+      // next to "D10:D501"). Excel treats overlapping validations as corrupt and, on opening,
+      // reports "Removed Feature: Data validation" - the dropdown simply vanishes - for every
+      // list, short or long. A single range per column cannot overlap.
+      const letter = sheet.getColumn(index + 1).letter;
+      (
+        sheet as unknown as {
+          dataValidations: { add(range: string, rule: object): void };
+        }
+      ).dataValidations.add(`${letter}2:${letter}${TEMPLATE_VALIDATION_ROWS + 1}`, {
+        type: 'list',
+        allowBlank: true,
+        showErrorMessage: true,
+        formulae: [formula],
+      });
     }
   });
 
