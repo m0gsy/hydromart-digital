@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { alertServerError } from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
 import { OrderRepository } from '../ports/order.repository';
@@ -38,6 +39,11 @@ export class OutboxService {
   private static readonly BATCH = 50;
   /** Six tries ≈ 1m, 2m, 4m, 8m, 16m, 32m — about an hour of downstream outage absorbed. */
   private static readonly MAX_ATTEMPTS = 6;
+  /**
+   * Money owed to a customer gets longer than an hour of downstream outage: ten tries are
+   * 1m ... 256m of backoff, about eight and a half hours, before anyone has to act.
+   */
+  private static readonly MAX_ATTEMPTS_PAYMENT_REVERSAL = 10;
   private static readonly BASE_BACKOFF_MS = 60_000;
 
   private readonly logger = new Logger(OutboxService.name);
@@ -131,6 +137,18 @@ export class OutboxService {
           this.logger.error(
             `Outbox ${message.topic} for order ${message.orderId} gave up after ${message.attempts + 1} attempts: ${reason}`,
           );
+          if (message.topic === 'PAYMENT_REVERSAL') {
+            // A cancelled order whose customer is still out of pocket and whom no further
+            // attempt will reach. The scheduler heartbeat does not see this; a person must.
+            alertServerError({
+              method: 'POST',
+              path: 'orders/outbox#payment-reversal-dead',
+              status: 500,
+              exception: new Error(
+                `Pengembalian dana untuk pesanan ${message.orderId} gagal setelah ${message.attempts + 1} percobaan: ${reason}`,
+              ),
+            });
+          }
         }
       }
     }
@@ -173,13 +191,23 @@ export class OutboxService {
      * other half: a row a sweep was already holding when the void landed cannot be called
      * back, so the handler has to refuse it here.
      */
-    if (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED) return;
+    // PAYMENT_REVERSAL is the one row a CANCELLED order exists to be owed.
+    if (
+      message.topic !== 'PAYMENT_REVERSAL' &&
+      (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED)
+    ) {
+      return;
+    }
     await handler(message.orderId, authorization);
   }
 
   private nextAttemptFor(message: OutboxMessageRecord, now: Date): Date | null {
     const attempts = message.attempts + 1;
-    if (attempts >= OutboxService.MAX_ATTEMPTS) return null;
+    const max =
+      message.topic === 'PAYMENT_REVERSAL'
+        ? OutboxService.MAX_ATTEMPTS_PAYMENT_REVERSAL
+        : OutboxService.MAX_ATTEMPTS;
+    if (attempts >= max) return null;
     return new Date(now.getTime() + OutboxService.BASE_BACKOFF_MS * 2 ** (attempts - 1));
   }
 }

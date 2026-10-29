@@ -16,7 +16,20 @@ export type OutboxTopic =
    * Durable rather than best-effort because it is the book every later deposit refund is
    * measured against — a lost write makes the next courier return refund Rp0.
    */
-  | 'GALLON_ISSUE';
+  | 'GALLON_ISSUE'
+  /**
+   * A cancelled order owes its customer the money back.
+   *
+   * Written in the SAME transaction as the CANCELLED status, so a cancellation cannot exist
+   * without the reversal being owed — and retried until it lands. The reversal used to run
+   * BEFORE the status write (fail closed), which lost the race to anyone moving the order in
+   * between: the payment was already failed or refunded, the status write then threw
+   * StaleOrderStatusError, and the order stayed live with its money gone.
+   *
+   * Unlike every other topic this one is owed BY a cancelled order, so the dispatcher must
+   * not skip it for being cancelled.
+   */
+  | 'PAYMENT_REVERSAL';
 
 /**
  * C3: `CANCELLED` is a row the order stopped owing — a voided counter sale. It is not a
