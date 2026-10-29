@@ -80,6 +80,39 @@ describe('template round-trip', () => {
     expect(validation).toMatchObject({ type: 'list', formulae: ['"STAFF_DEPOT,KEPALA_DEPOT"'] });
     expect(workbook.worksheets[0]?.getCell(2, 1).dataValidation).toBeUndefined();
   });
+
+  // Excel refuses an inline list over 255 chars, or one with a comma/quote inside an item.
+  it('moves a long or comma-bearing list to a hidden Lists sheet', async () => {
+    const depots = Array.from({ length: 60 }, (_, i) => `DEPOT-${String(i).padStart(4, '0')}`);
+    const columns = [
+      { key: 'depotCode', example: 'DEPOT-0001', options: depots },
+      { key: 'shiftName', example: 'Pagi', options: ['Pagi, Sabtu', 'Malam "B"', 'Pagi, Sabtu'] },
+      { key: 'role', example: 'STAFF_DEPOT', options: ['STAFF_DEPOT', 'KEPALA_DEPOT'] },
+    ];
+    const ExcelJS = (await import('exceljs')).default;
+    const workbook = new ExcelJS.Workbook();
+    const blob = await buildTemplateXlsx(columns, 'karyawan');
+    await workbook.xlsx.load(await blob.arrayBuffer());
+
+    const [data, lists] = workbook.worksheets;
+    expect(data?.name).toBe('karyawan');
+    expect(lists?.name).toBe('Lists');
+    expect(lists?.state).toBe('hidden');
+    expect(data?.getCell(2, 1).dataValidation.formulae).toEqual(['Lists!$A$1:$A$60']);
+    expect(data?.getCell(2, 2).dataValidation.formulae).toEqual(['Lists!$B$1:$B$2']);
+    expect(data?.getCell(2, 3).dataValidation.formulae).toEqual(['"STAFF_DEPOT,KEPALA_DEPOT"']);
+    expect(lists?.getCell(1, 2).value).toBe('Pagi, Sabtu');
+    expect(lists?.getCell(2, 2).value).toBe('Malam "B"');
+
+    // No inline source may exceed Excel's limit, and the wizard still reads sheet one.
+    for (const row of [2, 3, 100, 501]) {
+      for (const col of [1, 2, 3]) {
+        const f = data?.getCell(row, col).dataValidation.formulae?.[0] ?? '';
+        expect(f.length).toBeLessThanOrEqual(255);
+      }
+    }
+    await expect(parseXlsxRecords(await asFile(blob, 'k.xlsx'))).resolves.toHaveLength(1);
+  });
 });
 
 describe('toXlsxBlob', () => {

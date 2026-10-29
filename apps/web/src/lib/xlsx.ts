@@ -66,6 +66,15 @@ export async function parseXlsxRecords(file: File): Promise<CsvRecord[]> {
   return records;
 }
 
+/**
+ * Excel rejects an inline dropdown source over 255 characters ("We found a problem with
+ * some content"), and a comma or quote inside an item splits or breaks it. exceljs writes
+ * the string through unchecked, so the file only fails when Excel opens it.
+ */
+function inlineListSafe(options: readonly string[]): boolean {
+  return options.join(',').length <= 255 && !options.some((o) => /[",]/.test(o));
+}
+
 /** Build the downloadable template: header + one example row, formats and dropdowns applied. */
 export async function buildTemplateXlsx(
   columns: readonly TemplateColumn[],
@@ -74,6 +83,8 @@ export async function buildTemplateXlsx(
   const ExcelJS = await excel();
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(sheetName);
+  let lists: ReturnType<typeof workbook.addWorksheet> | undefined;
+  let listColumns = 0;
 
   sheet.addRow(columns.map((c) => c.key));
   sheet.getRow(1).font = { bold: true };
@@ -86,13 +97,27 @@ export async function buildTemplateXlsx(
     // moment that matters: Excel mangles the value on entry, not on save.
     if (column.text) col.numFmt = '@';
 
-    if (column.options && column.options.length > 0) {
-      const list = `"${column.options.join(',')}"`;
+    const options = [...new Set((column.options ?? []).map((o) => o.trim()).filter(Boolean))];
+    if (options.length > 0) {
+      let formula: string;
+      if (inlineListSafe(options)) {
+        formula = `"${options.join(',')}"`;
+      } else {
+        // Created after the data sheet so worksheets[0] stays the one the parser reads.
+        lists ??= workbook.addWorksheet('Lists', { state: 'hidden' });
+        listColumns += 1;
+        options.forEach((option, i) => {
+          lists!.getCell(i + 1, listColumns).value = option;
+        });
+        const letter = lists.getColumn(listColumns).letter;
+        formula = `Lists!$${letter}$1:$${letter}$${options.length}`;
+      }
       for (let rowNumber = 2; rowNumber <= TEMPLATE_VALIDATION_ROWS + 1; rowNumber++) {
         sheet.getCell(rowNumber, index + 1).dataValidation = {
           type: 'list',
           allowBlank: true,
-          formulae: [list],
+          showErrorMessage: true,
+          formulae: [formula],
         };
       }
     }
