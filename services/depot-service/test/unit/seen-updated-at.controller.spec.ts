@@ -25,9 +25,9 @@ const user = { sub: 'u', role: 'SUPER_ADMIN', depotId: null } as never;
 
 describe('the freshness stamp does not reach the patch', () => {
   it('depot', async () => {
-    const svc = { update: jest.fn().mockResolvedValue({}) };
+    const svc = { update: jest.fn().mockResolvedValue({ code: 'JKT-01' }) };
     const dto = plainToInstance(UpdateDepotDto, { ownerId: ID, seenUpdatedAt: SEEN });
-    await new DepotController(svc as never, {} as never).update(ID, dto);
+    await new DepotController(svc as never, {} as never).update(ID, dto, user);
     const [, patch, seen] = svc.update.mock.calls[0];
     expect(seen).toBe(SEEN);
     expect(patch).not.toHaveProperty('seenUpdatedAt');
@@ -35,7 +35,10 @@ describe('the freshness stamp does not reach the patch', () => {
   });
 
   it('supplier', async () => {
-    const svc = { get: jest.fn().mockResolvedValue({ depotId: DEPOT }), update: jest.fn().mockResolvedValue({}) };
+    const svc = {
+      get: jest.fn().mockResolvedValue({ depotId: DEPOT }),
+      update: jest.fn().mockResolvedValue({}),
+    };
     const dto = plainToInstance(UpdateSupplierDto, { name: 'CV Air', seenUpdatedAt: SEEN });
     await new SupplierController(svc as never).update(ID, dto, user);
     const [, patch, seen] = svc.update.mock.calls[0];
@@ -45,7 +48,10 @@ describe('the freshness stamp does not reach the patch', () => {
   });
 
   it('wholesale tier', async () => {
-    const svc = { get: jest.fn().mockResolvedValue({ depotId: DEPOT }), update: jest.fn().mockResolvedValue({}) };
+    const svc = {
+      get: jest.fn().mockResolvedValue({ depotId: DEPOT }),
+      update: jest.fn().mockResolvedValue({}),
+    };
     const dto = plainToInstance(UpdateWholesaleTierDto, { priceIdr: 6000, seenUpdatedAt: SEEN });
     await new WholesaleTierController(svc as never).update(ID, dto, user);
     const [, patch, seen] = svc.update.mock.calls[0];

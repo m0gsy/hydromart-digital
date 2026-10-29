@@ -31,6 +31,7 @@ import {
   depotScopeIds,
   InternalAuthGuard,
   Public,
+  recordAuditEvent,
   Role,
   Roles,
   SelfScoped,
@@ -39,6 +40,7 @@ import {
 } from '@hydromart/platform';
 
 import { OwnershipType } from '../domain/inventory';
+import { parseServiceArea, type ServiceArea } from '../domain/service-area';
 import { DEPOT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { DepotService } from '../application/services/depot.service';
@@ -403,8 +405,11 @@ export class DepotController {
   @Can('depotLifecycle')
   @Post()
   @ApiOperation({ summary: 'Create a depot (head office)' })
-  create(@Body() dto: CreateDepotDto): Promise<DepotRecord> {
-    return this.depots.create({
+  async create(
+    @Body() dto: CreateDepotDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotRecord> {
+    const created = await this.depots.create({
       code: dto.code,
       name: dto.name,
       ownershipType: dto.ownershipType,
@@ -424,7 +429,13 @@ export class DepotController {
       paymentQrisImageUrl: dto.paymentQrisImageUrl ?? null,
       operatingHours: dto.operatingHours ?? {},
       holidays: dto.holidays ?? [],
+      serviceArea: toServiceArea(dto.serviceArea) ?? null,
     });
+    await this.audit('depot.create', user, created.code, {
+      depotId: created.id,
+      ownershipType: created.ownershipType,
+    });
+    return created;
   }
 
   // AUTHZ-B1, and this is the one that moved money. `depotAdmin` is MANAGER + SUPER_ADMIN,
@@ -436,16 +447,28 @@ export class DepotController {
   @Can('depotAdmin')
   @Patch(':depotId')
   @ApiOperation({ summary: 'Update a depot: hours, delivery zone/fee, holidays (admin)' })
-  update(
+  async update(
     @Param('depotId', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDepotDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<DepotRecord> {
     // `seenUpdatedAt` is the version the client read, a token for the freshness check and not a column:
     // it has to stop here. Forwarded with the rest of the patch it reached Prisma as an unknown field
     // ("Unknown argument `seenUpdatedAt`") and the save answered 500 — for every console form that
     // sends the stamp, which is what CA-2-53 made them all do.
-    const { seenUpdatedAt, ...patch } = dto;
-    return this.depots.update(id, patch, seenUpdatedAt);
+    const { seenUpdatedAt, serviceArea, ...rest } = dto;
+    const patch = {
+      ...rest,
+      ...(serviceArea !== undefined ? { serviceArea: toServiceArea(serviceArea) } : {}),
+    };
+    const updated = await this.depots.update(id, patch, seenUpdatedAt);
+    // Field NAMES only, never values: the bank account and QRIS are in this patch, and a trail
+    // that repeated them would be the next place those numbers leak from.
+    await this.audit('depot.update', user, updated.code, {
+      depotId: id,
+      changed: Object.keys(patch).sort(),
+    });
+    return updated;
   }
 
   // AUTHZ-B1 — see `update` above. Writing another depot's QRIS is writing where its
@@ -462,6 +485,7 @@ export class DepotController {
   async uploadQris(
     @Param('depotId', ParseUUIDPipe) id: string,
     @UploadedFile() file?: UploadedImage,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<DepotRecord> {
     if (!file) {
       throw new BadRequestException('file is required');
@@ -493,7 +517,9 @@ export class DepotController {
         'Penyimpanan gambar sedang tidak tersedia. Coba lagi sebentar lagi.',
       );
     }
-    return this.depots.setQrisImage(id, url);
+    const updated = await this.depots.setQrisImage(id, url);
+    await this.audit('depot.qris.update', user, updated.code, { depotId: id });
+    return updated;
   }
 
   // AUTHZ-B1 — see `update` above.
@@ -503,7 +529,47 @@ export class DepotController {
   @Delete(':depotId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Deactivate a depot (soft delete, head office)' })
-  remove(@Param('depotId', ParseUUIDPipe) id: string): Promise<DepotRecord> {
-    return this.depots.deactivate(id);
+  async remove(
+    @Param('depotId', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotRecord> {
+    const removed = await this.depots.deactivate(id);
+    await this.audit('depot.deactivate', user, removed.code, { depotId: id });
+    return removed;
   }
+
+  /**
+   * Who changed a depot, and which fields. Depot edits move money (bank account, QRIS) and
+   * routing (radius, drawn area), and before this none of them left a trace. Fail-open, like
+   * every audit write here: a depot that is already saved is not rolled back because the
+   * trail could not be reached.
+   */
+  private async audit(
+    action: string,
+    user: AuthenticatedUser | undefined,
+    target: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    await recordAuditEvent(
+      {
+        authServiceUrl: process.env.AUTH_SERVICE_URL ?? '',
+        internalServiceKey: process.env.INTERNAL_SERVICE_KEY ?? '',
+      },
+      { action, actorId: user?.sub ?? null, target, metadata },
+      this.logger,
+    );
+  }
+}
+
+/**
+ * The wire value for a depot's drawn area -> what is stored. Absent stays absent (an update
+ * leaves it alone); null or an empty list clears it (radius routing again); anything else must
+ * be a valid area or the request is refused with the reason, rather than saved and discovered
+ * wrong at checkout.
+ */
+function toServiceArea(value: unknown[] | null | undefined): ServiceArea | null | undefined {
+  if (value === undefined) return undefined;
+  const parsed = parseServiceArea(value);
+  if (!parsed.ok) throw new BadRequestException(`serviceArea: ${parsed.error}`);
+  return parsed.value;
 }

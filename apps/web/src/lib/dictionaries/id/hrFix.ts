@@ -11,6 +11,19 @@
  * silently missing copy.
  */
 export const hrFix = {
+  depotArea: {
+    label: 'Area layanan (opsional)',
+    hint: 'Satu sudut per baris: lat, lng (titik desimal). Pisahkan poligon dengan baris kosong, maksimal 5 poligon dan 200 titik. Bila diisi, area ini yang menentukan apakah alamat dilayani, menggantikan radius. Kosongkan untuk memakai radius.',
+    none: 'Tidak ada area: pelayanan mengikuti radius.',
+    summary: '{rings} poligon, {points} titik.',
+    previewLabel: 'Pratinjau area layanan',
+    err: {
+      badLine: 'Poligon {ring}, baris {line}: "{value}" bukan pasangan lat, lng yang valid (pakai titik desimal, mis. -6.2, 106.8).',
+      tooFewPoints: 'Poligon {ring}: butuh minimal 3 titik.',
+      tooManyPoints: 'Poligon {ring}: maksimal {max} titik.',
+      tooManyRings: 'Maksimal {max} poligon.',
+    },
+  },
   depotImport: {
     notATime: '"{value}" bukan jam. Tulis HH:MM (08:00), dan format kolom jam sebagai Teks.',
     notADate: '"{value}" bukan tanggal. Tulis YYYY-MM-DD (2026-08-17).',
@@ -1156,6 +1169,9 @@ export const hrFix = {
       create: 'dibuat',
       changed: 'diubah',
       updated: 'diubah',
+      update: 'diubah',
+      import: 'diimpor',
+      deactivate: 'dinonaktifkan',
       deleted: 'dihapus',
       delete: 'dihapus',
       rotate: 'diputar ulang',

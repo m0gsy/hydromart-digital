@@ -205,6 +205,18 @@ export class CreateDepotDto {
   @IsOptional()
   @IsArray()
   holidays?: { date: string; label?: string }[];
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Drawn service area: a list of polygons, each a list of { lat, lng }. When present it, ' +
+      'not the radius, decides whether the depot serves a point. null or [] clears it (radius ' +
+      'routing again). Refused if a polygon crosses itself, has under 3 or over 200 points, or ' +
+      'there are more than 5.',
+  })
+  @IsOptional()
+  @IsArray()
+  serviceArea?: unknown[] | null;
 }
 
 export class UpdateDepotDto extends PartialType(CreateDepotDto) {
@@ -395,15 +407,6 @@ export class ImportDepotRowDto extends PartialType(OmitType(CreateDepotDto, ['co
   @IsNotEmpty()
   @MaxLength(30)
   code!: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Drawn service area: a list of polygons, each a list of { lat, lng }. Empty list ' +
-      'clears it. Parsed strictly by the service (no self-crossing, 3-200 points, max 5).',
-  })
-  @IsOptional()
-  @IsArray()
-  serviceArea?: unknown[];
 
   @ApiPropertyOptional({
     description:
