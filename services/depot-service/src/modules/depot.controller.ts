@@ -39,6 +39,7 @@ import {
   sniffFileType,
 } from '@hydromart/platform';
 
+import { can } from '@hydromart/access';
 import { DepotOwnerShare, ownerIdsOf } from '../domain/depot-owners';
 import { OwnershipType } from '../domain/inventory';
 import { parseServiceArea, type ServiceArea } from '../domain/service-area';
@@ -478,7 +479,13 @@ export class DepotController {
       ...rest,
       ...(serviceArea !== undefined ? { serviceArea: toServiceArea(serviceArea) } : {}),
     };
-    const updated = await this.depots.update(id, patch, seenUpdatedAt);
+    // A MANAGER may edit the depot; only head office may change who owns it (see DepotService.update).
+    const updated = await this.depots.update(
+      id,
+      patch,
+      seenUpdatedAt,
+      can('depotLifecycle', user.role),
+    );
     // Field NAMES only, never values: the bank account and QRIS are in this patch, and a trail
     // that repeated them would be the next place those numbers leak from.
     await this.audit('depot.update', user, updated.code, {

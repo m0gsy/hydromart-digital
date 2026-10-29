@@ -1563,8 +1563,16 @@ describe('DepotController', () => {
   });
 
   it('updates a depot', async () => {
-    await c.update(ID, { active: false } as never, user);
-    expect(svc.update).toHaveBeenCalledWith(ID, { active: false }, undefined);
+    await c.update(ID, { active: false } as never, { ...(user as object), role: 'HEAD_OFFICE' } as never);
+    expect(svc.update).toHaveBeenCalledWith(ID, { active: false }, undefined, true);
+  });
+
+  // A MANAGER edits the depot; only head office may change who owns it and how revenue splits.
+  it('tells the service whether the caller may change owners', async () => {
+    await c.update(ID, { name: 'x' } as never, { ...(user as object), role: 'MANAGER' } as never);
+    expect(svc.update).toHaveBeenLastCalledWith(ID, { name: 'x' }, undefined, false);
+    await c.update(ID, { name: 'x' } as never, { ...(user as object), role: 'DIREKTUR' } as never);
+    expect(svc.update).toHaveBeenLastCalledWith(ID, { name: 'x' }, undefined, true);
   });
 
   // The full record carries bank details and ownership: a franchise owner may open their own

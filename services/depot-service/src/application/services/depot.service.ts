@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import {
   assertFresh,
   isDecisionOnlyPatch,
@@ -112,13 +112,25 @@ export class DepotService {
    * account on this record is where a depot's money is paid, and two people editing it
    * used to produce whichever of them saved last.
    */
-  async update(id: string, patch: UpdateDepotData, seenUpdatedAt?: string): Promise<DepotRecord> {
+  async update(
+    id: string,
+    patch: UpdateDepotData,
+    seenUpdatedAt?: string,
+    canChangeOwners = true,
+  ): Promise<DepotRecord> {
     const current = await this.get(id, false);
     if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
     const nextOwners = this.ownersAfter(current, patch);
+    // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
+    // changing its owners is head office's (the same people who may create or deactivate one).
+    if (nextOwners !== undefined && !canChangeOwners) {
+      throw new ForbiddenException(
+        'Hanya kantor pusat yang boleh mengubah pemilik dan pembagian hasil depot.',
+      );
+    }
     const effective = nextOwners ?? currentOwners(current);
     if (ownershipType === OwnershipType.WARALABA && effective.length === 0) {
       throw new FranchiseOwnerRequiredError();

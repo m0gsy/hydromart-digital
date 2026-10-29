@@ -1,3 +1,5 @@
+import { ForbiddenException } from '@nestjs/common';
+
 import { DepotService } from '../../src/application/services/depot.service';
 import { OwnershipType } from '../../src/domain/inventory';
 import {
@@ -347,6 +349,21 @@ describe('DepotService multi-owner', () => {
     await expect(
       service.update(d.id, { owners: [] }, d.updatedAt.toISOString()),
     ).rejects.toBeInstanceOf(FranchiseOwnerRequiredError);
+  });
+
+  it('lets only a caller who may change owners change them', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const seen = d.updatedAt.toISOString();
+    await expect(
+      service.update(d.id, { owners: split(50, 50) }, seen, false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.update(d.id, { ownerId: C }, seen, false)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    // Everything else on the depot, and a resend of the current primary, stays open to a manager.
+    const ok = await service.update(d.id, { ownerId: A, name: 'Renamed' }, seen, false);
+    expect(ok.name).toBe('Renamed');
+    expect(ok.owners).toEqual(split(60, 40));
   });
 
   it('falls back to the current set for a moment before any generation was recorded', async () => {
