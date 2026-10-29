@@ -337,9 +337,11 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     id: string,
     expected: PaymentStatus[],
     patch: PaymentStatusPatch,
+    onlyIf?: { refundApproval?: RefundApproval },
   ): Promise<PaymentRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     if (!row || !expected.includes(row.status)) return null;
+    if (onlyIf?.refundApproval && row.refundApproval !== onlyIf.refundApproval) return null;
     Object.assign(row, patch, { updatedAt: nextDate() });
     return { ...row };
   }

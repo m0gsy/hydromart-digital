@@ -17,6 +17,7 @@ import {
   GatewayUnavailableError,
   InvalidPaymentTransitionError,
   InvalidWebhookSignatureError,
+  OrderNotPayableError,
   PaymentAlreadyExistsError,
   PaymentAmountMismatchError,
   PaymentOrderNotYoursError,
@@ -265,6 +266,19 @@ export class PaymentService {
     const order = await this.orderCoordination.getOrderForPayment(input.orderId);
     if (order && !input.staffFor && order.customerId !== customerId) {
       throw new PaymentOrderNotYoursError();
+    }
+    if (order) {
+      /*
+       * Refuse an order that is already over. Deliberately a deny-list, not "only CREATED
+       * may pay": COD settles at the door, a walk-in is born COMPLETED and is paid at the
+       * till, and a narrower allow-list would break those legitimate flows for the sake of a
+       * race. `getOrderStatuses` fails soft (an unreachable order-service yields no entry),
+       * so a missing status lets the payment through exactly as before.
+       */
+      const status = (await this.orderCoordination.getOrderStatuses([input.orderId])).get(
+        input.orderId,
+      );
+      if (status === 'CANCELLED' || status === 'VOIDED') throw new OrderNotPayableError();
     }
     if (order && money(order.total) !== amount) {
       // Deliberately NOT told which number was expected: the caller supplied one and it is
@@ -600,8 +614,21 @@ export class PaymentService {
       patch.cashReceived = received;
       patch.changeGiven = change;
     }
+    /*
+     * Compare-and-set on PENDING, not a blind write after the read above. A cancel, the
+     * expiry sweep or the webhook can settle this row between `getAny` and here; the old
+     * `update({where:{id}})` then wrote PAID over a FAILED payment (or the reverse) with
+     * nothing left to notice. The loser re-reads: if the row is PAID with the same capture
+     * it is a replay (answered as one, per the block above); anything else is a conflict.
+     */
+    const updated = await this.payments.updateIfStatus(id, [PaymentStatus.PENDING], patch);
+    if (!updated) {
+      const current = await this.getAny(id);
+      const sameCapture = cashReceived == null || money(cashReceived) === current.cashReceived;
+      if (current.status === PaymentStatus.PAID && sameCapture) return current;
+      throw new InvalidPaymentTransitionError(current.status, PaymentStatus.PAID);
+    }
     this.logger.log(`Payment ${id} confirmed PAID by ${changedBy}`);
-    const updated = await this.payments.update(id, patch);
     // A settled payment confirms the order (CREATED→CONFIRMED). Fail-open, idempotent.
     await this.orderCoordination.confirmPaid(updated.orderId);
     return updated;
@@ -617,11 +644,16 @@ export class PaymentService {
     const payment = await this.getAny(id);
     await this.assertSettleableBy(user, payment);
     this.assertTransition(payment.status, PaymentStatus.FAILED);
-    this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
-    const failed = await this.payments.update(id, {
+    // Compare-and-set (see `confirm`): the loser must not announce a rejection that did not happen.
+    const failed = await this.payments.updateIfStatus(id, [PaymentStatus.PENDING], {
       status: PaymentStatus.FAILED,
       failedAt: new Date(),
     });
+    if (!failed) {
+      const current = await this.getAny(id);
+      throw new InvalidPaymentTransitionError(current.status, PaymentStatus.FAILED);
+    }
+    this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
     await this.orderCoordination.notifyPaymentEvent(
       failed.orderId,
       'FAILED',
@@ -631,12 +663,21 @@ export class PaymentService {
     return failed;
   }
 
-  /** The cancellation paths' FAILED: no staff depot check (order-service is the caller), no notice. */
-  private async markFailed(id: string, changedBy: string): Promise<PaymentRecord> {
-    const payment = await this.getAny(id);
-    this.assertTransition(payment.status, PaymentStatus.FAILED);
-    this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
-    return this.payments.update(id, { status: PaymentStatus.FAILED, failedAt: new Date() });
+  /**
+   * The cancellation paths' FAILED: no staff depot check (order-service is the caller), no notice.
+   *
+   * Compare-and-set on PENDING. Returns null when the payment is no longer PENDING — most
+   * importantly when a cash confirmation landed PAID between the caller's read and this write.
+   * The blind write it replaces turned that PAID into FAILED: money taken, payment no longer
+   * "active", so nothing ever raised a refund. The callers treat null as "re-read and refund".
+   */
+  private async markFailed(id: string, changedBy: string): Promise<PaymentRecord | null> {
+    const failed = await this.payments.updateIfStatus(id, [PaymentStatus.PENDING], {
+      status: PaymentStatus.FAILED,
+      failedAt: new Date(),
+    });
+    if (failed) this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
+    return failed;
   }
 
   /**
@@ -830,15 +871,33 @@ export class PaymentService {
         thresholdIdr: this.config.refundApprovalThreshold,
         reason: reason ?? null,
       });
-      return this.payments.update(id, {
-        status: payment.status, // stays PAID until approved
-        refundApproval: RefundApproval.PENDING,
-        refundReason: reason ?? null,
-        // Shown in the HQ queue as "diajukan oleh". Information only — nothing gates on it.
-        refundRequestedBy: changedBy || null,
-        refundDueAt: addWorkingDays(new Date(), REFUND_PROMISE_WORKING_DAYS, this.config.publicHolidays),
-        refundedAmount: payment.amount,
-      });
+      /*
+       * Compare-and-set on what was read (status AND approval). The blind write it replaces
+       * wrote `status: payment.status` back from a stale read: if a settlement had moved the
+       * row to REFUNDED in between, this resurrected it as PAID with a pending request — a
+       * second refund of money already returned.
+       */
+      const queued = await this.payments.updateIfStatus(
+        id,
+        [payment.status],
+        {
+          status: payment.status, // stays PAID until approved
+          refundApproval: RefundApproval.PENDING,
+          refundReason: reason ?? null,
+          // Shown in the HQ queue as "diajukan oleh". Information only — nothing gates on it.
+          refundRequestedBy: changedBy || null,
+          refundDueAt: addWorkingDays(new Date(), REFUND_PROMISE_WORKING_DAYS, this.config.publicHolidays),
+          refundedAmount: payment.amount,
+        },
+        { refundApproval: payment.refundApproval },
+      );
+      if (queued) return queued;
+      const current = await this.getAny(id);
+      // Lost to another request for the same refund: the first one stands (see above).
+      if (current.refundApproval === RefundApproval.PENDING && isRefundable(current.status)) {
+        return current;
+      }
+      throw new PaymentNotRefundableError(current.status);
     }
     return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE);
   }
@@ -958,13 +1017,19 @@ export class PaymentService {
   ): Promise<PaymentRecord | null> {
     const active = await this.payments.findActiveByOrder(orderId);
     if (!active) return null;
+    let target = active;
     if (active.status === PaymentStatus.PENDING) {
-      return this.markFailed(active.id, changedBy);
+      const failed = await this.markFailed(active.id, changedBy);
+      if (failed) return failed;
+      // Lost to a confirmation that landed first: the money IS in, so refund it below.
+      const current = await this.payments.findActiveByOrder(orderId);
+      if (!current || current.status !== PaymentStatus.PAID) return current ?? null;
+      target = current;
     }
     // Straight to REFUNDED, never the HQ approval queue: a counter void hands cash back
     // across the counter there and then, and parking it for approval would mean the buyer
     // has walked out with money the system still thinks it holds.
-    return this.executeRefund(active, changedBy, reason, RefundApproval.NONE);
+    return this.executeRefund(target, changedBy, reason, RefundApproval.NONE);
   }
 
   /**
@@ -993,7 +1058,13 @@ export class PaymentService {
     // Nothing was ever collected, so there is nothing to hand back — but the row must stop
     // being active, or it goes on blocking the order it belongs to.
     if (active.status === PaymentStatus.PENDING) {
-      return this.markFailed(active.id, changedBy);
+      const failed = await this.markFailed(active.id, changedBy);
+      if (failed) return failed;
+      // A confirmation landed between the read and the write: the payment is PAID now and
+      // must be refunded, not left as revenue on a cancelled order.
+      const current = await this.payments.findActiveByOrder(orderId);
+      if (!current || current.status !== PaymentStatus.PAID) return current ?? null;
+      return this.refund(current.id, changedBy, reason);
     }
     return this.refund(active.id, changedBy, reason);
   }
@@ -1046,7 +1117,19 @@ export class PaymentService {
     if (payment.refundApproval !== RefundApproval.PENDING) {
       throw new RefundNotPendingError();
     }
-    return this.executeRefund(payment, changedBy, payment.refundReason, RefundApproval.APPROVED);
+    try {
+      return await this.executeRefund(
+        payment,
+        changedBy,
+        payment.refundReason,
+        RefundApproval.APPROVED,
+      );
+    } catch (error) {
+      // The claim failed because a reject (or another approve) settled the request first:
+      // from this caller's side the request is simply no longer pending.
+      if (error instanceof PaymentNotRefundableError) throw new RefundNotPendingError();
+      throw error;
+    }
   }
 
   /**
@@ -1075,6 +1158,21 @@ export class PaymentService {
     if (!status) throw new RefundOrderUnreadableError();
     if (status === 'CANCELLED') throw new RefundOnCancelledOrderError();
 
+    // Claimed BEFORE the audit and on the approval state that was read: an approval that
+    // settled the refund in between must win, not be overwritten back to PAID/REJECTED with
+    // the customer already paid. The loser leaves no "rejected" row for a request that was not.
+    const rejected = await this.payments.updateIfStatus(
+      id,
+      [PaymentStatus.PAID],
+      {
+        status: payment.status, // stays PAID
+        refundApproval: RefundApproval.REJECTED,
+        refundReason: reason,
+      },
+      { refundApproval: RefundApproval.PENDING },
+    );
+    if (!rejected) throw new RefundNotPendingError();
+
     this.logger.log(`Refund ${id} rejected by ${changedBy}`);
     /*
      * success:false — a refused approval is a decision someone made, and the record of who
@@ -1091,11 +1189,7 @@ export class PaymentService {
       { amountIdr: payment.amount, reason },
       false,
     );
-    return this.payments.update(id, {
-      status: payment.status, // stays PAID
-      refundApproval: RefundApproval.REJECTED,
-      refundReason: reason,
-    });
+    return rejected;
   }
 
   /**
@@ -1142,7 +1236,11 @@ export class PaymentService {
     // sent money back — the customer was paid twice and nothing recorded that it happened.
     // Moving the row out of a refundable status is what makes exactly one caller the
     // refunder, and it only counts if it happens before we spend anything.
-    const claimed = await this.payments.updateIfStatus(payment.id, [payment.status], patch);
+    // The approval state read by the caller is part of the claim: a request that HQ rejected
+    // (or another actor already settled) must not be executed from a stale read.
+    const claimed = await this.payments.updateIfStatus(payment.id, [payment.status], patch, {
+      refundApproval: payment.refundApproval,
+    });
     if (!claimed) {
       throw new PaymentNotRefundableError(payment.status);
     }
@@ -1155,19 +1253,35 @@ export class PaymentService {
         // Hand the claim back so a retry is possible. A crash between the claim and this
         // revert leaves the payment REFUNDED without the money having moved — visible in
         // reconciliation and fixable, unlike paying the customer a second time.
-        await this.payments
-          .update(payment.id, {
+        //
+        // Restores what the claim overwrote, from the snapshot we read: a queued request
+        // already carried its amount and reason, and HQ's approval was working from them.
+        // Conditional on REFUNDED so it cannot clobber a state someone else moved it to, and
+        // a failed revert is logged loudly instead of swallowed — a payment stuck REFUNDED
+        // with no money moved is exactly what reconciliation has to be told about.
+        const reverted = await this.payments
+          .updateIfStatus(payment.id, [PaymentStatus.REFUNDED], {
             status: payment.status,
             refundedAt: null,
             refundApproval: payment.refundApproval,
+            refundedAmount: payment.refundedAmount,
+            refundReason: payment.refundReason,
           })
-          .catch(() => {});
+          .catch(() => null);
+        if (!reverted) {
+          this.logger.error(
+            `Payment ${payment.id} is REFUNDED but the gateway refund failed and the claim could not be handed back — reconcile by hand`,
+          );
+        }
         this.logger.error(`Gateway refund failed for ${payment.id}: ${(error as Error).message}`);
         throw new GatewayUnavailableError();
       }
     }
     this.logger.log(`Payment ${payment.id} refunded by ${changedBy}`);
-    const updated = await this.payments.update(payment.id, patch);
+    // Still conditional on the row being the one we claimed; falls back to the claim's own
+    // result (which already carries every field but the gateway's raw payload).
+    const updated =
+      (await this.payments.updateIfStatus(payment.id, [PaymentStatus.REFUNDED], patch)) ?? claimed;
     // H-29: recorded AFTER the money moved, so the trail never claims a refund that the
     // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
     // the threshold that needed nobody — that difference is the whole point of the queue.
