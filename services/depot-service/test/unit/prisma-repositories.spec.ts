@@ -277,7 +277,19 @@ describe('DepotPrismaRepository', () => {
     create: jest.fn(),
     update: jest.fn(),
   };
-  const prisma = { depot: model } as unknown as PrismaService;
+  const ownerModel = { findMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() };
+  const tx = { depot: model, depotOwner: ownerModel };
+  const prisma = {
+    depot: model,
+    depotOwner: ownerModel,
+    $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+  } as unknown as PrismaService;
+  const INCLUDE = {
+    owners: {
+      where: { effectiveTo: null },
+      orderBy: [{ isPrimary: 'desc' }, { ownerId: 'asc' }],
+    },
+  };
   const repo = new DepotPrismaRepository(prisma);
   const row = {
     id: 'depot-1',
@@ -334,6 +346,7 @@ describe('DepotPrismaRepository', () => {
       expect(model.findMany).toHaveBeenCalledTimes(1);
       expect(model.findMany).toHaveBeenCalledWith({
         where: { id: { in: ['d1', 'd2'] }, active: true },
+        include: INCLUDE,
       });
       expect(out).toHaveLength(1);
     });
@@ -341,7 +354,10 @@ describe('DepotPrismaRepository', () => {
     it('omits the active filter when it is not asked for', async () => {
       model.findMany.mockResolvedValue([]);
       await repo.findManyByIds(['d1'], false);
-      expect(model.findMany).toHaveBeenCalledWith({ where: { id: { in: ['d1'] } } });
+      expect(model.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['d1'] } },
+        include: INCLUDE,
+      });
     });
 
     // An empty `in` list is a round trip that can only ever return nothing.
@@ -358,6 +374,7 @@ describe('DepotPrismaRepository', () => {
     const out = await repo.search({ page: 2, limit: 10 } as never);
     expect(model.findMany).toHaveBeenCalledWith({
       where: {},
+      include: INCLUDE,
       orderBy: { code: 'asc' },
       skip: 10,
       take: 10,
@@ -391,6 +408,7 @@ describe('DepotPrismaRepository', () => {
           { city: { contains: 'sat', mode: 'insensitive' } },
         ],
       },
+      include: INCLUDE,
       orderBy: { code: 'asc' },
       skip: 0,
       take: 5,
@@ -404,26 +422,37 @@ describe('DepotPrismaRepository', () => {
     await repo.search({ page: 1, limit: 5, depotIds: ['d1', 'd2'] } as never);
     expect(model.count).toHaveBeenLastCalledWith({ where: { id: { in: ['d1', 'd2'] } } });
     await repo.search({ page: 1, limit: 5, ownerId: 'o1' } as never);
-    expect(model.count).toHaveBeenLastCalledWith({ where: { ownerId: 'o1' } });
+    expect(model.count).toHaveBeenLastCalledWith({
+      where: { owners: { some: { ownerId: 'o1', effectiveTo: null } } },
+    });
   });
 
   it('maps a null minOrderAmount to null', async () => {
     model.findFirst.mockResolvedValue({ ...row, minOrderAmount: null });
     const out = await repo.findById('depot-1', false);
     expect(out?.minOrderAmount).toBeNull();
-    expect(model.findFirst).toHaveBeenCalledWith({ where: { id: 'depot-1' } });
+    expect(model.findFirst).toHaveBeenCalledWith({
+      where: { id: 'depot-1' },
+      include: INCLUDE,
+    });
   });
 
   it('findById applies the active filter when activeOnly', async () => {
     model.findFirst.mockResolvedValue(null);
     expect(await repo.findById('depot-1', true)).toBeNull();
-    expect(model.findFirst).toHaveBeenCalledWith({ where: { id: 'depot-1', active: true } });
+    expect(model.findFirst).toHaveBeenCalledWith({
+      where: { id: 'depot-1', active: true },
+      include: INCLUDE,
+    });
   });
 
   it('finds by code', async () => {
     model.findUnique.mockResolvedValue(row);
     expect((await repo.findByCode('DPT001'))?.code).toBe('DPT001');
-    expect(model.findUnique).toHaveBeenCalledWith({ where: { code: 'DPT001' } });
+    expect(model.findUnique).toHaveBeenCalledWith({
+      where: { code: 'DPT001' },
+      include: INCLUDE,
+    });
     model.findUnique.mockResolvedValue(null);
     expect(await repo.findByCode('X')).toBeNull();
   });
@@ -434,6 +463,7 @@ describe('DepotPrismaRepository', () => {
       const out = await repo.findManyByCodes(['DPT001', 'DPT001', 'DPT002']);
       expect(model.findMany).toHaveBeenCalledWith({
         where: { code: { in: ['DPT001', 'DPT002'] } },
+        include: INCLUDE,
       });
       expect(out).toHaveLength(1);
     });
@@ -450,7 +480,8 @@ describe('DepotPrismaRepository', () => {
     const out = await repo.findByOwner('own-1');
     expect(out).toHaveLength(1);
     expect(model.findMany).toHaveBeenCalledWith({
-      where: { ownerId: 'own-1' },
+      where: { owners: { some: { ownerId: 'own-1', effectiveTo: null } } },
+      include: INCLUDE,
       orderBy: { code: 'asc' },
     });
   });
@@ -460,6 +491,7 @@ describe('DepotPrismaRepository', () => {
     const data = { code: 'DPT002', operatingHours: { mon: '09-18' }, holidays: [] } as never;
     await repo.create(data);
     expect(model.create).toHaveBeenCalledWith({
+      include: INCLUDE,
       data: { code: 'DPT002', operatingHours: { mon: '09-18' }, holidays: [] },
     });
   });
@@ -469,6 +501,7 @@ describe('DepotPrismaRepository', () => {
     await repo.update('depot-1', { name: 'Renamed' } as never);
     expect(model.update).toHaveBeenCalledWith({
       where: { id: 'depot-1' },
+      include: INCLUDE,
       data: { name: 'Renamed' },
     });
 
@@ -479,7 +512,111 @@ describe('DepotPrismaRepository', () => {
     } as never);
     expect(model.update).toHaveBeenLastCalledWith({
       where: { id: 'depot-1' },
+      include: INCLUDE,
       data: { name: 'R2', operatingHours: { mon: '10-19' }, holidays: [{ date: 'x' }] },
+    });
+  });
+
+  describe('owners', () => {
+    const owned = {
+      ...row,
+      owners: [
+        { ownerId: 'o1', sharePct: decimal(60), isPrimary: true },
+        { ownerId: 'o2', sharePct: decimal(40), isPrimary: false },
+      ],
+    };
+
+    it('maps the open generation to numeric shares', async () => {
+      model.findFirst.mockResolvedValue(owned);
+      const out = await repo.findById('depot-1', false);
+      expect(out?.owners).toEqual([
+        { ownerId: 'o1', sharePct: 60, isPrimary: true },
+        { ownerId: 'o2', sharePct: 40, isPrimary: false },
+      ]);
+    });
+
+    it('creates the owner rows together with the depot', async () => {
+      model.create.mockResolvedValue(owned);
+      await repo.create({
+        code: 'A',
+        operatingHours: {},
+        holidays: [],
+        owners: [{ ownerId: 'o1', sharePct: 100, isPrimary: true }],
+      } as never);
+      expect(model.create).toHaveBeenLastCalledWith({
+        include: INCLUDE,
+        data: {
+          code: 'A',
+          operatingHours: {},
+          holidays: [],
+          owners: { create: [{ ownerId: 'o1', sharePct: 100, isPrimary: true }] },
+        },
+      });
+    });
+
+    it('swaps the generation in one transaction: close, open, then the depot row', async () => {
+      model.update.mockResolvedValue(owned);
+      await repo.update('depot-1', {
+        ownerId: 'o1',
+        owners: [
+          { ownerId: 'o1', sharePct: 60, isPrimary: true },
+          { ownerId: 'o2', sharePct: 40, isPrimary: false },
+        ],
+      } as never);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const closeCall = ownerModel.updateMany.mock.calls.at(-1)![0];
+      expect(closeCall.where).toEqual({ depotId: 'depot-1', effectiveTo: null });
+      const now = closeCall.data.effectiveTo as Date;
+      const created = ownerModel.createMany.mock.calls.at(-1)![0].data;
+      expect(created).toEqual([
+        {
+          depotId: 'depot-1',
+          ownerId: 'o1',
+          sharePct: 60,
+          isPrimary: true,
+          effectiveFrom: now,
+          createdBy: null,
+        },
+        {
+          depotId: 'depot-1',
+          ownerId: 'o2',
+          sharePct: 40,
+          isPrimary: false,
+          effectiveFrom: now,
+          createdBy: null,
+        },
+      ]);
+      expect(model.update).toHaveBeenLastCalledWith({
+        where: { id: 'depot-1' },
+        data: { ownerId: 'o1' },
+        include: INCLUDE,
+      });
+    });
+
+    it('closes the generation and opens nothing when the owners are cleared', async () => {
+      ownerModel.createMany.mockClear();
+      model.update.mockResolvedValue(row);
+      await repo.update('depot-1', { ownerId: null, owners: [] } as never);
+      expect(ownerModel.updateMany).toHaveBeenCalled();
+      expect(ownerModel.createMany).not.toHaveBeenCalled();
+    });
+
+    it('answers as-of: opened at or before, not closed until after', async () => {
+      const asOf = new Date('2026-05-01T00:00:00Z');
+      ownerModel.findMany.mockResolvedValue([
+        { ownerId: 'o1', sharePct: decimal(100), isPrimary: true },
+      ]);
+      await expect(repo.ownersAsOf('depot-1', asOf)).resolves.toEqual([
+        { ownerId: 'o1', sharePct: 100, isPrimary: true },
+      ]);
+      expect(ownerModel.findMany).toHaveBeenCalledWith({
+        where: {
+          depotId: 'depot-1',
+          effectiveFrom: { lte: asOf },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
+        },
+        orderBy: [{ isPrimary: 'desc' }, { ownerId: 'asc' }],
+      });
     });
   });
 
@@ -501,6 +638,7 @@ describe('DepotPrismaRepository', () => {
         serviceArea: ring,
       } as never);
       expect(model.create).toHaveBeenLastCalledWith({
+        include: INCLUDE,
         data: { code: 'A', operatingHours: {}, holidays: [], serviceArea: ring },
       });
       await repo.create({
@@ -510,6 +648,7 @@ describe('DepotPrismaRepository', () => {
         serviceArea: null,
       } as never);
       expect(model.create).toHaveBeenLastCalledWith({
+        include: INCLUDE,
         data: { code: 'B', operatingHours: {}, holidays: [] },
       });
     });
@@ -519,16 +658,19 @@ describe('DepotPrismaRepository', () => {
       await repo.update('depot-1', { serviceArea: ring } as never);
       expect(model.update).toHaveBeenLastCalledWith({
         where: { id: 'depot-1' },
+        include: INCLUDE,
         data: { serviceArea: ring },
       });
       await repo.update('depot-1', { serviceArea: null } as never);
       expect(model.update).toHaveBeenLastCalledWith({
         where: { id: 'depot-1' },
+        include: INCLUDE,
         data: { serviceArea: Prisma.DbNull },
       });
       await repo.update('depot-1', { name: 'x' } as never);
       expect(model.update).toHaveBeenLastCalledWith({
         where: { id: 'depot-1' },
+        include: INCLUDE,
         data: { name: 'x' },
       });
     });

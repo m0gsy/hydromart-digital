@@ -22,6 +22,7 @@ import {
 } from '@hydromart/platform';
 
 import { GallonIssueService } from '../application/services/gallon-issue.service';
+import { ownerIdsOf } from '../domain/depot-owners';
 import { DepotService } from '../application/services/depot.service';
 import {
   GallonIssueRecord,
@@ -121,7 +122,7 @@ export class GallonIssueController {
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GallonIssueSummary> {
-    assertDepotOwnership(user, (await this.depots.get(depotId, false)).ownerId);
+    assertDepotOwnership(user, ownerIdsOf(await this.depots.get(depotId, false)));
     return this.issues.summary(depotId);
   }
 
@@ -134,7 +135,7 @@ export class GallonIssueController {
     @Query() query: ListIssuesQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Page<GallonIssueRecord>> {
-    assertDepotOwnership(user, (await this.depots.get(depotId, false)).ownerId);
+    assertDepotOwnership(user, ownerIdsOf(await this.depots.get(depotId, false)));
     return this.issues.list(depotId, query.page ?? 1, query.limit ?? 20);
   }
 }

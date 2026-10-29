@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { SettingRow, SettingsCache } from '@hydromart/platform';
 
+import type { DepotOwnerShare } from '../../src/domain/depot-owners';
 import { InventoryItemType } from '../../src/domain/inventory';
 import { NegativeStockError } from '../../src/domain/errors';
 import { PricingRuleRecord } from '../../src/domain/pricing-rule';
@@ -165,7 +166,7 @@ export class InMemoryDepotRepository implements DepotRepository {
     q: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly' | 'depotIds' | 'ownerId'>,
   ): boolean {
     if (q.depotIds && !q.depotIds.includes(r.id)) return false;
-    if (q.ownerId && r.ownerId !== q.ownerId) return false;
+    if (q.ownerId && !this.ownedBy(r, q.ownerId)) return false;
     if (q.activeOnly && !r.active) return false;
     if (q.ownershipType && r.ownershipType !== q.ownershipType) return false;
     if (q.search) {
@@ -221,16 +222,33 @@ export class InMemoryDepotRepository implements DepotRepository {
     const wanted = new Set(codes);
     return this.rows.filter((x) => wanted.has(x.code)).map((x) => ({ ...x }));
   }
+  /** Closed generations, so `ownersAsOf` can answer for a moment before the latest edit. */
+  history: { depotId: string; from: Date; to: Date; owners: DepotOwnerShare[] }[] = [];
+  private openedAt = new Map<string, Date>();
+
+  private ownedBy(r: DepotRecord, ownerId: string): boolean {
+    return r.owners ? r.owners.some((o) => o.ownerId === ownerId) : r.ownerId === ownerId;
+  }
+  async ownersAsOf(depotId: string, asOf: Date): Promise<DepotOwnerShare[]> {
+    const past = this.history.find((h) => h.depotId === depotId && h.from <= asOf && asOf < h.to);
+    if (past) return past.owners.map((o) => ({ ...o }));
+    const r = this.rows.find((x) => x.id === depotId);
+    const from = this.openedAt.get(depotId);
+    if (!r || (from && asOf < from)) return [];
+    return (r.owners ?? []).map((o) => ({ ...o }));
+  }
   async findByOwner(ownerId: string): Promise<DepotRecord[]> {
     return this.rows
-      .filter((x) => x.ownerId === ownerId)
+      .filter((x) => this.ownedBy(x, ownerId))
       .sort((a, b) => a.code.localeCompare(b.code))
       .map((r) => ({ ...r }));
   }
   async create(data: CreateDepotData): Promise<DepotRecord> {
     const now = nextDate();
+    const { owners, ...rest } = data;
     const rec: DepotRecord = {
-      ...data,
+      ...rest,
+      ...(owners ? { owners: owners.map((o) => ({ ...o })) } : {}),
       paymentBankName: data.paymentBankName ?? null,
       paymentBankAccountNumber: data.paymentBankAccountNumber ?? null,
       paymentBankAccountHolder: data.paymentBankAccountHolder ?? null,
@@ -244,11 +262,24 @@ export class InMemoryDepotRepository implements DepotRepository {
       updatedAt: now,
     };
     this.rows.push(rec);
+    this.openedAt.set(rec.id, now);
     return { ...rec };
   }
   async update(id: string, patch: UpdateDepotData): Promise<DepotRecord> {
     const rec = this.rows.find((r) => r.id === id)!;
-    Object.assign(rec, patch, { updatedAt: nextDate() });
+    const { owners, ...rest } = patch;
+    const now = nextDate();
+    if (owners !== undefined) {
+      this.history.push({
+        depotId: id,
+        from: this.openedAt.get(id) ?? rec.createdAt,
+        to: now,
+        owners: rec.owners ?? [],
+      });
+      this.openedAt.set(id, now);
+      rec.owners = owners.map((o) => ({ ...o }));
+    }
+    Object.assign(rec, rest, { updatedAt: now });
     return { ...rec };
   }
 }

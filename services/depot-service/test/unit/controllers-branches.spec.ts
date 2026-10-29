@@ -1013,6 +1013,7 @@ describe('DepotController', () => {
   const svc = {
     browse: jest.fn(),
     listAllActive: jest.fn(),
+    ownersAsOf: jest.fn(),
     listByIds: jest.fn(),
     findNearby: jest.fn(),
     listMine: jest.fn(),
@@ -1301,12 +1302,20 @@ describe('DepotController', () => {
     expect(owned).toEqual({ depotIds: [DEPOT] });
     // Owner lookup for the franchise revenue push: both an owned and an ownerless depot.
     svc.get.mockResolvedValueOnce({ ownerId: 'owner-1', ownershipType: 'WARALABA' });
-    expect(await c.internalOwner(DEPOT)).toEqual({
+    svc.ownersAsOf.mockResolvedValueOnce([{ ownerId: 'owner-1', sharePct: 100, isPrimary: true }]);
+    expect(await c.internalOwner(DEPOT, {})).toEqual({
       ownerId: 'owner-1',
+      owners: [{ ownerId: 'owner-1', sharePct: 100, isPrimary: true }],
       ownershipType: 'WARALABA',
     });
     svc.get.mockResolvedValueOnce({ ownerId: null, ownershipType: 'HKP' });
-    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null, ownershipType: 'HKP' });
+    svc.ownersAsOf.mockResolvedValueOnce([]);
+    expect(await c.internalOwner(DEPOT, { asOf: '2026-05-01T00:00:00Z' })).toEqual({
+      ownerId: null,
+      owners: [],
+      ownershipType: 'HKP',
+    });
+    expect(svc.ownersAsOf).toHaveBeenLastCalledWith(DEPOT, new Date('2026-05-01T00:00:00Z'));
     // Who decides a kasbon raised at this depot. Null is an answer, not a failure: a depot
     // with no assistant yet has nobody who may approve one, and hr-service refuses it.
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: 'asv-1' });

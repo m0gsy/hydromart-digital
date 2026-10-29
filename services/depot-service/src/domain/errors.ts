@@ -78,6 +78,15 @@ export class FranchiseOwnerRequiredError extends DomainError {
   }
 }
 
+/** The owner set of a franchise depot is not one revenue can be split against. */
+export class InvalidOwnerSharesError extends DomainError {
+  readonly code = 'INVALID_OWNER_SHARES';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class InventoryItemNotFoundError extends DomainError {
   readonly code = 'INVENTORY_ITEM_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

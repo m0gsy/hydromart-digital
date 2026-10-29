@@ -25,6 +25,13 @@ describe('assertDepotOwnership', () => {
     );
   });
 
+  it('accepts any one of several owners and refuses a non-member', () => {
+    const user = { role: Role.FRANCHISE_OWNER, sub: OWNER };
+    expect(() => assertDepotOwnership(user, [OTHER, OWNER])).not.toThrow();
+    expect(() => assertDepotOwnership(user, [OTHER])).toThrow(ForbiddenException);
+    expect(() => assertDepotOwnership(user, [])).toThrow(ForbiddenException);
+  });
+
   it('is a no-op for every other role and the missing user', () => {
     expect(() => assertDepotOwnership({ role: Role.HEAD_OFFICE, sub: OTHER }, OWNER)).not.toThrow();
     expect(() => assertDepotOwnership({ role: Role.MANAGER, sub: OTHER }, OWNER)).not.toThrow();

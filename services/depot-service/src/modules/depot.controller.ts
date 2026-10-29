@@ -39,6 +39,7 @@ import {
   sniffFileType,
 } from '@hydromart/platform';
 
+import { DepotOwnerShare, ownerIdsOf } from '../domain/depot-owners';
 import { OwnershipType } from '../domain/inventory';
 import { parseServiceArea, type ServiceArea } from '../domain/service-area';
 import { DEPOT_TOKENS } from '../application/tokens';
@@ -55,6 +56,7 @@ import {
   DepotGallonDepositView,
   DepotPaymentInfoView,
   IncludeAreaQueryDto,
+  InternalOwnerQueryDto,
   NearbyDepotsQueryDto,
   NearbyDepotView,
   PublicDepotView,
@@ -73,6 +75,11 @@ import {
   PagedDepotResponseDto,
   PagedPublicDepotResponseDto,
 } from './dto/responses.generated.dto';
+
+/** Is this account one of the depot's current owners (falls back to the mirrored primary)? */
+function isOwnerOf(depot: DepotRecord, accountId: string): boolean {
+  return ownerIdsOf(depot).includes(accountId);
+}
 
 // Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
@@ -146,11 +153,20 @@ export class DepotController {
   @ApiOperation({ summary: 'Franchise owner of one depot (internal service auth)' })
   async internalOwner(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ ownerId: string | null; ownershipType: OwnershipType }> {
+    @Query() query: InternalOwnerQueryDto,
+  ): Promise<{ ownerId: string | null; owners: DepotOwnerShare[]; ownershipType: OwnershipType }> {
     const depot = await this.depots.get(id, false);
+    // `asOf` is when the order completed: the split that applied THEN, not the current one, so
+    // a payout retried after an ownership edit still books the original agreement.
+    const owners = await this.depots.ownersAsOf(id, query.asOf ? new Date(query.asOf) : undefined);
     // ownershipType rides along so the caller can tell "company depot, nobody to credit"
     // from "franchise depot missing its owner" — the second one is a defect worth logging.
-    return { ownerId: depot.ownerId, ownershipType: depot.ownershipType };
+    // `ownerId` stays the primary for callers that predate multi-owner depots.
+    return {
+      ownerId: owners.find((o) => o.isPrimary)?.ownerId ?? depot.ownerId,
+      owners,
+      ownershipType: depot.ownershipType,
+    };
   }
 
   /*
@@ -339,7 +355,7 @@ export class DepotController {
   ): Promise<DepotRecord> {
     const depot = await this.depots.get(id, false);
     // A franchise owner may only open their OWN depot's record.
-    if (user.role === Role.FRANCHISE_OWNER && depot.ownerId !== user.sub) {
+    if (user.role === Role.FRANCHISE_OWNER && !isOwnerOf(depot, user.sub)) {
       throw new ForbiddenException('This depot belongs to another owner.');
     }
     return depot;
@@ -422,6 +438,7 @@ export class DepotController {
       deliveryFee: dto.deliveryFee,
       minOrderAmount: dto.minOrderAmount ?? null,
       ownerId: dto.ownerId ?? null,
+      owners: dto.owners,
       contactPhone: dto.contactPhone ?? null,
       paymentBankName: dto.paymentBankName ?? null,
       paymentBankAccountNumber: dto.paymentBankAccountNumber ?? null,

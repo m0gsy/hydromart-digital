@@ -2,7 +2,7 @@
 // Regenerate rather than hand-edit: the point is that the documented schema cannot
 // drift from the response. No field is added, removed or renamed here.
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PublicDepotView } from './depot.dto';
+import { DepotOwnerShareDto, PublicDepotView } from './depot.dto';
 
 /** Mirrors `Approval` exactly — generated for audit D-6, no field added or removed. */
 export class ApprovalResponseDto {
@@ -226,6 +226,8 @@ export class InternalOwnedResponseDto {
 export class InternalOwnerResponseDto {
   @ApiProperty({ type: String, nullable: true })
   ownerId!: string | null;
+  @ApiProperty({ type: [DepotOwnerShareDto] })
+  owners!: DepotOwnerShareDto[];
   @ApiProperty({ enum: ['WARALABA', 'HKP'] })
   ownershipType!: string;
 }
@@ -273,6 +275,8 @@ export class DepotResponseDto {
   minOrderAmount!: number | null;
   @ApiProperty({ type: String, nullable: true })
   ownerId!: string | null;
+  @ApiProperty({ type: [DepotOwnerShareDto] })
+  owners!: DepotOwnerShareDto[];
   @ApiProperty({ type: String, nullable: true })
   assistantSupervisorId!: string | null;
   @ApiProperty({ type: String, nullable: true })
