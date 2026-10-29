@@ -287,6 +287,13 @@ export class DepotResponseDto {
   operatingHours!: unknown;
   @ApiProperty({ type: [HolidayResponseDto] })
   holidays!: HolidayResponseDto[];
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    type: 'array',
+    items: { type: 'array', items: { type: 'object' } },
+  })
+  serviceArea?: unknown[][] | null;
   @ApiProperty({ type: Boolean })
   active!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })

@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { Buildings, Storefront } from '@phosphor-icons/react';
 
 import { OwnerSelect } from '@/components/hq/owner-select';
+import { ServiceAreaEditor } from '@/components/hq/service-area-editor';
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { areaToText, parseAreaText } from '@/lib/service-area-text';
 import type { DepotAdmin } from '@/lib/types';
 
 function formFromDepot(d: DepotAdmin): DepotForm {
@@ -52,6 +54,10 @@ export function DepotForm({
   const [form, setForm] = useState<DepotForm>(
     depot ? formFromDepot(depot) : { ...EMPTY_DEPOT_FORM, ...initial },
   );
+  // The drawn area is edited as text and compared with what was loaded, so a save that did
+  // not touch it sends nothing (and cannot clobber a change made elsewhere in the meantime).
+  const initialArea = areaToText(depot?.serviceArea);
+  const [areaText, setAreaText] = useState(initialArea);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof DepotForm) => (e: { target: { value: string } }) =>
@@ -64,6 +70,14 @@ export function DepotForm({
       setError(parsed.error);
       return;
     }
+    const area = parseAreaText(areaText, t);
+    if (!area.ok) {
+      setError(area.error);
+      return;
+    }
+    // Compared as the text the editor would show, so reflowing the same corners is no edit.
+    const areaChanged = areaToText(area.value) !== initialArea;
+    if (areaChanged) parsed.value.serviceArea = area.value;
     setBusy(true);
     setError(null);
     try {
@@ -210,6 +224,14 @@ export function DepotForm({
           />
         </Field>
       </div>
+
+      <ServiceAreaEditor
+        value={areaText}
+        onChange={setAreaText}
+        depotLat={form.lat}
+        depotLng={form.lng}
+        radiusKm={form.serviceRadiusKm}
+      />
 
       <Field
         label={t('hrFix.hqDepotForm.whatsapp')}

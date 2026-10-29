@@ -1,5 +1,18 @@
 /** HR console — EN mirror of id/hrFix.ts. Same shape, key for key. */
 export const hrFix = {
+  depotArea: {
+    label: 'Service area (optional)',
+    hint: 'One corner per line: lat, lng (dot decimals). Separate polygons with a blank line, at most 5 polygons and 200 points. When set, this area decides whether an address is served, instead of the radius. Leave empty to use the radius.',
+    none: 'No area: service follows the radius.',
+    summary: '{rings} polygon(s), {points} point(s).',
+    previewLabel: 'Service area preview',
+    err: {
+      badLine: 'Polygon {ring}, line {line}: "{value}" is not a valid lat, lng pair (use dot decimals, e.g. -6.2, 106.8).',
+      tooFewPoints: 'Polygon {ring}: at least 3 points are needed.',
+      tooManyPoints: 'Polygon {ring}: at most {max} points.',
+      tooManyRings: 'At most {max} polygons.',
+    },
+  },
   depotImport: {
     notATime: '"{value}" is not a time. Write HH:MM (08:00), and format the time columns as Text.',
     notADate: '"{value}" is not a date. Write YYYY-MM-DD (2026-08-17).',
@@ -1139,6 +1152,9 @@ export const hrFix = {
       create: 'created',
       changed: 'changed',
       updated: 'changed',
+      update: 'changed',
+      import: 'imported',
+      deactivate: 'deactivated',
       deleted: 'deleted',
       delete: 'deleted',
       rotate: 'rotated',

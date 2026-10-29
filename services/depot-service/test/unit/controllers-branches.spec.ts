@@ -1028,6 +1028,11 @@ describe('DepotController', () => {
     jest.clearAllMocks();
     storage.put.mockResolvedValue({ url: 'https://cdn.example/qris/abc.png', key: 'qris/abc.png' });
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
+    const saved = { id: DEPOT, code: 'JKT-01', ownershipType: 'HKP' };
+    svc.create.mockResolvedValue(saved);
+    svc.update.mockResolvedValue(saved);
+    svc.deactivate.mockResolvedValue(saved);
+    svc.setQrisImage.mockResolvedValue(saved);
     svc.listAllActive.mockResolvedValue([]);
     svc.listByIds.mockResolvedValue([]);
     // browse/get now map through PublicDepotView, so the stubs have to return real rows.
@@ -1325,7 +1330,7 @@ describe('DepotController', () => {
     expect(svc.listMine).toHaveBeenCalledWith('user-1');
     await c.get(ID, {});
     expect(svc.get).toHaveBeenCalledWith(ID, true);
-    await c.remove(ID);
+    await c.remove(ID, user);
     expect(svc.deactivate).toHaveBeenCalledWith(ID);
   });
 
@@ -1368,7 +1373,7 @@ describe('DepotController', () => {
       lng: 2,
       deliveryFee: 5000,
     };
-    await c.create(base as never);
+    await c.create(base as never, user);
     expect(svc.create).toHaveBeenCalledWith(
       expect.objectContaining({
         serviceRadiusKm: 5,
@@ -1378,18 +1383,21 @@ describe('DepotController', () => {
         holidays: [],
       }),
     );
-    await c.create({
-      ...base,
-      serviceRadiusKm: 7,
-      minOrderAmount: 1,
-      ownerId: 'o',
-      paymentBankName: 'b',
-      paymentBankAccountNumber: '1',
-      paymentBankAccountHolder: 'h',
-      paymentQrisImageUrl: 'u',
-      operatingHours: { mon: {} },
-      holidays: [{ date: 'd' }],
-    } as never);
+    await c.create(
+      {
+        ...base,
+        serviceRadiusKm: 7,
+        minOrderAmount: 1,
+        ownerId: 'o',
+        paymentBankName: 'b',
+        paymentBankAccountNumber: '1',
+        paymentBankAccountHolder: 'h',
+        paymentQrisImageUrl: 'u',
+        operatingHours: { mon: {} },
+        holidays: [{ date: 'd' }],
+      } as never,
+      user,
+    );
     expect(svc.create).toHaveBeenLastCalledWith(
       expect.objectContaining({
         serviceRadiusKm: 7,
@@ -1400,8 +1408,153 @@ describe('DepotController', () => {
     );
   });
 
+  describe('drawn service area on create and update', () => {
+    const square = [
+      [
+        { lat: 0, lng: 0 },
+        { lat: 0, lng: 1 },
+        { lat: 1, lng: 1 },
+        { lat: 1, lng: 0 },
+      ],
+    ];
+    const base = {
+      code: 'A',
+      name: 'n',
+      ownershipType: 'HKP',
+      address: 'a',
+      city: 'c',
+      province: 'p',
+      lat: 1,
+      lng: 2,
+      deliveryFee: 5000,
+    };
+
+    it('stores a valid area on create, and null when none is given', async () => {
+      await c.create({ ...base, serviceArea: square } as never, user);
+      expect(svc.create).toHaveBeenLastCalledWith(expect.objectContaining({ serviceArea: square }));
+      await c.create(base as never, user);
+      expect(svc.create).toHaveBeenLastCalledWith(expect.objectContaining({ serviceArea: null }));
+      await c.create({ ...base, serviceArea: [] } as never, user);
+      expect(svc.create).toHaveBeenLastCalledWith(expect.objectContaining({ serviceArea: null }));
+    });
+
+    it('on update: sets it, clears it with null or [], and leaves it alone when absent', async () => {
+      await c.update(ID, { serviceArea: square } as never, user);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: square }, undefined);
+      await c.update(ID, { serviceArea: null } as never, user);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined);
+      await c.update(ID, { serviceArea: [] } as never, user);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined);
+      await c.update(ID, { city: 'x' } as never, user);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { city: 'x' }, undefined);
+    });
+
+    it('refuses an area that crosses itself, with the reason, before anything is saved', async () => {
+      const bowtie = [
+        [
+          { lat: 0, lng: 0 },
+          { lat: 1, lng: 1 },
+          { lat: 0, lng: 1 },
+          { lat: 1, lng: 0 },
+        ],
+      ];
+      svc.update.mockClear();
+      svc.create.mockClear();
+      await expect(c.update(ID, { serviceArea: bowtie } as never, user)).rejects.toThrow(
+        /serviceArea.*berpotongan/,
+      );
+      await expect(c.create({ ...base, serviceArea: bowtie } as never, user)).rejects.toThrow(
+        /berpotongan/,
+      );
+      expect(svc.update).not.toHaveBeenCalled();
+      expect(svc.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('audit trail', () => {
+    const env = { ...process.env };
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    beforeEach(() => {
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      fetchMock.mockClear();
+      global.fetch = fetchMock as never;
+    });
+    afterEach(() => {
+      process.env = { ...env };
+    });
+    const sent = () => fetchMock.mock.calls.map((call) => JSON.parse(call[1].body));
+
+    it('records who created, changed, deactivated and re-QRIS-ed a depot', async () => {
+      await c.create(
+        {
+          code: 'JKT-01',
+          name: 'n',
+          ownershipType: 'HKP',
+          address: 'a',
+          city: 'c',
+          province: 'p',
+          lat: 1,
+          lng: 2,
+          deliveryFee: 1,
+        } as never,
+        user,
+      );
+      await c.update(
+        ID,
+        { city: 'x', paymentBankAccountNumber: '999', serviceRadiusKm: 3 } as never,
+        user,
+      );
+      await c.remove(ID, user);
+      expect(sent()).toEqual([
+        expect.objectContaining({ action: 'depot.create', actorId: 'user-1', target: 'JKT-01' }),
+        expect.objectContaining({ action: 'depot.update', actorId: 'user-1', target: 'JKT-01' }),
+        expect.objectContaining({
+          action: 'depot.deactivate',
+          actorId: 'user-1',
+          target: 'JKT-01',
+        }),
+      ]);
+    });
+
+    it('names the changed fields but never their values', async () => {
+      await c.update(
+        ID,
+        {
+          paymentBankAccountNumber: '1234567890',
+          paymentQrisImageUrl: 'https://x/q.png',
+          city: 'Bogor',
+        } as never,
+        user,
+      );
+      const [event] = sent();
+      expect(event.metadata.changed).toEqual([
+        'city',
+        'paymentBankAccountNumber',
+        'paymentQrisImageUrl',
+      ]);
+      const wire = JSON.stringify(event);
+      expect(wire).not.toContain('1234567890');
+      expect(wire).not.toContain('Bogor');
+      expect(wire).not.toContain('q.png');
+    });
+
+    it('does not audit a refused change', async () => {
+      svc.update.mockRejectedValueOnce(new Error('stale'));
+      await expect(c.update(ID, { city: 'x' } as never, user)).rejects.toThrow('stale');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('survives an unreachable trail: the save still succeeds', async () => {
+      fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      await expect(c.update(ID, { city: 'x' } as never, user)).resolves.toMatchObject({
+        code: 'JKT-01',
+      });
+    });
+  });
+
   it('updates a depot', async () => {
-    await c.update(ID, { active: false } as never);
+    await c.update(ID, { active: false } as never, user);
     expect(svc.update).toHaveBeenCalledWith(ID, { active: false }, undefined);
   });
 
@@ -1461,6 +1614,26 @@ describe('DepotController', () => {
       // CA-2-53: an image upload is not a form edit, so it has its own method and carries
       // no version to compare.
       expect(svc.setQrisImage).toHaveBeenCalledWith(ID, 'https://cdn.example/qris/abc.png');
+    });
+
+    it('records the QRIS change in the audit trail, without the image address', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as never;
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      try {
+        await c.uploadQris(ID, file() as never, user);
+        const event = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(event).toMatchObject({
+          action: 'depot.qris.update',
+          actorId: 'user-1',
+          target: 'JKT-01',
+        });
+        expect(JSON.stringify(event)).not.toContain('abc.png');
+      } finally {
+        delete process.env.AUTH_SERVICE_URL;
+        delete process.env.INTERNAL_SERVICE_KEY;
+      }
     });
 
     // Unreachable object storage is infrastructure, not a bad request — and the depot must

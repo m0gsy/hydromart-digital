@@ -1575,6 +1575,8 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   contactPhone?: string | null;
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
+  /** Drawn service area (polygons of corners); null/absent = served by the radius. */
+  serviceArea?: { lat: number; lng: number }[][] | null;
   /** CA-2-53: the version a form edits against. */
   updatedAt: string;
 }
@@ -1618,6 +1620,8 @@ export interface DepotPayload {
   paymentBankAccountNumber?: string | null;
   paymentBankAccountHolder?: string | null;
   paymentQrisImageUrl?: string | null;
+  /** Absent = leave it alone; null clears it (radius routing again). */
+  serviceArea?: { lat: number; lng: number }[][] | null;
 }
 
 // Delivery (delivery-service). Live-tracking slice consumed by the ops console.
