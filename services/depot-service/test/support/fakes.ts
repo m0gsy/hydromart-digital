@@ -645,8 +645,12 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
   async findById(id: string): Promise<Approval | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async update(id: string, data: UpdateApprovalData): Promise<Approval> {
+  async decideIfOpen(id: string, data: UpdateApprovalData): Promise<Approval | null> {
     const row = this.rows.find((r) => r.id === id)!;
+    // Mirrors the real repository: only an open item (PENDING / HELD) can be decided.
+    if (row.status === ApprovalStatus.APPROVED || row.status === ApprovalStatus.REJECTED) {
+      return null;
+    }
     Object.assign(row, data);
     return row;
   }

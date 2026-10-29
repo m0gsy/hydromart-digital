@@ -46,6 +46,7 @@ describe('ApprovalPrismaRepository', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
     count: jest.fn(),
   };
@@ -131,14 +132,29 @@ describe('ApprovalPrismaRepository', () => {
     expect(model.findUnique).toHaveBeenCalledWith({ where: { id: 'ap-1' } });
   });
 
-  it('updates by id and maps the result', async () => {
-    model.update.mockResolvedValue({ ...row, status: 'APPROVED' });
-    const out = await repo.update('ap-1', { status: ApprovalStatus.APPROVED } as never);
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'ap-1' },
+  it('decides only while the item is still open, and maps the result', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue({ ...row, status: 'APPROVED' });
+    const out = await repo.decideIfOpen('ap-1', { status: ApprovalStatus.APPROVED } as never);
+    // The status the row is in is part of the write: of two concurrent deciders one matches.
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ap-1', status: { in: [ApprovalStatus.PENDING, ApprovalStatus.HELD] } },
       data: { status: ApprovalStatus.APPROVED },
     });
-    expect(out.status).toBe(ApprovalStatus.APPROVED);
+    expect(out?.status).toBe(ApprovalStatus.APPROVED);
+  });
+
+  it('answers null when somebody decided the item first, without re-reading it', async () => {
+    model.updateMany.mockResolvedValue({ count: 0 });
+    model.findUnique.mockClear();
+    expect(await repo.decideIfOpen('ap-1', { status: ApprovalStatus.REJECTED } as never)).toBeNull();
+    expect(model.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('answers null if the row vanished between the write and the read', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(null);
+    expect(await repo.decideIfOpen('ap-1', { status: ApprovalStatus.APPROVED } as never)).toBeNull();
   });
 
   it('builds pending counts per type, defaulting missing types to zero', async () => {
@@ -644,6 +660,7 @@ describe('FranchiseApplicationPrismaRepository', () => {
     count: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     deleteMany: jest.fn(),
   };
   const prisma = { franchiseApplication: model } as unknown as PrismaService;
@@ -719,19 +736,45 @@ describe('FranchiseApplicationPrismaRepository', () => {
     expect((await repo.findById('fa-1'))?.id).toBe('fa-1');
   });
 
-  it('updates only provided fields (stage + checklist)', async () => {
-    model.update.mockResolvedValue(row);
-    await repo.update('fa-1', { stage: 'APPROVED' } as never);
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'fa-1' },
+  it('updates only provided fields (stage + checklist), and only while undecided', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(row);
+    await repo.updateIfOpen('fa-1', { stage: 'APPROVED' } as never);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'fa-1', stage: { notIn: ['APPROVED', 'REJECTED'] } },
       data: { stage: 'APPROVED' },
     });
 
-    await repo.update('fa-1', { checklist: { legal: false } } as never);
-    expect(model.update).toHaveBeenLastCalledWith({
-      where: { id: 'fa-1' },
+    await repo.updateIfOpen('fa-1', { checklist: { legal: false } } as never);
+    expect(model.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'fa-1', stage: { notIn: ['APPROVED', 'REJECTED'] } },
       data: { checklist: { legal: false } },
     });
+  });
+
+  it('pins the write to the row that was read when given its timestamp', async () => {
+    const seen = new Date('2026-10-29T10:00:00.000Z');
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(row);
+
+    await repo.updateIfOpen('fa-1', { stage: 'REVIEW' } as never, seen);
+
+    expect(model.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { id: 'fa-1', stage: { notIn: ['APPROVED', 'REJECTED'] }, updatedAt: seen },
+      }),
+    );
+  });
+
+  it('answers null when the application was decided first, and when the row vanished', async () => {
+    model.updateMany.mockResolvedValue({ count: 0 });
+    model.findUnique.mockClear();
+    expect(await repo.updateIfOpen('fa-1', { stage: 'REJECTED' } as never)).toBeNull();
+    expect(model.findUnique).not.toHaveBeenCalled();
+
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(null);
+    expect(await repo.updateIfOpen('fa-1', { stage: 'REJECTED' } as never)).toBeNull();
   });
   it('purges only REJECTED applications older than the cutoff (D6)', async () => {
     model.deleteMany.mockResolvedValue({ count: 3 });

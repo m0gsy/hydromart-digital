@@ -1,3 +1,4 @@
+import { StaleWriteError } from '@hydromart/platform';
 import { FranchiseApplicationService } from '../../src/application/services/franchise-application.service';
 import {
   ChecklistItemStatus,
@@ -47,8 +48,13 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
   async findById(id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async update(id: string, patch: UpdateFranchiseApplicationData) {
+  async updateIfOpen(id: string, patch: UpdateFranchiseApplicationData, seenUpdatedAt?: Date) {
     const row = this.rows.find((r) => r.id === id)!;
+    // Mirrors the real repository: only an undecided application, and only the row that was read.
+    if (row.stage === FranchiseAppStage.APPROVED || row.stage === FranchiseAppStage.REJECTED) {
+      return null;
+    }
+    if (seenUpdatedAt && row.updatedAt.getTime() !== seenUpdatedAt.getTime()) return null;
     if (patch.stage !== undefined) row.stage = patch.stage;
     if (patch.checklist !== undefined) row.checklist = patch.checklist;
     if (patch.decisionReason !== undefined) row.decisionReason = patch.decisionReason;
@@ -108,6 +114,55 @@ describe('FranchiseApplicationService', () => {
 
     const b = await service.create(APP({ proposedCode: 'DPK-02' }));
     expect((await service.approve(b.id, 'hq-1')).application.decisionReason).toBeNull();
+  });
+
+  /*
+   * Approve and reject (and a checklist PATCH) each read the application, check it is not
+   * decided, then wrote — so two of them could both pass the check and the later write won,
+   * with both decisions in the audit trail. The write is now conditional on the application
+   * still being undecided, and a PATCH on it still being the row it merged from.
+   */
+  describe('concurrent writers', () => {
+    const decidedMeanwhile = (stage: FranchiseAppStage) => {
+      const real = repo.updateIfOpen.bind(repo);
+      jest.spyOn(repo, 'updateIfOpen').mockImplementationOnce(async (id, patch, seen) => {
+        await real(id, { stage }); // the OTHER actor commits first
+        return real(id, patch, seen);
+      });
+    };
+
+    it('an approval that loses to a rejection is refused and leaves the rejection standing', async () => {
+      const a = await service.create(APP());
+      decidedMeanwhile(FranchiseAppStage.REJECTED);
+
+      await expect(service.approve(a.id, 'hq-1')).rejects.toBeInstanceOf(
+        ApplicationAlreadyDecidedError,
+      );
+      expect(repo.rows[0].stage).toBe(FranchiseAppStage.REJECTED);
+    });
+
+    it('a checklist PATCH cannot overwrite a decision that landed meanwhile', async () => {
+      const a = await service.create(APP());
+      decidedMeanwhile(FranchiseAppStage.APPROVED);
+
+      await expect(service.patch(a.id, { stage: FranchiseAppStage.SURVEY })).rejects.toBeInstanceOf(
+        StaleWriteError,
+      );
+      expect(repo.rows[0].stage).toBe(FranchiseAppStage.APPROVED);
+    });
+
+    it('two PATCHes merged from the same row: the second is refused instead of losing the first', async () => {
+      const a = await service.create(APP());
+      const real = repo.updateIfOpen.bind(repo);
+      jest.spyOn(repo, 'updateIfOpen').mockImplementationOnce(async (id, patch, seen) => {
+        await real(id, { checklist: { legal: 'DONE' } as never }); // a concurrent edit commits
+        return real(id, patch, seen);
+      });
+
+      await expect(
+        service.patch(a.id, { checklist: { survey: 'DONE' } as never }),
+      ).rejects.toBeInstanceOf(StaleWriteError);
+    });
   });
 
   describe('decision audit', () => {

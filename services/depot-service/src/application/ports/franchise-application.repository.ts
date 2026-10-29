@@ -55,7 +55,21 @@ export interface FranchiseApplicationRepository {
     filter: ListApplicationsFilter,
   ): Promise<{ items: FranchiseApplicationRecord[]; total: number }>;
   findById(id: string): Promise<FranchiseApplicationRecord | null>;
-  update(id: string, patch: UpdateFranchiseApplicationData): Promise<FranchiseApplicationRecord>;
+  /**
+   * Writes `patch` — but only while the application is still undecided, and, when
+   * `seenUpdatedAt` is given, only if it is still the row that was read. Null when either
+   * no longer holds.
+   *
+   * The service checks "is it decided" with a read, so an approve and a reject could both pass
+   * it and both write (the later one winning, with both in the audit trail), and a checklist
+   * PATCH could overwrite a decision that landed a moment earlier. The checklist is merged from
+   * a read too; pinning it to `updatedAt` is what stops two concurrent edits losing one.
+   */
+  updateIfOpen(
+    id: string,
+    patch: UpdateFranchiseApplicationData,
+    seenUpdatedAt?: Date,
+  ): Promise<FranchiseApplicationRecord | null>;
   /**
    * CA-3-53 — retention. Delete REJECTED applications decided before `cutoff`.
    *
