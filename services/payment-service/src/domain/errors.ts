@@ -10,6 +10,20 @@ export class PaymentNotFoundError extends DomainError {
   }
 }
 
+/**
+ * The order is already over (cancelled or voided), so there is nothing left to pay for.
+ * Without this a payment opened in the gap between a cancel's reversal and its status move
+ * sat PENDING on a dead order — and if it was then confirmed, the money was held with no
+ * order to fulfil it.
+ */
+export class OrderNotPayableError extends DomainError {
+  readonly code = 'PAYMENT_ORDER_NOT_PAYABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Pesanan ini sudah dibatalkan, jadi tidak bisa dibayar.');
+  }
+}
+
 /** An order already has an active (PENDING/PAID) payment. */
 export class PaymentAlreadyExistsError extends DomainError {
   readonly code = 'PAYMENT_ALREADY_EXISTS';
