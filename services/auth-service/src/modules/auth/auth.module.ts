@@ -46,6 +46,8 @@ import {
   erasureExemptionProvider,
 } from '../../infrastructure/http/erasure-executor.registry';
 import { HR_DIRECTORY_PORT } from '../../application/ports/hr-directory.port';
+import { OWNED_DEPOTS_PORT } from '../../application/ports/owned-depots.port';
+import { OwnedDepotsHttpAdapter } from '../../infrastructure/http/owned-depots.http.adapter';
 import { OPEN_ORDERS_PORT } from '../../application/ports/open-orders.port';
 import { OpenOrdersHttpAdapter } from '../../infrastructure/http/open-orders.http.adapter';
 import { CustomerPrismaRepository } from '../../infrastructure/prisma/repositories/customer.prisma.repository';
@@ -86,6 +88,7 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.CustomerDataPort, useClass: CustomerDataHttpAdapter },
   { provide: HR_DIRECTORY_PORT, useClass: HrDirectoryHttpAdapter },
   { provide: OPEN_ORDERS_PORT, useClass: OpenOrdersHttpAdapter },
+  { provide: OWNED_DEPOTS_PORT, useClass: OwnedDepotsHttpAdapter },
   // The erasure registry: one entry per service that holds the person who asked to be
   // forgotten, plus the written exemptions. Absent datasets are reported UNENFORCED.
   erasureExecutorProvider,

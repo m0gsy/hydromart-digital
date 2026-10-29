@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -38,6 +39,7 @@ import {
   HrDirectoryPort,
   ProvisionEmployeeInput,
 } from '../ports/hr-directory.port';
+import { OWNED_DEPOTS_PORT, OwnedDepotsPort } from '../ports/owned-depots.port';
 import { AUTH_TOKENS } from '../tokens';
 import { PublicCustomer, RequestContext, toPublicCustomer } from '../results';
 import { AuditAction, AuditService } from './audit.service';
@@ -91,6 +93,8 @@ export class AccountService {
     // Optional so every existing construction site (and every spec that does not exercise
     // the invite path) keeps working; the console path refuses rather than skipping it.
     @Optional() @Inject(HR_DIRECTORY_PORT) private readonly hr?: HrDirectoryPort,
+    // Optional for the same reason; only the franchise-owner deactivation path asks it.
+    @Optional() @Inject(OWNED_DEPOTS_PORT) private readonly ownedDepots?: OwnedDepotsPort,
   ) {}
 
   async getProfile(customerId: string): Promise<PublicCustomer> {
@@ -732,6 +736,16 @@ export class AccountService {
    * switched off (deletion already had this; disabling had been the way around it).
    */
   private async applyActive(customer: Customer, active: boolean): Promise<PublicCustomer> {
+    if (!active && customer.role === Role.FRANCHISE_OWNER && this.ownedDepots) {
+      // An owner with a share is paid by every order their depot completes; switching the
+      // login off first leaves that money accruing to an account nobody can reach.
+      const held = await this.ownedDepots.countOwned(customer.id);
+      if (held > 0) {
+        throw new ConflictException(
+          `Owner ini masih memegang share di ${held} depot. Pindahkan atau hapus share-nya di data depot sebelum menonaktifkan akun.`,
+        );
+      }
+    }
     if (!active && customer.role === Role.SUPER_ADMIN) {
       const outcome = await this.customers.suspendGuardingLastSuperAdmin(customer.id);
       if (outcome === 'last-super-admin') {
