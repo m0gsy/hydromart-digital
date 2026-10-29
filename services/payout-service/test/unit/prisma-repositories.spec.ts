@@ -483,6 +483,23 @@ describe('LedgerPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+  // A depot with several owners writes one row per owner, so a reversal finds them by order.
+  it('finds every entry pushed for an order, with the key each was pushed under', async () => {
+    model.findMany.mockResolvedValue([
+      { ...row, sourceRef: 'order:o1:SALE:own-1' },
+      { ...row, id: 'le-2', sourceRef: 'order:o1:SALE:own-2' },
+    ]);
+    const out = await repo.findByOrder('o1');
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { sourceRef: { startsWith: 'order:o1:' } },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(out.map((e) => [e.id, e.sourceRef, e.amount])).toEqual([
+      ['le-1', 'order:o1:SALE:own-1', 5000],
+      ['le-2', 'order:o1:SALE:own-2', 5000],
+    ]);
+  });
+
   // H-7: a sale and the commission it owes go in as one unit, or a crash between them
   // leaves the owner credited for a sale HQ never took its cut of.
   it('writes a set of entries in one transaction', async () => {
@@ -903,7 +920,10 @@ describe('ExpenseClaimPrismaRepository', () => {
     await expect(repo.attachLedgerEntry('ec-1', 'le-1')).resolves.toMatchObject({
       ledgerEntryId: 'le-1',
     });
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'ec-1' }, data: { ledgerEntryId: 'le-1' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'ec-1' },
+      data: { ledgerEntryId: 'le-1' },
+    });
 
     model.updateMany.mockResolvedValue({ count: 1 });
     await repo.reopen('ec-1');

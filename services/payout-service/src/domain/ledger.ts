@@ -15,6 +15,11 @@ export interface LedgerEntryRecord {
   createdAt: Date;
 }
 
+/** A ledger entry together with the idempotency key it was pushed under. */
+export interface LedgerEntryWithRef extends LedgerEntryRecord {
+  sourceRef: string;
+}
+
 export interface WithdrawalRecord {
   id: string;
   franchiseOwnerId: string;

@@ -1,8 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
   IsISO8601,
   IsInt,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -12,6 +17,8 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 export class RequestWithdrawalDto {
@@ -66,15 +73,51 @@ export class ReleasePayoutDto {
   bankAccountRef?: string;
 }
 
+/** One owner's share of an order's revenue. */
+export class RevenueOwnerDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  ownerId!: string;
+
+  @ApiProperty({ example: 60, description: 'Percent, above 0 and at most 100, two decimals.' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(100)
+  sharePct!: number;
+
+  @ApiProperty()
+  @IsBoolean()
+  isPrimary!: boolean;
+}
+
 /** Internal push from order-service when an order reaches COMPLETED (design 6a). */
 export class OrderRevenueDto {
   @ApiProperty({ format: 'uuid', description: 'Completed order; also the idempotency key.' })
   @IsUUID()
   orderId!: string;
 
-  @ApiProperty({ format: 'uuid', description: 'Owner of the fulfilling depot.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Sole owner of the fulfilling depot (an older order-service). Send owners[] for a depot with several.',
+  })
+  @ValidateIf((o: OrderRevenueDto) => o.owners === undefined)
   @IsUUID()
-  franchiseOwnerId!: string;
+  franchiseOwnerId?: string;
+
+  @ApiPropertyOptional({
+    type: [RevenueOwnerDto],
+    description:
+      'Every owner of the fulfilling depot as of completion, shares summing to 100. Wins over franchiseOwnerId.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => RevenueOwnerDto)
+  owners?: RevenueOwnerDto[];
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   @IsOptional()
@@ -236,4 +279,3 @@ export class BankAccountResponseDto {
   @ApiProperty() createdAt!: Date;
   @ApiProperty() updatedAt!: Date;
 }
-

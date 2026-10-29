@@ -122,6 +122,14 @@ export class InvalidRevenueAmountError extends DomainError {
   }
 }
 
+export class InvalidRevenueOwnersError extends DomainError {
+  readonly code = 'PAYOUT_INVALID_REVENUE_OWNERS';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(reason: string) {
+    super(`Order revenue owners are not valid: ${reason}.`);
+  }
+}
+
 export class InvalidExpenseAmountError extends DomainError {
   readonly code = 'EXPENSE_INVALID_AMOUNT';
   readonly status = HTTP_STATUS.BAD_REQUEST;

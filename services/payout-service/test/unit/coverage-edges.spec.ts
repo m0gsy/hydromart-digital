@@ -150,7 +150,12 @@ class Claims implements ExpenseClaimRepository {
   async approvedTotalByDepot(depotIds: readonly string[], from: Date, to: Date) {
     const out = new Map<string, number>();
     for (const row of this.rows ?? []) {
-      const r = row as { depotId?: string | null; status?: string; reviewedAt?: Date | null; amount?: number };
+      const r = row as {
+        depotId?: string | null;
+        status?: string;
+        reviewedAt?: Date | null;
+        amount?: number;
+      };
       if (!r.depotId || r.status !== 'APPROVED' || !r.reviewedAt) continue;
       if (!depotIds.includes(r.depotId)) continue;
       if (r.reviewedAt < from || r.reviewedAt >= to) continue;
@@ -345,6 +350,37 @@ describe('money DTOs coerce what an HTTP client actually sends', () => {
       amountIdr: 240_000,
     });
     expect(validateSync(dto as object).map((e) => e.property)).toContain('franchiseOwnerId');
+  });
+});
+
+describe('OrderRevenueDto owners', () => {
+  const base = { orderId: '11111111-1111-4111-8111-111111111111', amountIdr: 240_000 };
+  const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const errors = (body: object) =>
+    validateSync(plainToInstance(OrderRevenueDto, { ...base, ...body }) as object);
+
+  it('accepts owners[] in place of a single franchiseOwnerId', () => {
+    expect(
+      errors({
+        owners: [
+          { ownerId: A, sharePct: 60, isPrimary: true },
+          { ownerId: B, sharePct: 40, isPrimary: false },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('refuses a share that is zero, over 100, or has three decimals', () => {
+    for (const sharePct of [0, 100.5, 33.333]) {
+      expect(
+        errors({ owners: [{ ownerId: A, sharePct, isPrimary: true }] }).length,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('refuses an empty owners[]', () => {
+    expect(errors({ owners: [] }).length).toBeGreaterThan(0);
   });
 });
 
