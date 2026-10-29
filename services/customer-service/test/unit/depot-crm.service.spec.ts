@@ -608,7 +608,12 @@ describe('DepotCrmService.getDepotDetail', () => {
     }[];
     /** S2. Undefined = the port is not wired at all, which is what it was before. */
     subscribers?: string[] | null;
-    geo?: { lat: number; lng: number; serviceRadiusKm: number } | null;
+    geo?: {
+      lat: number;
+      lng: number;
+      serviceRadiusKm: number;
+      serviceArea?: { lat: number; lng: number }[][] | null;
+    } | null;
     churn?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   }
 
@@ -887,7 +892,11 @@ describe('DepotCrmService.getDepotDetail', () => {
 
     it('stays null for a depot-service that has not started reporting it yet', async () => {
       const d = await detail([{ customerId: 'c1', gallonsOnLoan: 3, depositHeldIdr: 60_000 }]);
-      expect(d.profile).toMatchObject({ gallonsOnLoan: 3, overdueGallons: null, oldestGallonAt: null });
+      expect(d.profile).toMatchObject({
+        gallonsOnLoan: 3,
+        overdueGallons: null,
+        oldestGallonAt: null,
+      });
     });
   });
 
@@ -992,6 +1001,25 @@ describe('DepotCrmService.getDepotDetail', () => {
     ).getDepotDetail('c1', 'depot-a');
     expect(d.addresses[0].distanceKm).toBeGreaterThan(5);
     expect(d.addresses[0].inRadius).toBe(false);
+  });
+
+  it('judges an address by the depot drawn area, not its radius, when it has one', async () => {
+    // A square around (-6.9, 107.6) with a 1 km radius: the address is ~4.4 km away, outside
+    // the radius but inside the drawn area, and the shop would serve it.
+    const area = [
+      [
+        { lat: -6.95, lng: 107.55 },
+        { lat: -6.95, lng: 107.65 },
+        { lat: -6.85, lng: 107.65 },
+        { lat: -6.85, lng: 107.55 },
+      ],
+    ];
+    const ask = (latitude: number, longitude: number) =>
+      service(profile(MembershipTier.BASIC), [addr({ latitude, longitude })], new FakeIdentity(), {
+        geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 1, serviceArea: area },
+      }).getDepotDetail('c1', 'depot-a');
+    expect((await ask(-6.9, 107.64)).addresses[0].inRadius).toBe(true);
+    expect((await ask(-6.9, 107.7)).addresses[0].inRadius).toBe(false);
   });
 
   // An address nobody pinned cannot be in or out of a radius. Answering "0 km, in range"

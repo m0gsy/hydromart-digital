@@ -1,8 +1,12 @@
+import type { ServiceArea } from '@hydromart/platform';
+
 /** Where a depot is and how far it will deliver — the two numbers an address is judged against. */
 export interface DepotGeo {
   lat: number;
   lng: number;
   serviceRadiusKm: number;
+  /** Drawn polygons; when present they, not the radius, decide whether an address is served. */
+  serviceArea?: ServiceArea | null;
 }
 
 /**

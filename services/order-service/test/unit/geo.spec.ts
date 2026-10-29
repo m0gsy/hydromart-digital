@@ -63,4 +63,57 @@ describe('selectNearestDepot', () => {
     // …and a broken row alone must not make a far-away address look serviceable.
     expect(selectNearestDepot(-8.65, 115.22, [noCoords])).toBeNull();
   });
+
+  describe('with a drawn service area', () => {
+    // 0.1 x 0.1 degree square centred on the depot at (-6.9, 107.6).
+    const square = [
+      [
+        { lat: -6.95, lng: 107.55 },
+        { lat: -6.95, lng: 107.65 },
+        { lat: -6.85, lng: 107.65 },
+        { lat: -6.85, lng: 107.55 },
+      ],
+    ];
+
+    it('serves a point inside the polygon even when it is past the radius', () => {
+      const d = depot({ id: 'poly', serviceRadiusKm: 1, serviceArea: square });
+      // ~6.1 km from the depot, inside the square.
+      expect(haversineKm(-6.9, 107.6, -6.9, 107.645)).toBeGreaterThan(1);
+      expect(selectNearestDepot(-6.9, 107.645, [d])?.id).toBe('poly');
+    });
+
+    it('refuses a point outside the polygon however large the radius', () => {
+      const d = depot({ id: 'poly', serviceRadiusKm: 500, serviceArea: square });
+      expect(selectNearestDepot(-6.9, 107.7, [d])).toBeNull();
+    });
+
+    it('still ranks the depots that serve the point by distance', () => {
+      const wide = depot({ id: 'wide', lat: -6.9, lng: 107.55, serviceArea: square });
+      const near = depot({ id: 'near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10 });
+      expect(selectNearestDepot(-6.9, 107.6, [wide, near])?.id).toBe('near');
+    });
+
+    it('does not need a radius to route by area, but still needs coordinates to rank', () => {
+      const noRadius = depot({
+        id: 'poly',
+        serviceRadiusKm: undefined as unknown as number,
+        serviceArea: square,
+      });
+      expect(selectNearestDepot(-6.9, 107.6, [noRadius])?.id).toBe('poly');
+      const noCoords = depot({
+        id: 'broken',
+        lat: undefined as unknown as number,
+        serviceArea: square,
+      });
+      expect(selectNearestDepot(-6.9, 107.6, [noCoords])).toBeNull();
+    });
+
+    it('treats an empty or null area as radius routing', () => {
+      expect(selectNearestDepot(-6.9, 107.6, [depot({ id: 'a', serviceArea: [] })])?.id).toBe('a');
+      expect(selectNearestDepot(-6.9, 107.6, [depot({ id: 'b', serviceArea: null })])?.id).toBe(
+        'b',
+      );
+      expect(selectNearestDepot(-8.65, 115.22, [depot({ id: 'c', serviceArea: null })])).toBeNull();
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { readServiceArea } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../config/order-config.service';
 import {
@@ -20,6 +21,7 @@ interface DepotResponse {
   name?: string;
   operatingHours?: unknown;
   holidays?: unknown;
+  serviceArea?: unknown;
 }
 interface DepotPage {
   items: DepotResponse[];
@@ -54,7 +56,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
     try {
       const items: DepotResponse[] = [];
       for (let page = 1; page <= DepotDirectoryHttpAdapter.MAX_PAGES; page += 1) {
-        const url = `${this.config.depotServiceUrl}/api/v1/depots?limit=${DepotDirectoryHttpAdapter.PAGE_LIMIT}&page=${page}`;
+        const url = `${this.config.depotServiceUrl}/api/v1/depots?limit=${DepotDirectoryHttpAdapter.PAGE_LIMIT}&page=${page}&includeArea=true`;
         const res = await fetch(url, {
           headers: { accept: 'application/json' },
           signal: controller.signal,
@@ -72,6 +74,9 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
         lng: d.lng,
         serviceRadiusKm: d.serviceRadiusKm,
         deliveryFee: d.deliveryFee,
+        // An unreadable shape is "no drawn area" (radius routing), never an area that serves
+        // nobody: one malformed row must not take a whole depot off the map.
+        serviceArea: readServiceArea(d.serviceArea),
         minOrderAmount: d.minOrderAmount ?? null,
         name: d.name ?? '',
         // The public projection already sends both; they are `unknown` there because the

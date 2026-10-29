@@ -1,3 +1,5 @@
+import type { ServiceArea } from '@hydromart/platform';
+
 import { Holiday, OperatingHours } from '../../domain/opening-hours';
 
 /** The subset of a depot the order-service needs to route + price an order at checkout. */
@@ -10,6 +12,11 @@ export interface DepotLocation {
   deliveryFee: number;
   /** Minimum order subtotal (IDR) the depot accepts, or null for no minimum. */
   minOrderAmount: number | null;
+  /**
+   * Drawn polygons. When present they, not `serviceRadiusKm`, decide whether the depot serves
+   * a point (see `selectNearestDepot`); null/absent means the radius does.
+   */
+  serviceArea?: ServiceArea | null;
   // The three below are what the public projection carries beyond routing and pricing.
   // Optional because a depot legitimately has none of them: nobody has filled the
   // opening-hours form in yet. Absent reads as "always open", never as "shut" — see
