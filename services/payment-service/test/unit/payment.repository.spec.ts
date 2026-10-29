@@ -79,6 +79,26 @@ describe('PaymentPrismaRepository.updateIfStatus — refund claim', () => {
     expect(result?.id).toBe('pay-1');
   });
 
+  it('adds the refund-approval predicate when the caller read one', async () => {
+    const payment = {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUnique: jest.fn().mockResolvedValue(row),
+    };
+    const repo = new PaymentPrismaRepository({ payment } as never);
+
+    await repo.updateIfStatus(
+      'pay-1',
+      ['PAID'] as never,
+      { refundApproval: 'REJECTED' } as never,
+      { refundApproval: 'PENDING' as never },
+    );
+
+    expect(payment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pay-1', status: { in: ['PAID'] }, refundApproval: 'PENDING' },
+      data: { refundApproval: 'REJECTED' },
+    });
+  });
+
   it('returns null when another caller already moved the row', async () => {
     const payment = {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
