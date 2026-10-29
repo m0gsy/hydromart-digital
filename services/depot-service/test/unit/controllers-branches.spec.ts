@@ -1449,13 +1449,13 @@ describe('DepotController', () => {
 
     it('on update: sets it, clears it with null or [], and leaves it alone when absent', async () => {
       await c.update(ID, { serviceArea: square } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: square }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: square }, undefined, true);
       await c.update(ID, { serviceArea: null } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined, true);
       await c.update(ID, { serviceArea: [] } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined, true);
       await c.update(ID, { city: 'x' } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { city: 'x' }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { city: 'x' }, undefined, true);
     });
 
     it('refuses an area that crosses itself, with the reason, before anything is saved', async () => {
