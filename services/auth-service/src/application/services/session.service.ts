@@ -13,7 +13,7 @@ import { AccessTokenSignerPort } from '../ports/access-token-signer.port';
 import { ClockPort } from '../ports/clock.port';
 import { CryptoPort } from '../ports/crypto.port';
 import { CustomerRepository } from '../ports/customer.repository';
-import { RefreshTokenRepository } from '../ports/refresh-token.repository';
+import { RefreshTokenRecord, RefreshTokenRepository } from '../ports/refresh-token.repository';
 import { AUTH_TOKENS } from '../tokens';
 import { RequestContext, SessionResult, toPublicCustomer } from '../results';
 
@@ -120,8 +120,7 @@ export class SessionService {
 
     await this.assertNotIdle(customer, record.createdAt, record.familyId, now);
 
-    const session = await this.mintSession(customer, record.familyId, ctx, record.id);
-    return session;
+    return this.mintSession(customer, record.familyId, ctx, record);
   }
 
   /** Revoke a single session by its refresh token (logout, FR-008). */
@@ -129,8 +128,23 @@ export class SessionService {
     const now = this.clock.now();
     const tokenHash = this.crypto.hashToken(rawRefreshToken);
     const record = await this.refreshTokens.findByTokenHash(tokenHash);
-    if (record && !record.revokedAt) {
+    if (!record) return;
+    if (!record.revokedAt) {
       await this.refreshTokens.revoke(record.id, now);
+      return;
+    }
+    /*
+     * The cookie being signed out with was ALREADY rotated: its child is the live session and
+     * would have been left running by a plain "already revoked, nothing to do". Inside the
+     * grace window this is just the previous cookie arriving a moment late (the same race
+     * `refresh` tolerates), and ending the family would sign out the session that just
+     * refreshed; beyond it, the user meant to sign out, so the family goes.
+     */
+    if (
+      record.replacedById &&
+      now.getTime() - record.revokedAt.getTime() > ROTATION_GRACE_MS
+    ) {
+      await this.refreshTokens.revokeFamily(record.familyId, now);
     }
   }
 
@@ -210,11 +224,23 @@ export class SessionService {
    * Create the refresh-token record and sign the access token. When `replacesId`
    * is provided, the previous token is revoked and linked to the new one.
    */
+  /**
+   * The parent token was revoked between our read and our claim. Say what that was: a
+   * rotation by a concurrent refresh is the benign race (the client retries with the new
+   * cookie), anything else — a logout, a revoke-all, a suspension — ended the session.
+   */
+  private async rotationLost(replaces: RefreshTokenRecord, now: Date): Promise<never> {
+    const current = await this.refreshTokens.findByTokenHash(replaces.tokenHash);
+    if (current?.revokedAt && current.replacedById) throw new RefreshTokenRotatedError();
+    await this.refreshTokens.revokeFamily(replaces.familyId, now);
+    throw new InvalidRefreshTokenError('This session was terminated for security reasons.');
+  }
+
   private async mintSession(
     customer: Customer,
     familyId: string,
     ctx: RequestContext,
-    replacesId?: string,
+    replaces?: RefreshTokenRecord,
   ): Promise<SessionResult> {
     const now = this.clock.now();
     const { refreshTtlSeconds } = this.config.tokenPolicy;
@@ -223,7 +249,7 @@ export class SessionService {
     const tokenHash = this.crypto.hashToken(rawRefreshToken);
     const expiresAt = new Date(now.getTime() + refreshTtlSeconds * 1000);
 
-    const created = await this.refreshTokens.create({
+    const data = {
       customerId: customer.id,
       tokenHash,
       familyId,
@@ -233,10 +259,20 @@ export class SessionService {
       // CA-2-06: the same clock the idle check reads, so the interval is measured between
       // two stamps from one machine rather than across app-vs-database skew.
       createdAt: now,
-    });
+    };
 
-    if (replacesId) {
-      await this.refreshTokens.revoke(replacesId, now, created.id);
+    if (replaces) {
+      /*
+       * Mint the child AND retire the parent in one atomic step. They used to be two writes
+       * (create, then an unconditional revoke), so two refreshes on one cookie both passed the
+       * "not revoked" read, both minted a live child and the family forked — and a
+       * logout-everywhere landing between the read and the create left the new child alive.
+       * `rotate` claims the parent with "still not revoked"; the loser mints nothing.
+       */
+      const rotated = await this.refreshTokens.rotate(replaces.id, now, data);
+      if (!rotated) await this.rotationLost(replaces, now);
+    } else {
+      await this.refreshTokens.create(data);
     }
 
     const access = await this.signer.sign({

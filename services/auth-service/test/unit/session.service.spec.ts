@@ -1,4 +1,7 @@
-import { InvalidRefreshTokenError } from '../../src/domain/errors/auth.errors';
+import {
+  InvalidRefreshTokenError,
+  RefreshTokenRotatedError,
+} from '../../src/domain/errors/auth.errors';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { Role } from '../../src/domain/customer/role.enum';
 import { SessionService } from '../../src/application/services/session.service';
@@ -117,6 +120,87 @@ describe('SessionService', () => {
 
     await service.revokeByToken(session.refreshToken);
     expect(refreshRepo.rows[0].revokedAt).not.toBeNull();
+  });
+
+  describe('lost races on one cookie', () => {
+    // The OTHER request commits between this one's read and its claim: simulated by revoking
+    // the parent inside `rotate`, right before the real claim runs.
+    const loseTo = (revokeParent: (parentId: string) => void) => {
+      const real = refreshRepo.rotate.bind(refreshRepo);
+      jest.spyOn(refreshRepo, 'rotate').mockImplementation(async (oldId, at, data) => {
+        revokeParent(oldId);
+        return real(oldId, at, data);
+      });
+    };
+
+    it('a refresh that loses to a concurrent rotation mints nothing and is told to retry', async () => {
+      const customer = makeCustomer();
+      customerRepo.seed(customer);
+      const first = await service.issueForCustomer(customer, ctx);
+      loseTo((id) => {
+        const row = refreshRepo.rows.find((r) => r.id === id)!;
+        row.revokedAt = clock.now();
+        row.replacedById = 'rt-winner';
+      });
+
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toBeInstanceOf(
+        RefreshTokenRotatedError,
+      );
+      // No second live child: the loser's token was never persisted.
+      expect(refreshRepo.rows).toHaveLength(1);
+    });
+
+    it('a refresh that loses to a logout-everywhere ends the family instead of forking it', async () => {
+      const customer = makeCustomer();
+      customerRepo.seed(customer);
+      const first = await service.issueForCustomer(customer, ctx);
+      loseTo((id) => {
+        refreshRepo.rows.find((r) => r.id === id)!.revokedAt = clock.now(); // no replacedById
+      });
+
+      await expect(service.refresh(first.refreshToken, ctx)).rejects.toBeInstanceOf(
+        InvalidRefreshTokenError,
+      );
+      expect(refreshRepo.rows.filter((r) => !r.revokedAt)).toHaveLength(0);
+    });
+  });
+
+  describe('logout with a cookie that was already rotated', () => {
+    it('ends the family once the grace window has passed, so the child is not left running', async () => {
+      const customer = makeCustomer();
+      customerRepo.seed(customer);
+      const first = await service.issueForCustomer(customer, ctx);
+      await service.refresh(first.refreshToken, ctx);
+      clock.advance(60);
+
+      await service.revokeByToken(first.refreshToken);
+
+      expect(refreshRepo.rows.filter((r) => !r.revokedAt)).toHaveLength(0);
+    });
+
+    it('leaves the new session alone inside the grace window (the old cookie arrived late)', async () => {
+      const customer = makeCustomer();
+      customerRepo.seed(customer);
+      const first = await service.issueForCustomer(customer, ctx);
+      await service.refresh(first.refreshToken, ctx);
+
+      await service.revokeByToken(first.refreshToken);
+
+      expect(refreshRepo.rows.filter((r) => !r.revokedAt)).toHaveLength(1);
+    });
+
+    it('does nothing for an unknown cookie or one revoked without a successor', async () => {
+      const customer = makeCustomer();
+      customerRepo.seed(customer);
+      const first = await service.issueForCustomer(customer, ctx);
+
+      await service.revokeByToken('never-issued');
+      await service.revokeByToken(first.refreshToken); // plain logout
+      clock.advance(60);
+      await service.revokeByToken(first.refreshToken); // logging out twice
+
+      expect(refreshRepo.rows).toHaveLength(1);
+    });
   });
 
   it('revokes all sessions and lists only active ones', async () => {
