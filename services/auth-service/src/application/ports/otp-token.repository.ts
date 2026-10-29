@@ -38,7 +38,14 @@ export interface OtpTokenRepository {
    * must hold for parallel requests, not just sequential ones.
    */
   claimAttempt(id: string, maxAttempts: number): Promise<boolean>;
-  markConsumed(id: string, consumedAt: Date): Promise<void>;
+  /**
+   * Burns the challenge — and says whether THIS call did. False when it was already consumed.
+   *
+   * A code is single-use, but `verify` only read `consumedAt` before comparing, so two parallel
+   * requests carrying the right code both got past it and both minted a session. The write
+   * itself has to be the claim.
+   */
+  markConsumed(id: string, consumedAt: Date): Promise<boolean>;
   /** Invalidate all outstanding challenges for a customer + purpose. */
   consumeAllForPurpose(customerId: string, purpose: OtpPurpose, at: Date): Promise<void>;
 }

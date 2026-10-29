@@ -147,10 +147,17 @@ describe('OtpTokenPrismaRepository', () => {
   });
 
   it('consumes and bulk-consumes', async () => {
-    await repo.markConsumed('otp-1', new Date());
+    model.updateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(repo.markConsumed('otp-1', new Date())).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'otp-1', consumedAt: null },
+      data: { consumedAt: expect.any(Date) },
+    });
+    // Already consumed by a parallel request: this call burned nothing.
+    model.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(repo.markConsumed('otp-1', new Date())).resolves.toBe(false);
     await repo.consumeAllForPurpose('cust-1', OtpPurpose.LOGIN, new Date());
-    expect(model.update).toHaveBeenCalledTimes(1);
-    expect(model.updateMany).toHaveBeenCalledTimes(1);
+    expect(model.updateMany).toHaveBeenCalledTimes(3);
   });
 });
 

@@ -180,7 +180,11 @@ export class OtpService {
       throw new OtpInvalidError();
     }
 
-    await this.otpTokens.markConsumed(record.id, now);
+    // Single-use: the write is the claim. A parallel request with the same correct code that
+    // lost it is refused like any other wrong code, and mints nothing.
+    if (!(await this.otpTokens.markConsumed(record.id, now))) {
+      throw new OtpInvalidError();
+    }
   }
 
   /**

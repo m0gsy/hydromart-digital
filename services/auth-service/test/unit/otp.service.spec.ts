@@ -243,6 +243,21 @@ describe('OtpService', () => {
     expect(otpRepo.rows[0].consumedAt).not.toBeNull();
   });
 
+  it('a correct code is single-use even when two requests carry it at once', async () => {
+    const customer = activeCustomer();
+    await service.issue(customer, OtpPurpose.REGISTRATION);
+    const real = otpRepo.markConsumed.bind(otpRepo);
+    // The OTHER request burns the code between this one's read and its claim.
+    jest.spyOn(otpRepo, 'markConsumed').mockImplementationOnce(async (id, at) => {
+      await real(id, at);
+      return real(id, at);
+    });
+
+    await expect(service.verify(customer, OtpPurpose.REGISTRATION, '123456')).rejects.toBeInstanceOf(
+      OtpInvalidError,
+    );
+  });
+
   it('rejects a wrong code and increments the attempt counter', async () => {
     const customer = activeCustomer();
     await service.issue(customer, OtpPurpose.REGISTRATION);
