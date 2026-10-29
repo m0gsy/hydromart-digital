@@ -1,6 +1,6 @@
 ﻿import { Injectable } from '@nestjs/common';
 
-import { VoucherNotFoundError } from '../../domain/errors';
+import { DuplicateVoucherCodeError, VoucherNotFoundError } from '../../domain/errors';
 import { DiscountType } from '../../domain/voucher';
 import {
   CreateVoucherData,
@@ -66,10 +66,20 @@ export class VoucherPrismaRepository implements VoucherRepository {
   }
 
   async create(data: CreateVoucherData): Promise<VoucherRecord> {
-    const row = await this.prisma.voucher.create({
-      data: { ...data, discountType: data.discountType as PrismaDiscountType },
-    });
-    return this.toVoucher(row);
+    try {
+      const row = await this.prisma.voucher.create({
+        data: { ...data, discountType: data.discountType as PrismaDiscountType },
+      });
+      return this.toVoucher(row);
+    } catch (error) {
+      // `code` is unique. Two admins creating the same code at once both passed the service's
+      // findByCode, and the loser's unique violation surfaced as a 500 instead of the
+      // DuplicateVoucherCodeError the sequential case gives.
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new DuplicateVoucherCodeError(data.code);
+      }
+      throw error;
+    }
   }
 
   async update(id: string, data: UpdateVoucherData): Promise<VoucherRecord> {
@@ -442,11 +452,14 @@ export class VoucherPrismaRepository implements VoucherRepository {
   }
 
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {
-    const existing = await this.prisma.voucherGrant.findUnique({
-      where: { voucherId_customerId: { voucherId, customerId } },
+    // One statement: the unique (voucherId, customerId) is the arbiter, and a duplicate is
+    // skipped rather than raised. The old findUnique-then-create let two concurrent grants
+    // both pass the read, and the loser's P2002 came back as a 500 — while the winner's
+    // "granted" decides whether the customer is notified, so exactly one caller must say true.
+    const { count } = await this.prisma.voucherGrant.createMany({
+      data: [{ voucherId, customerId }],
+      skipDuplicates: true,
     });
-    if (existing) return false;
-    await this.prisma.voucherGrant.create({ data: { voucherId, customerId } });
-    return true;
+    return count === 1;
   }
 }
