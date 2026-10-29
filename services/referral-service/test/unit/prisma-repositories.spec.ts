@@ -1,5 +1,6 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { ReferralPrismaRepository } from '../../src/infrastructure/prisma/referral.prisma.repository';
+import { AlreadyReferredError } from '../../src/domain/errors';
 import { ReferralStatus } from '../../src/domain/referral-status';
 
 // Unit-tests the referral-service Prisma repository against per-model jest.fn() mocks of
@@ -80,6 +81,22 @@ describe('ReferralPrismaRepository', () => {
     expect(referral.create).toHaveBeenCalledWith({
       data: { referrerCustomerId: 'cust-1', refereeCustomerId: 'cust-2', code: 'BUDI10' },
     });
+  });
+
+  it('a redeem that loses the unique-referee race is told it is already referred, not a 500', async () => {
+    referral.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+
+    await expect(
+      repo.createReferral({ referrerCustomerId: 'cust-1', refereeCustomerId: 'cust-2', code: 'BUDI10' }),
+    ).rejects.toBeInstanceOf(AlreadyReferredError);
+  });
+
+  it('lets an unexpected create failure through', async () => {
+    referral.create.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      repo.createReferral({ referrerCustomerId: 'cust-1', refereeCustomerId: 'cust-2', code: 'BUDI10' }),
+    ).rejects.toThrow('db down');
   });
 
   it('lists a referrer referrals with pagination and total', async () => {
