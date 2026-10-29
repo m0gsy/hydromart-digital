@@ -23,6 +23,7 @@ import { WithdrawalRecord } from '../domain/ledger';
 import {
   BankAccountResponseDto,
   RejectBankAccountDto,
+  VerifyBankAccountDto,
   ReleasePayoutDto,
   ReleaseRequestResponseDto,
   RejectReleaseDto,
@@ -73,8 +74,9 @@ export class HqPayoutController {
   verifyBankAccount(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VerifyBankAccountDto,
   ): Promise<PayoutBankAccountRecord> {
-    return this.bankAccounts.decide(id, user.sub, true, null);
+    return this.bankAccounts.decide(id, user.sub, true, null, dto?.seenUpdatedAt);
   }
 
   @ApiOkResponse({ type: BankAccountResponseDto })
@@ -86,7 +88,7 @@ export class HqPayoutController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectBankAccountDto,
   ): Promise<PayoutBankAccountRecord> {
-    return this.bankAccounts.decide(id, user.sub, false, dto.reason ?? null);
+    return this.bankAccounts.decide(id, user.sub, false, dto.reason ?? null, dto.seenUpdatedAt);
   }
 
   // Same read as `owner/:ownerId` below, for the whole network instead of one owner — so it

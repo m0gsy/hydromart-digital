@@ -64,21 +64,27 @@ export class ExpenseClaimService {
     if (courier && claimed) assertDepotAccess(courier, claimed);
     const depotId = claimed ?? courier?.depotId ?? null;
     const receiptUrl = input.receiptUrl?.trim() || null;
+    // The storage/shape checks run first (one of them is an HTTP call, which must not sit
+    // inside the claim's transaction); "has this receipt already been used" is decided
+    // atomically with the insert.
+    const looksUploaded = await this.receiptLooksUploaded(receiptUrl);
+    const { claim, receiptAlreadyUsed } = await this.claims.createCheckingReceipt(
+      {
+        courierId,
+        depotId,
+        category: input.category,
+        amount: input.amount,
+        description: input.description,
+        receiptUrl,
+        status: 'PENDING',
+      },
+      looksUploaded ? receiptUrl : null,
+    );
     const auto = isAutoApproved(
       input.amount,
       this.config.expenseAutoApproveMaxIdr(depotId),
-      await this.receiptIsProven(receiptUrl),
+      looksUploaded && !receiptAlreadyUsed,
     );
-
-    const claim = await this.claims.create({
-      courierId,
-      depotId,
-      category: input.category,
-      amount: input.amount,
-      description: input.description,
-      receiptUrl,
-      status: 'PENDING',
-    });
     if (!auto) return claim;
 
     return this.approveAndCredit(claim, null, 'Disetujui otomatis (di bawah ambang)');
@@ -217,7 +223,7 @@ export class ExpenseClaimService {
    * live cannot tell a real one from a typed one, and the safe reading of "I cannot tell" is
    * a claim that waits for a human.
    */
-  private async receiptIsProven(receiptUrl: string | null): Promise<boolean> {
+  private async receiptLooksUploaded(receiptUrl: string | null): Promise<boolean> {
     const base = this.config.receiptStorageBaseUrl;
     if (!receiptUrl || !base || !receiptUrl.startsWith(`${base}/`)) return false;
     /*
@@ -231,7 +237,7 @@ export class ExpenseClaimService {
      */
     const rest = receiptUrl.slice(base.length + 1);
     if (!/^(uploads\/)?pod\/[0-9a-f-]{36}\.(jpe?g|png|webp)$/i.test(rest)) return false;
-    if ((await this.claims.countByReceiptUrl(receiptUrl)) > 0) return false;
+    // (2) "no other claim carries it" is decided with the insert, in `createCheckingReceipt`.
     return (await this.photos?.exists(receiptUrl)) === true;
   }
 

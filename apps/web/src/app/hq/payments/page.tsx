@@ -177,7 +177,9 @@ export default function HqPaymentsPage() {
         verify
           ? endpoints.payout.hqVerifyBankAccount(account.id)
           : endpoints.payout.hqRejectBankAccount(account.id),
-        {},
+        // The row as the reviewer saw it: if the owner replaced the destination meanwhile,
+        // the server answers 409 instead of verifying an account nobody looked at.
+        { seenUpdatedAt: account.updatedAt },
         true,
       );
       toast(

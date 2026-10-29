@@ -137,6 +137,11 @@ class Claims implements ExpenseClaimRepository {
   async countByReceiptUrl(receiptUrl: string): Promise<number> {
     return this.rows.filter((r) => r.receiptUrl === receiptUrl).length;
   }
+  async createCheckingReceipt(data: CreateExpenseClaimData, receiptToCheck: string | null) {
+    const receiptAlreadyUsed =
+      receiptToCheck !== null && (await this.countByReceiptUrl(receiptToCheck)) > 0;
+    return { claim: await this.create(data), receiptAlreadyUsed };
+  }
   async listForCourier() {
     return { items: [], total: 0 };
   }

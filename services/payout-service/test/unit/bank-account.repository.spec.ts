@@ -104,6 +104,21 @@ describe('PayoutBankAccountPrismaRepository', () => {
       repo.decide('acc-1', { status: 'REJECTED', verifiedBy: 'fin-2', rejectedReason: 'x' }),
     ).resolves.toBeNull();
   });
+
+  it('pins the decision to the row that was reviewed when given its timestamp', async () => {
+    const seen = new Date('2026-10-29T10:00:00.000Z');
+    payoutBankAccount.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await repo.decide(
+      'acc-1',
+      { status: 'VERIFIED', verifiedBy: 'fin-1', rejectedReason: null },
+      seen,
+    );
+
+    expect(payoutBankAccount.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: 'acc-1', status: 'PENDING', updatedAt: seen } }),
+    );
+  });
 });
 
 // The self-serve half: one account per caller, and the subject type follows the role.
