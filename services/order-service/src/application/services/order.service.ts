@@ -2226,10 +2226,13 @@ export class OrderService {
   private async postFranchiseRevenue(orderId: string, _authorization: string): Promise<void> {
     const order = await this.getAny(orderId);
     if (!order.depotId || !(order.total > 0)) return;
-    const ownership = await this.depotDirectory.findOwner(order.depotId);
+    // The split that applied when the order COMPLETED, not whatever HQ has set by the time an
+    // outbox retry gets here: the agreement at the moment of the sale is the one being paid.
+    const completedAt = order.status === OrderStatus.COMPLETED ? order.statusChangedAt : new Date();
+    const ownership = await this.depotDirectory.findOwner(order.depotId, completedAt);
     if (!ownership) return;
     const franchiseOwnerId = ownership.ownerId;
-    if (!franchiseOwnerId) {
+    if (!franchiseOwnerId || ownership.owners.length === 0) {
       // An HKP depot has no owner by design; a WARALABA one without an owner means this
       // order's revenue and HQ's commission are booked for nobody. Never fail silently.
       if (ownership.ownershipType === 'WARALABA') {
@@ -2243,12 +2246,15 @@ export class OrderService {
       orderId: order.id,
       orderNumber: order.orderNumber,
       franchiseOwnerId,
+      owners: ownership.owners,
       depotId: order.depotId,
       amountIdr: order.total,
       // Goods only, before discount: the commission base. `order.total` still carries ongkir
       // and the discount, and it stays the amount the owner is credited.
       commissionBaseIdr: order.subtotal,
-      completedAt: new Date().toISOString(),
+      // The real completion time. `new Date()` here was the moment of the push, so an outbox retry
+      // after midnight on the last day of a month booked the sale into the wrong WIB month.
+      completedAt: completedAt.toISOString(),
     });
 
     /*

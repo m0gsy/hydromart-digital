@@ -2,7 +2,10 @@
 export interface OrderRevenueEvent {
   orderId: string;
   orderNumber: string;
+  /** The primary owner; also what an older payout-service reads. */
   franchiseOwnerId: string;
+  /** Every owner and their share as of completion; payout splits the order between them. */
+  owners: { ownerId: string; sharePct: number; isPrimary: boolean }[];
   depotId: string | null;
   /** Order total in whole IDR — what the owner is credited. */
   amountIdr: number;
