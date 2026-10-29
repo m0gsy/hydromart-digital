@@ -18,13 +18,13 @@ CREATE TABLE "depot_owners" (
 );
 
 -- CreateIndex
-CREATE INDEX "depot_owners_depotId_effectiveTo_idx" ON "depot_owners"("depotId", "effectiveTo");
-CREATE INDEX "depot_owners_ownerId_effectiveTo_idx" ON "depot_owners"("ownerId", "effectiveTo");
+CREATE INDEX IF NOT EXISTS "depot_owners_depotId_effectiveTo_idx" ON "depot_owners"("depotId", "effectiveTo");
+CREATE INDEX IF NOT EXISTS "depot_owners_ownerId_effectiveTo_idx" ON "depot_owners"("ownerId", "effectiveTo");
 
 -- One open row per (depot, owner) and one open primary per depot. Partial, so closed
 -- generations (history) may repeat an owner freely.
-CREATE UNIQUE INDEX "depot_owners_open_owner_key" ON "depot_owners"("depotId", "ownerId") WHERE "effectiveTo" IS NULL;
-CREATE UNIQUE INDEX "depot_owners_open_primary_key" ON "depot_owners"("depotId") WHERE "effectiveTo" IS NULL AND "isPrimary";
+CREATE UNIQUE INDEX IF NOT EXISTS "depot_owners_open_owner_key" ON "depot_owners"("depotId", "ownerId") WHERE "effectiveTo" IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "depot_owners_open_primary_key" ON "depot_owners"("depotId") WHERE "effectiveTo" IS NULL AND "isPrimary";
 
 -- AddForeignKey
 ALTER TABLE "depot_owners" ADD CONSTRAINT "depot_owners_depotId_fkey" FOREIGN KEY ("depotId") REFERENCES "depots"("id") ON DELETE CASCADE ON UPDATE CASCADE;
