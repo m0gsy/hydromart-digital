@@ -685,20 +685,20 @@ describe('FranchiseRevenueHttpAdapter', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('swallows a payout failure on the void — the refund must still go through', async () => {
+  it('throws on a payout failure on the void — the FRANCHISE_REVENUE_VOID outbox row retries it', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
     await expect(
       new FranchiseRevenueHttpAdapter(
         makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
       ).orderVoided('o1', 'refund'),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow('500');
 
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     await expect(
       new FranchiseRevenueHttpAdapter(
         makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
       ).orderVoided('o1', 'refund'),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow('ECONNREFUSED');
   });
 });
 

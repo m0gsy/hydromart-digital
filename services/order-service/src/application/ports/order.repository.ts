@@ -720,7 +720,13 @@ export interface OrderRepository {
    * of COMPLETED, or every delivered order could be voided past the refund queue. Guarded
    * on the current status so a double-void writes nothing.
    */
-  voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord>;
+  voidWalkIn(
+    id: string,
+    reason: string,
+    changedBy: string,
+    at: Date,
+    outbox?: OutboxWrite[],
+  ): Promise<OrderRecord>;
   /**
    * Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096.
    *

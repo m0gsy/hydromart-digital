@@ -690,7 +690,15 @@ export class InMemoryOrderRepository implements OrderRepository {
     this.refunds.set(orderId, amount);
   }
 
-  async voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord> {
+  /** Receives the outbox rows a void wrote, so a test can assert them. */
+  onVoidOutbox?: (rows: OutboxWrite[]) => void;
+  async voidWalkIn(
+    id: string,
+    reason: string,
+    changedBy: string,
+    at: Date,
+    outbox: OutboxWrite[] = [],
+  ): Promise<OrderRecord> {
     const row = this.rows.find((r) => r.id === id);
     // Mirrors the guarded UPDATE: only a COMPLETED counter sale flips, so a second void
     // finds nothing to change and is rejected exactly as it is against Postgres.
@@ -700,6 +708,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     row.status = OrderStatus.VOIDED;
     row.statusChangedAt = at;
     row.history.push({ status: OrderStatus.VOIDED, changedBy, note: reason, createdAt: at });
+    this.onVoidOutbox?.(outbox);
     return { ...row };
   }
 
@@ -1860,7 +1869,13 @@ export class InMemoryOutboxRepository implements OutboxRepository {
     if (nextAttemptAt) row.nextAttemptAt = nextAttemptAt;
   }
   async cancelForOrder(orderId: string, reason: string): Promise<number> {
-    const owed = this.rows.filter((r) => r.orderId === orderId && r.status === 'PENDING');
+    const owed = this.rows.filter(
+      (r) =>
+        r.orderId === orderId &&
+        r.status === 'PENDING' &&
+        r.topic !== 'PAYMENT_REVERSAL' &&
+        r.topic !== 'FRANCHISE_REVENUE_VOID',
+    );
     for (const row of owed) {
       row.status = 'CANCELLED';
       row.lastError = reason;

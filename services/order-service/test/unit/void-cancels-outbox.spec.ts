@@ -188,6 +188,50 @@ describe('a voided counter sale owes nothing (C3)', () => {
     expect(franchiseRevenue.posted).toHaveLength(postedBefore);
   });
 
+  /*
+   * The owner's ledger reversal used to be one inline call whose failure was swallowed: a
+   * payout blip at the moment of the void left the owner credited for money handed back.
+   * The void now writes a FRANCHISE_REVENUE_VOID row in the same transaction, which survives
+   * the cancel of the completion effects and the "order is voided" skip, and retries.
+   */
+  it('keeps owing the owner a reversal after a payout outage, and delivers it later', async () => {
+    const { order, now } = await sellWithFailingEffects();
+    orders.onVoidOutbox = (rows) => outboxRepo.enqueue(rows);
+    franchiseRevenue.voidError = new Error('payout down');
+
+    await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
+
+    const owed = outboxRepo.rows.filter((r) => r.status === 'PENDING');
+    expect(owed.map((r) => r.topic)).toEqual(['FRANCHISE_REVENUE_VOID']);
+    expect(franchiseRevenue.voided).toHaveLength(0);
+
+    franchiseRevenue.voidError = null;
+    await outbox.processDue(new Date(now.getTime() + 10 * 60_000));
+
+    expect(franchiseRevenue.voided.map((v) => v.orderId)).toEqual([order.id]);
+    expect(outboxRepo.rows.find((r) => r.topic === 'FRANCHISE_REVENUE_VOID')!.status).toBe('DONE');
+  });
+
+  it('reverses a credit that landed while the sale was being voided', async () => {
+    const { order, now } = await sellWithFailingEffects();
+    // The push is in flight: the void lands between the sweep's guard and payout's answer.
+    const realCompleted = franchiseRevenue.orderCompleted.bind(franchiseRevenue);
+    jest.spyOn(franchiseRevenue, 'orderCompleted').mockImplementationOnce(async (event) => {
+      await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
+      franchiseRevenue.voided.length = 0;
+      return realCompleted(event);
+    });
+    for (const row of outboxRepo.rows) {
+      row.status = 'PENDING';
+      row.nextAttemptAt = new Date(0);
+    }
+    // Reaches the handler directly, as a row the sweep was already holding does.
+    await (service as unknown as { postFranchiseRevenue(id: string, a: string): Promise<void> })
+      .postFranchiseRevenue(order.id, 'Bearer t')
+      .catch(() => undefined);
+    expect(franchiseRevenue.voided.map((v) => v.orderId)).toContain(order.id);
+  });
+
   /**
    * C5 · the void window is the SHIFT, not the calendar day.
    *
