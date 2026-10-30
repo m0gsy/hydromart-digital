@@ -292,11 +292,11 @@ export class InMemoryOtpTokenRepository implements OtpTokenRepository {
     row.attempts += 1;
     return true;
   }
-  async markConsumed(id: string, consumedAt: Date): Promise<void> {
+  async markConsumed(id: string, consumedAt: Date): Promise<boolean> {
     const row = this.rows.find((r) => r.id === id);
-    if (row) {
-      row.consumedAt = consumedAt;
-    }
+    if (!row || row.consumedAt) return false;
+    row.consumedAt = consumedAt;
+    return true;
   }
   async consumeAllForPurpose(customerId: string, purpose: OtpPurpose, at: Date): Promise<void> {
     this.rows
