@@ -280,6 +280,19 @@ export class InMemoryOtpTokenRepository implements OtpTokenRepository {
     this.rows.push(record);
     return record;
   }
+  async issueExclusive(
+    data: CreateOtpTokenData,
+    cooldownSeconds: number,
+    now: Date,
+  ): Promise<{ cooldownRemaining: number } | { token: OtpTokenRecord }> {
+    const existing = await this.findActive(data.customerId, data.purpose);
+    if (existing) {
+      const remaining = Math.ceil(cooldownSeconds - (now.getTime() - existing.createdAt.getTime()) / 1000);
+      if (remaining > 0) return { cooldownRemaining: remaining };
+      await this.consumeAllForPurpose(data.customerId, data.purpose, now);
+    }
+    return { token: await this.create(data) };
+  }
   async findActive(customerId: string, purpose: OtpPurpose): Promise<OtpTokenRecord | null> {
     const active = this.rows
       .filter((r) => r.customerId === customerId && r.purpose === purpose && !r.consumedAt)

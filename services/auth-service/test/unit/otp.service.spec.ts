@@ -215,6 +215,18 @@ describe('OtpService', () => {
     expect(result.phoneMasked).toBe('+6281******890');
   });
 
+  it('refuses a resend that slipped past the early check but lost the locked insert', async () => {
+    await service.issue(activeCustomer(), OtpPurpose.LOGIN);
+    clock.advance(30);
+    // The advisory pre-check saw nothing (a parallel request had not committed yet) ...
+    jest.spyOn(otpRepo, 'findActive').mockResolvedValueOnce(null);
+    // ... the locked insert is what finds the code that parallel request stored.
+    await expect(service.issue(activeCustomer(), OtpPurpose.LOGIN)).rejects.toBeInstanceOf(
+      OtpResendCooldownError,
+    );
+    expect(delivery.sent).toHaveLength(1);
+  });
+
   it('enforces the resend cooldown', async () => {
     await service.issue(activeCustomer(), OtpPurpose.LOGIN);
     clock.advance(30); // less than the 60s cooldown

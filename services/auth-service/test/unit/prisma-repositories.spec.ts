@@ -113,6 +113,47 @@ describe('OtpTokenPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  describe('issueExclusive', () => {
+    const tx = { $executeRaw: jest.fn(), otpToken: model };
+    const $transaction = jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+    const locked = new OtpTokenPrismaRepository({ $transaction } as unknown as PrismaService);
+    const now = new Date('2026-10-30T10:00:00Z');
+    const data = {
+      customerId: 'cust-1',
+      purpose: OtpPurpose.LOGIN,
+      codeHash: 'h',
+      expiresAt: new Date('2026-10-30T10:05:00Z'),
+    };
+
+    it('takes the lock, and answers the remaining cooldown without writing', async () => {
+      model.findFirst.mockResolvedValue({ ...otpRow, createdAt: new Date(now.getTime() - 20_000) });
+      const out = await locked.issueExclusive(data, 60, now);
+      expect(out).toEqual({ cooldownRemaining: 40 });
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(model.create).not.toHaveBeenCalled();
+    });
+
+    it('invalidates the old challenge once the cooldown has passed, then stores the new one', async () => {
+      model.findFirst.mockResolvedValue({ ...otpRow, createdAt: new Date(now.getTime() - 90_000) });
+      model.create.mockResolvedValue(otpRow);
+      const out = await locked.issueExclusive(data, 60, now);
+      expect('token' in out).toBe(true);
+      expect(model.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { consumedAt: now } }),
+      );
+    });
+
+    it('just stores the first challenge when none is outstanding', async () => {
+      model.findFirst.mockResolvedValue(null);
+      model.create.mockResolvedValue(otpRow);
+      await locked.issueExclusive({ ...data, targetPhone: '+62812' }, 60, now);
+      expect(model.updateMany).not.toHaveBeenCalled();
+      expect(model.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ targetPhone: '+62812' }),
+      });
+    });
+  });
+
   it('creates a token with the mapped purpose', async () => {
     model.create.mockResolvedValue(otpRow);
     const record = await repo.create({
