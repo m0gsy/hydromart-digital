@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { StaleWriteError } from '@hydromart/platform';
 
 import { ConfigService } from '@nestjs/config';
 
@@ -88,7 +89,9 @@ export class InMemoryProductRepository implements ProductRepository {
     id: string,
     patch: UpdateProductData,
     audit: { changedBy: string; fromPrice: number; toPrice: number },
+    expectedUpdatedAt?: Date,
   ): Promise<ProductRecord> {
+    this.assertStamp(id, expectedUpdatedAt);
     this.priceChanges.unshift({
       id: randomUUID(),
       productId: id,
@@ -98,11 +101,21 @@ export class InMemoryProductRepository implements ProductRepository {
     return this.update(id, patch);
   }
 
+  private assertStamp(id: string, expected?: Date): void {
+    const rec = this.rows.find((r) => r.id === id);
+    if (expected && rec && rec.updatedAt.getTime() !== expected.getTime()) throw new StaleWriteError();
+  }
+
   async listPriceChanges(productId: string, limit: number): Promise<PriceChangeRecord[]> {
     return this.priceChanges.filter((c) => c.productId === productId).slice(0, limit);
   }
 
-  async update(id: string, patch: UpdateProductData): Promise<ProductRecord> {
+  async update(
+    id: string,
+    patch: UpdateProductData,
+    expectedUpdatedAt?: Date,
+  ): Promise<ProductRecord> {
+    this.assertStamp(id, expectedUpdatedAt);
     const rec = this.rows.find((r) => r.id === id)!;
     Object.assign(rec, patch, { updatedAt: nextDate() });
     return { ...rec };

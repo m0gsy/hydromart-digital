@@ -1,3 +1,4 @@
+import { StaleWriteError } from '@hydromart/platform';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { ProductPrismaRepository } from '../../src/infrastructure/prisma/product.prisma.repository';
 import { CategoryPrismaRepository } from '../../src/infrastructure/prisma/category.prisma.repository';
@@ -27,10 +28,15 @@ describe('ProductPrismaRepository', () => {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
   };
   // PRD-1: the price trail lives beside the product, written in the same transaction.
   const priceChange = { create: jest.fn(), findMany: jest.fn() };
-  const $transaction = jest.fn((ops: unknown) => Promise.resolve(ops));
+  // The audit write is an interactive transaction: its callback gets the same models.
+  const $transaction = jest.fn((fn: (tx: unknown) => unknown) =>
+    fn({ product: model, productPriceChange: priceChange }),
+  );
   const prisma = {
     product: model,
     productPriceChange: priceChange,
@@ -44,22 +50,55 @@ describe('ProductPrismaRepository', () => {
    * PRD-1: one transaction. A trail written separately can disagree with the price it is
    * supposed to explain, which is the same gap the finding names, in a smaller window.
    */
-  it('writes the price trail and the update together', async () => {
-    priceChange.create.mockReturnValue('trail-row');
-    model.update.mockReturnValue(productRow());
-    $transaction.mockResolvedValueOnce(['trail-row', productRow()]);
+  it('writes the price trail and the update together, only if the stamp still matches', async () => {
+    const stamp = new Date('2026-01-01');
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUniqueOrThrow.mockResolvedValue(productRow());
 
     await repo.updateWithPriceAudit(
       'p-1',
       { basePrice: 22000 },
       { changedBy: 'staff-1', fromPrice: 20000, toPrice: 22000 },
+      stamp,
     );
 
     expect($transaction).toHaveBeenCalledTimes(1);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'p-1', updatedAt: stamp },
+      data: { basePrice: 22000 },
+    });
     expect(priceChange.create).toHaveBeenCalledWith({
       data: { productId: 'p-1', changedBy: 'staff-1', fromPrice: 20000, toPrice: 22000 },
     });
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'p-1' }, data: { basePrice: 22000 } });
+  });
+
+  it('writes no trail when a concurrent edit changed the product first', async () => {
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repo.updateWithPriceAudit(
+        'p-1',
+        { basePrice: 22000 },
+        { changedBy: 's', fromPrice: 1, toPrice: 2 },
+        new Date(),
+      ),
+    ).rejects.toBeInstanceOf(StaleWriteError);
+    expect(priceChange.create).not.toHaveBeenCalled();
+  });
+
+  it('audit without a stamp writes unconditionally', async () => {
+    model.findUniqueOrThrow.mockResolvedValue(productRow());
+    await repo.updateWithPriceAudit('p-1', { basePrice: 5 }, { changedBy: 's', fromPrice: 1, toPrice: 5 });
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'p-1' }, data: { basePrice: 5 } });
+  });
+
+  it('update compares the stamp when given, and refuses a stale one', async () => {
+    const stamp = new Date('2026-01-01');
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUniqueOrThrow.mockResolvedValue(productRow());
+    await repo.update('p-1', { name: 'x' }, stamp);
+    expect(model.updateMany).toHaveBeenCalledWith({ where: { id: 'p-1', updatedAt: stamp }, data: { name: 'x' } });
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.update('p-1', { name: 'y' }, stamp)).rejects.toBeInstanceOf(StaleWriteError);
   });
 
   it('reads one product’s trail newest first, bounded', async () => {

@@ -49,7 +49,12 @@ export interface ProductRepository {
   findActiveByIds(ids: string[]): Promise<ProductRecord[]>;
   findBySku(sku: string): Promise<ProductRecord | null>;
   create(data: CreateProductData): Promise<ProductRecord>;
-  update(id: string, patch: UpdateProductData): Promise<ProductRecord>;
+  /**
+   * `expectedUpdatedAt`: write only if the row still carries the stamp the caller read —
+   * a compare-and-set, so two editors cannot both pass the freshness check and overwrite each
+   * other. A mismatch throws StaleWriteError (409).
+   */
+  update(id: string, patch: UpdateProductData, expectedUpdatedAt?: Date): Promise<ProductRecord>;
   /**
    * PRD-1: record that the base price moved, and who moved it. Append-only.
    *
@@ -61,6 +66,7 @@ export interface ProductRepository {
     id: string,
     patch: UpdateProductData,
     audit: { changedBy: string; fromPrice: number; toPrice: number },
+    expectedUpdatedAt?: Date,
   ): Promise<ProductRecord>;
   /** PRD-1: the recorded changes for one product, newest first. */
   listPriceChanges(productId: string, limit: number): Promise<PriceChangeRecord[]>;

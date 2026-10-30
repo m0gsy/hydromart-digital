@@ -153,8 +153,8 @@ export class ProductService {
             changedBy,
             fromPrice: basePrice,
             toPrice: patch.basePrice as number,
-          })
-        : await this.products.update(id, patch);
+          }, updatedAt)
+        : await this.products.update(id, patch, updatedAt);
     // Only the three fields a depot stock line copied. Editing a price or a photo changes
     // nothing a depot mirrors, and pushing on every edit would make a busy catalog session
     // hammer depot-service for no reason.
