@@ -21,6 +21,7 @@ export class LoyaltyRewardHttpAdapter implements LoyaltyRewardPort {
     points: number,
     reason: string,
     _authorization: string,
+    idempotencyKey?: string,
   ): Promise<void> {
     const base = this.config.loyaltyServiceUrl;
     const { internalServiceKey } = this.config;
@@ -30,7 +31,7 @@ export class LoyaltyRewardHttpAdapter implements LoyaltyRewardPort {
     const res = await fetch(`${base}/api/v1/loyalty/reward`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-      body: JSON.stringify({ customerId, points, reason }),
+      body: JSON.stringify({ customerId, points, reason, ...(idempotencyKey ? { idempotencyKey } : {}) }),
       signal: AbortSignal.timeout(LoyaltyRewardHttpAdapter.TIMEOUT_MS),
     });
     if (!res.ok) {

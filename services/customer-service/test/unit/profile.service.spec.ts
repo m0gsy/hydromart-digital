@@ -115,6 +115,8 @@ describe('ProfileService birthday promo (FR-091)', () => {
     expect(res).toMatchObject({ candidates: 2, granted: 2, failed: 0, disabled: false });
     expect(loyalty.calls.map((c) => c.customerId).sort()).toEqual(['bday-a', 'bday-b']);
     expect(loyalty.calls[0].points).toBe(250);
+    // Keyed by year, so a lost stamp cannot make the next run grant the same points again.
+    expect(loyalty.calls.map((c) => c.idempotencyKey)).toEqual(['birthday:2026', 'birthday:2026']);
   });
 
   it('is idempotent within the same year (re-run grants nothing)', async () => {
