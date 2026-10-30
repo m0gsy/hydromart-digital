@@ -57,6 +57,13 @@ export interface NotificationRepository {
 
   /** Append a notification audit row. */
   record(data: RecordNotificationData): Promise<NotificationRecord>;
+  /**
+   * Appends the row unless one with the same `dedupeKey` exists (then the existing row comes
+   * back with `created: false` and nothing is written). Without a key it is plain `record`.
+   */
+  recordOnce(
+    data: RecordNotificationData & { dedupeKey?: string | null },
+  ): Promise<{ record: NotificationRecord; created: boolean }>;
 
   /**
    * K5.4: the delivery this row promised did not happen. Called after the fire-and-forget

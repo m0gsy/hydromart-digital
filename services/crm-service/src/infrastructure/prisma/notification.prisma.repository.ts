@@ -97,6 +97,35 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return this.toRecord(row);
   }
 
+  async recordOnce(
+    data: RecordNotificationData & { dedupeKey?: string | null },
+  ): Promise<{ record: NotificationRecord; created: boolean }> {
+    const { dedupeKey, ...rest } = data;
+    if (!dedupeKey) return { record: await this.record(rest), created: true };
+    try {
+      const row = await this.prisma.notification.create({
+        data: {
+          event: rest.event,
+          customerId: rest.customerId,
+          phone: rest.phone,
+          message: rest.message,
+          status: rest.status as unknown as PrismaNotificationStatus,
+          error: rest.error,
+          destination: rest.destination,
+          depotId: rest.depotId,
+          dedupeKey,
+        },
+      });
+      return { record: this.toRecord(row), created: true };
+    } catch (error) {
+      if ((error as { code?: string } | null)?.code !== 'P2002') throw error;
+      const existing = await this.prisma.notification.findUnique({ where: { dedupeKey } });
+      // A unique violation with nothing to read back is some other index, not this one.
+      if (!existing) throw error;
+      return { record: this.toRecord(existing), created: false };
+    }
+  }
+
   async markFailed(id: string, error: string): Promise<void> {
     // `updateMany` rather than `update`: a retention purge can delete the row between the
     // write and the push settling, and a rejected promise there would land in a `.catch`

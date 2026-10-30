@@ -777,3 +777,42 @@ describe('NotificationService · K5.3 recipient language', () => {
     expect(record.message).toContain('sudah kami konfirmasi');
   });
 });
+
+describe('NotificationService dedupeKey', () => {
+  it('a retried send with the same key returns the first row and pushes nothing a second time', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const push = { sendToCustomer: jest.fn().mockResolvedValue(undefined), sendToStaff: jest.fn() };
+    const service = new NotificationService(repo as never, push as never);
+    const customerId = '11111111-1111-4111-8111-111111111111';
+    const first = await service.notify(
+      NotificationEvent.ORDER_RECEIVED,
+      '+6281',
+      { name: 'A', orderNumber: 'HM-1' },
+      customerId,
+      null,
+      'order-received:1',
+    );
+    const again = await service.notify(
+      NotificationEvent.ORDER_RECEIVED,
+      '+6281',
+      { name: 'A', orderNumber: 'HM-1' },
+      customerId,
+      null,
+      'order-received:1',
+    );
+    expect(again.id).toBe(first.id);
+    expect(repo.records).toHaveLength(1);
+    await new Promise((r) => setImmediate(r));
+    expect(push.sendToCustomer.mock.calls.length).toBeLessThanOrEqual(1);
+  });
+
+  it('different keys, and no key at all, are never merged', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const service = new NotificationService(repo as never, { sendToCustomer: jest.fn() } as never);
+    await service.notify(NotificationEvent.STOCK_LOW, '+6281', {}, null, null, 'a');
+    await service.notify(NotificationEvent.STOCK_LOW, '+6281', {}, null, null, 'b');
+    await service.notify(NotificationEvent.STOCK_LOW, '+6281', {}, null, null);
+    await service.notify(NotificationEvent.STOCK_LOW, '+6281', {}, null, null);
+    expect(repo.records).toHaveLength(4);
+  });
+});

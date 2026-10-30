@@ -200,6 +200,7 @@ describe('NotificationController', () => {
       // F8: the depot an OPS alert is about, so crm can push it to that depot's own staff.
       // Null on a customer event, which already has an account to reach.
       null,
+      null,
     );
     expect(out.id).toBe('n1');
   });
@@ -212,6 +213,7 @@ describe('NotificationController', () => {
       NotificationEvent.STOCK_LOW,
       '+6281',
       {},
+      null,
       null,
       null,
     );
@@ -235,6 +237,25 @@ describe('NotificationController', () => {
       {},
       null,
       'dep-1',
+      null,
+    );
+  });
+
+  it('passes the sender-derived dedupe key through to the service', async () => {
+    const notifications = { notify: jest.fn().mockResolvedValue(notifRecord()) };
+    const controller = new NotificationController(notifications as never);
+    await controller.sendInternal({
+      event: NotificationEvent.STOCK_LOW,
+      phone: '+6281',
+      dedupeKey: 'k-1',
+    });
+    expect(notifications.notify).toHaveBeenCalledWith(
+      NotificationEvent.STOCK_LOW,
+      '+6281',
+      {},
+      null,
+      null,
+      'k-1',
     );
   });
 });

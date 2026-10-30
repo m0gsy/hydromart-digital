@@ -210,6 +210,7 @@ export class NotificationService {
     vars: Record<string, string>,
     customerId: string | null = null,
     depotId: string | null = null,
+    dedupeKey: string | null = null,
   ): Promise<NotificationRecord> {
     const message = renderMessage(templateFor(event, await this.localeFor(customerId, event)), vars);
     /*
@@ -223,7 +224,7 @@ export class NotificationService {
      * it was sent. Until this, nothing in the system had ever written FAILED or filled the
      * `error` column: two columns whose whole job is to say a message did not arrive.
      */
-    const record = await this.repo.record({
+    const row = {
       event,
       customerId,
       phone,
@@ -238,7 +239,16 @@ export class NotificationService {
       // update is not a depot's alert — and null for every ops row written before the
       // column existed.
       depotId: OPS_EVENTS.includes(event) ? depotId : null,
-    });
+    };
+    // Only a sender that names its event pays for the dedupe; everyone else keeps the plain append.
+    const { record, created } = dedupeKey
+      ? await this.repo.recordOnce({ ...row, dedupeKey })
+      : { record: await this.repo.record(row), created: true };
+
+    // A retried send of the same event: the customer already has this row (and its push),
+    // so nothing is sent a second time. A row that FAILED to push is not retried here either -
+    // the failure is recorded on it, and a duplicate push is the worse outcome.
+    if (!created) return record;
 
     const failed = (e: unknown) => {
       const reason = (e as Error).message;
