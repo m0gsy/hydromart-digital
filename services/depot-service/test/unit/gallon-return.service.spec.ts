@@ -33,6 +33,18 @@ const configStub = { gallonDepositIdr: () => GALLON_DEPOSIT_IDR } as DepotConfig
 class InMemoryGallonReturnRepository implements GallonReturnRepository {
   private rows: GallonReturnRecord[] = [];
   private seq = 0;
+  private tails = new Map<string, Promise<unknown>>();
+
+  /** Same guarantee as the advisory lock: holders of one key run one at a time, in order. */
+  async serialized<T>(scopeKey: string, work: () => Promise<T>): Promise<T> {
+    const prev = this.tails.get(scopeKey) ?? Promise.resolve();
+    const run = prev.then(work, work);
+    this.tails.set(
+      scopeKey,
+      run.catch(() => undefined),
+    );
+    return run;
+  }
 
   async create(data: CreateGallonReturnData): Promise<GallonReturnRecord> {
     const row: GallonReturnRecord = { id: `r${++this.seq}`, createdAt: new Date(), ...data };
@@ -222,6 +234,39 @@ describe('GallonReturnService', () => {
       note: null,
       actorId: 'staff-1',
     });
+
+  /*
+   * Two returns for the same customer at once both measured the same outstanding deposit and
+   * both refunded it. Measuring and writing now happen under one lock per balance.
+   */
+  it('refunds a customer deposit once when two returns race for it', async () => {
+    await seedFor('cust-1', 1);
+    const results = await Promise.allSettled([
+      service.record(depotId, { quantity: 1, customerId: 'cust-1', depositRefunded: GALLON_DEPOSIT_IDR }, 'staff-1'),
+      service.record(depotId, { quantity: 1, customerId: 'cust-1', depositRefunded: GALLON_DEPOSIT_IDR }, 'staff-2'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(lost.reason).toBeInstanceOf(GallonOverReturnError);
+  });
+
+  it('clamps a courier refund to what is left when two handovers race', async () => {
+    await seedFor('cust-2', 1);
+    const [a, b] = await Promise.all([
+      service.recordFromCourier(depotId, { orderId: 'o-a', quantity: 1, customerId: 'cust-2', condition: GallonCondition.GOOD }, 'courier-1'),
+      service.recordFromCourier(depotId, { orderId: 'o-b', quantity: 1, customerId: 'cust-2', condition: GallonCondition.GOOD }, 'courier-2'),
+    ]);
+    expect(a.depositRefunded + b.depositRefunded).toBe(GALLON_DEPOSIT_IDR);
+  });
+
+  it('does not let a failing return wedge the next one for the same balance', async () => {
+    await seedFor('cust-3', 1);
+    await expect(
+      service.record(depotId, { quantity: 1, customerId: 'cust-3', depositRefunded: 10 * GALLON_DEPOSIT_IDR }, 'staff-1'),
+    ).rejects.toBeInstanceOf(GallonOverReturnError);
+    const ok = await service.record(depotId, { quantity: 1, customerId: 'cust-3', depositRefunded: GALLON_DEPOSIT_IDR }, 'staff-1');
+    expect(ok.depositRefunded).toBe(GALLON_DEPOSIT_IDR);
+  });
 
   it('records an over-return and queues it for review instead of rejecting it (M15-11)', async () => {
     await service.record(depotId, { quantity: 98 }, 'staff-1');

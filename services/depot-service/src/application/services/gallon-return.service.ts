@@ -120,6 +120,11 @@ export class GallonReturnService {
     }
   }
 
+  /** The balance a return is measured against: one customer at a depot, or the depot's pool. */
+  private balanceKey(depotId: string, customerId: string | null | undefined): string {
+    return `${depotId}:${customerId ?? 'depot'}`;
+  }
+
   private async requireDepot(depotId: string): Promise<void> {
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
@@ -278,30 +283,38 @@ export class GallonReturnService {
   ): Promise<GallonReturnRecord> {
     await this.requireDepot(depotId);
     const depositRefunded = input.depositRefunded ?? 0;
-    const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
-      depotId,
-      input.quantity,
-      input.customerId ?? null,
-    );
-    if (depositRefunded > depositLeft) {
-      throw new GallonOverReturnError(
-        'deposit',
-        depositRefunded,
-        depositLeft,
-        input.customerId ? 'customer' : 'depot',
-      );
-    }
     const condition = input.condition ?? GallonCondition.GOOD;
-    const record = await this.returns.create({
-      depotId,
-      customerId: input.customerId ?? null,
-      orderId: null,
-      quantity: input.quantity,
-      condition,
-      depositRefunded,
-      note: input.note ?? null,
-      actorId,
-    });
+    // Measure and write under one lock per balance: two returns at once used to measure the
+    // same outstanding deposit and both refund it.
+    const { record, excessGallons } = await this.returns.serialized(
+      this.balanceKey(depotId, input.customerId),
+      async () => {
+        const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
+          depotId,
+          input.quantity,
+          input.customerId ?? null,
+        );
+        if (depositRefunded > depositLeft) {
+          throw new GallonOverReturnError(
+            'deposit',
+            depositRefunded,
+            depositLeft,
+            input.customerId ? 'customer' : 'depot',
+          );
+        }
+        const record = await this.returns.create({
+          depotId,
+          customerId: input.customerId ?? null,
+          orderId: null,
+          quantity: input.quantity,
+          condition,
+          depositRefunded,
+          note: input.note ?? null,
+          actorId,
+        });
+        return { record, excessGallons };
+      },
+    );
     await this.moveStockIn(depotId, record, condition, actorId);
     if (excessGallons > 0) {
       await this.queueBestEffort(`variance approval for return ${record.id}`, () =>
@@ -328,11 +341,6 @@ export class GallonReturnService {
   ): Promise<GallonReturnRecord & { alreadyRecorded: boolean }> {
     await this.requireDepot(depotId);
     const condition = input.condition ?? GallonCondition.GOOD;
-    const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
-      depotId,
-      input.quantity,
-      input.customerId ?? null,
-    );
     /*
      * CA-4-47: an unidentified return refunds NOTHING.
      *
@@ -352,10 +360,6 @@ export class GallonReturnService {
      * depot has no record of, which is worse for everyone.
      */
     const identified = Boolean(input.customerId);
-    const depositRefunded =
-      condition === GallonCondition.GOOD && identified
-        ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
-        : 0;
     // MONEY-04: idempotent on the order, because the courier's handover travels through the
     // offline queue and that queue is at-least-once. A lost response — 15s timeout at the
     // door, a 502 mid-deploy — is retried on the next flush, and the old bare `create`
@@ -363,16 +367,33 @@ export class GallonReturnService {
     //
     // The issue side has had this since I1, with a comment saying exactly why. Only the
     // refund half was left open, which is the half that pays money out.
-    const { record, created } = await this.returns.createFromOrder({
-      depotId,
-      customerId: input.customerId ?? null,
-      orderId: input.orderId,
-      quantity: input.quantity,
-      condition,
-      depositRefunded,
-      note: input.note ?? null,
-      actorId: courierId,
-    });
+    // Measured and written under the balance's lock, so the refund is clamped to what is
+    // really still held at the moment it is booked, not at the moment the request arrived.
+    const { record, created, excessGallons } = await this.returns.serialized(
+      this.balanceKey(depotId, input.customerId),
+      async () => {
+        const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
+          depotId,
+          input.quantity,
+          input.customerId ?? null,
+        );
+        const depositRefunded =
+          condition === GallonCondition.GOOD && identified
+            ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
+            : 0;
+        const booked = await this.returns.createFromOrder({
+          depotId,
+          customerId: input.customerId ?? null,
+          orderId: input.orderId,
+          quantity: input.quantity,
+          condition,
+          depositRefunded,
+          note: input.note ?? null,
+          actorId: courierId,
+        });
+        return { ...booked, excessGallons };
+      },
+    );
     /*
      * Already booked. Return the refund that actually happened, and queue nothing: a second
      * variance approval for one handover is a manager asked to rule on the same gallons
