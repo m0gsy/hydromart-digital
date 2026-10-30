@@ -8,7 +8,11 @@ import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
-import { StaleDeliveryStatusError } from '../../src/domain/errors';
+import {
+  DeliveryAlreadyExistsError,
+  DriverBusyError,
+  StaleDeliveryStatusError,
+} from '../../src/domain/errors';
 import {
   CreateDeliveryData,
   CodBearing,
@@ -199,6 +203,32 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
 
   async countActiveByDriver(driverId: string): Promise<number> {
     return this.rows.filter((r) => r.driverId === driverId && ACTIVE.includes(r.status)).length;
+  }
+  async createIfUnderCap(data: CreateDeliveryData, max: number): Promise<DeliveryRecord> {
+    if ((await this.countActiveByDriver(data.driverId)) >= max) throw new DriverBusyError();
+    return this.create(data);
+  }
+  async reassignIfUnderCap(
+    id: string,
+    driverId: string,
+    changedBy: string,
+    note: string | null,
+    max: number,
+  ): Promise<DeliveryRecord> {
+    if ((await this.countActiveByDriver(driverId)) >= max) throw new DriverBusyError();
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== DeliveryStatus.RESCHEDULED) throw new DeliveryAlreadyExistsError();
+    return this.reassign(id, driverId, changedBy, note);
+  }
+  async undoAssignment(id: string, previousDriverId: string | null): Promise<void> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== DeliveryStatus.ASSIGNED) return;
+    if (previousDriverId === null) {
+      this.rows.splice(this.rows.indexOf(row), 1);
+      return;
+    }
+    row.status = DeliveryStatus.RESCHEDULED;
+    row.driverId = previousDriverId;
   }
   async recordContactAttempt(
     deliveryId: string,

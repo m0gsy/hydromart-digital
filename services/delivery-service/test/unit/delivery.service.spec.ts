@@ -31,6 +31,7 @@ import {
   OrderOutOfScopeError,
   PaymentLookupUnavailableError,
   StaleCaptureError,
+  StaleDeliveryStatusError,
 } from '../../src/domain/errors';
 import { BadRequestException } from '@nestjs/common';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
@@ -591,6 +592,43 @@ describe('DeliveryService', () => {
   it('enforces one active delivery per driver (BR)', async () => {
     await assign(driver);
     await expect(assign(driver)).rejects.toBeInstanceOf(DriverBusyError);
+  });
+
+  it('takes the delivery back when order-service refuses the assignment', async () => {
+    orders.throwOnStatus = 'DRIVER_ASSIGNED';
+    const orderId = randomUUID();
+    await expect(assign(driver, orderId)).rejects.toThrow();
+    // Written first, then undone: nothing may be left behind occupying the courier.
+    expect(await repo.findByOrder(orderId)).toBeNull();
+    expect(await repo.countActiveByDriver(driver)).toBe(0);
+  });
+
+  it('puts a re-opened delivery back to RESCHEDULED when the order refuses the re-assignment', async () => {
+    const orderId = randomUUID();
+    const first = await assign(driver, orderId);
+    await service.reschedule(driver, first.id, {
+      rescheduledFor: new Date(Date.now() + 86_400_000),
+      authorization: AUTH,
+    });
+    const other = randomUUID();
+    await shifts.checkIn(other, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
+    orders.throwOnStatus = 'DRIVER_ASSIGNED';
+    await expect(
+      service.assign(
+        staff,
+        { orderId, orderNumber: 'HM-1', driverId: other, destinationAddress: 'Jl. Merdeka 10' },
+        AUTH,
+      ),
+    ).rejects.toThrow();
+    const row = await repo.findById(first.id);
+    expect(row?.status).toBe(DeliveryStatus.RESCHEDULED);
+    expect(row?.driverId).toBe(driver);
+  });
+
+  it('still reports the order refusal when taking the delivery back also fails', async () => {
+    orders.throwOnStatus = 'DRIVER_ASSIGNED';
+    jest.spyOn(repo, 'undoAssignment').mockRejectedValueOnce(new Error('db down'));
+    await expect(assign(driver)).rejects.toThrow();
   });
 
   it('refuses to assign a driver who has not checked in', async () => {
@@ -1233,6 +1271,199 @@ describe('DeliveryService', () => {
       // for money they had just handed back.
       const after = await repo.findById(d.id);
       expect(after?.status).not.toBe('FAILED');
+    });
+
+    it('does nothing to money or order when a concurrent completion won the status write', async () => {
+      const d = await cashOrder('PAID');
+      const real = repo.applyStatus.bind(repo);
+      // The courier's other tap (Selesai) lands between the read and the write of Gagal.
+      jest.spyOn(repo, 'applyStatus').mockImplementationOnce(async (id, ...rest) => {
+        repo.rows.find((r) => r.id === id)!.status = DeliveryStatus.DELIVERED;
+        return real(id, ...rest);
+      });
+      orders.calls.length = 0;
+
+      await expect(service.fail(driver, d.id, 'Barang rusak', AUTH, true)).rejects.toBeInstanceOf(
+        StaleDeliveryStatusError,
+      );
+
+      expect(payments.reversals).toHaveLength(0);
+      expect(orders.calls).toHaveLength(0);
+    });
+
+    it('a duplicate fail that loses the compare-and-set answers with the winner (200)', async () => {
+      const d = await cashOrder('PAID');
+      const real = repo.applyStatus.bind(repo);
+      jest.spyOn(repo, 'applyStatus').mockImplementationOnce(async (id, ...rest) => {
+        await real(id, ...rest); // the other copy of the same tap wins first
+        return real(id, ...rest); // ... and this one now finds the row already moved
+      });
+
+      const out = await service.fail(driver, d.id, 'Barang rusak', AUTH, true);
+
+      expect(out.status).toBe(DeliveryStatus.FAILED);
+    });
+
+    it('a retry after the reversal threw puts the cash back and cancels the order', async () => {
+      const d = await cashOrder('PAID');
+      payments.throwOnReverse = true;
+      // The undo is lost too (e.g. the DB blips): the row stays FAILED, cash still PAID.
+      const spy = jest
+        .spyOn(repo, 'applyStatus')
+        .mockImplementation(async (id, from, to, ...rest) => {
+          if (to !== DeliveryStatus.FAILED) throw new Error('db blip');
+          return InMemoryDeliveryRepository.prototype.applyStatus.call(repo, id, from, to, ...rest);
+        });
+      await expect(service.fail(driver, d.id, 'Barang rusak', AUTH, true)).rejects.toThrow();
+      spy.mockRestore();
+      expect((await repo.findById(d.id))?.status).toBe(DeliveryStatus.FAILED);
+
+      payments.throwOnReverse = false;
+      orders.calls.length = 0;
+      const out = await service.fail(driver, d.id, 'Barang rusak', AUTH, true);
+
+      expect(out.status).toBe(DeliveryStatus.FAILED);
+      expect(payments.reversals).toHaveLength(1);
+      expect(orders.calls.map((c) => c.status)).toEqual(['CANCELLED']);
+    });
+
+    it('a replay whose order cancel is refused (already cancelled) stays quiet', async () => {
+      const d = await cashOrder('PAID');
+      await service.fail(driver, d.id, 'Barang rusak', AUTH, true);
+      platform.alertServerError.mockClear();
+      orders.failNext = Object.assign(new Error('refused'), { refused: true });
+
+      await service.fail(driver, d.id, 'Barang rusak', AUTH, true);
+
+      expect(platform.alertServerError).not.toHaveBeenCalled();
+    });
+
+    it('a failed reschedule reversal puts the status back', async () => {
+      const d = await cashOrder('PAID');
+      payments.throwOnReverse = true;
+      await expect(
+        service.reschedule(driver, d.id, {
+          rescheduledFor: new Date(Date.now() + 86_400_000),
+          cashReturned: true,
+        }),
+      ).rejects.toThrow();
+      expect((await repo.findById(d.id))?.status).toBe(DeliveryStatus.ON_DELIVERY);
+    });
+
+    it('a repeated reschedule with cashReturned re-checks the reversal and does not double-move the order', async () => {
+      const d = await cashOrder('PAID');
+      const input = { rescheduledFor: new Date(Date.now() + 86_400_000), cashReturned: true };
+      await service.reschedule(driver, d.id, input);
+      orders.failNext = Object.assign(new Error('refused'), { refused: true });
+
+      const again = await service.reschedule(driver, d.id, input);
+
+      expect(again.status).toBe(DeliveryStatus.RESCHEDULED);
+      expect(payments.reversals).toHaveLength(1);
+    });
+
+    it('a duplicate reschedule that loses the compare-and-set answers with the winner', async () => {
+      const d = await cashOrder('PAID');
+      const input = { rescheduledFor: new Date(Date.now() + 86_400_000) };
+      const real = repo.applyStatus.bind(repo);
+      jest.spyOn(repo, 'applyStatus').mockImplementationOnce(async (id, ...rest) => {
+        await real(id, ...rest);
+        return real(id, ...rest);
+      });
+      const out = await service.reschedule(driver, d.id, input);
+      expect(out.status).toBe(DeliveryStatus.RESCHEDULED);
+    });
+
+    it('a reschedule that loses to a different outcome is a real conflict', async () => {
+      const d = await cashOrder('PAID');
+      jest.spyOn(repo, 'applyStatus').mockImplementationOnce(async (id) => {
+        repo.rows.find((r) => r.id === id)!.status = DeliveryStatus.DELIVERED;
+        throw new StaleDeliveryStatusError();
+      });
+      await expect(
+        service.reschedule(driver, d.id, { rescheduledFor: new Date(Date.now() + 86_400_000) }),
+      ).rejects.toBeInstanceOf(StaleDeliveryStatusError);
+    });
+
+    it('a fail whose status write errors for another reason rethrows it', async () => {
+      const d = await cashOrder('PAID');
+      jest.spyOn(repo, 'applyStatus').mockRejectedValueOnce(new Error('db down'));
+      await expect(service.fail(driver, d.id, 'x', AUTH, true)).rejects.toThrow('db down');
+    });
+
+    it('a fail that loses to a DIFFERENT status stays a conflict', async () => {
+      const d = await cashOrder('PAID');
+      jest.spyOn(repo, 'applyStatus').mockImplementationOnce(async (id) => {
+        repo.rows.find((r) => r.id === id)!.status = DeliveryStatus.DELIVERED;
+        throw new StaleDeliveryStatusError();
+      });
+      await expect(service.fail(driver, d.id, 'x', AUTH, true)).rejects.toBeInstanceOf(
+        StaleDeliveryStatusError,
+      );
+    });
+
+    it('logs, rather than hides, a status put-back that is itself refused', async () => {
+      const d = await cashOrder('PAID');
+      payments.throwOnReverse = true;
+      const real = repo.applyStatus.bind(repo);
+      jest.spyOn(repo, 'applyStatus').mockImplementation(async (id, from, to, ...rest) => {
+        if (to !== DeliveryStatus.FAILED && to !== DeliveryStatus.RESCHEDULED) return real(id, from, to, ...rest);
+        if (from === DeliveryStatus.FAILED || from === DeliveryStatus.RESCHEDULED) throw new Error('db blip');
+        return real(id, from, to, ...rest);
+      });
+      await expect(service.fail(driver, d.id, 'x', AUTH, true)).rejects.toThrow('payment-service down');
+    });
+
+    it('logs a reschedule put-back that is itself refused', async () => {
+      const d = await cashOrder('PAID');
+      payments.throwOnReverse = true;
+      const real = repo.applyStatus.bind(repo);
+      jest.spyOn(repo, 'applyStatus').mockImplementation(async (id, from, to, ...rest) => {
+        if (from === DeliveryStatus.RESCHEDULED) throw new Error('db blip');
+        return real(id, from, to, ...rest);
+      });
+      await expect(
+        service.reschedule(driver, d.id, {
+          rescheduledFor: new Date(Date.now() + 86_400_000),
+          cashReturned: true,
+        }),
+      ).rejects.toThrow('payment-service down');
+    });
+
+    it('a reschedule whose status write errors for another reason rethrows it', async () => {
+      const d = await cashOrder('PAID');
+      jest.spyOn(repo, 'applyStatus').mockRejectedValueOnce(new Error('db down'));
+      await expect(
+        service.reschedule(driver, d.id, { rescheduledFor: new Date(Date.now() + 86_400_000) }),
+      ).rejects.toThrow('db down');
+    });
+
+    it('a repeated reschedule surfaces an order failure that is not a refusal', async () => {
+      const d = await cashOrder('PAID');
+      const input = { rescheduledFor: new Date(Date.now() + 86_400_000), cashReturned: true };
+      await service.reschedule(driver, d.id, input);
+      orders.failNext = new Error('order-service down');
+      await expect(service.reschedule(driver, d.id, input)).rejects.toThrow();
+    });
+
+    it('no-show: a repeated tap answers with the first result, and a lost race does too', async () => {
+      const d = await cashOrder('PAID');
+      await service.recordContactAttempt(driver, d.id, ContactMethod.CALL);
+      const second = await service.recordContactAttempt(driver, d.id, ContactMethod.WHATSAPP);
+      const first = await service.markNoShow(driver, d.id, second.eligibleAt!, AUTH);
+      const again = await service.markNoShow(driver, d.id, second.eligibleAt!, AUTH);
+      expect(again.id).toBe(first.id);
+
+      const e = await cashOrder('PAID');
+      await service.recordContactAttempt(driver, e.id, ContactMethod.CALL);
+      const sec2 = await service.recordContactAttempt(driver, e.id, ContactMethod.WHATSAPP);
+      const real = repo.applyStatus.bind(repo);
+      jest.spyOn(repo, 'applyStatus').mockImplementationOnce(async (id, ...rest) => {
+        await real(id, ...rest);
+        return real(id, ...rest);
+      });
+      const out = await service.markNoShow(driver, e.id, sec2.eligibleAt!, AUTH);
+      expect(out.status).toBe(DeliveryStatus.FAILED);
     });
 
     it('tells the courier they are holding cash, without asking payment-service twice', async () => {

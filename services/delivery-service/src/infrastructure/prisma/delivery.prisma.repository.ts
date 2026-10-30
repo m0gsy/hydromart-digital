@@ -28,6 +28,7 @@ import {
 } from '../../application/ports/delivery.repository';
 import {
   DeliveryAlreadyExistsError,
+  DriverBusyError,
   ReportRangeTooLargeError,
   StaleDeliveryStatusError,
 } from '../../domain/errors';
@@ -176,11 +177,82 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     };
   }
 
+  /**
+   * Capacity check and write in ONE transaction, serialised per courier by an advisory lock.
+   * The service's own count-then-create let two dispatchers each see "room for one more" and
+   * both assign. Prefixed so the key cannot collide with another feature's advisory lock.
+   */
+  private async underCap<T>(
+    driverId: string,
+    max: number,
+    write: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`drv:${driverId}`}, 0))`;
+      const active = await tx.delivery.count({
+        where: { driverId, status: { in: ACTIVE_STATUSES } },
+      });
+      if (active >= max) throw new DriverBusyError();
+      return write(tx);
+    });
+  }
+
+  async createIfUnderCap(data: CreateDeliveryData, max: number): Promise<DeliveryRecord> {
+    return this.underCap(data.driverId, max, (tx) => this.insert(tx, data));
+  }
+
+  async reassignIfUnderCap(
+    id: string,
+    driverId: string,
+    changedBy: string,
+    note: string | null,
+    max: number,
+  ): Promise<DeliveryRecord> {
+    return this.underCap(driverId, max, async (tx) => {
+      // Only a RESCHEDULED row may be re-opened; two dispatchers re-opening the same one is a
+      // conflict, not two assignments.
+      const { count } = await tx.delivery.updateMany({
+        where: { id, status: DeliveryStatus.RESCHEDULED },
+        data: {
+          driverId,
+          status: DeliveryStatus.ASSIGNED,
+          pickedUpAt: null,
+          startedAt: null,
+          estimatedArrivalAt: null,
+        },
+      });
+      if (count === 0) throw new DeliveryAlreadyExistsError();
+      await tx.deliveryStatusHistory.create({
+        data: { deliveryId: id, status: DeliveryStatus.ASSIGNED, changedBy, note },
+      });
+      const row = await tx.delivery.findUniqueOrThrow({ where: { id }, include: INCLUDE });
+      return this.toRecord(row);
+    });
+  }
+
+  async undoAssignment(id: string, previousDriverId: string | null): Promise<void> {
+    if (previousDriverId === null) {
+      await this.prisma.delivery.deleteMany({ where: { id, status: DeliveryStatus.ASSIGNED } });
+      return;
+    }
+    await this.prisma.delivery.updateMany({
+      where: { id, status: DeliveryStatus.ASSIGNED },
+      data: { status: DeliveryStatus.RESCHEDULED, driverId: previousDriverId },
+    });
+  }
+
   async create(data: CreateDeliveryData): Promise<DeliveryRecord> {
+    return this.insert(this.prisma, data);
+  }
+
+  private async insert(
+    client: Pick<Prisma.TransactionClient, 'delivery'>,
+    data: CreateDeliveryData,
+  ): Promise<DeliveryRecord> {
     const { items, ...rest } = data;
     let row;
     try {
-      row = await this.prisma.delivery.create({
+      row = await client.delivery.create({
         data: {
           ...rest,
           // Prisma Json column: a JS null must be Prisma.JsonNull, not raw null.

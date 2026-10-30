@@ -12,6 +12,7 @@ import {
   NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderAlreadyClaimedError,
+  StaleDeliveryStatusError,
   OrderCoordinationError,
   OrderOutOfScopeError,
   OrderNotClaimableError,
@@ -150,6 +151,8 @@ export interface RescheduleInput {
    */
   cashReturned?: boolean;
 }
+
+const NO_SHOW_REASON = 'Pelanggan tidak di tempat (no-show).';
 
 @Injectable()
 export class DeliveryService {
@@ -303,8 +306,6 @@ export class DeliveryService {
       input.driverName || input.driverPhone
         ? { driverName: input.driverName, driverPhone: input.driverPhone }
         : undefined;
-    await this.advanceOrder(input.orderId, 'DRIVER_ASSIGNED', authorization, assignMeta);
-
     const data: CreateDeliveryData = {
       orderId: input.orderId,
       orderNumber: input.orderNumber,
@@ -320,14 +321,35 @@ export class DeliveryService {
       notes: input.notes ?? null,
       deliveryWindow: input.deliveryWindow ?? null,
     };
+    /*
+     * The row is written FIRST, atomically with the capacity check (one lock per courier),
+     * and the order advanced after. The other way round, a dispatcher who lost the cap race
+     * had already moved the order to DRIVER_ASSIGNED and was left with an order that has a
+     * courier on paper and no delivery behind it — and an order cannot be moved back.
+     * Order-service refusing the move undoes the row instead.
+     */
+    const cap = this.config.maxActiveDeliveriesPerDriver(input.depotId ?? null);
     const delivery = existing
-      ? await this.deliveries.reassign(
+      ? await this.deliveries.reassignIfUnderCap(
           existing.id,
           input.driverId,
           actorId,
           'Penugasan ulang setelah dijadwalkan ulang.',
+          cap,
         )
-      : await this.deliveries.create(data);
+      : await this.deliveries.createIfUnderCap(data, cap);
+    try {
+      await this.advanceOrder(input.orderId, 'DRIVER_ASSIGNED', authorization, assignMeta);
+    } catch (error) {
+      await this.deliveries
+        .undoAssignment(delivery.id, existing ? existing.driverId : null)
+        .catch((undoError: Error) =>
+          this.logger.error(
+            `Delivery ${delivery.id} could not be taken back after the order refused the assignment: ${undoError.message}`,
+          ),
+        );
+      throw error;
+    }
     this.logger.log(
       `Delivery ${delivery.id} ${existing ? 're-assigned' : 'assigned'} to driver ${input.driverId} by ${actorId}`,
     );
@@ -543,19 +565,91 @@ export class DeliveryService {
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     // Already failed, by this driver: a replay, not a second failure. See `replayed`.
-    if (delivery.status === DeliveryStatus.FAILED) return delivery;
+    if (delivery.status === DeliveryStatus.FAILED) {
+      return this.finishFailureReplay(delivery, driverId, cashReturned, authorization);
+    }
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${reason}`);
-    await this.settleHeldCash(delivery, driverId, cashReturned, 'gagal');
-    await this.cancelOrderFor(delivery.orderId, authorization);
-    return this.deliveries.applyStatus(
-      id,
-      delivery.status,
-      DeliveryStatus.FAILED,
-      { failedAt: new Date(), failureReason: reason },
-      driverId,
-      reason,
-    );
+    /*
+     * The status moves FIRST, and only the winner goes on to touch money and the order. The
+     * cash reversal and the order cancel used to run before this write, so a Selesai that
+     * landed a moment earlier still had its cash handed back and its order cancelled by the
+     * Gagal that then lost the compare-and-set.
+     *
+     * A reversal that cannot be confirmed still refuses the whole transition (CA-4-03): the
+     * status is put back, so the delivery never reads FAILED over a payment that is still PAID.
+     * If even the put-back is lost the retry lands in `finishFailureReplay`, which does the
+     * reversal — it is idempotent (it acts only on a payment that is still PAID).
+     */
+    let failed: DeliveryRecord;
+    try {
+      failed = await this.deliveries.applyStatus(
+        id,
+        delivery.status,
+        DeliveryStatus.FAILED,
+        { failedAt: new Date(), failureReason: reason },
+        driverId,
+        reason,
+      );
+    } catch (error) {
+      return this.replayIfAlreadyAt(error, id, DeliveryStatus.FAILED, (won) =>
+        this.finishFailureReplay(won, driverId, cashReturned, authorization),
+      );
+    }
+    try {
+      await this.settleHeldCash(failed, driverId, cashReturned, 'gagal');
+    } catch (error) {
+      await this.deliveries
+        .applyStatus(
+          id,
+          DeliveryStatus.FAILED,
+          delivery.status,
+          { failedAt: null, failureReason: null },
+          driverId,
+          'Pengembalian tunai gagal dikonfirmasi; status dikembalikan.',
+        )
+        .catch((undoError: Error) =>
+          this.logger.error(`Delivery ${id} stays FAILED, undo refused: ${undoError.message}`),
+        );
+      throw error;
+    }
+    await this.cancelOrderFor(failed.orderId, authorization);
+    return failed;
+  }
+
+  /**
+   * A second arrival at FAILED. Answers with the record, and when the courier says the cash
+   * went back, makes sure it did: the first attempt may have died between the status write
+   * and the reversal. The order is cancelled again only in that case, where it may never have
+   * been; an order-service refusal then just means the first attempt already did it.
+   */
+  private async finishFailureReplay(
+    delivery: DeliveryRecord,
+    driverId: string,
+    cashReturned: boolean,
+    authorization: string,
+  ): Promise<DeliveryRecord> {
+    if (!cashReturned) return delivery;
+    await this.settleHeldCash(delivery, driverId, true, 'gagal');
+    await this.cancelOrderFor(delivery.orderId, authorization, true);
+    return delivery;
+  }
+
+  /**
+   * The loser of a status compare-and-set re-reads: if the winner took the row to the very
+   * state this call wanted, it was a duplicate and gets the winner's answer (200 — the
+   * offline queue treats a 409 as permanent). Any other outcome is a real conflict.
+   */
+  private async replayIfAlreadyAt(
+    error: unknown,
+    id: string,
+    wanted: DeliveryStatus,
+    replay: (won: DeliveryRecord) => Promise<DeliveryRecord>,
+  ): Promise<DeliveryRecord> {
+    if (!(error instanceof StaleDeliveryStatusError)) throw error;
+    const now = await this.deliveries.findById(id);
+    if (now?.status === wanted) return replay(now);
+    throw error;
   }
 
   /**
@@ -613,10 +707,16 @@ export class DeliveryService {
    * failure must never be lost because order-service was unreachable — a stuck order is
    * recoverable by hand, a lost failure report is not.
    */
-  private async cancelOrderFor(orderId: string, authorization: string): Promise<void> {
+  private async cancelOrderFor(
+    orderId: string,
+    authorization: string,
+    refusalIsFine = false,
+  ): Promise<void> {
     try {
       await this.advanceOrder(orderId, 'CANCELLED', authorization);
     } catch (exception) {
+      // A replay asking again: order-service refusing means it is already cancelled.
+      if (refusalIsFine && exception instanceof OrderAlreadyClaimedError) return;
       /*
        * Fail-open stays — the comment above is right, a lost failure report is worse than a
        * stuck order. What was wrong is that NOBODY WAS TOLD.
@@ -701,6 +801,10 @@ export class DeliveryService {
     authorization = '',
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
+    // Already marked no-show: a replay of the offline queue, not a second failure.
+    if (delivery.status === DeliveryStatus.FAILED && delivery.failureReason === NO_SHOW_REASON) {
+      return delivery;
+    }
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     const state = await this.deliveries.contactState(id);
     if (!canMarkNoShow(state, this.noShowPolicy(delivery.depotId), now)) {
@@ -709,17 +813,43 @@ export class DeliveryService {
         this.config.noShowMinWaitSeconds(delivery.depotId),
       );
     }
-    const reason = 'Pelanggan tidak di tempat (no-show).';
     this.logger.warn(`Delivery ${id} failed as no-show by driver ${driverId}`);
-    await this.cancelOrderFor(delivery.orderId, authorization);
-    return this.deliveries.applyStatus(
-      id,
-      delivery.status,
-      DeliveryStatus.FAILED,
-      { failedAt: new Date(), failureReason: reason },
-      driverId,
-      reason,
-    );
+    // Status first, order second — see `fail`. No cash here, so a lost race is a plain replay.
+    let failed: DeliveryRecord;
+    try {
+      failed = await this.deliveries.applyStatus(
+        id,
+        delivery.status,
+        DeliveryStatus.FAILED,
+        { failedAt: new Date(), failureReason: NO_SHOW_REASON },
+        driverId,
+        NO_SHOW_REASON,
+      );
+    } catch (error) {
+      return this.replayIfAlreadyAt(error, id, DeliveryStatus.FAILED, async (won) => won);
+    }
+    await this.cancelOrderFor(failed.orderId, authorization);
+    return failed;
+  }
+
+  /**
+   * A repeat of a reschedule that already landed. Re-runs the two steps that follow the
+   * status write and may not have happened (the cash reversal throws; the order hand-back
+   * can be refused once it already moved), then answers with the record.
+   */
+  private async finishRescheduleReplay(
+    delivery: DeliveryRecord,
+    driverId: string,
+    input: RescheduleInput,
+  ): Promise<DeliveryRecord> {
+    if (!input.cashReturned) return delivery;
+    await this.settleHeldCash(delivery, driverId, true, 'dijadwalkan ulang');
+    try {
+      await this.advanceOrder(delivery.orderId, 'PREPARING', input.authorization ?? '');
+    } catch (error) {
+      if (!(error instanceof OrderAlreadyClaimedError)) throw error;
+    }
+    return delivery;
   }
 
   /**
@@ -741,7 +871,7 @@ export class DeliveryService {
       delivery.status === DeliveryStatus.RESCHEDULED &&
       delivery.rescheduledFor?.getTime() === input.rescheduledFor.getTime()
     ) {
-      return delivery;
+      return this.finishRescheduleReplay(delivery, driverId, input);
     }
     this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
     /*
@@ -760,19 +890,50 @@ export class DeliveryService {
     if (input.rescheduledFor.getTime() < Date.now()) {
       throw new BadRequestException('Waktu antar ulang tidak boleh sudah lewat');
     }
-    await this.settleHeldCash(delivery, driverId, input.cashReturned ?? false, 'dijadwalkan ulang');
-    const updated = await this.deliveries.applyStatus(
-      id,
-      delivery.status,
-      DeliveryStatus.RESCHEDULED,
-      {
-        rescheduledFor: input.rescheduledFor,
-        rescheduleSlot: input.slot ?? null,
-        rescheduleNote: input.note ?? null,
-      },
-      driverId,
-      input.note ?? null,
-    );
+    // Status first, money second — see `fail`. A reversal that throws leaves the row
+    // RESCHEDULED; the retry lands in `finishRescheduleReplay`.
+    let updated: DeliveryRecord;
+    try {
+      updated = await this.deliveries.applyStatus(
+        id,
+        delivery.status,
+        DeliveryStatus.RESCHEDULED,
+        {
+          rescheduledFor: input.rescheduledFor,
+          rescheduleSlot: input.slot ?? null,
+          rescheduleNote: input.note ?? null,
+        },
+        driverId,
+        input.note ?? null,
+      );
+    } catch (error) {
+      if (!(error instanceof StaleDeliveryStatusError)) throw error;
+      const now = await this.deliveries.findById(id);
+      if (
+        now?.status === DeliveryStatus.RESCHEDULED &&
+        now.rescheduledFor?.getTime() === input.rescheduledFor.getTime()
+      ) {
+        return this.finishRescheduleReplay(now, driverId, input);
+      }
+      throw error;
+    }
+    try {
+      await this.settleHeldCash(delivery, driverId, input.cashReturned ?? false, 'dijadwalkan ulang');
+    } catch (error) {
+      await this.deliveries
+        .applyStatus(
+          id,
+          DeliveryStatus.RESCHEDULED,
+          delivery.status,
+          { rescheduledFor: null, rescheduleSlot: null, rescheduleNote: null },
+          driverId,
+          'Pengembalian tunai gagal dikonfirmasi; status dikembalikan.',
+        )
+        .catch((undoError: Error) =>
+          this.logger.error(`Delivery ${id} stays RESCHEDULED, undo refused: ${undoError.message}`),
+        );
+      throw error;
+    }
     // Hand the order back to the dispatch queue. reschedule frees the courier, so leaving
     // the order on the abandoned attempt's status (ON_DELIVERY etc.) pinned it there: the
     // re-assignment could not advance it and the order could never be delivered.
