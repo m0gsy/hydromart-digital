@@ -169,7 +169,12 @@ describe('RefreshTokenPrismaRepository', () => {
     updateMany: jest.fn(),
     findMany: jest.fn(),
   };
-  const prisma = { refreshToken: model } as unknown as PrismaService;
+  // The family/customer sweeps run in a transaction behind a row lock on the customer.
+  const queryRaw = jest.fn().mockResolvedValue([]);
+  const prisma = {
+    refreshToken: model,
+    $transaction: (fn: (tx: unknown) => unknown) => fn({ refreshToken: model, $queryRaw: queryRaw }),
+  } as unknown as PrismaService;
   const repo = new RefreshTokenPrismaRepository(prisma);
 
   beforeEach(() => jest.clearAllMocks());
@@ -197,8 +202,49 @@ describe('RefreshTokenPrismaRepository', () => {
     const active = await repo.listActiveForCustomer('cust-1', new Date());
 
     expect(active).toHaveLength(1);
-    expect(model.update).toHaveBeenCalledTimes(1);
-    expect(model.updateMany).toHaveBeenCalledTimes(2);
+    // revoke (conditional), revokeFamily and revokeAllForCustomer are all updateMany now;
+    // the last two each take the customer row lock first.
+    expect(model.updateMany).toHaveBeenCalledTimes(3);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  describe('rotate', () => {
+    const data = {
+      customerId: 'cust-1',
+      tokenHash: 'hmac',
+      familyId: 'fam-1',
+      expiresAt: new Date(),
+      userAgent: null,
+      ipAddress: null,
+      createdAt: new Date(),
+    };
+
+    it('creates the child and claims the parent under the customer lock', async () => {
+      model.create.mockResolvedValue({ id: 'rt-2' });
+      model.updateMany.mockResolvedValue({ count: 1 });
+
+      const child = await repo.rotate('rt-1', new Date(), data);
+
+      expect(child).toEqual({ id: 'rt-2' });
+      expect(queryRaw).toHaveBeenCalledTimes(1);
+      expect(model.updateMany.mock.calls[0][0]).toMatchObject({
+        where: { id: 'rt-1', revokedAt: null },
+        data: { replacedById: 'rt-2' },
+      });
+    });
+
+    it('returns null (and so rolls the child back) when the parent was already revoked', async () => {
+      model.create.mockResolvedValue({ id: 'rt-2' });
+      model.updateMany.mockResolvedValue({ count: 0 });
+
+      expect(await repo.rotate('rt-1', new Date(), data)).toBeNull();
+    });
+
+    it('lets an unexpected failure through instead of reporting a lost race', async () => {
+      model.create.mockRejectedValue(new Error('db down'));
+
+      await expect(repo.rotate('rt-1', new Date(), data)).rejects.toThrow('db down');
+    });
   });
 });
 

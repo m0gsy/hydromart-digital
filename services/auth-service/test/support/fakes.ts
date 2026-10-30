@@ -326,13 +326,26 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
     this.rows.push(record);
     return { ...record };
   }
+  async rotate(
+    oldId: string,
+    at: Date,
+    data: CreateRefreshTokenData,
+  ): Promise<RefreshTokenRecord | null> {
+    const old = this.rows.find((r) => r.id === oldId);
+    if (!old || old.revokedAt) return null;
+    const child = await this.create(data);
+    old.revokedAt = at;
+    old.replacedById = child.id;
+    return child;
+  }
   async findByTokenHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
     const row = this.rows.find((r) => r.tokenHash === tokenHash);
     return row ? { ...row } : null;
   }
   async revoke(id: string, at: Date, replacedById?: string): Promise<void> {
     const row = this.rows.find((r) => r.id === id);
-    if (row) {
+    // Mirrors the real repo: never stamp over a token that is already revoked.
+    if (row && !row.revokedAt) {
       row.revokedAt = at;
       row.replacedById = replacedById ?? null;
     }

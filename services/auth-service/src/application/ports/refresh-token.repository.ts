@@ -32,8 +32,20 @@ export interface CreateRefreshTokenData {
 /** Persistence port for refresh-token sessions. */
 export interface RefreshTokenRepository {
   create(data: CreateRefreshTokenData): Promise<RefreshTokenRecord>;
+  /**
+   * Rotates a session atomically: mints `data` as the child of `oldId` AND revokes `oldId`
+   * in one transaction, claiming the old token with "still not revoked" so that of two
+   * concurrent refreshes on one cookie exactly one wins. Returns null when the old token had
+   * already been revoked (the caller lost the race, or the session was ended meanwhile) and
+   * nothing is created.
+   *
+   * Serialised against `revokeAllForCustomer` on the customer row, so a logout-everywhere or a
+   * suspension cannot slip between "read the token" and "insert its child" and leave a live
+   * session behind.
+   */
+  rotate(oldId: string, at: Date, data: CreateRefreshTokenData): Promise<RefreshTokenRecord | null>;
   findByTokenHash(tokenHash: string): Promise<RefreshTokenRecord | null>;
-  /** Mark a token revoked, optionally recording which token replaced it. */
+  /** Mark a token revoked (only if it still is not), optionally recording which token replaced it. */
   revoke(id: string, at: Date, replacedById?: string): Promise<void>;
   /** Revoke every non-revoked token in a rotation family (theft response). */
   revokeFamily(familyId: string, at: Date): Promise<void>;
