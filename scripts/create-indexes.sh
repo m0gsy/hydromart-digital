@@ -254,3 +254,6 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 echo "All indexes present."
+
+# points_transactions_customerId_idempotencyKey_key (loyalty-service, 2026-10-30) is built by its own
+# migration, not by this script: the column is created by that very migration and every value is NULL.

@@ -2,7 +2,11 @@ import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { startOfLocalMonth } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
-import { AdjustmentTooLargeError, InvalidAdjustmentError } from '../../domain/errors';
+import {
+  AdjustmentTooLargeError,
+  InvalidAdjustmentError,
+  RewardAlreadyGrantedError,
+} from '../../domain/errors';
 import { MembershipTier, TierBenefit, benefitFor, isHigherTier, tierFor } from '../../domain/membership';
 import { PointsTxnType, expiryFrom, pointsForOrder } from '../../domain/points';
 import { Page, buildPage } from '../pagination';
@@ -320,19 +324,31 @@ export class LoyaltyService {
    * Grant a flat positive reward (e.g. a referral bonus). Counts toward
    * lifetime/tier like an EARN, but is not tied to an order subtotal. Callers
    * (other services) guarantee single-award idempotency; this method always
-   * records. `points` must be positive (enforced at the DTO boundary).
+   * records unless an `idempotencyKey` says it was already granted. `points` must be positive (enforced at the DTO boundary).
    */
-  async reward(customerId: string, points: number, reason: string): Promise<LoyaltyAccountRecord> {
+  async reward(
+    customerId: string,
+    points: number,
+    reason: string,
+    idempotencyKey?: string,
+  ): Promise<LoyaltyAccountRecord> {
     const account = await this.getAccount(customerId);
-    const updated = await this.repo.recordAdjustment({
-      type: PointsTxnType.REWARD,
-      accountId: account.id,
-      customerId,
-      points,
-      reason,
-      lifetimeDelta: points,
-    });
-    return this.retier(updated);
+    try {
+      const updated = await this.repo.recordAdjustment({
+        type: PointsTxnType.REWARD,
+        accountId: account.id,
+        customerId,
+        points,
+        reason,
+        lifetimeDelta: points,
+        idempotencyKey: idempotencyKey ?? null,
+      });
+      return this.retier(updated);
+    } catch (error) {
+      // Granted before (a sweep that re-ran): the caller asked for this reward and it exists.
+      if (error instanceof RewardAlreadyGrantedError) return account;
+      throw error;
+    }
   }
 
   /**

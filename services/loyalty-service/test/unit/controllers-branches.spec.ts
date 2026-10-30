@@ -172,7 +172,9 @@ describe('LoyaltyController (delegation)', () => {
 
   it('reward() forwards the grant', async () => {
     await ctrl.reward({ customerId: 'c', points: 500, reason: 'referral' } as never);
-    expect(loyalty.reward).toHaveBeenCalledWith('c', 500, 'referral');
+    expect(loyalty.reward).toHaveBeenCalledWith('c', 500, 'referral', undefined);
+    await ctrl.reward({ customerId: 'c', points: 500, reason: 'b', idempotencyKey: 'birthday:2026' } as never);
+    expect(loyalty.reward).toHaveBeenLastCalledWith('c', 500, 'b', 'birthday:2026');
   });
 
   it('expire() sweeps lots', () => {

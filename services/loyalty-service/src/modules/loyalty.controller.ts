@@ -190,7 +190,7 @@ export class LoyaltyController {
   })
   async reward(@Body() dto: RewardPointsDto): Promise<LoyaltyAccountDto> {
     return LoyaltyAccountDto.from(
-      await this.loyalty.reward(dto.customerId, dto.points, dto.reason),
+      await this.loyalty.reward(dto.customerId, dto.points, dto.reason, dto.idempotencyKey),
     );
   }
 

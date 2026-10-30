@@ -8,6 +8,15 @@ export class LoyaltyAccountNotFoundError extends DomainError {
   }
 }
 
+/** The reward carrying this idempotency key was already granted; nothing was written. */
+export class RewardAlreadyGrantedError extends DomainError {
+  readonly code = 'LOYALTY_REWARD_ALREADY_GRANTED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This reward was already granted.');
+  }
+}
+
 export class InvalidAdjustmentError extends DomainError {
   readonly code = 'LOYALTY_INVALID_ADJUSTMENT';
   readonly status = HTTP_STATUS.BAD_REQUEST;

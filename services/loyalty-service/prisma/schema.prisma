@@ -66,6 +66,9 @@ model PointsTransaction {
   /// LOY-2: the staff account behind a manual correction. Null for system entries (EARN,
   /// EXPIRE, REWARD granted by another service) — those have a service, not a person.
   createdBy  String?
+  /// A key the CALLER derives from what it is rewarding ("birthday:2026"); with the customer it is
+  /// unique, so a repeated grant is a no-op. Null for every entry that has no such caller.
+  idempotencyKey String?
   /// When an EARN lot expires (BR-014); null for non-EARN entries.
   expiresAt  DateTime?
   /// Set once an EARN lot has been swept into an EXPIRE entry.
@@ -73,6 +76,7 @@ model PointsTransaction {
   createdAt  DateTime      @default(now())
 
   @@unique([orderId, type])
+  @@unique([customerId, idempotencyKey])
   @@index([customerId, createdAt])
   @@index([type, expired, expiresAt])
   @@map("points_transactions")
