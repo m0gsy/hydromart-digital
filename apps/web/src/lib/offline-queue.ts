@@ -443,9 +443,29 @@ export async function runOrQueue<T = unknown>(
  * Push everything queued. Jobs the server refuses on business grounds are marked and left
  * for the user to discard; jobs that fail because we are still offline stay untouched.
  */
+/**
+ * Only one TAB flushes at a time. The `flushing` promise above stops a second flush in the same
+ * page; two tabs (or a tab and the resumed app) each hold their own copy of the queue and each
+ * sent every job - a courier's Selesai or a punch went out twice. The Web Lock makes the second
+ * one stand down, and the holder re-reads the stored queue first, so it never sends a job that
+ * another tab has already delivered and discarded.
+ *
+ * No lock API (an old WebView): falls back to the in-page guard alone, which is what it was.
+ */
+async function withFlushLock(work: () => Promise<void>): Promise<void> {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  if (!locks?.request) return work();
+  await locks.request('hm-offline-flush', { ifAvailable: true }, async (lock) => {
+    if (!lock) return; // another tab is flushing; it will send everything that is due
+    hydrated = false;
+    await hydrate();
+    await work();
+  });
+}
+
 export async function flush(ignoreBackoff = false): Promise<void> {
   if (flushing) return flushing;
-  flushing = (async () => {
+  flushing = withFlushLock(async () => {
     await hydrate();
     const now = Date.now();
     for (const job of [...cache]) {
@@ -495,7 +515,7 @@ export async function flush(ignoreBackoff = false): Promise<void> {
         );
       }
     }
-  })().finally(() => {
+  }).finally(() => {
     flushing = null;
   });
   return flushing;

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '../src/lib/api';
 
@@ -247,5 +247,52 @@ describe('offline queue', () => {
 
     expect(restored).toHaveLength(1);
     expect(restored[0]!.kind).toBe('hrPunch');
+  });
+
+  // Two tabs each hold their own copy of the queue; both flushed it and every job went out twice.
+  describe('cross-tab flush lock', () => {
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'locks');
+    });
+
+    it('stands down when another tab holds the lock, and sends nothing', async () => {
+      Object.defineProperty(navigator, 'locks', {
+        configurable: true,
+        value: { request: vi.fn(async (_n: string, _o: unknown, cb: (l: unknown) => unknown) => cb(null)) },
+      });
+      post.mockRejectedValueOnce(new ApiError(0, 'offline'));
+      const q = await freshQueue();
+      await q.runOrQueue(punch);
+      post.mockReset();
+      post.mockResolvedValue({});
+      await q.flush(true);
+      expect(post).not.toHaveBeenCalled();
+      expect(q.pending().length).toBe(1);
+    });
+
+    it('holds the lock while it sends, asks for it without waiting, and re-reads the stored queue', async () => {
+      const request = vi.fn(async (_n: string, _o: unknown, cb: (l: unknown) => unknown) => cb({}));
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+      post.mockRejectedValueOnce(new ApiError(0, 'offline'));
+      const q = await freshQueue();
+      await q.runOrQueue(punch);
+      post.mockReset();
+      post.mockResolvedValue({});
+      await q.flush(true);
+      expect(request).toHaveBeenCalledWith('hm-offline-flush', { ifAvailable: true }, expect.any(Function));
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(q.pending().length).toBe(0);
+    });
+
+    it('still flushes where the Web Locks API does not exist', async () => {
+      Reflect.deleteProperty(navigator, 'locks');
+      post.mockRejectedValueOnce(new ApiError(0, 'offline'));
+      const q = await freshQueue();
+      await q.runOrQueue(punch);
+      post.mockReset();
+      post.mockResolvedValue({});
+      await q.flush(true);
+      expect(post).toHaveBeenCalledTimes(1);
+    });
   });
 });
