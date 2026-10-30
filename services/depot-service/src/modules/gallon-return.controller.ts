@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Can, CurrentUser, AuthenticatedUser, assertDepotOwnership } from '@hydromart/platform';
 
 import { GallonReturnService } from '../application/services/gallon-return.service';
+import { ownerIdsOf } from '../domain/depot-owners';
 import { DepotService } from '../application/services/depot.service';
 import {
   GallonReturnRecord,
@@ -57,7 +58,7 @@ export class GallonReturnController {
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GallonReturnSummary> {
-    assertDepotOwnership(user, (await this.depots.get(depotId, false)).ownerId);
+    assertDepotOwnership(user, ownerIdsOf(await this.depots.get(depotId, false)));
     return this.returns.summary(depotId);
   }
 
@@ -70,7 +71,7 @@ export class GallonReturnController {
     @Query() query: ListReturnsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Page<GallonReturnRecord>> {
-    assertDepotOwnership(user, (await this.depots.get(depotId, false)).ownerId);
+    assertDepotOwnership(user, ownerIdsOf(await this.depots.get(depotId, false)));
     return this.returns.list(depotId, query.page ?? 1, query.limit ?? 20);
   }
 }

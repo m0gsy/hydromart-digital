@@ -56,10 +56,12 @@ export class PayoutBankAccountPrismaRepository implements PayoutBankAccountRepos
   async decide(
     id: string,
     data: { status: 'VERIFIED' | 'REJECTED'; verifiedBy: string; rejectedReason: string | null },
+    seenUpdatedAt?: Date,
   ): Promise<PayoutBankAccountRecord | null> {
-    // The PENDING guard is in the WHERE clause: two reviewers cannot both decide it.
+    // The PENDING guard is in the WHERE clause: two reviewers cannot both decide it. With a
+    // seen timestamp the row also has to be the one that was reviewed, not its replacement.
     const { count } = await this.prisma.payoutBankAccount.updateMany({
-      where: { id, status: 'PENDING' },
+      where: { id, status: 'PENDING', ...(seenUpdatedAt ? { updatedAt: seenUpdatedAt } : {}) },
       data: { ...data, verifiedAt: new Date() },
     });
     return count === 0 ? null : this.findById(id);

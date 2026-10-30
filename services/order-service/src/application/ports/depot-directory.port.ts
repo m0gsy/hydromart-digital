@@ -41,8 +41,18 @@ export interface DepotLocation {
  * which is worse than asking the customer to try again.
  */
 /** Who owns a depot, and whether it is meant to have an owner at all. */
+export interface DepotOwnerShare {
+  ownerId: string;
+  /** Percent of the depot's revenue this owner takes. */
+  sharePct: number;
+  isPrimary: boolean;
+}
+
 export interface DepotOwnership {
+  /** The primary owner (older depot-services send only this). */
   ownerId: string | null;
+  /** Every owner and their share as of the asked moment; empty for a company depot. */
+  owners: DepotOwnerShare[];
   ownershipType: 'WARALABA' | 'HKP';
 }
 
@@ -73,9 +83,12 @@ export interface DepotDirectoryPort {
    * Ownership of one depot, for crediting a completed order. Not part of the public depot
    * projection, so this reads the internal-key route. Null when depot-service is unreachable
    * or the key is unset (caller skips the push). An HKP depot legitimately has no owner; a
-   * WARALABA depot with `ownerId: null` is a data defect the caller logs.
+   * WARALABA depot with no owners is a data defect the caller logs.
+   *
+   * `asOf` is when the order completed: the split that applied THEN, so a push retried after
+   * HQ edits the shares still books the original agreement.
    */
-  findOwner(depotId: string): Promise<DepotOwnership | null>;
+  findOwner(depotId: string, asOf?: Date): Promise<DepotOwnership | null>;
   /**
    * Gallons returned at one depot in [from, to) — the daily report's `gallonsReturned`
    * and `gallonsDamaged`, which order-service cannot know: the return slip is written in

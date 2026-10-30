@@ -118,19 +118,21 @@ export function assertDepotAccess(
 /**
  * Assert a FRANCHISE_OWNER only touches a depot they OWN. Stronger than set membership: it
  * compares the row's recorded owner to the caller, so it stays correct even if a resolved
- * set is stale. Call it after loading the depot's `ownerId`.
+ * set is stale. Call it after loading the depot's owners.
  *
  * Fail-closed: a null/unknown owner never matches, so an owner is denied a depot with no
  * recorded owner rather than granted it.
  */
 export function assertDepotOwnership(
   user: Pick<AuthenticatedUser, 'role' | 'sub'> | undefined,
-  depotOwnerId: string | null | undefined,
+  depotOwnerIds: string | readonly string[] | null | undefined,
 ): void {
   if (!user || user.role !== Role.FRANCHISE_OWNER) {
     return;
   }
-  if (!depotOwnerId || depotOwnerId !== user.sub) {
+  // A franchise depot may have several owners; an empty set matches nobody (fail closed).
+  const owners = typeof depotOwnerIds === 'string' ? [depotOwnerIds] : (depotOwnerIds ?? []);
+  if (!owners.includes(user.sub)) {
     throw new ForbiddenException('Akun waralaba ini hanya boleh mengakses depot miliknya.');
   }
 }

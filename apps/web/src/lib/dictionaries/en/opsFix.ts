@@ -19,6 +19,7 @@ export const opsFix = {
   },
   depotForm: {
     ownerRequired: 'A franchise depot must have an owner.',
+    ownersInvalid: 'Owners: no repeats, one primary, shares above 0 totalling 100%.',
     fieldRequired: 'The {field} field is required.',
     field: { code: 'Code', name: 'Depot name', address: 'Address', city: 'City', province: 'Province' },
     pickOwnership: 'Pick an ownership type.',

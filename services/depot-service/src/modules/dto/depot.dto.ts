@@ -82,6 +82,26 @@ export class NearbyDepotsQueryDto {
   limit?: number;
 }
 
+/** One owner of a franchise depot and their share of its revenue. */
+export class DepotOwnerShareDto {
+  @ApiProperty({ description: 'Franchise owner account id.' })
+  @IsUUID()
+  ownerId!: string;
+
+  @ApiProperty({
+    description: 'Percent of revenue, above 0 and at most 100, two decimals.',
+    example: 60,
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Max(100)
+  sharePct!: number;
+
+  @ApiProperty({ description: 'Exactly one owner of a depot is the primary.' })
+  @IsBoolean()
+  isPrimary!: boolean;
+}
+
 export class CreateDepotDto {
   @ApiProperty({ example: 'JKT-01' })
   @IsString()
@@ -145,6 +165,18 @@ export class CreateDepotDto {
   @IsOptional()
   @IsUUID()
   ownerId?: string;
+
+  @ApiPropertyOptional({
+    type: [DepotOwnerShareDto],
+    description:
+      'All owners and their shares (sum 100, one primary). Takes precedence over ownerId, which means a single owner at 100%.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => DepotOwnerShareDto)
+  owners?: DepotOwnerShareDto[];
 
   @ApiPropertyOptional({
     description:
@@ -318,6 +350,14 @@ export class PublicDepotView {
 
 export function publicDepotWithArea(d: DepotRecord): PublicDepotView {
   return { ...PublicDepotView.from(d), serviceArea: d.serviceArea ?? null };
+}
+
+/** `?asOf=` on the internal owner route: the moment whose ownership split is wanted. */
+export class InternalOwnerQueryDto {
+  @ApiPropertyOptional({ description: 'ISO time; the owners that applied then. Default: now.' })
+  @IsOptional()
+  @IsISO8601()
+  asOf?: string;
 }
 
 /** `?includeArea=true` on the browse and detail routes. */

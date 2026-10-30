@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
-import { recordAuditEvent } from '@hydromart/platform';
+import { StaleWriteError, recordAuditEvent } from '@hydromart/platform';
 
 import {
   ApplicationAlreadyDecidedError,
@@ -93,7 +93,15 @@ export class FranchiseApplicationService {
     if (isTerminalStage(app.stage)) throw new ApplicationAlreadyDecidedError();
     // Merge only known items/statuses over the stored checklist (partial PATCH).
     const checklist = patch.checklist ? mergeChecklist(app.checklist, patch.checklist) : undefined;
-    return this.applications.update(id, { stage: patch.stage, checklist });
+    // Pinned to the row that was merged from: a concurrent edit or decision since then
+    // would otherwise be overwritten by this one without anybody noticing.
+    const updated = await this.applications.updateIfOpen(
+      id,
+      { stage: patch.stage, checklist },
+      app.updatedAt,
+    );
+    if (!updated) throw new StaleWriteError();
+    return updated;
   }
 
   async approve(id: string, actorId?: string, reason?: string): Promise<ApproveResult> {
@@ -160,10 +168,13 @@ export class FranchiseApplicationService {
     if (isTerminalStage(app.stage)) throw new ApplicationAlreadyDecidedError();
     // Stored on the row so the queue and the detail page can show WHY; the audit trail
     // keeps the same text beside the actor.
-    return this.applications.update(id, {
+    const decided = await this.applications.updateIfOpen(id, {
       stage,
       decisionReason: reason?.trim().slice(0, 300) || null,
     });
+    // Lost to the other decision (approve vs reject) that landed between read and write.
+    if (!decided) throw new ApplicationAlreadyDecidedError();
+    return decided;
   }
 
   private async require(id: string): Promise<FranchiseApplicationRecord> {

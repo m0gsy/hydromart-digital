@@ -1,4 +1,4 @@
-import { LedgerEntryRecord, LedgerEntryType } from '../../domain/ledger';
+import { LedgerEntryRecord, LedgerEntryType, LedgerEntryWithRef } from '../../domain/ledger';
 
 export interface CreateLedgerEntryData {
   franchiseOwnerId: string;
@@ -33,6 +33,12 @@ export interface LedgerRepository {
   createAll(entries: CreateLedgerEntryData[]): Promise<void>;
   /** The entry already posted under this source reference, if any (push idempotency). */
   findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null>;
+  /**
+   * Every entry pushed for one order (`order:<id>:...`), whichever owner it credits. A
+   * franchise depot with several owners writes one row per owner, so a reversal has to find
+   * them all by the order, not by a single key.
+   */
+  findByOrder(orderId: string): Promise<LedgerEntryWithRef[]>;
   /** Signed sum of every entry for one owner (the available balance). */
   balanceFor(franchiseOwnerId: string): Promise<number>;
   /** Every owner with a positive balance (the HQ payout-release queue), highest first. */

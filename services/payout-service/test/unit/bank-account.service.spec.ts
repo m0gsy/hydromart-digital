@@ -56,9 +56,11 @@ class FakeAccounts implements PayoutBankAccountRepository {
   async decide(
     id: string,
     data: { status: 'VERIFIED' | 'REJECTED'; verifiedBy: string; rejectedReason: string | null },
+    seenUpdatedAt?: Date,
   ): Promise<PayoutBankAccountRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     if (!row || row.status !== 'PENDING') return null;
+    if (seenUpdatedAt && row.updatedAt.getTime() !== seenUpdatedAt.getTime()) return null;
     Object.assign(row, data, { verifiedAt: new Date() });
     return row;
   }
@@ -136,6 +138,47 @@ describe('PayoutBankAccountService', () => {
       service.register(OWNER, 'OWNER', { ...account, accountNumber: '5555 6666' }),
     ).rejects.toThrow(/sudah diubah/);
     expect((await service.mine(OWNER))?.accountNumber).toBe('11112222');
+  });
+
+  /*
+   * Maker-checker on the destination: the reviewer verifies the account they were SHOWN.
+   * A re-registration reuses the row id and resets it to PENDING with new details, so
+   * "still pending" alone verified an account nobody had looked at.
+   */
+  describe('a decision pinned to the row the reviewer saw', () => {
+    it('is refused (stale write) when the owner replaced the destination meanwhile', async () => {
+      const shown = await service.register(OWNER, 'OWNER', account);
+      const seen = shown.updatedAt.toISOString();
+      await service.register(OWNER, 'OWNER', { ...account, accountNumber: '9999 0000' }, seen);
+
+      await expect(service.decide(shown.id, FINANCE, true, null, seen)).rejects.toThrow(
+        /sudah diubah/,
+      );
+      expect((await service.mine(OWNER))?.status).toBe('PENDING');
+    });
+
+    it('goes through when the row is still the one that was shown', async () => {
+      const shown = await service.register(OWNER, 'OWNER', account);
+
+      const verified = await service.decide(
+        shown.id,
+        FINANCE,
+        true,
+        null,
+        shown.updatedAt.toISOString(),
+      );
+
+      expect(verified.status).toBe('VERIFIED');
+    });
+
+    it('still says "already decided" for a row that is no longer pending', async () => {
+      const shown = await service.register(OWNER, 'OWNER', account);
+      await service.decide(shown.id, FINANCE, true, null);
+
+      await expect(
+        service.decide(shown.id, FINANCE, true, null, shown.updatedAt.toISOString()),
+      ).rejects.toThrow(/sudah diputuskan/);
+    });
   });
 
   it('records a rejection with its reason, and refuses to decide twice', async () => {

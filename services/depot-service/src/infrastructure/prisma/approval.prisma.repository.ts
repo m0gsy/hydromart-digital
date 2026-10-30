@@ -60,9 +60,16 @@ export class ApprovalPrismaRepository implements ApprovalRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async update(id: string, data: UpdateApprovalData): Promise<Approval> {
-    const row = await this.prisma.approval.update({ where: { id }, data });
-    return this.toRecord(row);
+  async decideIfOpen(id: string, data: UpdateApprovalData): Promise<Approval | null> {
+    // HELD is not final, so a held item can still be approved or rejected; APPROVED and
+    // REJECTED are. The status the row is in is part of the write.
+    const { count } = await this.prisma.approval.updateMany({
+      where: { id, status: { in: [ApprovalStatus.PENDING, ApprovalStatus.HELD] } },
+      data,
+    });
+    if (count === 0) return null;
+    const row = await this.prisma.approval.findUnique({ where: { id } });
+    return row ? this.toRecord(row) : null;
   }
 
   async pendingCounts(depotId: string): Promise<PendingCounts> {

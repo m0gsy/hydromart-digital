@@ -316,28 +316,67 @@ export class LeaveService {
       : action.startsWith('HR')
         ? { hrDecidedBy: ctx.actor, hrDecidedAt: now }
         : {};
-    const updated = await this.repo.decide(request.id, {
+    /*
+     * Claim the quota BEFORE the decision, and decide on the status that was read.
+     *
+     * Both used to be a read followed by an unconditional write: two approvers both passed
+     * `nextStatus`, both settled, and the quota was charged twice; an approval racing a
+     * cancel could leave a CANCELLED request with its days already spent. Now the quota claim
+     * is one statement bounded by `quotaDays` (over-quota is refused, nothing is charged)
+     * and the decision only lands if the request is still where we read it. A loser hands
+     * its claimed days back and changes nothing else.
+     */
+    let days: string[] = [];
+    let claimed = 0;
+    if (status === 'APPROVED') {
+      days = await this.workingDaysFor(
+        request.depotId,
+        ISO_DAY(request.startDate),
+        ISO_DAY(request.endDate),
+      );
+      if (deductsQuota(request.type)) {
+        claimed = days.length;
+        await this.claimQuota(request, claimed);
+      }
+    }
+    const updated = await this.repo.decide(request.id, request.status, {
       status,
       ...stage,
       ...(ctx.note !== undefined ? { decisionNote: ctx.note ?? null } : {}),
     });
+    if (!updated) {
+      if (claimed > 0) {
+        await this.repo.releaseUsedDays(
+          request.employeeId,
+          request.startDate.getUTCFullYear(),
+          claimed,
+        );
+      }
+      throw new ConflictException('Pengajuan ini sudah diputuskan orang lain');
+    }
 
-    if (status === 'APPROVED') await this.settleApproval(updated);
+    if (status === 'APPROVED') await this.settleAttendance(updated, days);
     await this.notifyEmployee(updated);
     return updated;
   }
 
+  private async claimQuota(request: LeaveRequest, days: number): Promise<void> {
+    const year = request.startDate.getUTCFullYear();
+    if (await this.repo.claimUsedDays(request.employeeId, year, days)) return;
+    const balance = await this.repo.findBalance(request.employeeId, year);
+    if (!balance) throw new NotFoundException('Saldo cuti tidak ditemukan');
+    throw new ConflictException(
+      `Sisa kuota cuti ${balance.quotaDays - balance.usedDays} hari, pengajuan ${days} hari`,
+    );
+  }
+
   /**
    * An approval is only real once the days exist in attendance: payroll counts leaveDays
-   * from there, and the depot roster reads the same rows. Quota moves here too, never on
-   * submit — a pending request must not cost anyone a day that was later refused.
+   * from there, and the depot roster reads the same rows. The quota is claimed in
+   * `applyDecision`, never on submit — a pending request must not cost anyone a day that
+   * was later refused.
    */
-  private async settleApproval(request: LeaveRequest): Promise<void> {
-    const days = await this.workingDaysFor(
-      request.depotId,
-      ISO_DAY(request.startDate),
-      ISO_DAY(request.endDate),
-    );
+  private async settleAttendance(request: LeaveRequest, days: string[]): Promise<void> {
     for (const day of days) {
       await this.attendance.upsertManual({
         employeeId: request.employeeId,
@@ -345,10 +384,6 @@ export class LeaveService {
         workDate: new Date(`${day}T00:00:00.000Z`),
         status: 'LEAVE',
       });
-    }
-    if (deductsQuota(request.type)) {
-      const year = request.startDate.getUTCFullYear();
-      await this.repo.addUsedDays(request.employeeId, year, days.length);
     }
   }
 

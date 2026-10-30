@@ -210,13 +210,16 @@ export class ApprovalService {
       throw new ApprovalSelfDecideError();
     }
     const status = DECISION_STATUS[decision];
-    return this.approvals.update(id, {
+    const decided = await this.approvals.decideIfOpen(id, {
       status,
       decisionNote: note ?? null,
       decidedBy,
       // HELD is not a final decision — keep decidedAt null until it's approved/rejected.
       decidedAt: status === ApprovalStatus.HELD ? null : new Date(),
     });
+    // Lost to another manager's decision that landed between our read and our write.
+    if (!decided) throw new ApprovalAlreadyDecidedError();
+    return decided;
   }
 
   async counts(depotId: string): Promise<{ total: number; byType: PendingCounts }> {

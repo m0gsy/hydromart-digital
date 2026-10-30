@@ -93,6 +93,7 @@ function makePrisma(): FakePrisma {
   client.$connect = jest.fn();
   client.$disconnect = jest.fn();
   client.$queryRaw = jest.fn().mockResolvedValue([]);
+  client.$executeRaw = jest.fn().mockResolvedValue(1);
   // Array form → resolve every op; callback form → run against the same client.
   client.$transaction = jest.fn((arg: unknown) =>
     Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(client),
@@ -245,18 +246,25 @@ describe('LeavePrismaRepository', () => {
     const out = sentinel();
     m(p, 'leaveRequest').create.mockResolvedValue(out);
     m(p, 'leaveRequest').findUnique.mockResolvedValue(out);
-    m(p, 'leaveRequest').update.mockResolvedValue(out);
+    m(p, 'leaveRequest').updateMany.mockResolvedValue({ count: 1 });
     const repo = new LeavePrismaRepository(asService(p));
 
     await expect(repo.create(write)).resolves.toBe(out);
     expect(m(p, 'leaveRequest').create).toHaveBeenCalledWith({ data: write });
     await expect(repo.findById('lv1')).resolves.toBe(out);
     const decision = { status: 'APPROVED' as const, hrDecidedBy: 'hr-1' };
-    await expect(repo.decide('lv1', decision)).resolves.toBe(out);
-    expect(m(p, 'leaveRequest').update).toHaveBeenCalledWith({
-      where: { id: 'lv1' },
+    await expect(repo.decide('lv1', 'PENDING_HR', decision)).resolves.toBe(out);
+    // Guarded on the status the caller read: of two concurrent deciders only one matches.
+    expect(m(p, 'leaveRequest').updateMany).toHaveBeenCalledWith({
+      where: { id: 'lv1', status: 'PENDING_HR' },
       data: decision,
     });
+
+    // Lost the race: nothing matched, and nothing is re-read.
+    m(p, 'leaveRequest').updateMany.mockResolvedValue({ count: 0 });
+    m(p, 'leaveRequest').findUnique.mockClear();
+    await expect(repo.decide('lv1', 'PENDING_HR', decision)).resolves.toBeNull();
+    expect(m(p, 'leaveRequest').findUnique).not.toHaveBeenCalled();
   });
 
   it('list builds the where from the filter and paginates in one transaction', async () => {
@@ -322,11 +330,15 @@ describe('LeavePrismaRepository', () => {
       update: {},
     });
 
-    await repo.addUsedDays('e1', 2026, 5);
-    expect(m(p, 'leaveBalance').update).toHaveBeenCalledWith({
-      where: key,
-      data: { usedDays: { increment: 5 } },
-    });
+    // The quota claim is one bounded statement; 1 row changed = claimed, 0 = would overflow.
+    const executeRaw = (p as unknown as { $executeRaw: jest.Mock }).$executeRaw;
+    executeRaw.mockResolvedValueOnce(1);
+    await expect(repo.claimUsedDays('e1', 2026, 5)).resolves.toBe(true);
+    executeRaw.mockResolvedValueOnce(0);
+    await expect(repo.claimUsedDays('e1', 2026, 5)).resolves.toBe(false);
+    executeRaw.mockResolvedValueOnce(1);
+    await repo.releaseUsedDays('e1', 2026, 5);
+    expect(executeRaw).toHaveBeenCalledTimes(3);
   });
 
   it('setBalance overwrites quota AND usedDays, and reports whether the year existed', async () => {
@@ -2624,6 +2636,7 @@ describe('LoanRequestPrismaRepository', () => {
     m(p, 'loanRequest').findUnique.mockResolvedValue(out);
     m(p, 'loanRequest').findMany.mockResolvedValue([out]);
     m(p, 'loanRequest').update.mockResolvedValue(out);
+    m(p, 'loanRequest').updateMany.mockResolvedValue({ count: 1 });
     const repo = new LoanRequestPrismaRepository(asService(p));
 
     await expect(repo.create(write)).resolves.toBe(out);
@@ -2647,10 +2660,63 @@ describe('LoanRequestPrismaRepository', () => {
         loanId: 'l1',
       }),
     ).resolves.toBe(out);
-    const [[call]] = m(p, 'loanRequest').update.mock.calls;
-    expect(call.where).toEqual({ id: 'lr1' });
+    // Guarded on PENDING in the write itself: only one of two concurrent deciders matches.
+    const [[call]] = m(p, 'loanRequest').updateMany.mock.calls;
+    expect(call.where).toEqual({ id: 'lr1', status: 'PENDING' });
     expect(call.data).toMatchObject({ status: 'APPROVED', decidedBy: 'asv', loanId: 'l1' });
     expect(call.data.decidedAt).toBeInstanceOf(Date);
+
+    // Lost the race: nothing matched, and nothing is re-read.
+    m(p, 'loanRequest').updateMany.mockResolvedValue({ count: 0 });
+    m(p, 'loanRequest').findUnique.mockClear();
+    await expect(
+      repo.decide('lr1', { status: 'REJECTED', decidedBy: 'x', decisionNote: 'n', loanId: null }),
+    ).resolves.toBeNull();
+    expect(m(p, 'loanRequest').findUnique).not.toHaveBeenCalled();
+  });
+
+  it('attachLoan links the loan, and reopen unwinds an approval whose loan never existed', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'loanRequest').update.mockResolvedValue(out);
+    m(p, 'loanRequest').updateMany.mockResolvedValue({ count: 1 });
+    const repo = new LoanRequestPrismaRepository(asService(p));
+
+    await expect(repo.attachLoan('lr1', 'l1')).resolves.toBe(out);
+    expect(m(p, 'loanRequest').update).toHaveBeenCalledWith({
+      where: { id: 'lr1' },
+      data: { loanId: 'l1' },
+    });
+
+    await repo.reopen('lr1');
+    expect(m(p, 'loanRequest').updateMany).toHaveBeenCalledWith({
+      where: { id: 'lr1', status: 'APPROVED', loanId: null },
+      data: { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null },
+    });
+  });
+
+  it('reopen cancels instead when the employee has filed another request meanwhile', async () => {
+    const p = makePrisma();
+    // The partial unique index (one PENDING per employee) refuses the reopen.
+    m(p, 'loanRequest').updateMany
+      .mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }))
+      .mockResolvedValueOnce({ count: 1 });
+    const repo = new LoanRequestPrismaRepository(asService(p));
+
+    await repo.reopen('lr1');
+
+    expect(m(p, 'loanRequest').updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'lr1', status: 'APPROVED', loanId: null },
+      data: expect.objectContaining({ status: 'CANCELLED' }),
+    });
+  });
+
+  it('reopen lets an unexpected failure through', async () => {
+    const p = makePrisma();
+    m(p, 'loanRequest').updateMany.mockRejectedValue(new Error('db down'));
+    const repo = new LoanRequestPrismaRepository(asService(p));
+
+    await expect(repo.reopen('lr1')).rejects.toThrow('db down');
   });
 
   /*

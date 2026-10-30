@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { assertFresh } from '@hydromart/platform';
+import { StaleWriteError, assertFresh } from '@hydromart/platform';
 
 import { maskAccount } from '../../domain/bank-account';
 import { BankAccountNotPendingError, PayoutDestinationNotVerifiedError } from '../../domain/errors';
@@ -65,13 +65,27 @@ export class PayoutBankAccountService {
     verifiedBy: string,
     verified: boolean,
     reason: string | null,
+    seenUpdatedAt?: string,
   ): Promise<PayoutBankAccountRecord> {
-    const decided = await this.accounts.decide(id, {
-      status: verified ? 'VERIFIED' : 'REJECTED',
-      verifiedBy,
-      rejectedReason: verified ? null : (reason?.trim() || null),
-    });
-    if (!decided) throw new BankAccountNotPendingError();
+    const seen = seenUpdatedAt ? new Date(seenUpdatedAt) : undefined;
+    const decided = await this.accounts.decide(
+      id,
+      {
+        status: verified ? 'VERIFIED' : 'REJECTED',
+        verifiedBy,
+        rejectedReason: verified ? null : (reason?.trim() || null),
+      },
+      seen,
+    );
+    if (!decided) {
+      // Still PENDING but not the row that was reviewed: the owner re-registered while the
+      // reviewer had the old destination open. Say so, rather than "already decided".
+      if (seen) {
+        const current = await this.accounts.findById(id);
+        if (current?.status === 'PENDING') throw new StaleWriteError();
+      }
+      throw new BankAccountNotPendingError();
+    }
     this.logger.log(`payout.bank_account.${verified ? 'verified' : 'rejected'} id=${id} by=${verifiedBy}`);
     return decided;
   }

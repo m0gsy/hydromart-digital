@@ -52,6 +52,20 @@ export interface ExpenseClaimRepository {
   reopen(id: string): Promise<void>;
   /** PYO-1: how many claims already carry this receipt. */
   countByReceiptUrl(receiptUrl: string): Promise<number>;
+  /**
+   * Creates the claim and, when `receiptToCheck` is given, reports whether another claim
+   * already carried that receipt.
+   *
+   * The count and the insert are ONE step under a per-receipt lock. Done as two calls (count,
+   * then create) two submits of the same photo both read zero, both became "proven", and both
+   * were auto-approved and credited — one receipt, two reimbursements, with no human looking.
+   * Serialised, the second sees the first's row and falls through to a reviewer, which is the
+   * same outcome a sequential resubmission always had.
+   */
+  createCheckingReceipt(
+    data: CreateExpenseClaimData,
+    receiptToCheck: string | null,
+  ): Promise<{ claim: ExpenseClaimRecord; receiptAlreadyUsed: boolean }>;
   listForCourier(
     courierId: string,
     page: number,

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -114,6 +115,8 @@ export function monthlyBasePay(e: { monthlyRate?: unknown; dailyRate?: unknown }
  */
 @Injectable()
 export class LoanRequestService {
+  private readonly logger = new Logger(LoanRequestService.name);
+
   constructor(
     @Inject(LOAN_REQUEST_REPOSITORY) private readonly repo: LoanRequestRepository,
     private readonly employees: EmployeeService,
@@ -234,12 +237,15 @@ export class LoanRequestService {
     if (request.status !== 'PENDING') {
       throw new ConflictException('Pengajuan ini sudah diputuskan.');
     }
-    return this.repo.decide(id, {
+    const cancelled = await this.repo.decide(id, {
       status: 'CANCELLED',
       decidedBy: user.sub,
       decisionNote: null,
       loanId: null,
     });
+    // Lost to a decision that landed first (the write is guarded on PENDING).
+    if (!cancelled) throw new ConflictException('Pengajuan ini sudah diputuskan.');
+    return cancelled;
   }
 
   /** The decision queue, depot-scoped and paged like every other HR list. */
@@ -304,6 +310,7 @@ export class LoanRequestService {
       throw new ConflictException('Pengajuan ini sudah diputuskan.');
     }
     if (request.createdAt < subtractWorkingDays(new Date(), DECISION_WINDOW_WORKING_DAYS)) {
+      // The write is guarded on PENDING: if a concurrent approval won, it stands.
       await this.repo.decide(id, {
         status: 'CANCELLED',
         decidedBy: user.sub,
@@ -324,6 +331,7 @@ export class LoanRequestService {
         decisionNote: note,
         loanId: null,
       });
+      if (!decided) throw new ConflictException('Pengajuan ini sudah diputuskan.');
       await this.notifyApplicant(
         decided,
         employee.fullName,
@@ -346,19 +354,40 @@ export class LoanRequestService {
      * straight onto the payslip, so a UUID here becomes a UUID on somebody's payslip. The
      * link back to the request lives on the request, in `loanId`.
      */
-    const loan: Loan = await this.loans.create(user, {
-      employeeId: request.employeeId,
-      principal: Number(request.amount),
-      installmentAmount: installmentAmount as number,
-      startPeriod: input.startPeriod,
-      note: 'Kasbon',
-    });
-    const decided = await this.repo.decide(id, {
+    /*
+     * Decide FIRST, then create the loan — the same order as payout's approveAndCredit
+     * (PYO-4). The loan used to be created before the request was marked, so two approvers
+     * on one request both created a loan (the employee was deducted twice) and the second
+     * write orphaned the first. The status change now happens only if the request is still
+     * PENDING; the loser is told so and creates nothing. A loan that then fails to create
+     * puts the request back to PENDING rather than leaving it APPROVED with nothing behind it.
+     */
+    const claimed = await this.repo.decide(id, {
       status: 'APPROVED',
       decidedBy: user.sub,
       decisionNote: input.note?.trim() || null,
-      loanId: loan.id,
+      loanId: null,
     });
+    if (!claimed) throw new ConflictException('Pengajuan ini sudah diputuskan.');
+
+    let loan: Loan;
+    try {
+      loan = await this.loans.create(user, {
+        employeeId: request.employeeId,
+        principal: Number(request.amount),
+        installmentAmount: installmentAmount as number,
+        startPeriod: input.startPeriod,
+        note: 'Kasbon',
+      });
+    } catch (error) {
+      await this.repo.reopen(id).catch((reopenError) =>
+        this.logger.error(
+          `Kasbon request ${id} is APPROVED but its loan failed and it could not be reopened: ${(reopenError as Error).message}`,
+        ),
+      );
+      throw error;
+    }
+    const decided = await this.repo.attachLoan(id, loan.id);
     await this.notifyApplicant(decided, employee.fullName, employee.phone, employee.authSubjectId);
     return decided;
   }

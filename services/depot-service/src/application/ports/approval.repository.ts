@@ -31,7 +31,15 @@ export interface ApprovalRepository {
   /** A depot's items, newest first; optionally filtered to one status. */
   listForDepot(depotId: string, status?: ApprovalStatus): Promise<Approval[]>;
   findById(id: string): Promise<Approval | null>;
-  update(id: string, data: UpdateApprovalData): Promise<Approval>;
+  /**
+   * Records a decision — but only while the item is still open (PENDING or HELD); null when
+   * somebody else decided it first.
+   *
+   * The service's own "already decided" check is a read, so two managers could both pass it
+   * and both write: an approval and a rejection of the same item, the later one silently
+   * winning, with both decisions in the audit trail.
+   */
+  decideIfOpen(id: string, data: UpdateApprovalData): Promise<Approval | null>;
   /** PENDING counts grouped by type for one depot. */
   pendingCounts(depotId: string): Promise<PendingCounts>;
   /**

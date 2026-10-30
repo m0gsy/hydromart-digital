@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import {
   assertFresh,
   isDecisionOnlyPatch,
@@ -6,6 +6,12 @@ import {
   readServiceArea,
 } from '@hydromart/platform';
 
+import {
+  DepotOwnerShare,
+  assertValidOwners,
+  primaryOwnerId,
+  soleOwner,
+} from '../../domain/depot-owners';
 import { OwnershipType } from '../../domain/inventory';
 import {
   DepotNotFoundError,
@@ -49,6 +55,22 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/** Current owners of a record, falling back to the mirrored primary for rows read without them. */
+function currentOwners(depot: DepotRecord): DepotOwnerShare[] {
+  if (depot.owners) return depot.owners;
+  return depot.ownerId ? soleOwner(depot.ownerId) : [];
+}
+
+/** Same owners, same shares, same primary - order aside. */
+function sameOwners(a: readonly DepotOwnerShare[], b: readonly DepotOwnerShare[]): boolean {
+  if (a.length !== b.length) return false;
+  const byId = new Map(b.map((o) => [o.ownerId, o]));
+  return a.every((o) => {
+    const other = byId.get(o.ownerId);
+    return other !== undefined && other.sharePct === o.sharePct && other.isPrimary === o.isPrimary;
+  });
+}
+
 /** Depot management (PRD FR-075..080): public browse + admin CRUD. Delete = soft. */
 @Injectable()
 export class DepotService {
@@ -83,13 +105,16 @@ export class DepotService {
   }
 
   async create(data: CreateDepotData): Promise<DepotRecord> {
-    if (data.ownershipType === OwnershipType.WARALABA && !data.ownerId) {
+    // `owners` wins; the legacy single `ownerId` means one owner taking 100%.
+    const given: DepotOwnerShare[] = data.owners ?? (data.ownerId ? soleOwner(data.ownerId) : []);
+    if (data.ownershipType === OwnershipType.WARALABA && given.length === 0) {
       throw new FranchiseOwnerRequiredError();
     }
+    const owners = given.length > 0 ? assertValidOwners(given) : [];
     if (await this.depots.findByCode(data.code)) {
       throw new DuplicateDepotCodeError();
     }
-    return this.depots.create(data);
+    return this.depots.create({ ...data, owners, ownerId: primaryOwnerId(owners) });
   }
 
   /**
@@ -97,14 +122,27 @@ export class DepotService {
    * account on this record is where a depot's money is paid, and two people editing it
    * used to produce whichever of them saved last.
    */
-  async update(id: string, patch: UpdateDepotData, seenUpdatedAt?: string): Promise<DepotRecord> {
+  async update(
+    id: string,
+    patch: UpdateDepotData,
+    seenUpdatedAt?: string,
+    canChangeOwners = true,
+  ): Promise<DepotRecord> {
     const current = await this.get(id, false);
     if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
-    const ownerId = patch.ownerId === undefined ? current.ownerId : patch.ownerId;
-    if (ownershipType === OwnershipType.WARALABA && !ownerId) {
+    const nextOwners = this.ownersAfter(current, patch);
+    // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
+    // changing its owners is head office's (the same people who may create or deactivate one).
+    if (nextOwners !== undefined && !canChangeOwners) {
+      throw new ForbiddenException(
+        'Hanya kantor pusat yang boleh mengubah pemilik dan pembagian hasil depot.',
+      );
+    }
+    const effective = nextOwners ?? currentOwners(current);
+    if (ownershipType === OwnershipType.WARALABA && effective.length === 0) {
       throw new FranchiseOwnerRequiredError();
     }
     if (patch.code) {
@@ -113,7 +151,43 @@ export class DepotService {
         throw new DuplicateDepotCodeError();
       }
     }
-    return this.depots.update(id, patch);
+    // Ownership goes through `nextOwners` alone: a raw ownerId/owners must never reach the repository.
+    const rest = { ...patch };
+    delete rest.ownerId;
+    delete rest.owners;
+    return this.depots.update(
+      id,
+      nextOwners ? { ...rest, owners: nextOwners, ownerId: primaryOwnerId(nextOwners) } : rest,
+    );
+  }
+
+  /**
+   * The owner set a patch asks for, or undefined when it leaves ownership alone.
+   *
+   * `owners` replaces the set. A bare `ownerId` is the old single-owner form and replaces it
+   * with one owner at 100% - EXCEPT when it names the current primary, which is what every
+   * older edit form sends on each save: treating that as "reset to sole owner" would silently
+   * wipe a depot's co-owners and their shares the next time anyone fixed a typo in its address.
+   */
+  private ownersAfter(current: DepotRecord, patch: UpdateDepotData): DepotOwnerShare[] | undefined {
+    if (patch.owners !== undefined) {
+      const next = patch.owners.length > 0 ? assertValidOwners(patch.owners) : [];
+      // An edit form resends the whole owner list on every save. Unchanged is not a change of
+      // owners: it must neither open a new generation nor be refused to a manager.
+      return sameOwners(next, currentOwners(current)) ? undefined : next;
+    }
+    if (patch.ownerId === undefined) return undefined;
+    if (patch.ownerId === null) return [];
+    if (patch.ownerId === current.ownerId) return undefined;
+    return assertValidOwners(soleOwner(patch.ownerId));
+  }
+
+  /** The owners that applied at `asOf` (default now), for the money path. */
+  async ownersAsOf(id: string, asOf: Date = new Date()): Promise<DepotOwnerShare[]> {
+    const depot = await this.get(id, false);
+    const found = await this.depots.ownersAsOf(id, asOf);
+    // A moment before any generation was recorded: the depot's current set is the best answer.
+    return found.length > 0 ? found : currentOwners(depot);
   }
 
   /**

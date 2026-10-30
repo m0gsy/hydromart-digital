@@ -122,11 +122,20 @@ describe('HqPayoutController', () => {
     const finance = { sub: 'finance-1' } as AuthenticatedUser;
     await controller.pendingBankAccounts();
     expect(bankAccounts.listByStatus).toHaveBeenCalledWith('PENDING');
-    await controller.verifyBankAccount(finance, 'acc-1');
-    expect(bankAccounts.decide).toHaveBeenCalledWith('acc-1', 'finance-1', true, null);
+    // An old client posts no body at all: still a plain verify, with no row pinned.
+    await controller.verifyBankAccount(finance, 'acc-1', undefined as never);
+    expect(bankAccounts.decide).toHaveBeenCalledWith('acc-1', 'finance-1', true, null, undefined);
+    await controller.verifyBankAccount(finance, 'acc-1', { seenUpdatedAt: '2026-10-29T10:00:00.000Z' });
+    expect(bankAccounts.decide).toHaveBeenLastCalledWith(
+      'acc-1',
+      'finance-1',
+      true,
+      null,
+      '2026-10-29T10:00:00.000Z',
+    );
     await controller.rejectBankAccount(finance, 'acc-1', { reason: 'nama tidak cocok' });
-    expect(bankAccounts.decide).toHaveBeenLastCalledWith('acc-1', 'finance-1', false, 'nama tidak cocok');
+    expect(bankAccounts.decide).toHaveBeenLastCalledWith('acc-1', 'finance-1', false, 'nama tidak cocok', undefined);
     await controller.rejectBankAccount(finance, 'acc-1', {});
-    expect(bankAccounts.decide).toHaveBeenLastCalledWith('acc-1', 'finance-1', false, null);
+    expect(bankAccounts.decide).toHaveBeenLastCalledWith('acc-1', 'finance-1', false, null, undefined);
   });
 });

@@ -607,10 +607,12 @@ describe('OtpTokenPrismaRepository.findActive null', () => {
 
 describe('RefreshTokenPrismaRepository.revoke without replacement', () => {
   it('nulls replacedById when no replacement is given', async () => {
-    const refreshToken = { update: jest.fn().mockResolvedValue({}) };
+    const refreshToken = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
     const repo = new RefreshTokenPrismaRepository({ refreshToken } as unknown as PrismaService);
     await repo.revoke('rt-1', new Date());
-    expect(refreshToken.update.mock.calls[0][0].data.replacedById).toBeNull();
+    expect(refreshToken.updateMany.mock.calls[0][0].data.replacedById).toBeNull();
+    // Conditional: must not stamp over a token a concurrent rotation already revoked.
+    expect(refreshToken.updateMany.mock.calls[0][0].where).toEqual({ id: 'rt-1', revokedAt: null });
   });
 });
 

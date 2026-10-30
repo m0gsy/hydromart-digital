@@ -59,6 +59,7 @@ import {
   DepotDirectoryPort,
   DepotGallonReturns,
   DepotLocation,
+  DepotOwnerShare,
   DepotOwnership,
 } from '../../src/application/ports/depot-directory.port';
 import {
@@ -579,7 +580,10 @@ export class InMemoryOrderRepository implements OrderRepository {
     const rows = this.reportRows(range).filter(
       (r) => !depotIds || (r.depotId !== null && depotIds.includes(r.depotId)),
     );
-    const heat = new Map<string, { weekday: number; hour: number; orders: number; revenue: number }>();
+    const heat = new Map<
+      string,
+      { weekday: number; hour: number; orders: number; revenue: number }
+    >();
     const areas = new Map<string, { area: string; orders: number; revenue: number }>();
     for (const r of rows) {
       const local = new Date(r.createdAt.getTime() + WIB_MS);
@@ -599,7 +603,9 @@ export class InMemoryOrderRepository implements OrderRepository {
     }
     return {
       heat: [...heat.values()],
-      areas: [...areas.values()].sort((a, b) => b.orders - a.orders || a.area.localeCompare(b.area)),
+      areas: [...areas.values()].sort(
+        (a, b) => b.orders - a.orders || a.area.localeCompare(b.area),
+      ),
     };
   }
 
@@ -877,13 +883,17 @@ export class InMemoryOrderRepository implements OrderRepository {
     return out;
   }
 
-  async firstTimeBuyersByCashier(depotId: string, range: ReportRange): Promise<CashierFirstBuyers[]> {
+  async firstTimeBuyersByCashier(
+    depotId: string,
+    range: ReportRange,
+  ): Promise<CashierFirstBuyers[]> {
     type Attributed = OrderRecord & { cashierId?: string | null };
     const byCashier = new Map<string, number>();
     for (const row of this.rows) {
       const cashierId = (row as Attributed).cashierId ?? null;
       if (row.depotId !== depotId || !row.isWalkIn || !cashierId) continue;
-      if (row.customerId === ANONYMOUS_CUSTOMER_ID || row.status === OrderStatus.CANCELLED) continue;
+      if (row.customerId === ANONYMOUS_CUSTOMER_ID || row.status === OrderStatus.CANCELLED)
+        continue;
       if (range.from && row.createdAt < range.from) continue;
       if (range.to && row.createdAt >= range.to) continue;
       const earlierValid = this.rows.some(
@@ -956,7 +966,10 @@ export class InMemoryOrderRepository implements OrderRepository {
       const cur = first.get(r.customerId);
       if (!cur || r.createdAt < cur) first.set(r.customerId, r.createdAt);
     }
-    const byDepot = new Map<string, { buyers: Map<string, boolean>; orders: number; revenue: number }>();
+    const byDepot = new Map<
+      string,
+      { buyers: Map<string, boolean>; orders: number; revenue: number }
+    >();
     for (const r of valid) {
       if (!r.depotId) continue;
       if (range.from && r.createdAt < range.from) continue;
@@ -1180,11 +1193,19 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
       contactPhone: this.contactPhones.get(d.id) ?? null,
     }));
   }
-  async findOwner(depotId: string): Promise<DepotOwnership | null> {
+  /** depotId -> several owners; unset falls back to the single owner in `owners`. */
+  splits = new Map<string, DepotOwnerShare[]>();
+  /** What the caller asked: the moment whose split it wanted. */
+  asOfSeen: (Date | undefined)[] = [];
+  async findOwner(depotId: string, asOf?: Date): Promise<DepotOwnership | null> {
     if (this.unreachable) return null;
+    this.asOfSeen.push(asOf);
     const ownerId = this.owners.get(depotId) ?? null;
+    const owners =
+      this.splits.get(depotId) ?? (ownerId ? [{ ownerId, sharePct: 100, isPrimary: true }] : []);
     return {
-      ownerId,
+      ownerId: owners.find((o) => o.isPrimary)?.ownerId ?? ownerId,
+      owners,
       ownershipType: this.ownershipTypes.get(depotId) ?? (ownerId ? 'WARALABA' : 'HKP'),
     };
   }

@@ -70,8 +70,12 @@ export class OtpTokenPrismaRepository implements OtpTokenRepository {
     return count > 0;
   }
 
-  async markConsumed(id: string, consumedAt: Date): Promise<void> {
-    await this.prisma.otpToken.update({ where: { id }, data: { consumedAt } });
+  async markConsumed(id: string, consumedAt: Date): Promise<boolean> {
+    const { count } = await this.prisma.otpToken.updateMany({
+      where: { id, consumedAt: null },
+      data: { consumedAt },
+    });
+    return count === 1;
   }
 
   async consumeAllForPurpose(customerId: string, purpose: OtpPurpose, at: Date): Promise<void> {

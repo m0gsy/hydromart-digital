@@ -35,6 +35,7 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+
   it('takes a lock keyed on the owner before reading the balance', async () => {
     ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 500 } });
     withdrawal.create.mockResolvedValue({
@@ -482,6 +483,23 @@ describe('LedgerPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+  // A depot with several owners writes one row per owner, so a reversal finds them by order.
+  it('finds every entry pushed for an order, with the key each was pushed under', async () => {
+    model.findMany.mockResolvedValue([
+      { ...row, sourceRef: 'order:o1:SALE:own-1' },
+      { ...row, id: 'le-2', sourceRef: 'order:o1:SALE:own-2' },
+    ]);
+    const out = await repo.findByOrder('o1');
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { sourceRef: { startsWith: 'order:o1:' } },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(out.map((e) => [e.id, e.sourceRef, e.amount])).toEqual([
+      ['le-1', 'order:o1:SALE:own-1', 5000],
+      ['le-2', 'order:o1:SALE:own-2', 5000],
+    ]);
+  });
+
   // H-7: a sale and the commission it owes go in as one unit, or a crash between them
   // leaves the owner credited for a sale HQ never took its cut of.
   it('writes a set of entries in one transaction', async () => {
@@ -752,7 +770,12 @@ describe('ExpenseClaimPrismaRepository', () => {
     findMany: jest.fn(),
     count: jest.fn(),
   };
-  const prisma = { expenseClaim: model } as unknown as PrismaService;
+  const executeRaw = jest.fn().mockResolvedValue(1);
+  const prisma = {
+    expenseClaim: model,
+    $transaction: (fn: (tx: unknown) => unknown) =>
+      fn({ expenseClaim: model, $executeRaw: executeRaw }),
+  } as unknown as PrismaService;
   const repo = new ExpenseClaimPrismaRepository(prisma);
 
   const row = {
@@ -773,6 +796,49 @@ describe('ExpenseClaimPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  describe('createCheckingReceipt', () => {
+    const data = {
+      courierId: 'cou-1',
+      depotId: 'dep-1',
+      category: 'FUEL' as never,
+      amount: 30000,
+      description: 'petrol',
+      receiptUrl: 'https://x/receipt.jpg',
+      status: 'PENDING' as const,
+    };
+
+    it('counts and inserts under one per-receipt lock, and reports a reused receipt', async () => {
+      model.count.mockResolvedValue(1);
+      model.create.mockResolvedValue(row);
+
+      const out = await repo.createCheckingReceipt(data, 'https://x/receipt.jpg');
+
+      expect(executeRaw).toHaveBeenCalledTimes(1);
+      expect(model.count).toHaveBeenCalledWith({ where: { receiptUrl: 'https://x/receipt.jpg' } });
+      expect(out.receiptAlreadyUsed).toBe(true);
+      expect(out.claim.id).toBe('ec-1');
+    });
+
+    it('reports a fresh receipt as unused', async () => {
+      model.count.mockResolvedValue(0);
+      model.create.mockResolvedValue(row);
+
+      expect((await repo.createCheckingReceipt(data, 'https://x/receipt.jpg')).receiptAlreadyUsed).toBe(
+        false,
+      );
+    });
+
+    it('takes no lock and does no counting when there is no receipt to check', async () => {
+      model.create.mockResolvedValue(row);
+
+      const out = await repo.createCheckingReceipt(data, null);
+
+      expect(executeRaw).not.toHaveBeenCalled();
+      expect(model.count).not.toHaveBeenCalled();
+      expect(out.receiptAlreadyUsed).toBe(false);
+    });
+  });
 
   it('creates a claim and maps the amount + category + status', async () => {
     model.create.mockResolvedValue(row);
@@ -854,7 +920,10 @@ describe('ExpenseClaimPrismaRepository', () => {
     await expect(repo.attachLedgerEntry('ec-1', 'le-1')).resolves.toMatchObject({
       ledgerEntryId: 'le-1',
     });
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'ec-1' }, data: { ledgerEntryId: 'le-1' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'ec-1' },
+      data: { ledgerEntryId: 'le-1' },
+    });
 
     model.updateMany.mockResolvedValue({ count: 1 });
     await repo.reopen('ec-1');

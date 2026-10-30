@@ -26,8 +26,17 @@ export class LeavePrismaRepository implements LeaveRepository {
     return this.prisma.leaveRequest.findUnique({ where: { id } });
   }
 
-  decide(id: string, decision: LeaveDecision): Promise<LeaveRequest> {
-    return this.prisma.leaveRequest.update({ where: { id }, data: decision });
+  async decide(
+    id: string,
+    fromStatus: LeaveStatus,
+    decision: LeaveDecision,
+  ): Promise<LeaveRequest | null> {
+    // The status the caller read is part of the write: of two concurrent deciders only one matches.
+    const { count } = await this.prisma.leaveRequest.updateMany({
+      where: { id, status: fromStatus },
+      data: decision,
+    });
+    return count === 0 ? null : this.prisma.leaveRequest.findUnique({ where: { id } });
   }
 
   async list(filter: LeaveListFilter): Promise<{ rows: LeaveListRow[]; total: number }> {
@@ -92,10 +101,21 @@ export class LeavePrismaRepository implements LeaveRepository {
     return { balance, existed: existing !== null };
   }
 
-  addUsedDays(employeeId: string, year: number, days: number): Promise<LeaveBalance> {
-    return this.prisma.leaveBalance.update({
-      where: { employeeId_year: { employeeId, year } },
-      data: { usedDays: { increment: days } },
-    });
+  async claimUsedDays(employeeId: string, year: number, days: number): Promise<boolean> {
+    // One statement: the bound is checked against the CURRENT row, so two approvals racing
+    // for the last days cannot both fit.
+    const changed = await this.prisma.$executeRaw`
+      UPDATE leave_balances
+      SET "usedDays" = "usedDays" + ${days}::int, "updatedAt" = now()
+      WHERE "employeeId" = ${employeeId}::uuid AND "year" = ${year}::int
+        AND "usedDays" + ${days}::int <= "quotaDays"`;
+    return changed === 1;
+  }
+
+  async releaseUsedDays(employeeId: string, year: number, days: number): Promise<void> {
+    await this.prisma.$executeRaw`
+      UPDATE leave_balances
+      SET "usedDays" = GREATEST("usedDays" - ${days}::int, 0), "updatedAt" = now()
+      WHERE "employeeId" = ${employeeId}::uuid AND "year" = ${year}::int`;
   }
 }

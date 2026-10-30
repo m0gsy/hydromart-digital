@@ -74,12 +74,17 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
     return row ? this.toRecord(row as unknown as ApplicationRow) : null;
   }
 
-  async update(
+  async updateIfOpen(
     id: string,
     patch: UpdateFranchiseApplicationData,
-  ): Promise<FranchiseApplicationRecord> {
-    const row = await this.prisma.franchiseApplication.update({
-      where: { id },
+    seenUpdatedAt?: Date,
+  ): Promise<FranchiseApplicationRecord | null> {
+    const { count } = await this.prisma.franchiseApplication.updateMany({
+      where: {
+        id,
+        stage: { notIn: [FranchiseAppStage.APPROVED, FranchiseAppStage.REJECTED] },
+        ...(seenUpdatedAt ? { updatedAt: seenUpdatedAt } : {}),
+      },
       data: {
         ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
         ...(patch.decisionReason !== undefined ? { decisionReason: patch.decisionReason } : {}),
@@ -88,7 +93,9 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
           : {}),
       },
     });
-    return this.toRecord(row as unknown as ApplicationRow);
+    if (count === 0) return null;
+    const row = await this.prisma.franchiseApplication.findUnique({ where: { id } });
+    return row ? this.toRecord(row as unknown as ApplicationRow) : null;
   }
 
   async purgeRejectedBefore(cutoff: Date): Promise<number> {

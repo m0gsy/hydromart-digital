@@ -11,7 +11,8 @@ import {
 } from '../../domain/errors';
 import { LedgerEntryRecord, WithdrawalRecord } from '../../domain/ledger';
 import { CommissionSchemeRepository } from '../ports/commission-scheme.repository';
-import { LedgerRepository } from '../ports/ledger.repository';
+import { RevenueOwner, allocate, assertRevenueOwners } from '../../domain/revenue-split';
+import { CreateLedgerEntryData, LedgerRepository } from '../ports/ledger.repository';
 import { WithdrawalRepository } from '../ports/withdrawal.repository';
 import { PayoutConfigService } from '../../config/payout-config.service';
 import { PayoutBankAccountService } from './bank-account.service';
@@ -37,7 +38,13 @@ export interface PendingPayout {
 /** A completed order pushed by order-service (design 6a franchise revenue). */
 export interface OrderRevenueInput {
   orderId: string;
-  franchiseOwnerId: string;
+  /**
+   * The single owner of an older push. A depot with several owners sends `owners` instead;
+   * one of the two is required, and `owners` wins when both arrive.
+   */
+  franchiseOwnerId?: string;
+  /** Every owner of the depot as of the order's completion, with revenue shares summing to 100. */
+  owners?: RevenueOwner[];
   depotId: string | null;
   /** Order total in whole IDR; must be positive. This is what the owner is CREDITED. */
   amountIdr: number;
@@ -59,6 +66,17 @@ export interface OrderRevenueResult {
   revenue: number;
   commission: number;
   commissionPct: number;
+}
+
+/** Is this ledger key `order:<id>:<KIND>` or `order:<id>:<KIND>:<ownerId>`? */
+function isRef(ref: string, orderId: string, kind: string): boolean {
+  const base = `order:${orderId}:${kind}`;
+  return ref === base || ref.startsWith(`${base}:`);
+}
+
+/** The `:<ownerId>` tail of a per-owner key, or '' for the single-owner key. */
+function refSuffix(ref: string, orderId: string, kind: string): string {
+  return ref.slice(`order:${orderId}:${kind}`.length);
 }
 
 @Injectable()
@@ -84,7 +102,12 @@ export class PayoutService {
    * the depot payout card and the HQ release queue read a table only manual SQL filled.
    */
   async recordOrderRevenue(input: OrderRevenueInput): Promise<OrderRevenueResult> {
-    const saleRef = `order:${input.orderId}:SALE`;
+    const owners = assertRevenueOwners(
+      input.owners ??
+        (input.franchiseOwnerId
+          ? [{ ownerId: input.franchiseOwnerId, sharePct: 100, isPrimary: true }]
+          : []),
+    );
     const pct = await this.commissionPctFor(input.depotId);
     // Charged on the goods, credited on the total: ongkir is money the depot pays a courier,
     // not margin HQ has a claim on, and a voucher HQ funded must not shrink HQ's own cut.
@@ -92,40 +115,57 @@ export class PayoutService {
     const commission = Math.round((commissionBase * pct) / 100);
 
     if (!(input.amountIdr > 0)) throw new InvalidRevenueAmountError();
-    if (await this.ledger.findBySourceRef(saleRef)) {
+    // Any SALE row for this order means the push already landed, whichever shape wrote it.
+    const posted = await this.ledger.findByOrder(input.orderId);
+    if (posted.some((e) => isRef(e.sourceRef, input.orderId, 'SALE'))) {
       return { recorded: false, revenue: input.amountIdr, commission, commissionPct: pct };
     }
 
     const label = input.orderNumber ?? input.orderId;
     const occurredAt = input.occurredAt ?? new Date();
+    // A sole owner keeps the original keys ("order:<id>:SALE"), so rows written before depots
+    // could have several owners and rows written now are told apart by nothing but their
+    // content. Several owners get one key per owner; the unique sourceRef still makes a
+    // retried push raise instead of double-crediting.
+    const sole = owners.length === 1;
+    const revenueShares = allocate(input.amountIdr, owners);
+    // The commission is worked out ONCE for the depot and then split, never recomputed from
+    // each owner's rounded revenue, or the parts stop adding up to HQ's cut.
+    const commissionShares = allocate(commission, owners);
     // H-7: the sale and the commission it owes are one economic event, so they are written
     // as one. Separately, a crash between them left the owner credited for a sale HQ never
     // took its cut of — a discrepancy nobody sees until a month is reconciled by hand.
-    await this.ledger.createAll([
-      {
-        franchiseOwnerId: input.franchiseOwnerId,
-        depotId: input.depotId,
-        type: 'SALE_SETTLEMENT',
-        amount: input.amountIdr,
-        description: `Penjualan pesanan ${label}`,
-        sourceRef: saleRef,
-        occurredAt,
-      },
+    const entries: CreateLedgerEntryData[] = [];
+    for (const owner of owners) {
+      const suffix = sole ? '' : `:${owner.ownerId}`;
+      const credit = revenueShares.get(owner.ownerId)!;
+      const debit = commissionShares.get(owner.ownerId)!;
+      const share = sole ? '' : ` (bagian ${owner.sharePct}%)`;
+      if (credit > 0) {
+        entries.push({
+          franchiseOwnerId: owner.ownerId,
+          depotId: input.depotId,
+          type: 'SALE_SETTLEMENT',
+          amount: credit,
+          description: `Penjualan pesanan ${label}${share}`,
+          sourceRef: `order:${input.orderId}:SALE${suffix}`,
+          occurredAt,
+        });
+      }
       // Commission is stored as a debit (negative), matching how the summary reports it.
-      ...(commission > 0
-        ? [
-            {
-              franchiseOwnerId: input.franchiseOwnerId,
-              depotId: input.depotId,
-              type: 'COMMISSION' as const,
-              amount: -commission,
-              description: `Komisi HQ ${pct}% pesanan ${label}`,
-              sourceRef: `order:${input.orderId}:COMMISSION`,
-              occurredAt,
-            },
-          ]
-        : []),
-    ]);
+      if (debit > 0) {
+        entries.push({
+          franchiseOwnerId: owner.ownerId,
+          depotId: input.depotId,
+          type: 'COMMISSION',
+          amount: -debit,
+          description: `Komisi HQ ${pct}% pesanan ${label}${share}`,
+          sourceRef: `order:${input.orderId}:COMMISSION${suffix}`,
+          occurredAt,
+        });
+      }
+    }
+    await this.ledger.createAll(entries);
     return { recorded: true, revenue: input.amountIdr, commission, commissionPct: pct };
   }
 
@@ -141,40 +181,37 @@ export class PayoutService {
    * Idempotent by sourceRef, and a no-op for an order that never posted.
    */
   async reverseOrderRevenue(orderId: string, reason: string): Promise<{ reversed: boolean }> {
-    const sale = await this.ledger.findBySourceRef(`order:${orderId}:SALE`);
-    if (!sale) return { reversed: false };
-    if (await this.ledger.findBySourceRef(`order:${orderId}:VOID_SALE`)) {
-      return { reversed: false };
-    }
+    const rows = await this.ledger.findByOrder(orderId);
+    const sales = rows.filter((e) => isRef(e.sourceRef, orderId, 'SALE'));
+    if (sales.length === 0) return { reversed: false };
+    if (rows.some((e) => isRef(e.sourceRef, orderId, 'VOID_SALE'))) return { reversed: false };
 
     const occurredAt = new Date();
-    const commission = await this.ledger.findBySourceRef(`order:${orderId}:COMMISSION`);
+    const commissions = rows.filter((e) => isRef(e.sourceRef, orderId, 'COMMISSION'));
     // Same pairing rule as the forward posting (H-7): giving the sale back without giving
     // the commission back leaves the owner short by HQ's cut of a sale that never happened.
+    // Every row is mirrored to the owner it credited THEN and for the same amount; nothing is
+    // re-derived from today's owners, who may not be the ones that were paid.
     await this.ledger.createAll([
-      {
+      ...sales.map((sale) => ({
         franchiseOwnerId: sale.franchiseOwnerId,
         depotId: sale.depotId,
-        type: 'SALE_SETTLEMENT',
+        type: 'SALE_SETTLEMENT' as const,
         amount: -sale.amount,
         description: `Pembatalan: ${sale.description} (${reason})`,
-        sourceRef: `order:${orderId}:VOID_SALE`,
+        sourceRef: `order:${orderId}:VOID_SALE${refSuffix(sale.sourceRef, orderId, 'SALE')}`,
         occurredAt,
-      },
-      ...(commission
-        ? [
-            {
-              franchiseOwnerId: commission.franchiseOwnerId,
-              depotId: commission.depotId,
-              type: 'COMMISSION' as const,
-              // The original is a debit (negative), so giving it back is a credit.
-              amount: -commission.amount,
-              description: `Pembatalan: ${commission.description}`,
-              sourceRef: `order:${orderId}:VOID_COMMISSION`,
-              occurredAt,
-            },
-          ]
-        : []),
+      })),
+      ...commissions.map((commission) => ({
+        franchiseOwnerId: commission.franchiseOwnerId,
+        depotId: commission.depotId,
+        type: 'COMMISSION' as const,
+        // The original is a debit (negative), so giving it back is a credit.
+        amount: -commission.amount,
+        description: `Pembatalan: ${commission.description}`,
+        sourceRef: `order:${orderId}:VOID_COMMISSION${refSuffix(commission.sourceRef, orderId, 'COMMISSION')}`,
+        occurredAt,
+      })),
     ]);
     return { reversed: true };
   }

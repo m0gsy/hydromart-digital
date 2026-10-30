@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { AlreadyReferredError } from '../../domain/errors';
 import { ReferralStatus } from '../../domain/referral-status';
 import {
   CreateReferralData,
@@ -28,6 +29,11 @@ interface ReferralRow {
   updatedAt: Date;
 }
 
+/** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string })?.code === 'P2002';
+}
+
 @Injectable()
 export class ReferralPrismaRepository implements ReferralRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -54,8 +60,17 @@ export class ReferralPrismaRepository implements ReferralRepository {
   }
 
   async createReferral(data: CreateReferralData): Promise<ReferralRecord> {
-    const row = await this.prisma.referral.create({ data });
-    return this.toReferral(row);
+    try {
+      const row = await this.prisma.referral.create({ data });
+      return this.toReferral(row);
+    } catch (error) {
+      // `refereeCustomerId` is unique: of two redeems racing past the service's "already
+      // referred" read (a double tap, a retried request), the second hit the index and came
+      // back as a raw 500 for a redemption that had in fact succeeded. It is the same answer
+      // the sequential case has always given.
+      if (isUniqueViolation(error)) throw new AlreadyReferredError();
+      throw error;
+    }
   }
 
   async listReferralsByReferrer(

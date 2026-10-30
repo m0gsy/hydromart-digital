@@ -1275,6 +1275,35 @@ describe('OrderService.walkInSale', () => {
     expect(franchiseRevenue.posted[0]).toMatchObject({ orderId: order.id, amountIdr: order.total });
   });
 
+  // Several owners: the push names every one of them and is judged as of the sale itself.
+  it('sends every owner of the depot, as of the moment the sale completed', async () => {
+    depots.splits.set(DEPOT, [
+      { ownerId: 'owner-1', sharePct: 60, isPrimary: true },
+      { ownerId: 'owner-2', sharePct: 40, isPrimary: false },
+    ]);
+    const order = await sell(1);
+
+    expect(franchiseRevenue.posted[0]).toMatchObject({
+      orderId: order.id,
+      franchiseOwnerId: 'owner-1',
+      owners: [
+        { ownerId: 'owner-1', sharePct: 60, isPrimary: true },
+        { ownerId: 'owner-2', sharePct: 40, isPrimary: false },
+      ],
+    });
+    // The lookup and the ledger date are the completion time, not the time of the push.
+    const asked = depots.asOfSeen.at(-1)!;
+    expect(asked).toEqual(order.statusChangedAt);
+    expect(franchiseRevenue.posted[0].completedAt).toBe(order.statusChangedAt.toISOString());
+  });
+
+  it('posts nothing for a franchise depot whose owner set came back empty', async () => {
+    depots.splits.set(DEPOT, []);
+    depots.ownershipTypes.set(DEPOT, 'WARALABA');
+    await sell(1);
+    expect(franchiseRevenue.posted).toHaveLength(0);
+  });
+
   it('keeps an anonymous sale away from loyalty, referral and messaging', async () => {
     const order = await sell(1);
 

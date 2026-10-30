@@ -131,6 +131,11 @@ class FakeClaims implements ExpenseClaimRepository {
   async countByReceiptUrl(receiptUrl: string): Promise<number> {
     return this.rows.filter((r) => r.receiptUrl === receiptUrl).length;
   }
+  async createCheckingReceipt(data: CreateExpenseClaimData, receiptToCheck: string | null) {
+    const receiptAlreadyUsed =
+      receiptToCheck !== null && (await this.countByReceiptUrl(receiptToCheck)) > 0;
+    return { claim: await this.create(data), receiptAlreadyUsed };
+  }
   async listForCourier(courierId: string) {
     const items = this.rows.filter((r) => r.courierId === courierId);
     return { items, total: items.length };

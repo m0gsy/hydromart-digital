@@ -91,6 +91,7 @@ export class PayoutController {
     return this.payout.recordOrderRevenue({
       orderId: dto.orderId,
       franchiseOwnerId: dto.franchiseOwnerId,
+      owners: dto.owners,
       depotId: dto.depotId ?? null,
       amountIdr: dto.amountIdr,
       commissionBaseIdr: dto.commissionBaseIdr,

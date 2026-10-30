@@ -121,6 +121,7 @@ model Depot {
   huddleNotes            HuddleNote[]
   shiftHandovers         ShiftHandover[]
   serviceSettings        ServiceSetting[]
+  owners                 DepotOwner[]
 
   @@index([active])
   @@index([ownershipType])
@@ -1056,6 +1057,32 @@ model StaffSupervision {
 
   @@index([superiorId])
   @@map("staff_supervision")
+}
+
+/// Who owns a franchise depot and what share of its revenue each owner takes.
+///
+/// Generational: changing the owners closes every open row (`effectiveTo = now`) and inserts
+/// the new set in one transaction, so "who owned this depot when order X completed" stays
+/// answerable and a late payout retry books the split that applied at the time. Open rows
+/// (`effectiveTo IS NULL`) are the current owners: shares sum to 100, exactly one is primary
+/// (enforced by the service, plus partial unique indexes in the migration). `Depot.ownerId`
+/// mirrors the primary for one release so older readers keep working.
+model DepotOwner {
+  id            String    @id @default(uuid()) @db.Uuid
+  depotId       String    @db.Uuid
+  /// Auth account id (role FRANCHISE_OWNER); bare id, auth-service owns the account.
+  ownerId       String    @db.Uuid
+  sharePct      Decimal   @db.Decimal(5, 2)
+  isPrimary     Boolean   @default(false)
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  createdBy     String?   @db.Uuid
+
+  depot         Depot     @relation(fields: [depotId], references: [id], onDelete: Cascade)
+
+  @@index([depotId, effectiveTo])
+  @@index([ownerId, effectiveTo])
+  @@map("depot_owners")
 }
 
 /// Depots granted to somebody DIRECTLY, unioned with the hierarchy walk. Exists so a

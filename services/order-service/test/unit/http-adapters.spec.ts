@@ -392,7 +392,12 @@ describe('DepotDirectoryHttpAdapter', () => {
   it('reads the depot owner over the internal-key route', async () => {
     fetchMock.mockResolvedValue(res({ body: { ownerId: 'owner-9', ownershipType: 'WARALABA' } }));
     const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1');
-    expect(out).toEqual({ ownerId: 'owner-9', ownershipType: 'WARALABA' });
+    // A depot-service that predates multi-owner depots sends only ownerId: one owner, 100%.
+    expect(out).toEqual({
+      ownerId: 'owner-9',
+      owners: [{ ownerId: 'owner-9', sharePct: 100, isPrimary: true }],
+      ownershipType: 'WARALABA',
+    });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://depot:3007/api/v1/depots/internal/d1/owner');
     expect(init.headers['x-internal-key']).toBe(KEY);
@@ -402,8 +407,35 @@ describe('DepotDirectoryHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ body: { ownerId: null, ownershipType: 'WARALABA' } }));
     expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1')).toEqual({
       ownerId: null,
+      owners: [],
       ownershipType: 'WARALABA',
     });
+  });
+
+  it('reads every owner and asks as of the order completion time', async () => {
+    const owners = [
+      { ownerId: 'a', sharePct: 60, isPrimary: true },
+      { ownerId: 'b', sharePct: 40, isPrimary: false },
+    ];
+    fetchMock.mockResolvedValue(res({ body: { ownerId: 'a', owners, ownershipType: 'WARALABA' } }));
+    const asOf = new Date('2026-05-01T10:00:00.000Z');
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1', asOf);
+    expect(out).toEqual({ ownerId: 'a', owners, ownershipType: 'WARALABA' });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://depot:3007/api/v1/depots/internal/d1/owner?asOf=2026-05-01T10%3A00%3A00.000Z',
+    );
+  });
+
+  it('treats a malformed owners list or a missing ownership type as no answer', async () => {
+    for (const body of [
+      { ownerId: 'a', owners: [{ ownerId: 'a' }], ownershipType: 'WARALABA' },
+      { ownerId: 'a', owners: 'x', ownershipType: 'WARALABA' },
+      {},
+      { ownerId: 'a' },
+    ]) {
+      fetchMock.mockResolvedValueOnce(res({ body }));
+      expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1')).toBeNull();
+    }
   });
 
   it('returns null for a non-2xx and a missing internal key', async () => {
@@ -415,14 +447,6 @@ describe('DepotDirectoryHttpAdapter', () => {
       await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).findOwner('d1'),
     ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('defaults a body without an ownership type to a company depot', async () => {
-    fetchMock.mockResolvedValue(res({ body: {} }));
-    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1')).toEqual({
-      ownerId: null,
-      ownershipType: 'HKP',
-    });
   });
 
   // S2. `gallonsReturned`/`gallonsDamaged` were hardcoded null in the daily report; the
@@ -530,6 +554,7 @@ describe('FranchiseRevenueHttpAdapter', () => {
     orderId: 'o1',
     orderNumber: 'HM-1',
     franchiseOwnerId: 'owner-9',
+    owners: [{ ownerId: 'owner-9', sharePct: 100, isPrimary: true }],
     depotId: 'd1',
     amountIdr: 240000,
     // Goods before discount — the commission base, separate from the credited total.
@@ -550,6 +575,23 @@ describe('FranchiseRevenueHttpAdapter', () => {
       amountIdr: 240000,
       commissionBaseIdr: 200000,
       franchiseOwnerId: 'owner-9',
+    });
+    // A sole owner goes out in the old shape, so an older payout-service still accepts it.
+    expect(JSON.parse(init.body)).not.toHaveProperty('owners');
+  });
+
+  it('names every owner when a depot has several', async () => {
+    fetchMock.mockResolvedValue(res({ body: { recorded: true } }));
+    const owners = [
+      { ownerId: 'owner-9', sharePct: 60, isPrimary: true },
+      { ownerId: 'owner-8', sharePct: 40, isPrimary: false },
+    ];
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+    ).orderCompleted({ ...event, owners });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      franchiseOwnerId: 'owner-9',
+      owners,
     });
   });
 

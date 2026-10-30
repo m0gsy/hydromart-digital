@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { Buildings, Storefront } from '@phosphor-icons/react';
 
-import { OwnerSelect } from '@/components/hq/owner-select';
+import { OwnersEditor } from '@/components/hq/owners-editor';
 import { ServiceAreaEditor } from '@/components/hq/service-area-editor';
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
+import { EMPTY_DEPOT_FORM, ownerRowsFromDepot, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { areaToText, parseAreaText } from '@/lib/service-area-text';
@@ -18,7 +18,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     code: d.code,
     name: d.name,
     ownershipType: d.ownershipType,
-    ownerId: d.ownerId ?? '',
+    owners: ownerRowsFromDepot(d),
     address: d.address,
     city: d.city,
     province: d.province,
@@ -141,7 +141,7 @@ export function DepotForm({
       </div>
 
       {form.ownershipType === 'WARALABA' && (
-        <OwnerSelect value={form.ownerId} onChange={set('ownerId')} />
+        <OwnersEditor value={form.owners} onChange={(owners) => setForm((f) => ({ ...f, owners }))} />
       )}
 
       <Field label={t('hq.depots.form.address')} htmlFor="d-addr">

@@ -81,6 +81,39 @@ describe('template round-trip', () => {
     expect(workbook.worksheets[0]?.getCell(2, 1).dataValidation).toBeUndefined();
   });
 
+  /*
+   * What Excel actually refused, read off the XML rather than through exceljs (which loads
+   * overlapping validations without complaint): assigning the validation cell by cell made
+   * exceljs write "D2:D501" AND "D10:D501", and Excel answered "Removed Feature: Data
+   * validation", dropping every dropdown in the file.
+   */
+  it('writes one non-overlapping validation range per dropdown column', async () => {
+    const JSZip = (await import('jszip')).default;
+    const blob = await buildTemplateXlsx(
+      [
+        { key: 'a', example: '', options: ['X', 'Y'] },
+        { key: 'b', example: '' },
+        { key: 'c', example: '', options: ['P', 'Q'] },
+        { key: 'd', example: '', options: Array.from({ length: 60 }, (_, i) => `DEPOT-${i}`) },
+      ],
+      'karyawan',
+    );
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+    const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
+    const ranges = [...xml.matchAll(/<dataValidation [^>]*sqref="([^"]+)"/g)].map((m) => m[1]!);
+
+    expect(ranges).toEqual(['A2:A501', 'C2:C501', 'D2:D501']);
+    // No sqref lists the same cell twice: the exact property Excel enforces.
+    const cells = ranges.flatMap((r) => {
+      const [from, to] = r.split(':') as [string, string];
+      const col = from.replace(/d+/g, '');
+      const lo = Number(from.replace(/D+/g, ''));
+      const hi = Number(to.replace(/D+/g, ''));
+      return Array.from({ length: hi - lo + 1 }, (_, i) => `${col}${lo + i}`);
+    });
+    expect(new Set(cells).size).toBe(cells.length);
+  });
+
   // Excel refuses an inline list over 255 chars, or one with a comma/quote inside an item.
   it('moves a long or comma-bearing list to a hidden Lists sheet', async () => {
     const depots = Array.from({ length: 60 }, (_, i) => `DEPOT-${String(i).padStart(4, '0')}`);

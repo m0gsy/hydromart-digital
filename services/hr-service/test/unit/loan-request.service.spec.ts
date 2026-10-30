@@ -110,13 +110,26 @@ class FakeRepo implements LoanRequestRepository {
       total: rows.length,
     };
   }
-  async decide(id: string, decision: LoanRequestDecision): Promise<LoanRequest> {
+  async decide(id: string, decision: LoanRequestDecision): Promise<LoanRequest | null> {
     const row = this.rows.find((r) => r.id === id)!;
+    // Mirrors the real repository: only a PENDING request can be decided.
+    if (row.status !== 'PENDING') return null;
     Object.assign(row, decision, {
       decidedAt: new Date(),
       updatedAt: new Date(++this.seq * 1000),
     });
     return { ...row };
+  }
+  async attachLoan(id: string, loanId: string): Promise<LoanRequest> {
+    const row = this.rows.find((r) => r.id === id)!;
+    row.loanId = loanId;
+    row.updatedAt = new Date(++this.seq * 1000);
+    return { ...row };
+  }
+  async reopen(id: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === id)!;
+    if (row.status !== 'APPROVED' || row.loanId !== null) return;
+    Object.assign(row, { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null });
   }
 }
 
@@ -130,7 +143,14 @@ const EMPLOYEE = {
   dailyRate: null,
 };
 
-function make(overrides: { depotId?: string | null; assistant?: string | null; owed?: number } = {}) {
+function make(
+  overrides: {
+    depotId?: string | null;
+    assistant?: string | null;
+    owed?: number;
+    loanFails?: boolean;
+  } = {},
+) {
   const repo = new FakeRepo();
   const employee = { ...EMPLOYEE, depotId: overrides.depotId ?? EMPLOYEE.depotId };
   if ('depotId' in overrides && overrides.depotId === null) employee.depotId = null as never;
@@ -144,6 +164,7 @@ function make(overrides: { depotId?: string | null; assistant?: string | null; o
   const loans = {
     openBalance: async () => overrides.owed ?? 0,
     create: async (_u: AuthenticatedUser, input: Record<string, unknown>) => {
+      if (overrides.loanFails) throw new Error('payroll unavailable');
       created.push(input);
       return { id: 'loan-1', ...input };
     },
@@ -349,6 +370,68 @@ describe('LoanRequestService.cancel', () => {
       loanId: 'loan-1',
     });
     await expect(svc.cancel(staff, r.id)).rejects.toThrow(ConflictException);
+  });
+});
+
+describe('LoanRequestService.decide — concurrent deciders', () => {
+  const approve = (r: { updatedAt: Date }) => ({
+    approve: true,
+    installmentAmount: 100_000,
+    startPeriod: '2026-10',
+    seenUpdatedAt: r.updatedAt.toISOString(),
+  });
+
+  it('the loser of two approvals creates no loan (the employee is deducted once)', async () => {
+    const { svc, repo, created } = make();
+    const r = await svc.submit(staff, APPLY);
+    const real = repo.decide.bind(repo);
+    // The OTHER approver commits first: the request is no longer PENDING when ours is claimed.
+    jest.spyOn(repo, 'decide').mockImplementationOnce(async (id, decision) => {
+      await real(id, { ...decision, decidedBy: 'someone-else' });
+      return real(id, decision);
+    });
+
+    await expect(svc.decide(asv, r.id, approve(r))).rejects.toThrow(/sudah diputuskan/);
+
+    expect(created).toHaveLength(0);
+    expect(repo.rows[0]).toMatchObject({ status: 'APPROVED', decidedBy: 'someone-else' });
+  });
+
+  it('an approval whose loan cannot be created goes back to PENDING, not APPROVED-with-nothing', async () => {
+    const { svc, repo } = make({ loanFails: true });
+    const r = await svc.submit(staff, APPLY);
+
+    await expect(svc.decide(asv, r.id, approve(r))).rejects.toThrow('payroll unavailable');
+
+    expect(repo.rows[0]).toMatchObject({ status: 'PENDING', decidedBy: null, loanId: null });
+  });
+
+  it('a rejection that loses to an approval changes nothing and says so', async () => {
+    const { svc, repo } = make();
+    const r = await svc.submit(staff, APPLY);
+    const real = repo.decide.bind(repo);
+    jest.spyOn(repo, 'decide').mockImplementationOnce(async (id, decision) => {
+      await real(id, { ...decision, status: 'APPROVED', decidedBy: 'someone-else' });
+      return real(id, decision);
+    });
+
+    await expect(
+      svc.decide(asv, r.id, { approve: false, note: 'tidak', seenUpdatedAt: r.updatedAt.toISOString() }),
+    ).rejects.toThrow(/sudah diputuskan/);
+    expect(repo.rows[0].status).toBe('APPROVED');
+  });
+
+  it('withdrawing a request that was decided meanwhile is refused', async () => {
+    const { svc, repo } = make();
+    const r = await svc.submit(staff, APPLY);
+    const real = repo.decide.bind(repo);
+    jest.spyOn(repo, 'decide').mockImplementationOnce(async (id, decision) => {
+      await real(id, { ...decision, status: 'REJECTED', decidedBy: ASV });
+      return real(id, decision);
+    });
+
+    await expect(svc.cancel(staff, r.id)).rejects.toThrow(/sudah diputuskan/);
+    expect(repo.rows[0].status).toBe('REJECTED');
   });
 });
 
