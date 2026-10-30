@@ -74,8 +74,6 @@ export class FraudFlagService {
    * reinstate exactly when no OTHER flag on the same entity is BLOCKED.
    */
   async clear(id: string, reason?: string): Promise<FraudFlagRecord> {
-    const flag = await this.repo.findById(id);
-    if (!flag) throw new FraudFlagNotFoundError(id);
     /*
      * Reinstate only when BOTH are true: this flag is the one that suspended the account,
      * and nothing else is still holding it.
@@ -88,13 +86,19 @@ export class FraudFlagService {
      * A flag that never blocked anything reinstates nothing: an account suspended for some
      * other reason entirely must not be reopened by tidying this queue.
      */
-    if (flag.entityType === FraudEntityType.ACCOUNT && flag.blockedAt) {
-      const heldElsewhere = await this.repo.countBlockedFor(flag.entityRef, id);
-      if (heldElsewhere === 0) {
-        await this.accounts.setActive(flag.entityRef, true);
+    const cleared = await this.repo.clear(id, reason?.trim() || null);
+    if (!cleared) throw new FraudFlagNotFoundError(id);
+    if (cleared.reinstate) {
+      try {
+        await this.accounts.setActive(cleared.flag.entityRef, true);
+      } catch (error) {
+        // The account is still suspended, so the flag must not read CLEARED over it: put the
+        // decision back and let the operator see the failure and try again.
+        await this.repo.setStatus(id, cleared.previous);
+        throw error;
       }
     }
-    return this.transition(id, FraudStatus.CLEARED, reason);
+    return cleared.flag;
   }
 
   private async transition(

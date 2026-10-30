@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { FraudFlagAlreadyOpenError } from '../../domain/errors';
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../domain/fraud';
 import {
   CreateFraudFlagData,
@@ -49,8 +50,42 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
   }
 
   async create(data: CreateFraudFlagData): Promise<FraudFlagRecord> {
-    const row = await this.prisma.fraudFlag.create({ data });
-    return this.toRecord(row);
+    try {
+      const row = await this.prisma.fraudFlag.create({ data });
+      return this.toRecord(row);
+    } catch (error) {
+      // The partial unique index (one OPEN flag per entity) picked the other writer.
+      if ((error as { code?: string } | null)?.code === 'P2002') {
+        throw new FraudFlagAlreadyOpenError(data.entityRef);
+      }
+      throw error;
+    }
+  }
+
+  async clear(
+    id: string,
+    reason: string | null,
+  ): Promise<{ flag: FraudFlagRecord; previous: FraudStatus; reinstate: boolean } | null> {
+    const found = await this.prisma.fraudFlag.findUnique({ where: { id } });
+    if (!found) return null;
+    return this.prisma.$transaction(async (tx) => {
+      // One lock per entity: clears and the count below serialise on it.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fraud:${found.entityRef}`}, 0))`;
+      const existing = await tx.fraudFlag.findUnique({ where: { id } });
+      if (!existing) return null;
+      const row = await tx.fraudFlag.update({
+        where: { id },
+        data: { status: FraudStatus.CLEARED, decisionReason: reason },
+      });
+      let reinstate = false;
+      if (existing.entityType === 'ACCOUNT' && existing.blockedAt) {
+        const others = await tx.fraudFlag.count({
+          where: { entityRef: existing.entityRef, status: FraudStatus.BLOCKED, id: { not: id } },
+        });
+        reinstate = others === 0;
+      }
+      return { flag: this.toRecord(row), previous: existing.status as FraudStatus, reinstate };
+    });
   }
 
   async findById(id: string): Promise<FraudFlagRecord | null> {

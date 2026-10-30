@@ -64,6 +64,7 @@ import { ExportFormat, ExportStatus } from '../../src/domain/export';
 import { ReportDataset } from '../../src/domain/report-dataset';
 import { ReportCadence } from '../../src/domain/report-cadence';
 import { TicketAuthorType, TicketPriority, TicketStatus } from '../../src/domain/ticket';
+import { FraudFlagAlreadyOpenError } from '../../src/domain/errors';
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../src/domain/fraud';
 import { IncidentSeverity, IncidentStatus } from '../../src/domain/incident';
 
@@ -531,6 +532,17 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
   }
 
   async create(data: CreateFraudFlagData): Promise<FraudFlagRecord> {
+    if (
+      (data.status ?? FraudStatus.OPEN) === FraudStatus.OPEN &&
+      this.rows.some(
+        (r) =>
+          r.entityType === data.entityType &&
+          r.entityRef === data.entityRef &&
+          r.status === FraudStatus.OPEN,
+      )
+    ) {
+      throw new FraudFlagAlreadyOpenError(data.entityRef);
+    }
     const record: FraudFlagRecord = {
       id: randomUUID(),
       entityType: data.entityType,
@@ -549,6 +561,22 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
 
   async findById(id: string): Promise<FraudFlagRecord | null> {
     return this.rows.find((f) => f.id === id) ?? null;
+  }
+
+  async clear(
+    id: string,
+    reason: string | null,
+  ): Promise<{ flag: FraudFlagRecord; previous: FraudStatus; reinstate: boolean } | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    const previous = r.status;
+    r.status = FraudStatus.CLEARED;
+    r.decisionReason = reason;
+    const reinstate =
+      r.entityType === FraudEntityType.ACCOUNT &&
+      Boolean(r.blockedAt) &&
+      (await this.countBlockedFor(r.entityRef, id)) === 0;
+    return { flag: { ...r }, previous, reinstate };
   }
 
   async setStatus(

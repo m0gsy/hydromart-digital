@@ -32,7 +32,7 @@ export interface ListFraudFlagsFilter {
 export interface FraudFlagRepository {
   /** Flags ordered highest-score-then-newest first, optionally filtered. */
   list(filter: ListFraudFlagsFilter): Promise<FraudFlagRecord[]>;
-  /** Insert a flag (internal-key ingest from a scoring job). */
+  /** Insert a flag (internal-key ingest from a scoring job). FraudFlagAlreadyOpenError when one is open. */
   create(data: CreateFraudFlagData): Promise<FraudFlagRecord>;
   /**
    * CA-2-05: read one flag, because blocking now depends on WHAT it points at.
@@ -41,6 +41,17 @@ export interface FraudFlagRepository {
    * needs the row before the write, which `setStatus` alone could not give.
    */
   findById(id: string): Promise<FraudFlagRecord | null>;
+  /**
+   * Clears a flag and decides, in the SAME locked step, whether the account it suspended
+   * should now be reinstated. `countBlockedFor` then `setStatus` as two calls let two
+   * flags on one account be cleared at once, each seeing the other still BLOCKED, so neither
+   * reinstated. Null when the id is unknown. `previous` lets the caller put the status back
+   * if reinstating the account then fails.
+   */
+  clear(
+    id: string,
+    reason: string | null,
+  ): Promise<{ flag: FraudFlagRecord; previous: FraudStatus; reinstate: boolean } | null>;
   /**
    * Set a flag's review status. Null when the id is unknown.
    *

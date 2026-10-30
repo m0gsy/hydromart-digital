@@ -1,5 +1,5 @@
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../src/domain/fraud';
-import { FraudFlagNotFoundError } from '../../src/domain/errors';
+import { FraudFlagAlreadyOpenError, FraudFlagNotFoundError } from '../../src/domain/errors';
 import { FraudFlagService } from '../../src/application/services/fraud-flag.service';
 import {
   FakeAccountSuspension,
@@ -146,14 +146,31 @@ describe('FraudFlagService blocking the account (CA-2-05)', () => {
    * resolving either one. The other flag stayed BLOCKED on the screen while the customer
    * ordered again.
    */
+  it('refuses a second OPEN flag for the same entity', async () => {
+    const service = new FraudFlagService(new InMemoryFraudFlagRepository(), new FakeAccountSuspension());
+    await service.ingest(accountFlag);
+    await expect(service.ingest(accountFlag)).rejects.toBeInstanceOf(FraudFlagAlreadyOpenError);
+  });
+
+  it('puts the flag back when reinstating the account fails after the clear', async () => {
+    const repo = new InMemoryFraudFlagRepository();
+    const accounts = new FakeAccountSuspension();
+    const service = new FraudFlagService(repo, accounts);
+    const flag = await service.ingest(accountFlag);
+    await service.block(flag.id);
+    jest.spyOn(accounts, 'setActive').mockRejectedValueOnce(new Error('auth down'));
+    await expect(service.clear(flag.id)).rejects.toThrow('auth down');
+    expect((await repo.findById(flag.id))?.status).toBe(FraudStatus.BLOCKED);
+  });
+
   it('leaves the account suspended while another flag still holds it', async () => {
     const repo = new InMemoryFraudFlagRepository();
     const accounts = new FakeAccountSuspension();
     const service = new FraudFlagService(repo, accounts);
     const first = await service.ingest(accountFlag);
-    const second = await service.ingest(accountFlag);
-
+    // Only one flag per account can be OPEN, so the first is decided before the second is raised.
     await service.block(first.id);
+    const second = await service.ingest(accountFlag);
     await service.block(second.id);
     accounts.calls.length = 0;
 
