@@ -21,6 +21,7 @@ describeRace('promo edits on real Postgres', () => {
     const repo = new PromotionPrismaRepository(prisma as never);
     for (let i = 0; i < 20; i++) {
       const p = await prisma.promotion.create({ data: { title: 'T' } });
+      await new Promise((r) => setTimeout(r, 5)); // updatedAt is a millisecond CAS token
       const res = await race([
         () => repo.update(p.id, { title: 'A' }, p.updatedAt),
         () => repo.update(p.id, { title: 'B' }, p.updatedAt),
@@ -38,6 +39,7 @@ describeRace('promo edits on real Postgres', () => {
       const v = await prisma.voucher.create({
         data: { code: `V${randomUUID().slice(0, 8)}`, discountType: 'PERCENTAGE' as never, value: 10 },
       });
+      await new Promise((r) => setTimeout(r, 5)); // updatedAt is a millisecond CAS token
       const res = await race([
         () => repo.update(v.id, { value: 11 }, v.updatedAt),
         () => repo.update(v.id, { value: 12 }, v.updatedAt),
