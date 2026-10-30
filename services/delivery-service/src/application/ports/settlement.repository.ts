@@ -94,6 +94,14 @@ export interface SettlementRepository {
   ): Promise<OperatorSettlementStats[]>;
   resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord>;
   /** Park a shortfall charge for a second person (status unchanged). `note` replaces only if given. */
+  /**
+   * Claims the approval of a raised charge: only while a charge is pending, nobody else has
+   * claimed it and the settlement can still be ruled on. False = someone else got there (or
+   * it was rejected) and nothing may be pushed to payout.
+   */
+  claimChargeApproval(id: string, by: string): Promise<boolean>;
+  /** Gives the claim back when the push to payout did not land, so a retry can take it. */
+  releaseChargeApproval(id: string, by: string): Promise<void>;
   requestCharge(id: string, by: string, note: string | null): Promise<SettlementRecord>;
   /** A rejected charge: back to the queue, request cleared, `note` written as given. */
   clearChargeRequest(id: string, note: string | null): Promise<SettlementRecord>;

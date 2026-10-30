@@ -2,6 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 import { SettlementStatus } from '../../domain/settlement';
 import {
+  SettlementAlreadyExistsError,
+  SettlementChargePendingError,
+  SettlementNoChargePendingError,
+  SettlementNotSubmittedError,
+} from '../../domain/errors';
+import {
   CourierShortfall,
   CreateSettlementData,
   DepositedCod,
@@ -33,6 +39,8 @@ interface SettlementRow {
   updatedAt: Date;
 }
 
+const RESOLVABLE = [SettlementStatus.SUBMITTED, SettlementStatus.DISPUTED];
+
 @Injectable()
 export class SettlementPrismaRepository implements SettlementRepository {
   private static readonly HISTORY_LIMIT = 60;
@@ -44,8 +52,16 @@ export class SettlementPrismaRepository implements SettlementRepository {
   }
 
   async create(data: CreateSettlementData): Promise<SettlementRecord> {
-    const row = await this.prisma.cashSettlement.create({ data });
-    return this.toRecord(row);
+    try {
+      const row = await this.prisma.cashSettlement.create({ data });
+      return this.toRecord(row);
+    } catch (error) {
+      // shiftId is unique: two submits for one shift, past the service's read-then-write check.
+      if ((error as { code?: string } | null)?.code === 'P2002') {
+        throw new SettlementAlreadyExistsError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<SettlementRecord | null> {
@@ -165,28 +181,62 @@ export class SettlementPrismaRepository implements SettlementRepository {
     return [...grouped.values()];
   }
 
+  /** Only a settlement that can still be ruled on may be moved: the second ruling loses. */
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
-    const row = await this.prisma.cashSettlement.update({ where: { id }, data: patch });
-    return this.toRecord(row);
+    const { count } = await this.prisma.cashSettlement.updateMany({
+      where: { id, status: { in: RESOLVABLE } },
+      data: patch,
+    });
+    if (count === 0) throw new SettlementNotSubmittedError();
+    return this.toRecord(await this.prisma.cashSettlement.findUniqueOrThrow({ where: { id } }));
+  }
+
+  async claimChargeApproval(id: string, by: string): Promise<boolean> {
+    const { count } = await this.prisma.cashSettlement.updateMany({
+      where: {
+        id,
+        status: { in: RESOLVABLE },
+        chargeRequestedBy: { not: null },
+        chargeApprovedBy: null,
+      },
+      data: { chargeApprovedBy: by },
+    });
+    return count === 1;
+  }
+
+  async releaseChargeApproval(id: string, by: string): Promise<void> {
+    await this.prisma.cashSettlement.updateMany({
+      where: { id, chargeApprovedBy: by },
+      data: { chargeApprovedBy: null },
+    });
   }
 
   async requestCharge(id: string, by: string, note: string | null): Promise<SettlementRecord> {
-    const row = await this.prisma.cashSettlement.update({
-      where: { id },
+    // Two cashiers raising a charge on one settlement: the first stands, the second is told.
+    const { count } = await this.prisma.cashSettlement.updateMany({
+      where: { id, status: { in: RESOLVABLE }, chargeRequestedBy: null },
       data: {
         chargeRequestedBy: by,
         chargeRequestedAt: new Date(),
         ...(note ? { note } : {}),
       },
     });
-    return this.toRecord(row);
+    if (count === 0) throw new SettlementChargePendingError();
+    return this.toRecord(await this.prisma.cashSettlement.findUniqueOrThrow({ where: { id } }));
   }
 
   async clearChargeRequest(id: string, note: string | null): Promise<SettlementRecord> {
-    const row = await this.prisma.cashSettlement.update({
-      where: { id },
+    // Not while an approver holds the claim: their debit may already be on its way to payout.
+    const { count } = await this.prisma.cashSettlement.updateMany({
+      where: {
+        id,
+        status: { in: RESOLVABLE },
+        chargeRequestedBy: { not: null },
+        chargeApprovedBy: null,
+      },
       data: { chargeRequestedBy: null, chargeRequestedAt: null, note },
     });
-    return this.toRecord(row);
+    if (count === 0) throw new SettlementNoChargePendingError();
+    return this.toRecord(await this.prisma.cashSettlement.findUniqueOrThrow({ where: { id } }));
   }
 }

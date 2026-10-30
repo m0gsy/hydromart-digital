@@ -318,13 +318,31 @@ export class SettlementService {
   async approveCharge(user: AuthenticatedUser, id: string): Promise<SettlementRecord> {
     const settlement = await this.pendingCharge(user, id);
     if (settlement.chargeRequestedBy === user.sub) throw new SettlementChargeSelfApprovalError();
-    const posted = await this.payout.cashVarianceCharged({
-      courierId: settlement.driverId,
-      depotId: settlement.depotId,
-      settlementId: settlement.id,
-      amount: Math.abs(settlement.variance),
-    });
-    if (!posted) throw new SettlementChargeUndeliverableError();
+    /*
+     * Claimed BEFORE the push. Two approvers (or an approver and a rejecter) both passed the
+     * pending check above and the debit could land in payout while the settlement ended up
+     * unresolved or uncharged. Whoever holds the claim is the only one who pushes, and the claim
+     * is handed back if the push does not land so the retry the comment above promises works.
+     */
+    if (!(await this.settlements.claimChargeApproval(id, user.sub))) {
+      throw new SettlementNoChargePendingError();
+    }
+    let posted: boolean;
+    try {
+      posted = await this.payout.cashVarianceCharged({
+        courierId: settlement.driverId,
+        depotId: settlement.depotId,
+        settlementId: settlement.id,
+        amount: Math.abs(settlement.variance),
+      });
+    } catch (error) {
+      await this.settlements.releaseChargeApproval(id, user.sub);
+      throw error;
+    }
+    if (!posted) {
+      await this.settlements.releaseChargeApproval(id, user.sub);
+      throw new SettlementChargeUndeliverableError();
+    }
     this.logger.log(
       `Settlement ${id} charge raised by ${settlement.chargeRequestedBy} approved by ${user.sub}`,
     );

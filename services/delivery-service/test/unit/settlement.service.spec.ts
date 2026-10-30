@@ -450,6 +450,56 @@ describe('SettlementService', () => {
       expect(still.chargeRequestedBy).toBe(CASHIER.sub);
     });
 
+    it('hands the claim back when the push to payout lands nowhere, so the retry can take it', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      payout.variancePostAccepted = false;
+      await expect(service.approveCharge(MANAGER, s.id)).rejects.toBeInstanceOf(
+        SettlementChargeUndeliverableError,
+      );
+      payout.variancePostAccepted = true;
+      const verified = await service.approveCharge(MANAGER, s.id);
+      expect(verified.chargedToDriver).toBe(true);
+      expect(payout.variances).toHaveLength(1);
+    });
+
+    it('hands the claim back when the push itself throws', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      jest.spyOn(payout, 'cashVarianceCharged').mockRejectedValueOnce(new Error('payout down'));
+      await expect(service.approveCharge(MANAGER, s.id)).rejects.toThrow('payout down');
+      expect((await service.approveCharge(MANAGER, s.id)).chargedToDriver).toBe(true);
+    });
+
+    it('two approvers at once: one posts the debit, the other is told nothing is pending', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      const other: AuthenticatedUser = { ...MANAGER, sub: randomUUID() };
+      const res = await Promise.allSettled([
+        service.approveCharge(MANAGER, s.id),
+        service.approveCharge(other, s.id),
+      ]);
+      expect(res.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(payout.variances).toHaveLength(1);
+    });
+
+    it('a reject cannot cancel a charge an approver is already pushing', async () => {
+      const s = await submit(60000, 75000);
+      await service.verify(CASHIER, s.id, { chargedToDriver: true });
+      const other: AuthenticatedUser = { ...MANAGER, sub: randomUUID() };
+      let release!: () => void;
+      jest.spyOn(payout, 'cashVarianceCharged').mockImplementationOnce(
+        () => new Promise((resolve) => (release = () => resolve(true))),
+      );
+      const approving = service.approveCharge(MANAGER, s.id);
+      await new Promise((r) => setImmediate(r));
+      await expect(service.rejectCharge(other, s.id, 'salah')).rejects.toBeInstanceOf(
+        SettlementNoChargePendingError,
+      );
+      release();
+      expect((await approving).chargedToDriver).toBe(true);
+    });
+
     it('a cashier may still verify without charging', async () => {
       const s = await submit(60000, 75000); // variance -15000
       const verified = await service.verify(CASHIER, s.id, { chargedToDriver: false });
