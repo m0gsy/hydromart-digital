@@ -872,6 +872,7 @@ describe('SupportTicketPrismaRepository', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     create: jest.fn(),
   };
   const ticketMessage = { create: jest.fn() };
@@ -1001,8 +1002,8 @@ describe('SupportTicketPrismaRepository', () => {
     supportTicket.findUnique.mockResolvedValueOnce(row());
     supportTicket.findUnique.mockResolvedValueOnce(row());
     await repo.assign('t-1', 'staff-9');
-    expect(supportTicket.update).toHaveBeenCalledWith({
-      where: { id: 't-1' },
+    expect(supportTicket.updateMany).toHaveBeenCalledWith({
+      where: { id: 't-1', status: { not: TicketStatus.RESOLVED } },
       data: { assigneeId: 'staff-9', status: TicketStatus.ASSIGNED },
     });
   });
@@ -1010,7 +1011,7 @@ describe('SupportTicketPrismaRepository', () => {
   it('assign returns null for an unknown ticket', async () => {
     supportTicket.findUnique.mockResolvedValue(null);
     expect(await repo.assign('nope', 's')).toBeNull();
-    expect(supportTicket.update).not.toHaveBeenCalled();
+    expect(supportTicket.updateMany).not.toHaveBeenCalled();
   });
 
   it('resolve moves the ticket to RESOLVED', async () => {

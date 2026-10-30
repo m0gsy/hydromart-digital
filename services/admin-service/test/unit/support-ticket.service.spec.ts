@@ -93,6 +93,13 @@ describe('SupportTicketService', () => {
     expect(updated.messages[0].body).toBe('On it.');
   });
 
+  it('assigning a resolved ticket does not reopen it', async () => {
+    const t = await service.create({ subject: 'x', customerRef: 'c', message: 'm' } as never);
+    await service.resolve(t.id);
+    const after = await service.assign(t.id, 'staff-1');
+    expect(after.status).toBe(TicketStatus.RESOLVED);
+  });
+
   it('assign moves OPEN → ASSIGNED and resolve marks RESOLVED', async () => {
     const t = makeSupportTicket();
     repo.rows = [t];

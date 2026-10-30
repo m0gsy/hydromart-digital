@@ -488,6 +488,7 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
   async assign(id: string, assigneeId: string): Promise<SupportTicketRecord | null> {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
+    if (r.status === TicketStatus.RESOLVED) return { ...r, messages: [...r.messages] };
     r.assigneeId = assigneeId;
     r.status = TicketStatus.ASSIGNED;
     return { ...r, messages: [...r.messages] };
