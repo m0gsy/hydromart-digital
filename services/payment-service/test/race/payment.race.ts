@@ -123,4 +123,23 @@ describeRace('PaymentService on real Postgres — concurrent transitions', () =>
       expect(gateway.refunds).toHaveLength(1);
     });
   });
+
+  it('six simultaneous receipt uploads: the first stands and the depot is paged once', async () => {
+    for (let i = 0; i < 5; i++) {
+      const payment = await open(PaymentMethod.TRANSFER);
+      orders.notices.length = 0;
+      const results = await race(
+        Array.from({ length: 6 }, (_, n) => () =>
+          service.attachProof(customer, payment.id, `https://files/${i}-${n}.jpg`),
+        ),
+      );
+      expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
+      const urls = new Set(
+        results.map((r) => (r as PromiseFulfilledResult<{ proofUrl: string }>).value.proofUrl),
+      );
+      // Everyone is answered with the one receipt that was stored.
+      expect(urls.size).toBe(1);
+      expect(orders.notices).toHaveLength(1);
+    }
+  });
 });

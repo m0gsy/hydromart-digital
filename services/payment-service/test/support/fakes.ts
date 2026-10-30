@@ -31,11 +31,15 @@ const ACTIVE: PaymentStatus[] = [PaymentStatus.PENDING, PaymentStatus.PAID];
 export class InMemoryPaymentRepository implements PaymentRepository {
   rows: PaymentRecord[] = [];
 
-  async attachProof(id: string, proofUrl: string): Promise<PaymentRecord> {
+  async attachProofIfFirst(
+    id: string,
+    proofUrl: string,
+  ): Promise<{ record: PaymentRecord; attached: boolean }> {
     const row = this.rows.find((r) => r.id === id);
     if (!row) throw new Error(`no payment ${id}`);
+    if (row.proofUrl) return { record: row, attached: false };
     row.proofUrl = proofUrl;
-    return row;
+    return { record: row, attached: true };
   }
 
   async findProofsSettledBefore(

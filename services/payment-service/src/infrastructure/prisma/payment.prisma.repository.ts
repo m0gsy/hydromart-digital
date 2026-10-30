@@ -442,9 +442,16 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
   }
 
-  async attachProof(id: string, proofUrl: string): Promise<PaymentRecord> {
-    const row = await this.prisma.payment.update({ where: { id }, data: { proofUrl } });
-    return this.toRecord(row);
+  async attachProofIfFirst(
+    id: string,
+    proofUrl: string,
+  ): Promise<{ record: PaymentRecord; attached: boolean }> {
+    const { count } = await this.prisma.payment.updateMany({
+      where: { id, proofUrl: null },
+      data: { proofUrl },
+    });
+    const row = await this.prisma.payment.findUniqueOrThrow({ where: { id } });
+    return { record: this.toRecord(row), attached: count === 1 };
   }
 
   async findProofsSettledBefore(
