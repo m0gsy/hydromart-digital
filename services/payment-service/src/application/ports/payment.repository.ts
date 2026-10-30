@@ -181,6 +181,11 @@ export interface PaymentRepository {
     methods: readonly PaymentMethod[],
     limit: number,
   ): Promise<PaymentRecord[]>;
+  /**
+   * PAID rows settled since `after` that are not already waiting on an HQ refund decision, NEWEST
+   * first, bounded. The pool the cancelled-order reconciliation checks against order status.
+   */
+  findPaidSince(after: Date, limit: number): Promise<PaymentRecord[]>;
   /** Claim the right to tell the depot about this payment; true for exactly one caller. */
   claimUnconfirmedNotice(id: string): Promise<boolean>;
   search(

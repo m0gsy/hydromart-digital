@@ -116,7 +116,7 @@ describe('payment notices', () => {
     it('tells the depot when money arrived but the order is still CREATED', async () => {
       const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
       orders.orderStatuses.set(row.orderId, 'CREATED');
-      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 1, failed: 0, ok: true });
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 1, failed: 0, reconciled: 0, ok: true });
       expect(orders.notices).toEqual([{ orderId: row.orderId, kind: 'UNCONFIRMED', amount: 45000 }]);
     });
 
@@ -132,6 +132,48 @@ describe('payment notices', () => {
       const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 5 * 60); // five hours ago
       orders.orderStatuses.set(row.orderId, 'CREATED');
       expect((await service.flagUnconfirmed(new Date())).flagged).toBe(1);
+    });
+
+    describe('money PAID on an order that was cancelled meanwhile', () => {
+      it('hands it to the refund path, once, and leaves live orders alone', async () => {
+        const stranded = await paidMinutesAgo(PaymentMethod.TRANSFER, 10);
+        orders.orderStatuses.set(stranded.orderId, 'CANCELLED');
+        const live = await paidMinutesAgo(PaymentMethod.TRANSFER, 10);
+        orders.orderStatuses.set(live.orderId, 'PREPARING');
+        const unknown = await paidMinutesAgo(PaymentMethod.QRIS, 10); // status unreadable
+
+        const out = await service.flagUnconfirmed(new Date());
+
+        expect(out.reconciled).toBe(1);
+        expect((await repo.findById(stranded.id))?.status).not.toBe(PaymentStatus.PAID);
+        expect((await repo.findById(live.id))?.status).toBe(PaymentStatus.PAID);
+        expect((await repo.findById(unknown.id))?.status).toBe(PaymentStatus.PAID);
+        // Already refunded: the next sweep finds nothing to do.
+        expect((await service.flagUnconfirmed(new Date())).reconciled).toBe(0);
+      });
+
+      it('treats a voided counter sale the same way', async () => {
+        const voided = await paidMinutesAgo(PaymentMethod.TRANSFER, 10);
+        orders.orderStatuses.set(voided.orderId, 'VOIDED');
+        expect((await service.flagUnconfirmed(new Date())).reconciled).toBe(1);
+      });
+
+      it('counts a refund that throws as failed and keeps going', async () => {
+        const a = await paidMinutesAgo(PaymentMethod.TRANSFER, 10);
+        const b = await paidMinutesAgo(PaymentMethod.TRANSFER, 12);
+        orders.orderStatuses.set(a.orderId, 'CANCELLED');
+        orders.orderStatuses.set(b.orderId, 'CANCELLED');
+        jest.spyOn(service, 'cancelForOrder').mockRejectedValueOnce(new Error('gateway down'));
+        const out = await service.flagUnconfirmed(new Date());
+        expect(out).toMatchObject({ reconciled: 1, failed: 1, ok: true });
+      });
+
+      it('is not ok when every reconciliation failed', async () => {
+        const a = await paidMinutesAgo(PaymentMethod.TRANSFER, 10);
+        orders.orderStatuses.set(a.orderId, 'CANCELLED');
+        jest.spyOn(service, 'cancelForOrder').mockRejectedValue(new Error('gateway down'));
+        expect(await service.flagUnconfirmed(new Date())).toMatchObject({ reconciled: 0, failed: 1, ok: false });
+      });
     });
 
     it('stays quiet when the order did confirm, or its status cannot be read', async () => {
@@ -152,7 +194,7 @@ describe('payment notices', () => {
 
     it('does nothing at all when nothing is a candidate', async () => {
       const spy = jest.spyOn(orders, 'getOrderStatuses');
-      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 0, ok: true });
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 0, reconciled: 0, ok: true });
       expect(spy).not.toHaveBeenCalled();
     });
 
@@ -170,14 +212,14 @@ describe('payment notices', () => {
       orders.orderStatuses.set(a.orderId, 'CREATED');
       orders.orderStatuses.set(b.orderId, 'CREATED');
       jest.spyOn(orders, 'notifyPaymentEvent').mockRejectedValueOnce(new Error('down'));
-      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 1, failed: 1, ok: true });
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 1, failed: 1, reconciled: 0, ok: true });
     });
 
     it('reports ok=false when no notice could be sent', async () => {
       const a = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
       orders.orderStatuses.set(a.orderId, 'CREATED');
       jest.spyOn(orders, 'notifyPaymentEvent').mockRejectedValue(new Error('down'));
-      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 1, ok: false });
+      expect(await service.flagUnconfirmed(new Date())).toEqual({ flagged: 0, failed: 1, reconciled: 0, ok: false });
     });
   });
 

@@ -130,6 +130,19 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     this.reminded.add(id);
     return true;
   }
+  async findPaidSince(after: Date, limit: number): Promise<PaymentRecord[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.status === PaymentStatus.PAID &&
+          r.paidAt !== null &&
+          r.paidAt.getTime() >= after.getTime() &&
+          r.refundApproval !== RefundApproval.PENDING,
+      )
+      .sort((a, b) => b.paidAt!.getTime() - a.paidAt!.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
   async findUnconfirmedCandidates(
     before: Date,
     after: Date,
