@@ -1812,7 +1812,28 @@ export class OrderService {
       stockLinesFor(order.items),
       authorization,
     );
-    return this.orders.assignDepot(orderId, depotId);
+    const assigned = await this.orders.assignDepotIf(orderId, null, null, depotId);
+    if (assigned) return assigned;
+    // Lost the race to another operator. The hold taken above is keyed (order, depot): hand it
+    // back unless the winner routed to the very same depot, whose hold it is now.
+    await this.releaseLostHold(orderId, depotId, order.items, authorization);
+    throw new OrderAlreadyRoutedError();
+  }
+
+  /** The loser of a routing race gives back its own depot's hold, never the winner's. */
+  private async releaseLostHold(
+    orderId: string,
+    depotId: string,
+    items: OrderRecord['items'],
+    authorization: string,
+  ): Promise<void> {
+    const now = await this.orders.findById(orderId);
+    if (now?.depotId === depotId) return;
+    await this.inventory
+      .release(depotId, orderId, stockLinesFor(items), authorization)
+      .catch((err: Error) =>
+        this.logger.warn(`Hold ${orderId}@${depotId} tidak terlepas: ${err.message}`),
+      );
   }
 
   /**
@@ -1828,10 +1849,11 @@ export class OrderService {
    *
    *  1. Reserve at the NEW depot first, which fails CLOSED. A shortfall refuses the move
    *     while the operator is still on the screen, and the order stays exactly where it was.
-   *  2. Only then release the old hold, which fails OPEN — the move has already been proven
-   *     possible, and a depot-service blip must not strand the order between two depots.
-   *     Opname reconciles a missed release; there is never a moment with NO hold.
-   *  3. Write the new depot last, so a failure at any earlier step leaves the record true.
+   *  2. Write the new depot with a compare-and-set on the depot and status that were read, so
+   *     two operators cannot both move it. The loser gives back its own hold and gets a 409.
+   *  3. Only then release the old hold, which fails OPEN — the move has already happened, and
+   *     a depot-service blip must not strand the order. Opname reconciles a missed release;
+   *     there is never a moment with NO hold.
    */
   async rerouteDepot(
     user: AuthenticatedUser,
@@ -1859,8 +1881,24 @@ export class OrderService {
 
     const lines = stockLinesFor(order.items);
     await this.inventory.reserve(depotId, orderId, lines, authorization);
-    await this.inventory.release(order.depotId, orderId, lines, authorization);
-    return this.orders.assignDepot(orderId, depotId);
+    const moved = await this.orders.assignDepotIf(
+      orderId,
+      order.depotId,
+      [...REROUTABLE_STATUSES],
+      depotId,
+    );
+    if (!moved) {
+      await this.releaseLostHold(orderId, depotId, order.items, authorization);
+      throw new StaleOrderStatusError();
+    }
+    // After the write: the order is at the new depot for certain, so letting go of the old
+    // hold can no longer strand it. Fails open — opname reconciles a missed release.
+    await this.inventory
+      .release(order.depotId, orderId, lines, authorization)
+      .catch((err: Error) =>
+        this.logger.warn(`Hold lama ${orderId}@${order.depotId} tidak terlepas: ${err.message}`),
+      );
+    return moved;
   }
 
   async getForCustomer(customerId: string, orderId: string): Promise<OrderRecord> {
@@ -2541,7 +2579,19 @@ export class OrderService {
   ): Promise<OrderRecord> {
     const id = randomUUID();
     const lines = stockLinesFor(data.items);
-    await this.inventory.reserve(depotId, id, lines, authorization);
+    try {
+      await this.inventory.reserve(depotId, id, lines, authorization);
+    } catch (error) {
+      /*
+       * The second tap of a double-tapped Bayar lands here when the first one has already
+       * taken the stock: the customer would be told "stok habis" for an order that exists.
+       * Nothing was held under this attempt's id, so there is nothing to hand back — only
+       * the winner to answer with.
+       */
+      const winner = await this.findReplay(data.customerId, data.idempotencyKey);
+      if (winner) return winner;
+      throw error;
+    }
     let burned = false;
     try {
       if (burnVoucher) {
@@ -2558,7 +2608,11 @@ export class OrderService {
     } catch (error) {
       // Fail-open like every other inventory call: what the caller must see is why the
       // order could not be written, never a release that also failed on the way out.
-      await this.inventory.release(depotId, id, lines, authorization).catch(() => {});
+      await this.inventory
+        .release(depotId, id, lines, authorization)
+        .catch((err: Error) =>
+          this.logger.warn(`Hold checkout ${id}@${depotId} tidak terlepas: ${err.message}`),
+        );
       /*
        * K2.5: the same is true of the voucher, and for far longer. The burn happens BEFORE
        * the row is written (B-6, deliberately: a burn that fails must abort the checkout
@@ -2580,7 +2634,9 @@ export class OrderService {
       // index picked a winner. The loser has just handed its stock back and now answers
       // with the winner's order — one order, one hold, which is what the customer expects
       // from pressing a button twice.
-      if (error instanceof DuplicateCheckoutError) {
+      // Also the burn that failed because the winner already spent the voucher: a loser whose
+      // error is anything but the unique violation still owes the customer the winner's order.
+      if (error instanceof DuplicateCheckoutError || !burned) {
         const winner = await this.findReplay(data.customerId, data.idempotencyKey);
         if (winner) {
           return winner;

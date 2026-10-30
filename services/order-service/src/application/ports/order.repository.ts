@@ -564,8 +564,18 @@ export interface OrderRepository {
   findByTrackingToken(token: string): Promise<PublicTrackingRecord | null>;
   /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
   findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
-  /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
-  assignDepot(id: string, depotId: string): Promise<OrderRecord>;
+  /**
+   * Writes the fulfilling depot only if the order is still where the caller read it: at
+   * `expectedDepotId` (null = still unrouted) and, when given, in one of `allowedStatuses`.
+   * A compare-and-set, so two operators routing the same order cannot both win. Null = it
+   * had moved since the read and nothing was written.
+   */
+  assignDepotIf(
+    id: string,
+    expectedDepotId: string | null,
+    allowedStatuses: OrderStatus[] | null,
+    depotId: string,
+  ): Promise<OrderRecord | null>;
   /**
    * Moves a booked delivery slot (FR-052). A compare-and-set on the status, like every other
    * write that races dispatch: an order that left the allowed statuses since it was read

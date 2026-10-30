@@ -334,8 +334,15 @@ export class InMemoryOrderRepository implements OrderRepository {
     const id = this.byIdempotencyKey.get(`${customerId}\0${idempotencyKey}`);
     return id ? this.findById(id) : null;
   }
-  async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
+  async assignDepotIf(
+    id: string,
+    expectedDepotId: string | null,
+    allowedStatuses: OrderStatus[] | null,
+    depotId: string,
+  ): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id)!;
+    if ((row.depotId ?? null) !== expectedDepotId) return null;
+    if (allowedStatuses && !allowedStatuses.includes(row.status)) return null;
     row.depotId = depotId;
     return structuredClone(row);
   }

@@ -515,12 +515,22 @@ export class OrderPrismaRepository implements OrderRepository {
     return this.toRecord(row);
   }
 
-  async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
-    const row = await this.prisma.order.update({
-      where: { id },
+  async assignDepotIf(
+    id: string,
+    expectedDepotId: string | null,
+    allowedStatuses: OrderStatus[] | null,
+    depotId: string,
+  ): Promise<OrderRecord | null> {
+    const { count } = await this.prisma.order.updateMany({
+      where: {
+        id,
+        depotId: expectedDepotId,
+        ...(allowedStatuses ? { status: { in: allowedStatuses as unknown as DbOrderStatus[] } } : {}),
+      },
       data: { depotId },
-      include: INCLUDE,
     });
+    if (count === 0) return null;
+    const row = await this.prisma.order.findUniqueOrThrow({ where: { id }, include: INCLUDE });
     return this.toRecord(row);
   }
 
