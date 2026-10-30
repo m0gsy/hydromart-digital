@@ -105,6 +105,7 @@ async function build(startingGallons: number | null): Promise<Ctx> {
       new (class {
         private seq = 0;
         rows: { id: string; orderId: string | null; quantity: number }[] = [];
+        serialized = async <T,>(_key: string, work: () => Promise<T>): Promise<T> => work();
         create = async (data: Record<string, unknown>): Promise<unknown> => {
           const row = { id: `r${++this.seq}`, createdAt: new Date(), ...data } as never;
           this.rows.push(row);
