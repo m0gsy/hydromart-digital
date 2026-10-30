@@ -110,6 +110,24 @@ describe('ApprovalService', () => {
     );
   });
 
+  it('an approval that loses to a rejection by another manager is refused, not recorded over it', async () => {
+    const a = await raise(-240_000);
+    const real = repo.decideIfOpen.bind(repo);
+    // The OTHER manager's rejection commits between this one's read and its write.
+    jest.spyOn(repo, 'decideIfOpen').mockImplementationOnce(async (id, data) => {
+      await real(id, { status: ApprovalStatus.REJECTED, decidedBy: 'someone-else', decidedAt: new Date() } as never);
+      return real(id, data);
+    });
+
+    await expect(service.decide(a.id, 'APPROVE', null, MANAGER)).rejects.toBeInstanceOf(
+      ApprovalAlreadyDecidedError,
+    );
+    expect(repo.rows.find((r) => r.id === a.id)).toMatchObject({
+      status: ApprovalStatus.REJECTED,
+      decidedBy: 'someone-else',
+    });
+  });
+
   it('rejects an unknown id and counts only PENDING by type', async () => {
     await expect(service.get('00000000-0000-0000-0000-000000000000')).rejects.toBeInstanceOf(
       ApprovalNotFoundError,

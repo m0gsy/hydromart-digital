@@ -199,19 +199,27 @@ describe('depot-scoped guards and by-id getters', () => {
   });
 
   it('patches a franchise application without touching an unsent checklist', async () => {
-    const update = jest.fn().mockResolvedValue({});
+    const updateIfOpen = jest.fn().mockResolvedValue({});
+    const updatedAt = new Date('2026-10-29T10:00:00.000Z');
     const apps = new FranchiseApplicationService(
       {
-        findById: async () => ({ id: 'fa-1', stage: FranchiseAppStage.PENDING, checklist: {} }),
-        update,
+        findById: async () => ({
+          id: 'fa-1',
+          stage: FranchiseAppStage.PENDING,
+          checklist: {},
+          updatedAt,
+        }),
+        updateIfOpen,
       } as never,
       { findByCode: async () => null } as never,
     );
     await apps.patch('fa-1', { stage: FranchiseAppStage.SURVEY });
-    expect(update).toHaveBeenCalledWith('fa-1', {
-      stage: FranchiseAppStage.SURVEY,
-      checklist: undefined,
-    });
+    // Pinned to the row it merged from, so a concurrent edit cannot be silently overwritten.
+    expect(updateIfOpen).toHaveBeenCalledWith(
+      'fa-1',
+      { stage: FranchiseAppStage.SURVEY, checklist: undefined },
+      updatedAt,
+    );
   });
 
   // SOP §3: the sales broadcast must reach EVERY active depot, and browse clamps at 100.
