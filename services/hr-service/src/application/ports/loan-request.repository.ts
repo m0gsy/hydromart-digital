@@ -50,8 +50,21 @@ export interface LoanRequestRepository {
   /** The decision queue, depot-scoped and paged like every other HR list. */
   listAll(filter: LoanRequestListFilter): Promise<{ rows: LoanRequestListRow[]; total: number }>;
   /**
-   * Answer a request. `seenUpdatedAt` is checked by the service, not here — the repository
-   * writes what it is told.
+   * Answer a request — but only while it is still PENDING; null when somebody else got there
+   * first. `seenUpdatedAt` is checked by the service, not here.
+   *
+   * The PENDING guard is in the write itself. The service's own "is it pending" check is a
+   * read, so two approvers (or a double click) both passed it, both created a loan, and the
+   * employee was deducted twice; the second decide then overwrote `loanId`, orphaning the
+   * first loan.
    */
-  decide(id: string, decision: LoanRequestDecision): Promise<LoanRequest>;
+  decide(id: string, decision: LoanRequestDecision): Promise<LoanRequest | null>;
+  /** Links the loan an APPROVED request produced. */
+  attachLoan(id: string, loanId: string): Promise<LoanRequest>;
+  /**
+   * Hands an approval whose loan could not be created back to PENDING, so it can be decided
+   * again instead of sitting APPROVED with nothing behind it. If the employee has meanwhile
+   * filed another request (one PENDING at a time), this one is cancelled instead.
+   */
+  reopen(id: string): Promise<void>;
 }

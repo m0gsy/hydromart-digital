@@ -72,8 +72,14 @@ class FakeLeaveRepo implements LeaveRepository {
   async findById(id: string): Promise<LeaveRequest | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async decide(id: string, decision: LeaveDecision): Promise<LeaveRequest> {
+  async decide(
+    id: string,
+    fromStatus: LeaveStatus,
+    decision: LeaveDecision,
+  ): Promise<LeaveRequest | null> {
     const row = this.rows.find((r) => r.id === id)!;
+    // Mirrors the real repository: the write only lands if the request is still where it was read.
+    if (row.status !== fromStatus) return null;
     Object.assign(row, decision);
     return row;
   }
@@ -105,10 +111,15 @@ class FakeLeaveRepo implements LeaveRepository {
     this.balances.push(row);
     return row;
   }
-  async addUsedDays(employeeId: string, year: number, days: number): Promise<LeaveBalance> {
-    const row = (await this.findBalance(employeeId, year))!;
+  async claimUsedDays(employeeId: string, year: number, days: number): Promise<boolean> {
+    const row = await this.findBalance(employeeId, year);
+    if (!row || row.usedDays + days > row.quotaDays) return false;
     row.usedDays += days;
-    return row;
+    return true;
+  }
+  async releaseUsedDays(employeeId: string, year: number, days: number): Promise<void> {
+    const row = await this.findBalance(employeeId, year);
+    if (row) row.usedDays = Math.max(row.usedDays - days, 0);
   }
   async setBalance(
     employeeId: string,
@@ -418,6 +429,59 @@ describe('LeaveService approval flow', () => {
     const req = await ctx.svc.submit(staff, APPLY);
     await expect(ctx.svc.decideHr(hr, req.id, true)).rejects.toThrow(ConflictException);
     expect(ctx.attendanceWrites).toHaveLength(0);
+  });
+
+  describe('concurrent deciders and the quota', () => {
+    // Two approvals both passed the in-memory status check, both settled, and the quota was
+    // charged twice. The decision now only lands if the request is still where it was read,
+    // and the quota is claimed first, bounded by quotaDays.
+    it('refuses an approval that would overflow the quota, charging nothing', async () => {
+      const ctx = make();
+      const first = await ctx.svc.submit(staff, APPLY);
+      const second = await ctx.svc.submit(staff, {
+        ...APPLY,
+        startDate: '2026-07-13',
+        endDate: '2026-07-17',
+      });
+      ctx.repo.balances[0].quotaDays = 7; // 5 + 5 > 7
+      await ctx.svc.decideManager(manager(DEPOT_A), first.id, true);
+      await ctx.svc.decideHr(hr, first.id, true);
+      await ctx.svc.decideManager(manager(DEPOT_A), second.id, true);
+
+      await expect(ctx.svc.decideHr(hr, second.id, true)).rejects.toThrow(/Sisa kuota cuti 2 hari/);
+
+      expect(ctx.repo.balances[0].usedDays).toBe(5);
+      expect(ctx.repo.rows.find((r) => r.id === second.id)!.status).toBe('PENDING_HR');
+      expect(ctx.attendanceWrites).toHaveLength(5); // only the first request's days
+    });
+
+    it('a decider that loses the race hands its claimed days back and writes nothing', async () => {
+      const ctx = make();
+      const req = await ctx.svc.submit(staff, APPLY);
+      await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
+      const real = ctx.repo.decide.bind(ctx.repo);
+      // A cancellation (or the other approver) lands between our read and our write.
+      jest.spyOn(ctx.repo, 'decide').mockImplementationOnce(async (id, from, decision) => {
+        ctx.repo.rows.find((r) => r.id === id)!.status = 'CANCELLED';
+        return real(id, from, decision);
+      });
+
+      await expect(ctx.svc.decideHr(hr, req.id, true)).rejects.toThrow(/diputuskan orang lain/);
+
+      expect(ctx.repo.balances[0].usedDays).toBe(0);
+      expect(ctx.attendanceWrites).toHaveLength(0);
+      expect(ctx.repo.rows[0].status).toBe('CANCELLED');
+    });
+
+    it('refuses an approval when the balance row does not exist', async () => {
+      const ctx = make();
+      const req = await ctx.svc.submit(staff, APPLY);
+      await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
+      ctx.repo.balances.length = 0;
+
+      await expect(ctx.svc.decideHr(hr, req.id, true)).rejects.toThrow(/Saldo cuti/);
+      expect(ctx.repo.rows[0].status).toBe('PENDING_HR');
+    });
   });
 
   it('refuses to decide the same request twice', async () => {
