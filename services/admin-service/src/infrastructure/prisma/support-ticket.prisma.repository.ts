@@ -124,8 +124,10 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
   async assign(id: string, assigneeId: string): Promise<SupportTicketRecord | null> {
     const existing = await this.prisma.supportTicket.findUnique({ where: { id } });
     if (!existing) return null;
-    await this.prisma.supportTicket.update({
-      where: { id },
+    // A resolved ticket stays resolved: an assign that lost the race to a resolve used to
+    // reopen it as ASSIGNED. The ticket is returned as it stands in that case.
+    await this.prisma.supportTicket.updateMany({
+      where: { id, status: { not: TicketStatus.RESOLVED } },
       data: { assigneeId, status: TicketStatus.ASSIGNED },
     });
     return this.findById(id);
