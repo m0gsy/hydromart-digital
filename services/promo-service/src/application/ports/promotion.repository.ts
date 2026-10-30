@@ -44,7 +44,16 @@ export interface UpdatePromotionData {
 export interface PromotionRepository {
   findById(id: string): Promise<PromotionRecord | null>;
   create(data: CreatePromotionData): Promise<PromotionRecord>;
-  update(id: string, data: UpdatePromotionData): Promise<PromotionRecord>;
+  /**
+   * `expectedUpdatedAt`: write only if the row still carries the stamp the editor read (a
+   * compare-and-set). A mismatch throws StaleWriteError, so two editors holding the same
+   * stamp cannot both get past the freshness check and overwrite each other.
+   */
+  update(
+    id: string,
+    data: UpdatePromotionData,
+    expectedUpdatedAt?: Date,
+  ): Promise<PromotionRecord>;
   delete(id: string): Promise<void>;
 
   /** All promotions (admin), ordered sortOrder ASC, createdAt DESC. */

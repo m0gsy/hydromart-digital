@@ -161,7 +161,7 @@ export class PromoRuleService {
       Object.entries(patch).filter(([, v]) => v !== undefined),
     );
     this.validate({ ...current, ...definedPatch });
-    return this.repo.update(id, patch);
+    return this.repo.update(id, patch, current.updatedAt);
   }
 
   async remove(id: string): Promise<void> {

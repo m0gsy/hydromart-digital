@@ -1,7 +1,7 @@
 ﻿import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
-import { localDayKey } from '@hydromart/platform';
+import { StaleWriteError, localDayKey } from '@hydromart/platform';
 import { VoucherNotFoundError } from '../../src/domain/errors';
 
 import { PromoConfigService } from '../../src/config/promo-config.service';
@@ -38,8 +38,15 @@ export class InMemoryPromotionRepository implements PromotionRepository {
     return { ...row };
   }
 
-  async update(id: string, data: UpdatePromotionData): Promise<PromotionRecord> {
+  async update(
+    id: string,
+    data: UpdatePromotionData,
+    expectedUpdatedAt?: Date,
+  ): Promise<PromotionRecord> {
     const row = this.rows.find((candidate) => candidate.id === id)!;
+    if (expectedUpdatedAt && row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw new StaleWriteError();
+    }
     // CA-2-53: the stored row moves on every write, the way @updatedAt does — and a COPY
     // goes back, so a caller holding the result does not see later writes through it.
     Object.assign(row, data, { updatedAt: nextDate() });
@@ -106,8 +113,15 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     return { ...v };
   }
 
-  async update(id: string, data: UpdateVoucherData): Promise<VoucherRecord> {
+  async update(
+    id: string,
+    data: UpdateVoucherData,
+    expectedUpdatedAt?: Date,
+  ): Promise<VoucherRecord> {
     const v = this.vouchers.find((x) => x.id === id)!;
+    if (expectedUpdatedAt && v.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw new StaleWriteError();
+    }
     // Only overwrite keys that were actually provided (undefined = leave as-is).
     const target = v as unknown as Record<string, unknown>;
     for (const [key, val] of Object.entries(data)) {

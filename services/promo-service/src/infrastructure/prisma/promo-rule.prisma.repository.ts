@@ -1,4 +1,5 @@
 ﻿import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 import { Prisma } from '../../../prisma/generated/client';
 
 import {
@@ -33,7 +34,19 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
     return this.prisma.promoRule.create({ data });
   }
 
-  async update(id: string, data: UpdatePromoRuleData): Promise<PromoRuleRecord> {
+  async update(
+    id: string,
+    data: UpdatePromoRuleData,
+    expectedUpdatedAt?: Date,
+  ): Promise<PromoRuleRecord> {
+    if (expectedUpdatedAt) {
+      const { count } = await this.prisma.promoRule.updateMany({
+        where: { id, updatedAt: expectedUpdatedAt },
+        data,
+      });
+      if (count === 0) throw new StaleWriteError();
+      return this.prisma.promoRule.findUniqueOrThrow({ where: { id } });
+    }
     return this.prisma.promoRule.update({ where: { id }, data });
   }
 

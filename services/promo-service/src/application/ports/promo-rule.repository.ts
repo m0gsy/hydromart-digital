@@ -39,7 +39,16 @@ export interface PromoApplicationInWindow {
 export interface PromoRuleRepository {
   findById(id: string): Promise<PromoRuleRecord | null>;
   create(data: CreatePromoRuleData): Promise<PromoRuleRecord>;
-  update(id: string, data: UpdatePromoRuleData): Promise<PromoRuleRecord>;
+  /**
+   * `expectedUpdatedAt`: write only if the row still carries the stamp the editor read (a
+   * compare-and-set). A mismatch throws StaleWriteError, so two editors holding the same
+   * stamp cannot both get past the freshness check and overwrite each other.
+   */
+  update(
+    id: string,
+    data: UpdatePromoRuleData,
+    expectedUpdatedAt?: Date,
+  ): Promise<PromoRuleRecord>;
   delete(id: string): Promise<void>;
 
   /**

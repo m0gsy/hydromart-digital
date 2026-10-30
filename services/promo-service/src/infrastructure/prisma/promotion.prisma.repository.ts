@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 
 import {
   CreatePromotionData,
@@ -32,7 +33,19 @@ export class PromotionPrismaRepository implements PromotionRepository {
     return this.prisma.promotion.create({ data });
   }
 
-  async update(id: string, data: UpdatePromotionData): Promise<PromotionRecord> {
+  async update(
+    id: string,
+    data: UpdatePromotionData,
+    expectedUpdatedAt?: Date,
+  ): Promise<PromotionRecord> {
+    if (expectedUpdatedAt) {
+      const { count } = await this.prisma.promotion.updateMany({
+        where: { id, updatedAt: expectedUpdatedAt },
+        data,
+      });
+      if (count === 0) throw new StaleWriteError();
+      return this.prisma.promotion.findUniqueOrThrow({ where: { id } });
+    }
     return this.prisma.promotion.update({ where: { id }, data });
   }
 
