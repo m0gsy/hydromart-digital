@@ -71,6 +71,11 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # same as the two above. Until then the token is 128 bits of randomness (randomBytes(16)),
 # not a 1-in-N identifier a near-term collision is realistic for.
 #
+# fraud_flags_one_open_per_entity (2026-10-30, race program) is deliberately NOT in the table below
+# either, for a different reason: its migration builds the index only when production has no
+# duplicate OPEN flags and otherwise skips it with a NOTICE, so a dirty table can never abort
+# `prisma migrate deploy`. The flags table is small; the plain build under that guard is cheap.
+#
 # db|index name|CREATE INDEX CONCURRENTLY statement. One line per index; keep the index
 # name identical to the one the migration creates, or the migration will build a second
 # copy under Prisma's default name.

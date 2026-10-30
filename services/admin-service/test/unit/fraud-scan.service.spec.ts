@@ -84,6 +84,29 @@ describe('FraudScanService', () => {
     expect(flags.rows).toHaveLength(1);
   });
 
+  it('counts a case a parallel scan raised first as skipped, not as an error', async () => {
+    const rows = [{ customerId: 'cust-1', refunds: 4, amountIdr: 240_000 }];
+    const scan = new FraudScanService(flags, signals(rows), config());
+    // The read saw nothing open; the insert then meets the other scan's flag.
+    jest.spyOn(flags, 'list').mockResolvedValueOnce([]);
+    await flags.create({
+      entityType: FraudEntityType.ACCOUNT,
+      entityRef: 'cust-1',
+      score: 4,
+      level: FraudLevel.MEDIUM,
+      signals: [],
+    });
+    const out = await scan.run(NOW);
+    expect(out).toMatchObject({ flagged: 0, skipped: 1 });
+  });
+
+  it('rethrows any other failure while raising a flag', async () => {
+    const rows = [{ customerId: 'cust-1', refunds: 4, amountIdr: 240_000 }];
+    const scan = new FraudScanService(flags, signals(rows), config());
+    jest.spyOn(flags, 'create').mockRejectedValueOnce(new Error('db down'));
+    await expect(scan.run(NOW)).rejects.toThrow('db down');
+  });
+
   // Once the case is closed the customer can be flagged again — a cleared flag is a verdict
   // on what was seen then, not a permanent exemption from being looked at.
   it('flags again after the earlier case was closed', async () => {

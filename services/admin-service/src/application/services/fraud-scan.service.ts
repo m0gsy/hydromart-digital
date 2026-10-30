@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { FraudFlagAlreadyOpenError } from '../../domain/errors';
 import { FraudEntityType, FraudLevel, FraudStatus } from '../../domain/fraud';
 import { FraudFlagRepository } from '../ports/fraud-flag.repository';
 import { FraudSignalsPort } from '../ports/fraud-signals.port';
@@ -74,7 +75,8 @@ export class FraudScanService {
         skipped += 1;
         continue;
       }
-      await this.flags.create({
+      try {
+        await this.flags.create({
         entityType: FraudEntityType.ACCOUNT,
         entityRef: c.customerId,
         score: c.refunds,
@@ -85,9 +87,14 @@ export class FraudScanService {
           `${c.refunds} refund dalam ${windowDays} hari`,
           `total Rp ${c.amountIdr.toLocaleString('id-ID')}`,
         ],
-        status: FraudStatus.OPEN,
-      });
-      flagged += 1;
+          status: FraudStatus.OPEN,
+        });
+        flagged += 1;
+      } catch (error) {
+        // A parallel scan (or the ingest) raised it between the read above and this insert.
+        if (!(error instanceof FraudFlagAlreadyOpenError)) throw error;
+        skipped += 1;
+      }
     }
 
     this.logger.log(

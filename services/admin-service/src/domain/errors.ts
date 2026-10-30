@@ -77,6 +77,14 @@ export class FraudFlagNotFoundError extends DomainError {
   }
 }
 
+export class FraudFlagAlreadyOpenError extends DomainError {
+  readonly code = 'FRAUD_FLAG_ALREADY_OPEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(entityRef: string) {
+    super(`An open fraud flag already exists for "${entityRef}".`);
+  }
+}
+
 export class IncidentNotFoundError extends DomainError {
   readonly code = 'INCIDENT_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
