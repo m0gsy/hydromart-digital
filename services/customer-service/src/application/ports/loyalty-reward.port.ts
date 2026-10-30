@@ -5,5 +5,15 @@
  * caller decides per-customer. Idempotency across re-runs is the caller's year stamp.
  */
 export interface LoyaltyRewardPort {
-  reward(customerId: string, points: number, reason: string, authorization: string): Promise<void>;
+  /**
+   * `idempotencyKey` (e.g. "birthday:2026") makes the grant a no-op the second time: a sweep that
+   * granted the points and died before stamping the customer would otherwise grant them again.
+   */
+  reward(
+    customerId: string,
+    points: number,
+    reason: string,
+    authorization: string,
+    idempotencyKey?: string,
+  ): Promise<void>;
 }

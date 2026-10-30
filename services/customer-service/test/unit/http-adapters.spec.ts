@@ -74,6 +74,17 @@ describe('LoyaltyRewardHttpAdapter', () => {
     );
   });
 
+  it('sends the idempotency key when the caller has one', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'birthday', '', 'birthday:2026');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://loyalty:3009/api/v1/loyalty/reward',
+      expect.objectContaining({
+        body: JSON.stringify({ customerId: 'c1', points: 50, reason: 'birthday', idempotencyKey: 'birthday:2026' }),
+      }),
+    );
+  });
+
   it('throws (does NOT fail open) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     await expect(

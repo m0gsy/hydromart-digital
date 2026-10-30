@@ -138,11 +138,17 @@ export class InMemoryProfileRepository implements ProfileRepository {
 
 /** Records reward calls; optionally throws for chosen customers to exercise fail paths. */
 export class FakeLoyaltyReward implements LoyaltyRewardPort {
-  calls: { customerId: string; points: number; reason: string }[] = [];
+  calls: { customerId: string; points: number; reason: string; idempotencyKey?: string }[] = [];
   failFor = new Set<string>();
-  async reward(customerId: string, points: number, reason: string): Promise<void> {
+  async reward(
+    customerId: string,
+    points: number,
+    reason: string,
+    _authorization?: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
     if (this.failFor.has(customerId)) throw new Error('loyalty down');
-    this.calls.push({ customerId, points, reason });
+    this.calls.push({ customerId, points, reason, ...(idempotencyKey ? { idempotencyKey } : {}) });
   }
 }
 

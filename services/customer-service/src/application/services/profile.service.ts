@@ -105,7 +105,14 @@ export class ProfileService {
     let failed = 0;
     for (const customerId of candidates) {
       try {
-        await this.loyalty.reward(customerId, points, `Birthday reward ${year}`, authorization);
+        // Keyed by year: the points are granted once even if the stamp below is lost and the sweep re-runs.
+        await this.loyalty.reward(
+          customerId,
+          points,
+          `Birthday reward ${year}`,
+          authorization,
+          `birthday:${year}`,
+        );
         await this.profiles.markBirthdayRewarded(customerId, year);
         granted += 1;
       } catch (error) {
