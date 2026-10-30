@@ -37,6 +37,19 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return row !== null;
   }
 
+  async createOpeningOnce(
+    data: CreateGallonIssueData,
+  ): Promise<{ record: GallonIssueRecord; created: boolean }> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`gallonopen:${data.depotId}:${data.customerId}`}, 0))`;
+      const existing = await tx.gallonIssue.findFirst({
+        where: { depotId: data.depotId, customerId: data.customerId, note: OPENING_BALANCE_NOTE },
+      });
+      if (existing) return { record: this.toRecord(existing), created: false };
+      return { record: this.toRecord(await tx.gallonIssue.create({ data })), created: true };
+    });
+  }
+
   async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {
     return this.toRecord(await this.prisma.gallonIssue.create({ data }));
   }

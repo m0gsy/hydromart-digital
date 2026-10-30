@@ -70,6 +70,22 @@ describe('GallonIssueService.importOpening', () => {
     expect(created).toHaveLength(0);
   });
 
+  it('with a locked createOpeningOnce the second upload of a customer is skipped, not booked', async () => {
+    const { svc, issues } = build({ known: { '0811': 'c-1' } });
+    let first = true;
+    issues.createOpeningOnce = jest.fn(async (d: Record<string, unknown>) => {
+      const created = first;
+      first = false;
+      return { record: { id: 'i-1', ...d }, created };
+    });
+    const row = { customerPhone: '0811', quantity: 3 };
+    const one = await svc.importOpening(DEPOT, [row], 'a');
+    const two = await svc.importOpening(DEPOT, [row], 'a');
+    expect(one.results[0]).toMatchObject({ status: 'created' });
+    expect(two.results[0]).toMatchObject({ status: 'skipped', id: 'c-1' });
+    expect(issues.create).not.toHaveBeenCalled();
+  });
+
   it('a phone that cannot be resolved fails that row only; deposit defaults to 0', async () => {
     const { svc, created } = build({ known: { '0822': 'c-2' } });
     const r = await svc.importOpening(
@@ -145,6 +161,23 @@ describe('customer-service adapter and repository', () => {
     await expect(new CustomerContactHttpAdapter(cfg()).resolveByPhone('1')).resolves.toBeNull();
     jest.spyOn(global, 'fetch').mockResolvedValueOnce(new Response('null'));
     await expect(new CustomerContactHttpAdapter(cfg()).resolveByPhone('1')).resolves.toBeNull();
+  });
+
+  it('createOpeningOnce books the balance under a lock, and reports an existing one as not created', async () => {
+    const tx = {
+      $executeRaw: jest.fn(),
+      gallonIssue: {
+        findFirst: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'old', depositHeld: 5 }),
+        create: jest.fn().mockResolvedValue({ id: 'new', depositHeld: 7 }),
+      },
+    };
+    const $transaction = jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+    const repo = new GallonIssuePrismaRepository({ $transaction } as never);
+    const data = { depotId: DEPOT, customerId: 'c-1', quantity: 1, depositHeld: 7, note: 'Saldo awal (impor)', actorId: 'a' };
+    await expect(repo.createOpeningOnce(data)).resolves.toMatchObject({ created: true });
+    await expect(repo.createOpeningOnce(data)).resolves.toMatchObject({ created: false });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(tx.gallonIssue.create).toHaveBeenCalledTimes(1);
   });
 
   it('hasOpeningBalance looks for the marker note on that customer and depot', async () => {

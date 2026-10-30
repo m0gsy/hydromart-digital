@@ -153,17 +153,29 @@ export class GallonIssueService {
       }
       misses = 0;
       const { customerId, status } = resolved;
-      if (await this.issues.hasOpeningBalance!(depotId, customerId)) {
-        return { status: 'skipped', id: customerId, message: 'Saldo awal pelanggan ini sudah pernah diimpor' };
-      }
-      const record = await this.issues.create({
+      const alreadyImported = {
+        status: 'skipped' as const,
+        id: customerId,
+        message: 'Saldo awal pelanggan ini sudah pernah diimpor',
+      };
+      const opening = {
         depotId,
         customerId,
         quantity: row.quantity,
         depositHeld: row.depositHeld ?? 0,
         note: OPENING_BALANCE_NOTE,
         actorId,
-      });
+      };
+      let record: GallonIssueRecord;
+      if (this.issues.createOpeningOnce) {
+        // Check and write under one lock: two uploads of the same file cannot both book it.
+        const once = await this.issues.createOpeningOnce(opening);
+        if (!once.created) return alreadyImported;
+        record = once.record;
+      } else {
+        if (await this.issues.hasOpeningBalance!(depotId, customerId)) return alreadyImported;
+        record = await this.issues.create(opening);
+      }
       return {
         status: 'created',
         id: record.id,
