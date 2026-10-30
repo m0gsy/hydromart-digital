@@ -99,6 +99,8 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
       this.logger.warn(
         `Franchise revenue reversal failed for ${orderId}: ${(error as Error).message}`,
       );
+      // Rethrown: the FRANCHISE_REVENUE_VOID outbox row retries it; the inline caller ignores it.
+      throw error;
     } finally {
       clearTimeout(timer);
     }

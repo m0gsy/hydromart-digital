@@ -752,6 +752,32 @@ describe('PayoutService multi-owner revenue', () => {
     expect(ledger.entries).toHaveLength(8);
   });
 
+  it('answers "already recorded" when a concurrent push wins the unique sourceRef', async () => {
+    const { ledger, svc } = build();
+    jest
+      .spyOn(ledger, 'createAll')
+      .mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }));
+    const out = await push(svc, { owners: split(100) });
+    expect(out.recorded).toBe(false);
+  });
+
+  it('rethrows any other ledger failure on a push', async () => {
+    const { ledger, svc } = build();
+    jest.spyOn(ledger, 'createAll').mockRejectedValueOnce(new Error('db down'));
+    await expect(push(svc, { owners: split(100) })).rejects.toThrow('db down');
+  });
+
+  it('answers "not reversed" when a concurrent void wins the unique sourceRef, and rethrows otherwise', async () => {
+    const { ledger, svc } = build();
+    await push(svc, { owners: split(100) });
+    jest
+      .spyOn(ledger, 'createAll')
+      .mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }));
+    expect(await svc.reverseOrderRevenue(ORDER, 'x')).toEqual({ reversed: false });
+    jest.spyOn(ledger, 'createAll').mockRejectedValueOnce(new Error('db down'));
+    await expect(svc.reverseOrderRevenue(ORDER, 'x')).rejects.toThrow('db down');
+  });
+
   it('refuses owners that do not add up, repeat, or lack exactly one primary', async () => {
     const { svc } = build();
     const bad = [

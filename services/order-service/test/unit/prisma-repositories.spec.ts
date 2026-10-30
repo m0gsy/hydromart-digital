@@ -305,7 +305,12 @@ describe('OrderPrismaRepository', () => {
   // H-10: the order write and its outbox rows go in one transaction. Promise.all so a
   // rejected op (the P2002 / P2025 cases below) still reaches the repository's catch.
   const outboxMessage = { create: jest.fn() };
-  const $transaction = jest.fn((ops: unknown[]) => Promise.all(ops));
+  // An interactive transaction (voidWalkIn) gets the same models back as its client.
+  const $transaction = jest.fn((ops: unknown) =>
+    typeof ops === 'function'
+      ? (ops as (tx: unknown) => unknown)({ order, orderStatusHistory, outboxMessage })
+      : Promise.all(ops as unknown[]),
+  );
   const prisma = {
     order,
     orderReview,
@@ -1946,6 +1951,17 @@ describe('OrderPrismaRepository', () => {
       });
       expect(orderStatusHistory.create).toHaveBeenCalledWith({
         data: { orderId: 'ord-1', status: 'VOIDED', changedBy: 'cashier-1', note: 'Salah ukuran' },
+      });
+    });
+
+    it('writes what the void owes in the same transaction', async () => {
+      order.updateMany.mockResolvedValue({ count: 1 });
+      order.findUnique.mockResolvedValue(orderRow());
+      await repo.voidWalkIn('ord-1', 'x', 'cashier-1', at, [
+        { topic: 'FRANCHISE_REVENUE_VOID', orderId: 'ord-1' },
+      ]);
+      expect(outboxMessage.create).toHaveBeenCalledWith({
+        data: { topic: 'FRANCHISE_REVENUE_VOID', orderId: 'ord-1' },
       });
     });
 

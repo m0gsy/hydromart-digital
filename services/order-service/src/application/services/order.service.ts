@@ -342,6 +342,14 @@ export class OrderService {
     );
     this.outboxService.register('GALLON_ISSUE', (id) => this.bookGallonIssue(id));
     this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
+    this.outboxService.register('FRANCHISE_REVENUE_VOID', (id) => this.voidFranchiseRevenue(id));
+  }
+
+  /** Backs a voided counter sale out of the owner's ledger; throws so the outbox retries. */
+  private async voidFranchiseRevenue(orderId: string): Promise<void> {
+    const order = await this.orders.findById(orderId);
+    if (!order) return;
+    await this.franchiseRevenue.orderVoided(orderId, order.voidReason ?? 'Penjualan dibatalkan');
   }
 
   /**
@@ -1387,7 +1395,9 @@ export class OrderService {
     // the cashier can never account for at close.
     await this.paymentReversal.voidForOrder(orderId, reason);
 
-    const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now);
+    const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now, [
+      { topic: 'FRANCHISE_REVENUE_VOID', orderId },
+    ]);
 
     /*
      * C3: stop owing what the sale no longer owes, BEFORE anything is handed back.
@@ -1443,6 +1453,7 @@ export class OrderService {
     // The franchise owner's ledger is a separate book that this service already wrote to at
     // completion — excluding the order from reports does not touch it, so it has to be
     // backed out explicitly or the owner keeps credit for money handed back to the buyer.
+    // Fast path only: the row written with the void retries it until payout answers.
     await this.franchiseRevenue.orderVoided(orderId, reason).catch(() => {});
     // Points are money in the buyer's hands too, so they are taken back as well. Demand and
     // recommendations need no undoing — they fall out of every report with the status.
@@ -2332,6 +2343,16 @@ export class OrderService {
       // after midnight on the last day of a month booked the sale into the wrong WIB month.
       completedAt: completedAt.toISOString(),
     });
+
+    /*
+     * A counter sale voided while this push was in flight: the guard at the top of the outbox
+     * delivery had already passed, and the void's own reversal found nothing to back out
+     * because this credit had not landed yet. Reverse it now that it has.
+     */
+    const after = await this.orders.findById(orderId);
+    if (posted && after?.status === OrderStatus.VOIDED) {
+      await this.franchiseRevenue.orderVoided(orderId, after.voidReason ?? 'Penjualan dibatalkan');
+    }
 
     /*
      * A franchise depot taking a 0% commission.

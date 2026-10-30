@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { LedgerPrismaRepository } from '../../src/infrastructure/prisma/ledger.prisma.repository';
 import { ExpenseClaimPrismaRepository } from '../../src/infrastructure/prisma/expense-claim.prisma.repository';
 import { PayoutBankAccountPrismaRepository } from '../../src/infrastructure/prisma/bank-account.prisma.repository';
 import { describeRace, freshPrisma, race } from './db';
@@ -8,12 +9,14 @@ describeRace('payout on real Postgres — concurrent writers', () => {
   let drop: () => Promise<void>;
   let claims: ExpenseClaimPrismaRepository;
   let accounts: PayoutBankAccountPrismaRepository;
+  let ledger: LedgerPrismaRepository;
 
   beforeAll(async () => {
     const db = await freshPrisma();
     drop = db.drop;
     claims = new ExpenseClaimPrismaRepository(db.prisma as never);
     accounts = new PayoutBankAccountPrismaRepository(db.prisma as never);
+    ledger = new LedgerPrismaRepository(db.prisma as never);
   });
   afterAll(async () => drop?.());
 
@@ -100,6 +103,23 @@ describeRace('payout on real Postgres — concurrent writers', () => {
       }
       // Either way, the NEW destination is never VERIFIED by a review of the old one.
       expect(final.status === 'VERIFIED' && final.accountNumber === '2222222222').toBe(false);
+    }
+  });
+
+  it('two pushes of one order: the unique sourceRef lets exactly one write both rows, the other sees P2002', async () => {
+    for (let i = 0; i < 10; i++) {
+      const orderId = randomUUID();
+      const owner = randomUUID();
+      const rows = () => [
+        { franchiseOwnerId: owner, depotId: null, type: 'SALE_SETTLEMENT' as const, amount: 100_000, description: 's', sourceRef: `order:${orderId}:SALE`, occurredAt: new Date() },
+        { franchiseOwnerId: owner, depotId: null, type: 'COMMISSION' as const, amount: -10_000, description: 'c', sourceRef: `order:${orderId}:COMMISSION`, occurredAt: new Date() },
+      ];
+      const res = await race([() => ledger.createAll(rows()), () => ledger.createAll(rows())]);
+      expect(res.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const lost = res.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect((lost.reason as { code?: string }).code).toBe('P2002');
+      // All-or-nothing: the loser left no half pair behind.
+      expect(await ledger.findByOrder(orderId)).toHaveLength(2);
     }
   });
 });

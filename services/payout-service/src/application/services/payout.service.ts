@@ -79,6 +79,9 @@ function refSuffix(ref: string, orderId: string, kind: string): string {
   return ref.slice(`order:${orderId}:${kind}`.length);
 }
 
+const isUniqueViolation = (error: unknown): boolean =>
+  (error as { code?: string } | null)?.code === 'P2002';
+
 @Injectable()
 export class PayoutService {
   private readonly logger = new Logger(PayoutService.name);
@@ -165,7 +168,15 @@ export class PayoutService {
         });
       }
     }
-    await this.ledger.createAll(entries);
+    try {
+      await this.ledger.createAll(entries);
+    } catch (error) {
+      // Two pushes for one order past the findByOrder check: the unique sourceRef picked a winner.
+      if (isUniqueViolation(error)) {
+        return { recorded: false, revenue: input.amountIdr, commission, commissionPct: pct };
+      }
+      throw error;
+    }
     return { recorded: true, revenue: input.amountIdr, commission, commissionPct: pct };
   }
 
@@ -192,7 +203,7 @@ export class PayoutService {
     // the commission back leaves the owner short by HQ's cut of a sale that never happened.
     // Every row is mirrored to the owner it credited THEN and for the same amount; nothing is
     // re-derived from today's owners, who may not be the ones that were paid.
-    await this.ledger.createAll([
+    const reversal = [
       ...sales.map((sale) => ({
         franchiseOwnerId: sale.franchiseOwnerId,
         depotId: sale.depotId,
@@ -212,7 +223,14 @@ export class PayoutService {
         sourceRef: `order:${orderId}:VOID_COMMISSION${refSuffix(commission.sourceRef, orderId, 'COMMISSION')}`,
         occurredAt,
       })),
-    ]);
+    ];
+    try {
+      await this.ledger.createAll(reversal);
+    } catch (error) {
+      // A concurrent void of the same order won the unique sourceRef: already reversed.
+      if (isUniqueViolation(error)) return { reversed: false };
+      throw error;
+    }
     return { reversed: true };
   }
 

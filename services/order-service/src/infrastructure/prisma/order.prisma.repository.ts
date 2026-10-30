@@ -1091,21 +1091,31 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
-  async voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord> {
-    // Guarded on COMPLETED in the WHERE, not just in the service: two cashiers hitting void
-    // on the same sale would otherwise both restock it. The second update matches no row.
-    const { count } = await this.prisma.order.updateMany({
-      where: { id, status: DbOrderStatus.COMPLETED, isWalkIn: true },
-      // B3: `statusChangedAt` here too. A void is a status transition that does not go
-      // through `applyStatus`, and a column that only SOME transitions write is worse than
-      // no column — it reads as fresh for exactly the rows it never touched.
-      data: { status: DbOrderStatus.VOIDED, statusChangedAt: at, voidedAt: at, voidReason: reason },
-    });
-    if (count === 0) {
-      throw new OrderAlreadyVoidedError();
-    }
-    await this.prisma.orderStatusHistory.create({
-      data: { orderId: id, status: DbOrderStatus.VOIDED, changedBy, note: reason },
+  async voidWalkIn(
+    id: string,
+    reason: string,
+    changedBy: string,
+    at: Date,
+    outbox: OutboxWrite[] = [],
+  ): Promise<OrderRecord> {
+    // One transaction: the status, its history and what the void now owes land together.
+    await this.prisma.$transaction(async (tx) => {
+      // Guarded on COMPLETED in the WHERE, not just in the service: two cashiers hitting void
+      // on the same sale would otherwise both restock it. The second update matches no row.
+      const { count } = await tx.order.updateMany({
+        where: { id, status: DbOrderStatus.COMPLETED, isWalkIn: true },
+        // B3: `statusChangedAt` here too. A void is a status transition that does not go
+        // through `applyStatus`, and a column that only SOME transitions write is worse than
+        // no column — it reads as fresh for exactly the rows it never touched.
+        data: { status: DbOrderStatus.VOIDED, statusChangedAt: at, voidedAt: at, voidReason: reason },
+      });
+      if (count === 0) {
+        throw new OrderAlreadyVoidedError();
+      }
+      await tx.orderStatusHistory.create({
+        data: { orderId: id, status: DbOrderStatus.VOIDED, changedBy, note: reason },
+      });
+      for (const m of outbox) await tx.outboxMessage.create({ data: m });
     });
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
     return this.toRecord(row!);

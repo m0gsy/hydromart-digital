@@ -29,7 +29,15 @@ export type OutboxTopic =
    * Unlike every other topic this one is owed BY a cancelled order, so the dispatcher must
    * not skip it for being cancelled.
    */
-  | 'PAYMENT_REVERSAL';
+  | 'PAYMENT_REVERSAL'
+  /**
+   * A voided counter sale owes its franchise owner's ledger a reversal. Written in the same
+   * transaction as the VOIDED status (the inline call stays, as the fast path) so a payout
+   * blip can no longer leave the owner credited for money handed back over the counter.
+   * Like PAYMENT_REVERSAL it is owed BY a voided order, so it is exempt from the skip guard
+   * and from `cancelForOrder`.
+   */
+  | 'FRANCHISE_REVENUE_VOID';
 
 /**
  * C3: `CANCELLED` is a row the order stopped owing — a voided counter sale. It is not a
