@@ -59,12 +59,22 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
       where: { id: { in: ids }, nextAttemptAt: lease },
       include: { endpoint: { select: { url: true, secret: true } } },
     });
-    return rows.map((r) => ({ ...toRecord(r), url: r.endpoint.url, secret: r.endpoint.secret }));
+    return rows.map((r) => ({
+      ...toRecord(r),
+      url: r.endpoint.url,
+      secret: r.endpoint.secret,
+      leaseUntil: lease,
+    }));
   }
 
-  async markDelivered(id: string, responseStatus: number, at: Date): Promise<void> {
-    await this.prisma.webhookDelivery.update({
-      where: { id },
+  /** The row is only touched by the sweep that still holds its lease (when one is given). */
+  private held(id: string, lease?: Date): { id: string; status?: 'PENDING'; nextAttemptAt?: Date } {
+    return lease ? { id, status: 'PENDING', nextAttemptAt: lease } : { id };
+  }
+
+  async markDelivered(id: string, responseStatus: number, at: Date, lease?: Date): Promise<void> {
+    await this.prisma.webhookDelivery.updateMany({
+      where: this.held(id, lease),
       data: {
         status: 'DELIVERED',
         deliveredAt: at,
@@ -81,9 +91,10 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
     nextAttemptAt: Date,
     error: string,
     responseStatus: number | null,
+    lease?: Date,
   ): Promise<void> {
-    await this.prisma.webhookDelivery.update({
-      where: { id },
+    await this.prisma.webhookDelivery.updateMany({
+      where: this.held(id, lease),
       data: { status: 'PENDING', attempts, nextAttemptAt, lastError: error, responseStatus },
     });
   }
@@ -93,9 +104,10 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
     attempts: number,
     error: string,
     responseStatus: number | null,
+    lease?: Date,
   ): Promise<void> {
-    await this.prisma.webhookDelivery.update({
-      where: { id },
+    await this.prisma.webhookDelivery.updateMany({
+      where: this.held(id, lease),
       data: { status: 'DEAD', attempts, lastError: error, responseStatus },
     });
   }

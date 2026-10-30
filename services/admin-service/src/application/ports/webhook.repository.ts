@@ -63,6 +63,12 @@ export interface WebhookDeliveryRecord {
 export interface DueDelivery extends WebhookDeliveryRecord {
   url: string;
   secret: string | null;
+  /**
+   * The lease this sweep holds on the row (its `nextAttemptAt` while claimed). Handed back to
+   * the `mark*` calls: a sweep whose lease lapsed and was re-claimed by another must not
+   * overwrite the new holder's outcome.
+   */
+  leaseUntil: Date;
 }
 
 export interface WebhookDeliveryRepository {
@@ -76,7 +82,7 @@ export interface WebhookDeliveryRepository {
    * next attempt out of reach first, so two overlapping sweeps cannot both send it.
    */
   claimDue(now: Date, limit: number, leaseMs: number): Promise<DueDelivery[]>;
-  markDelivered(id: string, responseStatus: number, at: Date): Promise<void>;
+  markDelivered(id: string, responseStatus: number, at: Date, lease?: Date): Promise<void>;
   /** Failed but retryable: bump attempts, schedule the next try, record why. */
   markRetry(
     id: string,
@@ -84,6 +90,7 @@ export interface WebhookDeliveryRepository {
     nextAttemptAt: Date,
     error: string,
     responseStatus: number | null,
+    lease?: Date,
   ): Promise<void>;
   /** Out of attempts. Stays in the table as the record of what was never delivered. */
   markDead(
@@ -91,6 +98,7 @@ export interface WebhookDeliveryRepository {
     attempts: number,
     error: string,
     responseStatus: number | null,
+    lease?: Date,
   ): Promise<void>;
   /** Delivered vs attempted for one endpoint, plus its most recent outcome. */
   endpointStats(

@@ -87,24 +87,35 @@ describe('WebhookDeliveryPrismaRepository', () => {
   it('records each outcome', async () => {
     const { repo, webhookDelivery } = makeRepo();
     await repo.markDelivered('d-1', 204, NOW);
-    expect(webhookDelivery.update.mock.calls[0][0].data).toMatchObject({
+    expect(webhookDelivery.updateMany.mock.calls[0][0].data).toMatchObject({
       status: 'DELIVERED',
       responseStatus: 204,
       attempts: { increment: 1 },
     });
 
     await repo.markRetry('d-1', 2, NOW, 'boom', 500);
-    expect(webhookDelivery.update.mock.calls[1][0].data).toMatchObject({
+    expect(webhookDelivery.updateMany.mock.calls[1][0].data).toMatchObject({
       status: 'PENDING',
       attempts: 2,
       lastError: 'boom',
     });
 
     await repo.markDead('d-1', 6, 'gone', null);
-    expect(webhookDelivery.update.mock.calls[2][0].data).toMatchObject({
+    expect(webhookDelivery.updateMany.mock.calls[2][0].data).toMatchObject({
       status: 'DEAD',
       attempts: 6,
     });
+  });
+
+  it('records an outcome only for the sweep that still holds the lease', async () => {
+    const { repo, webhookDelivery } = makeRepo();
+    const lease = new Date(NOW.getTime() + 60_000);
+    await repo.markDelivered('d-1', 200, NOW, lease);
+    await repo.markRetry('d-1', 2, NOW, 'boom', 500, lease);
+    await repo.markDead('d-1', 6, 'gone', null, lease);
+    for (const call of webhookDelivery.updateMany.mock.calls.slice(-3)) {
+      expect(call[0].where).toEqual({ id: 'd-1', status: 'PENDING', nextAttemptAt: lease });
+    }
   });
 
   it('reports delivered vs attempted and the latest outcome', async () => {

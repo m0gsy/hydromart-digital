@@ -49,6 +49,7 @@ function due(over: Partial<DueDelivery> = {}): DueDelivery {
     createdAt: NOW,
     url: 'https://partner.example.com/hooks',
     secret: 'partner-secret',
+    leaseUntil: new Date(NOW.getTime() + 300_000),
     ...over,
   };
 }
@@ -172,6 +173,21 @@ describe('WebhookDispatchService', () => {
       lastDeliveryStatus: 'DELIVERED',
       deliveryRatePct: 50,
     });
+  });
+
+  it('stops starting new sends once the lease is nearly spent, leaving the rest to lapse', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    const { deliveries, endpoints, calls } = makeRepos([due({ id: 'd-1' }), due({ id: 'd-2' })]);
+    const real = Date.now();
+    // The first send "takes" almost the whole lease; the second must not start.
+    const clock = jest.spyOn(Date, 'now');
+    clock.mockReturnValueOnce(real).mockReturnValueOnce(real).mockReturnValue(real + 290_000);
+
+    const out = await new WebhookDispatchService(deliveries, endpoints, publicLookup).process(NOW);
+    clock.mockRestore();
+
+    expect(out.sent).toBe(1);
+    expect(calls.delivered.map((d) => d.id)).toEqual(['d-1']);
   });
 
   it('sends unsigned rather than signing with a placeholder when no secret is set', async () => {
