@@ -3,7 +3,11 @@ import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promo
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
 import { PromoRulePrismaRepository } from '../../src/infrastructure/prisma/promo-rule.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
-import { PromoRuleInUseError, VoucherNotFoundError } from '../../src/domain/errors';
+import {
+  DuplicateVoucherCodeError,
+  PromoRuleInUseError,
+  VoucherNotFoundError,
+} from '../../src/domain/errors';
 
 describe('PromoRulePrismaRepository', () => {
   const model = {
@@ -344,6 +348,7 @@ describe('VoucherPrismaRepository', () => {
   const voucherGrant = {
     findUnique: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
     findMany: jest.fn(),
     updateMany: jest.fn(),
   };
@@ -428,6 +433,20 @@ describe('VoucherPrismaRepository', () => {
     expect(voucher.create).toHaveBeenCalledWith({
       data: { code: 'HEMAT10', discountType: 'PERCENTAGE', value: 10 },
     });
+  });
+
+  it('create answers a lost unique-code race with the duplicate-code error, not a 500', async () => {
+    voucher.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+    await expect(
+      repo.create({ code: 'HEMAT10', discountType: DiscountType.PERCENTAGE, value: 10 } as never),
+    ).rejects.toBeInstanceOf(DuplicateVoucherCodeError);
+  });
+
+  it('create lets an unexpected failure through', async () => {
+    voucher.create.mockRejectedValue(new Error('db down'));
+    await expect(
+      repo.create({ code: 'HEMAT10', discountType: DiscountType.PERCENTAGE, value: 10 } as never),
+    ).rejects.toThrow('db down');
   });
 
   it('update maps the patch and result', async () => {
@@ -813,17 +832,19 @@ describe('VoucherPrismaRepository', () => {
     });
   });
 
-  it('grantVoucher returns false when a grant already exists', async () => {
-    voucherGrant.findUnique.mockResolvedValue({ voucherId: 'v-1', customerId: 'c-1' });
+  it('grantVoucher returns false when a grant already exists (skipped, not raised)', async () => {
+    voucherGrant.createMany.mockResolvedValue({ count: 0 });
     expect(await repo.grantVoucher('v-1', 'c-1')).toBe(false);
-    expect(voucherGrant.create).not.toHaveBeenCalled();
   });
 
-  it('grantVoucher creates and returns true when none exists', async () => {
-    voucherGrant.findUnique.mockResolvedValue(null);
+  it('grantVoucher inserts through the unique index and returns true for the one that won', async () => {
+    voucherGrant.createMany.mockResolvedValue({ count: 1 });
     expect(await repo.grantVoucher('v-1', 'c-1')).toBe(true);
-    expect(voucherGrant.create).toHaveBeenCalledWith({
-      data: { voucherId: 'v-1', customerId: 'c-1' },
+    // A single statement: the unique (voucherId, customerId) arbitrates, so of two concurrent
+    // grants exactly one says true and the loser neither raises nor notifies.
+    expect(voucherGrant.createMany).toHaveBeenCalledWith({
+      data: [{ voucherId: 'v-1', customerId: 'c-1' }],
+      skipDuplicates: true,
     });
   });
 });
