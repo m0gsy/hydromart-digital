@@ -199,8 +199,21 @@ export class RegisterBankAccountDto {
   seenUpdatedAt?: string;
 }
 
+/** The account row as the reviewer saw it; pins a decision to that row. */
+export class VerifyBankAccountDto {
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'The account `updatedAt` the reviewer saw. Refused (409) if the owner replaced the ' +
+      'destination since, so a reviewer never verifies an account they did not see.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
+}
+
 /** PYO-3: why HQ refused an account (optional). */
-export class RejectBankAccountDto {
+export class RejectBankAccountDto extends VerifyBankAccountDto {
   @ApiPropertyOptional({ maxLength: 300 })
   @IsOptional()
   @IsString()

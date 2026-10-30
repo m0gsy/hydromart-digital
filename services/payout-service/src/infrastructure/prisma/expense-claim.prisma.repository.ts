@@ -54,6 +54,21 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
     return this.toClaim(row as unknown as ClaimRow);
   }
 
+  async createCheckingReceipt(
+    data: CreateExpenseClaimData,
+    receiptToCheck: string | null,
+  ): Promise<{ claim: ExpenseClaimRecord; receiptAlreadyUsed: boolean }> {
+    if (!receiptToCheck) return { claim: await this.create(data), receiptAlreadyUsed: false };
+    return this.prisma.$transaction(async (tx) => {
+      // Transaction-scoped, so it releases on commit/rollback; 64-bit hash, prefixed so it
+      // cannot collide with another feature's advisory key.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`receipt:${receiptToCheck}`}, 0))`;
+      const used = await tx.expenseClaim.count({ where: { receiptUrl: receiptToCheck } });
+      const row = await tx.expenseClaim.create({ data });
+      return { claim: this.toClaim(row as unknown as ClaimRow), receiptAlreadyUsed: used > 0 };
+    });
+  }
+
   async findById(id: string): Promise<ExpenseClaimRecord | null> {
     const row = await this.prisma.expenseClaim.findUnique({ where: { id } });
     return row ? this.toClaim(row as unknown as ClaimRow) : null;

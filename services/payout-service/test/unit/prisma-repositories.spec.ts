@@ -35,6 +35,7 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+
   it('takes a lock keyed on the owner before reading the balance', async () => {
     ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 500 } });
     withdrawal.create.mockResolvedValue({
@@ -752,7 +753,12 @@ describe('ExpenseClaimPrismaRepository', () => {
     findMany: jest.fn(),
     count: jest.fn(),
   };
-  const prisma = { expenseClaim: model } as unknown as PrismaService;
+  const executeRaw = jest.fn().mockResolvedValue(1);
+  const prisma = {
+    expenseClaim: model,
+    $transaction: (fn: (tx: unknown) => unknown) =>
+      fn({ expenseClaim: model, $executeRaw: executeRaw }),
+  } as unknown as PrismaService;
   const repo = new ExpenseClaimPrismaRepository(prisma);
 
   const row = {
@@ -773,6 +779,49 @@ describe('ExpenseClaimPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  describe('createCheckingReceipt', () => {
+    const data = {
+      courierId: 'cou-1',
+      depotId: 'dep-1',
+      category: 'FUEL' as never,
+      amount: 30000,
+      description: 'petrol',
+      receiptUrl: 'https://x/receipt.jpg',
+      status: 'PENDING' as const,
+    };
+
+    it('counts and inserts under one per-receipt lock, and reports a reused receipt', async () => {
+      model.count.mockResolvedValue(1);
+      model.create.mockResolvedValue(row);
+
+      const out = await repo.createCheckingReceipt(data, 'https://x/receipt.jpg');
+
+      expect(executeRaw).toHaveBeenCalledTimes(1);
+      expect(model.count).toHaveBeenCalledWith({ where: { receiptUrl: 'https://x/receipt.jpg' } });
+      expect(out.receiptAlreadyUsed).toBe(true);
+      expect(out.claim.id).toBe('ec-1');
+    });
+
+    it('reports a fresh receipt as unused', async () => {
+      model.count.mockResolvedValue(0);
+      model.create.mockResolvedValue(row);
+
+      expect((await repo.createCheckingReceipt(data, 'https://x/receipt.jpg')).receiptAlreadyUsed).toBe(
+        false,
+      );
+    });
+
+    it('takes no lock and does no counting when there is no receipt to check', async () => {
+      model.create.mockResolvedValue(row);
+
+      const out = await repo.createCheckingReceipt(data, null);
+
+      expect(executeRaw).not.toHaveBeenCalled();
+      expect(model.count).not.toHaveBeenCalled();
+      expect(out.receiptAlreadyUsed).toBe(false);
+    });
+  });
 
   it('creates a claim and maps the amount + category + status', async () => {
     model.create.mockResolvedValue(row);

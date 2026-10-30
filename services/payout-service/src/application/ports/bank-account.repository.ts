@@ -31,9 +31,17 @@ export interface PayoutBankAccountRepository {
   findBySubject(subjectId: string): Promise<PayoutBankAccountRecord | null>;
   findById(id: string): Promise<PayoutBankAccountRecord | null>;
   listByStatus(status: BankAccountStatus, limit: number): Promise<PayoutBankAccountRecord[]>;
-  /** PENDING → VERIFIED/REJECTED, only while still pending; null when already decided. */
+  /**
+   * PENDING → VERIFIED/REJECTED, only while still pending; null when already decided.
+   *
+   * `seenUpdatedAt` pins the decision to the row the reviewer actually looked at. A
+   * re-registration reuses the same row id and resets it to PENDING with a NEW destination,
+   * so "still PENDING" alone cannot tell the account that was reviewed from the one that
+   * replaced it a moment later.
+   */
   decide(
     id: string,
     data: { status: 'VERIFIED' | 'REJECTED'; verifiedBy: string; rejectedReason: string | null },
+    seenUpdatedAt?: Date,
   ): Promise<PayoutBankAccountRecord | null>;
 }
