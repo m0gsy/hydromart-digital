@@ -77,5 +77,7 @@ export interface WithdrawalRepository {
     reference: string;
     status: WithdrawalStatus;
     description: string;
+    /** A repeat of the same attempt returns the withdrawal it created, debiting nothing more. */
+    idempotencyKey?: string | null;
   }): Promise<WithdrawalOutcome>;
 }

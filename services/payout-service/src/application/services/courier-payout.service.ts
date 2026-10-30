@@ -273,7 +273,11 @@ export class CourierPayoutService {
    * debit as the franchise path: reject non-positive or over-balance, record the withdrawal,
    * then post a WITHDRAWAL debit so the balance drops immediately.
    */
-  async requestWithdrawal(courierId: string, amount: number): Promise<CourierWithdrawalRecord> {
+  async requestWithdrawal(
+    courierId: string,
+    amount: number,
+    idempotencyKey?: string,
+  ): Promise<CourierWithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
     if (amount < this.config.minWithdrawalIdr) {
       throw new WithdrawalBelowMinimumError(this.config.minWithdrawalIdr);
@@ -301,6 +305,7 @@ export class CourierPayoutService {
       reference,
       status: 'PROCESSING',
       description: `Penarikan saldo · ${reference}`,
+      idempotencyKey: idempotencyKey ?? null,
     });
     if (!outcome.ok) {
       throw new InsufficientBalanceError(outcome.balance, amount);

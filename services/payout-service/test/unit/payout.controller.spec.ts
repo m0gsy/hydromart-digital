@@ -34,7 +34,12 @@ describe('PayoutController', () => {
   // PYO-3: the owner's verified account decides where it goes; the body carries an amount.
   it('withdraw delegates sub + amount only', async () => {
     await controller.withdraw(user, { amount: 8420000 } as RequestWithdrawalDto);
-    expect(payout.requestWithdrawal).toHaveBeenCalledWith('owner-1', 8420000);
+    expect(payout.requestWithdrawal).toHaveBeenCalledWith('owner-1', 8420000, undefined);
+  });
+
+  it('withdraw forwards the Idempotency-Key, capped in length', async () => {
+    await controller.withdraw(user, { amount: 1 } as RequestWithdrawalDto, 'k'.repeat(300));
+    expect(payout.requestWithdrawal).toHaveBeenLastCalledWith('owner-1', 1, 'k'.repeat(120));
   });
 
   it('recordRevenue forwards every field of a full push', async () => {

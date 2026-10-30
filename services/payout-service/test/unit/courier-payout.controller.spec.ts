@@ -61,7 +61,12 @@ describe('CourierPayoutController', () => {
   // request — there is nothing left for the caller to name.
   it('withdraw delegates sub + amount only', async () => {
     await controller.withdraw(user, { amount: 5000 } as RequestWithdrawalDto);
-    expect(payout.requestWithdrawal).toHaveBeenCalledWith('courier-1', 5000);
+    expect(payout.requestWithdrawal).toHaveBeenCalledWith('courier-1', 5000, undefined);
+  });
+
+  it('withdraw forwards the Idempotency-Key, capped in length', async () => {
+    await controller.withdraw(user, { amount: 1 } as RequestWithdrawalDto, 'k'.repeat(300));
+    expect(payout.requestWithdrawal).toHaveBeenLastCalledWith('courier-1', 1, 'k'.repeat(120));
   });
 
   it('withdrawals delegates with user.sub', async () => {

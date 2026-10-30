@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
@@ -71,8 +72,9 @@ export class PayoutController {
   withdraw(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RequestWithdrawalDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<WithdrawalRecord> {
-    return this.payout.requestWithdrawal(user.sub, dto.amount);
+    return this.payout.requestWithdrawal(user.sub, dto.amount, idempotencyKey?.slice(0, 120));
   }
 
   // System-triggered: order-service posts an order the moment it completes, authenticated
