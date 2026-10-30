@@ -7,7 +7,11 @@ import { SettlementPrismaRepository } from '../../src/infrastructure/prisma/sett
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { StaleDeliveryStatusError } from '../../src/domain/errors';
-import { DeliveryAlreadyExistsError, ShiftAlreadyOpenError } from '../../src/domain/errors';
+import {
+  DeliveryAlreadyExistsError,
+  DriverBusyError,
+  ShiftAlreadyOpenError,
+} from '../../src/domain/errors';
 import { ContactMethod } from '../../src/domain/no-show';
 import { IncidentCategory, IncidentSeverity } from '../../src/domain/incident';
 import { SettlementStatus } from '../../src/domain/settlement';
@@ -1341,6 +1345,97 @@ describe('DeliveryPrismaRepository.erasePerson', () => {
     expect(delivery.updateMany).toHaveBeenCalledWith({
       where: { OR: [{ customerId: 'cust-1' }] },
       data: { recipientPhone: null, notes: null },
+    });
+  });
+});
+
+describe('DeliveryPrismaRepository assignment under the courier cap', () => {
+  const tx = {
+    $executeRaw: jest.fn(),
+    delivery: {
+      count: jest.fn(),
+      create: jest.fn(),
+      updateMany: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
+    deliveryStatusHistory: { create: jest.fn() },
+  };
+  const delivery = { deleteMany: jest.fn(), updateMany: jest.fn() };
+  const $transaction = jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+  const repo = new DeliveryPrismaRepository({ delivery, $transaction } as unknown as PrismaService);
+  const data = {
+    orderId: 'o1',
+    orderNumber: 'HM-1',
+    driverId: 'drv-1',
+    depotId: null,
+    destinationAddress: 'x',
+    destinationLat: null,
+    destinationLng: null,
+    recipientPhone: null,
+    customerId: null,
+    items: null,
+    codAmount: null,
+    notes: null,
+    deliveryWindow: null,
+  };
+  const row = {
+    id: 'del-1',
+    orderId: 'o1',
+    orderNumber: 'HM-1',
+    driverId: 'drv-1',
+    depotId: null,
+    status: 'ASSIGNED',
+    destinationAddress: 'x',
+    history: [],
+    proof: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    assignedAt: new Date(),
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('takes the per-courier lock, counts, then creates', async () => {
+    tx.delivery.count.mockResolvedValue(0);
+    tx.delivery.create.mockResolvedValue(row);
+    const out = await repo.createIfUnderCap(data, 1);
+    expect(out.id).toBe('del-1');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.delivery.count).toHaveBeenCalled();
+  });
+
+  it('refuses at the cap without writing', async () => {
+    tx.delivery.count.mockResolvedValue(1);
+    await expect(repo.createIfUnderCap(data, 1)).rejects.toBeInstanceOf(DriverBusyError);
+    expect(tx.delivery.create).not.toHaveBeenCalled();
+  });
+
+  it('re-opens only a RESCHEDULED row, and writes the history entry', async () => {
+    tx.delivery.count.mockResolvedValue(0);
+    tx.delivery.updateMany.mockResolvedValue({ count: 1 });
+    tx.delivery.findUniqueOrThrow.mockResolvedValue(row);
+    await repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', 'note', 1);
+    expect(tx.delivery.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'del-1', status: 'RESCHEDULED' } }),
+    );
+    expect(tx.deliveryStatusHistory.create).toHaveBeenCalled();
+  });
+
+  it('conflicts when the row is no longer RESCHEDULED', async () => {
+    tx.delivery.count.mockResolvedValue(0);
+    tx.delivery.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', null, 1)).rejects.toBeInstanceOf(
+      DeliveryAlreadyExistsError,
+    );
+  });
+
+  it('undoes a fresh assignment by deleting it, a re-opened one by rescheduling it back', async () => {
+    await repo.undoAssignment('del-1', null);
+    expect(delivery.deleteMany).toHaveBeenCalledWith({ where: { id: 'del-1', status: 'ASSIGNED' } });
+    await repo.undoAssignment('del-1', 'drv-0');
+    expect(delivery.updateMany).toHaveBeenCalledWith({
+      where: { id: 'del-1', status: 'ASSIGNED' },
+      data: { status: 'RESCHEDULED', driverId: 'drv-0' },
     });
   });
 });

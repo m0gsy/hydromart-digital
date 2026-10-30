@@ -113,9 +113,9 @@ export interface DeliveryTimestamps {
   startedAt?: Date;
   estimatedArrivalAt?: Date;
   deliveredAt?: Date;
-  failedAt?: Date;
+  failedAt?: Date | null;
   failureReason?: string | null;
-  rescheduledFor?: Date;
+  rescheduledFor?: Date | null;
   rescheduleSlot?: string | null;
   rescheduleNote?: string | null;
 }
@@ -253,6 +253,25 @@ export interface DeliveryRepository {
   findById(id: string): Promise<DeliveryRecord | null>;
   findByOrder(orderId: string): Promise<DeliveryRecord | null>;
   countActiveByDriver(driverId: string): Promise<number>;
+  /**
+   * The cap check and the write as one atomic step per courier (the count-then-create in the
+   * service let two dispatchers both pass). Throws DriverBusyError at `max`.
+   */
+  createIfUnderCap(data: CreateDeliveryData, max: number): Promise<DeliveryRecord>;
+  /** Same, for re-opening a RESCHEDULED row; a row that is no longer RESCHEDULED conflicts. */
+  reassignIfUnderCap(
+    id: string,
+    driverId: string,
+    changedBy: string,
+    note: string | null,
+    max: number,
+  ): Promise<DeliveryRecord>;
+  /**
+   * Takes back an assignment whose order could not be advanced: a fresh row
+   * (`previousDriverId` null) is deleted, a re-opened one goes back to RESCHEDULED under the
+   * courier it had. Only acts while the row is still ASSIGNED.
+   */
+  undoAssignment(id: string, previousDriverId: string | null): Promise<void>;
   /** Append a contact attempt (design 5a) and return the updated contact state. */
   recordContactAttempt(
     deliveryId: string,
