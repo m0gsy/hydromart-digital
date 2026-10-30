@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# data_subject_requests_one_open (auth-service, 2026-10-30) is deliberately NOT in the table below: its
+# migration builds the unique index only when production has no duplicate open requests and
+# otherwise skips it with a NOTICE, so dirty data can never abort `prisma migrate deploy`.
 # Build the indexes a pending migration wants, WITHOUT locking writes (audit H-39).
 #
 #   bash scripts/create-indexes.sh          # build them
