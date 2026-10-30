@@ -74,6 +74,18 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
     }
   }
 
+  async serialized<T>(scopeKey: string, work: () => Promise<T>): Promise<T> {
+    // ponytail: the lock transaction holds one pooled connection while `work` uses others;
+    // fine at counter/courier concurrency, move the measure onto the tx client if that changes.
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`gallon:${scopeKey}`}, 0))`;
+        return work();
+      },
+      { timeout: 15_000 },
+    );
+  }
+
   async create(data: CreateGallonReturnData): Promise<GallonReturnRecord> {
     const row = await this.prisma.gallonReturn.create({ data });
     return this.toRecord(row);

@@ -67,6 +67,13 @@ export interface GallonReturnDepotRow {
 }
 
 export interface GallonReturnRepository {
+  /**
+   * Runs `work` while holding an exclusive, transaction-scoped lock on `scopeKey` — one
+   * balance (a customer at a depot, or the depot's anonymous pool). A return measures what is
+   * still outstanding and then writes; two of them at once both measured the same balance and
+   * both refunded it. Whatever `work` writes is committed before the next holder measures.
+   */
+  serialized<T>(scopeKey: string, work: () => Promise<T>): Promise<T>;
   create(data: CreateGallonReturnData): Promise<GallonReturnRecord>;
   /**
    * MONEY-04: idempotent on `orderId`, the exact mirror of

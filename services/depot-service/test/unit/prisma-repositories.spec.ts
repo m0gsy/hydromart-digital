@@ -1180,6 +1180,16 @@ describe('GallonReturnPrismaRepository', () => {
   const prisma = { gallonReturn: model } as unknown as PrismaService;
   const repo = new GallonReturnPrismaRepository(prisma);
 
+  it('serialized takes the per-balance advisory lock, then runs the work inside it', async () => {
+    const tx = { $executeRaw: jest.fn().mockResolvedValue(1) };
+    const $transaction = jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+    const locked = new GallonReturnPrismaRepository({ $transaction } as unknown as PrismaService);
+    const work = jest.fn().mockResolvedValue('done');
+    await expect(locked.serialized('d1:c1', work)).resolves.toBe('done');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(work.mock.invocationCallOrder[0]);
+  });
+
   // MONEY-04. The courier handover arrives through the offline queue, which is
   // at-least-once, and the old bare `create` refunded the deposit a second time on every
   // retry. These four cases are the whole idempotency contract.
