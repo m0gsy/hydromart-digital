@@ -103,7 +103,8 @@ const day = dayToDate(toBusinessDay(at, DAY_TZ));
     expect($transaction).toHaveBeenCalledTimes(1);
     // Audit S-20 and its Q-17 baseline row: the product refs and the demand increments are
     // one statement each for the WHOLE order — it used to be three per item.
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    // The per-depot-day lock, then the refs and the increments.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
     expect(tx.productDailyDemand.findMany).toHaveBeenCalledWith({
       where: { productId: { in: ['p-1', 'p-2'] }, depotId: 'depot-1', day },
       select: { id: true, productId: true },
@@ -135,7 +136,8 @@ const day = dayToDate(toBusinessDay(at, DAY_TZ));
       at,
       items: [{ productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon', quantity: 3 }],
     }, toBusinessDay(at, DAY_TZ));
-    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    // Only the lock was taken; nothing was written.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.ingestedOrder.create).not.toHaveBeenCalled();
   });
 
