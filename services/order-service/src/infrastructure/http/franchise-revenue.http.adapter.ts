@@ -41,7 +41,11 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
           orderId: event.orderId,
           orderNumber: event.orderNumber,
           franchiseOwnerId: event.franchiseOwnerId,
-          owners: event.owners,
+          // Only a depot with SEVERAL owners needs the list. A sole owner is sent in the old shape
+          // (franchiseOwnerId, which payout treats as 100%), so this release does not depend on
+          // payout-service having been deployed first: a payout that predates `owners` rejects the
+          // field, this adapter swallows the failure, and the outbox would mark the revenue done.
+          ...(event.owners.length > 1 ? { owners: event.owners } : {}),
           depotId: event.depotId,
           amountIdr: event.amountIdr,
           commissionBaseIdr: event.commissionBaseIdr,

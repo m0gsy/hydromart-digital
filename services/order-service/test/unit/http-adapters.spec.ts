@@ -575,7 +575,23 @@ describe('FranchiseRevenueHttpAdapter', () => {
       amountIdr: 240000,
       commissionBaseIdr: 200000,
       franchiseOwnerId: 'owner-9',
-      owners: [{ ownerId: 'owner-9', sharePct: 100, isPrimary: true }],
+    });
+    // A sole owner goes out in the old shape, so an older payout-service still accepts it.
+    expect(JSON.parse(init.body)).not.toHaveProperty('owners');
+  });
+
+  it('names every owner when a depot has several', async () => {
+    fetchMock.mockResolvedValue(res({ body: { recorded: true } }));
+    const owners = [
+      { ownerId: 'owner-9', sharePct: 60, isPrimary: true },
+      { ownerId: 'owner-8', sharePct: 40, isPrimary: false },
+    ];
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+    ).orderCompleted({ ...event, owners });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      franchiseOwnerId: 'owner-9',
+      owners,
     });
   });
 
