@@ -115,6 +115,15 @@ describe('NotificationHttpAdapter', () => {
     );
   });
 
+  it('keys a voucher grant by code and customer so a retry is one message, and other events carry no key', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    const adapter = new NotificationHttpAdapter(makeConfig());
+    await adapter.notify('VOUCHER_GRANTED', '0811', 'c1', { code: 'HEMAT' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).dedupeKey).toBe('voucher-grant:HEMAT:c1');
+    await adapter.notify('VOUCHER_EXPIRING', '0811', 'c1', { code: 'HEMAT' });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).dedupeKey).toBeUndefined();
+  });
+
   it('fails open (resolves) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     await expect(
