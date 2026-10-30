@@ -8,6 +8,25 @@ import { NotificationPort } from '../../application/ports/notification.port';
 const CRM_PHONE_RE = /^\+?[0-9]{8,15}$/;
 
 /**
+ * Events that happen exactly once in an order's life. They carry a crm dedupe key derived from the
+ * order number, so a retried send (a redelivered webhook, a replayed outbox row) is one message,
+ * not two. Deliberately NOT every order event: ORDER_ON_DELIVERY and ORDER_DRIVER_ASSIGNED fire
+ * again after a reschedule and a reassignment, and a key would swallow the second one.
+ */
+const ONCE_PER_ORDER = new Set([
+  'ORDER_RECEIVED',
+  'ORDER_CONFIRMED',
+  'ORDER_DELIVERED',
+  'ORDER_COMPLETED',
+  'ORDER_CANCELLED',
+]);
+
+/** The key crm dedupes on, or undefined for an event that may legitimately repeat. */
+export function dedupeKeyFor(event: string, vars: Record<string, string>): string | undefined {
+  return ONCE_PER_ORDER.has(event) && vars.orderNumber ? `${event}:${vars.orderNumber}` : undefined;
+}
+
+/**
  * Strip the separators a human types. crm rejects anything but digits (optionally
  * +-prefixed), and this adapter is fail-open — a 400 is logged and swallowed — so an
  * operator who typed `0812-3456-7890` anywhere upstream would produce a notification that
@@ -64,7 +83,14 @@ export class NotificationHttpAdapter implements NotificationPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalKey },
-        body: JSON.stringify({ event, phone: dialled, customerId, vars, depotId }),
+        body: JSON.stringify({
+          event,
+          phone: dialled,
+          customerId,
+          vars,
+          depotId,
+          ...(dedupeKeyFor(event, vars) ? { dedupeKey: dedupeKeyFor(event, vars) } : {}),
+        }),
         signal: controller.signal,
       });
       if (!res.ok) {

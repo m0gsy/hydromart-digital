@@ -91,6 +91,15 @@ describe('coordination adapters fail open on a non-2xx response', () => {
     ).resolves.toBe(false);
   });
 
+  it('notification.notify sends the dedupe key for a once-per-order event, and none for a repeatable one', async () => {
+    fetchMock.mockResolvedValue(res({ body: { queued: true } }));
+    const adapter = new NotificationHttpAdapter(makeConfig());
+    await adapter.notify('ORDER_RECEIVED', '081234567890', { orderNumber: 'HM-1' }, 'c', '');
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)![1].body).dedupeKey).toBe('ORDER_RECEIVED:HM-1');
+    await adapter.notify('ORDER_ON_DELIVERY', '081234567890', { orderNumber: 'HM-1' }, 'c', '');
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)![1].body).dedupeKey).toBeUndefined();
+  });
+
   it('notification.notify reports a delivered message as delivered', async () => {
     fetchMock.mockResolvedValue(res({ body: { queued: true } }));
     await expect(

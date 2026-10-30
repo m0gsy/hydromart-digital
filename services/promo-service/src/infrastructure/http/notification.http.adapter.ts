@@ -31,7 +31,16 @@ export class NotificationHttpAdapter implements NotificationPort {
       const res = await fetch(`${base}/api/v1/notifications/internal`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalKey },
-        body: JSON.stringify({ event, phone, customerId, vars }),
+        body: JSON.stringify({
+          event,
+          phone,
+          customerId,
+          vars,
+          // A voucher is granted to a customer once; a retried grant must not tell them twice.
+          ...(event === 'VOUCHER_GRANTED' && vars.code
+            ? { dedupeKey: `voucher-grant:${vars.code}:${customerId}` }
+            : {}),
+        }),
         signal: AbortSignal.timeout(NotificationHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`crm-service responded ${res.status}`);
