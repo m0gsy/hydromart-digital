@@ -32,6 +32,21 @@ export interface AddressRepository {
    * (409) if a concurrent create wins the partial-unique-index race first.
    */
   createExclusivePrimary(data: CreateAddressData): Promise<AddressRecord>;
+  /**
+   * Cap check, primary decision and insert as ONE step per customer (advisory lock). The
+   * service's count-then-create let two requests both see room under the cap. The first
+   * address, or `wantPrimary`, becomes the sole primary. Throws AddressLimitError at `max`.
+   */
+  createWithinLimit(
+    data: Omit<CreateAddressData, 'isPrimary'>,
+    wantPrimary: boolean,
+    max: number,
+  ): Promise<AddressRecord>;
+  /**
+   * Deletes `id` and, if it was the primary, promotes the most recent remaining address —
+   * in one transaction under the same lock as create. Returns false when `id` was not there.
+   */
+  removeAndPromote(customerId: string, id: string): Promise<boolean>;
   update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord>;
   /** Clear the primary flag on all of a customer's addresses. */
   unsetPrimary(customerId: string): Promise<void>;

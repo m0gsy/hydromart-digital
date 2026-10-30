@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 
 import {
   AddressRecord,
@@ -6,7 +7,11 @@ import {
   CreateAddressData,
   UpdateAddressData,
 } from '../../application/ports/address.repository';
-import { AddressNotFoundError, PrimaryAddressConflictError } from '../../domain/errors';
+import {
+  AddressLimitError,
+  AddressNotFoundError,
+  PrimaryAddressConflictError,
+} from '../../domain/errors';
 import { PrismaService } from './prisma.service';
 
 /** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
@@ -37,6 +42,57 @@ export class AddressPrismaRepository implements AddressRepository {
 
   create(data: CreateAddressData): Promise<AddressRecord> {
     return this.prisma.address.create({ data });
+  }
+
+  /** Serialises every write that changes how many addresses a customer has or which is primary. */
+  private async locked<T>(
+    customerId: string,
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`addr:${customerId}`}, 0))`;
+      return work(tx);
+    });
+  }
+
+  async createWithinLimit(
+    data: Omit<CreateAddressData, 'isPrimary'>,
+    wantPrimary: boolean,
+    max: number,
+  ): Promise<AddressRecord> {
+    try {
+      return await this.locked(data.customerId, async (tx) => {
+        const count = await tx.address.count({ where: { customerId: data.customerId } });
+        if (count >= max) throw new AddressLimitError(max);
+        const isPrimary = wantPrimary || count === 0;
+        if (isPrimary) {
+          await tx.address.updateMany({
+            where: { customerId: data.customerId, isPrimary: true },
+            data: { isPrimary: false },
+          });
+        }
+        return tx.address.create({ data: { ...data, isPrimary } });
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new PrimaryAddressConflictError();
+      throw error;
+    }
+  }
+
+  async removeAndPromote(customerId: string, id: string): Promise<boolean> {
+    return this.locked(customerId, async (tx) => {
+      const target = await tx.address.findFirst({ where: { id, customerId } });
+      if (!target) return false;
+      await tx.address.deleteMany({ where: { id, customerId } });
+      if (target.isPrimary) {
+        const next = await tx.address.findFirst({
+          where: { customerId },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (next) await tx.address.updateMany({ where: { id: next.id }, data: { isPrimary: true } });
+      }
+      return true;
+    });
   }
 
   async createExclusivePrimary(data: CreateAddressData): Promise<AddressRecord> {
@@ -98,13 +154,23 @@ export class AddressPrismaRepository implements AddressRepository {
   async setPrimaryExclusive(customerId: string, id: string): Promise<void> {
     // Audit DB-2: clear-all then set-one in one transaction so the invariant
     // "exactly one primary" holds even under a crash/concurrent setPrimary.
-    await this.prisma.$transaction([
-      this.prisma.address.updateMany({
-        where: { customerId, isPrimary: true },
-        data: { isPrimary: false },
-      }),
-      this.prisma.address.updateMany({ where: { id, customerId }, data: { isPrimary: true } }),
-    ]);
+    try {
+      await this.locked(customerId, async (tx) => {
+        await tx.address.updateMany({
+          where: { customerId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+        const { count } = await tx.address.updateMany({
+          where: { id, customerId },
+          data: { isPrimary: true },
+        });
+        // The target was deleted since it was read: roll back rather than leave no primary.
+        if (count === 0) throw new AddressNotFoundError();
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new PrimaryAddressConflictError();
+      throw error;
+    }
   }
 
   async delete(customerId: string, id: string): Promise<void> {

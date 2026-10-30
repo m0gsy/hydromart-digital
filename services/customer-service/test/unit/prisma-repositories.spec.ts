@@ -7,8 +7,10 @@ import { PaymentMethodPrismaRepository } from '../../src/infrastructure/prisma/p
 import { ProfilePrismaRepository } from '../../src/infrastructure/prisma/profile.prisma.repository';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import {
+  AddressLimitError,
   AddressNotFoundError,
   PaymentMethodNotFoundError,
+  PrimaryAddressConflictError,
 } from '../../src/domain/errors';
 
 // Unit-tests the Prisma repositories against a per-model jest.fn() mock of PrismaService.
@@ -106,22 +108,6 @@ describe('AddressPrismaRepository', () => {
       where: { id: 'addr-1', customerId: 'cust-1' },
       data: { isPrimary: true },
     });
-  });
-
-  it('sets primary exclusively in one transaction (clear-all then set-one)', async () => {
-    model.updateMany.mockReturnValue('clear-then-set' as never);
-    await repo.setPrimaryExclusive('cust-1', 'addr-1');
-    expect($transaction).toHaveBeenCalledTimes(1);
-    // both updateMany calls are built and handed to $transaction
-    expect(model.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { customerId: 'cust-1', isPrimary: true },
-      data: { isPrimary: false },
-    });
-    expect(model.updateMany).toHaveBeenNthCalledWith(2, {
-      where: { id: 'addr-1', customerId: 'cust-1' },
-      data: { isPrimary: true },
-    });
-    expect($transaction).toHaveBeenCalledWith(['clear-then-set', 'clear-then-set']);
   });
 
   it('deletes scoped to the customer', async () => {
@@ -511,5 +497,94 @@ describe('DepotCrmPrismaRepository', () => {
   it('finds customer ids by depot, mapping rows to ids', async () => {
     $queryRaw.mockResolvedValue([{ customerId: 'cust-1' }, { customerId: 'cust-2' }]);
     expect(await repo.findIdsByDepot('depot-1')).toEqual(['cust-1', 'cust-2']);
+  });
+});
+
+describe('AddressPrismaRepository under the per-customer lock', () => {
+  const model = {
+    count: jest.fn(),
+    create: jest.fn(),
+    updateMany: jest.fn(),
+    findFirst: jest.fn(),
+    deleteMany: jest.fn(),
+  };
+  const tx = { address: model, $executeRaw: jest.fn() };
+  const $transaction = jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+  const repo = new AddressPrismaRepository({ address: model, $transaction } as unknown as PrismaService);
+  const data = { customerId: 'cust-1', label: 'Home' } as never;
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('refuses at the cap without writing', async () => {
+    model.count.mockResolvedValue(5);
+    await expect(repo.createWithinLimit(data, false, 5)).rejects.toBeInstanceOf(AddressLimitError);
+    expect(model.create).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the first address primary, and unsets the old one when asked for primary', async () => {
+    model.count.mockResolvedValue(0);
+    model.create.mockResolvedValue({ id: 'a' });
+    await repo.createWithinLimit(data, false, 5);
+    expect(model.create).toHaveBeenLastCalledWith({ data: { ...(data as object), isPrimary: true } });
+    model.count.mockResolvedValue(2);
+    await repo.createWithinLimit(data, true, 5);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1', isPrimary: true },
+      data: { isPrimary: false },
+    });
+  });
+
+  it('adds a non-primary address without touching the primary', async () => {
+    model.count.mockResolvedValue(2);
+    model.create.mockResolvedValue({ id: 'a' });
+    await repo.createWithinLimit(data, false, 5);
+    expect(model.updateMany).not.toHaveBeenCalled();
+    expect(model.create).toHaveBeenCalledWith({ data: { ...(data as object), isPrimary: false } });
+  });
+
+  it('translates a lost primary race, and rethrows anything else', async () => {
+    model.count.mockResolvedValue(1);
+    model.create.mockRejectedValueOnce(Object.assign(new Error('u'), { code: 'P2002' }));
+    await expect(repo.createWithinLimit(data, true, 5)).rejects.toBeInstanceOf(
+      PrimaryAddressConflictError,
+    );
+    model.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(repo.createWithinLimit(data, true, 5)).rejects.toThrow('db down');
+  });
+
+  it('sets primary exclusively inside the lock, and rolls back when the target is gone', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    await repo.setPrimaryExclusive('cust-1', 'addr-1');
+    expect(model.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 'addr-1', customerId: 'cust-1' },
+      data: { isPrimary: true },
+    });
+    model.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await expect(repo.setPrimaryExclusive('cust-1', 'gone')).rejects.toBeInstanceOf(
+      AddressNotFoundError,
+    );
+    model.updateMany.mockRejectedValueOnce(Object.assign(new Error('u'), { code: 'P2002' }));
+    await expect(repo.setPrimaryExclusive('cust-1', 'a')).rejects.toBeInstanceOf(
+      PrimaryAddressConflictError,
+    );
+  });
+
+  it('removes an address and promotes the newest remaining one when it was the primary', async () => {
+    model.findFirst
+      .mockResolvedValueOnce({ id: 'a1', isPrimary: true })
+      .mockResolvedValueOnce({ id: 'a2' });
+    expect(await repo.removeAndPromote('cust-1', 'a1')).toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({ where: { id: 'a2' }, data: { isPrimary: true } });
+  });
+
+  it('removes a non-primary or last address without promoting, and reports a missing one', async () => {
+    model.findFirst.mockResolvedValueOnce({ id: 'a1', isPrimary: false });
+    expect(await repo.removeAndPromote('cust-1', 'a1')).toBe(true);
+    expect(model.updateMany).not.toHaveBeenCalled();
+    model.findFirst.mockResolvedValueOnce({ id: 'a1', isPrimary: true }).mockResolvedValueOnce(null);
+    expect(await repo.removeAndPromote('cust-1', 'a1')).toBe(true);
+    model.findFirst.mockResolvedValueOnce(null);
+    expect(await repo.removeAndPromote('cust-1', 'nope')).toBe(false);
   });
 });
