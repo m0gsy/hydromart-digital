@@ -21,9 +21,15 @@ import {
 import { ADMIN_TOKENS } from '../tokens';
 
 /** How many deliveries one sweep sends, and how long a claim is held. */
-const BATCH = 50;
+const BATCH = 20;
 const LEASE_MS = 5 * 60_000;
 const SEND_TIMEOUT_MS = 10_000;
+/**
+ * A delivery is not STARTED once this much of the lease is gone: 20 sequential sends at the
+ * 10s timeout is 200s, inside the 300s lease, and this is the backstop for a slow DNS lookup
+ * on top of that. Left alone it simply becomes due again when its lease lapses.
+ */
+const START_BY_MS = LEASE_MS - SEND_TIMEOUT_MS - 20_000;
 
 export interface PublishEventInput {
   event: string;
@@ -89,8 +95,11 @@ export class WebhookDispatchService {
     let failed = 0;
     let dead = 0;
     const touched = new Set<string>();
+    const sweepStarted = Date.now();
 
     for (const delivery of due) {
+      // Past this point a send could outlive the lease and be sent a second time by the next sweep.
+      if (Date.now() - sweepStarted > START_BY_MS) break;
       touched.add(delivery.endpointId);
       const outcome = await this.attempt(delivery, now);
       if (outcome === 'sent') sent += 1;
@@ -169,18 +178,25 @@ export class WebhookDispatchService {
     }
 
     if (!error) {
-      await this.deliveries.markDelivered(delivery.id, status ?? 200, now);
+      await this.deliveries.markDelivered(delivery.id, status ?? 200, now, delivery.leaseUntil);
       return 'sent';
     }
     if (attempts >= MAX_ATTEMPTS) {
       this.logger.error(
         `Webhook ${delivery.event} to ${delivery.url} abandoned after ${attempts} attempts: ${error}`,
       );
-      await this.deliveries.markDead(delivery.id, attempts, error, status);
+      await this.deliveries.markDead(delivery.id, attempts, error, status, delivery.leaseUntil);
       return 'dead';
     }
     const next = new Date(now.getTime() + nextAttemptDelayMs(attempts));
-    await this.deliveries.markRetry(delivery.id, attempts, next, error, status);
+    await this.deliveries.markRetry(
+      delivery.id,
+      attempts,
+      next,
+      error,
+      status,
+      delivery.leaseUntil,
+    );
     return 'failed';
   }
 
