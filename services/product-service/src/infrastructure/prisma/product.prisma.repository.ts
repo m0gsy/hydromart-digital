@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { StaleWriteError } from '@hydromart/platform';
+
 import { CreateProductData, PriceChangeRecord, ProductQuery, ProductRecord, ProductRepository, UpdateProductData } from '../../application/ports/product.repository';
 import { PrismaService } from './prisma.service';
 
@@ -83,21 +85,32 @@ export class ProductPrismaRepository implements ProductRepository {
     id: string,
     patch: UpdateProductData,
     audit: { changedBy: string; fromPrice: number; toPrice: number },
+    expectedUpdatedAt?: Date,
   ): Promise<ProductRecord> {
     // PRD-1: one transaction. A trail written separately can disagree with the price it is
-    // supposed to explain, which is the same gap in a smaller window.
-    const [, row] = await this.prisma.$transaction([
-      this.prisma.productPriceChange.create({
+    // supposed to explain, which is the same gap in a smaller window. The stamp check rides
+    // in it too: `fromPrice` was read before this write, and a concurrent edit would make the
+    // trail name a price that was never the previous one.
+    return this.prisma.$transaction(async (tx) => {
+      if (expectedUpdatedAt) {
+        const { count } = await tx.product.updateMany({
+          where: { id, updatedAt: expectedUpdatedAt },
+          data: patch,
+        });
+        if (count === 0) throw new StaleWriteError();
+      } else {
+        await tx.product.update({ where: { id }, data: patch });
+      }
+      await tx.productPriceChange.create({
         data: {
           productId: id,
           changedBy: audit.changedBy,
           fromPrice: audit.fromPrice,
           toPrice: audit.toPrice,
         },
-      }),
-      this.prisma.product.update({ where: { id }, data: patch }),
-    ]);
-    return this.toRecord(row);
+      });
+      return this.toRecord(await tx.product.findUniqueOrThrow({ where: { id } }));
+    });
   }
 
   async listPriceChanges(productId: string, limit: number): Promise<PriceChangeRecord[]> {
@@ -116,7 +129,19 @@ export class ProductPrismaRepository implements ProductRepository {
     }));
   }
 
-  async update(id: string, patch: UpdateProductData): Promise<ProductRecord> {
+  async update(
+    id: string,
+    patch: UpdateProductData,
+    expectedUpdatedAt?: Date,
+  ): Promise<ProductRecord> {
+    if (expectedUpdatedAt) {
+      const { count } = await this.prisma.product.updateMany({
+        where: { id, updatedAt: expectedUpdatedAt },
+        data: patch,
+      });
+      if (count === 0) throw new StaleWriteError();
+      return this.toRecord(await this.prisma.product.findUniqueOrThrow({ where: { id } }));
+    }
     const row = await this.prisma.product.update({ where: { id }, data: patch });
     return this.toRecord(row);
   }
