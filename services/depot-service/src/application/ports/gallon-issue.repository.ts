@@ -93,6 +93,14 @@ export interface GallonIssueRepository {
    */
   hasOpeningBalance?(depotId: string, customerId: string): Promise<boolean>;
   /**
+   * Books the opening balance unless the customer already has one, as ONE step per depot and
+   * customer (advisory lock). `hasOpeningBalance` then `create` let two uploads of the same
+   * file both pass the check and both book the deposit. `created: false` = already imported.
+   */
+  createOpeningOnce?(
+    data: CreateGallonIssueData,
+  ): Promise<{ record: GallonIssueRecord; created: boolean }>;
+  /**
    * I1: idempotent on `orderId`. A completion fan-out is at-least-once, so this WILL be
    * called twice for the same order; the second call must return the row the first wrote
    * rather than book a second deposit — which would inflate what the depot appears to hold
