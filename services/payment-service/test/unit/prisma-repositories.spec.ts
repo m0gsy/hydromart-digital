@@ -58,6 +58,7 @@ describe('PaymentPrismaRepository', () => {
     aggregate: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
   };
   const prisma = { payment: model } as unknown as PrismaService;
   const repo = new PaymentPrismaRepository(prisma);
@@ -516,14 +517,18 @@ describe('PaymentPrismaRepository', () => {
    * rewrite the payment's state — a PENDING transfer silently re-marked PENDING is
    * harmless, but the same call on a PAID row would not be.
    */
-  it('attachProof writes only proofUrl', async () => {
-    model.update.mockResolvedValue({ ...fullRow(), proofUrl: 'https://cdn/b.png' });
-    const record = await repo.attachProof('pay-1', 'https://cdn/b.png');
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'pay-1' },
+  it('attachProofIfFirst writes only proofUrl, and only while none is stored', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUniqueOrThrow.mockResolvedValue({ ...fullRow(), proofUrl: 'https://cdn/b.png' });
+    const out = await repo.attachProofIfFirst('pay-1', 'https://cdn/b.png');
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pay-1', proofUrl: null },
       data: { proofUrl: 'https://cdn/b.png' },
     });
-    expect(record.proofUrl).toBe('https://cdn/b.png');
+    expect(out.attached).toBe(true);
+    expect(out.record.proofUrl).toBe('https://cdn/b.png');
+    model.updateMany.mockResolvedValue({ count: 0 });
+    expect((await repo.attachProofIfFirst('pay-1', 'https://cdn/c.png')).attached).toBe(false);
   });
 
   // UU PDP: the window runs from settlement, and from creation when nobody ever settled it.

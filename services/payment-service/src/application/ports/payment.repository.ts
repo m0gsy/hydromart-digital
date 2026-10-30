@@ -118,7 +118,15 @@ export interface PaymentRepository {
    * and `update` demands a status — routing this through it would make every proof upload
    * rewrite the payment's state.
    */
-  attachProof(id: string, proofUrl: string): Promise<PaymentRecord>;
+  /**
+   * Stores the receipt only if the payment has none yet (compare-and-set on proofUrl IS NULL).
+   * `attached` is false when another upload got there first; the record returned is then the
+   * existing one, untouched. The receipt is evidence, so the first one stands.
+   */
+  attachProofIfFirst(
+    id: string,
+    proofUrl: string,
+  ): Promise<{ record: PaymentRecord; attached: boolean }>;
 
   /**
    * Retention: payments whose receipt photo is past its window, oldest first, bounded.

@@ -371,11 +371,12 @@ export class PaymentService {
    */
   async attachProof(customerId: string, id: string, proofUrl: string): Promise<PaymentRecord> {
     const payment = await this.getForCustomer(customerId, id);
-    const updated = await this.payments.attachProof(id, proofUrl);
+    // First receipt wins: a second upload (a double tap, a retry) gets the existing record
+    // back instead of overwriting the evidence, and only the winner can notify the depot.
+    const { record: updated, attached } = await this.payments.attachProofIfFirst(id, proofUrl);
     // Only a receipt on a payment still waiting to be checked is news to the depot. One
-    // attached after the fact is evidence for a dispute, not a task, and a re-upload on the
-    // same pending payment must not page the depot a second time.
-    if (payment.status === PaymentStatus.PENDING && !payment.proofUrl) {
+    // attached after the fact is evidence for a dispute, not a task.
+    if (attached && payment.status === PaymentStatus.PENDING) {
       await this.orderCoordination.notifyPaymentEvent(
         payment.orderId,
         'PROOF_UPLOADED',
