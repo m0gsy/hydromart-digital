@@ -48,6 +48,16 @@ export class SendNotificationDto {
   @IsOptional()
   @IsObject()
   vars?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    example: 'voucher-grant:6f1c',
+    description:
+      'Derived by the sender from the event it reports. A second send with the same key returns the first row and pushes nothing.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  dedupeKey?: string;
 }
 
 export class NotificationDto {

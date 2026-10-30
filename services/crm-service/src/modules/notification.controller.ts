@@ -162,6 +162,7 @@ export class NotificationController {
       dto.vars ?? {},
       dto.customerId ?? null,
       dto.depotId ?? null,
+      dto.dedupeKey ?? null,
     );
     return NotificationDto.from(record);
   }

@@ -239,6 +239,19 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     return before - this.records.length;
   }
 
+  private keys = new Map<string, NotificationRecord>();
+  async recordOnce(
+    data: RecordNotificationData & { dedupeKey?: string | null },
+  ): Promise<{ record: NotificationRecord; created: boolean }> {
+    const { dedupeKey, ...rest } = data;
+    if (dedupeKey && this.keys.has(dedupeKey)) {
+      return { record: this.keys.get(dedupeKey)!, created: false };
+    }
+    const record = await this.record(rest);
+    if (dedupeKey) this.keys.set(dedupeKey, record);
+    return { record, created: true };
+  }
+
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
     const rec: NotificationRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
     this.records.push(rec);

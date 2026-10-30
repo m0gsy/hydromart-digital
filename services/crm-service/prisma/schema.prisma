@@ -161,6 +161,9 @@ model Notification {
   /// O6: the depot an operational notification belongs to. Null for customer rows and
   /// for every row written before the ops feed learned to scope itself per depot.
   depotId    String?
+  /// A key the SENDER derives from the event it is reporting; unique, so a retried send is a no-op.
+  /// Null for rows without one (every row before this column, every caller that sends none).
+  dedupeKey  String?            @unique
   createdAt  DateTime           @default(now())
 
   opsReads OpsNotificationRead[]
