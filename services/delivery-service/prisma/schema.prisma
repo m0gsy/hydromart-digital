@@ -219,6 +219,8 @@ model CashSettlement {
   /// Who raised a shortfall charge that still awaits a SECOND person's approval.
   chargeRequestedBy String?   @db.Uuid
   chargeRequestedAt DateTime?
+  /// Who is approving that charge right now (claimed before the payout push, released if it fails).
+  chargeApprovedBy  String?   @db.Uuid
 
   verifiedBy String?   @db.Uuid
   verifiedAt DateTime?

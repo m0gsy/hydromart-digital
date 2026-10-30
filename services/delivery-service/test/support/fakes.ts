@@ -11,6 +11,9 @@ import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery
 import {
   DeliveryAlreadyExistsError,
   DriverBusyError,
+  SettlementChargePendingError,
+  SettlementNoChargePendingError,
+  SettlementNotSubmittedError,
   StaleDeliveryStatusError,
 } from '../../src/domain/errors';
 import {
@@ -83,7 +86,7 @@ import {
   SettlementRecord,
   SettlementRepository,
 } from '../../src/application/ports/settlement.repository';
-import { SettlementStatus } from '../../src/domain/settlement';
+import { SettlementStatus, canResolve } from '../../src/domain/settlement';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
 
 let seq = 0;
@@ -946,13 +949,27 @@ export class InMemorySettlementRepository implements SettlementRepository {
     }
     return [...grouped.values()].map((row) => clone(row));
   }
+  private approver = new Map<string, string>();
+  async claimChargeApproval(id: string, by: string): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || !canResolve(row.status) || !row.chargeRequestedBy || this.approver.has(id)) {
+      return false;
+    }
+    this.approver.set(id, by);
+    return true;
+  }
+  async releaseChargeApproval(id: string, by: string): Promise<void> {
+    if (this.approver.get(id) === by) this.approver.delete(id);
+  }
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
     const row = this.rows.find((r) => r.id === id)!;
+    if (!canResolve(row.status)) throw new SettlementNotSubmittedError();
     Object.assign(row, patch, { updatedAt: nextDate() });
     return clone(row);
   }
   async requestCharge(id: string, by: string, note: string | null): Promise<SettlementRecord> {
     const row = this.rows.find((r) => r.id === id)!;
+    if (!canResolve(row.status) || row.chargeRequestedBy) throw new SettlementChargePendingError();
     Object.assign(row, {
       chargeRequestedBy: by,
       chargeRequestedAt: nextDate(),
@@ -963,6 +980,9 @@ export class InMemorySettlementRepository implements SettlementRepository {
   }
   async clearChargeRequest(id: string, note: string | null): Promise<SettlementRecord> {
     const row = this.rows.find((r) => r.id === id)!;
+    if (!canResolve(row.status) || !row.chargeRequestedBy || this.approver.has(id)) {
+      throw new SettlementNoChargePendingError();
+    }
     Object.assign(row, {
       chargeRequestedBy: null,
       chargeRequestedAt: null,

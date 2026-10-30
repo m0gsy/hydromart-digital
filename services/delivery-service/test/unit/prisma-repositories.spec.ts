@@ -6,7 +6,13 @@ import { IncidentPrismaRepository } from '../../src/infrastructure/prisma/incide
 import { SettlementPrismaRepository } from '../../src/infrastructure/prisma/settlement.prisma.repository';
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
-import { StaleDeliveryStatusError } from '../../src/domain/errors';
+import {
+  SettlementAlreadyExistsError,
+  SettlementChargePendingError,
+  SettlementNoChargePendingError,
+  SettlementNotSubmittedError,
+  StaleDeliveryStatusError,
+} from '../../src/domain/errors';
 import {
   DeliveryAlreadyExistsError,
   DriverBusyError,
@@ -906,6 +912,8 @@ describe('SettlementPrismaRepository', () => {
     findMany: jest.fn(),
     groupBy: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     aggregate: jest.fn(),
   };
   const prisma = { cashSettlement } as unknown as PrismaService;
@@ -1102,40 +1110,96 @@ describe('SettlementPrismaRepository', () => {
     });
   });
 
-  it('resolve applies the patch and maps the row', async () => {
+  const RESOLVABLE = { in: [SettlementStatus.SUBMITTED, SettlementStatus.DISPUTED] };
+
+  it('resolve applies the patch to a settlement that can still be ruled on', async () => {
     const patch = {
       status: SettlementStatus.VERIFIED,
       verifiedBy: 'cash-1',
       verifiedAt: new Date(),
       chargedToDriver: true,
     };
-    cashSettlement.update.mockResolvedValue(settlementRow({ status: 'VERIFIED' }));
+    cashSettlement.updateMany.mockResolvedValue({ count: 1 });
+    cashSettlement.findUniqueOrThrow.mockResolvedValue(settlementRow({ status: 'VERIFIED' }));
     const rec = await repo.resolve('set-1', patch as never);
     expect(rec.status).toBe(SettlementStatus.VERIFIED);
-    expect(cashSettlement.update).toHaveBeenCalledWith({ where: { id: 'set-1' }, data: patch });
+    expect(cashSettlement.updateMany).toHaveBeenCalledWith({
+      where: { id: 'set-1', status: RESOLVABLE },
+      data: patch,
+    });
   });
 
-  it('requestCharge parks the charge with who/when, keeping the note unless one is given', async () => {
-    cashSettlement.update.mockResolvedValue(settlementRow({}));
+  it('resolve refuses the second ruling', async () => {
+    cashSettlement.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.resolve('set-1', {} as never)).rejects.toBeInstanceOf(
+      SettlementNotSubmittedError,
+    );
+  });
+
+  it('requestCharge parks the charge once, keeping the note unless one is given', async () => {
+    cashSettlement.updateMany.mockResolvedValue({ count: 1 });
+    cashSettlement.findUniqueOrThrow.mockResolvedValue(settlementRow({}));
     await repo.requestCharge('set-1', 'u-1', null);
-    expect(cashSettlement.update).toHaveBeenLastCalledWith({
-      where: { id: 'set-1' },
+    expect(cashSettlement.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'set-1', status: RESOLVABLE, chargeRequestedBy: null },
       data: { chargeRequestedBy: 'u-1', chargeRequestedAt: expect.any(Date) },
     });
     await repo.requestCharge('set-1', 'u-1', 'catatan');
-    expect(cashSettlement.update).toHaveBeenLastCalledWith({
-      where: { id: 'set-1' },
+    expect(cashSettlement.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'set-1', status: RESOLVABLE, chargeRequestedBy: null },
       data: { chargeRequestedBy: 'u-1', chargeRequestedAt: expect.any(Date), note: 'catatan' },
+    });
+    cashSettlement.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.requestCharge('set-1', 'u-2', null)).rejects.toBeInstanceOf(
+      SettlementChargePendingError,
+    );
+  });
+
+  it('clearChargeRequest empties a pending request nobody is approving', async () => {
+    cashSettlement.updateMany.mockResolvedValue({ count: 1 });
+    cashSettlement.findUniqueOrThrow.mockResolvedValue(settlementRow({}));
+    await repo.clearChargeRequest('set-1', 'ditolak');
+    expect(cashSettlement.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'set-1',
+        status: RESOLVABLE,
+        chargeRequestedBy: { not: null },
+        chargeApprovedBy: null,
+      },
+      data: { chargeRequestedBy: null, chargeRequestedAt: null, note: 'ditolak' },
+    });
+    cashSettlement.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.clearChargeRequest('set-1', 'x')).rejects.toBeInstanceOf(
+      SettlementNoChargePendingError,
+    );
+  });
+
+  it('claims a charge approval once, and gives only its own claim back', async () => {
+    cashSettlement.updateMany.mockResolvedValue({ count: 1 });
+    expect(await repo.claimChargeApproval('set-1', 'mgr-1')).toBe(true);
+    expect(cashSettlement.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id: 'set-1',
+        status: RESOLVABLE,
+        chargeRequestedBy: { not: null },
+        chargeApprovedBy: null,
+      },
+      data: { chargeApprovedBy: 'mgr-1' },
+    });
+    cashSettlement.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.claimChargeApproval('set-1', 'mgr-2')).toBe(false);
+    await repo.releaseChargeApproval('set-1', 'mgr-1');
+    expect(cashSettlement.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'set-1', chargeApprovedBy: 'mgr-1' },
+      data: { chargeApprovedBy: null },
     });
   });
 
-  it('clearChargeRequest empties the request and writes the note', async () => {
-    cashSettlement.update.mockResolvedValue(settlementRow({}));
-    await repo.clearChargeRequest('set-1', 'ditolak');
-    expect(cashSettlement.update).toHaveBeenCalledWith({
-      where: { id: 'set-1' },
-      data: { chargeRequestedBy: null, chargeRequestedAt: null, note: 'ditolak' },
-    });
+  it('create maps a lost shift race to SettlementAlreadyExistsError and rethrows the rest', async () => {
+    cashSettlement.create.mockRejectedValueOnce(Object.assign(new Error('u'), { code: 'P2002' }));
+    await expect(repo.create({} as never)).rejects.toBeInstanceOf(SettlementAlreadyExistsError);
+    cashSettlement.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(repo.create({} as never)).rejects.toThrow('db down');
   });
 });
 
