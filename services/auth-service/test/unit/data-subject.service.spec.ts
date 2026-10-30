@@ -50,20 +50,43 @@ class FakeRequestRepo {
   }
   async findOpen(customerId: string, type: DataSubjectRequestType) {
     const row = this.rows.find(
-      (r) => r.customerId === customerId && r.type === type && r.status === 'PENDING',
+      (r) =>
+        r.customerId === customerId &&
+        r.type === type &&
+        (r.status === 'PENDING' || r.status === 'IN_PROGRESS'),
     );
     return row ? { ...row } : null;
   }
   async listForStaff(status?: DataSubjectRequestStatus) {
     return this.rows.filter((r) => !status || r.status === status).map((r) => ({ ...r }));
   }
+  async release(id: string, staffId: string) {
+    const row = this.rows.find((r) => r.id === id);
+    if (row && row.status === 'IN_PROGRESS' && row.processedBy === staffId) {
+      row.status = 'PENDING';
+      row.processedBy = null;
+    }
+  }
+  claimedAt = new Map<string, number>();
+  async claim(id: string, staffId: string, now: Date, staleAfterMs: number) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row) return false;
+    const stale =
+      row.status === 'IN_PROGRESS' && now.getTime() - (this.claimedAt.get(id) ?? 0) > staleAfterMs;
+    if (row.status !== 'PENDING' && !stale) return false;
+    row.status = 'IN_PROGRESS';
+    row.processedBy = staffId;
+    this.claimedAt.set(id, now.getTime());
+    return true;
+  }
   async decide(data: {
     id: string;
-    status: Exclude<DataSubjectRequestStatus, 'PENDING'>;
+    status: Exclude<DataSubjectRequestStatus, 'PENDING' | 'IN_PROGRESS'>;
     processedBy: string;
     reason: string | null;
+    from?: 'PENDING' | 'IN_PROGRESS';
   }) {
-    const row = this.rows.find((r) => r.id === data.id && r.status === 'PENDING');
+    const row = this.rows.find((r) => r.id === data.id && r.status === (data.from ?? 'PENDING'));
     if (!row) throw new Error('not pending');
     row.status = data.status;
     row.processedBy = data.processedBy;
@@ -372,6 +395,53 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     expect(result.export?.customer).toMatchObject({
       error: expect.stringContaining('unreachable'),
     });
+  });
+
+  it('two approvals at once: one erases, the other is told it is already being decided', async () => {
+    const r = await service.request(CUSTOMER, 'DELETE', null);
+    const res = await Promise.allSettled([
+      service.approve(r.id, STAFF),
+      service.approve(r.id, '33333333-3333-3333-3333-333333333333'),
+    ]);
+    expect(res.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+    expect(customerData.anonymise).toHaveBeenCalledTimes(1);
+  });
+
+  it('a run that died without throwing stays IN_PROGRESS, refuses a second approver, and resumes once stale', async () => {
+    const r = await service.request(CUSTOMER, 'DELETE', null);
+    // The process died after claiming: nothing ran to release it.
+    await requests.claim(r.id, STAFF, new Date(), 600_000);
+    await expect(service.approve(r.id, '33333333-3333-3333-3333-333333333333')).rejects.toThrow();
+    requests.claimedAt.set(r.id, Date.now() - 11 * 60_000);
+    const done = await service.approve(r.id, STAFF);
+    expect(done.request.status).toBe('COMPLETED');
+  });
+
+  it('a run that threw gives the request back so it can be retried at once', async () => {
+    const r = await service.request(CUSTOMER, 'DELETE', null);
+    customerData.anonymise.mockRejectedValueOnce(new Error('down'));
+    await expect(service.approve(r.id, STAFF)).rejects.toThrow('down');
+    expect((await requests.findById(r.id))?.status).toBe('PENDING');
+    expect((await service.approve(r.id, STAFF)).request.status).toBe('COMPLETED');
+  });
+
+  it('a failing export gives the request back too', async () => {
+    const r = await service.request(CUSTOMER, 'EXPORT', null);
+    jest.spyOn(requests, 'decide').mockRejectedValueOnce(new Error('db down'));
+    await expect(service.approve(r.id, STAFF)).rejects.toThrow('db down');
+    expect((await requests.findById(r.id))?.status).toBe('PENDING');
+  });
+
+  it('a rejection cannot decide a request an approval has claimed', async () => {
+    const r = await service.request(CUSTOMER, 'DELETE', null);
+    await requests.claim(r.id, STAFF, new Date(), 600_000);
+    await expect(service.reject(r.id, STAFF, 'no')).rejects.toThrow();
+  });
+
+  it('a second request of the same type is still refused while the first is IN_PROGRESS', async () => {
+    const r = await service.request(CUSTOMER, 'DELETE', null);
+    await requests.claim(r.id, STAFF, new Date(), 600_000);
+    await expect(service.request(CUSTOMER, 'DELETE', null)).rejects.toThrow();
   });
 
   it('refuses to decide the same request twice', async () => {

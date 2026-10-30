@@ -678,7 +678,7 @@ export interface RewardRedemption {
 
 /** UU PDP tahap 1 (item 13). Only PENDING rows can still be decided. */
 export type DataSubjectRequestType = 'EXPORT' | 'DELETE';
-export type DataSubjectRequestStatus = 'PENDING' | 'COMPLETED' | 'REJECTED';
+export type DataSubjectRequestStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
 
 export interface DataSubjectRequest {
   id: string;

@@ -13,9 +13,11 @@ export interface CreateDataSubjectRequestData {
 
 export interface DecideDataSubjectRequestData {
   id: string;
-  status: Exclude<DataSubjectRequestStatus, 'PENDING'>;
+  status: Exclude<DataSubjectRequestStatus, 'PENDING' | 'IN_PROGRESS'>;
   processedBy: string;
   reason: string | null;
+  /** The status this decision may follow. Default PENDING (a rejection); approvals pass IN_PROGRESS. */
+  from?: 'PENDING' | 'IN_PROGRESS';
 }
 
 export interface DataSubjectRequestRepository {
@@ -30,6 +32,17 @@ export interface DataSubjectRequestRepository {
   ): Promise<DataSubjectRequestRecord | null>;
   /** The staff queue: PENDING first (oldest first), then recently decided rows. */
   listForStaff(status?: DataSubjectRequestStatus): Promise<DataSubjectRequestRecord[]>;
+  /**
+   * Takes the request for an approval: PENDING -> IN_PROGRESS, or an IN_PROGRESS whose claim is
+   * older than `staleAfterMs` (a crashed run, resumed). False = someone else holds it or it is
+   * already decided, and no side effect may run.
+   */
+  claim(id: string, staffId: string, now: Date, staleAfterMs: number): Promise<boolean>;
+  /**
+   * Gives a claim back (IN_PROGRESS -> PENDING) after a run that threw, so the approval can be
+   * retried straight away. Only the claimant's own claim is released.
+   */
+  release(id: string, staffId: string): Promise<void>;
   /**
    * Records the decision. Guarded on status PENDING in the WHERE clause so two
    * concurrent approvals cannot run the deletion twice.

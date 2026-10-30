@@ -106,7 +106,12 @@ export const en: Dictionary = {
       download: 'Download my data',
       downloadError: 'Could not download the data copy.',
       type: { EXPORT: 'Data copy', DELETE: 'Delete account' },
-      status: { PENDING: 'Awaiting review', COMPLETED: 'Done', REJECTED: 'Rejected' },
+      status: {
+        PENDING: 'Awaiting review',
+        IN_PROGRESS: 'Being processed',
+        COMPLETED: 'Done',
+        REJECTED: 'Rejected',
+      },
     },
     title: 'Account & settings',
     profile: 'Profile',

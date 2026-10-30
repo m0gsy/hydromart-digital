@@ -17,6 +17,8 @@ import {
   DataSubjectRequestStatus,
   DataSubjectRequestType,
   anonymisedIdentity,
+  CLAIM_STALE_MS,
+  isApprovable,
   isDecidable,
 } from '../../domain/data-subject/data-subject-request';
 import {
@@ -152,16 +154,25 @@ export class DataSubjectService {
     staffId: string,
     options: { force?: boolean } = {},
   ): Promise<{ request: DataSubjectRequestRecord; export?: DataExport }> {
-    const found = await this.pendingOrThrow(id);
+    const found = await this.approvableOrThrow(id);
 
     if (found.type === 'EXPORT') {
-      const payload = await this.buildExport(found.customerId);
-      const request = await this.requests.decide({
-        id,
-        status: 'COMPLETED',
-        processedBy: staffId,
-        reason: null,
-      });
+      await this.claimOrThrow(id, staffId);
+      let payload: DataExport;
+      let request: DataSubjectRequestRecord;
+      try {
+        payload = await this.buildExport(found.customerId);
+        request = await this.requests.decide({
+          id,
+          status: 'COMPLETED',
+          processedBy: staffId,
+          reason: null,
+          from: 'IN_PROGRESS',
+        });
+      } catch (error) {
+        await this.requests.release(id, staffId);
+        throw error;
+      }
       await this.audit.record({
         customerId: staffId,
         action: PDP_AUDIT.EXPORTED,
@@ -188,21 +199,35 @@ export class DataSubjectService {
       }
     }
 
-    await this.customerData.anonymise(found.customerId);
-    // Read BEFORE `anonymiseCustomer` below: half the rows that survived erasure are keyed
-    // on a phone with a null customerId, and once the account is scrubbed that key is gone.
-    const account = await this.customers.findById(found.customerId);
-    const coverage = await this.eraseEverywhere({
-      customerId: found.customerId,
-      phone: account?.phone ?? null,
-    });
-    await this.requests.anonymiseCustomer(found.customerId, anonymisedIdentity(found.customerId));
-    const request = await this.requests.decide({
-      id,
-      status: 'COMPLETED',
-      processedBy: staffId,
-      reason: null,
-    });
+    // Claimed only now, after every refusal above: a refusal leaves the request PENDING. From
+    // here on a second approval cannot start (it would erase twice); a crash leaves IN_PROGRESS,
+    // which resumes once the claim is stale.
+    await this.claimOrThrow(id, staffId);
+    let coverage: Awaited<ReturnType<DataSubjectService['eraseEverywhere']>>;
+    let request: DataSubjectRequestRecord;
+    try {
+      await this.customerData.anonymise(found.customerId);
+      // Read BEFORE `anonymiseCustomer` below: half the rows that survived erasure are keyed
+      // on a phone with a null customerId, and once the account is scrubbed that key is gone.
+      const account = await this.customers.findById(found.customerId);
+      coverage = await this.eraseEverywhere({
+        customerId: found.customerId,
+        phone: account?.phone ?? null,
+      });
+      await this.requests.anonymiseCustomer(found.customerId, anonymisedIdentity(found.customerId));
+      request = await this.requests.decide({
+        id,
+        status: 'COMPLETED',
+        processedBy: staffId,
+        reason: null,
+        from: 'IN_PROGRESS',
+      });
+    } catch (error) {
+      // A run that THREW is retryable straight away, exactly as before the claim existed. Only a
+      // run that died without throwing (a crashed process) is left IN_PROGRESS to resume when stale.
+      await this.requests.release(id, staffId);
+      throw error;
+    }
     await this.audit.record({
       customerId: staffId,
       action: PDP_AUDIT.DELETED,
@@ -451,6 +476,20 @@ export class DataSubjectService {
           'dihapus saat penghapusan, dan saldonya terbaca sendiri di aplikasi pelanggan)',
       ],
     };
+  }
+
+  private async approvableOrThrow(id: string): Promise<DataSubjectRequestRecord> {
+    const found = await this.requests.findById(id);
+    if (!found) throw new DataSubjectRequestNotFoundError();
+    if (!isApprovable(found)) throw new DataSubjectRequestAlreadyDecidedError();
+    return found;
+  }
+
+  /** Whoever fails to claim does nothing: another approval holds the request, or it is decided. */
+  private async claimOrThrow(id: string, staffId: string): Promise<void> {
+    if (!(await this.requests.claim(id, staffId, new Date(), CLAIM_STALE_MS))) {
+      throw new DataSubjectRequestAlreadyDecidedError();
+    }
   }
 
   private async pendingOrThrow(id: string): Promise<DataSubjectRequestRecord> {
