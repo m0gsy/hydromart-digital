@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
-import { AddressLimitError, AddressNotFoundError } from '../../domain/errors';
+import { AddressNotFoundError } from '../../domain/errors';
 import {
   AddressRecord,
   AddressRepository,
@@ -63,13 +63,7 @@ export class AddressService {
   }
 
   async create(customerId: string, input: CreateAddressInput): Promise<AddressRecord> {
-    const count = await this.addresses.countByCustomer(customerId);
-    if (count >= this.config.maxAddresses) {
-      throw new AddressLimitError(this.config.maxAddresses);
-    }
-
-    const makePrimary = input.isPrimary === true || count === 0;
-    const data: CreateAddressData = {
+    const data: Omit<CreateAddressData, 'isPrimary'> = {
       customerId,
       label: input.label,
       recipientName: input.recipientName,
@@ -81,13 +75,15 @@ export class AddressService {
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       notes: input.notes ?? null,
-      isPrimary: makePrimary,
     };
 
-    // Audit DB-2 (create path): a new primary must unset the old one and insert
-    // atomically, or two concurrent "add as primary" both win. A non-primary insert
-    // can't violate the partial unique index, so it stays a plain create.
-    return makePrimary ? this.addresses.createExclusivePrimary(data) : this.addresses.create(data);
+    // The cap, the primary decision and the insert are one step per customer: counted
+    // separately, two requests both saw room under the cap, and two "add as primary" both won.
+    return this.addresses.createWithinLimit(
+      data,
+      input.isPrimary === true,
+      this.config.maxAddresses,
+    );
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
@@ -102,13 +98,8 @@ export class AddressService {
   }
 
   async remove(customerId: string, id: string): Promise<void> {
-    const address = await this.getOrThrow(customerId, id);
-    await this.addresses.delete(customerId, id);
-    if (address.isPrimary) {
-      const next = await this.addresses.findMostRecent(customerId, id);
-      if (next) {
-        await this.addresses.markPrimary(customerId, next.id);
-      }
+    if (!(await this.addresses.removeAndPromote(customerId, id))) {
+      throw new AddressNotFoundError();
     }
   }
 }

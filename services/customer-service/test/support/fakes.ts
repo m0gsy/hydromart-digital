@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { CustomerConfigService } from '../../src/config/customer-config.service';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
+import { AddressLimitError } from '../../src/domain/errors';
 import {
   CustomerProfileRecord,
   DirectoryRecipient,
@@ -164,6 +165,28 @@ export class InMemoryAddressRepository implements AddressRepository {
     const rec: AddressRecord = { ...data, id: randomUUID(), createdAt: now, updatedAt: now };
     this.rows.push(rec);
     return { ...rec };
+  }
+  async createWithinLimit(
+    data: Omit<CreateAddressData, 'isPrimary'>,
+    wantPrimary: boolean,
+    max: number,
+  ): Promise<AddressRecord> {
+    const count = await this.countByCustomer(data.customerId);
+    if (count >= max) throw new AddressLimitError(max);
+    const isPrimary = wantPrimary || count === 0;
+    return isPrimary
+      ? this.createExclusivePrimary({ ...data, isPrimary })
+      : this.create({ ...data, isPrimary });
+  }
+  async removeAndPromote(customerId: string, id: string): Promise<boolean> {
+    const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
+    if (!rec) return false;
+    await this.delete(customerId, id);
+    if (rec.isPrimary) {
+      const next = await this.findMostRecent(customerId, id);
+      if (next) await this.markPrimary(customerId, next.id);
+    }
+    return true;
   }
   async createExclusivePrimary(data: CreateAddressData): Promise<AddressRecord> {
     await this.unsetPrimary(data.customerId);
