@@ -213,7 +213,7 @@ export class VoucherService {
       patch.productId === undefined ? current.productId : patch.productId,
       patch.categoryId === undefined ? current.categoryId : patch.categoryId,
     );
-    return this.repo.update(id, patch);
+    return this.repo.update(id, patch, current.updatedAt);
   }
 
   /** Soft-disable a voucher (admin). */

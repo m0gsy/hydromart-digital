@@ -118,7 +118,12 @@ export interface VoucherRepository {
   findById(id: string): Promise<VoucherRecord | null>;
   findByCode(code: string): Promise<VoucherRecord | null>;
   create(data: CreateVoucherData): Promise<VoucherRecord>;
-  update(id: string, data: UpdateVoucherData): Promise<VoucherRecord>;
+  /**
+   * `expectedUpdatedAt`: write only if the row still carries the stamp the editor read (a
+   * compare-and-set). A mismatch throws StaleWriteError, so two editors holding the same
+   * stamp cannot both get past the freshness check and overwrite each other.
+   */
+  update(id: string, data: UpdateVoucherData, expectedUpdatedAt?: Date): Promise<VoucherRecord>;
 
   /**
    * The admin voucher list. `depotIds` narrows it to a depot-scoped caller's reach: their own

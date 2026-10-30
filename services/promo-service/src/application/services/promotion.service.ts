@@ -63,8 +63,9 @@ export class PromotionService {
     patch: UpdatePromotionData,
     seenUpdatedAt?: string,
   ): Promise<PromotionRecord> {
-    assertFresh((await this.getById(id)).updatedAt, seenUpdatedAt);
-    return this.repo.update(id, patch);
+    const current = await this.getById(id);
+    assertFresh(current.updatedAt, seenUpdatedAt);
+    return this.repo.update(id, patch, current.updatedAt);
   }
 
   async remove(id: string): Promise<void> {

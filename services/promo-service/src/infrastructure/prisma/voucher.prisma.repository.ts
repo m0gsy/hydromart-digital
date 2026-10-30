@@ -1,4 +1,5 @@
 ﻿import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 
 import { DuplicateVoucherCodeError, VoucherNotFoundError } from '../../domain/errors';
 import { DiscountType } from '../../domain/voucher';
@@ -82,14 +83,21 @@ export class VoucherPrismaRepository implements VoucherRepository {
     }
   }
 
-  async update(id: string, data: UpdateVoucherData): Promise<VoucherRecord> {
-    const row = await this.prisma.voucher.update({
-      where: { id },
-      data: {
-        ...data,
-        discountType: data.discountType as PrismaDiscountType | undefined,
-      },
-    });
+  async update(
+    id: string,
+    data: UpdateVoucherData,
+    expectedUpdatedAt?: Date,
+  ): Promise<VoucherRecord> {
+    const patch = { ...data, discountType: data.discountType as PrismaDiscountType | undefined };
+    if (expectedUpdatedAt) {
+      const { count } = await this.prisma.voucher.updateMany({
+        where: { id, updatedAt: expectedUpdatedAt },
+        data: patch,
+      });
+      if (count === 0) throw new StaleWriteError();
+      return this.toVoucher(await this.prisma.voucher.findUniqueOrThrow({ where: { id } }));
+    }
+    const row = await this.prisma.voucher.update({ where: { id }, data: patch });
     return this.toVoucher(row);
   }
 
