@@ -1,3 +1,4 @@
+import { FraudFlagAlreadyOpenError } from '../../src/domain/errors';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
 import { AdminNotificationPrefPrismaRepository } from '../../src/infrastructure/prisma/admin-notification-pref.prisma.repository';
@@ -1263,5 +1264,80 @@ describe('SweepRunPrismaRepository', () => {
   it('reads every row unpaged — the table holds one per crontab line', async () => {
     await repo.list();
     expect(model.findMany).toHaveBeenCalledWith();
+  });
+});
+
+describe('FraudFlagPrismaRepository.create / clear (one open flag, locked clear)', () => {
+  const fraudFlag = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
+  };
+  const tx = { fraudFlag, $executeRaw: jest.fn() };
+  const $transaction = jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+  const repo = new FraudFlagPrismaRepository({ fraudFlag, $transaction } as unknown as PrismaService);
+  const stored = (over: Record<string, unknown> = {}) => ({
+    id: 'fr-1',
+    entityType: 'ACCOUNT',
+    entityRef: 'cust-1',
+    score: 4,
+    level: 'MEDIUM',
+    signals: [],
+    status: 'BLOCKED',
+    blockedAt: new Date('2026-10-01'),
+    decisionReason: null,
+    createdAt: new Date('2026-09-30'),
+    ...over,
+  });
+  const data = {
+    entityType: FraudEntityType.ACCOUNT,
+    entityRef: 'cust-1',
+    score: 4,
+    level: FraudLevel.MEDIUM,
+    signals: [],
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('create maps the one-open-flag index to FraudFlagAlreadyOpenError, and rethrows the rest', async () => {
+    fraudFlag.create.mockRejectedValueOnce(Object.assign(new Error('u'), { code: 'P2002' }));
+    await expect(repo.create(data)).rejects.toBeInstanceOf(FraudFlagAlreadyOpenError);
+    fraudFlag.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(repo.create(data)).rejects.toThrow('db down');
+    fraudFlag.create.mockResolvedValueOnce(stored({ status: 'OPEN' }));
+    await expect(repo.create(data)).resolves.toMatchObject({ id: 'fr-1' });
+  });
+
+  it('clear answers null for an unknown flag, before and inside the lock', async () => {
+    fraudFlag.findUnique.mockResolvedValueOnce(null);
+    expect(await repo.clear('nope', null)).toBeNull();
+    fraudFlag.findUnique.mockResolvedValueOnce(stored()).mockResolvedValueOnce(null);
+    expect(await repo.clear('fr-1', null)).toBeNull();
+  });
+
+  it('clear reinstates only when this flag suspended the account and no other flag holds it', async () => {
+    fraudFlag.findUnique.mockResolvedValue(stored());
+    fraudFlag.update.mockResolvedValue(stored({ status: 'CLEARED' }));
+    fraudFlag.count.mockResolvedValueOnce(0);
+    const free = await repo.clear('fr-1', 'ok');
+    expect(free).toMatchObject({ reinstate: true, previous: 'BLOCKED' });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(fraudFlag.update).toHaveBeenCalledWith({
+      where: { id: 'fr-1' },
+      data: { status: 'CLEARED', decisionReason: 'ok' },
+    });
+
+    fraudFlag.count.mockResolvedValueOnce(1);
+    expect(await repo.clear('fr-1', null)).toMatchObject({ reinstate: false });
+  });
+
+  it('clear never reinstates for an order flag or one that never suspended anybody', async () => {
+    fraudFlag.update.mockResolvedValue(stored({ status: 'CLEARED' }));
+    fraudFlag.findUnique.mockResolvedValue(stored({ entityType: 'ORDER' }));
+    expect(await repo.clear('fr-1', null)).toMatchObject({ reinstate: false });
+    fraudFlag.findUnique.mockResolvedValue(stored({ blockedAt: null }));
+    expect(await repo.clear('fr-1', null)).toMatchObject({ reinstate: false });
+    expect(fraudFlag.count).not.toHaveBeenCalled();
   });
 });
