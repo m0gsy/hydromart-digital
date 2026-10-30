@@ -954,6 +954,65 @@ describe('OrderService', () => {
       ).rejects.toBeInstanceOf(DuplicateCheckoutError);
     });
 
+    /*
+     * The second tap of a double-tapped Bayar that gets past the pre-check while the first is
+     * still mid-flight: the first has taken the stock (or spent the voucher), so this one's
+     * reserve/burn is what fails. The customer must be answered with the first tap's order,
+     * not told the stock is gone for an order that exists.
+     */
+    it('answers with the winner when the loser reserve fails because the winner took the stock', async () => {
+      await addToCart(20000, 2);
+      const first = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      await addToCart(20000, 2);
+      jest.spyOn(orders, 'findByIdempotencyKey').mockResolvedValueOnce(null); // pre-check misses
+      inventory.reserveError = new Error('Insufficient stock');
+
+      const second = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+
+      expect(second.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
+
+    it('still reports the shortfall when no winner exists', async () => {
+      await addToCart(20000, 2);
+      inventory.reserveError = new Error('Insufficient stock');
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ).rejects.toThrow('Insufficient stock');
+    });
+
+    it('answers with the winner when the loser voucher burn fails, and hands its stock back', async () => {
+      await addToCart(20000, 2);
+      promo.quoteDiscount = 5000;
+      const first = await service.checkout(customer, {
+        deliveryAddress: address,
+        idempotencyKey: key,
+        voucherCode: 'HEMAT10',
+      });
+      await addToCart(20000, 2);
+      jest.spyOn(orders, 'findByIdempotencyKey').mockResolvedValueOnce(null);
+      jest.spyOn(promo, 'redeem').mockRejectedValueOnce(new Error('voucher already used'));
+      inventory.releaseCalls.length = 0;
+
+      const second = await service.checkout(customer, {
+        deliveryAddress: address,
+        idempotencyKey: key,
+        voucherCode: 'HEMAT10',
+      });
+
+      expect(second.id).toBe(first.id);
+      expect(inventory.releaseCalls).toHaveLength(1);
+    });
+
+    it('swallows a failed stock release on the way out of a lost checkout', async () => {
+      await addToCart(20000, 2);
+      jest.spyOn(orders, 'create').mockRejectedValue(new Error('db down'));
+      jest.spyOn(inventory, 'release').mockRejectedValueOnce(new Error('depot down'));
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ).rejects.toThrow('db down');
+    });
+
     it('releases nothing when no voucher was in play', async () => {
       await addToCart(20000, 2);
       jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
