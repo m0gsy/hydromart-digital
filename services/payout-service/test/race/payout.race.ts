@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { WithdrawalPrismaRepository } from '../../src/infrastructure/prisma/withdrawal.prisma.repository';
 import { LedgerPrismaRepository } from '../../src/infrastructure/prisma/ledger.prisma.repository';
 import { ExpenseClaimPrismaRepository } from '../../src/infrastructure/prisma/expense-claim.prisma.repository';
 import { PayoutBankAccountPrismaRepository } from '../../src/infrastructure/prisma/bank-account.prisma.repository';
@@ -10,6 +11,7 @@ describeRace('payout on real Postgres — concurrent writers', () => {
   let claims: ExpenseClaimPrismaRepository;
   let accounts: PayoutBankAccountPrismaRepository;
   let ledger: LedgerPrismaRepository;
+  let prismaForWithdrawals: Awaited<ReturnType<typeof freshPrisma>>['prisma'];
 
   beforeAll(async () => {
     const db = await freshPrisma();
@@ -17,6 +19,7 @@ describeRace('payout on real Postgres — concurrent writers', () => {
     claims = new ExpenseClaimPrismaRepository(db.prisma as never);
     accounts = new PayoutBankAccountPrismaRepository(db.prisma as never);
     ledger = new LedgerPrismaRepository(db.prisma as never);
+    prismaForWithdrawals = db.prisma;
   });
   afterAll(async () => drop?.());
 
@@ -123,6 +126,33 @@ describeRace('payout on real Postgres — concurrent writers', () => {
       expect((lost.reason as { code?: string }).code).toBe('P2002');
       // All-or-nothing: the loser left no half pair behind.
       expect(await ledger.findByOrder(orderId)).toHaveLength(2);
+    }
+  });
+
+  it('a double-tapped withdrawal carrying one key debits the balance once; without a key both go through', async () => {
+    const withdrawals = new WithdrawalPrismaRepository(prismaForWithdrawals as never);
+    for (let i = 0; i < 5; i++) {
+      const owner = randomUUID();
+      await prismaForWithdrawals.ledgerEntry.create({
+        data: { franchiseOwnerId: owner, depotId: null, type: 'SALE_SETTLEMENT', amount: 1_000_000, description: 's' },
+      });
+      const input = (ref: string, key?: string) => ({
+        franchiseOwnerId: owner,
+        amount: 100_000,
+        bankAccountRef: 'BCA',
+        reference: ref,
+        status: 'PROCESSING' as const,
+        description: 'd',
+        ...(key ? { idempotencyKey: key } : {}),
+      });
+      const key = randomUUID();
+      const res = await race(
+        Array.from({ length: 5 }, (_, n) => () => withdrawals.withdrawWithDebit(input(`WD-${randomUUID()}-${n}`, key))),
+      );
+      expect(res.every((r) => r.status === 'fulfilled')).toBe(true);
+      expect(await prismaForWithdrawals.withdrawal.count({ where: { franchiseOwnerId: owner } })).toBe(1);
+      expect(await withdrawals.withdrawWithDebit(input(`WD-${randomUUID()}`))).toMatchObject({ ok: true });
+      expect(await prismaForWithdrawals.withdrawal.count({ where: { franchiseOwnerId: owner } })).toBe(2);
     }
   });
 });

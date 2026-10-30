@@ -30,6 +30,10 @@
 # docker exec as the trusted local user, no .env needed. Env: PG_CONTAINER, PG_USER.
 #
 # Exit: 0 = every index present and valid; 1 = a build failed or left an invalid index;
+#
+# courier_withdrawals_courierId_idempotencyKey_key and withdrawals_franchiseOwnerId_idempotencyKey_key
+# (payout-service, 2026-10-30) are built by their own migration, not here: the columns are created by
+# that very migration and every value is NULL, so the build is instant.
 #       2 = can't reach the Postgres container.
 set -uo pipefail
 

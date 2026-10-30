@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
@@ -99,8 +100,9 @@ export class CourierPayoutController {
   withdraw(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RequestWithdrawalDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<CourierWithdrawalRecord> {
-    return this.payout.requestWithdrawal(user.sub, dto.amount);
+    return this.payout.requestWithdrawal(user.sub, dto.amount, idempotencyKey?.slice(0, 120));
   }
 
   @ApiOkResponse({ type: CourierWithdrawalResponseDto, isArray: true })

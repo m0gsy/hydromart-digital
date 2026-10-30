@@ -55,12 +55,29 @@ export class CourierWithdrawalPrismaRepository implements CourierWithdrawalRepos
     reference: string;
     status: WithdrawalStatus;
     description: string;
+    idempotencyKey?: string | null;
   }): Promise<CourierWithdrawalOutcome> {
     return this.prisma.$transaction(async (tx) => {
       // Balance is a SUM over ledger rows, so there is nothing to lock FOR UPDATE. This
       // advisory lock ends with the transaction and is keyed on the courier, so one
       // courier's withdrawals queue while other couriers run unblocked.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.courierId}, 0))`;
+
+      // The same attempt again (a double tap, a retry whose answer was lost): hand back the first
+      // withdrawal. Inside the lock, so two copies in flight cannot both miss it.
+      if (input.idempotencyKey) {
+        const prior = await tx.courierWithdrawal.findUnique({
+          where: {
+            courierId_idempotencyKey: {
+              courierId: input.courierId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+        });
+        if (prior) {
+          return { ok: true as const, withdrawal: this.toWithdrawal(prior as unknown as WithdrawalRow) };
+        }
+      }
 
       const agg = await tx.courierLedgerEntry.aggregate({
         where: { courierId: input.courierId },
@@ -78,6 +95,7 @@ export class CourierWithdrawalPrismaRepository implements CourierWithdrawalRepos
           bankAccountRef: input.bankAccountRef,
           reference: input.reference,
           status: input.status,
+          idempotencyKey: input.idempotencyKey ?? null,
         },
       });
       await tx.courierLedgerEntry.create({

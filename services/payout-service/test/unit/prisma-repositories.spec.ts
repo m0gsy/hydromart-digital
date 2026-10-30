@@ -1389,3 +1389,81 @@ describe('CourierLedgerPrismaRepository', () => {
     expect(result.baseFare).toBe(8000);
   });
 });
+
+describe('withdrawWithDebit idempotency (owner + courier)', () => {
+  const row = (extra: object = {}) => ({
+    id: 'w-1',
+    amount: '500',
+    bankAccountRef: 'BCA',
+    status: 'PROCESSING',
+    reference: 'WD-1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...extra,
+  });
+  const make = () => {
+    const withdrawal = { create: jest.fn(), findUnique: jest.fn() };
+    const courierWithdrawal = { create: jest.fn(), findUnique: jest.fn() };
+    const ledgerEntry = { aggregate: jest.fn(), create: jest.fn() };
+    const courierLedgerEntry = { aggregate: jest.fn(), create: jest.fn() };
+    const tx = { withdrawal, courierWithdrawal, ledgerEntry, courierLedgerEntry, $executeRaw: jest.fn() };
+    const prisma = { $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)) };
+    return { tx, prisma, withdrawal, courierWithdrawal, ledgerEntry, courierLedgerEntry };
+  };
+  const owner = {
+    franchiseOwnerId: 'own-1',
+    amount: 500,
+    bankAccountRef: 'BCA',
+    reference: 'WD-2',
+    status: 'PROCESSING' as const,
+    description: 'd',
+  };
+  const courier = { ...owner, courierId: 'c-1' } as never;
+
+  it('owner: a repeat of the same key returns the first withdrawal and debits nothing', async () => {
+    const m = make();
+    m.withdrawal.findUnique.mockResolvedValue(row({ franchiseOwnerId: 'own-1' }));
+    const repo = new WithdrawalPrismaRepository(m.prisma as never);
+    const out = await repo.withdrawWithDebit({ ...owner, idempotencyKey: 'k-1' });
+    expect(out).toMatchObject({ ok: true, withdrawal: { reference: 'WD-1' } });
+    expect(m.withdrawal.findUnique).toHaveBeenCalledWith({
+      where: { franchiseOwnerId_idempotencyKey: { franchiseOwnerId: 'own-1', idempotencyKey: 'k-1' } },
+    });
+    expect(m.ledgerEntry.aggregate).not.toHaveBeenCalled();
+    expect(m.ledgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('owner: a new key is stored with the withdrawal; no key skips the lookup', async () => {
+    const m = make();
+    m.withdrawal.findUnique.mockResolvedValue(null);
+    m.ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 1000 } });
+    m.withdrawal.create.mockResolvedValue(row());
+    const repo = new WithdrawalPrismaRepository(m.prisma as never);
+    await repo.withdrawWithDebit({ ...owner, idempotencyKey: 'k-2' });
+    expect(m.withdrawal.create.mock.calls[0][0].data.idempotencyKey).toBe('k-2');
+    m.withdrawal.findUnique.mockClear();
+    await repo.withdrawWithDebit(owner);
+    expect(m.withdrawal.findUnique).not.toHaveBeenCalled();
+    expect(m.withdrawal.create.mock.calls[1][0].data.idempotencyKey).toBeNull();
+  });
+
+  it('courier: the same two behaviours', async () => {
+    const m = make();
+    m.courierWithdrawal.findUnique.mockResolvedValueOnce(row({ courierId: 'c-1' }));
+    const repo = new CourierWithdrawalPrismaRepository(m.prisma as never);
+    const replay = await repo.withdrawWithDebit({ ...(courier as object), idempotencyKey: 'k-1' } as never);
+    expect(replay).toMatchObject({ ok: true });
+    expect(m.courierLedgerEntry.create).not.toHaveBeenCalled();
+    expect(m.courierWithdrawal.findUnique).toHaveBeenCalledWith({
+      where: { courierId_idempotencyKey: { courierId: 'c-1', idempotencyKey: 'k-1' } },
+    });
+
+    m.courierWithdrawal.findUnique.mockResolvedValue(null);
+    m.courierLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 1000 } });
+    m.courierWithdrawal.create.mockResolvedValue(row());
+    await repo.withdrawWithDebit({ ...(courier as object), idempotencyKey: 'k-2' } as never);
+    expect(m.courierWithdrawal.create.mock.calls[0][0].data.idempotencyKey).toBe('k-2');
+    await repo.withdrawWithDebit(courier);
+    expect(m.courierWithdrawal.create.mock.calls[1][0].data.idempotencyKey).toBeNull();
+  });
+});

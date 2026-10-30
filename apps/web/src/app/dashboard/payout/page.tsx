@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ArrowDownLeft,
   ArrowLineDown,
@@ -103,6 +103,9 @@ function BalanceCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Withdrawal | null>(null);
+  // One key per cash-out ATTEMPT, kept across retries and cleared once it lands: a double tap or a
+  // retry whose answer was lost must not withdraw twice.
+  const attemptKey = useRef('');
 
   const balance = summary.availableBalance;
 
@@ -131,11 +134,14 @@ function BalanceCard({
     setBusy(true);
     setError(null);
     try {
+      if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
       const w = await api.post<Withdrawal>(
         endpoints.payout.withdrawals,
         { amount: Math.round(value) },
         true,
+        { 'Idempotency-Key': attemptKey.current },
       );
+      attemptKey.current = '';
       setDone(w);
       onWithdrawn();
     } catch (err) {

@@ -276,9 +276,12 @@ model CourierWithdrawal {
   status         WithdrawalStatus @default(PROCESSING)
   /// Human-facing reference, e.g. "WD-20260718-4821". Unique.
   reference      String           @unique
+  /// The caller's Idempotency-Key for this attempt; a repeat returns this row. Null = none sent.
+  idempotencyKey String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
+  @@unique([courierId, idempotencyKey])
   @@index([courierId, createdAt])
   @@map("courier_withdrawals")
 }
@@ -294,9 +297,12 @@ model Withdrawal {
   status           WithdrawalStatus @default(PROCESSING)
   /// Human-facing reference, e.g. "WD-20260710-4821". Unique.
   reference        String           @unique
+  /// The caller's Idempotency-Key for this attempt; a repeat returns this row. Null = none sent.
+  idempotencyKey   String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  @@unique([franchiseOwnerId, idempotencyKey])
   @@index([franchiseOwnerId, createdAt])
   @@map("withdrawals")
 }

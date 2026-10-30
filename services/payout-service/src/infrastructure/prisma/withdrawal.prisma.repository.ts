@@ -54,12 +54,29 @@ export class WithdrawalPrismaRepository implements WithdrawalRepository {
     reference: string;
     status: WithdrawalStatus;
     description: string;
+    idempotencyKey?: string | null;
   }): Promise<WithdrawalOutcome> {
     return this.prisma.$transaction(async (tx) => {
       // The balance is a SUM over ledger rows, so there is no row to lock FOR UPDATE. This
       // advisory lock is released when the transaction ends and is keyed on the owner, so
       // concurrent withdrawals for one owner queue up while different owners run freely.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.franchiseOwnerId}, 0))`;
+
+      // The same attempt again (a double tap, a retry whose answer was lost): hand back the first
+      // withdrawal. Inside the lock, so two copies in flight cannot both miss it.
+      if (input.idempotencyKey) {
+        const prior = await tx.withdrawal.findUnique({
+          where: {
+            franchiseOwnerId_idempotencyKey: {
+              franchiseOwnerId: input.franchiseOwnerId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+        });
+        if (prior) {
+          return { ok: true as const, withdrawal: this.toWithdrawal(prior as unknown as WithdrawalRow) };
+        }
+      }
 
       const agg = await tx.ledgerEntry.aggregate({
         where: { franchiseOwnerId: input.franchiseOwnerId },
@@ -77,6 +94,7 @@ export class WithdrawalPrismaRepository implements WithdrawalRepository {
           bankAccountRef: input.bankAccountRef,
           reference: input.reference,
           status: input.status,
+          idempotencyKey: input.idempotencyKey ?? null,
         },
       });
       // Same transaction as the withdrawal: a crash between the two can no longer leave a

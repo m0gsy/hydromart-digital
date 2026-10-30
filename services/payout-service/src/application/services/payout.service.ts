@@ -334,7 +334,11 @@ export class PayoutService {
     return buildPage(items, total, page, limit, nextCursor);
   }
 
-  async requestWithdrawal(ownerId: string, amount: number): Promise<WithdrawalRecord> {
+  async requestWithdrawal(
+    ownerId: string,
+    amount: number,
+    idempotencyKey?: string,
+  ): Promise<WithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
     if (amount < this.config.minWithdrawalIdr) {
       throw new WithdrawalBelowMinimumError(this.config.minWithdrawalIdr);
@@ -361,6 +365,7 @@ export class PayoutService {
       reference,
       status: 'PROCESSING',
       description: `Pencairan saldo · ${reference}`,
+      idempotencyKey: idempotencyKey ?? null,
     });
     if (!outcome.ok) {
       throw new InsufficientBalanceError(outcome.balance, amount);

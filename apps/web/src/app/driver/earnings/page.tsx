@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -42,6 +42,9 @@ function Earnings() {
   const payoutAccount = useVerifiedPayoutAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // One key per cash-out ATTEMPT, kept across retries and cleared once it lands: a double tap or a
+  // retry whose answer was lost must not withdraw twice.
+  const attemptKey = useRef('');
 
   if (load.loading) return <div className="p-5"><Skeleton className="h-72 w-full" /></div>;
   if (load.error || !load.data) {
@@ -56,7 +59,11 @@ function Earnings() {
     setBusy(true);
     setError(null);
     try {
-      await api.post(endpoints.courierPayout.withdraw, { amount: want }, true);
+      if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
+      await api.post(endpoints.courierPayout.withdraw, { amount: want }, true, {
+        'Idempotency-Key': attemptKey.current,
+      });
+      attemptKey.current = '';
       setWithdrawing(false);
       setAmount('');
       await load.reload();
