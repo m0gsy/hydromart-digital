@@ -121,6 +121,8 @@ export interface PaymentExpirySweepResult {
 export interface PaymentUnconfirmedSweepResult {
   flagged: number;
   failed: number;
+  /** PAID payments found on a cancelled/voided order and handed to the refund path. */
+  reconciled: number;
   ok: boolean;
 }
 
@@ -810,7 +812,15 @@ export class PaymentService {
       EXPIRABLE_PENDING_METHODS,
       PaymentService.EXPIRY_SWEEP_LIMIT,
     );
-    if (paid.length === 0) return { flagged: 0, failed: 0, ok: true };
+    const reconcile = await this.reconcileCancelledOrders(now);
+    if (paid.length === 0) {
+      return {
+        flagged: 0,
+        failed: reconcile.failed,
+        reconciled: reconcile.reconciled,
+        ok: reconcile.failed === 0 || reconcile.reconciled > 0,
+      };
+    }
 
     const statuses = await this.orderCoordination.getOrderStatuses(paid.map((p) => p.orderId));
     let flagged = 0;
@@ -832,7 +842,56 @@ export class PaymentService {
         );
       }
     }
-    return { flagged, failed, ok: failed === 0 || flagged > 0 };
+    return {
+      flagged,
+      failed: failed + reconcile.failed,
+      reconciled: reconcile.reconciled,
+      ok: failed + reconcile.failed === 0 || flagged + reconcile.reconciled > 0,
+    };
+  }
+
+  /**
+   * Money that is PAID on an order that is already cancelled or voided.
+   *
+   * It should not exist: a cancel refunds what is PAID, and confirming a payment is a
+   * compare-and-set from PENDING. But a payment started against an order that was cancelled in
+   * the meantime (initiate has no order-status check) can still be paid afterwards, and then
+   * nothing ever gives the money back. This looks for exactly that in the last two days and hands
+   * it to `cancelForOrder`, which is idempotent and routes through the same refund rules (HQ
+   * approval above the threshold) as an ordinary cancellation.
+   *
+   * An order whose status cannot be read is left alone: no answer is not evidence of a problem.
+   * Only the newest payments are examined (bounded), which is where this appears: minutes after
+   * the cancel, not weeks.
+   */
+  private async reconcileCancelledOrders(
+    now: Date,
+  ): Promise<{ reconciled: number; failed: number }> {
+    const since = new Date(now.getTime() - PaymentService.UNCONFIRMED_LOOKBACK_MS);
+    const paid = await this.payments.findPaidSince(since, PaymentService.EXPIRY_SWEEP_LIMIT);
+    if (paid.length === 0) return { reconciled: 0, failed: 0 };
+    const statuses = await this.orderCoordination.getOrderStatuses([
+      ...new Set(paid.map((p) => p.orderId)),
+    ]);
+    let reconciled = 0;
+    let failed = 0;
+    for (const orderId of new Set(paid.map((p) => p.orderId))) {
+      const status = statuses.get(orderId);
+      if (status !== 'CANCELLED' && status !== 'VOIDED') continue;
+      try {
+        await this.cancelForOrder(orderId, 'Pembayaran masuk pada pesanan yang sudah dibatalkan', 'reconciliation');
+        reconciled += 1;
+      } catch (error) {
+        failed += 1;
+        this.logger.warn(
+          `Reconciling the payment on cancelled order ${orderId} failed: ${(error as Error).message}`,
+        );
+      }
+    }
+    if (reconciled > 0) {
+      this.logger.warn(`Refunded ${reconciled} payment(s) that were PAID on a cancelled order`);
+    }
+    return { reconciled, failed };
   }
 
   /**

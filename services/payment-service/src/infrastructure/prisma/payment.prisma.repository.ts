@@ -185,6 +185,19 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
+  async findPaidSince(after: Date, limit: number): Promise<PaymentRecord[]> {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.PAID,
+        paidAt: { gte: after },
+        refundApproval: { not: RefundApproval.PENDING },
+      },
+      orderBy: { paidAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async claimUnconfirmedNotice(id: string): Promise<boolean> {
     const claimed = await this.prisma.payment.updateMany({
       where: { id, unconfirmedNotifiedAt: null },
