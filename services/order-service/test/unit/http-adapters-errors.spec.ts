@@ -165,7 +165,12 @@ describe('an outbound call that hangs is aborted and still settles', () => {
   });
   afterEach(() => jest.useRealTimers());
 
-  const revenue = { orderId: 'o1', depotId: 'd1', amountIdr: 240000 } as never;
+  const revenue = {
+    orderId: 'o1',
+    depotId: 'd1',
+    amountIdr: 240000,
+    owners: [{ ownerId: 'w1', sharePct: 100, isPrimary: true }],
+  } as never;
   const cases: [string, () => Promise<unknown>][] = [
     [
       'depot-directory.listActiveDepots',
