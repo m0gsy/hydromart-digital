@@ -87,7 +87,9 @@ export class OutboxPrismaRepository implements OutboxRepository {
    */
   async cancelForOrder(orderId: string, reason: string): Promise<number> {
     const { count } = await this.prisma.outboxMessage.updateMany({
-      where: { orderId, status: 'PENDING' },
+      // A voided counter sale stops owing its side effects; it never owes the customer's
+      // money back to a payment that a cancel is returning, so that row is never called off.
+      where: { orderId, status: 'PENDING', topic: { not: 'PAYMENT_REVERSAL' } },
       data: { status: 'CANCELLED', lastError: reason.slice(0, 500) },
     });
     return count;

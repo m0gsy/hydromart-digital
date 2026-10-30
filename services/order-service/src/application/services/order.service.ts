@@ -341,6 +341,27 @@ export class OrderService {
       this.postFranchiseRevenue(id, auth),
     );
     this.outboxService.register('GALLON_ISSUE', (id) => this.bookGallonIssue(id));
+    this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
+  }
+
+  /**
+   * Gives a cancelled order's money back (the PAYMENT_REVERSAL outbox topic).
+   *
+   * Idempotent, which is what makes retrying it safe: payment-service answers null once the
+   * order has no active payment, and a refund already parked for HQ approval is returned as
+   * it stands. The reason is read back off the cancellation itself — the outbox row carries
+   * only the order id.
+   */
+  private async reversePayment(orderId: string): Promise<void> {
+    const order = await this.orders.findById(orderId);
+    if (!order) return;
+    const cancellation = [...order.history].reverse().find((h) => h.status === OrderStatus.CANCELLED);
+    await this.paymentReversal.cancelForOrder(order.id, cancellation?.note || 'Order cancelled');
+  }
+
+  /** The row that makes a cancellation owe its customer the money back; see OutboxTopic. */
+  private static paymentReversalOutbox(orderId: string): OutboxWrite[] {
+    return [{ topic: 'PAYMENT_REVERSAL', orderId }];
   }
 
   /**
@@ -1924,23 +1945,29 @@ export class OrderService {
     if (!isCancellable(order.status) || hasBeenDispatched(order.history)) {
       throw new OrderNotCancellableError(order.status);
     }
-    // K2.3: the money leg, and it goes FIRST. Cancellation never reached payment-service at
-    // all — the order flipped to CANCELLED, the stock came back, and the customer's screen
-    // showed a red panel explaining the refund rule. A paragraph, not a refund.
+    // K2.3: a cancelled order gives the money back — but the STATUS goes first now.
     //
-    // Before the status write, and failing closed, because the alternative states are not
-    // equally bad: an order that refused to cancel can be cancelled again in a minute, while
-    // an order recorded as cancelled whose money is still held is a customer who paid for
-    // nothing and a depot holding revenue it does not have.
-    await this.paymentReversal.cancelForOrder(order.id, reason ?? 'Order cancelled by customer');
-    // Through the shared write, which stays silent here because the actor is the customer.
+    // The reversal used to run before the status write, failing closed. It lost every race
+    // to anyone moving the order in between: staff advancing it to DRIVER_ASSIGNED made the
+    // status write throw StaleOrderStatusError AFTER the payment had already been failed or
+    // refunded — a live order with its money gone, and a refund that cannot be taken back.
+    // The status write is the compare-and-set that decides whether the cancellation happens
+    // at all, so it comes first, and it carries a PAYMENT_REVERSAL outbox row in the same
+    // transaction: a cancelled order always owes the reversal, and the outbox retries it
+    // until it lands. Through the shared write, which stays silent because the actor is the customer.
     const cancelled = await this.applyStatusNotifying(
       order,
       OrderStatus.CANCELLED,
       customerId,
       reason ?? null,
       authorization,
+      undefined,
+      undefined,
+      undefined,
+      OrderService.paymentReversalOutbox(order.id),
     );
+    // Right now, on the request that earned it; a failure here leaves the row for the sweep.
+    await this.outboxService.processForOrder(cancelled.id, authorization);
     await this.releaseStock(cancelled, authorization);
     // The customer's own cancel is silent to the customer, which left the depot preparing an
     // order that no longer existed. Fail-open like every notify: the order IS cancelled.
@@ -2154,29 +2181,40 @@ export class OrderService {
         this.config.subscriptionSweepExempt,
       );
       for (const order of stale) {
+        let cancelled: OrderRecord;
         try {
-          // K2.3: same rule as the customer path — the money leg first, and if it cannot be
-          // settled the order stays LIVE rather than becoming a cancellation with the
-          // customer's money still held. It will be stale again on the next tick.
-          await this.paymentReversal.cancelForOrder(order.id, sweep.note);
+          // W2: through the shared write, so the customer hears about a cancellation nobody
+          // asked them about — the sweep used to take the order away in silence.
+          //
+          // K2.3: the status write comes first and carries the PAYMENT_REVERSAL outbox row
+          // (see `cancel()`). An order somebody moved since we read it fails the
+          // compare-and-set here — and now that is ALL it costs: nothing has been refunded,
+          // and it is no longer allowed to abort the rest of the sweep.
+          cancelled = await this.applyStatusNotifying(
+            order,
+            OrderStatus.CANCELLED,
+            changedBy,
+            sweep.note,
+            authorization,
+            undefined,
+            undefined,
+            undefined,
+            OrderService.paymentReversalOutbox(order.id),
+          );
         } catch (error) {
+          if (error instanceof StaleOrderStatusError) {
+            this.logger.log(`Abandoned order ${order.id} skipped: it moved on since the sweep read it`);
+            continue;
+          }
           // J7: counted, not swallowed. A round that could settle nothing must not answer
           // with the same body as a round with nothing stale.
           failedCount += 1;
           this.logger.warn(
-            `Abandoned order ${order.id} left live: payment could not be settled (${(error as Error).message})`,
+            `Abandoned order ${order.id} left live: could not be cancelled (${(error as Error).message})`,
           );
           continue;
         }
-        // W2: through the shared write, so the customer hears about a cancellation nobody
-        // asked them about — the sweep used to take the order away in silence.
-        const cancelled = await this.applyStatusNotifying(
-          order,
-          OrderStatus.CANCELLED,
-          changedBy,
-          sweep.note,
-          authorization,
-        );
+        await this.outboxService.processForOrder(cancelled.id, authorization);
         await this.releaseStock(cancelled, authorization);
         cancelledCount += 1;
         if (sweep.stalled) {
@@ -2971,12 +3009,8 @@ export class OrderService {
     if (!canTransition(order.status, to)) {
       throw new InvalidStatusTransitionError(order.status, to);
     }
-    // K2.3: staff and delivery-service cancel through here, and this path skipped the money
-    // exactly as the customer path did — it released the stock and left the payment alone.
-    // Before the write and failing closed, same reasoning as `cancel()`.
-    if (to === OrderStatus.CANCELLED) {
-      await this.paymentReversal.cancelForOrder(order.id, note ?? 'Order cancelled');
-    }
+    // K2.3: staff and delivery-service cancel through here too. The reversal is owed through
+    // the outbox, written with the status (see `cancel()` for why it no longer runs first).
     const updated = await this.applyStatusNotifying(
       order,
       to,
@@ -2990,8 +3024,15 @@ export class OrderService {
         : undefined,
       // H-10: written in the same transaction as the transition that earns them, so an
       // order cannot be COMPLETED without its stock consume and owner credit being owed.
-      to === OrderStatus.COMPLETED ? OrderService.completionOutbox(order) : [],
+      to === OrderStatus.COMPLETED
+        ? OrderService.completionOutbox(order)
+        : to === OrderStatus.CANCELLED
+          ? OrderService.paymentReversalOutbox(order.id)
+          : [],
     );
+    if (to === OrderStatus.CANCELLED) {
+      await this.outboxService.processForOrder(updated.id, authorization);
+    }
     if (to === OrderStatus.COMPLETED) {
       await this.runCompletion(updated, authorization);
     }

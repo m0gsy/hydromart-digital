@@ -207,10 +207,9 @@ describe('OrderService', () => {
    * stayed revenue the depot no longer had, and the staff screen showed a red panel
    * explaining the refund rule. A paragraph, not a refund.
    *
-   * The call goes BEFORE the status write and fails closed, because the two failure states
-   * are not equally bad: an order that refused to cancel can be cancelled again in a
-   * minute, while an order recorded as cancelled whose money is still held is a customer
-   * who paid for nothing.
+   * The status write goes FIRST now (it is the compare-and-set that decides whether the
+   * cancellation happens), and the reversal is owed through the outbox, retried until it
+   * lands. See the specs below for why the old order — money first, failing closed — had to go.
    */
   describe('cancellation settles the payment (K2.3)', () => {
     const placeOrder = async (): Promise<string> => {
@@ -228,13 +227,83 @@ describe('OrderService', () => {
       expect(reversal.calls).toHaveLength(0);
     });
 
-    it('refuses to cancel at all when the money cannot be settled', async () => {
+    /*
+     * The status write is the compare-and-set that decides whether a cancellation happens at
+     * all, so it goes FIRST and carries a PAYMENT_REVERSAL outbox row in the same transaction.
+     * The reversal used to run before it, failing closed — which lost every race to anyone
+     * moving the order in between: the payment was already failed or refunded when the status
+     * write threw, leaving a LIVE order with its money gone.
+     */
+    it('cancels even when the money leg is down, and keeps owing the reversal until it lands', async () => {
       const id = await placeOrder();
       reversal.cancelError = new Error('payment-service unreachable');
-      await expect(service.cancel(customer, id, 'ganti hari')).rejects.toThrow();
-      // The order is still live. Cancelled-and-unrefunded is the one state that must not
-      // exist, and this is what keeps it from existing.
-      expect((await service.getForCustomer(customer, id)).status).not.toBe(OrderStatus.CANCELLED);
+
+      const cancelled = await service.cancel(customer, id, 'ganti hari');
+
+      expect(cancelled.status).toBe(OrderStatus.CANCELLED);
+      const owed = orders.outbox!.rows.find((r) => r.topic === 'PAYMENT_REVERSAL')!;
+      expect(owed).toMatchObject({ orderId: id, status: 'PENDING' });
+      expect(reversal.cancels).toHaveLength(0);
+
+      // payment-service comes back; the sweep settles it — on an order that is CANCELLED,
+      // which every other topic is told to leave alone.
+      reversal.cancelError = null;
+      const swept = await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+
+      expect(swept.delivered).toBe(1);
+      // The reason is read back off the cancellation, since the outbox row carries none.
+      expect(reversal.cancels).toEqual([{ orderId: id, reason: 'ganti hari' }]);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'PAYMENT_REVERSAL')!.status).toBe('DONE');
+    });
+
+    it('moves no money when it loses the race for the order to someone else', async () => {
+      const id = await placeOrder();
+      const real = orders.applyStatus.bind(orders);
+      // Staff advance the order between the customer's read and the cancel's status write.
+      jest.spyOn(orders, 'applyStatus').mockImplementationOnce(async (...args) => {
+        orders.rows.find((r) => r.id === id)!.status = OrderStatus.DRIVER_ASSIGNED;
+        return real(...args);
+      });
+
+      await expect(service.cancel(customer, id, 'ganti hari')).rejects.toBeInstanceOf(
+        StaleOrderStatusError,
+      );
+
+      // Before: the payment had already been failed or refunded by now.
+      expect(reversal.cancels).toHaveLength(0);
+      expect(orders.outbox!.rows.filter((r) => r.topic === 'PAYMENT_REVERSAL')).toHaveLength(0);
+      expect((await service.getAny(id)).status).toBe(OrderStatus.DRIVER_ASSIGNED);
+    });
+
+    it('a reversal that keeps failing is retried for hours, then raises an alarm', async () => {
+      const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+      const id = await placeOrder();
+      reversal.cancelError = new Error('payment-service unreachable');
+      await service.cancel(customer, id, 'ganti hari');
+
+      // The ordinary topics give up after six tries (about an hour). Money owed to a customer
+      // does not: five sweeps later it is still PENDING...
+      let at = Date.now();
+      for (let i = 0; i < 5; i += 1) {
+        at += 24 * 60 * 60 * 1000;
+        await outbox.processDue(new Date(at));
+      }
+      expect(orders.outbox!.rows.find((r) => r.topic === 'PAYMENT_REVERSAL')!.status).toBe(
+        'PENDING',
+      );
+      expect(alerted).not.toHaveBeenCalled();
+
+      // ...and only after ten does it stop, loudly.
+      for (let i = 0; i < 6; i += 1) {
+        at += 24 * 60 * 60 * 1000;
+        await outbox.processDue(new Date(at));
+      }
+      expect(orders.outbox!.rows.find((r) => r.topic === 'PAYMENT_REVERSAL')!.status).toBe('DEAD');
+      expect(alerted).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'orders/outbox#payment-reversal-dead' }),
+      );
+      // The alarm spy is module-wide: leave it clean for the specs that count their own alerts.
+      alerted.mockRestore();
     });
 
     it('settles it for a staff or delivery-service cancellation too', async () => {
@@ -249,10 +318,48 @@ describe('OrderService', () => {
       expect(reversal.cancels).toHaveLength(0);
     });
 
-    it('the abandoned sweep leaves an order LIVE when its payment cannot be settled', async () => {
+    it('the abandoned sweep cancels an order even when payment-service is down, and settles it later', async () => {
       const id = await placeOrder();
       orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
       reversal.cancelError = new Error('payment-service unreachable');
+
+      expect(await service.expireAbandoned('system:scheduler')).toEqual({
+        cancelled: 1,
+        stalled: 0,
+        failed: 0,
+        ok: true,
+      });
+      expect((await service.getAny(id)).status).toBe(OrderStatus.CANCELLED);
+
+      reversal.cancelError = null;
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(reversal.cancels.map((c) => c.orderId)).toEqual([id]);
+    });
+
+    it('the abandoned sweep skips an order that moved on, and carries on with the rest', async () => {
+      const first = await placeOrder();
+      const second = await placeOrder();
+      for (const id of [first, second]) {
+        orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
+      }
+      const real = orders.applyStatus.bind(orders);
+      // The first order is confirmed by staff between the sweep's read and its write.
+      jest.spyOn(orders, 'applyStatus').mockImplementationOnce(async (id, ...rest) => {
+        orders.rows.find((r) => r.id === id)!.status = OrderStatus.CONFIRMED;
+        return real(id, ...rest);
+      });
+
+      const result = await service.expireAbandoned('system:scheduler');
+
+      // One stale order used to abort the whole sweep; it is now simply left alone.
+      expect(result).toEqual({ cancelled: 1, stalled: 0, failed: 0, ok: true });
+      expect(reversal.cancels.map((c) => c.orderId)).toHaveLength(1);
+    });
+
+    it('the abandoned sweep counts an order it could not write as failed', async () => {
+      const id = await placeOrder();
+      orders.rows.find((r) => r.id === id)!.createdAt = new Date(Date.now() - 90 * 60_000);
+      jest.spyOn(orders, 'applyStatus').mockRejectedValueOnce(new Error('db down'));
 
       // J7: nothing cancelled and something failed — the scheduler must not read this as a
       // quiet round, because sweep.sh writes its heartbeat off exactly this field.
@@ -262,7 +369,6 @@ describe('OrderService', () => {
         failed: 1,
         ok: false,
       });
-      expect((await service.getForCustomer(customer, id)).status).not.toBe(OrderStatus.CANCELLED);
     });
 
     it('the abandoned sweep cancels and settles when the money leg answers', async () => {
