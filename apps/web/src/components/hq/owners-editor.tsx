@@ -39,7 +39,7 @@ export function OwnersEditor({
     ? t('hq.depots.form.ownerLoadError')
     : !owners.loading && options.length === 0
       ? t('hq.depots.form.ownerEmpty')
-      : t('hq.depots.form.ownersHint');
+      : t('hq.depots.form.ownerHint');
 
   const rows = value.length > 0 ? value : [blankOwnerRow(true)];
   const single = rows.length === 1;
@@ -55,7 +55,7 @@ export function OwnersEditor({
   };
 
   return (
-    <Field label={t('hq.depots.form.owners')} htmlFor={`${idPrefix}-0`} hint={hint}>
+    <Field label={t('hq.depots.form.owner')} htmlFor={`${idPrefix}-0`} hint={hint}>
       <div className="space-y-2">
         {rows.map((row, i) => (
           <div key={i} className="flex flex-wrap items-center gap-2">

@@ -19,10 +19,7 @@ export const opsFix = {
   },
   depotForm: {
     ownerRequired: 'Depot waralaba wajib punya pemilik.',
-    ownersDuplicate: 'Satu pemilik tidak boleh dipilih dua kali.',
-    ownersShare: 'Bagian tiap pemilik harus di atas 0 dan paling banyak 100, maksimal dua desimal.',
-    ownersTotal: 'Total bagian semua pemilik harus tepat 100%.',
-    ownersPrimary: 'Pilih tepat satu pemilik utama.',
+    ownersInvalid: 'Pemilik: tanpa ulang, satu utama, bagian di atas 0 total 100%.',
     fieldRequired: 'Kolom {field} wajib diisi.',
     field: { code: 'Kode', name: 'Nama depot', address: 'Alamat', city: 'Kota', province: 'Provinsi' },
     pickOwnership: 'Pilih jenis kepemilikan.',

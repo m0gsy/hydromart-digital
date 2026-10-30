@@ -179,7 +179,7 @@ export function toDepotPayload(
     const rows = form.owners.filter((r) => r.ownerId.trim() !== '');
     if (rows.length === 0) return { ok: false, error: t('opsFix.depotForm.ownerRequired') };
     if (new Set(rows.map((r) => r.ownerId)).size !== rows.length) {
-      return { ok: false, error: t('opsFix.depotForm.ownersDuplicate') };
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
     }
     // A lone owner takes everything: the share and the primary flag are not theirs to get wrong.
     const parsed = rows.map((r) => ({
@@ -189,13 +189,13 @@ export function toDepotPayload(
     }));
     // Hundredths of a percent, as depot-service compares them, so 33.33 x 3 cannot drift.
     if (parsed.some((o) => !(o.sharePct > 0) || o.sharePct > 100 || Math.abs(o.sharePct * 100 - Math.round(o.sharePct * 100)) > 1e-6)) {
-      return { ok: false, error: t('opsFix.depotForm.ownersShare') };
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
     }
     if (parsed.reduce((sum, o) => sum + Math.round(o.sharePct * 100), 0) !== 10_000) {
-      return { ok: false, error: t('opsFix.depotForm.ownersTotal') };
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
     }
     if (parsed.filter((o) => o.isPrimary).length !== 1) {
-      return { ok: false, error: t('opsFix.depotForm.ownersPrimary') };
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
     }
     owners = parsed;
   }

@@ -107,14 +107,14 @@ describe('toDepotPayload', () => {
   });
 
   it.each([
-    ['shares that do not add up', [row('a', '60', true), row('b', '30')], 'opsFix.depotForm.ownersTotal'],
-    ['a blank share', [row('a', '60', true), row('b', '')], 'opsFix.depotForm.ownersShare'],
-    ['a zero share', [row('a', '100', true), row('b', '0')], 'opsFix.depotForm.ownersShare'],
-    ['a share over 100', [row('a', '101', true), row('b', '-1')], 'opsFix.depotForm.ownersShare'],
-    ['three decimals', [row('a', '60.005', true), row('b', '39.995')], 'opsFix.depotForm.ownersShare'],
-    ['no primary', [row('a', '50'), row('b', '50')], 'opsFix.depotForm.ownersPrimary'],
-    ['two primaries', [row('a', '50', true), row('b', '50', true)], 'opsFix.depotForm.ownersPrimary'],
-    ['an owner twice', [row('a', '50', true), row('a', '50')], 'opsFix.depotForm.ownersDuplicate'],
+    ['shares that do not add up', [row('a', '60', true), row('b', '30')], 'opsFix.depotForm.ownersInvalid'],
+    ['a blank share', [row('a', '60', true), row('b', '')], 'opsFix.depotForm.ownersInvalid'],
+    ['a zero share', [row('a', '100', true), row('b', '0')], 'opsFix.depotForm.ownersInvalid'],
+    ['a share over 100', [row('a', '101', true), row('b', '-1')], 'opsFix.depotForm.ownersInvalid'],
+    ['three decimals', [row('a', '60.005', true), row('b', '39.995')], 'opsFix.depotForm.ownersInvalid'],
+    ['no primary', [row('a', '50'), row('b', '50')], 'opsFix.depotForm.ownersInvalid'],
+    ['two primaries', [row('a', '50', true), row('b', '50', true)], 'opsFix.depotForm.ownersInvalid'],
+    ['an owner twice', [row('a', '50', true), row('a', '50')], 'opsFix.depotForm.ownersInvalid'],
   ])('rejects %s', (_name, owners, error) => {
     expect(franchise(owners)).toEqual({ ok: false, error });
   });
