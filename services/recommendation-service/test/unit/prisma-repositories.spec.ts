@@ -65,8 +65,9 @@ describe('RecommendationPrismaRepository', () => {
 
     const day = new Date(Date.UTC(2026, 0, 15));
     expect($transaction).toHaveBeenCalledTimes(1);
-    // purchases + refs + co-buys: three statements for a two-line order, not six.
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    // the per-depot-day lock + purchases + refs + co-buys: four statements for a two-line order, not seven.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
+    expect(String(tx.$executeRaw.mock.calls[0][0])).toContain('pg_advisory_xact_lock');
     expect(tx.productDailySales.findMany).toHaveBeenCalledWith({
       where: { productId: { in: ['p-1', 'p-2'] }, depotId: 'depot-1', day },
       select: { id: true, productId: true },
@@ -94,8 +95,8 @@ describe('RecommendationPrismaRepository', () => {
     };
     tx.productDailySales.findMany.mockResolvedValue([{ id: 'pds-1', productId: 'p-1' }]);
     await repo.applyIngest(cmd);
-    // Two statements, not three: purchases and refs, and NO co-buy insert at all.
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    // Three statements: the lock, purchases and refs, and NO co-buy insert at all.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
     // The product bought twice increments by two, exactly as two separate bumps did.
     expect(tx.productDailySales.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['pds-1'] } },
@@ -111,7 +112,8 @@ describe('RecommendationPrismaRepository', () => {
       at: new Date('2026-01-15T00:00:00Z'),
       items: [],
     });
-    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    // Only the lock: no purchase, ref or co-buy statement.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.ingestedOrder.create).toHaveBeenCalledWith({ data: { orderId: 'ord-3' } });
   });
 

@@ -31,6 +31,14 @@ export class ForecastPrismaRepository implements ForecastRepository {
   async applyIngest(cmd: IngestCommand, dayNumber: number): Promise<void> {
     const day = dayToDate(dayNumber);
     await this.prisma.$transaction(async (tx) => {
+      /*
+       * One ingest at a time per depot and day. The unique key carries a nullable depotId, which
+       * Postgres treats as distinct per NULL, so two racing ingests either both inserted a row
+       * for a depot-less order (duplicates) or, with a depot, the loser hit P2002 and its whole
+       * ingest rolled back and waited for a rebuild. Serialised, the second sees the first's row
+       * and bumps it. Transaction-scoped, so it releases on commit; no index, no migration.
+       */
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ingest:${cmd.depotId ?? '-'}:${day.toISOString()}`}, 0))`;
       // Idempotent no-op if already ingested; the PK create below is the concurrency backstop.
       const already = await tx.ingestedOrder.findUnique({ where: { orderId: cmd.orderId } });
       if (already) return;
@@ -71,11 +79,8 @@ export class ForecastPrismaRepository implements ForecastRepository {
         // The @@unique carries a nullable depotId and Postgres unique treats NULL as
         // distinct, so ON CONFLICT cannot be used for a depot-less order. Read what exists,
         // bump those, insert the rest.
-        // ponytail: the concurrency ceiling is unchanged — depotId = null lets two racing
-        //   ingests both insert (extra rows, correct totals, since the series re-sums per
-        //   day); a non-null depotId makes the loser hit P2002 and roll its whole ingest
-        //   back, leaving no IngestedOrder row so a rebuild re-ingests it. Upgrade path: a
-        //   partial unique index WHERE "depotId" IS NULL, then a raw ON CONFLICT here too.
+        // Racing ingests of the same depot and day are serialised by the advisory lock above, so
+        // this read-then-write cannot interleave with another one.
         const existing = await tx.productDailyDemand.findMany({
           where: {
             productId: { in: products.map((p) => p.item.productId) },
