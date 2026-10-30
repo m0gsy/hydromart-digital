@@ -73,6 +73,9 @@ describeRace('payout on real Postgres — concurrent writers', () => {
         accountHolder: 'Budi',
       });
 
+      // updatedAt is the CAS token and has millisecond resolution: without a gap the replacement can
+      // land in the same millisecond as the account that was shown and the stale token still matches.
+      await new Promise((r) => setTimeout(r, 5));
       const [decided] = await race([
         () =>
           accounts.decide(
