@@ -232,6 +232,72 @@ describe('renderReport', () => {
 });
 
 describe('ScheduledReportRunnerService', () => {
+  // findDue is a plain read, so two replicas (or a slow tick overlapping the next, or a manual
+  // trigger) each picked up the same schedule, produced the same file and emailed it twice.
+  // The run is now claimed first: the loser skips the schedule and sends nothing.
+  describe('claiming a run', () => {
+    const create = (schedules: InMemoryScheduledReportRepository) =>
+      schedules.create({
+        name: 'Harian',
+        cadence: ReportCadence.DAILY,
+        recipients: ['finance@hydromart.id'],
+        format: ExportFormat.CSV,
+        dataset: ReportDataset.REVENUE_BY_PRODUCT,
+      });
+
+    it('two overlapping runners email a due report once', async () => {
+      const rowsFor = jest.fn().mockResolvedValue([{ label: 'Depot A', orders: 2, revenue: 5000 }]);
+      const a = makeRunner(rowsFor);
+      await create(a.schedules);
+      // A second runner over the SAME schedule store, with its own mailer.
+      const mailerB = { send: jest.fn().mockResolvedValue(true) };
+      const runnerB = new ScheduledReportRunnerService(
+        a.schedules,
+        a.logs,
+        {
+          rowsFor,
+          tableFor: async (d: ReportDataset, f: Date, t: Date) => revenueTable(await rowsFor(d, f, t)),
+        } as never,
+        mailerB,
+      );
+
+      // Both read the due list before either claims: the interleaving that duplicated mail.
+      const dueA = await a.schedules.findDue(WED, 10);
+      const real = a.schedules.findDue.bind(a.schedules);
+      jest.spyOn(a.schedules, 'findDue').mockImplementation(async () => dueA.map((r) => ({ ...r })));
+      const [resA, resB] = await Promise.all([a.runner.runDue(WED), runnerB.runDue(WED)]);
+      jest.restoreAllMocks();
+      void real;
+
+      expect(a.mailer.send.mock.calls.length + mailerB.send.mock.calls.length).toBe(1);
+      expect(resA.produced + resB.produced).toBe(1);
+      expect(a.logs.rows).toHaveLength(1);
+    });
+
+    it('a schedule that was claimed but never finished comes due again after the lease', async () => {
+      const rowsFor = jest.fn().mockResolvedValue([{ label: 'Depot A', orders: 2, revenue: 5000 }]);
+      const { schedules, runner } = makeRunner(rowsFor);
+      const sched = await create(schedules);
+      // A runner claimed it and died: nothing stamped except the lease.
+      await schedules.claimRun(sched.id, sched.nextRunAt, new Date(WED.getTime() + 15 * 60_000));
+
+      expect((await runner.runDue(WED)).due).toBe(0); // inside the lease: left alone
+      const later = new Date(WED.getTime() + 16 * 60_000);
+      expect(await runner.runDue(later)).toMatchObject({ due: 1, produced: 1 }); // lease expired
+    });
+
+    it('does not claim a disabled or already-moved schedule', async () => {
+      const { schedules } = makeRunner(jest.fn());
+      const sched = await create(schedules);
+      const lease = new Date(WED.getTime() + 15 * 60_000);
+
+      expect(await schedules.claimRun(sched.id, sched.nextRunAt, lease)).toBe(true);
+      // The same read can no longer claim it: nextRunAt has moved to the lease.
+      expect(await schedules.claimRun(sched.id, sched.nextRunAt, lease)).toBe(false);
+      expect(await schedules.claimRun('missing', null, lease)).toBe(false);
+    });
+  });
+
   it('produces a file, logs it DONE, and stamps the next run', async () => {
     const rowsFor = jest.fn().mockResolvedValue([{ label: 'Depot A', orders: 2, revenue: 5000 }]);
     const { schedules, logs, runner } = makeRunner(rowsFor);
