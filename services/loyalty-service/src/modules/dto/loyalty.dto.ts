@@ -130,6 +130,15 @@ export class RewardPointsDto {
   @IsNotEmpty()
   @MaxLength(255)
   reason!: string;
+
+  @ApiPropertyOptional({
+    example: 'birthday:2026',
+    description: 'Makes the grant idempotent per customer: a repeat with the same key is a no-op.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  idempotencyKey?: string;
 }
 
 export class DepotSummaryQueryDto {

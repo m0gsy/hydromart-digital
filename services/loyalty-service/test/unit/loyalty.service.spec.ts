@@ -148,6 +148,24 @@ describe('LoyaltyService', () => {
     service = new LoyaltyService(repo, buildTestConfig(), new InMemoryCustomerDirectory());
   });
 
+  it('a reward carrying the same idempotency key is granted once, and answers with the account', async () => {
+    const first = await service.reward('cust-1', 100, 'Birthday reward 2026', 'birthday:2026');
+    const again = await service.reward('cust-1', 100, 'Birthday reward 2026', 'birthday:2026');
+    expect(first.pointsBalance).toBe(100);
+    expect(again.pointsBalance).toBe(100);
+    expect(repo.txns.filter((t) => t.reason === 'Birthday reward 2026')).toHaveLength(1);
+    // A different year is a different reward; no key at all always records.
+    await service.reward('cust-1', 100, 'Birthday reward 2027', 'birthday:2027');
+    await service.reward('cust-1', 10, 'bonus');
+    await service.reward('cust-1', 10, 'bonus');
+    expect((await service.getAccount('cust-1')).pointsBalance).toBe(220);
+  });
+
+  it('rethrows any other failure while granting a keyed reward', async () => {
+    jest.spyOn(repo, 'recordAdjustment').mockRejectedValueOnce(new Error('db down'));
+    await expect(service.reward('cust-1', 100, 'x', 'k')).rejects.toThrow('db down');
+  });
+
   it('lazily creates a REGULAR account on first read', async () => {
     const account = await service.getAccount('cust-1');
     expect(account).toMatchObject({

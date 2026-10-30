@@ -41,6 +41,8 @@ export interface AccountMutation {
   lifetimeDelta: number;
   /** LOY-2: the staff account behind a manual correction. Null for system entries. */
   createdBy?: string | null;
+  /** A caller-derived key making the grant idempotent per customer; see PointsTransaction. */
+  idempotencyKey?: string | null;
 }
 
 /** LOY-6/LOY-7: undoing exactly what one order awarded, once. */

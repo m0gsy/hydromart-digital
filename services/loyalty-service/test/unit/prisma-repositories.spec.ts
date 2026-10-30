@@ -7,6 +7,7 @@ import { RewardPrismaRepository } from '../../src/infrastructure/prisma/reward.p
 import {
   InsufficientPointsError,
   InvalidAdjustmentError,
+  RewardAlreadyGrantedError,
   RewardOutOfStockError,
 } from '../../src/domain/errors';
 import { Prisma } from '../../prisma/generated/client';
@@ -30,7 +31,7 @@ import { PointsTxnType } from '../../src/domain/points';
  * points" for a violation that means something else entirely.
  */
 describe('the invariant recordEarn depends on', () => {
-  it('PointsTransaction has exactly one unique index', () => {
+  it('PointsTransaction has the order unique and the reward-key unique, and nothing else', () => {
     const schema = readFileSync(join(__dirname, '../../prisma/schema.prisma'), 'utf8');
     const lines = schema.split('\n');
     const from = lines.findIndex((l) => l.startsWith('model PointsTransaction'));
@@ -40,8 +41,11 @@ describe('the invariant recordEarn depends on', () => {
       rest.findIndex((l) => l === '}'),
     );
     const uniques = body.filter((l) => /@@unique|@unique/.test(l));
-    expect(uniques).toHaveLength(1);
+    // The second is the reward idempotency key. `recordEarn` never sets it (NULLs are distinct in a
+    // unique index), so a P2002 raised by an EARN can still only mean 'this order was already earned'.
+    expect(uniques).toHaveLength(2);
     expect(uniques[0]).toContain('@@unique([orderId, type])');
+    expect(uniques[1]).toContain('@@unique([customerId, idempotencyKey])');
   });
 });
 
@@ -316,6 +320,35 @@ describe('LoyaltyPrismaRepository', () => {
     ).rejects.toBe(boom);
   });
 
+  it('a repeated keyed reward becomes RewardAlreadyGrantedError; an unkeyed unique violation is not swallowed', async () => {
+    pointsTransaction.create.mockReturnValue('ledger-op' as never);
+    loyaltyAccount.update.mockReturnValue(accountRow() as never);
+    const dup = Object.assign(new Error('unique'), { code: 'P2002' });
+    $transaction.mockRejectedValueOnce(dup);
+    await expect(
+      repo.recordAdjustment({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        points: 100,
+        reason: 'Birthday reward 2026',
+        lifetimeDelta: 100,
+        type: PointsTxnType.REWARD,
+        idempotencyKey: 'birthday:2026',
+      }),
+    ).rejects.toBeInstanceOf(RewardAlreadyGrantedError);
+    $transaction.mockRejectedValueOnce(dup);
+    await expect(
+      repo.recordAdjustment({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        points: 100,
+        reason: 'x',
+        lifetimeDelta: 100,
+        type: PointsTxnType.REWARD,
+      }),
+    ).rejects.toBe(dup);
+  });
+
   it('records an adjustment atomically with the given txn type', async () => {
     pointsTransaction.create.mockReturnValue('ledger-op' as never);
     loyaltyAccount.update.mockReturnValue(accountRow() as never);
@@ -336,6 +369,7 @@ describe('LoyaltyPrismaRepository', () => {
         reason: 'manual correction',
         // LOY-2: a manual correction carries its actor; a system entry passes null.
         createdBy: null,
+        idempotencyKey: null,
       },
     });
     // A debit carries the balance floor in its WHERE; two of them cannot both pass.

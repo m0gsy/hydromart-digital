@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { InvalidAdjustmentError } from '../../domain/errors';
+import { InvalidAdjustmentError, RewardAlreadyGrantedError } from '../../domain/errors';
 import { MembershipTier } from '../../domain/membership';
 import { PointsTxnType } from '../../domain/points';
 import {
@@ -211,6 +211,7 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
             points: m.points,
             reason: m.reason,
             createdBy: m.createdBy ?? null,
+            idempotencyKey: m.idempotencyKey ?? null,
           },
         }),
         // The balance floor lives in the WHERE clause: a debit that the account cannot cover
@@ -227,7 +228,11 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
           },
         }),
       ])
-      .catch(rejectOnMissingRow);
+      .catch((error: unknown) => {
+        // The (customer, key) pair is already in the ledger: this grant happened before.
+        if (m.idempotencyKey && isUniqueViolation(error)) throw new RewardAlreadyGrantedError();
+        return rejectOnMissingRow(error);
+      });
     return this.toAccount(account);
   }
 

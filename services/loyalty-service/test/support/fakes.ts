@@ -4,7 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../src/config/loyalty-config.service';
-import { InsufficientPointsError, InvalidAdjustmentError } from '../../src/domain/errors';
+import {
+  InsufficientPointsError,
+  InvalidAdjustmentError,
+  RewardAlreadyGrantedError,
+} from '../../src/domain/errors';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 import { CustomerDirectory } from '../../src/application/ports/customer-directory.port';
@@ -37,6 +41,7 @@ const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
 export class InMemoryLoyaltyRepository implements LoyaltyRepository {
   accounts: LoyaltyAccountRecord[] = [];
   txns: PointsTransactionRecord[] = [];
+  private keys = new Set<string>();
 
   async findAccount(customerId: string): Promise<LoyaltyAccountRecord | null> {
     const a = this.accounts.find((x) => x.customerId === customerId);
@@ -137,6 +142,13 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
   async recordAdjustment(
     m: AccountMutation & { type: PointsTxnType },
   ): Promise<LoyaltyAccountRecord> {
+    if (
+      m.idempotencyKey &&
+      this.keys.has(`${m.customerId}\u0000${m.idempotencyKey}`)
+    ) {
+      throw new RewardAlreadyGrantedError();
+    }
+    if (m.idempotencyKey) this.keys.add(`${m.customerId}\u0000${m.idempotencyKey}`);
     this.txns.push({
       id: randomUUID(),
       customerId: m.customerId,
