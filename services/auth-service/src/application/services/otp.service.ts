@@ -55,14 +55,14 @@ export class OtpService {
     const now = this.clock.now();
     const destination = deliverTo ?? customer.phone;
 
+    // Cheap early refusal, so a resend inside the cooldown does not pay for hashing a code. It is
+    // advisory: the locked insert below is what actually enforces the cooldown.
     const existing = await this.otpTokens.findActive(customer.id, purpose);
     if (existing) {
-      const secondsSinceIssued = (now.getTime() - existing.createdAt.getTime()) / 1000;
-      const remaining = Math.ceil(policy.resendCooldownSeconds - secondsSinceIssued);
-      if (remaining > 0) {
-        throw new OtpResendCooldownError(remaining);
-      }
-      await this.otpTokens.consumeAllForPurpose(customer.id, purpose, now);
+      const remaining = Math.ceil(
+        policy.resendCooldownSeconds - (now.getTime() - existing.createdAt.getTime()) / 1000,
+      );
+      if (remaining > 0) throw new OtpResendCooldownError(remaining);
     }
 
     const fixed = this.fixedCodeFor(destination);
@@ -70,13 +70,16 @@ export class OtpService {
     const codeHash = await this.crypto.hashSecret(code);
     const expiresAt = new Date(now.getTime() + policy.ttlSeconds * 1000);
 
-    await this.otpTokens.create({
-      customerId: customer.id,
-      purpose,
-      codeHash,
-      expiresAt,
-      targetPhone: deliverTo ?? null,
-    });
+    // The cooldown gate and the insert are one locked step: two resends at once used to both
+    // pass the gate, store two live codes and send two SMS.
+    const issued = await this.otpTokens.issueExclusive(
+      { customerId: customer.id, purpose, codeHash, expiresAt, targetPhone: deliverTo ?? null },
+      policy.resendCooldownSeconds,
+      now,
+    );
+    if ('cooldownRemaining' in issued) {
+      throw new OtpResendCooldownError(issued.cooldownRemaining);
+    }
 
     // A reviewer number is not sent its code: whoever uses it already has it from the Play
     // Console listing, so delivery buys nothing and costs something. The demo numbers are

@@ -29,6 +29,20 @@ export interface CreateOtpTokenData {
 /** Persistence port for OTP challenges. */
 export interface OtpTokenRepository {
   create(data: CreateOtpTokenData): Promise<OtpTokenRecord>;
+  /**
+   * The resend gate and the insert as ONE step per customer + purpose (advisory lock). Two
+   * resends at once both found no active code, both issued one, and both sent an SMS: the
+   * cooldown only held for requests that arrived in sequence.
+   *
+   * Inside the lock: an active challenge younger than `cooldownSeconds` answers
+   * `{ cooldownRemaining }` and nothing is written; otherwise every outstanding challenge is
+   * invalidated and the new one stored.
+   */
+  issueExclusive(
+    data: CreateOtpTokenData,
+    cooldownSeconds: number,
+    now: Date,
+  ): Promise<{ cooldownRemaining: number } | { token: OtpTokenRecord }>;
   /** Most recent, not-yet-consumed challenge for a customer + purpose. */
   findActive(customerId: string, purpose: OtpPurpose): Promise<OtpTokenRecord | null>;
   /**
