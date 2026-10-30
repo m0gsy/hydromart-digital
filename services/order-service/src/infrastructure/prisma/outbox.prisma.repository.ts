@@ -60,15 +60,19 @@ export class OutboxPrismaRepository implements OutboxRepository {
   }
 
   async markDone(id: string): Promise<void> {
-    await this.prisma.outboxMessage.update({
-      where: { id },
+    // Conditional on PENDING: a sweep that was already holding the row must not turn a row the
+    // void just CANCELLED (or a DEAD one an operator is looking at) back into DONE.
+    await this.prisma.outboxMessage.updateMany({
+      where: { id, status: 'PENDING' },
       data: { status: 'DONE', lastError: null },
     });
   }
 
   async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
-    await this.prisma.outboxMessage.update({
-      where: { id },
+    // Same guard as markDone: only a row still owed can be failed or rescheduled, so a late
+    // failure cannot revive a CANCELLED row as PENDING.
+    await this.prisma.outboxMessage.updateMany({
+      where: { id, status: 'PENDING' },
       data: {
         // No next attempt means the retries are spent: DEAD, so it stops being counted as
         // work still coming and starts being counted as work somebody has to look at.

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { StaleOrderStatusError } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
+import { OutboxPrismaRepository } from '../../src/infrastructure/prisma/outbox.prisma.repository';
 import { describeRace, freshPrisma, race } from './db';
 
 describeRace('order status writes on real Postgres — cancel vs. staff', () => {
@@ -91,5 +92,48 @@ describeRace('order status writes on real Postgres — cancel vs. staff', () => 
     ).rejects.toBeInstanceOf(StaleOrderStatusError);
 
     expect(await reversalRows(o.id)).toBe(0);
+  });
+});
+
+describeRace('outbox rows on real Postgres — a late sweep result vs. a void', () => {
+  let drop: () => Promise<void>;
+  let prisma: Awaited<ReturnType<typeof freshPrisma>>['prisma'];
+  let outbox: OutboxPrismaRepository;
+
+  beforeAll(async () => {
+    const db = await freshPrisma();
+    drop = db.drop;
+    prisma = db.prisma;
+    outbox = new OutboxPrismaRepository(prisma as never);
+  });
+  afterAll(async () => drop?.());
+
+  const row = (status = 'PENDING') =>
+    prisma.outboxMessage.create({ data: { topic: 'INVENTORY_CONSUME', orderId: randomUUID(), status } });
+
+  it('markDone and markFailed never revive or close a row the void already CANCELLED', async () => {
+    const a = await row('CANCELLED');
+    const b = await row('CANCELLED');
+    await outbox.markDone(a.id);
+    await outbox.markFailed(b.id, 'late', new Date());
+    expect((await prisma.outboxMessage.findUnique({ where: { id: a.id } }))!.status).toBe('CANCELLED');
+    const bAfter = (await prisma.outboxMessage.findUnique({ where: { id: b.id } }))!;
+    expect(bAfter.status).toBe('CANCELLED');
+    expect(bAfter.attempts).toBe(0);
+  });
+
+  it('cancel racing markDone: the row ends in exactly one terminal state, never PENDING', async () => {
+    for (let i = 0; i < 20; i++) {
+      const r = await row();
+      await race([() => outbox.cancelForOrder(r.orderId, 'void'), () => outbox.markDone(r.id)]);
+      const status = (await prisma.outboxMessage.findUnique({ where: { id: r.id } }))!.status;
+      expect(['DONE', 'CANCELLED']).toContain(status);
+    }
+  });
+
+  it('markFailed on a DONE row does not push it back to PENDING', async () => {
+    const r = await row('DONE');
+    await outbox.markFailed(r.id, 'late', new Date());
+    expect((await prisma.outboxMessage.findUnique({ where: { id: r.id } }))!.status).toBe('DONE');
   });
 });

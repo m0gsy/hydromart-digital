@@ -8,7 +8,7 @@ import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 describe('OutboxPrismaRepository', () => {
   const model = {
     findMany: jest.fn(),
-    update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
   };
   const repo = new OutboxPrismaRepository({ outboxMessage: model } as unknown as PrismaService);
@@ -41,8 +41,8 @@ describe('OutboxPrismaRepository', () => {
 
   it('closes a delivered row and clears the last error', async () => {
     await repo.markDone('ob-1');
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'ob-1' },
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ob-1', status: 'PENDING' },
       data: { status: 'DONE', lastError: null },
     });
   });
@@ -50,8 +50,8 @@ describe('OutboxPrismaRepository', () => {
   it('schedules the next attempt when retries remain', async () => {
     const retryAt = new Date('2026-08-03T12:00:00Z');
     await repo.markFailed('ob-1', 'depot-service down', retryAt);
-    expect(model.update).toHaveBeenCalledWith({
-      where: { id: 'ob-1' },
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ob-1', status: 'PENDING' },
       data: {
         status: 'PENDING',
         attempts: { increment: 1 },
@@ -63,7 +63,7 @@ describe('OutboxPrismaRepository', () => {
 
   it('marks the row DEAD when there is no next attempt, and truncates the reason', async () => {
     await repo.markFailed('ob-1', 'x'.repeat(900), null);
-    const data = model.update.mock.calls[0][0].data;
+    const data = model.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe('DEAD');
     expect(data.nextAttemptAt).toBeUndefined();
     // A stack trace in a TEXT column nobody reads is not worth the row size.
