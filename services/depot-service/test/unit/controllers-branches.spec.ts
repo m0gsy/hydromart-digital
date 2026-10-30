@@ -1013,6 +1013,7 @@ describe('DepotController', () => {
   const svc = {
     browse: jest.fn(),
     listAllActive: jest.fn(),
+    ownersAsOf: jest.fn(),
     listByIds: jest.fn(),
     findNearby: jest.fn(),
     listMine: jest.fn(),
@@ -1301,12 +1302,20 @@ describe('DepotController', () => {
     expect(owned).toEqual({ depotIds: [DEPOT] });
     // Owner lookup for the franchise revenue push: both an owned and an ownerless depot.
     svc.get.mockResolvedValueOnce({ ownerId: 'owner-1', ownershipType: 'WARALABA' });
-    expect(await c.internalOwner(DEPOT)).toEqual({
+    svc.ownersAsOf.mockResolvedValueOnce([{ ownerId: 'owner-1', sharePct: 100, isPrimary: true }]);
+    expect(await c.internalOwner(DEPOT, {})).toEqual({
       ownerId: 'owner-1',
+      owners: [{ ownerId: 'owner-1', sharePct: 100, isPrimary: true }],
       ownershipType: 'WARALABA',
     });
     svc.get.mockResolvedValueOnce({ ownerId: null, ownershipType: 'HKP' });
-    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null, ownershipType: 'HKP' });
+    svc.ownersAsOf.mockResolvedValueOnce([]);
+    expect(await c.internalOwner(DEPOT, { asOf: '2026-05-01T00:00:00Z' })).toEqual({
+      ownerId: null,
+      owners: [],
+      ownershipType: 'HKP',
+    });
+    expect(svc.ownersAsOf).toHaveBeenLastCalledWith(DEPOT, new Date('2026-05-01T00:00:00Z'));
     // Who decides a kasbon raised at this depot. Null is an answer, not a failure: a depot
     // with no assistant yet has nobody who may approve one, and hr-service refuses it.
     svc.get.mockResolvedValueOnce({ assistantSupervisorId: 'asv-1' });
@@ -1440,13 +1449,13 @@ describe('DepotController', () => {
 
     it('on update: sets it, clears it with null or [], and leaves it alone when absent', async () => {
       await c.update(ID, { serviceArea: square } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: square }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: square }, undefined, true);
       await c.update(ID, { serviceArea: null } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined, true);
       await c.update(ID, { serviceArea: [] } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { serviceArea: null }, undefined, true);
       await c.update(ID, { city: 'x' } as never, user);
-      expect(svc.update).toHaveBeenLastCalledWith(ID, { city: 'x' }, undefined);
+      expect(svc.update).toHaveBeenLastCalledWith(ID, { city: 'x' }, undefined, true);
     });
 
     it('refuses an area that crosses itself, with the reason, before anything is saved', async () => {
@@ -1554,8 +1563,16 @@ describe('DepotController', () => {
   });
 
   it('updates a depot', async () => {
-    await c.update(ID, { active: false } as never, user);
-    expect(svc.update).toHaveBeenCalledWith(ID, { active: false }, undefined);
+    await c.update(ID, { active: false } as never, { ...(user as object), role: 'HEAD_OFFICE' } as never);
+    expect(svc.update).toHaveBeenCalledWith(ID, { active: false }, undefined, true);
+  });
+
+  // A MANAGER edits the depot; only head office may change who owns it and how revenue splits.
+  it('tells the service whether the caller may change owners', async () => {
+    await c.update(ID, { name: 'x' } as never, { ...(user as object), role: 'MANAGER' } as never);
+    expect(svc.update).toHaveBeenLastCalledWith(ID, { name: 'x' }, undefined, false);
+    await c.update(ID, { name: 'x' } as never, { ...(user as object), role: 'DIREKTUR' } as never);
+    expect(svc.update).toHaveBeenLastCalledWith(ID, { name: 'x' }, undefined, true);
   });
 
   // The full record carries bank details and ownership: a franchise owner may open their own

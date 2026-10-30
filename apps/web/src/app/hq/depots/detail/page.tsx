@@ -9,6 +9,7 @@ import { DepotSuspendDialog } from '@/components/hq/depot-suspend-dialog';
 import { StockBar } from '@/components/hq/charts';
 import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { depotOwnerIds } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -88,15 +89,36 @@ export default function HqDepotDetailPage() {
   );
   // Franchise payout balance — only for depots with an owner; best-effort (non-finance
   // viewers get 403 → card shows an honest "unavailable" note rather than erroring the page).
-  const ownerId = depot.data?.ownerId ?? null;
-  const payout = useAsync<OwnerPayoutBalance | null>(
+  const ownerIds = depot.data ? depotOwnerIds(depot.data) : [];
+  const ownerKey = ownerIds.join(',');
+  // One balance per owner: each co-owner is paid into their own ledger, so there is no single
+  // depot balance to show. A failed read is null for THAT owner, not for the whole card.
+  const payout = useAsync<Record<string, OwnerPayoutBalance | null>>(
+    async () => {
+      const entries = await Promise.all(
+        ownerIds.map(
+          async (id) =>
+            [
+              id,
+              await api
+                .get<OwnerPayoutBalance>(endpoints.payout.hqOwnerBalance(id), true)
+                .catch(() => null),
+            ] as const,
+        ),
+      );
+      return Object.fromEntries(entries);
+    },
+    [ownerKey],
+  );
+  const ownerNames = useAsync<Map<string, string>>(
     () =>
-      ownerId
-        ? api
-            .get<OwnerPayoutBalance>(endpoints.payout.hqOwnerBalance(ownerId), true)
-            .catch(() => null)
-        : Promise.resolve(null),
-    [ownerId],
+      ownerIds.length < 2
+        ? Promise.resolve(new Map())
+        : api
+            .get<Page<Customer>>(endpoints.auth.staff({ role: 'FRANCHISE_OWNER', limit: 100 }), true)
+            .then((page) => new Map(page.items.map((o) => [o.id, o.fullName || o.phone])))
+            .catch(() => new Map()),
+    [ownerKey],
   );
 
   if (depot.loading) return <Skeleton className="h-96 w-full" />;
@@ -337,31 +359,48 @@ export default function HqDepotDetailPage() {
           <Wallet size={18} weight="fill" />
           {t('hq.depotDetail.payout.title')}
         </h2>
-        {!ownerId ? (
+        {ownerIds.length === 0 ? (
           <p className="text-sm text-white/70">{t('hq.depotDetail.payout.noOwner')}</p>
         ) : payout.loading ? (
           <Skeleton className="h-10 w-40 bg-white/20" />
-        ) : payout.data ? (
-          <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-white/60">
-                {t('hq.depotDetail.payout.balance')}
-              </p>
-              <p className="text-2xl font-bold tabular-nums">
-                Rp {payout.data.availableBalance.toLocaleString('id-ID')}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-white/60">
-                {t('hq.depotDetail.payout.nextDate')}
-              </p>
-              <p className="text-sm font-semibold">
-                {new Date(payout.data.nextPayoutDate).toLocaleDateString('id-ID')}
-              </p>
-            </div>
-          </div>
         ) : (
-          <p className="text-sm text-white/70">{t('hq.depotDetail.payout.unavailable')}</p>
+          <div className="flex flex-col gap-3">
+            {ownerIds.map((id) => {
+              const balance = payout.data?.[id] ?? null;
+              const share = depot.data?.owners?.find((o) => o.ownerId === id)?.sharePct;
+              const label =
+                ownerIds.length > 1
+                  ? `${ownerNames.data?.get(id) ?? t('hq.franchise.ownerUnknown')}${share === undefined ? '' : ` · ${share}%`}`
+                  : null;
+              return (
+                <div key={id}>
+                  {label && <p className="text-xs font-semibold text-white/80">{label}</p>}
+                  {balance ? (
+                    <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-white/60">
+                          {t('hq.depotDetail.payout.balance')}
+                        </p>
+                        <p className="text-2xl font-bold tabular-nums">
+                          Rp {balance.availableBalance.toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-white/60">
+                          {t('hq.depotDetail.payout.nextDate')}
+                        </p>
+                        <p className="text-sm font-semibold">
+                          {new Date(balance.nextPayoutDate).toLocaleDateString('id-ID')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-white/70">{t('hq.depotDetail.payout.unavailable')}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </Card>
 

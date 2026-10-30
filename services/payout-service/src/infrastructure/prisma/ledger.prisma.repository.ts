@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { nextCursor, pageArgs } from '@hydromart/platform';
 
-import { LedgerEntryRecord, LedgerEntryType } from '../../domain/ledger';
+import { LedgerEntryRecord, LedgerEntryType, LedgerEntryWithRef } from '../../domain/ledger';
 import {
   CreateLedgerEntryData,
   LedgerRepository,
@@ -40,6 +40,17 @@ export class LedgerPrismaRepository implements LedgerRepository {
   async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
     const row = await this.prisma.ledgerEntry.findUnique({ where: { sourceRef } });
     return row ? this.toEntry(row as LedgerRow) : null;
+  }
+
+  async findByOrder(orderId: string): Promise<LedgerEntryWithRef[]> {
+    const rows = await this.prisma.ledgerEntry.findMany({
+      where: { sourceRef: { startsWith: `order:${orderId}:` } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((row) => ({
+      ...this.toEntry(row as LedgerRow),
+      sourceRef: (row as { sourceRef: string }).sourceRef,
+    }));
   }
 
   async create(data: CreateLedgerEntryData): Promise<LedgerEntryRecord> {

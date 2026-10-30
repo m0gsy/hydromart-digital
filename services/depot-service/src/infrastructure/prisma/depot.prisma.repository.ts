@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
+import type { DepotOwnerShare } from '../../domain/depot-owners';
 import { OwnershipType } from '../../domain/inventory';
 import type { ServiceArea } from '../../domain/service-area';
 import {
@@ -37,9 +38,29 @@ interface DepotRow {
   operatingHours: unknown;
   holidays: unknown;
   serviceArea?: unknown;
+  owners?: { ownerId: string; sharePct: { toNumber(): number }; isPrimary: boolean }[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** The open generation of owners, primary first, so every read carries the current split. */
+const WITH_OWNERS = {
+  owners: {
+    where: { effectiveTo: null },
+    orderBy: [{ isPrimary: 'desc' as const }, { ownerId: 'asc' as const }],
+  },
+};
+
+function ownerRows(owners: readonly DepotOwnerShare[], depotId: string, now: Date, by?: string) {
+  return owners.map((o) => ({
+    depotId,
+    ownerId: o.ownerId,
+    sharePct: o.sharePct,
+    isPrimary: o.isPrimary,
+    effectiveFrom: now,
+    createdBy: by ?? null,
+  }));
 }
 
 @Injectable()
@@ -47,8 +68,18 @@ export class DepotPrismaRepository implements DepotRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private toRecord(row: DepotRow): DepotRecord {
+    const { owners, ...rest } = row;
     return {
-      ...row,
+      ...rest,
+      ...(owners
+        ? {
+            owners: owners.map((o) => ({
+              ownerId: o.ownerId,
+              sharePct: o.sharePct.toNumber(),
+              isPrimary: o.isPrimary,
+            })),
+          }
+        : {}),
       ownershipType: row.ownershipType as OwnershipType,
       deliveryFee: row.deliveryFee.toNumber(),
       minOrderAmount: row.minOrderAmount ? row.minOrderAmount.toNumber() : null,
@@ -63,7 +94,7 @@ export class DepotPrismaRepository implements DepotRepository {
   ) {
     return {
       ...(query.depotIds ? { id: { in: [...query.depotIds] } } : {}),
-      ...(query.ownerId ? { ownerId: query.ownerId } : {}),
+      ...(query.ownerId ? { owners: { some: { ownerId: query.ownerId, effectiveTo: null } } } : {}),
       ...(query.activeOnly ? { active: true } : {}),
       ...(query.ownershipType ? { ownershipType: query.ownershipType } : {}),
       ...(query.search
@@ -83,6 +114,7 @@ export class DepotPrismaRepository implements DepotRepository {
     const [rows, total] = await Promise.all([
       this.prisma.depot.findMany({
         where,
+        include: WITH_OWNERS,
         orderBy: { code: 'asc' },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
@@ -95,6 +127,7 @@ export class DepotPrismaRepository implements DepotRepository {
   async findById(id: string, activeOnly: boolean): Promise<DepotRecord | null> {
     const row = await this.prisma.depot.findFirst({
       where: { id, ...(activeOnly ? { active: true } : {}) },
+      include: WITH_OWNERS,
     });
     return row ? this.toRecord(row) : null;
   }
@@ -105,6 +138,7 @@ export class DepotPrismaRepository implements DepotRepository {
     if (ids.length === 0) return [];
     const rows = await this.prisma.depot.findMany({
       where: { id: { in: [...new Set(ids)] }, ...(activeOnly ? { active: true } : {}) },
+      include: WITH_OWNERS,
     });
     return rows.map((row) => this.toRecord(row));
   }
@@ -124,29 +158,61 @@ export class DepotPrismaRepository implements DepotRepository {
   }
 
   async findByCode(code: string): Promise<DepotRecord | null> {
-    const row = await this.prisma.depot.findUnique({ where: { code } });
+    const row = await this.prisma.depot.findUnique({ where: { code }, include: WITH_OWNERS });
     return row ? this.toRecord(row) : null;
   }
 
   async findManyByCodes(codes: string[]): Promise<DepotRecord[]> {
     if (codes.length === 0) return [];
-    const rows = await this.prisma.depot.findMany({ where: { code: { in: [...new Set(codes)] } } });
+    const rows = await this.prisma.depot.findMany({
+      where: { code: { in: [...new Set(codes)] } },
+      include: WITH_OWNERS,
+    });
     return rows.map((row) => this.toRecord(row));
   }
 
   async findByOwner(ownerId: string): Promise<DepotRecord[]> {
     const rows = await this.prisma.depot.findMany({
-      where: { ownerId },
+      where: { owners: { some: { ownerId, effectiveTo: null } } },
+      include: WITH_OWNERS,
       orderBy: { code: 'asc' },
     });
     return rows.map((r) => this.toRecord(r));
   }
 
+  async ownersAsOf(depotId: string, asOf: Date): Promise<DepotOwnerShare[]> {
+    const rows = await this.prisma.depotOwner.findMany({
+      where: {
+        depotId,
+        effectiveFrom: { lte: asOf },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
+      },
+      orderBy: [{ isPrimary: 'desc' }, { ownerId: 'asc' }],
+    });
+    return rows.map((o) => ({
+      ownerId: o.ownerId,
+      sharePct: o.sharePct.toNumber(),
+      isPrimary: o.isPrimary,
+    }));
+  }
+
   async create(data: CreateDepotData): Promise<DepotRecord> {
-    const { serviceArea, ...rest } = data;
+    const { serviceArea, owners, ...rest } = data;
     const row = await this.prisma.depot.create({
+      include: WITH_OWNERS,
       data: {
         ...rest,
+        ...(owners && owners.length > 0
+          ? {
+              owners: {
+                create: owners.map((o) => ({
+                  ownerId: o.ownerId,
+                  sharePct: o.sharePct,
+                  isPrimary: o.isPrimary,
+                })),
+              },
+            }
+          : {}),
         operatingHours: data.operatingHours as Prisma.InputJsonValue,
         holidays: data.holidays as unknown as Prisma.InputJsonValue,
         ...(serviceArea ? { serviceArea: serviceArea as unknown as Prisma.InputJsonValue } : {}),
@@ -156,27 +222,39 @@ export class DepotPrismaRepository implements DepotRepository {
   }
 
   async update(id: string, patch: UpdateDepotData): Promise<DepotRecord> {
-    const { operatingHours, holidays, serviceArea, ...rest } = patch;
-    const row = await this.prisma.depot.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...(operatingHours !== undefined
-          ? { operatingHours: operatingHours as Prisma.InputJsonValue }
-          : {}),
-        ...(holidays !== undefined
-          ? { holidays: holidays as unknown as Prisma.InputJsonValue }
-          : {}),
-        // null clears the drawn area (back to radius routing); undefined leaves it alone.
-        ...(serviceArea !== undefined
-          ? {
-              serviceArea:
-                serviceArea === null
-                  ? Prisma.DbNull
-                  : (serviceArea as unknown as Prisma.InputJsonValue),
-            }
-          : {}),
-      },
+    const { operatingHours, holidays, serviceArea, owners, ...rest } = patch;
+    const data = {
+      ...rest,
+      ...(operatingHours !== undefined
+        ? { operatingHours: operatingHours as Prisma.InputJsonValue }
+        : {}),
+      ...(holidays !== undefined ? { holidays: holidays as unknown as Prisma.InputJsonValue } : {}),
+      // null clears the drawn area (back to radius routing); undefined leaves it alone.
+      ...(serviceArea !== undefined
+        ? {
+            serviceArea:
+              serviceArea === null
+                ? Prisma.DbNull
+                : (serviceArea as unknown as Prisma.InputJsonValue),
+          }
+        : {}),
+    };
+    if (owners === undefined) {
+      const row = await this.prisma.depot.update({ where: { id }, data, include: WITH_OWNERS });
+      return this.toRecord(row);
+    }
+    // One transaction: close the open generation, open the new one, and move the mirror. A
+    // reader never sees a depot with no owners or with two generations open at once.
+    const now = new Date();
+    const row = await this.prisma.$transaction(async (tx) => {
+      await tx.depotOwner.updateMany({
+        where: { depotId: id, effectiveTo: null },
+        data: { effectiveTo: now },
+      });
+      if (owners.length > 0) {
+        await tx.depotOwner.createMany({ data: ownerRows(owners, id, now) });
+      }
+      return tx.depot.update({ where: { id }, data, include: WITH_OWNERS });
     });
     return this.toRecord(row);
   }

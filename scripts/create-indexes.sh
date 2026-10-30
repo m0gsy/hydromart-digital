@@ -87,7 +87,14 @@ psql_do() { docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -
 # absent; `table_absent` skips all four correctly, and each owning migration builds its own
 # index under a lock that costs nothing on an empty table. They stay registered here for
 # whichever migration touches this table next.
+# Multi-owner depots (2026-10-29): four indexes on the brand-new depot_owners table, created
+# by 20261029100000_depot_owners — same situation as PYO-2/PYO-3 above: absent when this
+# script runs, so table_absent skips them and the migration builds them on an empty table.
 INDEXES='
+depot|depot_owners_depotId_effectiveTo_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "depot_owners_depotId_effectiveTo_idx" ON "depot_owners"("depotId", "effectiveTo")
+depot|depot_owners_ownerId_effectiveTo_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "depot_owners_ownerId_effectiveTo_idx" ON "depot_owners"("ownerId", "effectiveTo")
+depot|depot_owners_open_owner_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "depot_owners_open_owner_key" ON "depot_owners"("depotId", "ownerId") WHERE "effectiveTo" IS NULL
+depot|depot_owners_open_primary_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "depot_owners_open_primary_key" ON "depot_owners"("depotId") WHERE "effectiveTo" IS NULL AND "isPrimary"
 product|product_price_changes_productId_changedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "product_price_changes_productId_changedAt_idx" ON "product_price_changes"("productId", "changedAt")
 payout|hq_release_requests_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_status_createdAt_idx" ON "hq_release_requests"("status", "createdAt")
 payout|hq_release_requests_one_pending_per_owner|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "hq_release_requests_one_pending_per_owner" ON "hq_release_requests"("franchiseOwnerId") WHERE "status"::text = $$PENDING$$

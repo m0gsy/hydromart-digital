@@ -1,4 +1,5 @@
 import { OwnershipType } from '../../domain/inventory';
+import type { DepotOwnerShare } from '../../domain/depot-owners';
 import type { ServiceArea } from '../../domain/service-area';
 
 export interface DayHours {
@@ -29,7 +30,10 @@ export interface DepotRecord {
   serviceRadiusKm: number;
   deliveryFee: number;
   minOrderAmount: number | null;
+  /** The primary owner, mirrored from `owners` for older readers. Null = company-run / unassigned. */
   ownerId: string | null;
+  /** Current owners and their revenue shares (open generation); empty for a company depot. */
+  owners?: DepotOwnerShare[];
   /** Assistant supervisor (auth account id) overseeing this depot; null = unassigned. */
   assistantSupervisorId: string | null;
   /** The depot's own WhatsApp number for operational messages; null = use the ops number. */
@@ -71,6 +75,8 @@ export interface CreateDepotData {
   deliveryFee: number;
   minOrderAmount: number | null;
   ownerId: string | null;
+  /** When present, replaces the owner set atomically (the service keeps `ownerId` = primary). */
+  owners?: DepotOwnerShare[];
   assistantSupervisorId?: string | null;
   contactPhone?: string | null;
   paymentBankName?: string | null;
@@ -110,6 +116,11 @@ export interface DepotRepository {
   findManyByCodes(codes: string[]): Promise<DepotRecord[]>;
   /** All depots owned by an owner (active and inactive — an owner manages their own). */
   findByOwner(ownerId: string): Promise<DepotRecord[]>;
+  /**
+   * The owners that applied at `asOf`: rows opened at or before it and not closed until after
+   * it. Empty when none applied (a company depot, or a moment before the depot existed).
+   */
+  ownersAsOf(depotId: string, asOf: Date): Promise<DepotOwnerShare[]>;
   create(data: CreateDepotData): Promise<DepotRecord>;
   update(id: string, patch: UpdateDepotData): Promise<DepotRecord>;
 }

@@ -3,7 +3,7 @@ import type { Translate } from './addresses';
 // Pure helpers for the depot admin console. Covered by test/depots.test.ts.
 // Client-side pre-validation mirrors depot-service's DTO; the server stays authority.
 
-import type { Depot, DepotPayload, NearbyDepot } from './types';
+import type { Depot, DepotOwnerShare, DepotPayload, NearbyDepot } from './types';
 
 /**
  * A3 — the depot that will actually fulfil an order at this point: the nearest one whose
@@ -66,12 +66,49 @@ export function resolveDeliveryDepot(
   return servingDepot(nearbyDepots);
 }
 
+/** One owner row in the depot form: the share is typed, so it stays a string until validated. */
+export interface OwnerRowForm {
+  ownerId: string;
+  sharePct: string;
+  isPrimary: boolean;
+}
+
+export const blankOwnerRow = (isPrimary = false): OwnerRowForm => ({
+  ownerId: '',
+  sharePct: '',
+  isPrimary,
+});
+
+/** The form rows for a saved depot; a depot read from an older server has only `ownerId`. */
+export function ownerRowsFromDepot(d: {
+  ownerId?: string | null;
+  owners?: { ownerId: string; sharePct: number; isPrimary: boolean }[];
+}): OwnerRowForm[] {
+  if (d.owners && d.owners.length > 0) {
+    return d.owners.map((o) => ({
+      ownerId: o.ownerId,
+      sharePct: String(o.sharePct),
+      isPrimary: o.isPrimary,
+    }));
+  }
+  return d.ownerId ? [{ ownerId: d.ownerId, sharePct: '100', isPrimary: true }] : [{ ...blankOwnerRow(true), sharePct: '100' }];
+}
+
+/** Account ids that own a depot record, from the owner list or the mirrored primary. */
+export function depotOwnerIds(d: {
+  ownerId?: string | null;
+  owners?: { ownerId: string }[];
+}): string[] {
+  if (d.owners && d.owners.length > 0) return d.owners.map((o) => o.ownerId);
+  return d.ownerId ? [d.ownerId] : [];
+}
+
 export interface DepotForm {
   code: string;
   name: string;
   ownershipType: string;
-  /** Franchise owner account id. Required for WARALABA, ignored for HKP. */
-  ownerId: string;
+  /** Franchise owners and their shares. At least one for WARALABA, ignored for HKP. */
+  owners: OwnerRowForm[];
   address: string;
   city: string;
   province: string;
@@ -91,7 +128,7 @@ export const EMPTY_DEPOT_FORM: DepotForm = {
   code: '',
   name: '',
   ownershipType: 'HKP',
-  ownerId: '',
+  owners: [{ ownerId: '', sharePct: '100', isPrimary: true }],
   address: '',
   city: '',
   province: '',
@@ -137,9 +174,30 @@ export function toDepotPayload(
   }
   // A franchise depot with no owner books its revenue — and HQ's commission — to nobody,
   // silently. depot-service rejects it too; this is the same rule stated early.
-  const owner = form.ownerId.trim();
-  if (form.ownershipType === 'WARALABA' && !owner) {
-    return { ok: false, error: t('opsFix.depotForm.ownerRequired') };
+  let owners: DepotOwnerShare[] = [];
+  if (form.ownershipType === 'WARALABA') {
+    const rows = form.owners.filter((r) => r.ownerId.trim() !== '');
+    if (rows.length === 0) return { ok: false, error: t('opsFix.depotForm.ownerRequired') };
+    if (new Set(rows.map((r) => r.ownerId)).size !== rows.length) {
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
+    }
+    // A lone owner takes everything: the share and the primary flag are not theirs to get wrong.
+    const parsed = rows.map((r) => ({
+      ownerId: r.ownerId,
+      sharePct: rows.length === 1 ? 100 : (numOrNull(r.sharePct) ?? NaN),
+      isPrimary: rows.length === 1 ? true : r.isPrimary,
+    }));
+    // Hundredths of a percent, as depot-service compares them, so 33.33 x 3 cannot drift.
+    if (parsed.some((o) => !(o.sharePct > 0) || o.sharePct > 100 || Math.abs(o.sharePct * 100 - Math.round(o.sharePct * 100)) > 1e-6)) {
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
+    }
+    if (parsed.reduce((sum, o) => sum + Math.round(o.sharePct * 100), 0) !== 10_000) {
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
+    }
+    if (parsed.filter((o) => o.isPrimary).length !== 1) {
+      return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
+    }
+    owners = parsed;
   }
   const lat = numOrNull(form.lat);
   if (lat === null || lat < -90 || lat > 90) return { ok: false, error: t('opsFix.depotForm.latRange') };
@@ -159,7 +217,8 @@ export function toDepotPayload(
     ...text,
     ownershipType: form.ownershipType,
     // HKP is company-owned: any owner picked before switching type is cleared, not carried.
-    ownerId: form.ownershipType === 'WARALABA' ? owner : null,
+    ownerId: owners.find((o) => o.isPrimary)?.ownerId ?? null,
+    owners,
     lat,
     lng,
     deliveryFee,

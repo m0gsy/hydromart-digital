@@ -1,6 +1,7 @@
 import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
+  InvalidRevenueOwnersError,
   InvalidWithdrawalAmountError,
   WithdrawalBelowMinimumError,
   PayoutDestinationNotVerifiedError,
@@ -81,6 +82,11 @@ class FakeLedger implements LedgerRepository {
   refs = new Map<string, LedgerEntryRecord>();
   async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
     return this.refs.get(sourceRef) ?? null;
+  }
+  async findByOrder(orderId: string) {
+    return [...this.refs.entries()]
+      .filter(([ref]) => ref.startsWith(`order:${orderId}:`))
+      .map(([ref, row]) => ({ ...row, sourceRef: ref }));
   }
   async balanceFor(owner?: string): Promise<number> {
     return this.entries
@@ -246,8 +252,7 @@ class FakeWithdrawals implements WithdrawalRepository {
  * PYO-3: the destination is no longer a string the caller sends — it is read from the
  * VERIFIED account on file. These specs are about the ledger, so the account is present.
  */
-const verifiedAccounts = () =>
-  ({ verifiedDestination: async () => 'BCA ···· 4821' }) as never;
+const verifiedAccounts = () => ({ verifiedDestination: async () => 'BCA ···· 4821' }) as never;
 
 describe('PayoutService.requestWithdrawal', () => {
   // Owner decision 2026-10-14: nothing under the floor goes to the bank.
@@ -283,7 +288,13 @@ describe('PayoutService.requestWithdrawal', () => {
   it('rejects when the amount exceeds available balance', async () => {
     const ledger = new FakeLedger([100000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     await expect(svc.requestWithdrawal('owner-1', 150000)).rejects.toBeInstanceOf(
       InsufficientBalanceError,
@@ -299,7 +310,13 @@ describe('PayoutService.requestWithdrawal', () => {
   it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
     const ledger = new FakeLedger([500000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     const w = await svc.requestWithdrawal('owner-1', 500000);
 
@@ -311,7 +328,13 @@ describe('PayoutService.requestWithdrawal', () => {
   it('cannot be drained twice: the second cash-out sees the first one’s debit', async () => {
     const ledger = new FakeLedger([500000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     await svc.requestWithdrawal('owner-1', 500000);
     // Sequentially this always held. What B-8 changes is that the check now runs inside
@@ -339,7 +362,13 @@ describe('PayoutService.settleWithdrawal', () => {
   const setup = async () => {
     const ledger = new FakeLedger([500000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
     const w = await svc.requestWithdrawal('owner-1', 200000);
     return { ledger, withdrawals, svc, w };
   };
@@ -541,7 +570,13 @@ describe('PayoutService HQ release queue', () => {
       description: '',
     });
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     /*
      * CA-2-63: this used to assert `bankAccountRef === 'Rilis HQ'` — the name of the
@@ -564,7 +599,13 @@ describe('PayoutService HQ release queue', () => {
   it('pays to the verified account on file, not to the last one used', async () => {
     const ledger = new FakeLedger();
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
     await ledger.create({
       franchiseOwnerId: 'owner-a',
       depotId: null,
@@ -608,6 +649,134 @@ describe('PayoutService HQ release queue', () => {
   });
 });
 
+describe('PayoutService multi-owner revenue', () => {
+  const ORDER = '22222222-2222-4222-8222-222222222222';
+  const A = 'owner-a';
+  const B = 'owner-b';
+  const C = 'owner-c';
+  const split = (...pcts: number[]) =>
+    [A, B, C].slice(0, pcts.length).map((ownerId, i) => ({
+      ownerId,
+      sharePct: pcts[i],
+      isPrimary: i === 0,
+    }));
+  const build = (pct = 5) => {
+    const ledger = new FakeLedger();
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct }]),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
+    return { ledger, svc };
+  };
+  const push = (svc: PayoutService, over: Record<string, unknown> = {}) =>
+    svc.recordOrderRevenue({
+      orderId: ORDER,
+      depotId: 'depot-1',
+      amountIdr: 240_000,
+      orderNumber: 'HM-1',
+      ...over,
+    } as never);
+  const sum = (ledger: FakeLedger, type: string) =>
+    ledger.entries.filter((e) => e.type === type).reduce((n, e) => n + e.amount, 0);
+
+  it('credits each owner their share and takes HQ commission once, split the same way', async () => {
+    const { ledger, svc } = build(5);
+    const out = await push(svc, { owners: split(60, 40) });
+
+    expect(out).toEqual({ recorded: true, revenue: 240_000, commission: 12_000, commissionPct: 5 });
+    expect(await ledger.balanceFor(A)).toBe(144_000 - 7_200);
+    expect(await ledger.balanceFor(B)).toBe(96_000 - 4_800);
+    expect(sum(ledger, 'SALE_SETTLEMENT')).toBe(240_000);
+    expect(sum(ledger, 'COMMISSION')).toBe(-12_000);
+    expect([...ledger.refs.keys()].sort()).toEqual(
+      [
+        `order:${ORDER}:COMMISSION:${A}`,
+        `order:${ORDER}:COMMISSION:${B}`,
+        `order:${ORDER}:SALE:${A}`,
+        `order:${ORDER}:SALE:${B}`,
+      ].sort(),
+    );
+  });
+
+  // Rounding each share alone drifts from the order total by a few rupiah a sale.
+  it('splits a total that does not divide evenly without losing or inventing a rupiah', async () => {
+    for (const [total, pct] of [
+      [100_001, 7],
+      [99_999, 13],
+      [1, 5],
+      [37, 10],
+    ]) {
+      const { ledger, svc } = build(pct);
+      await push(svc, { amountIdr: total, owners: split(33.34, 33.33, 33.33) });
+      expect(sum(ledger, 'SALE_SETTLEMENT')).toBe(total);
+      expect(0 - sum(ledger, 'COMMISSION')).toBe(Math.round((total * pct) / 100));
+    }
+  });
+
+  it('gives the leftover rupiah to the primary on a tie, and never writes a zero row', async () => {
+    const { ledger, svc } = build(0);
+    await push(svc, { amountIdr: 1, owners: split(50, 50) });
+    expect(ledger.entries.map((e) => [e.franchiseOwnerId, e.amount])).toEqual([[A, 1]]);
+  });
+
+  it('is idempotent: a retried push writes nothing, whichever shape wrote the first', async () => {
+    const { ledger, svc } = build();
+    await push(svc, { owners: split(60, 40) });
+    const rows = ledger.entries.length;
+    expect((await push(svc, { owners: split(60, 40) })).recorded).toBe(false);
+    // Even a retry that now arrives as the old single-owner shape must not double-credit.
+    expect((await push(svc, { franchiseOwnerId: A })).recorded).toBe(false);
+    expect(ledger.entries).toHaveLength(rows);
+  });
+
+  it('keeps the original keys for a sole owner, so old and new rows look the same', async () => {
+    const { ledger, svc } = build();
+    await push(svc, { owners: split(100) });
+    expect([...ledger.refs.keys()].sort()).toEqual(
+      [`order:${ORDER}:COMMISSION`, `order:${ORDER}:SALE`].sort(),
+    );
+  });
+
+  it('reverses every owner exactly as they were paid, not as the depot is owned today', async () => {
+    const { ledger, svc } = build();
+    await push(svc, { owners: split(60, 40) });
+    expect(await svc.reverseOrderRevenue(ORDER, 'Salah input')).toEqual({ reversed: true });
+    expect(await ledger.balanceFor(A)).toBe(0);
+    expect(await ledger.balanceFor(B)).toBe(0);
+    expect(ledger.entries).toHaveLength(8);
+    // And only once.
+    expect(await svc.reverseOrderRevenue(ORDER, 'Salah input')).toEqual({ reversed: false });
+    expect(ledger.entries).toHaveLength(8);
+  });
+
+  it('refuses owners that do not add up, repeat, or lack exactly one primary', async () => {
+    const { svc } = build();
+    const bad = [
+      split(60, 30),
+      [
+        { ownerId: A, sharePct: 50, isPrimary: true },
+        { ownerId: A, sharePct: 50, isPrimary: false },
+      ],
+      [
+        { ownerId: A, sharePct: 50, isPrimary: false },
+        { ownerId: B, sharePct: 50, isPrimary: false },
+      ],
+      [
+        { ownerId: A, sharePct: 50, isPrimary: true },
+        { ownerId: B, sharePct: 50, isPrimary: true },
+      ],
+      [],
+    ];
+    for (const owners of bad) {
+      await expect(push(svc, { owners })).rejects.toBeInstanceOf(InvalidRevenueOwnersError);
+    }
+    await expect(push(svc, {})).rejects.toBeInstanceOf(InvalidRevenueOwnersError);
+  });
+});
+
 describe('PayoutService.recordOrderRevenue', () => {
   const order = {
     orderId: '11111111-1111-4111-8111-111111111111',
@@ -628,7 +797,13 @@ describe('PayoutService.recordOrderRevenue', () => {
   it('charges commission on the goods subtotal, not on the order total', async () => {
     const ledger = new FakeLedger();
     const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 10 }]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      schemes,
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     // Goods 100.000, ongkir 10.000, a 20.000 voucher → total 90.000.
     const out = await svc.recordOrderRevenue({
@@ -645,7 +820,13 @@ describe('PayoutService.recordOrderRevenue', () => {
     // An order-service that predates the field must behave exactly as it did.
     const ledger = new FakeLedger();
     const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 10 }]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      schemes,
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     const out = await svc.recordOrderRevenue({ ...order, amountIdr: 90_000 });
 
@@ -655,7 +836,13 @@ describe('PayoutService.recordOrderRevenue', () => {
   it('credits the sale and debits commission at the depot scheme rate', async () => {
     const ledger = new FakeLedger();
     const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      schemes,
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
 
     const out = await svc.recordOrderRevenue(order);
 
@@ -839,7 +1026,13 @@ describe('PayoutService.recordOrderRevenue', () => {
     it('reverses what was charged, not what the current scheme would charge', async () => {
       const ledger = new FakeLedger();
       const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);
-      const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig(), verifiedAccounts());
+      const svc = new PayoutService(
+        ledger,
+        new FakeWithdrawals(),
+        schemes,
+        payoutTestConfig(),
+        verifiedAccounts(),
+      );
       await svc.recordOrderRevenue(order);
 
       schemes.current = [{ depotId: 'depot-1', pct: 20 }];
@@ -895,7 +1088,13 @@ describe('PayoutService withdrawal references', () => {
   it('never issues the same reference twice across cash-outs', async () => {
     const ledger = new FakeLedger([10_000_000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const svc = new PayoutService(
+      ledger,
+      withdrawals,
+      new FakeSchemes(),
+      payoutTestConfig(),
+      verifiedAccounts(),
+    );
     const refs = await Promise.all(
       Array.from({ length: 50 }, () => svc.requestWithdrawal('owner-1', 1000)),
     ).then((ws) => ws.map((w) => w.reference));

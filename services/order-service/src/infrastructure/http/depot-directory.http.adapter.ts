@@ -7,6 +7,7 @@ import {
   DepotDirectoryPort,
   DepotGallonReturns,
   DepotLocation,
+  DepotOwnerShare,
   DepotOwnership,
 } from '../../application/ports/depot-directory.port';
 import { Holiday, OperatingHours } from '../../domain/opening-hours';
@@ -33,6 +34,18 @@ interface DepotPage {
  * failure (unreachable, timeout, non-2xx) it logs and returns null so checkout
  * stays fail-open; a successful response returns the depots (possibly empty).
  */
+function isOwnerList(value: unknown): value is DepotOwnerShare[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (o) =>
+        typeof o?.ownerId === 'string' &&
+        typeof o?.sharePct === 'number' &&
+        typeof o?.isPrimary === 'boolean',
+    )
+  );
+}
+
 @Injectable()
 export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
   private static readonly TIMEOUT_MS = 5000;
@@ -151,10 +164,10 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
     }
   }
 
-  async findOwner(depotId: string): Promise<DepotOwnership | null> {
+  async findOwner(depotId: string, asOf?: Date): Promise<DepotOwnership | null> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) return null;
-    const url = `${this.config.depotServiceUrl}/api/v1/depots/internal/${depotId}/owner`;
+    const url = `${this.config.depotServiceUrl}/api/v1/depots/internal/${depotId}/owner${asOf ? `?asOf=${encodeURIComponent(asOf.toISOString())}` : ''}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotDirectoryHttpAdapter.TIMEOUT_MS);
     try {
@@ -165,8 +178,27 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
       if (!res.ok) {
         throw new Error(`depot-service responded ${res.status}`);
       }
-      const body = (await res.json()) as Partial<DepotOwnership>;
-      return { ownerId: body.ownerId ?? null, ownershipType: body.ownershipType ?? 'HKP' };
+      const body = (await res.json()) as {
+        ownerId?: string | null;
+        owners?: unknown;
+        ownershipType?: unknown;
+      };
+      // A body without a recognisable ownership type is no answer. Defaulting it to HKP read as
+      // "company depot, nobody to credit" and silenced the log for a franchise with no owner.
+      if (body.ownershipType !== 'WARALABA' && body.ownershipType !== 'HKP') {
+        throw new Error('depot-service sent no ownership type');
+      }
+      let owners: DepotOwnerShare[];
+      if (body.owners === undefined) {
+        // A depot-service that predates multi-owner depots: one owner, taking everything.
+        owners = body.ownerId ? [{ ownerId: body.ownerId, sharePct: 100, isPrimary: true }] : [];
+      } else if (isOwnerList(body.owners)) {
+        owners = body.owners;
+      } else {
+        throw new Error('depot-service sent a malformed owners list');
+      }
+      const primary = owners.find((o) => o.isPrimary)?.ownerId ?? body.ownerId ?? null;
+      return { ownerId: primary, owners, ownershipType: body.ownershipType };
     } catch (error) {
       this.logger.warn(`Depot owner lookup failed for ${depotId}: ${(error as Error).message}`);
       return null;
