@@ -1849,11 +1849,13 @@ export class InMemoryOutboxRepository implements OutboxRepository {
   }
   async markDone(id: string): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
+    if (row.status !== 'PENDING') return;
     row.status = 'DONE';
     row.lastError = null;
   }
   async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
+    if (row.status !== 'PENDING') return;
     row.status = nextAttemptAt ? 'PENDING' : 'DEAD';
     row.attempts += 1;
     row.lastError = error;
