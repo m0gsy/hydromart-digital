@@ -634,15 +634,25 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
-  it('assigns a depot to an order that had none', async () => {
-    order.update.mockResolvedValue({ ...orderRow(), depotId: 'depot-a' });
-    const out = await repo.assignDepot('ord-1', 'depot-a');
-    expect(out.depotId).toBe('depot-a');
-    expect(order.update).toHaveBeenCalledWith({
-      where: { id: 'ord-1' },
+  it('assigns a depot only while the order is still where it was read', async () => {
+    order.updateMany.mockResolvedValue({ count: 1 });
+    order.findUniqueOrThrow.mockResolvedValue({ ...orderRow(), depotId: 'depot-a' });
+    const out = await repo.assignDepotIf('ord-1', null, null, 'depot-a');
+    expect(out?.depotId).toBe('depot-a');
+    expect(order.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ord-1', depotId: null },
       data: { depotId: 'depot-a' },
-      include: expect.any(Object),
     });
+    await repo.assignDepotIf('ord-1', 'depot-x', [OrderStatus.CONFIRMED], 'depot-a');
+    expect(order.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'ord-1', depotId: 'depot-x', status: { in: ['CONFIRMED'] } },
+      data: { depotId: 'depot-a' },
+    });
+  });
+
+  it('returns null and writes nothing when the order moved since it was read', async () => {
+    order.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.assignDepotIf('ord-1', null, null, 'depot-a')).toBeNull();
   });
 
   it('maps the booked slot and the recorded PPN onto the order record', async () => {

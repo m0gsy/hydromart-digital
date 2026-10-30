@@ -1812,7 +1812,28 @@ export class OrderService {
       stockLinesFor(order.items),
       authorization,
     );
-    return this.orders.assignDepot(orderId, depotId);
+    const assigned = await this.orders.assignDepotIf(orderId, null, null, depotId);
+    if (assigned) return assigned;
+    // Lost the race to another operator. The hold taken above is keyed (order, depot): hand it
+    // back unless the winner routed to the very same depot, whose hold it is now.
+    await this.releaseLostHold(orderId, depotId, order.items, authorization);
+    throw new OrderAlreadyRoutedError();
+  }
+
+  /** The loser of a routing race gives back its own depot's hold, never the winner's. */
+  private async releaseLostHold(
+    orderId: string,
+    depotId: string,
+    items: OrderRecord['items'],
+    authorization: string,
+  ): Promise<void> {
+    const now = await this.orders.findById(orderId);
+    if (now?.depotId === depotId) return;
+    await this.inventory
+      .release(depotId, orderId, stockLinesFor(items), authorization)
+      .catch((err: Error) =>
+        this.logger.warn(`Hold ${orderId}@${depotId} tidak terlepas: ${err.message}`),
+      );
   }
 
   /**
@@ -1828,10 +1849,11 @@ export class OrderService {
    *
    *  1. Reserve at the NEW depot first, which fails CLOSED. A shortfall refuses the move
    *     while the operator is still on the screen, and the order stays exactly where it was.
-   *  2. Only then release the old hold, which fails OPEN — the move has already been proven
-   *     possible, and a depot-service blip must not strand the order between two depots.
-   *     Opname reconciles a missed release; there is never a moment with NO hold.
-   *  3. Write the new depot last, so a failure at any earlier step leaves the record true.
+   *  2. Write the new depot with a compare-and-set on the depot and status that were read, so
+   *     two operators cannot both move it. The loser gives back its own hold and gets a 409.
+   *  3. Only then release the old hold, which fails OPEN — the move has already happened, and
+   *     a depot-service blip must not strand the order. Opname reconciles a missed release;
+   *     there is never a moment with NO hold.
    */
   async rerouteDepot(
     user: AuthenticatedUser,
@@ -1859,8 +1881,24 @@ export class OrderService {
 
     const lines = stockLinesFor(order.items);
     await this.inventory.reserve(depotId, orderId, lines, authorization);
-    await this.inventory.release(order.depotId, orderId, lines, authorization);
-    return this.orders.assignDepot(orderId, depotId);
+    const moved = await this.orders.assignDepotIf(
+      orderId,
+      order.depotId,
+      [...REROUTABLE_STATUSES],
+      depotId,
+    );
+    if (!moved) {
+      await this.releaseLostHold(orderId, depotId, order.items, authorization);
+      throw new StaleOrderStatusError();
+    }
+    // After the write: the order is at the new depot for certain, so letting go of the old
+    // hold can no longer strand it. Fails open — opname reconciles a missed release.
+    await this.inventory
+      .release(order.depotId, orderId, lines, authorization)
+      .catch((err: Error) =>
+        this.logger.warn(`Hold lama ${orderId}@${order.depotId} tidak terlepas: ${err.message}`),
+      );
+    return moved;
   }
 
   async getForCustomer(customerId: string, orderId: string): Promise<OrderRecord> {

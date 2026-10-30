@@ -2687,6 +2687,78 @@ describe('OrderService', () => {
         });
       });
 
+      /*
+       * Race: two operators route the same blank order. Both reserve, one CAS wins. The loser
+       * hands back ITS depot's hold and gets a 409 — but when both picked the SAME depot the
+       * hold is the winner's now and must stay.
+       */
+      describe('routing race', () => {
+        const otherDepot = { ...homeDepot, id: 'depot-other' };
+        const staff = { sub: 'hq-1', role: 'SUPER_ADMIN', phone: null, depotId: null } as never;
+        const lose = (winnerDepot: string) => {
+          const real = orders.assignDepotIf.bind(orders);
+          jest.spyOn(orders, 'assignDepotIf').mockImplementationOnce(async (id, ...rest) => {
+            orders.rows.find((r) => r.id === id)!.depotId = winnerDepot;
+            return real(id, ...rest);
+          });
+        };
+
+        it('assign: the loser releases its own hold and is told the order is routed', async () => {
+          const id = await unroute();
+          depots.depots = [homeDepot, otherDepot];
+          lose(homeDepot.id);
+          inventory.releaseCalls.length = 0;
+          await expect(service.assignDepot(id, otherDepot.id, 'Bearer tok')).rejects.toBeInstanceOf(
+            OrderAlreadyRoutedError,
+          );
+          expect(inventory.releaseCalls).toHaveLength(1);
+          expect(inventory.releaseCalls[0]).toMatchObject({ depotId: otherDepot.id, orderId: id });
+        });
+
+        it('assign: a loser that picked the winning depot keeps the (shared) hold', async () => {
+          const id = await unroute();
+          lose(homeDepot.id);
+          inventory.releaseCalls.length = 0;
+          await expect(service.assignDepot(id, homeDepot.id, 'Bearer tok')).rejects.toBeInstanceOf(
+            OrderAlreadyRoutedError,
+          );
+          expect(inventory.releaseCalls).toHaveLength(0);
+        });
+
+        it('reroute: the loser releases the new hold it took, never the old one', async () => {
+          const id = await unroute();
+          await service.assignDepot(id, homeDepot.id, 'Bearer tok');
+          const third = { ...homeDepot, id: 'depot-third' };
+          depots.depots = [homeDepot, otherDepot, third];
+          lose(third.id);
+          inventory.releaseCalls.length = 0;
+          await expect(
+            service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok'),
+          ).rejects.toBeInstanceOf(StaleOrderStatusError);
+          expect(inventory.releaseCalls).toHaveLength(1);
+          expect(inventory.releaseCalls[0]).toMatchObject({ depotId: otherDepot.id });
+        });
+
+        it('reroute: a failed release of the old hold does not undo the move', async () => {
+          const id = await unroute();
+          await service.assignDepot(id, homeDepot.id, 'Bearer tok');
+          depots.depots = [homeDepot, otherDepot];
+          jest.spyOn(inventory, 'release').mockRejectedValueOnce(new Error('depot down'));
+          const moved = await service.rerouteDepot(staff, id, otherDepot.id, 'Bearer tok');
+          expect(moved.depotId).toBe(otherDepot.id);
+        });
+
+        it('swallows a failed release on the losing side too', async () => {
+          const id = await unroute();
+          depots.depots = [homeDepot, otherDepot];
+          lose(homeDepot.id);
+          jest.spyOn(inventory, 'release').mockRejectedValueOnce(new Error('depot down'));
+          await expect(service.assignDepot(id, otherDepot.id, 'Bearer tok')).rejects.toBeInstanceOf(
+            OrderAlreadyRoutedError,
+          );
+        });
+      });
+
       // Fail closed while the directory is down: routing an order into a depot nobody can
       // confirm is active would hand it to a depot that may no longer be trading.
       it('refuses to route while the depot directory is unreachable', async () => {
