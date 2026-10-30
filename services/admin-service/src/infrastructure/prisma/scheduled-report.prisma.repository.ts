@@ -55,6 +55,14 @@ export class ScheduledReportPrismaRepository implements ScheduledReportRepositor
     return rows.map((r) => this.toRecord(r));
   }
 
+  async claimRun(id: string, seenNextRunAt: Date | null, leaseUntil: Date): Promise<boolean> {
+    const { count } = await this.prisma.scheduledReport.updateMany({
+      where: { id, enabled: true, nextRunAt: seenNextRunAt },
+      data: { nextRunAt: leaseUntil },
+    });
+    return count === 1;
+  }
+
   async create(data: CreateScheduledReportData): Promise<ScheduledReportRecord> {
     const row = await this.prisma.scheduledReport.create({ data });
     return this.toRecord(row);

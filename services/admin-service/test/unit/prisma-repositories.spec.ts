@@ -686,6 +686,7 @@ describe('ScheduledReportPrismaRepository', () => {
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     delete: jest.fn(),
   };
   const prisma = { scheduledReport: model } as unknown as PrismaService;
@@ -719,6 +720,24 @@ describe('ScheduledReportPrismaRepository', () => {
       take: 10,
     });
     expect(recs[0].dataset).toBe(ReportDataset.REVENUE_BY_DEPOT);
+  });
+
+  it('claimRun moves nextRunAt to the lease only from the value that was read, and only if enabled', async () => {
+    const seen = new Date('2026-08-12T03:00:00.000Z');
+    const lease = new Date('2026-08-12T03:15:00.000Z');
+    model.updateMany.mockResolvedValueOnce({ count: 1 });
+    expect(await repo.claimRun('sr-1', seen, lease)).toBe(true);
+    expect(model.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'sr-1', enabled: true, nextRunAt: seen },
+      data: { nextRunAt: lease },
+    });
+    // A schedule never stamped (NULL) is claimed from NULL, not from 'any value'.
+    model.updateMany.mockResolvedValueOnce({ count: 0 });
+    expect(await repo.claimRun('sr-1', null, lease)).toBe(false);
+    expect(model.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'sr-1', enabled: true, nextRunAt: null },
+      data: { nextRunAt: lease },
+    });
   });
 
   it('list orders newest-first and casts enums', async () => {

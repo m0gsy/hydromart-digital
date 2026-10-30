@@ -333,6 +333,14 @@ export class InMemoryScheduledReportRepository implements ScheduledReportReposit
       .map((r) => ({ ...r }));
   }
 
+  async claimRun(id: string, seenNextRunAt: Date | null, leaseUntil: Date): Promise<boolean> {
+    const r = this.reports.find((x) => x.id === id);
+    const same = (a: Date | null, b: Date | null) => (a === null ? b === null : a?.getTime() === b?.getTime());
+    if (!r || !r.enabled || !same(r.nextRunAt, seenNextRunAt)) return false;
+    r.nextRunAt = leaseUntil;
+    return true;
+  }
+
   async update(id: string, data: UpdateScheduledReportData): Promise<ScheduledReportRecord | null> {
     const r = this.reports.find((x) => x.id === id);
     if (!r) return null;

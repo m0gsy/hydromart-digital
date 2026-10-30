@@ -45,6 +45,11 @@ export class ScheduledReportRunnerService {
    * and whatever is not reached stays due for the next one.
    */
   private static readonly MAX_PER_SWEEP = 10;
+  /**
+   * How long a claimed schedule stays out of the due list. Comfortably above one render + send;
+   * if a run dies, the schedule comes due again after this rather than being lost.
+   */
+  private static readonly LEASE_MS = 15 * 60_000;
   private readonly logger = new Logger(ScheduledReportRunnerService.name);
 
   constructor(
@@ -60,6 +65,14 @@ export class ScheduledReportRunnerService {
     const result: ReportSweepResult = { due: due.length, produced: 0, failed: 0, ok: true };
 
     for (const schedule of due) {
+      // Claim before producing anything: another runner holding the same due row would
+      // otherwise render the same file and email it to the same people a second time.
+      const claimed = await this.schedules.claimRun(
+        schedule.id,
+        schedule.nextRunAt,
+        new Date(now.getTime() + ScheduledReportRunnerService.LEASE_MS),
+      );
+      if (!claimed) continue;
       const outcome = await this.runOne(schedule, now);
       if (outcome.ok) result.produced += 1;
       else result.failed += 1;

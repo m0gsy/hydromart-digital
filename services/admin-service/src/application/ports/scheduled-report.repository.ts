@@ -52,6 +52,16 @@ export interface ScheduledReportRepository {
    * never been stamped, and treating it as "not due yet" would leave it never running.
    */
   findDue(now: Date, limit: number): Promise<ScheduledReportRecord[]>;
+  /**
+   * Takes a due schedule for this run: moves `nextRunAt` from the value the caller read to
+   * `leaseUntil`, only if it is still that value. False means another runner got there first.
+   *
+   * `findDue` is a plain read, so two replicas (or one slow tick overlapping the next, or a
+   * manual trigger) each picked up the same schedule and each produced and EMAILED the same
+   * report to the same recipients. The lease is also the crash guard: a run that dies leaves
+   * `nextRunAt` at the lease, so the schedule comes due again after it instead of at once.
+   */
+  claimRun(id: string, seenNextRunAt: Date | null, leaseUntil: Date): Promise<boolean>;
   create(data: CreateScheduledReportData): Promise<ScheduledReportRecord>;
   update(id: string, data: UpdateScheduledReportData): Promise<ScheduledReportRecord | null>;
   remove(id: string): Promise<boolean>;
