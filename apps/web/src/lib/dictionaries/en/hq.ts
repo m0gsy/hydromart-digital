@@ -1676,7 +1676,12 @@ export const hq = {
     filterAll: 'All',
     filterPending: 'Pending',
     type: { EXPORT: 'Data copy', DELETE: 'Delete account' },
-    status: { PENDING: 'Pending', COMPLETED: 'Done', REJECTED: 'Rejected' },
+    status: {
+      PENDING: 'Pending',
+      IN_PROGRESS: 'In progress',
+      COMPLETED: 'Done',
+      REJECTED: 'Rejected',
+    },
     customer: 'Customer',
     requestedAt: 'Requested',
     dueBy: 'Answer due {date}',

@@ -1,3 +1,4 @@
+import { DuplicateDataSubjectRequestError } from '../../src/domain/errors/auth.errors';
 import { DataSubjectController } from '../../src/modules/auth/data-subject.controller';
 import { DataSubjectRequestPrismaRepository } from '../../src/infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../src/infrastructure/http/customer-data.http.adapter';
@@ -133,6 +134,7 @@ describe('DataSubjectRequestPrismaRepository', () => {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   };
   const customer = { update: jest.fn() };
   const refreshToken = { deleteMany: jest.fn() };
@@ -171,11 +173,11 @@ describe('DataSubjectRequestPrismaRepository', () => {
     expect(await repo.findById('req-1')).toMatchObject({ id: 'req-1' });
   });
 
-  it('findOpen looks only for a PENDING row of that type', async () => {
+  it('findOpen looks for a PENDING or IN_PROGRESS row of that type', async () => {
     dataSubjectRequest.findFirst.mockResolvedValue(null);
     expect(await repo.findOpen('cust-1', 'EXPORT')).toBeNull();
     expect(dataSubjectRequest.findFirst).toHaveBeenCalledWith({
-      where: { customerId: 'cust-1', type: 'EXPORT', status: 'PENDING' },
+      where: { customerId: 'cust-1', type: 'EXPORT', status: { in: ['PENDING', 'IN_PROGRESS'] } },
     });
     dataSubjectRequest.findFirst.mockResolvedValue(row);
     expect(await repo.findOpen('cust-1', 'DELETE')).toMatchObject({ status: 'PENDING' });
@@ -212,6 +214,58 @@ describe('DataSubjectRequestPrismaRepository', () => {
     );
     // A null reason must not overwrite the customer's own note.
     expect(dataSubjectRequest.update.mock.calls[0]?.[0].data.reason).toBeUndefined();
+  });
+
+  it('decide() after a claim guards on IN_PROGRESS instead', async () => {
+    dataSubjectRequest.update.mockResolvedValue({ ...row, status: 'COMPLETED' });
+    await repo.decide({
+      id: 'req-1',
+      status: 'COMPLETED',
+      processedBy: 'staff-1',
+      reason: null,
+      from: 'IN_PROGRESS',
+    });
+    expect(dataSubjectRequest.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: 'req-1', status: 'IN_PROGRESS' } }),
+    );
+  });
+
+  it('claim() takes a PENDING request, or an IN_PROGRESS one whose claim is stale', async () => {
+    dataSubjectRequest.updateMany.mockResolvedValue({ count: 1 });
+    const now = new Date('2026-10-30T10:00:00Z');
+    expect(await repo.claim('req-1', 'staff-1', now, 600_000)).toBe(true);
+    expect(dataSubjectRequest.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'req-1',
+        OR: [
+          { status: 'PENDING' },
+          { status: 'IN_PROGRESS', processedAt: { lt: new Date('2026-10-30T09:50:00Z') } },
+        ],
+      },
+      data: { status: 'IN_PROGRESS', processedBy: 'staff-1', processedAt: now },
+    });
+    dataSubjectRequest.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.claim('req-1', 'staff-2', now, 600_000)).toBe(false);
+  });
+
+  it('release() hands the request back only to the staff member who claimed it', async () => {
+    dataSubjectRequest.updateMany.mockResolvedValue({ count: 1 });
+    await repo.release('req-1', 'staff-1');
+    expect(dataSubjectRequest.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'req-1', status: 'IN_PROGRESS', processedBy: 'staff-1' },
+      data: { status: 'PENDING', processedBy: null, processedAt: null },
+    });
+  });
+
+  it('create() maps the one-open-request index to DuplicateDataSubjectRequestError', async () => {
+    dataSubjectRequest.create.mockRejectedValueOnce(Object.assign(new Error('u'), { code: 'P2002' }));
+    await expect(
+      repo.create({ customerId: 'cust-1', type: 'DELETE', reason: null }),
+    ).rejects.toBeInstanceOf(DuplicateDataSubjectRequestError);
+    dataSubjectRequest.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      repo.create({ customerId: 'cust-1', type: 'DELETE', reason: null }),
+    ).rejects.toThrow('db down');
   });
 
   it('decide() stores a rejection reason when one is given', async () => {

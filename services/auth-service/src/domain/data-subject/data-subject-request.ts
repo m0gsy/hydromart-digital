@@ -14,7 +14,14 @@
 export const DATA_SUBJECT_REQUEST_TYPES = ['EXPORT', 'DELETE'] as const;
 export type DataSubjectRequestType = (typeof DATA_SUBJECT_REQUEST_TYPES)[number];
 
-export const DATA_SUBJECT_REQUEST_STATUSES = ['PENDING', 'COMPLETED', 'REJECTED'] as const;
+// IN_PROGRESS: an approval has claimed the request and is running its side effects. It is not a
+// decision - a crash mid-erasure leaves it here, and it can be resumed once the claim is stale.
+export const DATA_SUBJECT_REQUEST_STATUSES = [
+  'PENDING',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'REJECTED',
+] as const;
 export type DataSubjectRequestStatus = (typeof DATA_SUBJECT_REQUEST_STATUSES)[number];
 
 export interface DataSubjectRequestRecord {
@@ -62,3 +69,11 @@ export function anonymisedIdentity(customerId: string): AnonymisedIdentity {
 export function isDecidable(record: DataSubjectRequestRecord): boolean {
   return record.status === 'PENDING';
 }
+
+/** An approval may start on PENDING, or resume one that was claimed and never finished. */
+export function isApprovable(record: DataSubjectRequestRecord): boolean {
+  return record.status === 'PENDING' || record.status === 'IN_PROGRESS';
+}
+
+/** How long a claim is respected before another approval may take the work over. */
+export const CLAIM_STALE_MS = 10 * 60_000;

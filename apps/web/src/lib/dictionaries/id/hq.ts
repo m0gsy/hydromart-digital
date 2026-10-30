@@ -1688,7 +1688,12 @@ export const hq = {
     filterAll: 'Semua',
     filterPending: 'Menunggu',
     type: { EXPORT: 'Minta salinan data', DELETE: 'Hapus akun' },
-    status: { PENDING: 'Menunggu', COMPLETED: 'Selesai', REJECTED: 'Ditolak' },
+    status: {
+      PENDING: 'Menunggu',
+      IN_PROGRESS: 'Diproses',
+      COMPLETED: 'Selesai',
+      REJECTED: 'Ditolak',
+    },
     customer: 'Pelanggan',
     requestedAt: 'Diminta',
     dueBy: 'Batas jawab {date}',

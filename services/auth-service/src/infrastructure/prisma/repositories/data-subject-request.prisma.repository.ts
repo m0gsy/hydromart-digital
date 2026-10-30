@@ -11,6 +11,7 @@ import {
   DataSubjectRequestRepository,
   DecideDataSubjectRequestData,
 } from '../../../application/ports/data-subject-request.repository';
+import { DuplicateDataSubjectRequestError } from '../../../domain/errors/auth.errors';
 import { PrismaService } from '../prisma.service';
 
 type Row = {
@@ -29,7 +30,15 @@ export class DataSubjectRequestPrismaRepository implements DataSubjectRequestRep
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: CreateDataSubjectRequestData): Promise<DataSubjectRequestRecord> {
-    return this.toRecord(await this.prisma.dataSubjectRequest.create({ data }));
+    try {
+      return this.toRecord(await this.prisma.dataSubjectRequest.create({ data }));
+    } catch (error) {
+      // The one-open-request index picked the other tap.
+      if ((error as { code?: string } | null)?.code === 'P2002') {
+        throw new DuplicateDataSubjectRequestError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<DataSubjectRequestRecord | null> {
@@ -50,7 +59,7 @@ export class DataSubjectRequestPrismaRepository implements DataSubjectRequestRep
     type: DataSubjectRequestType,
   ): Promise<DataSubjectRequestRecord | null> {
     const row = await this.prisma.dataSubjectRequest.findFirst({
-      where: { customerId, type, status: 'PENDING' },
+      where: { customerId, type, status: { in: ['PENDING', 'IN_PROGRESS'] } },
     });
     return row ? this.toRecord(row) : null;
   }
@@ -65,11 +74,32 @@ export class DataSubjectRequestPrismaRepository implements DataSubjectRequestRep
     return rows.map((r) => this.toRecord(r));
   }
 
+  async claim(id: string, staffId: string, now: Date, staleAfterMs: number): Promise<boolean> {
+    const { count } = await this.prisma.dataSubjectRequest.updateMany({
+      where: {
+        id,
+        OR: [
+          { status: 'PENDING' },
+          { status: 'IN_PROGRESS', processedAt: { lt: new Date(now.getTime() - staleAfterMs) } },
+        ],
+      },
+      data: { status: 'IN_PROGRESS', processedBy: staffId, processedAt: now },
+    });
+    return count === 1;
+  }
+
+  async release(id: string, staffId: string): Promise<void> {
+    await this.prisma.dataSubjectRequest.updateMany({
+      where: { id, status: 'IN_PROGRESS', processedBy: staffId },
+      data: { status: 'PENDING', processedBy: null, processedAt: null },
+    });
+  }
+
   async decide(data: DecideDataSubjectRequestData): Promise<DataSubjectRequestRecord> {
     const row = await this.prisma.dataSubjectRequest.update({
       // The status guard is the real defence: two concurrent approvals cannot both win,
       // so the deletion never runs twice.
-      where: { id: data.id, status: 'PENDING' },
+      where: { id: data.id, status: data.from ?? 'PENDING' },
       data: {
         status: data.status,
         processedBy: data.processedBy,

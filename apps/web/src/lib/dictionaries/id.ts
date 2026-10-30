@@ -108,7 +108,12 @@ export const id = {
       download: 'Unduh salinan data',
       downloadError: 'Gagal mengunduh salinan data.',
       type: { EXPORT: 'Salinan data', DELETE: 'Hapus akun' },
-      status: { PENDING: 'Menunggu ditinjau', COMPLETED: 'Selesai', REJECTED: 'Ditolak' },
+      status: {
+        PENDING: 'Menunggu ditinjau',
+        IN_PROGRESS: 'Sedang diproses',
+        COMPLETED: 'Selesai',
+        REJECTED: 'Ditolak',
+      },
     },
     title: 'Akun & pengaturan',
     profile: 'Profil',
