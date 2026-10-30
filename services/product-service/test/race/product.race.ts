@@ -18,10 +18,15 @@ describeRace('product writes on real Postgres', () => {
   });
   afterAll(async () => drop?.());
 
-  const product = () =>
-    prisma.product.create({
+  // updatedAt is the CAS token at millisecond resolution: a gap after creation keeps the first
+  // edit from landing in the same millisecond as the row it edits.
+  const product = async () => {
+    const p = await prisma.product.create({
       data: { name: 'Galon', sku: `SKU-${randomUUID()}`, unit: 'galon', basePrice: 20_000 },
     });
+    await new Promise((r) => setTimeout(r, 5));
+    return p;
+  };
 
   it('two editors holding the same stamp: one lands, the other gets a stale-write', async () => {
     for (let i = 0; i < 20; i++) {
