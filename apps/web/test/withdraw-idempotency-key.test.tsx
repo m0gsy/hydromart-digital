@@ -34,7 +34,8 @@ vi.mock('@/components/payout-account', () => ({
   useVerifiedPayoutAccount: () => ({ verified: true, loading: false, reload: vi.fn() }),
 }));
 
-const keyOf = (call: number) => (post.mock.calls[call][3] as Record<string, string>)['Idempotency-Key'];
+const keyOf = (call: number) =>
+  (post.mock.calls[call]?.[3] as Record<string, string> | undefined)?.['Idempotency-Key'];
 
 describe('franchise payout withdrawal key', () => {
   beforeEach(() => {
@@ -107,8 +108,9 @@ describe('courier earnings withdrawal key', () => {
 
     fireEvent.click(screen.getByText('Tarik'));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(keyOf(0)).toMatch(/^[0-9a-f-]{36}$/);
     expect(keyOf(1)).toBe(keyOf(0));
-    expect(post.mock.calls[1][1]).toEqual({ amount: 100000 });
+    expect(post.mock.calls[1]?.[1]).toEqual({ amount: 100000 });
 
     // The second attempt landed: a fresh cash-out must not replay the first one.
     await openAndWithdraw('200000');
