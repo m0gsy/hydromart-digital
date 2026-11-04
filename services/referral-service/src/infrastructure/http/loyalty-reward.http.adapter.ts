@@ -42,4 +42,16 @@ export class LoyaltyRewardHttpAdapter implements LoyaltyRewardPort {
       throw error;
     }
   }
+
+  async reverse(customerId: string, idempotencyKey: string): Promise<void> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) throw new Error('No internal service key for referral reversal');
+    const res = await fetch(`${this.config.loyaltyServiceUrl}/api/v1/loyalty/internal/reverse-reward`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+      body: JSON.stringify({ customerId, idempotencyKey }),
+      signal: AbortSignal.timeout(LoyaltyRewardHttpAdapter.TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`loyalty-service reversal responded ${res.status}`);
+  }
 }

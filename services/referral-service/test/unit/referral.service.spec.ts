@@ -20,17 +20,19 @@ import {
 describe('ReferralService', () => {
   let repo: InMemoryReferralRepository;
   let loyalty: FakeLoyaltyReward;
+  let history: FakeOrderHistory;
   let service: ReferralService;
 
   beforeEach(() => {
     repo = new InMemoryReferralRepository();
     loyalty = new FakeLoyaltyReward();
+    history = new FakeOrderHistory();
     service = new ReferralService(
       repo,
       loyalty,
       new FakeCustomerDirectory(),
       buildTestConfig(),
-      new FakeOrderHistory(),
+      history,
     );
   });
 
@@ -142,7 +144,8 @@ describe('ReferralService', () => {
     it('qualifies a PENDING referral, awards both rewards, and sets QUALIFIED', async () => {
       const { referrer, referee } = await seedPending();
 
-      const result = await service.qualify(referee, randomUUID(), 'Bearer tkn');
+      const orderId = randomUUID();
+      const result = await service.qualify(referee, orderId, 'Bearer tkn');
       expect(result.qualified).toBe(true);
       expect(result.referral).toMatchObject({
         status: ReferralStatus.QUALIFIED,
@@ -156,14 +159,14 @@ describe('ReferralService', () => {
           points: 500,
           reason: 'Referral reward: referred a new customer',
           authorization: 'Bearer tkn',
-          idempotencyKey: `referral:${result.referral?.id}:referrer`,
+          idempotencyKey: `referral:${result.referral?.id}:${orderId}:referrer`,
         },
         {
           customerId: referee,
           points: 250,
           reason: 'Referral welcome bonus',
           authorization: 'Bearer tkn',
-          idempotencyKey: `referral:${result.referral?.id}:referee`,
+          idempotencyKey: `referral:${result.referral?.id}:${orderId}:referee`,
         },
       ]);
     });
@@ -227,6 +230,50 @@ describe('ReferralService', () => {
       const referrerCalls = loyalty.calls.filter((call) => call.customerId === referrer);
       expect(referrerCalls).toHaveLength(2);
       expect(referrerCalls[0].idempotencyKey).toBe(referrerCalls[1].idempotencyKey);
+    });
+
+    it('reverses a voided qualification and allows the next order once', async () => {
+      const { referee } = await seedPending();
+      const voidedOrder = randomUUID();
+      const nextOrder = randomUUID();
+      const first = await service.qualify(referee, voidedOrder, '');
+      await service.reverseForVoidedOrder(referee, voidedOrder);
+      expect(loyalty.reversals).toHaveLength(4); // new keys plus legacy-key protection
+      expect((await repo.findReferralByReferee(referee))?.status).toBe(ReferralStatus.PENDING);
+      expect((await repo.findReferralByReferee(referee))?.qualifyingOrderId).toBeNull();
+      const next = await service.qualify(referee, nextOrder, '');
+      expect(next.qualified).toBe(true);
+      expect(loyalty.calls.at(-1)?.idempotencyKey).toContain(nextOrder);
+      expect(loyalty.calls.at(-1)?.idempotencyKey).not.toContain(voidedOrder);
+      await service.reverseForVoidedOrder(referee, voidedOrder);
+      expect((await repo.findReferralByReferee(referee))?.status).toBe(ReferralStatus.QUALIFIED);
+      expect(first.referral?.id).toBe(next.referral?.id);
+    });
+
+    it('rechecks a qualification that lands while the void marker is written', async () => {
+      const { referee } = await seedPending();
+      const orderId = randomUUID();
+      const mark = repo.markVoidedOrder.bind(repo);
+      jest.spyOn(repo, 'markVoidedOrder').mockImplementation(async (referralId, voidedOrderId) => {
+        const row = repo.referrals.find((r) => r.id === referralId)!;
+        row.qualifyingOrderId = orderId;
+        await mark(referralId, voidedOrderId);
+      });
+      await service.reverseForVoidedOrder(referee, orderId);
+      expect(loyalty.reversals).toHaveLength(4);
+      expect((await repo.findReferralByReferee(referee))?.qualifyingOrderId).toBeNull();
+    });
+
+    it('keeps the next order retryable while its predecessor is voided but not yet reversed', async () => {
+      const { referee } = await seedPending();
+      const oldOrder = randomUUID();
+      const nextOrder = randomUUID();
+      await service.qualify(referee, oldOrder, '');
+      history.statuses.set(oldOrder, 'VOIDED');
+      await expect(service.qualify(referee, nextOrder, '')).rejects.toThrow('reversal pending');
+      await service.reverseForVoidedOrder(referee, oldOrder);
+      await expect(service.qualify(referee, oldOrder, '')).resolves.toMatchObject({ qualified: false });
+      await expect(service.qualify(referee, nextOrder, '')).resolves.toMatchObject({ qualified: true });
     });
   });
 

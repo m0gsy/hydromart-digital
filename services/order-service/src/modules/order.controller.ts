@@ -774,6 +774,15 @@ export class OrderController {
     return this.orders.requestReviews(new Date(), limit ? Number(limit) : undefined);
   }
 
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/status/:id')
+  async internalStatus(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: OrderStatus }> {
+    const order = await this.orders.getAny(id);
+    return { status: order.status };
+  }
+
   @ApiOkResponse({ type: OrderResponseDto })
   @SelfScoped()
   @Get(':id')

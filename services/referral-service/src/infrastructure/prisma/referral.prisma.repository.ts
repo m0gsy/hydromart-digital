@@ -159,6 +159,10 @@ export class ReferralPrismaRepository implements ReferralRepository {
     refereePoints: number,
   ): Promise<ReferralRecord | null> {
     return this.prisma.$transaction(async (tx) => {
+      const voided = await tx.voidedReferralOrder.findUnique({
+        where: { referralId_orderId: { referralId, orderId: qualifyingOrderId } },
+      });
+      if (voided) return null;
       await tx.referral.updateMany({
         where: { id: referralId, status: PrismaReferralStatus.PENDING, qualifyingOrderId: null },
         data: { qualifyingOrderId, referrerPoints, refereePoints },
@@ -168,15 +172,40 @@ export class ReferralPrismaRepository implements ReferralRepository {
     });
   }
 
-  async qualifyReferral(referralId: string): Promise<ReferralRecord | null> {
+  async qualifyReferral(referralId: string, orderId: string): Promise<ReferralRecord | null> {
     return this.prisma.$transaction(async (tx) => {
+      const voided = await tx.voidedReferralOrder.findUnique({
+        where: { referralId_orderId: { referralId, orderId } },
+      });
+      if (voided) return null;
       const { count } = await tx.referral.updateMany({
-        where: { id: referralId, status: PrismaReferralStatus.PENDING, qualifyingOrderId: { not: null } },
+        where: { id: referralId, status: PrismaReferralStatus.PENDING, qualifyingOrderId: orderId },
         data: { status: PrismaReferralStatus.QUALIFIED, qualifiedAt: new Date() },
       });
       if (count === 0) return null;
       const row = await tx.referral.findUnique({ where: { id: referralId } });
       return row ? this.toReferral(row) : null;
     });
+  }
+
+  async markVoidedOrder(referralId: string, orderId: string): Promise<void> {
+    await this.prisma.voidedReferralOrder.upsert({
+      where: { referralId_orderId: { referralId, orderId } },
+      create: { referralId, orderId }, update: {},
+    });
+  }
+
+  async reopenAfterVoid(referralId: string, orderId: string): Promise<boolean> {
+    const { count } = await this.prisma.referral.updateMany({
+      where: { id: referralId, qualifyingOrderId: orderId },
+      data: {
+        status: PrismaReferralStatus.PENDING,
+        qualifyingOrderId: null,
+        referrerPoints: 0,
+        refereePoints: 0,
+        qualifiedAt: null,
+      },
+    });
+    return count === 1;
   }
 }

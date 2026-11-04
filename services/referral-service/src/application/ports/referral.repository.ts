@@ -74,5 +74,8 @@ export interface ReferralRepository {
     refereePoints: number,
   ): Promise<ReferralRecord | null>;
   /** Mark a prepared referral QUALIFIED after both idempotent rewards land. */
-  qualifyReferral(referralId: string): Promise<ReferralRecord | null>;
+  qualifyReferral(referralId: string, orderId: string): Promise<ReferralRecord | null>;
+  markVoidedOrder(referralId: string, orderId: string): Promise<void>;
+  /** Clear only the qualification belonging to the voided order, after rewards are reversed. */
+  reopenAfterVoid(referralId: string, orderId: string): Promise<boolean>;
 }

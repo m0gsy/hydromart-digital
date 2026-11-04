@@ -343,6 +343,14 @@ export class OrderService {
     this.outboxService.register('GALLON_ISSUE', (id) => this.bookGallonIssue(id));
     this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
     this.outboxService.register('FRANCHISE_REVENUE_VOID', (id) => this.voidFranchiseRevenue(id));
+    this.outboxService.register('REFERRAL_REVERSE', (id) => this.reverseReferralForVoid(id));
+  }
+
+  private async reverseReferralForVoid(orderId: string): Promise<void> {
+    const order = await this.orders.findById(orderId);
+    if (order && order.customerId !== ANONYMOUS_CUSTOMER_ID) {
+      await this.referral.reverse(order.customerId, orderId);
+    }
   }
 
   /** Backs a voided counter sale out of the owner's ledger; throws so the outbox retries. */
@@ -1397,6 +1405,7 @@ export class OrderService {
 
     const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now, [
       { topic: 'FRANCHISE_REVENUE_VOID', orderId },
+      { topic: 'REFERRAL_REVERSE', orderId },
     ]);
 
     /*
@@ -1465,6 +1474,7 @@ export class OrderService {
           `Penjualan konter ${order.orderNumber} dibatalkan`,
         )
         .catch(() => {});
+      await this.referral.reverse(order.customerId, orderId).catch(() => {});
     }
     return voided;
   }

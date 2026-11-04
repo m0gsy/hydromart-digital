@@ -1499,6 +1499,16 @@ describe('counter-sale reads that name the buyer', () => {
 });
 
 describe('ReferralCoordinationHttpAdapter', () => {
+  it('reverses a voided referral over internal auth and fails closed', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: true })).mockResolvedValueOnce(res({ ok: false, status: 503 }));
+    const adapter = new ReferralCoordinationHttpAdapter(makeConfig());
+    await adapter.reverse('c1', 'o1');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://referral:3011/api/v1/referrals/internal/void-qualification',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    await expect(adapter.reverse('c1', 'o1')).rejects.toThrow('503');
+  });
   it('rejects without key + qualifies on happy path', async () => {
     await expect(new ReferralCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).qualify(
       'c1',

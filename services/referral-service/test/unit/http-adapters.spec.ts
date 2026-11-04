@@ -39,6 +39,16 @@ beforeEach(() => {
 });
 
 describe('LoyaltyRewardHttpAdapter', () => {
+  it('reverses by key and propagates a downstream failure', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: true })).mockResolvedValueOnce(res({ ok: false, status: 503 }));
+    const adapter = new LoyaltyRewardHttpAdapter(makeConfig());
+    await adapter.reverse('c1', 'referral:id:order:referrer');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://loyalty:3009/api/v1/loyalty/internal/reverse-reward',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'x-internal-key': KEY }) }),
+    );
+    await expect(adapter.reverse('c1', 'referral:id:order:referrer')).rejects.toThrow('503');
+  });
   it('rejects when no internal key so the outbox retries', async () => {
     await expect(new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'referral', '', 'ref-1')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -116,6 +126,13 @@ describe('CustomerDirectoryHttpAdapter', () => {
  * CLOSED, and a `false` from a broken call would hand out 750 unreclaimable points.
  */
 describe('OrderHistoryHttpAdapter', () => {
+  it('reads only valid completed/voided statuses for retry decisions', async () => {
+    const adapter = new OrderHistoryHttpAdapter(makeConfig());
+    fetchMock.mockResolvedValueOnce(res({ body: { status: 'VOIDED' } }))
+      .mockResolvedValueOnce(res({ body: { status: 'bogus' } }));
+    expect(await adapter.statusOfOrder('o1')).toBe('VOIDED');
+    expect(await adapter.statusOfOrder('o1')).toBeNull();
+  });
   const ask = (over = {}) => new OrderHistoryHttpAdapter(makeConfig(over)).hasCompletedOrder('c1');
 
   it('returns null when no key', async () => {

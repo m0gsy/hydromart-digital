@@ -40,4 +40,16 @@ export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort
       clearTimeout(timer);
     }
   }
+
+  async reverse(customerId: string, orderId: string): Promise<void> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) throw new Error(`No internal service key for referral reverse of order ${orderId}`);
+    const res = await fetch(`${this.config.referralServiceUrl}/api/v1/referrals/internal/void-qualification`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+      body: JSON.stringify({ customerId, orderId }),
+      signal: AbortSignal.timeout(ReferralCoordinationHttpAdapter.TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`referral-service reverse responded ${res.status}`);
+  }
 }

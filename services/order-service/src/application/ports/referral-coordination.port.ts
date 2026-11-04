@@ -5,4 +5,5 @@
  */
 export interface ReferralCoordinationPort {
   qualify(customerId: string, orderId: string, authorization: string): Promise<void>;
+  reverse(customerId: string, orderId: string): Promise<void>;
 }

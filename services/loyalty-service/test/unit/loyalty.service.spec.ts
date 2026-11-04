@@ -161,6 +161,28 @@ describe('LoyaltyService', () => {
     expect((await service.getAccount('cust-1')).pointsBalance).toBe(220);
   });
 
+  it('reverses a referral reward once, records spent shortfall, and blocks late grants', async () => {
+    const referralId = randomUUID();
+    const orderId = randomUUID();
+    const key = `referral:${referralId}:${orderId}:referrer`;
+    const lateKey = `referral:${referralId}:${orderId}:referee`;
+    await service.reward('cust-1', 500, 'referral', key);
+    await service.adjust('cust-1', -400, 'spent', { id: 'staff', capped: false });
+    const result = await service.reverseReferralReward('cust-1', key);
+    expect(result.account.pointsBalance).toBe(0);
+    expect(result.account.lifetimePoints).toBe(0);
+    expect(result.uncollected).toBe(400);
+    expect(repo.txns.at(-1)?.uncollectedPoints).toBe(400);
+    expect((await service.reverseReferralReward('cust-1', key)).uncollected).toBe(400);
+    expect(repo.txns.filter((t) => t.uncollectedPoints === 400)).toHaveLength(1);
+    await service.anonymise('cust-1');
+    expect(repo.txns.find((t) => t.uncollectedPoints === 400)?.reason).toBeNull();
+    expect(repo.txns.find((t) => t.uncollectedPoints === 400)?.uncollectedPoints).toBe(400);
+    await service.reverseReferralReward('cust-2', lateKey);
+    await service.reward('cust-2', 250, 'late referral', lateKey);
+    expect((await service.getAccount('cust-2')).pointsBalance).toBe(0);
+  });
+
   it('rethrows any other failure while granting a keyed reward', async () => {
     jest.spyOn(repo, 'recordAdjustment').mockRejectedValueOnce(new Error('db down'));
     await expect(service.reward('cust-1', 100, 'x', 'k')).rejects.toThrow('db down');

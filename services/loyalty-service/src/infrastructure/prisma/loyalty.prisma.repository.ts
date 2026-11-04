@@ -40,6 +40,7 @@ interface TxnRow {
   points: number;
   orderId: string | null;
   reason: string | null;
+  uncollectedPoints: number;
   expiresAt: Date | null;
   expired: boolean;
   createdAt: Date;
@@ -309,6 +310,58 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
       where: { id: m.accountId },
     });
     return this.toAccount(account);
+  }
+
+  async reverseReward(customerId: string, idempotencyKey: string): Promise<{ account: LoyaltyAccountRecord; uncollected: number }> {
+    const account = await this.createAccount(customerId);
+    const reversalKey = `void:${idempotencyKey}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          // Serialize against redemption and grant updates to keep the deducted amount exact.
+          const [locked] = await tx.$queryRaw<Array<{ pointsBalance: number; lifetimePoints: number }>>`
+            SELECT "pointsBalance", "lifetimePoints" FROM "loyalty_accounts"
+            WHERE "id" = ${account.id} FOR UPDATE
+          `;
+          const existing = await tx.pointsTransaction.findUnique({
+            where: { customerId_idempotencyKey: { customerId, idempotencyKey: reversalKey } },
+          });
+          if (existing) {
+            const current = await tx.loyaltyAccount.findUniqueOrThrow({ where: { id: account.id } });
+            return { account: this.toAccount(current), uncollected: existing.uncollectedPoints };
+          }
+          const grant = await tx.pointsTransaction.findUnique({
+            where: { customerId_idempotencyKey: { customerId, idempotencyKey } },
+          });
+          if (!grant || grant.type !== PrismaTxnType.REWARD) {
+            // A zero-point tombstone blocks a grant that arrives after the void.
+            if (!grant) await tx.pointsTransaction.create({
+              data: { accountId: account.id, customerId, type: PrismaTxnType.ADJUST, points: 0,
+                idempotencyKey, reason: 'Voided referral before reward landed' },
+            });
+            const current = await tx.loyaltyAccount.findUniqueOrThrow({ where: { id: account.id } });
+            return { account: this.toAccount(current), uncollected: 0 };
+          }
+          const deducted = Math.min(Math.max(0, locked.pointsBalance), grant.points);
+          const uncollected = grant.points - deducted;
+          await tx.pointsTransaction.create({
+            data: { accountId: account.id, customerId, type: PrismaTxnType.ADJUST,
+              points: -deducted, idempotencyKey: reversalKey, uncollectedPoints: uncollected,
+              reason: `Referral void; source=${idempotencyKey}` },
+          });
+          await tx.$executeRaw`
+            UPDATE "loyalty_accounts" SET "pointsBalance" = "pointsBalance" - ${deducted},
+              "lifetimePoints" = GREATEST(0, "lifetimePoints" - ${grant.points}), "updatedAt" = NOW()
+            WHERE "id" = ${account.id}
+          `;
+          const current = await tx.loyaltyAccount.findUniqueOrThrow({ where: { id: account.id } });
+          return { account: this.toAccount(current), uncollected };
+        });
+      } catch (error) {
+        if (attempt === 2 || !['P2002', 'P2034'].includes((error as { code?: string }).code ?? '')) throw error;
+      }
+    }
+    throw new Error('Referral reversal retry exhausted');
   }
 
   async scrubReasons(customerId: string): Promise<number> {

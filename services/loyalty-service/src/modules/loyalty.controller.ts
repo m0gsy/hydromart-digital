@@ -38,6 +38,7 @@ import {
   PdpErasedResponseDto,
   PointsTransactionDto,
   ReverseEarnDto,
+  ReverseReferralRewardDto,
   RewardPointsDto,
   TierScopeQueryDto,
 } from './dto/loyalty.dto';
@@ -208,6 +209,16 @@ export class LoyaltyController {
     return LoyaltyAccountDto.from(
       await this.loyalty.reverseEarnForOrder(dto.customerId, dto.orderId, dto.reason),
     );
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/reverse-reward')
+  @HttpCode(HttpStatus.OK)
+  async reverseReward(@Body() dto: ReverseReferralRewardDto): Promise<{ account: LoyaltyAccountDto; uncollected: number }> {
+    const result = await this.loyalty.reverseReferralReward(dto.customerId, dto.idempotencyKey);
+    return { account: LoyaltyAccountDto.from(result.account), uncollected: result.uncollected };
   }
 
   /**

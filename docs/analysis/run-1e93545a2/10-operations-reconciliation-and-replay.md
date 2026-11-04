@@ -1,20 +1,33 @@
 # Rekonsiliasi referral dan replay outbox order
 
-Status stack lokal utama, 2026-11-04: image `hydromart-order:local` dan `hydromart-referral:local` dibangun dari commit `0df2cdeb7` lalu kedua container dibuat ulang tanpa menyentuh dependensi. ID image container cocok dengan tag hasil build; order, referral, loyalty, dan scheduler berstatus `healthy`. Pemeriksaan baca saja pada PostgreSQL utama menunjukkan `referrals` **0 baris** (termasuk `QUALIFIED` 0) dan `outbox_messages` **DONE 10, DEAD 0, PENDING 0**. Karena tidak ada kandidat, tidak ada kredit atau replay data yang dijalankan.
+Status stack lokal utama, 2026-11-04: image order, referral, dan loyalty dibangun dari perubahan void referral dan ketiga container dibuat ulang satu per satu tanpa menyentuh dependensi. ID image container cocok dengan tag hasil build; order, referral, loyalty, dan scheduler berstatus `healthy`. Migrasi `20261104180000_voided_referral_orders`, `20261104180000_referral_void_shortfall`, serta migrasi loyalty lama yang masih tertunda `20261030130000_points_txn_idempotency_key` berhasil diterapkan. Pemeriksaan baca saja pada PostgreSQL utama menunjukkan `referrals` **0 baris**, `voided_referral_orders` **0 baris**, selisih poin **0 baris**, dan `outbox_messages` **DONE 10, DEAD 0, PENDING 0**. Karena tidak ada kandidat, tidak ada kredit atau replay data yang dijalankan. Skenario pembalikan, saldo kurang, grant terlambat, dan kualifikasi ulang lulus pada project Docker tes terpisah.
+
+## Kebijakan void referral yang dipilih
+
+Jika order yang pertama mengualifikasi referral di-void, kedua hadiah dibalik satu kali dan referral kembali `PENDING`. Order sah berikutnya dapat mengualifikasi ulang dengan kunci hadiah yang memuat ID order. Saldo tidak turun di bawah nol; poin hadiah yang sudah terpakai dicatat pada kolom ledger `points_transactions."uncollectedPoints"`, tanpa tagihan otomatis. Penanda `voided_referral_orders` menolak kualifikasi terlambat dari order lama. Void menulis `REFERRAL_REVERSE` ke outbox yang tahan gagal; jika referral-service sedang mati, sweep mencoba lagi dan mengirim alert saat batas retry habis. Peninjauan selisih audit:
+
+```sql
+SELECT "customerId", "idempotencyKey", "uncollectedPoints", "createdAt"
+FROM points_transactions
+WHERE "uncollectedPoints" > 0
+ORDER BY "createdAt" DESC;
+```
+
+Query itu dijalankan pada `hydromart_loyalty` oleh operator berwenang; customer ID tidak dicetak di laporan publik. Anonimisasi alasan transaksi tidak menghapus angka selisih.
 
 ## Aturan rekonsiliasi hadiah referral
 
 1. Ambil referral `QUALIFIED` dari `hydromart_referral`: `id`, kedua customer ID, `qualifyingOrderId`, `referrerPoints`, `refereePoints`, `qualifiedAt`. Periksa order yang dirujuk di `hydromart_order`; hanya order `COMPLETED` yang layak menerima hadiah. Order `VOIDED`/`CANCELLED`, order yang hilang, atau jumlah poin nol masuk antrean tinjau, tanpa kredit otomatis.
-2. Untuk setiap sisi dengan poin positif, cari transaksi `REWARD` pada `hydromart_loyalty` dengan pasangan `(customerId, idempotencyKey)` masing-masing `referral:<id>:referrer` dan `referral:<id>:referee`. Cocokkan jumlah poin. Periksa juga transaksi lama dengan `idempotencyKey` null dan alasan referral, karena hadiah sebelum perbaikan belum memakai kunci tersebut. Jika ada kemungkinan transaksi lama cocok, tahan kasus untuk pemeriksaan manual; jangan menerbitkan kredit kedua.
-3. Hanya sisi yang terbukti belum menerima kredit yang boleh diberi ulang melalui endpoint reward internal loyalty, memakai customer ID, jumlah poin yang tersimpan pada referral, alasan referral yang sama, dan kunci idempoten di atas. Catat ID referral, order, ID transaksi sebelum/sesudah, operator, dan waktu pada tiket insiden. Jangan mengubah status referral atau menulis langsung ke ledger/balance SQL.
-4. Setelah setiap kredit, baca kembali ledger dan saldo. Jika hasil tidak cocok, hentikan batch dan investigasi. Referral yang kemudian di-void memerlukan penilaian ledger dan aturan kompensasi terpisah; replay hadiah tidak dipakai sebagai kompensasi.
+2. Untuk setiap sisi dengan poin positif, cari transaksi `REWARD` pada `hydromart_loyalty` dengan pasangan `(customerId, idempotencyKey)` masing-masing `referral:<id>:<qualifyingOrderId>:referrer` dan `referral:<id>:<qualifyingOrderId>:referee`; periksa juga kunci lama `referral:<id>:referrer` dan `referral:<id>:referee`. Cocokkan jumlah poin. Periksa transaksi lebih lama dengan `idempotencyKey` null dan alasan referral. Jika ada kemungkinan transaksi lama cocok, tahan kasus untuk pemeriksaan manual; jangan menerbitkan kredit kedua.
+3. Hanya sisi yang terbukti belum menerima kredit yang boleh diberi ulang melalui endpoint reward internal loyalty, memakai customer ID, jumlah poin yang tersimpan pada referral, alasan referral yang sama, dan kunci idempoten sesuai order yang mengualifikasi. Catat ID referral, order, ID transaksi sebelum/sesudah, operator, dan waktu pada tiket insiden. Jangan mengubah status referral atau menulis langsung ke ledger/balance SQL.
+4. Setelah setiap kredit, baca kembali ledger dan saldo. Jika hasil tidak cocok, hentikan batch dan investigasi. Pembalikan void berjalan melalui outbox `REFERRAL_REVERSE`; replay hadiah manual tidak dipakai sebagai kompensasi.
 
 Aturan ini sengaja tidak melakukan backfill massal: transaksi lama tanpa kunci tidak dapat dibedakan secara aman hanya dari status `QUALIFIED`.
 
 ## Aturan replay satu baris `DEAD`
 
 1. Baca baris `outbox_messages` berdasarkan ID beserta `topic`, `orderId`, `attempts`, `lastError`, dan status order. Perbaiki penyebab kegagalan penerima lebih dulu, lalu simpan bukti sebelum perubahan. Jalankan satu ID per tindakan; jangan mengubah seluruh baris `DEAD` sekaligus.
-2. Topik `INVENTORY_CONSUME`, `LOYALTY_AWARD`, `REFERRAL_QUALIFY`, `FRANCHISE_REVENUE`, dan `GALLON_ISSUE` hanya boleh diulang jika order masih `COMPLETED`. `PAYMENT_REVERSAL` hanya untuk `CANCELLED`; `FRANCHISE_REVENUE_VOID` hanya untuk `VOIDED`. Jika status berbeda, tahan untuk investigasi; jangan mengubahnya ke `PENDING`.
+2. Topik `INVENTORY_CONSUME`, `LOYALTY_AWARD`, `REFERRAL_QUALIFY`, `FRANCHISE_REVENUE`, dan `GALLON_ISSUE` hanya boleh diulang jika order masih `COMPLETED`. `PAYMENT_REVERSAL` hanya untuk `CANCELLED`; `FRANCHISE_REVENUE_VOID` dan `REFERRAL_REVERSE` hanya untuk `VOIDED`. Jika status berbeda, tahan untuk investigasi; jangan mengubahnya ke `PENDING`.
 3. Pastikan penerima untuk topik itu tetap idempoten terhadap order/kunci yang sama, dan periksa apakah efeknya sudah tercatat. Bila sudah, jangan kirim ulang secara manual; tutup kasus melalui prosedur koreksi yang terdokumentasi. Jika masih terutang, ubah tepat satu baris `DEAD` ke `PENDING` dengan transaksi bersyarat di bawah, lalu biarkan sweep terjadwal memanggil handler biasa.
 4. Setelah sweep, verifikasi baris menjadi `DONE` dan efek penerima benar-benar tercatat. Jika kembali `DEAD`, hentikan replay, simpan error baru, dan eskalasi. Untuk `PAYMENT_REVERSAL`, status `DONE` di order tidak menggantikan bukti refund/approval di payment-service.
 
@@ -33,7 +46,7 @@ WITH target AS (
     AND (
       (m.topic IN ('INVENTORY_CONSUME','LOYALTY_AWARD','REFERRAL_QUALIFY','FRANCHISE_REVENUE','GALLON_ISSUE') AND o.status = 'COMPLETED')
       OR (m.topic = 'PAYMENT_REVERSAL' AND o.status = 'CANCELLED')
-      OR (m.topic = 'FRANCHISE_REVENUE_VOID' AND o.status = 'VOIDED')
+      OR (m.topic IN ('FRANCHISE_REVENUE_VOID','REFERRAL_REVERSE') AND o.status = 'VOIDED')
     )
   FOR UPDATE OF m
 )

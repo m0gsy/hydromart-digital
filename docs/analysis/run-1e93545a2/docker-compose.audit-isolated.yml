@@ -6,6 +6,12 @@ services:
   gateway:
     ports: !override
       - '127.0.0.1:18080:8080'
+  referral:
+    ports: !override
+      - '127.0.0.1:13011:3011'
+  loyalty:
+    ports: !override
+      - '127.0.0.1:13009:3009'
   storage:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: server /data

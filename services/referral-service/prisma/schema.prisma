@@ -2,7 +2,7 @@
 // Each customer has at most one shareable ReferralCode (lazy-created). A new customer
 // redeems someone's code, creating a PENDING Referral; when that customer's first order
 // qualifies, the Referral flips to QUALIFIED and both parties are awarded loyalty points
-// (rewards fired at loyalty-service, fail-open). A customer can be referred at most once.
+// (rewards retried through the order outbox). A customer can be referred at most once.
 
 generator client {
   provider = "prisma-client-js"
@@ -51,6 +51,16 @@ model Referral {
 
   @@index([referrerCustomerId])
   @@map("referrals")
+}
+
+/// A voided first order must never qualify this referral again through a late retry.
+model VoidedReferralOrder {
+  referralId String
+  orderId    String
+  createdAt  DateTime @default(now())
+
+  @@id([referralId, orderId])
+  @@map("voided_referral_orders")
 }
 
 /// Per-depot editable business settings (GLOBAL default + optional DEPOT override).

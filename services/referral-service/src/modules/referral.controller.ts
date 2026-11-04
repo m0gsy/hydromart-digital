@@ -115,6 +115,16 @@ export class ReferralController {
     return this.referrals.qualify(dto.customerId, dto.orderId, '');
   }
 
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/void-qualification')
+  @HttpCode(HttpStatus.OK)
+  async voidQualification(@Body() dto: QualifyReferralDto): Promise<{ reversed: true }> {
+    await this.referrals.reverseForVoidedOrder(dto.customerId, dto.orderId);
+    return { reversed: true };
+  }
+
   @ApiOkResponse({ type: DepotReferralSummaryDto })
   @ApiBearerAuth()
   @Can('loyaltyRead')

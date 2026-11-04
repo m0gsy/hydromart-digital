@@ -4,4 +4,5 @@
  */
 export interface LoyaltyRewardPort {
   reward(customerId: string, points: number, reason: string, authorization: string, idempotencyKey: string): Promise<void>;
+  reverse(customerId: string, idempotencyKey: string): Promise<void>;
 }

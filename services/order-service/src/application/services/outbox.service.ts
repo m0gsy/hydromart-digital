@@ -193,6 +193,7 @@ export class OutboxService {
     if (
       message.topic !== 'PAYMENT_REVERSAL' &&
       message.topic !== 'FRANCHISE_REVENUE_VOID' &&
+      message.topic !== 'REFERRAL_REVERSE' &&
       (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED)
     ) {
       return;

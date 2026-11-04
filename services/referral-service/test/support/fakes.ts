@@ -21,6 +21,7 @@ let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
 
 export class InMemoryReferralRepository implements ReferralRepository {
+  voidedOrders = new Set<string>();
   codes: ReferralCodeRecord[] = [];
   referrals: ReferralRecord[] = [];
 
@@ -140,7 +141,7 @@ export class InMemoryReferralRepository implements ReferralRepository {
     refereePoints: number,
   ): Promise<ReferralRecord | null> {
     const r = this.referrals.find((x) => x.id === referralId);
-    if (!r || r.status !== ReferralStatus.PENDING) return null;
+    if (!r || r.status !== ReferralStatus.PENDING || this.voidedOrders.has(`${referralId}:${qualifyingOrderId}`)) return null;
     if (!r.qualifyingOrderId) {
       r.qualifyingOrderId = qualifyingOrderId;
       r.referrerPoints = referrerPoints;
@@ -149,13 +150,25 @@ export class InMemoryReferralRepository implements ReferralRepository {
     return { ...r };
   }
 
-  async qualifyReferral(referralId: string): Promise<ReferralRecord | null> {
+  async qualifyReferral(referralId: string, orderId: string): Promise<ReferralRecord | null> {
     const r = this.referrals.find((x) => x.id === referralId);
-    if (!r || r.status !== ReferralStatus.PENDING || !r.qualifyingOrderId) return null;
+    if (!r || r.status !== ReferralStatus.PENDING || r.qualifyingOrderId !== orderId || this.voidedOrders.has(`${referralId}:${orderId}`)) return null;
     r.status = ReferralStatus.QUALIFIED;
     r.qualifiedAt = nextDate();
     r.updatedAt = nextDate();
     return { ...r };
+  }
+
+  async markVoidedOrder(referralId: string, orderId: string): Promise<void> {
+    this.voidedOrders.add(`${referralId}:${orderId}`);
+  }
+
+  async reopenAfterVoid(referralId: string, orderId: string): Promise<boolean> {
+    const r = this.referrals.find((x) => x.id === referralId && x.qualifyingOrderId === orderId);
+    if (!r) return false;
+    Object.assign(r, { status: ReferralStatus.PENDING, qualifyingOrderId: null,
+      referrerPoints: 0, refereePoints: 0, qualifiedAt: null });
+    return true;
   }
 }
 
@@ -169,6 +182,7 @@ export interface RewardCall {
 
 export class FakeLoyaltyReward implements LoyaltyRewardPort {
   calls: RewardCall[] = [];
+  reversals: { customerId: string; idempotencyKey: string }[] = [];
   shouldThrow = false;
 
   async reward(
@@ -179,6 +193,11 @@ export class FakeLoyaltyReward implements LoyaltyRewardPort {
     idempotencyKey: string,
   ): Promise<void> {
     this.calls.push({ customerId, points, reason, authorization, idempotencyKey });
+    if (this.shouldThrow) throw new Error('loyalty down');
+  }
+
+  async reverse(customerId: string, idempotencyKey: string): Promise<void> {
+    this.reversals.push({ customerId, idempotencyKey });
     if (this.shouldThrow) throw new Error('loyalty down');
   }
 }
@@ -197,10 +216,14 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
  * could-not-ask case the guard refuses on.
  */
 export class FakeOrderHistory implements OrderHistoryPort {
+  statuses = new Map<string, string>();
   constructor(private readonly answer: boolean | null = false) {}
 
   async hasCompletedOrder(): Promise<boolean | null> {
     return this.answer;
+  }
+  async statusOfOrder(orderId: string): Promise<string | null> {
+    return this.statuses.get(orderId) ?? 'COMPLETED';
   }
 }
 
