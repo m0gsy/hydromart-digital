@@ -2,7 +2,7 @@
 
 Disusun 2026-11-04 10:13 WIB. **Cakupan file tracked: 100%** pada baseline `1e93545a23b3c66ab2a33da949a371406030ccd1`. Audit kode dan artefak lokal; tidak menyatakan kondisi produksi telah diuji.
 
-**Status terbaru (2026-11-04):** Gate `npm run test` yang gagal pada pemeriksaan awal sudah diperbaiki dan lulus 12.840/12.840 tes. Gate lint, typecheck, build, audit dependensi, dan integrasi Docker terisolasi juga lulus. ORD-01, REF-01, serta IDO-12 sudah diperbaiki; temuan lain dalam laporan ini tetap merupakan backlog audit. Rincian perubahan, bukti, dan batas verifikasi ada di [tindak lanjut audit](09-remediation-and-verification.md).
+**Status terbaru (2026-11-04):** Gate `npm run test` yang gagal pada pemeriksaan awal sudah diperbaiki dan lulus 12.840/12.840 tes. Gate lint, typecheck, build, audit dependensi, dan integrasi Docker terisolasi juga lulus. ORD-01, REF-01, serta IDO-12 sudah diperbaiki; image order/referral stack lokal utama sudah diperbarui. Temuan lain tetap merupakan backlog audit. Rincian ada di [tindak lanjut audit](09-remediation-and-verification.md) dan [rekonsiliasi serta replay](10-operations-reconciliation-and-replay.md).
 
 
 ## 1. Ringkasan eksekutif

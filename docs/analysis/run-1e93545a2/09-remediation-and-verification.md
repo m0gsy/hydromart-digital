@@ -34,7 +34,7 @@ Pemeriksaan baca saja stack utama pukul 17:00 WIB menunjukkan scheduler `healthy
 
 ## Batas dan tindak lanjut
 
-- Image order/referral pada stack utama belum dideploy ulang; kode terbaru diuji pada project Docker terisolasi. Deploy ke stack utama perlu memperhitungkan backlog outbox lokal.
-- Referral historis yang sudah `QUALIFIED` tetapi mungkin kehilangan hadiah tidak dibackfill otomatis. Ledger loyalty perlu direkonsiliasi sebelum kredit ulang.
-- Baris outbox `DEAD` sekarang memberi alert dan terlihat pada hitungan ops, tetapi pemutaran ulang memerlukan tindakan operator yang terkontrol. Kebijakan replay dan kompensasi hadiah referral untuk order yang kemudian di-void masih perlu keputusan bisnis.
+- Image order/referral pada stack lokal utama sudah dibangun ulang dari commit `0df2cdeb7`; kedua container sehat dan ID image cocok dengan tag terbaru. Saat deploy tidak ada backlog `PENDING` atau `DEAD`.
+- Rekonsiliasi data lokal utama menemukan 0 referral dan 0 outbox `DEAD`, sehingga tidak ada kredit atau replay yang dijalankan. [Aturan rekonsiliasi dan replay](10-operations-reconciliation-and-replay.md) mengatur penanganan kasus berikutnya per baris, dengan pemeriksaan ledger dan status order sebelum perubahan.
+- Kompensasi hadiah referral untuk order yang kemudian di-void tetap memerlukan keputusan bisnis sebelum automasi; aturan replay di atas secara eksplisit menahan kasus itu agar tidak menambah kredit secara keliru.
 - Android native build dan perangkat fisik belum diverifikasi pada host ini karena SDK/JAVA_HOME tidak tersedia. Audit kode mobile tetap termasuk dalam cakupan file baseline.
