@@ -196,11 +196,8 @@ export class ReferralService {
   }
 
   /**
-   * Mark the referee's PENDING referral as QUALIFIED on their first qualifying order and
-   * award both parties loyalty points (FR-092). Idempotent: no pending referral, or a
-   * lost race on the atomic transition, is a no-op. Loyalty rewards fail open — a loyalty
-   * outage never blocks qualification (rewards fire once, inside the PENDING->QUALIFIED
-   * transition, so retries do not double-award).
+   * Reward both parties before the PENDING->QUALIFIED transition. A failed reward leaves
+   * the referral pending for the order outbox to retry; stable keys prevent double grants.
    */
   async qualify(
     refereeCustomerId: string,
@@ -212,37 +209,30 @@ export class ReferralService {
       return { qualified: false };
     }
 
-    const referrerPoints = this.config.referrerPoints;
-    const refereePoints = this.config.refereePoints;
-    const updated = await this.repo.qualifyReferral(
-      referral.id,
-      orderId,
-      referrerPoints,
-      refereePoints,
+    const prepared = await this.repo.prepareQualification(
+      referral.id, orderId, this.config.referrerPoints, this.config.refereePoints,
     );
+    if (!prepared) return { qualified: false };
+    const { referrerPoints, refereePoints } = prepared;
+    if (referrerPoints > 0) {
+      await this.loyalty.reward(
+        referral.referrerCustomerId, referrerPoints, REFERRER_REASON, authorization,
+        `referral:${referral.id}:referrer`,
+      );
+    }
+    if (refereePoints > 0) {
+      await this.loyalty.reward(
+        referral.refereeCustomerId, refereePoints, REFEREE_REASON, authorization,
+        `referral:${referral.id}:referee`,
+      );
+    }
+    const updated = await this.repo.qualifyReferral(referral.id);
     if (!updated) return { qualified: false };
 
-    // The transition is already committed; a reward failure must never undo it, so both
-    // rewards are fired fail-open (the port swallows outages too — belt and suspenders).
-    await this.safeReward(updated.referrerCustomerId, referrerPoints, REFERRER_REASON, authorization);
-    await this.safeReward(updated.refereeCustomerId, refereePoints, REFEREE_REASON, authorization);
-
     this.logger.log(
-      `Referral ${updated.id} qualified via order ${orderId}: +${referrerPoints}/${refereePoints} pts`,
+      `Referral ${updated.id} qualified via order ${updated.qualifyingOrderId}: +${referrerPoints}/${refereePoints} pts`,
     );
     return { qualified: true, referral: updated };
   }
 
-  private async safeReward(
-    customerId: string,
-    points: number,
-    reason: string,
-    authorization: string,
-  ): Promise<void> {
-    try {
-      await this.loyalty.reward(customerId, points, reason, authorization);
-    } catch (error) {
-      this.logger.warn(`Loyalty reward failed for customer ${customerId}: ${(error as Error).message}`);
-    }
-  }
 }

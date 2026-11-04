@@ -7,11 +7,8 @@ export interface SoldLine {
 /**
  * Moves stock on the fulfilling depot as an order progresses.
  *
- * The calls do not share a failure policy. `consume`, `restock` and `release` run AFTER
- * an order has already changed state, so they fail OPEN — throwing would strand a
- * completion, void or cancellation that otherwise succeeded, and opname reconciles a
- * missed movement. `reserve` runs BEFORE the sale is promised and fails CLOSED; see its
- * own note. Treating those two situations the same is what caused B-6b.
+ * `consume` throws so its outbox row retries after the order changes state. `restock`
+ * and `release` remain best-effort; `reserve` rejects checkout before the sale is promised.
  */
 export interface InventoryPort {
   consume(
@@ -34,7 +31,7 @@ export interface InventoryPort {
     authorization: string,
   ): Promise<void>;
   /**
-   * Puts back stock a voided counter sale had already consumed. Fails OPEN like `consume`:
+   * Puts back stock a voided counter sale had already consumed. Fails OPEN:
    * the buyer has the money back and the goods on the counter, and a depot-service blip must
    * not leave the order un-voided. Opname reconciles a missed put-back.
    */

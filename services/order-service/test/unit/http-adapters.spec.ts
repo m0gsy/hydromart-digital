@@ -91,9 +91,9 @@ const order = (): OrderRecord =>
 describe('InventoryHttpAdapter', () => {
   const items = [{ productId: randomUUID(), quantity: 2 }] as never;
 
-  it('consume: skips when no internal key (fail open)', async () => {
+  it('consume: rejects when no internal key so the outbox retries', async () => {
     const a = new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
-    await a.consume('d1', 'o1', items, '');
+    await expect(a.consume('d1', 'o1', items, '')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -113,10 +113,10 @@ describe('InventoryHttpAdapter', () => {
     );
   });
 
-  it('consume: fails open on non-2xx', async () => {
+  it('consume: rejects on non-2xx so the outbox retries', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     const a = new InventoryHttpAdapter(makeConfig());
-    await expect(a.consume('d1', 'o1', items, '')).resolves.toBeUndefined();
+    await expect(a.consume('d1', 'o1', items, '')).rejects.toThrow();
   });
 
   it('reserve: throws InsufficientStockError on 422', async () => {
@@ -1499,12 +1499,12 @@ describe('counter-sale reads that name the buyer', () => {
 });
 
 describe('ReferralCoordinationHttpAdapter', () => {
-  it('skips without key + qualifies on happy path', async () => {
-    await new ReferralCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).qualify(
+  it('rejects without key + qualifies on happy path', async () => {
+    await expect(new ReferralCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).qualify(
       'c1',
       'o1',
       '',
-    );
+    )).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new ReferralCoordinationHttpAdapter(makeConfig()).qualify('c1', 'o1', '');

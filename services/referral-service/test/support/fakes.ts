@@ -133,7 +133,7 @@ export class InMemoryReferralRepository implements ReferralRepository {
     );
   }
 
-  async qualifyReferral(
+  async prepareQualification(
     referralId: string,
     qualifyingOrderId: string,
     referrerPoints: number,
@@ -141,10 +141,18 @@ export class InMemoryReferralRepository implements ReferralRepository {
   ): Promise<ReferralRecord | null> {
     const r = this.referrals.find((x) => x.id === referralId);
     if (!r || r.status !== ReferralStatus.PENDING) return null;
+    if (!r.qualifyingOrderId) {
+      r.qualifyingOrderId = qualifyingOrderId;
+      r.referrerPoints = referrerPoints;
+      r.refereePoints = refereePoints;
+    }
+    return { ...r };
+  }
+
+  async qualifyReferral(referralId: string): Promise<ReferralRecord | null> {
+    const r = this.referrals.find((x) => x.id === referralId);
+    if (!r || r.status !== ReferralStatus.PENDING || !r.qualifyingOrderId) return null;
     r.status = ReferralStatus.QUALIFIED;
-    r.qualifyingOrderId = qualifyingOrderId;
-    r.referrerPoints = referrerPoints;
-    r.refereePoints = refereePoints;
     r.qualifiedAt = nextDate();
     r.updatedAt = nextDate();
     return { ...r };
@@ -156,6 +164,7 @@ export interface RewardCall {
   points: number;
   reason: string;
   authorization: string;
+  idempotencyKey: string;
 }
 
 export class FakeLoyaltyReward implements LoyaltyRewardPort {
@@ -167,8 +176,9 @@ export class FakeLoyaltyReward implements LoyaltyRewardPort {
     points: number,
     reason: string,
     authorization: string,
+    idempotencyKey: string,
   ): Promise<void> {
-    this.calls.push({ customerId, points, reason, authorization });
+    this.calls.push({ customerId, points, reason, authorization, idempotencyKey });
     if (this.shouldThrow) throw new Error('loyalty down');
   }
 }

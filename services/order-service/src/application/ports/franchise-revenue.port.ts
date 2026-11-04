@@ -36,7 +36,7 @@ export interface RevenuePostResult {
 
 export interface FranchiseRevenuePort {
   /**
-   * Returns what payout decided, or null when the push failed (it fails OPEN).
+   * Returns what payout decided, or null when the push could not be verified (outbox retries).
    *
    * It used to return void, and the adapter threw the response body away — which is the only
    * reason the caller could not see a franchise depot accruing 0%. payout-service has

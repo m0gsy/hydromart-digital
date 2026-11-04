@@ -6,9 +6,7 @@ import { ReferralCoordinationPort } from '../../application/ports/referral-coord
 /**
  * Qualifies a referral on the referral-service when an order completes (FR-092).
  * System-to-system call authenticated by the shared INTERNAL_SERVICE_KEY (x-internal-key).
- * Fails OPEN: any error (referral down, non-2xx, no key) logs and returns, so completing
- * an order is never blocked. Qualification is idempotent on the referral side (a customer
- * is referred at most once), so retries are safe.
+ * Errors throw so the outbox retries; completion itself remains committed.
  */
 @Injectable()
 export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort {
@@ -20,8 +18,7 @@ export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort
   async qualify(customerId: string, orderId: string, _authorization: string): Promise<void> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
-      this.logger.warn(`No internal service key; skipped referral qualify for order ${orderId}`);
-      return;
+      throw new Error(`No internal service key for referral qualify of order ${orderId}`);
     }
     const url = `${this.config.referralServiceUrl}/api/v1/referrals/qualify`;
     const controller = new AbortController();
@@ -37,9 +34,8 @@ export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort
         throw new Error(`referral-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.warn(
-        `Referral qualify skipped for order ${orderId}: ${(error as Error).message}`,
-      );
+      this.logger.warn(`Referral qualify failed for order ${orderId}: ${(error as Error).message}`);
+      throw error;
     } finally {
       clearTimeout(timer);
     }

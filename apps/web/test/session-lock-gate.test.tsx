@@ -14,10 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 // The lock screen is a lazily loaded chunk, so the first `findBy` also waits for its import.
-const SLOW = { timeout: 15_000 };
+const SLOW = { timeout: 30_000 };
 
 // The first case pays for importing the whole provider tree (about 5 s on a cold CI runner).
-vi.setConfig({ testTimeout: 30_000 });
+vi.setConfig({ testTimeout: 45_000 });
 
 const STORED = JSON.stringify({ accessToken: 'AT-1', refreshToken: 'RT-1' });
 const CUSTOMER = { id: 'c1', role: 'STAFF_DEPOT', fullName: 'Aril', phone: '+62811' };

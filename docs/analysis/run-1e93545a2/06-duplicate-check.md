@@ -1,0 +1,102 @@
+# Rekonsiliasi duplikasi dan konflik
+
+Satu akar masalah satu rekomendasi. Tidak ada klaim semua kandidat historis sudah tervalidasi.
+
+| Kandidat | Keputusan | Target / alasan |
+| --- | --- | --- |
+| ORD-01 | keep | [INFERRED] Handler memenuhi Promise tanpa throw ketika adapter gagal; run menandai DONE. Kegagalan lookup pemilik juga mengembalikan null sehingga memperbaiki adapter payout saja tidak cukup. |
+| ORD-02 | merge | PLP-01 |
+| PLP-01 | defer-policy | [INFERRED] Jalur cancel tidak memanggil release yang sudah tersedia; apakah voucher harus kembali adalah keputusan bisnis. Bukan Quick Win siap implementasi tanpa keputusan tersebut. |
+| ORD-06 | reclassify | [INFERRED] Penjualan pickup dibuat COMPLETED dan completion outbox ditulis sebelum browser mencatat pembayaran. Klaim lama tidak ada tampilan rekonsiliasi salah: payment-recon sudah menampilkan order tanpa payment dan jalur remediasi. |
+| DEP-01 | keep | [INFERRED] Kedua arah membawa orderId yang sama pada item GALON yang sama; setelah movement pertama, moveRawLine mengembalikan shortfall 0 tanpa gerakan kedua. |
+| DEP-02 | keep | [INFERRED] PO dibaca SENT, seluruh receiveStock dilakukan, lalu lines/status ditulis satu kali; repository update hanya where id. Dua penerimaan atau retry setelah crash dapat menggandakan stok. |
+| DEP-04 | defer-policy | Temuan lama menyebut dampak 3-4. Tidak dipromosikan sebagai temuan kuat pada resume ini: source adjust/opname/approval belum dibaca ulang lengkap; tidak boleh menganggap approval pasca-fakta salah tanpa keputusan proses. |
+| DEP-06 | reclassify | [INFERRED] Body depotId/orderId/customerId diteruskan ke recordFromCourier; method yang dibaca mengukur saldo pelanggan itu dan mencatat return tanpa lookup order/delivery. Guard depot tetap ada, jadi klaim kurir bebas lintas depot tidak didukung. |
+| HR-01 | reclassify | [INFERRED] splitOvertime tidak menerapkan plafon; payroll menambahkan BONUS. Ini bukan auto-paid: slip masih melalui approve/pay dan guard pemisahan pembuat/penyetuju. |
+| HR-04 | defer-policy | Source memverifikasi gross=BASE+ALLOWANCE, terpisah dari totalBonus; PPh Desember memakai YTD gross yang sama. Ini tidak membuktikan pelanggaran pajak, dan dasar BPJS tidak boleh otomatis disamakan dengan dasar PPh. |
+| HR-21 | keep | [INFERRED] employeeReport memakai depotScopeIds lalu mencetak NIK/NPWP/rekening/gaji dari Employee penuh; tidak memakai homeDepot redaction seperti list. Dampak borrower memerlukan penugasan lintas depot aktif. |
+| HR-23 | defer-policy | [VERIFIED] Patch anonimisasi hanya menimpa nama/telepon/email/photo/authSubjectId (jalur account juga role/status), sedangkan sumber schema memiliki pengenal lain. Penghapusan seluruh field finansial tidak boleh disarankan otomatis tanpa kebijakan retensi. |
+| CRM-01 | keep | [INFERRED] Notification ditulis sebelum recordRecipientResult. Lease recipient dapat kedaluwarsa; replay memanggil notify tanpa dedupeKey dan membuat row/push baru. |
+| FCS-04 | reclassify | [INFERRED] Ingest real-time best-effort disengaja. Adapter feed mengembalikan empty/null pada 500/timeout; rebuild berhenti dan return ingested/pages seperti EOF normal. Dampak diturunkan 4 ke 3 karena read model BI, bukan efek stok/uang. |
+| RET-01 | reclassify | [INFERRED] Query mengambil pelanggan tertua berdasarkan semua orders; notify tanpa key dan .then(()=>true) membuang false dari adapter. Jadwal nyata harian ditemukan. Klasifikasi marketing reminder perlu PO; jangan langsung klaim pelanggaran consent. |
+| PLP-04 | drop | Kandidat pembatasan scope bertentangan DEC16; jangan dihitung sebagai gap baru atau Quick Win. Jika demand berubah buka keputusan baru. |
+| PLP-10 | keep | [VERIFIED] adjust memanggil config.adjustMaxPoints(null); config menerima depotId dan mendukung override. HQ-only penulisan key tetap kontrol yang benar, jangan dicabut. |
+| ORD-13 | defer-policy | [VERIFIED] erasePerson membatalkan ACTIVE/PAUSED dan mengosongkan recipientName/phone/notes, tidak menyentuh alamat. Kebutuhan menghapus alamat harus dipetakan pada retensi yang disepakati. |
+| REC-03 | reclassify | Service sepenuhnya dibaca: enrich hanya membuang productRef yang hilang. Dampak end-to-end belum dapat dipastikan sebelum frontend consumer/hydration ditelusuri; bukan bukti produk tidak tersedia tampil pada pelanggan. |
+| WEB-01 | keep | signOut memulai request auth lalu clearTokens pada tick sama. request menunggu waitForSession sebelum rawRequest membaca bearer. await atas promise yang sudah resolved pun menunda kelanjutan; token sudah null. nativeUnsubscribe juga menunggu readEndpoint. Gateway native meneruskan bearer yang diterima ke auth/logout SelfScoped. |
+| WEB-02 | keep | UI memakai dua nama role langsung, sedangkan controller memakai Can(earningRules). Kondisi default sama; divergensi terjadi saat capability diubah. |
+| WEB-03 | keep | flush memeriksa expired sebelum error dan menghapus semua kind setelah tujuh hari. Kebijakan melindungi payload foto, tetapi codConfirm dan gallonReturn juga hilang. Peristiwa lewat tujuh hari perlu rekonsiliasi, bukan replay tanpa batas. |
+| WEB-04 | reclassify | discard menangkap kegagalan delete lalu menghapus cache. Replay setelah reload mungkin, tetapi tidak cukup untuk menyimpulkan uang terdebit ganda karena server memiliki dedup/status guards. Hardening UX, bukan temuan integritas uang tersendiri. |
+| WEB-05 | keep | run(pod) meng-upload photo/signature sebelum complete pada setiap eksekusi. URL tidak disimpan pada QueuedJob. Jika complete gagal sesudah upload, percobaan berikut meng-upload lagi. |
+| WEB-06 | reclassify | Objek session baru memang ditulis pada fokus, tetapi manfaat performa belum diukur. Klaim familyId hilang dari indikator perangkat tidak tepat: familyId disimpan terpisah di session-device dan hanya dihapus saat signOut. |
+| WEB-07 | reclassify | escapeCell mengonversi semua tipe ke string lalu menambah apostrof untuk minus. Kontrak helper terbukti, tetapi ekspor cashbook memakai kolom Masuk/Keluar positif sehingga dampak negatif aktif belum terbukti dalam call site yang diperiksa. |
+| WEB-08 | keep | VOIDED/COMPLETED dengan payment REFUNDED/FAILED diperlakukan membutuhkan pembayaran baru oleh helper. Ini bug affordance UI bersyarat; tidak membuktikan charge server berhasil pada status terminal. |
+| WEB-09 | defer-evidence | Klaim ketiadaan storage/BroadcastChannel berasal pencarian awal; audit resume tidak menelusuri seluruh mekanisme browser/cookie/tab. Jangan mempromosikan tanpa SEARCH lintas file dan skenario konkret. |
+| WEB-10 | keep | uploadFile/getBlob/postBlob membangun authHeader sendiri, tanpa appHeaders dan pemrosesan x-hm-depot-changed yang ada pada rawRequest. Ini perbedaan observability/recovery, bukan hilangnya auth: ketiganya menunggu waitForSession dan menangani 401. |
+| WEB-11 | keep | STALE_DEPOT_MESSAGE dan fallback gagal kirim berupa literal Indonesia. Dampak lokalisasi terbatas; tidak menghambat fungsi. |
+| WEB-12 | defer-evidence | Ditemukan empat header call site dan satu body idempotencyKey, tetapi status/CAS/unique constraints server dapat menyediakan semantik replay tanpa header. Timeout 15 detik menghasilkan hasil tidak pasti, bukan bukti duplikasi. Pecah hanya setelah service owner membuktikan satu operasi non-idempoten. |
+| APP-01 | keep | PUBLIC_PREFIXES mencakup seluruh products, termasuk mutation/admin paths. Koreksi narasi lama: api.ts saat ini melampirkan bearer bila token tersedia meskipun auth=false; flag menentukan wait/unlock dan refresh. Gap adalah regresi saat boot/session expiry, bukan pasti tanpa bearer setiap saat. |
+| APP-02 | keep | Frontend mengirim delta tanpa attempt key. Controller meneruskan delta tanpa key, service selalu memanggil applyMovement, dan repository menambah quantity serta movement baru per request. Unique itemId/orderId hanya berlaku untuk SALE; ADJUSTMENT memakai orderId null. Dua request yang sama setelah jawaban hilang dapat menjadi dua koreksi; kejadian produksi belum diukur. |
+| APP-03 | defer-evidence | Source tanpa aria-label/id-label tidak otomatis membuktikan accessible name kosong: placeholder bisa menjadi fallback accessible name. Reframe sebagai dugaan label tidak persisten; uji DOM/AT diperlukan sebelum klaim pelanggaran. |
+| APP-04 | defer-evidence | Dashboard layout menjamin auth tetapi tidak membatasi semua capability. Halaman insight mendelegasikan gate ke InsightDashboard. Tidak ada halaman bocor data yang dibuktikan; usulan penjaga regresi lebih tepat daripada menambah gate role kasar yang dapat memblokir custom role sah. |
+| APP-05 | merge | WEB-12 |
+| PLT-01 | keep | recordAuditEvent satu kali fetch ber-deadline, catch hanya logger.error. Fail-open ini keputusan teknis eksplisit yang harus dipertahankan untuk tidak membatalkan uang yang sudah settled; peningkatan durability adalah strategi baru, bukan kontrol yang diklaim belum pernah ada. |
+| PLT-02 | keep | AllExceptionsFilter meneruskan request.url; webhook dedup dan teks memakai path mentah, Sentry transaction name juga. Stack/message disamarkan tetapi path tidak. Pengiriman PII aktual belum dibuktikan; risiko kondisional pada URL yang mengandung input pribadi. |
+| PLT-03 | keep | Pemetaan HttpException hanya memberi code khusus lima status; konflik dan unprocessable menerima HTTP_ERROR. Status HTTP tetap benar dan DomainError tetap punya machine code. |
+| PLT-04 | reclassify | rows.length < pageSize mengembalikan sebelum ceiling. Namun pemanggil report yang diperiksa memakai max kelipatan pageSize; eksposur production overflow pada konfigurasi tersebut belum terbukti. Ini kontrak helper dan memori yang perlu diperbaiki, bukan laporan aktual salah. |
+| PLT-05 | keep | pageArgs mengabaikan cursor yang tidak dapat didecode. Ini kebijakan fallback terdokumentasi untuk menghindari Prisma P2025, tetapi mengaburkan error input dan bisa mengulang halaman dalam infinite-scroll. |
+| PLT-06 | merge | WEB-12 |
+| PLT-07 | keep | SECRET_KEY memuat pin tanpa anchor, sehingga shippingFee cocok dan teredaksi. params dimasukkan tanpa redaksi. Kebocoran token aktual pada param belum dibuktikan; kehilangan field shipping adalah konsekuensi deterministik regex. |
+| PLT-08 | keep | ALLOWED menerima Bluetooth/Wi-Fi dengan justifikasi Ops; CLI hanya mengenal path manifest, tidak binary. customer includePlugins sudah mengecualikan printer, sehingga ini guard regresi terhadap kebocoran dependency, bukan bukti permission customer aktif bocor. |
+| PLT-09 | keep | mobile sengaja di luar root workspaces; workflow menginstal dependency mobile sendiri. Gate audit root menjalankan npm audit di cwd root, sehingga lock mobile tidak termasuk. Belum ditemukan step audit mobile dalam scope workflow yang dipindai (SEARCH-FE-04). Tidak menyatakan ada CVE aktual. |
+| PLT-10 | reclassify | Template path titik saja tidak membuktikan eksfiltrasi karena provider exported=false dan akses URI memerlukan grant. Perlu caller sharing path untuk menentukan risiko nyata. |
+| PLT-11 | keep | Prompt geolokasi kedua menimpa pendingOrigin/pending sebelum answer. Ini skenario konkuren kondisional; tidak menyatakan kejadian perangkat aktual. |
+| PLT-12 | merge | IDO-05 |
+| IDO-01 | keep | Kegagalan bersyarat: bila file log belum ada dan user tidak dapat menulis /var/log, shell gagal sebelum skrip. Bukan bukti backup produksi gagal. |
+| IDO-02 | reclassify | DROP klaim tidak pernah mendarat/karena branch protection: tidak ada provenance runtime. KEEP pilihan warning yang memang sengaja dinyatakan source, sebagai tradeoff bukan bug pasti. |
+| IDO-03 | keep | Source menunjukkan injection boundary di runner pembentuk command dan remote script. Hak dispatch membatasi exposure; tidak ada bukti exploit atau akses anonim. |
+| IDO-04 | keep | Temuan baru spesifik proteksi material backup; bukan klaim backup/offsite/verification tidak tersedia. Tidak menyimpulkan SSE provider tidak aktif dan tidak menyimpulkan pelanggaran hukum. |
+| IDO-05 | reclassify | Tidak membuktikan97 selesai hanya dari git log; ubah narasi menjadi register historis perlu source-level revalidation. Setiap owner mengisi delta source/test, bukan menutup otomatis. |
+| IDO-06 | reclassify | Keberadaan field tidak membuktikan pengenaan PPN/konflik keputusan; default nonaktif sesuai keputusan lama. Konflik aktual adalah teks dokumen dan status keputusan terbaru. |
+| IDO-07 | reclassify | Delapan subklaim awal tidak seluruhnya dibaca ulang; jangan memperlakukan bundle sebagai satu temuan prioritas tinggi. Konflik keputusan substansial dicatat konteks, sisanya editorial. |
+| IDO-08 | keep | Hardening source; tidak ada bukti default token broad atau aksi supply-chain terjadi. Permissions org/repo belum dibaca. |
+| IDO-09 | keep | Spot-check deterministik primary: KEEP dengan batas. Source mendukung blind spot running-but-hung alert pipeline; jangan menyebut tidak ada monitoring sama sekali atau menyatakan alert produksi hilang. `vector(0)` alert bisnis bukan dead-man. |
+| AUT-01 | keep | canGrantRole mengevaluasi peran baru; invite akun yang sudah ada mengubah role lalu save by id. Guard super admin terakhir tersedia untuk delete/suspend, bukan save role. Risiko penurunan peran disimpulkan dari interleaving source, bukan insiden produksi. |
+| PPA-01 | keep | findStalePending menyaring status/metode/createdAt tanpa proofUrl; sweep CAS PENDING menjadi FAILED. Bukti unggah bukan bukti uang sudah masuk, tetapi membutuhkan tinjau sebelum status terminal. |
+| DLV-01 | keep | Status RESCHEDULED disimpan sebelum advanceOrder(PREPARING). Replay tanggal sama memanggil finishRescheduleReplay, tetapi segera return jika cashReturned tidak true. |
+| DLV-03 | keep | Controller membuat AssignInput eksplisit dan tidak memasukkan dua field yang tersedia pada DTO/use-case. Hasil historis aktual perlu pemeriksaan data terpisah. |
+| DLV-02 | defer-policy | Reassign mereset pickup/start/ETA tetapi assignedAt dan slaAlertedAt tetap; earning menghitung selisih deliveredAt-assignedAt. Kode terbukti; definisi SLA order vs percobaan perlu PO. |
+| DLV-07 | keep | complete DELIVERED replay langsung return; advance order error hanya log; push earning dan webhook dijalankan void. Adapter payout menjawab false saat error, yang tidak direkonsiliasi pada jalur ini. |
+| DLV-05 | keep | Auto-close memakai expectedEndAt sementara assignableShift tidak memeriksa waktu; settlement memilih deliveredAt dalam jendela shift. Delivery selesai setelah expectedEndAt sebelum check-in baru dapat berada di luar dua jendela (inferensi). |
+| DLV-08 | keep | storageKeyFromUrl menerima substring mulai pod/ tanpa verifikasi origin/ownership. Key kemudian ditandatangani dan dihapus. Dampak lintas objek adalah inferensi yang memerlukan model permission bucket dan pengetahuan key; tidak ada klaim eksploitasi produksi. |
+| REF-01 | keep | Referral berubah QUALIFIED sebelum dua reward; safeReward dan adapter menelan error. Request reward tidak membawa idempotencyKey; replay QUALIFIED return tanpa memulihkan hadiah. Masalah utamanya kehilangan/recovery, bukan klaim double-award pada replay biasa. |
+| PPA-02 | keep | Controller membawa user.sub ke service, tetapi repository settle hanya menulis status; model withdrawal tidak menyimpan settledBy/transferRef. Aksi bank tetap manual. Ketiadaan audit payout end-to-end belum diklaim mutlak. |
+| PPA-03 | defer-policy | executeRefund memindahkan REFUNDED; transfer gateway hanya untuk EWALLET/VA dengan reference. CASH/TRANSFER/QRIS tidak memanggil bank. Ini membuktikan pencatatan status, bukan bahwa pelanggan sudah menerima dana. |
+| PPA-05 | defer-policy | recordRefund hanya menulis refundedAmount dan mengirim notifikasi; jalur ini tidak membalik franchise ledger. Refund terhadap penjualan selesai dan aturan pembebanan biaya perlu dikonfirmasi. |
+| AUT-02 | keep | Login nomor baru membuat CUSTOMER PENDING, lalu verify dapat mengaktifkan akun; recordRegistrationConsent hanya pada register akun baru. Bukan kesimpulan kepatuhan atau dasar hukum. |
+| CUS-01 | keep | UpdateAddressDto mewarisi isPrimary dari create; service/repository meneruskan patch. Tipe TS tidak menghapus field runtime. Efek 500/primary kosong adalah inferensi constraint/selector, bukan hasil eksekusi. |
+| AAS-04 | keep | Recipients hanya string/array; kelas controller memakai hqBackOffice sementara dataset termasuk KASBON_BALANCE/ORDERS_DETAIL. Domain allowlist dan pemisahan capability belum merupakan keputusan tertulis dalam source yang dibaca. |
+| AAS-05 | keep | File DONE disimpan, mailer.send di-await tetapi hasilnya diabaikan, kemudian run mengembalikan ok:true. File tersimpan adalah kontrol yang sah; gap berada pada visibilitas pengiriman. |
+| AAS-08 | defer-policy | Registry executor yang dibaca berisi dataset remote, bukan export_logs/webhook/tickets/fraud. Pencarian absence harus dibatasi source/registry yang diaudit; belum membuktikan konfigurasi retensi produksi. |
+| AAS-10 | defer-policy | publicFlags memetakan semua state kecuali OFF menjadi enabled; enum menjelaskan BETA/ROLLOUT. Belum diketahui apakah owner memerlukan audience gating, jadi tidak menyebut bug rollout produksi. |
+
+
+
+# Rekonsiliasi temuan lama (PREV)
+
+Status di bawah memisahkan laporan dokumen dari source yang diperiksa sekarang. Tidak ada bukti runtime baru.
+
+| ID | Laporan lama | Delta yang dapat dipastikan pada baseline | Keputusan |
+|---|---|---|---|
+| PREV-01 | [VERIFIED docs/SECURITY_AUDIT_REGISTER.md:13] menyebut Selesai5; tabel lain masih terbuka | [VERIFIED docs/SECURITY_AUDIT_REGISTER.md:22] PRM-1/PRM-5 justru diterima jaringan. Riwayat commit bukan bukti semua temuan lain selesai; source dibaca per owner | Rekonsiliasi register; jangan salin daftar lama menjadi backlog baru atau mengklaim97 sudah ditutup |
+| PREV-02 | Console register menyatakan CA-2-52 pajak selesai lewat default0 | [VERIFIED services/payment-service/src/application/services/tax-settings.service.ts:27] default masih0; [VERIFIED services/order-service/src/application/services/order.service.ts:2051] pencatatan bersyarat ditambahkan | IDO-06 direklasifikasi docs/konfirmasi; tidak ada bukti salah pungut |
+| PREV-03 | AUDIT_L3 banyak temuan lama | File tidak dibaca ulang lengkap pada lanjutan konteks | Jangan mengklaim seluruh delta L3 selesai; diwariskan sebagai cakupan terbuka |
+| PREV-04 | Readiness register/DR mengakui backup luar kotak dan RPO24h, provider sama | [VERIFIED scripts/backup-second-provider.sh:48] mekanisme provider kedua memakai ulang backup-offsite. [VERIFIED scripts/backup-db.sh:47] dump tetap gzip; upload bytes [VERIFIED scripts/upload-to-s3.mjs:47] | IDO-04 delta baru spesifik enkripsi klien, bukan mengulang klaim backup tidak ada; provisioning provider belum diverifikasi |
+| PREV-05 | Legal open items menyatakan non-PPN dan TER menunggu akuntan | [VERIFIED docs/LEGAL_OPEN_ITEMS.md:21] pernyataan mutlak non-PPN usang terhadap fitur bersyarat FR034; default tetap0 | Konfirmasi pemilik/akuntan, jangan menyatakan kepatuhan legal dari source |
+| PREV-06 | OPEN_GAPS §2 masih memuat pemisahan payroll/akun terbuka dan refund | [VERIFIED docs/OPEN_GAPS_DECISIONS_2026-10.md:25] dan79 menandai keputusan kemudian dibangun, deposit hanya ditampilkan | Pertanyaan §2 yang terjawab tidak dimasukkan ulang; deposit billing tetap proyek lintas service |
+| PREV-07 | EVALUATION11 menyebut subrole franchise belum dibangun | [VERIFIED docs/EVALUATION_11_ITEMS_TRACKER.md:53] ditunda eksplisit YAGNI | Jangan dikerjakan dulu; bukan gap implementasi wajib |
+| PREV-08 | DISCOUNT_AUDIT menyebut keputusan E2/E3/E4 diperlukan | [VERIFIED docs/EVALUATION_11_ITEMS_TRACKER.md:34] E2 cart parity, E3 reseller base dikerjakan; E4 langganan sengaja tanpa promo | Jangan mengusulkan lagi tanpa regresi source baru; pembuktian seluruh implementasi milik owner promo/web |
+| PREV-09 | PHASE_M_CLOSEOUT menutup milestone lama | Belum dibaca ulang lengkap pada lanjutan konteks | Tidak dipakai sebagai bukti runtime atau closure baru |
+| PREV-10 | FR matrix menunda royalti dan mengganti Google/WABA | [VERIFIED docs/AUDIT_FR_MATRIX_2026-10.md:17],144,160 menyatakan itu eksplisit | Jangan membangun ulang sebagai Quick Win; royalti perlu tarif/dasar akuntansi baru |
+
+Kandidat lintas owner yang ditutup/diparkir: PLP-04 bertentangan DEC-16; usulan approval voucher HQ bertentangan DEC-10; usulan WhatsApp/Google hanya dari PRD draft bertentangan DEC-22; sub-role franchise DEC-20 dan posting royalti DEC-21 perlu demand/keputusan lebih dulu.

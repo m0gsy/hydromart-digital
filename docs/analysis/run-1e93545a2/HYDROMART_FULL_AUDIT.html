@@ -1,0 +1,1093 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hydromart — Audit Repositori Penuh (1e93545a2)</title>
+<style>
+body{font:14px/1.5 system-ui,sans-serif;margin:0;color:#111;background:#fff}main{max-width:1180px;margin:0 auto;padding:16px 20px 60px;overflow-wrap:anywhere}
+h1,h2,h3,h4{line-height:1.25}h2{border-bottom:2px solid #ddd;padding-bottom:4px;margin-top:2em}h4{margin-top:1.6em;background:#f4f6f8;padding:6px 8px;border-left:4px solid #1d4ed8}
+.tw{overflow-x:auto;margin:10px 0}table{border-collapse:collapse;font-size:12.5px;min-width:640px}#matrix{min-width:1200px}th,td{border:1px solid #ccd;padding:4px 6px;vertical-align:top;text-align:left}th{background:#eef2f7;position:sticky;top:0}
+code{background:#f1f1f1;padding:0 3px;border-radius:3px;font-size:12px}pre{background:#0f172a;color:#e2e8f0;padding:10px;overflow:auto;border-radius:6px}pre code{background:none}
+.cap{font-size:12px;color:#92400e;background:#fef3c7;padding:3px 8px;border-radius:4px 4px 0 0;display:inline-block}
+.tag{font-weight:600;padding:0 2px;border-radius:3px}.t-verified{background:#dcfce7}.t-inferred{background:#fef9c3}.t-assumption{background:#fee2e2}
+blockquote{background:#fff7ed;border-left:4px solid #ea580c;margin:10px 0;padding:8px 12px}
+#bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:8px 20px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media print{#bar{display:none}tr{display:table-row!important}pre{white-space:pre-wrap}}
+</style></head><body>
+<div id="bar"><strong>Filter matriks prioritas:</strong>
+<input id="q" placeholder="cari ID/judul/wilayah" size="26">
+<select id="fa"><option value="">Area: semua</option><option>FTR</option><option>FLW</option><option>BI</option><option>AUT</option></select>
+<select id="fg"><option value="">Kelompok: semua</option><option>Quick Win</option><option>Strategis</option><option>Nice-to-have</option><option>Jangan dikerjakan dulu</option></select>
+<span id="cnt"></span><small>(filter hanya menyembunyikan baris tabel matriks; seluruh detail temuan tetap ada di halaman dan saat dicetak)</small></div>
+<main>
+<h1>Hydromart — Audit Repositori Penuh (1e93545a2)</h1>
+<p>Disusun 2026-11-04 10:13 WIB. <strong>Cakupan file tracked: 100%</strong> pada baseline <code>1e93545a23b3c66ab2a33da949a371406030ccd1</code>. Audit kode dan artefak lokal; tidak menyatakan kondisi produksi telah diuji.</p>
+<p><strong>Status terbaru (2026-11-04):</strong> Gate <code>npm run test</code> yang gagal pada pemeriksaan awal sudah diperbaiki dan lulus 12.840/12.840 tes. Gate lint, typecheck, build, audit dependensi, dan integrasi Docker terisolasi juga lulus. ORD-01, REF-01, serta IDO-12 sudah diperbaiki; temuan lain dalam laporan ini tetap merupakan backlog audit. Rincian perubahan, bukti, dan batas verifikasi ada di <a href="09-remediation-and-verification.md">tindak lanjut audit</a>.</p>
+<h2>1. Ringkasan eksekutif</h2>
+<p>Seluruh 4.062 file tracked dibaca sampai akhir untuk inventaris dan validasi format; 4.002 file teks diperiksa secara struktural dan 60 berkas biner diperiksa signature/ZIP/hash. Ada 70 rekomendasi yang telah diadjudikasi dari 236 kandidat historis, ditambah satu temuan baru pada gate audit dependensi; kandidat lama yang tidak lolos tidak dipromosikan menjadi temuan baru. Risiko paling penting menyangkut gate keamanan yang lulus palsu, efek lintas layanan yang dapat hilang, retry stok yang belum idempoten, pengantaran setelah proof, dan pembatasan ekspor PII.</p>
+<div class="tw"><table><thead><tr><th>ID</th><th>Asal</th><th>Dampak</th><th>Status</th><th>Temuan</th></tr></thead><tbody><tr><td>AUT-027</td><td>IDO-12</td><td>4</td><td>keep</td><td>Gate audit dependensi lulus saat endpoint advisory gagal</td></tr><tr><td>FLW-010</td><td>ORD-01</td><td>5</td><td>keep</td><td>Outbox selesai meski efek stok/poin/referral/pendapatan gagal</td></tr><tr><td>FLW-008</td><td>DLV-07</td><td>4</td><td>keep</td><td>Pulihkan efek samping setelah proof of delivery tersimpan</td></tr><tr><td>FLW-003</td><td>DEP-01</td><td>4</td><td>keep</td><td>Kunci gerakan GALON menyamakan issue dan return satu order</td></tr><tr><td>FLW-004</td><td>DEP-02</td><td>4</td><td>keep</td><td>Penerimaan PO belum atomik terhadap retry/crash/paralel</td></tr><tr><td>FLW-020</td><td>WEB-01</td><td>4</td><td>keep</td><td>Logout native kehilangan bearer sebelum revoke dan unsubscribe</td></tr><tr><td>AUT-012</td><td>HR-21</td><td>4</td><td>keep</td><td>Ekspor karyawan melewati redaksi depot peminjam</td></tr><tr><td>FLW-016</td><td>PPA-01</td><td>4</td><td>keep</td><td>Pertahankan pembayaran berbukti dalam antrean tinjau saat TTL lewat</td></tr><tr><td>FLW-005</td><td>DLV-01</td><td>4</td><td>keep</td><td>Replay reschedule selalu memulihkan handoff order</td></tr><tr><td>AUT-007</td><td>AUT-01</td><td>4</td><td>keep</td><td>Lindungi peran akun saat ini dan super admin terakhir pada perubahan peran</td></tr><tr><td>FLW-002</td><td>CRM-01</td><td>4</td><td>keep</td><td>Kampanye memakai lease tetapi belum meneruskan dedupeKey per penerima</td></tr></tbody></table></div>
+<h2>2. Metode dan cakupan</h2>
+<p><code>full-file-scan.json</code> dan <code>01-full-coverage.csv</code> mencatat setiap path, byte, metode, format, dan SHA-256. Hash seluruh file sama dengan manifest baseline; tidak ada <code>UNREAD</code> dalam cakupan pemindaian penuh. <code>READ-STRUCTURAL</code> berarti isi penuh dibaca program dan format/AST diperiksa; ini tidak berarti setiap baris ditafsirkan manual. <code>BINARY-INSPECTED</code> berarti isi penuh di-hash dan signature atau integritas ZIP diperiksa. Seluruh 71 rekomendasi mempunyai path/baris bukti yang valid, tinjauan semantik terarah, kontrol yang ada, keputusan dan batas inferensi. Arsip klaim lama tetap terpisah.</p>
+<div class="tw"><table><thead><tr><th>Owner</th><th>File</th><th>Teks struktural</th><th>Biner</th><th>Byte</th></tr></thead><tbody><tr><td>.claude</td><td>12</td><td>12</td><td>0</td><td>38223</td></tr><tr><td>.github</td><td>10</td><td>10</td><td>0</td><td>213177</td></tr><tr><td>.uat</td><td>25</td><td>25</td><td>0</td><td>396419</td></tr><tr><td>apps/web</td><td>950</td><td>944</td><td>6</td><td>7059909</td></tr><tr><td>docs</td><td>77</td><td>50</td><td>27</td><td>7381479</td></tr><tr><td>infra</td><td>2</td><td>2</td><td>0</td><td>4430</td></tr><tr><td>mobile</td><td>64</td><td>37</td><td>27</td><td>587969</td></tr><tr><td>ops</td><td>10</td><td>10</td><td>0</td><td>72944</td></tr><tr><td>packages/access</td><td>8</td><td>8</td><td>0</td><td>86124</td></tr><tr><td>packages/platform</td><td>101</td><td>101</td><td>0</td><td>400086</td></tr><tr><td>root</td><td>24</td><td>24</td><td>0</td><td>1056214</td></tr><tr><td>scripts</td><td>210</td><td>210</td><td>0</td><td>1668662</td></tr><tr><td>services/admin-service</td><td>238</td><td>238</td><td>0</td><td>763313</td></tr><tr><td>services/auth-service</td><td>196</td><td>196</td><td>0</td><td>982047</td></tr><tr><td>services/crm-service</td><td>129</td><td>129</td><td>0</td><td>483499</td></tr><tr><td>services/customer-service</td><td>143</td><td>143</td><td>0</td><td>558135</td></tr><tr><td>services/dashboard-service</td><td>26</td><td>26</td><td>0</td><td>162538</td></tr><tr><td>services/delivery-service</td><td>192</td><td>192</td><td>0</td><td>928816</td></tr><tr><td>services/depot-service</td><td>374</td><td>374</td><td>0</td><td>1798547</td></tr><tr><td>services/forecast-service</td><td>73</td><td>73</td><td>0</td><td>239160</td></tr><tr><td>services/gateway-service</td><td>27</td><td>27</td><td>0</td><td>139387</td></tr><tr><td>services/hr-service</td><td>341</td><td>341</td><td>0</td><td>2109845</td></tr><tr><td>services/loyalty-service</td><td>81</td><td>81</td><td>0</td><td>347637</td></tr><tr><td>services/order-service</td><td>242</td><td>242</td><td>0</td><td>1998497</td></tr><tr><td>services/payment-service</td><td>96</td><td>96</td><td>0</td><td>503477</td></tr><tr><td>services/payout-service</td><td>126</td><td>126</td><td>0</td><td>549286</td></tr><tr><td>services/product-service</td><td>70</td><td>70</td><td>0</td><td>159540</td></tr><tr><td>services/promo-service</td><td>110</td><td>110</td><td>0</td><td>570500</td></tr><tr><td>services/recommendation-service</td><td>44</td><td>44</td><td>0</td><td>103240</td></tr><tr><td>services/referral-service</td><td>58</td><td>58</td><td>0</td><td>166174</td></tr><tr><td>test</td><td>3</td><td>3</td><td>0</td><td>52223</td></tr></tbody></table></div>
+<p>Satu file sertifikat publik <code>ops/env-backup-public.pem</code> valid secara format dan metadata; isi kunci tidak dicetak. <code>.env</code> lokal yang tidak tracked bukan bagian repositori. <code>mobile-release-1.14.1/RELEASE_NOTES.md</code> adalah dokumen tambahan lokal, dibaca sebelumnya tetapi tidak dipakai sebagai bukti rilis produksi.</p>
+<h2>3. Arsitektur dan inventaris</h2>
+<p>Aplikasi memakai Next.js untuk customer dan konsol staf, gateway/BFF, 18 service NestJS dengan database Prisma per service, serta paket bersama <code>platform</code> dan <code>access</code>. Handoff antarservice melalui HTTP internal dan outbox/scheduler; tidak ada transaksi database lintas layanan. <code>02-inventory.json</code> mengindeks 853 deklarasi endpoint, 250 halaman unik, 168 model Prisma dan 498 migrasi. Deklarasi endpoint tidak otomatis berarti route publik atau guard resource-level benar. Alur dan titik kegagalan dirinci di <a href="03-cross-service-flows.md">03-cross-service-flows.md</a>. Keputusan bisnis dan konflik dokumen ada di <a href="00-context.md">00-context.md</a>.</p>
+<h2>4. Hasil quality gate lokal</h2>
+<div class="tw"><table><thead><tr><th>Gate</th><th>Hasil</th><th>Bukti / batas</th></tr></thead><tbody><tr><td>Tracked-file full scan</td><td>LULUS</td><td>4.062/4.062 file dibaca penuh; 31.581.497 byte; hash cocok baseline; 0 masalah format/signature; full-scan-summary.json.</td></tr><tr><td>TypeScript/JS AST</td><td>LULUS</td><td>0 parse diagnostic pada ekstraksi AST seluruh source JS/TS/TSX; 02-inventory.json.</td></tr><tr><td>Shell dan YAML</td><td>LULUS</td><td>105 skrip shell bash -n dan 23 YAML parse; 0 gagal; shell-syntax.json dan yaml-syntax.json.</td></tr><tr><td>npm run typecheck</td><td>LULUS</td><td>Seluruh workspace exit 0 pada Node 25/npm 11 lokal.</td></tr><tr><td>npm run lint</td><td>LULUS</td><td>Seluruh workspace exit 0 pada Node 25/npm 11 lokal.</td></tr><tr><td>npm run db:validate</td><td>LULUS</td><td>16 schema Prisma valid setelah DATABASE_URL dummy hanya untuk proses validasi; tanpa koneksi DB.</td></tr><tr><td>npm run test</td><td>GAGAL DEFAULT</td><td>Satu dari 40 suite auth gagal saat import AppModule meminta AUTH_DATABASE_URL; 767 assertion auth lain lulus. Seluruh 2.767 tes web lulus; log full-test.log dan web-vitest.json.</td></tr><tr><td>Auth E2E recheck</td><td>LULUS BERSYARAT</td><td>auth.e2e.spec.ts lulus 5/5 dengan variabel tes sementara; auth-e2e-recheck.log. Setup default tetap perlu diperbaiki.</td></tr><tr><td>npm run build</td><td>LULUS</td><td>Seluruh workspace exit 0; web Next.js compiled successfully; full-build.log.</td></tr><tr><td>node test/integration/run.mjs pada Docker terisolasi</td><td>LULUS</td><td>Project/volume/port terpisah dengan storage MinIO tes; 20/20 service sehat, semua skenario inti lulus, HRIS 30 lulus/0 gagal/0 skip, approvals 158/0, payroll manual lulus; isolated-integration-storage-retry.log.</td></tr><tr><td>npm run audit:ci</td><td>LULUS SETELAH PERBAIKAN</td><td>Baseline sebelumnya lulus palsu saat npm audit gagal (IDO-12). Gate kini menolak JSON error/laporan tidak valid; fixture error exit 1, bersih exit 0, high belum diizinkan exit 1. Run nyata exit 0: 0 critical, 1 high yang di-allowlist, 17 moderate; audit-gate-current.log.</td></tr><tr><td>Android native build/runtime</td><td>TERHALANG</td><td>JAVA_HOME/Android SDK tidak tersedia pada lingkungan ini; build dan perangkat fisik tidak diverifikasi.</td></tr></tbody></table></div>
+<p>Lingkungan: Node v25.9.0, npm 11.12.1; versi repo mengharapkan Node 22/npm 10. Hasil lokal tidak menggantikan CI pada versi yang diwajibkan.</p>
+<h2>5. Prioritas dan roadmap</h2>
+<p>Urutan pertama: buat gate audit dependensi gagal bila sumber advisori gagal (IDO-12), pulihkan efek yang hilang setelah commit lokal (ORD-01, DLV-07, REF-01), buat posting stok/PO idempoten (DEP-01, DEP-02, APP-02), tutup jalur otorisasi/PII (AUT-01, HR-21, AAS-04), dan bedakan transaksi berbukti yang perlu tinjau dari TTL biasa (PPA-01). Dependency penerima dan kebijakan Finance/Ops harus disahkan sebelum backfill atau perubahan status uang. Fase berikutnya menyelaraskan KPI, SLA per attempt, pajak, refund dan forecast sesuai <a href="07-bi-catalog.md">katalog BI</a> serta <a href="08-automation.md">otomasi</a>. Tidak ada ROI nominal, angka kerugian, atau deadline yang dibuat-buat.</p>
+<div class="tw"><table id="matrix"><thead><tr><th>ID</th><th>Area</th><th>Dampak</th><th>Effort</th><th>Kelompok</th><th>Tindakan</th><th>Judul</th></tr></thead><tbody><tr data-area="AUT" data-group="Quick Win"><td>AUT-007</td><td>AUT</td><td>4</td><td>M</td><td>Quick Win</td><td>keep</td><td>Lindungi peran akun saat ini dan super admin terakhir pada perubahan peran</td></tr><tr data-area="AUT" data-group="Quick Win"><td>AUT-012</td><td>AUT</td><td>4</td><td>M</td><td>Quick Win</td><td>keep</td><td>Ekspor karyawan melewati redaksi depot peminjam</td></tr><tr data-area="AUT" data-group="Quick Win"><td>AUT-027</td><td>AUT</td><td>4</td><td>S</td><td>Quick Win</td><td>keep</td><td>Gate audit dependensi lulus saat endpoint advisory gagal</td></tr><tr data-area="FLW" data-group="Quick Win"><td>FLW-002</td><td>FLW</td><td>4</td><td>M</td><td>Quick Win</td><td>keep</td><td>Kampanye memakai lease tetapi belum meneruskan dedupeKey per penerima</td></tr><tr data-area="FLW" data-group="Quick Win"><td>FLW-005</td><td>FLW</td><td>4</td><td>S</td><td>Quick Win</td><td>keep</td><td>Replay reschedule selalu memulihkan handoff order</td></tr><tr data-area="FLW" data-group="Quick Win"><td>FLW-016</td><td>FLW</td><td>4</td><td>M</td><td>Quick Win</td><td>keep</td><td>Pertahankan pembayaran berbukti dalam antrean tinjau saat TTL lewat</td></tr><tr data-area="FLW" data-group="Quick Win"><td>FLW-020</td><td>FLW</td><td>4</td><td>S</td><td>Quick Win</td><td>keep</td><td>Logout native kehilangan bearer sebelum revoke dan unsubscribe</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-010</td><td>FLW</td><td>5</td><td>L</td><td>Strategis</td><td>keep</td><td>Outbox selesai meski efek stok/poin/referral/pendapatan gagal</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-001</td><td>AUT</td><td>4</td><td>M</td><td>Strategis</td><td>keep</td><td>Validasi penerima laporan dan putuskan akses per dataset</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-010</td><td>AUT</td><td>4</td><td>M</td><td>Strategis</td><td>keep</td><td>Ikat key foto PoD ke objek yang sah sebelum sign/delete</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-015</td><td>AUT</td><td>4</td><td>L</td><td>Strategis</td><td>keep</td><td>Dump database diunggah sebagai gzip tanpa enkripsi klien</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-022</td><td>AUT</td><td>4</td><td>M</td><td>Strategis</td><td>keep</td><td>Simpan pelaku, waktu dan referensi hasil pencairan manual</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-003</td><td>FLW</td><td>4</td><td>L</td><td>Strategis</td><td>keep</td><td>Kunci gerakan GALON menyamakan issue dan return satu order</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-004</td><td>FLW</td><td>4</td><td>M</td><td>Strategis</td><td>keep</td><td>Penerimaan PO belum atomik terhadap retry/crash/paralel</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-007</td><td>FLW</td><td>4</td><td>L</td><td>Strategis</td><td>keep</td><td>Tutup celah jendela pertanggungjawaban COD pada shift basi</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-008</td><td>FLW</td><td>4</td><td>L</td><td>Strategis</td><td>keep</td><td>Pulihkan efek samping setelah proof of delivery tersimpan</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-011</td><td>FLW</td><td>4</td><td>L</td><td>Strategis</td><td>reclassify</td><td>Penjualan konter dan pencatatan pembayaran masih dua langkah</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-019</td><td>FLW</td><td>4</td><td>L</td><td>Strategis</td><td>keep</td><td>Pisahkan qualification referral dari penyelesaian reward durable</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-002</td><td>AUT</td><td>3</td><td>S</td><td>Strategis</td><td>keep</td><td>Pisahkan hasil pembuatan file dan hasil pengiriman laporan</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-009</td><td>AUT</td><td>3</td><td>M</td><td>Strategis</td><td>reclassify</td><td>Retur kurir belum mengikat order/customer ke delivery yang berwenang</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-011</td><td>AUT</td><td>3</td><td>M</td><td>Strategis</td><td>reclassify</td><td>Rebuild forecast tidak membedakan feed gagal dari feed selesai</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-014</td><td>AUT</td><td>3</td><td>S</td><td>Strategis</td><td>keep</td><td>Input dispatch disisipkan ke badan shell sebelum validasi</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-017</td><td>AUT</td><td>3</td><td>M</td><td>Strategis</td><td>keep</td><td>Pemantauan belum membuktikan kesehatan ujung-ke-ujung jalur alert</td></tr><tr data-area="AUT" data-group="Strategis"><td>AUT-023</td><td>AUT</td><td>3</td><td>M</td><td>Strategis</td><td>reclassify</td><td>Nudge pesan ulang berulang dan penghitung sukses mengabaikan boolean</td></tr><tr data-area="BI" data-group="Strategis"><td>BI-003</td><td>BI</td><td>3</td><td>M</td><td>Strategis</td><td>reclassify</td><td>Register keamanan perlu direkonsiliasi per bukti</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-001</td><td>FLW</td><td>3</td><td>M</td><td>Strategis</td><td>keep</td><td>Retry penyesuaian stok delta dapat membuat movement kedua</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-006</td><td>FLW</td><td>3</td><td>S</td><td>Strategis</td><td>keep</td><td>Teruskan customerId dan deliveryWindow pada dispatch staf</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-013</td><td>FLW</td><td>3</td><td>L</td><td>Strategis</td><td>keep</td><td>Audit HTTP best-effort masih berpotensi kehilangan entri</td></tr><tr data-area="FLW" data-group="Strategis"><td>FLW-021</td><td>FLW</td><td>3</td><td>M</td><td>Strategis</td><td>keep</td><td>Retensi offline menghapus seluruh jenis job termasuk pencatatan uang</td></tr><tr data-area="FTR" data-group="Strategis"><td>FTR-002</td><td>FTR</td><td>3</td><td>M</td><td>Strategis</td><td>keep</td><td>Lengkapi jejak persetujuan untuk akun yang dibuat lewat login</td></tr><tr data-area="FTR" data-group="Strategis"><td>FTR-003</td><td>FTR</td><td>3</td><td>S</td><td>Strategis</td><td>keep</td><td>Pisahkan mutasi alamat biasa dari penggantian alamat utama</td></tr><tr data-area="FLW" data-group="Nice-to-have"><td>FLW-009</td><td>FLW</td><td>3</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Installer belum menyiapkan log backup provider kedua</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-004</td><td>AUT</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Allowlist auth test terlalu luas pada products namespace</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-016</td><td>AUT</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Perjelas permissions workflow dan pin Buildx SHA</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-018</td><td>AUT</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Raw URL pada alert memperlebar cardinality dan konteks sensitif</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-019</td><td>AUT</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Regex audit terlalu luas untuk field shipping dan params mentah</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-020</td><td>AUT</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Audit permission mobile memakai allowlist gabungan dua binary</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-021</td><td>AUT</td><td>2</td><td>M</td><td>Nice-to-have</td><td>keep</td><td>Dependency mobile terpisah dari npm workspace vulnerability gate</td></tr><tr data-area="BI" data-group="Nice-to-have"><td>BI-004</td><td>BI</td><td>2</td><td>S</td><td>Nice-to-have</td><td>reclassify</td><td>Dokumen status PPN perlu diselaraskan dengan fitur tarif0</td></tr><tr data-area="BI" data-group="Nice-to-have"><td>BI-005</td><td>BI</td><td>2</td><td>S</td><td>Nice-to-have</td><td>reclassify</td><td>Kumpulan komentar historis usang perlu adjudikasi per baris</td></tr><tr data-area="BI" data-group="Nice-to-have"><td>BI-006</td><td>BI</td><td>2</td><td>S</td><td>Nice-to-have</td><td>reclassify</td><td>readAllPages ceiling tidak ketat pada short final page</td></tr><tr data-area="BI" data-group="Nice-to-have"><td>BI-007</td><td>BI</td><td>2</td><td>S</td><td>Nice-to-have</td><td>reclassify</td><td>Netralisasi CSV mengubah angka negatif menjadi teks</td></tr><tr data-area="FLW" data-group="Nice-to-have"><td>FLW-014</td><td>FLW</td><td>2</td><td>M</td><td>Nice-to-have</td><td>keep</td><td>Kursor invalid diam-diam memakai nomor halaman</td></tr><tr data-area="FLW" data-group="Nice-to-have"><td>FLW-023</td><td>FLW</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>needsPayment hanya mengecualikan CANCELLED</td></tr><tr data-area="FTR" data-group="Nice-to-have"><td>FTR-008</td><td>FTR</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>HTTP exception code generik untuk 409/422/503</td></tr><tr data-area="FTR" data-group="Nice-to-have"><td>FTR-011</td><td>FTR</td><td>2</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Gate editor earning rule belum mengikuti capability server</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-024</td><td>AUT</td><td>1</td><td>M</td><td>Nice-to-have</td><td>keep</td><td>Upload PoD diulang pada tiap retry complete</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-025</td><td>AUT</td><td>1</td><td>S</td><td>Nice-to-have</td><td>reclassify</td><td>Revalidasi profil memicu refresh data turunan</td></tr><tr data-area="AUT" data-group="Nice-to-have"><td>AUT-026</td><td>AUT</td><td>1</td><td>M</td><td>Nice-to-have</td><td>keep</td><td>File transfer belum memakai telemetry dan retry rate-limit JSON</td></tr><tr data-area="FLW" data-group="Nice-to-have"><td>FLW-015</td><td>FLW</td><td>1</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Callback geolocation native hanya satu slot pending</td></tr><tr data-area="FLW" data-group="Nice-to-have"><td>FLW-022</td><td>FLW</td><td>1</td><td>S</td><td>Nice-to-have</td><td>reclassify</td><td>Kegagalan delete IndexedDB disembunyikan dari UI</td></tr><tr data-area="FTR" data-group="Nice-to-have"><td>FTR-007</td><td>FTR</td><td>1</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Override depot adjustMaxPoints tidak dibaca pada adjustment</td></tr><tr data-area="FTR" data-group="Nice-to-have"><td>FTR-009</td><td>FTR</td><td>1</td><td>M</td><td>Nice-to-have</td><td>reclassify</td><td>FileProvider path luas bersifat hardening kondisional</td></tr><tr data-area="FTR" data-group="Nice-to-have"><td>FTR-012</td><td>FTR</td><td>1</td><td>S</td><td>Nice-to-have</td><td>keep</td><td>Sebagian teks utilitas belum memakai resolver locale</td></tr><tr data-area="BI" data-group="Jangan dikerjakan dulu"><td>BI-001</td><td>BI</td><td>4</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Definisikan jam SLA tiap percobaan pengantaran ulang</td></tr><tr data-area="BI" data-group="Jangan dikerjakan dulu"><td>BI-002</td><td>BI</td><td>4</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Definisi bruto pajak variabel perlu konfirmasi akuntan</td></tr><tr data-area="FLW" data-group="Jangan dikerjakan dulu"><td>FLW-017</td><td>FLW</td><td>4</td><td>L</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Bedakan persetujuan refund manual dari uang benar-benar diserahkan</td></tr><tr data-area="FLW" data-group="Jangan dikerjakan dulu"><td>FLW-018</td><td>FLW</td><td>4</td><td>L</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Tetapkan alokasi reversal franchise untuk refund setelah order selesai</td></tr><tr data-area="FTR" data-group="Jangan dikerjakan dulu"><td>FTR-005</td><td>FTR</td><td>4</td><td>L</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Anonimisasi employee menyisakan field identitas lain</td></tr><tr data-area="AUT" data-group="Jangan dikerjakan dulu"><td>AUT-003</td><td>AUT</td><td>3</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Tentukan retensi dataset lokal admin sebelum membuat purge</td></tr><tr data-area="AUT" data-group="Jangan dikerjakan dulu"><td>AUT-008</td><td>AUT</td><td>3</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Penyesuaian stok mentah dan opname perlu kebijakan kontrol kuantitas</td></tr><tr data-area="FLW" data-group="Jangan dikerjakan dulu"><td>FLW-012</td><td>FLW</td><td>3</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Kebijakan voucher online batal belum dipulihkan pada jalur cancel yang dibaca</td></tr><tr data-area="FLW" data-group="Jangan dikerjakan dulu"><td>FLW-025</td><td>FLW</td><td>3</td><td>L</td><td>Jangan dikerjakan dulu</td><td>defer-evidence</td><td>Tidak adanya Idempotency-Key bukan bukti semua POST tidak idempoten</td></tr><tr data-area="FTR" data-group="Jangan dikerjakan dulu"><td>FTR-004</td><td>FTR</td><td>3</td><td>M</td><td>Jangan dikerjakan dulu</td><td>reclassify</td><td>Lembur dihitung dari menit kehadiran tanpa approval lembur terpisah pada jalur yang dibaca</td></tr><tr data-area="FTR" data-group="Jangan dikerjakan dulu"><td>FTR-006</td><td>FTR</td><td>3</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Scrub subscription menyisakan alamat dan koordinat</td></tr><tr data-area="AUT" data-group="Jangan dikerjakan dulu"><td>AUT-005</td><td>AUT</td><td>2</td><td>S</td><td>Jangan dikerjakan dulu</td><td>defer-evidence</td><td>Input placeholder perlu telaah label persisten dan AT</td></tr><tr data-area="AUT" data-group="Jangan dikerjakan dulu"><td>AUT-006</td><td>AUT</td><td>2</td><td>S</td><td>Jangan dikerjakan dulu</td><td>defer-evidence</td><td>Gate dashboard per halaman merupakan perlindungan regresi</td></tr><tr data-area="AUT" data-group="Jangan dikerjakan dulu"><td>AUT-013</td><td>AUT</td><td>2</td><td>S</td><td>Jangan dikerjakan dulu</td><td>reclassify</td><td>Baseline Load gagal dipush tetapi run tetap sukses</td></tr><tr data-area="FTR" data-group="Jangan dikerjakan dulu"><td>FTR-001</td><td>FTR</td><td>2</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-policy</td><td>Perjelas semantik BETA/ROLLOUT pada flag publik</td></tr><tr data-area="FTR" data-group="Jangan dikerjakan dulu"><td>FTR-010</td><td>FTR</td><td>2</td><td>M</td><td>Jangan dikerjakan dulu</td><td>reclassify</td><td>Recommendation service memakai ProductRef lokal tanpa status aktif/depot</td></tr><tr data-area="FLW" data-group="Jangan dikerjakan dulu"><td>FLW-024</td><td>FLW</td><td>1</td><td>M</td><td>Jangan dikerjakan dulu</td><td>defer-evidence</td><td>Sinkronisasi sesi lintas tab belum diperiksa memadai</td></tr></tbody></table></div>
+<h2>6. Rekomendasi teradjudikasi</h2>
+<p>Semua bukti di bawah adalah path/baris source pada baseline. Status <code>keep</code> adalah pekerjaan yang disarankan, <code>reclassify</code> memperbaiki cakupan atau dampak klaim, dan <code>defer</code> menunggu kebijakan/bukti. Temuan IDO-12 juga didukung reproduksi gate lokal; tidak ada klaim kejadian produksi tanpa data.</p>
+<h3>AUT-007 — Lindungi peran akun saat ini dan super admin terakhir pada perubahan peran</h3>
+<p>Asal <code>AUT-01</code> · AUT · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> canGrantRole mengevaluasi peran baru; invite akun yang sudah ada mengubah role lalu save by id. Guard super admin terakhir tersedia untuk delete/suspend, bukan save role. Risiko penurunan peran disimpulkan dari interleaving source, bukan insiden produksi.</p>
+<p><strong>Kontrol yang ada:</strong> RESTRICTED_GRANTS membatasi pemberian peran baru; suspend/delete melindungi super admin terakhir dengan lock.</p>
+<p><strong>Usulan:</strong> Gunakan otorisasi terhadap peran lama dan baru; lindungi keluar dari SUPER_ADMIN dalam transaksi dengan pola lock yang sudah tersedia, termasuk invite ulang dan jalur internal HR.</p>
+<p><strong>Acceptance:</strong> HEAD_OFFICE tidak dapat mengganti SUPER_ADMIN menjadi STAFF_DEPOT melalui invite; dua penurunan paralel tidak menghapus super admin aktif terakhir; perpindahan depot tanpa perubahan peran tetap bekerja.</p>
+<p><strong>Verifikasi:</strong> Unit policy actor/old/new role, controller wiring, dan race Postgres pada demotion. Belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Auth dan Security; Kontrak grantedBy HR yang sudah ada; perlu review kompatibilitas peran custom.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/auth-service/src/application/services/account.service.ts:359</code> — Pemeriksaan grant memakai role tujuan sebelum membaca akun existing.</li>
+<li><code>services/auth-service/src/application/services/account.service.ts:375</code> — Existing dipromosikan/diganti peran dan disimpan.</li>
+<li><code>services/auth-service/src/infrastructure/prisma/repositories/customer.prisma.repository.ts:201</code> — save mengubah role by id tanpa guard last-admin.</li>
+<li><code>packages/access/src/index.ts:842</code> — canGrantRole bergantung targetRole.</li>
+</ul>
+<h3>AUT-012 — Ekspor karyawan melewati redaksi depot peminjam</h3>
+<p>Asal <code>HR-21</code> · AUT · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> employeeReport memakai depotScopeIds lalu mencetak NIK/NPWP/rekening/gaji dari Employee penuh; tidak memakai homeDepot redaction seperti list. Dampak borrower memerlukan penugasan lintas depot aktif.</p>
+<p><strong>Kontrol yang ada:</strong> Scope depot ada; list/get employee dan payroll menerapkan redaksi; ekspor sengaja lengkap untuk round-trip HQ.</p>
+<p><strong>Usulan:</strong> Gunakan kebijakan home/current-depot yang sama untuk ekspor, pertahankan field lengkap bagi pihak berwenang; tambahkan jejak download metadata tanpa payload PII.</p>
+<p><strong>Acceptance:</strong> Borrowed employee tetap terlihat operasional tetapi NIK/rekening/gaji kosong di CSV dan XLSX; home/HQ tetap dapat round-trip yang diizinkan; download tercatat tanpa menyalin PII.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend HR + pemilik akses HR; Reuse employee redaction/home-depot reach; fixture penugasan lintas depot. Effort M karena ekspor dua format dan kontrol akses.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/hr-service/src/modules/reports.controller.ts:81</code> — GET export memakai hrView</li>
+<li><code>services/hr-service/src/application/services/analytics.service.ts:218</code> — employeeReport memakai current depot scope</li>
+<li><code>services/hr-service/src/application/services/analytics.service.ts:293</code> — Kolom identitas dan rekening diekspor</li>
+<li><code>services/hr-service/src/infrastructure/prisma/analytics.prisma.repository.ts:266</code> — Query Employee lengkap dengan live depotId</li>
+<li><code>services/hr-service/src/application/services/employee.service.ts:294</code> — List menerapkan redaksi bila home depot tidak terjangkau</li>
+<li><code>services/hr-service/src/domain/employee-redaction.ts:11</code> — Daftar field yang wajib disamarkan bagi peminjam</li>
+<li><code>services/hr-service/src/infrastructure/http/audit.interceptor.ts:31</code> — GET dilewati audit mutasi</li>
+</ul>
+<h3>AUT-027 — Gate audit dependensi lulus saat endpoint advisory gagal</h3>
+<p>Asal <code>IDO-12</code> · AUT · dampak 4/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Pada 2026-11-03, npm audit --omit=dev --json keluar 1 dan mengembalikan objek error tanpa vulnerabilities/metadata. scripts/audit-gate.mjs menangkap stdout itu, mem-parse JSON, memperlakukan field yang hilang sebagai objek kosong lalu keluar 0 sambil mencetak 0 critical/0 high. Jalur yang sama berlaku di CI ketika registry audit gagal; hasil aman tidak terbukti.</p>
+<p><strong>Kontrol yang ada:</strong> Workflow Security terpisah menjalankan pemindaian lain; gate ini tetap dipanggil oleh CI dan seharusnya memblokir advisori high/critical yang belum ditinjau.</p>
+<p><strong>Usulan:</strong> Validasi bentuk respons npm audit sebelum membaca vulnerabilities; objek error atau metadata hilang harus membuat gate gagal dengan pesan koneksi/format. Pertahankan perlakuan exit nonzero yang memang berisi laporan advisori valid.</p>
+<p><strong>Acceptance:</strong> JSON error dari npm audit menyebabkan audit:ci exit nonzero; laporan advisori valid dengan vulnerability high yang tidak di-allowlist tetap gagal; laporan valid tanpa blocker lulus.</p>
+<p><strong>Verifikasi:</strong> Tes unit/CLI terisolasi untuk tiga bentuk stdout tersebut; ulangi audit terhadap registry yang tersedia sebelum mengklaim tidak ada advisori baru.</p>
+<p><strong>Owner dan dependensi:</strong> Platform dan Security; Tidak ada perubahan schema/API; CI perlu membedakan kegagalan jaringan dari hasil advisori.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>scripts/audit-gate.mjs:108</code> — stdout dari exit nonzero diterima tanpa membedakan error audit.</li>
+<li><code>scripts/audit-gate.mjs:114</code> — JSON apa pun di-parse sebagai report.</li>
+<li><code>scripts/audit-gate.mjs:115</code> — vulnerabilities yang hilang menjadi objek kosong.</li>
+<li><code>scripts/audit-gate.mjs:136</code> — metadata yang hilang menjadi objek kosong dan angka 0.</li>
+<li><code>.github/workflows/ci.yml:136</code> — CI memanggil gate tersebut.</li>
+</ul>
+<h3>FLW-002 — Kampanye memakai lease tetapi belum meneruskan dedupeKey per penerima</h3>
+<p>Asal <code>CRM-01</code> · FLW · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Notification ditulis sebelum recordRecipientResult. Lease recipient dapat kedaluwarsa; replay memanggil notify tanpa dedupeKey dan membuat row/push baru.</p>
+<p><strong>Kontrol yang ada:</strong> Lease claimToken dan reclaim basi tersedia; dedupe notification dan migrasi unik sudah tersedia; marketing opt-out fail-closed.</p>
+<p><strong>Usulan:</strong> Bawa identitas recipient ke delivery port lalu gunakan key deterministik campaign-recipient; tetap bedakan percobaan kampanye baru. Review hasil lease agar stale worker tidak menimpa hasil baru.</p>
+<p><strong>Acceptance:</strong> Crash setelah row notification sebelum result, lalu reclaim recipient: satu inbox row dan paling banyak satu push attempt untuk recipient kampanye itu; kampanye berbeda tetap boleh mengirim.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend CRM + marketing; Kontrak internal dalam crm; verifikasi migrasi dedupe pada deployment terpisah. Effort M karena port/fake/controller/service tests.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/crm-service/src/application/services/campaign.service.ts:306</code> — Deliver sebelum simpan hasil</li>
+<li><code>services/crm-service/src/infrastructure/prisma/campaign.prisma.repository.ts:175</code> — SENDING lease basi dapat diklaim ulang</li>
+<li><code>services/crm-service/src/infrastructure/notification/inbox-broadcast.delivery.ts:38</code> — notify tanpa dedupeKey</li>
+<li><code>services/crm-service/src/application/services/notification.service.ts:244</code> — Dedupe hanya jika key terisi; existing row tidak push ulang</li>
+<li><code>services/crm-service/src/infrastructure/prisma/notification.prisma.repository.ts:100</code> — recordOnce menangani unique violation</li>
+<li><code>services/crm-service/prisma/migrations/20261030140000_notification_dedupe_key/migration.sql:11</code> — Unique index dedupeKey tersedia sebagai migrasi source</li>
+<li><code>services/crm-service/src/modules/campaign.module.ts:48</code> — InboxBroadcastDelivery terdaftar</li>
+<li><code>scripts/scheduler/crontab:83</code> — Kampanye diproses setiap dua menit</li>
+</ul>
+<h3>FLW-005 — Replay reschedule selalu memulihkan handoff order</h3>
+<p>Asal <code>DLV-01</code> · FLW · dampak 4/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Status RESCHEDULED disimpan sebelum advanceOrder(PREPARING). Replay tanggal sama memanggil finishRescheduleReplay, tetapi segera return jika cashReturned tidak true.</p>
+<p><strong>Kontrol yang ada:</strong> CAS status dan replay payload tanggal sama; kegagalan reversal tunai mencoba rollback; handoff mengenali OrderAlreadyClaimedError.</p>
+<p><strong>Usulan:</strong> Pisahkan pemulihan handoff order dari syarat reversal kas; tangani replay order yang sudah mencapai tujuan secara idempoten. Notifikasi harus memakai identitas percobaan agar reassign sah tidak teredam.</p>
+<p><strong>Acceptance:</strong> Advance pertama gagal setelah status tersimpan, retry payload sama tanpa cashReturned menyelesaikan handoff; reversal tunai tidak berulang; order yang sudah direassign tidak dimundurkan.</p>
+<p><strong>Verifikasi:</strong> Unit fault injection dan contract replay dengan order-service, termasuk status sudah lanjut. Belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Delivery; Semantik konflik/transisi order yang sudah ada; jangan menelan seluruh 409 sebagai sukses.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:845</code> — Replay return awal bila cashReturned false.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:874</code> — Replay tanggal sama menuju helper.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:940</code> — Advance order dilakukan setelah status lokal tersimpan.</li>
+</ul>
+<h3>FLW-016 — Pertahankan pembayaran berbukti dalam antrean tinjau saat TTL lewat</h3>
+<p>Asal <code>PPA-01</code> · FLW · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> findStalePending menyaring status/metode/createdAt tanpa proofUrl; sweep CAS PENDING menjadi FAILED. Bukti unggah bukan bukti uang sudah masuk, tetapi membutuhkan tinjau sebelum status terminal.</p>
+<p><strong>Kontrol yang ada:</strong> CASH dikecualikan; CAS mencegah menimpa PAID; TTL mempunyai kill switch; notifikasi bukti tersedia.</p>
+<p><strong>Usulan:</strong> Pisahkan expiry belum-ada-bukti dari review bukti. Cek proof dalam predicate atomik agar unggah serentak tidak ditimpa. Pertahankan notifikasi dan antrean manual yang sudah ada.</p>
+<p><strong>Acceptance:</strong> PENDING dengan proofUrl tidak menjadi FAILED pada expiry; proof yang masuk serentak dengan sweep mendapat hasil konsisten; PENDING tanpa bukti tetap dapat kedaluwarsa; CASH dan PAID tidak berubah.</p>
+<p><strong>Verifikasi:</strong> Unit sweep dan race upload-vs-expire; verifikasi antrean staf. Tidak menjalankan pembayaran nyata.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Payment dan Finance Ops; Kontrak review bukti yang sudah ada; Finance menyepakati penanganan bukti invalid melalui jalur fail manual.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/payment-service/src/infrastructure/prisma/payment.prisma.repository.ts:122</code> — Query stale tanpa pengecualian proof.</li>
+<li><code>services/payment-service/src/application/services/payment.service.ts:703</code> — Sweep memindah PENDING ke FAILED.</li>
+<li><code>services/payment-service/src/domain/payment.ts:98</code> — FAILED terminal pada domain transition.</li>
+</ul>
+<h3>FLW-020 — Logout native kehilangan bearer sebelum revoke dan unsubscribe</h3>
+<p>Asal <code>WEB-01</code> · FLW · dampak 4/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> signOut memulai request auth lalu clearTokens pada tick sama. request menunggu waitForSession sebelum rawRequest membaca bearer. await atas promise yang sudah resolved pun menunda kelanjutan; token sudah null. nativeUnsubscribe juga menunggu readEndpoint. Gateway native meneruskan bearer yang diterima ke auth/logout SelfScoped.</p>
+<p><strong>Kontrol yang ada:</strong> Pembersihan profil/lokasi/depot/familyId sudah ada; gateway selalu membersihkan cookie web dan mengembalikan revoked; subscribe berikutnya mengganti pemilik endpoint.</p>
+<p><strong>Usulan:</strong> Tangkap token pada request revoke/unsubscribe sebelum clear, atau tunggu revoke dengan deadline lalu selalu bersihkan lokal. Jangan biarkan jaringan macet menahan logout.</p>
+<p><strong>Acceptance:</strong> Pada native sesi terbuka, signOut membuat POST logout dan DELETE push memakai bearer sebelum pembersihan; server revoke mengembalikan revoked=true. Saat layanan gagal, pembersihan lokal tetap selesai dengan deadline dan UI membedakan revoke belum terbukti.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend/mobile engineer; Pertahankan token di snapshot request atau selesaikan revoke/unsubscribe secara terbatas sebelum clear. Jangan mengandalkan urutan pemanggilan promise.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/auth-context.tsx:151</code> — logout fire-and-forget dan unsubscribe diikuti clearTokens tanpa await</li>
+<li><code>apps/web/src/lib/api.ts:383</code> — request menunggu sebelum rawRequest</li>
+<li><code>apps/web/src/lib/api.ts:265</code> — rawRequest membaca bearer dari token store saat dijalankan</li>
+<li><code>apps/web/src/lib/token-store.ts:163</code> — setTokens(null) menghapus token memori secara sinkron</li>
+<li><code>apps/web/src/lib/push.ts:212</code> — unsubscribe membaca endpoint asinkron sebelum DELETE</li>
+<li><code>services/gateway-service/src/routing/session-bff.ts:253</code> — native logout membaca Authorization request dan meneruskannya ke auth-service</li>
+<li><code>services/auth-service/src/modules/auth/account.controller.ts:388</code> — logout SelfScoped memakai CurrentUser untuk actorCustomerId</li>
+</ul>
+<h3>FLW-010 — Outbox selesai meski efek stok/poin/referral/pendapatan gagal</h3>
+<p>Asal <code>ORD-01</code> · FLW · dampak 5/5 · effort L · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Handler memenuhi Promise tanpa throw ketika adapter gagal; run menandai DONE. Kegagalan lookup pemilik juga mengembalikan null sehingga memperbaiki adapter payout saja tidak cukup.</p>
+<p><strong>Kontrol yang ada:</strong> Outbox ditulis bersama status; backoff 6 percobaan dan 10 untuk PAYMENT_REVERSAL; pembatalan order mencegah side effect baru; reversal pembayaran/pendapatan sudah dapat throw.</p>
+<p><strong>Usulan:</strong> Bedakan integrasi nonaktif yang sah dari dependency unavailable; failure efek wajib harus mempertahankan PENDING. Audit idempotensi penerima dan kompensasi lebih dahulu, khususnya referral reward; tambahkan alert/replay dengan batas kewenangan.</p>
+<p><strong>Acceptance:</strong> Untuk setiap topik, 500/timeout tidak menghasilkan DONE; pemulihan dependency menghasilkan satu efek bisnis; pengulangan/referral tidak memberi reward ganda; HKP tanpa pemilik tetap no-op yang sah.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend order + pemilik depot/loyalty/referral/payout + SRE; Validasi idempotensi penerima per orderId, REF-01, strict lookup ownership, rollout lintas service. Effort L karena kontrak failure dan efek uang lintas database.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/application/services/order.service.ts:337</code> — Registrasi handler empat topik pada constructor</li>
+<li><code>services/order-service/src/application/services/outbox.service.ts:125</code> — deliver diikuti markDone; retry hanya di catch</li>
+<li><code>services/order-service/src/infrastructure/http/inventory.http.adapter.ts:67</code> — consume menelan error</li>
+<li><code>services/order-service/src/infrastructure/http/loyalty-coordination.http.adapter.ts:59</code> — awardPoints gagal mengembalikan null</li>
+<li><code>services/order-service/src/infrastructure/http/referral-coordination.http.adapter.ts:39</code> — qualify menelan error</li>
+<li><code>services/order-service/src/infrastructure/http/franchise-revenue.http.adapter.ts:70</code> — orderCompleted gagal mengembalikan null</li>
+<li><code>services/order-service/src/infrastructure/http/depot-directory.http.adapter.ts:202</code> — lookup pemilik gagal mengembalikan null</li>
+<li><code>services/order-service/src/application/services/order.service.ts:2319</code> — null ownership menyebabkan handler return</li>
+<li><code>services/order-service/src/modules/order.module.ts:88</code> — Provider adapter nyata didaftarkan</li>
+<li><code>scripts/scheduler/crontab:37</code> — Outbox dipicu setiap 10 menit</li>
+</ul>
+<h3>AUT-001 — Validasi penerima laporan dan putuskan akses per dataset</h3>
+<p>Asal <code>AAS-04</code> · AUT · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Recipients hanya string/array; kelas controller memakai hqBackOffice sementara dataset termasuk KASBON_BALANCE/ORDERS_DETAIL. Domain allowlist dan pemisahan capability belum merupakan keputusan tertulis dalam source yang dibaca.</p>
+<p><strong>Kontrol yang ada:</strong> JWT/capability HQ, internal-key pada sweep, audit mutasi dan lease runner tersedia.</p>
+<p><strong>Usulan:</strong> Terapkan validasi email dan batas array yang disetujui; Produk/Security menetapkan capability tiap dataset dan kebijakan domain eksternal sebelum pembatasan rollout.</p>
+<p><strong>Acceptance:</strong> Email malformed ditolak; role tanpa izin dataset ditolak menurut matriks yang disahkan; tujuan sah tetap menerima laporan.</p>
+<p><strong>Verifikasi:</strong> DTO + policy/controller specs, sandbox mail; tidak mengirim email dalam audit.</p>
+<p><strong>Owner dan dependensi:</strong> Security, Produk dan Backend Admin; Keputusan Security/Produk per dataset dan daftar tujuan bisnis; jangan menutup domain eksternal secara sewenang-wenang.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/admin-service/src/modules/dto/scheduled-report.dto.ts:31</code> — Recipients hanya string, bukan IsEmail.</li>
+<li><code>services/admin-service/src/modules/scheduled-reports.controller.ts:33</code> — Kelas memakai hqBackOffice.</li>
+<li><code>services/admin-service/src/domain/report-dataset.ts:19</code> — Dataset termasuk saldo kasbon.</li>
+</ul>
+<h3>AUT-010 — Ikat key foto PoD ke objek yang sah sebelum sign/delete</h3>
+<p>Asal <code>DLV-08</code> · AUT · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> storageKeyFromUrl menerima substring mulai pod/ tanpa verifikasi origin/ownership. Key kemudian ditandatangani dan dihapus. Dampak lintas objek adalah inferensi yang memerlukan model permission bucket dan pengetahuan key; tidak ada klaim eksploitasi produksi.</p>
+<p><strong>Kontrol yang ada:</strong> Bucket private dan signed link TTL; upload memeriksa berkas; endpoint proof dibatasi aktor.</p>
+<p><strong>Usulan:</strong> Simpan key hasil upload yang tervalidasi dan terikat ke delivery/aktor; larang key lintas prefix/ownership saat sign/delete. Periksa kompatibilitas URL historis sebelum memperketat validasi.</p>
+<p><strong>Acceptance:</strong> Proof URL/key asing ditolak; sign/delete hanya menyentuh objek yang terikat; PoD historis sah tetap dapat dibaca atau masuk daftar migrasi.</p>
+<p><strong>Verifikasi:</strong> Unit URL/key boundary serta fake storage assert object key; review prefix bersama expense receipt.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Delivery dan Security; Kontrak storage dan upload; bukti ownership historis.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:64</code> — Key berasal dari pencarian substring pod/.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:1117</code> — Key dipakai signedUrl.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:1139</code> — Key dipakai remove pada purge.</li>
+</ul>
+<h3>AUT-015 — Dump database diunggah sebagai gzip tanpa enkripsi klien</h3>
+<p>Asal <code>IDO-04</code> · AUT · dampak 4/5 · effort L · keputusan <code>keep</code> · confidence Tinggi untuk bytes source; enkripsi provider tidak diketahui.</p>
+<p><strong>Masalah dan batas:</strong> Temuan baru spesifik proteksi material backup; bukan klaim backup/offsite/verification tidak tersedia. Tidak menyimpulkan SSE provider tidak aktif dan tidak menyimpulkan pelanggaran hukum.</p>
+<p><strong>Kontrol yang ada:</strong> Offsite read-back checksum; backup env asimetris; provider kedua dapat dikonfigurasi; restore/drill sudah ada.</p>
+<p><strong>Usulan:</strong> Pastikan jaminan provider terlebih dulu; jika threat model mencakup bocor credential bucket, enkripsi dump asimetris sebelum upload, batasi permission lokal, versikan format; sesuaikan restore-db, drill, deploy backup dan kedua provider sebelum rollout.</p>
+<p><strong>Acceptance:</strong> Restore dari format baru membutuhkan kunci di luar VPS; tanpa kunci gagal jelas; format lama tetap dapat dipulihkan selama retensi; offsite read-back, kedua provider dan drill dapat memverifikasi artefak baru tanpa mengekspos data.</p>
+<p><strong>Verifikasi:</strong> Drill terisolasi dengan dataset sintetis dan kunci latihan saat implementasi; tidak dijalankan dalam audit.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps/security dan pemilik backup; Kunci privat/custody teruji, keputusan kebijakan enkripsi, perbarui runbook restore/drill dan inventory format. Effort L karena pipeline lintas skrip, format, compatibility serta latihan; bukan Quick Win.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>scripts/backup-db.sh:47</code> — pg_dumpall dialirkan hanya melalui gzip</li>
+<li><code>scripts/upload-to-s3.mjs:44</code> — PutObject meneruskan file</li>
+<li><code>scripts/upload-to-s3.mjs:47</code> — Body readFileSync; tidak ada transform enkripsi</li>
+<li><code>scripts/backup-env.sh:106</code> — Enkripsi SMIME AES256 sudah tersedia khusus env</li>
+<li><code>scripts/backup-second-provider.sh:48</code> — Provider kedua memakai ulang backup-offsite dump</li>
+</ul>
+<h3>AUT-022 — Simpan pelaku, waktu dan referensi hasil pencairan manual</h3>
+<p>Asal <code>PPA-02</code> · AUT · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Controller membawa user.sub ke service, tetapi repository settle hanya menulis status; model withdrawal tidak menyimpan settledBy/transferRef. Aksi bank tetap manual. Ketiadaan audit payout end-to-end belum diklaim mutlak.</p>
+<p><strong>Kontrol yang ada:</strong> CAS PROCESSING dan reversal saldo dalam transaksi; idempotency withdrawal dan maker-checker request tersedia.</p>
+<p><strong>Usulan:</strong> Catat settledBy/At, reason dan bank reference untuk hasil transfer; audit append-only. Bedakan maker-checker request dari bukti settlement bank; kebijakan orang kedua opsional menunggu Finance.</p>
+<p><strong>Acceptance:</strong> PAID baru memiliki aktor/waktu/ref; FAILED memiliki alasan dan reversal tepat sekali; data lama ditandai unknown tanpa fabricated actor.</p>
+<p><strong>Verifikasi:</strong> Migration compatibility, unit/DB race settle dan audit failure; tidak mengirim transfer.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Payout dan Finance; Finance menentukan bukti referensi yang diterima dan retensinya.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/payout-service/src/modules/hq-payout.controller.ts:203</code> — Aktor tersedia di controller.</li>
+<li><code>services/payout-service/src/infrastructure/prisma/withdrawal.prisma.repository.ts:147</code> — Settle hanya menulis status.</li>
+<li><code>services/payout-service/prisma/schema.prisma:269</code> — Model courier withdrawal tanpa settlement evidence.</li>
+<li><code>services/payout-service/prisma/schema.prisma:290</code> — Model owner withdrawal tanpa settlement evidence.</li>
+</ul>
+<h3>FLW-003 — Kunci gerakan GALON menyamakan issue dan return satu order</h3>
+<p>Asal <code>DEP-01</code> · FLW · dampak 4/5 · effort L · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Kedua arah membawa orderId yang sama pada item GALON yang sama; setelah movement pertama, moveRawLine mengembalikan shortfall 0 tanpa gerakan kedua.</p>
+<p><strong>Kontrol yang ada:</strong> Ledger issue/return dan idempotensi per order sudah ada; refund dibatasi outstanding deposit.</p>
+<p><strong>Usulan:</strong> Pisahkan identitas kejadian issue vs return pada movement dan desain migrasi/backfill terukur; pertahankan replay masing-masing arah.</p>
+<p><strong>Acceptance:</strong> Issue 2 dan return GOOD 2 pada order sama menghasilkan dua movement dengan net 0, di kedua urutan; replay setiap arah tidak menggandakan movement.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend depot + operasi stok; Schema key movement, pra-cek histori dan saldo; effort L karena data lama dan migrasi identitas event</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/depot-service/src/application/services/gallon-issue.service.ts:231</code> — Issue meneruskan orderId</li>
+<li><code>services/depot-service/src/application/services/gallon-return.service.ts:108</code> — Return meneruskan orderId pada moveRawLine</li>
+<li><code>services/depot-service/src/application/services/gallon-return.service.ts:414</code> — Courier return meneruskan input.orderId</li>
+<li><code>services/depot-service/src/application/services/inventory.service.ts:875</code> — Movement yang sudah ada membuat no-op</li>
+<li><code>services/depot-service/prisma/schema.prisma:303</code> — Unique itemId,orderId</li>
+</ul>
+<h3>FLW-004 — Penerimaan PO belum atomik terhadap retry/crash/paralel</h3>
+<p>Asal <code>DEP-02</code> · FLW · dampak 4/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> PO dibaca SENT, seluruh receiveStock dilakukan, lalu lines/status ditulis satu kali; repository update hanya where id. Dua penerimaan atau retry setelah crash dapat menggandakan stok.</p>
+<p><strong>Kontrol yang ada:</strong> Kuantitas outstanding dibatasi; kegagalan booking baris tetap outstanding dan unbooked dilaporkan.</p>
+<p><strong>Usulan:</strong> Unit transaksi receipt lokal atau receipt line beridentitas idempoten; CAS saja sebelum posting perlu jalur crash recovery. Pertahankan partial receipt.</p>
+<p><strong>Acceptance:</strong> Dua receive paralel tidak menaikkan stok dua kali; crash setelah line pertama lalu retry tidak menggandakan line itu; baris gagal tetap outstanding.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend depot + procurement; Repository PO + inventory dalam database depot; effort M karena unit transaksi domain tunggal</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/depot-service/src/application/services/purchase-order.service.ts:159</code> — Pre-check SENT</li>
+<li><code>services/depot-service/src/application/services/purchase-order.service.ts:227</code> — Loop posting receiveStock</li>
+<li><code>services/depot-service/src/application/services/purchase-order.service.ts:270</code> — Satu update PO setelah loop</li>
+<li><code>services/depot-service/src/infrastructure/prisma/purchase-order.prisma.repository.ts:75</code> — Update berdasarkan id tanpa expected version</li>
+</ul>
+<h3>FLW-007 — Tutup celah jendela pertanggungjawaban COD pada shift basi</h3>
+<p>Asal <code>DLV-05</code> · FLW · dampak 4/5 · effort L · keputusan <code>keep</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Auto-close memakai expectedEndAt sementara assignableShift tidak memeriksa waktu; settlement memilih deliveredAt dalam jendela shift. Delivery selesai setelah expectedEndAt sebelum check-in baru dapat berada di luar dua jendela (inferensi).</p>
+<p><strong>Kontrol yang ada:</strong> Failed dan rescheduled cash sudah termasuk codBearingInWindow; setoran fail-closed; daftar unsettled tersedia.</p>
+<p><strong>Usulan:</strong> Hubungkan pertanggungjawaban delivery ke shift atau buat recovery eksplisit bagi interval yang tidak tercakup; jangan mengubah attendance checkout untuk menyamarkan waktu kerja.</p>
+<p><strong>Acceptance:</strong> Delivery selesai di celah expectedEndAt/check-in baru tetap dapat disetor dan tidak dihitung dua kali pada shift mana pun.</p>
+<p><strong>Verifikasi:</strong> Spec jendela shift stale dan end-to-end settlement dengan ledger kas fake; race nyata sebelum rollout.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Delivery dan Finance Ops; Aturan Ops/Finance untuk shift penanggung jawab dan join payment tunai.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/delivery-service/src/application/services/shift.service.ts:232</code> — Shift stale berakhir pada expectedEndAt.</li>
+<li><code>services/delivery-service/src/application/services/shift.service.ts:200</code> — Assignable hanya mengecek adanya shift dan status.</li>
+<li><code>services/delivery-service/src/infrastructure/prisma/delivery.prisma.repository.ts:444</code> — Kas dipilih dengan timestamp dalam jendela.</li>
+</ul>
+<h3>FLW-008 — Pulihkan efek samping setelah proof of delivery tersimpan</h3>
+<p>Asal <code>DLV-07</code> · FLW · dampak 4/5 · effort L · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> complete DELIVERED replay langsung return; advance order error hanya log; push earning dan webhook dijalankan void. Adapter payout menjawab false saat error, yang tidak direkonsiliasi pada jalur ini.</p>
+<p><strong>Kontrol yang ada:</strong> PoD disimpan dahulu dengan CAS; earning mempunyai sourceRef per delivery; HTTP timeout dan log tersedia. Pemulihan manual mungkin dilakukan, bukan dibuktikan otomatis.</p>
+<p><strong>Usulan:</strong> Persist intent handoff/earning/event bersama PoD atau antrean recovery durable. Reuse sourceRef penerima; identitas webhook perlu dedup tersendiri sebelum retry. Bedakan configuration disabled dari transient failure.</p>
+<p><strong>Acceptance:</strong> Dependency gagal setelah PoD, pulih lalu handoff order dan earning tercatat sekali; retry tidak menggandakan insentif; poison item terlihat dan bisa direplay; crash setelah commit tidak kehilangan intent.</p>
+<p><strong>Verifikasi:</strong> Fault injection tiap boundary dan real-Postgres concurrency pada journal; staging tanpa transaksi nyata.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Delivery, Order, Payout dan SRE; Order transition replay; payout idempotency termasuk insentif; admin webhook eventId. Gabungkan AAS-11 untuk sisi publisher, bukan membuat outbox kedua.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:436</code> — Replay DELIVERED tidak melanjutkan side effect.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:493</code> — Handoff failure hanya log dan break.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:505</code> — Earning/event asynchronous void.</li>
+<li><code>services/delivery-service/src/infrastructure/http/courier-payout.http.adapter.ts:102</code> — Error push menghasilkan false.</li>
+<li><code>services/payout-service/src/application/services/courier-payout.service.ts:82</code> — Earning sourceRef deterministic sudah tersedia.</li>
+</ul>
+<h3>FLW-011 — Penjualan konter dan pencatatan pembayaran masih dua langkah</h3>
+<p>Asal <code>ORD-06</code> · FLW · dampak 4/5 · effort L · keputusan <code>reclassify</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Penjualan pickup dibuat COMPLETED dan completion outbox ditulis sebelum browser mencatat pembayaran. Klaim lama tidak ada tampilan rekonsiliasi salah: payment-recon sudah menampilkan order tanpa payment dan jalur remediasi.</p>
+<p><strong>Kontrol yang ada:</strong> Idempotency-Key penjualan; pembayaran aktif tidak digandakan; UI retry pembayaran; layar rekonsiliasi manual tersedia.</p>
+<p><strong>Usulan:</strong> Putuskan apakah completed berarti barang diserahkan atau pembayaran diterima; tambahkan recovery durable/exception aging pada alur existing jika diperlukan, bukan layar recon baru.</p>
+<p><strong>Acceptance:</strong> Tutup browser setelah order create sebelum payment; operator tetap menemukan dan menyelesaikan kewajiban tersebut sekali. Outbox earning/revenue mengikuti definisi bisnis final.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> PO + operasi kasir + backend order/payment; Definisi bisnis completed/counter + kontrak order/payment + frontend</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/application/services/order.service.ts:1247</code> — Pickup konter lahir COMPLETED</li>
+<li><code>services/order-service/src/application/services/order.service.ts:1261</code> — Completion outbox ditulis saat create</li>
+<li><code>apps/web/src/app/dashboard/payment-recon/page.tsx:55</code> — Join order dan payment</li>
+<li><code>apps/web/src/app/dashboard/payment-recon/page.tsx:123</code> — Null payment ditampilkan sebagai noPayment</li>
+<li><code>services/payment-service/src/modules/payment.controller.ts:332</code> — Endpoint for-orders</li>
+<li><code>services/payment-service/src/application/services/payment.service.ts:516</code> — Batch payment dibatasi scope order</li>
+</ul>
+<h3>FLW-019 — Pisahkan qualification referral dari penyelesaian reward durable</h3>
+<p>Asal <code>REF-01</code> · FLW · dampak 4/5 · effort L · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Referral berubah QUALIFIED sebelum dua reward; safeReward dan adapter menelan error. Request reward tidak membawa idempotencyKey; replay QUALIFIED return tanpa memulihkan hadiah. Masalah utamanya kehilangan/recovery, bukan klaim double-award pada replay biasa.</p>
+<p><strong>Kontrol yang ada:</strong> Transisi qualification CAS dan uniqueness referee; loyalty mendukung reward key; timeout HTTP.</p>
+<p><strong>Usulan:</strong> Persist dua reward intent dengan key referralId+sisi, dedup di loyalty, rekonsiliasi status dan ledger. Jangan backfill QUALIFIED lama tanpa memeriksa apakah hadiah pernah tercatat.</p>
+<p><strong>Acceptance:</strong> Reward sisi pertama berhasil, sisi kedua timeout: retry melengkapi sisi kedua tepat sekali; crash setelah qualification dapat dipulihkan; ledger membedakan pending/credited.</p>
+<p><strong>Verifikasi:</strong> Receiver-before-sender contract tests dan fault injection dua sisi, race Postgres untuk dedup.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Referral dan Loyalty; Loyalty contract idempotency, migrasi reward status, dan ORD-01 producer recovery.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/referral-service/src/application/services/referral.service.ts:217</code> — Qualification commit mendahului reward.</li>
+<li><code>services/referral-service/src/application/services/referral.service.ts:211</code> — QUALIFIED replay return tanpa reward.</li>
+<li><code>services/referral-service/src/infrastructure/http/loyalty-reward.http.adapter.ts:36</code> — Payload tanpa idempotencyKey.</li>
+<li><code>services/referral-service/src/infrastructure/http/loyalty-reward.http.adapter.ts:42</code> — Error hanya log.</li>
+</ul>
+<h3>AUT-002 — Pisahkan hasil pembuatan file dan hasil pengiriman laporan</h3>
+<p>Asal <code>AAS-05</code> · AUT · dampak 3/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> File DONE disimpan, mailer.send di-await tetapi hasilnya diabaikan, kemudian run mengembalikan ok:true. File tersimpan adalah kontrol yang sah; gap berada pada visibilitas pengiriman.</p>
+<p><strong>Kontrol yang ada:</strong> File tetap dapat diunduh dari hq/exports; error sumber menghasilkan FAILED; runner punya lease.</p>
+<p><strong>Usulan:</strong> Catat produced/deliverySent/deliverySkipped/deliveryFailed terpisah; jangan menyebut file gagal ketika hanya email yang gagal.</p>
+<p><strong>Acceptance:</strong> Mailer false menghasilkan indikator kirim gagal/dilewati, file tetap tersedia, retry kirim tidak membuat dua file atau dua email setelah sukses.</p>
+<p><strong>Verifikasi:</strong> Unit runner dengan mailer true/false dan konfigurasi SMTP kosong; manual lihat status UI.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Admin dan Operasional HQ; Kontrak mailer boolean tersedia; UI ekspor perlu label terpisah.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/admin-service/src/application/services/scheduled-report-runner.service.ts:111</code> — File disimpan DONE.</li>
+<li><code>services/admin-service/src/application/services/scheduled-report-runner.service.ts:123</code> — Hasil mailer tidak dipakai.</li>
+<li><code>services/admin-service/src/application/services/scheduled-report-runner.service.ts:125</code> — Hasil run tetap ok true.</li>
+</ul>
+<h3>AUT-009 — Retur kurir belum mengikat order/customer ke delivery yang berwenang</h3>
+<p>Asal <code>DEP-06</code> · AUT · dampak 3/5 · effort M · keputusan <code>reclassify</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Body depotId/orderId/customerId diteruskan ke recordFromCourier; method yang dibaca mengukur saldo pelanggan itu dan mencatat return tanpa lookup order/delivery. Guard depot tetap ada, jadi klaim kurir bebas lintas depot tidak didukung.</p>
+<p><strong>Kontrol yang ada:</strong> STAFF_DEPOT terkunci depot; refund min(rate*qty,depositLeft); unknown customer refund 0; serialized balance; idempoten per order.</p>
+<p><strong>Usulan:</strong> Validasi bahwa order/customer/depot/courier cocok dengan delivery miliknya melalui kontrak service-auth; jangan gandakan depot guard.</p>
+<p><strong>Acceptance:</strong> Kurir tidak dapat mengatasnamakan customer/order lain dalam depotnya; retry handover sah tetap idempoten; depot lain ditolak existing guard.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend depot/delivery + operasi kurir; Kontrak delivery/order lookup + aturan handover non-order</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/depot-service/src/modules/driver-gallon-return.controller.ts:30</code> — Identifier body diteruskan</li>
+<li><code>services/depot-service/src/application/services/gallon-return.service.ts:342</code> — Hanya requireDepot pada awal recordFromCourier</li>
+<li><code>services/depot-service/src/application/services/gallon-return.service.ts:375</code> — Outstanding dihitung terhadap customerId body</li>
+<li><code>services/depot-service/src/application/services/gallon-return.service.ts:384</code> — createFromOrder memakai identifier body</li>
+<li><code>packages/access/src/index.ts:324</code> — courierReturn STAFF_DEPOT</li>
+<li><code>packages/platform/src/nest/depot-scope.ts:15</code> — STAFF_DEPOT locked</li>
+<li><code>packages/platform/src/nest/depot-scope.guard.ts:79</code> — depotId request harus di set caller</li>
+</ul>
+<h3>AUT-011 — Rebuild forecast tidak membedakan feed gagal dari feed selesai</h3>
+<p>Asal <code>FCS-04</code> · AUT · dampak 3/5 · effort M · keputusan <code>reclassify</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Ingest real-time best-effort disengaja. Adapter feed mengembalikan empty/null pada 500/timeout; rebuild berhenti dan return ingested/pages seperti EOF normal. Dampak diturunkan 4 ke 3 karena read model BI, bukan efek stok/uang.</p>
+<p><strong>Kontrol yang ada:</strong> Ingest idempoten dan rebuild manual tersedia. Tidak perlu memblokir checkout atas outage forecast.</p>
+<p><strong>Usulan:</strong> Return status failed/incomplete beserta cursor durable dan lag read-model; baru jadwalkan backfill setelah failure contract benar. Jangan menjanjikan semua order pulih dengan rebuild fail-open saat ini.</p>
+<p><strong>Acceptance:</strong> Feed 500 di halaman kedua menandai incomplete dan menyimpan titik lanjut; retry memulihkan order sekali; EOF kosong yang sah tetap success.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend forecast/order + pemilik BI; Order feed + read model; kebijakan freshness PO, bukan SLA 24 jam karangan</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/application/services/order.service.ts:2412</code> — Recommendation/forecast di luar outbox, best-effort</li>
+<li><code>services/order-service/src/infrastructure/http/forecast-coordination.http.adapter.ts:52</code> — Ingest gagal hanya warn</li>
+<li><code>services/forecast-service/src/infrastructure/http/order-feed.http.adapter.ts:49</code> — Non-2xx menjadi halaman kosong EOF</li>
+<li><code>services/forecast-service/src/infrastructure/http/order-feed.http.adapter.ts:63</code> — Catch menjadi halaman kosong EOF</li>
+<li><code>services/forecast-service/src/application/services/rebuild.service.ts:31</code> — Loop berhenti nextCursor null dan return hitungan</li>
+<li><code>services/forecast-service/src/modules/forecast.controller.ts:206</code> — Rebuild tersedia untuk SUPER_ADMIN</li>
+</ul>
+<h3>AUT-014 — Input dispatch disisipkan ke badan shell sebelum validasi</h3>
+<p>Asal <code>IDO-03</code> · AUT · dampak 3/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Source menunjukkan injection boundary di runner pembentuk command dan remote script. Hak dispatch membatasi exposure; tidak ada bukti exploit atau akses anonim.</p>
+<p><strong>Kontrol yang ada:</strong> Dispatch berwenang; envs dipakai untuk secret lain; command mode pilihan tetap.</p>
+<p><strong>Usulan:</strong> Gunakan environment variabel dan quote setiap argumen, validasi sha/nama service/phone sebelum command; hindari command string dinamis. Periksa mobile version_name521 dengan pola sama.</p>
+<p><strong>Acceptance:</strong> Nilai mengandung quote, substitusi shell atau newline ditolak/sebagai literal, tidak menciptakan command tambahan di runner maupun SSH; mode sah tetap bekerja.</p>
+<p><strong>Verifikasi:</strong> Uji command assembly dengan shell fixture lokal tanpa SSH/secret dalam implementasi nanti.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps/security; Owner CI/DevOps; regression fixture resolusi command.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>.github/workflows/deploy.yml:235</code> — sha diinterpolasi ke perintah echo shell</li>
+<li><code>.github/workflows/deploy.yml:282</code> — services diinterpolasi ke perintah echo shell</li>
+<li><code>.github/workflows/deploy.yml:295</code> — demo_phone diinterpolasi ke shell pembentuk command</li>
+<li><code>.github/workflows/deploy.yml:435</code> — Command output dijalankan di SSH</li>
+<li><code>.github/workflows/deploy.yml:375</code> — Nilai lain sudah memakai envs</li>
+</ul>
+<h3>AUT-017 — Pemantauan belum membuktikan kesehatan ujung-ke-ujung jalur alert</h3>
+<p>Asal <code>IDO-09</code> · AUT · dampak 3/5 · effort M · keputusan <code>keep</code> · confidence Tinggi dalam cakupan source.</p>
+<p><strong>Masalah dan batas:</strong> Spot-check deterministik primary: KEEP dengan batas. Source mendukung blind spot running-but-hung alert pipeline; jangan menyebut tidak ada monitoring sama sekali atau menyatakan alert produksi hilang. <code>vector(0)</code> alert bisnis bukan dead-man.</p>
+<p><strong>Kontrol yang ada:</strong> Restart policy, watchdog stopped/running-unhealthy untuk container ber-healthcheck, scrape/exporter alerts, Uptime GitHub independen, webhook aplikasi langsung.</p>
+<p><strong>Usulan:</strong> Tambahkan probe kesehatan dua container dan heartbeat end-to-end dengan penerima independen jika pemilik memilih cakupan itu. Heartbeat dari dalam VPS harus diperiksa dari luar agar tidak mati bersama sistem.</p>
+<p><strong>Acceptance:</strong> Pada latihan terisolasi, hang Alertmanager/Prometheus saat API/web sehat terdeteksi oleh jalur independen; respons pemulihan teramati; kehilangan webhook receiver juga terlihat. Ambang/cadence ditetapkan DevOps.</p>
+<p><strong>Verifikasi:</strong> Latihan gangguan terisolasi setelah implementasi, tidak pada produksi/audit.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps/on-call; Penerima heartbeat di luar VPS dan keputusan operasional biaya; healthchecks saja belum membuktikan delivery webhook.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>docker-compose.prod.yml:896</code> — Prometheus896–910 tanpa healthcheck</li>
+<li><code>docker-compose.prod.yml:975</code> — Alertmanager975–999 tanpa healthcheck</li>
+<li><code>ops/prometheus.yml:23</code> — Scrape aplikasi dan infra, bukan heartbeat pipeline</li>
+<li><code>scripts/watchdog.sh:41</code> — Watchdog mengambil daftar container unhealthy</li>
+<li><code>scripts/lib/deploy-common.sh:191</code> — Container tanpa healthcheck dinilai running saja</li>
+<li><code>scripts/uptime-probe.sh:48</code> — External uptime memeriksa gateway/depot/web saja</li>
+</ul>
+<h3>AUT-023 — Nudge pesan ulang berulang dan penghitung sukses mengabaikan boolean</h3>
+<p>Asal <code>RET-01</code> · AUT · dampak 3/5 · effort M · keputusan <code>reclassify</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Query mengambil pelanggan tertua berdasarkan semua orders; notify tanpa key dan .then(()=&gt;true) membuang false dari adapter. Jadwal nyata harian ditemukan. Klasifikasi marketing reminder perlu PO; jangan langsung klaim pelanggaran consent.</p>
+<p><strong>Kontrol yang ada:</strong> Limit query dan scheduler tersedia; notification delivery fail-open; push-mute preference tersedia. Opt-out marketing bukan bagian jalur notify langsung yang dibaca.</p>
+<p><strong>Usulan:</strong> Pertama gunakan boolean hasil notify untuk counter; PO menentukan nudge cadence, eligible status dan marketing/transaksional; lalu key per customer/periode dan eligibility paging yang tidak menahan 500 tertua selamanya.</p>
+<p><strong>Acceptance:</strong> Adapter false menaikkan failed; dua sweep satu periode tidak menggandakan nudge; eligible batch setelah 500 pelanggan tetap tercapai; opt-out mengikuti klasifikasi PO.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> PO/marketing + backend order/CRM; Gabungkan ORD-03; keputusan cadence/status/consent PO</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/infrastructure/prisma/order.prisma.repository.ts:323</code> — Query latest-order cutoff tanpa status dan penanda sudah dinudge</li>
+<li><code>services/order-service/src/application/services/order.service.ts:1619</code> — notify lalu then true</li>
+<li><code>services/order-service/src/infrastructure/http/notification.http.adapter.ts:16</code> — ONCE_PER_ORDER tidak memuat REORDER_REMINDER</li>
+<li><code>services/order-service/src/infrastructure/http/notification.http.adapter.ts:100</code> — Adapter error menghasilkan false</li>
+<li><code>services/crm-service/src/application/services/notification.service.ts:244</code> — Dedupe opsional</li>
+<li><code>services/crm-service/src/infrastructure/notification/inbox-broadcast.delivery.ts:37</code> — Marketing gate ada pada campaign path</li>
+<li><code>scripts/scheduler/crontab:30</code> — Nudge dijadwalkan 08:00 timezone container</li>
+</ul>
+<h3>BI-003 — Register keamanan perlu direkonsiliasi per bukti</h3>
+<p>Asal <code>IDO-05</code> · BI · dampak 3/5 · effort M · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Tidak membuktikan97 selesai hanya dari git log; ubah narasi menjadi register historis perlu source-level revalidation. Setiap owner mengisi delta source/test, bukan menutup otomatis.</p>
+<p><strong>Kontrol yang ada:</strong> Register mengandung keputusan dan daftar PR historis; audit lanjutan owner memeriksa source.</p>
+<p><strong>Usulan:</strong> Tambahkan source/PR/test/provenance untuk setiap status dan pertahankan keputusan accepted.</p>
+<p><strong>Acceptance:</strong> Setiap baris yang dipindah selesai punya source saat ini, test yang relevan dan status bukti; accepted tidak diubah menjadi bug; count dihitung programatik.</p>
+<p><strong>Verifikasi:</strong> Baca source dan review per baris, bandingkan tally.</p>
+<p><strong>Owner dan dependensi:</strong> QA/security; Owner service; jangan pakai runtime claims tanpa akses terpisah.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>docs/SECURITY_AUDIT_REGISTER.md:13</code> — Dokumen masih melaporkan Selesai5</li>
+<li><code>docs/SECURITY_AUDIT_REGISTER.md:22</code> — Dua kontrol sengaja diterima bukan terbuka</li>
+<li><code>docs/SECURITY_AUDIT_REGISTER.md:46</code> — PRM1/PRM5 tercantum diterima pemilik</li>
+</ul>
+<h3>FLW-001 — Retry penyesuaian stok delta dapat membuat movement kedua</h3>
+<p>Asal <code>APP-02</code> · FLW · dampak 3/5 · effort M · keputusan <code>keep</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Frontend mengirim delta tanpa attempt key. Controller meneruskan delta tanpa key, service selalu memanggil applyMovement, dan repository menambah quantity serta movement baru per request. Unique itemId/orderId hanya berlaku untuk SALE; ADJUSTMENT memakai orderId null. Dua request yang sama setelah jawaban hilang dapat menjadi dua koreksi; kejadian produksi belum diukur.</p>
+<p><strong>Kontrol yang ada:</strong> UI menahan tombol selama request berjalan; backend menolak stok negatif dan mencatat movement atomik. Kontrol ini tidak membedakan retry dari dua koreksi yang disengaja.</p>
+<p><strong>Usulan:</strong> Beri tiap upaya koreksi satu key yang stabil sampai hasilnya diketahui dan deduplikasi key di transaksi movement server. Buat key baru untuk koreksi berikutnya yang disengaja.</p>
+<p><strong>Acceptance:</strong> Retry dengan key sama mengubah stok sekali dan mengembalikan hasil yang konsisten; dua key berbeda masing-masing membuat movement; request lama tanpa key ditangani menurut kontrak kompatibilitas yang disepakati.</p>
+<p><strong>Verifikasi:</strong> Contract test controller, transaksi repository dan retry lost-response; belum dijalankan dalam audit baca-saja.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend dan Backend Depot; Perubahan kontrak web, DTO/controller, dan penyimpanan key di depot-service; periksa klien mobile lama sebelum mewajibkan header.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/app/dashboard/inventory/page.tsx:171</code> — Web mengirim delta tanpa attempt key.</li>
+<li><code>services/depot-service/src/modules/inventory.controller.ts:365</code> — Controller tidak menerima attempt key.</li>
+<li><code>services/depot-service/src/application/services/inventory.service.ts:335</code> — Setiap panggilan adjust meneruskan movement baru.</li>
+<li><code>services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts:218</code> — applyMovement menaikkan quantity dan menambah ledger dalam transaksi.</li>
+<li><code>services/depot-service/prisma/schema.prisma:303</code> — Unique itemId/orderId tidak menduplikasi adjustment dengan orderId null.</li>
+</ul>
+<h3>FLW-006 — Teruskan customerId dan deliveryWindow pada dispatch staf</h3>
+<p>Asal <code>DLV-03</code> · FLW · dampak 3/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Controller membuat AssignInput eksplisit dan tidak memasukkan dua field yang tersedia pada DTO/use-case. Hasil historis aktual perlu pemeriksaan data terpisah.</p>
+<p><strong>Kontrol yang ada:</strong> Dispatch dibatasi capability dan akses depot; DTO dan service sudah menyediakan field.</p>
+<p><strong>Usulan:</strong> Lengkapi pemetaan DTO-ke-input; jangan mengarang backfill customerId baris lama.</p>
+<p><strong>Acceptance:</strong> Controller meneruskan dua field persis; service menyimpan customer dan jendela antar dari dispatch; input lama tanpa field tetap sah.</p>
+<p><strong>Verifikasi:</strong> Spec pass-through controller dan use-case; tidak perlu menyentuh data produksi.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Delivery; Validasi konsumen UI dan DTO; tidak ada migrasi baru.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/delivery-service/src/modules/delivery.controller.ts:53</code> — AssignInput eksplisit melewatkan kedua field.</li>
+</ul>
+<h3>FLW-013 — Audit HTTP best-effort masih berpotensi kehilangan entri</h3>
+<p>Asal <code>PLT-01</code> · FLW · dampak 3/5 · effort L · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> recordAuditEvent satu kali fetch ber-deadline, catch hanya logger.error. Fail-open ini keputusan teknis eksplisit yang harus dipertahankan untuk tidak membatalkan uang yang sudah settled; peningkatan durability adalah strategi baru, bukan kontrol yang diklaim belum pernah ada.</p>
+<p><strong>Kontrol yang ada:</strong> Audit sink, deadline lima detik, error logging dan static audit coverage sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. PO/security menentukan tingkat evidensial yang dibutuhkan; desain outbox lokal dan ingest dedup lintas service.</p>
+<p><strong>Acceptance:</strong> Keputusan finansial yang disepakati menulis audit lokal atomik; auth-service padam tidak membatalkan transaksi, dan setelah pulih audit dikirim sekali dengan key idempoten.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Backend/platform lead; PO/security menentukan tingkat evidensial yang dibutuhkan; desain outbox lokal dan ingest dedup lintas service.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>packages/platform/src/nest/audit-trail.ts:15</code> — sumber menyatakan fail-open sebagai batas desain</li>
+<li><code>packages/platform/src/nest/audit-trail.ts:50</code> — fetch satu kali; kegagalan dicatat error</li>
+<li><code>packages/platform/src/nest/audit-mutations.interceptor.ts:145</code> — interceptor memakai sink secara fire-and-forget</li>
+</ul>
+<h3>FLW-021 — Retensi offline menghapus seluruh jenis job termasuk pencatatan uang</h3>
+<p>Asal <code>WEB-03</code> · FLW · dampak 3/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> flush memeriksa expired sebelum error dan menghapus semua kind setelah tujuh hari. Kebijakan melindungi payload foto, tetapi codConfirm dan gallonReturn juga hilang. Peristiwa lewat tujuh hari perlu rekonsiliasi, bukan replay tanpa batas.</p>
+<p><strong>Kontrol yang ada:</strong> Owner isolation, Web Lock, retry/backoff, MAX_ATTEMPTS dan tampilan error sudah ada.</p>
+<p><strong>Usulan:</strong> Arsipkan job uang yang kedaluwarsa menjadi needs-review yang terlihat, dengan metadata aman dan instruksi rekonsiliasi; jangan replay otomatis transaksi tua tanpa cek status server.</p>
+<p><strong>Acceptance:</strong> Job COD/galon kedaluwarsa menghasilkan status rekonsiliasi minimum yang terlihat dan tidak otomatis mengubah saldo; payload foto tetap terhapus sesuai retensi yang disepakati.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend + finance ops; PO/finance menentukan umur rekonsiliasi dan minimisasi metadata; jangan meniadakan retensi biometrik.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/offline-queue.ts:188</code> — batas retensi global tujuh hari</li>
+<li><code>apps/web/src/lib/offline-queue.ts:475</code> — semua job milik pengguna dibuang bila kedaluwarsa</li>
+<li><code>apps/web/src/lib/offline-queue.ts:312</code> — job COD mengandung paymentId, cashReceived dan capturedAt</li>
+<li><code>apps/web/src/components/offline-queue-banner.tsx:50</code> — pembuangan manual punya konfirmasi, sedangkan expired otomatis tidak</li>
+</ul>
+<h3>FTR-002 — Lengkapi jejak persetujuan untuk akun yang dibuat lewat login</h3>
+<p>Asal <code>AUT-02</code> · FTR · dampak 3/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Login nomor baru membuat CUSTOMER PENDING, lalu verify dapat mengaktifkan akun; recordRegistrationConsent hanya pada register akun baru. Bukan kesimpulan kepatuhan atau dasar hukum.</p>
+<p><strong>Kontrol yang ada:</strong> ConsentService dan pending consent API tersedia; register baru mencatat consent; OTP dan audit auth tersedia.</p>
+<p><strong>Usulan:</strong> Pilih satu titik UX persetujuan yang dapat diaudit bagi semua jalur aktivasi. Jangan mengisi backdated consent untuk akun lama tanpa tindakan pengguna.</p>
+<p><strong>Acceptance:</strong> Aktivasi lewat login nomor baru menghasilkan event penerimaan yang eksplisit atau alur pending consent yang disetujui; marketing tidak di-opt-in otomatis.</p>
+<p><strong>Verifikasi:</strong> Spec login-&gt;verify-&gt;consent dan review Legal/Produk; audit ini tidak menjalankan flow.</p>
+<p><strong>Owner dan dependensi:</strong> Produk, Legal dan Backend Auth; Pilihan Legal/Produk tentang waktu persetujuan dan dokumen versinya.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/auth-service/src/application/services/login.service.ts:52</code> — Akun baru dibuat lewat login.</li>
+<li><code>services/auth-service/src/application/services/otp-verification.service.ts:67</code> — Verify REGISTRATION mengaktifkan dan menerbitkan sesi.</li>
+<li><code>services/auth-service/src/application/services/registration.service.ts:90</code> — Consent hanya ketika akun belum existing.</li>
+</ul>
+<h3>FTR-003 — Pisahkan mutasi alamat biasa dari penggantian alamat utama</h3>
+<p>Asal <code>CUS-01</code> · FTR · dampak 3/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> UpdateAddressDto mewarisi isPrimary dari create; service/repository meneruskan patch. Tipe TS tidak menghapus field runtime. Efek 500/primary kosong adalah inferensi constraint/selector, bukan hasil eksekusi.</p>
+<p><strong>Kontrol yang ada:</strong> Update memagari customerId; setPrimaryExclusive tersedia untuk jalur khusus; create/delete memakai lock.</p>
+<p><strong>Usulan:</strong> Hilangkan isPrimary dari DTO patch atau tolak eksplisit; selalu gunakan jalur set-primary yang sudah atomik.</p>
+<p><strong>Acceptance:</strong> PATCH isPrimary ditolak 400 tanpa mengubah alamat; set-primary resmi bekerja dan tetap satu primary saat paralel.</p>
+<p><strong>Verifikasi:</strong> DTO/controller contract spec dan regresi address race.</p>
+<p><strong>Owner dan dependensi:</strong> Backend Customer; Tidak ada schema baru; periksa klien lama yang mengirim isPrimary lewat PATCH.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/customer-service/src/modules/dto/address.dto.ts:87</code> — PartialType mewarisi isPrimary.</li>
+<li><code>services/customer-service/src/modules/address.controller.ts:89</code> — DTO diteruskan tanpa projection.</li>
+<li><code>services/customer-service/src/infrastructure/prisma/address.prisma.repository.ts:135</code> — Patch disimpan langsung.</li>
+</ul>
+<h3>FLW-009 — Installer belum menyiapkan log backup provider kedua</h3>
+<p>Asal <code>IDO-01</code> · FLW · dampak 3/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Kegagalan bersyarat: bila file log belum ada dan user tidak dapat menulis /var/log, shell gagal sebelum skrip. Bukan bukti backup produksi gagal.</p>
+<p><strong>Kontrol yang ada:</strong> Freshness checker dan mode inert bila provider kedua belum dikonfigurasi.</p>
+<p><strong>Usulan:</strong> Tambahkan file log provider kedua ke installer dan pemeriksaan idempotensi installer.</p>
+<p><strong>Acceptance:</strong> Pada filesystem fixture non-root dengan /var/log tidak writable, installer menyiapkan log backup2; dua instalasi tidak menggandakan cron.</p>
+<p><strong>Verifikasi:</strong> Uji installer dengan permission realistis secara terpisah dari audit; cek --show tanpa menjalankan backup.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps; Owner DevOps; test installer, tidak perlu migrasi aplikasi.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>scripts/install-host-cron.sh:92</code> — Cron redirect menuju hydromart-backup2.log</li>
+<li><code>scripts/install-host-cron.sh:163</code> — Loop persiapan lima log tidak mencakup backup2</li>
+<li><code>scripts/backup-second-provider.sh:30</code> — Provider kedua inert bila destination kosong</li>
+</ul>
+<h3>AUT-004 — Allowlist auth test terlalu luas pada products namespace</h3>
+<p>Asal <code>APP-01</code> · AUT · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> PUBLIC_PREFIXES mencakup seluruh products, termasuk mutation/admin paths. Koreksi narasi lama: api.ts saat ini melampirkan bearer bila token tersedia meskipun auth=false; flag menentukan wait/unlock dan refresh. Gap adalah regresi saat boot/session expiry, bukan pasti tanpa bearer setiap saat.</p>
+<p><strong>Kontrol yang ada:</strong> Seluruh call site aktif yang dipindai awal sudah menggunakan flag yang sesuai.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Jangan menyebut broken production mutation tanpa bukti call site.</p>
+<p><strong>Acceptance:</strong> Mutation products tanpa auth flag ditolak guard test; browse/get/batch/categories publik tetap diterima.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Jangan menyebut broken production mutation tanpa bukti call site.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/test/unauthenticated-calls.test.ts:44</code> — allowlist menerima semua members products</li>
+<li><code>apps/web/src/lib/endpoints/shop.ts:41</code> — namespace juga memiliki mutation admin</li>
+<li><code>apps/web/src/lib/api.ts:139</code> — authHeader mengirim bearer bila tersedia tanpa memeriksa options.auth</li>
+</ul>
+<h3>AUT-016 — Perjelas permissions workflow dan pin Buildx SHA</h3>
+<p>Asal <code>IDO-08</code> · AUT · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi untuk deklarasi source.</p>
+<p><strong>Masalah dan batas:</strong> Hardening source; tidak ada bukti default token broad atau aksi supply-chain terjadi. Permissions org/repo belum dibaca.</p>
+<p><strong>Kontrol yang ada:</strong> Action lain dipin; permission default disebut read-only dalam dokumen lama, tidak diverifikasi live.</p>
+<p><strong>Usulan:</strong> Deklarasikan permissions minimum top-level/job yang membutuhkan write; pin dua action Buildx ke SHA kompatibel.</p>
+<p><strong>Acceptance:</strong> Semua job tetap mendapat hak minimum yang diperlukan dan seluruh third-party action mengikuti pinning policy; update dependency tetap memiliki jalur terkelola.</p>
+<p><strong>Verifikasi:</strong> Review YAML dan job requirements; CI nanti, audit tidak menjalankannya.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps/security; Owner CI; ketahui job publish/comment yang perlu hak lebih.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>.github/workflows/ci.yml:1108</code> — Setup Buildx memakai tagv3</li>
+<li><code>.github/workflows/ci.yml:1240</code> — Pemanggilan kedua memakai tagv3</li>
+</ul>
+<h3>AUT-018 — Raw URL pada alert memperlebar cardinality dan konteks sensitif</h3>
+<p>Asal <code>PLT-02</code> · AUT · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> AllExceptionsFilter meneruskan request.url; webhook dedup dan teks memakai path mentah, Sentry transaction name juga. Stack/message disamarkan tetapi path tidak. Pengiriman PII aktual belum dibuktikan; risiko kondisional pada URL yang mengandung input pribadi.</p>
+<p><strong>Kontrol yang ada:</strong> Redaksi stack, DSN/webhook opt-in, bounded map 500 dan dedupe 60 detik sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Normalisasi route harus mempertahankan diagnosis tanpa mengekspor query.</p>
+<p><strong>Acceptance:</strong> Alert banyak id pada template sama dibatasi sesuai kebijakan; query/credential tidak tampil pada transaction name atau webhook.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Platform engineer; Normalisasi route harus mempertahankan diagnosis tanpa mengekspor query.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>packages/platform/src/nest/all-exceptions.filter.ts:45</code> — filter memasukkan URL mentah</li>
+<li><code>packages/platform/src/nest/error-alerter.ts:79</code> — dedup berbeda untuk setiap id/query</li>
+<li><code>packages/platform/src/nest/error-alerter.ts:91</code> — label webhook memuat path tanpa redactAlertText</li>
+<li><code>packages/platform/src/nest/sentry.ts:61</code> — Sentry transaction memakai path mentah</li>
+<li><code>apps/web/src/lib/endpoints/identity.ts:32</code> — builder identitas menaruh phone dalam query; error 5xx pada jalur ini belum dibuktikan</li>
+</ul>
+<h3>AUT-019 — Regex audit terlalu luas untuk field shipping dan params mentah</h3>
+<p>Asal <code>PLT-07</code> · AUT · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> SECRET_KEY memuat pin tanpa anchor, sehingga shippingFee cocok dan teredaksi. params dimasukkan tanpa redaksi. Kebocoran token aktual pada param belum dibuktikan; kehilangan field shipping adalah konsekuensi deterministik regex.</p>
+<p><strong>Kontrol yang ada:</strong> Shallow redaction, payload array/object minimization dan coverage interceptor sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Nilai params mana yang boleh disimpan perlu data classification, jangan mencetak token uji nyata.</p>
+<p><strong>Acceptance:</strong> shippingFee terlihat sebagai data non-secret, pin/token/password tetap disamarkan, params sensitif juga disamarkan.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Platform engineer; Nilai params mana yang boleh disimpan perlu data classification, jangan mencetak token uji nyata.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>packages/platform/src/nest/audit-mutations.interceptor.ts:28</code> — alternatif pin cocok sebagai substring</li>
+<li><code>packages/platform/src/nest/audit-mutations.interceptor.ts:141</code> — params ditulis mentah ke metadata</li>
+</ul>
+<h3>AUT-020 — Audit permission mobile memakai allowlist gabungan dua binary</h3>
+<p>Asal <code>PLT-08</code> · AUT · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> ALLOWED menerima Bluetooth/Wi-Fi dengan justifikasi Ops; CLI hanya mengenal path manifest, tidak binary. customer includePlugins sudah mengecualikan printer, sehingga ini guard regresi terhadap kebocoran dependency, bukan bukti permission customer aktif bocor.</p>
+<p><strong>Kontrol yang ada:</strong> Merged-manifest audit dan customer plugin allowlist sudah WIRED.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Manifest output aktual tidak dibangun atau diperiksa pada audit ini.</p>
+<p><strong>Acceptance:</strong> Manifest customer dengan permission Ops-only gagal, Ops tetap diterima dengan alasan; strip camera/fine customer tetap divalidasi.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Mobile/DevOps engineer; Manifest output aktual tidak dibangun atau diperiksa pada audit ini.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>mobile/scripts/audit-manifest.mjs:36</code> — daftar izin gabungan dua binary</li>
+<li><code>mobile/scripts/audit-manifest.mjs:176</code> — argument hanya path manifest</li>
+<li><code>mobile/capacitor.config.ts:44</code> — customer plugin list sudah mengecualikan printer</li>
+<li><code>.github/workflows/mobile.yml:605</code> — workflow customer menjalankan auditor manifest yang sama</li>
+</ul>
+<h3>AUT-021 — Dependency mobile terpisah dari npm workspace vulnerability gate</h3>
+<p>Asal <code>PLT-09</code> · AUT · dampak 2/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> mobile sengaja di luar root workspaces; workflow menginstal dependency mobile sendiri. Gate audit root menjalankan npm audit di cwd root, sehingga lock mobile tidak termasuk. Belum ditemukan step audit mobile dalam scope workflow yang dipindai (SEARCH-FE-04). Tidak menyatakan ada CVE aktual.</p>
+<p><strong>Kontrol yang ada:</strong> Exact plugin pins dan root npm audit/security workflows sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Perlu reuse policy allowlist dan jadwal audit mobile; audit ini tidak mengakses registry.</p>
+<p><strong>Acceptance:</strong> Advisory high/critical yang tidak ditriase pada lock mobile menggagalkan gate dengan basis advisory yang tercatat, tanpa mengubah scope deploy VPS.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps/mobile engineer; Perlu reuse policy allowlist dan jadwal audit mobile; audit ini tidak mengakses registry.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>mobile/README.md:19</code> — mobile memiliki lock/dependency sendiri</li>
+<li><code>scripts/audit-gate.mjs:103</code> — gate audit menjalankan npm audit pada cwd pemanggil</li>
+<li><code>.github/workflows/mobile.yml:130</code> — workflow memiliki instalasi dependency mobile</li>
+</ul>
+<h3>BI-004 — Dokumen status PPN perlu diselaraskan dengan fitur tarif0</h3>
+<p>Asal <code>IDO-06</code> · BI · dampak 2/5 · effort S · keputusan <code>reclassify</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Keberadaan field tidak membuktikan pengenaan PPN/konflik keputusan; default nonaktif sesuai keputusan lama. Konflik aktual adalah teks dokumen dan status keputusan terbaru.</p>
+<p><strong>Kontrol yang ada:</strong> Default0, tarif null bila amount0, total inclusive tidak ditambah, cache/timeout adapter.</p>
+<p><strong>Usulan:</strong> Rekonsiliasi dokumen dan minta konfirmasi pemilik/akuntan tentang kebijakan sebelum aktivasi; jangan ubah nominal transaksi.</p>
+<p><strong>Acceptance:</strong> Dokumen membedakan fitur tersedia dari aktif produksi; keputusan PKP/tarif punya pemilik/tanggal; tidak ada klaim salah pungut tanpa data.</p>
+<p><strong>Verifikasi:</strong> Review dokumentasi terhadap source dan keputusan, bukan kesimpulan kepatuhan.</p>
+<p><strong>Owner dan dependensi:</strong> Pemilik produk/akuntan; Pemilik dan akuntan untuk status legal/bisnis; bukan blok audit.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>docs/LEGAL_OPEN_ITEMS.md:21</code> — Dokumen mengatakan tidak ada baris pajak di mana pun</li>
+<li><code>docs/AUDIT_FR_MATRIX_2026-10.md:60</code> — FR034 menyebut pencatatan dan preview pajak</li>
+<li><code>services/payment-service/src/application/services/tax-settings.service.ts:27</code> — Default ppnPercent0</li>
+<li><code>services/order-service/src/application/services/order.service.ts:2051</code> — Tax amount hanya bila tarif&gt;0; total tidak ditambah</li>
+<li><code>docs/CONSOLE_AUDIT_REGISTER.md:350</code> — Keputusan lama mempertahankan form/layar aktif bila rate diisi sengaja</li>
+</ul>
+<h3>BI-005 — Kumpulan komentar historis usang perlu adjudikasi per baris</h3>
+<p>Asal <code>IDO-07</code> · BI · dampak 2/5 · effort S · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Delapan subklaim awal tidak seluruhnya dibaca ulang; jangan memperlakukan bundle sebagai satu temuan prioritas tinggi. Konflik keputusan substansial dicatat konteks, sisanya editorial.</p>
+<p><strong>Kontrol yang ada:</strong> Tracker bertanggal dan source aktual tersedia.</p>
+<p><strong>Usulan:</strong> Perbarui komentar setelah owner memvalidasi state yang dimaksud; jangan menghapus sejarah keputusan.</p>
+<p><strong>Acceptance:</strong> Tiap koreksi menyebut perilaku source yang berlaku dan tanggal, tanpa mengklaim state produksi dari template.</p>
+<p><strong>Verifikasi:</strong> Diff docs terhadap source yang relevan.</p>
+<p><strong>Owner dan dependensi:</strong> Dokumentasi/DevOps; Owner dokumen terkait.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>docs/EVALUATION_11_ITEMS_TRACKER.md:34</code> — E2/E3/E4 punya keputusan sesudah dokumen diskon</li>
+<li><code>docs/AUDIT_FR_MATRIX_2026-10.md:144</code> — Royalti ditunda eksplisit</li>
+</ul>
+<h3>BI-006 — readAllPages ceiling tidak ketat pada short final page</h3>
+<p>Asal <code>PLT-04</code> · BI · dampak 2/5 · effort S · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> rows.length &lt; pageSize mengembalikan sebelum ceiling. Namun pemanggil report yang diperiksa memakai max kelipatan pageSize; eksposur production overflow pada konfigurasi tersebut belum terbukti. Ini kontrak helper dan memori yang perlu diperbaiki, bukan laporan aktual salah.</p>
+<p><strong>Kontrol yang ada:</strong> Ceiling full page dan deterministic cursor sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Tinjau seluruh konfigurasi caller; jangan mengklaim saat ini unbounded.</p>
+<p><strong>Acceptance:</strong> max=100/pageSize=500/400 rows memicu overflow; definisikan apakah tepat max diterima; semua caller dipastikan mengikuti kontrak.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Platform engineer; Tinjau seluruh konfigurasi caller; jangan mengklaim saat ini unbounded.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>packages/platform/src/domain/read-all.ts:27</code> — short page mendahului pemeriksaan max</li>
+<li><code>services/depot-service/src/infrastructure/prisma/operational-report.prisma.repository.ts:18</code> — pemanggil depot memakai max 20000 dan pageSize 500</li>
+<li><code>packages/platform/src/domain/read-all.spec.ts:43</code> — test default pageSize tidak menguji result melebihi max pada short page</li>
+</ul>
+<h3>BI-007 — Netralisasi CSV mengubah angka negatif menjadi teks</h3>
+<p>Asal <code>WEB-07</code> · BI · dampak 2/5 · effort S · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> escapeCell mengonversi semua tipe ke string lalu menambah apostrof untuk minus. Kontrak helper terbukti, tetapi ekspor cashbook memakai kolom Masuk/Keluar positif sehingga dampak negatif aktif belum terbukti dalam call site yang diperiksa.</p>
+<p><strong>Kontrol yang ada:</strong> Anti formula-injection sudah ada dan harus dipertahankan.</p>
+<p><strong>Usulan:</strong> Bedakan nilai number dari teks sebelum netralisasi formula; pertahankan perlindungan teks berbahaya. Jangan mengubah semua ekspor menjadi numeric coercion.</p>
+<p><strong>Acceptance:</strong> Angka bertipe number tetap numerik di CSV, string berbahaya tetap dinetralisasi; tunjukkan call site dengan nilai negatif sebelum menaikkan prioritas.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Korelasikan AAS-07; satu akar helper berbeda, hindari hitungan ganda dampak BI.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/csv.ts:123</code> — minus di awal termasuk number menerima apostrof</li>
+<li><code>apps/web/src/app/dashboard/cashbook/page.tsx:217</code> — cashbook memisahkan uang masuk/keluar menjadi kolom terpisah</li>
+</ul>
+<h3>FLW-014 — Kursor invalid diam-diam memakai nomor halaman</h3>
+<p>Asal <code>PLT-05</code> · FLW · dampak 2/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> pageArgs mengabaikan cursor yang tidak dapat didecode. Ini kebijakan fallback terdokumentasi untuk menghindari Prisma P2025, tetapi mengaburkan error input dan bisa mengulang halaman dalam infinite-scroll.</p>
+<p><strong>Kontrol yang ada:</strong> Version/checksum dan WHERE tenant tetap mencegah query cursor mentah lintas scope.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Kontrak backward compatibility browser/APK; perlu keputusan API sebelum mengganti fallback.</p>
+<p><strong>Acceptance:</strong> Kontrak invalid cursor eksplisit; jika beralih 400 INVALID_CURSOR, klien mereset feed dengan pesan/retry yang sesuai dan cursor versi lama terdukung.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Platform + frontend engineer; Kontrak backward compatibility browser/APK; perlu keputusan API sebelum mengganti fallback.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>packages/platform/src/domain/keyset.ts:79</code> — decode gagal memakai page-based skip</li>
+<li><code>packages/platform/src/domain/keyset.ts:75</code> — fallback adalah keputusan teknis eksplisit, bukan crash tersembunyi</li>
+</ul>
+<h3>FLW-023 — needsPayment hanya mengecualikan CANCELLED</h3>
+<p>Asal <code>WEB-08</code> · FLW · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> VOIDED/COMPLETED dengan payment REFUNDED/FAILED diperlakukan membutuhkan pembayaran baru oleh helper. Ini bug affordance UI bersyarat; tidak membuktikan charge server berhasil pada status terminal.</p>
+<p><strong>Kontrol yang ada:</strong> Satu active payment per order dipagari backend; gateway methods/depot methods difilter.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. PO menentukan apakah terminal unpaid historis boleh dibayar. Verifikasi domain payment sebelum mengubah helper.</p>
+<p><strong>Acceptance:</strong> Tabel status terminal dan status payment diuji; VOIDED/COMPLETED tidak menawarkan initiate payment kecuali aturan bisnis eksplisit membolehkannya.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; PO menentukan apakah terminal unpaid historis boleh dibayar. Verifikasi domain payment sebelum mengubah helper.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/payments.ts:83</code> — hanya CANCELLED yang ditolak berdasarkan status order</li>
+<li><code>apps/web/src/app/orders/detail/page.tsx:671</code> — halaman detail memakai helper untuk panel payment</li>
+</ul>
+<h3>FTR-008 — HTTP exception code generik untuk 409/422/503</h3>
+<p>Asal <code>PLT-03</code> · FTR · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Pemetaan HttpException hanya memberi code khusus lima status; konflik dan unprocessable menerima HTTP_ERROR. Status HTTP tetap benar dan DomainError tetap punya machine code.</p>
+<p><strong>Kontrol yang ada:</strong> DomainError memberikan code stabil; frontend selalu membawa status juga.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Audit caller yang bergantung HTTP_ERROR sebelum kontrak diperluas.</p>
+<p><strong>Acceptance:</strong> ConflictException/Unprocessable/ServiceUnavailable punya code terdokumentasi, status tidak berubah, DomainError code tetap.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Platform engineer; Audit caller yang bergantung HTTP_ERROR sebelum kontrak diperluas.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>packages/platform/src/nest/all-exceptions.filter.ts:83</code> — switch default menghasilkan HTTP_ERROR untuk 409/422/503</li>
+<li><code>apps/web/src/lib/api.ts:49</code> — ApiError sudah membawa code server</li>
+</ul>
+<h3>FTR-011 — Gate editor earning rule belum mengikuti capability server</h3>
+<p>Asal <code>WEB-02</code> · FTR · dampak 2/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> UI memakai dua nama role langsung, sedangkan controller memakai Can(earningRules). Kondisi default sama; divergensi terjadi saat capability diubah.</p>
+<p><strong>Kontrol yang ada:</strong> can() sudah membaca capabilities server untuk role sesi.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Konfirmasi keputusan desain 6b terhadap kebijakan override; jangan membuka gate hanya karena role staf.</p>
+<p><strong>Acceptance:</strong> Perubahan earningRules pada snapshot sesi juga mengubah gate dan navigasi editor; default tetap sama.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Konfirmasi keputusan desain 6b terhadap kebijakan override; jangan membuka gate hanya karena role staf.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/roles.ts:153</code> — UI literal FINANCE/SUPER_ADMIN</li>
+<li><code>services/payout-service/src/modules/earning-rule.controller.ts:34</code> — server membaca capability dinamis</li>
+<li><code>packages/access/src/index.ts:502</code> — default capability sama dengan UI saat ini</li>
+</ul>
+<h3>AUT-024 — Upload PoD diulang pada tiap retry complete</h3>
+<p>Asal <code>WEB-05</code> · AUT · dampak 1/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> run(pod) meng-upload photo/signature sebelum complete pada setiap eksekusi. URL tidak disimpan pada QueuedJob. Jika complete gagal sesudah upload, percobaan berikut meng-upload lagi.</p>
+<p><strong>Kontrol yang ada:</strong> Retry terbatas enam kali, privasi retensi tujuh hari.</p>
+<p><strong>Usulan:</strong> Persist key/URL upload yang sukses pada job sehingga retry complete memakai objek yang sama; hapus orphan hanya dengan bukti kepemilikan.</p>
+<p><strong>Acceptance:</strong> Complete gagal setelah upload lalu diulang memakai objek yang sama bila masih valid; penghapusan payload dan objek yatim mengikuti retensi.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Kontrak URL/signing/storage ownership delivery-service.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/offline-queue.ts:351</code> — upload dilakukan sebelum complete pada tiap run</li>
+<li><code>apps/web/src/lib/offline-queue.ts:148</code> — job menyimpan payload data URL dan metadata retry tanpa hasil URL</li>
+</ul>
+<h3>AUT-025 — Revalidasi profil memicu refresh data turunan</h3>
+<p>Asal <code>WEB-06</code> · AUT · dampak 1/5 · effort S · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Objek session baru memang ditulis pada fokus, tetapi manfaat performa belum diukur. Klaim familyId hilang dari indikator perangkat tidak tepat: familyId disimpan terpisah di session-device dan hanya dihapus saat signOut.</p>
+<p><strong>Kontrol yang ada:</strong> Batas revalidasi satu menit dan single-flight GET sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Tidak ada runtime profiling dalam audit ini.</p>
+<p><strong>Acceptance:</strong> Ukur request tambahan dahulu; optimasi tidak boleh menunda pembaruan role/depot/capability.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Tidak ada runtime profiling dalam audit ini.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/auth-context.tsx:90</code> — profil ditulis ulang sesudah revalidate</li>
+<li><code>apps/web/src/lib/session-device.ts:18</code> — familyId indikator perangkat punya penyimpanan sendiri</li>
+</ul>
+<h3>AUT-026 — File transfer belum memakai telemetry dan retry rate-limit JSON</h3>
+<p>Asal <code>WEB-10</code> · AUT · dampak 1/5 · effort M · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> uploadFile/getBlob/postBlob membangun authHeader sendiri, tanpa appHeaders dan pemrosesan x-hm-depot-changed yang ada pada rawRequest. Ini perbedaan observability/recovery, bukan hilangnya auth: ketiganya menunggu waitForSession dan menangani 401.</p>
+<p><strong>Kontrol yang ada:</strong> Timeout 60 detik, wait unlock, parse error dan refresh 401 sudah ada.</p>
+<p><strong>Usulan:</strong> Satukan header telemetry dan kebijakan rate-limit untuk upload/blob bila kontraknya aman; retry mutasi upload wajib mempertimbangkan dedup.</p>
+<p><strong>Acceptance:</strong> Transfer file membawa identitas build dan merespons depot-change sama dengan JSON; retry hanya bila aman untuk operasi/stream.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Jangan menerapkan replay upload otomatis tanpa kajian objek duplikat WEB-05.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/api.ts:452</code> — multipart punya timeout dan refresh retry sendiri</li>
+<li><code>apps/web/src/lib/api.ts:504</code> — file GET memakai authHeader tanpa appHeaders</li>
+<li><code>apps/web/src/lib/api.ts:297</code> — JSON request mengolah depot change header</li>
+</ul>
+<h3>FLW-015 — Callback geolocation native hanya satu slot pending</h3>
+<p>Asal <code>PLT-11</code> · FLW · dampak 1/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Prompt geolokasi kedua menimpa pendingOrigin/pending sebelum answer. Ini skenario konkuren kondisional; tidak menyatakan kejadian perangkat aktual.</p>
+<p><strong>Kontrol yang ada:</strong> Daftar permission sesuai manifest dan coarse-only fallback sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Verifikasi native/device terisolasi, tidak dijalankan.</p>
+<p><strong>Acceptance:</strong> Dua prompt beruntun menerima penyelesaian masing-masing; coarse-only customer tetap berfungsi pada Android lama.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Mobile engineer; Verifikasi native/device terisolasi, tidak dijalankan.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>mobile/android/app/src/main/java/id/hydromart/app/MainActivity.java:97</code> — slot callback baru menimpa pending tanpa menolak callback lama</li>
+<li><code>mobile/android/app/src/main/java/id/hydromart/app/MainActivity.java:102</code> — hasil permission menjawab hanya callback terakhir</li>
+</ul>
+<h3>FLW-022 — Kegagalan delete IndexedDB disembunyikan dari UI</h3>
+<p>Asal <code>WEB-04</code> · FLW · dampak 1/5 · effort S · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> discard menangkap kegagalan delete lalu menghapus cache. Replay setelah reload mungkin, tetapi tidak cukup untuk menyimpulkan uang terdebit ganda karena server memiliki dedup/status guards. Hardening UX, bukan temuan integritas uang tersendiri.</p>
+<p><strong>Kontrol yang ada:</strong> Backend replay-safe disebut dalam laporan awal; validasi per-domain diperlukan.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Gabungkan dengan WEB-03 bila menyusun perbaikan lifecycle queue.</p>
+<p><strong>Acceptance:</strong> Jika delete storage gagal, operator menerima status belum terhapus; replay-safe server tetap dipertahankan.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Gabungkan dengan WEB-03 bila menyusun perbaikan lifecycle queue.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/offline-queue.ts:288</code> — delete failure ditelan dan cache tetap dihapus</li>
+</ul>
+<h3>FTR-007 — Override depot adjustMaxPoints tidak dibaca pada adjustment</h3>
+<p>Asal <code>PLP-10</code> · FTR · dampak 1/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-verified">[VERIFIED]</span> adjust memanggil config.adjustMaxPoints(null); config menerima depotId dan mendukung override. HQ-only penulisan key tetap kontrol yang benar, jangan dicabut.</p>
+<p><strong>Kontrol yang ada:</strong> Global cap aktif, scope customer/depot dan aktor tersedia; depot manager tidak boleh menaikkan cap sendiri.</p>
+<p><strong>Usulan:</strong> Putuskan apakah cap memang global; jika per-depot, resolve depot yang sah untuk customer dan baca override; jika global, hapus janji konfigurasi depot.</p>
+<p><strong>Acceptance:</strong> Override yang diatur HQ terbaca sesuai scope yang diputuskan, sementara manager tetap tidak dapat menaikkan sendiri.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> PO loyalty + backend; Definisi depot penanggung jawab adjustment</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/loyalty-service/src/application/services/loyalty.service.ts:303</code> — Getter dipanggil null</li>
+<li><code>services/loyalty-service/src/config/loyalty-config.service.ts:71</code> — Getter menerima depotId</li>
+<li><code>services/loyalty-service/src/modules/settings.controller.ts:26</code> — adjustMaxPoints HQ-only termasuk depot override</li>
+</ul>
+<h3>FTR-009 — FileProvider path luas bersifat hardening kondisional</h3>
+<p>Asal <code>PLT-10</code> · FTR · dampak 1/5 · effort M · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Template path titik saja tidak membuktikan eksfiltrasi karena provider exported=false dan akses URI memerlukan grant. Perlu caller sharing path untuk menentukan risiko nyata.</p>
+<p><strong>Kontrol yang ada:</strong> Provider tidak diekspor menurut audit awal.</p>
+<p><strong>Usulan:</strong> Persempit path FileProvider hanya setelah memetakan URI yang benar-benar dibagi; jangan merusak export/share yang sah.</p>
+<p><strong>Acceptance:</strong> File share hanya memberi URI subfolder yang dibutuhkan; external/cache path diuji dengan caller sah.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Mobile engineer; Belum ditelusuri semua caller native share/plugin.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>mobile/android/app/src/main/res/xml/file_paths.xml:3</code> — external-path dan cache-path sama-sama path titik</li>
+<li><code>mobile/android/app/src/main/AndroidManifest.xml:210</code> — FileProvider tidak diekspor, tetapi mengizinkan URI grant</li>
+</ul>
+<h3>FTR-012 — Sebagian teks utilitas belum memakai resolver locale</h3>
+<p>Asal <code>WEB-11</code> · FTR · dampak 1/5 · effort S · keputusan <code>keep</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> STALE_DEPOT_MESSAGE dan fallback gagal kirim berupa literal Indonesia. Dampak lokalisasi terbatas; tidak menghambat fungsi.</p>
+<p><strong>Kontrol yang ada:</strong> Banner memakai keys locale dan error server tetap tersedia.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Gabungkan dengan maintenance locale, tidak mendahului integritas transaksi.</p>
+<p><strong>Acceptance:</strong> Locale alternatif menghasilkan pesan terjemahan tanpa mengubah code/status error.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Gabungkan dengan maintenance locale, tidak mendahului integritas transaksi.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/offline-queue.ts:185</code> — teks literal depot berubah</li>
+<li><code>apps/web/src/lib/offline-queue.ts:498</code> — fallback literal pada retry</li>
+</ul>
+<h3>BI-001 — Definisikan jam SLA tiap percobaan pengantaran ulang</h3>
+<p>Asal <code>DLV-02</code> · BI · dampak 4/5 · effort M · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Reassign mereset pickup/start/ETA tetapi assignedAt dan slaAlertedAt tetap; earning menghitung selisih deliveredAt-assignedAt. Kode terbukti; definisi SLA order vs percobaan perlu PO.</p>
+<p><strong>Kontrol yang ada:</strong> Riwayat status dan cap kurir atomik tetap ada.</p>
+<p><strong>Usulan:</strong> PO memilih SLA order utuh atau per-attempt. Jika per-attempt, simpan attempt dan jamnya tanpa merusak jejak percobaan lama.</p>
+<p><strong>Acceptance:</strong> KPI dan bonus menggunakan jam yang disetujui; histori attempt pertama dapat diaudit.</p>
+<p><strong>Verifikasi:</strong> Unit reassign, SLA, earning dan review kebijakan ops.</p>
+<p><strong>Owner dan dependensi:</strong> Product Owner dan Operasional; Keputusan PO/operasional tentang denominator SLA dan bonus.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/delivery-service/src/infrastructure/prisma/delivery.prisma.repository.ts:214</code> — Reassign tidak mengganti assignedAt/slaAlertedAt.</li>
+<li><code>services/delivery-service/src/application/services/delivery.service.ts:543</code> — Earning memakai assignedAt.</li>
+</ul>
+<h3>BI-002 — Definisi bruto pajak variabel perlu konfirmasi akuntan</h3>
+<p>Asal <code>HR-04</code> · BI · dampak 4/5 · effort M · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Source memverifikasi gross=BASE+ALLOWANCE, terpisah dari totalBonus; PPh Desember memakai YTD gross yang sama. Ini tidak membuktikan pelanggaran pajak, dan dasar BPJS tidak boleh otomatis disamakan dengan dasar PPh.</p>
+<p><strong>Kontrol yang ada:</strong> Tabel TER configurable dan rekonsiliasi Desember tersedia; brief akuntan sudah mendokumentasikan pertanyaan.</p>
+<p><strong>Usulan:</strong> Akuntan memutuskan komponen penghasilan/pemotongan per basis dan proses di luar aplikasi; setelah itu selaraskan input serta ekspor rekonsiliasi.</p>
+<p><strong>Acceptance:</strong> Kasus bonus/THR/Desember yang disetujui akuntan menjadi fixture; output aplikasi cocok dengan kasus tersebut dan menjelaskan komponen yang diproses di luar aplikasi.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Akuntan + HR + backend HR; Jawaban akuntan; perbedaan basis PPh/BPJS; bukan audit hukum</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:523</code> — gross tidak memuat BONUS</li>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:531</code> — statutoryInput memakai gross</li>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:551</code> — Desember memakai decemberPph21</li>
+<li><code>services/hr-service/src/infrastructure/prisma/payroll.prisma.repository.ts:179</code> — YTD menjumlah payroll.gross</li>
+<li><code>services/hr-service/src/domain/statutory.ts:418</code> — AnnualGross YTD+Desember</li>
+<li><code>docs/BRIEF_AKUNTAN.md:59</code> — Pertanyaan THR/bonus masuk bruto TER masih diajukan</li>
+</ul>
+<h3>FLW-017 — Bedakan persetujuan refund manual dari uang benar-benar diserahkan</h3>
+<p>Asal <code>PPA-03</code> · FLW · dampak 4/5 · effort L · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> executeRefund memindahkan REFUNDED; transfer gateway hanya untuk EWALLET/VA dengan reference. CASH/TRANSFER/QRIS tidak memanggil bank. Ini membuktikan pencatatan status, bukan bahwa pelanggan sudah menerima dana.</p>
+<p><strong>Kontrol yang ada:</strong> Claim CAS sebelum refund; approval ambang; audit refund; order refund coordination.</p>
+<p><strong>Usulan:</strong> Finance menetapkan SOP/kanal dan definisi REFUNDED. Tambah tahap approved-awaiting-disbursement atau evidence money-out, tanpa mengubah histori menjadi klaim settlement palsu.</p>
+<p><strong>Acceptance:</strong> Refund manual mencatat penerima/kanal/ref/aktor/waktu atau tetap pending money-out; retry tidak membayar dua kali.</p>
+<p><strong>Verifikasi:</strong> Review SOP, model status, fault injection; gateway tests hanya sandbox bila nanti diotorisasi.</p>
+<p><strong>Owner dan dependensi:</strong> Finance dan Product Owner; Keputusan Finance: siapa membayar dan bukti apa yang wajib; tanpa itu jangan mengotomasi uang keluar.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/payment-service/src/application/services/payment.service.ts:1286</code> — Patch REFUNDED disiapkan sebelum bank effect.</li>
+<li><code>services/payment-service/src/application/services/payment.service.ts:1308</code> — Gateway hanya dipanggil untuk metode online dengan reference.</li>
+<li><code>services/payment-service/src/domain/payment.ts:75</code> — Online hanya EWALLET dan VA.</li>
+</ul>
+<h3>FLW-018 — Tetapkan alokasi reversal franchise untuk refund setelah order selesai</h3>
+<p>Asal <code>PPA-05</code> · FLW · dampak 4/5 · effort L · keputusan <code>defer-policy</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> recordRefund hanya menulis refundedAmount dan mengirim notifikasi; jalur ini tidak membalik franchise ledger. Refund terhadap penjualan selesai dan aturan pembebanan biaya perlu dikonfirmasi.</p>
+<p><strong>Kontrol yang ada:</strong> Void revenue outbox tersedia pada pembatalan konter; sourceRef ledger mencegah duplikasi.</p>
+<p><strong>Usulan:</strong> Finance menentukan pihak penanggung dan apakah clawback owner/komisi berlaku; kemudian intent reversal idempoten, bukan reuse pembatalan penuh untuk refund parsial.</p>
+<p><strong>Acceptance:</strong> Skenario refund yang disepakati menghasilkan ledger reversal proporsional sekali; withdrawal yang sudah dibayar tidak diubah diam-diam.</p>
+<p><strong>Verifikasi:</strong> Contoh pembukuan disetujui Finance dan contract/race tests; tidak mengoreksi data produksi otomatis.</p>
+<p><strong>Owner dan dependensi:</strong> Finance Franchise dan Backend Order/Payout; SOP refund dan model franchise direct-to-depot; keputusan Finance.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/application/services/order.service.ts:3139</code> — recordRefund hanya repository dan notifikasi.</li>
+<li><code>services/order-service/src/infrastructure/prisma/order.prisma.repository.ts:1124</code> — Repository hanya set refundedAmount.</li>
+</ul>
+<h3>FTR-005 — Anonimisasi employee menyisakan field identitas lain</h3>
+<p>Asal <code>HR-23</code> · FTR · dampak 4/5 · effort L · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-verified">[VERIFIED]</span> Patch anonimisasi hanya menimpa nama/telepon/email/photo/authSubjectId (jalur account juga role/status), sedangkan sumber schema memiliki pengenal lain. Penghapusan seluruh field finansial tidak boleh disarankan otomatis tanpa kebijakan retensi.</p>
+<p><strong>Kontrol yang ada:</strong> Biometrik/attendance/reviews dihapus, payload audit dibersihkan, payroll sengaja dipertahankan sesuai komentar aturan finansial.</p>
+<p><strong>Usulan:</strong> Tentukan matriks retensi per field/tujuan dan bedakan pseudonimisasi dari anonimisasi; batasi akses data yang wajib disimpan, hapus yang tidak lagi perlu setelah keputusan sah.</p>
+<p><strong>Acceptance:</strong> Fixture export/scrub menunjukkan kebijakan setiap field; legal/finance menyetujui pengecualian dan akses retained data; tidak ada klaim kepatuhan UU dari tes kode saja.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Legal/finance + backend HR; Legal/finance retention field matrix + HR</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/hr-service/src/infrastructure/prisma/employee.prisma.repository.ts:56</code> — Patch retensi terbatas</li>
+<li><code>services/hr-service/src/infrastructure/prisma/employee.prisma.repository.ts:94</code> — Patch hapus akun terbatas</li>
+<li><code>services/hr-service/src/application/services/employee.service.ts:250</code> — Jalur hapus akun memanggil anonymise dan hapus photos</li>
+</ul>
+<h3>AUT-003 — Tentukan retensi dataset lokal admin sebelum membuat purge</h3>
+<p>Asal <code>AAS-08</code> · AUT · dampak 3/5 · effort M · keputusan <code>defer-policy</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Registry executor yang dibaca berisi dataset remote, bukan export_logs/webhook/tickets/fraud. Pencarian absence harus dibatasi source/registry yang diaudit; belum membuktikan konfigurasi retensi produksi.</p>
+<p><strong>Kontrol yang ada:</strong> Engine retensi dan daftar UNENFORCED untuk policy yang terdaftar; erasure tiket per orang terpisah.</p>
+<p><strong>Usulan:</strong> Inventaris dan klasifikasi data lokal admin; putuskan window/hold lalu tambahkan executor. Jangan menghapus catatan sengketa/keuangan dengan cutoff arbitrer.</p>
+<p><strong>Acceptance:</strong> Setiap dataset punya kebijakan atau exemption bernama; dry-run menampilkan calon purge/hold dan audit trail; legal hold mencegah hapus.</p>
+<p><strong>Verifikasi:</strong> Review policy dan fake executor cutoff/hold; tidak menjalankan purge saat audit.</p>
+<p><strong>Owner dan dependensi:</strong> Data Governance dan Backend Admin; Legal/Finance/Security menetapkan klasifikasi/window; baseline data aktual belum diperiksa.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/admin-service/src/infrastructure/http/purge-executor.registry.ts:21</code> — Daftar executor remote; tidak menunjukkan executor lokal dataset ini.</li>
+</ul>
+<h3>AUT-008 — Penyesuaian stok mentah dan opname perlu kebijakan kontrol kuantitas</h3>
+<p>Asal <code>DEP-04</code> · AUT · dampak 3/5 · effort M · keputusan <code>defer-policy</code> · confidence Tinggi untuk alur kode; keputusan kebijakan terbuka.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-verified">[VERIFIED]</span> adjust dan opname menulis gerakan stok langsung. Opname mengirim approval hanya setelah penulisan dan hanya jika nilai selisih melewati ambang; nilai bahan mentah tanpa sellPrice menjadi 0. Apakah bahan mentah perlu ambang nilai atau approval pra-aksi adalah keputusan proses, sehingga rekomendasi tetap ditunda sampai kebijakan ditetapkan.</p>
+<p><strong>Kontrol yang ada:</strong> Ledger gerakan append-only, larangan stok negatif pada adjust, dan approval selisih opname di atas ambang untuk item bernilai.</p>
+<p><strong>Usulan:</strong> Pertahankan kandidat legacy dengan label belum diverifikasi ulang dan pertanyaan PO tentang approval sebelum/sesudah fakta.</p>
+<p><strong>Acceptance:</strong> Bukti source lengkap dan keputusan proses tersedia sebelum implementasi.</p>
+<p><strong>Verifikasi:</strong> Tinjau aturan raw material bersama Ops/Finance; uji ambang dan timing approval setelah kebijakan disahkan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend; Operasi stok + finance</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/depot-service/src/application/services/inventory.service.ts:348</code> — Adjust langsung memanggil applyMovement untuk koreksi stok.</li>
+<li><code>services/depot-service/src/application/services/inventory.service.ts:386</code> — Opname menulis selisih lalu memanggil emitVarianceApproval setelahnya.</li>
+<li><code>services/depot-service/src/application/services/inventory.service.ts:473</code> — Nilai selisih memakai sellPrice ?? 0 sehingga item tanpa harga jual tidak mencapai ambang approval.</li>
+</ul>
+<h3>FLW-012 — Kebijakan voucher online batal belum dipulihkan pada jalur cancel yang dibaca</h3>
+<p>Asal <code>PLP-01</code> · FLW · dampak 3/5 · effort M · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> Jalur cancel tidak memanggil release yang sudah tersedia; apakah voucher harus kembali adalah keputusan bisnis. Bukan Quick Win siap implementasi tanpa keputusan tersebut.</p>
+<p><strong>Kontrol yang ada:</strong> Release idempoten tersedia dan counter void/checkout failure memakainya.</p>
+<p><strong>Usulan:</strong> PO menentukan hangus/kembali dan alasan cancellation yang berlaku; bila kembali, gunakan delivery yang dapat dipulihkan, bukan fail-open yang dapat hilang permanen.</p>
+<p><strong>Acceptance:</strong> Tes customer/staff/sweep cancel sesuai kebijakan; retry tidak menurunkan usedCount dua kali; budget dan perCustomerLimit konsisten.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> PO + backend order/promo; PO kebijakan cancellation + order/promo; gabungan ORD-02</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/application/services/order.service.ts:2016</code> — Pembatalan mengantre reversal pembayaran</li>
+<li><code>services/order-service/src/application/services/order.service.ts:3116</code> — Release stock tanpa release voucher</li>
+<li><code>services/promo-service/src/application/services/voucher.service.ts:367</code> — release tersedia</li>
+<li><code>services/promo-service/src/infrastructure/prisma/voucher.prisma.repository.ts:396</code> — Claim release releasedAt null atomik dan usedCount turun</li>
+</ul>
+<h3>FLW-025 — Tidak adanya Idempotency-Key bukan bukti semua POST tidak idempoten</h3>
+<p>Asal <code>WEB-12</code> · FLW · dampak 3/5 · effort L · keputusan <code>defer-evidence</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Ditemukan empat header call site dan satu body idempotencyKey, tetapi status/CAS/unique constraints server dapat menyediakan semantik replay tanpa header. Timeout 15 detik menghasilkan hasil tidak pasti, bukan bukti duplikasi. Pecah hanya setelah service owner membuktikan satu operasi non-idempoten.</p>
+<p><strong>Kontrol yang ada:</strong> Web Lock offline, checkout/walk-in/withdraw attempt key, unique/status guards server.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Gabungkan APP-05; APP-02 delta stok diserahkan ke depot owner.</p>
+<p><strong>Acceptance:</strong> Setiap mutasi dinilai terhadap duplicate/lost-response pada state server; jangan menambah header yang tidak dikonsumsi.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Gabungkan APP-05; APP-02 delta stok diserahkan ke depot owner.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/api.ts:29</code> — JSON deadline lima belas detik</li>
+<li><code>apps/web/src/app/checkout/page.tsx:689</code> — checkout mempertahankan attempt key</li>
+<li><code>apps/web/src/app/dashboard/payout/page.tsx:142</code> — payout mempertahankan attempt key</li>
+</ul>
+<h3>FTR-004 — Lembur dihitung dari menit kehadiran tanpa approval lembur terpisah pada jalur yang dibaca</h3>
+<p>Asal <code>HR-01</code> · FTR · dampak 3/5 · effort M · keputusan <code>reclassify</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-inferred">[INFERRED]</span> splitOvertime tidak menerapkan plafon; payroll menambahkan BONUS. Ini bukan auto-paid: slip masih melalui approve/pay dan guard pemisahan pembuat/penyetuju.</p>
+<p><strong>Kontrol yang ada:</strong> PENDING dikecualikan; istirahat dipotong; slip butuh approval; owner decision basis lembur gaji pokok tidak diubah.</p>
+<p><strong>Usulan:</strong> HR menentukan kebutuhan approval/exception atas jam tidak wajar dan plafon bila sah; tampilkan sumber menit agar approver menilai. Jangan menebak batas jam hukum.</p>
+<p><strong>Acceptance:</strong> HR menandatangani kebijakan; contoh shift panjang dan koreksi checkout mengikuti kebijakan tanpa memotong jam sah secara diam-diam.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> HR lead + backend HR; HR lead dan kebijakan jam/approval</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:1192</code> — Menghitung splitOvertime dari workedDays</li>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:1223</code> — Hasil berupa BONUS pada slip</li>
+<li><code>services/hr-service/src/domain/overtime.ts:75</code> — Semua menit relevan dihitung tanpa plafon</li>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:749</code> — Payroll memiliki langkah approve</li>
+<li><code>services/hr-service/src/application/services/payroll.service.ts:761</code> — Pembuat tidak approve kecuali SUPER_ADMIN</li>
+<li><code>services/hr-service/src/infrastructure/prisma/attendance.prisma.repository.ts:176</code> — Hanya PRESENT/LATE masuk worked minutes</li>
+</ul>
+<h3>FTR-006 — Scrub subscription menyisakan alamat dan koordinat</h3>
+<p>Asal <code>ORD-13</code> · FTR · dampak 3/5 · effort M · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-verified">[VERIFIED]</span> erasePerson membatalkan ACTIVE/PAUSED dan mengosongkan recipientName/phone/notes, tidak menyentuh alamat. Kebutuhan menghapus alamat harus dipetakan pada retensi yang disepakati.</p>
+<p><strong>Kontrol yang ada:</strong> Subscription dihentikan sebelum scrub; transaksi mencegah pengiriman plan tanpa identitas.</p>
+<p><strong>Usulan:</strong> Masukkan snapshot alamat/koordinat pada matriks retensi per field dan dokumentasikan status pseudonimisasi/anonymisasi.</p>
+<p><strong>Acceptance:</strong> Alamat retained/deleted mengikuti keputusan PDP dan alur cancel tetap atomik.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Legal/PO + backend order; Keputusan retensi PDP per field</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/order-service/src/infrastructure/prisma/subscription.prisma.repository.ts:197</code> — Cancel dan scrub dalam transaksi</li>
+<li><code>services/order-service/src/infrastructure/prisma/subscription.prisma.repository.ts:207</code> — Patch hanya name/phone/notes</li>
+</ul>
+<h3>AUT-005 — Input placeholder perlu telaah label persisten dan AT</h3>
+<p>Asal <code>APP-03</code> · AUT · dampak 2/5 · effort S · keputusan <code>defer-evidence</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Source tanpa aria-label/id-label tidak otomatis membuktikan accessible name kosong: placeholder bisa menjadi fallback accessible name. Reframe sebagai dugaan label tidak persisten; uji DOM/AT diperlukan sebelum klaim pelanggaran.</p>
+<p><strong>Kontrol yang ada:</strong> Banyak form sudah memakai Field/aria-label.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Tidak menjalankan browser/axe dalam audit statis ini.</p>
+<p><strong>Acceptance:</strong> Input punya label persisten atau aria yang sesuai konteks, diperiksa DOM/axe dan keyboard pada halaman terpilih.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Tidak menjalankan browser/axe dalam audit statis ini.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/components/ui.tsx:174</code> — Input adalah wrapper passthrough; nama aksesibel ditentukan pemanggil</li>
+</ul>
+<h3>AUT-006 — Gate dashboard per halaman merupakan perlindungan regresi</h3>
+<p>Asal <code>APP-04</code> · AUT · dampak 2/5 · effort S · keputusan <code>defer-evidence</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> Dashboard layout menjamin auth tetapi tidak membatasi semua capability. Halaman insight mendelegasikan gate ke InsightDashboard. Tidak ada halaman bocor data yang dibuktikan; usulan penjaga regresi lebih tepat daripada menambah gate role kasar yang dapat memblokir custom role sah.</p>
+<p><strong>Kontrol yang ada:</strong> Backend RBAC tetap menolak akses yang tidak sah; gate halaman sudah banyak tersedia.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Metode static guard harus mengerti komponen yang mendelegasikan gate.</p>
+<p><strong>Acceptance:</strong> Halaman dashboard baru tanpa policy eksplisit gagal pemeriksaan; gate delegasi terdokumentasi dan custom role tetap mengikuti capability.</p>
+<p><strong>Verifikasi:</strong> Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Metode static guard harus mengerti komponen yang mendelegasikan gate.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/app/dashboard/layout.tsx:45</code> — layout membatasi autentikasi saja</li>
+<li><code>apps/web/src/app/dashboard/insight/page.tsx:9</code> — insight mendelegasikan gate</li>
+<li><code>apps/web/src/app/hq/layout.tsx:37</code> — HQ menerapkan capability gate terpusat per pathname</li>
+</ul>
+<h3>AUT-013 — Baseline Load gagal dipush tetapi run tetap sukses</h3>
+<p>Asal <code>IDO-02</code> · AUT · dampak 2/5 · effort S · keputusan <code>reclassify</code> · confidence Tinggi untuk fallback warning, rendah untuk penyebabnya.</p>
+<p><strong>Masalah dan batas:</strong> DROP klaim tidak pernah mendarat/karena branch protection: tidak ada provenance runtime. KEEP pilihan warning yang memang sengaja dinyatakan source, sebagai tradeoff bukan bug pasti.</p>
+<p><strong>Kontrol yang ada:</strong> Retry3x; hasil job summary; gate beban sendiri tidak hilang.</p>
+<p><strong>Usulan:</strong> Jika pemilik membutuhkan histori committed, gunakan artifact/PR baseline dengan indikator freshness; jangan mengubah run sehat merah tanpa kebutuhan itu.</p>
+<p><strong>Acceptance:</strong> Satu run simulasi push ditolak tetap meninggalkan data teridentifikasi commit dan dapat dicari; kebijakan stale disepakati DevOps.</p>
+<p><strong>Verifikasi:</strong> Inspeksi artifact/run terpisah; audit ini tidak mengakses GitHub.</p>
+<p><strong>Owner dan dependensi:</strong> DevOps; Keputusan kebutuhan histori dan akses repo Actions saat implementasi.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>.github/workflows/load.yml:255</code> — Rebase/push dicoba tiga kali</li>
+<li><code>.github/workflows/load.yml:264</code> — Kegagalan akhir menjadi warning; hasil tetap ada di job summary</li>
+</ul>
+<h3>FTR-001 — Perjelas semantik BETA/ROLLOUT pada flag publik</h3>
+<p>Asal <code>AAS-10</code> · FTR · dampak 2/5 · effort M · keputusan <code>defer-policy</code> · confidence Tinggi.</p>
+<p><strong>Masalah dan batas:</strong> publicFlags memetakan semua state kecuali OFF menjadi enabled; enum menjelaskan BETA/ROLLOUT. Belum diketahui apakah owner memerlukan audience gating, jadi tidak menyebut bug rollout produksi.</p>
+<p><strong>Kontrol yang ada:</strong> Hanya tiga enforced key yang dipublikasikan; mutasi platformAdmin.</p>
+<p><strong>Usulan:</strong> PO memilih boolean-only untuk key enforced atau kontrak audience yang eksplisit; jangan membangun eksperimen/AI tanpa demand.</p>
+<p><strong>Acceptance:</strong> State yang diperbolehkan dan arti enabled sama pada UI/backend serta diuji; jika boolean-only, BETA/ROLLOUT ditolak untuk enforced key.</p>
+<p><strong>Verifikasi:</strong> Unit flag per state dan penelusuran consumer; tidak menyalakan flag.</p>
+<p><strong>Owner dan dependensi:</strong> Produk dan Platform; Keputusan Produk atas lifecycle; konfigurasi produksi tidak dibaca.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/admin-service/src/modules/feature-flags.controller.ts:43</code> — State selain OFF dipublikasikan enabled.</li>
+<li><code>services/admin-service/src/domain/flag-state.ts:18</code> — Enum punya ROLLOUT/ACTIVE/BETA/OFF.</li>
+</ul>
+<h3>FTR-010 — Recommendation service memakai ProductRef lokal tanpa status aktif/depot</h3>
+<p>Asal <code>REC-03</code> · FTR · dampak 2/5 · effort M · keputusan <code>reclassify</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> Service sepenuhnya dibaca: enrich hanya membuang productRef yang hilang. Dampak end-to-end belum dapat dipastikan sebelum frontend consumer/hydration ditelusuri; bukan bukti produk tidak tersedia tampil pada pelanggan.</p>
+<p><strong>Kontrol yang ada:</strong> Limit ranking dan defensive missing-ref filter; catalog/checkout tetap dapat menolak produk unavailable di jalur lain, belum dibuktikan dalam scope ini.</p>
+<p><strong>Usulan:</strong> Periksa consumer web sebelum keputusan; jika consumer sudah memfilter katalog aktif, tutup klaim tampilan invalid dan nilai hanya kesegaran ProductRef.</p>
+<p><strong>Acceptance:</strong> Trace consumer menunjukkan apakah item inactive/unavailable dapat tampil; rekomendasi baru hanya bila fixture sumber membuktikan gap.</p>
+<p><strong>Verifikasi:</strong> Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.</p>
+<p><strong>Owner dan dependensi:</strong> Backend recommendation + frontend; Frontend consumer verification</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>services/recommendation-service/src/application/services/recommendation.service.ts:42</code> — Reorder tanpa selector depot</li>
+<li><code>services/recommendation-service/src/application/services/recommendation.service.ts:77</code> — Enrich hanya memakai productRefs</li>
+</ul>
+<h3>FLW-024 — Sinkronisasi sesi lintas tab belum diperiksa memadai</h3>
+<p>Asal <code>WEB-09</code> · FLW · dampak 1/5 · effort M · keputusan <code>defer-evidence</code> · confidence Sedang.</p>
+<p><strong>Masalah dan batas:</strong> <span class="tag t-verified">[VERIFIED]</span> session-store menyimpan profil dalam cache modul dan mengabari listener tab itu saat setSession. AuthProvider juga revalidasi saat focus/visibility dengan batas satu menit. Tidak ditemukan listener storage/BroadcastChannel untuk perubahan sesi lintas tab di kedua modul. Dampak nyata pada logout/ganti depot masih butuh skenario browser dan kontrak cookie, jadi tetap defer-evidence.</p>
+<p><strong>Kontrol yang ada:</strong> Token web ada di cookie httpOnly; polling profil/fokus sudah ada.</p>
+<p><strong>Usulan:</strong> Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Perlu full search lintas session-store/depot-store/app lifecycle.</p>
+<p><strong>Acceptance:</strong> Tetapkan skenario logout/ganti depot antar tab dan kontrak sinkronisasi sebelum implementasi.</p>
+<p><strong>Verifikasi:</strong> Uji dua tab pada browser nyata untuk logout, perubahan peran, dan pemindahan depot sebelum memutuskan implementasi.</p>
+<p><strong>Owner dan dependensi:</strong> Frontend engineer; Kontrak cookie/logout gateway dan skenario dua tab.</p>
+<p><strong>Bukti:</strong></p>
+<ul>
+<li><code>apps/web/src/lib/session-store.ts:55</code> — setSession mengubah cache modul dan localStorage tab ini.</li>
+<li><code>apps/web/src/lib/session-store.ts:66</code> — subscribe hanya mendaftarkan listener di Set modul.</li>
+<li><code>apps/web/src/lib/auth-context.tsx:100</code> — Revalidasi dipicu focus, bukan event storage.</li>
+<li><code>apps/web/src/lib/auth-context.tsx:80</code> — Revalidasi focus dibatasi satu menit.</li>
+</ul>
+<h2>7. Keterbatasan dan keputusan terbuka</h2>
+<p>Cakupan <strong>file repositori</strong> penuh, tetapi akses produksi, data aktual, perangkat Android fisik, dan semua perilaku integrasi lintas layanan tidak dapat dibuktikan dari source saja. Status gate yang gagal/terhalang tercatat apa adanya pada bagian 4. Untuk pajak, refund manual, royalti, SLA dan retensi, implementasi memerlukan keputusan owner sesuai <a href="00-context.md">00-context.md</a>; audit tidak menetapkan kebijakan hukum/keuangan. Daftar kandidat historis lengkap ada di <a href="HYDROMART_DEVELOPMENT_OPPORTUNITIES.md">laporan audit sebelumnya</a>, dengan label klaim lama, bukan tambahan 236 rekomendasi aktif.</p>
+<h2>8. Lampiran dan reproduksi</h2>
+<ul>
+<li><a href="01-full-coverage.csv">Ledger setiap file</a> dan <a href="full-file-scan.json">hasil pemindaian penuh</a></li>
+<li><a href="full-scan-summary.json">Ringkasan scan</a>, <a href="02-inventory.json">AST</a>, <a href="shell-syntax.json">hasil shell</a>, <a href="yaml-syntax.json">hasil YAML</a></li>
+<li><a href="recommendations.json">Rekomendasi terstruktur</a>, <a href="05-spot-check.json">sampel 15</a>, <a href="06-duplicate-check.md">rekonsiliasi duplikasi</a></li>
+<li><a href="03-cross-service-flows.md">Alur lintas layanan</a>, <a href="07-bi-catalog.md">katalog KPI</a>, <a href="08-automation.md">otomasi</a></li>
+</ul>
+<p>Perintah reproduksi: <code>python docs/analysis/run-1e93545a2/scripts/full_scan.py</code>, <code>node docs/analysis/run-1e93545a2/scripts/extract.mjs</code>, dan quality gates pada bagian 4.</p>
+<h2>9. Verifikasi Docker dan data lokal tersimpan</h2>
+<p><a href="HYDROMART_DOCKER_DATA_VERIFICATION.md">Hasil verifikasi runtime dan data lokal</a> mencatat pemeriksaan atas stack Compose lokal. Sembilan belas container aplikasi sehat; scheduler semula <code>unhealthy</code> karena kuncinya berbeda dari 18 backend/gateway dan job internal mendapat HTTP 401. Scheduler telah direkreasikan dengan konfigurasi yang cocok dan heartbeat bergerak lagi. Setelah aktif, sweep expiry membatalkan lima order lokal, termasuk dua yang stalled; seluruh lima reservasi stok dilepas, dua pembayaran terkait sudah refunded sebelumnya, dan lima notifikasi pembatalan tercatat. Image HR lama belum memuat route pengingat shift; setelah migrasi aditif dan penggantian hanya container HR, job itu menjawab <code>ok: true</code>, HR sehat, dan 22/22 job terakhir sukses. Gateway/web menjawab HTTP 200, katalog mengembalikan 20 produk aktif yang cocok dengan hitungan database, dan <code>/auth/me</code> tanpa token menjawab 401. Database memuat record lokal persisten; asal produksi dan kesesuaian image dengan commit audit belum dibuktikan. Harness integrasi mutatif <strong>lulus pada project Docker terisolasi</strong> dengan storage MinIO tes: 20/20 service sehat, semua skenario inti lulus, HRIS 30 lulus/0 gagal/0 skip, approvals 158 lulus, dan payroll manual lulus. Gate <code>audit:ci</code> yang sebelumnya lulus palsu saat sumber advisori gagal telah diperbaiki dan diverifikasi pada working tree; temuan IDO-12 tetap mencatat keadaan baseline audit.</p>
+</main>
+<script>
+(function(){var t=document.getElementById('matrix');if(!t)return;var rows=[].slice.call(t.tBodies[0].rows);
+var q=document.getElementById('q'),fa=document.getElementById('fa'),fg=document.getElementById('fg'),c=document.getElementById('cnt');
+function f(){var s=q.value.toLowerCase(),n=0;rows.forEach(function(r){var ok=(!fa.value||r.dataset.area==fa.value)&&(!fg.value||r.dataset.group==fg.value)&&(!s||r.textContent.toLowerCase().indexOf(s)>-1);r.style.display=ok?'':'none';if(ok)n++});c.textContent=n+' / '+rows.length+' baris'}
+[q,fa,fg].forEach(function(x){x.addEventListener('input',f)});f()})();
+</script></body></html>

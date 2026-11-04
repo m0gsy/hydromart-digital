@@ -152,23 +152,27 @@ export class ReferralPrismaRepository implements ReferralRepository {
     }));
   }
 
-  async qualifyReferral(
+  async prepareQualification(
     referralId: string,
     qualifyingOrderId: string,
     referrerPoints: number,
     refereePoints: number,
   ): Promise<ReferralRecord | null> {
     return this.prisma.$transaction(async (tx) => {
-      // Guard the transition on the current PENDING state so a lost race is a no-op.
+      await tx.referral.updateMany({
+        where: { id: referralId, status: PrismaReferralStatus.PENDING, qualifyingOrderId: null },
+        data: { qualifyingOrderId, referrerPoints, refereePoints },
+      });
+      const row = await tx.referral.findUnique({ where: { id: referralId } });
+      return row?.status === PrismaReferralStatus.PENDING ? this.toReferral(row) : null;
+    });
+  }
+
+  async qualifyReferral(referralId: string): Promise<ReferralRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.referral.updateMany({
-        where: { id: referralId, status: PrismaReferralStatus.PENDING },
-        data: {
-          status: PrismaReferralStatus.QUALIFIED,
-          qualifyingOrderId,
-          referrerPoints,
-          refereePoints,
-          qualifiedAt: new Date(),
-        },
+        where: { id: referralId, status: PrismaReferralStatus.PENDING, qualifyingOrderId: { not: null } },
+        data: { status: PrismaReferralStatus.QUALIFIED, qualifiedAt: new Date() },
       });
       if (count === 0) return null;
       const row = await tx.referral.findUnique({ where: { id: referralId } });

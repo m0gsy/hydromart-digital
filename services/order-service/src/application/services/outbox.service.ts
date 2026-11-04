@@ -137,18 +137,16 @@ export class OutboxService {
           this.logger.error(
             `Outbox ${message.topic} for order ${message.orderId} gave up after ${message.attempts + 1} attempts: ${reason}`,
           );
-          if (message.topic === 'PAYMENT_REVERSAL') {
-            // A cancelled order whose customer is still out of pocket and whom no further
-            // attempt will reach. The scheduler heartbeat does not see this; a person must.
-            alertServerError({
-              method: 'POST',
-              path: 'orders/outbox#payment-reversal-dead',
-              status: 500,
-              exception: new Error(
-                `Pengembalian dana untuk pesanan ${message.orderId} gagal setelah ${message.attempts + 1} percobaan: ${reason}`,
-              ),
-            });
-          }
+          // The scheduler heartbeat cannot detect a DEAD row. Alert for every owed
+          // effect, including stock and owner credit, so an operator can investigate it.
+          alertServerError({
+            method: 'POST',
+            path: `orders/outbox#${message.topic.toLowerCase().replaceAll('_', '-')}-dead`,
+            status: 500,
+            exception: new Error(
+              `${message.topic} for order ${message.orderId} failed after ${message.attempts + 1} attempts: ${reason}`,
+            ),
+          });
         }
       }
     }

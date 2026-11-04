@@ -39,14 +39,14 @@ beforeEach(() => {
 });
 
 describe('LoyaltyRewardHttpAdapter', () => {
-  it('skips (fail open) when no internal key', async () => {
-    await new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'referral', '');
+  it('rejects when no internal key so the outbox retries', async () => {
+    await expect(new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'referral', '', 'ref-1')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('posts to loyalty/reward with x-internal-key on happy path', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '');
+    await new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '', 'ref-1');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://loyalty:3009/api/v1/loyalty/reward',
       expect.objectContaining({
@@ -54,20 +54,21 @@ describe('LoyaltyRewardHttpAdapter', () => {
         headers: expect.objectContaining({ 'x-internal-key': KEY }),
       }),
     );
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string).idempotencyKey).toBe('ref-1');
   });
 
-  it('fails open (resolves) on non-2xx', async () => {
+  it('rejects on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     await expect(
-      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', ''),
-    ).resolves.toBeUndefined();
+      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '', 'ref-1'),
+    ).rejects.toThrow();
   });
 
-  it('fails open (resolves) when loyalty is unreachable', async () => {
+  it('rejects when loyalty is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(
-      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', ''),
-    ).resolves.toBeUndefined();
+      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '', 'ref-1'),
+    ).rejects.toThrow();
   });
 });
 

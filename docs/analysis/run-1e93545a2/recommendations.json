@@ -1,0 +1,3596 @@
+[
+  {
+    "local_id": "ORD-01",
+    "title": "Outbox selesai meski efek stok/poin/referral/pendapatan gagal",
+    "action": "keep",
+    "reason": "[INFERRED] Handler memenuhi Promise tanpa throw ketika adapter gagal; run menandai DONE. Kegagalan lookup pemilik juga mengembalikan null sehingga memperbaiki adapter payout saja tidak cukup.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 337,
+        "claim": "Registrasi handler empat topik pada constructor"
+      },
+      {
+        "path": "services/order-service/src/application/services/outbox.service.ts",
+        "line": 125,
+        "claim": "deliver diikuti markDone; retry hanya di catch"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/inventory.http.adapter.ts",
+        "line": 67,
+        "claim": "consume menelan error"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/loyalty-coordination.http.adapter.ts",
+        "line": 59,
+        "claim": "awardPoints gagal mengembalikan null"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/referral-coordination.http.adapter.ts",
+        "line": 39,
+        "claim": "qualify menelan error"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/franchise-revenue.http.adapter.ts",
+        "line": 70,
+        "claim": "orderCompleted gagal mengembalikan null"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/depot-directory.http.adapter.ts",
+        "line": 202,
+        "claim": "lookup pemilik gagal mengembalikan null"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 2319,
+        "claim": "null ownership menyebabkan handler return"
+      },
+      {
+        "path": "services/order-service/src/modules/order.module.ts",
+        "line": 88,
+        "claim": "Provider adapter nyata didaftarkan"
+      },
+      {
+        "path": "scripts/scheduler/crontab",
+        "line": 37,
+        "claim": "Outbox dipicu setiap 10 menit"
+      }
+    ],
+    "impact": 5,
+    "effort": "L",
+    "risk": "Tinggi",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Outbox ditulis bersama status; backoff 6 percobaan dan 10 untuk PAYMENT_REVERSAL; pembatalan order mencegah side effect baru; reversal pembayaran/pendapatan sudah dapat throw.",
+    "proposal": "Bedakan integrasi nonaktif yang sah dari dependency unavailable; failure efek wajib harus mempertahankan PENDING. Audit idempotensi penerima dan kompensasi lebih dahulu, khususnya referral reward; tambahkan alert/replay dengan batas kewenangan.",
+    "acceptance": "Untuk setiap topik, 500/timeout tidak menghasilkan DONE; pemulihan dependency menghasilkan satu efek bisnis; pengulangan/referral tidak memberi reward ganda; HKP tanpa pemilik tetap no-op yang sah.",
+    "dependencies": "Validasi idempotensi penerima per orderId, REF-01, strict lookup ownership, rollout lintas service. Effort L karena kontrak failure dan efek uang lintas database.",
+    "owner": "Backend order + pemilik depot/loyalty/referral/payout + SRE",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "Berbeda dari H-10/CA-5-01: outbox dan scheduler sudah ada, gap berada pada failure contract adapter. Bukan usulan menambah outbox kedua.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Outbox ditulis bersama status; backoff 6 percobaan dan 10 untuk PAYMENT_REVERSAL; pembatalan order mencegah side effect baru; reversal pembayaran/pendapatan sudah dapat throw.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Validasi idempotensi penerima per orderId, REF-01, strict lookup ownership, rollout lintas service. Effort L karena kontrak failure dan efek uang lintas database.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FLW-010"
+  },
+  {
+    "local_id": "ORD-02",
+    "title": "Pelepasan voucher saat pembatalan online",
+    "action": "merge",
+    "reason": "Satu akar dengan PLP-01. Jalur cancel/updateStatus yang dibaca hanya mengantre PAYMENT_REVERSAL, memproses outbox dan releaseStock; promo.release ada pada counter void dan checkout gagal. Keputusan final: satu akar/pekerjaan audit dengan PLP-01, tidak dihitung dua kali.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 1984,
+        "claim": "cancel pelanggan"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 2016,
+        "claim": "Hanya PAYMENT_REVERSAL pada cancel"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 3075,
+        "claim": "updateStatus staf"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 3104,
+        "claim": "completion vs cancellation outbox"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 1434,
+        "claim": "Counter void melepaskan voucher"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 2651,
+        "claim": "Checkout gagal melepaskan voucher"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "",
+    "proposal": "Gabungkan menjadi PLP-01; jangan buat rekomendasi terpisah.",
+    "acceptance": "Satu ID global untuk akar yang sama, dengan kebijakan cancel voucher ditandatangani PO.",
+    "dependencies": "Keputusan PO",
+    "owner": "Backend",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "merge_into": "PLP-01",
+    "existing_controls": "",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Keputusan PO",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND"
+  },
+  {
+    "local_id": "PLP-01",
+    "title": "Kebijakan voucher online batal belum dipulihkan pada jalur cancel yang dibaca",
+    "action": "defer-policy",
+    "reason": "[INFERRED] Jalur cancel tidak memanggil release yang sudah tersedia; apakah voucher harus kembali adalah keputusan bisnis. Bukan Quick Win siap implementasi tanpa keputusan tersebut.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 2016,
+        "claim": "Pembatalan mengantre reversal pembayaran"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 3116,
+        "claim": "Release stock tanpa release voucher"
+      },
+      {
+        "path": "services/promo-service/src/application/services/voucher.service.ts",
+        "line": 367,
+        "claim": "release tersedia"
+      },
+      {
+        "path": "services/promo-service/src/infrastructure/prisma/voucher.prisma.repository.ts",
+        "line": 396,
+        "claim": "Claim release releasedAt null atomik dan usedCount turun"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Release idempoten tersedia dan counter void/checkout failure memakainya.",
+    "proposal": "PO menentukan hangus/kembali dan alasan cancellation yang berlaku; bila kembali, gunakan delivery yang dapat dipulihkan, bukan fail-open yang dapat hilang permanen.",
+    "acceptance": "Tes customer/staff/sweep cancel sesuai kebijakan; retry tidak menurunkan usedCount dua kali; budget dan perCustomerLimit konsisten.",
+    "dependencies": "PO kebijakan cancellation + order/promo; gabungan ORD-02",
+    "owner": "PO + backend order/promo",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "[ASSUMPTION] Apakah voucher dikembalikan pada semua cancellation, atau hanya alasan tertentu?",
+    "delta": "PRM-8 telah menutup race release; delta hanya pemanggil cancel online.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Release idempoten tersedia dan counter void/checkout failure memakainya.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "PO kebijakan cancellation + order/promo; gabungan ORD-02",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FLW-012"
+  },
+  {
+    "local_id": "ORD-06",
+    "title": "Penjualan konter dan pencatatan pembayaran masih dua langkah",
+    "action": "reclassify",
+    "reason": "[INFERRED] Penjualan pickup dibuat COMPLETED dan completion outbox ditulis sebelum browser mencatat pembayaran. Klaim lama tidak ada tampilan rekonsiliasi salah: payment-recon sudah menampilkan order tanpa payment dan jalur remediasi.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 1247,
+        "claim": "Pickup konter lahir COMPLETED"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 1261,
+        "claim": "Completion outbox ditulis saat create"
+      },
+      {
+        "path": "apps/web/src/app/dashboard/payment-recon/page.tsx",
+        "line": 55,
+        "claim": "Join order dan payment"
+      },
+      {
+        "path": "apps/web/src/app/dashboard/payment-recon/page.tsx",
+        "line": 123,
+        "claim": "Null payment ditampilkan sebagai noPayment"
+      },
+      {
+        "path": "services/payment-service/src/modules/payment.controller.ts",
+        "line": 332,
+        "claim": "Endpoint for-orders"
+      },
+      {
+        "path": "services/payment-service/src/application/services/payment.service.ts",
+        "line": 516,
+        "claim": "Batch payment dibatasi scope order"
+      }
+    ],
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Idempotency-Key penjualan; pembayaran aktif tidak digandakan; UI retry pembayaran; layar rekonsiliasi manual tersedia.",
+    "proposal": "Putuskan apakah completed berarti barang diserahkan atau pembayaran diterima; tambahkan recovery durable/exception aging pada alur existing jika diperlukan, bukan layar recon baru.",
+    "acceptance": "Tutup browser setelah order create sebelum payment; operator tetap menemukan dan menyelesaikan kewajiban tersebut sekali. Outbox earning/revenue mengikuti definisi bisnis final.",
+    "dependencies": "Definisi bisnis completed/counter + kontrak order/payment + frontend",
+    "owner": "PO + operasi kasir + backend order/payment",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "K3.2 sudah menambah retry layar dan payment-recon tersedia. Delta adalah ketahanan terhadap sesi hilang, bukan ketiadaan rekonsiliasi.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Idempotency-Key penjualan; pembayaran aktif tidak digandakan; UI retry pembayaran; layar rekonsiliasi manual tersedia.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Definisi bisnis completed/counter + kontrak order/payment + frontend",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FLW-011"
+  },
+  {
+    "local_id": "DEP-01",
+    "title": "Kunci gerakan GALON menyamakan issue dan return satu order",
+    "action": "keep",
+    "reason": "[INFERRED] Kedua arah membawa orderId yang sama pada item GALON yang sama; setelah movement pertama, moveRawLine mengembalikan shortfall 0 tanpa gerakan kedua.",
+    "evidence": [
+      {
+        "path": "services/depot-service/src/application/services/gallon-issue.service.ts",
+        "line": 231,
+        "claim": "Issue meneruskan orderId"
+      },
+      {
+        "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+        "line": 108,
+        "claim": "Return meneruskan orderId pada moveRawLine"
+      },
+      {
+        "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+        "line": 414,
+        "claim": "Courier return meneruskan input.orderId"
+      },
+      {
+        "path": "services/depot-service/src/application/services/inventory.service.ts",
+        "line": 875,
+        "claim": "Movement yang sudah ada membuat no-op"
+      },
+      {
+        "path": "services/depot-service/prisma/schema.prisma",
+        "line": 303,
+        "claim": "Unique itemId,orderId"
+      }
+    ],
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Ledger issue/return dan idempotensi per order sudah ada; refund dibatasi outstanding deposit.",
+    "proposal": "Pisahkan identitas kejadian issue vs return pada movement dan desain migrasi/backfill terukur; pertahankan replay masing-masing arah.",
+    "acceptance": "Issue 2 dan return GOOD 2 pada order sama menghasilkan dua movement dengan net 0, di kedua urutan; replay setiap arah tidak menggandakan movement.",
+    "dependencies": "Schema key movement, pra-cek histori dan saldo; effort L karena data lama dan migrasi identitas event",
+    "owner": "Backend depot + operasi stok",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "CA-2-57 sudah menghubungkan buku galon ke stok; delta collision kedua arah pada key baru itu.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Ledger issue/return dan idempotensi per order sudah ada; refund dibatasi outstanding deposit.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Schema key movement, pra-cek histori dan saldo; effort L karena data lama dan migrasi identitas event",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FLW-003"
+  },
+  {
+    "local_id": "DEP-02",
+    "title": "Penerimaan PO belum atomik terhadap retry/crash/paralel",
+    "action": "keep",
+    "reason": "[INFERRED] PO dibaca SENT, seluruh receiveStock dilakukan, lalu lines/status ditulis satu kali; repository update hanya where id. Dua penerimaan atau retry setelah crash dapat menggandakan stok.",
+    "evidence": [
+      {
+        "path": "services/depot-service/src/application/services/purchase-order.service.ts",
+        "line": 159,
+        "claim": "Pre-check SENT"
+      },
+      {
+        "path": "services/depot-service/src/application/services/purchase-order.service.ts",
+        "line": 227,
+        "claim": "Loop posting receiveStock"
+      },
+      {
+        "path": "services/depot-service/src/application/services/purchase-order.service.ts",
+        "line": 270,
+        "claim": "Satu update PO setelah loop"
+      },
+      {
+        "path": "services/depot-service/src/infrastructure/prisma/purchase-order.prisma.repository.ts",
+        "line": 75,
+        "claim": "Update berdasarkan id tanpa expected version"
+      }
+    ],
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Kuantitas outstanding dibatasi; kegagalan booking baris tetap outstanding dan unbooked dilaporkan.",
+    "proposal": "Unit transaksi receipt lokal atau receipt line beridentitas idempoten; CAS saja sebelum posting perlu jalur crash recovery. Pertahankan partial receipt.",
+    "acceptance": "Dua receive paralel tidak menaikkan stok dua kali; crash setelah line pertama lalu retry tidak menggandakan line itu; baris gagal tetap outstanding.",
+    "dependencies": "Repository PO + inventory dalam database depot; effort M karena unit transaksi domain tunggal",
+    "owner": "Backend depot + procurement",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "CA-2-31/CA-2-55 telah membenahi partial receipt/status; delta crash/concurrency. Komentar 148-151 menjanjikan persist per line tetapi implementasi 270 hanya sekali.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Kuantitas outstanding dibatasi; kegagalan booking baris tetap outstanding dan unbooked dilaporkan.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Repository PO + inventory dalam database depot; effort M karena unit transaksi domain tunggal",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FLW-004"
+  },
+  {
+    "local_id": "DEP-04",
+    "title": "Penyesuaian stok mentah dan opname perlu kebijakan kontrol kuantitas",
+    "action": "defer-policy",
+    "reason": "[VERIFIED] adjust dan opname menulis gerakan stok langsung. Opname mengirim approval hanya setelah penulisan dan hanya jika nilai selisih melewati ambang; nilai bahan mentah tanpa sellPrice menjadi 0. Apakah bahan mentah perlu ambang nilai atau approval pra-aksi adalah keputusan proses, sehingga rekomendasi tetap ditunda sampai kebijakan ditetapkan.",
+    "evidence": [
+      {
+        "path": "services/depot-service/src/application/services/inventory.service.ts",
+        "line": 348,
+        "claim": "Adjust langsung memanggil applyMovement untuk koreksi stok."
+      },
+      {
+        "path": "services/depot-service/src/application/services/inventory.service.ts",
+        "line": 386,
+        "claim": "Opname menulis selisih lalu memanggil emitVarianceApproval setelahnya."
+      },
+      {
+        "path": "services/depot-service/src/application/services/inventory.service.ts",
+        "line": 473,
+        "claim": "Nilai selisih memakai sellPrice ?? 0 sehingga item tanpa harga jual tidak mencapai ambang approval."
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "AUT",
+    "level": "STATIC",
+    "confidence": "Tinggi untuk alur kode; keputusan kebijakan terbuka",
+    "controls": "",
+    "proposal": "Pertahankan kandidat legacy dengan label belum diverifikasi ulang dan pertanyaan PO tentang approval sebelum/sesudah fakta.",
+    "acceptance": "Bukti source lengkap dan keputusan proses tersedia sebelum implementasi.",
+    "dependencies": "Operasi stok + finance",
+    "owner": "Backend",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "Alur source ditinjau ulang pada audit penuh; status keputusan tetap defer-policy.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Ledger gerakan append-only, larangan stok negatif pada adjust, dan approval selisih opname di atas ambang untuk item bernilai.",
+    "verification": "Tinjau aturan raw material bersama Ops/Finance; uji ambang dan timing approval setelah kebijakan disahkan.",
+    "effort_reason": "Operasi stok + finance",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "AUT-008"
+  },
+  {
+    "local_id": "DEP-06",
+    "title": "Retur kurir belum mengikat order/customer ke delivery yang berwenang",
+    "action": "reclassify",
+    "reason": "[INFERRED] Body depotId/orderId/customerId diteruskan ke recordFromCourier; method yang dibaca mengukur saldo pelanggan itu dan mencatat return tanpa lookup order/delivery. Guard depot tetap ada, jadi klaim kurir bebas lintas depot tidak didukung.",
+    "evidence": [
+      {
+        "path": "services/depot-service/src/modules/driver-gallon-return.controller.ts",
+        "line": 30,
+        "claim": "Identifier body diteruskan"
+      },
+      {
+        "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+        "line": 342,
+        "claim": "Hanya requireDepot pada awal recordFromCourier"
+      },
+      {
+        "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+        "line": 375,
+        "claim": "Outstanding dihitung terhadap customerId body"
+      },
+      {
+        "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+        "line": 384,
+        "claim": "createFromOrder memakai identifier body"
+      },
+      {
+        "path": "packages/access/src/index.ts",
+        "line": 324,
+        "claim": "courierReturn STAFF_DEPOT"
+      },
+      {
+        "path": "packages/platform/src/nest/depot-scope.ts",
+        "line": 15,
+        "claim": "STAFF_DEPOT locked"
+      },
+      {
+        "path": "packages/platform/src/nest/depot-scope.guard.ts",
+        "line": 79,
+        "claim": "depotId request harus di set caller"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "AUT",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "STAFF_DEPOT terkunci depot; refund min(rate*qty,depositLeft); unknown customer refund 0; serialized balance; idempoten per order.",
+    "proposal": "Validasi bahwa order/customer/depot/courier cocok dengan delivery miliknya melalui kontrak service-auth; jangan gandakan depot guard.",
+    "acceptance": "Kurir tidak dapat mengatasnamakan customer/order lain dalam depotnya; retry handover sah tetap idempoten; depot lain ditolak existing guard.",
+    "dependencies": "Kontrak delivery/order lookup + aturan handover non-order",
+    "owner": "Backend depot/delivery + operasi kurir",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "CA-4-47 sudah menutup refund kolektif anonymous; delta hubungan identifier order/customer/driver yang telah diisi.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "STAFF_DEPOT terkunci depot; refund min(rate*qty,depositLeft); unknown customer refund 0; serialized balance; idempoten per order.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Kontrak delivery/order lookup + aturan handover non-order",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "AUT-009"
+  },
+  {
+    "local_id": "HR-01",
+    "title": "Lembur dihitung dari menit kehadiran tanpa approval lembur terpisah pada jalur yang dibaca",
+    "action": "reclassify",
+    "reason": "[INFERRED] splitOvertime tidak menerapkan plafon; payroll menambahkan BONUS. Ini bukan auto-paid: slip masih melalui approve/pay dan guard pemisahan pembuat/penyetuju.",
+    "evidence": [
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 1192,
+        "claim": "Menghitung splitOvertime dari workedDays"
+      },
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 1223,
+        "claim": "Hasil berupa BONUS pada slip"
+      },
+      {
+        "path": "services/hr-service/src/domain/overtime.ts",
+        "line": 75,
+        "claim": "Semua menit relevan dihitung tanpa plafon"
+      },
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 749,
+        "claim": "Payroll memiliki langkah approve"
+      },
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 761,
+        "claim": "Pembuat tidak approve kecuali SUPER_ADMIN"
+      },
+      {
+        "path": "services/hr-service/src/infrastructure/prisma/attendance.prisma.repository.ts",
+        "line": 176,
+        "claim": "Hanya PRESENT/LATE masuk worked minutes"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "FTR",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "PENDING dikecualikan; istirahat dipotong; slip butuh approval; owner decision basis lembur gaji pokok tidak diubah.",
+    "proposal": "HR menentukan kebutuhan approval/exception atas jam tidak wajar dan plafon bila sah; tampilkan sumber menit agar approver menilai. Jangan menebak batas jam hukum.",
+    "acceptance": "HR menandatangani kebijakan; contoh shift panjang dan koreksi checkout mengikuti kebijakan tanpa memotong jam sah secara diam-diam.",
+    "dependencies": "HR lead dan kebijakan jam/approval",
+    "owner": "HR lead + backend HR",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "[ASSUMPTION] Apakah approval slip saat ini memang persetujuan seluruh lembur?",
+    "delta": "CA-1-39/D2 sudah menghapus istirahat dari lembur; delta exception panjang shift, bukan menghitung ulang istirahat.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "PENDING dikecualikan; istirahat dipotong; slip butuh approval; owner decision basis lembur gaji pokok tidak diubah.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "HR lead dan kebijakan jam/approval",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FTR-004"
+  },
+  {
+    "local_id": "HR-04",
+    "title": "Definisi bruto pajak variabel perlu konfirmasi akuntan",
+    "action": "defer-policy",
+    "reason": "Source memverifikasi gross=BASE+ALLOWANCE, terpisah dari totalBonus; PPh Desember memakai YTD gross yang sama. Ini tidak membuktikan pelanggaran pajak, dan dasar BPJS tidak boleh otomatis disamakan dengan dasar PPh.",
+    "evidence": [
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 523,
+        "claim": "gross tidak memuat BONUS"
+      },
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 531,
+        "claim": "statutoryInput memakai gross"
+      },
+      {
+        "path": "services/hr-service/src/application/services/payroll.service.ts",
+        "line": 551,
+        "claim": "Desember memakai decemberPph21"
+      },
+      {
+        "path": "services/hr-service/src/infrastructure/prisma/payroll.prisma.repository.ts",
+        "line": 179,
+        "claim": "YTD menjumlah payroll.gross"
+      },
+      {
+        "path": "services/hr-service/src/domain/statutory.ts",
+        "line": 418,
+        "claim": "AnnualGross YTD+Desember"
+      },
+      {
+        "path": "docs/BRIEF_AKUNTAN.md",
+        "line": 59,
+        "claim": "Pertanyaan THR/bonus masuk bruto TER masih diajukan"
+      }
+    ],
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "area": "BI",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Tabel TER configurable dan rekonsiliasi Desember tersedia; brief akuntan sudah mendokumentasikan pertanyaan.",
+    "proposal": "Akuntan memutuskan komponen penghasilan/pemotongan per basis dan proses di luar aplikasi; setelah itu selaraskan input serta ekspor rekonsiliasi.",
+    "acceptance": "Kasus bonus/THR/Desember yang disetujui akuntan menjadi fixture; output aplikasi cocok dengan kasus tersebut dan menjelaskan komponen yang diproses di luar aplikasi.",
+    "dependencies": "Jawaban akuntan; perbedaan basis PPh/BPJS; bukan audit hukum",
+    "owner": "Akuntan + HR + backend HR",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "[ASSUMPTION] Apakah variabel ditangani dalam pelaporan di luar aplikasi?",
+    "delta": "Pertanyaan sudah ada dalam BRIEF_AKUNTAN; bukti tambahan adalah YTD Desember juga memakai gross tanpa BONUS.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Tabel TER configurable dan rekonsiliasi Desember tersedia; brief akuntan sudah mendokumentasikan pertanyaan.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Jawaban akuntan; perbedaan basis PPh/BPJS; bukan audit hukum",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "BI-002"
+  },
+  {
+    "local_id": "HR-21",
+    "title": "Ekspor karyawan melewati redaksi depot peminjam",
+    "action": "keep",
+    "reason": "[INFERRED] employeeReport memakai depotScopeIds lalu mencetak NIK/NPWP/rekening/gaji dari Employee penuh; tidak memakai homeDepot redaction seperti list. Dampak borrower memerlukan penugasan lintas depot aktif.",
+    "evidence": [
+      {
+        "path": "services/hr-service/src/modules/reports.controller.ts",
+        "line": 81,
+        "claim": "GET export memakai hrView"
+      },
+      {
+        "path": "services/hr-service/src/application/services/analytics.service.ts",
+        "line": 218,
+        "claim": "employeeReport memakai current depot scope"
+      },
+      {
+        "path": "services/hr-service/src/application/services/analytics.service.ts",
+        "line": 293,
+        "claim": "Kolom identitas dan rekening diekspor"
+      },
+      {
+        "path": "services/hr-service/src/infrastructure/prisma/analytics.prisma.repository.ts",
+        "line": 266,
+        "claim": "Query Employee lengkap dengan live depotId"
+      },
+      {
+        "path": "services/hr-service/src/application/services/employee.service.ts",
+        "line": 294,
+        "claim": "List menerapkan redaksi bila home depot tidak terjangkau"
+      },
+      {
+        "path": "services/hr-service/src/domain/employee-redaction.ts",
+        "line": 11,
+        "claim": "Daftar field yang wajib disamarkan bagi peminjam"
+      },
+      {
+        "path": "services/hr-service/src/infrastructure/http/audit.interceptor.ts",
+        "line": 31,
+        "claim": "GET dilewati audit mutasi"
+      }
+    ],
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "area": "AUT",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Scope depot ada; list/get employee dan payroll menerapkan redaksi; ekspor sengaja lengkap untuk round-trip HQ.",
+    "proposal": "Gunakan kebijakan home/current-depot yang sama untuk ekspor, pertahankan field lengkap bagi pihak berwenang; tambahkan jejak download metadata tanpa payload PII.",
+    "acceptance": "Borrowed employee tetap terlihat operasional tetapi NIK/rekening/gaji kosong di CSV dan XLSX; home/HQ tetap dapat round-trip yang diizinkan; download tercatat tanpa menyalin PII.",
+    "dependencies": "Reuse employee redaction/home-depot reach; fixture penugasan lintas depot. Effort M karena ekspor dua format dan kontrol akses.",
+    "owner": "Backend HR + pemilik akses HR",
+    "group": "Quick Win",
+    "implementation_risk": "Sedang",
+    "uncertainty": "Aktivasi DEPOT_ASSIGNMENT_ENABLED dan penugasan aktual produksi tidak diperiksa.",
+    "delta": "CA-1-62 menambah ekspor penuh untuk round-trip; delta redaksi borrower yang sudah ditegakkan pada jalur list.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Scope depot ada; list/get employee dan payroll menerapkan redaksi; ekspor sengaja lengkap untuk round-trip HQ.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Reuse employee redaction/home-depot reach; fixture penugasan lintas depot. Effort M karena ekspor dua format dan kontrol akses.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "AUT-012"
+  },
+  {
+    "local_id": "HR-23",
+    "title": "Anonimisasi employee menyisakan field identitas lain",
+    "action": "defer-policy",
+    "reason": "[VERIFIED] Patch anonimisasi hanya menimpa nama/telepon/email/photo/authSubjectId (jalur account juga role/status), sedangkan sumber schema memiliki pengenal lain. Penghapusan seluruh field finansial tidak boleh disarankan otomatis tanpa kebijakan retensi.",
+    "evidence": [
+      {
+        "path": "services/hr-service/src/infrastructure/prisma/employee.prisma.repository.ts",
+        "line": 56,
+        "claim": "Patch retensi terbatas"
+      },
+      {
+        "path": "services/hr-service/src/infrastructure/prisma/employee.prisma.repository.ts",
+        "line": 94,
+        "claim": "Patch hapus akun terbatas"
+      },
+      {
+        "path": "services/hr-service/src/application/services/employee.service.ts",
+        "line": 250,
+        "claim": "Jalur hapus akun memanggil anonymise dan hapus photos"
+      }
+    ],
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "area": "FTR",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Biometrik/attendance/reviews dihapus, payload audit dibersihkan, payroll sengaja dipertahankan sesuai komentar aturan finansial.",
+    "proposal": "Tentukan matriks retensi per field/tujuan dan bedakan pseudonimisasi dari anonimisasi; batasi akses data yang wajib disimpan, hapus yang tidak lagi perlu setelah keputusan sah.",
+    "acceptance": "Fixture export/scrub menunjukkan kebijakan setiap field; legal/finance menyetujui pengecualian dan akses retained data; tidak ada klaim kepatuhan UU dari tes kode saja.",
+    "dependencies": "Legal/finance retention field matrix + HR",
+    "owner": "Legal/finance + backend HR",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "NIK/NPWP/rekening dan dokumen tertentu mungkin diwajibkan retensi; audit ini tidak menilai hukumnya.",
+    "delta": "HR-2 sudah membersihkan payload audit; delta employee field yang tidak berada dalam patch scrub.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Biometrik/attendance/reviews dihapus, payload audit dibersihkan, payroll sengaja dipertahankan sesuai komentar aturan finansial.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Legal/finance retention field matrix + HR",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FTR-005"
+  },
+  {
+    "local_id": "CRM-01",
+    "title": "Kampanye memakai lease tetapi belum meneruskan dedupeKey per penerima",
+    "action": "keep",
+    "reason": "[INFERRED] Notification ditulis sebelum recordRecipientResult. Lease recipient dapat kedaluwarsa; replay memanggil notify tanpa dedupeKey dan membuat row/push baru.",
+    "evidence": [
+      {
+        "path": "services/crm-service/src/application/services/campaign.service.ts",
+        "line": 306,
+        "claim": "Deliver sebelum simpan hasil"
+      },
+      {
+        "path": "services/crm-service/src/infrastructure/prisma/campaign.prisma.repository.ts",
+        "line": 175,
+        "claim": "SENDING lease basi dapat diklaim ulang"
+      },
+      {
+        "path": "services/crm-service/src/infrastructure/notification/inbox-broadcast.delivery.ts",
+        "line": 38,
+        "claim": "notify tanpa dedupeKey"
+      },
+      {
+        "path": "services/crm-service/src/application/services/notification.service.ts",
+        "line": 244,
+        "claim": "Dedupe hanya jika key terisi; existing row tidak push ulang"
+      },
+      {
+        "path": "services/crm-service/src/infrastructure/prisma/notification.prisma.repository.ts",
+        "line": 100,
+        "claim": "recordOnce menangani unique violation"
+      },
+      {
+        "path": "services/crm-service/prisma/migrations/20261030140000_notification_dedupe_key/migration.sql",
+        "line": 11,
+        "claim": "Unique index dedupeKey tersedia sebagai migrasi source"
+      },
+      {
+        "path": "services/crm-service/src/modules/campaign.module.ts",
+        "line": 48,
+        "claim": "InboxBroadcastDelivery terdaftar"
+      },
+      {
+        "path": "scripts/scheduler/crontab",
+        "line": 83,
+        "claim": "Kampanye diproses setiap dua menit"
+      }
+    ],
+    "impact": 4,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "FLW",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Lease claimToken dan reclaim basi tersedia; dedupe notification dan migrasi unik sudah tersedia; marketing opt-out fail-closed.",
+    "proposal": "Bawa identitas recipient ke delivery port lalu gunakan key deterministik campaign-recipient; tetap bedakan percobaan kampanye baru. Review hasil lease agar stale worker tidak menimpa hasil baru.",
+    "acceptance": "Crash setelah row notification sebelum result, lalu reclaim recipient: satu inbox row dan paling banyak satu push attempt untuk recipient kampanye itu; kampanye berbeda tetap boleh mengirim.",
+    "dependencies": "Kontrak internal dalam crm; verifikasi migrasi dedupe pada deployment terpisah. Effort M karena port/fake/controller/service tests.",
+    "owner": "Backend CRM + marketing",
+    "group": "Quick Win",
+    "implementation_risk": "Rendah",
+    "uncertainty": "",
+    "delta": "CRM-9 sudah menutup duplicate claim antar worker; #766/#771 menambah notification dedupe. Delta pemanggil kampanye belum memakai fasilitas itu.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Lease claimToken dan reclaim basi tersedia; dedupe notification dan migrasi unik sudah tersedia; marketing opt-out fail-closed.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Kontrak internal dalam crm; verifikasi migrasi dedupe pada deployment terpisah. Effort M karena port/fake/controller/service tests.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FLW-002"
+  },
+  {
+    "local_id": "FCS-04",
+    "title": "Rebuild forecast tidak membedakan feed gagal dari feed selesai",
+    "action": "reclassify",
+    "reason": "[INFERRED] Ingest real-time best-effort disengaja. Adapter feed mengembalikan empty/null pada 500/timeout; rebuild berhenti dan return ingested/pages seperti EOF normal. Dampak diturunkan 4 ke 3 karena read model BI, bukan efek stok/uang.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 2412,
+        "claim": "Recommendation/forecast di luar outbox, best-effort"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/forecast-coordination.http.adapter.ts",
+        "line": 52,
+        "claim": "Ingest gagal hanya warn"
+      },
+      {
+        "path": "services/forecast-service/src/infrastructure/http/order-feed.http.adapter.ts",
+        "line": 49,
+        "claim": "Non-2xx menjadi halaman kosong EOF"
+      },
+      {
+        "path": "services/forecast-service/src/infrastructure/http/order-feed.http.adapter.ts",
+        "line": 63,
+        "claim": "Catch menjadi halaman kosong EOF"
+      },
+      {
+        "path": "services/forecast-service/src/application/services/rebuild.service.ts",
+        "line": 31,
+        "claim": "Loop berhenti nextCursor null dan return hitungan"
+      },
+      {
+        "path": "services/forecast-service/src/modules/forecast.controller.ts",
+        "line": 206,
+        "claim": "Rebuild tersedia untuk SUPER_ADMIN"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "AUT",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Ingest idempoten dan rebuild manual tersedia. Tidak perlu memblokir checkout atas outage forecast.",
+    "proposal": "Return status failed/incomplete beserta cursor durable dan lag read-model; baru jadwalkan backfill setelah failure contract benar. Jangan menjanjikan semua order pulih dengan rebuild fail-open saat ini.",
+    "acceptance": "Feed 500 di halaman kedua menandai incomplete dan menyimpan titik lanjut; retry memulihkan order sekali; EOF kosong yang sah tetap success.",
+    "dependencies": "Order feed + read model; kebijakan freshness PO, bukan SLA 24 jam karangan",
+    "owner": "Backend forecast/order + pemilik BI",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "CA-2-69 sudah membetulkan label reload/rebuild UI; delta kegagalan feed dan status completeness di backend.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Ingest idempoten dan rebuild manual tersedia. Tidak perlu memblokir checkout atas outage forecast.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Order feed + read model; kebijakan freshness PO, bukan SLA 24 jam karangan",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "AUT-011"
+  },
+  {
+    "local_id": "RET-01",
+    "title": "Nudge pesan ulang berulang dan penghitung sukses mengabaikan boolean",
+    "action": "reclassify",
+    "reason": "[INFERRED] Query mengambil pelanggan tertua berdasarkan semua orders; notify tanpa key dan .then(()=>true) membuang false dari adapter. Jadwal nyata harian ditemukan. Klasifikasi marketing reminder perlu PO; jangan langsung klaim pelanggaran consent.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/infrastructure/prisma/order.prisma.repository.ts",
+        "line": 323,
+        "claim": "Query latest-order cutoff tanpa status dan penanda sudah dinudge"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 1619,
+        "claim": "notify lalu then true"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/notification.http.adapter.ts",
+        "line": 16,
+        "claim": "ONCE_PER_ORDER tidak memuat REORDER_REMINDER"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/http/notification.http.adapter.ts",
+        "line": 100,
+        "claim": "Adapter error menghasilkan false"
+      },
+      {
+        "path": "services/crm-service/src/application/services/notification.service.ts",
+        "line": 244,
+        "claim": "Dedupe opsional"
+      },
+      {
+        "path": "services/crm-service/src/infrastructure/notification/inbox-broadcast.delivery.ts",
+        "line": 37,
+        "claim": "Marketing gate ada pada campaign path"
+      },
+      {
+        "path": "scripts/scheduler/crontab",
+        "line": 30,
+        "claim": "Nudge dijadwalkan 08:00 timezone container"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "AUT",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Limit query dan scheduler tersedia; notification delivery fail-open; push-mute preference tersedia. Opt-out marketing bukan bagian jalur notify langsung yang dibaca.",
+    "proposal": "Pertama gunakan boolean hasil notify untuk counter; PO menentukan nudge cadence, eligible status dan marketing/transaksional; lalu key per customer/periode dan eligibility paging yang tidak menahan 500 tertua selamanya.",
+    "acceptance": "Adapter false menaikkan failed; dua sweep satu periode tidak menggandakan nudge; eligible batch setelah 500 pelanggan tetap tercapai; opt-out mengikuti klasifikasi PO.",
+    "dependencies": "Gabungkan ORD-03; keputusan cadence/status/consent PO",
+    "owner": "PO/marketing + backend order/CRM",
+    "group": "Strategis",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "J7 sudah menambah counter failure; delta boolean yang dibuang membuat counter itu tetap salah.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Limit query dan scheduler tersedia; notification delivery fail-open; push-mute preference tersedia. Opt-out marketing bukan bagian jalur notify langsung yang dibaca.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Gabungkan ORD-03; keputusan cadence/status/consent PO",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "AUT-023"
+  },
+  {
+    "local_id": "PLP-04",
+    "title": "MANAGER voucher network-wide adalah keputusan accepted",
+    "action": "drop",
+    "area": "FTR",
+    "impact": 0,
+    "effort": "S",
+    "risk": "Sedang",
+    "implementation_risk": "Tinggi bila diubah sepihak",
+    "confidence": "Tinggi",
+    "evidence": [
+      {
+        "path": "docs/SECURITY_AUDIT_REGISTER.md",
+        "line": 22,
+        "claim": "Voucher dan banner MANAGER berlaku seluruh jaringan"
+      },
+      {
+        "path": "docs/SECURITY_AUDIT_REGISTER.md",
+        "line": 46,
+        "claim": "PRM1/PRM5 diterima pemilik"
+      }
+    ],
+    "reason": "Kandidat pembatasan scope bertentangan DEC16; jangan dihitung sebagai gap baru atau Quick Win. Jika demand berubah buka keputusan baru.",
+    "existing_controls": "Kapabilitas voucherWrite dan audit di source owner promo; owner context tidak menutup source behavior lain.",
+    "proposal": "Tidak mengubah akses saat ini; minta PO memperbarui keputusan bila membutuhkan pembatasan.",
+    "acceptance": "Setiap perubahan scope dimulai dari keputusan pemilik baru dan analisis impact pelanggan/depot.",
+    "dependencies": "DEC16, pemilik produk.",
+    "owner": "Pemilik produk",
+    "verification": "Review keputusan bertanggal dan source owner promo.",
+    "search": "SEARCH-CTX-04",
+    "group": "Jangan dikerjakan dulu",
+    "review_owner": "context",
+    "effort_reason": "DEC16, pemilik produk.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi."
+  },
+  {
+    "local_id": "PLP-10",
+    "title": "Override depot adjustMaxPoints tidak dibaca pada adjustment",
+    "action": "keep",
+    "reason": "[VERIFIED] adjust memanggil config.adjustMaxPoints(null); config menerima depotId dan mendukung override. HQ-only penulisan key tetap kontrol yang benar, jangan dicabut.",
+    "evidence": [
+      {
+        "path": "services/loyalty-service/src/application/services/loyalty.service.ts",
+        "line": 303,
+        "claim": "Getter dipanggil null"
+      },
+      {
+        "path": "services/loyalty-service/src/config/loyalty-config.service.ts",
+        "line": 71,
+        "claim": "Getter menerima depotId"
+      },
+      {
+        "path": "services/loyalty-service/src/modules/settings.controller.ts",
+        "line": 26,
+        "claim": "adjustMaxPoints HQ-only termasuk depot override"
+      }
+    ],
+    "impact": 1,
+    "effort": "S",
+    "risk": "Rendah",
+    "area": "FTR",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Global cap aktif, scope customer/depot dan aktor tersedia; depot manager tidak boleh menaikkan cap sendiri.",
+    "proposal": "Putuskan apakah cap memang global; jika per-depot, resolve depot yang sah untuk customer dan baca override; jika global, hapus janji konfigurasi depot.",
+    "acceptance": "Override yang diatur HQ terbaca sesuai scope yang diputuskan, sementara manager tetap tidak dapat menaikkan sendiri.",
+    "dependencies": "Definisi depot penanggung jawab adjustment",
+    "owner": "PO loyalty + backend",
+    "group": "Nice-to-have",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "LOY-2 cap sudah berfungsi global; delta janji per-depot yang tidak terpakai.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Global cap aktif, scope customer/depot dan aktor tersedia; depot manager tidak boleh menaikkan cap sendiri.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Definisi depot penanggung jawab adjustment",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FTR-007"
+  },
+  {
+    "local_id": "ORD-13",
+    "title": "Scrub subscription menyisakan alamat dan koordinat",
+    "action": "defer-policy",
+    "reason": "[VERIFIED] erasePerson membatalkan ACTIVE/PAUSED dan mengosongkan recipientName/phone/notes, tidak menyentuh alamat. Kebutuhan menghapus alamat harus dipetakan pada retensi yang disepakati.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/infrastructure/prisma/subscription.prisma.repository.ts",
+        "line": 197,
+        "claim": "Cancel dan scrub dalam transaksi"
+      },
+      {
+        "path": "services/order-service/src/infrastructure/prisma/subscription.prisma.repository.ts",
+        "line": 207,
+        "claim": "Patch hanya name/phone/notes"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "area": "FTR",
+    "level": "STATIC",
+    "confidence": "Tinggi",
+    "controls": "Subscription dihentikan sebelum scrub; transaksi mencegah pengiriman plan tanpa identitas.",
+    "proposal": "Masukkan snapshot alamat/koordinat pada matriks retensi per field dan dokumentasikan status pseudonimisasi/anonymisasi.",
+    "acceptance": "Alamat retained/deleted mengikuti keputusan PDP dan alur cancel tetap atomik.",
+    "dependencies": "Keputusan retensi PDP per field",
+    "owner": "Legal/PO + backend order",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "PARSIAL: fitur erasure tersedia, bukan klaim ketiadaan fitur.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Subscription dihentikan sebelum scrub; transaksi mencegah pengiriman plan tanpa identitas.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Keputusan retensi PDP per field",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FTR-006"
+  },
+  {
+    "local_id": "REC-03",
+    "title": "Recommendation service memakai ProductRef lokal tanpa status aktif/depot",
+    "action": "reclassify",
+    "reason": "Service sepenuhnya dibaca: enrich hanya membuang productRef yang hilang. Dampak end-to-end belum dapat dipastikan sebelum frontend consumer/hydration ditelusuri; bukan bukti produk tidak tersedia tampil pada pelanggan.",
+    "evidence": [
+      {
+        "path": "services/recommendation-service/src/application/services/recommendation.service.ts",
+        "line": 42,
+        "claim": "Reorder tanpa selector depot"
+      },
+      {
+        "path": "services/recommendation-service/src/application/services/recommendation.service.ts",
+        "line": 77,
+        "claim": "Enrich hanya memakai productRefs"
+      }
+    ],
+    "impact": 2,
+    "effort": "M",
+    "risk": "Rendah",
+    "area": "FTR",
+    "level": "STATIC",
+    "confidence": "Sedang",
+    "controls": "Limit ranking dan defensive missing-ref filter; catalog/checkout tetap dapat menolak produk unavailable di jalur lain, belum dibuktikan dalam scope ini.",
+    "proposal": "Periksa consumer web sebelum keputusan; jika consumer sudah memfilter katalog aktif, tutup klaim tampilan invalid dan nilai hanya kesegaran ProductRef.",
+    "acceptance": "Trace consumer menunjukkan apakah item inactive/unavailable dapat tampil; rekomendasi baru hanya bila fixture sumber membuktikan gap.",
+    "dependencies": "Frontend consumer verification",
+    "owner": "Backend recommendation + frontend",
+    "group": "Jangan dikerjakan dulu",
+    "implementation_risk": "Sedang",
+    "uncertainty": "",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "runtime": "Tidak dijalankan; risiko merupakan inferensi source-level, bukan insiden produksi.",
+    "review_owner": "backend",
+    "existing_controls": "Limit ranking dan defensive missing-ref filter; catalog/checkout tetap dapat menolak produk unavailable di jalur lain, belum dibuktikan dalam scope ini.",
+    "verification": "Unit/contract/race sesuai acceptance, hanya pada tahap implementasi terpisah; belum dijalankan.",
+    "effort_reason": "Frontend consumer verification",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-BACKEND",
+    "id": "FTR-010"
+  },
+  {
+    "local_id": "WEB-01",
+    "title": "Logout native kehilangan bearer sebelum revoke dan unsubscribe",
+    "action": "keep",
+    "reason": "signOut memulai request auth lalu clearTokens pada tick sama. request menunggu waitForSession sebelum rawRequest membaca bearer. await atas promise yang sudah resolved pun menunda kelanjutan; token sudah null. nativeUnsubscribe juga menunggu readEndpoint. Gateway native meneruskan bearer yang diterima ke auth/logout SelfScoped.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/auth-context.tsx",
+        "line": 151,
+        "claim": "logout fire-and-forget dan unsubscribe diikuti clearTokens tanpa await"
+      },
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 383,
+        "claim": "request menunggu sebelum rawRequest"
+      },
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 265,
+        "claim": "rawRequest membaca bearer dari token store saat dijalankan"
+      },
+      {
+        "path": "apps/web/src/lib/token-store.ts",
+        "line": 163,
+        "claim": "setTokens(null) menghapus token memori secara sinkron"
+      },
+      {
+        "path": "apps/web/src/lib/push.ts",
+        "line": 212,
+        "claim": "unsubscribe membaca endpoint asinkron sebelum DELETE"
+      },
+      {
+        "path": "services/gateway-service/src/routing/session-bff.ts",
+        "line": 253,
+        "claim": "native logout membaca Authorization request dan meneruskannya ke auth-service"
+      },
+      {
+        "path": "services/auth-service/src/modules/auth/account.controller.ts",
+        "line": 388,
+        "claim": "logout SelfScoped memakai CurrentUser untuk actorCustomerId"
+      }
+    ],
+    "impact": 4,
+    "effort": "S",
+    "risk": "Tinggi",
+    "acceptance": "Pada native sesi terbuka, signOut membuat POST logout dan DELETE push memakai bearer sebelum pembersihan; server revoke mengembalikan revoked=true. Saat layanan gagal, pembersihan lokal tetap selesai dengan deadline dan UI membedakan revoke belum terbukti.",
+    "existing_controls": "Pembersihan profil/lokasi/depot/familyId sudah ada; gateway selalu membersihkan cookie web dan mengembalikan revoked; subscribe berikutnya mengganti pemilik endpoint.",
+    "dependencies": "Pertahankan token di snapshot request atau selesaikan revoke/unsubscribe secara terbatas sebelum clear. Jangan mengandalkan urutan pemanggilan promise.",
+    "area": "FLW",
+    "owner": "Frontend/mobile engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Quick Win",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Tangkap token pada request revoke/unsubscribe sebelum clear, atau tunggu revoke dengan deadline lalu selalu bersihkan lokal. Jangan biarkan jaringan macet menahan logout.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Pertahankan token di snapshot request atau selesaikan revoke/unsubscribe secara terbatas sebelum clear. Jangan mengandalkan urutan pemanggilan promise.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-020"
+  },
+  {
+    "local_id": "WEB-02",
+    "title": "Gate editor earning rule belum mengikuti capability server",
+    "action": "keep",
+    "reason": "UI memakai dua nama role langsung, sedangkan controller memakai Can(earningRules). Kondisi default sama; divergensi terjadi saat capability diubah.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/roles.ts",
+        "line": 153,
+        "claim": "UI literal FINANCE/SUPER_ADMIN"
+      },
+      {
+        "path": "services/payout-service/src/modules/earning-rule.controller.ts",
+        "line": 34,
+        "claim": "server membaca capability dinamis"
+      },
+      {
+        "path": "packages/access/src/index.ts",
+        "line": 502,
+        "claim": "default capability sama dengan UI saat ini"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Perubahan earningRules pada snapshot sesi juga mengubah gate dan navigasi editor; default tetap sama.",
+    "existing_controls": "can() sudah membaca capabilities server untuk role sesi.",
+    "dependencies": "Konfirmasi keputusan desain 6b terhadap kebijakan override; jangan membuka gate hanya karena role staf.",
+    "area": "FTR",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Konfirmasi keputusan desain 6b terhadap kebijakan override; jangan membuka gate hanya karena role staf.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Konfirmasi keputusan desain 6b terhadap kebijakan override; jangan membuka gate hanya karena role staf.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-011"
+  },
+  {
+    "local_id": "WEB-03",
+    "title": "Retensi offline menghapus seluruh jenis job termasuk pencatatan uang",
+    "action": "keep",
+    "reason": "flush memeriksa expired sebelum error dan menghapus semua kind setelah tujuh hari. Kebijakan melindungi payload foto, tetapi codConfirm dan gallonReturn juga hilang. Peristiwa lewat tujuh hari perlu rekonsiliasi, bukan replay tanpa batas.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 188,
+        "claim": "batas retensi global tujuh hari"
+      },
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 475,
+        "claim": "semua job milik pengguna dibuang bila kedaluwarsa"
+      },
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 312,
+        "claim": "job COD mengandung paymentId, cashReceived dan capturedAt"
+      },
+      {
+        "path": "apps/web/src/components/offline-queue-banner.tsx",
+        "line": 50,
+        "claim": "pembuangan manual punya konfirmasi, sedangkan expired otomatis tidak"
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "acceptance": "Job COD/galon kedaluwarsa menghasilkan status rekonsiliasi minimum yang terlihat dan tidak otomatis mengubah saldo; payload foto tetap terhapus sesuai retensi yang disepakati.",
+    "existing_controls": "Owner isolation, Web Lock, retry/backoff, MAX_ATTEMPTS dan tampilan error sudah ada.",
+    "dependencies": "PO/finance menentukan umur rekonsiliasi dan minimisasi metadata; jangan meniadakan retensi biometrik.",
+    "area": "FLW",
+    "owner": "Frontend + finance ops",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Strategis",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Arsipkan job uang yang kedaluwarsa menjadi needs-review yang terlihat, dengan metadata aman dan instruksi rekonsiliasi; jangan replay otomatis transaksi tua tanpa cek status server.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "PO/finance menentukan umur rekonsiliasi dan minimisasi metadata; jangan meniadakan retensi biometrik.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-021"
+  },
+  {
+    "local_id": "WEB-04",
+    "title": "Kegagalan delete IndexedDB disembunyikan dari UI",
+    "action": "reclassify",
+    "reason": "discard menangkap kegagalan delete lalu menghapus cache. Replay setelah reload mungkin, tetapi tidak cukup untuk menyimpulkan uang terdebit ganda karena server memiliki dedup/status guards. Hardening UX, bukan temuan integritas uang tersendiri.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 288,
+        "claim": "delete failure ditelan dan cache tetap dihapus"
+      }
+    ],
+    "impact": 1,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Jika delete storage gagal, operator menerima status belum terhapus; replay-safe server tetap dipertahankan.",
+    "existing_controls": "Backend replay-safe disebut dalam laporan awal; validasi per-domain diperlukan.",
+    "dependencies": "Gabungkan dengan WEB-03 bila menyusun perbaikan lifecycle queue.",
+    "area": "FLW",
+    "owner": "Frontend engineer",
+    "evidence_level": "STATIC",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Gabungkan dengan WEB-03 bila menyusun perbaikan lifecycle queue.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Gabungkan dengan WEB-03 bila menyusun perbaikan lifecycle queue.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "STATIC",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-022"
+  },
+  {
+    "local_id": "WEB-05",
+    "title": "Upload PoD diulang pada tiap retry complete",
+    "action": "keep",
+    "reason": "run(pod) meng-upload photo/signature sebelum complete pada setiap eksekusi. URL tidak disimpan pada QueuedJob. Jika complete gagal sesudah upload, percobaan berikut meng-upload lagi.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 351,
+        "claim": "upload dilakukan sebelum complete pada tiap run"
+      },
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 148,
+        "claim": "job menyimpan payload data URL dan metadata retry tanpa hasil URL"
+      }
+    ],
+    "impact": 1,
+    "effort": "M",
+    "risk": "Rendah",
+    "acceptance": "Complete gagal setelah upload lalu diulang memakai objek yang sama bila masih valid; penghapusan payload dan objek yatim mengikuti retensi.",
+    "existing_controls": "Retry terbatas enam kali, privasi retensi tujuh hari.",
+    "dependencies": "Kontrak URL/signing/storage ownership delivery-service.",
+    "area": "AUT",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Persist key/URL upload yang sukses pada job sehingga retry complete memakai objek yang sama; hapus orphan hanya dengan bukti kepemilikan.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Kontrak URL/signing/storage ownership delivery-service.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-024"
+  },
+  {
+    "local_id": "WEB-06",
+    "title": "Revalidasi profil memicu refresh data turunan",
+    "action": "reclassify",
+    "reason": "Objek session baru memang ditulis pada fokus, tetapi manfaat performa belum diukur. Klaim familyId hilang dari indikator perangkat tidak tepat: familyId disimpan terpisah di session-device dan hanya dihapus saat signOut.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/auth-context.tsx",
+        "line": 90,
+        "claim": "profil ditulis ulang sesudah revalidate"
+      },
+      {
+        "path": "apps/web/src/lib/session-device.ts",
+        "line": 18,
+        "claim": "familyId indikator perangkat punya penyimpanan sendiri"
+      }
+    ],
+    "impact": 1,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Ukur request tambahan dahulu; optimasi tidak boleh menunda pembaruan role/depot/capability.",
+    "existing_controls": "Batas revalidasi satu menit dan single-flight GET sudah ada.",
+    "dependencies": "Tidak ada runtime profiling dalam audit ini.",
+    "area": "AUT",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Tidak ada runtime profiling dalam audit ini.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Tidak ada runtime profiling dalam audit ini.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-025"
+  },
+  {
+    "local_id": "WEB-07",
+    "title": "Netralisasi CSV mengubah angka negatif menjadi teks",
+    "action": "reclassify",
+    "reason": "escapeCell mengonversi semua tipe ke string lalu menambah apostrof untuk minus. Kontrak helper terbukti, tetapi ekspor cashbook memakai kolom Masuk/Keluar positif sehingga dampak negatif aktif belum terbukti dalam call site yang diperiksa.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/csv.ts",
+        "line": 123,
+        "claim": "minus di awal termasuk number menerima apostrof"
+      },
+      {
+        "path": "apps/web/src/app/dashboard/cashbook/page.tsx",
+        "line": 217,
+        "claim": "cashbook memisahkan uang masuk/keluar menjadi kolom terpisah"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Angka bertipe number tetap numerik di CSV, string berbahaya tetap dinetralisasi; tunjukkan call site dengan nilai negatif sebelum menaikkan prioritas.",
+    "existing_controls": "Anti formula-injection sudah ada dan harus dipertahankan.",
+    "dependencies": "Korelasikan AAS-07; satu akar helper berbeda, hindari hitungan ganda dampak BI.",
+    "area": "BI",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Bedakan nilai number dari teks sebelum netralisasi formula; pertahankan perlindungan teks berbahaya. Jangan mengubah semua ekspor menjadi numeric coercion.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Korelasikan AAS-07; satu akar helper berbeda, hindari hitungan ganda dampak BI.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "BI-007"
+  },
+  {
+    "local_id": "WEB-08",
+    "title": "needsPayment hanya mengecualikan CANCELLED",
+    "action": "keep",
+    "reason": "VOIDED/COMPLETED dengan payment REFUNDED/FAILED diperlakukan membutuhkan pembayaran baru oleh helper. Ini bug affordance UI bersyarat; tidak membuktikan charge server berhasil pada status terminal.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/payments.ts",
+        "line": 83,
+        "claim": "hanya CANCELLED yang ditolak berdasarkan status order"
+      },
+      {
+        "path": "apps/web/src/app/orders/detail/page.tsx",
+        "line": 671,
+        "claim": "halaman detail memakai helper untuk panel payment"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Tabel status terminal dan status payment diuji; VOIDED/COMPLETED tidak menawarkan initiate payment kecuali aturan bisnis eksplisit membolehkannya.",
+    "existing_controls": "Satu active payment per order dipagari backend; gateway methods/depot methods difilter.",
+    "dependencies": "PO menentukan apakah terminal unpaid historis boleh dibayar. Verifikasi domain payment sebelum mengubah helper.",
+    "area": "FLW",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. PO menentukan apakah terminal unpaid historis boleh dibayar. Verifikasi domain payment sebelum mengubah helper.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "PO menentukan apakah terminal unpaid historis boleh dibayar. Verifikasi domain payment sebelum mengubah helper.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-023"
+  },
+  {
+    "local_id": "WEB-09",
+    "title": "Sinkronisasi sesi lintas tab belum diperiksa memadai",
+    "action": "defer-evidence",
+    "reason": "[VERIFIED] session-store menyimpan profil dalam cache modul dan mengabari listener tab itu saat setSession. AuthProvider juga revalidasi saat focus/visibility dengan batas satu menit. Tidak ditemukan listener storage/BroadcastChannel untuk perubahan sesi lintas tab di kedua modul. Dampak nyata pada logout/ganti depot masih butuh skenario browser dan kontrak cookie, jadi tetap defer-evidence.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/session-store.ts",
+        "line": 55,
+        "claim": "setSession mengubah cache modul dan localStorage tab ini."
+      },
+      {
+        "path": "apps/web/src/lib/session-store.ts",
+        "line": 66,
+        "claim": "subscribe hanya mendaftarkan listener di Set modul."
+      },
+      {
+        "path": "apps/web/src/lib/auth-context.tsx",
+        "line": 100,
+        "claim": "Revalidasi dipicu focus, bukan event storage."
+      },
+      {
+        "path": "apps/web/src/lib/auth-context.tsx",
+        "line": 80,
+        "claim": "Revalidasi focus dibatasi satu menit."
+      }
+    ],
+    "impact": 1,
+    "effort": "M",
+    "risk": "Rendah",
+    "acceptance": "Tetapkan skenario logout/ganti depot antar tab dan kontrak sinkronisasi sebelum implementasi.",
+    "existing_controls": "Token web ada di cookie httpOnly; polling profil/fokus sudah ada.",
+    "dependencies": "Kontrak cookie/logout gateway dan skenario dua tab.",
+    "area": "FLW",
+    "owner": "Frontend engineer",
+    "evidence_level": "STATIC",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Jangan dikerjakan dulu",
+    "verification": "Uji dua tab pada browser nyata untuk logout, perubahan peran, dan pemindahan depot sebelum memutuskan implementasi.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Perlu full search lintas session-store/depot-store/app lifecycle.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Perlu full search lintas session-store/depot-store/app lifecycle.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "STATIC",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Mekanisme source ditinjau ulang pada audit penuh; dampak UX/runtime masih memerlukan skenario browser.",
+    "id": "FLW-024"
+  },
+  {
+    "local_id": "WEB-10",
+    "title": "File transfer belum memakai telemetry dan retry rate-limit JSON",
+    "action": "keep",
+    "reason": "uploadFile/getBlob/postBlob membangun authHeader sendiri, tanpa appHeaders dan pemrosesan x-hm-depot-changed yang ada pada rawRequest. Ini perbedaan observability/recovery, bukan hilangnya auth: ketiganya menunggu waitForSession dan menangani 401.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 452,
+        "claim": "multipart punya timeout dan refresh retry sendiri"
+      },
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 504,
+        "claim": "file GET memakai authHeader tanpa appHeaders"
+      },
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 297,
+        "claim": "JSON request mengolah depot change header"
+      }
+    ],
+    "impact": 1,
+    "effort": "M",
+    "risk": "Rendah",
+    "acceptance": "Transfer file membawa identitas build dan merespons depot-change sama dengan JSON; retry hanya bila aman untuk operasi/stream.",
+    "existing_controls": "Timeout 60 detik, wait unlock, parse error dan refresh 401 sudah ada.",
+    "dependencies": "Jangan menerapkan replay upload otomatis tanpa kajian objek duplikat WEB-05.",
+    "area": "AUT",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Satukan header telemetry dan kebijakan rate-limit untuk upload/blob bila kontraknya aman; retry mutasi upload wajib mempertimbangkan dedup.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Jangan menerapkan replay upload otomatis tanpa kajian objek duplikat WEB-05.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-026"
+  },
+  {
+    "local_id": "WEB-11",
+    "title": "Sebagian teks utilitas belum memakai resolver locale",
+    "action": "keep",
+    "reason": "STALE_DEPOT_MESSAGE dan fallback gagal kirim berupa literal Indonesia. Dampak lokalisasi terbatas; tidak menghambat fungsi.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 185,
+        "claim": "teks literal depot berubah"
+      },
+      {
+        "path": "apps/web/src/lib/offline-queue.ts",
+        "line": 498,
+        "claim": "fallback literal pada retry"
+      }
+    ],
+    "impact": 1,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Locale alternatif menghasilkan pesan terjemahan tanpa mengubah code/status error.",
+    "existing_controls": "Banner memakai keys locale dan error server tetap tersedia.",
+    "dependencies": "Gabungkan dengan maintenance locale, tidak mendahului integritas transaksi.",
+    "area": "FTR",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Gabungkan dengan maintenance locale, tidak mendahului integritas transaksi.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Gabungkan dengan maintenance locale, tidak mendahului integritas transaksi.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-012"
+  },
+  {
+    "local_id": "WEB-12",
+    "title": "Tidak adanya Idempotency-Key bukan bukti semua POST tidak idempoten",
+    "action": "defer-evidence",
+    "reason": "Ditemukan empat header call site dan satu body idempotencyKey, tetapi status/CAS/unique constraints server dapat menyediakan semantik replay tanpa header. Timeout 15 detik menghasilkan hasil tidak pasti, bukan bukti duplikasi. Pecah hanya setelah service owner membuktikan satu operasi non-idempoten.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 29,
+        "claim": "JSON deadline lima belas detik"
+      },
+      {
+        "path": "apps/web/src/app/checkout/page.tsx",
+        "line": 689,
+        "claim": "checkout mempertahankan attempt key"
+      },
+      {
+        "path": "apps/web/src/app/dashboard/payout/page.tsx",
+        "line": 142,
+        "claim": "payout mempertahankan attempt key"
+      }
+    ],
+    "impact": 3,
+    "effort": "L",
+    "risk": "Sedang",
+    "acceptance": "Setiap mutasi dinilai terhadap duplicate/lost-response pada state server; jangan menambah header yang tidak dikonsumsi.",
+    "existing_controls": "Web Lock offline, checkout/walk-in/withdraw attempt key, unique/status guards server.",
+    "dependencies": "Gabungkan APP-05; APP-02 delta stok diserahkan ke depot owner.",
+    "area": "FLW",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Jangan dikerjakan dulu",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Gabungkan APP-05; APP-02 delta stok diserahkan ke depot owner.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Gabungkan APP-05; APP-02 delta stok diserahkan ke depot owner.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-025"
+  },
+  {
+    "local_id": "APP-01",
+    "title": "Allowlist auth test terlalu luas pada products namespace",
+    "action": "keep",
+    "reason": "PUBLIC_PREFIXES mencakup seluruh products, termasuk mutation/admin paths. Koreksi narasi lama: api.ts saat ini melampirkan bearer bila token tersedia meskipun auth=false; flag menentukan wait/unlock dan refresh. Gap adalah regresi saat boot/session expiry, bukan pasti tanpa bearer setiap saat.",
+    "evidence": [
+      {
+        "path": "apps/web/test/unauthenticated-calls.test.ts",
+        "line": 44,
+        "claim": "allowlist menerima semua members products"
+      },
+      {
+        "path": "apps/web/src/lib/endpoints/shop.ts",
+        "line": 41,
+        "claim": "namespace juga memiliki mutation admin"
+      },
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 139,
+        "claim": "authHeader mengirim bearer bila tersedia tanpa memeriksa options.auth"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Mutation products tanpa auth flag ditolak guard test; browse/get/batch/categories publik tetap diterima.",
+    "existing_controls": "Seluruh call site aktif yang dipindai awal sudah menggunakan flag yang sesuai.",
+    "dependencies": "Jangan menyebut broken production mutation tanpa bukti call site.",
+    "area": "AUT",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Jangan menyebut broken production mutation tanpa bukti call site.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Jangan menyebut broken production mutation tanpa bukti call site.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-004"
+  },
+  {
+    "local_id": "APP-02",
+    "title": "Retry penyesuaian stok delta dapat membuat movement kedua",
+    "action": "keep",
+    "reason": "Frontend mengirim delta tanpa attempt key. Controller meneruskan delta tanpa key, service selalu memanggil applyMovement, dan repository menambah quantity serta movement baru per request. Unique itemId/orderId hanya berlaku untuk SALE; ADJUSTMENT memakai orderId null. Dua request yang sama setelah jawaban hilang dapat menjadi dua koreksi; kejadian produksi belum diukur.",
+    "evidence": [
+      {
+        "path": "apps/web/src/app/dashboard/inventory/page.tsx",
+        "line": 171,
+        "claim": "Web mengirim delta tanpa attempt key."
+      },
+      {
+        "path": "services/depot-service/src/modules/inventory.controller.ts",
+        "line": 365,
+        "claim": "Controller tidak menerima attempt key."
+      },
+      {
+        "path": "services/depot-service/src/application/services/inventory.service.ts",
+        "line": 335,
+        "claim": "Setiap panggilan adjust meneruskan movement baru."
+      },
+      {
+        "path": "services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts",
+        "line": 218,
+        "claim": "applyMovement menaikkan quantity dan menambah ledger dalam transaksi."
+      },
+      {
+        "path": "services/depot-service/prisma/schema.prisma",
+        "line": 303,
+        "claim": "Unique itemId/orderId tidak menduplikasi adjustment dengan orderId null."
+      }
+    ],
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "acceptance": "Retry dengan key sama mengubah stok sekali dan mengembalikan hasil yang konsisten; dua key berbeda masing-masing membuat movement; request lama tanpa key ditangani menurut kontrak kompatibilitas yang disepakati.",
+    "existing_controls": "UI menahan tombol selama request berjalan; backend menolak stok negatif dan mencatat movement atomik. Kontrol ini tidak membedakan retry dari dua koreksi yang disengaja.",
+    "dependencies": "Perubahan kontrak web, DTO/controller, dan penyimpanan key di depot-service; periksa klien mobile lama sebelum mewajibkan header.",
+    "area": "FLW",
+    "owner": "Frontend dan Backend Depot",
+    "evidence_level": "STATIC",
+    "confidence": "Sedang",
+    "implementation_status": "PARSIAL",
+    "group": "Strategis",
+    "verification": "Contract test controller, transaksi repository dan retry lost-response; belum dijalankan dalam audit baca-saja.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Beri tiap upaya koreksi satu key yang stabil sampai hasilnya diketahui dan deduplikasi key di transaksi movement server. Buat key baru untuk koreksi berikutnya yang disengaja.",
+    "delta": "Pemeriksaan lanjutan menutup defer-evidence frontend dengan membaca controller, service, repository dan constraint schema. Tidak ada bukti duplikasi aktual pada data produksi.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Perubahan kontrak web, DTO/controller, dan penyimpanan key di depot-service; periksa klien mobile lama sebelum mewajibkan header.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "STATIC",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "id": "FLW-001"
+  },
+  {
+    "local_id": "APP-03",
+    "title": "Input placeholder perlu telaah label persisten dan AT",
+    "action": "defer-evidence",
+    "reason": "Source tanpa aria-label/id-label tidak otomatis membuktikan accessible name kosong: placeholder bisa menjadi fallback accessible name. Reframe sebagai dugaan label tidak persisten; uji DOM/AT diperlukan sebelum klaim pelanggaran.",
+    "evidence": [
+      {
+        "path": "apps/web/src/components/ui.tsx",
+        "line": 174,
+        "claim": "Input adalah wrapper passthrough; nama aksesibel ditentukan pemanggil"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Input punya label persisten atau aria yang sesuai konteks, diperiksa DOM/axe dan keyboard pada halaman terpilih.",
+    "existing_controls": "Banyak form sudah memakai Field/aria-label.",
+    "dependencies": "Tidak menjalankan browser/axe dalam audit statis ini.",
+    "area": "AUT",
+    "owner": "Frontend engineer",
+    "evidence_level": "STATIC",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Jangan dikerjakan dulu",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Tidak menjalankan browser/axe dalam audit statis ini.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Tidak menjalankan browser/axe dalam audit statis ini.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "STATIC",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-005"
+  },
+  {
+    "local_id": "APP-04",
+    "title": "Gate dashboard per halaman merupakan perlindungan regresi",
+    "action": "defer-evidence",
+    "reason": "Dashboard layout menjamin auth tetapi tidak membatasi semua capability. Halaman insight mendelegasikan gate ke InsightDashboard. Tidak ada halaman bocor data yang dibuktikan; usulan penjaga regresi lebih tepat daripada menambah gate role kasar yang dapat memblokir custom role sah.",
+    "evidence": [
+      {
+        "path": "apps/web/src/app/dashboard/layout.tsx",
+        "line": 45,
+        "claim": "layout membatasi autentikasi saja"
+      },
+      {
+        "path": "apps/web/src/app/dashboard/insight/page.tsx",
+        "line": 9,
+        "claim": "insight mendelegasikan gate"
+      },
+      {
+        "path": "apps/web/src/app/hq/layout.tsx",
+        "line": 37,
+        "claim": "HQ menerapkan capability gate terpusat per pathname"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Halaman dashboard baru tanpa policy eksplisit gagal pemeriksaan; gate delegasi terdokumentasi dan custom role tetap mengikuti capability.",
+    "existing_controls": "Backend RBAC tetap menolak akses yang tidak sah; gate halaman sudah banyak tersedia.",
+    "dependencies": "Metode static guard harus mengerti komponen yang mendelegasikan gate.",
+    "area": "AUT",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Jangan dikerjakan dulu",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Metode static guard harus mengerti komponen yang mendelegasikan gate.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Metode static guard harus mengerti komponen yang mendelegasikan gate.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-006"
+  },
+  {
+    "local_id": "APP-05",
+    "title": "Daftar aksi tanpa header digabung dengan telaah idempotensi",
+    "action": "merge",
+    "reason": "Gabung WEB-12. Daftar caller saja tidak membuktikan server mengulang side effect; voidWalkIn, settlement dan referral mempunyai state/key domain sendiri yang perlu dibaca. Keputusan final: satu akar/pekerjaan audit dengan WEB-12, tidak dihitung dua kali.",
+    "evidence": [
+      {
+        "path": "apps/web/src/app/dashboard/settlements/page.tsx",
+        "line": 115,
+        "claim": "caller settlement memakai id entity dan API tanpa header"
+      },
+      {
+        "path": "apps/web/src/app/dashboard/walk-in/page.tsx",
+        "line": 841,
+        "claim": "void diidentifikasi oleh order id"
+      },
+      {
+        "path": "apps/web/src/app/rewards/page.tsx",
+        "line": 617,
+        "claim": "redeem referral memakai kode/domain identity"
+      }
+    ],
+    "impact": 3,
+    "effort": "L",
+    "risk": "Sedang",
+    "acceptance": "Tutup candidate setelah service owner membuktikan replay behavior per operasi.",
+    "existing_controls": "Tidak semua operasi membutuhkan key request baru bila state entity sudah menentukan idempotensi.",
+    "dependencies": "WEB-12 dan owner backend.",
+    "area": "FLW",
+    "owner": "Frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Strategis",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "merge_into": "WEB-12",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. WEB-12 dan owner backend.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "WEB-12 dan owner backend.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi."
+  },
+  {
+    "local_id": "PLT-01",
+    "title": "Audit HTTP best-effort masih berpotensi kehilangan entri",
+    "action": "keep",
+    "reason": "recordAuditEvent satu kali fetch ber-deadline, catch hanya logger.error. Fail-open ini keputusan teknis eksplisit yang harus dipertahankan untuk tidak membatalkan uang yang sudah settled; peningkatan durability adalah strategi baru, bukan kontrol yang diklaim belum pernah ada.",
+    "evidence": [
+      {
+        "path": "packages/platform/src/nest/audit-trail.ts",
+        "line": 15,
+        "claim": "sumber menyatakan fail-open sebagai batas desain"
+      },
+      {
+        "path": "packages/platform/src/nest/audit-trail.ts",
+        "line": 50,
+        "claim": "fetch satu kali; kegagalan dicatat error"
+      },
+      {
+        "path": "packages/platform/src/nest/audit-mutations.interceptor.ts",
+        "line": 145,
+        "claim": "interceptor memakai sink secara fire-and-forget"
+      }
+    ],
+    "impact": 3,
+    "effort": "L",
+    "risk": "Sedang",
+    "acceptance": "Keputusan finansial yang disepakati menulis audit lokal atomik; auth-service padam tidak membatalkan transaksi, dan setelah pulih audit dikirim sekali dengan key idempoten.",
+    "existing_controls": "Audit sink, deadline lima detik, error logging dan static audit coverage sudah ada.",
+    "dependencies": "PO/security menentukan tingkat evidensial yang dibutuhkan; desain outbox lokal dan ingest dedup lintas service.",
+    "area": "FLW",
+    "owner": "Backend/platform lead",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Strategis",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. PO/security menentukan tingkat evidensial yang dibutuhkan; desain outbox lokal dan ingest dedup lintas service.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "PO/security menentukan tingkat evidensial yang dibutuhkan; desain outbox lokal dan ingest dedup lintas service.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-013"
+  },
+  {
+    "local_id": "PLT-02",
+    "title": "Raw URL pada alert memperlebar cardinality dan konteks sensitif",
+    "action": "keep",
+    "reason": "AllExceptionsFilter meneruskan request.url; webhook dedup dan teks memakai path mentah, Sentry transaction name juga. Stack/message disamarkan tetapi path tidak. Pengiriman PII aktual belum dibuktikan; risiko kondisional pada URL yang mengandung input pribadi.",
+    "evidence": [
+      {
+        "path": "packages/platform/src/nest/all-exceptions.filter.ts",
+        "line": 45,
+        "claim": "filter memasukkan URL mentah"
+      },
+      {
+        "path": "packages/platform/src/nest/error-alerter.ts",
+        "line": 79,
+        "claim": "dedup berbeda untuk setiap id/query"
+      },
+      {
+        "path": "packages/platform/src/nest/error-alerter.ts",
+        "line": 91,
+        "claim": "label webhook memuat path tanpa redactAlertText"
+      },
+      {
+        "path": "packages/platform/src/nest/sentry.ts",
+        "line": 61,
+        "claim": "Sentry transaction memakai path mentah"
+      },
+      {
+        "path": "apps/web/src/lib/endpoints/identity.ts",
+        "line": 32,
+        "claim": "builder identitas menaruh phone dalam query; error 5xx pada jalur ini belum dibuktikan"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Sedang",
+    "acceptance": "Alert banyak id pada template sama dibatasi sesuai kebijakan; query/credential tidak tampil pada transaction name atau webhook.",
+    "existing_controls": "Redaksi stack, DSN/webhook opt-in, bounded map 500 dan dedupe 60 detik sudah ada.",
+    "dependencies": "Normalisasi route harus mempertahankan diagnosis tanpa mengekspor query.",
+    "area": "AUT",
+    "owner": "Platform engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Normalisasi route harus mempertahankan diagnosis tanpa mengekspor query.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Normalisasi route harus mempertahankan diagnosis tanpa mengekspor query.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-018"
+  },
+  {
+    "local_id": "PLT-03",
+    "title": "HTTP exception code generik untuk 409/422/503",
+    "action": "keep",
+    "reason": "Pemetaan HttpException hanya memberi code khusus lima status; konflik dan unprocessable menerima HTTP_ERROR. Status HTTP tetap benar dan DomainError tetap punya machine code.",
+    "evidence": [
+      {
+        "path": "packages/platform/src/nest/all-exceptions.filter.ts",
+        "line": 83,
+        "claim": "switch default menghasilkan HTTP_ERROR untuk 409/422/503"
+      },
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 49,
+        "claim": "ApiError sudah membawa code server"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "ConflictException/Unprocessable/ServiceUnavailable punya code terdokumentasi, status tidak berubah, DomainError code tetap.",
+    "existing_controls": "DomainError memberikan code stabil; frontend selalu membawa status juga.",
+    "dependencies": "Audit caller yang bergantung HTTP_ERROR sebelum kontrak diperluas.",
+    "area": "FTR",
+    "owner": "Platform engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Audit caller yang bergantung HTTP_ERROR sebelum kontrak diperluas.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Audit caller yang bergantung HTTP_ERROR sebelum kontrak diperluas.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-008"
+  },
+  {
+    "local_id": "PLT-04",
+    "title": "readAllPages ceiling tidak ketat pada short final page",
+    "action": "reclassify",
+    "reason": "rows.length < pageSize mengembalikan sebelum ceiling. Namun pemanggil report yang diperiksa memakai max kelipatan pageSize; eksposur production overflow pada konfigurasi tersebut belum terbukti. Ini kontrak helper dan memori yang perlu diperbaiki, bukan laporan aktual salah.",
+    "evidence": [
+      {
+        "path": "packages/platform/src/domain/read-all.ts",
+        "line": 27,
+        "claim": "short page mendahului pemeriksaan max"
+      },
+      {
+        "path": "services/depot-service/src/infrastructure/prisma/operational-report.prisma.repository.ts",
+        "line": 18,
+        "claim": "pemanggil depot memakai max 20000 dan pageSize 500"
+      },
+      {
+        "path": "packages/platform/src/domain/read-all.spec.ts",
+        "line": 43,
+        "claim": "test default pageSize tidak menguji result melebihi max pada short page"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "max=100/pageSize=500/400 rows memicu overflow; definisikan apakah tepat max diterima; semua caller dipastikan mengikuti kontrak.",
+    "existing_controls": "Ceiling full page dan deterministic cursor sudah ada.",
+    "dependencies": "Tinjau seluruh konfigurasi caller; jangan mengklaim saat ini unbounded.",
+    "area": "BI",
+    "owner": "Platform engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Tinjau seluruh konfigurasi caller; jangan mengklaim saat ini unbounded.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Tinjau seluruh konfigurasi caller; jangan mengklaim saat ini unbounded.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "BI-006"
+  },
+  {
+    "local_id": "PLT-05",
+    "title": "Kursor invalid diam-diam memakai nomor halaman",
+    "action": "keep",
+    "reason": "pageArgs mengabaikan cursor yang tidak dapat didecode. Ini kebijakan fallback terdokumentasi untuk menghindari Prisma P2025, tetapi mengaburkan error input dan bisa mengulang halaman dalam infinite-scroll.",
+    "evidence": [
+      {
+        "path": "packages/platform/src/domain/keyset.ts",
+        "line": 79,
+        "claim": "decode gagal memakai page-based skip"
+      },
+      {
+        "path": "packages/platform/src/domain/keyset.ts",
+        "line": 75,
+        "claim": "fallback adalah keputusan teknis eksplisit, bukan crash tersembunyi"
+      }
+    ],
+    "impact": 2,
+    "effort": "M",
+    "risk": "Rendah",
+    "acceptance": "Kontrak invalid cursor eksplisit; jika beralih 400 INVALID_CURSOR, klien mereset feed dengan pesan/retry yang sesuai dan cursor versi lama terdukung.",
+    "existing_controls": "Version/checksum dan WHERE tenant tetap mencegah query cursor mentah lintas scope.",
+    "dependencies": "Kontrak backward compatibility browser/APK; perlu keputusan API sebelum mengganti fallback.",
+    "area": "FLW",
+    "owner": "Platform + frontend engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Kontrak backward compatibility browser/APK; perlu keputusan API sebelum mengganti fallback.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Kontrak backward compatibility browser/APK; perlu keputusan API sebelum mengganti fallback.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-014"
+  },
+  {
+    "local_id": "PLT-06",
+    "title": "Normalisasi/idempotency payload lintas service belum seragam",
+    "action": "merge",
+    "reason": "Proposal helper bersama bukan bukti bug universal. Perbedaan header/body, trimming/panjang, dan replay harus dinilai terhadap kontrak domain. Gabungkan dengan WEB-12; jangan mewajibkan header bagi semua klien tanpa rollout. Keputusan final: satu akar/pekerjaan audit dengan WEB-12, tidak dihitung dua kali.",
+    "evidence": [
+      {
+        "path": "apps/web/src/lib/api.ts",
+        "line": 124,
+        "claim": "wrapper menerima key opsional pada mutasi"
+      }
+    ],
+    "impact": 3,
+    "effort": "L",
+    "risk": "Sedang",
+    "acceptance": "Per operasi, key scope/panjang/body mismatch/replay didokumentasi dan diuji termasuk APK lama.",
+    "existing_controls": "Checkout/withdraw/reward sudah punya kontrol lokal.",
+    "dependencies": "Backend owner menentukan bukti duplicate dan kontrak.",
+    "area": "FTR",
+    "owner": "Backend/platform lead",
+    "evidence_level": "STATIC",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Strategis",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "merge_into": "WEB-12",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Backend owner menentukan bukti duplicate dan kontrak.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Backend owner menentukan bukti duplicate dan kontrak.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "STATIC",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi."
+  },
+  {
+    "local_id": "PLT-07",
+    "title": "Regex audit terlalu luas untuk field shipping dan params mentah",
+    "action": "keep",
+    "reason": "SECRET_KEY memuat pin tanpa anchor, sehingga shippingFee cocok dan teredaksi. params dimasukkan tanpa redaksi. Kebocoran token aktual pada param belum dibuktikan; kehilangan field shipping adalah konsekuensi deterministik regex.",
+    "evidence": [
+      {
+        "path": "packages/platform/src/nest/audit-mutations.interceptor.ts",
+        "line": 28,
+        "claim": "alternatif pin cocok sebagai substring"
+      },
+      {
+        "path": "packages/platform/src/nest/audit-mutations.interceptor.ts",
+        "line": 141,
+        "claim": "params ditulis mentah ke metadata"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "shippingFee terlihat sebagai data non-secret, pin/token/password tetap disamarkan, params sensitif juga disamarkan.",
+    "existing_controls": "Shallow redaction, payload array/object minimization dan coverage interceptor sudah ada.",
+    "dependencies": "Nilai params mana yang boleh disimpan perlu data classification, jangan mencetak token uji nyata.",
+    "area": "AUT",
+    "owner": "Platform engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Nilai params mana yang boleh disimpan perlu data classification, jangan mencetak token uji nyata.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Nilai params mana yang boleh disimpan perlu data classification, jangan mencetak token uji nyata.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-019"
+  },
+  {
+    "local_id": "PLT-08",
+    "title": "Audit permission mobile memakai allowlist gabungan dua binary",
+    "action": "keep",
+    "reason": "ALLOWED menerima Bluetooth/Wi-Fi dengan justifikasi Ops; CLI hanya mengenal path manifest, tidak binary. customer includePlugins sudah mengecualikan printer, sehingga ini guard regresi terhadap kebocoran dependency, bukan bukti permission customer aktif bocor.",
+    "evidence": [
+      {
+        "path": "mobile/scripts/audit-manifest.mjs",
+        "line": 36,
+        "claim": "daftar izin gabungan dua binary"
+      },
+      {
+        "path": "mobile/scripts/audit-manifest.mjs",
+        "line": 176,
+        "claim": "argument hanya path manifest"
+      },
+      {
+        "path": "mobile/capacitor.config.ts",
+        "line": 44,
+        "claim": "customer plugin list sudah mengecualikan printer"
+      },
+      {
+        "path": ".github/workflows/mobile.yml",
+        "line": 605,
+        "claim": "workflow customer menjalankan auditor manifest yang sama"
+      }
+    ],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Manifest customer dengan permission Ops-only gagal, Ops tetap diterima dengan alasan; strip camera/fine customer tetap divalidasi.",
+    "existing_controls": "Merged-manifest audit dan customer plugin allowlist sudah WIRED.",
+    "dependencies": "Manifest output aktual tidak dibangun atau diperiksa pada audit ini.",
+    "area": "AUT",
+    "owner": "Mobile/DevOps engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Manifest output aktual tidak dibangun atau diperiksa pada audit ini.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Manifest output aktual tidak dibangun atau diperiksa pada audit ini.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-020"
+  },
+  {
+    "local_id": "PLT-09",
+    "title": "Dependency mobile terpisah dari npm workspace vulnerability gate",
+    "action": "keep",
+    "reason": "mobile sengaja di luar root workspaces; workflow menginstal dependency mobile sendiri. Gate audit root menjalankan npm audit di cwd root, sehingga lock mobile tidak termasuk. Belum ditemukan step audit mobile dalam scope workflow yang dipindai (SEARCH-FE-04). Tidak menyatakan ada CVE aktual.",
+    "evidence": [
+      {
+        "path": "mobile/README.md",
+        "line": 19,
+        "claim": "mobile memiliki lock/dependency sendiri"
+      },
+      {
+        "path": "scripts/audit-gate.mjs",
+        "line": 103,
+        "claim": "gate audit menjalankan npm audit pada cwd pemanggil"
+      },
+      {
+        "path": ".github/workflows/mobile.yml",
+        "line": 130,
+        "claim": "workflow memiliki instalasi dependency mobile"
+      }
+    ],
+    "impact": 2,
+    "effort": "M",
+    "risk": "Rendah",
+    "acceptance": "Advisory high/critical yang tidak ditriase pada lock mobile menggagalkan gate dengan basis advisory yang tercatat, tanpa mengubah scope deploy VPS.",
+    "existing_controls": "Exact plugin pins dan root npm audit/security workflows sudah ada.",
+    "dependencies": "Perlu reuse policy allowlist dan jadwal audit mobile; audit ini tidak mengakses registry.",
+    "area": "AUT",
+    "owner": "DevOps/mobile engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Perlu reuse policy allowlist dan jadwal audit mobile; audit ini tidak mengakses registry.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Perlu reuse policy allowlist dan jadwal audit mobile; audit ini tidak mengakses registry.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-021"
+  },
+  {
+    "local_id": "PLT-10",
+    "title": "FileProvider path luas bersifat hardening kondisional",
+    "action": "reclassify",
+    "reason": "Template path titik saja tidak membuktikan eksfiltrasi karena provider exported=false dan akses URI memerlukan grant. Perlu caller sharing path untuk menentukan risiko nyata.",
+    "evidence": [
+      {
+        "path": "mobile/android/app/src/main/res/xml/file_paths.xml",
+        "line": 3,
+        "claim": "external-path dan cache-path sama-sama path titik"
+      },
+      {
+        "path": "mobile/android/app/src/main/AndroidManifest.xml",
+        "line": 210,
+        "claim": "FileProvider tidak diekspor, tetapi mengizinkan URI grant"
+      }
+    ],
+    "impact": 1,
+    "effort": "M",
+    "risk": "Rendah",
+    "acceptance": "File share hanya memberi URI subfolder yang dibutuhkan; external/cache path diuji dengan caller sah.",
+    "existing_controls": "Provider tidak diekspor menurut audit awal.",
+    "dependencies": "Belum ditelusuri semua caller native share/plugin.",
+    "area": "FTR",
+    "owner": "Mobile engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Persempit path FileProvider hanya setelah memetakan URI yang benar-benar dibagi; jangan merusak export/share yang sah.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Belum ditelusuri semua caller native share/plugin.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-009"
+  },
+  {
+    "local_id": "PLT-11",
+    "title": "Callback geolocation native hanya satu slot pending",
+    "action": "keep",
+    "reason": "Prompt geolokasi kedua menimpa pendingOrigin/pending sebelum answer. Ini skenario konkuren kondisional; tidak menyatakan kejadian perangkat aktual.",
+    "evidence": [
+      {
+        "path": "mobile/android/app/src/main/java/id/hydromart/app/MainActivity.java",
+        "line": 97,
+        "claim": "slot callback baru menimpa pending tanpa menolak callback lama"
+      },
+      {
+        "path": "mobile/android/app/src/main/java/id/hydromart/app/MainActivity.java",
+        "line": 102,
+        "claim": "hasil permission menjawab hanya callback terakhir"
+      }
+    ],
+    "impact": 1,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Dua prompt beruntun menerima penyelesaian masing-masing; coarse-only customer tetap berfungsi pada Android lama.",
+    "existing_controls": "Daftar permission sesuai manifest dan coarse-only fallback sudah ada.",
+    "dependencies": "Verifikasi native/device terisolasi, tidak dijalankan.",
+    "area": "FLW",
+    "owner": "Mobile engineer",
+    "evidence_level": "WIRED",
+    "confidence": "Tinggi",
+    "implementation_status": "PARSIAL",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Verifikasi native/device terisolasi, tidak dijalankan.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Verifikasi native/device terisolasi, tidak dijalankan.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "WIRED",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-015"
+  },
+  {
+    "local_id": "PLT-12",
+    "title": "Register keamanan perlu sinkronisasi berbasis source",
+    "action": "merge",
+    "reason": "Gabungkan dengan infra-docs IDO-05 agar satu rekomendasi sumber kebenaran status audit. Perbaikan source tidak membuktikan deployment/operasional; status terkini harus membedakan source, CI dan runtime. Keputusan final: satu akar/pekerjaan audit dengan IDO-05, tidak dihitung dua kali.",
+    "evidence": [],
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "acceptance": "Setiap temuan register mencantumkan commit bukti source dan status runtime terpisah.",
+    "existing_controls": "Register lama tetap arsip, bukan otomatis backlog aktif.",
+    "dependencies": "Infra-docs owner memverifikasi delta PREV dan status.",
+    "area": "AUT",
+    "owner": "Tech lead",
+    "evidence_level": "STATIC",
+    "confidence": "Sedang",
+    "implementation_status": "PERLU DIPERDALAM",
+    "group": "Nice-to-have",
+    "verification": "Usulan verifikasi terisolasi; tidak dijalankan dalam audit statis.",
+    "if_deferred": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "review_owner": "frontend",
+    "merge_into": "IDO-05",
+    "proposal": "Usulan dibatasi acceptance berikut; scope implementasi rinci belum diputuskan. Infra-docs owner memverifikasi delta PREV dan status.",
+    "implementation_risk": "Sedang; perlu review compatibility pemanggil.",
+    "effort_reason": "Infra-docs owner memverifikasi delta PREV dan status.",
+    "deferred_cost": "Risiko merupakan skenario dari source, bukan bukti kejadian atau kerugian produksi.",
+    "level": "STATIC",
+    "search": "SEARCH-RESUME-FRONTEND",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi."
+  },
+  {
+    "local_id": "IDO-01",
+    "title": "Installer belum menyiapkan log backup provider kedua",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 3,
+    "effort": "S",
+    "risk": "Sedang",
+    "implementation_risk": "Rendah",
+    "confidence": "Tinggi",
+    "evidence": [
+      {
+        "path": "scripts/install-host-cron.sh",
+        "line": 92,
+        "claim": "Cron redirect menuju hydromart-backup2.log"
+      },
+      {
+        "path": "scripts/install-host-cron.sh",
+        "line": 163,
+        "claim": "Loop persiapan lima log tidak mencakup backup2"
+      },
+      {
+        "path": "scripts/backup-second-provider.sh",
+        "line": 30,
+        "claim": "Provider kedua inert bila destination kosong"
+      }
+    ],
+    "reason": "Kegagalan bersyarat: bila file log belum ada dan user tidak dapat menulis /var/log, shell gagal sebelum skrip. Bukan bukti backup produksi gagal.",
+    "existing_controls": "Freshness checker dan mode inert bila provider kedua belum dikonfigurasi.",
+    "proposal": "Tambahkan file log provider kedua ke installer dan pemeriksaan idempotensi installer.",
+    "acceptance": "Pada filesystem fixture non-root dengan /var/log tidak writable, installer menyiapkan log backup2; dua instalasi tidak menggandakan cron.",
+    "dependencies": "Owner DevOps; test installer, tidak perlu migrasi aplikasi.",
+    "owner": "DevOps",
+    "verification": "Uji installer dengan permission realistis secara terpisah dari audit; cek --show tanpa menjalankan backup.",
+    "deferred_impact": "Aktivasi provider kedua dapat gagal sebelum skrip dipanggil.",
+    "search": "SEARCH-CTX-05",
+    "group": "Nice-to-have",
+    "review_owner": "context",
+    "effort_reason": "Owner DevOps; test installer, tidak perlu migrasi aplikasi.",
+    "deferred_cost": "Aktivasi provider kedua dapat gagal sebelum skrip dipanggil.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-009"
+  },
+  {
+    "local_id": "IDO-02",
+    "title": "Baseline Load gagal dipush tetapi run tetap sukses",
+    "action": "reclassify",
+    "area": "AUT",
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "implementation_risk": "Rendah",
+    "confidence": "Tinggi untuk fallback warning, rendah untuk penyebabnya",
+    "evidence": [
+      {
+        "path": ".github/workflows/load.yml",
+        "line": 255,
+        "claim": "Rebase/push dicoba tiga kali"
+      },
+      {
+        "path": ".github/workflows/load.yml",
+        "line": 264,
+        "claim": "Kegagalan akhir menjadi warning; hasil tetap ada di job summary"
+      }
+    ],
+    "reason": "DROP klaim tidak pernah mendarat/karena branch protection: tidak ada provenance runtime. KEEP pilihan warning yang memang sengaja dinyatakan source, sebagai tradeoff bukan bug pasti.",
+    "existing_controls": "Retry3x; hasil job summary; gate beban sendiri tidak hilang.",
+    "proposal": "Jika pemilik membutuhkan histori committed, gunakan artifact/PR baseline dengan indikator freshness; jangan mengubah run sehat merah tanpa kebutuhan itu.",
+    "acceptance": "Satu run simulasi push ditolak tetap meninggalkan data teridentifikasi commit dan dapat dicari; kebijakan stale disepakati DevOps.",
+    "dependencies": "Keputusan kebutuhan histori dan akses repo Actions saat implementasi.",
+    "owner": "DevOps",
+    "verification": "Inspeksi artifact/run terpisah; audit ini tidak mengakses GitHub.",
+    "search": "SEARCH-CTX-10",
+    "group": "Jangan dikerjakan dulu",
+    "review_owner": "context",
+    "effort_reason": "Keputusan kebutuhan histori dan akses repo Actions saat implementasi.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-013"
+  },
+  {
+    "local_id": "IDO-03",
+    "title": "Input dispatch disisipkan ke badan shell sebelum validasi",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 3,
+    "effort": "S",
+    "risk": "Sedang",
+    "implementation_risk": "Rendah",
+    "confidence": "Tinggi",
+    "evidence": [
+      {
+        "path": ".github/workflows/deploy.yml",
+        "line": 235,
+        "claim": "sha diinterpolasi ke perintah echo shell"
+      },
+      {
+        "path": ".github/workflows/deploy.yml",
+        "line": 282,
+        "claim": "services diinterpolasi ke perintah echo shell"
+      },
+      {
+        "path": ".github/workflows/deploy.yml",
+        "line": 295,
+        "claim": "demo_phone diinterpolasi ke shell pembentuk command"
+      },
+      {
+        "path": ".github/workflows/deploy.yml",
+        "line": 435,
+        "claim": "Command output dijalankan di SSH"
+      },
+      {
+        "path": ".github/workflows/deploy.yml",
+        "line": 375,
+        "claim": "Nilai lain sudah memakai envs"
+      }
+    ],
+    "reason": "Source menunjukkan injection boundary di runner pembentuk command dan remote script. Hak dispatch membatasi exposure; tidak ada bukti exploit atau akses anonim.",
+    "existing_controls": "Dispatch berwenang; envs dipakai untuk secret lain; command mode pilihan tetap.",
+    "proposal": "Gunakan environment variabel dan quote setiap argumen, validasi sha/nama service/phone sebelum command; hindari command string dinamis. Periksa mobile version_name521 dengan pola sama.",
+    "acceptance": "Nilai mengandung quote, substitusi shell atau newline ditolak/sebagai literal, tidak menciptakan command tambahan di runner maupun SSH; mode sah tetap bekerja.",
+    "dependencies": "Owner CI/DevOps; regression fixture resolusi command.",
+    "owner": "DevOps/security",
+    "verification": "Uji command assembly dengan shell fixture lokal tanpa SSH/secret dalam implementasi nanti.",
+    "deferred_impact": "Pengguna dispatch atau input salah dapat mengubah perintah yang dieksekusi.",
+    "search": "SEARCH-CTX-02",
+    "group": "Strategis",
+    "review_owner": "context",
+    "effort_reason": "Owner CI/DevOps; regression fixture resolusi command.",
+    "deferred_cost": "Pengguna dispatch atau input salah dapat mengubah perintah yang dieksekusi.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-014"
+  },
+  {
+    "local_id": "IDO-04",
+    "title": "Dump database diunggah sebagai gzip tanpa enkripsi klien",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "implementation_risk": "Sedang",
+    "confidence": "Tinggi untuk bytes source; enkripsi provider tidak diketahui",
+    "evidence": [
+      {
+        "path": "scripts/backup-db.sh",
+        "line": 47,
+        "claim": "pg_dumpall dialirkan hanya melalui gzip"
+      },
+      {
+        "path": "scripts/upload-to-s3.mjs",
+        "line": 44,
+        "claim": "PutObject meneruskan file"
+      },
+      {
+        "path": "scripts/upload-to-s3.mjs",
+        "line": 47,
+        "claim": "Body readFileSync; tidak ada transform enkripsi"
+      },
+      {
+        "path": "scripts/backup-env.sh",
+        "line": 106,
+        "claim": "Enkripsi SMIME AES256 sudah tersedia khusus env"
+      },
+      {
+        "path": "scripts/backup-second-provider.sh",
+        "line": 48,
+        "claim": "Provider kedua memakai ulang backup-offsite dump"
+      }
+    ],
+    "reason": "Temuan baru spesifik proteksi material backup; bukan klaim backup/offsite/verification tidak tersedia. Tidak menyimpulkan SSE provider tidak aktif dan tidak menyimpulkan pelanggaran hukum.",
+    "existing_controls": "Offsite read-back checksum; backup env asimetris; provider kedua dapat dikonfigurasi; restore/drill sudah ada.",
+    "proposal": "Pastikan jaminan provider terlebih dulu; jika threat model mencakup bocor credential bucket, enkripsi dump asimetris sebelum upload, batasi permission lokal, versikan format; sesuaikan restore-db, drill, deploy backup dan kedua provider sebelum rollout.",
+    "acceptance": "Restore dari format baru membutuhkan kunci di luar VPS; tanpa kunci gagal jelas; format lama tetap dapat dipulihkan selama retensi; offsite read-back, kedua provider dan drill dapat memverifikasi artefak baru tanpa mengekspos data.",
+    "dependencies": "Kunci privat/custody teruji, keputusan kebijakan enkripsi, perbarui runbook restore/drill dan inventory format. Effort L karena pipeline lintas skrip, format, compatibility serta latihan; bukan Quick Win.",
+    "owner": "DevOps/security dan pemilik backup",
+    "verification": "Drill terisolasi dengan dataset sintetis dan kunci latihan saat implementasi; tidak dijalankan dalam audit.",
+    "deferred_impact": "Kebocoran hak baca bucket dapat membuka seluruh dump bila provider/kebijakan tidak menghalanginya.",
+    "search": "SEARCH-CTX-01",
+    "group": "Strategis",
+    "review_owner": "context",
+    "effort_reason": "Kunci privat/custody teruji, keputusan kebijakan enkripsi, perbarui runbook restore/drill dan inventory format. Effort L karena pipeline lintas skrip, format, compatibility serta latihan; bukan Quick Win.",
+    "deferred_cost": "Kebocoran hak baca bucket dapat membuka seluruh dump bila provider/kebijakan tidak menghalanginya.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-015"
+  },
+  {
+    "local_id": "IDO-05",
+    "title": "Register keamanan perlu direkonsiliasi per bukti",
+    "action": "reclassify",
+    "area": "BI",
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "implementation_risk": "Rendah",
+    "confidence": "Sedang",
+    "evidence": [
+      {
+        "path": "docs/SECURITY_AUDIT_REGISTER.md",
+        "line": 13,
+        "claim": "Dokumen masih melaporkan Selesai5"
+      },
+      {
+        "path": "docs/SECURITY_AUDIT_REGISTER.md",
+        "line": 22,
+        "claim": "Dua kontrol sengaja diterima bukan terbuka"
+      },
+      {
+        "path": "docs/SECURITY_AUDIT_REGISTER.md",
+        "line": 46,
+        "claim": "PRM1/PRM5 tercantum diterima pemilik"
+      }
+    ],
+    "reason": "Tidak membuktikan97 selesai hanya dari git log; ubah narasi menjadi register historis perlu source-level revalidation. Setiap owner mengisi delta source/test, bukan menutup otomatis.",
+    "existing_controls": "Register mengandung keputusan dan daftar PR historis; audit lanjutan owner memeriksa source.",
+    "proposal": "Tambahkan source/PR/test/provenance untuk setiap status dan pertahankan keputusan accepted.",
+    "acceptance": "Setiap baris yang dipindah selesai punya source saat ini, test yang relevan dan status bukti; accepted tidak diubah menjadi bug; count dihitung programatik.",
+    "dependencies": "Owner service; jangan pakai runtime claims tanpa akses terpisah.",
+    "owner": "QA/security",
+    "verification": "Baca source dan review per baris, bandingkan tally.",
+    "search": "SEARCH-CTX-10",
+    "group": "Strategis",
+    "review_owner": "context",
+    "effort_reason": "Owner service; jangan pakai runtime claims tanpa akses terpisah.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "BI-003"
+  },
+  {
+    "local_id": "IDO-06",
+    "title": "Dokumen status PPN perlu diselaraskan dengan fitur tarif0",
+    "action": "reclassify",
+    "area": "BI",
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "implementation_risk": "Rendah",
+    "confidence": "Tinggi",
+    "evidence": [
+      {
+        "path": "docs/LEGAL_OPEN_ITEMS.md",
+        "line": 21,
+        "claim": "Dokumen mengatakan tidak ada baris pajak di mana pun"
+      },
+      {
+        "path": "docs/AUDIT_FR_MATRIX_2026-10.md",
+        "line": 60,
+        "claim": "FR034 menyebut pencatatan dan preview pajak"
+      },
+      {
+        "path": "services/payment-service/src/application/services/tax-settings.service.ts",
+        "line": 27,
+        "claim": "Default ppnPercent0"
+      },
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 2051,
+        "claim": "Tax amount hanya bila tarif>0; total tidak ditambah"
+      },
+      {
+        "path": "docs/CONSOLE_AUDIT_REGISTER.md",
+        "line": 350,
+        "claim": "Keputusan lama mempertahankan form/layar aktif bila rate diisi sengaja"
+      }
+    ],
+    "reason": "Keberadaan field tidak membuktikan pengenaan PPN/konflik keputusan; default nonaktif sesuai keputusan lama. Konflik aktual adalah teks dokumen dan status keputusan terbaru.",
+    "existing_controls": "Default0, tarif null bila amount0, total inclusive tidak ditambah, cache/timeout adapter.",
+    "proposal": "Rekonsiliasi dokumen dan minta konfirmasi pemilik/akuntan tentang kebijakan sebelum aktivasi; jangan ubah nominal transaksi.",
+    "acceptance": "Dokumen membedakan fitur tersedia dari aktif produksi; keputusan PKP/tarif punya pemilik/tanggal; tidak ada klaim salah pungut tanpa data.",
+    "dependencies": "Pemilik dan akuntan untuk status legal/bisnis; bukan blok audit.",
+    "owner": "Pemilik produk/akuntan",
+    "verification": "Review dokumentasi terhadap source dan keputusan, bukan kesimpulan kepatuhan.",
+    "search": "SEARCH-CTX-03",
+    "group": "Nice-to-have",
+    "review_owner": "context",
+    "effort_reason": "Pemilik dan akuntan untuk status legal/bisnis; bukan blok audit.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "BI-004"
+  },
+  {
+    "local_id": "IDO-07",
+    "title": "Kumpulan komentar historis usang perlu adjudikasi per baris",
+    "action": "reclassify",
+    "area": "BI",
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "implementation_risk": "Rendah",
+    "confidence": "Sedang",
+    "evidence": [
+      {
+        "path": "docs/EVALUATION_11_ITEMS_TRACKER.md",
+        "line": 34,
+        "claim": "E2/E3/E4 punya keputusan sesudah dokumen diskon"
+      },
+      {
+        "path": "docs/AUDIT_FR_MATRIX_2026-10.md",
+        "line": 144,
+        "claim": "Royalti ditunda eksplisit"
+      }
+    ],
+    "reason": "Delapan subklaim awal tidak seluruhnya dibaca ulang; jangan memperlakukan bundle sebagai satu temuan prioritas tinggi. Konflik keputusan substansial dicatat konteks, sisanya editorial.",
+    "existing_controls": "Tracker bertanggal dan source aktual tersedia.",
+    "proposal": "Perbarui komentar setelah owner memvalidasi state yang dimaksud; jangan menghapus sejarah keputusan.",
+    "acceptance": "Tiap koreksi menyebut perilaku source yang berlaku dan tanggal, tanpa mengklaim state produksi dari template.",
+    "dependencies": "Owner dokumen terkait.",
+    "owner": "Dokumentasi/DevOps",
+    "verification": "Diff docs terhadap source yang relevan.",
+    "search": "SEARCH-CTX-06",
+    "group": "Nice-to-have",
+    "review_owner": "context",
+    "effort_reason": "Owner dokumen terkait.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "BI-005"
+  },
+  {
+    "local_id": "IDO-08",
+    "title": "Perjelas permissions workflow dan pin Buildx SHA",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 2,
+    "effort": "S",
+    "risk": "Rendah",
+    "implementation_risk": "Rendah",
+    "confidence": "Tinggi untuk deklarasi source",
+    "evidence": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "line": 1108,
+        "claim": "Setup Buildx memakai tagv3"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "line": 1240,
+        "claim": "Pemanggilan kedua memakai tagv3"
+      }
+    ],
+    "reason": "Hardening source; tidak ada bukti default token broad atau aksi supply-chain terjadi. Permissions org/repo belum dibaca.",
+    "existing_controls": "Action lain dipin; permission default disebut read-only dalam dokumen lama, tidak diverifikasi live.",
+    "proposal": "Deklarasikan permissions minimum top-level/job yang membutuhkan write; pin dua action Buildx ke SHA kompatibel.",
+    "acceptance": "Semua job tetap mendapat hak minimum yang diperlukan dan seluruh third-party action mengikuti pinning policy; update dependency tetap memiliki jalur terkelola.",
+    "dependencies": "Owner CI; ketahui job publish/comment yang perlu hak lebih.",
+    "owner": "DevOps/security",
+    "verification": "Review YAML dan job requirements; CI nanti, audit tidak menjalankannya.",
+    "search": "SEARCH-CTX-07",
+    "group": "Nice-to-have",
+    "review_owner": "context",
+    "effort_reason": "Owner CI; ketahui job publish/comment yang perlu hak lebih.",
+    "deferred_cost": "Risiko yang disimpulkan dari source tetap terbuka; frekuensi dan kerugian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-016"
+  },
+  {
+    "local_id": "IDO-09",
+    "title": "Pemantauan belum membuktikan kesehatan ujung-ke-ujung jalur alert",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "implementation_risk": "Sedang",
+    "confidence": "Tinggi dalam cakupan source",
+    "evidence": [
+      {
+        "path": "docker-compose.prod.yml",
+        "line": 896,
+        "claim": "Prometheus896–910 tanpa healthcheck"
+      },
+      {
+        "path": "docker-compose.prod.yml",
+        "line": 975,
+        "claim": "Alertmanager975–999 tanpa healthcheck"
+      },
+      {
+        "path": "ops/prometheus.yml",
+        "line": 23,
+        "claim": "Scrape aplikasi dan infra, bukan heartbeat pipeline"
+      },
+      {
+        "path": "scripts/watchdog.sh",
+        "line": 41,
+        "claim": "Watchdog mengambil daftar container unhealthy"
+      },
+      {
+        "path": "scripts/lib/deploy-common.sh",
+        "line": 191,
+        "claim": "Container tanpa healthcheck dinilai running saja"
+      },
+      {
+        "path": "scripts/uptime-probe.sh",
+        "line": 48,
+        "claim": "External uptime memeriksa gateway/depot/web saja"
+      }
+    ],
+    "reason": "Spot-check deterministik primary: KEEP dengan batas. Source mendukung blind spot running-but-hung alert pipeline; jangan menyebut tidak ada monitoring sama sekali atau menyatakan alert produksi hilang. `vector(0)` alert bisnis bukan dead-man.",
+    "existing_controls": "Restart policy, watchdog stopped/running-unhealthy untuk container ber-healthcheck, scrape/exporter alerts, Uptime GitHub independen, webhook aplikasi langsung.",
+    "proposal": "Tambahkan probe kesehatan dua container dan heartbeat end-to-end dengan penerima independen jika pemilik memilih cakupan itu. Heartbeat dari dalam VPS harus diperiksa dari luar agar tidak mati bersama sistem.",
+    "acceptance": "Pada latihan terisolasi, hang Alertmanager/Prometheus saat API/web sehat terdeteksi oleh jalur independen; respons pemulihan teramati; kehilangan webhook receiver juga terlihat. Ambang/cadence ditetapkan DevOps.",
+    "dependencies": "Penerima heartbeat di luar VPS dan keputusan operasional biaya; healthchecks saja belum membuktikan delivery webhook.",
+    "owner": "DevOps/on-call",
+    "verification": "Latihan gangguan terisolasi setelah implementasi, tidak pada produksi/audit.",
+    "deferred_impact": "API bisa tampak sehat sementara sebagian rantai notifikasi tidak mengirim; kejadian aktual belum diketahui.",
+    "search": "SEARCH-CTX-08",
+    "group": "Strategis",
+    "review_owner": "context",
+    "effort_reason": "Penerima heartbeat di luar VPS dan keputusan operasional biaya; healthchecks saja belum membuktikan delivery webhook.",
+    "deferred_cost": "API bisa tampak sehat sementara sebagian rantai notifikasi tidak mengirim; kejadian aktual belum diketahui.",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-017"
+  },
+  {
+    "local_id": "AUT-01",
+    "title": "Lindungi peran akun saat ini dan super admin terakhir pada perubahan peran",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "implementation_risk": "Sedang",
+    "group": "Quick Win",
+    "confidence": "Tinggi",
+    "reason": "canGrantRole mengevaluasi peran baru; invite akun yang sudah ada mengubah role lalu save by id. Guard super admin terakhir tersedia untuk delete/suspend, bukan save role. Risiko penurunan peran disimpulkan dari interleaving source, bukan insiden produksi.",
+    "existing_controls": "RESTRICTED_GRANTS membatasi pemberian peran baru; suspend/delete melindungi super admin terakhir dengan lock.",
+    "proposal": "Gunakan otorisasi terhadap peran lama dan baru; lindungi keluar dari SUPER_ADMIN dalam transaksi dengan pola lock yang sudah tersedia, termasuk invite ulang dan jalur internal HR.",
+    "acceptance": "HEAD_OFFICE tidak dapat mengganti SUPER_ADMIN menjadi STAFF_DEPOT melalui invite; dua penurunan paralel tidak menghapus super admin aktif terakhir; perpindahan depot tanpa perubahan peran tetap bekerja.",
+    "verification": "Unit policy actor/old/new role, controller wiring, dan race Postgres pada demotion. Belum dijalankan.",
+    "dependencies": "Kontrak grantedBy HR yang sudah ada; perlu review kompatibilitas peran custom.",
+    "owner": "Backend Auth dan Security",
+    "deferred_cost": "Akun istimewa dapat kehilangan peran melalui jalur yang hanya memvalidasi peran tujuan.",
+    "effort_reason": "Beberapa jalur mutasi dan repository satu domain; pola penguncian sudah ada.",
+    "evidence": [
+      {
+        "path": "services/auth-service/src/application/services/account.service.ts",
+        "line": 359,
+        "claim": "Pemeriksaan grant memakai role tujuan sebelum membaca akun existing."
+      },
+      {
+        "path": "services/auth-service/src/application/services/account.service.ts",
+        "line": 375,
+        "claim": "Existing dipromosikan/diganti peran dan disimpan."
+      },
+      {
+        "path": "services/auth-service/src/infrastructure/prisma/repositories/customer.prisma.repository.ts",
+        "line": 201,
+        "claim": "save mengubah role by id tanpa guard last-admin."
+      },
+      {
+        "path": "packages/access/src/index.ts",
+        "line": 842,
+        "claim": "canGrantRole bergantung targetRole."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-007"
+  },
+  {
+    "local_id": "PPA-01",
+    "title": "Pertahankan pembayaran berbukti dalam antrean tinjau saat TTL lewat",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "implementation_risk": "Sedang",
+    "group": "Quick Win",
+    "confidence": "Tinggi",
+    "reason": "findStalePending menyaring status/metode/createdAt tanpa proofUrl; sweep CAS PENDING menjadi FAILED. Bukti unggah bukan bukti uang sudah masuk, tetapi membutuhkan tinjau sebelum status terminal.",
+    "existing_controls": "CASH dikecualikan; CAS mencegah menimpa PAID; TTL mempunyai kill switch; notifikasi bukti tersedia.",
+    "proposal": "Pisahkan expiry belum-ada-bukti dari review bukti. Cek proof dalam predicate atomik agar unggah serentak tidak ditimpa. Pertahankan notifikasi dan antrean manual yang sudah ada.",
+    "acceptance": "PENDING dengan proofUrl tidak menjadi FAILED pada expiry; proof yang masuk serentak dengan sweep mendapat hasil konsisten; PENDING tanpa bukti tetap dapat kedaluwarsa; CASH dan PAID tidak berubah.",
+    "verification": "Unit sweep dan race upload-vs-expire; verifikasi antrean staf. Tidak menjalankan pembayaran nyata.",
+    "dependencies": "Kontrak review bukti yang sudah ada; Finance menyepakati penanganan bukti invalid melalui jalur fail manual.",
+    "owner": "Backend Payment dan Finance Ops",
+    "deferred_cost": "Pembayaran yang telah mengunggah bukti berpotensi menjadi terminal sebelum staf memeriksanya; frekuensi tidak diketahui.",
+    "effort_reason": "Query dan mutasi satu service; perlu regresi concurrency dan reminder.",
+    "evidence": [
+      {
+        "path": "services/payment-service/src/infrastructure/prisma/payment.prisma.repository.ts",
+        "line": 122,
+        "claim": "Query stale tanpa pengecualian proof."
+      },
+      {
+        "path": "services/payment-service/src/application/services/payment.service.ts",
+        "line": 703,
+        "claim": "Sweep memindah PENDING ke FAILED."
+      },
+      {
+        "path": "services/payment-service/src/domain/payment.ts",
+        "line": 98,
+        "claim": "FAILED terminal pada domain transition."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-016"
+  },
+  {
+    "local_id": "DLV-01",
+    "title": "Replay reschedule selalu memulihkan handoff order",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "S",
+    "risk": "Tinggi",
+    "implementation_risk": "Rendah",
+    "group": "Quick Win",
+    "confidence": "Tinggi",
+    "reason": "Status RESCHEDULED disimpan sebelum advanceOrder(PREPARING). Replay tanggal sama memanggil finishRescheduleReplay, tetapi segera return jika cashReturned tidak true.",
+    "existing_controls": "CAS status dan replay payload tanggal sama; kegagalan reversal tunai mencoba rollback; handoff mengenali OrderAlreadyClaimedError.",
+    "proposal": "Pisahkan pemulihan handoff order dari syarat reversal kas; tangani replay order yang sudah mencapai tujuan secara idempoten. Notifikasi harus memakai identitas percobaan agar reassign sah tidak teredam.",
+    "acceptance": "Advance pertama gagal setelah status tersimpan, retry payload sama tanpa cashReturned menyelesaikan handoff; reversal tunai tidak berulang; order yang sudah direassign tidak dimundurkan.",
+    "verification": "Unit fault injection dan contract replay dengan order-service, termasuk status sudah lanjut. Belum dijalankan.",
+    "dependencies": "Semantik konflik/transisi order yang sudah ada; jangan menelan seluruh 409 sebagai sukses.",
+    "owner": "Backend Delivery",
+    "deferred_cost": "Delivery sudah RESCHEDULED sementara order tertahan pada percobaan lama.",
+    "effort_reason": "Perubahan lokal helper replay; tanpa schema atau kontrak baru.",
+    "evidence": [
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 845,
+        "claim": "Replay return awal bila cashReturned false."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 874,
+        "claim": "Replay tanggal sama menuju helper."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 940,
+        "claim": "Advance order dilakukan setelah status lokal tersimpan."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-005"
+  },
+  {
+    "local_id": "DLV-03",
+    "title": "Teruskan customerId dan deliveryWindow pada dispatch staf",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 3,
+    "effort": "S",
+    "risk": "Sedang",
+    "implementation_risk": "Rendah",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "Controller membuat AssignInput eksplisit dan tidak memasukkan dua field yang tersedia pada DTO/use-case. Hasil historis aktual perlu pemeriksaan data terpisah.",
+    "existing_controls": "Dispatch dibatasi capability dan akses depot; DTO dan service sudah menyediakan field.",
+    "proposal": "Lengkapi pemetaan DTO-ke-input; jangan mengarang backfill customerId baris lama.",
+    "acceptance": "Controller meneruskan dua field persis; service menyimpan customer dan jendela antar dari dispatch; input lama tanpa field tetap sah.",
+    "verification": "Spec pass-through controller dan use-case; tidak perlu menyentuh data produksi.",
+    "dependencies": "Validasi konsumen UI dan DTO; tidak ada migrasi baru.",
+    "owner": "Backend Delivery",
+    "deferred_cost": "Konteks pelanggan/jendela antar dari dispatch hilang pada boundary.",
+    "effort_reason": "Pemetaan lokal dua field dengan tes kontrak.",
+    "evidence": [
+      {
+        "path": "services/delivery-service/src/modules/delivery.controller.ts",
+        "line": 53,
+        "claim": "AssignInput eksplisit melewatkan kedua field."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-006"
+  },
+  {
+    "local_id": "DLV-02",
+    "title": "Definisikan jam SLA tiap percobaan pengantaran ulang",
+    "action": "defer-policy",
+    "area": "BI",
+    "impact": 4,
+    "effort": "M",
+    "risk": "Sedang",
+    "implementation_risk": "Sedang",
+    "group": "Jangan dikerjakan dulu",
+    "confidence": "Tinggi",
+    "reason": "Reassign mereset pickup/start/ETA tetapi assignedAt dan slaAlertedAt tetap; earning menghitung selisih deliveredAt-assignedAt. Kode terbukti; definisi SLA order vs percobaan perlu PO.",
+    "existing_controls": "Riwayat status dan cap kurir atomik tetap ada.",
+    "proposal": "PO memilih SLA order utuh atau per-attempt. Jika per-attempt, simpan attempt dan jamnya tanpa merusak jejak percobaan lama.",
+    "acceptance": "KPI dan bonus menggunakan jam yang disetujui; histori attempt pertama dapat diaudit.",
+    "verification": "Unit reassign, SLA, earning dan review kebijakan ops.",
+    "dependencies": "Keputusan PO/operasional tentang denominator SLA dan bonus.",
+    "owner": "Product Owner dan Operasional",
+    "deferred_cost": "Perbandingan SLA/bonus antar kurir berpotensi mencampur waktu percobaan berbeda.",
+    "effort_reason": "Beberapa laporan dan bonus membaca timestamp yang sama.",
+    "evidence": [
+      {
+        "path": "services/delivery-service/src/infrastructure/prisma/delivery.prisma.repository.ts",
+        "line": 214,
+        "claim": "Reassign tidak mengganti assignedAt/slaAlertedAt."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 543,
+        "claim": "Earning memakai assignedAt."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "BI-001"
+  },
+  {
+    "local_id": "DLV-07",
+    "title": "Pulihkan efek samping setelah proof of delivery tersimpan",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "implementation_risk": "Tinggi",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "complete DELIVERED replay langsung return; advance order error hanya log; push earning dan webhook dijalankan void. Adapter payout menjawab false saat error, yang tidak direkonsiliasi pada jalur ini.",
+    "existing_controls": "PoD disimpan dahulu dengan CAS; earning mempunyai sourceRef per delivery; HTTP timeout dan log tersedia. Pemulihan manual mungkin dilakukan, bukan dibuktikan otomatis.",
+    "proposal": "Persist intent handoff/earning/event bersama PoD atau antrean recovery durable. Reuse sourceRef penerima; identitas webhook perlu dedup tersendiri sebelum retry. Bedakan configuration disabled dari transient failure.",
+    "acceptance": "Dependency gagal setelah PoD, pulih lalu handoff order dan earning tercatat sekali; retry tidak menggandakan insentif; poison item terlihat dan bisa direplay; crash setelah commit tidak kehilangan intent.",
+    "verification": "Fault injection tiap boundary dan real-Postgres concurrency pada journal; staging tanpa transaksi nyata.",
+    "dependencies": "Order transition replay; payout idempotency termasuk insentif; admin webhook eventId. Gabungkan AAS-11 untuk sisi publisher, bukan membuat outbox kedua.",
+    "owner": "Backend Delivery, Order, Payout dan SRE",
+    "deferred_cost": "PoD dapat benar sementara status order, earning, atau partner event tertinggal saat dependency gagal.",
+    "effort_reason": "Kontrak/journal lintas service dan rollout penerima sebelum produser.",
+    "evidence": [
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 436,
+        "claim": "Replay DELIVERED tidak melanjutkan side effect."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 493,
+        "claim": "Handoff failure hanya log dan break."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 505,
+        "claim": "Earning/event asynchronous void."
+      },
+      {
+        "path": "services/delivery-service/src/infrastructure/http/courier-payout.http.adapter.ts",
+        "line": 102,
+        "claim": "Error push menghasilkan false."
+      },
+      {
+        "path": "services/payout-service/src/application/services/courier-payout.service.ts",
+        "line": 82,
+        "claim": "Earning sourceRef deterministic sudah tersedia."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-008"
+  },
+  {
+    "local_id": "DLV-05",
+    "title": "Tutup celah jendela pertanggungjawaban COD pada shift basi",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "implementation_risk": "Tinggi",
+    "group": "Strategis",
+    "confidence": "Sedang",
+    "reason": "Auto-close memakai expectedEndAt sementara assignableShift tidak memeriksa waktu; settlement memilih deliveredAt dalam jendela shift. Delivery selesai setelah expectedEndAt sebelum check-in baru dapat berada di luar dua jendela (inferensi).",
+    "existing_controls": "Failed dan rescheduled cash sudah termasuk codBearingInWindow; setoran fail-closed; daftar unsettled tersedia.",
+    "proposal": "Hubungkan pertanggungjawaban delivery ke shift atau buat recovery eksplisit bagi interval yang tidak tercakup; jangan mengubah attendance checkout untuk menyamarkan waktu kerja.",
+    "acceptance": "Delivery selesai di celah expectedEndAt/check-in baru tetap dapat disetor dan tidak dihitung dua kali pada shift mana pun.",
+    "verification": "Spec jendela shift stale dan end-to-end settlement dengan ledger kas fake; race nyata sebelum rollout.",
+    "dependencies": "Aturan Ops/Finance untuk shift penanggung jawab dan join payment tunai.",
+    "owner": "Backend Delivery dan Finance Ops",
+    "deferred_cost": "Kas dapat tidak termuat dalam settlement rutin; jumlah aktual belum diketahui.",
+    "effort_reason": "Menyentuh kepemilikan setoran, shift, dan sumber payment; perlu rekonsiliasi historis.",
+    "evidence": [
+      {
+        "path": "services/delivery-service/src/application/services/shift.service.ts",
+        "line": 232,
+        "claim": "Shift stale berakhir pada expectedEndAt."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/shift.service.ts",
+        "line": 200,
+        "claim": "Assignable hanya mengecek adanya shift dan status."
+      },
+      {
+        "path": "services/delivery-service/src/infrastructure/prisma/delivery.prisma.repository.ts",
+        "line": 444,
+        "claim": "Kas dipilih dengan timestamp dalam jendela."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-007"
+  },
+  {
+    "local_id": "DLV-08",
+    "title": "Ikat key foto PoD ke objek yang sah sebelum sign/delete",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "implementation_risk": "Sedang",
+    "group": "Strategis",
+    "confidence": "Sedang",
+    "reason": "storageKeyFromUrl menerima substring mulai pod/ tanpa verifikasi origin/ownership. Key kemudian ditandatangani dan dihapus. Dampak lintas objek adalah inferensi yang memerlukan model permission bucket dan pengetahuan key; tidak ada klaim eksploitasi produksi.",
+    "existing_controls": "Bucket private dan signed link TTL; upload memeriksa berkas; endpoint proof dibatasi aktor.",
+    "proposal": "Simpan key hasil upload yang tervalidasi dan terikat ke delivery/aktor; larang key lintas prefix/ownership saat sign/delete. Periksa kompatibilitas URL historis sebelum memperketat validasi.",
+    "acceptance": "Proof URL/key asing ditolak; sign/delete hanya menyentuh objek yang terikat; PoD historis sah tetap dapat dibaca atau masuk daftar migrasi.",
+    "verification": "Unit URL/key boundary serta fake storage assert object key; review prefix bersama expense receipt.",
+    "dependencies": "Kontrak storage dan upload; bukti ownership historis.",
+    "owner": "Backend Delivery dan Security",
+    "deferred_cost": "Integritas bukti dan batas penghapusan objek bergantung pada input URL.",
+    "effort_reason": "Beberapa operasi storage satu domain dan kompatibilitas data lama.",
+    "evidence": [
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 64,
+        "claim": "Key berasal dari pencarian substring pod/."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 1117,
+        "claim": "Key dipakai signedUrl."
+      },
+      {
+        "path": "services/delivery-service/src/application/services/delivery.service.ts",
+        "line": 1139,
+        "claim": "Key dipakai remove pada purge."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-010"
+  },
+  {
+    "local_id": "REF-01",
+    "title": "Pisahkan qualification referral dari penyelesaian reward durable",
+    "action": "keep",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "implementation_risk": "Tinggi",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "Referral berubah QUALIFIED sebelum dua reward; safeReward dan adapter menelan error. Request reward tidak membawa idempotencyKey; replay QUALIFIED return tanpa memulihkan hadiah. Masalah utamanya kehilangan/recovery, bukan klaim double-award pada replay biasa.",
+    "existing_controls": "Transisi qualification CAS dan uniqueness referee; loyalty mendukung reward key; timeout HTTP.",
+    "proposal": "Persist dua reward intent dengan key referralId+sisi, dedup di loyalty, rekonsiliasi status dan ledger. Jangan backfill QUALIFIED lama tanpa memeriksa apakah hadiah pernah tercatat.",
+    "acceptance": "Reward sisi pertama berhasil, sisi kedua timeout: retry melengkapi sisi kedua tepat sekali; crash setelah qualification dapat dipulihkan; ledger membedakan pending/credited.",
+    "verification": "Receiver-before-sender contract tests dan fault injection dua sisi, race Postgres untuk dedup.",
+    "dependencies": "Loyalty contract idempotency, migrasi reward status, dan ORD-01 producer recovery.",
+    "owner": "Backend Referral dan Loyalty",
+    "deferred_cost": "Dashboard qualification bisa terlihat selesai meski reward gagal diberikan.",
+    "effort_reason": "Kontrak lintas service, journal dan rekonsiliasi sejarah.",
+    "evidence": [
+      {
+        "path": "services/referral-service/src/application/services/referral.service.ts",
+        "line": 217,
+        "claim": "Qualification commit mendahului reward."
+      },
+      {
+        "path": "services/referral-service/src/application/services/referral.service.ts",
+        "line": 211,
+        "claim": "QUALIFIED replay return tanpa reward."
+      },
+      {
+        "path": "services/referral-service/src/infrastructure/http/loyalty-reward.http.adapter.ts",
+        "line": 36,
+        "claim": "Payload tanpa idempotencyKey."
+      },
+      {
+        "path": "services/referral-service/src/infrastructure/http/loyalty-reward.http.adapter.ts",
+        "line": 42,
+        "claim": "Error hanya log."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-019"
+  },
+  {
+    "local_id": "PPA-02",
+    "title": "Simpan pelaku, waktu dan referensi hasil pencairan manual",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "implementation_risk": "Sedang",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "Controller membawa user.sub ke service, tetapi repository settle hanya menulis status; model withdrawal tidak menyimpan settledBy/transferRef. Aksi bank tetap manual. Ketiadaan audit payout end-to-end belum diklaim mutlak.",
+    "existing_controls": "CAS PROCESSING dan reversal saldo dalam transaksi; idempotency withdrawal dan maker-checker request tersedia.",
+    "proposal": "Catat settledBy/At, reason dan bank reference untuk hasil transfer; audit append-only. Bedakan maker-checker request dari bukti settlement bank; kebijakan orang kedua opsional menunggu Finance.",
+    "acceptance": "PAID baru memiliki aktor/waktu/ref; FAILED memiliki alasan dan reversal tepat sekali; data lama ditandai unknown tanpa fabricated actor.",
+    "verification": "Migration compatibility, unit/DB race settle dan audit failure; tidak mengirim transfer.",
+    "dependencies": "Finance menentukan bukti referensi yang diterima dan retensinya.",
+    "owner": "Backend Payout dan Finance",
+    "deferred_cost": "Status uang keluar sulit ditelusuri ke bukti/pelaku yang tersimpan.",
+    "effort_reason": "Schema dan repository dua jenis withdrawal dalam satu service.",
+    "evidence": [
+      {
+        "path": "services/payout-service/src/modules/hq-payout.controller.ts",
+        "line": 203,
+        "claim": "Aktor tersedia di controller."
+      },
+      {
+        "path": "services/payout-service/src/infrastructure/prisma/withdrawal.prisma.repository.ts",
+        "line": 147,
+        "claim": "Settle hanya menulis status."
+      },
+      {
+        "path": "services/payout-service/prisma/schema.prisma",
+        "line": 269,
+        "claim": "Model courier withdrawal tanpa settlement evidence."
+      },
+      {
+        "path": "services/payout-service/prisma/schema.prisma",
+        "line": 290,
+        "claim": "Model owner withdrawal tanpa settlement evidence."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-022"
+  },
+  {
+    "local_id": "PPA-03",
+    "title": "Bedakan persetujuan refund manual dari uang benar-benar diserahkan",
+    "action": "defer-policy",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "implementation_risk": "Tinggi",
+    "group": "Jangan dikerjakan dulu",
+    "confidence": "Tinggi",
+    "reason": "executeRefund memindahkan REFUNDED; transfer gateway hanya untuk EWALLET/VA dengan reference. CASH/TRANSFER/QRIS tidak memanggil bank. Ini membuktikan pencatatan status, bukan bahwa pelanggan sudah menerima dana.",
+    "existing_controls": "Claim CAS sebelum refund; approval ambang; audit refund; order refund coordination.",
+    "proposal": "Finance menetapkan SOP/kanal dan definisi REFUNDED. Tambah tahap approved-awaiting-disbursement atau evidence money-out, tanpa mengubah histori menjadi klaim settlement palsu.",
+    "acceptance": "Refund manual mencatat penerima/kanal/ref/aktor/waktu atau tetap pending money-out; retry tidak membayar dua kali.",
+    "verification": "Review SOP, model status, fault injection; gateway tests hanya sandbox bila nanti diotorisasi.",
+    "dependencies": "Keputusan Finance: siapa membayar dan bukti apa yang wajib; tanpa itu jangan mengotomasi uang keluar.",
+    "owner": "Finance dan Product Owner",
+    "deferred_cost": "Status REFUNDED dapat dibaca lebih kuat daripada bukti yang sistem simpan.",
+    "effort_reason": "Definisi domain dan kontrak status lintas payment/order/UI.",
+    "evidence": [
+      {
+        "path": "services/payment-service/src/application/services/payment.service.ts",
+        "line": 1286,
+        "claim": "Patch REFUNDED disiapkan sebelum bank effect."
+      },
+      {
+        "path": "services/payment-service/src/application/services/payment.service.ts",
+        "line": 1308,
+        "claim": "Gateway hanya dipanggil untuk metode online dengan reference."
+      },
+      {
+        "path": "services/payment-service/src/domain/payment.ts",
+        "line": 75,
+        "claim": "Online hanya EWALLET dan VA."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-017"
+  },
+  {
+    "local_id": "PPA-05",
+    "title": "Tetapkan alokasi reversal franchise untuk refund setelah order selesai",
+    "action": "defer-policy",
+    "area": "FLW",
+    "impact": 4,
+    "effort": "L",
+    "risk": "Tinggi",
+    "implementation_risk": "Tinggi",
+    "group": "Jangan dikerjakan dulu",
+    "confidence": "Sedang",
+    "reason": "recordRefund hanya menulis refundedAmount dan mengirim notifikasi; jalur ini tidak membalik franchise ledger. Refund terhadap penjualan selesai dan aturan pembebanan biaya perlu dikonfirmasi.",
+    "existing_controls": "Void revenue outbox tersedia pada pembatalan konter; sourceRef ledger mencegah duplikasi.",
+    "proposal": "Finance menentukan pihak penanggung dan apakah clawback owner/komisi berlaku; kemudian intent reversal idempoten, bukan reuse pembatalan penuh untuk refund parsial.",
+    "acceptance": "Skenario refund yang disepakati menghasilkan ledger reversal proporsional sekali; withdrawal yang sudah dibayar tidak diubah diam-diam.",
+    "verification": "Contoh pembukuan disetujui Finance dan contract/race tests; tidak mengoreksi data produksi otomatis.",
+    "dependencies": "SOP refund dan model franchise direct-to-depot; keputusan Finance.",
+    "owner": "Finance Franchise dan Backend Order/Payout",
+    "deferred_cost": "Pendapatan dan kewajiban owner dapat berbeda setelah refund; besarnya belum diketahui.",
+    "effort_reason": "Domain keuangan lintas service, histori dan backfill.",
+    "evidence": [
+      {
+        "path": "services/order-service/src/application/services/order.service.ts",
+        "line": 3139,
+        "claim": "recordRefund hanya repository dan notifikasi."
+      },
+      {
+        "path": "services/order-service/src/infrastructure/prisma/order.prisma.repository.ts",
+        "line": 1124,
+        "claim": "Repository hanya set refundedAmount."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FLW-018"
+  },
+  {
+    "local_id": "AUT-02",
+    "title": "Lengkapi jejak persetujuan untuk akun yang dibuat lewat login",
+    "action": "keep",
+    "area": "FTR",
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "implementation_risk": "Sedang",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "Login nomor baru membuat CUSTOMER PENDING, lalu verify dapat mengaktifkan akun; recordRegistrationConsent hanya pada register akun baru. Bukan kesimpulan kepatuhan atau dasar hukum.",
+    "existing_controls": "ConsentService dan pending consent API tersedia; register baru mencatat consent; OTP dan audit auth tersedia.",
+    "proposal": "Pilih satu titik UX persetujuan yang dapat diaudit bagi semua jalur aktivasi. Jangan mengisi backdated consent untuk akun lama tanpa tindakan pengguna.",
+    "acceptance": "Aktivasi lewat login nomor baru menghasilkan event penerimaan yang eksplisit atau alur pending consent yang disetujui; marketing tidak di-opt-in otomatis.",
+    "verification": "Spec login->verify->consent dan review Legal/Produk; audit ini tidak menjalankan flow.",
+    "dependencies": "Pilihan Legal/Produk tentang waktu persetujuan dan dokumen versinya.",
+    "owner": "Produk, Legal dan Backend Auth",
+    "deferred_cost": "Jejak penerimaan antar jalur pendaftaran tidak konsisten.",
+    "effort_reason": "Auth dan UX aktivasi tanpa mengubah OTP/reuse controls.",
+    "evidence": [
+      {
+        "path": "services/auth-service/src/application/services/login.service.ts",
+        "line": 52,
+        "claim": "Akun baru dibuat lewat login."
+      },
+      {
+        "path": "services/auth-service/src/application/services/otp-verification.service.ts",
+        "line": 67,
+        "claim": "Verify REGISTRATION mengaktifkan dan menerbitkan sesi."
+      },
+      {
+        "path": "services/auth-service/src/application/services/registration.service.ts",
+        "line": 90,
+        "claim": "Consent hanya ketika akun belum existing."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-002"
+  },
+  {
+    "local_id": "CUS-01",
+    "title": "Pisahkan mutasi alamat biasa dari penggantian alamat utama",
+    "action": "keep",
+    "area": "FTR",
+    "impact": 3,
+    "effort": "S",
+    "risk": "Sedang",
+    "implementation_risk": "Rendah",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "UpdateAddressDto mewarisi isPrimary dari create; service/repository meneruskan patch. Tipe TS tidak menghapus field runtime. Efek 500/primary kosong adalah inferensi constraint/selector, bukan hasil eksekusi.",
+    "existing_controls": "Update memagari customerId; setPrimaryExclusive tersedia untuk jalur khusus; create/delete memakai lock.",
+    "proposal": "Hilangkan isPrimary dari DTO patch atau tolak eksplisit; selalu gunakan jalur set-primary yang sudah atomik.",
+    "acceptance": "PATCH isPrimary ditolak 400 tanpa mengubah alamat; set-primary resmi bekerja dan tetap satu primary saat paralel.",
+    "verification": "DTO/controller contract spec dan regresi address race.",
+    "dependencies": "Tidak ada schema baru; periksa klien lama yang mengirim isPrimary lewat PATCH.",
+    "owner": "Backend Customer",
+    "deferred_cost": "Invarian alamat utama dilewati melalui endpoint patch umum.",
+    "effort_reason": "DTO dan mapping lokal, jalur benar sudah ada.",
+    "evidence": [
+      {
+        "path": "services/customer-service/src/modules/dto/address.dto.ts",
+        "line": 87,
+        "claim": "PartialType mewarisi isPrimary."
+      },
+      {
+        "path": "services/customer-service/src/modules/address.controller.ts",
+        "line": 89,
+        "claim": "DTO diteruskan tanpa projection."
+      },
+      {
+        "path": "services/customer-service/src/infrastructure/prisma/address.prisma.repository.ts",
+        "line": 135,
+        "claim": "Patch disimpan langsung."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-003"
+  },
+  {
+    "local_id": "AAS-04",
+    "title": "Validasi penerima laporan dan putuskan akses per dataset",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 4,
+    "effort": "M",
+    "risk": "Tinggi",
+    "implementation_risk": "Sedang",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "Recipients hanya string/array; kelas controller memakai hqBackOffice sementara dataset termasuk KASBON_BALANCE/ORDERS_DETAIL. Domain allowlist dan pemisahan capability belum merupakan keputusan tertulis dalam source yang dibaca.",
+    "existing_controls": "JWT/capability HQ, internal-key pada sweep, audit mutasi dan lease runner tersedia.",
+    "proposal": "Terapkan validasi email dan batas array yang disetujui; Produk/Security menetapkan capability tiap dataset dan kebijakan domain eksternal sebelum pembatasan rollout.",
+    "acceptance": "Email malformed ditolak; role tanpa izin dataset ditolak menurut matriks yang disahkan; tujuan sah tetap menerima laporan.",
+    "verification": "DTO + policy/controller specs, sandbox mail; tidak mengirim email dalam audit.",
+    "dependencies": "Keputusan Security/Produk per dataset dan daftar tujuan bisnis; jangan menutup domain eksternal secara sewenang-wenang.",
+    "owner": "Security, Produk dan Backend Admin",
+    "deferred_cost": "Pengiriman data sensitif terjadwal bergantung pada izin HQ yang luas dan input penerima longgar.",
+    "effort_reason": "Beberapa DTO/policy/runner satu service; aturan bisnis perlu ditetapkan.",
+    "evidence": [
+      {
+        "path": "services/admin-service/src/modules/dto/scheduled-report.dto.ts",
+        "line": 31,
+        "claim": "Recipients hanya string, bukan IsEmail."
+      },
+      {
+        "path": "services/admin-service/src/modules/scheduled-reports.controller.ts",
+        "line": 33,
+        "claim": "Kelas memakai hqBackOffice."
+      },
+      {
+        "path": "services/admin-service/src/domain/report-dataset.ts",
+        "line": 19,
+        "claim": "Dataset termasuk saldo kasbon."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-001"
+  },
+  {
+    "local_id": "AAS-05",
+    "title": "Pisahkan hasil pembuatan file dan hasil pengiriman laporan",
+    "action": "keep",
+    "area": "AUT",
+    "impact": 3,
+    "effort": "S",
+    "risk": "Sedang",
+    "implementation_risk": "Rendah",
+    "group": "Strategis",
+    "confidence": "Tinggi",
+    "reason": "File DONE disimpan, mailer.send di-await tetapi hasilnya diabaikan, kemudian run mengembalikan ok:true. File tersimpan adalah kontrol yang sah; gap berada pada visibilitas pengiriman.",
+    "existing_controls": "File tetap dapat diunduh dari hq/exports; error sumber menghasilkan FAILED; runner punya lease.",
+    "proposal": "Catat produced/deliverySent/deliverySkipped/deliveryFailed terpisah; jangan menyebut file gagal ketika hanya email yang gagal.",
+    "acceptance": "Mailer false menghasilkan indikator kirim gagal/dilewati, file tetap tersedia, retry kirim tidak membuat dua file atau dua email setelah sukses.",
+    "verification": "Unit runner dengan mailer true/false dan konfigurasi SMTP kosong; manual lihat status UI.",
+    "dependencies": "Kontrak mailer boolean tersedia; UI ekspor perlu label terpisah.",
+    "owner": "Backend Admin dan Operasional HQ",
+    "deferred_cost": "Operator dapat mengira laporan terkirim padahal hanya file yang dibuat.",
+    "effort_reason": "Perubahan status/metadata dan tampilan kecil; retry harus menghormati lease.",
+    "evidence": [
+      {
+        "path": "services/admin-service/src/application/services/scheduled-report-runner.service.ts",
+        "line": 111,
+        "claim": "File disimpan DONE."
+      },
+      {
+        "path": "services/admin-service/src/application/services/scheduled-report-runner.service.ts",
+        "line": 123,
+        "claim": "Hasil mailer tidak dipakai."
+      },
+      {
+        "path": "services/admin-service/src/application/services/scheduled-report-runner.service.ts",
+        "line": 125,
+        "claim": "Hasil run tetap ok true."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PARSIAL",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-002"
+  },
+  {
+    "local_id": "AAS-08",
+    "title": "Tentukan retensi dataset lokal admin sebelum membuat purge",
+    "action": "defer-policy",
+    "area": "AUT",
+    "impact": 3,
+    "effort": "M",
+    "risk": "Sedang",
+    "implementation_risk": "Tinggi",
+    "group": "Jangan dikerjakan dulu",
+    "confidence": "Sedang",
+    "reason": "Registry executor yang dibaca berisi dataset remote, bukan export_logs/webhook/tickets/fraud. Pencarian absence harus dibatasi source/registry yang diaudit; belum membuktikan konfigurasi retensi produksi.",
+    "existing_controls": "Engine retensi dan daftar UNENFORCED untuk policy yang terdaftar; erasure tiket per orang terpisah.",
+    "proposal": "Inventaris dan klasifikasi data lokal admin; putuskan window/hold lalu tambahkan executor. Jangan menghapus catatan sengketa/keuangan dengan cutoff arbitrer.",
+    "acceptance": "Setiap dataset punya kebijakan atau exemption bernama; dry-run menampilkan calon purge/hold dan audit trail; legal hold mencegah hapus.",
+    "verification": "Review policy dan fake executor cutoff/hold; tidak menjalankan purge saat audit.",
+    "dependencies": "Legal/Finance/Security menetapkan klasifikasi/window; baseline data aktual belum diperiksa.",
+    "owner": "Data Governance dan Backend Admin",
+    "deferred_cost": "Cakupan retensi lokal belum dapat dipastikan dari registry remote.",
+    "effort_reason": "Kebijakan beberapa model dan executor aman dengan legal hold.",
+    "evidence": [
+      {
+        "path": "services/admin-service/src/infrastructure/http/purge-executor.registry.ts",
+        "line": 21,
+        "claim": "Daftar executor remote; tidak menunjukkan executor lokal dataset ini."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "AUT-003"
+  },
+  {
+    "local_id": "AAS-10",
+    "title": "Perjelas semantik BETA/ROLLOUT pada flag publik",
+    "action": "defer-policy",
+    "area": "FTR",
+    "impact": 2,
+    "effort": "M",
+    "risk": "Rendah",
+    "implementation_risk": "Sedang",
+    "group": "Jangan dikerjakan dulu",
+    "confidence": "Tinggi",
+    "reason": "publicFlags memetakan semua state kecuali OFF menjadi enabled; enum menjelaskan BETA/ROLLOUT. Belum diketahui apakah owner memerlukan audience gating, jadi tidak menyebut bug rollout produksi.",
+    "existing_controls": "Hanya tiga enforced key yang dipublikasikan; mutasi platformAdmin.",
+    "proposal": "PO memilih boolean-only untuk key enforced atau kontrak audience yang eksplisit; jangan membangun eksperimen/AI tanpa demand.",
+    "acceptance": "State yang diperbolehkan dan arti enabled sama pada UI/backend serta diuji; jika boolean-only, BETA/ROLLOUT ditolak untuk enforced key.",
+    "verification": "Unit flag per state dan penelusuran consumer; tidak menyalakan flag.",
+    "dependencies": "Keputusan Produk atas lifecycle; konfigurasi produksi tidak dibaca.",
+    "owner": "Produk dan Platform",
+    "deferred_cost": "Arti rolloutPct dapat disalahpahami operator.",
+    "effort_reason": "Kontrak lintas consumer bila audience gating dipilih.",
+    "evidence": [
+      {
+        "path": "services/admin-service/src/modules/feature-flags.controller.ts",
+        "line": 43,
+        "claim": "State selain OFF dipublikasikan enabled."
+      },
+      {
+        "path": "services/admin-service/src/domain/flag-state.ts",
+        "line": 18,
+        "claim": "Enum punya ROLLOUT/ACTIVE/BETA/OFF."
+      }
+    ],
+    "review_owner": "primary",
+    "level": "STATIC",
+    "implementation_status": "PERLU DIPERDALAM",
+    "search": "SEARCH-RESUME-PRIMARY",
+    "delta": "Delta dibatasi source yang dirujuk dan kontrol di atas; seluruh register lama belum direvalidasi. Kandidat tidak menjadi bukti produksi.",
+    "id": "FTR-001"
+  }
+]

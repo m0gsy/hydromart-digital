@@ -36,7 +36,8 @@ const ALLOWLIST = {
   // images.remotePatterns is configured, so only local/bundled assets are
   // optimized — no attacker-controlled image reaches libvips. hr-service's own
   // sharp is bumped to 0.35.3 (patched); this entry is next's copy only.
-  'GHSA-f88m-g3jw-g9cj': 'sharp libvips CVEs — next optional image-opt, local assets only; hr-service on 0.35.3',
+  'GHSA-f88m-g3jw-g9cj':
+    'sharp libvips CVEs — next optional image-opt, local assets only; hr-service on 0.35.3',
 
   // ── 2026-09-09 advisory wave ──────────────────────────────────────────────
   // These four appeared overnight from the registry, with no repo change: `main`
@@ -67,9 +68,12 @@ const ALLOWLIST = {
   // sourceMappingURL comment. This copy processes the app's OWN stylesheets at BUILD
   // time in CI. No user CSS is compiled, at build time or at run time.
   'GHSA-qx2v-qp2m-jg93': 'postcss </style> XSS — next-bundled build-time copy, our own CSS only',
-  'GHSA-6g55-p6wh-862q': 'postcss sourceMappingURL file read — next-bundled build-time copy, our own CSS only',
-  'GHSA-fxqj-rqcc-2cmp': 'postcss sourceMappingURL (incomplete fix) — next-bundled build-time copy, our own CSS only',
-  'GHSA-r28c-9q8g-f849': 'postcss source-map path traversal — next-bundled build-time copy, our own CSS only',
+  'GHSA-6g55-p6wh-862q':
+    'postcss sourceMappingURL file read — next-bundled build-time copy, our own CSS only',
+  'GHSA-fxqj-rqcc-2cmp':
+    'postcss sourceMappingURL (incomplete fix) — next-bundled build-time copy, our own CSS only',
+  'GHSA-r28c-9q8g-f849':
+    'postcss source-map path traversal — next-bundled build-time copy, our own CSS only',
 
   // multer's four entries (GHSA-wc9g/qfvm/qvfw/535w) lived here until 2026-10-01 as
   // "no fix to take: @nestjs/platform-express pins multer 2.2.0". That was checked
@@ -90,7 +94,8 @@ const ALLOWLIST = {
   // route names, never request-derived. The DoS needs attacker CONTROL OF THE
   // GLOB PATTERN itself (deeply nested `{...}`), not of the string being
   // matched; no request data ever reaches a pattern argument in this gateway.
-  'GHSA-vfj7-8cjw-p6xm': 'braces stack-exhaustion DoS — no fix published yet; gateway only matches server-configured route segments, no attacker-controlled pattern',
+  'GHSA-vfj7-8cjw-p6xm':
+    'braces stack-exhaustion DoS — no fix published yet; gateway only matches server-configured route segments, no attacker-controlled pattern',
 };
 
 function audit() {
@@ -112,6 +117,16 @@ function audit() {
 }
 
 const report = JSON.parse(audit());
+if (
+  report.error ||
+  report.auditReportVersion !== 2 ||
+  !report.metadata?.vulnerabilities ||
+  !report.vulnerabilities ||
+  typeof report.vulnerabilities !== 'object'
+) {
+  console.error('npm audit did not return a valid advisory report; blocking CI.');
+  process.exit(1);
+}
 const vulns = report.vulnerabilities || {};
 const blockers = [];
 

@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { AppModule as _AppModule } from '../../src/app.module';
 import { AuthModule } from '../../src/modules/auth/auth.module';
 import { HealthModule } from '../../src/modules/health/health.module';
 import { AUTH_TOKENS } from '../../src/application/tokens';
@@ -21,14 +20,21 @@ import {
   InMemoryRefreshTokenRepository,
 } from '../support/fakes';
 
-// Reference AppModule so the import is retained for coverage of the compiled graph.
-void _AppModule;
-
 describe('Auth HTTP flows (e2e)', () => {
   let app: INestApplication;
   let delivery: FakeOtpDelivery;
+  const requiredEnv = {
+    AUTH_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
+    JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
+    JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-long-enough-1',
+    OTP_PEPPER: 'test-otp-pepper-value',
+  };
+  const previousEnv = Object.fromEntries(
+    Object.keys(requiredEnv).map((key) => [key, process.env[key]]),
+  );
 
   beforeAll(async () => {
+    Object.assign(process.env, requiredEnv);
     delivery = new FakeOtpDelivery();
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
 
@@ -43,9 +49,7 @@ describe('Auth HTTP flows (e2e)', () => {
             () => ({
               NODE_ENV: 'test',
               AUTH_SERVICE_PORT: 3001,
-              AUTH_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
-              JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
-              JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-long-enough-1',
+              ...requiredEnv,
               JWT_ACCESS_TTL: 900,
               JWT_REFRESH_TTL: 2592000,
               OTP_TTL_SECONDS: 300,
@@ -53,7 +57,6 @@ describe('Auth HTTP flows (e2e)', () => {
               OTP_MAX_ATTEMPTS: 5,
               OTP_RESEND_COOLDOWN_SECONDS: 60,
               OTP_DELIVERY_CHANNEL: 'console',
-              OTP_PEPPER: 'test-otp-pepper-value',
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
@@ -91,7 +94,11 @@ describe('Auth HTTP flows (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   const server = () => app.getHttpServer();

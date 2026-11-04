@@ -39,11 +39,11 @@ model Referral {
   refereeCustomerId  String         @unique
   code               String
   status             ReferralStatus @default(PENDING)
-  /// Order whose completion qualified the referral; null while PENDING.
+  /// First qualifying order; frozen while PENDING so reward retries use one plan.
   qualifyingOrderId  String?
-  /// Points awarded to the referrer on qualification (0 while PENDING).
+  /// Planned while PENDING, awarded before QUALIFIED; 0 until the first attempt.
   referrerPoints     Int            @default(0)
-  /// Welcome-bonus points awarded to the referee on qualification (0 while PENDING).
+  /// Referee's planned/awarded points, frozen with the qualifying order.
   refereePoints      Int            @default(0)
   qualifiedAt        DateTime?
   createdAt          DateTime       @default(now())

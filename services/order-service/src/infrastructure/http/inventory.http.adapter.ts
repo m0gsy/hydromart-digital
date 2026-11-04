@@ -15,11 +15,8 @@ import { InventoryPort, SoldLine } from '../../application/ports/inventory.port'
  *
  * - `reserve` fails CLOSED. It runs *before* the sale is promised, so an unverifiable
  *   result must reject the checkout — see B-6b on the method itself.
- * - `consume`, `restock` and `release` fail OPEN. They run *after* an order has already
- *   changed state, so throwing would block a completion, a void or a cancellation that
- *   has otherwise succeeded, and strand the order instead of the stock line. The stock
- *   drift they can leave behind is real and is what the reconciliation sweep is for; it
- *   is the lesser of the two failures, which is not true of reserve.
+ * - `consume` throws to keep its outbox row pending; `restock` and `release` fail open.
+ *   All three run after the order state change, so they never undo that state change.
  */
 @Injectable()
 export class InventoryHttpAdapter implements InventoryPort {
@@ -45,8 +42,7 @@ export class InventoryHttpAdapter implements InventoryPort {
   ): Promise<void> {
     const headers = this.internalHeaders();
     if (!headers) {
-      this.logger.warn(`No internal key; skipped stock consume for order ${orderId}`);
-      return;
+      throw new Error(`No internal key for stock consume of order ${orderId}`);
     }
     if (items.length === 0) {
       return;
@@ -65,7 +61,8 @@ export class InventoryHttpAdapter implements InventoryPort {
         throw new Error(`depot-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.warn(`Stock consume skipped for order ${orderId}: ${(error as Error).message}`);
+      this.logger.warn(`Stock consume failed for order ${orderId}: ${(error as Error).message}`);
+      throw error;
     } finally {
       clearTimeout(timer);
     }

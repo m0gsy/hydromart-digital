@@ -1,0 +1,26 @@
+{
+  "head": "1e93545a23b3c66ab2a33da949a371406030ccd1",
+  "files": 4062,
+  "bytes": 31581497,
+  "statuses": {
+    "READ-STRUCTURAL": 4002,
+    "BINARY-INSPECTED": 60
+  },
+  "formats": {
+    "text": 303,
+    "json-valid": 63,
+    "toml-valid": 17,
+    "code-text; AST/typecheck separate": 3063,
+    ".pyc": 1,
+    ".png": 55,
+    ".woff2": 1,
+    "jsonc; validated by workspace typecheck": 42,
+    ".docx": 2,
+    "sql-text": 500,
+    "xml-valid": 13,
+    ".jar": 1,
+    "pem-certificate-valid": 1
+  },
+  "problems": [],
+  "scope": "all tracked files; structural reading and format checks, not semantic review of every line"
+}

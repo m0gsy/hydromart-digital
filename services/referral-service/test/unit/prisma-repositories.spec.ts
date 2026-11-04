@@ -197,32 +197,43 @@ describe('ReferralPrismaRepository', () => {
     });
   });
 
-  it('qualifies a PENDING referral, returning the updated record', async () => {
+  it('freezes the first reward plan while the referral is PENDING', async () => {
     referral.updateMany.mockResolvedValue({ count: 1 });
-    referral.findUnique.mockResolvedValue({ ...referralRow(), status: 'QUALIFIED', qualifyingOrderId: 'ord-9' });
-    const out = await repo.qualifyReferral('ref-1', 'ord-9', 100, 50);
-    expect(out?.status).toBe(ReferralStatus.QUALIFIED);
+    referral.findUnique.mockResolvedValue({ ...referralRow(), qualifyingOrderId: 'ord-9', referrerPoints: 100, refereePoints: 50 });
+    const out = await repo.prepareQualification('ref-1', 'ord-9', 100, 50);
+    expect(out?.status).toBe(ReferralStatus.PENDING);
     expect(referral.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ref-1', status: ReferralStatus.PENDING },
-      data: expect.objectContaining({
-        status: ReferralStatus.QUALIFIED,
-        qualifyingOrderId: 'ord-9',
-        referrerPoints: 100,
-        refereePoints: 50,
-      }),
+      where: { id: 'ref-1', status: ReferralStatus.PENDING, qualifyingOrderId: null },
+      data: { qualifyingOrderId: 'ord-9', referrerPoints: 100, refereePoints: 50 },
     });
   });
 
+  it('reads the existing plan after a concurrent first attempt', async () => {
+    referral.updateMany.mockResolvedValue({ count: 0 });
+    referral.findUnique.mockResolvedValue({ ...referralRow(), qualifyingOrderId: 'ord-1', referrerPoints: 500, refereePoints: 250 });
+    const out = await repo.prepareQualification('ref-1', 'ord-2', 900, 900);
+    expect(out).toMatchObject({ qualifyingOrderId: 'ord-1', referrerPoints: 500, refereePoints: 250 });
+  });
+
+  it('qualifies only a prepared PENDING referral', async () => {
+    referral.updateMany.mockResolvedValue({ count: 1 });
+    referral.findUnique.mockResolvedValue({ ...referralRow(), status: 'QUALIFIED', qualifyingOrderId: 'ord-9' });
+    expect((await repo.qualifyReferral('ref-1'))?.status).toBe(ReferralStatus.QUALIFIED);
+    expect(referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ref-1', status: ReferralStatus.PENDING, qualifyingOrderId: { not: null } },
+      data: { status: ReferralStatus.QUALIFIED, qualifiedAt: expect.any(Date) },
+    });
+  });
 
   it('returns null when the row vanished between the update and the read', async () => {
     referral.updateMany.mockResolvedValue({ count: 1 });
     referral.findUnique.mockResolvedValue(null);
-    await expect(repo.qualifyReferral('ref-1', 'ord-9', 100, 50)).resolves.toBeNull();
+    await expect(repo.qualifyReferral('ref-1')).resolves.toBeNull();
   });
 
   it('returns null when the referral was not PENDING (lost race)', async () => {
     referral.updateMany.mockResolvedValue({ count: 0 });
-    const out = await repo.qualifyReferral('ref-1', 'ord-9', 100, 50);
+    const out = await repo.qualifyReferral('ref-1');
     expect(out).toBeNull();
     expect(referral.findUnique).not.toHaveBeenCalled();
   });

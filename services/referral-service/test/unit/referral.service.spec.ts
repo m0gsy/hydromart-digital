@@ -156,12 +156,14 @@ describe('ReferralService', () => {
           points: 500,
           reason: 'Referral reward: referred a new customer',
           authorization: 'Bearer tkn',
+          idempotencyKey: `referral:${result.referral?.id}:referrer`,
         },
         {
           customerId: referee,
           points: 250,
           reason: 'Referral welcome bonus',
           authorization: 'Bearer tkn',
+          idempotencyKey: `referral:${result.referral?.id}:referee`,
         },
       ]);
     });
@@ -182,13 +184,49 @@ describe('ReferralService', () => {
       expect(loyalty.calls).toHaveLength(0);
     });
 
-    it('still qualifies (fail-open) when a loyalty reward throws', async () => {
+    it('qualifies without reward calls when both configured amounts are zero', async () => {
+      const { referee } = await seedPending();
+      service = new ReferralService(
+        repo, loyalty, new FakeCustomerDirectory(),
+        buildTestConfig({ REFERRAL_REFERRER_POINTS: '0', REFERRAL_REFEREE_POINTS: '0' }),
+        new FakeOrderHistory(),
+      );
+      const result = await service.qualify(referee, randomUUID(), 'Bearer tkn');
+      expect(result.qualified).toBe(true);
+      expect(loyalty.calls).toHaveLength(0);
+    });
+
+    it('keeps the referral pending for a retry when a reward fails', async () => {
       const { referee } = await seedPending();
       loyalty.shouldThrow = true;
 
+      await expect(service.qualify(referee, randomUUID(), 'Bearer tkn')).rejects.toThrow('loyalty down');
+      loyalty.shouldThrow = false;
+      service = new ReferralService(
+        repo, loyalty, new FakeCustomerDirectory(),
+        buildTestConfig({ REFERRAL_REFERRER_POINTS: '900' }), new FakeOrderHistory(),
+      );
+      const result = await service.qualify(referee, randomUUID(), 'Bearer tkn');
+      expect(result.referral?.status).toBe(ReferralStatus.QUALIFIED);
+      expect(result.referral?.referrerPoints).toBe(500);
+      expect(loyalty.calls[0].idempotencyKey).toBe(loyalty.calls[1].idempotencyKey);
+    });
+
+    it('reuses the first reward key when the second reward fails', async () => {
+      const { referrer, referee } = await seedPending();
+      const reward = loyalty.reward.bind(loyalty);
+      const spy = jest.spyOn(loyalty, 'reward').mockImplementation(async (...args) => {
+        if (args[0] === referee) throw new Error('loyalty down');
+        return reward(...args);
+      });
+      await expect(service.qualify(referee, randomUUID(), 'Bearer tkn')).rejects.toThrow('loyalty down');
+      spy.mockRestore();
+
       const result = await service.qualify(referee, randomUUID(), 'Bearer tkn');
       expect(result.qualified).toBe(true);
-      expect(result.referral?.status).toBe(ReferralStatus.QUALIFIED);
+      const referrerCalls = loyalty.calls.filter((call) => call.customerId === referrer);
+      expect(referrerCalls).toHaveLength(2);
+      expect(referrerCalls[0].idempotencyKey).toBe(referrerCalls[1].idempotencyKey);
     });
   });
 

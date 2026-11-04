@@ -1,0 +1,682 @@
+{
+  "algorithm": "Python random.Random(seed).sample(sorted(unique local headings minus mandatory),15)",
+  "seed": 2203197388837078634,
+  "population": [
+    "AAS-01",
+    "AAS-02",
+    "AAS-03",
+    "AAS-05",
+    "AAS-06",
+    "AAS-07",
+    "AAS-09",
+    "AAS-10",
+    "AAS-11",
+    "AAS-12",
+    "AAS-13",
+    "AAS-14",
+    "AAS-15",
+    "AAS-16",
+    "APP-01",
+    "APP-02",
+    "APP-03",
+    "APP-04",
+    "APP-05",
+    "AUT-03",
+    "AUT-06",
+    "AUT-07",
+    "AUT-08",
+    "AUT-09",
+    "AUT-10",
+    "AUT-11",
+    "CRM-01",
+    "CRM-02",
+    "CRM-03",
+    "CRM-04",
+    "CRM-05",
+    "CRM-06",
+    "CUS-01",
+    "CUS-02",
+    "CUS-03",
+    "CUS-04",
+    "CUS-05",
+    "CUS-06",
+    "CUS-07",
+    "CUS-08",
+    "CUS-09",
+    "CUS-10",
+    "CUS-11",
+    "CUS-12",
+    "CUS-13",
+    "CUS-14",
+    "DEP-01",
+    "DEP-02",
+    "DEP-03",
+    "DEP-04",
+    "DEP-05",
+    "DEP-06",
+    "DEP-07",
+    "DEP-08",
+    "DEP-09",
+    "DEP-10",
+    "DEP-11",
+    "DEP-12",
+    "DEP-13",
+    "DEP-14",
+    "DEP-15",
+    "DEP-16",
+    "DEP-17",
+    "DEP-18",
+    "DLV-03",
+    "DLV-04",
+    "DLV-06",
+    "DLV-09",
+    "DLV-10",
+    "DLV-11",
+    "DLV-12",
+    "DLV-13",
+    "FCS-01",
+    "FCS-02",
+    "FCS-03",
+    "FCS-04",
+    "GW-04",
+    "GW-05",
+    "IDO-01",
+    "IDO-02",
+    "IDO-03",
+    "IDO-04",
+    "IDO-05",
+    "IDO-06",
+    "IDO-07",
+    "IDO-08",
+    "IDO-09",
+    "ORD-01",
+    "ORD-02",
+    "ORD-03",
+    "ORD-04",
+    "ORD-05",
+    "ORD-06",
+    "ORD-07",
+    "ORD-08",
+    "ORD-09",
+    "ORD-10",
+    "ORD-11",
+    "ORD-12",
+    "ORD-13",
+    "ORD-14",
+    "ORD-15",
+    "ORD-16",
+    "ORD-17",
+    "PLP-01",
+    "PLP-02",
+    "PLP-03",
+    "PLP-04",
+    "PLP-05",
+    "PLP-06",
+    "PLP-07",
+    "PLP-08",
+    "PLP-09",
+    "PLP-10",
+    "PLP-11",
+    "PLP-12",
+    "PLT-01",
+    "PLT-02",
+    "PLT-03",
+    "PLT-04",
+    "PLT-05",
+    "PLT-06",
+    "PLT-07",
+    "PLT-08",
+    "PLT-09",
+    "PLT-10",
+    "PLT-11",
+    "PLT-12",
+    "PPA-04",
+    "PPA-06",
+    "PPA-07",
+    "PPA-08",
+    "PPA-09",
+    "PPA-10",
+    "PPA-11",
+    "PPA-12",
+    "PPA-13",
+    "PPA-14",
+    "PPA-15",
+    "PPA-16",
+    "PPA-17",
+    "REC-01",
+    "REC-02",
+    "REC-03",
+    "REF-02",
+    "REF-03",
+    "REF-04",
+    "REF-05",
+    "RET-01",
+    "WEB-01",
+    "WEB-02",
+    "WEB-03",
+    "WEB-04",
+    "WEB-05",
+    "WEB-06",
+    "WEB-07",
+    "WEB-08",
+    "WEB-09",
+    "WEB-10",
+    "WEB-11",
+    "WEB-12"
+  ],
+  "mandatory": [
+    "AAS-04",
+    "AAS-08",
+    "AUT-01",
+    "AUT-02",
+    "DLV-01",
+    "DLV-02",
+    "DLV-05",
+    "DLV-07",
+    "DLV-08",
+    "PPA-01",
+    "PPA-02",
+    "PPA-03",
+    "PPA-05",
+    "REF-01"
+  ],
+  "selected": [
+    "PLP-10",
+    "IDO-09",
+    "WEB-10",
+    "ORD-01",
+    "AAS-10",
+    "WEB-07",
+    "FCS-04",
+    "DEP-06",
+    "WEB-01",
+    "ORD-13",
+    "PLT-10",
+    "WEB-05",
+    "APP-02",
+    "DEP-02",
+    "REC-03"
+  ],
+  "results": [
+    {
+      "local_id": "PLP-10",
+      "action": "keep",
+      "reason": "[VERIFIED] adjust memanggil config.adjustMaxPoints(null); config menerima depotId dan mendukung override. HQ-only penulisan key tetap kontrol yang benar, jangan dicabut.",
+      "evidence": [
+        {
+          "path": "services/loyalty-service/src/application/services/loyalty.service.ts",
+          "line": 303,
+          "claim": "Getter dipanggil null"
+        },
+        {
+          "path": "services/loyalty-service/src/config/loyalty-config.service.ts",
+          "line": 71,
+          "claim": "Getter menerima depotId"
+        },
+        {
+          "path": "services/loyalty-service/src/modules/settings.controller.ts",
+          "line": 26,
+          "claim": "adjustMaxPoints HQ-only termasuk depot override"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports scoped claim",
+      "limit": "Effect on configured depot override was inferred; no settings or runtime data read."
+    },
+    {
+      "local_id": "IDO-09",
+      "action": "keep",
+      "reason": "Spot-check deterministik primary: KEEP dengan batas. Source mendukung blind spot running-but-hung alert pipeline; jangan menyebut tidak ada monitoring sama sekali atau menyatakan alert produksi hilang. `vector(0)` alert bisnis bukan dead-man.",
+      "evidence": [
+        {
+          "path": "docker-compose.prod.yml",
+          "line": 896,
+          "claim": "Prometheus896–910 tanpa healthcheck"
+        },
+        {
+          "path": "docker-compose.prod.yml",
+          "line": 975,
+          "claim": "Alertmanager975–999 tanpa healthcheck"
+        },
+        {
+          "path": "ops/prometheus.yml",
+          "line": 23,
+          "claim": "Scrape aplikasi dan infra, bukan heartbeat pipeline"
+        },
+        {
+          "path": "scripts/watchdog.sh",
+          "line": 41,
+          "claim": "Watchdog mengambil daftar container unhealthy"
+        },
+        {
+          "path": "scripts/lib/deploy-common.sh",
+          "line": 191,
+          "claim": "Container tanpa healthcheck dinilai running saja"
+        },
+        {
+          "path": "scripts/uptime-probe.sh",
+          "line": 48,
+          "claim": "External uptime memeriksa gateway/depot/web saja"
+        }
+      ],
+      "provenance": "resume/context/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports limited monitoring gap",
+      "limit": "Absence of an external alert pipeline cannot be proved from this repo."
+    },
+    {
+      "local_id": "WEB-10",
+      "action": "keep",
+      "reason": "uploadFile/getBlob/postBlob membangun authHeader sendiri, tanpa appHeaders dan pemrosesan x-hm-depot-changed yang ada pada rawRequest. Ini perbedaan observability/recovery, bukan hilangnya auth: ketiganya menunggu waitForSession dan menangani 401.",
+      "evidence": [
+        {
+          "path": "apps/web/src/lib/api.ts",
+          "line": 452,
+          "claim": "multipart punya timeout dan refresh retry sendiri"
+        },
+        {
+          "path": "apps/web/src/lib/api.ts",
+          "line": 504,
+          "claim": "file GET memakai authHeader tanpa appHeaders"
+        },
+        {
+          "path": "apps/web/src/lib/api.ts",
+          "line": 297,
+          "claim": "JSON request mengolah depot change header"
+        }
+      ],
+      "provenance": "resume/frontend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports client path difference",
+      "limit": "No upload failure or 429 behavior executed."
+    },
+    {
+      "local_id": "ORD-01",
+      "action": "keep",
+      "reason": "[INFERRED] Handler memenuhi Promise tanpa throw ketika adapter gagal; run menandai DONE. Kegagalan lookup pemilik juga mengembalikan null sehingga memperbaiki adapter payout saja tidak cukup.",
+      "evidence": [
+        {
+          "path": "services/order-service/src/application/services/order.service.ts",
+          "line": 337,
+          "claim": "Registrasi handler empat topik pada constructor"
+        },
+        {
+          "path": "services/order-service/src/application/services/outbox.service.ts",
+          "line": 125,
+          "claim": "deliver diikuti markDone; retry hanya di catch"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/http/inventory.http.adapter.ts",
+          "line": 67,
+          "claim": "consume menelan error"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/http/loyalty-coordination.http.adapter.ts",
+          "line": 59,
+          "claim": "awardPoints gagal mengembalikan null"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/http/referral-coordination.http.adapter.ts",
+          "line": 39,
+          "claim": "qualify menelan error"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/http/franchise-revenue.http.adapter.ts",
+          "line": 70,
+          "claim": "orderCompleted gagal mengembalikan null"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/http/depot-directory.http.adapter.ts",
+          "line": 202,
+          "claim": "lookup pemilik gagal mengembalikan null"
+        },
+        {
+          "path": "services/order-service/src/application/services/order.service.ts",
+          "line": 2319,
+          "claim": "null ownership menyebabkan handler return"
+        },
+        {
+          "path": "services/order-service/src/modules/order.module.ts",
+          "line": 88,
+          "claim": "Provider adapter nyata didaftarkan"
+        },
+        {
+          "path": "scripts/scheduler/crontab",
+          "line": 37,
+          "claim": "Outbox dipicu setiap 10 menit"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports failure path",
+      "limit": "Receiver behavior and production incidence were not measured."
+    },
+    {
+      "local_id": "AAS-10",
+      "action": "defer-policy",
+      "reason": "publicFlags memetakan semua state kecuali OFF menjadi enabled; enum menjelaskan BETA/ROLLOUT. Belum diketahui apakah owner memerlukan audience gating, jadi tidak menyebut bug rollout produksi.",
+      "evidence": [
+        {
+          "path": "services/admin-service/src/modules/feature-flags.controller.ts",
+          "line": 43,
+          "claim": "State selain OFF dipublikasikan enabled."
+        },
+        {
+          "path": "services/admin-service/src/domain/flag-state.ts",
+          "line": 18,
+          "claim": "Enum punya ROLLOUT/ACTIVE/BETA/OFF."
+        }
+      ],
+      "provenance": "resume/primary/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports mapping",
+      "limit": "Whether BETA or ROLLOUT should gate audience is a product decision."
+    },
+    {
+      "local_id": "WEB-07",
+      "action": "reclassify",
+      "reason": "escapeCell mengonversi semua tipe ke string lalu menambah apostrof untuk minus. Kontrak helper terbukti, tetapi ekspor cashbook memakai kolom Masuk/Keluar positif sehingga dampak negatif aktif belum terbukti dalam call site yang diperiksa.",
+      "evidence": [
+        {
+          "path": "apps/web/src/lib/csv.ts",
+          "line": 123,
+          "claim": "minus di awal termasuk number menerima apostrof"
+        },
+        {
+          "path": "apps/web/src/app/dashboard/cashbook/page.tsx",
+          "line": 217,
+          "claim": "cashbook memisahkan uang masuk/keluar menjadi kolom terpisah"
+        }
+      ],
+      "provenance": "resume/frontend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports helper behavior",
+      "limit": "A live negative-number export through the inspected cashbook caller was not shown."
+    },
+    {
+      "local_id": "FCS-04",
+      "action": "reclassify",
+      "reason": "[INFERRED] Ingest real-time best-effort disengaja. Adapter feed mengembalikan empty/null pada 500/timeout; rebuild berhenti dan return ingested/pages seperti EOF normal. Dampak diturunkan 4 ke 3 karena read model BI, bukan efek stok/uang.",
+      "evidence": [
+        {
+          "path": "services/order-service/src/application/services/order.service.ts",
+          "line": 2412,
+          "claim": "Recommendation/forecast di luar outbox, best-effort"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/http/forecast-coordination.http.adapter.ts",
+          "line": 52,
+          "claim": "Ingest gagal hanya warn"
+        },
+        {
+          "path": "services/forecast-service/src/infrastructure/http/order-feed.http.adapter.ts",
+          "line": 49,
+          "claim": "Non-2xx menjadi halaman kosong EOF"
+        },
+        {
+          "path": "services/forecast-service/src/infrastructure/http/order-feed.http.adapter.ts",
+          "line": 63,
+          "claim": "Catch menjadi halaman kosong EOF"
+        },
+        {
+          "path": "services/forecast-service/src/application/services/rebuild.service.ts",
+          "line": 31,
+          "claim": "Loop berhenti nextCursor null dan return hitungan"
+        },
+        {
+          "path": "services/forecast-service/src/modules/forecast.controller.ts",
+          "line": 206,
+          "claim": "Rebuild tersedia untuk SUPER_ADMIN"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports indistinguishable EOF",
+      "limit": "Read-model impact depends on failed feed and later recovery; no run executed."
+    },
+    {
+      "local_id": "DEP-06",
+      "action": "reclassify",
+      "reason": "[INFERRED] Body depotId/orderId/customerId diteruskan ke recordFromCourier; method yang dibaca mengukur saldo pelanggan itu dan mencatat return tanpa lookup order/delivery. Guard depot tetap ada, jadi klaim kurir bebas lintas depot tidak didukung.",
+      "evidence": [
+        {
+          "path": "services/depot-service/src/modules/driver-gallon-return.controller.ts",
+          "line": 30,
+          "claim": "Identifier body diteruskan"
+        },
+        {
+          "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+          "line": 342,
+          "claim": "Hanya requireDepot pada awal recordFromCourier"
+        },
+        {
+          "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+          "line": 375,
+          "claim": "Outstanding dihitung terhadap customerId body"
+        },
+        {
+          "path": "services/depot-service/src/application/services/gallon-return.service.ts",
+          "line": 384,
+          "claim": "createFromOrder memakai identifier body"
+        },
+        {
+          "path": "packages/access/src/index.ts",
+          "line": 324,
+          "claim": "courierReturn STAFF_DEPOT"
+        },
+        {
+          "path": "packages/platform/src/nest/depot-scope.ts",
+          "line": 15,
+          "claim": "STAFF_DEPOT locked"
+        },
+        {
+          "path": "packages/platform/src/nest/depot-scope.guard.ts",
+          "line": 79,
+          "claim": "depotId request harus di set caller"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports identifier trust within depot scope",
+      "limit": "DepotScopeGuard restricts STAFF_DEPOT; cross-depot return was not established."
+    },
+    {
+      "local_id": "WEB-01",
+      "action": "keep",
+      "reason": "signOut memulai request auth lalu clearTokens pada tick sama. request menunggu waitForSession sebelum rawRequest membaca bearer. await atas promise yang sudah resolved pun menunda kelanjutan; token sudah null. nativeUnsubscribe juga menunggu readEndpoint. Gateway native meneruskan bearer yang diterima ke auth/logout SelfScoped.",
+      "evidence": [
+        {
+          "path": "apps/web/src/lib/auth-context.tsx",
+          "line": 151,
+          "claim": "logout fire-and-forget dan unsubscribe diikuti clearTokens tanpa await"
+        },
+        {
+          "path": "apps/web/src/lib/api.ts",
+          "line": 383,
+          "claim": "request menunggu sebelum rawRequest"
+        },
+        {
+          "path": "apps/web/src/lib/api.ts",
+          "line": 265,
+          "claim": "rawRequest membaca bearer dari token store saat dijalankan"
+        },
+        {
+          "path": "apps/web/src/lib/token-store.ts",
+          "line": 163,
+          "claim": "setTokens(null) menghapus token memori secara sinkron"
+        },
+        {
+          "path": "apps/web/src/lib/push.ts",
+          "line": 212,
+          "claim": "unsubscribe membaca endpoint asinkron sebelum DELETE"
+        },
+        {
+          "path": "services/gateway-service/src/routing/session-bff.ts",
+          "line": 253,
+          "claim": "native logout membaca Authorization request dan meneruskannya ke auth-service"
+        },
+        {
+          "path": "services/auth-service/src/modules/auth/account.controller.ts",
+          "line": 388,
+          "claim": "logout SelfScoped memakai CurrentUser untuk actorCustomerId"
+        }
+      ],
+      "provenance": "resume/frontend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports native logout race",
+      "limit": "Native timing and retained-token duration were not tested on device."
+    },
+    {
+      "local_id": "ORD-13",
+      "action": "defer-policy",
+      "reason": "[VERIFIED] erasePerson membatalkan ACTIVE/PAUSED dan mengosongkan recipientName/phone/notes, tidak menyentuh alamat. Kebutuhan menghapus alamat harus dipetakan pada retensi yang disepakati.",
+      "evidence": [
+        {
+          "path": "services/order-service/src/infrastructure/prisma/subscription.prisma.repository.ts",
+          "line": 197,
+          "claim": "Cancel dan scrub dalam transaksi"
+        },
+        {
+          "path": "services/order-service/src/infrastructure/prisma/subscription.prisma.repository.ts",
+          "line": 207,
+          "claim": "Patch hanya name/phone/notes"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports field-level scrub limit",
+      "limit": "Retention policy for address snapshots requires owner decision."
+    },
+    {
+      "local_id": "PLT-10",
+      "action": "reclassify",
+      "reason": "Template path titik saja tidak membuktikan eksfiltrasi karena provider exported=false dan akses URI memerlukan grant. Perlu caller sharing path untuk menentukan risiko nyata.",
+      "evidence": [
+        {
+          "path": "mobile/android/app/src/main/res/xml/file_paths.xml",
+          "line": 3,
+          "claim": "external-path dan cache-path sama-sama path titik"
+        },
+        {
+          "path": "mobile/android/app/src/main/AndroidManifest.xml",
+          "line": 210,
+          "claim": "FileProvider tidak diekspor, tetapi mengizinkan URI grant"
+        }
+      ],
+      "provenance": "resume/frontend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports broad path with URI grant",
+      "limit": "No unauthorized URI grant or data exposure was established."
+    },
+    {
+      "local_id": "WEB-05",
+      "action": "keep",
+      "reason": "run(pod) meng-upload photo/signature sebelum complete pada setiap eksekusi. URL tidak disimpan pada QueuedJob. Jika complete gagal sesudah upload, percobaan berikut meng-upload lagi.",
+      "evidence": [
+        {
+          "path": "apps/web/src/lib/offline-queue.ts",
+          "line": 351,
+          "claim": "upload dilakukan sebelum complete pada tiap run"
+        },
+        {
+          "path": "apps/web/src/lib/offline-queue.ts",
+          "line": 148,
+          "claim": "job menyimpan payload data URL dan metadata retry tanpa hasil URL"
+        }
+      ],
+      "provenance": "resume/frontend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports repeat upload path",
+      "limit": "Whether orphan objects persist depends on storage lifecycle; no failure injected."
+    },
+    {
+      "local_id": "APP-02",
+      "action": "keep",
+      "reason": "Frontend mengirim delta tanpa attempt key. Controller meneruskan delta tanpa key, service selalu memanggil applyMovement, dan repository menambah quantity serta movement baru per request. Unique itemId/orderId hanya berlaku untuk SALE; ADJUSTMENT memakai orderId null. Dua request yang sama setelah jawaban hilang dapat menjadi dua koreksi; kejadian produksi belum diukur.",
+      "evidence": [
+        {
+          "path": "apps/web/src/app/dashboard/inventory/page.tsx",
+          "line": 171,
+          "claim": "Web mengirim delta tanpa attempt key."
+        },
+        {
+          "path": "services/depot-service/src/modules/inventory.controller.ts",
+          "line": 365,
+          "claim": "Controller tidak menerima attempt key."
+        },
+        {
+          "path": "services/depot-service/src/application/services/inventory.service.ts",
+          "line": 335,
+          "claim": "Setiap panggilan adjust meneruskan movement baru."
+        },
+        {
+          "path": "services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts",
+          "line": 218,
+          "claim": "applyMovement menaikkan quantity dan menambah ledger dalam transaksi."
+        },
+        {
+          "path": "services/depot-service/prisma/schema.prisma",
+          "line": 303,
+          "claim": "Unique itemId/orderId tidak menduplikasi adjustment dengan orderId null."
+        }
+      ],
+      "provenance": "resume/frontend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports duplicate delta on retry",
+      "limit": "No production duplicate was measured; client compatibility must be planned."
+    },
+    {
+      "local_id": "DEP-02",
+      "action": "keep",
+      "reason": "[INFERRED] PO dibaca SENT, seluruh receiveStock dilakukan, lalu lines/status ditulis satu kali; repository update hanya where id. Dua penerimaan atau retry setelah crash dapat menggandakan stok.",
+      "evidence": [
+        {
+          "path": "services/depot-service/src/application/services/purchase-order.service.ts",
+          "line": 159,
+          "claim": "Pre-check SENT"
+        },
+        {
+          "path": "services/depot-service/src/application/services/purchase-order.service.ts",
+          "line": 227,
+          "claim": "Loop posting receiveStock"
+        },
+        {
+          "path": "services/depot-service/src/application/services/purchase-order.service.ts",
+          "line": 270,
+          "claim": "Satu update PO setelah loop"
+        },
+        {
+          "path": "services/depot-service/src/infrastructure/prisma/purchase-order.prisma.repository.ts",
+          "line": 75,
+          "claim": "Update berdasarkan id tanpa expected version"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports non-atomic receipt sequence",
+      "limit": "Concurrent/crash reproduction was not run; partial receipt semantics must be preserved."
+    },
+    {
+      "local_id": "REC-03",
+      "action": "reclassify",
+      "reason": "Service sepenuhnya dibaca: enrich hanya membuang productRef yang hilang. Dampak end-to-end belum dapat dipastikan sebelum frontend consumer/hydration ditelusuri; bukan bukti produk tidak tersedia tampil pada pelanggan.",
+      "evidence": [
+        {
+          "path": "services/recommendation-service/src/application/services/recommendation.service.ts",
+          "line": 42,
+          "claim": "Reorder tanpa selector depot"
+        },
+        {
+          "path": "services/recommendation-service/src/application/services/recommendation.service.ts",
+          "line": 77,
+          "claim": "Enrich hanya memakai productRefs"
+        }
+      ],
+      "provenance": "resume/backend/decisions.json",
+      "level": "STATIC, source reread; no tests executed",
+      "result": "source supports enrichment-only filter",
+      "limit": "Frontend consumer and resulting customer display were not traced."
+    }
+  ]
+}
