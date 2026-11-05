@@ -7,10 +7,10 @@ import { defineConfig } from 'vitest/config';
  * them imports the whole app. On a developer laptop (16 logical cores, 8 physical, plus the
  * coverage instrumentation) that oversubscribes the CPU badly enough that a different
  * timing-sensitive test lost its race on every full run - `session-lock-gate`, `customer-rest`,
- * `hq-hierarchy` - while each passed alone. Half the cores is slower on paper and finishes
- * green. CI keeps the default: its runner is small and its time budget is measured.
+ * `hq-hierarchy` - while each passed alone. A full local run on 2026-11-05 passed with three
+ * workers; more exhausted the laptop's memory. CI keeps its own worker default.
  */
-const localForks = process.env.CI ? undefined : Math.max(2, Math.floor(cpus().length / 2));
+const localForks = process.env.CI ? undefined : Math.min(3, Math.max(2, Math.floor(cpus().length / 2)));
 
 export default defineConfig({
   test: {
@@ -30,9 +30,10 @@ export default defineConfig({
      *
      * A gate that goes red because the machine was busy teaches everyone to re-run it, and
      * that habit is what actually destroys a gate. Raising the budget weakens no assertion:
-     * a genuinely hung test still fails, twenty seconds later.
+     * a genuinely hung test still fails. Two payout UI tests took over 20 seconds on the
+     * full local run but passed alone and in the full run with a 40-second budget.
      */
-    testTimeout: 20_000,
+    testTimeout: 40_000,
     // The same reasoning for the hooks around a test (RTL cleanup, a `beforeEach` that renders): a
     // hook that loses to the clock fails the whole FILE with no failed test to point at.
     hookTimeout: 20_000,
