@@ -37,7 +37,8 @@ export type OutboxTopic =
    * Like PAYMENT_REVERSAL it is owed BY a voided order, so it is exempt from the skip guard
    * and from `cancelForOrder`.
    */
-  | 'FRANCHISE_REVENUE_VOID';
+  | 'FRANCHISE_REVENUE_VOID'
+  | 'REFERRAL_REVERSE';
 
 /**
  * C3: `CANCELLED` is a row the order stopped owing — a voided counter sale. It is not a

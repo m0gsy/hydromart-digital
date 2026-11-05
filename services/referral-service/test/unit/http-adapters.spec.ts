@@ -39,14 +39,29 @@ beforeEach(() => {
 });
 
 describe('LoyaltyRewardHttpAdapter', () => {
-  it('skips (fail open) when no internal key', async () => {
-    await new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'referral', '');
+  it('reverses by key and propagates a downstream failure', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: true })).mockResolvedValueOnce(res({ ok: false, status: 503 }));
+    const adapter = new LoyaltyRewardHttpAdapter(makeConfig());
+    await adapter.reverse('c1', 'referral:id:order:referrer');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://loyalty:3009/api/v1/loyalty/internal/reverse-reward',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'x-internal-key': KEY }) }),
+    );
+    await expect(adapter.reverse('c1', 'referral:id:order:referrer')).rejects.toThrow('503');
+  });
+  it('refuses reversal without the internal key', async () => {
+    await expect(new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' }))
+      .reverse('c1', 'referral:id:order:referrer')).rejects.toThrow('No internal service key');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('rejects when no internal key so the outbox retries', async () => {
+    await expect(new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'referral', '', 'ref-1')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('posts to loyalty/reward with x-internal-key on happy path', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '');
+    await new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '', 'ref-1');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://loyalty:3009/api/v1/loyalty/reward',
       expect.objectContaining({
@@ -54,20 +69,21 @@ describe('LoyaltyRewardHttpAdapter', () => {
         headers: expect.objectContaining({ 'x-internal-key': KEY }),
       }),
     );
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string).idempotencyKey).toBe('ref-1');
   });
 
-  it('fails open (resolves) on non-2xx', async () => {
+  it('rejects on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
     await expect(
-      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', ''),
-    ).resolves.toBeUndefined();
+      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '', 'ref-1'),
+    ).rejects.toThrow();
   });
 
-  it('fails open (resolves) when loyalty is unreachable', async () => {
+  it('rejects when loyalty is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(
-      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', ''),
-    ).resolves.toBeUndefined();
+      new LoyaltyRewardHttpAdapter(makeConfig()).reward('c1', 50, 'referral', '', 'ref-1'),
+    ).rejects.toThrow();
   });
 });
 
@@ -115,6 +131,22 @@ describe('CustomerDirectoryHttpAdapter', () => {
  * CLOSED, and a `false` from a broken call would hand out 750 unreclaimable points.
  */
 describe('OrderHistoryHttpAdapter', () => {
+  it('reads only valid completed/voided statuses for retry decisions', async () => {
+    const adapter = new OrderHistoryHttpAdapter(makeConfig());
+    fetchMock.mockResolvedValueOnce(res({ body: { status: 'VOIDED' } }))
+      .mockResolvedValueOnce(res({ body: { status: 'bogus' } }));
+    expect(await adapter.statusOfOrder('o1')).toBe('VOIDED');
+    expect(await adapter.statusOfOrder('o1')).toBeNull();
+  });
+  it('fails closed when status lookup is unconfigured, rejected or unreachable', async () => {
+    expect(await new OrderHistoryHttpAdapter(makeConfig({ internalServiceKey: '' })).statusOfOrder('o1')).toBeNull();
+    expect(await new OrderHistoryHttpAdapter(makeConfig({ orderServiceUrl: '' })).statusOfOrder('o1')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 503 })).mockRejectedValueOnce(new Error('offline'));
+    const adapter = new OrderHistoryHttpAdapter(makeConfig());
+    expect(await adapter.statusOfOrder('o1')).toBeNull();
+    expect(await adapter.statusOfOrder('o1')).toBeNull();
+  });
   const ask = (over = {}) => new OrderHistoryHttpAdapter(makeConfig(over)).hasCompletedOrder('c1');
 
   it('returns null when no key', async () => {

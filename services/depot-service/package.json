@@ -13,7 +13,7 @@
     "start:prod": "node --preserve-symlinks dist/src/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
-    "test": "jest --passWithNoTests",
+    "test": "jest --passWithNoTests --runInBand",
     "test:race": "jest -c jest.race.config.js --runInBand",
     "test:cov": "jest --coverage",
     "prisma:validate": "prisma validate",

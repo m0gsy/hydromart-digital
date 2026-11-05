@@ -69,6 +69,8 @@ model PointsTransaction {
   /// A key the CALLER derives from what it is rewarding ("birthday:2026"); with the customer it is
   /// unique, so a repeated grant is a no-op. Null for every entry that has no such caller.
   idempotencyKey String?
+  /// Referral void points already spent; retained even when free-text reason is anonymised.
+  uncollectedPoints Int @default(0)
   /// When an EARN lot expires (BR-014); null for non-EARN entries.
   expiresAt  DateTime?
   /// Set once an EARN lot has been swept into an EXPIRE entry.

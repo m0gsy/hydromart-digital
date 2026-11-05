@@ -107,11 +107,11 @@ describe('coordination adapters fail open on a non-2xx response', () => {
     ).resolves.toBe(true);
   });
 
-  it('referral.qualify swallows a 500', async () => {
+  it('referral.qualify rejects a 500 for outbox retry', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     await expect(
       new ReferralCoordinationHttpAdapter(makeConfig()).qualify('c1', 'o1', ''),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow();
   });
 
   it('recommendation.recordCompleted swallows a 500', async () => {

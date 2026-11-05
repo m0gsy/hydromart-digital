@@ -720,7 +720,29 @@ describe('OrderService', () => {
       expect(orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!.status).toBe('DONE');
     });
 
+    it('keeps a loyalty award pending until its result is verified', async () => {
+      loyalty.pointsEarned = null;
+      await complete();
+      const row = orders.outbox!.rows.find((r) => r.topic === 'LOYALTY_AWARD')!;
+      expect(row.status).toBe('PENDING');
+      loyalty.pointsEarned = 60;
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(row.status).toBe('DONE');
+    });
+
+    it('keeps franchise revenue pending until payout confirms it', async () => {
+      depots.owners.set(homeDepot.id, randomUUID());
+      franchiseRevenue.nextResult = null;
+      await complete();
+      const row = orders.outbox!.rows.find((r) => r.topic === 'FRANCHISE_REVENUE')!;
+      expect(row.status).toBe('PENDING');
+      franchiseRevenue.nextResult = { commissionPct: 15 };
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(row.status).toBe('DONE');
+    });
+
     it('gives up loudly rather than retrying forever', async () => {
+      const alerted = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
       inventory.consume = async () => {
         throw new Error('depot-service down');
       };
@@ -736,6 +758,10 @@ describe('OrderService', () => {
       const row = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
       expect(row.status).toBe('DEAD');
       expect(await outbox.pending()).toMatchObject({ DEAD: 1 });
+      expect(alerted).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'orders/outbox#inventory-consume-dead' }),
+      );
+      alerted.mockRestore();
     });
 
     // A legacy unrouted row can still reach COMPLETED, and the sweep has to settle its

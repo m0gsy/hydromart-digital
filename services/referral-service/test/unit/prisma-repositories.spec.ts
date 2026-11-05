@@ -21,12 +21,13 @@ describe('ReferralPrismaRepository', () => {
     updateMany: jest.fn(),
   };
   const referralCode = { findUnique: jest.fn(), create: jest.fn() };
+  const voidedReferralOrder = { findUnique: jest.fn(), upsert: jest.fn() };
   const $transaction = jest.fn((arg: unknown) =>
     typeof arg === 'function'
-      ? (arg as (tx: unknown) => unknown)({ referral })
+      ? (arg as (tx: unknown) => unknown)({ referral, voidedReferralOrder })
       : Promise.resolve(arg),
   );
-  const prisma = { referral, referralCode, $transaction } as unknown as PrismaService;
+  const prisma = { referral, referralCode, voidedReferralOrder, $transaction } as unknown as PrismaService;
   const repo = new ReferralPrismaRepository(prisma);
 
   const codeRow = { id: 'code-1', customerId: 'cust-1', code: 'BUDI10', createdAt: new Date('2026-01-01') };
@@ -43,6 +44,8 @@ describe('ReferralPrismaRepository', () => {
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   });
+
+  beforeEach(() => voidedReferralOrder.findUnique.mockResolvedValue(null));
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -197,32 +200,77 @@ describe('ReferralPrismaRepository', () => {
     });
   });
 
-  it('qualifies a PENDING referral, returning the updated record', async () => {
+  it('freezes the first reward plan while the referral is PENDING', async () => {
     referral.updateMany.mockResolvedValue({ count: 1 });
-    referral.findUnique.mockResolvedValue({ ...referralRow(), status: 'QUALIFIED', qualifyingOrderId: 'ord-9' });
-    const out = await repo.qualifyReferral('ref-1', 'ord-9', 100, 50);
-    expect(out?.status).toBe(ReferralStatus.QUALIFIED);
+    referral.findUnique.mockResolvedValue({ ...referralRow(), qualifyingOrderId: 'ord-9', referrerPoints: 100, refereePoints: 50 });
+    const out = await repo.prepareQualification('ref-1', 'ord-9', 100, 50);
+    expect(out?.status).toBe(ReferralStatus.PENDING);
     expect(referral.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ref-1', status: ReferralStatus.PENDING },
-      data: expect.objectContaining({
-        status: ReferralStatus.QUALIFIED,
-        qualifyingOrderId: 'ord-9',
-        referrerPoints: 100,
-        refereePoints: 50,
-      }),
+      where: { id: 'ref-1', status: ReferralStatus.PENDING, qualifyingOrderId: null },
+      data: { qualifyingOrderId: 'ord-9', referrerPoints: 100, refereePoints: 50 },
     });
   });
 
+  it('refuses to prepare an order previously voided for this referral', async () => {
+    voidedReferralOrder.findUnique.mockResolvedValueOnce({ referralId: 'ref-1', orderId: 'ord-9' });
+    await expect(repo.prepareQualification('ref-1', 'ord-9', 500, 250)).resolves.toBeNull();
+    expect(referral.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not reuse a plan whose referral vanished after preparation', async () => {
+    referral.updateMany.mockResolvedValue({ count: 0 });
+    referral.findUnique.mockResolvedValue(null);
+    await expect(repo.prepareQualification('ref-1', 'ord-9', 500, 250)).resolves.toBeNull();
+  });
+
+  it('reads the existing plan after a concurrent first attempt', async () => {
+    referral.updateMany.mockResolvedValue({ count: 0 });
+    referral.findUnique.mockResolvedValue({ ...referralRow(), qualifyingOrderId: 'ord-1', referrerPoints: 500, refereePoints: 250 });
+    const out = await repo.prepareQualification('ref-1', 'ord-2', 900, 900);
+    expect(out).toMatchObject({ qualifyingOrderId: 'ord-1', referrerPoints: 500, refereePoints: 250 });
+  });
+
+  it('qualifies only a prepared PENDING referral', async () => {
+    referral.updateMany.mockResolvedValue({ count: 1 });
+    referral.findUnique.mockResolvedValue({ ...referralRow(), status: 'QUALIFIED', qualifyingOrderId: 'ord-9' });
+    expect((await repo.qualifyReferral('ref-1', 'ord-9'))?.status).toBe(ReferralStatus.QUALIFIED);
+    expect(referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ref-1', status: ReferralStatus.PENDING, qualifyingOrderId: 'ord-9' },
+      data: { status: ReferralStatus.QUALIFIED, qualifiedAt: expect.any(Date) },
+    });
+  });
+
+  it('does not qualify an order already marked voided', async () => {
+    voidedReferralOrder.findUnique.mockResolvedValueOnce({ referralId: 'ref-1', orderId: 'ord-9' });
+    await expect(repo.qualifyReferral('ref-1', 'ord-9')).resolves.toBeNull();
+    expect(referral.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('marks a voided order and reopens only its matching referral', async () => {
+    await repo.markVoidedOrder('ref-1', 'ord-9');
+    expect(voidedReferralOrder.upsert).toHaveBeenCalledWith({
+      where: { referralId_orderId: { referralId: 'ref-1', orderId: 'ord-9' } },
+      create: { referralId: 'ref-1', orderId: 'ord-9' }, update: {},
+    });
+    referral.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await expect(repo.reopenAfterVoid('ref-1', 'ord-9')).resolves.toBe(true);
+    expect(referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ref-1', qualifyingOrderId: 'ord-9' },
+      data: { status: ReferralStatus.PENDING, qualifyingOrderId: null,
+        referrerPoints: 0, refereePoints: 0, qualifiedAt: null },
+    });
+    await expect(repo.reopenAfterVoid('ref-1', 'ord-9')).resolves.toBe(false);
+  });
 
   it('returns null when the row vanished between the update and the read', async () => {
     referral.updateMany.mockResolvedValue({ count: 1 });
     referral.findUnique.mockResolvedValue(null);
-    await expect(repo.qualifyReferral('ref-1', 'ord-9', 100, 50)).resolves.toBeNull();
+    await expect(repo.qualifyReferral('ref-1', 'ord-9')).resolves.toBeNull();
   });
 
   it('returns null when the referral was not PENDING (lost race)', async () => {
     referral.updateMany.mockResolvedValue({ count: 0 });
-    const out = await repo.qualifyReferral('ref-1', 'ord-9', 100, 50);
+    const out = await repo.qualifyReferral('ref-1', 'ord-9');
     expect(out).toBeNull();
     expect(referral.findUnique).not.toHaveBeenCalled();
   });

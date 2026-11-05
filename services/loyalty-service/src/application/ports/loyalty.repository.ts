@@ -18,6 +18,7 @@ export interface PointsTransactionRecord {
   points: number;
   orderId: string | null;
   reason: string | null;
+  uncollectedPoints?: number;
   expiresAt: Date | null;
   expired: boolean;
   createdAt: Date;
@@ -87,6 +88,8 @@ export interface LoyaltyRepository {
    * order: a repeat returns the account untouched.
    */
   recordReversal(mutation: ReversalMutation): Promise<LoyaltyAccountRecord>;
+  /** Void a referral grant once; reserve its key even when the grant is still in flight. */
+  reverseReward(customerId: string, idempotencyKey: string): Promise<{ account: LoyaltyAccountRecord; uncollected: number }>;
   /**
    * Stores the tier the account's authoritative lifetime total earns (H-2). Written after
    * the increment rather than alongside it, because only then is the lifetime the one the

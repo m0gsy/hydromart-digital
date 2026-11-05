@@ -60,6 +60,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
   let service: OrderService;
   let shift: FakeCashierShift;
   let promo: FakePromo;
+  let referral: FakeReferralCoordination;
 
   const operator: AuthenticatedUser = {
     sub: 'op-1',
@@ -82,6 +83,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
     franchiseRevenue = new FakeFranchiseRevenue();
     shift = new FakeCashierShift();
     promo = new FakePromo();
+    referral = new FakeReferralCoordination();
     service = new OrderService(
       orders,
       cart,
@@ -89,7 +91,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
       depots,
       new FakeDepotPricing(),
       loyalty,
-      new FakeReferralCoordination(),
+      referral,
       new FakeMembership(),
       new FakeResellerDiscount(),
       new FakeCustomerDirectory(),
@@ -202,7 +204,7 @@ describe('a voided counter sale owes nothing (C3)', () => {
     await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
 
     const owed = outboxRepo.rows.filter((r) => r.status === 'PENDING');
-    expect(owed.map((r) => r.topic)).toEqual(['FRANCHISE_REVENUE_VOID']);
+    expect(owed.map((r) => r.topic)).toEqual(['FRANCHISE_REVENUE_VOID', 'REFERRAL_REVERSE']);
     expect(franchiseRevenue.voided).toHaveLength(0);
 
     franchiseRevenue.voidError = null;
@@ -210,6 +212,18 @@ describe('a voided counter sale owes nothing (C3)', () => {
 
     expect(franchiseRevenue.voided.map((v) => v.orderId)).toEqual([order.id]);
     expect(outboxRepo.rows.find((r) => r.topic === 'FRANCHISE_REVENUE_VOID')!.status).toBe('DONE');
+  });
+
+  it('keeps the referral reversal owed when referral-service is down', async () => {
+    const { order, now } = await sellWithFailingEffects();
+    orders.onVoidOutbox = (rows) => outboxRepo.enqueue(rows);
+    jest.spyOn(referral, 'reverse').mockRejectedValueOnce(new Error('referral down'));
+    await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
+    const row = outboxRepo.rows.find((r) => r.topic === 'REFERRAL_REVERSE')!;
+    expect(row.status).toBe('PENDING');
+    await outbox.processDue(new Date(now.getTime() + 10 * 60_000));
+    expect(row.status).toBe('DONE');
+    expect(referral.reversals).toContainEqual({ customerId: order.customerId, orderId: order.id });
   });
 
   it('reverses a credit that landed while the sale was being voided', async () => {

@@ -1,0 +1,21 @@
+{
+  "environment": {
+    "node": "v25.9.0",
+    "npm": "11.12.1",
+    "repo_required": "Node >=22.23.4 <23; npm >=10.8 <11"
+  },
+  "gates": [
+    {"name": "Tracked-file full scan", "status": "LULUS", "evidence": "4.062/4.062 file dibaca penuh; 31.581.497 byte; hash cocok baseline; 0 masalah format/signature; full-scan-summary.json."},
+    {"name": "TypeScript/JS AST", "status": "LULUS", "evidence": "0 parse diagnostic pada ekstraksi AST seluruh source JS/TS/TSX; 02-inventory.json."},
+    {"name": "Shell dan YAML", "status": "LULUS", "evidence": "105 skrip shell bash -n dan 23 YAML parse; 0 gagal; shell-syntax.json dan yaml-syntax.json."},
+    {"name": "npm run typecheck", "status": "LULUS", "evidence": "Seluruh workspace exit 0 pada Node 25/npm 11 lokal."},
+    {"name": "npm run lint", "status": "LULUS", "evidence": "Seluruh workspace exit 0 pada Node 25/npm 11 lokal."},
+    {"name": "npm run db:validate", "status": "LULUS", "evidence": "16 schema Prisma valid setelah DATABASE_URL dummy hanya untuk proses validasi; tanpa koneksi DB."},
+    {"name": "npm run test", "status": "GAGAL DEFAULT", "evidence": "Satu dari 40 suite auth gagal saat import AppModule meminta AUTH_DATABASE_URL; 767 assertion auth lain lulus. Seluruh 2.767 tes web lulus; log full-test.log dan web-vitest.json."},
+    {"name": "Auth E2E recheck", "status": "LULUS BERSYARAT", "evidence": "auth.e2e.spec.ts lulus 5/5 dengan variabel tes sementara; auth-e2e-recheck.log. Setup default tetap perlu diperbaiki."},
+    {"name": "npm run build", "status": "LULUS", "evidence": "Seluruh workspace exit 0; web Next.js compiled successfully; full-build.log."},
+    {"name": "node test/integration/run.mjs pada Docker terisolasi", "status": "LULUS", "evidence": "Project/volume/port terpisah dengan storage MinIO tes; 20/20 service sehat, semua skenario inti lulus, HRIS 30 lulus/0 gagal/0 skip, approvals 158/0, payroll manual lulus; isolated-integration-storage-retry.log."},
+    {"name": "npm run audit:ci", "status": "LULUS SETELAH PERBAIKAN", "evidence": "Baseline sebelumnya lulus palsu saat npm audit gagal (IDO-12). Gate kini menolak JSON error/laporan tidak valid; fixture error exit 1, bersih exit 0, high belum diizinkan exit 1. Run nyata exit 0: 0 critical, 1 high yang di-allowlist, 17 moderate; audit-gate-current.log."},
+    {"name": "Android native build/runtime", "status": "TERHALANG", "evidence": "JAVA_HOME/Android SDK tidak tersedia pada lingkungan ini; build dan perangkat fisik tidak diverifikasi."}
+  ]
+}

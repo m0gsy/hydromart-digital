@@ -42,6 +42,8 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
   accounts: LoyaltyAccountRecord[] = [];
   txns: PointsTransactionRecord[] = [];
   private keys = new Set<string>();
+  private keyedRewards = new Map<string, number>();
+  private reversalShortfalls = new Map<string, number>();
 
   async findAccount(customerId: string): Promise<LoyaltyAccountRecord | null> {
     const a = this.accounts.find((x) => x.customerId === customerId);
@@ -148,7 +150,11 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     ) {
       throw new RewardAlreadyGrantedError();
     }
-    if (m.idempotencyKey) this.keys.add(`${m.customerId}\u0000${m.idempotencyKey}`);
+    if (m.idempotencyKey) {
+      const key = `${m.customerId}\u0000${m.idempotencyKey}`;
+      this.keys.add(key);
+      if (m.type === PointsTxnType.REWARD) this.keyedRewards.set(key, m.points);
+    }
     this.txns.push({
       id: randomUUID(),
       customerId: m.customerId,
@@ -206,6 +212,33 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     acc.lifetimePoints = Math.max(0, acc.lifetimePoints - m.points);
     acc.updatedAt = nextDate();
     return { ...acc };
+  }
+
+  async reverseReward(customerId: string, idempotencyKey: string): Promise<{ account: LoyaltyAccountRecord; uncollected: number }> {
+    const created = await this.createAccount(customerId);
+    const acc = this.accounts.find((x) => x.id === created.id)!;
+    const key = `${customerId}\u0000${idempotencyKey}`;
+    const reversalKey = `${customerId}\u0000void:${idempotencyKey}`;
+    if (this.keys.has(reversalKey)) return { account: { ...acc },
+      uncollected: this.reversalShortfalls.get(reversalKey) ?? 0 };
+    const granted = this.keyedRewards.get(key);
+    if (granted === undefined) {
+      this.keys.add(key);
+      this.txns.push({ id: randomUUID(), customerId, type: PointsTxnType.ADJUST, points: 0,
+        orderId: null, reason: 'Voided referral before reward landed', expiresAt: null,
+        expired: false, createdAt: nextDate() });
+      return { account: { ...acc }, uncollected: 0 };
+    }
+    const deducted = Math.min(acc.pointsBalance, granted);
+    const uncollected = granted - deducted;
+    this.keys.add(reversalKey);
+    this.reversalShortfalls.set(reversalKey, uncollected);
+    this.txns.push({ id: randomUUID(), customerId, type: PointsTxnType.ADJUST, points: -deducted,
+      orderId: null, reason: `Referral void; source=${idempotencyKey}`, uncollectedPoints: uncollected,
+      expiresAt: null, expired: false, createdAt: nextDate() });
+    acc.pointsBalance -= deducted;
+    acc.lifetimePoints = Math.max(0, acc.lifetimePoints - granted);
+    return { account: { ...acc }, uncollected };
   }
 
   /** LOY-10: the points stay; the free text beside them does not. */

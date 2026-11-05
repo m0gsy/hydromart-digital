@@ -111,6 +111,18 @@ export class ReverseEarnDto {
   reason!: string;
 }
 
+export class ReverseReferralRewardDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ example: 'referral:00000000-0000-0000-0000-000000000000:referrer' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  idempotencyKey!: string;
+}
+
 export class RewardPointsDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
@@ -221,6 +233,13 @@ export class LoyaltyAccountDto {
       discountRate,
     };
   }
+}
+
+export class ReverseReferralRewardResponseDto {
+  @ApiProperty({ type: LoyaltyAccountDto })
+  account!: LoyaltyAccountDto;
+  @ApiProperty({ example: 400, description: 'Reward points already spent before reversal.' })
+  uncollected!: number;
 }
 
 /**

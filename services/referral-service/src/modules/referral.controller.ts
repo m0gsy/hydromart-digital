@@ -33,6 +33,7 @@ import {
   ReferralPageQueryDto,
   ReferralRulesDto,
   ReferralSummaryDto,
+  VoidQualificationResponseDto,
 } from './dto/referral.dto';
 import { QualifyResult } from '../application/services/referral.service';
 import { QualifyResponseDto } from './dto/responses.generated.dto';
@@ -113,6 +114,17 @@ export class ReferralController {
   qualify(@Body() dto: QualifyReferralDto): Promise<QualifyResult> {
     // Reward is awarded via referral's own internal-key call to loyalty (no forwarded token).
     return this.referrals.qualify(dto.customerId, dto.orderId, '');
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/void-qualification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: VoidQualificationResponseDto })
+  async voidQualification(@Body() dto: QualifyReferralDto): Promise<VoidQualificationResponseDto> {
+    await this.referrals.reverseForVoidedOrder(dto.customerId, dto.orderId);
+    return { reversed: true };
   }
 
   @ApiOkResponse({ type: DepotReferralSummaryDto })

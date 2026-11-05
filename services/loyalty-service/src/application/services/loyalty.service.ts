@@ -351,6 +351,15 @@ export class LoyaltyService {
     }
   }
 
+  async reverseReferralReward(customerId: string, idempotencyKey: string): Promise<{ account: LoyaltyAccountRecord; uncollected: number }> {
+    const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+    if (!new RegExp(`^referral:${uuid}:(?:${uuid}:)?(?:referrer|referee)$`).test(idempotencyKey)) {
+      throw new Error('Invalid referral reward key');
+    }
+    const result = await this.repo.reverseReward(customerId, idempotencyKey);
+    return { ...result, account: await this.retier(result.account) };
+  }
+
   /**
    * LOY-10 — the loyalty ledger was outside the UU PDP erasure fan-out entirely.
    *

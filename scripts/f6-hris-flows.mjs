@@ -194,7 +194,7 @@ async function main() {
   // ── 1-3. leave ──────────────────────────────────────────────────────────────────
   // A Mon-Fri week, with a national holiday planted on the Wednesday: the holiday must
   // neither be stamped as leave nor charged to the quota.
-  const week = weekdayRun(5);
+  const week = weekdayRun(5, -45);
   const holiday = week[2];
   const holidayRes = await api('POST', '/hr/api/v1/holidays', {
     date: day(holiday),
@@ -351,21 +351,7 @@ async function main() {
 
   // Payroll for the leave month must not charge those days as absence.
   const period = day(week[0]).slice(0, 7);
-  /*
-   * CA-1-06: payroll for a month that has not ended is refused, because the summary counts
-   * absences against a FULL month of working days and every day still in the future reads
-   * as a day missed.
-   *
-   * `weekdayRun` books the leave at least 21 days ahead, so `period` is normally a month
-   * that has not happened yet — and this check then asks the server to do the one thing it
-   * now exists to refuse. That is the guard working, not a regression, so the check reports
-   * itself SKIPPED with the reason rather than red.
-   *
-   * The claim it makes (approved leave is credited, not docked as absence) is still worth
-   * proving; proving it needs a closed month with leave already in it, which this script
-   * cannot build from a freshly-created employee. Tracked as owed coverage rather than
-   * quietly dropped.
-   */
+  // CA-1-06 refuses open months; use a past week so leave and allowance reach payroll.
   const thisMonth = new Date().toISOString().slice(0, 7);
   const periodClosed = period < thisMonth;
   // The deduction only exists where a rate is configured, and most depots leave it at 0 —

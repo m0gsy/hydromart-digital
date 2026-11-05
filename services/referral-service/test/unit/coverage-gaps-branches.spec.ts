@@ -69,12 +69,12 @@ describe('ReferralService branch gaps', () => {
   });
 
   describe('qualify', () => {
-    it('is a no-op when the atomic transition loses the race (updated null)', async () => {
+    it('does not reward when qualification preparation loses the race', async () => {
       const referrer = randomUUID();
       const { code } = await service.getOrCreateMyCode(referrer);
       const referee = randomUUID();
       await service.redeem(referee, code);
-      jest.spyOn(repo, 'qualifyReferral').mockResolvedValue(null);
+      jest.spyOn(repo, 'prepareQualification').mockResolvedValue(null);
 
       const result = await service.qualify(referee, randomUUID(), 'Bearer tkn');
       expect(result.qualified).toBe(false);

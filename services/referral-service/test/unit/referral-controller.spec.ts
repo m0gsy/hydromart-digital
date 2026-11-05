@@ -46,6 +46,7 @@ function makeController() {
     getCustomerSummary: jest.fn().mockResolvedValue(summary),
     redeem: jest.fn().mockResolvedValue(referralRecord),
     qualify: jest.fn().mockResolvedValue({ qualified: true, referral: referralRecord }),
+    reverseForVoidedOrder: jest.fn().mockResolvedValue(undefined),
     depotSummary: jest.fn().mockResolvedValue(depotSummary),
   } as unknown as jest.Mocked<ReferralService>;
   // CA-3-45: the rules route reads the two point settings straight off the config.
@@ -116,5 +117,11 @@ describe('ReferralController', () => {
   it('publishes the two point settings on GET rules', () => {
     const { controller } = makeController();
     expect(controller.rules()).toEqual({ referrerPoints: 500, refereePoints: 250 });
+  });
+
+  it('delegates void reversal to the referral service', async () => {
+    const { controller, service } = makeController();
+    expect(await controller.voidQualification({ customerId: 'u2', orderId: 'ord-9' })).toEqual({ reversed: true });
+    expect(service.reverseForVoidedOrder).toHaveBeenCalledWith('u2', 'ord-9');
   });
 });

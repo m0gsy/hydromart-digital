@@ -1397,8 +1397,12 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
 
 export class FakeReferralCoordination implements ReferralCoordinationPort {
   calls: { customerId: string; orderId: string; authorization: string }[] = [];
+  reversals: { customerId: string; orderId: string }[] = [];
   async qualify(customerId: string, orderId: string, authorization: string): Promise<void> {
     this.calls.push({ customerId, orderId, authorization });
+  }
+  async reverse(customerId: string, orderId: string): Promise<void> {
+    this.reversals.push({ customerId, orderId });
   }
 }
 
@@ -1876,7 +1880,8 @@ export class InMemoryOutboxRepository implements OutboxRepository {
         r.orderId === orderId &&
         r.status === 'PENDING' &&
         r.topic !== 'PAYMENT_REVERSAL' &&
-        r.topic !== 'FRANCHISE_REVENUE_VOID',
+        r.topic !== 'FRANCHISE_REVENUE_VOID' &&
+        r.topic !== 'REFERRAL_REVERSE',
     );
     for (const row of owed) {
       row.status = 'CANCELLED';

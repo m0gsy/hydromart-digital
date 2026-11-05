@@ -6,7 +6,7 @@
  * override instead of the global rate.
  *
  * Returns the points actually awarded (0 when the order already earned or the subtotal is
- * too small), or null when the award never happened. Callers must NOT recompute the figure
+ * too small), or null when the award cannot be verified; the outbox retries null. Callers must NOT recompute the figure
  * from the subtotal: the earn rate is per-depot, so a local divisor quotes the wrong number
  * at every depot that overrode it.
  */

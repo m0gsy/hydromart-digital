@@ -196,11 +196,8 @@ export class ReferralService {
   }
 
   /**
-   * Mark the referee's PENDING referral as QUALIFIED on their first qualifying order and
-   * award both parties loyalty points (FR-092). Idempotent: no pending referral, or a
-   * lost race on the atomic transition, is a no-op. Loyalty rewards fail open — a loyalty
-   * outage never blocks qualification (rewards fire once, inside the PENDING->QUALIFIED
-   * transition, so retries do not double-award).
+   * Reward both parties before the PENDING->QUALIFIED transition. A failed reward leaves
+   * the referral pending for the order outbox to retry; stable keys prevent double grants.
    */
   async qualify(
     refereeCustomerId: string,
@@ -208,41 +205,70 @@ export class ReferralService {
     authorization: string,
   ): Promise<QualifyResult> {
     const referral = await this.repo.findReferralByReferee(refereeCustomerId);
-    if (!referral || referral.status !== ReferralStatus.PENDING) {
+    if (!referral) {
+      return { qualified: false };
+    }
+    if (referral.status !== ReferralStatus.PENDING) {
+      if (referral.qualifyingOrderId && referral.qualifyingOrderId !== orderId) {
+        const status = await this.orderHistory.statusOfOrder(referral.qualifyingOrderId);
+        if (status === null || status === 'VOIDED') {
+          // Keep the newer order's outbox row pending until the void reversal reopens it.
+          throw new Error(`Referral reversal pending for order ${referral.qualifyingOrderId}`);
+        }
+      }
       return { qualified: false };
     }
 
-    const referrerPoints = this.config.referrerPoints;
-    const refereePoints = this.config.refereePoints;
-    const updated = await this.repo.qualifyReferral(
-      referral.id,
-      orderId,
-      referrerPoints,
-      refereePoints,
+    const prepared = await this.repo.prepareQualification(
+      referral.id, orderId, this.config.referrerPoints, this.config.refereePoints,
     );
+    if (!prepared) return { qualified: false };
+    if (prepared.qualifyingOrderId !== orderId) {
+      const status = prepared.qualifyingOrderId
+        ? await this.orderHistory.statusOfOrder(prepared.qualifyingOrderId)
+        : null;
+      if (status === null || status === 'VOIDED') {
+        throw new Error(`Referral reversal pending for order ${prepared.qualifyingOrderId}`);
+      }
+    }
+    const { referrerPoints, refereePoints } = prepared;
+    if (referrerPoints > 0) {
+      await this.loyalty.reward(
+        referral.referrerCustomerId, referrerPoints, REFERRER_REASON, authorization,
+        `referral:${referral.id}:${prepared.qualifyingOrderId}:referrer`,
+      );
+    }
+    if (refereePoints > 0) {
+      await this.loyalty.reward(
+        referral.refereeCustomerId, refereePoints, REFEREE_REASON, authorization,
+        `referral:${referral.id}:${prepared.qualifyingOrderId}:referee`,
+      );
+    }
+    const updated = await this.repo.qualifyReferral(referral.id, prepared.qualifyingOrderId!);
     if (!updated) return { qualified: false };
 
-    // The transition is already committed; a reward failure must never undo it, so both
-    // rewards are fired fail-open (the port swallows outages too — belt and suspenders).
-    await this.safeReward(updated.referrerCustomerId, referrerPoints, REFERRER_REASON, authorization);
-    await this.safeReward(updated.refereeCustomerId, refereePoints, REFEREE_REASON, authorization);
-
     this.logger.log(
-      `Referral ${updated.id} qualified via order ${orderId}: +${referrerPoints}/${refereePoints} pts`,
+      `Referral ${updated.id} qualified via order ${updated.qualifyingOrderId}: +${referrerPoints}/${refereePoints} pts`,
     );
     return { qualified: true, referral: updated };
   }
 
-  private async safeReward(
-    customerId: string,
-    points: number,
-    reason: string,
-    authorization: string,
-  ): Promise<void> {
-    try {
-      await this.loyalty.reward(customerId, points, reason, authorization);
-    } catch (error) {
-      this.logger.warn(`Loyalty reward failed for customer ${customerId}: ${(error as Error).message}`);
+  /** A void can land while qualification is in flight; loyalty tombstones block late grants. */
+  async reverseForVoidedOrder(refereeCustomerId: string, orderId: string): Promise<void> {
+    const referral = await this.repo.findReferralByReferee(refereeCustomerId);
+    if (!referral) return;
+    await this.repo.markVoidedOrder(referral.id, orderId);
+    const current = await this.repo.findReferralByReferee(refereeCustomerId);
+    if (current?.qualifyingOrderId !== orderId) return;
+    for (const [customerId, side] of [
+      [referral.referrerCustomerId, 'referrer'],
+      [referral.refereeCustomerId, 'referee'],
+    ] as const) {
+      await this.loyalty.reverse(customerId, `referral:${referral.id}:${orderId}:${side}`);
+      // Grants from before order-scoped keys must also be taken back once.
+      await this.loyalty.reverse(customerId, `referral:${referral.id}:${side}`);
     }
+    await this.repo.reopenAfterVoid(referral.id, orderId);
   }
+
 }

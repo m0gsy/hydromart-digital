@@ -1567,7 +1567,7 @@ describe('the finance tab', () => {
     renderPage();
     fireEvent.change(await screen.findByLabelText('Depot'), { target: { value: 'd1' } });
     // A real loss, stated as one, and no claim that the costs were missing.
-    expect(await screen.findByText(/400.000/)).toBeTruthy();
+    expect(await screen.findByText('Rp -400.000')).toBeTruthy();
     expect(screen.queryByText('Biaya belum lengkap')).toBeNull();
   });
 

@@ -66,15 +66,16 @@ export interface ReferralRepository {
   /** Top referrers in the list by qualified-referral count (desc), capped at `limit`. */
   topReferrers(referrerIds: string[], limit?: number): Promise<TopReferrer[]>;
 
-  /**
-   * Atomically flip a referral PENDING -> QUALIFIED (only if currently PENDING), setting
-   * qualifiedAt=now, the qualifying order, and the awarded points. Returns the updated
-   * record, or null if it was not PENDING (already qualified / lost race).
-   */
-  qualifyReferral(
+  /** Freeze the first qualifying order and reward amounts while still PENDING. */
+  prepareQualification(
     referralId: string,
     qualifyingOrderId: string,
     referrerPoints: number,
     refereePoints: number,
   ): Promise<ReferralRecord | null>;
+  /** Mark a prepared referral QUALIFIED after both idempotent rewards land. */
+  qualifyReferral(referralId: string, orderId: string): Promise<ReferralRecord | null>;
+  markVoidedOrder(referralId: string, orderId: string): Promise<void>;
+  /** Clear only the qualification belonging to the voided order, after rewards are reversed. */
+  reopenAfterVoid(referralId: string, orderId: string): Promise<boolean>;
 }

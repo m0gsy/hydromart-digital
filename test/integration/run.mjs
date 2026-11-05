@@ -84,7 +84,7 @@ async function waitHealthy(timeoutMs = 180000) {
 }
 
 async function main() {
-  if (compose(['up', '-d', 'postgres'])) throw new Error('infra up failed');
+  if (compose([...COMPOSE, 'up', '-d', 'postgres'])) throw new Error('infra up failed');
   /*
    * Retry, not a fixed sleep.
    *
@@ -163,6 +163,7 @@ async function main() {
   // whose secret flow.mjs already defaults to.
   const harnessEnv = {
     ...process.env,
+    PSQL_CONTAINER: process.env.PSQL_CONTAINER ?? services.postgres?.container_name,
     JWT_ACCESS_SECRET:
       process.env.JWT_ACCESS_SECRET ?? 'itest-shared-access-secret-0123456789abcdef',
   };

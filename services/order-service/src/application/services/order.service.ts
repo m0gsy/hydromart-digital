@@ -343,6 +343,14 @@ export class OrderService {
     this.outboxService.register('GALLON_ISSUE', (id) => this.bookGallonIssue(id));
     this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
     this.outboxService.register('FRANCHISE_REVENUE_VOID', (id) => this.voidFranchiseRevenue(id));
+    this.outboxService.register('REFERRAL_REVERSE', (id) => this.reverseReferralForVoid(id));
+  }
+
+  private async reverseReferralForVoid(orderId: string): Promise<void> {
+    const order = await this.orders.findById(orderId);
+    if (order && order.customerId !== ANONYMOUS_CUSTOMER_ID) {
+      await this.referral.reverse(order.customerId, orderId);
+    }
   }
 
   /** Backs a voided counter sale out of the owner's ledger; throws so the outbox retries. */
@@ -389,9 +397,9 @@ export class OrderService {
       order.depotId,
       authorization,
     );
-    // Null = the award failed or its count is unknown: stay silent rather than promise
-    // points. The award itself is idempotent per order, so a retry cannot double-credit.
-    if (award !== null && award.points > 0) {
+    if (award === null) throw new Error(`Loyalty award unverified for order ${orderId}`);
+    // The receiver is idempotent per order, so a retry cannot double-credit.
+    if (award.points > 0) {
       await this.notification
         .notify(
           'POINTS_EARNED',
@@ -1397,6 +1405,7 @@ export class OrderService {
 
     const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now, [
       { topic: 'FRANCHISE_REVENUE_VOID', orderId },
+      { topic: 'REFERRAL_REVERSE', orderId },
     ]);
 
     /*
@@ -1465,6 +1474,7 @@ export class OrderService {
           `Penjualan konter ${order.orderNumber} dibatalkan`,
         )
         .catch(() => {});
+      await this.referral.reverse(order.customerId, orderId).catch(() => {});
     }
     return voided;
   }
@@ -2307,8 +2317,8 @@ export class OrderService {
 
   /**
    * Credits a completed order to the fulfilling depot's franchise owner (design 6a).
-   * No depot, no owner, or an unreachable depot-service → nothing is posted; completion
-   * itself is never affected.
+   * A missing depot or a known HKP depot has no franchise credit. An unavailable owner
+   * lookup or failed payout leaves the completion outbox row pending for retry.
    */
   private async postFranchiseRevenue(orderId: string, _authorization: string): Promise<void> {
     const order = await this.getAny(orderId);
@@ -2317,7 +2327,7 @@ export class OrderService {
     // outbox retry gets here: the agreement at the moment of the sale is the one being paid.
     const completedAt = order.status === OrderStatus.COMPLETED ? order.statusChangedAt : new Date();
     const ownership = await this.depotDirectory.findOwner(order.depotId, completedAt);
-    if (!ownership) return;
+    if (!ownership) throw new Error(`Depot ownership unavailable for order ${orderId}`);
     const franchiseOwnerId = ownership.ownerId;
     if (!franchiseOwnerId || ownership.owners.length === 0) {
       // An HKP depot has no owner by design; a WARALABA one without an owner means this
@@ -2326,6 +2336,7 @@ export class OrderService {
         this.logger.error(
           `Franchise depot ${order.depotId} has no owner: revenue for order ${order.orderNumber} was not booked to any ledger.`,
         );
+        throw new Error(`Franchise depot ${order.depotId} has no owner`);
       }
       return;
     }
@@ -2343,6 +2354,7 @@ export class OrderService {
       // after midnight on the last day of a month booked the sale into the wrong WIB month.
       completedAt: completedAt.toISOString(),
     });
+    if (!posted) throw new Error(`Franchise revenue unverified for order ${orderId}`);
 
     /*
      * A counter sale voided while this push was in flight: the guard at the top of the outbox

@@ -70,6 +70,7 @@ describe('LoyaltyController (delegation)', () => {
     })),
     adjust: jest.fn(async () => account()),
     reverseEarnForOrder: jest.fn(async () => account()),
+    reverseReferralReward: jest.fn(async () => ({ account: account(), uncollected: 25 })),
     reward: jest.fn(async () => account()),
     runExpiry: jest.fn(async () => ({ lotsExpired: 0, pointsExpired: 0 })),
     countMembers: jest.fn(async () => 42),
@@ -128,6 +129,12 @@ describe('LoyaltyController (delegation)', () => {
       'order-9',
       'Penjualan konter dibatalkan',
     );
+  });
+
+  it('reverseReward() maps the account and recorded shortfall', async () => {
+    const out = await ctrl.reverseReward({ customerId: 'cust-1', idempotencyKey: 'referral:key' } as never);
+    expect(loyalty.reverseReferralReward).toHaveBeenCalledWith('cust-1', 'referral:key');
+    expect(out).toMatchObject({ account: { customerId: 'cust-1' }, uncollected: 25 });
   });
 
   it('myTransactions() maps the ledger page', async () => {
