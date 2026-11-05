@@ -26,6 +26,8 @@ Aturan ini sengaja tidak melakukan backfill massal: transaksi lama tanpa kunci t
 
 ## Aturan replay satu baris `DEAD`
 
+Uji pada 2026-11-05 memakai project Docker `hydromart-audit-dead-replay` dengan database dan volume baru. Fixture `REFERRAL_REVERSE` berstatus `DEAD` tidak dapat dibuka saat order masih `COMPLETED`; sesudah order menjadi `VOIDED`, hanya satu baris berubah ke `PENDING`. Sweep internal mengubahnya menjadi `DONE`, membalik kedua hadiah, dan sweep berikutnya tidak mengulang efek. Tes ada di `test/integration/referral-dead-replay.mjs`; project dan volume tes diturunkan setelah pemeriksaan. Data stack utama tidak diubah.
+
 1. Baca baris `outbox_messages` berdasarkan ID beserta `topic`, `orderId`, `attempts`, `lastError`, dan status order. Perbaiki penyebab kegagalan penerima lebih dulu, lalu simpan bukti sebelum perubahan. Jalankan satu ID per tindakan; jangan mengubah seluruh baris `DEAD` sekaligus.
 2. Topik `INVENTORY_CONSUME`, `LOYALTY_AWARD`, `REFERRAL_QUALIFY`, `FRANCHISE_REVENUE`, dan `GALLON_ISSUE` hanya boleh diulang jika order masih `COMPLETED`. `PAYMENT_REVERSAL` hanya untuk `CANCELLED`; `FRANCHISE_REVENUE_VOID` dan `REFERRAL_REVERSE` hanya untuk `VOIDED`. Jika status berbeda, tahan untuk investigasi; jangan mengubahnya ke `PENDING`.
 3. Pastikan penerima untuk topik itu tetap idempoten terhadap order/kunci yang sama, dan periksa apakah efeknya sudah tercatat. Bila sudah, jangan kirim ulang secara manual; tutup kasus melalui prosedur koreksi yang terdokumentasi. Jika masih terutang, ubah tepat satu baris `DEAD` ke `PENDING` dengan transaksi bersyarat di bawah, lalu biarkan sweep terjadwal memanggil handler biasa.
