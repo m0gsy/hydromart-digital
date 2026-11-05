@@ -67,6 +67,8 @@ class InMemoryShifts implements CashierShiftRepository {
   }
   async close(id: string, data: CloseShiftData): Promise<CashierShift> {
     const row = this.rows.find((r) => r.id === id)!;
+    // Port contract (D1-01): compare-and-set on OPEN, like the Prisma repository.
+    if (row.status !== CashierShiftStatus.OPEN) throw new ShiftAlreadyClosedError();
     Object.assign(row, data, { status: CashierShiftStatus.CLOSED });
     return { ...row };
   }
@@ -234,6 +236,20 @@ describe('CashierShiftService', () => {
         { id: 'manager-1', canCloseAnyShift: true },
       );
       expect(closed.variance).toBe(0);
+    });
+
+    // D1-01: two simultaneous closes must post the counter cash to the book once.
+    it('posts the counter cash once when the same shift is closed twice concurrently', async () => {
+      const opened = await openShift();
+      depotCash.total = 500_000;
+      const results = await Promise.allSettled([
+        service.close(opened.id, { countedCash: 700_000 }, CASHIER),
+        service.close(opened.id, { countedCash: 700_000 }, CASHIER),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect(lost.reason).toBeInstanceOf(ShiftAlreadyClosedError);
+      expect(cashbook.entries.filter((e) => e.sourceRef === `shift:${opened.id}`)).toHaveLength(1);
     });
 
     it('rejects an unknown shift and a shift already closed', async () => {

@@ -1,7 +1,7 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { CashierShiftPrismaRepository } from '../../src/infrastructure/prisma/cashier-shift.prisma.repository';
 import { CashierShiftStatus } from '../../src/domain/cashier-shift';
-import { ShiftAlreadyOpenError } from '../../src/domain/errors';
+import { ShiftAlreadyClosedError, ShiftAlreadyOpenError } from '../../src/domain/errors';
 
 // Query shape + row mapping against a mocked Prisma delegate. No DB.
 
@@ -105,31 +105,35 @@ describe('CashierShiftPrismaRepository', () => {
     expect(list[0].status).toBe(CashierShiftStatus.CLOSED);
   });
 
-  it('stamps CLOSED alongside the counted figures', async () => {
+  describe('close — compare-and-set on status', () => {
     const closedAt = new Date('2026-08-03T09:00:00Z');
-    const update = jest
-      .fn()
-      .mockResolvedValue(
-        row({ status: 'CLOSED', closedAt, countedCash: 1, expectedCash: 1, variance: 0 }),
-      );
-    const closed = await repoWith({ update }).close('shift-1', {
-      closedAt,
-      countedCash: 1,
-      expectedCash: 1,
-      variance: 0,
-      note: null,
+    const data = { closedAt, countedCash: 1, expectedCash: 1, variance: 0, note: null };
+
+    // D1-01: the update used to be `where: { id }`, so two concurrent closes both won and
+    // the service then posted the counter cash to the cashbook twice. The status guard
+    // makes exactly one writer succeed.
+    it('stamps CLOSED only while the shift is still OPEN', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const findUniqueOrThrow = jest
+        .fn()
+        .mockResolvedValue(
+          row({ status: 'CLOSED', closedAt, countedCash: 1, expectedCash: 1, variance: 0 }),
+        );
+      const closed = await repoWith({ updateMany, findUniqueOrThrow }).close('shift-1', data);
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: 'shift-1', status: CashierShiftStatus.OPEN },
+        data: { ...data, status: CashierShiftStatus.CLOSED },
+      });
+      expect(closed.status).toBe(CashierShiftStatus.CLOSED);
     });
-    expect(update).toHaveBeenCalledWith({
-      where: { id: 'shift-1' },
-      data: {
-        closedAt,
-        countedCash: 1,
-        expectedCash: 1,
-        variance: 0,
-        note: null,
-        status: CashierShiftStatus.CLOSED,
-      },
+
+    it('throws ShiftAlreadyClosed (409) when another close got there first', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      const findUniqueOrThrow = jest.fn();
+      await expect(
+        repoWith({ updateMany, findUniqueOrThrow }).close('shift-1', data),
+      ).rejects.toBeInstanceOf(ShiftAlreadyClosedError);
+      expect(findUniqueOrThrow).not.toHaveBeenCalled();
     });
-    expect(closed.status).toBe(CashierShiftStatus.CLOSED);
   });
 });

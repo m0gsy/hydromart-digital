@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { CashierShift, CashierShiftStatus } from '../../domain/cashier-shift';
-import { ShiftAlreadyOpenError } from '../../domain/errors';
+import { ShiftAlreadyClosedError, ShiftAlreadyOpenError } from '../../domain/errors';
 import {
   CashierShiftRepository,
   CloseShiftData,
@@ -76,10 +76,15 @@ export class CashierShiftPrismaRepository implements CashierShiftRepository {
   }
 
   async close(id: string, data: CloseShiftData): Promise<CashierShift> {
-    const row = await this.prisma.cashierShift.update({
-      where: { id },
+    // D1-01: compare-and-set on status. A bare `update({ where: { id } })` let two
+    // concurrent closes both succeed, and the service posts the counter cash to the
+    // cashbook after this call — so it was posted twice. Exactly one writer sees count 1.
+    const { count } = await this.prisma.cashierShift.updateMany({
+      where: { id, status: CashierShiftStatus.OPEN },
       data: { ...data, status: CashierShiftStatus.CLOSED },
     });
+    if (count === 0) throw new ShiftAlreadyClosedError();
+    const row = await this.prisma.cashierShift.findUniqueOrThrow({ where: { id } });
     return this.toRecord(row);
   }
 }
