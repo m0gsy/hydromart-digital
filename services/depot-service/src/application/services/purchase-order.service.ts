@@ -222,6 +222,22 @@ export class PurchaseOrderService {
      * visible. An operator can see which line needs a stock line configured instead of
      * discovering it at the next opname.
      */
+    // D1-03: claim this receipt BEFORE any stock moves. The status check at the top is a
+    // read; two presses of "terima" both passed it and both booked the stock. The claim
+    // writes the advanced quantities only if no one else has since, so the loser books
+    // nothing and gets a 409. A line that then fails to book is rolled back below.
+    // ponytail: a hard crash between the claim and the loop leaves quantities advanced
+    // with no stock booked (the opname shows it); a stock-ledger transaction would close it.
+    const claimed = await this.orders.claimReceipt(
+      id,
+      po.lines,
+      lines.map((l) => l.next),
+    );
+    if (!claimed) {
+      throw new InvalidPurchaseOrderTransitionError(
+        'This purchase order was just received by someone else. Refresh and check what is still outstanding.',
+      );
+    }
     const failed = new Set<number>();
     const unbooked: UnbookedLine[] = [];
     for (const { line, arriving, index, note } of lines) {

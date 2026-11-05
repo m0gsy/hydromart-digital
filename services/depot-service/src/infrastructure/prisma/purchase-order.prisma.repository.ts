@@ -82,4 +82,16 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
     });
     return this.toRecord(row);
   }
+
+  async claimReceipt(id: string, expected: PoLine[], next: PoLine[]): Promise<boolean> {
+    const { count } = await this.prisma.purchaseOrder.updateMany({
+      where: {
+        id,
+        status: PoStatus.SENT,
+        lines: { equals: expected as unknown as Prisma.InputJsonValue },
+      },
+      data: { lines: next as unknown as Prisma.InputJsonValue },
+    });
+    return count === 1;
+  }
 }

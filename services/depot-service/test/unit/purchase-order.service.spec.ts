@@ -177,6 +177,28 @@ describe('PurchaseOrderService', () => {
     );
   });
 
+  // D1-03: two simultaneous "receive" presses both read SENT and both booked the stock.
+  it('credits stock once when the same PO is received twice concurrently', async () => {
+    const po = await draft();
+    await service.send(po.id);
+
+    const results = await Promise.allSettled([
+      service.receive(po.id, ACTOR),
+      service.receive(po.id, ACTOR),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(lost.reason).toBeInstanceOf(InvalidPurchaseOrderTransitionError);
+    expect((await inventory.get(galonItemId)).quantity).toBe(60);
+    expect((await inventory.get(segelItemId)).quantity).toBe(300);
+    expect(
+      inventoryRepo.moves.filter(
+        (m) => m.type === StockMovementType.RECEIPT && m.reason?.startsWith('PO '),
+      ),
+    ).toHaveLength(2);
+  });
+
   it('rejects an unknown PO id', async () => {
     await expect(service.get(UNKNOWN)).rejects.toBeInstanceOf(PurchaseOrderNotFoundError);
   });
