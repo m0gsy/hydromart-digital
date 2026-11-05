@@ -49,6 +49,11 @@ describe('LoyaltyRewardHttpAdapter', () => {
     );
     await expect(adapter.reverse('c1', 'referral:id:order:referrer')).rejects.toThrow('503');
   });
+  it('refuses reversal without the internal key', async () => {
+    await expect(new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' }))
+      .reverse('c1', 'referral:id:order:referrer')).rejects.toThrow('No internal service key');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('rejects when no internal key so the outbox retries', async () => {
     await expect(new LoyaltyRewardHttpAdapter(makeConfig({ internalServiceKey: '' })).reward('c1', 50, 'referral', '', 'ref-1')).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -131,6 +136,15 @@ describe('OrderHistoryHttpAdapter', () => {
     fetchMock.mockResolvedValueOnce(res({ body: { status: 'VOIDED' } }))
       .mockResolvedValueOnce(res({ body: { status: 'bogus' } }));
     expect(await adapter.statusOfOrder('o1')).toBe('VOIDED');
+    expect(await adapter.statusOfOrder('o1')).toBeNull();
+  });
+  it('fails closed when status lookup is unconfigured, rejected or unreachable', async () => {
+    expect(await new OrderHistoryHttpAdapter(makeConfig({ internalServiceKey: '' })).statusOfOrder('o1')).toBeNull();
+    expect(await new OrderHistoryHttpAdapter(makeConfig({ orderServiceUrl: '' })).statusOfOrder('o1')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 503 })).mockRejectedValueOnce(new Error('offline'));
+    const adapter = new OrderHistoryHttpAdapter(makeConfig());
+    expect(await adapter.statusOfOrder('o1')).toBeNull();
     expect(await adapter.statusOfOrder('o1')).toBeNull();
   });
   const ask = (over = {}) => new OrderHistoryHttpAdapter(makeConfig(over)).hasCompletedOrder('c1');

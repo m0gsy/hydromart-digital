@@ -181,6 +181,7 @@ describe('LoyaltyService', () => {
     await service.reverseReferralReward('cust-2', lateKey);
     await service.reward('cust-2', 250, 'late referral', lateKey);
     expect((await service.getAccount('cust-2')).pointsBalance).toBe(0);
+    await expect(service.reverseReferralReward('cust-1', 'birthday:2026')).rejects.toThrow('Invalid referral reward key');
   });
 
   it('rethrows any other failure while granting a keyed reward', async () => {

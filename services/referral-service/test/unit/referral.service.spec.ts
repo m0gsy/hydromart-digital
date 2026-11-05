@@ -187,6 +187,26 @@ describe('ReferralService', () => {
       expect(loyalty.calls).toHaveLength(0);
     });
 
+    it('does nothing when a void has no referral', async () => {
+      await service.reverseForVoidedOrder(randomUUID(), randomUUID());
+      expect(loyalty.reversals).toHaveLength(0);
+      expect(repo.voidedOrders.size).toBe(0);
+    });
+
+    it('defers an order when its prepared predecessor cannot be verified', async () => {
+      const { referee } = await seedPending();
+      const row = (await repo.findReferralByReferee(referee))!;
+      jest.spyOn(repo, 'prepareQualification').mockResolvedValue({ ...row, qualifyingOrderId: null });
+      await expect(service.qualify(referee, randomUUID(), '')).rejects.toThrow('reversal pending');
+      expect(loyalty.calls).toHaveLength(0);
+    });
+
+    it('does not report qualification when a void wins before the final update', async () => {
+      const { referee } = await seedPending();
+      jest.spyOn(repo, 'qualifyReferral').mockResolvedValue(null);
+      await expect(service.qualify(referee, randomUUID(), '')).resolves.toEqual({ qualified: false });
+    });
+
     it('qualifies without reward calls when both configured amounts are zero', async () => {
       const { referee } = await seedPending();
       service = new ReferralService(
