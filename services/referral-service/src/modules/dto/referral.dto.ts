@@ -53,6 +53,11 @@ export class DepotSummaryQueryDto {
 
 /* ---------- Responses ---------- */
 
+export class VoidQualificationResponseDto {
+  @ApiProperty({ example: true })
+  reversed!: boolean;
+}
+
 /**
  * CA-3-45 — the two numbers the /referral screen states out loud. Published so the copy
  * quotes what the server is actually paying instead of a number typed into a dictionary

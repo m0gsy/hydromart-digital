@@ -235,6 +235,13 @@ export class LoyaltyAccountDto {
   }
 }
 
+export class ReverseReferralRewardResponseDto {
+  @ApiProperty({ type: LoyaltyAccountDto })
+  account!: LoyaltyAccountDto;
+  @ApiProperty({ example: 400, description: 'Reward points already spent before reversal.' })
+  uncollected!: number;
+}
+
 /**
  * The earn response: the account plus what THIS call awarded. order-service needs the
  * number to word its "you earned N points" message; computing it there again would

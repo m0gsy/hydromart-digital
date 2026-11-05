@@ -141,6 +141,11 @@ export class CheckoutDto {
   express?: boolean;
 }
 
+export class InternalOrderStatusResponseDto {
+  @ApiProperty({ enum: OrderStatus })
+  status!: OrderStatus;
+}
+
 /** What the checkout screen may offer for delivery timing at one depot. */
 export class DeliveryOptionsResponseDto {
   @ApiProperty({ example: ['09.00-11.00', '11.00-13.00'] })

@@ -33,6 +33,7 @@ import {
   ReferralPageQueryDto,
   ReferralRulesDto,
   ReferralSummaryDto,
+  VoidQualificationResponseDto,
 } from './dto/referral.dto';
 import { QualifyResult } from '../application/services/referral.service';
 import { QualifyResponseDto } from './dto/responses.generated.dto';
@@ -120,7 +121,8 @@ export class ReferralController {
   @ApiSecurity('internal-key')
   @Post('internal/void-qualification')
   @HttpCode(HttpStatus.OK)
-  async voidQualification(@Body() dto: QualifyReferralDto): Promise<{ reversed: true }> {
+  @ApiOkResponse({ type: VoidQualificationResponseDto })
+  async voidQualification(@Body() dto: QualifyReferralDto): Promise<VoidQualificationResponseDto> {
     await this.referrals.reverseForVoidedOrder(dto.customerId, dto.orderId);
     return { reversed: true };
   }

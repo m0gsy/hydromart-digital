@@ -63,6 +63,7 @@ import {
   CreateReviewDto,
   DeliveryOptionsResponseDto,
   InternalPaymentNoticeDto,
+  InternalOrderStatusResponseDto,
   InternalRefundDto,
   ListOrdersQueryDto,
   OrderValueBatchDto,
@@ -778,7 +779,8 @@ export class OrderController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('internal/status/:id')
-  async internalStatus(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: OrderStatus }> {
+  @ApiOkResponse({ type: InternalOrderStatusResponseDto })
+  async internalStatus(@Param('id', ParseUUIDPipe) id: string): Promise<InternalOrderStatusResponseDto> {
     const order = await this.orders.getAny(id);
     return { status: order.status };
   }
