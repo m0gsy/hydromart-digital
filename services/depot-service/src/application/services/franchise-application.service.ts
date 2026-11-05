@@ -4,6 +4,7 @@ import { StaleWriteError, recordAuditEvent } from '@hydromart/platform';
 
 import {
   ApplicationAlreadyDecidedError,
+  InvalidApplicationStageError,
   DuplicateDepotCodeError,
   FranchiseApplicationNotFoundError,
 } from '../../domain/errors';
@@ -91,6 +92,9 @@ export class FranchiseApplicationService {
     const app = await this.require(id);
     // A decided application is frozen; use approve/reject for the decision itself.
     if (isTerminalStage(app.stage)) throw new ApplicationAlreadyDecidedError();
+    // F2: the decision has its own actions, which record the actor and the audit event. The
+    // DTO already refuses these; this keeps any other caller from deciding by PATCH.
+    if (patch.stage && isTerminalStage(patch.stage)) throw new InvalidApplicationStageError();
     // Merge only known items/statuses over the stored checklist (partial PATCH).
     const checklist = patch.checklist ? mergeChecklist(app.checklist, patch.checklist) : undefined;
     // Pinned to the row that was merged from: a concurrent edit or decision since then
