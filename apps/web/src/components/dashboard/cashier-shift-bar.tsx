@@ -8,6 +8,7 @@ import { useToast } from '@/components/toast';
 import { Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { parseIdr } from '@/lib/format';
 import { useAsync } from '@/lib/use-async';
 import type { CashierShift } from '@/lib/types';
 
@@ -65,7 +66,7 @@ export function CashierShiftBar({
     try {
       const created = await api.post<CashierShift>(
         endpoints.cashierShifts.open,
-        { depotId, openingFloat: Number(float.replace(/\D/g, '')) || 0 },
+        { depotId, openingFloat: parseIdr(float) },
         true,
       );
       setFloat('');
@@ -84,7 +85,7 @@ export function CashierShiftBar({
     try {
       const closed = await api.post<CashierShift>(
         endpoints.cashierShifts.close(id),
-        { countedCash: Number(counted.replace(/\D/g, '')) || 0, note: note.trim() || undefined },
+        { countedCash: parseIdr(counted), note: note.trim() || undefined },
         true,
       );
       setCounted('');

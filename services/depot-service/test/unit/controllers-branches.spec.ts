@@ -622,6 +622,21 @@ describe('GallonNetworkController', () => {
     const rows = await c.outstanding(owner);
     expect(rows).toEqual([{ depotId: DEPOT }]);
   });
+
+  // W1B-34: only FRANCHISE_OWNER was filtered; every other depot role on returnsReadFinance
+  // (kepala, manager, supervisors) got the whole network and the web filtered it for show.
+  it.each([Role.KEPALA_DEPOT, Role.MANAGER, Role.SUPERVISOR, Role.ASSISTANT_SUPERVISOR])(
+    'limits %s to the depots in their scope',
+    async (role) => {
+      const scoped = { sub: 'u1', role, depotId: DEPOT, depotIds: [DEPOT] } as unknown as AuthenticatedUser;
+      await expect(c.outstanding(scoped)).resolves.toEqual([{ depotId: DEPOT }]);
+    },
+  );
+
+  it('refuses (403), never widens to the network, for a scoped role with no depots', async () => {
+    const none = { sub: 'u1', role: Role.MANAGER, depotId: null, depotIds: [] } as unknown as AuthenticatedUser;
+    await expect(c.outstanding(none)).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });
 
 describe('GallonReturnController', () => {

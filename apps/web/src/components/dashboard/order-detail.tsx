@@ -10,7 +10,7 @@ import { Sheet } from '@/components/overlay';
 import { Badge, Button, Field, Input, LoadError, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime, mediaUrl } from '@/lib/format';
+import { formatDateTime, mediaUrl, parseIdr } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
 import { thermalErrorKey } from '@/lib/receipt-thermal';
@@ -53,12 +53,19 @@ export function PaymentSettle({ order }: { order: Order }) {
 
   async function confirm() {
     if (!payment) return;
+    // A4-03: marks money received — asked first, like "Tandai gagal" beside it.
+    const ok = await askConfirm({
+      title: t('hrFix.orderDetail.paidTitle'),
+      message: t('hrFix.orderDetail.paidMessage', { order: order.orderNumber }),
+      confirmLabel: t('hrFix.orderDetail.paidConfirm'),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     // Cash settled here (a counter sale whose payment leg failed, or a COD handed over)
     // carries the note the buyer got change from. Confirming without it left cashReceived
     // null on the row, so the printed change was recorded nowhere.
-    const received = Number(cash.replace(/\D/g, '')) || 0;
+    const received = parseIdr(cash);
     try {
       await api.post(
         endpoints.payments.confirm(payment.id),

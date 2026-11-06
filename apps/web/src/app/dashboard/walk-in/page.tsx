@@ -8,7 +8,7 @@ import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { formatIDR } from '@/lib/format';
+import { formatIDR, parseIdr } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import {
   Button,
@@ -506,7 +506,7 @@ function WalkIn({ depotId }: { depotId: string }) {
     .filter((p) => p.effect === 'ORDER')
     .map((p) => p.name)
     .join(', ');
-  const cashReceived = Number(cash.replace(/\D/g, '')) || 0;
+  const cashReceived = parseIdr(cash);
   const change = total === null ? 0 : cashReceived - total;
   // K3.6: short only once a number has actually been typed — an empty field is a cashier
   // who has not started counting, not a cashier who is short.

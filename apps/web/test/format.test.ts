@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatDate,
   formatIDR,
+  parseIdr,
   mediaUrl,
   normalizePhone,
   slugify,
@@ -111,5 +112,23 @@ describe('mediaUrl', () => {
     expect(mediaUrl(null)).toBeNull();
     expect(mediaUrl(undefined)).toBeNull();
     expect(mediaUrl('')).toBeNull();
+  });
+});
+
+// A4-01: the till parsed `replace(/\D/g, '')`, which deletes the decimal point — so
+// "200000.50" became 20000050 rupiah, a x100 error on the drawer count.
+describe('parseIdr', () => {
+  it.each([
+    ['200000', 200000],
+    ['200.000', 200000],
+    ['200,000', 200000],
+    ['Rp 1.250.000', 1250000],
+    ['200000.50', 200001],
+    ['200000,4', 200000],
+    ['1.000.000,50', 1000001],
+    ['', 0],
+    ['abc', 0],
+  ])('reads %j as %d whole rupiah', (raw, want) => {
+    expect(parseIdr(raw)).toBe(want);
   });
 });
