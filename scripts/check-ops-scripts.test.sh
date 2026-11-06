@@ -828,4 +828,16 @@ grep -q 'OBJECTS_LOG' scripts/check-backup-freshness.sh ||
   bad "check-backup-freshness.sh no longer notices when the object backup STOPS"
 ok "backup-objects: scheduled, and its silence is watched for"
 
+# --- S2A-04: every abort after the tree moved to NEW_SHA must put it back -------------------
+# deploy.sh `git reset --hard "$PREV_SHA"` on each refusal that comes AFTER the pull. The
+# pre-migration backup branch exited without it, so the tree stayed at NEW_SHA while the
+# stack served PREV_SHA, and a retry of the same SHA then read "already contained" and
+# exited 0: a green deploy that deployed nothing.
+backup_branch="$(awk '/if ! bash scripts\/backup-db\.sh; then/{f=1} f{print} f&&/^    fi/{exit}' scripts/deploy.sh)"
+[ -n "$backup_branch" ] || bad "deploy.sh: the pre-migration backup branch was not found (test is stale)"
+case "$backup_branch" in
+  *'git reset --hard "$PREV_SHA"'*) ok "deploy.sh: a failed pre-migration backup restores the tree" ;;
+  *) bad "deploy.sh: a failed pre-migration backup exits with the tree still at NEW_SHA" ;;
+esac
+
 exit "$fails"

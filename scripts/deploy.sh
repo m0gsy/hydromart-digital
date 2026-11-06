@@ -796,7 +796,10 @@ if [ -n "$MIGRATIONS" ]; then
     log "backing up databases before migrating (rollback safety net)"
     if ! bash scripts/backup-db.sh; then
       log "!! backup failed — refusing to migrate without one"
-      alert "deploy aborted: pre-migration backup failed"
+      # S2A-04: the tree is already at NEW_SHA. Without this a retry of the same SHA reads
+      # "already contained" and exits 0 having deployed nothing.
+      git reset --hard "$PREV_SHA"
+      alert "deploy aborted: pre-migration backup failed (stack still serving $PREV_SHA)"
       exit 1
     fi
     if ! MIGRATE_SKIP_BACKUP=1 bash scripts/migrate-prod.sh; then
