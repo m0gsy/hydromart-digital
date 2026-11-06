@@ -88,6 +88,19 @@ grep -q 'ask-the-box.sh' .github/workflows/registry-check.yml ||
   bad "no workflow invokes ask-the-box.sh any more — it is the only way to ask these on the box"
 ok "registry-check.yml still invokes it"
 
+# The header promises that "any run of 9+ digits is masked, because this output lands in a
+# public repository's Actions log". Three free-text columns were printed without it: the
+# sweep detail, the cancellation note (a customer types it) and changedBy. Each must reach
+# the log through the same digit mask the Docker-log lines use.
+for COL in 'left(coalesce(detail' 'coalesce(h.\"changedBy\"' 'left(coalesce(h.note'; do
+  closing="$(COL="$COL" awk 'index($0, ENVIRON["COL"]) {f=1} f && /\| sed/ {print; exit}' scripts/ask-the-box.sh)"
+  case "$closing" in
+    *'[0-9]{9,}'*) ok "free text from $COL is digit-masked before it reaches the log" ;;
+    '') bad "ask-the-box: could not find the output pipeline for $COL (test is stale)" ;;
+    *) bad "ask-the-box prints $COL unmasked into a public Actions log" ;;
+  esac
+done
+
 if [ "$fails" -gt 0 ]; then
   echo "ask-the-box.sh: $fails check(s) failed" >&2
   exit 1

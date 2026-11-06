@@ -242,7 +242,7 @@ grep -hE 'backup-env|BACKUP_ENV_CERT|\.env backup|env-20' /var/log/hydromart-bac
 echo "  scheduler sweeps that failed or were skipped (30h):"
 docker compose $COMPOSE_FILES logs --since 30h scheduler 2>&1 | grep -E 'FAILED|stale lock|dead round' | tail -8 | cut -c1-220 | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
 echo "  sweep_runs rows that are not ok:"
-q hydromart_admin "select job, host, ok, \"consecutiveFailures\", \"lastRunAt\"::text, coalesce(\"lastOkAt\"::text, 'never'), left(coalesce(detail, ''), 90) from sweep_runs where ok = false order by \"lastRunAt\" desc limit 8" | sed 's/^/    /' || true
+q hydromart_admin "select job, host, ok, \"consecutiveFailures\", \"lastRunAt\"::text, coalesce(\"lastOkAt\"::text, 'never'), left(coalesce(detail, ''), 90) from sweep_runs where ok = false order by \"lastRunAt\" desc limit 8" | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
 echo "  5xx responses per service and route, last 36h (Prometheus):"
 PROMQ='sum%20by%20(job%2Croute%2Cstatus)%20(increase(http_request_duration_seconds_count%7Bstatus%3D~%225..%22%7D%5B36h%5D))'
 docker exec "$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)" wget -qO- "http://localhost:9090/api/v1/query?query=${PROMQ}" 2>/dev/null |
@@ -448,7 +448,7 @@ if [ -n "$PG" ]; then
            max(h.\"createdAt\")::date
     from order_status_history h
     where h.status = 'CANCELLED' and h.\"createdAt\" > now() - interval '90 days'
-    group by 1 order by 2 desc" | sed 's/^/  by | count | first | last: /'
+    group by 1 order by 2 desc" | sed -E 's/[0-9]{9,}/#/g; s/^/  by | count | first | last: /'
   echo "  how long after the order was created:"
   q hydromart_order "
     select case
@@ -479,7 +479,7 @@ if [ -n "$PG" ]; then
     select left(coalesce(h.note,'(no note)'), 70), count(*)
     from order_status_history h
     where h.status = 'CANCELLED' and h.\"createdAt\" > now() - interval '90 days'
-    group by 1 order by 2 desc" | sed 's/^/    /'
+    group by 1 order by 2 desc" | sed -E 's/[0-9]{9,}/#/g; s/^/    /'
   echo "  payment method + channel of the cancelled ones:"
   q hydromart_order "
     select coalesce(o.\"paymentMethod\"::text,'?'), coalesce(o.channel::text,'?'), count(*)

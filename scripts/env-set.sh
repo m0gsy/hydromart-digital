@@ -62,7 +62,7 @@ EOF
 [ "$REFUSED" -eq 0 ] || exit 2
 
 STAMP="$(date +%Y%m%d%H%M%S)"
-cp .env ".env.bak-$STAMP"
+cp -p .env ".env.bak-$STAMP"
 echo "env-set: backed up .env -> .env.bak-$STAMP"
 
 ADDED=""
@@ -81,13 +81,18 @@ while IFS= read -r line; do
     continue
   fi
   if grep -q "^${key}=" .env; then
-    # Rewrite in place with awk rather than sed: the value may contain slashes, ampersands
-    # and backslashes, all of which sed would interpret. awk takes it as data.
-    awk -v k="$key" -v v="$value" '
-      BEGIN { done = 0 }
-      $0 ~ "^" k "=" && !done { print k "=" v; done = 1; next }
+    # Rewrite in place with awk rather than sed: the value may contain slashes and
+    # ampersands, which sed would interpret. The value goes in through ENVIRON, NOT `awk -v`:
+    # -v processes escape sequences, so a backslash-t or backslash-n in a secret was silently
+    # rewritten on every change (S2A-14).
+    K="$key" V="$value" awk '
+      BEGIN { done = 0; k = ENVIRON["K"]; v = ENVIRON["V"] }
+      index($0, k "=") == 1 && !done { print k "=" v; done = 1; next }
       { print }
-    ' .env > .env.tmp-$STAMP && mv .env.tmp-$STAMP .env
+    ' .env > .env.tmp-$STAMP &&
+      # S2A-15: the temp file takes the umask, not .env's mode, so without this every change
+      # turned a 0600 secrets file into 0644. Copy the mode the file already had.
+      chmod "$(stat -c %a .env)" .env.tmp-$STAMP && mv .env.tmp-$STAMP .env
     CHANGED="$CHANGED $key"
   else
     printf '%s\n' "$line" >> .env

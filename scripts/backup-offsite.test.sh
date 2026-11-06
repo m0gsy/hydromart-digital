@@ -255,6 +255,23 @@ case "$got" in
   *) bad "a late failure names the dump — said: $(echo "$got" | head -1)" ;;
 esac
 
+# 3.01: the dir branch replaced the alert trap with `trap 'rm -f "$tmp"' EXIT` before the
+# copy, so a `cp` that failed (full disk, dead mount) exited under set -e with NO alert, the
+# one failure this script exists to report. A cp that fails must still page.
+CPFAIL="$TMP/cpfail"
+mkdir -p "$CPFAIL"
+printf '#!/usr/bin/env bash
+exit 1
+' >"$CPFAIL/cp"
+chmod +x "$CPFAIL/cp"
+mkdir -p "$TMP/live-mount"
+got="$(alerts_from env BACKUP_OFFSITE_DEST="$TMP/live-mount" PATH="$CPFAIL:$STUB:$PATH" bash scripts/backup-offsite.sh "$DUMP")"
+case "$got" in
+  *"offsite backup of"*FAILED*) ok "a copy that fails mid-run still pages somebody" ;;
+  '') bad "a copy that fails mid-run pages nobody — the cleanup trap replaced the alert trap" ;;
+  *) bad "a copy that fails mid-run — alerted, but said: $(echo "$got" | head -1)" ;;
+esac
+
 # --help is somebody at a terminal, not a backup that failed. It exits 0, so the trap's
 # own `rc -ne 0` guard covers it — measured, because installing the trap earlier is exactly
 # the change that could have started paging on a help screen.
