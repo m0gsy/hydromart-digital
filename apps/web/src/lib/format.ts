@@ -26,6 +26,18 @@ const rupiahFractional = new Intl.NumberFormat('id-ID', {
   maximumFractionDigits: 2,
 });
 
+/**
+ * Whole rupiah from what a person typed at the till. "200.000" and "200,000" are thousands
+ * separators; a trailing 1-2 digit group ("200000.50") is a decimal and is rounded. The old
+ * `replace(/\D/g, '')` deleted the point, so "200000.50" became 20000050.
+ */
+export function parseIdr(raw: string): number {
+  const s = raw.replace(/[^\d.,]/g, '');
+  const dec = /^(.*?)[.,](\d{1,2})$/.exec(s);
+  if (dec) return Math.round(Number(`${dec[1]!.replace(/\D/g, '') || 0}.${dec[2]}`));
+  return Number(s.replace(/\D/g, '')) || 0;
+}
+
 /** Format a number of Rupiah, e.g. 20000 -> "Rp 20.000". */
 export function formatIDR(amount: number): string {
   if (!Number.isFinite(amount)) return '—';
