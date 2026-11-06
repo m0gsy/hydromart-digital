@@ -80,4 +80,27 @@ run 'K=a/b\c$d' || fail 'a value with slashes and $ was refused'
 grep -qxF 'K=a/b\c$d' .env || fail 'a value with slashes and $ was mangled (sed would do this)'
 echo 'ok: values are data, not patterns'
 
+# ---------------------------------------------------------------- S2A-14: changing a key keeps backslashes
+# The REWRITE path went through `awk -v v=...`, and awk processes escape sequences in -v, so a
+# value holding a backslash-t or backslash-n was silently altered on change (the append path
+# never was).
+printf 'A=1\nSECRET=old\n' > .env
+run 'SECRET=pa\tss\word\n' || fail 'a value with backslashes was refused on change'
+grep -qxF 'SECRET=pa\tss\word\n' .env || fail 'a CHANGED value with backslashes was mangled by awk'
+[ "$(grep -c '^SECRET=' .env)" = "1" ] || fail 'the changed backslash key was duplicated'
+echo 'ok: a changed value keeps its backslashes'
+
+# ---------------------------------------------------------------- S2A-15: the file stays private
+# `awk > .env.tmp && mv` made .env whatever the umask said (usually 0644) and the backup too.
+# The .env holds JWT secrets and the database password.
+printf 'A=1\nB=old\n' > .env
+chmod 600 .env
+rm -f .env.bak-*
+( umask 022; run 'B=new' ) || fail 'a change was refused'
+[ "$(stat -c %a .env)" = "600" ] || fail ".env mode became $(stat -c %a .env), not 600, after a change"
+for b in .env.bak-*; do
+  [ "$(stat -c %a "$b")" = "600" ] || fail "backup $b is $(stat -c %a "$b"), not 600"
+done
+echo 'ok: .env and its backups stay 0600'
+
 echo 'env-set: all checks passed'
