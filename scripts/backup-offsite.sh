@@ -103,7 +103,9 @@ esac
 # names the artefact generically and a late one names the key.
 FAIL_WHAT='the newest dump'
 alert_on_failure() {
-  trap 'rc=$?; [ "$rc" -ne 0 ] && alert "offsite backup of $FAIL_WHAT FAILED (exit $rc) — the dumps on this box are the only copies"; exit $rc' EXIT
+  # CLEANUP: a half-written temp file to remove on the way out. It rides in THIS trap — a
+  # second `trap ... EXIT` replaces the first, which is how a failed copy used to exit silent.
+  trap 'rc=$?; [ -n "${CLEANUP:-}" ] && rm -f "$CLEANUP"; [ "$rc" -ne 0 ] && alert "offsite backup of $FAIL_WHAT FAILED (exit $rc) — the dumps on this box are the only copies"; exit $rc' EXIT
 }
 alert_on_failure
 
@@ -354,10 +356,10 @@ case "$SHAPE" in
     # unmounted share) must never leave a short file wearing the real name, because the
     # next run's verify would then be comparing against a plausible-looking lie.
     tmp="$DEST/.$KEY.part.$$"
-    trap 'rm -f "$tmp"' EXIT
+    CLEANUP="$tmp"
     cp "$FILE" "$tmp"
     mv -f "$tmp" "$REMOTE"
-    alert_on_failure
+    CLEANUP=''
     ;;
   s3)
     # The existing uploader, unchanged: it already does PutObject against NEO and it is the
