@@ -43,4 +43,12 @@ export interface PurchaseOrderRepository {
   receivedTotalInRange(depotId: string, from: Date, to: Date): Promise<number>;
   findById(id: string): Promise<PurchaseOrder | null>;
   update(id: string, data: UpdatePurchaseOrderData): Promise<PurchaseOrder>;
+  /**
+   * D1-03: compare-and-set of a partial receipt. Writes `lines` only if the PO is still SENT
+   * AND its lines are still exactly `expected` — i.e. nobody received against it since it
+   * was read. Returns false when somebody did, so the caller books no stock. The check
+   * sits in the same statement as the write; a read-then-`update({ where: { id } })` is what
+   * let two simultaneous presses both credit the stock.
+   */
+  claimReceipt(id: string, expected: PoLine[], next: PoLine[]): Promise<boolean>;
 }

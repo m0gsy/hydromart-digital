@@ -7,6 +7,7 @@ import {
 } from '../../src/domain/franchise-application';
 import {
   ApplicationAlreadyDecidedError,
+  InvalidApplicationStageError,
   DuplicateDepotCodeError,
   FranchiseApplicationNotFoundError,
 } from '../../src/domain/errors';
@@ -236,6 +237,19 @@ describe('FranchiseApplicationService', () => {
   it('rejects an unknown application id', async () => {
     await expect(service.get('missing')).rejects.toBeInstanceOf(FranchiseApplicationNotFoundError);
   });
+
+  // F2 (service layer): the DTO is not the only caller — the service must not let a patch
+  // decide an application either.
+  it.each([FranchiseAppStage.APPROVED, FranchiseAppStage.REJECTED])(
+    'patch refuses to move an open application straight to %s',
+    async (stage) => {
+      const created = await service.create(APP());
+      await expect(service.patch(created.id, { stage })).rejects.toBeInstanceOf(
+        InvalidApplicationStageError,
+      );
+      expect(repo.rows[0].stage).toBe(FranchiseAppStage.PENDING);
+    },
+  );
 
   it('merges only known checklist items and ignores unknown keys', async () => {
     const created = await service.create(APP());

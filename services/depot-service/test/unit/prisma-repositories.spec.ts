@@ -2579,9 +2579,24 @@ describe('PurchaseOrderPrismaRepository', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   };
   const prisma = { purchaseOrder: model } as unknown as PrismaService;
   const repo = new PurchaseOrderPrismaRepository(prisma);
+
+  // D1-03: the receipt claim is one conditional statement — SENT and lines untouched.
+  it('claimReceipt writes only while the PO is SENT with the lines that were read', async () => {
+    const expected = [{ label: 'Galon', quantity: 10 }] as never;
+    const next = [{ label: 'Galon', quantity: 10, receivedQuantity: 10 }] as never;
+    model.updateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(repo.claimReceipt('po-1', expected, next)).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'po-1', status: 'SENT', lines: { equals: expected } },
+      data: { lines: next },
+    });
+    model.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(repo.claimReceipt('po-1', expected, next)).resolves.toBe(false);
+  });
   const row = {
     id: 'po-1',
     depotId: 'depot-1',

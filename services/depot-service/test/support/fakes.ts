@@ -58,7 +58,7 @@ import {
   SupplierRepository,
   UpdateSupplierData,
 } from '../../src/application/ports/supplier.repository';
-import { PoStatus, PurchaseOrder, receivedOf } from '../../src/domain/purchase-order';
+import { PoLine, PoStatus, PurchaseOrder, receivedOf } from '../../src/domain/purchase-order';
 import {
   CreatePurchaseOrderData,
   PurchaseOrderRepository,
@@ -805,6 +805,14 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
     const rec = this.rows.find((x) => x.id === id)!;
     Object.assign(rec, data);
     return { ...rec };
+  }
+  async claimReceipt(id: string, expected: PoLine[], next: PoLine[]): Promise<boolean> {
+    const rec = this.rows.find((x) => x.id === id);
+    // Same predicate as the Prisma repository: still SENT, lines untouched since the read.
+    if (!rec || rec.status !== PoStatus.SENT) return false;
+    if (JSON.stringify(rec.lines) !== JSON.stringify(expected)) return false;
+    rec.lines = next;
+    return true;
   }
 }
 

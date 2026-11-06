@@ -280,6 +280,15 @@ export class ApplicationAlreadyDecidedError extends DomainError {
   }
 }
 
+/** PATCH tried to set APPROVED/REJECTED — those go through the approve/reject actions. */
+export class InvalidApplicationStageError extends DomainError {
+  readonly code = 'FRANCHISE_APPLICATION_STAGE_NOT_EDITABLE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Approve or reject an application with its own action, not by editing the stage.');
+  }
+}
+
 export class IncidentNotFoundError extends DomainError {
   readonly code = 'INCIDENT_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

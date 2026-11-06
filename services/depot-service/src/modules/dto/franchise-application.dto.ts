@@ -4,6 +4,7 @@ import {
   Equals,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsLatitude,
@@ -73,7 +74,7 @@ export class DecisionReasonDto {
 export class PatchApplicationDto {
   @ApiPropertyOptional({ enum: EDITABLE_STAGES })
   @IsOptional()
-  @IsEnum(FranchiseAppStage)
+  @IsIn(EDITABLE_STAGES)
   stage?: FranchiseAppStage;
 
   @ApiPropertyOptional({
