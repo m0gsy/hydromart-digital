@@ -849,6 +849,9 @@ export const hrFix = {
     failMessage:
       'The payment for {order} will be marked FAILED. The order stays, and the customer can still pay again.',
     failConfirm: 'Mark failed',
+    paidTitle: 'Confirm this payment as paid?',
+    paidMessage: 'The payment for {order} will be marked PAID and the order proceeds.',
+    paidConfirm: 'Confirm paid',
     refundTitle: 'Raise a payment refund',
     refundMessage:
       'The money for order {order} goes back to the customer. This cannot be undone; a high-value refund waits for HQ approval first.',
