@@ -14,6 +14,7 @@ import {
   Can,
   CurrentUser,
   AuthenticatedUser,
+  depotScopeIds,
   InternalAuthGuard,
   Public,
   Role,
@@ -155,11 +156,14 @@ export class GallonNetworkController {
   async outstanding(@CurrentUser() user: AuthenticatedUser): Promise<GallonOutstandingRow[]> {
     const rows = await this.gallon.outstanding();
     // A franchise owner sees only depots they own, never the whole network (returnsRead is
-    // shared with HQ). Everyone else on the cap keeps the full network rollup.
+    // shared with HQ).
     if (user.role === Role.FRANCHISE_OWNER) {
       const owned = new Set((await this.depots.listMine(user.sub)).map((d) => d.id));
       return rows.filter((r) => owned.has(r.depotId));
     }
-    return rows;
+    // W1B-34: every other depot-scoped role (kepala, manager, supervisors) sees only the
+    // depots in its scope. Unscoped roles (HQ, finance) get `undefined` and keep the network.
+    const scope = depotScopeIds(user);
+    return scope ? rows.filter((r) => scope.includes(r.depotId)) : rows;
   }
 }
