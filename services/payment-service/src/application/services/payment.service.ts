@@ -24,6 +24,7 @@ import {
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
+  RefundSelfApprovalError,
   RefundOnCancelledOrderError,
   RefundOrderUnreadableError,
 } from '../../domain/errors';
@@ -632,6 +633,12 @@ export class PaymentService {
       throw new InvalidPaymentTransitionError(current.status, PaymentStatus.PAID);
     }
     this.logger.log(`Payment ${id} confirmed PAID by ${changedBy}`);
+    // PPA-06: confirming is what releases an order for delivery; it belongs in the trail.
+    await this.audit(changedBy, 'payment.confirmed', updated, {
+      amountIdr: updated.amount,
+      method: updated.method,
+      ...(updated.cashReceived != null ? { cashReceivedIdr: updated.cashReceived } : {}),
+    });
     // A settled payment confirms the order (CREATED→CONFIRMED). Fail-open, idempotent.
     await this.orderCoordination.confirmPaid(updated.orderId);
     return updated;
@@ -657,6 +664,8 @@ export class PaymentService {
       throw new InvalidPaymentTransitionError(current.status, PaymentStatus.FAILED);
     }
     this.logger.log(`Payment ${id} marked FAILED by ${changedBy}`);
+    // success:false, like a rejected refund: the decision happened, the payment did not.
+    await this.audit(changedBy, 'payment.rejected', failed, { amountIdr: failed.amount }, false);
     await this.orderCoordination.notifyPaymentEvent(
       failed.orderId,
       'FAILED',
@@ -877,9 +886,19 @@ export class PaymentService {
     let failed = 0;
     for (const orderId of new Set(paid.map((p) => p.orderId))) {
       const status = statuses.get(orderId);
+      // PPA-07: PAID but the order is still CREATED means the confirmation was lost (the call
+      // is fail-open and only logged). It is idempotent on the order side, so send it again.
+      if (status === 'CREATED') {
+        await this.orderCoordination.confirmPaid(orderId);
+        continue;
+      }
       if (status !== 'CANCELLED' && status !== 'VOIDED') continue;
       try {
-        await this.cancelForOrder(orderId, 'Pembayaran masuk pada pesanan yang sudah dibatalkan', 'reconciliation');
+        await this.cancelForOrder(
+          orderId,
+          'Pembayaran masuk pada pesanan yang sudah dibatalkan',
+          'reconciliation',
+        );
         reconciled += 1;
       } catch (error) {
         failed += 1;
@@ -946,7 +965,11 @@ export class PaymentService {
           refundReason: reason ?? null,
           // Shown in the HQ queue as "diajukan oleh". Information only — nothing gates on it.
           refundRequestedBy: changedBy || null,
-          refundDueAt: addWorkingDays(new Date(), REFUND_PROMISE_WORKING_DAYS, this.config.publicHolidays),
+          refundDueAt: addWorkingDays(
+            new Date(),
+            REFUND_PROMISE_WORKING_DAYS,
+            this.config.publicHolidays,
+          ),
           refundedAmount: payment.amount,
         },
         { refundApproval: payment.refundApproval },
@@ -1172,10 +1195,23 @@ export class PaymentService {
   }
 
   /** HQ approves a queued refund → it settles now (finance/super-admin). */
-  async approveRefund(id: string, changedBy: string): Promise<PaymentRecord> {
+  async approveRefund(
+    id: string,
+    changedBy: string,
+    opts: { isSuperAdmin?: boolean } = {},
+  ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     if (payment.refundApproval !== RefundApproval.PENDING) {
       throw new RefundNotPendingError();
+    }
+    // PPA-04: four-eyes. `refundRequestedBy` was recorded "information only", so whoever asked
+    // for the money back could also release it. The superuser is the owner's stated exception.
+    if (
+      payment.refundRequestedBy &&
+      payment.refundRequestedBy === changedBy &&
+      !opts.isSuperAdmin
+    ) {
+      throw new RefundSelfApprovalError();
     }
     try {
       return await this.executeRefund(

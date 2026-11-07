@@ -120,6 +120,29 @@ describe('payment notices', () => {
       expect(orders.notices).toEqual([{ orderId: row.orderId, kind: 'UNCONFIRMED', amount: 45000 }]);
     });
 
+    // PPA-07: confirmPaid is fail-open (a skipped call is only logged), so a payment could be
+    // PAID while its order sat in CREATED forever. The sweep now re-sends the confirmation,
+    // which order-service treats as idempotent.
+    it('PPA-07: re-sends the confirmation for a PAID payment whose order is still CREATED', async () => {
+      const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(row.orderId, 'CREATED');
+      orders.confirmedOrderIds.length = 0;
+
+      await service.flagUnconfirmed(new Date());
+
+      expect(orders.confirmedOrderIds).toEqual([row.orderId]);
+    });
+
+    it('PPA-07: leaves an order that is already past CREATED alone', async () => {
+      const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
+      orders.orderStatuses.set(row.orderId, 'CONFIRMED');
+      orders.confirmedOrderIds.length = 0;
+
+      await service.flagUnconfirmed(new Date());
+
+      expect(orders.confirmedOrderIds).toEqual([]);
+    });
+
     it('says it once however often the sweep runs', async () => {
       const row = await paidMinutesAgo(PaymentMethod.TRANSFER, 45);
       orders.orderStatuses.set(row.orderId, 'CREATED');
