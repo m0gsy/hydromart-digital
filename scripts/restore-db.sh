@@ -191,6 +191,12 @@ case "$MODE" in
       # Data probe. An empty database is a legitimate state for a service nobody has used
       # yet, so it is SKIPPED — never counted as a pass that proves data survived.
       big="$(live "$db" "$BIGGEST_SQL")"
+      # reltuples is 0 or -1 until autovacuum has ANALYZEd the table, e.g. a cluster that was
+      # loaded a moment ago. n_live_tup is maintained on every insert, so ask it before
+      # concluding that a database is empty (F-03 turned that gap into a failed drill).
+      if [ -z "$big" ]; then
+        big="$(live "$db" "SELECT relname FROM pg_stat_user_tables WHERE schemaname='public' AND n_live_tup > 0 ORDER BY n_live_tup DESC LIMIT 1;")"
+      fi
       if [ -z "$big" ]; then
         echo "  ➖ $db: ${lt:-0} tables, no rows live — nothing to probe"
         continue
@@ -269,6 +275,7 @@ case "$MODE" in
       # is how a second restore recovers the right ones). SAFETY_DUMP=skip is the explicit
       # escape for a cluster so damaged that pg_dumpall itself cannot finish.
       if [ "${SAFETY_DUMP:-}" != "skip" ]; then
+        mkdir -p "$BACKUP_DIR" 2>/dev/null || true
         SAFETY="$BACKUP_DIR/pre-restore-$(date +%Y%m%d-%H%M%S).sql.gz"
         echo "taking a safety dump of the current cluster first: $SAFETY"
         if ! { docker exec "$CONTAINER" pg_dumpall -U "$PG_USER" | gzip > "$SAFETY"; } || [ ! -s "$SAFETY" ]; then
