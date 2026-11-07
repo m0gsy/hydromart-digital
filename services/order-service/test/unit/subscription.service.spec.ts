@@ -215,6 +215,33 @@ describe('SubscriptionService', () => {
     expect(sub.quantity).toBe(2);
   });
 
+  it('DEP-23: the depot (internal) can pause and resume by id, with no customer ownership', async () => {
+    // Same state change the customer route makes, minus the ownership check: the caller is
+    // depot-service acting on an operator's request and holds the engine id, not a token.
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'MONTHLY',
+      firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+      address,
+    });
+    expect((await service.pauseById(sub.id)).status).toBe('PAUSED');
+    expect((await service.resumeById(sub.id, new Date())).status).toBe('ACTIVE');
+    await expect(service.pauseById('00000000-0000-0000-0000-000000000000')).rejects.toBeInstanceOf(
+      SubscriptionNotFoundError,
+    );
+    await expect(service.resumeById('00000000-0000-0000-0000-000000000000', new Date())).rejects.toBeInstanceOf(
+      SubscriptionNotFoundError,
+    );
+    // A cancelled plan is terminal for the depot too.
+    await service.cancel(customer, sub.id);
+    await expect(service.pauseById(sub.id)).rejects.toBeInstanceOf(SubscriptionNotActionableError);
+    await expect(service.resumeById(sub.id, new Date())).rejects.toBeInstanceOf(
+      SubscriptionNotActionableError,
+    );
+  });
+
   it('pauses, resumes and cancels; a cancelled sub can no longer be changed', async () => {
     const p = seedProduct();
     const sub = await service.create(customer, {

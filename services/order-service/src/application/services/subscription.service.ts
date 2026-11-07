@@ -216,6 +216,26 @@ export class SubscriptionService {
     return this.subs.resume(id, nextDeliveryOnOrAfter(sub.nextDeliveryAt, sub.frequency, now));
   }
 
+  /**
+   * DEP-23: the depot console pauses the ENGINE subscription, not just its own row. Internal
+   * only (InternalAuthGuard on the route): the caller holds the engine id and acts for an
+   * operator, so there is no customer to compare it against. Same state change as `pause`.
+   */
+  async pauseById(id: string): Promise<SubscriptionRecord> {
+    const sub = await this.subs.findById(id);
+    if (!sub) throw new SubscriptionNotFoundError();
+    if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
+    return this.subs.setStatus(id, 'PAUSED');
+  }
+
+  /** DEP-23: the internal twin of `resume`; moves the schedule forward exactly the same way. */
+  async resumeById(id: string, now: Date): Promise<SubscriptionRecord> {
+    const sub = await this.subs.findById(id);
+    if (!sub) throw new SubscriptionNotFoundError();
+    if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
+    return this.subs.resume(id, nextDeliveryOnOrAfter(sub.nextDeliveryAt, sub.frequency, now));
+  }
+
   async cancel(customerId: string, id: string): Promise<SubscriptionRecord> {
     await this.owned(customerId, id);
     return this.subs.setStatus(id, 'CANCELLED');

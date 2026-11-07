@@ -29,10 +29,19 @@ class StubEngine {
   lastInput: unknown = null;
   error: Error | null = null;
   nextId = 'eng-1';
+  calls: string[] = [];
   async create(input: unknown): Promise<string> {
     if (this.error) throw this.error;
     this.lastInput = input;
     return this.nextId;
+  }
+  async pause(engineId: string): Promise<void> {
+    if (this.error) throw this.error;
+    this.calls.push(`pause:${engineId}`);
+  }
+  async resume(engineId: string): Promise<void> {
+    if (this.error) throw this.error;
+    this.calls.push(`resume:${engineId}`);
   }
 }
 
@@ -150,6 +159,28 @@ describe('SubscriptionService', () => {
 
     const resumed = await service.resume(sub.id);
     expect(resumed.status).toBe(SubscriptionStatus.ACTIVE);
+  });
+
+  // DEP-23: pause/resume used to flip only this row. The engine kept its own status, so a
+  // plan the operator PAUSED still placed (and billed) deliveries every cycle.
+  it('DEP-23: pause and resume reach the engine, with the engine id, before the row changes', async () => {
+    const sub = await seed();
+    await service.pause(sub.id);
+    await service.resume(sub.id);
+    expect(engine.calls).toEqual(['pause:eng-1', 'resume:eng-1']);
+  });
+
+  it('DEP-23: when the engine refuses, the depot row is NOT changed (fails closed)', async () => {
+    const sub = await seed();
+    engine.error = new Error('engine down');
+    await expect(service.pause(sub.id)).rejects.toThrow('engine down');
+    expect((await service.get(sub.id)).status).toBe(SubscriptionStatus.ACTIVE);
+
+    engine.error = null;
+    await service.pause(sub.id);
+    engine.error = new Error('engine down');
+    await expect(service.resume(sub.id)).rejects.toThrow('engine down');
+    expect((await service.get(sub.id)).status).toBe(SubscriptionStatus.PAUSED);
   });
 
   /**

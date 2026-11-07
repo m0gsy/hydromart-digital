@@ -16,6 +16,8 @@ function makeService(): Mocked {
     discountRate: jest.fn().mockReturnValue(0.08),
     changeAddress: jest.fn().mockResolvedValue({ id: 's1', addressLine: 'Jl. Baru 1' }),
     erasePerson: jest.fn().mockResolvedValue({ erased: 21 }),
+    pauseById: jest.fn().mockResolvedValue({ id: 's1', status: 'PAUSED' }),
+    resumeById: jest.fn().mockResolvedValue({ id: 's1', status: 'ACTIVE' }),
   } as unknown as Mocked;
 }
 
@@ -39,6 +41,13 @@ describe('SubscriptionController', () => {
     expect(service.erasePerson).toHaveBeenCalledWith('c1');
   });
 
+
+  it('DEP-23: internal pause/resume go by engine id (no customer), resume carries "now"', async () => {
+    await expect(controller.pauseInternal('s1')).resolves.toMatchObject({ status: 'PAUSED' });
+    expect(service.pauseById).toHaveBeenCalledWith('s1');
+    await expect(controller.resumeInternal('s1')).resolves.toMatchObject({ status: 'ACTIVE' });
+    expect(service.resumeById).toHaveBeenCalledWith('s1', expect.any(Date));
+  });
 
   it('list: returns the current customer subscriptions', async () => {
     await expect(controller.list(user)).resolves.toEqual(['sub']);

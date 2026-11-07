@@ -194,6 +194,30 @@ export class SubscriptionController {
     });
   }
 
+  /** DEP-23: the depot console paused a plan; the engine must stop placing its deliveries. */
+  @ApiOkResponse({ type: SubscriptionResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/:id/pause')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Pause a subscription for a depot operator (internal)' })
+  pauseInternal(@Param('id', ParseUUIDPipe) id: string): Promise<SubscriptionRecord> {
+    return this.subscriptions.pauseById(id);
+  }
+
+  /** DEP-23: and the matching resume. */
+  @ApiOkResponse({ type: SubscriptionResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/:id/resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resume a subscription for a depot operator (internal)' })
+  resumeInternal(@Param('id', ParseUUIDPipe) id: string): Promise<SubscriptionRecord> {
+    return this.subscriptions.resumeById(id, new Date());
+  }
+
   // Ops/scheduler-triggered fulfilment sweep (internal service auth, not a JWT).
   // @Public() bypasses the global JWT guard; InternalAuthGuard is the sole auth.
   @ApiOkResponse({ type: ProcessDue2ResponseDto })
