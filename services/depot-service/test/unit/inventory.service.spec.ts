@@ -374,6 +374,20 @@ describe('InventoryService', () => {
     expect(approvalRepo.rows.filter((a) => a.title.startsWith('Stok kurang'))).toHaveLength(0);
   });
 
+  it('still reconciles the count when raising the variance approval fails (side channel)', async () => {
+    const item = await inventory.createLine(
+      depotId,
+      { ...raw(), sellPrice: 50_000 } as never,
+      ACTOR,
+    );
+    // 10 short at Rp50.000 = Rp500.000, over the auto-pass limit, so an approval is attempted.
+    jest.spyOn(approvalRepo, 'create').mockRejectedValueOnce(new Error('approvals down'));
+
+    const after = await inventory.opname(item.id, 90, 'recount', ACTOR);
+
+    expect(after.quantity).toBe(90);
+  });
+
   it('flags low stock and lists it', async () => {
     const item = await inventory.createLine(depotId, raw(), ACTOR);
     await inventory.adjust(item.id, -85, 'sales', ACTOR); // 100 -> 15, below minimum 20
