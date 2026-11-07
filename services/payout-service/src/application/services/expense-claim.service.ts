@@ -7,7 +7,12 @@ import {
   ExpenseClaimNotPendingError,
   InvalidExpenseAmountError,
 } from '../../domain/errors';
-import { ExpenseCategory, ExpenseClaimStatus, isAutoApproved } from '../../domain/expense-claim';
+import {
+  AUTO_APPROVE_MAX_PER_DAY,
+  ExpenseCategory,
+  ExpenseClaimStatus,
+  isAutoApproved,
+} from '../../domain/expense-claim';
 import { PayoutConfigService } from '../../config/payout-config.service';
 import { CourierLedgerRepository } from '../ports/courier-ledger.repository';
 import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-claim.repository';
@@ -80,11 +85,20 @@ export class ExpenseClaimService {
       },
       looksUploaded ? receiptUrl : null,
     );
-    const auto = isAutoApproved(
+    let auto = isAutoApproved(
       input.amount,
       this.config.expenseAutoApproveMaxIdr(depotId),
       looksUploaded && !receiptAlreadyUsed,
     );
+    // PPA-11: and not unboundedly many per day. The claim just made is still PENDING, so it is
+    // not part of this count.
+    if (
+      auto &&
+      (await this.claims.countAutoApprovedSince(courierId, new Date(Date.now() - 86_400_000))) >=
+        AUTO_APPROVE_MAX_PER_DAY
+    ) {
+      auto = false;
+    }
     if (!auto) return claim;
 
     return this.approveAndCredit(claim, null, 'Disetujui otomatis (di bawah ambang)');

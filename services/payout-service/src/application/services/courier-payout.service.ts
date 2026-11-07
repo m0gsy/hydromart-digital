@@ -85,13 +85,21 @@ export class CourierPayoutService {
       return existing;
     }
 
-    const rule = await this.ledger.currentRule(event.depotId);
+    const deliveredAt = new Date(event.deliveredAt);
+    // PPA-08: the rule in force WHEN THE WORK WAS DONE. `currentRule` defaults to "now", so a
+    // delivery pushed late (a retry, a backlog) was paid under whatever rule had been created
+    // by the time it arrived.
+    const rule = await this.ledger.currentRule(event.depotId, deliveredAt);
     if (!rule) {
-      this.logger.warn(`No courier earning rule for depot ${event.depotId}; skipped ${sourceRef}`);
+      // error, not warn: this earning is NOT recorded and nothing retries it (the caller is told
+      // `recorded: false`). A line that can be alerted on and backfilled from by sourceRef.
+      this.logger.error(
+        `No courier earning rule for depot ${event.depotId} at ${deliveredAt.toISOString()}; ` +
+          `earning NOT recorded for ${sourceRef} (courier ${event.courierId})`,
+      );
       return null;
     }
 
-    const deliveredAt = new Date(event.deliveredAt);
     // H-16: was `getUTCHours() + 7`, a hardcoded offset. The zone is configuration now,
     // so peak-hour pay cannot disagree with every other day boundary in the platform.
     const hour = localHour(deliveredAt, this.config.businessTimeZone);

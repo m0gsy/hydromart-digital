@@ -50,6 +50,8 @@ export interface ExpenseClaimRepository {
   attachLedgerEntry(id: string, ledgerEntryId: string): Promise<ExpenseClaimRecord>;
   /** Puts an approval whose credit failed back to PENDING, so it can be decided again. */
   reopen(id: string): Promise<void>;
+  /** PPA-11: claims this courier had auto-approved (APPROVED, no reviewer) since `since`. */
+  countAutoApprovedSince(courierId: string, since: Date): Promise<number>;
   /** PYO-1: how many claims already carry this receipt. */
   countByReceiptUrl(receiptUrl: string): Promise<number>;
   /**
