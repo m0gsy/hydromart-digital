@@ -62,9 +62,11 @@ jobs:
             #
             # So fetch just this script from main. Nothing else in the tree is touched, and
             # deploy.sh's `git reset --hard` puts it back in step on the next release.
-            # Normally main; the dispatched ref when someone is testing a probe change before
-            # merging it. Either way it is ONE fetch of named read-only scripts, and
-            # deploy.sh's `git reset --hard` puts the tree back on the next release.
+            # Always main (F5): this runs over SSH on the production box, so the scripts it
+            # executes must be ones that passed review and CI. Testing a probe change before
+            # merging it is done on a branch's own CI, not by pointing production at it.
+            # It is ONE fetch of named read-only scripts, and deploy.sh's `git reset --hard`
+            # puts the tree back on the next release.
             git fetch --quiet origin "${PROBE_REF:-main}"
             git checkout FETCH_HEAD -- scripts/check-registry-pull.sh scripts/lib/deploy-common.sh scripts/ask-the-box.sh scripts/go-live-report.sh scripts/lib/zenziva-balance.cjs
             case "${PROBE_MODE:-pull}" in
@@ -77,4 +79,4 @@ jobs:
           IMAGE_TAG: ${{ github.event.inputs.image_tag }}
           PROBE_SERVICE: ${{ github.event.inputs.service }}
           PROBE_MODE: ${{ github.event.inputs.mode }}
-          PROBE_REF: ${{ github.ref_name }}
+          PROBE_REF: main

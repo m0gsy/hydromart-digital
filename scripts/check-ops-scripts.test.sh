@@ -840,4 +840,56 @@ case "$backup_branch" in
   *) bad "deploy.sh: a failed pre-migration backup exits with the tree still at NEW_SHA" ;;
 esac
 
+# --- S2A-26: deploy-path alerts must reach the webhook ---------------------------------------
+# Measured on the box 2026-11-06: ALERT_WEBHOOK_URL is in .env but absent from the SSH session
+# that runs deploy.sh / rollback.sh / rebuild-stale.sh, so alert() returned at its first line
+# and every deploy-time alert was a no-op. Asserted by RUNNING alert() with no variable in the
+# environment and a .env beside it, against a curl stub that records the URL it was given.
+A_DIR="$(mktemp -d)"
+mkdir -p "$A_DIR/bin"
+printf '#!/bin/sh
+for a; do last="$a"; done
+echo "$last" >> "%s/hits"
+' "$A_DIR" >"$A_DIR/bin/curl"
+chmod +x "$A_DIR/bin/curl"
+printf 'ALERT_WEBHOOK_URL=http://alert.invalid/hook
+OTHER=1
+' >"$A_DIR/.env"
+(cd "$A_DIR" && env -u ALERT_WEBHOOK_URL PATH="$A_DIR/bin:$PATH" bash -c ". '$REPO/scripts/lib/deploy-common.sh' >/dev/null 2>&1; alert probe") || true
+if grep -q 'alert.invalid/hook' "$A_DIR/hits" 2>/dev/null; then
+  ok "alert() reads ALERT_WEBHOOK_URL from .env when the session did not export it"
+else
+  bad "alert() is a no-op when ALERT_WEBHOOK_URL is only in .env (deploy.sh, rollback.sh, rebuild-stale.sh never alert)"
+fi
+rm -rf "$A_DIR"
+
+# --- S2A-36: needs_full_rebuild must not depend on a pipe -----------------------------------
+# `echo "$1" | grep -q` : grep exits on the first match, echo takes SIGPIPE, and under
+# pipefail the function returns 141 on a large diff, which reads as "no full rebuild".
+BIG="$(printf 'packages/x/%d.ts
+' $(seq 1 60000))"
+if (set -o pipefail; . scripts/lib/deploy-common.sh >/dev/null 2>&1; needs_full_rebuild "$BIG"); then
+  ok "needs_full_rebuild answers correctly on a 60000-line diff under pipefail"
+else
+  bad "needs_full_rebuild returns non-zero on a large diff under pipefail (SIGPIPE from echo)"
+fi
+
+# --- F-26/F-27: rollback must resolve the SHA, pull BEFORE it resets, and survive its own reset --
+rb="$(cat scripts/rollback.sh)"
+case "$rb" in
+  *'TARGET="$(git rev-parse --verify --quiet "$TARGET^{commit}")"'*) ok "rollback.sh: the target is expanded to a full SHA before it becomes an image tag" ;;
+  *) bad "rollback.sh: a short SHA or ref would be used as the image tag" ;;
+esac
+pull_line="$(grep -n 'pull_images "\$TARGET"' scripts/rollback.sh | head -1 | cut -d: -f1)"
+reset_line="$(grep -n 'git reset --hard "\$TARGET"' scripts/rollback.sh | head -1 | cut -d: -f1)"
+if [ -n "$pull_line" ] && [ -n "$reset_line" ] && [ "$pull_line" -lt "$reset_line" ]; then
+  ok "rollback.sh: images are pulled before the tree moves"
+else
+  bad "rollback.sh: git reset --hard runs before the image pull, so a failed pull leaves the tree moved (pull line '${pull_line:-none}', reset line '${reset_line:-none}')"
+fi
+case "$rb" in
+  *'main "$@"'*) ok "rollback.sh: body is wrapped so bash never reads a file git is rewriting" ;;
+  *) bad "rollback.sh: runs git reset --hard on itself while bash is still reading it" ;;
+esac
+
 exit "$fails"

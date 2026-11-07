@@ -125,7 +125,9 @@ svc_of() {
 # a dependency upgrade used to deploy as "no service code changed".
 # Takes the newline-separated `git diff --name-only` output.
 needs_full_rebuild() {
-  echo "$1" | grep -qE '^(packages/|package\.json$|package-lock\.json$|tsconfig\.base\.json$)'
+  # Here-string, not a pipe: `grep -q` exits on the first match, echo then takes SIGPIPE, and
+  # under pipefail a large diff made this return 141, which reads as "no full rebuild".
+  grep -qE '^(packages/|package\.json$|package-lock\.json$|tsconfig\.base\.json$)' <<<"$1"
 }
 
 # B-20: migration directories introduced by the incoming diff, one per line, empty if
@@ -438,6 +440,12 @@ storage_buckets() {
 # Fire-and-forget ops ping, same webhook the services use. No-op when unset.
 alert() {
   local url="${ALERT_WEBHOOK_URL:-}" text
+  # The SSH session that runs deploy.sh / rollback.sh / rebuild-stale.sh does not export the
+  # variable even though .env sets it (measured on the box 2026-11-06), so every deploy-time
+  # alert was a no-op. Read it from .env — as data, never by sourcing the file.
+  if [ -z "$url" ] && [ -f .env ]; then
+    url="$(tr -d '\r' < .env | sed -n 's/^ALERT_WEBHOOK_URL=//p' | tail -1 | sed -e 's/^["'\'']//' -e 's/["'\'']$//')"
+  fi
   [ -z "$url" ] && return 0
   text="🚨 Hydromart on $(hostname 2>/dev/null || echo host): $1"
   curl -fsS -m 10 -X POST -H 'content-type: application/json' \
