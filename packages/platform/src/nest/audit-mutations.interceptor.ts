@@ -25,7 +25,13 @@ export interface AuditMutationSink {
 export const AUDIT_MUTATION_SINK = 'AUDIT_MUTATION_SINK';
 
 /** Body/param names whose VALUE must never reach the trail, matched case-insensitively. */
-const SECRET_KEY = /secret|token|password|apikey|api_key|signature|otp|pin/i;
+const SECRET_WORDS = /secret|token|password|apikey|api_key|signature/i;
+/** `pin` and `otp` only as a WORD: `pin`, `new_pin`, `OTP`, not the middle of `shippingFee`. */
+const SECRET_SHORT = /(^|[^a-z])(otp|pin)([^a-z]|$)/i;
+/** camelCase: `userPin`, `otpCode`; case-sensitive so `shippingFee` / `Pinned` do not match. */
+const SECRET_CAMEL = /[a-z](Otp|Pin)(?![a-z])|^(otp|pin)(?=[A-Z])/;
+const isSecretKey = (k: string): boolean =>
+  SECRET_WORDS.test(k) || SECRET_SHORT.test(k) || SECRET_CAMEL.test(k);
 
 /** A path segment that identifies a row rather than naming a route. */
 function isIdSegment(s: string): boolean {
@@ -77,7 +83,7 @@ export function redactBody(body: unknown): Record<string, unknown> | undefined {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
-    if (SECRET_KEY.test(k)) {
+    if (isSecretKey(k)) {
       out[k] = '[redacted]';
     } else if (v && typeof v === 'object') {
       // One level is enough to say what changed without copying a payload into the trail.

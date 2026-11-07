@@ -34,6 +34,10 @@ env:
   ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
   HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
 
+# AUT-016: read-only by default; a job that needs more declares it on the job.
+permissions:
+  contents: read
+
 jobs:
   # Audit CI-2: the two Docker jobs build ~18 images and boot the whole stack. For a diff
   # that cannot touch any of it — a README, a doc, the audit register — that is twenty
@@ -134,6 +138,11 @@ jobs:
       # — no network. New unreviewed highs block the PR (T4 dep-vuln gate).
       - name: Dependency vulnerability gate
         run: npm run audit:ci
+
+      # AUT-021: mobile/ is outside the workspaces, so the step above never looked at it. The
+      # shell that ships to phones had a critical Capacitor advisory (GHSA-rvm3-566m-v7fv) unseen.
+      - name: Dependency vulnerability gate (mobile)
+        run: node scripts/audit-gate.mjs mobile
 
       # Static schema validation — no database required.
       - name: Validate Prisma schemas
@@ -1105,7 +1114,7 @@ jobs:
       # points every build at a GitHub Actions cache; COMPOSE_BAKE routes the build through
       # buildx, which is what honours those keys. Layers are shared with `e2e` and with
       # earlier runs, so only what actually changed rebuilds.
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
       # so the runner, the Dockerfiles and a developer's shell all agree on one
@@ -1237,7 +1246,7 @@ jobs:
         timeout-minutes: 15
         run: npm ci
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       # Audit CI-5: apps/web/Dockerfile was never built anywhere in CI — the e2e job runs
       # `next start` from the source tree instead, so a broken web image only surfaced on

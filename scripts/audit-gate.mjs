@@ -106,6 +106,9 @@ function audit() {
     // (the one thing the resulting DEP0190 warning cautions about). CI is Linux
     // (plain `npm`, no shell, no warning).
     return execFileSync('npm', ['audit', '--omit=dev', '--json'], {
+      // AUT-021: `node scripts/audit-gate.mjs mobile` audits mobile/'s own lockfile (it sits
+      // outside the npm workspaces, so the root audit never saw it).
+      cwd: process.argv[2] || undefined,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
       shell: process.platform === 'win32',

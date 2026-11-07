@@ -11,7 +11,7 @@
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "10.0.0",
     "@aparajita/capacitor-secure-storage": "8.0.0",
-    "@capacitor/android": "8.5.0",
+    "@capacitor/android": "8.5.1",
     "@capacitor/app": "8.1.1",
     "@capacitor/browser": "8.0.4",
     "@capacitor/core": "8.5.0",
@@ -30,5 +30,8 @@
   "devDependencies": {
     "@capacitor/cli": "8.5.0",
     "typescript": "^5.6.3"
+  },
+  "overrides": {
+    "@capacitor/ios": "8.5.1"
   }
 }

@@ -85,6 +85,10 @@ concurrency:
   group: mobile-release-${{ github.ref }}
   cancel-in-progress: false
 
+# AUT-016: read-only by default; a job that needs more declares it on the job.
+permissions:
+  contents: read
+
 jobs:
   # Does the Android project actually build?
   #

@@ -56,6 +56,12 @@ for (const file of readdirSync(DIR).filter((f) => /\.ya?ml$/.test(f))) {
     problems.push(`${path}: has no \`on\` trigger`);
   }
 
+  // AUT-016: without a top-level `permissions:` the GITHUB_TOKEN gets the repository default,
+  // which on many repos is read+WRITE on everything. A job that needs more declares it itself.
+  if (!doc.permissions) {
+    problems.push(`${path}: no top-level \`permissions:\` - the token defaults to the repo setting (add \`contents: read\`)`);
+  }
+
   /*
    * Every job declares a time limit.
    *
