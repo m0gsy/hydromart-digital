@@ -44,7 +44,18 @@ const flag = (name, fallback = null) => {
   return value;
 };
 const loginPhone = flag('--login');
+const explicitOtp = argv.includes('--otp');
 const loginOtp = flag('--otp', '424242');
+// Items 1b/6/9 create real business records (a proof of delivery, a cash entry). The default
+// OTP is the dev sink's, which only a local stack accepts. Passing --otp means a real code for
+// a real account, i.e. a real system, and that needs a deliberate yes.
+if (explicitOtp && process.env.APK_CHECK_ALLOW_PROD !== '1') {
+  console.error(
+    'refusing: --otp means a real account, and this run creates proof-of-delivery and cash records.\n' +
+      'Set APK_CHECK_ALLOW_PROD=1 if that is what you intend.',
+  );
+  process.exit(2);
+}
 const only = (flag('--items') ?? '').split(',').filter(Boolean);
 const appId = argv[0];
 if (!appId) {
