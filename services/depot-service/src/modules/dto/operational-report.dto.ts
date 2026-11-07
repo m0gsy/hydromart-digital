@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsISO8601, IsUUID } from 'class-validator';
 
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+
 export class OperationalCostQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot to report on.' })
   @IsUUID()
@@ -12,5 +14,7 @@ export class OperationalCostQueryDto {
 
   @ApiProperty({ description: 'Exclusive range end (ISO 8601).' })
   @IsISO8601()
+  @IsNotBefore('from')
+  @IsWithinDays('from')
   to!: string;
 }
