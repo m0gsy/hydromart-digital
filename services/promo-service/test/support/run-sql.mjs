@@ -14,7 +14,9 @@ import { PGlite } from '@electric-sql/pglite';
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const db = new PGlite();
 
-for (const dir of readdirSync(input.migrations).filter((d) => /^\d{4}_/.test(d)).sort()) {
+// \d{4,}: the timestamped migrations (20260923150000_...) are migrations too. The old \d{4}
+// matched only 0001-style names, so this ran on a schema missing everything added since.
+for (const dir of readdirSync(input.migrations).filter((d) => /^\d{4,}_/.test(d)).sort()) {
   await db.exec(readFileSync(join(input.migrations, dir, 'migration.sql'), 'utf8'));
 }
 for (const s of input.seed) await db.query(s.text, s.values);
