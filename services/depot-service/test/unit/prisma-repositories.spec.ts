@@ -2528,6 +2528,13 @@ describe('PriceOverrideProposalPrismaRepository', () => {
       where: { id: 'po-1', status: 'PENDING' },
       data: {},
     });
+    // each optional field is written only when given
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await claimRepo.claimPending('po-1', { decisionReason: 'no' });
+    expect(updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'po-1', status: 'PENDING' },
+      data: { decisionReason: 'no' },
+    });
   });
 
   it('updates only provided fields (status + decidedBy)', async () => {

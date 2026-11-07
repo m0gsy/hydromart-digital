@@ -49,6 +49,37 @@ describe('DepotCostsService', () => {
     expect(cashbook.listForDepot).toHaveBeenCalledWith(DEPOT, { from: FROM, to: TO });
   });
 
+  // DEP-21: a correction (CA-2-22) is a SECOND cashbook row with reversesId set. Reversing an
+  // expense posts an IN, which opex ignored, so a cancelled expense stayed in the cost forever;
+  // reversing takings posts an OUT, which opex counted as if it were a cost.
+  it('nets a reversed expense out of operating cost, and ignores a reversed takings line', async () => {
+    const { service } = build(0, [
+      entry({ id: 'e1', category: 'SEWA', amountIdr: 1_500_000 }),
+      // The SEWA entry was posted by mistake and cancelled: an IN of the same size.
+      entry({
+        id: 'e2',
+        category: 'SEWA',
+        direction: CashDirection.IN,
+        amountIdr: 1_500_000,
+        reversesId: 'e1',
+      }),
+      entry({ id: 'e3', category: 'LISTRIK', amountIdr: 400_000 }),
+      // Takings that were posted twice and corrected: an OUT reversing an IN. Not a cost.
+      entry({
+        id: 'e4',
+        category: 'KONTER',
+        direction: CashDirection.OUT,
+        amountIdr: 900_000,
+        reversesId: 'e0',
+      }),
+    ]);
+
+    await expect(service.costsInRange(DEPOT, FROM, TO)).resolves.toEqual({
+      cogsIdr: 0,
+      opexIdr: 400_000,
+    });
+  });
+
   /*
    * The whole reason the two figures are separated. A depot that raises a PO in the system
    * AND writes "bayar supplier" in its cash book would be charged for the same water twice —
