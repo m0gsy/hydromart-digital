@@ -309,6 +309,19 @@ describe('OrderSubscriptionHttpAdapter pause/resume (DEP-23)', () => {
     );
   });
 
+  it('falls back to the status code when the engine sends no JSON message', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error('not json');
+      },
+    });
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).resume('eng-9')).rejects.toThrow(
+      /responded 502/,
+    );
+  });
+
   it('refuses when the integration is not configured', async () => {
     await expect(
       new OrderSubscriptionHttpAdapter(makeConfig({ orderServiceUrl: '' })).pause('eng-9'),

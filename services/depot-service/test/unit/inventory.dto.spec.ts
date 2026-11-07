@@ -58,6 +58,12 @@ describe('inventory write/query DTO transforms', () => {
     expect(off.lowStockOnly).toBe(false);
     const absent = plainToInstance(ListInventoryQueryDto, {});
     expect(absent.lowStockOnly).toBeUndefined();
+    // Real booleans (a JSON body or an already-parsed query) pass through unchanged...
+    expect(plainToInstance(ListInventoryQueryDto, { lowStockOnly: true }).lowStockOnly).toBe(true);
+    expect(plainToInstance(ListInventoryQueryDto, { lowStockOnly: false }).lowStockOnly).toBe(false);
+    // ...and anything else is left alone so @IsBoolean rejects it instead of guessing.
+    const junk = plainToInstance(ListInventoryQueryDto, { lowStockOnly: 'maybe' });
+    expect((await validate(junk)).map((e) => e.property)).toContain('lowStockOnly');
   });
 
   it('coerces create quantity/minimumStock/sellPrice to numbers', async () => {
