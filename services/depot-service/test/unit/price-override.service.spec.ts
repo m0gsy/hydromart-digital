@@ -64,6 +64,12 @@ class InMemoryProposalRepository implements PriceOverrideProposalRepository {
     if (patch.decisionReason !== undefined) row.decisionReason = patch.decisionReason;
     return row;
   }
+  /** Compare-and-set on PENDING, like the Prisma `updateMany({ where: { id, status } })`. */
+  async claimPending(id: string, patch: UpdatePriceOverrideProposalData) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== PriceOverrideStatus.PENDING) return null;
+    return this.update(id, patch);
+  }
 }
 
 // Only findById is exercised; the rest throw if reached.
@@ -121,6 +127,33 @@ describe('PriceOverrideService', () => {
   // that a log line WAS the trail, because depot-service has no audit store. It has one
   // now (auth-service's, over the internal ingest route), and all three outcomes land in
   // it: approved, rejected, and a blocked self-approval.
+  // D1-04: approve read PENDING, created the pricing rule, THEN wrote the status, so two
+  // concurrent approvals each created a rule. The decision is claimed first now.
+  it('creates ONE pricing rule when two approvals race for the same proposal', async () => {
+    const svc = service();
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+
+    const results = await Promise.allSettled([
+      svc.approve(created.id, 'hq-1'),
+      svc.approve(created.id, 'hq-2'),
+    ]);
+
+    expect(pricingCreate).toHaveBeenCalledTimes(1);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  });
+
+  it('hands the claim back when applying the pricing rule fails, so it can be retried', async () => {
+    const svc = service();
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+    pricingCreate.mockRejectedValueOnce(new Error('pricing down'));
+
+    await expect(svc.approve(created.id, 'hq-1')).rejects.toThrow('pricing down');
+    expect((await svc.get(created.id)).status).toBe(PriceOverrideStatus.PENDING);
+
+    await svc.approve(created.id, 'hq-1');
+    expect((await svc.get(created.id)).status).toBe(PriceOverrideStatus.APPROVED);
+  });
+
   it('persists the rejection reason on the proposal row, trimmed and bounded', async () => {
     const svc = service();
     const created = await svc.propose('d1', 'mgr-1', PROPOSE);

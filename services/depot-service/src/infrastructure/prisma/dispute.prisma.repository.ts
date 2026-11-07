@@ -103,4 +103,13 @@ export class DisputePrismaRepository implements DisputeRepository {
     const row = await this.prisma.orderDispute.update({ where: { id }, data });
     return this.toRecord(row);
   }
+
+  async claimOpen(id: string, data: UpdateDisputeData): Promise<OrderDispute | null> {
+    const { count } = await this.prisma.orderDispute.updateMany({
+      where: { id, status: DisputeStatus.OPEN },
+      data,
+    });
+    if (count === 0) return null;
+    return this.findById(id);
+  }
 }

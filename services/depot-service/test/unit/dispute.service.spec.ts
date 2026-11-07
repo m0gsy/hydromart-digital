@@ -73,6 +73,13 @@ class InMemoryDisputeRepository implements DisputeRepository {
     Object.assign(rec, data, { updatedAt: this.next() });
     return { ...rec };
   }
+  /** Compare-and-set, like the Prisma `updateMany({ where: { id, status: OPEN } })`. */
+  async claimOpen(id: string, data: UpdateDisputeData): Promise<OrderDispute | null> {
+    const rec = this.rows.find((x) => x.id === id);
+    if (!rec || rec.status !== DisputeStatus.OPEN) return null;
+    Object.assign(rec, data, { updatedAt: this.next() });
+    return { ...rec };
+  }
 }
 
 const RAISER = '11111111-1111-1111-1111-111111111111';
@@ -266,6 +273,27 @@ describe('DisputeService REFUND queues the money (CA-2-39)', () => {
     expect(refunds.calls).toEqual([
       { orderRef: 'HM-260902-001', reason: 'galon bocor', authorization: 'Bearer t' },
     ]);
+  });
+
+  // D1-02 / DEP-26: read-then-write let two managers (or a double click) both see OPEN, both
+  // queue a refund, and both write. The status is now CLAIMED atomically before any money
+  // moves, so exactly one of two concurrent resolves proceeds.
+  it('queues ONE refund when two resolves race for the same dispute', async () => {
+    const depotRepo = new InMemoryDepotRepository();
+    const refunds = new FakeDisputeRefund();
+    const svc = new DisputeService(new InMemoryDisputeRepository(), depotRepo, refunds);
+    const depot = await seedDepot(depotRepo);
+    const d = await raise(svc, depot);
+
+    const results = await Promise.allSettled([
+      svc.resolve(d.id, DisputeResolution.REFUND, null, MANAGER, 'Bearer a'),
+      svc.resolve(d.id, DisputeResolution.REFUND, null, MANAGER, 'Bearer b'),
+    ]);
+
+    expect(refunds.calls).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(lost.reason).toBeInstanceOf(DisputeAlreadyResolvedError);
   });
 
   /*

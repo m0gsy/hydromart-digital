@@ -47,4 +47,10 @@ export interface DisputeRepository {
   listForDepot(depotId: string, status?: DisputeStatus): Promise<OrderDispute[]>;
   findById(id: string): Promise<OrderDispute | null>;
   update(id: string, data: UpdateDisputeData): Promise<OrderDispute>;
+  /**
+   * Compare-and-set: apply `data` only while the dispute is still OPEN, and say whether this
+   * call won. A read followed by `update` lets two concurrent decisions both pass the OPEN
+   * check (D1-02); this is the check and the write as ONE statement.
+   */
+  claimOpen(id: string, data: UpdateDisputeData): Promise<OrderDispute | null>;
 }

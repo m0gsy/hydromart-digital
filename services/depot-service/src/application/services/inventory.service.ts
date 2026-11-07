@@ -699,7 +699,11 @@ export class InventoryService {
         continue;
       }
       // Already deducted for this order (retry) — report consumed, don't deduct again.
+      // DEP-03: but DO finish the reservation. The SALE and the settlement are two writes; a
+      // crash between them left the hold ACTIVE, and skipping it here kept those units
+      // "reserved" for good. Settling is idempotent (it only acts on an ACTIVE hold).
       if (alreadyConsumed.has(line.id)) {
+        await this.inventory.consumeReservation(line.id, orderId);
         consumed.push(productId);
         continue;
       }
