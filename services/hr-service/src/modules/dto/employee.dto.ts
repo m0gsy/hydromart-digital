@@ -118,9 +118,9 @@ export class CreateEmployeeDto {
   @MaxLength(32)
   emergencyPhone?: string;
 
-  @IsOptional()
-  @IsUUID()
-  authSubjectId?: string;
+  // HR-27: no `authSubjectId` here. It used to be a public field, so an HR user could link a
+  // new employee to ANY login account. The link is minted server-side (provisionFor on create,
+  // ProvisionEmployeeDto over the internal key) and never accepted from a form.
 
   @IsOptional()
   @IsString()
@@ -200,10 +200,7 @@ export class CreateEmployeeDto {
  * `authSubjectId` is REQUIRED here and is the idempotency key: inviting the same phone
  * again is a promotion, never a second employee.
  */
-export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, [
-  'authSubjectId',
-  'role',
-] as const) {
+export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, ['role'] as const) {
   @IsUUID()
   authSubjectId!: string;
 
@@ -280,10 +277,7 @@ export class SetEmployeeDepotDto {
 
 /** One CSV row: the create fields plus the login role to provision, minus authSubjectId
  * (the import gets that back from auth-service, it is never supplied by the file). */
-export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, [
-  'authSubjectId',
-  'role',
-] as const) {
+export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, ['role'] as const) {
   /** Narrower than the form's `HR_MANAGED_ROLES`: a spreadsheet may only mint depot staff. */
   @IsIn(STAFF_IMPORT_ROLES as readonly string[])
   role!: StaffImportRole;
