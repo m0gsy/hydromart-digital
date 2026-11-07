@@ -513,6 +513,11 @@ const enableVersioning = async (client, bucket) => {
  * silence — a dry run reports whether the rules are actually there.
  */
 const ensureRetention = async (client, bucket, prefixes, days, idPrefix, retire = []) => {
+  // This is the one place the nightly copy WRITES to a live bucket's lifecycle config (a merge
+  // keyed by rule ID, never a replace). It is intended, but it is a mutation of the source of
+  // truth made by a backup job, so it can be switched off: BACKUP_APPLY_LIFECYCLE=0 reports
+  // the rules as managed elsewhere and leaves the bucket exactly as it is.
+  if (process.env.BACKUP_APPLY_LIFECYCLE === '0') return 'skipped (BACKUP_APPLY_LIFECYCLE=0)';
   try {
     return await applyRules(client, bucket, evidenceRules({ prefixes, days, idPrefix }), {
       retire,

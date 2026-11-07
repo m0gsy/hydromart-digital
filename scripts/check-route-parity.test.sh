@@ -16,12 +16,18 @@ set -uo pipefail
 set +e
 cd "$(dirname "$0")/.."
 
+# S1B-50: every mutation below lands in a COPY of the tracked tree. This used to edit the real
+# controller and the real baseline and undo it from a trap, so a kill -9 between the two left
+# production source changed. Now there is nothing to undo: the copy is deleted.
 WORK="$(mktemp -d)"
-VICTIM=services/loyalty-service/src/modules/reward.controller.ts
-BASELINE=scripts/route-parity-baseline.json
+TREE="$WORK/tree"
+mkdir -p "$TREE"
+git ls-files -z | tar --null -T - -cf - 2>/dev/null | tar -xf - -C "$TREE"
+VICTIM="$TREE/services/loyalty-service/src/modules/reward.controller.ts"
+BASELINE="$TREE/scripts/route-parity-baseline.json"
 cp "$VICTIM" "$WORK/victim.orig"
 cp "$BASELINE" "$WORK/baseline.orig"
-trap 'cp "$WORK/victim.orig" "$VICTIM"; cp "$WORK/baseline.orig" "$BASELINE"; rm -rf "$WORK"' EXIT
+trap 'rm -rf "$WORK"' EXIT
 
 fails=0
 ok() { echo "  ok   $1"; }
@@ -31,7 +37,7 @@ bad() {
 }
 run_check() {
   set +e
-  OUT="$(node scripts/check-route-parity.mjs 2>&1)"
+  OUT="$(cd "$TREE" && node scripts/check-route-parity.mjs 2>&1)"
   RC=$?
   set -e
 }
