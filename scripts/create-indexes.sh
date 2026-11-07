@@ -174,7 +174,11 @@ table_absent() {
   _ta_table="$(printf '%s' "$2" | sed -n 's/.* ON "\([^"]*\)".*/\1/p')"
   [ -n "$_ta_table" ] || return 1
   _ta_found="$(psql_do "$_ta_db" "SELECT 1 FROM information_schema.tables WHERE table_name='$_ta_table';" | tr -d '[:space:]')"
-  [ "$_ta_found" != "1" ]
+  # Absent means psql ANSWERED and found no row. An error (dead server, bad credentials,
+  # a timeout) also comes back as non-"1" text; reading that as "absent" skipped every
+  # index and exited 0. Anything but an empty answer is "not known to be absent", so the
+  # build is attempted and its own failure is what the run reports.
+  [ -z "$_ta_found" ]
 }
 
 if ! docker exec "$CONTAINER" true >/dev/null 2>&1; then

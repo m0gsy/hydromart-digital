@@ -37,8 +37,11 @@ export function filesUnder(dir, suffix, out = []) {
 
 export function serviceNames(root = ROOT) {
   const base = join(root, 'services');
-  if (!existsSync(base)) return [];
-  return readdirSync(base).filter((s) => existsSync(join(base, s, 'src')));
+  const found = existsSync(base) ? readdirSync(base).filter((s) => existsSync(join(base, s, 'src'))) : [];
+  // A wrong cwd (or HYDROMART_ROOT) used to give an empty inventory, and every gate built on
+  // it then compared nothing to nothing and passed. Fail loudly instead.
+  if (found.length === 0) throw new Error(`route-inventory: no services under ${base} (wrong cwd or HYDROMART_ROOT?)`);
+  return found;
 }
 
 const join2 = (...parts) => `/${parts.filter(Boolean).join('/')}`.replace(/\/{2,}/g, '/');

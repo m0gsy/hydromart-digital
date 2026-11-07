@@ -50,6 +50,9 @@ drill_one() {
   # Schema + data, so a rollback meets rows rather than an empty table. An empty database is
   # how a destructive rollback passes a drill and loses data in production (I4 learned this
   # the other way round: a "destructive" migration met 0 rows and was not destructive at all).
+  # F-28: this is a copy of PRODUCTION data in /tmp. It is removed, and the scratch database
+  # dropped, on EVERY exit, not only on the path that reaches the rm at the bottom.
+  trap 'rm -f "/tmp/'"$scratch"'.sql"; docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" -d postgres -q -c "DROP DATABASE IF EXISTS '"$scratch"'" >/dev/null 2>&1 || true' EXIT
   docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" "$db" > "/tmp/$scratch.sql" 2>/dev/null
   psql_in -d postgres -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE $scratch" >/dev/null
   # shellcheck disable=SC2094
