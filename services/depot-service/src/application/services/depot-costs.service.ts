@@ -51,10 +51,13 @@ export class DepotCostsService {
       // would have to encode the exclusion list twice.
       this.cashbook.listForDepot(depotId, { from, to }),
     ]);
-    const opexIdr = entries
-      .filter((e) => e.direction === CashDirection.OUT)
-      .filter((e) => !EXCLUDED_FROM_OPEX.has(e.category.trim().toLowerCase()))
-      .reduce((sum, e) => sum + e.amountIdr, 0);
+    // DEP-21: a correction is a second row with `reversesId` set. A reversal of an expense is an
+    // IN and must come OFF the cost; a reversal of takings is an OUT and is not a cost at all.
+    const counted = entries.filter((e) => !EXCLUDED_FROM_OPEX.has(e.category.trim().toLowerCase()));
+    const opexIdr = counted.reduce((sum, e) => {
+      if (e.direction === CashDirection.OUT) return e.reversesId ? sum : sum + e.amountIdr;
+      return e.reversesId ? sum - e.amountIdr : sum;
+    }, 0);
     return { cogsIdr, opexIdr };
   }
 }

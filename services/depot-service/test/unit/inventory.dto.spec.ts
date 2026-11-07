@@ -52,6 +52,14 @@ describe('inventory write/query DTO transforms', () => {
     expect(dto.lowStockOnly).toBe(true);
   });
 
+  it('reads lowStockOnly=false as false, not as true (Boolean("false") is true)', async () => {
+    const off = plainToInstance(ListInventoryQueryDto, { lowStockOnly: 'false' });
+    expect(await validate(off)).toHaveLength(0);
+    expect(off.lowStockOnly).toBe(false);
+    const absent = plainToInstance(ListInventoryQueryDto, {});
+    expect(absent.lowStockOnly).toBeUndefined();
+  });
+
   it('coerces create quantity/minimumStock/sellPrice to numbers', async () => {
     const dto = plainToInstance(CreateInventoryItemDto, {
       itemType: InventoryItemType.PRODUK,

@@ -35,6 +35,10 @@ export const SETTING_DEFS: SettingDef[] = [
     min: 0,
     max: 1000000,
     envDefault: 20000,
+    // DEP-31: a refund uses the CURRENT rate, so a depot admin who changed it after customers
+    // paid changed what those customers get back. Head office and the superuser only, the same
+    // capability as the approval auto-pass limit.
+    requires: 'approvalThresholdWrite',
   },
   {
     key: 'gallonMaxHoldDays',
