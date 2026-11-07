@@ -542,7 +542,9 @@ async function main() {
     title: `F6H Terjadwal ${stamp}`,
     body: 'Belum waktunya terbit.',
     scheduledAt: future,
-    targets: [{ dimension: 'COMPANY' }],
+    // S2A-28: not COMPANY. There is no cancel endpoint, so a scheduled fixture fires in 7 days;
+    // aimed at the whole company that is a message to every employee. One depot is contained.
+    targets: [{ dimension: 'DEPOT', value: depotId }],
   });
   check(
     'a future announcement is NOT published on save',

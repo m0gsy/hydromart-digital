@@ -947,4 +947,42 @@ case "$(cat scripts/rollback-drill.sh)" in
   *) bad "rollback-drill: a production dump is left in /tmp if the drill dies (F-28)" ;;
 esac
 
+# --- PR-D3: operator scripts that wrote, printed or deleted more than they said -------------
+chk() { # chk <file> <needle> <ok-label> <bad-label>
+  case "$(cat "$1")" in *"$2"*) ok "$3" ;; *) bad "$4" ;; esac
+}
+# S2A-10: --inspect names the line, never shows a PEM body
+D3="$(mktemp -d)"; printf 'FINE=1\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCfake\n' >"$D3/.env"
+inspect_out="$(cd "$D3" && bash "$OLDPWD/scripts/env-doctor.sh" --inspect 2>&1 || true)"
+case "$inspect_out" in *MIIE*) bad "env-doctor --inspect prints the start of secret-looking lines (S2A-10)" ;; *) ok "env-doctor --inspect prints no part of a non-KEY=VALUE line" ;; esac
+rm -rf "$D3"
+# S1B-09
+chk scripts/check-launch-blockers.mjs 'chars)' "check-launch-blockers: credential report is built" "check-launch-blockers: test is stale"
+case "$(cat scripts/check-launch-blockers.mjs)" in *'value.slice(0, 4)'*) bad "check-launch-blockers prints the first 4 characters of an OTP credential (S1B-09)" ;; *) ok "check-launch-blockers prints only set/blank + length for credentials" ;; esac
+# S1B-24: restore the Caddyfile BEFORE the work dir (which holds the backup) is deleted
+tl="$(grep -n "^trap " scripts/check-public-metrics.test.sh | head -1 || true)"
+case "$tl" in *'cp "$WORK/Caddyfile.orig"'*'rm -rf "$WORK"'*|*'rm -rf "$WORK"'*'cp'*) : ;; esac
+cp_pos="$(printf '%s' "$tl" | grep -bo 'cp "\$WORK' | head -1 | cut -d: -f1 || true)"; rm_pos="$(printf '%s' "$tl" | grep -bo 'rm -rf "\$WORK"' | head -1 | cut -d: -f1 || true)"
+if [ -n "$cp_pos" ] && [ -n "$rm_pos" ] && [ "$cp_pos" -lt "$rm_pos" ]; then ok "check-public-metrics.test: Caddyfile restored before its backup is deleted"; else bad "check-public-metrics.test: trap deletes \$WORK before copying the backup out of it (S1B-24)"; fi
+# F-30
+case "$(cat scripts/s3-prune.mjs)" in *"arg('--prefix', '')"*) bad "s3-prune: --prefix defaults to empty, so a bare call prunes the whole bucket (F-30)" ;; *) ok "s3-prune: --prefix is required" ;; esac
+# F-01 / F-02
+chk scripts/reset-test-data.sh 'RESET_MAX_CUSTOMERS' "reset-test-data: refuses a large customer base" "reset-test-data: only prints the customer count (F-02)"
+chk scripts/reset-test-data.sh 'PG_CONTAINER is required' "reset-test-data: --execute needs an explicit PG_CONTAINER" "reset-test-data: --execute picks a container by heuristic (F-01)"
+# F-33
+chk scripts/tz-day-boundary-check.mjs "['SIGINT', 'SIGTERM']" "tz-day-boundary: restores the fixture on Ctrl-C/SIGTERM" "tz-day-boundary: Ctrl-C leaves a real order's createdAt changed (F-33)"
+# F-46
+chk scripts/seed.mjs 'ALLOW_SEED' "seed: refuses a non-local gateway without ALLOW_SEED=1" "seed: no production guard (F-46)"
+chk scripts/seed-hierarchy.mjs 'ALLOW_SEED' "seed-hierarchy: refuses a non-local gateway without ALLOW_SEED=1" "seed-hierarchy: no production guard (F-46)"
+# S2A-21
+chk scripts/f6-dynamic-matrix.mjs 'STACK_IS_TEST' "f6-dynamic-matrix: refuses to stop containers unless STACK_IS_TEST=1" "f6-dynamic-matrix: stops containers named like production with no guard (S2A-21)"
+# S2A-28
+case "$(grep -n "scheduledAt: future" -A3 scripts/f6-hris-flows.mjs)" in *"dimension: 'COMPANY'"*) bad "f6-hris-flows: schedules a COMPANY-wide announcement that will reach every employee in 7 days (S2A-28)" ;; *) ok "f6-hris-flows: the scheduled fixture targets one depot, not the company" ;; esac
+# 52a backfill
+for f in scripts/backfill-favorite-depot.mjs scripts/backfill-order-volume.mjs scripts/backfill-staff-sync.mjs; do
+  chk "$f" 'unknown argument' "$f: a mistyped flag is an error, not a live write" "$f: --dryrun (typo) silently runs the real write"
+done
+# F-32
+chk scripts/verify-object-storage.mjs 'face' "verify-object-storage: refuses the face-photo bucket" "verify-object-storage: will open any bucket anonymously, including face photos (F-32)"
+
 exit "$fails"

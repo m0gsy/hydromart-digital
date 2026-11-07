@@ -38,12 +38,14 @@ const arg = (name, fallback) => {
 };
 
 const bucket = arg('--bucket');
-const prefix = arg('--prefix', '');
+const prefix = arg('--prefix');
 const keep = Number(arg('--keep', '14'));
 const dryRun = process.argv.includes('--dry-run');
 
-if (!bucket || !Number.isInteger(keep) || keep < 1) {
-  console.error('usage: s3-prune.mjs --bucket <b> [--prefix p/] --keep <n>=1.. [--dry-run]');
+// F-30: --prefix is REQUIRED. An empty prefix selects every object in the bucket, and this
+// script deletes the oldest ones, across db/ env/ pod/ and anything else living there.
+if (!bucket || !prefix || !Number.isInteger(keep) || keep < 1) {
+  console.error('usage: s3-prune.mjs --bucket <b> --prefix p/ --keep <n>=1.. [--dry-run]');
   process.exit(2);
 }
 

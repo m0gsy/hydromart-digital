@@ -24,7 +24,7 @@ bad() {
   fails=$((fails + 1))
 }
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"; cp "$WORK/Caddyfile.orig" infra/caddy/Caddyfile 2>/dev/null || true' EXIT
+trap 'cp "$WORK/Caddyfile.orig" infra/caddy/Caddyfile 2>/dev/null || true; rm -rf "$WORK"' EXIT
 cp infra/caddy/Caddyfile "$WORK/Caddyfile.orig"
 
 run_check() {

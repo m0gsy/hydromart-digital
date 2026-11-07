@@ -41,6 +41,14 @@ import { PrismaClient as ProductClient } from '../services/product-service/prism
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
+// A mistyped flag (--dryrun, --dry_run) used to be ignored, and the script then WROTE.
+for (const a of process.argv.slice(2)) {
+  if (a !== '--dry-run') {
+    console.error(`unknown argument: ${a} (the only flag is --dry-run)`);
+    process.exit(2);
+  }
+}
+
 if (!process.env.ORDER_DATABASE_URL || !process.env.PRODUCT_DATABASE_URL) {
   console.error('ORDER_DATABASE_URL and PRODUCT_DATABASE_URL are both required.');
   process.exit(1);

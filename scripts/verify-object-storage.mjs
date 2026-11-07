@@ -65,6 +65,13 @@ const client = new S3Client({
   },
 });
 
+// F-32: this makes a bucket anonymously readable. The employee face photos live in a bucket
+// that must stay private, and nothing here knew the difference.
+if (/face/i.test(bucket)) {
+  console.error(`refusing: bucket "${bucket}" looks like the face-photo bucket, which must never be public.`);
+  process.exit(1);
+}
+
 const publicReadPolicy = {
   Version: '2012-10-17',
   Statement: [

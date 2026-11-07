@@ -27,6 +27,12 @@ import { execSync } from 'node:child_process';
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
 const TTL = Number(process.env.MATRIX_TTL_SECONDS ?? 30);
+// S2A-21: this STOPS the containers named hydromart-auth / hydromart-depot. Those are the
+// production names too, and a SIGKILL between stop and restart leaves the site down.
+if (process.env.STACK_IS_TEST !== '1') {
+  console.error('refusing: this stops auth/depot containers. Set STACK_IS_TEST=1 on a stack you may break.');
+  process.exit(1);
+}
 if (!JWT_SECRET) {
   console.error('JWT_ACCESS_SECRET is required (must match the running stack).');
   process.exit(1);

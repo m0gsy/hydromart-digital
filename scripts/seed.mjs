@@ -13,6 +13,16 @@ import crypto from 'node:crypto';
 import { fetchThrottled } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
+
+// F-46: this invites admins on predictable phone numbers. Against anything but a local stack
+// that is a way to hand a stranger an account, so a remote gateway needs an explicit yes.
+if (
+  !/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:\d+)?(\/|$)/.test(GATEWAY) &&
+  process.env.ALLOW_SEED !== '1'
+) {
+  console.error(`refusing to seed ${GATEWAY}: not a local stack. Set ALLOW_SEED=1 if you mean it.`);
+  process.exit(1);
+}
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
 if (!JWT_SECRET) {
   console.error('JWT_ACCESS_SECRET is required (must match the running stack).');
