@@ -145,7 +145,7 @@ describe('getRequestContext', () => {
     const ctx = getRequestContext(
       make({
         headers: { 'x-forwarded-for': ['1.1.1.1', '2.2.2.2'], 'user-agent': 'jest' },
-        socket: {} as never,
+        socket: { remoteAddress: '10.0.0.9' } as never,
       }),
     );
     expect(ctx.ipAddress).toBe('1.1.1.1');
@@ -154,7 +154,10 @@ describe('getRequestContext', () => {
 
   it('takes the first ip from a comma-joined x-forwarded-for', () => {
     const ctx = getRequestContext(
-      make({ headers: { 'x-forwarded-for': '3.3.3.3, 4.4.4.4' }, socket: {} as never }),
+      make({
+        headers: { 'x-forwarded-for': '3.3.3.3, 4.4.4.4' },
+        socket: { remoteAddress: '10.0.0.9' } as never,
+      }),
     );
     expect(ctx.ipAddress).toBe('3.3.3.3');
     expect(ctx.userAgent).toBeNull();

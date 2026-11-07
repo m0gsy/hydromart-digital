@@ -28,7 +28,8 @@ const SESSION = {
 const req = {
   headers: { 'x-forwarded-for': '203.0.113.9, 10.0.0.1', 'user-agent': 'jest' },
   ip: '10.0.0.2',
-  socket: {},
+  // The header is only believed from a private (our own proxy) peer; see packages/platform.
+  socket: { remoteAddress: '10.0.0.2' },
 } as unknown as Request;
 
 const CONTEXT = { ipAddress: '203.0.113.9', userAgent: 'jest' };

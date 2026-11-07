@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsString, Length, Matches, MaxLength } from 'class-validator';
 
 import { OtpPurpose } from '../../../domain/otp/otp-purpose.enum';
 
@@ -17,6 +17,6 @@ export class VerifyOtpDto {
   code!: string;
 
   @ApiProperty({ enum: OtpPurpose, description: 'Whether this verifies registration or login.' })
-  @IsEnum(OtpPurpose)
+  @IsIn([OtpPurpose.LOGIN, OtpPurpose.REGISTRATION])
   purpose!: OtpPurpose;
 }

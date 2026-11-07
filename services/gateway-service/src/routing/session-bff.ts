@@ -131,11 +131,19 @@ async function callAuth(
   authBase: string,
   path: string,
   // Every call site sends a body; `token` is what varies (logout carries one, verify does not).
-  opts: { token?: string; body: unknown },
+  opts: { token?: string; body: unknown; client?: Request },
   timeoutMs: number,
 ): Promise<{ status: number; data: unknown }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
+  // GW-04: these calls are made BY the gateway, so auth-service saw the gateway's address and
+  // node's fetch user-agent for every web login. Pass the browser's on (req.ip is already the
+  // trusted-proxy-resolved client address); auth-service reads x-forwarded-for from a private
+  // peer, which the gateway is.
+  const ip = opts.client?.ip;
+  if (ip) headers['x-forwarded-for'] = ip;
+  const ua = opts.client?.headers['user-agent'];
+  if (typeof ua === 'string') headers['user-agent'] = ua;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -182,7 +190,7 @@ export function createSessionRouter(
       ({ status, data } = await callAuth(
         authBase,
         '/api/v1/auth/otp/verify',
-        { body: req.body },
+        { body: req.body, client: req },
         timeoutMs,
       ));
     } catch {
@@ -210,7 +218,7 @@ export function createSessionRouter(
       ({ status, data } = await callAuth(
         authBase,
         '/api/v1/auth/token/refresh',
-        { body: { refreshToken: rt } },
+        { body: { refreshToken: rt }, client: req },
         timeoutMs,
       ));
     } catch {
@@ -264,7 +272,7 @@ export function createSessionRouter(
         const { status } = await callAuth(
           authBase,
           '/api/v1/auth/logout',
-          { token: at, body: { refreshToken: rt } },
+          { token: at, body: { refreshToken: rt }, client: req },
           timeoutMs,
         );
         revoked = status >= 200 && status < 300;
