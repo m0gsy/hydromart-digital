@@ -27,6 +27,7 @@ const PUBLIC_CALLS = new Set([
   'endpoints.auth.verifyOtp',
   'endpoints.franchiseApps.submit',
   'endpoints.orders.track(token)',
+  'endpoints.products.categories',
   'endpoints.payments.methods',
   'endpoints.promotions.list',
   'endpoints.referrals.rules',
@@ -41,7 +42,11 @@ const PUBLIC_PREFIXES = [
   'endpoints.inventory.prices(',
   'endpoints.loyalty.rules(',
   'endpoints.loyalty.tiers(',
-  'endpoints.products.',
+  // The product READERS only (AUT-004). The whole `endpoints.products.` namespace used to be
+  // allowed, which also waved through create/update/remove/import/uploadImage.
+  'endpoints.products.browse(',
+  'endpoints.products.get(',
+  'endpoints.products.batch(',
   'endpoints.recommendations.related(',
   'endpoints.recommendations.trending(',
 ];

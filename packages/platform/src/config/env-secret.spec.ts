@@ -22,6 +22,14 @@ describe('requiredSecret', () => {
     expect(error).toBeUndefined();
   });
 
+  it('rejects the repo\'s own shared dev secret in production (AUT: it does not contain "change-me")', () => {
+    const { error } = schema.validate({
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: 'hydromart-shared-dev-access-secret-please-xx',
+    });
+    expect(error?.message).toMatch(/JWT_ACCESS_SECRET/);
+  });
+
   it('allows the placeholder outside production (dev convenience)', () => {
     const { error } = schema.validate({ NODE_ENV: 'development', JWT_ACCESS_SECRET: PLACEHOLDER });
     expect(error).toBeUndefined();

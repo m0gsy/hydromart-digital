@@ -56,6 +56,35 @@ describe('describeRoute (CA-2-67)', () => {
 });
 
 describe('redactBody (CA-2-67)', () => {
+  it('AUT-019: redacts pin/otp as a word, keeps look-alikes such as shippingFee', () => {
+    const out = redactBody({
+      pin: '1234',
+      userPin: '1234',
+      new_pin: '1234',
+      pin_code: '1234',
+      OTP: '999',
+      otpCode: '999',
+      shippingFee: 15000,
+      mapping: 'a',
+      topping: 'b',
+      optional: 'c',
+      Pinned: true,
+    });
+    expect(out).toMatchObject({
+      pin: '[redacted]',
+      userPin: '[redacted]',
+      new_pin: '[redacted]',
+      pin_code: '[redacted]',
+      OTP: '[redacted]',
+      otpCode: '[redacted]',
+      shippingFee: 15000,
+      mapping: 'a',
+      topping: 'b',
+      optional: 'c',
+      Pinned: true,
+    });
+  });
+
   it('replaces secret-looking values and flattens the rest', () => {
     expect(
       redactBody({

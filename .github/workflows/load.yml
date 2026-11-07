@@ -47,6 +47,10 @@ env:
   ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
   HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
 
+# AUT-016: read-only by default; a job that needs more declares it on the job.
+permissions:
+  contents: read
+
 jobs:
   k6:
     runs-on: ubuntu-latest

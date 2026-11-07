@@ -95,6 +95,10 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
+# AUT-016: read-only by default; a job that needs more declares it on the job.
+permissions:
+  contents: read
+
 jobs:
   # A CI that went red on main means THIS COMMIT WAS NOT SHIPPED, and until now the only
   # evidence was a Deploy run marked `skipped`.

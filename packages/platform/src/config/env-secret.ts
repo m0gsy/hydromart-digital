@@ -9,7 +9,10 @@ import * as Joi from 'joi';
  * secret still containing it is rejected, so a copied dev config fails the boot
  * validation instead of silently shipping a publicly-known secret.
  */
-const DEV_PLACEHOLDER = /change-me/i;
+// `hydromart-shared-dev-` is the secret the repo's own .uat harness signs tokens with. It does
+// not contain `change-me`, so the first pattern alone let anybody who can read the repo mint
+// a SUPER_ADMIN token for a deployment that kept it.
+const DEV_PLACEHOLDER = /change-me|hydromart-shared-dev-/i;
 
 /**
  * A required secret. Always present + at least `minLength`. In production it
