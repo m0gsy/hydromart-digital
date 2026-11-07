@@ -103,6 +103,12 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
     });
   }
 
+  countAutoApprovedSince(courierId: string, since: Date): Promise<number> {
+    return this.prisma.expenseClaim.count({
+      where: { courierId, status: 'APPROVED', reviewedBy: null, createdAt: { gte: since } },
+    });
+  }
+
   countByReceiptUrl(receiptUrl: string): Promise<number> {
     return this.prisma.expenseClaim.count({ where: { receiptUrl } });
   }

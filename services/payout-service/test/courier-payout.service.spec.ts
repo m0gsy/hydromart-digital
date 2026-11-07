@@ -118,7 +118,10 @@ class FakeCourierLedger implements CourierLedgerRepository {
         (depotId === undefined || e.depotId === depotId),
     ).length;
   }
-  async currentRule(): Promise<CourierEarningRuleRecord | null> {
+  /** Every `asOf` the service asked about, so a test can see WHEN the rule was read. */
+  ruleAsOf: (Date | undefined)[] = [];
+  async currentRule(_depotId?: string | null, asOf?: Date): Promise<CourierEarningRuleRecord | null> {
+    this.ruleAsOf.push(asOf);
     return this.rule;
   }
   rules: CourierEarningRuleRecord[] = [];
@@ -281,7 +284,14 @@ describe('CourierPayoutService', () => {
     service = new CourierPayoutService(ledger, withdrawals, courierTestConfig(), verifiedAccounts());
   });
 
-  it('credits base + on-time + peak using the WIB hour of deliveredAt', async () => {
+  // PPA-08: `currentRule` defaults to "now", so a delivery pushed late (a retry, a backlog) was
+// paid under whatever rule was in force when it ARRIVED, not when the courier did the work.
+it('PPA-08: prices a delivery with the rule in force at deliveredAt, not at push time', async () => {
+  await service.recordDeliveryEarning(event('d-asof', PEAK_UTC, true));
+  expect(ledger.ruleAsOf).toEqual([new Date(PEAK_UTC)]);
+});
+
+it('credits base + on-time + peak using the WIB hour of deliveredAt', async () => {
     const entry = await service.recordDeliveryEarning(event('d1', PEAK_UTC, true));
     expect(entry?.type).toBe('EARNING');
     expect(entry?.amount).toBe(8000); // 5000 + 2000 peak + 1000 on-time

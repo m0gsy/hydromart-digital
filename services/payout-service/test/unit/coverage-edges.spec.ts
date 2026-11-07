@@ -134,6 +134,15 @@ class Claims implements ExpenseClaimRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (row.status === 'APPROVED' && !row.ledgerEntryId) row.status = 'PENDING';
   }
+  async countAutoApprovedSince(courierId: string, since: Date): Promise<number> {
+    return this.rows.filter(
+      (r) =>
+        r.courierId === courierId &&
+        r.status === 'APPROVED' &&
+        r.reviewedBy === null &&
+        r.createdAt >= since,
+    ).length;
+  }
   async countByReceiptUrl(receiptUrl: string): Promise<number> {
     return this.rows.filter((r) => r.receiptUrl === receiptUrl).length;
   }
