@@ -42,6 +42,14 @@ export class OtpVerificationService {
   ) {}
 
   async verify(command: VerifyOtpCommand): Promise<SessionResult> {
+    // AUT-12: this route mints a full session, so it only accepts the two purposes that mean
+    // "log this person in". PHONE_CHANGE codes are delivered to a DIFFERENT number and are
+    // redeemed by the authenticated phone-change flow; accepting one here would let a stolen
+    // access token turn into a fresh session by completing a phone change. Same generic error
+    // as a wrong code, so the route does not say which purposes exist.
+    if (command.purpose !== OtpPurpose.LOGIN && command.purpose !== OtpPurpose.REGISTRATION) {
+      throw new OtpInvalidError();
+    }
     const phone = PhoneNumber.create(command.phone).value;
     const customer = await this.customers.findByPhone(phone);
     // Do not disclose whether the phone exists — generic invalid-code error.

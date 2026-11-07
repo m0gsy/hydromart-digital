@@ -68,6 +68,23 @@ describe('OtpVerificationService', () => {
     );
   });
 
+  it('AUT-12: the public verify route never accepts a PHONE_CHANGE code (it would mint a full session)', async () => {
+    const customer = makeCustomer({ status: CustomerStatus.ACTIVE });
+    customers.seed(customer);
+    await otp.issue(customer, OtpPurpose.PHONE_CHANGE, '+6281200000000');
+
+    await expect(
+      service.verify({
+        phone: customer.phone,
+        code: '123456',
+        purpose: OtpPurpose.PHONE_CHANGE,
+        context: ctx,
+      }),
+    ).rejects.toBeInstanceOf(OtpInvalidError);
+    // ...and the code was not consumed, so the real phone-change flow still works.
+    expect(audit.actions()).not.toContain(AuditAction.LOGIN_SUCCEEDED);
+  });
+
   it('verifies a registration OTP, activates the account, and issues a session', async () => {
     const pending = makeCustomer({
       status: CustomerStatus.PENDING_VERIFICATION,

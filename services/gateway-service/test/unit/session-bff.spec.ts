@@ -37,6 +37,27 @@ beforeEach(() => {
   (global as unknown as { fetch: typeof fetchMock }).fetch = fetchMock;
 });
 
+describe('GW-04: the client address and user-agent reach auth-service', () => {
+  it('forwards req.ip as x-forwarded-for and the browser user-agent on OTP verify', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, SESSION));
+    const app = express();
+    app.set('trust proxy', true);
+    app.use('/auth', createSessionRouter(AUTH_BASE, false));
+
+    await request(app)
+      .post('/auth/api/v1/auth/otp/verify')
+      .set('X-Forwarded-For', '198.51.100.7')
+      .set('User-Agent', 'Mozilla/5.0 (test)')
+      .send({ phone: '0812', code: '123456', purpose: 'LOGIN' });
+
+    const init = fetchMock.mock.calls[0]?.[1] as { headers: Record<string, string> };
+    // Without these, every web login was recorded against the gateway's own address and the
+    // "browser" of node-fetch, so the per-IP trail and session list described nobody.
+    expect(init.headers['x-forwarded-for']).toBe('198.51.100.7');
+    expect(init.headers['user-agent']).toBe('Mozilla/5.0 (test)');
+  });
+});
+
 describe('readCookie', () => {
   const req = (cookie?: string) => ({ headers: cookie === undefined ? {} : { cookie } }) as never;
 
