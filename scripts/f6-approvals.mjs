@@ -204,7 +204,8 @@ async function main() {
   await separationOfDuties();
   console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped`);
   for (const why of unreachable) console.log(`  not asked: ${why}`);
-  process.exit(failed === 0 ? 0 : 1);
+  // All-skipped (every upstream down) prints "0 passed, 0 failed" and used to exit 0.
+  process.exit(failed === 0 && passed > 0 ? 0 : 1);
 }
 
 main().catch((err) => {

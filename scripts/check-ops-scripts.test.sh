@@ -892,4 +892,59 @@ case "$rb" in
   *) bad "rollback.sh: runs git reset --hard on itself while bash is still reading it" ;;
 esac
 
+# --- PR-D2: gates that go green when the thing they watch cannot be read ---------------------
+D2="$(mktemp -d)"
+mkdir -p "$D2/bin"
+# docker stub: `exec ... true` works (container reachable), any psql call fails like a dead server.
+printf '#!/bin/sh\ncase "$*" in *psql*) echo "psql: error: connection to server failed" >&2; exit 2;; esac\nexit 0\n' >"$D2/bin/docker"
+chmod +x "$D2/bin/docker"
+
+# S2A-01: create-indexes.sh table_absent must not read a psql ERROR as "table not there yet".
+sed -n '/^table_absent() {/,/^}/p' scripts/create-indexes.sh >"$D2/ta.sh"
+(
+  . "$D2/ta.sh"
+  psql_do() { echo 'psql: error: connection to server failed'; }
+  if table_absent x 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "i" ON "t"("a")'; then exit 1; fi
+  exit 0
+) && ok "create-indexes: a psql error is not read as 'table absent' (the index would be skipped, exit 0)" ||
+  bad "create-indexes: table_absent treats a psql error as 'table absent', so every index is skipped and the script exits 0"
+
+# F-25: verify-indexes.sh must FAIL when its queries fail, not report 0 violations.
+rc=0; out="$(PATH="$D2/bin:$PATH" bash scripts/verify-indexes.sh 2>&1)" || rc=$?
+case "$out" in *"data clean"*) bad "verify-indexes: reports 'data clean' when every query failed" ;; *) ok "verify-indexes: a failing query is not reported as clean data" ;; esac
+[ "$rc" -ne 0 ] && ok "verify-indexes: exits non-zero when it cannot query" || bad "verify-indexes: exit $rc when it cannot query anything"
+
+# S2A-39: an empty inventory must throw, not pass vacuously.
+EMPTYROOT="$(mktemp -d)"
+if HYDROMART_ROOT="$EMPTYROOT" node -e "import('./scripts/lib/route-inventory.mjs').then(m=>{m.serviceNames();process.exit(0)}).catch(()=>process.exit(3))"; then
+  bad "route-inventory: serviceNames() returns [] for a root with no services, so every gate built on it passes vacuously"
+else
+  ok "route-inventory: a root with no services throws instead of passing vacuously"
+fi
+rm -rf "$EMPTYROOT"
+
+# S2A-19: a run where nothing passed (all skipped) must not exit 0.
+case "$(cat scripts/f6-approvals.mjs)" in
+  *'failed === 0 && passed > 0'*) ok "f6-approvals: 0 passed is a failure, not a green run" ;;
+  *) bad "f6-approvals: '0 passed, 0 failed' exits 0" ;;
+esac
+rm -rf "$D2"
+
+# F-04 / F-03 / F-06 (restore-db.sh needs docker to run; these assert the guards exist and are ordered)
+rd="$(cat scripts/restore-db.sh)"
+case "$rd" in *'DRILL_MAX_AGE_HOURS'*) ok "restore-db drill: refuses a dump older than DRILL_MAX_AGE_HOURS" ;; *) bad "restore-db drill: restores whatever dump is newest, however old (F-04)" ;; esac
+case "$rd" in *'proved nothing'*) ok "restore-db drill: fails when no database could be probed for rows" ;; *) bad "restore-db drill: passes on schema counts alone when every probe was skipped (F-03)" ;; esac
+safety_line="$(grep -n 'pg_dumpall' scripts/restore-db.sh | head -1 | cut -d: -f1 || true)"
+drop_line="$(grep -n 'DROP DATABASE IF EXISTS' scripts/restore-db.sh | head -1 | cut -d: -f1 || true)"
+if [ -n "$safety_line" ] && [ -n "$drop_line" ] && [ "$safety_line" -lt "$drop_line" ]; then
+  ok "restore-db --into-prod: a safety dump is taken before any database is dropped"
+else
+  bad "restore-db --into-prod: drops every database with no safety dump first (safety '${safety_line:-none}', drop '${drop_line:-none}')"
+fi
+# F-28
+case "$(cat scripts/rollback-drill.sh)" in
+  *"trap "*"rm -f"*) ok "rollback-drill: the production dump in /tmp is removed on any exit" ;;
+  *) bad "rollback-drill: a production dump is left in /tmp if the drill dies (F-28)" ;;
+esac
+
 exit "$fails"

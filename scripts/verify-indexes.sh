@@ -40,7 +40,13 @@ no(){ echo "  ❌ $1"; }
 FAIL=0
 
 # Reach a service DB and run one query, tuples-only/unaligned/no-.psqlrc.
-q(){ docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -c "$2" 2>/dev/null | tr -d '[:space:]'; }
+# A failed query prints QUERY_FAILED, never an empty string: an empty answer used to be
+# read as "0 violations", so a dead server reported every table clean.
+q(){
+  local out
+  out="$(docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "hydromart_$1" -c "$2" 2>/dev/null)" || { echo QUERY_FAILED; return 0; }
+  printf '%s' "$out" | tr -d '[:space:]'
+}
 
 # index_exists <svc> <indexname>  -> ok/no, bumps FAIL if missing
 index_exists(){
@@ -59,7 +65,9 @@ index_exists(){
 data_clean(){
   local svc="$1" label="$2" sql="$3" n
   n="$(q "$svc" "$sql")"
-  n="${n:-0}"
+  if [ -z "$n" ] || [ "$n" = "QUERY_FAILED" ]; then
+    no "$svc data check could not run: $label (the query failed, so nothing is proven clean)"; FAIL=1; return 1
+  fi
   if [ "$n" = "0" ]; then ok "$svc data clean: $label"; return 0; fi
   no "$svc DIRTY: $label ($n violating group(s)) — db:migrate:prod will FAIL building this unique index unless it is already present"; FAIL=1; return 1
 }

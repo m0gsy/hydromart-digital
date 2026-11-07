@@ -80,6 +80,14 @@ if [ -z "$DUMP" ] || [ ! -f "$DUMP" ]; then
   exit 1
 fi
 
+# F-04: a drill that restores last month's dump proves last month recoverable, and the file
+# the backup job stopped writing a month ago is exactly what "newest" returns. Only for a
+# dump the drill picked itself; a path given on the command line is the operator's choice.
+if [ "$MODE" = "--drill" ] && [ -z "${2:-}" ] && [ -n "$(find "$DUMP" -mmin +$(( ${DRILL_MAX_AGE_HOURS:-26} * 60 )) 2>/dev/null)" ]; then
+  echo "ERROR: newest dump $DUMP is older than ${DRILL_MAX_AGE_HOURS:-26}h (DRILL_MAX_AGE_HOURS) - the backup job has stopped, drilling this proves nothing about today" >&2
+  exit 1
+fi
+
 # Assert the gzip isn't truncated/empty before we rely on it.
 if ! gzip -t "$DUMP" 2>/dev/null; then
   echo "ERROR: $DUMP is not a valid gzip file (corrupt/truncated dump)" >&2
@@ -183,6 +191,12 @@ case "$MODE" in
       # Data probe. An empty database is a legitimate state for a service nobody has used
       # yet, so it is SKIPPED — never counted as a pass that proves data survived.
       big="$(live "$db" "$BIGGEST_SQL")"
+      # reltuples is 0 or -1 until autovacuum has ANALYZEd the table, e.g. a cluster that was
+      # loaded a moment ago. n_live_tup is maintained on every insert, so ask it before
+      # concluding that a database is empty (F-03 turned that gap into a failed drill).
+      if [ -z "$big" ]; then
+        big="$(live "$db" "SELECT relname FROM pg_stat_user_tables WHERE schemaname='public' AND n_live_tup > 0 ORDER BY n_live_tup DESC LIMIT 1;")"
+      fi
       if [ -z "$big" ]; then
         echo "  ➖ $db: ${lt:-0} tables, no rows live — nothing to probe"
         continue
@@ -196,6 +210,13 @@ case "$MODE" in
       PROBED="$PROBED $big=$rows"
     done
 
+    # F-03: every database "nothing to probe" is a drill that compared table and migration
+    # counts only. Live always holds rows, so no probe at all means the estimate query
+    # (reltuples) failed or the restore is empty, either way nothing was proved.
+    if [ "$DRILL_FAIL" -eq 0 ] && [ -z "$PROBED" ]; then
+      echo "ERROR: no database could be probed for rows - the drill proved nothing about the data" >&2
+      DRILL_FAIL=1
+    fi
     if [ "$DRILL_FAIL" -ne 0 ]; then
       echo "ERROR: $DUMP does not restore to a usable copy of the live cluster — see the failures above" >&2
       exit 1
@@ -248,6 +269,20 @@ case "$MODE" in
         echo "" >&2
         echo "    CONFIRM=RESTORE DROP_EXISTING=YES $0 --into-prod $DUMP" >&2
         exit 1
+      fi
+      # F-06: the drop is irreversible, and "the data is corrupt" is the very reason someone is
+      # here. A corrupt copy is still better than none (a bad guess about WHICH rows are bad
+      # is how a second restore recovers the right ones). SAFETY_DUMP=skip is the explicit
+      # escape for a cluster so damaged that pg_dumpall itself cannot finish.
+      if [ "${SAFETY_DUMP:-}" != "skip" ]; then
+        mkdir -p "$BACKUP_DIR" 2>/dev/null || true
+        SAFETY="$BACKUP_DIR/pre-restore-$(date +%Y%m%d-%H%M%S).sql.gz"
+        echo "taking a safety dump of the current cluster first: $SAFETY"
+        if ! { docker exec "$CONTAINER" pg_dumpall -U "$PG_USER" | gzip > "$SAFETY"; } || [ ! -s "$SAFETY" ]; then
+          rm -f "$SAFETY"
+          echo "ERROR: the safety dump failed, so nothing was dropped. Fix that, or re-run with SAFETY_DUMP=skip if the cluster is too damaged to dump." >&2
+          exit 1
+        fi
       fi
       echo "DROP_EXISTING=YES — dropping $(echo "$EXISTING" | wc -w) database(s) first ..."
       for db in $EXISTING; do

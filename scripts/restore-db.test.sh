@@ -37,6 +37,8 @@ SRC=cmp01-test-source
 DST=cmp01-test-target
 IMAGE="${PG_IMAGE:-postgres:16-alpine}"
 WORK="$(mktemp -d)"
+# The --into-prod safety dump (F-06) is written under BACKUP_DIR; keep it inside the scratch dir.
+export BACKUP_DIR="$WORK/backups"
 fails=0
 
 ok() { echo "  ok   $1"; }
