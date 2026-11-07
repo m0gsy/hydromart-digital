@@ -126,7 +126,12 @@ export class CashierShiftService {
     // Only the takings go to the book. The float was never revenue — it was already in the
     // drawer when the shift started, and posting it would inflate the day by that much.
     if (taken > 0) {
-      await this.cashbook.create({
+      // DEP-19: the shift is closed (a compare-and-set, so only THIS call reaches here) before
+      // the cash is posted, in a different table. One blip in between used to leave a closed
+      // shift whose takings never reached the book, and nothing could repair it. Retry the post
+      // (safe: no other caller can post this shift's cash); if it still fails, say exactly which
+      // shift needs a manual entry rather than losing it quietly.
+      const entry = {
         depotId: shift.depotId,
         direction: CashDirection.IN,
         category: 'KONTER',
@@ -135,7 +140,21 @@ export class CashierShiftService {
         occurredAt: closedAt,
         sourceRef: `shift:${shift.id}`,
         actorId: cashier.id,
-      });
+      };
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          await this.cashbook.create(entry);
+          return closed;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw new Error(
+        `Shift ditutup tetapi kas konter Rp ${taken} belum tercatat di buku kas (shift:${shift.id}): ${
+          lastError instanceof Error ? lastError.message : String(lastError)
+        }. Catat manual dengan sourceRef itu.`,
+      );
     }
     return closed;
   }

@@ -115,21 +115,41 @@ export class DisputeService {
      * wired — creating a replacement order is a product decision, not a plumbing one, and
      * inventing one here would repeat the mistake in the other direction.
      */
-    if (resolution === DisputeResolution.REFUND) {
-      await this.refunds.request(
-        current.orderRef,
-        resolutionNote?.trim() || `Sengketa ${current.category}`,
-        authorization,
-      );
-    }
     const status =
       resolution === DisputeResolution.REJECTED ? DisputeStatus.REJECTED : DisputeStatus.RESOLVED;
-    return this.disputes.update(id, {
+    /*
+     * D1-02 / DEP-26: CLAIM the decision first (an atomic OPEN -> decided write), and only the
+     * caller that won it moves money. The refund used to be queued between the OPEN read and
+     * the write, so two concurrent resolves each queued one. If queueing then fails, the claim
+     * is handed back: the dispute is OPEN again and the manager sees the error, exactly as
+     * before.
+     */
+    const claimed = await this.disputes.claimOpen(id, {
       status,
       resolution,
       resolutionNote: resolutionNote ?? null,
       resolvedBy,
       resolvedAt: new Date(),
     });
+    if (!claimed) throw new DisputeAlreadyResolvedError();
+    if (resolution === DisputeResolution.REFUND) {
+      try {
+        await this.refunds.request(
+          current.orderRef,
+          resolutionNote?.trim() || `Sengketa ${current.category}`,
+          authorization,
+        );
+      } catch (error) {
+        await this.disputes.update(id, {
+          status: DisputeStatus.OPEN,
+          resolution: null,
+          resolutionNote: null,
+          resolvedBy: null,
+          resolvedAt: null,
+        });
+        throw error;
+      }
+    }
+    return claimed;
   }
 }

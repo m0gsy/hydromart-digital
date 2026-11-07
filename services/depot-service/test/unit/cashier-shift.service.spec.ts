@@ -208,6 +208,31 @@ describe('CashierShiftService', () => {
       });
     });
 
+    // DEP-19: the shift is closed by a compare-and-set and the takings are posted AFTER it, so
+    // a transient failure in between left a closed shift whose cash never reached the book,
+    // and no second close can ever repair it. The post is retried; only the CAS winner posts,
+    // so a retry cannot double-count.
+    it('retries a transient cashbook failure instead of losing the takings', async () => {
+      const opened = await openShift();
+      depotCash.total = 900_000;
+      const create = jest.spyOn(cashbook, 'create');
+      create.mockRejectedValueOnce(new Error('db blip'));
+
+      await service.close(opened.id, { countedCash: 1_100_000 }, CASHIER);
+
+      expect(cashbook.entries.filter((e) => e.sourceRef === `shift:${opened.id}`)).toHaveLength(1);
+    });
+
+    it('names the shift when the takings still cannot be posted', async () => {
+      const opened = await openShift();
+      depotCash.total = 900_000;
+      jest.spyOn(cashbook, 'create').mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.close(opened.id, { countedCash: 1_100_000 }, CASHIER),
+      ).rejects.toThrow(`shift:${opened.id}`);
+    });
+
     it('writes no cashbook entry for a shift that sold nothing', async () => {
       const opened = await openShift();
       depotCash.total = 0;

@@ -760,6 +760,21 @@ describe('DisputePrismaRepository', () => {
     expect(out.resolution).toBeNull();
   });
 
+  // D1-02: the decision is a compare-and-set on status OPEN, so a loser gets null, not a row.
+  it('claimOpen writes only while OPEN and reports whether it won', async () => {
+    updateMany.mockResolvedValueOnce({ count: 1 });
+    model.findUnique.mockResolvedValueOnce({ ...row, status: 'RESOLVED' });
+    const won = await repo.claimOpen('dp-1', { status: 'RESOLVED' as never });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'dp-1', status: 'OPEN' },
+      data: { status: 'RESOLVED' },
+    });
+    expect(won?.status).toBe('RESOLVED');
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(repo.claimOpen('dp-1', { status: 'RESOLVED' as never })).resolves.toBeNull();
+  });
+
   it('lists for a depot with and without status', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
@@ -2486,6 +2501,33 @@ describe('PriceOverrideProposalPrismaRepository', () => {
     expect(await repo.findById('x')).toBeNull();
     model.findUnique.mockResolvedValue(row);
     expect((await repo.findById('po-1'))?.id).toBe('po-1');
+  });
+
+  // D1-04: a decision is a compare-and-set on PENDING; the loser gets null.
+  it('claimPending writes only while PENDING and reports whether it won', async () => {
+    const updateMany = jest.fn();
+    const claimRepo = new PriceOverrideProposalPrismaRepository({
+      priceOverrideProposal: { ...model, updateMany },
+    } as unknown as PrismaService);
+    updateMany.mockResolvedValueOnce({ count: 1 });
+    model.findUnique.mockResolvedValueOnce({ ...row, status: 'APPROVED' });
+    const won = await claimRepo.claimPending('po-1', {
+      status: 'APPROVED' as never,
+      decidedBy: 'hq-1',
+      decisionReason: 'ok',
+    });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'po-1', status: 'PENDING' },
+      data: { status: 'APPROVED', decidedBy: 'hq-1', decisionReason: 'ok' },
+    });
+    expect(won?.status).toBe('APPROVED');
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(claimRepo.claimPending('po-1', {})).resolves.toBeNull();
+    expect(updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'po-1', status: 'PENDING' },
+      data: {},
+    });
   });
 
   it('updates only provided fields (status + decidedBy)', async () => {

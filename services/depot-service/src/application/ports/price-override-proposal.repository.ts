@@ -18,7 +18,7 @@ export interface CreatePriceOverrideProposalData {
 
 export interface UpdatePriceOverrideProposalData {
   status?: PriceOverrideStatus;
-  decidedBy?: string;
+  decidedBy?: string | null;
   decisionReason?: string | null;
 }
 
@@ -38,4 +38,13 @@ export interface PriceOverrideProposalRepository {
   countByProduct(status?: PriceOverrideStatus): Promise<{ productId: string; count: number }[]>;
   findById(id: string): Promise<PriceOverrideProposalRecord | null>;
   update(id: string, patch: UpdatePriceOverrideProposalData): Promise<PriceOverrideProposalRecord>;
+  /**
+   * Compare-and-set: apply `patch` only while the proposal is still PENDING; null when another
+   * decision got there first (D1-04). `update` after a status read lets two decisions both
+   * pass the check and the last write win.
+   */
+  claimPending(
+    id: string,
+    patch: UpdatePriceOverrideProposalData,
+  ): Promise<PriceOverrideProposalRecord | null>;
 }

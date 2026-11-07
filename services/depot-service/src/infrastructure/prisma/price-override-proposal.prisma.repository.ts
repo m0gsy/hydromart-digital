@@ -106,4 +106,19 @@ export class PriceOverrideProposalPrismaRepository implements PriceOverridePropo
     });
     return this.toRecord(row as unknown as ProposalRow);
   }
+
+  async claimPending(
+    id: string,
+    patch: UpdatePriceOverrideProposalData,
+  ): Promise<PriceOverrideProposalRecord | null> {
+    const { count } = await this.prisma.priceOverrideProposal.updateMany({
+      where: { id, status: 'PENDING' },
+      data: {
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.decidedBy !== undefined ? { decidedBy: patch.decidedBy } : {}),
+        ...(patch.decisionReason !== undefined ? { decisionReason: patch.decisionReason } : {}),
+      },
+    });
+    return count === 0 ? null : this.findById(id);
+  }
 }

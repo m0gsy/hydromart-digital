@@ -893,6 +893,27 @@ describe('InventoryService', () => {
     expect(await inventory.movements(line.id)).toHaveLength(2); // opening RECEIPT + 1 SALE
   });
 
+  // DEP-03: the SALE movement and the reservation settlement are two writes. If the process
+  // dies between them, the retry found the movement ("already consumed") and skipped the
+  // settlement, so the units stayed reserved forever and available stock read too low.
+  it('a retry after a crash completes the reservation that the first attempt left ACTIVE', async () => {
+    const line = await produkLine(PRODUCT_ID, 100);
+    const items = [{ productId: PRODUCT_ID, quantity: 3 }];
+    await inventory.reserveForOrder(depotId, 'order-crash', items, ACTOR);
+    expect((await inventory.get(line.id)).reserved).toBe(3);
+
+    const settle = jest.spyOn(invRepo, 'consumeReservation');
+    settle.mockRejectedValueOnce(new Error('crashed between the two writes'));
+    await expect(inventory.consumeForOrder(depotId, 'order-crash', items, ACTOR)).rejects.toThrow();
+    expect((await inventory.get(line.id)).quantity).toBe(97); // the SALE was written
+    expect((await inventory.get(line.id)).reserved).toBe(3); // ...the hold was not released
+
+    await inventory.consumeForOrder(depotId, 'order-crash', items, ACTOR);
+    const after = await inventory.get(line.id);
+    expect(after.quantity).toBe(97); // not deducted twice
+    expect(after.reserved).toBe(0); // and the hold is finally released
+  });
+
   it('lets a SALE drive stock negative (records reality, not silently dropped)', async () => {
     const line = await produkLine(PRODUCT_ID, 2);
     await inventory.consumeForOrder(

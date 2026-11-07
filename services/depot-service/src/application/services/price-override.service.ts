@@ -152,19 +152,33 @@ export class PriceOverrideService {
       throw new PriceOverrideSelfApprovalError();
     }
 
-    // Apply the override through the existing pricing mechanism (priority-wins).
-    await this.pricing.create(proposal.depotId, {
-      productId: proposal.productId,
-      adjustType: proposal.adjustType,
-      value: proposal.value,
-      daysOfWeek: [],
-      startMinute: null,
-      endMinute: null,
-      validFrom: null,
-      validUntil: null,
-      priority: APPROVED_OVERRIDE_PRIORITY,
-      active: true,
+    // D1-04: CLAIM the decision before anything is created. Reading PENDING and writing
+    // APPROVED afterwards let two concurrent approvals each create a pricing rule.
+    const claimed = await this.proposals.claimPending(id, {
+      status: PriceOverrideStatus.APPROVED,
+      decidedBy,
     });
+    if (!claimed) throw new PriceOverrideProposalDecidedError();
+
+    // Apply the override through the existing pricing mechanism (priority-wins). If that
+    // fails the claim is handed back, so the proposal is PENDING again and can be retried.
+    try {
+      await this.pricing.create(proposal.depotId, {
+        productId: proposal.productId,
+        adjustType: proposal.adjustType,
+        value: proposal.value,
+        daysOfWeek: [],
+        startMinute: null,
+        endMinute: null,
+        validFrom: null,
+        validUntil: null,
+        priority: APPROVED_OVERRIDE_PRIORITY,
+        active: true,
+      });
+    } catch (error) {
+      await this.proposals.update(id, { status: PriceOverrideStatus.PENDING, decidedBy: null });
+      throw error;
+    }
     await this.audit('depot.price_override.approved', proposal, decidedBy, true, {
       impactIdr,
       currentPrice: proposal.currentPrice,
@@ -172,10 +186,7 @@ export class PriceOverrideService {
       value: proposal.value,
       proposedBy: proposal.proposedBy,
     });
-    return this.proposals.update(id, {
-      status: PriceOverrideStatus.APPROVED,
-      decidedBy,
-    });
+    return claimed;
   }
 
   async reject(
@@ -186,6 +197,13 @@ export class PriceOverrideService {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();
     const cleanReason = reason?.trim().slice(0, 300) || null;
+    // D1-04: claim first, so a concurrent approve and reject cannot both succeed.
+    const claimed = await this.proposals.claimPending(id, {
+      status: PriceOverrideStatus.REJECTED,
+      decidedBy,
+      decisionReason: cleanReason,
+    });
+    if (!claimed) throw new PriceOverrideProposalDecidedError();
     // success:false — the decision succeeded, the price change did not. The trail records
     // outcomes for the thing under review, and a rejected price rise is a "no".
     await this.audit('depot.price_override.rejected', proposal, decidedBy, false, {
@@ -196,11 +214,7 @@ export class PriceOverrideService {
       ...(cleanReason ? { reason: cleanReason } : {}),
     });
     // The queue shows WHY from the row itself; the trail keeps the same text beside the actor.
-    return this.proposals.update(id, {
-      status: PriceOverrideStatus.REJECTED,
-      decidedBy,
-      decisionReason: cleanReason,
-    });
+    return claimed;
   }
 
   /**
