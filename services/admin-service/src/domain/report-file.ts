@@ -55,7 +55,9 @@ const PDF_GAP = 6;
  */
 export function csvCell(value: string | number): string {
   const text = String(value);
-  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  // A real number is never a formula; only TEXT is neutralised. The guard used to prefix
+  // every "-", so a negative figure arrived in the report as the string '-5 (AAS-07).
+  const safe = typeof value === 'string' && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
