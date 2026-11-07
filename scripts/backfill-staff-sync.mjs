@@ -36,6 +36,14 @@ const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
 const DRY_RUN = process.argv.includes('--dry-run');
 
+// A mistyped flag (--dryrun, --dry_run) used to be ignored, and the script then WROTE.
+for (const a of process.argv.slice(2)) {
+  if (a !== '--dry-run') {
+    console.error(`unknown argument: ${a} (the only flag is --dry-run)`);
+    process.exit(2);
+  }
+}
+
 if (!JWT_SECRET) {
   console.error('JWT_ACCESS_SECRET is required (must match the running stack).');
   process.exit(1);

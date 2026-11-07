@@ -109,6 +109,10 @@ echo "$total row(s) across the tables above."
 who="$(psql_db order -c "select count(distinct \"customerId\") || ' distinct customer(s), ' || coalesce(min(\"createdAt\")::date::text, '-') || ' .. ' || coalesce(max(\"createdAt\")::date::text, '-') from orders" 2>&1)" || who="unreadable"
 echo "orders placed by: $who"
 
+# F-02: a count says how much, not whether this is the right tool. Past RESET_MAX_CUSTOMERS
+# distinct customers it is a business, not a tester's afternoon.
+cust_n="$(printf '%s' "$who" | sed -n 's/^\([0-9][0-9]*\) distinct.*/\1/p')"
+
 if ! $EXECUTE; then
   echo
   echo "Dry run only. To clear them: CONFIRM=RESET-TEST-DATA bash $0 --execute$($LEDGERS && echo ' --with-ledgers')"
@@ -117,6 +121,21 @@ if ! $EXECUTE; then
 fi
 
 # ------------------------------------------------------------------------------- refusals
+# F-01: --execute TRUNCATEs, so the container is named by a person. The dry run may guess;
+# "the first container with 'postgres' in its name" is not a thing to TRUNCATE on.
+if [ -z "${PG_CONTAINER:-}" ]; then
+  echo "!! refusing: PG_CONTAINER is required with --execute (dry run picked '$PG' by name)." >&2
+  exit 1
+fi
+if [ -z "$cust_n" ]; then
+  echo "!! refusing: could not count the customers behind these orders." >&2
+  exit 1
+fi
+if [ "$cust_n" -gt "${RESET_MAX_CUSTOMERS:-25}" ] && [ "${RESET_FORCE:-}" != 1 ]; then
+  echo "!! refusing: $cust_n distinct customers placed these orders (RESET_MAX_CUSTOMERS=${RESET_MAX_CUSTOMERS:-25})." >&2
+  echo "   That is a business, not test data. (RESET_FORCE=1 overrides, for a test stack.)" >&2
+  exit 1
+fi
 if [ "${CONFIRM:-}" != "RESET-TEST-DATA" ]; then
   echo "!! refusing: set CONFIRM=RESET-TEST-DATA to say you mean it." >&2
   exit 1

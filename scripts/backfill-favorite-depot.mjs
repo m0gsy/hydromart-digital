@@ -33,6 +33,14 @@ import { PrismaClient as OrderClient } from '../services/order-service/prisma/ge
 import { PrismaClient as CustomerClient } from '../services/customer-service/prisma/generated/client/index.js';
 
 const DRY_RUN = process.argv.includes('--dry-run');
+
+// A mistyped flag (--dryrun, --dry_run) used to be ignored, and the script then WROTE.
+for (const a of process.argv.slice(2)) {
+  if (a !== '--dry-run') {
+    console.error(`unknown argument: ${a} (the only flag is --dry-run)`);
+    process.exit(2);
+  }
+}
 const ANONYMOUS_CUSTOMER_ID = '00000000-0000-0000-0000-000000000000';
 
 if (!process.env.ORDER_DATABASE_URL || !process.env.CUSTOMER_DATABASE_URL) {

@@ -25,13 +25,14 @@ MODE="${1:---inspect}"
 
 case "$MODE" in
   --inspect)
-    # Exactly the lines load-env.sh skips, truncated: enough to name the culprit, never
-    # enough to leak it. A .env is read by people over someone's shoulder.
-    echo "env-doctor: lines that are not KEY=VALUE (truncated to 32 chars):"
+    # Exactly the lines load-env.sh skips, by NUMBER and LENGTH only. A PEM body is the usual
+    # culprit and every character of it is key material; the first 32 were printed before
+    # (S2A-10). The line number is enough to open the file and look.
+    echo "env-doctor: lines that are not KEY=VALUE (content hidden):"
     awk '
       /^[[:space:]]*$/ || /^[[:space:]]*#/ { next }
       /^[A-Za-z_][A-Za-z0-9_]*=/ { next }
-      { printf "  %d: %.32s\n", NR, $0 }
+      { printf "  %d: (%d chars)\n", NR, length($0) }
     ' .env
     echo "env-doctor: (a PEM shows up as its body lines; --fix joins it back together)"
     ;;

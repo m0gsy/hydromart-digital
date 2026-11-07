@@ -77,6 +77,20 @@ async function main() {
   }
   const [orderId, depotId, originalCreatedAt] = row.split('|');
   console.log(`fixture order ${orderId}\n  depot ${depotId}\n  original createdAt ${originalCreatedAt} (UTC)\n`);
+  // F-33: this edits a REAL order. If the process is killed before the finally below runs,
+  // the timestamp stays moved, so the repair is printed first, and Ctrl-C / SIGTERM restore.
+  const restore = () =>
+    sql('hydromart_order', `update orders set "createdAt" = '${originalCreatedAt}' where id = '${orderId}'`);
+  console.log(`  to repair by hand: update orders set "createdAt" = '${originalCreatedAt}' where id = '${orderId}';\n`);
+  for (const sig of ['SIGINT', 'SIGTERM']) {
+    process.on(sig, () => {
+      try {
+        restore();
+      } finally {
+        process.exit(130);
+      }
+    });
+  }
 
   // 00:30 on a WIB day that no other fixture is sitting on. Stored UTC, so 17:30 the day
   // before — the whole point: the calendar date in the column is NOT the business date.

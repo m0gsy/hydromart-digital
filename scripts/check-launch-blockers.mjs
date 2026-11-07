@@ -211,7 +211,7 @@ function worse(current, next) {
         for (const key of required) {
           const value = get(key);
           lines.push(
-            `  ${key} = ${value === '' ? '(blank)' : `${value.slice(0, 4)}… (${value.length} chars)`}`,
+            `  ${key} = ${value === '' ? '(blank)' : `set (${value.length} chars)`}`,
           );
         }
         const missing = required.filter((k) => isPlaceholder(get(k)));
