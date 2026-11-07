@@ -153,14 +153,23 @@ describe('Settings HTTP flows (e2e)', () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(managerToken))
-      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'gallonDepositIdr', value: '15000' })
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'gallonMaxHoldDays', value: '10' })
       .expect(204);
 
     const res = await request(server())
       .get(`/api/v1/settings/schema?depotId=${managerDepotId}`)
       .set(auth(managerToken))
       .expect(200);
-    expect(res.body.effective.gallonDepositIdr).toBe(15000);
+    expect(res.body.effective.gallonMaxHoldDays).toBe(10);
+  });
+
+  // DEP-31: the deposit RATE is head office's, because a refund uses the current rate.
+  it('forbids a depot manager from changing the gallon deposit, even for their own depot (403)', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'gallonDepositIdr', value: '15000' })
+      .expect(403);
   });
 
   it('forbids a customer from writing settings (403)', async () => {

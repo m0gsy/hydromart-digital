@@ -1,8 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { CashierShift, expectedCash, variance } from '../../domain/cashier-shift';
 import { CashDirection } from '../../domain/cashbook';
+import { ApprovalType } from '../../domain/approval';
+import { ApprovalService } from './approval.service';
 import {
   DepotNotFoundError,
   ShiftAlreadyClosedError,
@@ -38,7 +40,11 @@ export class CashierShiftService {
     @Inject(DEPOT_TOKENS.CashbookRepository) private readonly cashbook: CashbookRepository,
     @Inject(DEPOT_TOKENS.DepotCash) private readonly depotCash: DepotCashPort,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    // DEP-22: optional so a build that wires no approvals still closes shifts.
+    @Optional() private readonly approvals?: ApprovalService,
   ) {}
+
+  private readonly logger = new Logger(CashierShiftService.name);
 
   async open(input: OpenShiftInput, cashier: { id: string; name: string }): Promise<CashierShift> {
     if (!(await this.depots.findById(input.depotId, false))) {
@@ -122,6 +128,26 @@ export class CashierShiftService {
       variance: variance(input.countedCash, expected),
       note: input.note?.trim() || null,
     });
+
+    // DEP-22: a drawer that does not match the till is money a manager has to account for. The
+    // variance used to live on the shift row alone, so nothing ever put it in front of anyone.
+    // Best effort: the shift is already closed, and a failure to queue must not undo that.
+    if (closed.variance && this.approvals) {
+      try {
+        await this.approvals.create(
+          {
+            depotId: shift.depotId,
+            type: ApprovalType.COD_VARIANCE,
+            title: `Selisih kas shift ${shift.cashierName}`,
+            subjectRef: `shift:${shift.id}`,
+            amountIdr: closed.variance,
+          },
+          cashier.id,
+        );
+      } catch (error) {
+        this.logger.warn(`Shift ${shift.id} variance not queued: ${(error as Error).message}`);
+      }
+    }
 
     // Only the takings go to the book. The float was never revenue — it was already in the
     // drawer when the shift started, and posting it would inflate the day by that much.

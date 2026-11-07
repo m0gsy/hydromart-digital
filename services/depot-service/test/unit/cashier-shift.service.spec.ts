@@ -111,13 +111,17 @@ describe('CashierShiftService', () => {
   let depotCash: FakeDepotCash;
   let depots: { findById: jest.Mock };
   let service: CashierShiftService;
+  let approvalsCreate: jest.Mock;
 
   beforeEach(() => {
     shifts = new InMemoryShifts();
     cashbook = new FakeCashbook();
     depotCash = new FakeDepotCash();
     depots = { findById: jest.fn(async () => ({ id: DEPOT })) };
-    service = new CashierShiftService(shifts, cashbook as never, depotCash, depots as never);
+    approvalsCreate = jest.fn(async () => ({}));
+    service = new CashierShiftService(shifts, cashbook as never, depotCash, depots as never, {
+      create: approvalsCreate,
+    } as never);
   });
 
   const openShift = () =>
@@ -231,6 +235,38 @@ describe('CashierShiftService', () => {
       await expect(
         service.close(opened.id, { countedCash: 1_100_000 }, CASHIER),
       ).rejects.toThrow(`shift:${opened.id}`);
+    });
+
+    // DEP-22: a drawer that does not match the till is money a manager must account for, but
+    // the variance was only stored on the shift row and nothing ever queued it for approval.
+    it('queues a COD_VARIANCE approval when the count does not match', async () => {
+      const opened = await openShift();
+      depotCash.total = 900_000; // expected = 200_000 float + 900_000
+      await service.close(opened.id, { countedCash: 1_050_000 }, CASHIER); // 50_000 short
+
+      expect(approvalsCreate).toHaveBeenCalledTimes(1);
+      expect(approvalsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          depotId: DEPOT,
+          type: 'COD_VARIANCE',
+          amountIdr: -50_000,
+          subjectRef: `shift:${opened.id}`,
+        }),
+        CASHIER.id,
+      );
+    });
+
+    it('queues nothing when the drawer balances, and never fails the close if queueing fails', async () => {
+      const balanced = await openShift();
+      depotCash.total = 900_000;
+      await service.close(balanced.id, { countedCash: 1_100_000 }, CASHIER);
+      expect(approvalsCreate).not.toHaveBeenCalled();
+
+      const short = await openShift();
+      approvalsCreate.mockRejectedValueOnce(new Error('approvals down'));
+      await expect(
+        service.close(short.id, { countedCash: 1_050_000 }, CASHIER),
+      ).resolves.toBeDefined();
     });
 
     it('writes no cashbook entry for a shift that sold nothing', async () => {

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -32,7 +32,15 @@ export class ListInventoryQueryDto {
 
   @ApiPropertyOptional({ description: 'Only lines at or below their minimum stock.' })
   @IsOptional()
-  @Type(() => Boolean)
+  // `@Type(() => Boolean)` is `Boolean("false")`, which is true: ?lowStockOnly=false asked for
+  // exactly the opposite of what it said.
+  @Transform(({ value }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
   @IsBoolean()
   lowStockOnly?: boolean;
 }
