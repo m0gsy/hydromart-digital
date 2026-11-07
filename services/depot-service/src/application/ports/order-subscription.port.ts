@@ -24,4 +24,11 @@ export interface CreateEngineSubscriptionInput {
 export interface OrderSubscriptionPort {
   /** The engine's subscription id, or a thrown error naming why it could not be made. */
   create(input: CreateEngineSubscriptionInput): Promise<string>;
+  /**
+   * DEP-23: pause/resume were local-only, so a plan the operator paused kept placing (and
+   * billing) deliveries from the engine. Same posture as `create`: throws when the engine
+   * could not be told, and the caller then leaves its own row untouched.
+   */
+  pause(engineId: string): Promise<void>;
+  resume(engineId: string): Promise<void>;
 }

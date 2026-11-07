@@ -141,13 +141,22 @@ export class SubscriptionService {
     return this.require(id);
   }
 
+  /**
+   * DEP-23: tell the engine FIRST, then change the row. This used to flip only the depot row,
+   * so a plan the operator paused kept placing deliveries from order-service. Engine first
+   * and fail closed, the way `create` does: if the engine cannot be told, the row stays as it
+   * is and the operator sees the error instead of a "paused" badge on a plan that still runs.
+   * Rows older than D10 carry no engine id and have nothing to tell.
+   */
   async pause(id: string): Promise<Subscription> {
-    await this.require(id);
+    const sub = await this.require(id);
+    if (sub.orderSubscriptionId) await this.engine.pause(sub.orderSubscriptionId);
     return this.subscriptions.update(id, { status: SubscriptionStatus.PAUSED });
   }
 
   async resume(id: string): Promise<Subscription> {
-    await this.require(id);
+    const sub = await this.require(id);
+    if (sub.orderSubscriptionId) await this.engine.resume(sub.orderSubscriptionId);
     return this.subscriptions.update(id, { status: SubscriptionStatus.ACTIVE });
   }
 }

@@ -279,6 +279,43 @@ describe('an outbound call that hangs is aborted and still settles', () => {
  * its engine subscription is exactly the thing D10 removes — a plan the console shows and
  * nothing runs — so a failure has to reach the operator while they are still on the screen.
  */
+describe('OrderSubscriptionHttpAdapter pause/resume (DEP-23)', () => {
+  const cfg = () => makeConfig({ orderServiceUrl: 'http://order:3004' });
+
+  it.each([
+    ['pause', 'pause'],
+    ['resume', 'resume'],
+  ] as const)('%s calls the engine internal route with the internal key', async (method, path) => {
+    const fetchMock = jest.fn().mockResolvedValue(jsonRes(200, { id: 'eng-9' }));
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+    await new OrderSubscriptionHttpAdapter(cfg())[method]('eng-9');
+
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit & { headers: Record<string, string> },
+    ];
+    expect(url).toBe('http://order:3004/api/v1/subscriptions/internal/eng-9/' + path);
+    expect(init.method).toBe('POST');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('carries the engine own refusal through and fails closed', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(jsonRes(409, { message: 'Langganan sudah dibatalkan' }));
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).pause('eng-9')).rejects.toThrow(
+      /sudah dibatalkan/,
+    );
+  });
+
+  it('refuses when the integration is not configured', async () => {
+    await expect(
+      new OrderSubscriptionHttpAdapter(makeConfig({ orderServiceUrl: '' })).pause('eng-9'),
+    ).rejects.toThrow(/belum dikonfigurasi/);
+  });
+});
+
 describe('OrderSubscriptionHttpAdapter', () => {
   const input = {
     customerId: 'c1',

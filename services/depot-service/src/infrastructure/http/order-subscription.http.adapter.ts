@@ -48,4 +48,32 @@ export class OrderSubscriptionHttpAdapter implements OrderSubscriptionPort {
     }
     return body.id;
   }
+
+  pause(engineId: string): Promise<void> {
+    return this.transition(engineId, 'pause');
+  }
+
+  resume(engineId: string): Promise<void> {
+    return this.transition(engineId, 'resume');
+  }
+
+  /** DEP-23. Fails closed for the same reason `create` does. */
+  private async transition(engineId: string, action: 'pause' | 'resume'): Promise<void> {
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    if (!orderServiceUrl || !internalServiceKey) {
+      throw new EngineUnavailableError('Integrasi order-service belum dikonfigurasi.');
+    }
+    const res = await fetch(
+      `${orderServiceUrl}/api/v1/subscriptions/internal/${encodeURIComponent(engineId)}/${action}`,
+      {
+        method: 'POST',
+        headers: { 'x-internal-key': internalServiceKey },
+        signal: AbortSignal.timeout(OrderSubscriptionHttpAdapter.TIMEOUT_MS),
+      },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      throw new EngineUnavailableError(body?.message ?? `order-service responded ${res.status}`);
+    }
+  }
 }
