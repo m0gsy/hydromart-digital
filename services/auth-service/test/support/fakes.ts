@@ -261,6 +261,13 @@ export class InMemoryCustomerRepository implements CustomerRepository {
 export class InMemoryOtpTokenRepository implements OtpTokenRepository {
   public readonly rows: OtpTokenRecord[] = [];
 
+  async deleteExpiredBefore(cutoff: Date): Promise<number> {
+    const keep = this.rows.filter((r) => r.expiresAt >= cutoff);
+    const n = this.rows.length - keep.length;
+    this.rows.splice(0, this.rows.length, ...keep);
+    return n;
+  }
+
   // Mirrors the DB's now()-generated createdAt. Accepts a clock so tests that use a
   // FakeClock keep createdAt consistent with the time the service reasons about.
   constructor(private readonly now: () => Date = () => new Date()) {}
@@ -322,6 +329,13 @@ export class InMemoryOtpTokenRepository implements OtpTokenRepository {
 
 export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
   public readonly rows: RefreshTokenRecord[] = [];
+
+  async deleteExpiredBefore(cutoff: Date): Promise<number> {
+    const keep = this.rows.filter((r) => r.expiresAt >= cutoff);
+    const n = this.rows.length - keep.length;
+    this.rows.splice(0, this.rows.length, ...keep);
+    return n;
+  }
 
   async create(data: CreateRefreshTokenData): Promise<RefreshTokenRecord> {
     const record: RefreshTokenRecord = {

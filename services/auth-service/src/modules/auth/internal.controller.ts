@@ -13,6 +13,7 @@ import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 
 import { AccountService } from '../../application/services/account.service';
 import { AuditService } from '../../application/services/audit.service';
+import { TokenPurgeService } from '../../application/services/token-purge.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { PublicCustomerDto } from './dto/responses.dto';
@@ -50,6 +51,7 @@ export class InternalAccountController {
   constructor(
     private readonly account: AccountService,
     private readonly audit: AuditService,
+    private readonly tokens: TokenPurgeService,
   ) {}
 
   /**
@@ -202,5 +204,17 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Delete audit rows older than the cutoff (internal service auth)' })
   purgeAuditLogs(@Body() dto: PurgeBeforeDto): Promise<{ deleted: number }> {
     return this.audit.purgeOlderThan(new Date(dto.cutoff));
+  }
+
+  /**
+   * AUT-08: delete expired OTP challenges and refresh tokens. Same shape as the audit purge:
+   * the caller supplies the cutoff; the service never deletes within a day of now.
+   */
+  @ApiOkResponse({ description: '{ otpTokens, refreshTokens }' })
+  @Post('tokens/purge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete expired OTP challenges and refresh tokens (internal service auth)' })
+  purgeExpiredTokens(@Body() dto: PurgeBeforeDto): Promise<{ otpTokens: number; refreshTokens: number }> {
+    return this.tokens.purgeExpired(new Date(dto.cutoff));
   }
 }

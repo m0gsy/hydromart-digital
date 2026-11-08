@@ -97,6 +97,7 @@ describe('OtpTokenPrismaRepository', () => {
     findFirst: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
   };
   const prisma = { otpToken: model } as unknown as PrismaService;
   const repo = new OtpTokenPrismaRepository(prisma);
@@ -187,6 +188,15 @@ describe('OtpTokenPrismaRepository', () => {
     await expect(repo.claimAttempt('otp-1', 5)).resolves.toBe(false);
   });
 
+  it('AUT-08: deletes challenges that expired before the cutoff', async () => {
+    const cutoff = new Date('2026-10-01');
+    model.deleteMany.mockResolvedValue({ count: 4 });
+    await expect(repo.deleteExpiredBefore(cutoff)).resolves.toBe(4);
+    expect(model.deleteMany).toHaveBeenCalledWith({
+      where: { expiresAt: { lt: cutoff } },
+    });
+  });
+
   it('consumes and bulk-consumes', async () => {
     model.updateMany.mockResolvedValueOnce({ count: 1 });
     await expect(repo.markConsumed('otp-1', new Date())).resolves.toBe(true);
@@ -204,6 +214,7 @@ describe('OtpTokenPrismaRepository', () => {
 
 describe('RefreshTokenPrismaRepository', () => {
   const model = {
+    deleteMany: jest.fn(),
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -247,6 +258,13 @@ describe('RefreshTokenPrismaRepository', () => {
     // the last two each take the customer row lock first.
     expect(model.updateMany).toHaveBeenCalledTimes(3);
     expect(queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('AUT-08: deletes sessions that expired before the cutoff', async () => {
+    const cutoff = new Date('2026-10-01');
+    model.deleteMany.mockResolvedValue({ count: 2 });
+    await expect(repo.deleteExpiredBefore(cutoff)).resolves.toBe(2);
+    expect(model.deleteMany).toHaveBeenCalledWith({ where: { expiresAt: { lt: cutoff } } });
   });
 
   describe('rotate', () => {

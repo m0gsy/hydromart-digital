@@ -62,4 +62,6 @@ export interface OtpTokenRepository {
   markConsumed(id: string, consumedAt: Date): Promise<boolean>;
   /** Invalidate all outstanding challenges for a customer + purpose. */
   consumeAllForPurpose(customerId: string, purpose: OtpPurpose, at: Date): Promise<void>;
+  /** AUT-08: delete challenges whose `expiresAt` is before `cutoff`. Returns how many. */
+  deleteExpiredBefore(cutoff: Date): Promise<number>;
 }
