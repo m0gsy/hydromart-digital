@@ -48,12 +48,14 @@ export class FraudFlagService {
    * order-service from here; that is a separate wire and is not pretended at.
    */
   async block(id: string, reason?: string): Promise<FraudFlagRecord> {
-    const flag = await this.repo.findById(id);
-    if (!flag) throw new FraudFlagNotFoundError(id);
-    if (flag.entityType === FraudEntityType.ACCOUNT) {
-      await this.accounts.setActive(flag.entityRef, false);
-    }
-    return this.transition(id, FraudStatus.BLOCKED, reason);
+    // AAS-01: suspend + write BLOCKED under the entity lock `clear` also takes.
+    const blocked = await this.repo.blockHolding(id, reason?.trim() || null, async (flag) => {
+      if (flag.entityType === FraudEntityType.ACCOUNT) {
+        await this.accounts.setActive(flag.entityRef, false);
+      }
+    });
+    if (!blocked) throw new FraudFlagNotFoundError(id);
+    return blocked;
   }
 
   /**

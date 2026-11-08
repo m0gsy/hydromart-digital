@@ -88,6 +88,30 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
     });
   }
 
+  async blockHolding(
+    id: string,
+    reason: string | null,
+    suspend: (flag: FraudFlagRecord) => Promise<void>,
+  ): Promise<FraudFlagRecord | null> {
+    const found = await this.prisma.fraudFlag.findUnique({ where: { id } });
+    if (!found) return null;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fraud:${found.entityRef}`}, 0))`;
+      const existing = await tx.fraudFlag.findUnique({ where: { id } });
+      if (!existing) return null;
+      await suspend(this.toRecord(existing));
+      const row = await tx.fraudFlag.update({
+        where: { id },
+        data: {
+          status: FraudStatus.BLOCKED,
+          decisionReason: reason,
+          ...(existing.blockedAt ? {} : { blockedAt: new Date() }),
+        },
+      });
+      return this.toRecord(row);
+    });
+  }
+
   async findById(id: string): Promise<FraudFlagRecord | null> {
     const row = await this.prisma.fraudFlag.findUnique({ where: { id } });
     return row ? this.toRecord(row) : null;

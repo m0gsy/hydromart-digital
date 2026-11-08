@@ -1333,6 +1333,47 @@ describe('FraudFlagPrismaRepository.create / clear (one open flag, locked clear)
     expect(await repo.clear('fr-1', null)).toMatchObject({ reinstate: false });
   });
 
+  // AAS-01: block shares clear's per-entity lock, and the suspension runs inside it.
+  it('blockHolding locks the entity, suspends inside the lock, stamps blockedAt once', async () => {
+    const order: string[] = [];
+    tx.$executeRaw.mockImplementationOnce(async () => void order.push('lock'));
+    fraudFlag.findUnique.mockResolvedValue(stored({ status: 'OPEN', blockedAt: null }));
+    fraudFlag.update.mockResolvedValue(stored());
+    const suspend = jest.fn(async () => void order.push('suspend'));
+    await expect(repo.blockHolding('fr-1', 'r', suspend)).resolves.toMatchObject({ id: 'fr-1' });
+    expect(order).toEqual(['lock', 'suspend']);
+    expect(fraudFlag.update).toHaveBeenCalledWith({
+      where: { id: 'fr-1' },
+      data: { status: 'BLOCKED', decisionReason: 'r', blockedAt: expect.any(Date) },
+    });
+    // already stamped: left alone
+    fraudFlag.findUnique.mockResolvedValue(stored());
+    await repo.blockHolding('fr-1', null, suspend);
+    expect(fraudFlag.update).toHaveBeenLastCalledWith({
+      where: { id: 'fr-1' },
+      data: { status: 'BLOCKED', decisionReason: null },
+    });
+  });
+
+  it('blockHolding answers null for an unknown flag, before and inside the lock', async () => {
+    const suspend = jest.fn();
+    fraudFlag.findUnique.mockResolvedValueOnce(null);
+    expect(await repo.blockHolding('nope', null, suspend)).toBeNull();
+    fraudFlag.findUnique.mockResolvedValueOnce(stored()).mockResolvedValueOnce(null);
+    expect(await repo.blockHolding('fr-1', null, suspend)).toBeNull();
+    expect(suspend).not.toHaveBeenCalled();
+  });
+
+  it('blockHolding writes nothing when the suspension fails', async () => {
+    fraudFlag.findUnique.mockResolvedValue(stored({ status: 'OPEN' }));
+    await expect(
+      repo.blockHolding('fr-1', null, async () => {
+        throw new Error('auth down');
+      }),
+    ).rejects.toThrow('auth down');
+    expect(fraudFlag.update).not.toHaveBeenCalled();
+  });
+
   it('clear never reinstates for an order flag or one that never suspended anybody', async () => {
     fraudFlag.update.mockResolvedValue(stored({ status: 'CLEARED' }));
     fraudFlag.findUnique.mockResolvedValue(stored({ entityType: 'ORDER' }));

@@ -563,6 +563,17 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
     return this.rows.find((f) => f.id === id) ?? null;
   }
 
+  async blockHolding(
+    id: string,
+    reason: string | null,
+    suspend: (flag: FraudFlagRecord) => Promise<void>,
+  ): Promise<FraudFlagRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    await suspend({ ...r });
+    return (await this.setStatus(id, FraudStatus.BLOCKED, reason))!;
+  }
+
   async clear(
     id: string,
     reason: string | null,
