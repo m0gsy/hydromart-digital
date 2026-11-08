@@ -20,6 +20,10 @@ import { PhotoLinkPort } from '../ports/photo-link.port';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
+/** PPA-09: how long an APPROVED claim may wait for its credit before the sweep takes it. */
+const UNPOSTED_GRACE_MS = 5 * 60_000;
+const UNPOSTED_SWEEP_BATCH = 200;
+
 export interface SubmitExpenseInput {
   category: ExpenseCategory;
   amount: number;
@@ -132,6 +136,33 @@ export class ExpenseClaimService {
       throw error;
     }
     return this.claims.attachLedgerEntry(claim.id, entryId);
+  }
+
+  /**
+   * PPA-09 — finish credits that a crash left half-done.
+   *
+   * APPROVED is written before the credit (PYO-4), so a process that dies in between leaves a
+   * claim the reviewer saw approved and the courier never got paid for, and nothing ever
+   * revisited it. This picks those up. The grace window keeps it off a claim whose own request
+   * is still crediting; `creditLedger` is keyed on `expense:<id>`, so a race with that request
+   * (or a second sweep) posts once.
+   */
+  async sweepUnposted(): Promise<{ credited: number; failed: number }> {
+    const stuck = await this.claims.findApprovedWithoutLedger(
+      new Date(Date.now() - UNPOSTED_GRACE_MS),
+      UNPOSTED_SWEEP_BATCH,
+    );
+    let credited = 0;
+    let failed = 0;
+    for (const claim of stuck) {
+      try {
+        await this.claims.attachLedgerEntry(claim.id, (await this.creditLedger(claim)).id);
+        credited += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    return { credited, failed };
   }
 
   /** Reviewer approves a pending claim: credit the courier ledger, then mark it approved. */

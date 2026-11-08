@@ -134,6 +134,9 @@ class Claims implements ExpenseClaimRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (row.status === 'APPROVED' && !row.ledgerEntryId) row.status = 'PENDING';
   }
+  async findApprovedWithoutLedger(): Promise<ExpenseClaimRecord[]> {
+    return [];
+  }
   async countAutoApprovedSince(courierId: string, since: Date): Promise<number> {
     return this.rows.filter(
       (r) =>

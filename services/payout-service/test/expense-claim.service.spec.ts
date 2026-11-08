@@ -129,6 +129,17 @@ class FakeClaims implements ExpenseClaimRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (row.status === 'APPROVED' && !row.ledgerEntryId) row.status = 'PENDING';
   }
+  async findApprovedWithoutLedger(reviewedBefore: Date, limit: number) {
+    return this.rows
+      .filter(
+        (r) =>
+          r.status === 'APPROVED' &&
+          !r.ledgerEntryId &&
+          r.reviewedAt !== null &&
+          r.reviewedAt < reviewedBefore,
+      )
+      .slice(0, limit);
+  }
   async countAutoApprovedSince(courierId: string, since: Date): Promise<number> {
     return this.rows.filter(
       (r) =>
@@ -597,6 +608,80 @@ describe('ExpenseClaimService', () => {
       ]);
       expect(ledger.commissionByDepot).toHaveBeenCalledWith(['dep-1', 'dep-2'], from, to);
       expect(claims.approvedTotalByDepot).toHaveBeenCalledWith(['dep-1', 'dep-2'], from, to);
+    });
+  });
+
+  /*
+   * PPA-09 — APPROVED is written BEFORE the credit (PYO-4), so a crash between the two leaves a
+   * claim the reviewer was told is approved and the courier was never paid. Nothing ever looked
+   * at it again. The sweep finishes the credit; sourceRef makes it safe to run twice.
+   */
+  describe('sweepUnposted (PPA-09)', () => {
+    const stranded = async (reviewedAt: Date) => {
+      const claim = await claims.create({
+        courierId: COURIER,
+        depotId: 'depot-1',
+        category: 'FUEL',
+        amount: 40000,
+        description: 'Bensin',
+        status: 'APPROVED',
+        reviewedBy: REVIEWER,
+        reviewedAt,
+      });
+      return claim;
+    };
+    const longAgo = () => new Date(Date.now() - 3_600_000);
+
+    it('credits an approved claim that never got its ledger entry, and links it', async () => {
+      const claim = await stranded(longAgo());
+      const out = await service.sweepUnposted();
+      expect(out).toEqual({ credited: 1, failed: 0 });
+      expect(ledger.entries).toHaveLength(1);
+      expect(ledger.entries[0]).toMatchObject({
+        courierId: COURIER,
+        amount: 40000,
+        sourceRef: `expense:${claim.id}`,
+      });
+      expect(claims.rows[0]!.ledgerEntryId).toBe(ledger.entries[0]!.id);
+    });
+
+    it('is idempotent: a second run posts nothing', async () => {
+      await stranded(longAgo());
+      await service.sweepUnposted();
+      expect(await service.sweepUnposted()).toEqual({ credited: 0, failed: 0 });
+      expect(ledger.entries).toHaveLength(1);
+    });
+
+    it('links the existing entry instead of double-posting when only the link was lost', async () => {
+      const claim = await stranded(longAgo());
+      await ledger.create({
+        courierId: COURIER,
+        depotId: 'depot-1',
+        type: 'ADJUSTMENT',
+        amount: 40000,
+        description: 'x',
+        sourceRef: `expense:${claim.id}`,
+      });
+      await service.sweepUnposted();
+      expect(ledger.entries).toHaveLength(1);
+      expect(claims.rows[0]!.ledgerEntryId).toBe('e-0');
+    });
+
+    it('leaves a claim approved a moment ago alone: its own request may still be crediting', async () => {
+      await stranded(new Date());
+      expect(await service.sweepUnposted()).toEqual({ credited: 0, failed: 0 });
+      expect(ledger.entries).toHaveLength(0);
+    });
+
+    it('counts a failure and carries on with the rest', async () => {
+      await stranded(longAgo());
+      await stranded(longAgo());
+      const create = jest
+        .spyOn(ledger, 'create')
+        .mockRejectedValueOnce(new Error('db down'));
+      const out = await service.sweepUnposted();
+      expect(out).toEqual({ credited: 1, failed: 1 });
+      create.mockRestore();
     });
   });
 });
