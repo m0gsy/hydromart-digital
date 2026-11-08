@@ -23,9 +23,14 @@ import { ORDER_TOKENS } from '../tokens';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { gallonQty, isDelivered, type ReportTable } from './report.service';
 
-/** The sales side of one day, from that day's orders. CANCELLED never counts. */
+/**
+ * The sales side of one day, from that day's orders. CANCELLED never counts, and neither does
+ * VOIDED: a reversed sale is not a sale (ORD-19; the reports already excluded both).
+ */
 function totalsFrom(rows: OrderRecord[]): SoldTotals {
-  const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+  const live = rows.filter(
+    (r) => r.status !== OrderStatus.CANCELLED && r.status !== OrderStatus.VOIDED,
+  );
   const { soldLiters, unmeasuredLines } = sumSoldLiters(live.flatMap((r) => r.items));
   return {
     soldLiters,

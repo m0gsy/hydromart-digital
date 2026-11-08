@@ -1634,7 +1634,9 @@ export class OrderService {
           target.customerId,
           '',
         )
-        .then(() => true)
+        // ORD-03: `notify` is fail-open and ANSWERS false when the message did not go. Only a
+        // truthy answer counts as sent; `.then(() => true)` counted every non-throw.
+        .then((delivered) => delivered !== false)
         .catch(() => false);
       if (ok) reminded += 1;
       else failed += 1;

@@ -28,6 +28,31 @@ describe('OutboxService edges', () => {
     expect(repo.rows[0].lastError).toContain('No handler registered');
   });
 
+  // ORD-12: processForOrder took the oldest 50 due rows OF ALL ORDERS and filtered to this one,
+  // so behind a backlog the order that just paid never got its immediate delivery.
+  it('ORD-12: delivers the row of the order that just paid, behind a backlog bigger than one batch', async () => {
+    const ran: string[] = [];
+    service.register('INVENTORY_CONSUME', async (id) => {
+      ran.push(id);
+    });
+    repo.enqueue(
+      Array.from({ length: 80 }, (_, i) => ({ topic: 'INVENTORY_CONSUME', orderId: `old-${i}` })),
+    );
+    // The backlog is OLDER than the new row, so a batch of "everyone's oldest" never reaches it.
+    repo.enqueue([{ topic: 'INVENTORY_CONSUME', orderId: 'ord-new' }]);
+    repo.rows.find((r) => r.orderId === 'ord-new')!.nextAttemptAt = new Date(60_000);
+
+    const result = await service.processForOrder('ord-new', '');
+
+    // (the order is not in the fake, so the row is closed rather than handled; what matters
+    // is that THIS order's row was reached and the 80 older ones were not touched)
+    expect(result.claimed).toBe(1);
+    expect(result.delivered).toBe(1);
+    expect(ran).toEqual([]);
+    expect(repo.rows.find((r) => r.orderId === 'ord-new')?.status).toBe('DONE');
+    expect(repo.rows.filter((r) => r.status === 'PENDING')).toHaveLength(80);
+  });
+
   it('closes a row whose order no longer exists instead of retrying it to death', async () => {
     const ran: string[] = [];
     service.register('INVENTORY_CONSUME', async (id) => {

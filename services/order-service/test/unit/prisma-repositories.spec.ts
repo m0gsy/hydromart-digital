@@ -2171,6 +2171,18 @@ describe('OrderPrismaRepository', () => {
     expect(values).toEqual(expect.arrayContaining(['depot-1', 3, new Date('2026-03-01'), 2]));
   });
 
+  // ORD-20: every counter-sale without a phone shares the anonymous customer id, so it grouped
+  // into one "customer" with hundreds of orders and was a member of every frequency segment.
+  it('ORD-20: both segment reads exclude the shared anonymous walk-in customer', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.segmentEstimate({ minOrders: 1 });
+    await repo.segmentCustomerIds({ minOrders: 1 }, 10);
+    for (const call of $queryRaw.mock.calls.slice(-2)) {
+      const sql = call[0] as { strings?: string[]; values: unknown[]; sql?: string };
+      expect(sql.values).toContain('00000000-0000-0000-0000-000000000000');
+    }
+  });
+
   it('returns an empty list when nobody matches', async () => {
     $queryRaw.mockResolvedValue([]);
     expect(await repo.segmentCustomerIds({}, 10)).toEqual([]);
