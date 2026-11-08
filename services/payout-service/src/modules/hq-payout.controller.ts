@@ -7,7 +7,9 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
@@ -15,6 +17,7 @@ import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 import { CourierPayoutService } from '../application/services/courier-payout.service';
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
 import { PayoutService, PendingPayout } from '../application/services/payout.service';
+import { HqPayoutExportService } from '../application/services/hq-payout-export.service';
 import { HqReleaseService } from '../application/services/hq-release.service';
 import { PayoutBankAccountService } from '../application/services/bank-account.service';
 import { PayoutBankAccountRecord } from '../application/ports/bank-account.repository';
@@ -50,6 +53,7 @@ export class HqPayoutController {
     private readonly courierPayout: CourierPayoutService,
     private readonly releases: HqReleaseService,
     private readonly bankAccounts: PayoutBankAccountService,
+    private readonly exporter: HqPayoutExportService,
   ) {}
 
   /*
@@ -190,6 +194,25 @@ export class HqPayoutController {
   @ApiOperation({ summary: 'Courier withdrawals awaiting a bank result, oldest first' })
   processingCourierWithdrawals(): Promise<CourierWithdrawalRecord[]> {
     return this.courierPayout.listProcessingWithdrawals();
+  }
+
+  /**
+   * PPA-15: the transfer worklist as a file, verified account numbers included. `hqPayout`
+   * (the class default), not `hqPayoutRead`: full account numbers are what pays, so reading
+   * them is the deciding role's. Audited per download.
+   */
+  @ApiOkResponse({ description: 'text/csv' })
+  @Get('withdrawals/processing/export.csv')
+  @ApiOperation({ summary: 'CSV of every PROCESSING withdrawal with its verified bank account' })
+  async exportProcessing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ): Promise<void> {
+    const csv = await this.exporter.processingCsv(user.sub);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="penarikan-processing.csv"');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send('﻿' + csv); // UTF-8 BOM so Excel reads it correctly
   }
 
   @ApiOkResponse({ type: WithdrawalResponseDto })
