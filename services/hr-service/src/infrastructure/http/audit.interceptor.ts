@@ -1,8 +1,15 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  NestInterceptor,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthenticatedUser, getRequestContext } from '@hydromart/platform';
 import { Request } from 'express';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 
 import { AuditService } from '../../application/services/audit.service';
 
@@ -37,19 +44,33 @@ export class AuditInterceptor implements NestInterceptor {
     const { entity, entityId } = this.parseRoute(request.path);
     const submitted = this.sanitize(request.body);
 
+    // HR-14: "POST payroll/:id/approve", not "POST" - the verb alone cannot tell a hire from a
+    // termination. No matched route (specs, 404s) falls back to the verb.
+    const routePath = (request.route as { path?: string } | undefined)?.path;
+    const action = routePath
+      ? `${request.method} ${routePath.replace(/^\/api(\/v\d+)?\//, '')}`
+      : request.method;
+    const write = (denied: boolean, body?: unknown): void => {
+      void this.audit.record({
+        actorId: user?.sub ?? null,
+        action: denied ? `DENIED ${action}` : action,
+        entity,
+        entityId: entityId ?? this.bodyId(body),
+        // `after` = the fields the caller submitted (sanitized). A true prior-state `before`
+        // is captured explicitly where it matters (e.g. AttendanceAdjustment before/after).
+        before: null,
+        after: submitted,
+        ip: ipAddress,
+      });
+    };
+
     return next.handle().pipe(
-      tap((body) => {
-        void this.audit.record({
-          actorId: user?.sub ?? null,
-          action: request.method,
-          entity,
-          entityId: entityId ?? this.bodyId(body),
-          // `after` = the fields the caller submitted (sanitized). A true prior-state `before`
-          // is captured explicitly where it matters (e.g. AttendanceAdjustment before/after).
-          before: null,
-          after: submitted,
-          ip: ipAddress,
-        });
+      tap((body) => write(false, body)),
+      // HR-14: a refused attempt is the row an investigation asks for. Only 401/403 - a 400
+      // or 409 touched nobody.
+      catchError((err: unknown) => {
+        if (err instanceof ForbiddenException || err instanceof UnauthorizedException) write(true);
+        return throwError(() => err);
       }),
     );
   }
