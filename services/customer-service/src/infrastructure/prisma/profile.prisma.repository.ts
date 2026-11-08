@@ -134,6 +134,7 @@ export class ProfilePrismaRepository implements ProfileRepository {
       JOIN "addresses" a
         ON a."customerId" = p."customerId" AND a."isPrimary" = true
       WHERE p."customerId" = ${customerId}::uuid
+        AND p."anonymisedAt" IS NULL
       ORDER BY p."customerId"
     `;
     return rows[0] ?? null;
@@ -152,7 +153,8 @@ export class ProfilePrismaRepository implements ProfileRepository {
       FROM "customer_profiles" p
       JOIN "addresses" a
         ON a."customerId" = p."customerId" AND a."isPrimary" = true
-      WHERE (${tier}::text IS NULL OR p."membershipTier"::text = ${tier})
+      WHERE p."anonymisedAt" IS NULL
+        AND (${tier}::text IS NULL OR p."membershipTier"::text = ${tier})
         AND (${city}::text IS NULL OR LOWER(a."city") = LOWER(${city}))
         -- F1b: the marketing opt-out bites HERE, not at delivery. This is the only place
         -- that can do it without a network hop and without a failure mode — the preference

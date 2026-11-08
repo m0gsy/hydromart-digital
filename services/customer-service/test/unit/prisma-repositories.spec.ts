@@ -430,6 +430,22 @@ describe('ProfilePrismaRepository', () => {
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 
+  // CUS-05: deleting the opt-out row made an erased person INCLUDED in every broadcast (the
+  // audience query reads "no row" as "never asked"). The marker is what excludes them.
+  const sqlOf = (call: unknown[]): string => (call[0] as string[]).join('?');
+
+  it('never returns an anonymised customer as a one-off recipient', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.findRecipient('cust-1');
+    expect(sqlOf($queryRaw.mock.calls.at(-1)!)).toContain('"anonymisedAt" IS NULL');
+  });
+
+  it('never puts an anonymised customer in a campaign audience', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.findSegment({});
+    expect(sqlOf($queryRaw.mock.calls.at(-1)!)).toContain('"anonymisedAt" IS NULL');
+  });
+
   it('answers null when that customer has no primary address', async () => {
     $queryRaw.mockResolvedValue([]);
     await expect(repo.findRecipient('cust-1')).resolves.toBeNull();

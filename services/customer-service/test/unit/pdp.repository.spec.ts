@@ -40,15 +40,27 @@ describe('PdpPrismaRepository (UU PDP tahap 1)', () => {
     });
   });
 
-  it('overwrites address PII instead of deleting the address itself', async () => {
+  // CUS-05: the row stays (it is a primary-address join target) but nothing that locates a
+  // person survives. The street, coordinates and postcode went on staying here for as long as
+  // the database did, justified by "orders are kept 10 years", which is true of order-service's
+  // own snapshot and not of this table.
+  it('overwrites address PII and the location, keeping only the city', async () => {
     await repo.anonymise('c1');
 
     expect($transaction).toHaveBeenCalledTimes(1);
     expect(address.updateMany).toHaveBeenCalledWith({
       where: { customerId: 'c1' },
-      data: { recipientName: 'Pengguna dihapus', phone: '-', notes: null },
+      data: {
+        recipientName: 'Pengguna dihapus',
+        phone: '-',
+        notes: null,
+        label: '-',
+        addressLine: '-',
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+      },
     });
-    // The order that was delivered there still needs a street (item 12 keeps it 10 years).
     expect(address.findMany).not.toHaveBeenCalled();
   });
 
@@ -57,7 +69,13 @@ describe('PdpPrismaRepository (UU PDP tahap 1)', () => {
 
     expect(customerProfile.updateMany).toHaveBeenCalledWith({
       where: { customerId: 'c1' },
-      data: { birthdate: null, lastBirthdayRewardYear: null },
+      data: {
+        birthdate: null,
+        lastBirthdayRewardYear: null,
+        // CUS-05: out of every depot's directory, and the marker the audience queries read.
+        favoriteDepotId: null,
+        anonymisedAt: expect.any(Date),
+      },
     });
     expect(savedPaymentMethod.deleteMany).toHaveBeenCalledWith({ where: { customerId: 'c1' } });
     expect(favorite.deleteMany).toHaveBeenCalledWith({ where: { customerId: 'c1' } });
