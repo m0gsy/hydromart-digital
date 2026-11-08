@@ -69,7 +69,7 @@ SCRATCH="hydromart-restore-drill"
 # the same reason it is in the success lines below: a drill that DIED after eleven minutes and
 # one that died after eleven seconds are different incidents, and the log said neither.
 if [ "$MODE" = "--drill" ]; then
-  trap 'rc=$?; docker rm -f "$SCRATCH" >/dev/null 2>&1 || true; if [ "$rc" -ne 0 ]; then alert "drill exited $rc after ${SECONDS}s, check the drill log"; report_backup_run DRILL FAILED "drill exited $rc after ${SECONDS}s, see the drill log"; fi; exit $rc' EXIT
+  trap 'rc=$?; docker rm -fv "$SCRATCH" >/dev/null 2>&1 || true; if [ "$rc" -ne 0 ]; then alert "drill exited $rc after ${SECONDS}s, check the drill log"; report_backup_run DRILL FAILED "drill exited $rc after ${SECONDS}s, see the drill log"; fi; exit $rc' EXIT
 fi
 
 if [ -z "$DUMP" ]; then
@@ -97,7 +97,7 @@ fi
 case "$MODE" in
   --drill)
     # Scratch teardown + failure alert are handled by the EXIT trap set above.
-    docker rm -f "$SCRATCH" >/dev/null 2>&1 || true
+    docker rm -fv "$SCRATCH" >/dev/null 2>&1 || true
     echo "drill: starting scratch Postgres ($PG_IMAGE)..."
     docker run -d --name "$SCRATCH" \
       -e POSTGRES_USER="$PG_USER" -e POSTGRES_PASSWORD=drill -e POSTGRES_DB=postgres \
