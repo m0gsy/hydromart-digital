@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider';
@@ -175,6 +175,19 @@ describe('NeoFaceProvider', () => {
     const neo = new NeoFaceProvider(makeConfig());
     await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
+    );
+  });
+
+  it('a frame with no detectable face is a 400 the employee can retry, not a 503', async () => {
+    mockFetch(() => ({
+      body: {
+        status: '413',
+        status_message: 'Procedural Error - Face Not Detected: please check image clarity',
+      },
+    }));
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(
+      BadRequestException,
     );
   });
 
