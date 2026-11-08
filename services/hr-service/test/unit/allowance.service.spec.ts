@@ -125,3 +125,13 @@ describe('AllowanceService.deactivate', () => {
     await expect(blocked.deactivate(hr, a.id)).rejects.toThrow(NotFoundException);
   });
 });
+
+describe('AllowanceService self guard (HR-13)', () => {
+  it('refuses adding or stopping an allowance on your own record', async () => {
+    const { repo, employees, svc } = make();
+    (employees.getById as jest.Mock).mockResolvedValue({ id: 'emp-1', depotId: 'd1', authSubjectId: 'hr-1' });
+    await expect(svc.add(hr, input)).rejects.toThrow(/sendiri/);
+    repo.rows.push({ id: 'al-x', employeeId: 'emp-1', active: true } as never);
+    await expect(svc.deactivate(hr, 'al-x')).rejects.toThrow(/sendiri/);
+  });
+});

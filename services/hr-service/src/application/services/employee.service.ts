@@ -8,6 +8,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { assertNotSelf } from './assert-not-self';
 import {
   AuthenticatedUser,
   ImportSummary,
@@ -847,6 +848,7 @@ export class EmployeeService {
   async update(user: AuthenticatedUser, id: string, input: UpdateEmployeeInput): Promise<Employee> {
     const current = await this.getById(user, id); // 404 + depot check
     this.assertHomeAccess(user, current);
+    assertNotSelf(user, current, input);
     // Block moving an employee into a depot the caller can't touch.
     if (input.depotId) {
       assertDepotAccess(user, input.depotId);

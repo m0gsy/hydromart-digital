@@ -1600,3 +1600,14 @@ describe('EmployeeService photo objects (HR-1)', () => {
   });
 });
 
+
+describe('EmployeeService.update self-edit guard (HR-13)', () => {
+  it('refuses to raise your own rate but allows your own bank edit', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' });
+    const self = { ...hr, sub: e.authSubjectId! };
+
+    await expect(svc.update(self, e.id, { dailyRate: 90_000 })).rejects.toThrow(/sendiri/);
+    await expect(svc.update(self, e.id, { bankName: 'BCA' })).resolves.toBeDefined();
+  });
+});

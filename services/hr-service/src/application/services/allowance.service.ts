@@ -3,6 +3,7 @@ import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform
 
 import { Allowance, AllowanceType } from '../../../prisma/generated/client';
 import { ALLOWANCE_REPOSITORY, AllowanceRepository } from '../ports/allowance.repository';
+import { assertNotSelf } from './assert-not-self';
 import { EmployeeService } from './employee.service';
 
 export interface AllowanceInput {
@@ -27,7 +28,7 @@ export class AllowanceService {
   ) {}
 
   async add(user: AuthenticatedUser, input: AllowanceInput): Promise<Allowance> {
-    await this.employees.getById(user, input.employeeId); // 404 + depot check
+    assertNotSelf(user, await this.employees.getById(user, input.employeeId)); // 404 + depot check + HR-13
     const from = new Date(input.effectiveFrom);
     const to = input.effectiveTo ? new Date(input.effectiveTo) : null;
     if (to && to < from) {
@@ -75,7 +76,7 @@ export class AllowanceService {
   async deactivate(user: AuthenticatedUser, id: string): Promise<Allowance> {
     const allowance = await this.repo.findById(id);
     if (!allowance) throw new NotFoundException('Tunjangan tidak ditemukan');
-    await this.employees.getById(user, allowance.employeeId); // depot check
+    assertNotSelf(user, await this.employees.getById(user, allowance.employeeId)); // depot check + HR-13
     return this.repo.update(id, { active: false });
   }
 }
