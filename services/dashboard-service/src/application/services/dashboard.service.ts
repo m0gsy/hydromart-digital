@@ -266,6 +266,9 @@ export class DashboardService {
     range: DateRange,
     token: string,
     depotIds?: readonly string[],
+    // F1: a customer's name is CRM data. `dashboardFinance` admits roles (FINANCE) that the
+    // CRM directory does not, so the controller says whether this caller may see names.
+    includeCustomerNames = true,
   ): Promise<ExecutiveDashboard> {
     const scope = depotIds ? [...depotIds] : undefined;
     const [sales, topCustomers, topDepots, deliverySla] = await Promise.all([
@@ -283,7 +286,9 @@ export class DashboardService {
 
     // §G-3. The card next to this one lists depots by name; this one listed its customers
     // as the first eight characters of a UUID. Fail-soft: no name changes nothing else.
-    if (topCustomers) {
+    if (topCustomers && !includeCustomerNames) {
+      topCustomers.items = topCustomers.items.map((i) => ({ ...i, customerName: null }));
+    } else if (topCustomers) {
       const names = await this.accountNames(topCustomers.items.map((i) => i.customerId));
       topCustomers.items = topCustomers.items.map((i) => ({
         ...i,

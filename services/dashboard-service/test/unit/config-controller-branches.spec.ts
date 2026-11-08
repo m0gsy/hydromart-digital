@@ -108,7 +108,7 @@ describe('DashboardController', () => {
     await expect(controller.executive({ from: 'a', to: 'b' }, 'Bearer t', headOffice)).resolves.toBe(
       'exec',
     );
-    expect(stub.executive).toHaveBeenCalledWith({ from: 'a', to: 'b' }, 'Bearer t', undefined);
+    expect(stub.executive).toHaveBeenCalledWith({ from: 'a', to: 'b' }, 'Bearer t', undefined, true);
   });
 
   /*
@@ -121,13 +121,21 @@ describe('DashboardController', () => {
     expect(stub.executive).toHaveBeenLastCalledWith({ from: undefined, to: undefined }, 'Bearer t', [
       'd1',
       'd2',
-    ]);
+    ], true);
   });
 
   it('lets a manager narrow to ONE of their depots, and refuses one that is not theirs', async () => {
     await controller.executive({ depotId: 'd2' }, 'Bearer t', manager('d1', 'd2'));
-    expect(stub.executive).toHaveBeenLastCalledWith(expect.anything(), 'Bearer t', ['d2']);
+    expect(stub.executive).toHaveBeenLastCalledWith(expect.anything(), 'Bearer t', ['d2'], true);
     expect(() => controller.executive({ depotId: 'd9' }, 'Bearer t', manager('d1'))).toThrow();
+  });
+
+  // F1: FINANCE may read the executive numbers but is not in the CRM directory, so the
+  // customer names on the top-customers card are withheld from it.
+  it('F1: withholds customer names from a role outside the CRM directory', async () => {
+    const finance = { sub: 'f-1', role: 'FINANCE', phone: null, depotId: null } as never;
+    await controller.executive({}, 'Bearer t', finance);
+    expect(stub.executive).toHaveBeenLastCalledWith(expect.anything(), 'Bearer t', undefined, false);
   });
 
   it('delegates monthlyPnl with depotId + month', async () => {

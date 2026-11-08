@@ -246,6 +246,14 @@ describe('DashboardService', () => {
     expect(withoutName.topCustomers?.items[0].customerName).toBeNull();
   });
 
+  it('F1: leaves names out, and never asks auth-service for them, when the caller may not see them', async () => {
+    const resolve = jest.fn(async () => new Map([['cust-1', 'Budi']]));
+    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig(), resolve);
+    const out = await service.executive({}, 'Bearer t', undefined, false);
+    expect(out.topCustomers?.items[0]).toMatchObject({ customerId: 'cust-1', customerName: null });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
   it('marks order unavailable and nulls order sections when order calls fail', async () => {
     const service = new DashboardService(
       new InMemoryDashboardSources(true),

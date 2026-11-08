@@ -1,6 +1,7 @@
 import { Controller, Get, Headers, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { can } from '@hydromart/access';
 import { AuthenticatedUser, Can, CurrentUser, depotScopeIds } from '@hydromart/platform';
 
 import {
@@ -45,6 +46,8 @@ export class DashboardController {
       { from: query.from, to: query.to },
       token,
       depotScopeIds(user, query.depotId),
+      // F1: names of customers only for roles that may open the CRM directory.
+      can('depotCrm', user.role),
     );
   }
 
