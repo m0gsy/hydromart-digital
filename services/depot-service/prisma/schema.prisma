@@ -157,8 +157,12 @@ model GallonReturn {
   note            String?
   /// Staff member (or courier) who recorded the return.
   actorId         String
+  /// DEP-07: the client's key for ONE manual submission. NULL on courier returns and old rows.
+  idempotencyKey  String?
   createdAt       DateTime        @default(now())
 
+  /// One return per (depot, key). NULL keys are distinct, so keyless rows never collide.
+  @@unique([depotId, idempotencyKey], map: "gallon_returns_depotId_idempotencyKey_key")
   @@index([depotId, createdAt])
   /// MONEY-04: unique, not just indexed. The courier handover travels through the offline
   /// queue, which is at-least-once, and a bare create refunded the deposit twice on a

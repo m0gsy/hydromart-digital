@@ -44,6 +44,7 @@ export class GallonReturnController {
         condition: dto.condition,
         depositRefunded: dto.depositRefunded,
         note: dto.note ?? null,
+        idempotencyKey: dto.idempotencyKey ?? null,
       },
       user.sub,
     );

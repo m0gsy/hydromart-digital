@@ -13,6 +13,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 import { GallonCondition } from '../../domain/gallon-return';
@@ -55,6 +56,16 @@ export class CreateGallonReturnDto {
   @IsString()
   @MaxLength(300)
   note?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'DEP-07: one random value per form submission. Sending the same one again returns the return already booked instead of booking a second refund.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey?: string;
 }
 
 /** Courier handover return (design 2e). No deposit field — it is derived server-side. */

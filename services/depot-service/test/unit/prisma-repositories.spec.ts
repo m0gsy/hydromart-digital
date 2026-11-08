@@ -1186,6 +1186,7 @@ describe('GallonIssuePrismaRepository', () => {
 describe('GallonReturnPrismaRepository', () => {
   const model = {
     create: jest.fn(),
+    findFirst: jest.fn(),
     findUnique: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
@@ -1203,6 +1204,32 @@ describe('GallonReturnPrismaRepository', () => {
     await expect(locked.serialized('d1:c1', work)).resolves.toBe('done');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(work.mock.invocationCallOrder[0]);
+  });
+
+  // DEP-07: the lookup the manual-return service runs under the balance lock.
+  it('findByIdempotencyKey reads by depot and key, and answers null when none', async () => {
+    model.findFirst.mockResolvedValueOnce({
+      id: 'r1',
+      depotId: 'd1',
+      customerId: null,
+      orderId: null,
+      quantity: 1,
+      condition: 'GOOD',
+      depositRefunded: '15000',
+      note: null,
+      actorId: 'a',
+      createdAt: new Date(),
+      idempotencyKey: 'key-0001',
+    });
+    await expect(repo.findByIdempotencyKey('d1', 'key-0001')).resolves.toMatchObject({
+      id: 'r1',
+      depositRefunded: 15000,
+    });
+    expect(model.findFirst).toHaveBeenCalledWith({
+      where: { depotId: 'd1', idempotencyKey: 'key-0001' },
+    });
+    model.findFirst.mockResolvedValueOnce(null);
+    await expect(repo.findByIdempotencyKey('d1', 'none')).resolves.toBeNull();
   });
 
   // MONEY-04. The courier handover arrives through the offline queue, which is

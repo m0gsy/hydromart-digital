@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Lock, Recycle, Plus } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -49,6 +49,10 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // DEP-07: ONE key per submission. Kept across a failed send, so a tap whose answer was lost
+  // cannot book the refund twice; tied to what was typed, so a CHANGED form is a new submission
+  // and not a replay of the old one. Dropped once the server accepted it.
+  const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
 
   function reset() {
     setQuantity('');
@@ -71,12 +75,23 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
     }
     setBusy(true);
     setError(null);
+    const fingerprint = JSON.stringify([qty, dep, condition, note]);
+    if (attempt.current?.fingerprint !== fingerprint) {
+      attempt.current = { fingerprint, key: crypto.randomUUID() };
+    }
     try {
       await api.post(
         endpoints.returns.create(depotId),
-        { quantity: qty, depositRefunded: dep, condition, note: note || undefined },
+        {
+          quantity: qty,
+          depositRefunded: dep,
+          condition,
+          note: note || undefined,
+          idempotencyKey: attempt.current.key,
+        },
         true,
       );
+      attempt.current = null;
       reset();
       setOpen(false);
       onSaved();
