@@ -6,6 +6,8 @@ export interface IngestItem {
   productName: string;
   sku: string;
   unit: string;
+  /** Units on the line (REC-02): feeds trending only. Absent = 1, as before. */
+  quantity?: number;
 }
 
 export interface IngestCommand {

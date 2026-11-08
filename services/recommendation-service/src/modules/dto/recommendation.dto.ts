@@ -75,6 +75,13 @@ export class IngestItemDto {
   @ApiProperty()
   @IsString()
   unit!: string;
+
+  @ApiPropertyOptional({ description: 'Units on this line; trending counts units, not lines.' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  quantity?: number;
 }
 
 export class IngestOrderDto {

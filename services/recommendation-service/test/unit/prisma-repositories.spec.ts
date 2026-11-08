@@ -104,6 +104,57 @@ describe('RecommendationPrismaRepository', () => {
     });
   });
 
+  /*
+   * REC-02. purchaseCount, buyCount and the co-buy pair were counted per LINE. A BOGO order
+   * splits one product into two lines, so A (1 line) with B (2 lines) gave A->B = 2 against
+   * buyCount(A) = 1: a confidence of 2.0 on a ratio that is meant to be a probability.
+   * One ORDER is one purchase of a product however many lines carry it.
+   */
+  it('counts a product once per order, however many lines carry it', async () => {
+    tx.productDailySales.findMany.mockResolvedValue([]);
+    await repo.applyIngest({
+      orderId: 'ord-5',
+      customerId: 'cust-1',
+      depotId: null,
+      at: new Date('2026-01-15T00:00:00Z'),
+      items: [
+        { productId: 'p-1', productName: 'A', sku: 'A', unit: 'u' },
+        { productId: 'p-2', productName: 'B', sku: 'B', unit: 'u' },
+        { productId: 'p-2', productName: 'B', sku: 'B', unit: 'u' },
+      ],
+    });
+    const sql = (n: number) => tx.$executeRaw.mock.calls[n][0] as { values: unknown[] };
+    // purchases (call 1): purchaseCount is 1 for each product. refs (call 2): buyCount likewise.
+    const ones = (call: { values: unknown[] }) => call.values.filter((v) => typeof v === 'number');
+    expect(ones(sql(1))).toEqual([1, 1]);
+    expect(ones(sql(2))).toEqual([1, 1]);
+    // co-buy (call 3): the A-B pair is ONE pairing in each direction, not two.
+    expect(ones(sql(3))).toEqual([1, 1]);
+  });
+
+  // The daily row feeds "trending", which is meant to be units sold; it carries the line quantity.
+  it('adds the line quantity to the day, so trending counts units and not lines', async () => {
+    tx.productDailySales.findMany.mockResolvedValue([]);
+    await repo.applyIngest({
+      orderId: 'ord-6',
+      customerId: 'cust-1',
+      depotId: null,
+      at: new Date('2026-01-15T00:00:00Z'),
+      items: [
+        { productId: 'p-1', productName: 'A', sku: 'A', unit: 'u', quantity: 5 },
+        { productId: 'p-1', productName: 'A', sku: 'A', unit: 'u', quantity: 2 },
+        { productId: 'p-2', productName: 'B', sku: 'B', unit: 'u' },
+      ],
+    });
+    expect(tx.productDailySales.createMany).toHaveBeenCalledWith({
+      data: [
+        { productId: 'p-1', depotId: null, day: new Date(Date.UTC(2026, 0, 15)), count: 7 },
+        // No quantity sent (an older producer): one line is one unit, as before.
+        { productId: 'p-2', depotId: null, day: new Date(Date.UTC(2026, 0, 15)), count: 1 },
+      ],
+    });
+  });
+
   it('writes nothing but the marker for an order with no lines', async () => {
     await repo.applyIngest({
       orderId: 'ord-3',
