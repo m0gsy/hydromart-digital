@@ -560,8 +560,15 @@ describe('SecurityPolicyController', () => {
       ipAllowlist: [],
       seenUpdatedAt: now.toISOString(),
     };
-    await controller.save(dto);
+    const req: { auditBefore?: unknown } = {};
+    await controller.save(dto, req);
     expect(policy.save).toHaveBeenCalledWith(dto, now.toISOString());
+    // AAS-09: the value being replaced rides on the request so the audit entry can show it.
+    expect(req.auditBefore).toEqual({
+      idleTimeoutMinutes: 30,
+      require2fa: true,
+      ipAllowlist: ['10.0.0.0/8'],
+    });
   });
 });
 

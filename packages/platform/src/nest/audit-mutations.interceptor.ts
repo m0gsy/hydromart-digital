@@ -78,6 +78,18 @@ export function describeRoute(
   return { action, target };
 }
 
+/** AAS-09: a list this short, of plain values this short, IS the change, so it is kept whole. */
+const KEEP_ITEMS = 20;
+const KEEP_CHARS = 120;
+const isShortPrimitiveList = (v: unknown[]): boolean =>
+  v.length <= KEEP_ITEMS &&
+  v.every(
+    (x) =>
+      typeof x === 'number' ||
+      typeof x === 'boolean' ||
+      (typeof x === 'string' && x.length <= KEEP_CHARS),
+  );
+
 /** Shallow copy with secret-looking values replaced. Depth 1 — a trail, not a dump. */
 export function redactBody(body: unknown): Record<string, unknown> | undefined {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
@@ -87,7 +99,9 @@ export function redactBody(body: unknown): Record<string, unknown> | undefined {
       out[k] = '[redacted]';
     } else if (v && typeof v === 'object') {
       // One level is enough to say what changed without copying a payload into the trail.
-      out[k] = Array.isArray(v) ? `[${v.length} item]` : '[object]';
+      // Scopes, an IP allowlist, a webhook's events or a report's recipients used to read
+      // "[3 item]": the entry said a list changed and not to what (AAS-09).
+      out[k] = Array.isArray(v) ? (isShortPrimitiveList(v) ? v : `[${v.length} item]`) : '[object]';
     } else {
       out[k] = v;
     }
@@ -148,12 +162,16 @@ export class AuditMutationsInterceptor implements NestInterceptor {
     };
 
     const write = (success: boolean, extra?: Record<string, unknown>): void => {
+      // AAS-09: a handler that read the row it is about to replace parks it on the request
+      // (`req.auditBefore`). Read at write time, after the handler ran, and redacted like
+      // the body — so a singleton policy change records what it changed FROM.
+      const before = redactBody(req.auditBefore);
       void this.sink!.record({
         action,
         actorId,
         target,
         success,
-        metadata: { ...metadata, ...extra },
+        metadata: { ...metadata, ...(before ? { before } : {}), ...extra },
       }).catch((err) => {
         this.logger.error(`audit entry dropped for ${action}: ${(err as Error).message}`);
       });
