@@ -237,6 +237,7 @@ export class DepotImportService {
     };
     const created = await this.depots.create(data);
     await this.writeSettings(created, settings, code, user);
+    await this.auditRow('created', created, [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)], user);
     return { status: 'created', id: created.id };
   }
 
@@ -259,7 +260,35 @@ export class DepotImportService {
       depot = await this.depots.update(current.id, fields, current.updatedAt.toISOString());
     }
     await this.writeSettings(depot, settings, current.code, user);
+    await this.auditRow('updated', depot, [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)], user);
     return { status: 'updated', id: depot.id };
+  }
+
+  /**
+   * DEP-13: one trail entry per depot an import actually changed. The PATCH route records the
+   * depot and the names of the fields it touched; an upsert reaches the same fields (bank
+   * account, QRIS, owner) and used to leave a single summary of counts. Names only, never the
+   * values. Fail-open like every audit write here: a depot already saved is not rolled back.
+   */
+  private async auditRow(
+    op: 'created' | 'updated',
+    depot: DepotRecord,
+    fields: string[],
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    await recordAuditEvent(
+      {
+        authServiceUrl: process.env.AUTH_SERVICE_URL ?? '',
+        internalServiceKey: process.env.INTERNAL_SERVICE_KEY ?? '',
+      },
+      {
+        action: 'depot.import.row',
+        actorId: user.sub,
+        target: depot.code,
+        metadata: { depotId: depot.id, op, fields },
+      },
+      DepotImportService.logger,
+    );
   }
 
   private async writeSettings(

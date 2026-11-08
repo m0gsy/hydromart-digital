@@ -1975,9 +1975,12 @@ describe('InventoryPrismaRepository', () => {
   it('lists movements newest-first, mapping the type', async () => {
     stockMovement.findMany.mockResolvedValue([{ id: 'mv-1', type: 'ADJUSTMENT', delta: -1 }]);
     const out = await repo.listMovements('it-1');
+    // DEP-12: stock_movements is the table that grows fastest, and this read had no bound of
+    // its own: newest 500 now, the rest through the cursor route.
     expect(stockMovement.findMany).toHaveBeenCalledWith({
       where: { itemId: 'it-1' },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
     expect(out[0].type).toBe(StockMovementType.ADJUSTMENT);
   });
@@ -2685,14 +2688,17 @@ describe('PurchaseOrderPrismaRepository', () => {
   it('lists with and without status', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
+    // DEP-12: a depot's purchase orders accumulate for the life of the depot; newest 200.
     expect(model.findMany).toHaveBeenCalledWith({
       where: { depotId: 'depot-1' },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
     await repo.listForDepot('depot-1', 'RECEIVED' as never);
     expect(model.findMany).toHaveBeenLastCalledWith({
       where: { depotId: 'depot-1', status: 'RECEIVED' },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
   });
 

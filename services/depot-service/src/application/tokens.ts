@@ -1,4 +1,6 @@
 export const DEPOT_TOKENS = {
+  // DEP-10: what is still in flight against a depot being switched off.
+  DeactivationProbe: Symbol('DepotDeactivationProbe'),
   // CA-2-54: stock moving between two depots, in two steps.
   StockTransferRepository: Symbol('StockTransferRepository'),
   DepotRepository: Symbol('DepotRepository'),

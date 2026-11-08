@@ -556,9 +556,11 @@ export class DepotController {
   async remove(
     @Param('depotId', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Query('force') force?: string,
   ): Promise<DepotRecord> {
-    const removed = await this.depots.deactivate(id);
-    await this.audit('depot.deactivate', user, removed.code, { depotId: id });
+    const forced = force === 'true';
+    const removed = await this.depots.deactivate(id, { force: forced });
+    await this.audit('depot.deactivate', user, removed.code, { depotId: id, force: forced });
     return removed;
   }
 

@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   assertFresh,
   isDecisionOnlyPatch,
@@ -14,6 +14,7 @@ import {
 } from '../../domain/depot-owners';
 import { OwnershipType } from '../../domain/inventory';
 import {
+  DepotDeactivationBlockedError,
   DepotNotFoundError,
   DuplicateDepotCodeError,
   FranchiseOwnerRequiredError,
@@ -25,6 +26,7 @@ import {
   DepotRepository,
   UpdateDepotData,
 } from '../ports/depot.repository';
+import { DepotDeactivationProbe } from '../ports/depot-deactivation.probe';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface BrowseDepotsInput {
@@ -79,7 +81,14 @@ export class DepotService {
   // ponytail: single unpaged scan of active depots; fine into the low thousands, see findNearby.
   private static readonly NEARBY_SCAN_LIMIT = 5000;
 
-  constructor(@Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository) {}
+  constructor(
+    @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    // DEP-10. Last and optional so every existing construction site keeps working; absent,
+    // deactivation is the plain flag flip it always was.
+    @Optional()
+    @Inject(DEPOT_TOKENS.DeactivationProbe)
+    private readonly probe?: DepotDeactivationProbe,
+  ) {}
 
   async browse(input: BrowseDepotsInput, activeOnly: boolean): Promise<Page<DepotRecord>> {
     const page = Math.max(1, input.page ?? 1);
@@ -274,9 +283,16 @@ export class DepotService {
     return this.depots.update(id, { paymentQrisImageUrl });
   }
 
-  /** Soft delete. */
-  async deactivate(id: string): Promise<DepotRecord> {
+  /**
+   * Soft delete. Refuses while work is still in flight against the depot (DEP-10), unless
+   * `force` says it is deliberate: a depot that is closing cannot wait for every PO.
+   */
+  async deactivate(id: string, opts: { force?: boolean } = {}): Promise<DepotRecord> {
     await this.get(id, false);
+    if (!opts.force && this.probe) {
+      const blockers = await this.probe.blockers(id);
+      if (blockers.length > 0) throw new DepotDeactivationBlockedError(blockers);
+    }
     return this.depots.update(id, { active: false });
   }
 }

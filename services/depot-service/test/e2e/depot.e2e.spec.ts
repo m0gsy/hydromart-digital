@@ -80,6 +80,10 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .useValue(new InMemoryDepotRepository())
       .overrideProvider(DEPOT_TOKENS.InventoryRepository)
       .useValue(new InMemoryInventoryRepository())
+      // DEP-10: the real probe counts rows through Prisma; this stub has none, and nothing is
+      // in flight in a fresh in-memory depot.
+      .overrideProvider(DEPOT_TOKENS.DeactivationProbe)
+      .useValue({ blockers: async () => [] })
       .compile();
 
     app = moduleRef.createNestApplication();

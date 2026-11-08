@@ -267,6 +267,9 @@ export class InventoryPrismaRepository implements InventoryRepository {
     const rows = await this.prisma.stockMovement.findMany({
       where: { itemId },
       orderBy: { createdAt: 'desc' },
+      // DEP-12: newest first and capped. The per-depot feed pages by cursor for anyone who
+      // needs further back.
+      take: 500,
     });
     return rows.map((r) => this.toMovement(r));
   }
