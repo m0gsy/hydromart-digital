@@ -82,8 +82,18 @@ export const envValidationSchema = Joi.object({
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   // Where a voided counter sale's refund goes. Blank = voiding is unavailable, which beats
   // marking a sale reversed while payment-service still holds the money.
-  PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  DELIVERY_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // ORD-18: required in production. Blank is fine on a laptop, but in production it booted a
+  // "healthy" service whose voids and delivery calls all failed; compose sets both.
+  PAYMENT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  DELIVERY_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),

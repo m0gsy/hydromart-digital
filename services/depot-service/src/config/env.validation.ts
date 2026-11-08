@@ -20,15 +20,33 @@ export const envValidationSchema = Joi.object({
   ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Product catalog, read to validate and name PRODUK stock lines. Blank = validation
   // off: lines are accepted with the label the operator typed (fail-open).
-  PRODUCT_SERVICE_URL: Joi.string().uri().allow('').default('http://localhost:3003'),
+  // D1-07: a production default of localhost pointed the catalog at nothing. Required there.
+  PRODUCT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('http://localhost:3003')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
   // Closing a cashier's shift reads that depot's takings from payment-service. Blank means
   // shifts can be opened but never closed — deliberate: a shift close that guesses the
   // expected cash would accuse or absolve a real person on made-up numbers.
-  PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // D1-08: required in production for the same reason (compose sets it).
+  PAYMENT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   // Courier COD totals for the daily close. Blank = a day cannot be closed (fail closed).
-  DELIVERY_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  DELIVERY_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  ORDER_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
   // business; the courier never enters the amount — the server computes deposit × qty.
