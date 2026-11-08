@@ -130,7 +130,9 @@ export class LoanService {
   /** What this person still owes on every unsettled loan, as of now. Internal: no access check. */
   async openBalance(employeeId: string): Promise<number> {
     const views = await this.viewsFor(employeeId, '');
-    return views.reduce((sum, l) => sum + (l.settled ? 0 : l.remaining), 0);
+    // HR-12: a deactivated loan is forgiven or written off; it is not owed, and counting it
+    // blocked the kasbon cap for somebody whose loan HR had already cancelled.
+    return views.reduce((sum, l) => sum + (!l.active || l.settled ? 0 : l.remaining), 0);
   }
 
   private async viewsFor(employeeId: string, asOfPeriod: string): Promise<LoanView[]> {

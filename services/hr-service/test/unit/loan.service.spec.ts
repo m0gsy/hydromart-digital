@@ -332,4 +332,16 @@ describe('LoanService.openBalance', () => {
     expect(await svc.openBalance('e1')).toBeGreaterThan(0);
     expect(await svc.openBalance('nobody')).toBe(0);
   });
+
+  // HR-12: a loan HR deactivated (forgiven, written off) was still summed as owed, and that
+  // number feeds the kasbon cap, so a person with a cancelled loan could not borrow again.
+  it('HR-12: does not count a deactivated loan as still owed', async () => {
+    const { svc } = make();
+    const loan = await svc.create(hr, base);
+    expect(await svc.openBalance('e1')).toBeGreaterThan(0);
+
+    await svc.deactivate(hr, loan.id);
+
+    expect(await svc.openBalance('e1')).toBe(0);
+  });
 });
