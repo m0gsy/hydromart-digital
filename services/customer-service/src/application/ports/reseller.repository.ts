@@ -86,6 +86,29 @@ export interface ResellerRepository {
    * Bounded — a sweep must not be able to load an unbounded backlog into memory.
    */
   findDuePriceChanges(now: Date, limit: number): Promise<ResellerPriceChange[]>;
-  /** K4.2: stamp one scheduled change as applied. Only ever after the profile moved. */
-  markPriceChangeApplied(id: string, at: Date): Promise<void>;
+  /**
+   * CUS-03: change the profile AND append its log rows in ONE transaction.
+   *
+   * They used to be two writes, the log after the profile, so a crash between them changed an
+   * agen's price with no trace of it, which is the one thing the log exists to prevent.
+   */
+  updateWithPriceChanges(
+    customerId: string,
+    patch: UpdateResellerData,
+    changes: RecordPriceChangeData[],
+  ): Promise<Reseller>;
+  /**
+   * CUS-03: apply scheduled changes. Claims the rows (`appliedAt IS NULL` -> `at`) and moves
+   * the profile in one transaction.
+   *
+   * Answers null when any row was already claimed, and then nothing moved: two overlapping
+   * sweeps can no longer both apply and announce the same change, and a sweep that was holding
+   * an old due list can no longer overwrite a newer manual edit.
+   */
+  applyPriceChanges(
+    customerId: string,
+    patch: UpdateResellerData,
+    changeIds: readonly string[],
+    at: Date,
+  ): Promise<Reseller | null>;
 }

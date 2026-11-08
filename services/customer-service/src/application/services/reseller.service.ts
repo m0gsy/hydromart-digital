@@ -203,17 +203,21 @@ export class ResellerService {
       return current;
     }
 
-    const updated = await this.resellers.update(customerId, patch);
-    for (const change of priced) {
-      await this.resellers.recordPriceChange({
+    // CUS-03: a price edit writes the profile and its log together, or neither. Anything that
+    // is not a price keeps the plain single write.
+    if (priced.length === 0) return this.resellers.update(customerId, patch);
+    const updated = await this.resellers.updateWithPriceChanges(
+      customerId,
+      patch,
+      priced.map((change) => ({
         customerId,
         changedBy: user.sub,
         ...change,
         effectiveAt: now,
         appliedAt: now,
-      });
-    }
-    if (priced.length > 0) await this.announce(updated);
+      })),
+    );
+    await this.announce(updated);
     return updated;
   }
 
@@ -245,10 +249,16 @@ export class ResellerService {
       const patch: UpdateResellerData = {};
       for (const c of changes) Object.assign(patch, fieldPatch(c.field, c.newValue));
       try {
-        const updated = await this.resellers.update(customerId, patch);
-        // Stamped only after the profile actually moved — a failed update leaves the
-        // change due, and the next tick tries it again rather than losing it.
-        for (const c of changes) await this.resellers.markPriceChangeApplied(c.id, now);
+        // CUS-03: claim and apply in ONE transaction. A failure leaves the rows unclaimed
+        // and due, so the next tick retries; a lost claim (null) means another sweep already
+        // applied them, so this one neither moves the profile nor announces.
+        const updated = await this.resellers.applyPriceChanges(
+          customerId,
+          patch,
+          changes.map((c) => c.id),
+          now,
+        );
+        if (!updated) continue;
         applied += changes.length;
         // Deliberately after the stamp and deliberately unchecked: a dropped notice is a
         // message lost, but re-applying a price change is a price applied twice.

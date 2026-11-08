@@ -11,6 +11,9 @@ import {
 } from '../../application/ports/reseller.repository';
 import { PrismaService } from './prisma.service';
 
+/** Thrown inside the apply transaction to roll it back when another sweep claimed a row. */
+class ClaimLost extends Error {}
+
 @Injectable()
 export class ResellerPrismaRepository implements ResellerRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -73,8 +76,39 @@ export class ResellerPrismaRepository implements ResellerRepository {
     return rows.map(toChange);
   }
 
-  async markPriceChangeApplied(id: string, at: Date): Promise<void> {
-    await this.prisma.resellerPriceChange.update({ where: { id }, data: { appliedAt: at } });
+  updateWithPriceChanges(
+    customerId: string,
+    patch: UpdateResellerData,
+    changes: RecordPriceChangeData[],
+  ): Promise<Reseller> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.resellerProfile.update({ where: { customerId }, data: patch });
+      await tx.resellerPriceChange.createMany({ data: changes });
+      return updated;
+    });
+  }
+
+  async applyPriceChanges(
+    customerId: string,
+    patch: UpdateResellerData,
+    changeIds: readonly string[],
+    at: Date,
+  ): Promise<Reseller | null> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const { count } = await tx.resellerPriceChange.updateMany({
+          where: { id: { in: [...changeIds] }, customerId, appliedAt: null },
+          data: { appliedAt: at },
+        });
+        // Fewer rows than asked means somebody else claimed some of them. Throwing is what
+        // rolls the claim back, so a partial claim never survives.
+        if (count !== changeIds.length) throw new ClaimLost();
+        return tx.resellerProfile.update({ where: { customerId }, data: patch });
+      });
+    } catch (error) {
+      if (error instanceof ClaimLost) return null;
+      throw error;
+    }
   }
 }
 
