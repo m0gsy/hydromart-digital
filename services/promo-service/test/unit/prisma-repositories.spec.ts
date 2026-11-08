@@ -536,6 +536,38 @@ describe('VoucherPrismaRepository', () => {
     expect(dailySql.values).toContain('Asia/Jakarta');
   });
 
+  // PLP-03: every other counter in this repository filters `releasedAt: null` (PRM-8), but the
+  // analytics read did not, so a redemption handed back by a voided order was still counted as a
+  // use and as savings in the voucher console.
+  it('PLP-03: analytics ignore redemptions that a voided order released', async () => {
+    voucherRedemption.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { discountApplied: null },
+    });
+    voucherRedemption.count.mockResolvedValue(0);
+    voucherRedemption.groupBy.mockResolvedValue([]);
+    $queryRaw.mockResolvedValue([]);
+    voucherRedemption.aggregate.mockClear();
+    voucherRedemption.count.mockClear();
+    voucherRedemption.groupBy.mockClear();
+    $queryRaw.mockClear();
+
+    await repo.redemptionAnalytics('v-1', new Date(0), new Date(1), 5, 'Asia/Jakarta');
+
+    expect(voucherRedemption.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ releasedAt: null }) }),
+    );
+    expect(voucherRedemption.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({ releasedAt: null }),
+    });
+    expect(voucherRedemption.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ releasedAt: null }) }),
+    );
+    for (const [sql] of $queryRaw.mock.calls) {
+      expect(sql.strings.join('')).toContain('"releasedAt" IS NULL');
+    }
+  });
+
   it('reports zero savings when nothing was ever redeemed', async () => {
     voucherRedemption.aggregate.mockResolvedValue({
       _count: { _all: 0 },

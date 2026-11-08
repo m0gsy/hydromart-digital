@@ -382,13 +382,17 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
   async recordExpiry(m: ExpiryMutation): Promise<boolean> {
     // LOY-8: claim the lot first and only debit if this sweep won it. `update` by id
     // succeeded unconditionally, so two overlapping sweeps both wrote an EXPIRE row.
-    const { count } = await this.prisma.pointsTransaction.updateMany({
-      where: { id: m.lotId, expired: false },
-      data: { expired: true },
-    });
-    if (count === 0) return false;
-    await this.prisma.$transaction([
-      this.prisma.pointsTransaction.create({
+    //
+    // PLP-06: and the claim is INSIDE the same transaction as the debit. It used to be a
+    // separate statement before it, so a failure between the two left the lot marked expired
+    // with no EXPIRE row and no debit, and no later sweep would ever look at that lot again.
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.pointsTransaction.updateMany({
+        where: { id: m.lotId, expired: false },
+        data: { expired: true },
+      });
+      if (count === 0) return false;
+      await tx.pointsTransaction.create({
         data: {
           accountId: m.accountId,
           customerId: m.customerId,
@@ -396,17 +400,17 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
           points: -m.points,
           reason: 'Points expired',
         },
-      }),
+      });
       // GREATEST, not a pre-read clamp: the sweep runs against whatever the balance is at
       // the moment it lands, and an expired lot larger than the remaining balance must
       // empty the account, not drive it negative.
-      this.prisma.$executeRaw`
+      await tx.$executeRaw`
         UPDATE "loyalty_accounts"
            SET "pointsBalance" = GREATEST(0, "pointsBalance" - ${m.points}),
                "updatedAt" = NOW()
          WHERE "id" = ${m.accountId}
-      `,
-    ]);
-    return true;
+      `;
+      return true;
+    });
   }
 }

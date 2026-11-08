@@ -230,7 +230,9 @@ export class VoucherPrismaRepository implements VoucherRepository {
     timeZone: string,
     orderIds?: readonly string[],
   ): Promise<RedemptionAnalytics> {
-    const scoped = orderIds ? { orderId: { in: [...orderIds] } } : {};
+    // PLP-03: `releasedAt: null` everywhere, like every other counter here (PRM-8). A redemption
+    // handed back by a voided order is not a use, and was still shown as one.
+    const scoped = { releasedAt: null, ...(orderIds ? { orderId: { in: [...orderIds] } } : {}) };
     // `orderId` is TEXT: compare as text, never cast the parameter (PRM-3).
     const scopedSql = orderIds
       ? Prisma.sql`AND "orderId" = ANY(${[...orderIds]}::text[])`
@@ -255,6 +257,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
                COUNT(*)::bigint AS uses
         FROM "voucher_redemptions"
         WHERE "voucherId" = ${voucherId} AND "createdAt" >= ${from} AND "createdAt" < ${to}
+          AND "releasedAt" IS NULL
         ${scopedSql}
         GROUP BY 1
         ORDER BY 1`),
@@ -273,7 +276,7 @@ export class VoucherPrismaRepository implements VoucherRepository {
       this.prisma.$queryRaw<{ orderId: string }[]>(Prisma.sql`
         SELECT "orderId"
         FROM "voucher_redemptions"
-        WHERE "voucherId" = ${voucherId}
+        WHERE "voucherId" = ${voucherId} AND "releasedAt" IS NULL
         ${scopedSql}
         GROUP BY "orderId"
         ORDER BY MIN("createdAt") ASC`),

@@ -7,6 +7,7 @@ import { RewardPrismaRepository } from '../../src/infrastructure/prisma/reward.p
 import {
   InsufficientPointsError,
   InvalidAdjustmentError,
+  RewardAlreadyCancelledError,
   RewardAlreadyGrantedError,
   RewardOutOfStockError,
 } from '../../src/domain/errors';
@@ -479,13 +480,19 @@ describe('LoyaltyPrismaRepository', () => {
   });
 
   it('records expiry: mark lot expired + negative EXPIRE entry + balance debit', async () => {
-    pointsTransaction.update.mockReturnValue('mark' as never);
     pointsTransaction.create.mockReturnValue('expire-entry' as never);
-    loyaltyAccount.update.mockReturnValue('debit' as never);
+    pointsTransaction.updateMany.mockResolvedValueOnce({ count: 1 });
+    // PLP-06: the claim, the EXPIRE row and the balance debit run in ONE interactive
+    // transaction, so a failure between them rolls the claim back instead of leaving the lot
+    // expired with no debit.
+    $transaction.mockImplementationOnce(async (fn: unknown) =>
+      (fn as (tx: unknown) => Promise<unknown>)({ pointsTransaction, $executeRaw }),
+    );
     await expect(
       repo.recordExpiry({ lotId: 'txn-1', accountId: 'acc-1', customerId: 'cust-1', points: 100 }),
     ).resolves.toBe(true);
     expect($transaction).toHaveBeenCalledTimes(1);
+    expect(typeof $transaction.mock.calls[0][0]).toBe('function');
     // LOY-8: the lot is CLAIMED first, conditionally. An unconditional `update` by id let
     // two overlapping sweeps both write an EXPIRE row for the same lot and debit it twice.
     expect(pointsTransaction.updateMany).toHaveBeenCalledWith({
@@ -511,11 +518,27 @@ describe('LoyaltyPrismaRepository', () => {
   // is told so rather than counting it.
   it('reports a lot already claimed by another sweep, writing nothing', async () => {
     pointsTransaction.updateMany.mockResolvedValueOnce({ count: 0 });
-    const before = $transaction.mock.calls.length;
+    $transaction.mockImplementationOnce(async (fn: unknown) =>
+      (fn as (tx: unknown) => Promise<unknown>)({ pointsTransaction, $executeRaw }),
+    );
+    pointsTransaction.create.mockClear();
+    $executeRaw.mockClear();
     await expect(
       repo.recordExpiry({ lotId: 'txn-1', accountId: 'acc-1', customerId: 'cust-1', points: 100 }),
     ).resolves.toBe(false);
-    expect($transaction.mock.calls).toHaveLength(before);
+    expect(pointsTransaction.create).not.toHaveBeenCalled();
+    expect($executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('PLP-06: a failure after the claim propagates so the transaction rolls it back', async () => {
+    pointsTransaction.updateMany.mockResolvedValueOnce({ count: 1 });
+    pointsTransaction.create.mockRejectedValueOnce(new Error('db blip'));
+    $transaction.mockImplementationOnce(async (fn: unknown) =>
+      (fn as (tx: unknown) => Promise<unknown>)({ pointsTransaction, $executeRaw }),
+    );
+    await expect(
+      repo.recordExpiry({ lotId: 'txn-1', accountId: 'acc-1', customerId: 'cust-1', points: 100 }),
+    ).rejects.toThrow('db blip');
   });
 });
 
@@ -784,6 +807,37 @@ describe('RewardPrismaRepository', () => {
       restoreStock: false,
     });
     expect(rewardItem.update).not.toHaveBeenCalled();
+  });
+
+  // PLP-08: the cancel's WHERE guard (status: ACTIVE) is what prevents a double refund, but
+  // the loser's P2025 surfaced as a 500. It is a plain "already cancelled" conflict.
+  it('PLP-08: a cancel that loses the race is a conflict, not a server error', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('no row'), { code: 'P2025' }));
+    await expect(
+      repo.cancel({
+        redemptionId: 'rd-1',
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        pointsRefunded: 500,
+        reason: 'Cancelled Free Galon',
+        restoreStock: false,
+      }),
+    ).rejects.toBeInstanceOf(RewardAlreadyCancelledError);
+
+    // anything that is not the guard losing is a real fault and still surfaces
+    $transaction.mockRejectedValueOnce(new Error('connection lost'));
+    await expect(
+      repo.cancel({
+        redemptionId: 'rd-1',
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        pointsRefunded: 500,
+        reason: 'x',
+        restoreStock: false,
+      }),
+    ).rejects.toThrow('connection lost');
   });
 
   // Losing the balance floor means somebody else spent the points first. That is the

@@ -11,7 +11,11 @@ import {
   RewardRepository,
   UpdateRewardItemData,
 } from '../../application/ports/reward.repository';
-import { InsufficientPointsError, RewardOutOfStockError } from '../../domain/errors';
+import {
+  InsufficientPointsError,
+  RewardAlreadyCancelledError,
+  RewardOutOfStockError,
+} from '../../domain/errors';
 import { PointsTxnType as PrismaTxnType } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
@@ -215,35 +219,43 @@ export class RewardPrismaRepository implements RewardRepository {
    * the real defence against a double refund from two concurrent requests.
    */
   async cancel(m: CancelRedemptionMutation): Promise<RewardRedemptionRecord> {
-    const [redemption] = await this.prisma.$transaction([
-      this.prisma.rewardRedemption.update({
-        where: { id: m.redemptionId, status: 'ACTIVE' },
-        data: { status: 'CANCELLED', cancelledAt: new Date() },
-      }),
-      // Positive ledger entry mirroring the REDEEM debit — lifetimePoints/tier stay put,
-      // exactly as they did when the points were spent.
-      this.prisma.pointsTransaction.create({
-        data: {
-          accountId: m.accountId,
-          customerId: m.customerId,
-          type: PrismaTxnType.REDEEM,
-          points: m.pointsRefunded,
-          reason: m.reason,
-        },
-      }),
-      this.prisma.loyaltyAccount.update({
-        where: { id: m.accountId },
-        data: { pointsBalance: { increment: m.pointsRefunded } },
-      }),
-      ...(m.restoreStock
-        ? [
-            this.prisma.rewardItem.update({
-              where: { id: m.rewardItemId },
-              data: { stock: { increment: 1 } },
-            }),
-          ]
-        : []),
-    ]);
+    // PLP-08: the `status: 'ACTIVE'` guard below is the defence against a double refund. When it
+    // is the thing that loses (a second cancel, or a hand-over in between) Prisma raises
+    // P2025, which used to surface as a 500. It is a conflict the caller can state.
+    const [redemption] = await this.prisma
+      .$transaction([
+        this.prisma.rewardRedemption.update({
+          where: { id: m.redemptionId, status: 'ACTIVE' },
+          data: { status: 'CANCELLED', cancelledAt: new Date() },
+        }),
+        // Positive ledger entry mirroring the REDEEM debit — lifetimePoints/tier stay put,
+        // exactly as they did when the points were spent.
+        this.prisma.pointsTransaction.create({
+          data: {
+            accountId: m.accountId,
+            customerId: m.customerId,
+            type: PrismaTxnType.REDEEM,
+            points: m.pointsRefunded,
+            reason: m.reason,
+          },
+        }),
+        this.prisma.loyaltyAccount.update({
+          where: { id: m.accountId },
+          data: { pointsBalance: { increment: m.pointsRefunded } },
+        }),
+        ...(m.restoreStock
+          ? [
+              this.prisma.rewardItem.update({
+                where: { id: m.rewardItemId },
+                data: { stock: { increment: 1 } },
+              }),
+            ]
+          : []),
+      ])
+      .catch((error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2025') throw new RewardAlreadyCancelledError();
+        throw error;
+      });
     return this.toRecord(redemption);
   }
 
