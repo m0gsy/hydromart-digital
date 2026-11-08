@@ -1371,6 +1371,9 @@ export const hrFix = {
     title: 'Payroll',
     period: 'Period',
     generate: 'Generate',
+    refreshSnapshot: 'Use current wage & role',
+    refreshSnapshotHint:
+      'Regenerate the draft with the current wage, role and PTKP on the employee record. Without this, the draft keeps the values it was first priced from.',
     empty: 'No payroll for this period yet.',
     employeeOpt: 'Employee (optional)',
     allEmployees: 'All employees',

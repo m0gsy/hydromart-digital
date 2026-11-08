@@ -64,6 +64,8 @@ function PayrollInner() {
    */
   const [status, setStatus] = useState<'' | PayrollStatus>('');
   const [busy, setBusy] = useState(false);
+  // HR-06: a regenerated DRAFT replays the wage/jabatan/PTKP it was first priced from.
+  const [refreshSnapshot, setRefreshSnapshot] = useState(false);
   const [batchDepotId, setBatchDepotId] = useState('');
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<GenerateBatchResult | null>(null);
@@ -93,7 +95,11 @@ function PayrollInner() {
     }
     setBusy(true);
     try {
-      await api.post(endpoints.hr.generatePayroll, { employeeId, periodMonth: period }, true);
+      await api.post(
+        endpoints.hr.generatePayroll,
+        { employeeId, periodMonth: period, ...(refreshSnapshot ? { refreshSnapshot: true } : {}) },
+        true,
+      );
       toast(t('hrFix.payroll.generated'));
       reload();
     } catch (e) {
@@ -182,6 +188,16 @@ function PayrollInner() {
             ))}
           </select>
         </label>
+        {canRunPayroll(customer?.role) && (
+          <label className="flex items-center gap-2 text-sm" title={t('hrFix.payroll.refreshSnapshotHint')}>
+            <input
+              type="checkbox"
+              checked={refreshSnapshot}
+              onChange={(e) => setRefreshSnapshot(e.target.checked)}
+            />
+            {t('hrFix.payroll.refreshSnapshot')}
+          </label>
+        )}
         {canRunPayroll(customer?.role) && (
           <Button onClick={generate} loading={busy}>
             {t('hrFix.payroll.generate')}

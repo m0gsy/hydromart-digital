@@ -672,7 +672,11 @@ describe('PayrollController', () => {
 
   it('generate / approve / pay delegate', () => {
     c.generate({ employeeId: 'e1', periodMonth: '2026-07' } as never, user);
-    expect(payroll.generate).toHaveBeenCalledWith(user, 'e1', '2026-07');
+    expect(payroll.generate).toHaveBeenCalledWith(user, 'e1', '2026-07', {
+      refreshSnapshot: undefined,
+    });
+    c.generate({ employeeId: 'e1', periodMonth: '2026-07', refreshSnapshot: true } as never, user);
+    expect(payroll.generate).toHaveBeenLastCalledWith(user, 'e1', '2026-07', { refreshSnapshot: true });
     c.approve('p1', user);
     expect(payroll.approve).toHaveBeenCalledWith(user, 'p1');
     c.pay('p1', user);

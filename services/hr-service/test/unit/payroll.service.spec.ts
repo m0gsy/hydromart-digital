@@ -1211,3 +1211,71 @@ describe('PayrollService · CA-1-06 an unfinished month cannot be paid', () => {
     await expect(svcOf().generate(user, 'e1', key(1))).rejects.toThrow(/belum selesai/i);
   });
 });
+
+// HR-06: a DRAFT regenerated later must not pick up a raise, promotion or PTKP change made
+// after it was first written. The first generate freezes what it read; regenerate replays it.
+describe('PayrollService.generate snapshot (HR-06)', () => {
+  const live = {
+    salaryType: 'MONTHLY' as const,
+    monthlyRate: 20_000_000 as never,
+    role: 'STAFF_DEPOT' as never,
+    ptkpStatus: 'TK0' as never,
+  };
+  const summary = { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 };
+  const base = (r: FakePayrollRepo) =>
+    Number(r.lastWrite?.items.find((i) => i.kind === 'BASE')?.amount ?? 0);
+
+  it('writes what it read on the first generate', async () => {
+    const { svc, repo } = build({ employee: live, summary });
+    await svc.generate(user, 'e1', '2025-11');
+    expect(repo.lastWrite?.snapshot).toEqual({
+      salaryType: 'MONTHLY',
+      dailyRate: null,
+      monthlyRate: '20000000',
+      role: 'STAFF_DEPOT',
+      ptkpStatus: 'TK0',
+    });
+  });
+
+  it('regenerate replays the snapshot, not the raise made since', async () => {
+    const fresh = build({ employee: live, summary });
+    await fresh.svc.generate(user, 'e1', '2025-11');
+    const fullBase = base(fresh.repo);
+
+    const { svc, repo } = build({ employee: live, summary });
+    repo.existing = {
+      id: 'p1',
+      status: 'DRAFT',
+      snapshot: { salaryType: 'MONTHLY', dailyRate: null, monthlyRate: '10000000', role: 'STAFF_DEPOT', ptkpStatus: 'TK0' },
+    } as unknown as PayrollWithItems;
+    await svc.generate(user, 'e1', '2025-11');
+
+    expect(repo.regenerated).toBe(true);
+    expect(base(repo)).toBe(fullBase / 2);
+    expect((repo.lastWrite?.snapshot as { monthlyRate: string }).monthlyRate).toBe('10000000');
+  });
+
+  it('refreshSnapshot takes today\'s values and re-freezes them', async () => {
+    const fresh = build({ employee: live, summary });
+    await fresh.svc.generate(user, 'e1', '2025-11');
+    const fullBase = base(fresh.repo);
+
+    const { svc, repo } = build({ employee: live, summary });
+    repo.existing = {
+      id: 'p1',
+      status: 'DRAFT',
+      snapshot: { salaryType: 'MONTHLY', dailyRate: null, monthlyRate: '10000000', role: 'STAFF_DEPOT', ptkpStatus: 'TK0' },
+    } as unknown as PayrollWithItems;
+    await svc.generate(user, 'e1', '2025-11', { refreshSnapshot: true });
+
+    expect(base(repo)).toBe(fullBase);
+    expect((repo.lastWrite?.snapshot as { monthlyRate: string }).monthlyRate).toBe('20000000');
+  });
+
+  it('a draft from before the snapshot existed uses live values and gets one', async () => {
+    const { svc, repo } = build({ employee: live, summary });
+    repo.existing = { id: 'p1', status: 'DRAFT', snapshot: null } as unknown as PayrollWithItems;
+    await svc.generate(user, 'e1', '2025-11');
+    expect((repo.lastWrite?.snapshot as { monthlyRate: string }).monthlyRate).toBe('20000000');
+  });
+});

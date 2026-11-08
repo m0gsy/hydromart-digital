@@ -71,11 +71,12 @@ export class PayrollPrismaRepository implements PayrollRepository {
   }
 
   create(data: PayrollWrite): Promise<PayrollWithItems> {
-    const { items, shares, ...fields } = data;
+    const { items, shares, snapshot, ...fields } = data;
     return this.prisma.payroll
       .create({
         data: {
           ...fields,
+          ...(snapshot ? { snapshot: snapshot as unknown as Prisma.InputJsonValue } : {}),
           items: { create: items },
           ...(shares && shares.length > 0 ? { shares: { create: shares } } : {}),
         },
@@ -98,6 +99,7 @@ export class PayrollPrismaRepository implements PayrollRepository {
             totalDeduction: data.totalDeduction,
             net: data.net,
             presentDays: data.presentDays,
+            ...(data.snapshot ? { snapshot: data.snapshot as unknown as Prisma.InputJsonValue } : {}),
             items: { create: data.items },
             ...(data.shares && data.shares.length > 0 ? { shares: { create: data.shares } } : {}),
           },

@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -35,6 +36,9 @@ export class GeneratePayrollDto {
 
   @Matches(PERIOD, { message: 'periodMonth harus format YYYY-MM' })
   periodMonth!: string;
+
+  /** HR-06: re-read wage, jabatan and PTKP from the employee instead of replaying the draft's. */
+  @IsOptional() @IsBoolean() refreshSnapshot?: boolean;
 }
 
 /**

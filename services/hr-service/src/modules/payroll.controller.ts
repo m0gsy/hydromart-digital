@@ -109,7 +109,9 @@ export class PayrollController {
   @Can('hrPayroll')
   @ApiOperation({ summary: 'Generate/re-generate a DRAFT payroll for an employee + period' })
   generate(@Body() dto: GeneratePayrollDto, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
-    return this.payroll.generate(user, dto.employeeId, dto.periodMonth);
+    return this.payroll.generate(user, dto.employeeId, dto.periodMonth, {
+      refreshSnapshot: dto.refreshSnapshot,
+    });
   }
 
   /**

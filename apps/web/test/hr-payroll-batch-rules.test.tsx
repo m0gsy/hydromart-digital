@@ -51,7 +51,11 @@ vi.mock('@/components/toast', async () => {
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
 vi.mock('@/components/hr/employee-select', () => ({
-  EmployeeSelect: () => <select aria-label="employee" />,
+  EmployeeSelect: ({ onChange }: { onChange: (v: string) => void }) => (
+    <button type="button" onClick={() => onChange('e1')}>
+      pick-employee
+    </button>
+  ),
 }));
 
 import PayrollPage from '@/app/hr/payroll/page';
@@ -137,6 +141,26 @@ const RULE = {
   rewardValue: 200000,
   active: true,
 };
+
+describe('HR-06 regenerate keeps the wage frozen in the draft unless HR asks otherwise', () => {
+  async function generate(tick: boolean) {
+    render(<PayrollPage />);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    await userEvent.click(screen.getByText('pick-employee'));
+    if (tick) await userEvent.click(screen.getByLabelText('hrFix.payroll.refreshSnapshot'));
+    await userEvent.click(screen.getByText('hrFix.payroll.generate'));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    return (post.mock.calls[0] as [string, Record<string, unknown>])[1];
+  }
+
+  it('sends no refresh by default', async () => {
+    expect((await generate(false)).refreshSnapshot).toBeUndefined();
+  });
+
+  it('sends refreshSnapshot when the box is ticked', async () => {
+    expect((await generate(true)).refreshSnapshot).toBe(true);
+  });
+});
 
 describe('CA-1-22 editing a bonus rule', () => {
   it('patches the rule instead of forcing a deactivate-and-recreate', async () => {
