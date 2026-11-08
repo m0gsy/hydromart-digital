@@ -58,8 +58,8 @@ const staff: AuthenticatedUser = {
 function build(opts: { updateFails?: boolean } = {}) {
   let current = row();
   const changes: ResellerPriceChange[] = [];
+  const calls = { updateWithPriceChanges: 0 };
   let seq = 0;
-
   const repo: ResellerRepository = {
     list: async () => [current],
     findById: async () => current,
@@ -75,13 +75,30 @@ function build(opts: { updateFails?: boolean } = {}) {
       changes.push(rec);
       return rec;
     },
+    // CUS-03: profile + log are ONE operation. A failing write leaves neither behind.
+    updateWithPriceChanges: async (_id, patch, logged) => {
+      calls.updateWithPriceChanges += 1;
+      if (opts.updateFails) throw new Error('db down');
+      current = { ...current, ...patch } as Reseller;
+      for (const data of logged) {
+        seq += 1;
+        changes.push({ id: 'ch-' + seq, createdAt: NOW, ...data });
+      }
+      return current;
+    },
+    // CUS-03: claim the rows (appliedAt IS NULL -> now) and move the profile atomically.
+    // A row somebody else already claimed means this caller lost, and nothing moves.
+    applyPriceChanges: async (_id, patch, ids, at) => {
+      if (opts.updateFails) throw new Error('db down');
+      const rows = ids.map((id) => changes.find((c) => c.id === id)!);
+      if (rows.some((r) => r.appliedAt !== null)) return null;
+      for (const r of rows) r.appliedAt = at;
+      current = { ...current, ...patch } as Reseller;
+      return current;
+    },
     listPriceChanges: async () => [...changes].reverse(),
     findDuePriceChanges: async (now) =>
       changes.filter((c) => c.appliedAt === null && c.effectiveAt.getTime() <= now.getTime()),
-    markPriceChangeApplied: async (id, at) => {
-      const found = changes.find((c) => c.id === id);
-      if (found) found.appliedAt = at;
-    },
   };
 
   const notices: { terms: string; active: boolean }[] = [];
@@ -103,7 +120,7 @@ function build(opts: { updateFails?: boolean } = {}) {
     identity as never,
     notifier as never,
   );
-  return { service, changes, notices, repo, reseller: () => current };
+  return { service, changes, notices, repo, calls, reseller: () => current };
 }
 
 describe('ResellerService price changes (K4.2)', () => {
@@ -305,5 +322,62 @@ describe('ResellerService price changes (K4.2)', () => {
 describe('NothingToScheduleError', () => {
   it('is a 400, not a silent 200', () => {
     expect(new BadRequestException(new NothingToScheduleError().message).getStatus()).toBe(400);
+  });
+});
+
+describe('CUS-03 · the price audit trail cannot come apart from the price', () => {
+  beforeEach(() => {
+    jest.useFakeTimers({ now: NOW, doNotFake: ['nextTick', 'setImmediate'] });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('writes the profile and its log in one repository call', async () => {
+    const t = build();
+    await t.service.update(staff, 'c1', { discountPct: 5, active: false });
+    expect(t.calls.updateWithPriceChanges).toBe(1);
+    expect(t.changes.map((c) => c.field).sort()).toEqual(['active', 'discountPct']);
+  });
+
+  it('a failed write leaves neither a changed price nor a log row, and announces nothing', async () => {
+    const t = build({ updateFails: true });
+    await expect(t.service.update(staff, 'c1', { discountPct: 5 })).rejects.toThrow('db down');
+    expect(t.reseller().discountPct).toBe(10);
+    expect(t.changes).toHaveLength(0);
+    expect(t.notices).toHaveLength(0);
+  });
+
+  it('a non-price edit does not open the logging path at all', async () => {
+    const t = build();
+    await t.service.update(staff, 'c1', { note: 'pindah toko' });
+    expect(t.calls.updateWithPriceChanges).toBe(0);
+  });
+
+  it('two overlapping sweeps apply and announce a due change exactly once', async () => {
+    const t = build();
+    await t.service.update(staff, 'c1', { discountPct: 5 }, NEXT_MONTH);
+    const at = new Date('2026-09-01T01:00:00.000Z');
+    const [a, b] = await Promise.all([t.service.applyScheduled(at), t.service.applyScheduled(at)]);
+    expect(a.applied + b.applied).toBe(1);
+    expect(t.reseller().discountPct).toBe(5);
+    expect(t.notices).toHaveLength(1);
+  });
+
+  it('a sweep that lost the claim does not overwrite a newer manual change', async () => {
+    const t = build();
+    await t.service.update(staff, 'c1', { discountPct: 5 }, NEXT_MONTH);
+    const at = new Date('2026-09-01T01:00:00.000Z');
+    await t.service.applyScheduled(at);
+    // Staff then set the discount by hand, later than the schedule.
+    await t.service.update(staff, 'c1', { discountPct: 8 });
+    // A tick that was already holding the old due list runs again: the row is claimed, so it
+    // moves nothing.
+    jest.spyOn(t.repo, 'findDuePriceChanges').mockResolvedValue(
+      t.changes.filter((c) => c.effectiveAt.getTime() === NEXT_MONTH.getTime()),
+    );
+    const late = await t.service.applyScheduled(at);
+    expect(late.applied).toBe(0);
+    expect(t.reseller().discountPct).toBe(8);
   });
 });

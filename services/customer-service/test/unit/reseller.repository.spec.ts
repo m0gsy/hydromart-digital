@@ -29,7 +29,8 @@ const change = {
 };
 
 function prismaMock() {
-  return {
+  const client: { current?: unknown } = {};
+  const p = {
     resellerProfile: {
       findMany: jest.fn().mockResolvedValue([row]),
       findUnique: jest.fn().mockResolvedValue(row),
@@ -38,10 +39,20 @@ function prismaMock() {
     },
     resellerPriceChange: {
       create: jest.fn().mockResolvedValue({ ...change }),
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([{ ...change }]),
-      update: jest.fn().mockResolvedValue({ ...change }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    // Interactive transactions hand the callback this same client, as Prisma does; a throw
+    // inside the callback is what rolls the real thing back.
+    $transaction: jest.fn(async (arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: unknown) => unknown)(client.current)
+        : Promise.all(arg as unknown[]),
+    ),
   };
+  client.current = p;
+  return p;
 }
 
 describe('ResellerPrismaRepository', () => {
@@ -185,16 +196,59 @@ describe('ResellerPrismaRepository price changes (K4.2)', () => {
     });
   });
 
-  it('markPriceChangeApplied stamps exactly the one row', async () => {
+  // CUS-03: profile and log commit or roll back together.
+  it('updateWithPriceChanges writes the profile and every log row in one transaction', async () => {
     const prisma = prismaMock();
     const repo = new ResellerPrismaRepository(prisma as never);
     const at = new Date('2026-09-01T01:00:00.000Z');
+    const logged = [
+      { customerId: 'c1', changedBy: 's', field: 'discountPct' as const, oldValue: '10', newValue: '5', effectiveAt: at, appliedAt: at },
+    ];
 
-    await repo.markPriceChangeApplied('ch-1', at);
+    await expect(repo.updateWithPriceChanges('c1', { discountPct: 5 }, logged)).resolves.toBe(row);
 
-    expect(prisma.resellerPriceChange.update).toHaveBeenCalledWith({
-      where: { id: 'ch-1' },
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.resellerProfile.update).toHaveBeenCalledWith({
+      where: { customerId: 'c1' },
+      data: { discountPct: 5 },
+    });
+    expect(prisma.resellerPriceChange.createMany).toHaveBeenCalledWith({ data: logged });
+  });
+
+  // CUS-03: the claim is the WHERE appliedAt IS NULL. Two sweeps cannot both win it.
+  it('applyPriceChanges claims the rows then moves the profile, in one transaction', async () => {
+    const prisma = prismaMock();
+    prisma.resellerPriceChange.updateMany.mockResolvedValue({ count: 2 });
+    const repo = new ResellerPrismaRepository(prisma as never);
+    const at = new Date('2026-09-01T01:00:00.000Z');
+
+    await expect(repo.applyPriceChanges('c1', { discountPct: 5 }, ['ch-1', 'ch-2'], at)).resolves.toBe(row);
+
+    expect(prisma.resellerPriceChange.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['ch-1', 'ch-2'] }, customerId: 'c1', appliedAt: null },
       data: { appliedAt: at },
     });
+  });
+
+  it('applyPriceChanges answers null and moves nothing when another sweep claimed a row first', async () => {
+    const prisma = prismaMock();
+    prisma.resellerPriceChange.updateMany.mockResolvedValue({ count: 1 });
+    const repo = new ResellerPrismaRepository(prisma as never);
+
+    await expect(
+      repo.applyPriceChanges('c1', { discountPct: 5 }, ['ch-1', 'ch-2'], new Date()),
+    ).resolves.toBeNull();
+    // The profile write sits after the claim check, inside the same transaction that rolled back.
+    expect(prisma.resellerProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('applyPriceChanges lets any other failure through, so the sweep keeps the change due', async () => {
+    const prisma = prismaMock();
+    prisma.resellerProfile.update.mockRejectedValue(new Error('db down'));
+    const repo = new ResellerPrismaRepository(prisma as never);
+
+    await expect(
+      repo.applyPriceChanges('c1', { discountPct: 5 }, ['ch-1'], new Date()),
+    ).rejects.toThrow('db down');
   });
 });

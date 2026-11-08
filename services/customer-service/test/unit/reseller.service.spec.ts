@@ -41,7 +41,8 @@ function makeRepo(): jest.Mocked<ResellerRepository> {
     recordPriceChange: jest.fn(),
     listPriceChanges: jest.fn(),
     findDuePriceChanges: jest.fn(),
-    markPriceChangeApplied: jest.fn(),
+    updateWithPriceChanges: jest.fn(),
+    applyPriceChanges: jest.fn(),
   };
 }
 
@@ -347,7 +348,8 @@ describe('ResellerService', () => {
     it('lets HQ update a reseller at any depot', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd2' }));
-      repo.update.mockResolvedValue(row({ homeDepotId: 'd2', active: false }));
+      // `active` is a priced field, so the edit goes through the profile+log operation.
+      repo.updateWithPriceChanges.mockResolvedValue(row({ homeDepotId: 'd2', active: false }));
       const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity(), makeNotifier());
 
       await expect(svc.update(hq, 'c1', { active: false })).resolves.toMatchObject({
