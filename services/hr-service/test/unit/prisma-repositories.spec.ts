@@ -3000,15 +3000,16 @@ describe('PayrollPrismaRepository', () => {
   it('pph21YearToDate sums gross, BPJS and PPh 21 off the earlier approved payslips', async () => {
     const p = makePrisma();
     m(p, 'payroll').findMany.mockResolvedValue([
-      { id: 'pr1', gross: 10_000_000 },
-      { id: 'pr2', gross: 12_000_000 },
+      { id: 'pr1', gross: 10_000_000, status: 'APPROVED' },
+      { id: 'pr2', gross: 12_000_000, status: 'PAID' },
     ]);
     m(p, 'payrollItem').findMany.mockResolvedValue([
-      { label: 'BPJS Kesehatan (karyawan)', amount: 100_000 },
-      { label: 'BPJS JHT (karyawan)', amount: 200_000 },
-      { label: 'PPh 21', amount: 350_000 },
+      // Legacy slips (no item carries a code): matched by the labels statutory.ts wrote.
+      { payrollId: 'pr1', code: null, label: 'BPJS Kesehatan (karyawan)', amount: 100_000 },
+      { payrollId: 'pr1', code: null, label: 'BPJS JHT (karyawan)', amount: 200_000 },
+      { payrollId: 'pr1', code: null, label: 'PPh 21', amount: 350_000 },
       // Not statutory: a fine is not tax and must not enter the reconciliation.
-      { label: 'Denda keterlambatan', amount: 50_000 },
+      { payrollId: 'pr1', code: null, label: 'Denda keterlambatan', amount: 50_000 },
     ]);
     const repo = new PayrollPrismaRepository(asService(p));
     await expect(repo.pph21YearToDate('e1', 2026, '2026-12')).resolves.toEqual({
@@ -3016,15 +3017,38 @@ describe('PayrollPrismaRepository', () => {
       bpjsIdr: 300_000,
       withheldIdr: 350_000,
       months: 2,
+      unapprovedMonths: 0,
     });
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: {
         employeeId: 'e1',
-        status: { in: ['APPROVED', 'PAID'] },
         // The year, up to but not including the month being computed.
         periodMonth: { gte: '2026-01', lt: '2026-12' },
       },
-      select: { id: true, gross: true },
+      select: { id: true, gross: true, status: true },
+    });
+  });
+
+  // HR-05(b): a manual deduction whose note is "PPh 21" must not count as withheld tax once
+  // the slip carries explicit codes; and HR-05(a): a DRAFT month is reported, not summed.
+  it('pph21YearToDate trusts codes on coded slips and counts DRAFT months apart', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').findMany.mockResolvedValue([
+      { id: 'pr1', gross: 10_000_000, status: 'APPROVED' },
+      { id: 'pr2', gross: 99_000_000, status: 'DRAFT' },
+    ]);
+    m(p, 'payrollItem').findMany.mockResolvedValue([
+      { payrollId: 'pr1', code: 'BPJS', label: 'BPJS Kesehatan (karyawan)', amount: 100_000 },
+      { payrollId: 'pr1', code: 'PPH21', label: 'PPh 21', amount: 350_000 },
+      { payrollId: 'pr1', code: null, label: 'PPh 21', amount: 777_000 },
+    ]);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.pph21YearToDate('e1', 2026, '2026-12')).resolves.toEqual({
+      grossIdr: 10_000_000,
+      bpjsIdr: 100_000,
+      withheldIdr: 350_000,
+      months: 1,
+      unapprovedMonths: 1,
     });
   });
 
@@ -3038,6 +3062,7 @@ describe('PayrollPrismaRepository', () => {
       bpjsIdr: 0,
       withheldIdr: 0,
       months: 0,
+      unapprovedMonths: 0,
     });
     expect(m(p, 'payrollItem').findMany).not.toHaveBeenCalled();
   });

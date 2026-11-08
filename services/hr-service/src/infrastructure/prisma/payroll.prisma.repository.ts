@@ -147,39 +147,56 @@ export class PayrollPrismaRepository implements PayrollRepository {
     employeeId: string,
     year: number,
     beforePeriodMonth: string,
-  ): Promise<{ grossIdr: number; bpjsIdr: number; withheldIdr: number; months: number }> {
+  ): Promise<{
+    grossIdr: number;
+    bpjsIdr: number;
+    withheldIdr: number;
+    months: number;
+    unapprovedMonths: number;
+  }> {
     // "YYYY-MM" sorts as it dates, so `gte "<year>-01"` + `lt beforePeriodMonth` is
     // exactly "this year, up to but not including the month being computed".
     const where = {
       employeeId,
-      status: { in: ['APPROVED', 'PAID'] as PayrollStatus[] },
       periodMonth: { gte: `${year}-01`, lt: beforePeriodMonth },
     };
-    const payrolls = await this.prisma.payroll.findMany({
+    const all = await this.prisma.payroll.findMany({
       where,
-      select: { id: true, gross: true },
+      select: { id: true, gross: true, status: true },
     });
-    if (payrolls.length === 0) return { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0 };
+    // HR-05: only APPROVED/PAID money counts; a DRAFT is reported so December can warn.
+    const payrolls = all.filter((p) => (['APPROVED', 'PAID'] as PayrollStatus[]).includes(p.status));
+    const unapprovedMonths = all.filter((p) => p.status === 'DRAFT').length;
+    if (payrolls.length === 0) {
+      return { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0, unapprovedMonths };
+    }
 
     // The two statutory lines are matched by the labels `statutory.ts` writes. They are
     // the only lines whose amounts belong in this sum: a lateness fine is not tax, and
     // BPJS is what makes the annual taxable figure right.
     const items = await this.prisma.payrollItem.findMany({
       where: { payrollId: { in: payrolls.map((p) => p.id) }, kind: 'DEDUCTION' },
-      select: { label: true, amount: true },
+      select: { payrollId: true, code: true, label: true, amount: true },
     });
+    // HR-05: a slip that carries ANY code is read by code alone, so a manual deduction
+    // whose note happens to read "PPh 21" is not tax. Only slips from before the column
+    // existed (no coded item at all) fall back to the labels statutory.ts wrote.
+    const coded = new Set(items.filter((i) => i.code).map((i) => i.payrollId));
     let bpjsIdr = 0;
     let withheldIdr = 0;
     for (const item of items) {
       const amount = Number(item.amount);
-      if (item.label.startsWith('BPJS ')) bpjsIdr += amount;
-      else if (item.label === 'PPh 21') withheldIdr += amount;
+      const isBpjs = coded.has(item.payrollId) ? item.code === 'BPJS' : item.label.startsWith('BPJS ');
+      const isTax = coded.has(item.payrollId) ? item.code === 'PPH21' : item.label === 'PPh 21';
+      if (isBpjs) bpjsIdr += amount;
+      else if (isTax) withheldIdr += amount;
     }
     return {
       grossIdr: payrolls.reduce((sum, p) => sum + Number(p.gross), 0),
       bpjsIdr,
       withheldIdr,
       months: payrolls.length,
+      unapprovedMonths,
     };
   }
 

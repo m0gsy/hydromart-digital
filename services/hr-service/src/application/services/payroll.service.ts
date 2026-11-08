@@ -541,7 +541,7 @@ export class PayrollService {
     const rates = this.config.statutoryRates(employee.depotId);
     const bpjsLines = bpjsEmployeeDeductions(statutoryInput, rates);
     for (const line of bpjsLines) {
-      items.push({ kind: 'DEDUCTION', label: line.label, amount: line.amountIdr });
+      items.push({ kind: 'DEDUCTION', label: line.label, amount: line.amountIdr, code: 'BPJS' });
     }
     const bpjsTotal = bpjsLines.reduce((sum, line) => sum + line.amountIdr, 0);
 
@@ -556,7 +556,7 @@ export class PayrollService {
           rates,
           this.config.pph21TerTable(employee.depotId),
         ).monthlyIdr;
-    if (tax > 0) items.push({ kind: 'DEDUCTION', label: 'PPh 21', amount: tax });
+    if (tax > 0) items.push({ kind: 'DEDUCTION', label: 'PPh 21', amount: tax, code: 'PPH21' });
 
     const totalBonus = sum(items, 'BONUS');
     // D4: nobody may be handed a bill by their employer. Loan installments give way first
@@ -1489,6 +1489,14 @@ export class PayrollService {
   ): Promise<number> {
     const year = Number(periodMonth.slice(0, 4));
     const ytd: Pph21YearToDate = await this.repo.pph21YearToDate(employee.id, year, periodMonth);
+    // HR-05: a month still in DRAFT is not in the year to date, so this reconciliation is
+    // short by that month's gross, BPJS and tax. Say so rather than reconcile in silence.
+    if (ytd.unapprovedMonths) {
+      this.logger.warn(
+        `Employee ${employee.id}: ${ytd.unapprovedMonths} earlier month(s) of ${year} still unapproved; ` +
+          'December PPh 21 reconciles without them. Approve them and regenerate December.',
+      );
+    }
     const result = pph21December(input, ytd, decemberBpjsIdr, rates);
     if (result.overWithheldIdr > 0) {
       this.logger.warn(

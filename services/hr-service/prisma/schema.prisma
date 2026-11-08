@@ -750,6 +750,9 @@ model PayrollItem {
   label     String
   amount    Decimal         @db.Decimal(12, 2)
   sourceRef String?
+  /// Explicit marker of a statutory line: BPJS | PPH21. NULL on manual lines and on slips
+  /// written before the column existed (those are read by label).
+  code      String?
   createdAt DateTime        @default(now())
 
   payroll   Payroll         @relation(fields: [payrollId], references: [id], onDelete: Cascade)

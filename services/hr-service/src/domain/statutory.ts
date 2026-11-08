@@ -372,6 +372,8 @@ export interface Pph21YearToDate {
   withheldIdr: number;
   /** Months already paid. 11 is a full year of prior months; fewer means a mid-year join. */
   months: number;
+  /** Earlier months still in DRAFT, absent from the sums (HR-05); informational only. */
+  unapprovedMonths?: number;
 }
 
 export interface Pph21DecemberResult {

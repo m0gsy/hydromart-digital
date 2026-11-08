@@ -12,6 +12,8 @@ export interface PayrollItemInput {
   label: string;
   amount: number;
   sourceRef?: string | null;
+  /** BPJS | PPH21 on statutory lines; absent on everything else (HR-05). */
+  code?: 'BPJS' | 'PPH21' | null;
 }
 
 /** One depot's part of a payslip (see domain/payroll-allocation.ts). */
@@ -148,7 +150,14 @@ export interface PayrollRepository {
     employeeId: string,
     year: number,
     beforePeriodMonth: string,
-  ): Promise<{ grossIdr: number; bpjsIdr: number; withheldIdr: number; months: number }>;
+  ): Promise<{
+    grossIdr: number;
+    bpjsIdr: number;
+    withheldIdr: number;
+    months: number;
+    /** Earlier months of the year still in DRAFT: absent from the sums above (HR-05). */
+    unapprovedMonths?: number;
+  }>;
   /**
    * The per-depot split of one slip (empty for a slip written before the split existed).
    * Optional so a repository that predates the split need not know about it; the service only

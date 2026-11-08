@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Bonus, Deduction, Employee, Payroll } from '../../prisma/generated/client';
@@ -34,6 +34,7 @@ class FakePayrollRepo implements PayrollRepository {
     bpjsIdr: number;
     withheldIdr: number;
     months: number;
+    unapprovedMonths?: number;
   }> {
     return this.ytd;
   }
@@ -965,6 +966,39 @@ describe('PPh 21 in December', () => {
     repo.ytd = { grossIdr: 220_000_000, bpjsIdr: 6_600_000, withheldIdr: 900_000_000, months: 11 };
     await svc.generate(user, 'e1', '2025-12');
     expect(repo.lastWrite?.items.some((i) => i.label === 'PPh 21')).toBe(false);
+  });
+
+  // HR-05(a): a November still in DRAFT is missing from the year to date, so December
+  // under-reconciles. It cannot be fixed here, but it must not be silent.
+  it('warns when an earlier month of the year is still unapproved', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { svc, repo } = build({
+      employee: { salaryType: 'MONTHLY' as const, monthlyRate: 20_000_000 as never, ptkpStatus: 'TK0' },
+      summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    });
+    repo.ytd = { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0, unapprovedMonths: 2 } as typeof repo.ytd;
+    await svc.generate(user, 'e1', '2025-12');
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/2 earlier month.*unapproved/));
+    warn.mockRestore();
+  });
+
+  // HR-05(b): statutory lines carry an explicit code so the year-to-date never reads labels.
+  it('tags BPJS and PPh 21 lines with codes', async () => {
+    const { svc, repo } = build({
+      employee: {
+        salaryType: 'MONTHLY' as const,
+        monthlyRate: 20_000_000 as never,
+        ptkpStatus: 'TK0',
+        npwp: '123',
+        bpjsKes: '1',
+        bpjsTk: '1',
+      },
+      summary: { presentDays: 22, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+    });
+    await svc.generate(user, 'e1', '2025-11');
+    const items = repo.lastWrite?.items ?? [];
+    expect(items.filter((i) => i.label.startsWith('BPJS ')).every((i) => i.code === 'BPJS')).toBe(true);
+    expect(items.find((i) => i.label === 'PPh 21')?.code).toBe('PPH21');
   });
 
   it('leaves every other month on the monthly method', async () => {
