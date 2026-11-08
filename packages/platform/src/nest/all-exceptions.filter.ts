@@ -92,6 +92,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return 'NOT_FOUND';
       case HttpStatus.TOO_MANY_REQUESTS:
         return 'RATE_LIMITED';
+      // FTR-008: these three used to fall through to HTTP_ERROR. The status never changes.
+      case HttpStatus.CONFLICT:
+        return 'CONFLICT';
+      case HttpStatus.UNPROCESSABLE_ENTITY:
+        return 'UNPROCESSABLE';
+      case HttpStatus.SERVICE_UNAVAILABLE:
+        return 'SERVICE_UNAVAILABLE';
       default:
         return 'HTTP_ERROR';
     }

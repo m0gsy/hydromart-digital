@@ -311,6 +311,16 @@ describe('AllExceptionsFilter http error codes', () => {
     const tooMany = new HttpException('slow down', HttpStatus.TOO_MANY_REQUESTS);
     expect(run(tooMany).body?.code).toBe('RATE_LIMITED');
   });
+  // FTR-008: same three codes as the shared filter; the status is unchanged.
+  it.each([
+    [HttpStatus.CONFLICT, 'CONFLICT'],
+    [HttpStatus.UNPROCESSABLE_ENTITY, 'UNPROCESSABLE'],
+    [HttpStatus.SERVICE_UNAVAILABLE, 'SERVICE_UNAVAILABLE'],
+  ])('maps HTTP %i to its own code', (status, code) => {
+    const out = run(new HttpException('x', status));
+    expect(out.status).toBe(status);
+    expect(out.body?.code).toBe(code);
+  });
   it('maps a string-response http exception with a default code', () => {
     const teapot = new HttpException('teapot', HttpStatus.I_AM_A_TEAPOT);
     const out = run(teapot);

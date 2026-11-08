@@ -65,6 +65,11 @@ describe('AllExceptionsFilter', () => {
     [HttpStatus.FORBIDDEN, 'FORBIDDEN'],
     [HttpStatus.NOT_FOUND, 'NOT_FOUND'],
     [HttpStatus.TOO_MANY_REQUESTS, 'RATE_LIMITED'],
+    // FTR-008: a conflict, an unprocessable body and an unavailable dependency used to read as
+    // the same opaque HTTP_ERROR, so a client could only tell them apart by the number.
+    [HttpStatus.CONFLICT, 'CONFLICT'],
+    [HttpStatus.UNPROCESSABLE_ENTITY, 'UNPROCESSABLE'],
+    [HttpStatus.SERVICE_UNAVAILABLE, 'SERVICE_UNAVAILABLE'],
     [HttpStatus.BAD_GATEWAY, 'HTTP_ERROR'],
   ])('maps HTTP %i to code %s', (httpStatus, code) => {
     const { host, body } = hostFor();
