@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
   DuplicateVoucherCodeError,
@@ -17,6 +17,7 @@ import {
 import { Page, buildPage } from '../pagination';
 import { CustomerLookupPort } from '../ports/customer-lookup.port';
 import { NotificationPort } from '../ports/notification.port';
+import { PromoRuleRepository } from '../ports/promo-rule.repository';
 import {
   CreateVoucherData,
   UpdateVoucherData,
@@ -72,6 +73,11 @@ export class VoucherService {
     @Inject(PROMO_TOKENS.VoucherRepository) private readonly repo: VoucherRepository,
     @Inject(PROMO_TOKENS.CustomerLookup) private readonly customers: CustomerLookupPort,
     @Inject(PROMO_TOKENS.Notification) private readonly notifications: NotificationPort,
+    // PLP-02. Last and optional so every existing construction site keeps working; absent,
+    // `release` hands back the voucher only, as before.
+    @Optional()
+    @Inject(PROMO_TOKENS.PromoRuleRepository)
+    private readonly rules?: PromoRuleRepository,
   ) {}
 
   /**
@@ -365,6 +371,9 @@ export class VoucherService {
    * counter twice and hand out a use that was never taken.
    */
   async release(orderId: string): Promise<{ released: boolean; discountReturned: number }> {
+    // PLP-02: the SAME void/cancel also hands back the rule-based promotions that order carried.
+    // They are independent of any voucher, so this runs first and whatever the voucher says.
+    await this.rules?.releaseApplications(orderId, new Date());
     const released = await this.repo.releaseAtomic(orderId);
     if (!released) return { released: false, discountReturned: 0 };
     this.logger.log(`Voucher ${released.voucherCode} released for voided order ${orderId}`);

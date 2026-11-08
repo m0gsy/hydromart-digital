@@ -258,6 +258,9 @@ model PromoApplication {
   productId     String?
   discountValue Int
   createdAt     DateTime  @default(now())
+  /// PLP-02: set when the order was voided/cancelled and the application handed back. The row
+  /// stays as the record; every aggregate skips it. NULL = still counted.
+  releasedAt    DateTime?
 
   @@index([orderId])
   // Idempotency guard for apply(): one row per (order, rule, product) at most. The service's

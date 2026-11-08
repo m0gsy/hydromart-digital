@@ -86,6 +86,7 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
              MAX(a."createdAt") AS "lastAppliedAt"
       FROM "promo_applications" a
       WHERE a."promoRuleId" IN (${Prisma.join(visible.map((v) => v.id))})
+        AND a."releasedAt" IS NULL
       GROUP BY a."promoRuleId"`);
     return rows.map((r) => ({
       promoRuleId: r.promoRuleId,
@@ -115,6 +116,7 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
                MAX(a."createdAt") AS "at"
         FROM "promo_applications" a
         WHERE a."promoRuleId" IN (${Prisma.join(visible.map((v) => v.id))})
+          AND a."releasedAt" IS NULL
         GROUP BY a."promoRuleId", a."orderId"
       ), ranked AS (
         SELECT per_order.*,
@@ -133,7 +135,7 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
 
   async applicationsInWindow(from: Date, to: Date, limit: number): Promise<PromoApplicationInWindow[]> {
     const rows = await this.prisma.promoApplication.findMany({
-      where: { createdAt: { gte: from, lt: to } },
+      where: { createdAt: { gte: from, lt: to }, releasedAt: null },
       select: {
         promoRuleId: true,
         orderId: true,
@@ -149,6 +151,14 @@ export class PromoRulePrismaRepository implements PromoRuleRepository {
       orderId: r.orderId,
       discount: r.discountValue,
     }));
+  }
+
+  async releaseApplications(orderId: string, at: Date): Promise<number> {
+    const { count } = await this.prisma.promoApplication.updateMany({
+      where: { orderId, releasedAt: null },
+      data: { releasedAt: at },
+    });
+    return count;
   }
 
   async findActiveCandidates(

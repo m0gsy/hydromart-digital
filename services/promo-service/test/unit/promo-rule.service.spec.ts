@@ -123,6 +123,9 @@ class InMemoryPromoRuleRepository implements PromoRuleRepository {
   async hasApplicationFor(orderId: string): Promise<boolean> {
     return this.applications.some((a) => a.orderId === orderId);
   }
+  async releaseApplications(): Promise<number> {
+    return 0;
+  }
 }
 
 const baseInput = (overrides: Partial<CreatePromoRuleData> = {}): CreatePromoRuleData => ({

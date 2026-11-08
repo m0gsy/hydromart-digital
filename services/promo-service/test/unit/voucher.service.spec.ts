@@ -257,6 +257,25 @@ describe('VoucherService', () => {
    * a sale that never happened, and a per-customer limit consumed by an order that does not
    * exist.
    */
+  // PLP-02: a rule-based promotion (no voucher at all) on a voided order must be handed back
+  // too. `release` returned early when there was no voucher redemption, so a rule-only discount
+  // stayed counted as cost for ever.
+  describe('PLP-02 · release also hands back rule applications', () => {
+    it('releases the rule applications of the order even when it had no voucher', async () => {
+      const rules = { releaseApplications: jest.fn().mockResolvedValue(2) };
+      const svc = new VoucherService(repo, new FakeCustomerLookup(), new FakeNotification(), rules as never);
+      await expect(svc.release(randomUUID())).resolves.toEqual({ released: false, discountReturned: 0 });
+      expect(rules.releaseApplications).toHaveBeenCalledWith(expect.any(String), expect.any(Date));
+    });
+
+    it('still answers when the rule repository is not wired (older construction sites)', async () => {
+      await expect(service.release(randomUUID())).resolves.toEqual({
+        released: false,
+        discountReturned: 0,
+      });
+    });
+  });
+
   describe('C4 · release', () => {
     const redeemedOrder = async (over = {}) => {
       await service.create(baseVoucher({ discountType: DiscountType.FIXED, value: 5000, ...over }));
