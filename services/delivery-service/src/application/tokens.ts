@@ -13,5 +13,8 @@ export const DELIVERY_TOKENS = {
   OpsNotifier: Symbol('OpsNotifier'),
   CustomerNotification: Symbol('CustomerNotification'),
   EventPublisher: Symbol('EventPublisher'),
+  /** AAS-11: the raw HTTP send to admin-service; EventPublisher is the outbox in front of it. */
+  EventTransport: Symbol('EventTransport'),
+  EventOutbox: Symbol('EventOutbox'),
   Storage: Symbol('Storage'),
 } as const;

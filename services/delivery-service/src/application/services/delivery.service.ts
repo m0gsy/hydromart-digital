@@ -479,6 +479,9 @@ export class DeliveryService {
       { ...proof, distanceMeters },
       driverId,
       capturedAt,
+      // AAS-11: recorded in the same transaction as the handover. Only when a fan-out is
+      // bound at all; without one nothing is owed to anybody.
+      this.events ? this.deliveredEvent(delivery, capturedAt, proof.recipientName) : undefined,
     );
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Proof of delivery is the real-world close of the order: nothing downstream of it is
@@ -522,9 +525,22 @@ export class DeliveryService {
     recipientName: string,
   ): Promise<void> {
     if (!this.events) return;
-    await this.events.publish(
-      'delivery.delivered',
-      {
+    const { event, eventId, payload } = this.deliveredEvent(delivery, deliveredAt, recipientName);
+    // The outbox row already exists (written with the handover); this sends it now.
+    await this.events.publish(event, payload, deliveredAt, eventId);
+  }
+
+  /** One shape for both the transactional write and the inline send. */
+  private deliveredEvent(
+    delivery: DeliveryRecord,
+    deliveredAt: Date,
+    recipientName: string,
+  ): { event: string; eventId: string; payload: Record<string, unknown> } {
+    return {
+      event: 'delivery.delivered',
+      // AAS-11: a delivery completes once, so the key is its id.
+      eventId: `delivery.delivered:${delivery.id}`,
+      payload: {
         deliveryId: delivery.id,
         orderId: delivery.orderId,
         orderNumber: delivery.orderNumber,
@@ -533,10 +549,7 @@ export class DeliveryService {
         deliveredAt: deliveredAt.toISOString(),
         recipientName,
       },
-      deliveredAt,
-      // AAS-11: a delivery completes once, so the key is its id.
-      `delivery.delivered:${delivery.id}`,
-    );
+    };
   }
 
   /** Reports a completed delivery to payout-service. On-time = beat the SLA window. */

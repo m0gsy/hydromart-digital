@@ -406,6 +406,11 @@ export interface DeliveryRepository {
     changedBy: string,
     /** Handover time — server time for a live proof, clamped device time for an offline one. */
     capturedAt: Date,
+    /**
+     * AAS-11: a partner event recorded in the SAME transaction as the handover, so a crash
+     * cannot leave a completed delivery whose event was never written. Absent = none owed.
+     */
+    event?: { event: string; eventId: string; payload: Record<string, unknown> },
   ): Promise<DeliveryRecord>;
   /**
    * UU PDP retention: delete proof-of-delivery rows (photo/signature URL, recipient name,

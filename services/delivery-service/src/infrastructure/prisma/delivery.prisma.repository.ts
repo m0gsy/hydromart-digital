@@ -661,18 +661,38 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     capturedAt: Date,
+    event?: { event: string; eventId: string; payload: Record<string, unknown> },
   ): Promise<DeliveryRecord> {
-    const row = await this.prisma.delivery
-      .update({
-        where: { id, status: from },
-        data: {
-          status: DeliveryStatus.DELIVERED,
-          deliveredAt: capturedAt,
-          proof: { create: { ...proof, capturedAt } },
-          history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
-        },
-        include: INCLUDE,
-      })
+    const update = this.prisma.delivery.update({
+      where: { id, status: from },
+      data: {
+        status: DeliveryStatus.DELIVERED,
+        deliveredAt: capturedAt,
+        proof: { create: { ...proof, capturedAt } },
+        history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
+      },
+      include: INCLUDE,
+    });
+    if (!event) {
+      return this.toRecord(await update.catch(rejectStaleStatus));
+    }
+    // AAS-11: the event row commits or rolls back WITH the handover. skipDuplicates because
+    // the key is the delivery id and an offline replay of the same completion must not fail.
+    const [row] = await this.prisma
+      .$transaction([
+        update,
+        this.prisma.webhookEventOutbox.createMany({
+          data: [
+            {
+              event: event.event,
+              eventId: event.eventId,
+              payload: event.payload as Prisma.InputJsonValue,
+              occurredAt: capturedAt,
+            },
+          ],
+          skipDuplicates: true,
+        }),
+      ])
       .catch(rejectStaleStatus);
     return this.toRecord(row);
   }

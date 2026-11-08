@@ -520,6 +520,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     capturedAt: Date,
+    _event?: { event: string; eventId: string; payload: Record<string, unknown> },
   ): Promise<DeliveryRecord> {
     // One handover, one proof row, one courier earning — however many times Selesai is
     // tapped. Same guard the real repository carries (H-5).

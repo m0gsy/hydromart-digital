@@ -708,6 +708,56 @@ describe('DeliveryPrismaRepository', () => {
     });
   });
 
+  // AAS-11: the partner event is recorded in the SAME transaction as the handover, so a crash
+  // between the two can no longer lose it.
+  it('completeWithProof records the event in the same transaction when one is given', async () => {
+    delivery.update.mockResolvedValue(deliveryRow({ status: 'DELIVERED', proof: proofRow }));
+    const createMany = jest.fn().mockResolvedValue({ count: 1 });
+    const $tx = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
+    const txRepo = new DeliveryPrismaRepository({
+      delivery,
+      webhookEventOutbox: { createMany },
+      $transaction: $tx,
+    } as unknown as PrismaService);
+    const capturedAt = new Date('2026-07-29T08:15:00.000Z');
+    await txRepo.completeWithProof(
+      'del-1',
+      DeliveryStatus.ON_DELIVERY,
+      { sealIntact: true, recipientName: 'Budi' } as never,
+      'drv-1',
+      capturedAt,
+      { event: 'delivery.delivered', eventId: 'delivery.delivered:del-1', payload: { deliveryId: 'del-1' } },
+    );
+    expect($tx).toHaveBeenCalledTimes(1);
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          event: 'delivery.delivered',
+          eventId: 'delivery.delivered:del-1',
+          payload: { deliveryId: 'del-1' },
+          occurredAt: capturedAt,
+        },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  it('completeWithProof still maps a stale status to a conflict when an event is given', async () => {
+    delivery.update.mockRejectedValue(Object.assign(new Error('gone'), { code: 'P2025' }));
+    const txRepo = new DeliveryPrismaRepository({
+      delivery,
+      webhookEventOutbox: { createMany: jest.fn() },
+      $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
+    } as unknown as PrismaService);
+    await expect(
+      txRepo.completeWithProof('del-1', DeliveryStatus.ON_DELIVERY, {} as never, 'drv-1', new Date(), {
+        event: 'e.x',
+        eventId: 'k',
+        payload: {},
+      }),
+    ).rejects.toThrow();
+  });
+
   // H-22: the URLs are read BEFORE the rows go — afterwards nothing says which objects in
   // the bucket belonged to them, and the photos outlive the record that was erased.
   it('purgeProofsBefore returns the deleted count and every object url', async () => {
