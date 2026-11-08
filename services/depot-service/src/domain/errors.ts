@@ -1,5 +1,17 @@
 import { DomainError, HTTP_STATUS } from '@hydromart/platform';
 
+/** DEP-10: the depot still has work in flight. `force` overrides it knowingly. */
+export class DepotDeactivationBlockedError extends DomainError {
+  readonly code = 'DEPOT_DEACTIVATION_BLOCKED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(blockers: string[]) {
+    super(
+      `Depot belum bisa dinonaktifkan, masih ada: ${blockers.join('; ')}. ` +
+        'Selesaikan dulu, atau nonaktifkan paksa (force) kalau memang disengaja.',
+    );
+  }
+}
+
 export class DepotNotFoundError extends DomainError {
   readonly code = 'DEPOT_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

@@ -53,6 +53,7 @@ import { HandoverService } from '../application/services/handover.service';
 import { OperationalReportService } from '../application/services/operational-report.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
+import { DepotDeactivationPrismaProbe } from '../infrastructure/prisma/depot-deactivation.prisma.probe';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
 // CA-2-54: stock moving between two depots, in two steps.
 import { StockTransferPrismaRepository } from '../infrastructure/prisma/stock-transfer.prisma.repository';
@@ -170,6 +171,7 @@ const providers: Provider[] = [
   HandoverService,
   OperationalReportService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
+  { provide: DEPOT_TOKENS.DeactivationProbe, useClass: DepotDeactivationPrismaProbe },
   {
     provide: DEPOT_TOKENS.AccountNames,
     inject: [DepotConfigService],

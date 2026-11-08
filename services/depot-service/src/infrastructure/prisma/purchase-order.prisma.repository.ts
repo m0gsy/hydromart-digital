@@ -48,6 +48,7 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
     const rows = await this.prisma.purchaseOrder.findMany({
       where: { depotId, ...(status ? { status } : {}) },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
     return rows.map((r) => this.toRecord(r));
   }

@@ -395,19 +395,56 @@ describe('DepotImportService', () => {
       jest.restoreAllMocks();
     });
 
+    const bodies = (fetchMock: jest.Mock) =>
+      fetchMock.mock.calls.map((c) => JSON.parse((c[1] as { body: string }).body));
+
     it('records one summary entry per import, with the counts', async () => {
       process.env.AUTH_SERVICE_URL = 'http://auth:3001';
       process.env.INTERNAL_SERVICE_KEY = 'k';
       const fetchMock = jest.fn().mockResolvedValue({ ok: true });
       global.fetch = fetchMock as never;
       await service.import('create', [row(), row({ code: 'B', lat: 500 as never })], HQ);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(body).toMatchObject({
-        action: 'depot.import',
+      const summary = bodies(fetchMock).filter((b) => b.action === 'depot.import');
+      expect(summary).toHaveLength(1);
+      expect(summary[0]).toMatchObject({
         actorId: 'u1',
         metadata: { mode: 'create', created: 1, failed: 1, updated: 0, skipped: 0 },
       });
+    });
+
+    // DEP-13: an upsert can change a depot's bank account, QRIS and owner, and the trail said
+    // "3 updated". One entry per row that actually changed, naming the fields and never the
+    // values (an account number is not for an audit log).
+    it('records one entry per changed depot, with field names only', async () => {
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as never;
+      await service.import('create', [row({ code: 'AUD-1' })], ADMIN);
+      await service.import(
+        'upsert',
+        [{ code: 'AUD-1', paymentBankAccountNumber: '1234567890', ownerId: undefined } as ImportDepotRowDto],
+        ADMIN,
+      );
+      const perRow = bodies(fetchMock).filter((b) => b.action === 'depot.import.row');
+      expect(perRow.map((b) => b.metadata.op)).toEqual(['created', 'updated']);
+      expect(perRow[1]).toMatchObject({
+        actorId: 'u1',
+        target: 'AUD-1',
+        metadata: { fields: ['paymentBankAccountNumber'] },
+      });
+      expect(JSON.stringify(perRow)).not.toContain('1234567890');
+    });
+
+    it('writes no per-row entry for a skipped or failed row', async () => {
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as never;
+      await service.import('create', [row({ code: 'AUD-2' })], ADMIN);
+      fetchMock.mockClear();
+      await service.import('create', [row({ code: 'AUD-2' }), row({ code: 'AUD-3', lat: 500 as never })], ADMIN);
+      expect(bodies(fetchMock).filter((b) => b.action === 'depot.import.row')).toHaveLength(0);
     });
   });
 });

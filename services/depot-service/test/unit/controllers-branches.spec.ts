@@ -1355,7 +1355,12 @@ describe('DepotController', () => {
     await c.get(ID, {});
     expect(svc.get).toHaveBeenCalledWith(ID, true);
     await c.remove(ID, user);
-    expect(svc.deactivate).toHaveBeenCalledWith(ID);
+    expect(svc.deactivate).toHaveBeenCalledWith(ID, { force: false });
+    // DEP-10: only the literal string 'true' forces it.
+    await c.remove(ID, user, 'true');
+    expect(svc.deactivate).toHaveBeenLastCalledWith(ID, { force: true });
+    await c.remove(ID, user, 'yes');
+    expect(svc.deactivate).toHaveBeenLastCalledWith(ID, { force: false });
   });
 
   /*
