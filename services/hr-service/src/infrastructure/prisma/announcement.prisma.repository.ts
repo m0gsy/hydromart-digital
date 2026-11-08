@@ -116,6 +116,14 @@ export class AnnouncementPrismaRepository implements AnnouncementRepository {
     });
   }
 
+  async claimForPublish(id: string, publishedAt: Date): Promise<boolean> {
+    const { count } = await this.prisma.announcement.updateMany({
+      where: { id, publishedAt: null },
+      data: { publishedAt },
+    });
+    return count === 1;
+  }
+
   markPublished(id: string, publishedAt: Date, audienceSize: number): Promise<Announcement> {
     return this.prisma.announcement.update({ where: { id }, data: { publishedAt, audienceSize } });
   }

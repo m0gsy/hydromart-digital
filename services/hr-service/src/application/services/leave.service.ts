@@ -104,6 +104,11 @@ export class LeaveService {
     const start = ISO_DAY(input.startDate);
     const end = ISO_DAY(input.endDate);
     if (end < start) throw new BadRequestException('Tanggal selesai sebelum tanggal mulai');
+    // HR-16: bounded. The range is walked day by day to count working days, and an approved one
+    // writes a row per day; nothing stopped a request spanning decades.
+    if ((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000 >= 366) {
+      throw new BadRequestException('Rentang cuti maksimal 1 tahun (366 hari)');
+    }
 
     // Working days and quota are the HOME depot's rules; only the queue it lands in is the
     // depot the person is working at.
@@ -378,12 +383,33 @@ export class LeaveService {
    */
   private async settleAttendance(request: LeaveRequest, days: string[]): Promise<void> {
     for (const day of days) {
+      const workDate = new Date(`${day}T00:00:00.000Z`);
+      // HR-02: approval used to upsert straight over whatever the day held. A day the person
+      // actually punched in and worked is worked; marking it LEAVE erased a real punch (and
+      // the pay that follows it) with no trace. Leave only fills days that were not worked, and
+      // changing an existing row is written to the adjustment trail like any other correction.
+      const existing = await this.attendance.findByEmployeeAndDate(request.employeeId, workDate);
+      if (
+        existing &&
+        (existing.checkInAt || existing.status === 'PRESENT' || existing.status === 'LATE')
+      ) {
+        continue;
+      }
       await this.attendance.upsertManual({
         employeeId: request.employeeId,
         depotId: request.depotId,
-        workDate: new Date(`${day}T00:00:00.000Z`),
+        workDate,
         status: 'LEAVE',
       });
+      if (existing) {
+        await this.attendance.recordAdjustment({
+          attendanceId: existing.id,
+          reason: `Diubah menjadi cuti (pengajuan ${request.id})`,
+          before: { status: existing.status },
+          after: { status: 'LEAVE' },
+          approvedBy: null,
+        });
+      }
     }
   }
 

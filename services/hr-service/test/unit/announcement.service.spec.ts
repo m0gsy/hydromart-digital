@@ -113,6 +113,13 @@ class FakeRepo implements AnnouncementRepository {
       (r) => !r.publishedAt && r.scheduledAt && r.scheduledAt.getTime() <= now.getTime(),
     );
   }
+  /** Compare-and-set on publishedAt IS NULL, like the Prisma `updateMany`. */
+  async claimForPublish(id: string, publishedAt: Date): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.publishedAt) return false;
+    row.publishedAt = publishedAt;
+    return true;
+  }
   async markPublished(id: string, publishedAt: Date, audienceSize: number): Promise<Announcement> {
     const row = this.rows.find((r) => r.id === id)!;
     row.publishedAt = publishedAt;
@@ -215,6 +222,20 @@ describe('AnnouncementService (C1)', () => {
 
     // Running the sweep again does not send it twice.
     expect(await svc.publishDue(after)).toEqual({ published: 0 });
+    expect(sent).toHaveLength(3);
+  });
+
+  // HR-20: two overlapping sweeps both listed the same due notice, both notified everyone, and
+  // only then stamped it. Claiming it first means exactly one sweep sends.
+  it('HR-20: two overlapping sweeps send a due notice once', async () => {
+    const { svc, sent } = make();
+    const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await svc.create(hr, { ...DRAFT, scheduledAt: future, targets: [{ dimension: 'COMPANY' }] });
+    const after = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+    const [a, b] = await Promise.all([svc.publishDue(after), svc.publishDue(after)]);
+
+    expect(a.published + b.published).toBe(1);
     expect(sent).toHaveLength(3);
   });
 

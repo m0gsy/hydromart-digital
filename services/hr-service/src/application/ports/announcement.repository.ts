@@ -69,6 +69,12 @@ export interface AnnouncementRepository {
   /** Scheduled, not yet published, due at or before `now`. The sweep's work list. */
   listDue(now: Date): Promise<AnnouncementWithTargets[]>;
   /** Stamp it live with the audience size frozen in. */
+  /**
+   * HR-20: claim a due notice for sending. True for exactly one caller: the write is
+   * `publishedAt IS NULL -> at` in the WHERE clause, so two overlapping sweeps cannot both
+   * go on to notify everybody.
+   */
+  claimForPublish(id: string, publishedAt: Date): Promise<boolean>;
   markPublished(id: string, publishedAt: Date, audienceSize: number): Promise<Announcement>;
   /** Idempotent: marking read twice is still one read. */
   markRead(announcementId: string, employeeId: string): Promise<AnnouncementRead>;

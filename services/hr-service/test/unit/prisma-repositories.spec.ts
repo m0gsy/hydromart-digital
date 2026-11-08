@@ -483,6 +483,24 @@ describe('AnnouncementPrismaRepository', () => {
     });
   });
 
+  // HR-20: claiming is a compare-and-set on publishedAt IS NULL; only one caller sees count 1.
+  it('claims a due notice only while it is unpublished', async () => {
+    const p = makePrisma();
+    const at = new Date('2026-08-01T10:00:00.000Z');
+    m(p, 'announcement').updateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(
+      new AnnouncementPrismaRepository(asService(p)).claimForPublish('an1', at),
+    ).resolves.toBe(true);
+    expect(m(p, 'announcement').updateMany).toHaveBeenCalledWith({
+      where: { id: 'an1', publishedAt: null },
+      data: { publishedAt: at },
+    });
+    m(p, 'announcement').updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      new AnnouncementPrismaRepository(asService(p)).claimForPublish('an1', at),
+    ).resolves.toBe(false);
+  });
+
   it('freezes the audience size when it stamps a row published', async () => {
     const p = makePrisma();
     const out = sentinel();

@@ -168,6 +168,9 @@ export class AnnouncementService {
     const due = await this.repo.listDue(now);
     let published = 0;
     for (const announcement of due) {
+      // HR-20: claim before sending. `listDue` is a read, so two overlapping sweeps each saw the
+      // same notice and each notified the whole audience before either stamped it.
+      if (!(await this.repo.claimForPublish(announcement.id, now))) continue;
       await this.publish(announcement, now);
       published += 1;
     }

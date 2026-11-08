@@ -142,10 +142,18 @@ class FakeLeaveRepo implements LeaveRepository {
 function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; joinDate?: Date } = {}) {
   const repo = new FakeLeaveRepo();
   const attendanceWrites: ManualAttendanceInput[] = [];
+  /** HR-02: rows that already exist for the employee, keyed by YYYY-MM-DD. */
+  const existingAttendance = new Map<string, Record<string, unknown>>();
+  const adjustments: { attendanceId: string; reason: string }[] = [];
   const attendance = {
+    findByEmployeeAndDate: async (_employeeId: string, workDate: Date) =>
+      (existingAttendance.get(workDate.toISOString().slice(0, 10)) ?? null) as never,
+    recordAdjustment: async (data: { attendanceId: string; reason: string }) => {
+      adjustments.push(data);
+    },
     upsertManual: async (input: ManualAttendanceInput) => {
       attendanceWrites.push(input);
-      return {} as never;
+      return { id: 'att-new' } as never;
     },
   } as never;
   const employees = {
@@ -190,6 +198,8 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; j
   return {
     repo,
     attendanceWrites,
+    existingAttendance,
+    adjustments,
     sent,
     employees,
     supervision,
@@ -285,6 +295,24 @@ describe('LeaveService.submit', () => {
     ).rejects.toThrow(/hari kerja/);
   });
 
+  // HR-16: nothing bounded the range, so a request for 2020 through 9999 walked every day to
+  // find the working ones (and, once approved, wrote an attendance row for each of them).
+  it('HR-16: rejects a range longer than a year', async () => {
+    const { svc } = make();
+    await expect(
+      svc.submit(staff, { ...APPLY, startDate: '2026-07-06', endDate: '2027-07-07' }),
+    ).rejects.toThrow(/1 tahun|366/);
+    await expect(
+      svc.submit(staff, { ...APPLY, startDate: '2026-07-06', endDate: '9999-12-31' }),
+    ).rejects.toThrow(BadRequestException);
+    // a full year is not refused for its LENGTH (it may still hit the quota, which is a
+    // different rule with a different message)
+    const full = await svc
+      .submit(staff, { ...APPLY, startDate: '2026-07-06', endDate: '2027-07-05' })
+      .catch((e: Error) => e);
+    expect(String((full as Error).message ?? '')).not.toMatch(/366/);
+  });
+
   it('rejects a second application that overlaps a pending one', async () => {
     const { svc } = make();
     await svc.submit(staff, APPLY);
@@ -365,6 +393,35 @@ describe('LeaveService approval flow', () => {
       '2026-07-08',
       '2026-07-09',
       '2026-07-10',
+    ]);
+  });
+
+  // HR-02: approval overwrote whatever the day already held, including a day the person
+  // actually punched in and worked, with no trace that it had.
+  it('HR-02: never overwrites a day the person actually worked; the rest still become LEAVE', async () => {
+    const ctx = make();
+    ctx.existingAttendance.set('2026-07-08', {
+      id: 'att-worked',
+      status: 'PRESENT',
+      checkInAt: new Date('2026-07-08T01:00:00Z'),
+    });
+    await approvedRequest(ctx);
+
+    const days = ctx.attendanceWrites.map((w) => w.workDate.toISOString().slice(0, 10));
+    expect(days).not.toContain('2026-07-08');
+    expect(days).toEqual(['2026-07-06', '2026-07-07', '2026-07-09', '2026-07-10']);
+  });
+
+  it('HR-02: a day that held an ABSENT mark becomes LEAVE and the change is recorded', async () => {
+    const ctx = make();
+    ctx.existingAttendance.set('2026-07-07', { id: 'att-absent', status: 'ABSENT', checkInAt: null });
+    await approvedRequest(ctx);
+
+    expect(ctx.attendanceWrites.map((w) => w.workDate.toISOString().slice(0, 10))).toContain(
+      '2026-07-07',
+    );
+    expect(ctx.adjustments).toEqual([
+      expect.objectContaining({ attendanceId: 'att-absent', reason: expect.stringMatching(/cuti/i) }),
     ]);
   });
 
@@ -613,7 +670,10 @@ describe('LeaveService without optional collaborators', () => {
   // against a null recipient.
   it('skips both notifications when neither party has a linked account', async () => {
     const repo = new FakeLeaveRepo();
-    const attendance = { upsertManual: async () => ({}) as never } as never;
+    const attendance = {
+      findByEmployeeAndDate: async () => null,
+      upsertManual: async () => ({}) as never,
+    } as never;
     const unlinked = { ...EMPLOYEE, authSubjectId: null };
     const employees = {
       getSelf: async () => unlinked,
@@ -647,6 +707,7 @@ describe('LeaveService without optional collaborators', () => {
     const repo = new FakeLeaveRepo();
     const writes: ManualAttendanceInput[] = [];
     const attendance = {
+      findByEmployeeAndDate: async () => null,
       upsertManual: async (input: ManualAttendanceInput) => {
         writes.push(input);
         return {} as never;
