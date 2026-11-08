@@ -17,6 +17,12 @@ export const help = {
     cancel: "Batal",
     empty: "Belum ada komplain.",
     reply: "Balasan Hydromart",
+    replyAction: "Balas",
+    replyLabel: "Pesan balasan",
+    replySend: "Kirim balasan",
+    replySent: "Balasan terkirim.",
+    replyError: "Gagal mengirim balasan.",
+    replyRequired: "Tulis dulu balasannya.",
     status: { OPEN: "Menunggu ditangani", ASSIGNED: "Sedang ditangani", RESOLVED: "Selesai" },
   },
 

@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
 import { SupportTicketNotFoundError } from '../../domain/errors';
+import { TicketStatus } from '../../domain/ticket';
 import {
   CreateSupportTicketData,
   ListSupportTicketsFilter,
@@ -69,6 +70,24 @@ export class SupportTicketService {
     return this.repo.listForCustomer(customerId, SupportTicketService.MINE_LIMIT);
   }
 
+  /**
+   * AAS-12: the customer answers on their own ticket. Somebody else's ticket is a 404, the
+   * same answer as an unknown id, so ids cannot be probed. A resolved ticket takes no more
+   * messages: a reply on a closed ticket would sit unseen, so they are told to open a new one.
+   */
+  async replyAsCustomer(customerId: string, id: string, body: string): Promise<SupportTicketRecord> {
+    const ticket = await this.repo.findById(id);
+    if (!ticket || ticket.customerId !== customerId) throw new SupportTicketNotFoundError(id);
+    if (ticket.status === TicketStatus.RESOLVED) {
+      throw new BadRequestException(
+        'Komplain ini sudah selesai dan tidak menerima pesan lagi. Buat komplain baru kalau masih ada masalah.',
+      );
+    }
+    const updated = await this.repo.addCustomerMessage(id, body);
+    if (!updated) throw new SupportTicketNotFoundError(id);
+    return updated;
+  }
+
   /** A single ticket with its message thread. 404 when the id is unknown. */
   async get(id: string): Promise<SupportTicketRecord> {
     const ticket = await this.repo.findById(id);
@@ -90,9 +109,9 @@ export class SupportTicketService {
     return updated;
   }
 
-  /** Mark the ticket resolved. 404 when the id is unknown. */
-  async resolve(id: string): Promise<SupportTicketRecord> {
-    const updated = await this.repo.resolve(id);
+  /** Mark the ticket resolved, recording who. 404 when the id is unknown. */
+  async resolve(id: string, resolvedBy?: string | null): Promise<SupportTicketRecord> {
+    const updated = await this.repo.resolve(id, resolvedBy);
     if (!updated) throw new SupportTicketNotFoundError(id);
     return updated;
   }

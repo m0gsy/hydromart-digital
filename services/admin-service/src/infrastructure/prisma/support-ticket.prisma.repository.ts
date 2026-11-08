@@ -38,6 +38,9 @@ interface SupportTicketRow {
   status: string;
   assigneeId: string | null;
   createdAt: Date;
+  firstResponseAt: Date | null;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
   messages: TicketMessageRow[];
 }
 
@@ -85,23 +88,48 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
-  async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
-    // One transaction: a ticket that exists without its complaint is a subject line, and
-    // the thread view would render it as an empty conversation nobody can answer.
-    const created = await this.prisma.supportTicket.create({
-      data: {
-        subject: data.subject,
-        customerRef: data.customerRef,
-        customerPhone: data.customerPhone,
-        orderRef: data.orderRef ?? null,
-        depotRef: data.depotRef ?? null,
-        customerId: data.customerId ?? null,
-        ...(data.priority ? { priority: data.priority } : {}),
-        messages: { create: { authorType: TicketAuthorType.CUSTOMER, body: data.body } },
-      },
+  /** AAS-12: the ticket this customer already filed under this key, if any. */
+  private async findByKey(customerId: string, key: string): Promise<SupportTicketRecord | null> {
+    const row = await this.prisma.supportTicket.findFirst({
+      where: { customerId, idempotencyKey: key },
       include: { messages: THREAD_TAIL },
     });
-    return this.toRecord(created);
+    return row ? this.toRecord(row) : null;
+  }
+
+  async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
+    const key = data.customerId && data.idempotencyKey ? data.idempotencyKey : null;
+    if (key) {
+      const already = await this.findByKey(data.customerId!, key);
+      if (already) return already;
+    }
+    // One transaction: a ticket that exists without its complaint is a subject line, and
+    // the thread view would render it as an empty conversation nobody can answer.
+    try {
+      const created = await this.prisma.supportTicket.create({
+        data: {
+          subject: data.subject,
+          customerRef: data.customerRef,
+          customerPhone: data.customerPhone,
+          orderRef: data.orderRef ?? null,
+          depotRef: data.depotRef ?? null,
+          customerId: data.customerId ?? null,
+          idempotencyKey: key,
+          ...(data.priority ? { priority: data.priority } : {}),
+          messages: { create: { authorType: TicketAuthorType.CUSTOMER, body: data.body } },
+        },
+        include: { messages: THREAD_TAIL },
+      });
+      return this.toRecord(created);
+    } catch (error) {
+      // Two taps at once both missed the lookup above; the unique index let one through.
+      // The loser's answer is the winner's ticket, not a 500.
+      if (key && (error as { code?: string })?.code === 'P2002') {
+        const winner = await this.findByKey(data.customerId!, key);
+        if (winner) return winner;
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<SupportTicketRecord | null> {
@@ -117,6 +145,21 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     if (!existing) return null;
     await this.prisma.ticketMessage.create({
       data: { ticketId: id, authorType: TicketAuthorType.STAFF, body },
+    });
+    // AAS-12: only the first staff reply counts, and the WHERE is what makes that true when
+    // two replies race: the second finds the column already set and moves nothing.
+    await this.prisma.supportTicket.updateMany({
+      where: { id, firstResponseAt: null },
+      data: { firstResponseAt: new Date() },
+    });
+    return this.findById(id);
+  }
+
+  async addCustomerMessage(id: string, body: string): Promise<SupportTicketRecord | null> {
+    const existing = await this.prisma.supportTicket.findUnique({ where: { id } });
+    if (!existing) return null;
+    await this.prisma.ticketMessage.create({
+      data: { ticketId: id, authorType: TicketAuthorType.CUSTOMER, body },
     });
     return this.findById(id);
   }
@@ -175,12 +218,15 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     return ids.length;
   }
 
-  async resolve(id: string): Promise<SupportTicketRecord | null> {
+  async resolve(id: string, resolvedBy?: string | null): Promise<SupportTicketRecord | null> {
     const existing = await this.prisma.supportTicket.findUnique({ where: { id } });
     if (!existing) return null;
-    await this.prisma.supportTicket.update({
-      where: { id },
-      data: { status: TicketStatus.RESOLVED },
+    // AAS-12: guarded on the origin status. A second resolve used to overwrite the status
+    // with itself and, now that there is a timestamp, would also rewrite WHEN it was
+    // resolved; the WHERE makes the first resolution the only one.
+    await this.prisma.supportTicket.updateMany({
+      where: { id, status: { not: TicketStatus.RESOLVED } },
+      data: { status: TicketStatus.RESOLVED, resolvedAt: new Date(), resolvedBy: resolvedBy ?? null },
     });
     return this.findById(id);
   }

@@ -1019,16 +1019,17 @@ describe('SupportTicketPrismaRepository', () => {
     supportTicket.findUnique.mockResolvedValueOnce(row());
     supportTicket.findUnique.mockResolvedValueOnce(row());
     await repo.resolve('t-1');
-    expect(supportTicket.update).toHaveBeenCalledWith({
-      where: { id: 't-1' },
-      data: { status: TicketStatus.RESOLVED },
+    // AAS-12: guarded on the origin status, so it can only ever resolve once.
+    expect(supportTicket.updateMany).toHaveBeenCalledWith({
+      where: { id: 't-1', status: { not: TicketStatus.RESOLVED } },
+      data: { status: TicketStatus.RESOLVED, resolvedAt: expect.any(Date), resolvedBy: null },
     });
   });
 
   it('resolve returns null for an unknown ticket', async () => {
     supportTicket.findUnique.mockResolvedValue(null);
     expect(await repo.resolve('nope')).toBeNull();
-    expect(supportTicket.update).not.toHaveBeenCalled();
+    expect(supportTicket.updateMany).not.toHaveBeenCalled();
   });
 });
 

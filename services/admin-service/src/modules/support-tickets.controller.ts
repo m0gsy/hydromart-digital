@@ -12,7 +12,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import {
+  AuditMutationsInterceptor,
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import { PdpErasedResponseDto } from './dto/responses.generated.dto';
@@ -140,7 +147,10 @@ export class SupportTicketsController {
   @ApiOkResponse({ type: SupportTicketDto })
   @Post(':id/resolve')
   @ApiOperation({ summary: 'Mark a ticket resolved' })
-  async resolve(@Param('id') id: string): Promise<SupportTicketDto> {
-    return SupportTicketDto.from(await this.tickets.resolve(id));
+  async resolve(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SupportTicketDto> {
+    return SupportTicketDto.from(await this.tickets.resolve(id, user.sub));
   }
 }

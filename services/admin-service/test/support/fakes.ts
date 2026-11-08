@@ -398,6 +398,9 @@ export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): Supp
     status: TicketStatus.OPEN,
     assigneeId: null,
     createdAt: nextDate(),
+    firstResponseAt: null,
+    resolvedAt: null,
+    resolvedBy: null,
     messages: [],
     ...over,
   };
@@ -432,8 +435,17 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
       .slice(0, limit);
   }
 
+  /** AAS-12: unique(customerId, idempotencyKey); a missing key never collides. */
+  private keys = new Map<string, string>();
+
   async create(data: CreateSupportTicketData): Promise<SupportTicketRecord> {
+    const keyed = data.customerId && data.idempotencyKey ? `${data.customerId}:${data.idempotencyKey}` : null;
+    if (keyed && this.keys.has(keyed)) {
+      const hit = this.rows.find((r) => r.id === this.keys.get(keyed))!;
+      return { ...hit, messages: [...hit.messages] };
+    }
     const id = randomUUID();
+    if (keyed) this.keys.set(keyed, id);
     const row: SupportTicketRecord = {
       id,
       subject: data.subject,
@@ -446,6 +458,9 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
       status: TicketStatus.OPEN,
       assigneeId: null,
       createdAt: nextDate(),
+      firstResponseAt: null,
+      resolvedAt: null,
+      resolvedBy: null,
       messages: [
         {
           id: randomUUID(),
@@ -483,6 +498,21 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
       body,
       createdAt: nextDate(),
     });
+    // AAS-12: only the first staff reply stamps it.
+    r.firstResponseAt ??= new Date();
+    return { ...r, messages: [...r.messages] };
+  }
+
+  async addCustomerMessage(id: string, body: string): Promise<SupportTicketRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    r.messages.push({
+      id: randomUUID(),
+      ticketId: id,
+      authorType: TicketAuthorType.CUSTOMER,
+      body,
+      createdAt: nextDate(),
+    });
     return { ...r, messages: [...r.messages] };
   }
 
@@ -495,10 +525,15 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
     return { ...r, messages: [...r.messages] };
   }
 
-  async resolve(id: string): Promise<SupportTicketRecord | null> {
+  async resolve(id: string, resolvedBy?: string | null): Promise<SupportTicketRecord | null> {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
-    r.status = TicketStatus.RESOLVED;
+    // AAS-12: guarded on the origin status; the first resolution is the only one.
+    if (r.status !== TicketStatus.RESOLVED) {
+      r.status = TicketStatus.RESOLVED;
+      r.resolvedAt = new Date();
+      r.resolvedBy = resolvedBy ?? null;
+    }
     return { ...r, messages: [...r.messages] };
   }
 }
