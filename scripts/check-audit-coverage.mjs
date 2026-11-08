@@ -109,6 +109,7 @@ const EXEMPT = new Map([
   ['auth-service:internal.controller.ts:preRegisterCustomer', 'order-service walk-in capture'],
   ['auth-service:internal.controller.ts:lookupByIds', 'a POST that reads — a batch lookup, not a write'],
   ['auth-service:internal.controller.ts:purgeAuditLogs', 'timer-driven retention purge'],
+  ['auth-service:internal.controller.ts:purgeExpiredTokens', 'timer-driven retention purge'],
 ]);
 
 function controllerFiles(service) {
