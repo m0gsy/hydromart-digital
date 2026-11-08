@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { can } from '@hydromart/access';
 import { AuthenticatedUser, depotScopeIds, localDayKey } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
@@ -91,6 +92,7 @@ export class AnalyticsService {
     const workDate = this.today();
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
+    const mayReadPayroll = can('hrPayroll', user.role);
 
     // CA-1-47 and CA-1-43: 30 days is a renewal window, not a deadline — a SIM or a contract takes
     // longer than a week to replace, and anything already past its date is included.
@@ -109,8 +111,13 @@ export class AnalyticsService {
       this.repo.headcountByStatus(depotIds),
       this.repo.headcountByEmploymentStatus(depotIds),
       this.repo.attendanceByStatus(workDateUtc, depotIds),
-      this.repo.payrollTotals(periodMonth, depotIds),
-      this.repo.payrollByStatus(periodMonth, depotIds),
+      // F2: the dashboard is open to all of `hrView`, which includes roles with no payroll
+      // read. Their payroll block is zeroed WITHOUT asking the repository, so the figures
+      // never leave the database for them.
+      mayReadPayroll
+        ? this.repo.payrollTotals(periodMonth, depotIds)
+        : Promise.resolve({ gross: 0, totalBonus: 0, totalDeduction: 0, net: 0, count: 0 }),
+      mayReadPayroll ? this.repo.payrollByStatus(periodMonth, depotIds) : Promise.resolve([]),
       this.repo.expiringDocuments(expiryCutoff, depotIds),
       this.repo.endingEmployments(expiryCutoff, depotIds),
     ]);

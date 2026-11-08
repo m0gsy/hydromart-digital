@@ -87,6 +87,27 @@ describe('AnalyticsService.dashboard', () => {
     expect(d.periodMonth).toBe(d.workDate.slice(0, 7));
   });
 
+  // F2: `hrView` includes roles with no payroll read; their dashboard must not carry the
+  // month's gross/net, and the repository is not even asked for it.
+  it('F2: zeroes the payroll block for a role without hrPayroll, without querying it', async () => {
+    const payrollTotals = jest.fn();
+    const payrollByStatus = jest.fn();
+    const { svc } = build({ payrollTotals, payrollByStatus } as never);
+    const d = await svc.dashboard(manager, {});
+    expect(d.payroll).toEqual({
+      totals: { gross: 0, totalBonus: 0, totalDeduction: 0, net: 0, count: 0 },
+      byStatus: [],
+    });
+    expect(payrollTotals).not.toHaveBeenCalled();
+    expect(payrollByStatus).not.toHaveBeenCalled();
+  });
+
+  it('F2: a payroll role (HR) still gets the real figures', async () => {
+    const { svc } = build();
+    const d = await svc.dashboard(hq, {});
+    expect(d.payroll.byStatus).toEqual([{ key: 'DRAFT', count: 2 }]);
+  });
+
   it('scopes a depot-locked role to its own depot', async () => {
     const { svc, calls } = build();
     const d = await svc.dashboard(manager, {});
