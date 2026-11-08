@@ -19,3 +19,11 @@ export type ExpenseClaimStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export function isAutoApproved(amount: number, threshold: number, hasReceipt: boolean): boolean {
   return hasReceipt && threshold > 0 && amount <= threshold;
 }
+
+/**
+ * PPA-11: how many claims one courier can have AUTO-approved in a rolling day. The receipt
+ * check proves an image was uploaded once; it does not stop fifty small claims each with its
+ * own upload. Past this count a claim waits for a reviewer, exactly as one over the threshold
+ * does. Generous on purpose: a courier fuels, parks and tolls several times a day.
+ */
+export const AUTO_APPROVE_MAX_PER_DAY = 5;

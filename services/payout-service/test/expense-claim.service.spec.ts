@@ -7,6 +7,7 @@ import {
   ExpenseClaimNotPendingError,
   InvalidExpenseAmountError,
 } from '../src/domain/errors';
+import { AUTO_APPROVE_MAX_PER_DAY } from '../src/domain/expense-claim';
 import { ExpenseClaimService } from '../src/application/services/expense-claim.service';
 import type { PayoutConfigService } from '../src/config/payout-config.service';
 import type {
@@ -128,6 +129,15 @@ class FakeClaims implements ExpenseClaimRepository {
     const row = this.rows.find((r) => r.id === id)!;
     if (row.status === 'APPROVED' && !row.ledgerEntryId) row.status = 'PENDING';
   }
+  async countAutoApprovedSince(courierId: string, since: Date): Promise<number> {
+    return this.rows.filter(
+      (r) =>
+        r.courierId === courierId &&
+        r.status === 'APPROVED' &&
+        r.reviewedBy === null &&
+        r.createdAt >= since,
+    ).length;
+  }
   async countByReceiptUrl(receiptUrl: string): Promise<number> {
     return this.rows.filter((r) => r.receiptUrl === receiptUrl).length;
   }
@@ -213,6 +223,27 @@ describe('ExpenseClaimService', () => {
     expect(ledger.entries).toHaveLength(1);
     expect(ledger.entries[0]).toMatchObject({ type: 'ADJUSTMENT', amount: 25000 });
     expect(await ledger.balanceFor(COURIER)).toBe(25000);
+  });
+
+  // PPA-11: the receipt must now be an uploaded object, but once ANY image has been uploaded a
+  // courier could file small claims all day, each a fresh upload, each auto-approved with no
+  // human ever looking. Past a daily count the claim goes to a reviewer like any other.
+  it('PPA-11: stops auto-approving after the daily limit; the next claim queues', async () => {
+    for (let i = 0; i < AUTO_APPROVE_MAX_PER_DAY; i += 1) {
+      const c = await service.submit(COURIER, input(10000));
+      expect(c.status).toBe('APPROVED');
+    }
+    const over = await service.submit(COURIER, input(10000));
+    expect(over.status).toBe('PENDING');
+    expect(ledger.entries).toHaveLength(AUTO_APPROVE_MAX_PER_DAY);
+  });
+
+  it('PPA-11: the daily limit is per courier', async () => {
+    for (let i = 0; i < AUTO_APPROVE_MAX_PER_DAY; i += 1) {
+      await service.submit(COURIER, input(10000));
+    }
+    const other = await service.submit('00000000-0000-4000-8000-00000000c0c0', input(10000));
+    expect(other.status).toBe('APPROVED');
   });
 
   it('queues a claim with no receipt even when it is under the threshold (M20-15)', async () => {

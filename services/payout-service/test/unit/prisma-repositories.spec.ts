@@ -937,6 +937,15 @@ describe('ExpenseClaimPrismaRepository', () => {
     expect(model.count).toHaveBeenLastCalledWith({ where: { receiptUrl: 'https://b/pod/x.jpg' } });
   });
 
+  it('counts the auto-approved claims of a courier since a time (PPA-11)', async () => {
+    const since = new Date('2026-11-06T00:00:00Z');
+    model.count.mockResolvedValue(4);
+    await expect(repo.countAutoApprovedSince('cou-1', since)).resolves.toBe(4);
+    expect(model.count).toHaveBeenLastCalledWith({
+      where: { courierId: 'cou-1', status: 'APPROVED', reviewedBy: null, createdAt: { gte: since } },
+    });
+  });
+
   it('lists claims for a courier paginated with total', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(3);
