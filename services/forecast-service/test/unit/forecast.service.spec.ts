@@ -16,8 +16,9 @@ const settingsStub = () => new SettingsCache({ loadAll: async () => [] });
 const noNames = async () => new Map<string, string>();
 
 
-const NOW = new Date('2026-07-11T12:00:00Z');
-const AT = new Date('2026-07-11T08:00:00Z'); // same UTC day as NOW → lands on the last history day
+// FCS-01: history ends YESTERDAY, so "now" is the day after the orders.
+const NOW = new Date('2026-07-12T12:00:00Z');
+const AT = new Date('2026-07-11T08:00:00Z'); // the day before NOW → lands on the last history day
 
 const configStub = { churnWindowDays: 45, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
 
@@ -185,6 +186,17 @@ describe('ForecastService', () => {
     expect(customers[0].lastOrderAt).toBe('2026-05-01T00:00:00.000Z');
   });
 
+  // FCS-02: the oldest-first take used to fill with customers who lapsed long ago, so a small
+  // limit never reached anyone still winnable.
+  it('FCS-02: churnList leaves out customers lost beyond three windows, before the limit applies', async () => {
+    await service.ingest(makeIngest({ orderId: 'gone', customerId: 'gone', at: new Date('2025-01-01T00:00:00Z') }));
+    await service.ingest(makeIngest({ orderId: 'live', customerId: 'live', at: new Date('2026-05-20T00:00:00Z') }));
+
+    const { customers } = await service.churnList({ now: NOW, limit: 1 });
+
+    expect(customers.map((c) => c.customerId)).toEqual(['live']);
+  });
+
   it('churnList folds Monetary in: a high-spend customer bands lower than a low-spend one at the same recency', async () => {
     const monConfig = { churnWindowDays: 30, churnMonetaryRef: 500_000, forecastModelForDepot: () => 'heuristic' } as unknown as ForecastConfigService;
     const monService = new ForecastService(repo, monConfig, noNames, settingsStub());
@@ -296,5 +308,17 @@ describe('ForecastService', () => {
 
     const { customers } = await service.churnList({ limit: 0, now: NOW });
     expect(customers).toHaveLength(1);
+  });
+
+  // FCS-01: today is still being sold. A half-finished day counted as a whole one reads as a
+  // collapse in the trend.
+  it('FCS-01: leaves the current business day out of every series', async () => {
+    await service.ingest(makeIngest({ orderId: 'today', at: new Date('2026-07-12T08:00:00Z') }));
+    const demand = await service.demand({ productId: 'a', now: NOW });
+    expect(demand.history.reduce((s, x) => s + x, 0)).toBe(0);
+    const sales = await service.salesForecast({ now: NOW });
+    expect(sales.history.reduce((s, x) => s + x, 0)).toBe(0);
+    const rollup = await service.depotRollup({ depotId: 'any', now: NOW });
+    expect(rollup).toEqual([]);
   });
 });

@@ -170,20 +170,26 @@ describe('Forecast HTTP flows (e2e)', () => {
       .send(body)
       .expect(200);
 
-    const demand = await request(server())
-      .get('/api/v1/forecast/demand')
-      .query({ productId, depotId })
-      .set(auth(depotManagerToken))
-      .expect(200);
-    expect(demand.body.productId).toBe(productId);
-    expect(demand.body.name).toBe('Aqua 19L');
-    expect(demand.body.predictedDaily.length).toBe(7); // default horizon
+    // FCS-01: history ends yesterday, so read it from the day after the ingest.
+    jest.useFakeTimers({ now: Date.now() + 36 * 3_600_000, advanceTimers: true });
+    try {
+      const demand = await request(server())
+        .get('/api/v1/forecast/demand')
+        .query({ productId, depotId })
+        .set(auth(depotManagerToken))
+        .expect(200);
+      expect(demand.body.productId).toBe(productId);
+      expect(demand.body.name).toBe('Aqua 19L');
+      expect(demand.body.predictedDaily.length).toBe(7); // default horizon
 
-    const rollup = await request(server())
-      .get(`/api/v1/forecast/depot/${depotId}`)
-      .set(auth(depotManagerToken))
-      .expect(200);
-    expect(rollup.body.map((i: { productId: string }) => i.productId)).toContain(productId);
+      const rollup = await request(server())
+        .get(`/api/v1/forecast/depot/${depotId}`)
+        .set(auth(depotManagerToken))
+        .expect(200);
+      expect(rollup.body.map((i: { productId: string }) => i.productId)).toContain(productId);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('gates demand + depot rollup to planning staff (403 customer, 401 anon)', async () => {

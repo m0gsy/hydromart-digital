@@ -116,6 +116,12 @@ export interface ForecastRepository {
     depotId?: string | null;
     depotIds?: readonly string[];
     limit: number;
+    /**
+     * FCS-02: only customers whose last order is on or after this. Applied BEFORE the cut to
+     * `limit`, so the oldest-first take is the oldest still-winnable customers, not whoever
+     * lapsed years ago and has filled every slot since.
+     */
+    lastOrderSince?: Date;
   }): Promise<CustomerActivityRow[]>;
   /**
    * One customer's activity snapshot, for the depot CRM card (S2). Null when they have

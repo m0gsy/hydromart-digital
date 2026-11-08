@@ -247,6 +247,18 @@ const day = dayToDate(toBusinessDay(at, DAY_TZ));
     });
   });
 
+  // FCS-02: the lost-customer cut-off is part of the query, so it applies before `take`.
+  it('applies the last-order cut-off in the query, next to the depot filter', async () => {
+    const since = new Date('2026-01-01T00:00:00Z');
+    customerActivity.findMany.mockResolvedValue([]);
+    await repo.listCustomerActivity({ depotId: 'depot-1', limit: 5, lastOrderSince: since });
+    expect(customerActivity.findMany).toHaveBeenLastCalledWith({
+      where: { depotId: 'depot-1', lastOrderAt: { gte: since } },
+      orderBy: { lastOrderAt: 'asc' },
+      take: 5,
+    });
+  });
+
   it('omits the depot filter for activity when depotId is undefined', async () => {
     customerActivity.findMany.mockResolvedValue([]);
     await repo.listCustomerActivity({ limit: 10 });
