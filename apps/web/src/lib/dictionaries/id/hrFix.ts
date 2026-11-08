@@ -2170,6 +2170,8 @@ export const hrFix = {
     paidAt: 'Dibayar',
     pendingWarning:
       'Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui).',
+    decemberWarning:
+      'Masih ada {n} bulan sebelumnya di tahun ini yang belum disetujui, jadi PPh 21 Desember dihitung tanpa bulan itu dan bisa kurang. Setujui bulan-bulan itu, lalu buat ulang slip Desember.',
     approveConfirmPending:
       'Setujui pembayaran {net}? Masih ada {n} hari kehadiran yang belum diputuskan; selisihnya harus dicatat di periode berikutnya.',
     failed: 'Gagal',

@@ -927,10 +927,22 @@ export class PayrollService {
       this.config.depotAssignmentEnabled && this.reachesHome(user, employee)
         ? ((await this.repo.findShares?.(payroll.id)) ?? [])
         : [];
+    // HR-05: only a DRAFT December can still be corrected, so only it is told.
+    const unapprovedEarlierMonths =
+      payroll.status === 'DRAFT' && payroll.periodMonth.endsWith('-12')
+        ? ((
+            await this.repo.pph21YearToDate(
+              payroll.employeeId,
+              Number(payroll.periodMonth.slice(0, 4)),
+              payroll.periodMonth,
+            )
+          ).unapprovedMonths ?? 0)
+        : 0;
     return {
       ...payroll,
       employeeName: employee.fullName ?? null,
       pendingDays,
+      ...(unapprovedEarlierMonths > 0 ? { unapprovedEarlierMonths } : {}),
       ...(shares.length > 0 ? { shares } : {}),
     };
   }

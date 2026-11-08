@@ -1211,3 +1211,28 @@ describe('PayrollService · CA-1-06 an unfinished month cannot be paid', () => {
     await expect(svcOf().generate(user, 'e1', key(1))).rejects.toThrow(/belum selesai/i);
   });
 });
+
+// HR-05: the December warning reaches the screen. Read live when the slip opens, like
+// `pendingDays`, and only on a DRAFT December slip — the one that can still be corrected.
+describe('PayrollService.getById unapprovedEarlierMonths (HR-05)', () => {
+  const draftDec = { id: 'p1', employeeId: 'e1', status: 'DRAFT', periodMonth: '2025-12' };
+
+  it('reports earlier DRAFT months on a DRAFT December slip', async () => {
+    const { repo, svc } = build({ employee: {} });
+    repo.byId = draftDec as PayrollWithItems;
+    repo.ytd = { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0, unapprovedMonths: 2 } as typeof repo.ytd;
+    expect((await svc.getById(user, 'p1')).unapprovedEarlierMonths).toBe(2);
+  });
+
+  it('says nothing when there are none, outside December, or once approved', async () => {
+    const { repo, svc } = build({ employee: {} });
+    repo.ytd = { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0, unapprovedMonths: 2 } as typeof repo.ytd;
+    repo.byId = { ...draftDec, periodMonth: '2025-11' } as PayrollWithItems;
+    expect((await svc.getById(user, 'p1')).unapprovedEarlierMonths).toBeUndefined();
+    repo.byId = { ...draftDec, status: 'APPROVED' } as PayrollWithItems;
+    expect((await svc.getById(user, 'p1')).unapprovedEarlierMonths).toBeUndefined();
+    repo.byId = draftDec as PayrollWithItems;
+    repo.ytd = { grossIdr: 0, bpjsIdr: 0, withheldIdr: 0, months: 0, unapprovedMonths: 0 } as typeof repo.ytd;
+    expect((await svc.getById(user, 'p1')).unapprovedEarlierMonths).toBeUndefined();
+  });
+});

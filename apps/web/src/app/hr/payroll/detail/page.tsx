@@ -224,6 +224,20 @@ export default function PayrollDetailPage() {
         </Card>
       )}
 
+      {/* HR-05: December reconciles against approved months only; say which are missing. */}
+      {p.status === 'DRAFT' && (p.unapprovedEarlierMonths ?? 0) > 0 && (
+        <Card className="flex items-start gap-2.5 border-[color:var(--warning)] p-4">
+          <WarningCircle
+            size={18}
+            weight="fill"
+            className="mt-0.5 flex-shrink-0 text-[color:var(--warning)]"
+          />
+          <p className="text-sm">
+            {t('hrFix.payrollDetail.decemberWarning', { n: p.unapprovedEarlierMonths ?? 0 })}
+          </p>
+        </Card>
+      )}
+
       {canRun && (
         <div className="flex gap-3">
           {p.status === 'DRAFT' && (
