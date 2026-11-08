@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Put, Req, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
@@ -47,7 +47,13 @@ export class SecurityPolicyController {
   @ApiOkResponse({ type: SecurityPolicyDto })
   @Put()
   @ApiOperation({ summary: 'Replace the security policy' })
-  async save(@Body() dto: SaveSecurityPolicyDto): Promise<SecurityPolicyDto> {
+  async save(
+    @Body() dto: SaveSecurityPolicyDto,
+    @Req() req: { auditBefore?: unknown },
+  ): Promise<SecurityPolicyDto> {
+    // AAS-09: a singleton has no old row to find later, so the audit entry carries it.
+    const { idleTimeoutMinutes, require2fa, ipAllowlist } = await this.policy.get();
+    req.auditBefore = { idleTimeoutMinutes, require2fa, ipAllowlist };
     return SecurityPolicyDto.from(await this.policy.save(dto, dto.seenUpdatedAt));
   }
 }

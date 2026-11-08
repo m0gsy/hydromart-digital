@@ -79,6 +79,7 @@ import {
 import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
+  PayrollSnapshot,
   PayrollRepository,
   PayrollShareRow,
   PayrollShareWrite,
@@ -153,6 +154,7 @@ export class PayrollService {
     user: AuthenticatedUser,
     employeeId: string,
     periodMonth: string,
+    opts: { refreshSnapshot?: boolean } = {},
   ): Promise<PayrollWithItems> {
     if (!PERIOD_RE.test(periodMonth)) {
       throw new BadRequestException('periodMonth harus format YYYY-MM');
@@ -167,7 +169,7 @@ export class PayrollService {
      * the live depot is used exactly as it always was.
      */
     const split = this.config.depotAssignmentEnabled;
-    const employee = split ? ({ ...loaded, depotId: homeDepotOf(loaded) } as Employee) : loaded;
+    const current = split ? ({ ...loaded, depotId: homeDepotOf(loaded) } as Employee) : loaded;
 
     const existing = await this.repo.findByEmployeeAndPeriod(employeeId, periodMonth);
     if (existing && existing.status !== 'DRAFT') {
@@ -175,6 +177,31 @@ export class PayrollService {
         `Payroll ${periodMonth} sudah ${existing.status}, tidak bisa dibuat ulang`,
       );
     }
+    /*
+     * HR-06: the wage, jabatan and PTKP are frozen by the first generate. A raise made in
+     * October used to flow into a September DRAFT regenerated afterwards. Regenerating now
+     * replays what the draft was first priced from; `refreshSnapshot` is HR saying the
+     * employee record was corrected and the draft should follow. A draft written before the
+     * column existed has none, so it reads live once and is frozen from then on.
+     */
+    const frozen = opts.refreshSnapshot ? null : ((existing?.snapshot as PayrollSnapshot | null) ?? null);
+    const employee: Employee = frozen
+      ? ({
+          ...current,
+          salaryType: frozen.salaryType,
+          dailyRate: frozen.dailyRate,
+          monthlyRate: frozen.monthlyRate,
+          role: frozen.role,
+          ptkpStatus: frozen.ptkpStatus,
+        } as unknown as Employee)
+      : current;
+    const snapshot: PayrollSnapshot = frozen ?? {
+      salaryType: String(current.salaryType),
+      dailyRate: current.dailyRate == null ? null : String(current.dailyRate),
+      monthlyRate: current.monthlyRate == null ? null : String(current.monthlyRate),
+      role: current.role == null ? null : String(current.role),
+      ptkpStatus: current.ptkpStatus == null ? null : String(current.ptkpStatus),
+    };
 
     // D3b — a RESIGNED employee is off the payroll, but only a DATE can say how much of the
     // period they earned, and `employmentWindow` reads nothing but `joinDate`/`exitDate`. A
@@ -595,6 +622,7 @@ export class PayrollService {
       presentDays,
       createdBy: user.sub,
       items,
+      snapshot,
       ...(shares !== undefined ? { shares } : {}),
     };
     return existing ? this.repo.regenerate(existing.id, write) : this.repo.create(write);

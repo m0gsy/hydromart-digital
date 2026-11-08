@@ -729,6 +729,8 @@ model Payroll {
   approvedBy      String?       @db.Uuid
   approvedAt      DateTime?
   paidAt          DateTime?
+  /// HR-06: wage, jabatan and PTKP as the first generate read them (see PayrollSnapshot).
+  snapshot        Json?
   createdBy       String?       @db.Uuid
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

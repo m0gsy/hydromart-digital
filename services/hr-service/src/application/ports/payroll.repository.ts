@@ -27,6 +27,15 @@ export interface PayrollShareWrite {
   net: number;
 }
 
+/** The employee inputs a slip was priced from, frozen on the first generate (HR-06). */
+export interface PayrollSnapshot {
+  salaryType: string;
+  dailyRate: string | null;
+  monthlyRate: string | null;
+  role: string | null;
+  ptkpStatus: string | null;
+}
+
 export interface PayrollWrite {
   employeeId: string;
   periodMonth: string;
@@ -37,6 +46,7 @@ export interface PayrollWrite {
   presentDays: number;
   createdBy: string | null;
   items: PayrollItemInput[];
+  snapshot?: PayrollSnapshot;
   /**
    * Per-depot split. Absent = the feature is off and the row is written exactly as it always
    * was. On `regenerate`, an EMPTY array means "drop whatever shares were there" (the switch
