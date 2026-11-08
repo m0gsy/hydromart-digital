@@ -1532,7 +1532,12 @@ export class OrderPrismaRepository implements OrderRepository {
     where: Prisma.Sql;
     having: Prisma.Sql;
   } {
-    const where: Prisma.Sql[] = [NOT_VOID_SQL];
+    // ORD-20: the shared anonymous customer is every phone-less counter sale at once, so it
+    // grouped into a single "customer" with hundreds of orders and sat in every segment.
+    const where: Prisma.Sql[] = [
+      NOT_VOID_SQL,
+      Prisma.sql`"customerId" <> ${ANONYMOUS_CUSTOMER_ID}::uuid`,
+    ];
     if (conditions.depotId) where.push(Prisma.sql`"depotId" = ${conditions.depotId}::uuid`);
     const having: Prisma.Sql[] = [];
     if (conditions.minOrders != null) having.push(Prisma.sql`COUNT(*) >= ${conditions.minOrders}`);

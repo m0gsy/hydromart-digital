@@ -74,6 +74,11 @@ export interface OutboxRepository {
    * same property that makes retrying safe at all.
    */
   findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]>;
+  /**
+   * ORD-12: the due rows of ONE order. The inline path used to take the oldest batch of every
+   * order's rows and filter in memory, so behind a backlog it saw none of its own.
+   */
+  findDueForOrder(orderId: string, now: Date, limit: number): Promise<OutboxMessageRecord[]>;
   /** The effect landed; the row is closed and never picked up again. */
   markDone(id: string): Promise<void>;
   /**

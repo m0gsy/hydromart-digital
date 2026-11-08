@@ -26,6 +26,19 @@ describe('OutboxPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('ORD-12: reads the due rows of ONE order, in the query rather than in memory', async () => {
+    model.findMany.mockResolvedValue([row]);
+    const now = new Date('2026-08-03T11:00:00Z');
+    const out = await repo.findDueForOrder('ord-1', now, 50);
+
+    expect(out[0]).toMatchObject({ id: 'ob-1', orderId: 'ord-1' });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { orderId: 'ord-1', status: 'PENDING', nextAttemptAt: { lte: now } },
+      orderBy: { nextAttemptAt: 'asc' },
+      take: 50,
+    });
+  });
+
   it('claims only PENDING rows whose backoff has elapsed, oldest first', async () => {
     model.findMany.mockResolvedValue([row]);
     const now = new Date('2026-08-03T11:00:00Z');

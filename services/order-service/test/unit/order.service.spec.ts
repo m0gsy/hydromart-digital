@@ -1785,6 +1785,21 @@ describe('OrderService', () => {
     expect((await service.remindStaleCustomers(soon, 14)).reminded).toBe(0);
   });
 
+  // ORD-03: `notify` is fail-open and ANSWERS false when the message did not go; the sweep
+  // chained `.then(() => true)` onto it, so a reminder that never left counted as sent.
+  it('ORD-03: a reminder the notifier reports as not sent is a failure, not a success', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    jest.spyOn(notification, 'notify').mockResolvedValue(false);
+
+    const future = new Date(order.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+    expect(await service.remindStaleCustomers(future, 14)).toEqual({
+      reminded: 0,
+      failed: 1,
+      ok: false,
+    });
+  });
+
   // Audit S-2 / S-22, and the Q-17 baseline row for checkout. Seven upstream calls used to
   // be waited out one after another. The pairs below need nothing from each other, so the
   // assertion is on OVERLAP — a peak of one would mean somebody re-sequenced them.

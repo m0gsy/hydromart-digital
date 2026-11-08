@@ -464,6 +464,18 @@ describe('MeterService reads', () => {
     expect(result.revenueIdr).toBe(2600000);
   });
 
+  // ORD-19: the meter reconciliation filtered CANCELLED only, so a VOIDED order (a sale that was
+  // reversed) still counted as sold litres and revenue, while the reports already excluded it.
+  it('ORD-19: excludes voided orders from the sales side too', async () => {
+    const { service, repo } = build({
+      orders: [order(), order({ status: OrderStatus.VOIDED, total: 999999 })],
+    });
+    repo.seed({ openingM3: 1000, closingM3: 1002.6 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.soldLiters).toBe(2430);
+    expect(result.revenueIdr).toBe(2600000);
+  });
+
   it('counts litres from orders that are not delivered yet, but not their gallons', async () => {
     const { service, repo } = build({ orders: [order({ status: OrderStatus.PREPARING })] });
     repo.seed({ openingM3: 1000, closingM3: 1002.6 });

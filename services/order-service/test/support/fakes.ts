@@ -1860,6 +1860,16 @@ export class InMemoryOutboxRepository implements OutboxRepository {
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
+  async findDueForOrder(orderId: string, now: Date, limit: number): Promise<OutboxMessageRecord[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.orderId === orderId && r.status === 'PENDING' && r.nextAttemptAt.getTime() <= now.getTime(),
+      )
+      .sort((a, b) => a.nextAttemptAt.getTime() - b.nextAttemptAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
   async markDone(id: string): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
     if (row.status !== 'PENDING') return;

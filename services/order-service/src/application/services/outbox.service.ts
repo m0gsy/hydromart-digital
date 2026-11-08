@@ -101,9 +101,9 @@ export class OutboxService {
 
   async processForOrder(orderId: string, authorization: string): Promise<OutboxSweepResult> {
     const now = new Date();
-    const due = (await this.outbox.findDue(now, OutboxService.BATCH)).filter(
-      (m) => m.orderId === orderId,
-    );
+    // ORD-12: ask for THIS order's rows. Filtering the oldest batch of everyone's rows meant a
+    // backlog starved the very order that had just paid.
+    const due = await this.outbox.findDueForOrder(orderId, now, OutboxService.BATCH);
     return this.run(due, authorization, now);
   }
 

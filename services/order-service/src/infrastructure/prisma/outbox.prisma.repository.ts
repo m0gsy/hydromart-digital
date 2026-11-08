@@ -59,6 +59,15 @@ export class OutboxPrismaRepository implements OutboxRepository {
     return rows.map(toRecord);
   }
 
+  async findDueForOrder(orderId: string, now: Date, limit: number): Promise<OutboxMessageRecord[]> {
+    const rows = await this.prisma.outboxMessage.findMany({
+      where: { orderId, status: 'PENDING', nextAttemptAt: { lte: now } },
+      orderBy: { nextAttemptAt: 'asc' },
+      take: limit,
+    });
+    return rows.map(toRecord);
+  }
+
   async markDone(id: string): Promise<void> {
     // Conditional on PENDING: a sweep that was already holding the row must not turn a row the
     // void just CANCELLED (or a DEAD one an operator is looking at) back into DONE.
