@@ -26,6 +26,8 @@ vi.mock('@/lib/locale-context', () => ({
     t: (k: string, v?: Record<string, unknown>) => (v ? `${k}:${Object.values(v).join('/')}` : k),
     locale: 'id',
   }),
+  // `offline-queue` resolves its stuck-job sentences through `translate` (FTR-012).
+  translate: (k: string) => k,
 }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 'u1', role: 'HR' }, ready: true, signOut: vi.fn() }),

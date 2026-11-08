@@ -35,6 +35,8 @@ vi.mock('@/lib/locale-context', () => ({
     t: (k: string, v?: Record<string, unknown>) => (v ? `${k}:${Object.values(v).join('/')}` : k),
     locale: 'id',
   }),
+  // `offline-queue` resolves its stuck-job sentences through `translate` (FTR-012).
+  translate: (k: string) => k,
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushFn, replace: replaceFn, back: vi.fn(), prefetch: vi.fn() }),
