@@ -61,6 +61,18 @@ describe('WebhookInternalController', () => {
     });
   });
 
+  it('passes the producer eventId through (AAS-11)', async () => {
+    const service = makeService();
+    await new WebhookInternalController(service).publish({
+      event: 'delivery.delivered',
+      payload: {},
+      eventId: 'delivery.delivered:d9',
+    });
+    expect(service.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'delivery.delivered:d9' }),
+    );
+  });
+
   it('leaves occurredAt to the service when the reporter omitted it', async () => {
     const service = makeService();
     await new WebhookInternalController(service).publish({

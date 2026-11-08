@@ -18,7 +18,12 @@ export class EventPublisherHttpAdapter implements EventPublisherPort {
 
   constructor(private readonly config: DeliveryConfigService) {}
 
-  async publish(event: string, payload: Record<string, unknown>, occurredAt: Date): Promise<void> {
+  async publish(
+    event: string,
+    payload: Record<string, unknown>,
+    occurredAt: Date,
+    eventId?: string,
+  ): Promise<void> {
     const { adminServiceUrl, internalServiceKey } = this.config;
     if (!adminServiceUrl || !internalServiceKey) {
       this.logger.debug(`${event} not published (webhook fan-out not configured)`);
@@ -28,7 +33,12 @@ export class EventPublisherHttpAdapter implements EventPublisherPort {
       const res = await fetch(`${adminServiceUrl}/api/v1/webhooks/events`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-        body: JSON.stringify({ event, payload, occurredAt: occurredAt.toISOString() }),
+        body: JSON.stringify({
+          event,
+          payload,
+          occurredAt: occurredAt.toISOString(),
+          ...(eventId ? { eventId } : {}),
+        }),
         signal: AbortSignal.timeout(EventPublisherHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`admin-service responded ${res.status}`);

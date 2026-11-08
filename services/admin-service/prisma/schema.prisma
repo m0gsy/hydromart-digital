@@ -183,7 +183,11 @@ model WebhookDelivery {
   occurredAt     DateTime              @default(now())
   deliveredAt    DateTime?
   createdAt      DateTime              @default(now())
+  /// AAS-11: the producer's idempotency key. NULL = the producer sent none.
+  eventId        String?
 
+  /// A retried publish of the same event is one delivery per endpoint.
+  @@unique([endpointId, eventId])
   /// The claim query: due work, oldest first.
   @@index([status, nextAttemptAt])
   @@index([endpointId, createdAt])

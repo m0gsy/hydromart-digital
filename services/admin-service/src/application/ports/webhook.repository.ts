@@ -57,6 +57,8 @@ export interface WebhookDeliveryRecord {
   occurredAt: Date;
   deliveredAt: Date | null;
   createdAt: Date;
+  /** AAS-11: the producer's idempotency key; null when it sent none. */
+  eventId?: string | null;
 }
 
 /** A due delivery with the endpoint it is owed to, so the sender needs no second read. */
@@ -75,7 +77,13 @@ export interface WebhookDeliveryRepository {
   /** Endpoints that are active AND subscribed to this event. */
   subscribersOf(event: string): Promise<WebhookRecord[]>;
   queue(
-    rows: { endpointId: string; event: string; payload: unknown; occurredAt: Date }[],
+    rows: {
+      endpointId: string;
+      event: string;
+      eventId?: string | null;
+      payload: unknown;
+      occurredAt: Date;
+    }[],
   ): Promise<number>;
   /**
    * PENDING rows whose next attempt is due, oldest first. Each is claimed by moving its

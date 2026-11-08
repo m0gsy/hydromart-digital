@@ -57,7 +57,7 @@ function due(over: Partial<DueDelivery> = {}): DueDelivery {
 /** Records what the dispatcher wrote, so each outcome can be asserted on. */
 function makeRepos(dueRows: DueDelivery[], subscribers: WebhookRecord[] = [endpoint()]) {
   const calls = {
-    queued: [] as { endpointId: string; event: string }[],
+    queued: [] as { endpointId: string; event: string; eventId?: string | null }[],
     delivered: [] as { id: string; status: number }[],
     retried: [] as { id: string; attempts: number; nextAttemptAt: Date; error: string }[],
     dead: [] as { id: string; attempts: number; error: string }[],
@@ -67,7 +67,9 @@ function makeRepos(dueRows: DueDelivery[], subscribers: WebhookRecord[] = [endpo
   const deliveries: WebhookDeliveryRepository = {
     subscribersOf: async () => subscribers,
     queue: async (rows) => {
-      calls.queued.push(...rows.map((r) => ({ endpointId: r.endpointId, event: r.event })));
+      calls.queued.push(
+        ...rows.map((r) => ({ endpointId: r.endpointId, event: r.event, eventId: r.eventId })),
+      );
       return rows.length;
     },
     claimDue: async () => dueRows,
@@ -142,6 +144,26 @@ describe('WebhookDispatchService', () => {
       service.publish({ event: 'delivery.delivered', payload: { a: 1 } }, NOW),
     ).resolves.toEqual({ queued: 2 });
     expect(calls.queued.map((q) => q.endpointId)).toEqual(['ep-1', 'ep-2']);
+  });
+
+  // AAS-11: the producer's key travels with every row, so a retried publish is one event.
+  it('queues the producer eventId on every row', async () => {
+    const { deliveries, endpoints, calls } = makeRepos([], [endpoint(), endpoint({ id: 'ep-2' })]);
+    const service = new WebhookDispatchService(deliveries, endpoints, publicLookup);
+    await service.publish({ event: 'delivery.delivered', payload: {}, eventId: 'delivery.delivered:d9' }, NOW);
+    expect(calls.queued.map((q) => q.eventId)).toEqual(['delivery.delivered:d9', 'delivery.delivered:d9']);
+  });
+
+  it('puts eventId in the partner body only when there is one', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    const withId = makeRepos([due({ eventId: 'delivery.delivered:d9' })]);
+    await new WebhookDispatchService(withId.deliveries, withId.endpoints, publicLookup).process(NOW);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).eventId).toBe('delivery.delivered:d9');
+
+    fetchMock.mockClear();
+    const without = makeRepos([due()]);
+    await new WebhookDispatchService(without.deliveries, without.endpoints, publicLookup).process(NOW);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('eventId');
   });
 
   it('sends a signed POST and records the endpoint outcome', async () => {

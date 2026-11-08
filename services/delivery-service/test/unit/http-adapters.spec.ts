@@ -705,6 +705,12 @@ describe('EventPublisherHttpAdapter', () => {
     });
   });
 
+  it('sends the eventId when the caller has one (AAS-11)', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at, 'e:1');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).eventId).toBe('e:1');
+  });
+
   it('publishes nothing when the fan-out is not configured', async () => {
     await new EventPublisherHttpAdapter(makeConfig({ adminServiceUrl: '' })).publish('e', {}, at);
     await new EventPublisherHttpAdapter(makeConfig({ internalServiceKey: '' })).publish(

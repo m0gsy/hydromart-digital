@@ -32,6 +32,15 @@ export class PublishEventDto {
   @IsOptional()
   @IsISO8601()
   occurredAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Producer idempotency key: publishing the same key again queues nothing new.',
+    example: 'delivery.delivered:6f1c',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  eventId?: string;
 }
 
 export class ListDeliveriesDto {

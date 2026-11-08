@@ -1055,8 +1055,10 @@ describe('DeliveryService', () => {
     await Promise.resolve();
 
     expect(events.publish).toHaveBeenCalledTimes(1);
-    const [event, payload] = events.publish.mock.calls[0]!;
+    const [event, payload, , eventId] = events.publish.mock.calls[0]!;
     expect(event).toBe('delivery.delivered');
+    // AAS-11: one delivery completes once, so a retry of the publish carries the same key.
+    expect(eventId).toBe(`delivery.delivered:${done.id}`);
     expect(payload).toMatchObject({
       deliveryId: done.id,
       orderId: done.orderId,

@@ -7,5 +7,11 @@
  * turn a completed delivery into an error for the courier standing at the door.
  */
 export interface EventPublisherPort {
-  publish(event: string, payload: Record<string, unknown>, occurredAt: Date): Promise<void>;
+  /** `eventId` is the idempotency key: the same one again is the same event to admin-service. */
+  publish(
+    event: string,
+    payload: Record<string, unknown>,
+    occurredAt: Date,
+    eventId?: string,
+  ): Promise<void>;
 }
