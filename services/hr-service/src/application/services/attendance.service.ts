@@ -594,6 +594,7 @@ export class AttendanceService {
     // HR-03: a month whose slip is approved or paid is not rewritten by a correction (the
     // history import already refuses it). Reopen the slip first if the change is real.
     if (this.payrolls) {
+      // tz-ok: workDate is already the local date stored as UTC midnight.
       const period = row.workDate.toISOString().slice(0, 7);
       const slip = await this.payrolls.findByEmployeeAndPeriod(row.employeeId, period);
       if (slip && slip.status !== 'DRAFT') {
