@@ -20,12 +20,22 @@ export const envValidationSchema = Joi.object({
   ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Product catalog, read to validate and name PRODUK stock lines. Blank = validation
   // off: lines are accepted with the label the operator typed (fail-open).
-  // D1-07: a production default of localhost pointed the catalog at nothing. Required there.
+  // D1-07: in production the default must not be localhost (it pointed the catalog at nothing,
+  // silently). There it defaults to blank = validation off, and an explicit localhost is refused.
+  // Not made REQUIRED: unlike the others it is genuinely optional (fail-open), and the
+  // integration stack (docker-compose.test.yml, NODE_ENV=production) does not set it.
   PRODUCT_SERVICE_URL: Joi.string()
     .uri()
     .allow('')
     .default('http://localhost:3003')
-    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri()
+        .allow('')
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .default(''),
+    }),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
   // Closing a cashier's shift reads that depot's takings from payment-service. Blank means
   // shifts can be opened but never closed — deliberate: a shift close that guesses the
