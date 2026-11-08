@@ -112,6 +112,18 @@ export class RaiseComplaintDto {
   @MinLength(1)
   @MaxLength(2000)
   body!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'AAS-12: one random value per form submission. Sending the same one again returns the ' +
+      'complaint already filed instead of filing a second.',
+    example: '2f6c0d1e-8a4b-4f0e-9d63-1c2b5e7a9f10',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey?: string;
 }
 
 export class ReplyTicketDto {
@@ -172,6 +184,10 @@ export class SupportTicketDto {
   assigneeId!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, description: 'When staff first answered.' })
+  firstResponseAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  resolvedAt!: string | null;
   @ApiProperty({ type: [TicketMessageDto] })
   messages!: TicketMessageDto[];
 
@@ -187,6 +203,8 @@ export class SupportTicketDto {
       status: record.status,
       assigneeId: record.assigneeId,
       createdAt: record.createdAt.toISOString(),
+      firstResponseAt: record.firstResponseAt?.toISOString() ?? null,
+      resolvedAt: record.resolvedAt?.toISOString() ?? null,
       messages: record.messages.map(TicketMessageDto.from),
     };
   }

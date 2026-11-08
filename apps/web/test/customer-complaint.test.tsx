@@ -73,7 +73,12 @@ describe('K1.5 · a customer can complain', () => {
 
     await waitFor(() => expect(apiMock.post).toHaveBeenCalled());
     const body = apiMock.post.mock.calls[0]![1] as Record<string, unknown>;
-    expect(body).toEqual({ subject: 'Galon bocor', body: 'Bocor waktu diterima.' });
+    // AAS-12: one random key per submission, so a double-tap files one complaint.
+    expect(body).toEqual({
+      subject: 'Galon bocor',
+      body: 'Bocor waktu diterima.',
+      idempotencyKey: expect.any(String),
+    });
     // Everyone's own problem is urgent, so a self-selected priority sorts nothing.
     expect(body).not.toHaveProperty('priority');
     // The contact details are the server's business, read off the token.
@@ -195,5 +200,53 @@ describe('H5 · a guest on a phone can reach /help', () => {
     );
     const guest = src.slice(src.indexOf('account.guestTitle'), src.indexOf('account.guestBody'));
     expect(guest).toContain('href="/help"');
+  });
+});
+
+describe('AAS-12 · answering on your own complaint', () => {
+  const OPEN_TICKET = { ...TICKET, status: 'ASSIGNED' };
+
+  it('posts the follow-up to that ticket and reloads the list', async () => {
+    apiMock.get.mockResolvedValue([OPEN_TICKET]);
+    renderIt();
+    fireEvent.click(await screen.findByRole('button', { name: /balas|reply/i }));
+    fireEvent.change(screen.getByLabelText(/pesan balasan|your reply/i), {
+      target: { value: 'Masih belum datang.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /kirim balasan|send reply/i }));
+
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalled());
+    const [url, body] = apiMock.post.mock.calls[0]! as [string, Record<string, unknown>];
+    expect(url).toContain('/support/tickets/t-1/messages');
+    expect(body).toEqual({ body: 'Masih belum datang.' });
+    await waitFor(() => expect(apiMock.get).toHaveBeenCalledTimes(2));
+  });
+
+  it('offers no reply on a resolved complaint', async () => {
+    apiMock.get.mockResolvedValue([{ ...TICKET, status: 'RESOLVED' }]);
+    renderIt();
+    await screen.findByText('Galon bocor');
+    expect(screen.queryByRole('button', { name: /^(balas|reply)$/i })).toBeNull();
+  });
+
+  it('keeps one key across a failed send, so a retry cannot double-file', async () => {
+    apiMock.post.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(TICKET);
+    renderIt();
+    open();
+    fireEvent.change(screen.getByLabelText(/ringkasan masalah|what went wrong/i), {
+      target: { value: 'S' },
+    });
+    fireEvent.change(screen.getByLabelText(/ceritakan|tell us what happened/i), {
+      target: { value: 'B' },
+    });
+    const send = () =>
+      fireEvent.click(screen.getByRole('button', { name: /kirim komplain|send the complaint/i }));
+    send();
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalledTimes(1));
+    send();
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalledTimes(2));
+    const keys = apiMock.post.mock.calls.map((c) => (c[1] as { idempotencyKey: string }).idempotencyKey);
+    expect(typeof keys[0]).toBe('string');
+    expect(keys[0]).toBe(keys[1]);
   });
 });

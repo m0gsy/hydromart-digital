@@ -114,6 +114,9 @@ export const admin = {
     support: {
       mine: '/admin/api/v1/support/tickets',
       raise: '/admin/api/v1/support/tickets',
+      // AAS-12: answer on your own complaint.
+      reply: (id: string) =>
+        `/admin/api/v1/support/tickets/${encodeURIComponent(id)}/messages`,
     },
     // Fraud & risk flags (15b) — HEAD_OFFICE + SUPER_ADMIN read; review / block / clear.
     fraud: {

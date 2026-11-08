@@ -336,8 +336,17 @@ model SupportTicket {
   status      TicketStatus     @default(OPEN)
   assigneeId  String?
   createdAt   DateTime         @default(now())
+  /// AAS-12: when staff FIRST answered. NULL until they do. Stamped once, never moved.
+  firstResponseAt DateTime?
+  /// AAS-12: when it was resolved and by whom; resolve never rewrites either.
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  /// AAS-12: the client's key for ONE submission, so a double-tapped "Kirim" is one ticket.
+  idempotencyKey String?
   messages    TicketMessage[]
 
+  /// One ticket per (customer, key). NULL keys are distinct, so keyless tickets never collide.
+  @@unique([customerId, idempotencyKey])
   @@index([status])
   @@index([priority])
   /// K1.5's read (one customer's own tickets) has no index of its own: this is a

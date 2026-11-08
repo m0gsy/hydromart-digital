@@ -1,6 +1,7 @@
 {
-  "count": 64,
+  "count": 65,
   "routes": [
+    "services/admin-service/src/modules/customer-support.controller.ts Post :id/messages @Can(-)",
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
     "services/crm-service/src/modules/campaign.controller.ts Post depot/:id/send @Can(depotCampaign)",

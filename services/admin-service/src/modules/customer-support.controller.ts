@@ -1,4 +1,12 @@
-import { BadRequestException, Body, Controller, Get, Post, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -10,7 +18,7 @@ import {
 } from '@hydromart/platform';
 
 import { SupportTicketService } from '../application/services/support-ticket.service';
-import { RaiseComplaintDto, SupportTicketDto } from './dto/support-ticket.dto';
+import { RaiseComplaintDto, ReplyTicketDto, SupportTicketDto } from './dto/support-ticket.dto';
 
 /**
  * K1.5 — the customer's own end of the support queue.
@@ -70,7 +78,19 @@ export class CustomerSupportController {
       customerPhone: user.phone,
       orderRef: dto.orderRef ?? null,
       body: dto.body,
+      idempotencyKey: dto.idempotencyKey ?? null,
     });
     return SupportTicketDto.from(ticket);
+  }
+
+  @ApiOkResponse({ type: SupportTicketDto })
+  @Post(':id/messages')
+  @ApiOperation({ summary: 'Answer on your own complaint (AAS-12)' })
+  async replyToMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReplyTicketDto,
+  ): Promise<SupportTicketDto> {
+    return SupportTicketDto.from(await this.tickets.replyAsCustomer(user.sub, id, dto.body));
   }
 }

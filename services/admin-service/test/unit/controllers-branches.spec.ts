@@ -715,7 +715,11 @@ describe('SupportTicketsController', () => {
     expect(tickets.reply).toHaveBeenCalledWith('t-1', 'hi');
     await controller.assign('t-1', { assigneeId: 'staff-1' });
     expect(tickets.assign).toHaveBeenCalledWith('t-1', 'staff-1');
-    expect((await controller.resolve('t-1')).status).toBe(TicketStatus.RESOLVED);
+    expect((await controller.resolve('t-1', { sub: 'staff-1' } as never)).status).toBe(
+      TicketStatus.RESOLVED,
+    );
+    // AAS-12: the console's resolve records WHO pressed it.
+    expect(tickets.resolve).toHaveBeenCalledWith('t-1', 'staff-1');
   });
 });
 

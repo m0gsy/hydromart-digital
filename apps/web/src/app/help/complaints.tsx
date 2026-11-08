@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useToast } from '@/components/toast';
 import { Button, Field, Input, LinkButton, LoadError, Skeleton } from '@/components/ui';
@@ -51,6 +51,35 @@ export function Complaints() {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // AAS-12: ONE key per submission. It survives a failed send (so a retry cannot file a second
+  // complaint) and is dropped only once the server has accepted it.
+  const keyRef = useRef<string | null>(null);
+
+  // AAS-12: the follow-up box, open on one complaint at a time.
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+
+  async function sendReply(id: string) {
+    if (!replyText.trim()) {
+      setReplyError(t('help.complaints.replyRequired'));
+      return;
+    }
+    setReplyBusy(true);
+    setReplyError(null);
+    try {
+      await api.post(endpoints.admin.support.reply(id), { body: replyText.trim() }, true);
+      toast(t('help.complaints.replySent'), 'success');
+      setReplyTo(null);
+      setReplyText('');
+      mine.reload();
+    } catch (err) {
+      setReplyError(err instanceof ApiError ? err.message : t('help.complaints.replyError'));
+    } finally {
+      setReplyBusy(false);
+    }
+  }
 
   async function send() {
     if (!subject.trim()) {
@@ -63,12 +92,14 @@ export function Complaints() {
     }
     setBusy(true);
     setError(null);
+    keyRef.current ??= crypto.randomUUID();
     try {
       await api.post(
         endpoints.admin.support.raise,
         {
           subject: subject.trim(),
           body: body.trim(),
+          idempotencyKey: keyRef.current,
           // Omitted rather than sent empty: `forbidNonWhitelisted` accepts the field, but a
           // blank order reference on the console reads as "about an order" and is not.
           ...(orderRef.trim() ? { orderRef: orderRef.trim() } : {}),
@@ -76,6 +107,7 @@ export function Complaints() {
         true,
       );
       toast(t('help.complaints.sent'), 'success');
+      keyRef.current = null;
       setOpen(false);
       setSubject('');
       setOrderRef('');
@@ -195,6 +227,54 @@ export function Complaints() {
                     <span className="text-muted">{reply.body}</span>
                   </div>
                 )}
+                {/* AAS-12: the customer could create and read, never answer. A closed complaint
+                    takes no more messages (the server refuses), so it offers no box. */}
+                {c.status !== 'RESOLVED' &&
+                  (replyTo === c.id ? (
+                    <div className="mt-2 flex flex-col gap-2">
+                      <Field
+                        label={t('help.complaints.replyLabel')}
+                        htmlFor={`reply-${c.id}`}
+                        error={replyError ?? undefined}
+                      >
+                        <textarea
+                          id={`reply-${c.id}`}
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          maxLength={2000}
+                          rows={3}
+                          className="w-full rounded-[14px] border-[1.5px] border-app surface px-3.5 py-2.5 text-sm outline-none focus:border-brand-600"
+                        />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button type="button" loading={replyBusy} onClick={() => sendReply(c.id)}>
+                          {t('help.complaints.replySend')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={replyBusy}
+                          onClick={() => setReplyTo(null)}
+                        >
+                          {t('help.complaints.cancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setReplyTo(c.id);
+                          setReplyText('');
+                          setReplyError(null);
+                        }}
+                      >
+                        {t('help.complaints.replyAction')}
+                      </Button>
+                    </div>
+                  ))}
               </li>
             );
           })}

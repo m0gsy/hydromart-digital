@@ -17,6 +17,12 @@ export const help = {
     cancel: "Cancel",
     empty: "No complaints yet.",
     reply: "Hydromart replied",
+    replyAction: "Reply",
+    replyLabel: "Your reply",
+    replySend: "Send reply",
+    replySent: "Reply sent.",
+    replyError: "Could not send your reply.",
+    replyRequired: "Write your reply first.",
     status: { OPEN: "Awaiting handling", ASSIGNED: "Being handled", RESOLVED: "Resolved" },
   },
 

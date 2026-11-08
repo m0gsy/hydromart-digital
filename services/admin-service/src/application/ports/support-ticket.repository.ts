@@ -22,6 +22,11 @@ export interface SupportTicketRecord {
   status: TicketStatus;
   assigneeId: string | null;
   createdAt: Date;
+  /** AAS-12: when staff first answered; null until they do. */
+  firstResponseAt: Date | null;
+  /** AAS-12: when it was resolved, and by whom (a staff account id). */
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
   messages: TicketMessageRecord[];
 }
 
@@ -54,12 +59,17 @@ export interface CreateSupportTicketData {
    */
   customerId?: string | null;
   priority?: TicketPriority;
+  /**
+   * AAS-12: the client's key for this one submission. With a `customerId`, the same key again
+   * returns the ticket already filed instead of filing a second.
+   */
+  idempotencyKey?: string | null;
   /** The complaint itself — a ticket with no first message is a subject line. */
   body: string;
 }
 
 export interface SupportTicketRepository {
-  /** Open a ticket with its first (customer) message. */
+  /** Open a ticket with its first (customer) message. Idempotent on (customerId, idempotencyKey). */
   create(data: CreateSupportTicketData): Promise<SupportTicketRecord>;
   /** Tickets (newest-first), optionally filtered, each with its message thread. */
   list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]>;
@@ -71,12 +81,24 @@ export interface SupportTicketRepository {
    */
   listForCustomer(customerId: string, limit: number): Promise<SupportTicketRecord[]>;
   findById(id: string): Promise<SupportTicketRecord | null>;
-  /** Append a STAFF reply. Returns the refreshed ticket, or null when unknown. */
+  /**
+   * Append a STAFF reply and, if it is the first, stamp `firstResponseAt`. Returns the
+   * refreshed ticket, or null when unknown.
+   */
   addStaffMessage(id: string, body: string): Promise<SupportTicketRecord | null>;
+  /**
+   * AAS-12: append the CUSTOMER's own follow-up. Ownership is the caller's to check. Does not
+   * touch `firstResponseAt`: a customer talking to themselves is not a response.
+   */
+  addCustomerMessage(id: string, body: string): Promise<SupportTicketRecord | null>;
   /** Assign to a staff id (moves OPEN → ASSIGNED). Null when unknown. */
   assign(id: string, assigneeId: string): Promise<SupportTicketRecord | null>;
-  /** Mark RESOLVED. Null when unknown. */
-  resolve(id: string): Promise<SupportTicketRecord | null>;
+  /**
+   * Mark RESOLVED and record when and by whom. Guarded on the origin status: an already
+   * resolved ticket is returned as it stands, so a second resolve rewrites nothing.
+   * Null when unknown.
+   */
+  resolve(id: string, resolvedBy?: string | null): Promise<SupportTicketRecord | null>;
   /**
    * UU PDP item 13: forget one person's complaints.
    *
