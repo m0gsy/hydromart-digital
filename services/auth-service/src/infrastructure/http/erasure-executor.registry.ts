@@ -142,6 +142,28 @@ export const ERASURE_EXEMPTION_LIST: ErasureExemption[] = [
       'retensi 10 tahun (bukti pembayaran, kewajiban perpajakan). Sama dengan order.orders.',
   },
   {
+    /*
+     * REF-02: referral-service was outside the erasure path entirely — no executor, no
+     * exemption, not named in a deletion report. Closeout-plan DEFAULT, not yet confirmed by
+     * the owner: a written exemption, not an anonymise endpoint. If that changes, the executor goes
+     * in REMOTE_DATASETS and these two entries come out.
+     */
+    dataset: 'referral.referral_codes',
+    reason:
+      'Kode referral milik satu akun: hanya customerId (UUID) dan kode acak, tanpa nama, ' +
+      'telepon atau alamat. Dasar pengecekan penyalahgunaan (satu orang hanya bisa diajak ' +
+      'sekali) dan dasar poin yang sudah dibayarkan. Default rencana penutupan audit (REF-02), ' +
+      'menunggu konfirmasi pemilik: retensi TETAP; menghapusnya membuka jalan untuk diajak ulang.',
+  },
+  {
+    dataset: 'referral.referrals',
+    reason:
+      'Pasangan pengajak dan yang diajak (customerId, UUID), status, dan poin yang diberikan. ' +
+      'Ia adalah catatan mengapa poin loyalti diberikan, dan satu-satunya pengaman agar ' +
+      'seseorang tidak diajak dua kali. Tidak memuat nama, telepon atau alamat. Default ' +
+      'rencana penutupan audit (REF-02), menunggu konfirmasi pemilik: retensi TETAP.',
+  },
+  {
     dataset: 'auth.audit_logs',
     reason:
       'Jejak audit keamanan: siapa masuk, dari mana, kapan. Kelas OPERATIONAL, jendela ' +

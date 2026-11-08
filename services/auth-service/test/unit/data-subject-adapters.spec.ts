@@ -538,6 +538,18 @@ describe('erasure exemptions', () => {
     const payout = ERASURE_EXEMPTION_LIST.find((e) => e.dataset === 'payout.withdrawals');
     expect(payout?.reason).toMatch(/FINANCIAL/);
   });
+
+  // REF-02: referral-service holds customer ids and was in neither the executors nor this
+  // list, so a deletion report did not mention it at all. A decision that is not written
+  // down is indistinguishable from an oversight.
+  it.each(['referral.referral_codes', 'referral.referrals'])(
+    'names %s as retained, with the reason in writing',
+    (dataset) => {
+      const entry = ERASURE_EXEMPTION_LIST.find((e) => e.dataset === dataset);
+      expect(entry).toBeDefined();
+      expect(entry!.reason.length).toBeGreaterThan(80);
+    },
+  );
 });
 
 /*
