@@ -54,6 +54,14 @@ describe('AAS-12 · support ticket service', () => {
       ).rejects.toBeInstanceOf(SupportTicketNotFoundError);
     });
 
+    it('answers 404 when the ticket vanishes between the ownership check and the write', async () => {
+      const t = await raise();
+      jest.spyOn(repo, 'addCustomerMessage').mockResolvedValue(null);
+      await expect(
+        controller.replyToMine(me as never, t.id, { body: 'x' }),
+      ).rejects.toBeInstanceOf(SupportTicketNotFoundError);
+    });
+
     it('refuses a reply on a resolved ticket and says to open a new one', async () => {
       const t = await raise();
       await service.resolve(t.id, 'staff-1');
@@ -203,6 +211,23 @@ describe('AAS-12 · SupportTicketPrismaRepository', () => {
     });
     expect(supportTicket.create.mock.calls[0][0].data.idempotencyKey).toBe('k-1');
     expect(t.id).toBe('t-1');
+  });
+
+  it('addCustomerMessage returns null for an unknown ticket and writes nothing', async () => {
+    supportTicket.findUnique.mockResolvedValue(null);
+    await expect(repo.addCustomerMessage('nope', 'x')).resolves.toBeNull();
+    expect(ticketMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('listForCustomer scopes by customerId alone, newest first, capped', async () => {
+    supportTicket.findMany.mockResolvedValue([row()]);
+    await expect(repo.listForCustomer('c-1', 50)).resolves.toHaveLength(1);
+    expect(supportTicket.findMany).toHaveBeenCalledWith({
+      where: { customerId: 'c-1' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 50 } },
+    });
   });
 
   it('create without a key never looks one up', async () => {
