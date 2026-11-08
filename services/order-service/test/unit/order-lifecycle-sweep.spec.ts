@@ -197,8 +197,6 @@ describe('the abandoned sweep leaves a scheduled order alone (W2b)', () => {
   const order = { findMany: jest.fn() };
   const repo = new OrderPrismaRepository({ order } as unknown as PrismaService);
   const before = new Date('2026-01-05T00:00:00.000Z');
-  /** `before` minus the four-day checkout horizon — see SCHEDULED_GRACE_MS. */
-  const graced = new Date('2026-01-01T00:00:00.000Z');
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -210,32 +208,26 @@ describe('the abandoned sweep leaves a scheduled order alone (W2b)', () => {
     return order.findMany.mock.calls.at(-1)![0].where;
   };
 
-  it('exempts an order carrying a customer-chosen delivery window', async () => {
+  // ORD-05: the grace is keyed on the VALIDATED `scheduledFor` instant, not on the free-text
+  // `deliveryWindow` label. The label is any string up to 40 characters a client cares to send
+  // (checkout validates `scheduledFor`, not the label), so keying on it let anybody hold a
+  // depot's stock for four extra days by typing one.
+  it('protects an order only while its validated slot has not passed', async () => {
     expect((await whereOf()).OR).toEqual([
-      { deliveryWindow: null },
-      { deliveryWindow: { in: ['', 'Antar sekarang (express)'] } },
-      { statusChangedAt: { lt: graced } },
+      { scheduledFor: null },
+      { scheduledFor: { lt: before } },
     ]);
   });
 
-  // "Antar sekarang" is a request for NOW, not a schedule. It is stored in the same column
-  // as the slot labels, so it has to be named or express orders would inherit the grace and
-  // hold their reservation for days.
-  it('gives no grace to an express order, which asked for now', async () => {
-    const or = (await whereOf()).OR as { deliveryWindow?: { in: string[] } }[];
-    expect(or[1].deliveryWindow!.in).toContain('Antar sekarang (express)');
+  it('does not read the free-text label at all', async () => {
+    expect(JSON.stringify(await whereOf())).not.toContain('deliveryWindow');
   });
 
-  // The exemption is a grace, not an amnesty: a scheduled order that outlives the furthest
-  // slot checkout can sell is abandoned like any other, and its stock has to come back.
-  it('sweeps a scheduled order once it is stale past the booking horizon', async () => {
-    const where = await whereOf();
-    expect((where.OR as { statusChangedAt?: { lt: Date } }[])[2].statusChangedAt!.lt).toEqual(
-      graced,
-    );
-    // The base cutoff is still ANDed on top — the grace lengthens the window, it does not
-    // replace it, so nothing fresher than `before` is ever a candidate.
-    expect(where.statusChangedAt).toEqual({ lt: before });
+  // Still a grace, not an amnesty: once the booked slot is more than the abandonment window
+  // behind us the order is abandoned like any other and its stock comes back, and the base
+  // cutoff is ANDed on top so nothing fresher than `before` is ever a candidate.
+  it('keeps the base cutoff on top of the schedule rule', async () => {
+    expect((await whereOf()).statusChangedAt).toEqual({ lt: before });
   });
 
   it('keeps the D1 subscription exclusion and its kill switch', async () => {

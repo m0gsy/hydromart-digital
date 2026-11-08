@@ -909,17 +909,10 @@ describe('OrderPrismaRepository', () => {
         // different question, and the CONFIRMED/PREPARING window was asking this one.
         statusChangedAt: { lt: before },
         subscriptionId: null,
-        // W2b: and never an order the customer booked for a later day. The booked day is
-        // not readable — `deliveryWindow` stores "Kam, 09.00-11.00", which does not say
-        // WHICH Thursday, and its first two labels come from the browser's dictionary. So
-        // the query protects EVERY windowed order for the whole 4-day booking horizon and
-        // sweeps only what is unmistakably not a schedule: no window, an empty one, or
-        // express. Asserted as the literal `where` because the shape IS the guarantee.
-        OR: [
-          { deliveryWindow: null },
-          { deliveryWindow: { in: ['', 'Antar sekarang (express)'] } },
-          { statusChangedAt: { lt: new Date(before.getTime() - 4 * 24 * 60 * 60 * 1000) } },
-        ],
+        // W2b + ORD-05: never an order the customer booked for a later day, read from the
+        // validated `scheduledFor` instant and not the free-text label. Asserted as the literal
+        // `where` because the shape IS the guarantee.
+        OR: [{ scheduledFor: null }, { scheduledFor: { lt: before } }],
       },
       include: expect.any(Object),
       orderBy: { statusChangedAt: 'asc' },
