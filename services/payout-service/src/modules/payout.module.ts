@@ -10,6 +10,7 @@ import { PAYOUT_TOKENS } from '../application/tokens';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { PayoutService } from '../application/services/payout.service';
 import { HqReleaseService } from '../application/services/hq-release.service';
+import { HqPayoutExportService } from '../application/services/hq-payout-export.service';
 import { PayoutBankAccountService } from '../application/services/bank-account.service';
 import { PayoutBankAccountPrismaRepository } from '../infrastructure/prisma/bank-account.prisma.repository';
 import { ReleaseRequestPrismaRepository } from '../infrastructure/prisma/release-request.prisma.repository';
@@ -45,6 +46,7 @@ const providers: Provider[] = [
   PayoutConfigService,
   PayoutService,
   HqReleaseService,
+  HqPayoutExportService,
   PayoutBankAccountService,
   { provide: PAYOUT_TOKENS.ReleaseRequestRepository, useClass: ReleaseRequestPrismaRepository },
   { provide: PAYOUT_TOKENS.BankAccountRepository, useClass: PayoutBankAccountPrismaRepository },

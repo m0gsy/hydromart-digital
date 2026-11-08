@@ -30,13 +30,24 @@ describe('HqPayoutController', () => {
     approve: jest.fn().mockResolvedValue({ id: 'req-1', status: 'APPROVED' }),
     reject: jest.fn().mockResolvedValue({ id: 'req-1', status: 'REJECTED' }),
   };
+  const exporter = { processingCsv: jest.fn().mockResolvedValue('a,b') };
   const controller = new HqPayoutController(
     payout as unknown as PayoutService,
     courierPayout as unknown as CourierPayoutService,
     releases as never,
     bankAccounts as never,
+    exporter as never,
   );
   afterEach(() => jest.clearAllMocks());
+
+  it('PPA-15: exportProcessing sends the CSV as a no-store attachment with a BOM', async () => {
+    const res = { setHeader: jest.fn(), send: jest.fn() };
+    await controller.exportProcessing(user, res as never);
+    expect(exporter.processingCsv).toHaveBeenCalledWith('finance-1');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(res.send).toHaveBeenCalledWith('﻿a,b');
+  });
 
   it('pending delegates to pendingPayouts', async () => {
     await controller.pending();
