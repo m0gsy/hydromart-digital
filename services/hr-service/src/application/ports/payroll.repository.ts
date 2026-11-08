@@ -77,6 +77,12 @@ export type PayrollWithEmployee = PayrollWithItems & {
    * DAILY one, so it moves money in opposite directions depending on who it belongs to.
    */
   pendingDays: number;
+  /**
+   * HR-05: earlier months of this year still in DRAFT, read live. Set only on a DRAFT
+   * December slip with at least one — those months are missing from its year-to-date, so its
+   * PPh 21 is short until they are approved and December is regenerated.
+   */
+  unapprovedEarlierMonths?: number;
   /** The per-depot split, for a reader who may see the whole slip (feature on, and split). */
   shares?: PayrollShareRow[];
 };

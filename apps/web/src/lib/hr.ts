@@ -186,6 +186,8 @@ export interface Payroll {
    * locked visible to whoever locks it.
    */
   pendingDays?: number;
+  /** HR-05: earlier months of the year still DRAFT; set on a DRAFT December slip only. */
+  unapprovedEarlierMonths?: number;
   approvedAt: string | null;
   paidAt: string | null;
   createdAt: string;
