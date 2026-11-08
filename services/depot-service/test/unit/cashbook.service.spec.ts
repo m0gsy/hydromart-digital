@@ -49,7 +49,7 @@ class InMemoryCashbookRepository implements CashbookRepository {
       .filter((r) => r.depotId === depotId)
       .filter(
         (r) =>
-          (!range.from || r.occurredAt >= range.from) && (!range.to || r.occurredAt <= range.to),
+          (!range.from || r.occurredAt >= range.from) && (!range.to || r.occurredAt < range.to),
       )
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
       .map((r) => ({ ...r }));
@@ -57,11 +57,13 @@ class InMemoryCashbookRepository implements CashbookRepository {
 }
 
 describe('CashbookService', () => {
+  let sharedDepots: InMemoryDepotRepository;
   let service: CashbookService;
   let depotId: string;
 
   beforeEach(async () => {
     const depotRepo = new InMemoryDepotRepository();
+    sharedDepots = depotRepo;
     service = new CashbookService(new InMemoryCashbookRepository(), depotRepo);
     const depot = await new DepotService(depotRepo).create({
       code: 'JKT-01',
@@ -93,6 +95,64 @@ describe('CashbookService', () => {
     expect(entry.actorId).toBe(ACTOR);
     expect(entry.occurredAt).toBeInstanceOf(Date);
     expect(entry.sourceRef).toBeNull();
+  });
+
+  /*
+   * DEP-20. `occurredAt` was free: an entry could be posted into a day the depot had already
+   * closed, after the total was signed off, and nothing refused it. The close only reported
+   * `lateEntries` when somebody read it back.
+   */
+  describe('into a closed day', () => {
+    const closed = (over: Record<string, unknown> = {}) => ({
+      find: jest.fn(async () => ({ closedAt: new Date(), reopenedAt: null, ...over })),
+    });
+    const withCloses = (closes: unknown, tz = 'Asia/Jakarta') => {
+      const svc = new CashbookService(
+        new InMemoryCashbookRepository(),
+        sharedDepots,
+        closes as never,
+        { businessTimeZone: tz } as never,
+      );
+      return { svc };
+    };
+    const record = async (svc: CashbookService, occurredAt?: Date) => {
+      return svc.record(
+        { depotId, direction: CashDirection.IN, category: 'COD', label: 't', amountIdr: 1000, occurredAt },
+        ACTOR,
+      );
+    };
+
+    it('refuses an entry dated into a closed day, naming the day', async () => {
+      const closes = closed();
+      const { svc } = withCloses(closes);
+      // 2026-07-01 08:00 WIB is 01:00Z: the business day is the 1st either way.
+      await expect(record(svc, new Date('2026-07-01T01:00:00Z'))).rejects.toThrow(/2026-07-01/);
+      expect(closes.find).toHaveBeenCalledWith(depotId, '2026-07-01');
+    });
+
+    it('cuts the day in the business zone, not in UTC', async () => {
+      const closes = closed();
+      const { svc } = withCloses(closes);
+      // 2026-06-30T20:00Z is 03:00 on 1 July in Jakarta.
+      await record(svc, new Date('2026-06-30T20:00:00Z')).catch(() => undefined);
+      expect(closes.find).toHaveBeenCalledWith(depotId, '2026-07-01');
+    });
+
+    it('accepts it once HQ has reopened that day', async () => {
+      const { svc } = withCloses(closed({ reopenedAt: new Date() }));
+      await expect(record(svc, new Date('2026-07-01T01:00:00Z'))).resolves.toMatchObject({
+        amountIdr: 1000,
+      });
+    });
+
+    it('accepts a day nobody closed, and an entry with no date at all', async () => {
+      const none = { find: jest.fn(async () => null) };
+      const { svc } = withCloses(none);
+      await expect(record(svc, new Date('2026-07-01T01:00:00Z'))).resolves.toBeDefined();
+      await expect(record(svc)).resolves.toBeDefined();
+      // No date means now: the close is only consulted for an explicit backdated moment.
+      expect(none.find).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('summarizes in/out/net over the entries, newest first', async () => {

@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Optional } from '@nestjs/common';
+
+import { localDayKey } from '@hydromart/platform';
+
+import { DepotConfigService } from '../../config/depot-config.service';
 
 import { CashbookEntry, CashbookSummary, CashDirection, summarize } from '../../domain/cashbook';
 import {
@@ -9,6 +13,7 @@ import {
 } from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
 import { CashbookDateRange, CashbookRepository } from '../ports/cashbook.repository';
+import { DAILY_CLOSE_REPOSITORY, DailyCloseRepository } from '../ports/daily-close.repository';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface RecordCashInput {
@@ -34,6 +39,12 @@ export class CashbookService {
   constructor(
     @Inject(DEPOT_TOKENS.CashbookRepository) private readonly cashbook: CashbookRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    // DEP-20. Trailing and optional so every existing construction site keeps working;
+    // absent, an entry may be dated anywhere, as it always could.
+    @Optional()
+    @Inject(DAILY_CLOSE_REPOSITORY)
+    private readonly closes?: DailyCloseRepository,
+    @Optional() private readonly config?: DepotConfigService,
   ) {}
 
   private async requireDepot(depotId: string): Promise<void> {
@@ -50,6 +61,7 @@ export class CashbookService {
 
   async record(input: RecordCashInput, actorId: string): Promise<CashbookEntry> {
     await this.requireDepot(input.depotId);
+    await this.assertDayOpen(input.depotId, input.occurredAt);
     return this.cashbook.create({
       depotId: input.depotId,
       direction: input.direction,
@@ -62,6 +74,24 @@ export class CashbookService {
       reversalReason: null,
       actorId,
     });
+  }
+
+  /**
+   * DEP-20: an entry may not be dated into a day the depot has closed. The close snapshots the
+   * day's totals and never recomputes them, so money posted behind it is outside the figure
+   * somebody signed off. HQ can reopen the day; until then the entry belongs to today.
+   * Only an explicit date is checked: no date means now, and today is open by construction.
+   */
+  private async assertDayOpen(depotId: string, occurredAt?: Date | null): Promise<void> {
+    if (!occurredAt || !this.closes) return;
+    const day = localDayKey(occurredAt, this.config?.businessTimeZone);
+    const close = await this.closes.find(depotId, day);
+    if (close && !close.reopenedAt) {
+      throw new ConflictException(
+        `Hari ${day} sudah ditutup, entri kas tidak bisa dicatat ke hari itu. ` +
+          'Catat ke hari ini, atau minta kantor pusat membuka kembali harinya.',
+      );
+    }
   }
 
   /** CA-2-22: one entry, so the caller can check it belongs to their depot. */

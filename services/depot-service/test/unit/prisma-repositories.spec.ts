@@ -229,7 +229,9 @@ describe('CashbookPrismaRepository', () => {
     const to = new Date('2026-01-31');
     await repo.listForDepot('depot-1', { from, to });
     expect(model.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', occurredAt: { gte: from, lte: to } },
+      // DEP-20: the callers' windows are half-open [from, to). `lte` counted an entry at exactly
+      // 00:00 of the next day in both days (and both months).
+      where: { depotId: 'depot-1', occurredAt: { gte: from, lt: to } },
       orderBy: { occurredAt: 'desc' },
     });
   });

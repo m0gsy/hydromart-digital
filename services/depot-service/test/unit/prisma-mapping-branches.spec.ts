@@ -122,7 +122,7 @@ describe('prisma repository null/empty branches', () => {
     const to = new Date('2026-01-31');
     await repo.listForDepot('depot-1', { to });
     expect(cashbookEntry.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', occurredAt: { lte: to } },
+      where: { depotId: 'depot-1', occurredAt: { lt: to } },
       orderBy: { occurredAt: 'desc' },
     });
   });
