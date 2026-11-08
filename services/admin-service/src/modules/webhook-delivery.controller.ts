@@ -43,6 +43,7 @@ export class WebhookInternalController {
       event: dto.event,
       payload: dto.payload,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : undefined,
+      eventId: dto.eventId,
     });
   }
 

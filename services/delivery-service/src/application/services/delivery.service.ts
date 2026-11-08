@@ -534,6 +534,8 @@ export class DeliveryService {
         recipientName,
       },
       deliveredAt,
+      // AAS-11: a delivery completes once, so the key is its id.
+      `delivery.delivered:${delivery.id}`,
     );
   }
 

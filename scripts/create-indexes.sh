@@ -16,6 +16,9 @@
 # notifications_dedupeKey_key (crm-service, 2026-10-30) is built by its own migration, not here: the
 # column is created by that very migration and every value is NULL, so the build is instant.
 #
+# webhook_deliveries_endpointId_eventId_key (admin-service, 2026-11-08) is built by its own migration, not here: the
+# column is created by that very migration and every value is NULL, so the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

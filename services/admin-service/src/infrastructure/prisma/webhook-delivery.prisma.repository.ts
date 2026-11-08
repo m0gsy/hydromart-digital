@@ -21,16 +21,25 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
   }
 
   async queue(
-    rows: { endpointId: string; event: string; payload: unknown; occurredAt: Date }[],
+    rows: {
+      endpointId: string;
+      event: string;
+      eventId?: string | null;
+      payload: unknown;
+      occurredAt: Date;
+    }[],
   ): Promise<number> {
     if (rows.length === 0) return 0;
     const { count } = await this.prisma.webhookDelivery.createMany({
       data: rows.map((r) => ({
         endpointId: r.endpointId,
         event: r.event,
+        eventId: r.eventId ?? null,
         payload: r.payload as Prisma.InputJsonValue,
         occurredAt: r.occurredAt,
       })),
+      // AAS-11: a retried publish hits unique(endpointId, eventId) and is skipped, not failed.
+      skipDuplicates: true,
     });
     return count;
   }

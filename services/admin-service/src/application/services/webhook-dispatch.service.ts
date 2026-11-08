@@ -35,6 +35,8 @@ export interface PublishEventInput {
   event: string;
   payload: unknown;
   occurredAt?: Date;
+  /** The producer's idempotency key; a repeat of the same key is not queued again. */
+  eventId?: string;
 }
 
 /**
@@ -67,6 +69,7 @@ export class WebhookDispatchService {
       subscribers.map((s) => ({
         endpointId: s.id,
         event: input.event,
+        eventId: input.eventId ?? null,
         payload: input.payload,
         occurredAt,
       })),
@@ -132,6 +135,8 @@ export class WebhookDispatchService {
       id: delivery.id,
       event: delivery.event,
       occurredAt: delivery.occurredAt.toISOString(),
+      // AAS-11: `id` is per delivery; this is the key a receiver dedupes the EVENT on.
+      ...(delivery.eventId ? { eventId: delivery.eventId } : {}),
       data: delivery.payload,
     });
     const timestamp = String(Math.floor(now.getTime() / 1000));

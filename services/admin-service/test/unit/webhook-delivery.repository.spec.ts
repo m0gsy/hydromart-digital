@@ -45,6 +45,19 @@ describe('WebhookDeliveryPrismaRepository', () => {
     ).resolves.toBe(2);
   });
 
+  // AAS-11: unique(endpointId, eventId) turns a producer retry into a no-op, not a duplicate.
+  it('writes eventId and skips rows the unique index already holds', async () => {
+    const { repo, webhookDelivery } = makeRepo();
+    webhookDelivery.createMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repo.queue([{ endpointId: 'ep-1', event: 'e', eventId: 'e:1', payload: {}, occurredAt: NOW }]),
+    ).resolves.toBe(0);
+    expect(webhookDelivery.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ endpointId: 'ep-1', eventId: 'e:1' })],
+      skipDuplicates: true,
+    });
+  });
+
   /**
    * The claim is what stops a slow sweep and the next cron tick from both sending the same
    * event: the due predicate lives in the UPDATE's WHERE, and only rows the update actually
