@@ -65,8 +65,26 @@ export class FraudScanService {
      * refunds age out. Raising a fresh flag each morning buries the reviewer in duplicates
      * of one case; anything a human has not finished with is left alone.
      */
-    const openFlags = await this.flags.list({ status: FraudStatus.OPEN });
-    const alreadyOpen = new Set(openFlags.map((f) => f.entityRef));
+    /*
+     * AAS-02: "not finished with" is more than OPEN. A REVIEWED or BLOCKED flag is still in
+     * a human's hands, and a CLEARED one was decided against raising: the same refunds stay
+     * inside the rolling window for up to `windowDays`, so the next morning's scan put the
+     * customer straight back in the queue. A flag cleared from the window's own refunds
+     * (created inside it) holds the customer out until those refunds age out; newer refunds
+     * after that raise a fresh one.
+     */
+    const all = await this.flags.list({});
+    const alreadyOpen = new Set(
+      all
+        .filter(
+          (f) =>
+            f.status === FraudStatus.OPEN ||
+            f.status === FraudStatus.REVIEWED ||
+            f.status === FraudStatus.BLOCKED ||
+            (f.status === FraudStatus.CLEARED && f.createdAt >= from),
+        )
+        .map((f) => f.entityRef),
+    );
 
     let flagged = 0;
     let skipped = 0;

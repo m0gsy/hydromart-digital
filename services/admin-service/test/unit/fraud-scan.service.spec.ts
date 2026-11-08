@@ -107,17 +107,22 @@ describe('FraudScanService', () => {
     await expect(scan.run(NOW)).rejects.toThrow('db down');
   });
 
-  // Once the case is closed the customer can be flagged again — a cleared flag is a verdict
-  // on what was seen then, not a permanent exemption from being looked at.
-  it('flags again after the earlier case was closed', async () => {
+  // A cleared flag is a verdict on what was seen then. Inside the same refund window the same
+  // refunds are still counted, so the customer is NOT put back (AAS-02); once those refunds
+  // have aged out, a fresh run may flag them again.
+  it('does not re-flag a cleared customer inside the window, but does after it', async () => {
     const rows = [{ customerId: 'cust-1', refunds: 4, amountIdr: 240_000 }];
     const scan = new FraudScanService(flags, signals(rows), config());
     await scan.run(NOW);
+    flags.rows[0].createdAt = NOW; // the fake stamps wall-clock time; pin it to the scan's clock
     await flags.setStatus(flags.rows[0].id, FraudStatus.CLEARED);
 
-    const again = await scan.run(NOW);
+    const sameWindow = await scan.run(NOW);
+    expect(sameWindow.flagged).toBe(0);
+    expect(flags.rows).toHaveLength(1);
 
-    expect(again.flagged).toBe(1);
+    const later = await scan.run(new Date(NOW.getTime() + 31 * 24 * 60 * 60 * 1000));
+    expect(later.flagged).toBe(1);
     expect(flags.rows).toHaveLength(2);
   });
 
@@ -160,5 +165,44 @@ describe('FraudScanService', () => {
     await scan.run(NOW);
 
     expect(repeatedRefunds).toHaveBeenCalledWith(new Date('2026-08-09T00:00:00.000Z'), NOW, 2);
+  });
+
+  // AAS-02: only OPEN was treated as "already being handled".
+  describe('customers a human already dealt with (AAS-02)', () => {
+    const scanFor = () =>
+      new FraudScanService(
+        flags,
+        signals([{ customerId: 'cust-1', refunds: 4, amountIdr: 1 }]),
+        config(),
+      );
+    const seed = (status: FraudStatus, createdAt: Date) =>
+      flags.rows.push({
+        id: `f-${flags.rows.length}`,
+        entityType: FraudEntityType.ACCOUNT,
+        entityRef: 'cust-1',
+        score: 4,
+        level: FraudLevel.MEDIUM,
+        signals: [],
+        status,
+        blockedAt: null,
+        decisionReason: null,
+        createdAt,
+      });
+
+    it.each([FraudStatus.REVIEWED, FraudStatus.BLOCKED])('does not re-raise a %s flag', async (status) => {
+      seed(status, new Date('2026-06-01T00:00:00.000Z'));
+      await expect(scanFor().run(NOW)).resolves.toMatchObject({ flagged: 0, skipped: 1 });
+      expect(flags.rows).toHaveLength(1);
+    });
+
+    it('does not re-raise a customer cleared from refunds still inside the window', async () => {
+      seed(FraudStatus.CLEARED, new Date('2026-08-01T00:00:00.000Z'));
+      await expect(scanFor().run(NOW)).resolves.toMatchObject({ flagged: 0, skipped: 1 });
+    });
+
+    it('raises again once the cleared flag is older than the window', async () => {
+      seed(FraudStatus.CLEARED, new Date('2026-06-01T00:00:00.000Z'));
+      await expect(scanFor().run(NOW)).resolves.toMatchObject({ flagged: 1, skipped: 0 });
+    });
   });
 });

@@ -53,6 +53,20 @@ export interface FraudFlagRepository {
     reason: string | null,
   ): Promise<{ flag: FraudFlagRecord; previous: FraudStatus; reinstate: boolean } | null>;
   /**
+   * AAS-01: block a flag under the SAME per-entity lock `clear` takes.
+   *
+   * `block` suspended the account, then wrote BLOCKED, with no lock between. A `clear` of a
+   * sibling flag landing in that gap counted zero other BLOCKED flags and reinstated the
+   * account, so the account ended up active under a flag that reads BLOCKED. Here the
+   * suspension and the status write both sit inside the lock, and a failed `suspend` rolls
+   * the whole step back (the flag stays as it was). Null when the id is unknown.
+   */
+  blockHolding(
+    id: string,
+    reason: string | null,
+    suspend: (flag: FraudFlagRecord) => Promise<void>,
+  ): Promise<FraudFlagRecord | null>;
+  /**
    * Set a flag's review status. Null when the id is unknown.
    *
    * ADM-8: `blockedAt` is stamped when the status becomes BLOCKED and never cleared —
