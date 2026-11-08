@@ -196,7 +196,9 @@ export class PaymentController {
   @ApiSecurity('internal-key')
   @Post('internal/flag-unconfirmed')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Flag settled payments whose order never confirmed (internal service auth)' })
+  @ApiOperation({
+    summary: 'Flag settled payments whose order never confirmed (internal service auth)',
+  })
   flagUnconfirmed(): Promise<PaymentUnconfirmedSweepResult> {
     return this.payments.flagUnconfirmed(new Date());
   }
@@ -599,9 +601,11 @@ export class PaymentController {
     // logged rather than turning a successful upload into an error.
     const oldKey = previous && previous !== url ? proofKeyFromUrl(previous) : null;
     if (oldKey) {
-      await this.storage.remove(oldKey).catch((error: Error) =>
-        this.logger.error(`Old payment proof ${oldKey} left behind: ${error.message}`),
-      );
+      await this.storage
+        .remove(oldKey)
+        .catch((error: Error) =>
+          this.logger.error(`Old payment proof ${oldKey} left behind: ${error.message}`),
+        );
     }
     return updated;
   }
@@ -689,7 +693,7 @@ export class PaymentController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PaymentRecord> {
-    return this.payments.approveRefund(id, user.sub);
+    return this.payments.approveRefund(id, user.sub, { isSuperAdmin: user.role === 'SUPER_ADMIN' });
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })

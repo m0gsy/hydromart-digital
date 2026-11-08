@@ -10,6 +10,7 @@ import {
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
+  RefundSelfApprovalError,
   RefundOnCancelledOrderError,
   RefundOrderUnreadableError,
 } from '../../src/domain/errors';
@@ -465,6 +466,33 @@ describe('PaymentService', () => {
     expect((await service.listRefundQueue({})).total).toBe(1);
   });
 
+  // PPA-04: the requester was recorded "information only — nothing gates on it", so the
+  // person who asked for a refund could also be the one who approved it: no second pair of eyes.
+  it('PPA-04: the person who requested a refund may not approve it', async () => {
+    const payment = await paidOver(150_000);
+    await service.refund(payment.id, 'finance', 'galon bocor');
+
+    await expect(service.approveRefund(payment.id, 'finance')).rejects.toBeInstanceOf(
+      RefundSelfApprovalError,
+    );
+    expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+    expect(repo.rows[0].refundApproval).toBe(RefundApproval.PENDING);
+  });
+
+  it('PPA-04: the superuser is exempt, and anyone else may approve', async () => {
+    const a = await paidOver(150_000);
+    await service.refund(a.id, 'root', 'galon bocor');
+    await expect(service.approveRefund(a.id, 'root', { isSuperAdmin: true })).resolves.toMatchObject({
+      status: PaymentStatus.REFUNDED,
+    });
+
+    const b = await paidOver(150_000);
+    await service.refund(b.id, 'finance', 'galon bocor');
+    await expect(service.approveRefund(b.id, 'hq')).resolves.toMatchObject({
+      status: PaymentStatus.REFUNDED,
+    });
+  });
+
   it('approving a queued refund settles it and clears the queue', async () => {
     const payment = await paidOver(150_000);
     await service.refund(payment.id, 'finance', 'galon bocor');
@@ -563,6 +591,29 @@ describe('PaymentService', () => {
       expect(logged[1]).toMatchObject({
         actorId: 'hq',
         metadata: { approval: RefundApproval.APPROVED, paymentId: payment.id },
+      });
+    });
+
+    // PPA-06: confirm and fail only logged "by <actor>" to the service log. Settling a payment
+    // is how an order gets released for delivery, so it belongs in the trail with the actor.
+    it('PPA-06: records who confirmed a payment and who rejected one', async () => {
+      const svc = auditedService();
+      const a = await initiate(PaymentMethod.VA, 50_000);
+      await svc.confirm(a.id, 'cashier-1');
+      const b = await initiate(PaymentMethod.VA, 60_000);
+      await svc.fail(b.id, 'cashier-2');
+
+      const logged = entries(fetchMock);
+      expect(logged.map((e) => e.action)).toEqual(['payment.confirmed', 'payment.rejected']);
+      expect(logged[0]).toMatchObject({
+        actorId: 'cashier-1',
+        success: true,
+        metadata: { paymentId: a.id, amountIdr: 50_000 },
+      });
+      expect(logged[1]).toMatchObject({
+        actorId: 'cashier-2',
+        success: false,
+        metadata: { paymentId: b.id, amountIdr: 60_000 },
       });
     });
 

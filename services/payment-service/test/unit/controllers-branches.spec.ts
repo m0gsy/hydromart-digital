@@ -366,7 +366,12 @@ describe('PaymentController', () => {
 
   it('approveRefund forwards id and actor', async () => {
     await controller.approveRefund(user, 'pay-1');
-    expect(svc.approveRefund).toHaveBeenCalledWith('pay-1', 'user-1');
+    expect(svc.approveRefund).toHaveBeenCalledWith('pay-1', 'user-1', { isSuperAdmin: false });
+  });
+
+  it('approveRefund tells the service when the approver is the superuser (PPA-04 exemption)', async () => {
+    await controller.approveRefund({ ...user, role: 'SUPER_ADMIN' } as never, 'pay-1');
+    expect(svc.approveRefund).toHaveBeenLastCalledWith('pay-1', 'user-1', { isSuperAdmin: true });
   });
 
   it('rejectRefund forwards id, actor and reason', async () => {

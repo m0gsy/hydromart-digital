@@ -58,6 +58,15 @@ export class GatewayUnavailableError extends DomainError {
   }
 }
 
+/** PPA-04: the person who asked for a refund may not also approve it (no second pair of eyes). */
+export class RefundSelfApprovalError extends DomainError {
+  readonly code = 'REFUND_SELF_APPROVAL';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Pengaju refund tidak boleh menyetujui refund yang diajukannya sendiri.');
+  }
+}
+
 /** Approve/reject was called on a refund that is not awaiting HQ approval. */
 export class RefundNotPendingError extends DomainError {
   readonly code = 'REFUND_NOT_PENDING';
