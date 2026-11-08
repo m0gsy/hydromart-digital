@@ -1082,6 +1082,11 @@ export class OrderService {
     );
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
 
+    // ORD-04: the depot is told like it is on every other creation path. The sweep carries no
+    // token; the notification adapters authenticate service-to-service. A replay returned
+    // above, so a re-triggered sweep does not ring the depot twice.
+    await this.notifyDepotOfOrder(order, '');
+
     // D9: the send happens AFTER the row exists and the port fails open, so a message that
     // never lands used to leave the order placed, the customer uninformed, and nothing on
     // the order saying so — the only trace a warning in a container log nobody reads.
