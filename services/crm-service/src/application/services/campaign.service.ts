@@ -64,6 +64,7 @@ export class CampaignService {
    * leaves headroom, and anything left over is simply the next tick's work.
    */
   private static readonly BATCH = 200;
+  private static readonly CONCURRENCY = 8;
   private static readonly MAX_CAMPAIGNS_PER_SWEEP = 5;
   private readonly logger = new Logger(CampaignService.name);
 
@@ -281,7 +282,10 @@ export class CampaignService {
     for (const campaign of campaigns) {
       result.campaigns += 1;
       const batch = await this.repo.claimRecipients(campaign.id, CampaignService.BATCH);
-      for (const recipient of batch) {
+      // CRM-03: one recipient is a preference read, an inbox write and a push - three round trips
+      // to the same places. Serially that is ~200 x 3 per tick; a small pool keeps the sweep inside
+      // its interval without hammering the database.
+      await runPool(batch, CampaignService.CONCURRENCY, async (recipient) => {
         const message = renderTemplate(campaign.messageTemplate, {
           name: recipient.name ?? undefined,
           phone: recipient.phone,
@@ -300,7 +304,7 @@ export class CampaignService {
             'nomor ini belum punya akun Hydromart atau menolak pesan promosi — tidak ada inbox tujuan',
             null,
           );
-          continue;
+          return;
         }
         try {
           await this.delivery.deliver(recipient.phone, message, recipient.customerId);
@@ -320,7 +324,7 @@ export class CampaignService {
             null,
           );
         }
-      }
+      });
 
       // Counts come from the database, not from this tick's loop — the campaign may have
       // been carried by several ticks, and only the rows know the whole total.
@@ -336,4 +340,16 @@ export class CampaignService {
     result.ok = result.failed === 0 || result.sent > 0;
     return result;
   }
+}
+
+/** Runs `fn` over `items` with at most `size` in flight. Results are not collected. */
+async function runPool<T>(items: readonly T[], size: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next++] as T;
+      await fn(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
 }

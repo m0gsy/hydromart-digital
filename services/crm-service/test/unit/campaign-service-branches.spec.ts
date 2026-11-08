@@ -60,6 +60,30 @@ describe('CampaignService branches', () => {
     expect(detail.failedCount).toBe(1);
   });
 
+  // CRM-03: deliveries overlap (bounded), instead of one round trip after another.
+  it('CRM-03: delivers recipients concurrently, never more than the pool size at once', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const slow: BroadcastDeliveryPort = {
+      deliver: async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+      },
+    };
+    const svc = service(slow);
+    const many = Array.from({ length: 30 }, (_, i) => ({ phone: `+62${i}`, customerId: `c-${i}` }));
+    const created = await svc.create('staff', 'Blast', 'Hi', many);
+    await svc.send(created.id);
+
+    const result = await svc.processSending();
+
+    expect(result).toMatchObject({ sent: 30, failed: 0, completed: 1 });
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(8);
+  });
+
   it('records a recipient FAILED when delivery throws, without abandoning the batch', async () => {
     const delivery = new FakeBroadcastDelivery();
     delivery.failOn('+6281');
