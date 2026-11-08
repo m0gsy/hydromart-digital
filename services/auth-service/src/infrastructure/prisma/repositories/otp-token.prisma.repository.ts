@@ -118,4 +118,9 @@ export class OtpTokenPrismaRepository implements OtpTokenRepository {
       data: { consumedAt: at },
     });
   }
+
+  async deleteExpiredBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.otpToken.deleteMany({ where: { expiresAt: { lt: cutoff } } });
+    return count;
+  }
 }

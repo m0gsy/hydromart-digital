@@ -536,7 +536,7 @@ describe('AccessController', () => {
 describe('InternalAccountController.assignStaffRole', () => {
   it('changes an existing account role without ever creating one', async () => {
     const account = { setStaffRole: jest.fn().mockResolvedValue(publicCustomer()) };
-    const controller = new InternalAccountController(account as never, {} as never);
+    const controller = new InternalAccountController(account as never, {} as never, {} as never);
     await controller.assignStaffRole({
       customerId: 'cust-1',
       role: Role.KEPALA_DEPOT,
@@ -549,7 +549,7 @@ describe('InternalAccountController.assignStaffRole', () => {
   // can refuse head office promoting itself to MANAGER through the HR module.
   it('passes the actor hr-service names on to the grant rule', async () => {
     const account = { setStaffRole: jest.fn().mockResolvedValue(publicCustomer()) };
-    const controller = new InternalAccountController(account as never, {} as never);
+    const controller = new InternalAccountController(account as never, {} as never, {} as never);
     await controller.assignStaffRole({
       customerId: 'cust-1',
       role: Role.MANAGER,

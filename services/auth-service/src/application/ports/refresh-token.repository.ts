@@ -53,4 +53,10 @@ export interface RefreshTokenRepository {
   revokeAllForCustomer(customerId: string, at: Date): Promise<void>;
   /** Active (non-revoked, non-expired) sessions for a customer. */
   listActiveForCustomer(customerId: string, now: Date): Promise<RefreshTokenRecord[]>;
+  /**
+   * AUT-08: delete sessions whose `expiresAt` is before `cutoff`. Past expiry a token cannot be
+   * replayed, so reuse detection has nothing left to protect; the row only holds an IP and a
+   * user agent. Returns how many.
+   */
+  deleteExpiredBefore(cutoff: Date): Promise<number>;
 }

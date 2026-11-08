@@ -21,9 +21,17 @@ describe('InternalAccountController', () => {
     setCustomerActiveInternal: jest.fn(),
   };
   const audit = { purgeOlderThan: jest.fn(async () => ({ deleted: 4 })) };
-  const controller = new InternalAccountController(account as never, audit as never);
+  const tokens = { purgeExpired: jest.fn(async () => ({ otpTokens: 2, refreshTokens: 1 })) };
+  const controller = new InternalAccountController(account as never, audit as never, tokens as never);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('AUT-08: tokens/purge hands the cutoff to the token purge', async () => {
+    await expect(
+      controller.purgeExpiredTokens({ cutoff: '2026-10-01T00:00:00.000Z' }),
+    ).resolves.toEqual({ otpTokens: 2, refreshTokens: 1 });
+    expect(tokens.purgeExpired).toHaveBeenCalledWith(new Date('2026-10-01T00:00:00.000Z'));
+  });
 
   /*
    * The route hr-service calls to disable a login when somebody leaves. It had no test at
@@ -285,14 +293,14 @@ describe('ProvisionManagedStaffDto role allowlist', () => {
 describe('InternalAccountController — depot staff ids (F8)', () => {
   it('answers with the ids the account service resolves', async () => {
     const account = { staffIdsForDepot: jest.fn().mockResolvedValue(['s-1', 's-2']) };
-    const controller = new InternalAccountController(account as never, {} as never);
+    const controller = new InternalAccountController(account as never, {} as never, {} as never);
     expect(await controller.staffIdsForDepot('dep-1')).toEqual({ ids: ['s-1', 's-2'] });
     expect(account.staffIdsForDepot).toHaveBeenCalledWith('dep-1');
   });
 
   it('answers with an empty list rather than null for a depot with nobody on it', async () => {
     const account = { staffIdsForDepot: jest.fn().mockResolvedValue([]) };
-    const controller = new InternalAccountController(account as never, {} as never);
+    const controller = new InternalAccountController(account as never, {} as never, {} as never);
     expect(await controller.staffIdsForDepot('dep-1')).toEqual({ ids: [] });
   });
 });
