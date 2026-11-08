@@ -22,6 +22,8 @@ export interface BonusRuleSpec {
   threshold: number;
   rewardKind: RewardKind;
   rewardValue: number;
+  /** HR-08: optional ceiling on one payout; absent or null = none. */
+  maxIdr?: number | null;
 }
 
 export interface BonusContext {
@@ -75,5 +77,7 @@ export function evalBonusRule(spec: BonusRuleSpec, ctx: BonusContext): number {
   if (!compare(value, spec.op, spec.threshold)) return 0;
   const amount =
     spec.rewardKind === 'PERCENT' ? (ctx.basePay * spec.rewardValue) / 100 : spec.rewardValue;
-  return Math.max(0, Math.round(amount));
+  const rounded = Math.max(0, Math.round(amount));
+  // HR-08: a rule may carry a ceiling; one without behaves exactly as before.
+  return spec.maxIdr == null ? rounded : Math.min(rounded, spec.maxIdr);
 }

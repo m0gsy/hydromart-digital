@@ -36,6 +36,8 @@ export class CreateBonusRuleDto {
   @IsNumber() @Min(0) threshold!: number;
   @IsIn(REWARD_KINDS) rewardKind!: string;
   @IsNumber() @Min(0) rewardValue!: number;
+  /** HR-08: optional ceiling on one payout of this rule. */
+  @IsOptional() @IsNumber() @Min(0) maxIdr?: number | null;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 
@@ -56,6 +58,8 @@ export class UpdateBonusRuleDto {
   @IsOptional() @IsNumber() @Min(0) threshold?: number;
   @IsOptional() @IsIn(REWARD_KINDS) rewardKind?: string;
   @IsOptional() @IsNumber() @Min(0) rewardValue?: number;
+  /** HR-08: a number sets the ceiling, null clears it, absent leaves it. */
+  @IsOptional() @IsNumber() @Min(0) maxIdr?: number | null;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 

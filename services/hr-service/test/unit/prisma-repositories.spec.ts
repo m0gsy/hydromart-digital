@@ -2932,6 +2932,32 @@ describe('PayrollPrismaRepository', () => {
     });
   });
 
+  // HR-06: the frozen inputs are written on create and on regenerate, and only when given.
+  const snapshot = {
+    salaryType: 'MONTHLY',
+    dailyRate: null,
+    monthlyRate: '20000000',
+    role: 'STAFF_DEPOT',
+    ptkpStatus: 'TK0',
+  };
+
+  it('create writes the frozen snapshot when the slip carries one', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').create.mockResolvedValue(sentinel());
+    const repo = new PayrollPrismaRepository(asService(p));
+    await repo.create({ ...write, snapshot });
+    expect(m(p, 'payroll').create.mock.calls[0][0].data.snapshot).toEqual(snapshot);
+  });
+
+  it('regenerate writes the frozen snapshot when the slip carries one', async () => {
+    const p = makePrisma();
+    m(p, 'payrollItem').deleteMany.mockResolvedValue({ count: 0 });
+    m(p, 'payroll').update.mockResolvedValue(sentinel());
+    const repo = new PayrollPrismaRepository(asService(p));
+    await repo.regenerate('pr1', { ...write, snapshot });
+    expect(m(p, 'payroll').update.mock.calls[0][0].data.snapshot).toEqual(snapshot);
+  });
+
   it('setStatus stamps actor/timestamps', async () => {
     const p = makePrisma();
     const out = sentinel();

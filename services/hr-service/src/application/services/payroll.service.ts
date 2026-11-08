@@ -386,6 +386,7 @@ export class PayrollService {
             threshold: Number(r.threshold),
             rewardKind: r.rewardKind as RewardKind,
             rewardValue: Number(r.rewardValue),
+            maxIdr: r.maxIdr == null ? null : Number(r.maxIdr),
           },
           ctx,
         );

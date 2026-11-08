@@ -79,6 +79,26 @@ describe('BonusRuleService.create', () => {
     expect(r).toMatchObject({ depotId: null, name: 'Rajin', active: true, createdBy: 'hr-1' });
   });
 
+  // HR-08: the ceiling is optional; unset stays null, a number is stored, and an edit can set
+  // it, clear it (null) or leave it alone (absent).
+  it('stores maxIdr when given and null when not', async () => {
+    const { svc } = make();
+    expect((await svc.create(hr, valid)).maxIdr).toBeNull();
+    expect((await svc.create(hr, { ...valid, maxIdr: 750_000 })).maxIdr).toBe(750_000);
+  });
+
+  it('an edit sets, clears or leaves maxIdr', async () => {
+    const { svc } = make();
+    const created = await svc.create(hr, valid);
+    const stamp = created.updatedAt.toISOString();
+    const set = await svc.update(hr, created.id, { maxIdr: 100_000 }, stamp);
+    expect(set.maxIdr).toBe(100_000);
+    const left = await svc.update(hr, created.id, { name: 'Baru' }, set.updatedAt.toISOString());
+    expect(left.maxIdr).toBe(100_000);
+    const cleared = await svc.update(hr, created.id, { maxIdr: null }, left.updatedAt.toISOString());
+    expect(cleared.maxIdr).toBeNull();
+  });
+
   it('honours an explicit active=false', async () => {
     const { svc } = make();
     const r = await svc.create(hr, { ...valid, active: false });

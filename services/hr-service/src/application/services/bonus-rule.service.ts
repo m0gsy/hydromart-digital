@@ -35,6 +35,7 @@ export interface BonusRuleInput {
   threshold: number;
   rewardKind: string;
   rewardValue: number;
+  maxIdr?: number | null;
   active?: boolean;
 }
 
@@ -56,6 +57,7 @@ export class BonusRuleService {
       threshold: input.threshold,
       rewardKind: input.rewardKind,
       rewardValue: input.rewardValue,
+      maxIdr: input.maxIdr ?? null,
       active: input.active ?? true,
       createdBy: user.sub,
     });
@@ -83,6 +85,7 @@ export class BonusRuleService {
     if (input.threshold !== undefined) patch.threshold = input.threshold;
     if (input.rewardKind !== undefined) patch.rewardKind = input.rewardKind;
     if (input.rewardValue !== undefined) patch.rewardValue = input.rewardValue;
+    if (input.maxIdr !== undefined) patch.maxIdr = input.maxIdr;
     if (input.active !== undefined) patch.active = input.active;
     return this.repo.update(id, patch);
   }
