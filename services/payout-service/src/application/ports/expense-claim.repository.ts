@@ -50,6 +50,11 @@ export interface ExpenseClaimRepository {
   attachLedgerEntry(id: string, ledgerEntryId: string): Promise<ExpenseClaimRecord>;
   /** Puts an approval whose credit failed back to PENDING, so it can be decided again. */
   reopen(id: string): Promise<void>;
+  /**
+   * PPA-09: APPROVED claims whose ledger credit never landed (the process died between the
+   * status write and the credit), reviewed before `reviewedBefore`, oldest first.
+   */
+  findApprovedWithoutLedger(reviewedBefore: Date, limit: number): Promise<ExpenseClaimRecord[]>;
   /** PPA-11: claims this courier had auto-approved (APPROVED, no reviewer) since `since`. */
   countAutoApprovedSince(courierId: string, since: Date): Promise<number>;
   /** PYO-1: how many claims already carry this receipt. */

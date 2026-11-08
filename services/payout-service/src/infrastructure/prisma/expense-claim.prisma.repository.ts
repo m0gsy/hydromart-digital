@@ -103,6 +103,15 @@ export class ExpenseClaimPrismaRepository implements ExpenseClaimRepository {
     });
   }
 
+  async findApprovedWithoutLedger(reviewedBefore: Date, limit: number): Promise<ExpenseClaimRecord[]> {
+    const rows = await this.prisma.expenseClaim.findMany({
+      where: { status: 'APPROVED', ledgerEntryId: null, reviewedAt: { lt: reviewedBefore } },
+      orderBy: { reviewedAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toClaim(row as unknown as ClaimRow));
+  }
+
   countAutoApprovedSince(courierId: string, since: Date): Promise<number> {
     return this.prisma.expenseClaim.count({
       where: { courierId, status: 'APPROVED', reviewedBy: null, createdAt: { gte: since } },

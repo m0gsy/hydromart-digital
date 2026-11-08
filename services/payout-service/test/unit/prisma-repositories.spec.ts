@@ -915,6 +915,18 @@ describe('ExpenseClaimPrismaRepository', () => {
     );
   });
 
+  it('PPA-09: finds approved claims with no ledger entry, oldest first, older than the cut-off', async () => {
+    const cutoff = new Date('2026-01-02');
+    model.findMany.mockResolvedValue([{ ...row, status: 'APPROVED' }]);
+    const out = await repo.findApprovedWithoutLedger(cutoff, 50);
+    expect(out).toHaveLength(1);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { status: 'APPROVED', ledgerEntryId: null, reviewedAt: { lt: cutoff } },
+      orderBy: { reviewedAt: 'asc' },
+      take: 50,
+    });
+  });
+
   it('attaches the ledger entry, reopens only an uncredited approval, counts a receipt', async () => {
     model.update.mockResolvedValue({ ...row, ledgerEntryId: 'le-1' });
     await expect(repo.attachLedgerEntry('ec-1', 'le-1')).resolves.toMatchObject({

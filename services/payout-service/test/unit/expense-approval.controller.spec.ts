@@ -9,6 +9,7 @@ describe('ExpenseApprovalController', () => {
     approve: jest.fn().mockResolvedValue({ id: 'x1' }),
     reject: jest.fn().mockResolvedValue({ id: 'x1' }),
     costsByDepot: jest.fn().mockResolvedValue([]),
+    sweepUnposted: jest.fn().mockResolvedValue({ credited: 2, failed: 0 }),
   };
   const controller = new ExpenseApprovalController(expenses as unknown as ExpenseClaimService);
   const user = { sub: 'reviewer-1' } as AuthenticatedUser;
@@ -39,6 +40,11 @@ describe('ExpenseApprovalController', () => {
     const to = '2026-07-31T17:00:00.000Z';
     await controller.internalDepotCosts({ depotIds: ' d1 , ,d2,', from, to } as never);
     expect(expenses.costsByDepot).toHaveBeenCalledWith(['d1', 'd2'], new Date(from), new Date(to));
+  });
+
+  it('PPA-09: internal sweep runs the unposted-claim sweep and returns its counts', async () => {
+    await expect(controller.internalSweepUnposted()).resolves.toEqual({ credited: 2, failed: 0 });
+    expect(expenses.sweepUnposted).toHaveBeenCalledTimes(1);
   });
 
   it('approve delegates id + reviewer sub + note', async () => {

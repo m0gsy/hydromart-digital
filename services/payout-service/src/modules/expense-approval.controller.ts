@@ -68,6 +68,17 @@ export class ExpenseApprovalController {
     return this.expenses.costsByDepot(ids, new Date(query.from), new Date(query.to));
   }
 
+  /** PPA-09: finish ledger credits a crash left behind. Internal key; idempotent. */
+  @ApiOkResponse({ description: '{ credited, failed }' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/sweep-unposted')
+  @ApiOperation({ summary: 'Credit approved expense claims whose ledger entry is missing (internal)' })
+  internalSweepUnposted(): Promise<{ credited: number; failed: number }> {
+    return this.expenses.sweepUnposted();
+  }
+
   @ApiOkResponse({ type: PagedExpenseClaimResponseDto })
   @Get()
   @ApiOperation({ summary: 'Search courier expense claims by depot + status' })
