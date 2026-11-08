@@ -57,7 +57,7 @@ export class CashbookPrismaRepository implements CashbookRepository {
   async listForDepot(depotId: string, range: CashbookDateRange): Promise<CashbookEntry[]> {
     const occurredAt =
       range.from || range.to
-        ? { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) }
+        ? { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lt: range.to } : {}) }
         : undefined;
     const rows = await this.prisma.cashbookEntry.findMany({
       where: { depotId, ...(occurredAt ? { occurredAt } : {}) },
