@@ -522,6 +522,24 @@ export class EmployeeService {
       input.phone,
     );
     if (linked) {
+      /*
+       * HR-25: re-inviting a phone in the console is how HQ promotes somebody. The account
+       * moved but this returned the row untouched, so payroll (tenure step-up, fines) kept
+       * pricing the old jabatan. Only the role is carried: a name or phone HR has since
+       * corrected must not be overwritten by whatever the invite form held, and a RESIGNED
+       * row is never revived by an invite (see B-3 below).
+       */
+      if (input.role && input.role !== linked.role && linked.status !== 'RESIGNED') {
+        return this.repo.update(linked.id, { role: input.role }, [
+          {
+            changeType: 'role',
+            fromValue: linked.role == null ? Prisma.JsonNull : { value: String(linked.role) },
+            toValue: { value: String(input.role) },
+            effectiveDate: this.businessDate(),
+            createdBy: null,
+          },
+        ]);
+      }
       return linked;
     }
     /*

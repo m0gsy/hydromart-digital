@@ -1611,3 +1611,32 @@ describe('EmployeeService.update self-edit guard (HR-13)', () => {
     await expect(svc.update(self, e.id, { bankName: 'BCA' })).resolves.toBeDefined();
   });
 });
+
+describe('EmployeeService.provisionFromInvite re-invite of a linked row (HR-25)', () => {
+  const invite = { ...baseInput, authSubjectId: '00000000-0000-4000-8000-0000000000cc', role: 'STAFF_DEPOT' as const };
+
+  it('carries a changed role onto the linked row and logs it', async () => {
+    const { repo, svc } = make();
+    const first = await svc.provisionFromInvite(invite);
+
+    const again = await svc.provisionFromInvite({ ...invite, role: 'KEPALA_DEPOT' });
+
+    expect(again.id).toBe(first.id);
+    expect(again.role).toBe('KEPALA_DEPOT');
+    expect(repo.history.some((h) => h.changeType === 'role')).toBe(true);
+  });
+
+  it('is a no-op when the role is unchanged, absent, or the row is RESIGNED', async () => {
+    const { repo, svc } = make();
+    const first = await svc.provisionFromInvite(invite);
+    const before = repo.history.length;
+
+    await svc.provisionFromInvite(invite);
+    await svc.provisionFromInvite({ ...invite, role: undefined });
+    expect(repo.history.length).toBe(before);
+
+    (repo.rows.find((r) => r.id === first.id) as { status: string }).status = 'RESIGNED';
+    const resigned = await svc.provisionFromInvite({ ...invite, role: 'KEPALA_DEPOT' });
+    expect(resigned.role).toBe('STAFF_DEPOT');
+  });
+});
