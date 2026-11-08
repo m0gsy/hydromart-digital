@@ -51,6 +51,10 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
     this.rows.push(row);
     return row;
   }
+  /** DEP-07: unique(depotId, idempotencyKey); a missing key never matches. */
+  async findByIdempotencyKey(depotId: string, key: string): Promise<GallonReturnRecord | null> {
+    return this.rows.find((r) => r.depotId === depotId && r.idempotencyKey === key) ?? null;
+  }
   /** MONEY-04: the same idempotency the real repository gets from the unique index. */
   async createFromOrder(
     data: CreateGallonReturnFromOrderData,
@@ -234,6 +238,48 @@ describe('GallonReturnService', () => {
       note: null,
       actorId: 'staff-1',
     });
+
+  /*
+   * DEP-07. A manual return carried no key at all: the only guard was the balance under the lock.
+   * A customer holding more than one deposited gallon who tapped "Simpan" twice booked the refund
+   * twice, and both rows looked legitimate. The courier path has been idempotent on its order
+   * since MONEY-04; this is the counter's equivalent.
+   */
+  describe('DEP-07 · the same submission is one return', () => {
+    const CUST = '33333333-3333-4333-8333-333333333333';
+    const submit = (key?: string) =>
+      service.record(
+        depotId,
+        { customerId: CUST, quantity: 1, depositRefunded: GALLON_DEPOSIT_IDR, idempotencyKey: key },
+        'staff-1',
+      );
+
+    it('books one row, one refund and one stock move for a repeated key', async () => {
+      await seedFor(CUST, 5);
+      const first = await submit('submit-0001');
+      const again = await submit('submit-0001');
+      expect(again.id).toBe(first.id);
+      expect(returns.all().filter((r) => r.customerId === CUST)).toHaveLength(1);
+    });
+
+    it('a different key, or no key, is a different return', async () => {
+      await seedFor(CUST, 5);
+      await submit('submit-0001');
+      await submit('submit-0002');
+      await submit();
+      await submit();
+      expect(returns.all().filter((r) => r.customerId === CUST)).toHaveLength(4);
+    });
+
+    it('answers a replay from the stored row without measuring the balance again', async () => {
+      // 1 gallon on deposit, 1 returned. A second booking would be refused as an over-return,
+      // so the replay must be answered from the stored row before that check runs.
+      await seedFor(CUST, 1);
+      const first = await submit('submit-0003');
+      await expect(submit('submit-0003')).resolves.toMatchObject({ id: first.id });
+    });
+  });
+
 
   /*
    * Two returns for the same customer at once both measured the same outstanding deposit and

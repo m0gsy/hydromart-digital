@@ -23,6 +23,8 @@ export interface RecordReturnInput {
   condition?: GallonCondition;
   depositRefunded?: number;
   note?: string | null;
+  /** DEP-07: one random value per form submission; the same one again returns the same row. */
+  idempotencyKey?: string | null;
 }
 
 /** Courier handover return (design 2e): linked to an order, deposit derived from config. */
@@ -286,9 +288,16 @@ export class GallonReturnService {
     const condition = input.condition ?? GallonCondition.GOOD;
     // Measure and write under one lock per balance: two returns at once used to measure the
     // same outstanding deposit and both refund it.
-    const { record, excessGallons } = await this.returns.serialized(
+    const { record, excessGallons, replayed } = await this.returns.serialized(
       this.balanceKey(depotId, input.customerId),
       async () => {
+        // DEP-07: answered from the stored row, BEFORE the balance is measured. The first
+        // booking already consumed the deposit, so measuring again would refuse an honest
+        // replay as an over-return, or (with a second gallon outstanding) refund it twice.
+        if (input.idempotencyKey) {
+          const already = await this.returns.findByIdempotencyKey(depotId, input.idempotencyKey);
+          if (already) return { record: already, excessGallons: 0, replayed: true };
+        }
         const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
           depotId,
           input.quantity,
@@ -311,10 +320,13 @@ export class GallonReturnService {
           depositRefunded,
           note: input.note ?? null,
           actorId,
+          idempotencyKey: input.idempotencyKey ?? null,
         });
-        return { record, excessGallons };
+        return { record, excessGallons, replayed: false };
       },
     );
+    // A replay did everything the first call did; none of it happens twice.
+    if (replayed) return record;
     await this.moveStockIn(depotId, record, condition, actorId);
     if (excessGallons > 0) {
       await this.queueBestEffort(`variance approval for return ${record.id}`, () =>

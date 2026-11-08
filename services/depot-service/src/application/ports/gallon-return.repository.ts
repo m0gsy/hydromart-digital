@@ -16,6 +16,8 @@ export interface GallonReturnRecord {
   note: string | null;
   actorId: string;
   createdAt: Date;
+  /** DEP-07: set on a manual return that carried a key; null on courier returns and old rows. */
+  idempotencyKey?: string | null;
 }
 
 export interface CreateGallonReturnData {
@@ -27,6 +29,8 @@ export interface CreateGallonReturnData {
   depositRefunded: number;
   note: string | null;
   actorId: string;
+  /** DEP-07: the client's key for this submission; the same key again is the same return. */
+  idempotencyKey?: string | null;
 }
 
 /**
@@ -67,6 +71,11 @@ export interface GallonReturnDepotRow {
 }
 
 export interface GallonReturnRepository {
+  /**
+   * DEP-07: the manual return this depot already booked under this key, if any.
+   * Read under the same lock as the write, so two taps cannot both miss it.
+   */
+  findByIdempotencyKey(depotId: string, key: string): Promise<GallonReturnRecord | null>;
   /**
    * Runs `work` while holding an exclusive, transaction-scoped lock on `scopeKey` — one
    * balance (a customer at a depot, or the depot's anonymous pool). A return measures what is

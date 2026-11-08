@@ -86,6 +86,13 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
     );
   }
 
+  async findByIdempotencyKey(depotId: string, key: string): Promise<GallonReturnRecord | null> {
+    const row = await this.prisma.gallonReturn.findFirst({
+      where: { depotId, idempotencyKey: key },
+    });
+    return row ? this.toRecord(row as ReturnRow) : null;
+  }
+
   async create(data: CreateGallonReturnData): Promise<GallonReturnRecord> {
     const row = await this.prisma.gallonReturn.create({ data });
     return this.toRecord(row);
