@@ -294,6 +294,32 @@ describe('PayrollService auto-bonus rules (Rule-F)', () => {
     ).toEqual(['Bonus Sales', 'Rajin Hadir']);
   });
 
+  // HR-08: a rule's optional ceiling reaches the payslip. 50% of 4.000.000 is 2.000.000, capped at 500.000.
+  it('pays no more than the maxIdr of a rule, and the full amount when it has none', async () => {
+    const rule = {
+      id: 'r1',
+      name: 'Bonus besar',
+      metric: 'PRESENT_DAYS',
+      op: 'GTE',
+      threshold: 1 as never,
+      rewardKind: 'PERCENT',
+      rewardValue: 50 as never,
+    };
+    const capped = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      rules: [{ ...rule, maxIdr: 500_000 as never }],
+    });
+    await capped.svc.generate(user, 'e1', '2026-07');
+    expect(capped.repo.lastWrite!.totalBonus).toBe(500_000);
+
+    const free = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      rules: [{ ...rule, maxIdr: null }],
+    });
+    await free.svc.generate(user, 'e1', '2026-07');
+    expect(free.repo.lastWrite!.totalBonus).toBe(2_000_000);
+  });
+
   it('skips a rule that does not pay and never calls sales when no SALES rule exists', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },

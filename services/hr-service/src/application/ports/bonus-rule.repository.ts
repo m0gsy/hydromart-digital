@@ -11,6 +11,8 @@ export interface BonusRuleWrite {
   threshold: number;
   rewardKind: string;
   rewardValue: number;
+  /** HR-08: optional ceiling on one payout; null clears it. */
+  maxIdr?: number | null;
   active: boolean;
   createdBy: string | null;
 }

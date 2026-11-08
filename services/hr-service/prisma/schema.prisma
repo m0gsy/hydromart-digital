@@ -837,6 +837,8 @@ model BonusRule {
   threshold   Decimal   @db.Decimal(14, 2)
   rewardKind  String
   rewardValue Decimal   @db.Decimal(14, 2)
+  /// HR-08: optional ceiling on one payout of this rule. NULL = none.
+  maxIdr      Decimal?  @db.Decimal(14, 2)
   active      Boolean   @default(true)
   createdBy   String?   @db.Uuid
   createdAt   DateTime  @default(now())
