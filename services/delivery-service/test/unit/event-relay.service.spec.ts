@@ -25,6 +25,16 @@ class FakeOutbox implements EventOutboxRepository {
   async findDue(now: Date, limit: number): Promise<EventOutboxRecord[]> {
     return this.rows.filter((r) => r.status === 'PENDING' && r.nextAttemptAt <= now).slice(0, limit);
   }
+  async findByEventId(eventId: string): Promise<EventOutboxRecord | null> {
+    return this.rows.find((r) => r.eventId === eventId) ?? null;
+  }
+  pruned: { before: Date; limit: number }[] = [];
+  async pruneDone(before: Date, limit: number): Promise<number> {
+    this.pruned.push({ before, limit });
+    const gone = this.rows.filter((r) => r.status === 'DONE' && r.nextAttemptAt < before);
+    this.rows = this.rows.filter((r) => !gone.includes(r));
+    return gone.length;
+  }
   async markDone(id: string): Promise<void> {
     const r = this.rows.find((x) => x.id === id && x.status === 'PENDING');
     if (r) r.status = 'DONE';
@@ -77,6 +87,31 @@ describe('EventRelayService (AAS-11 outbox)', () => {
     expect(outbox.rows).toHaveLength(1);
   });
 
+  // The delivery service now records the event INSIDE the completion transaction, so by the
+  // time publish() runs the row already exists. publish() must still send it.
+  it('sends a row the completion transaction already recorded, once', async () => {
+    const { outbox, transport, svc } = make();
+    await outbox.enqueue({ event: 'e.x', eventId: 'k1', payload: { a: 1 }, occurredAt: OCC });
+    await svc.publish('e.x', { a: 1 }, OCC, 'k1');
+    expect(transport.publish).toHaveBeenCalledTimes(1);
+    expect(outbox.rows[0].status).toBe('DONE');
+    // Already DONE: a second call is not a second send.
+    await svc.publish('e.x', { a: 1 }, OCC, 'k1');
+    expect(transport.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('the sweep prunes DONE rows older than a week and says how many', async () => {
+    const { outbox, svc } = make();
+    await svc.publish('e.x', {}, OCC, 'k1');
+    outbox.rows[0].nextAttemptAt = new Date(Date.now() - 8 * 86_400_000);
+    const res = await svc.processDue(new Date());
+    expect(res.pruned).toBe(1);
+    expect(outbox.rows).toHaveLength(0);
+    const cutoff = outbox.pruned[0].before.getTime();
+    expect(Date.now() - cutoff).toBeGreaterThan(6.9 * 86_400_000);
+    expect(Date.now() - cutoff).toBeLessThan(7.1 * 86_400_000);
+  });
+
   it('the sweep re-sends what is due, closes it, and reports honestly', async () => {
     let down = true;
     const { outbox, svc } = make(async () => {
@@ -88,7 +123,7 @@ describe('EventRelayService (AAS-11 outbox)', () => {
 
     down = false;
     const later = new Date(Date.now() + 61 * 60_000);
-    await expect(svc.processDue(later)).resolves.toEqual({ claimed: 1, delivered: 1, failed: 0, dead: 0, ok: true });
+    await expect(svc.processDue(later)).resolves.toMatchObject({ claimed: 1, delivered: 1, failed: 0, dead: 0, ok: true });
     expect(outbox.rows[0].status).toBe('DONE');
   });
 

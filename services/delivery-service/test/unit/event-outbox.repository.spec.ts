@@ -21,6 +21,8 @@ function make() {
     create: jest.fn(),
     findMany: jest.fn(),
     updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    findUnique: jest.fn(),
+    deleteMany: jest.fn(),
   };
   return { webhookEventOutbox, repo: new EventOutboxPrismaRepository({ webhookEventOutbox } as never) };
 }
@@ -52,6 +54,32 @@ describe('EventOutboxPrismaRepository (AAS-11)', () => {
       orderBy: { nextAttemptAt: 'asc' },
       take: 50,
     });
+  });
+
+  it('findByEventId reads by the unique key, null when absent', async () => {
+    const { repo, webhookEventOutbox } = make();
+    webhookEventOutbox.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(null);
+    await expect(repo.findByEventId('k1')).resolves.toMatchObject({ eventId: 'k1' });
+    expect(webhookEventOutbox.findUnique).toHaveBeenCalledWith({ where: { eventId: 'k1' } });
+    await expect(repo.findByEventId('nope')).resolves.toBeNull();
+  });
+
+  // Bounded: one sweep never issues an unbounded DELETE against a table written on every handover.
+  it('pruneDone deletes at most `limit` DONE rows older than the cutoff', async () => {
+    const { repo, webhookEventOutbox } = make();
+    webhookEventOutbox.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    webhookEventOutbox.deleteMany.mockResolvedValue({ count: 2 });
+    await expect(repo.pruneDone(NOW, 500)).resolves.toBe(2);
+    expect(webhookEventOutbox.findMany).toHaveBeenCalledWith({
+      where: { status: 'DONE', updatedAt: { lt: NOW } },
+      select: { id: true },
+      take: 500,
+    });
+    expect(webhookEventOutbox.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['a', 'b'] }, status: 'DONE' },
+    });
+    webhookEventOutbox.findMany.mockResolvedValue([]);
+    await expect(repo.pruneDone(NOW, 500)).resolves.toBe(0);
   });
 
   it('closes and fails only a row that is still PENDING', async () => {

@@ -1047,6 +1047,20 @@ describe('DeliveryService', () => {
 
   // H-30: the event a partner subscribes to. Published after the handover is recorded, so
   // a partner integration can never be the reason a delivery fails.
+  it('hands completeWithProof the event to record in the same transaction (AAS-11)', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const spy = jest.spyOn(repo, 'completeWithProof');
+    await service.complete(driver, d.id, PROOF, AUTH);
+    const event = spy.mock.calls[0][5];
+    expect(event).toMatchObject({
+      event: 'delivery.delivered',
+      eventId: `delivery.delivered:${d.id}`,
+      payload: { deliveryId: d.id, orderId: d.orderId, recipientName: PROOF.recipientName },
+    });
+  });
+
   it('publishes delivery.delivered once the handover is stored', async () => {
     const d = await assign();
     await service.pickup(driver, d.id, AUTH);

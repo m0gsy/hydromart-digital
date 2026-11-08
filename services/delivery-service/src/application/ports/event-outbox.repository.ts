@@ -31,6 +31,15 @@ export interface EventOutboxRepository {
     payload: Record<string, unknown>;
     occurredAt: Date;
   }): Promise<EventOutboxRecord | null>;
+  /** The row that owns this key, whatever its state; null when none was ever recorded. */
+  findByEventId(eventId: string): Promise<EventOutboxRecord | null>;
+  /**
+   * Deletes up to `limit` DONE rows last touched before `before`; answers how many went.
+   * Bounded so one sweep never issues an unbounded DELETE against a table written on every
+   * handover. PENDING and DEAD rows are never pruned: they are the work still owed and the
+   * work somebody has to look at.
+   */
+  pruneDone(before: Date, limit: number): Promise<number>;
   /** PENDING rows whose backoff has elapsed, oldest first. */
   findDue(now: Date, limit: number): Promise<EventOutboxRecord[]>;
   /** Only a still-PENDING row is closed, so a late success cannot revive a DEAD one. */

@@ -57,6 +57,24 @@ export class EventOutboxPrismaRepository implements EventOutboxRepository {
     }
   }
 
+  async findByEventId(eventId: string): Promise<EventOutboxRecord | null> {
+    const row = await this.prisma.webhookEventOutbox.findUnique({ where: { eventId } });
+    return row ? toRecord(row) : null;
+  }
+
+  async pruneDone(before: Date, limit: number): Promise<number> {
+    const rows = await this.prisma.webhookEventOutbox.findMany({
+      where: { status: 'DONE', updatedAt: { lt: before } },
+      select: { id: true },
+      take: limit,
+    });
+    if (rows.length === 0) return 0;
+    const { count } = await this.prisma.webhookEventOutbox.deleteMany({
+      where: { id: { in: rows.map((r) => r.id) }, status: 'DONE' },
+    });
+    return count;
+  }
+
   async findDue(now: Date, limit: number): Promise<EventOutboxRecord[]> {
     const rows = await this.prisma.webhookEventOutbox.findMany({
       where: { status: 'PENDING', nextAttemptAt: { lte: now } },
