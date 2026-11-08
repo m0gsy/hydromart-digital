@@ -188,6 +188,8 @@ export interface Payroll {
   pendingDays?: number;
   /** HR-05: earlier months of the year still DRAFT; set on a DRAFT December slip only. */
   unapprovedEarlierMonths?: number;
+  /** HR-11: a DRAFT slip priced with no PTKP status, so its PPh 21 is 0 for want of data. */
+  ptkpMissing?: boolean;
   approvedAt: string | null;
   paidAt: string | null;
   createdAt: string;

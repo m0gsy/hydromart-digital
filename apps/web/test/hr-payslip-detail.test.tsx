@@ -197,3 +197,16 @@ describe('HR-05: December slip with earlier months still unapproved', () => {
     await waitFor(() => expect(screen.queryByText(/decemberWarning/)).toBeNull());
   });
 });
+
+describe('HR-11: a DRAFT slip priced with no PTKP status', () => {
+  it('warns that the zero PPh 21 is missing data, and is quiet otherwise', async () => {
+    get.mockResolvedValueOnce({ ...PAYROLL, status: 'DRAFT', ptkpMissing: true });
+    const { unmount } = render(<PayrollDetailPage />);
+    expect(await screen.findByText('hrFix.payrollDetail.ptkpMissing')).toBeTruthy();
+    unmount();
+
+    get.mockResolvedValueOnce({ ...PAYROLL, status: 'DRAFT' });
+    render(<PayrollDetailPage />);
+    await waitFor(() => expect(screen.queryByText(/ptkpMissing/)).toBeNull());
+  });
+});

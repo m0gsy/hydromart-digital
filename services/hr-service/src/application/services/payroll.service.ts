@@ -966,11 +966,16 @@ export class PayrollService {
             )
           ).unapprovedMonths ?? 0)
         : 0;
+    // HR-11: judged on what the slip was PRICED from (its frozen snapshot, HR-06), falling back
+    // to the employee for a draft that predates the snapshot.
+    const snap = payroll.snapshot as PayrollSnapshot | null;
+    const pricedPtkp = snap ? snap.ptkpStatus : employee.ptkpStatus;
     return {
       ...payroll,
       employeeName: employee.fullName ?? null,
       pendingDays,
       ...(unapprovedEarlierMonths > 0 ? { unapprovedEarlierMonths } : {}),
+      ...(payroll.status === 'DRAFT' && !pricedPtkp ? { ptkpMissing: true as const } : {}),
       ...(shares.length > 0 ? { shares } : {}),
     };
   }

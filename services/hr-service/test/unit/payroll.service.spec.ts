@@ -1304,3 +1304,35 @@ describe('PayrollService.getById unapprovedEarlierMonths (HR-05)', () => {
     expect((await svc.getById(user, 'p1')).unapprovedEarlierMonths).toBeUndefined();
   });
 });
+
+// HR-11: with no PTKP on file PPh 21 is 0 by design (the data is missing, not the tax), but the
+// slip said nothing, so the zero read as a computed result. The detail read now flags it.
+describe('PayrollService.getById ptkpMissing (HR-11)', () => {
+  const draft = { id: 'p1', employeeId: 'e1', status: 'DRAFT', periodMonth: '2025-11' };
+
+  it('flags a DRAFT slip priced without a PTKP status', async () => {
+    const { repo, svc } = build({ employee: { ptkpStatus: null } });
+    repo.byId = draft as PayrollWithItems;
+    expect((await svc.getById(user, 'p1')).ptkpMissing).toBe(true);
+  });
+
+  it('says nothing when the employee has one, or once the slip is approved', async () => {
+    const { repo, svc } = build({ employee: { ptkpStatus: 'TK0' } });
+    repo.byId = draft as PayrollWithItems;
+    expect((await svc.getById(user, 'p1')).ptkpMissing).toBeUndefined();
+
+    const nokey = build({ employee: { ptkpStatus: null } });
+    nokey.repo.byId = { ...draft, status: 'APPROVED' } as PayrollWithItems;
+    expect((await nokey.svc.getById(user, 'p1')).ptkpMissing).toBeUndefined();
+  });
+
+  // The slip is priced from its frozen snapshot (HR-06), so that is what decides.
+  it('reads the frozen snapshot, not the employee as they are today', async () => {
+    const { repo, svc } = build({ employee: { ptkpStatus: 'TK0' } });
+    repo.byId = {
+      ...draft,
+      snapshot: { salaryType: 'MONTHLY', dailyRate: null, monthlyRate: '1', role: null, ptkpStatus: null },
+    } as unknown as PayrollWithItems;
+    expect((await svc.getById(user, 'p1')).ptkpMissing).toBe(true);
+  });
+});

@@ -2173,6 +2173,8 @@ export const hrFix = {
     paidAt: 'Dibayar',
     pendingWarning:
       'Masih ada {n} hari kehadiran yang belum diputuskan di periode ini. Gaji tetap bisa disetujui — putuskan hari-hari itu, lalu catat selisihnya sebagai penyesuaian di periode berikutnya (dipotong kalau ditolak, dibayar susulan kalau disetujui).',
+    ptkpMissing:
+      'Status PTKP karyawan ini belum diisi, jadi PPh 21 pada slip ini dihitung 0. Itu karena datanya kosong, bukan karena tidak ada pajak. Isi PTKP di profil karyawan, lalu buat ulang slip dengan opsi "Pakai gaji & jabatan terbaru".',
     decemberWarning:
       'Masih ada {n} bulan sebelumnya di tahun ini yang belum disetujui, jadi PPh 21 Desember dihitung tanpa bulan itu dan bisa kurang. Setujui bulan-bulan itu, lalu buat ulang slip Desember.',
     approveConfirmPending:
