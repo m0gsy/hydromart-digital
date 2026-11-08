@@ -44,7 +44,19 @@ export class PdpPrismaRepository implements PdpRepository {
     await this.prisma.$transaction([
       this.prisma.address.updateMany({
         where: { customerId },
-        data: { recipientName: REDACTED_NAME, phone: REDACTED_PHONE, notes: null },
+        data: {
+          recipientName: REDACTED_NAME,
+          phone: REDACTED_PHONE,
+          notes: null,
+          // CUS-05: a street, a postcode and a pin on a map are the person. The city stays so
+          // the row still joins as a primary address; order-service keeps its own snapshot of
+          // where an order went, which is the ten-year record.
+          label: REDACTED_PHONE,
+          addressLine: REDACTED_PHONE,
+          postalCode: null,
+          latitude: null,
+          longitude: null,
+        },
       }),
       this.prisma.savedPaymentMethod.deleteMany({ where: { customerId } }),
       this.prisma.favorite.deleteMany({ where: { customerId } }),
@@ -52,7 +64,15 @@ export class PdpPrismaRepository implements PdpRepository {
       // Birthdate is PII and drives the birthday promo; both must stop.
       this.prisma.customerProfile.updateMany({
         where: { customerId },
-        data: { birthdate: null, lastBirthdayRewardYear: null },
+        data: {
+          birthdate: null,
+          lastBirthdayRewardYear: null,
+          // CUS-05: out of every depot's directory, and the marker the audience queries read.
+          // Deleting the opt-out row above reads as "never asked", i.e. INCLUDED; this is what
+          // keeps an erased person out of the next broadcast.
+          favoriteDepotId: null,
+          anonymisedAt: new Date(),
+        },
       }),
       this.prisma.resellerProfile.updateMany({
         where: { customerId },

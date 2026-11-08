@@ -40,6 +40,9 @@ model CustomerProfile {
   birthdate      DateTime?      @db.Date
   /// Year of the last birthday reward grant; makes the sweep idempotent (one grant per year).
   lastBirthdayRewardYear Int?
+  /// CUS-05: set when the person's data was erased. Audience and directory queries skip these;
+  /// the erasure also deletes the opt-out row, which the audience query reads as "never asked".
+  anonymisedAt   DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
