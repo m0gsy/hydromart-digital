@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
@@ -220,6 +220,13 @@ export class NeoFaceProvider implements FaceVerifier {
 
   private ensureOk(path: string, payload: NeoPayload): void {
     if (!String(payload.status ?? '').startsWith('2')) {
+      // Seen in production 2026-11-08: "Procedural Error - Face Not Detected" (blurry/no-face
+      // frame) was a 503, which paged Discord for what is the employee's retake, not an outage.
+      if (/face\s+not\s+detected|image\s+clarity/i.test(payload.status_message ?? '')) {
+        throw new BadRequestException(
+          'Wajah tidak terdeteksi, pastikan wajah terlihat jelas dan pencahayaan cukup',
+        );
+      }
       throw this.unavailable(`${path}: ${payload.status_message ?? 'unknown error'}`);
     }
   }
