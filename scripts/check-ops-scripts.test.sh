@@ -985,4 +985,21 @@ done
 # F-32
 chk scripts/verify-object-storage.mjs 'face' "verify-object-storage: refuses the face-photo bucket" "verify-object-storage: will open any bucket anonymously, including face photos (F-32)"
 
+# --- PR-D4: the three owner-decided scripts -------------------------------------------------
+# S1B-50: the parity test mutates a COPY of the tree, never the tracked controller.
+case "$(cat scripts/check-route-parity.test.sh)" in
+  *'cp "$WORK/victim.orig" "$VICTIM"; cp'*) bad "check-route-parity.test mutates the tracked controller in place and relies on a trap to undo it (S1B-50)" ;;
+  *) ok "check-route-parity.test works on a temp copy of the tree" ;;
+esac
+# backup-objects: the live-bucket lifecycle write can be switched off, and says so
+case "$(cat scripts/backup-objects.mjs)" in
+  *BACKUP_APPLY_LIFECYCLE*) ok "backup-objects: BACKUP_APPLY_LIFECYCLE=0 stops it editing the live bucket's lifecycle" ;;
+  *) bad "backup-objects: no way to keep it from rewriting the live bucket's lifecycle rules" ;;
+esac
+# apk-device-checklist: an explicit real OTP means a real account
+case "$(cat scripts/apk-device-checklist.mjs)" in
+  *APK_CHECK_ALLOW_PROD*) ok "apk-device-checklist: a real --otp needs APK_CHECK_ALLOW_PROD=1" ;;
+  *) bad "apk-device-checklist: creates PoD and cash records against whatever account it is given, no guard" ;;
+esac
+
 exit "$fails"
