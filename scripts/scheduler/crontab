@@ -86,6 +86,10 @@
 # hour late is not an integration. Retries back off on their own (1m, 5m, 25m, ...), so
 # a dead endpoint is not hammered by this cadence.
 */5 * * * * sh /scripts/sweep.sh webhooks/deliveries/process admin:3017
+# AAS-11: delivery-service's own half. A partner event admin-service refused (it was down) stays
+# in delivery-service's outbox; this re-sends it. Every 10 minutes: retries back off 1m..32m and
+# admin dedupes on the event key, so an overlap costs one wasted call, never a duplicate.
+*/10 * * * * sh /scripts/sweep.sh webhook-outbox/internal/process delivery:3006
 # Depot SOP: the twice-daily "laporan penjualan" — how many gallons each depot has sold so
 # far today, sent to the depot's own number. 13:00 (siang) and 21:00 (sore) WIB. The slot
 # is a path segment rather than a body because sweep.sh posts an empty one; it also gives

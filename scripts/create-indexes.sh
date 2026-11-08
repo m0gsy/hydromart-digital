@@ -279,3 +279,7 @@ echo "All indexes present."
 
 # points_transactions_customerId_idempotencyKey_key (loyalty-service, 2026-10-30) is built by its own
 # migration, not by this script: the column is created by that very migration and every value is NULL.
+
+# webhook_event_outbox_eventId_key and webhook_event_outbox_status_nextAttemptAt_idx (delivery-service,
+# 2026-11-08) are built by their own migration, not here: they index a table that migration creates,
+# so it is empty and the build is instant.
