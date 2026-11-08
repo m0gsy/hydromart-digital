@@ -17,7 +17,12 @@ describe('PromoRulePrismaRepository', () => {
     delete: jest.fn(),
     findMany: jest.fn(),
   };
-  const promoApplication = { createMany: jest.fn(), count: jest.fn(), findMany: jest.fn() };
+  const promoApplication = {
+    createMany: jest.fn(),
+    count: jest.fn(),
+    findMany: jest.fn(),
+    updateMany: jest.fn(),
+  };
   const $transaction: jest.Mock<Promise<unknown>, [(tx: unknown) => unknown]> = jest.fn((fn) =>
     Promise.resolve(fn({ promoApplication })),
   );
@@ -99,6 +104,39 @@ describe('PromoRulePrismaRepository', () => {
     });
   });
 
+  // PLP-02: a promotion given on an order that was then voided/cancelled is not a cost. The
+  // audit rows stay (they are the record) but are stamped released, and every aggregate skips them.
+  it('usageByRule and recentOrdersByRule ignore released applications', async () => {
+    model.findMany.mockResolvedValue([{ id: 'r1' }]);
+    $queryRaw.mockResolvedValue([]);
+    await repo.usageByRule(['depot-a']);
+    const usage = ($queryRaw.mock.calls.at(-1)![0] as { sql: string }).sql.replace(/\s+/g, ' ');
+    expect(usage).toContain('"releasedAt" IS NULL');
+    await repo.recentOrdersByRule(['depot-a'], 10);
+    const recent = ($queryRaw.mock.calls.at(-1)![0] as { sql: string }).sql.replace(/\s+/g, ' ');
+    expect(recent).toContain('"releasedAt" IS NULL');
+  });
+
+  it('applicationsInWindow (the PROMO_COST report) skips released applications', async () => {
+    promoApplication.findMany.mockResolvedValue([]);
+    await repo.applicationsInWindow(new Date('2026-10-25'), new Date('2026-10-26'), 5);
+    expect(promoApplication.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { createdAt: { gte: new Date('2026-10-25'), lt: new Date('2026-10-26') }, releasedAt: null },
+      }),
+    );
+  });
+
+  it('releaseApplications stamps every still-open row of the order once, and answers how many', async () => {
+    promoApplication.updateMany.mockResolvedValue({ count: 2 });
+    const at = new Date('2026-11-09T01:00:00Z');
+    await expect(repo.releaseApplications('o-1', at)).resolves.toBe(2);
+    expect(promoApplication.updateMany).toHaveBeenCalledWith({
+      where: { orderId: 'o-1', releasedAt: null },
+      data: { releasedAt: at },
+    });
+  });
+
   it('recentOrdersByRule reads nothing when no rule is visible', async () => {
     model.findMany.mockResolvedValue([]);
     expect(await repo.recentOrdersByRule(['depot-a'], 300)).toEqual([]);
@@ -130,7 +168,7 @@ describe('PromoRulePrismaRepository', () => {
     ]);
     expect(promoApplication.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { createdAt: { gte: from, lt: to } },
+        where: { createdAt: { gte: from, lt: to }, releasedAt: null },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: 21,
       }),

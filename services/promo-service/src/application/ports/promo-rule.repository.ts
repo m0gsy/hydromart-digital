@@ -104,6 +104,12 @@ export interface PromoRuleRepository {
    */
   applicationsInWindow(from: Date, to: Date, limit: number): Promise<PromoApplicationInWindow[]>;
 
+  /**
+   * PLP-02: stamp every still-open application of this order released (idempotent: a second call
+   * finds none open) and answer how many were. Usage and the PROMO_COST report skip these rows.
+   */
+  releaseApplications(orderId: string, at: Date): Promise<number>;
+
   /** True if any PromoApplication row already exists for this order (idempotency check). */
   hasApplicationFor(orderId: string): Promise<boolean>;
 }
