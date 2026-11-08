@@ -1,5 +1,5 @@
 import { CallHandler, ExecutionContext } from '@nestjs/common';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, of, tap, throwError } from 'rxjs';
 
 import {
   AuditMutationsInterceptor,
@@ -99,9 +99,33 @@ describe('redactBody (CA-2-67)', () => {
       name: 'partner',
       secret: '[redacted]',
       apiKey: '[redacted]',
-      scopes: '[2 item]',
+      // AAS-09: a short list of plain values IS what changed, so it is kept.
+      scopes: ['a', 'b'],
       limits: '[object]',
       rollout: 25,
+    });
+  });
+
+  it('AAS-09: keeps short primitive lists, summarises long, nested or secret ones', () => {
+    const long = Array.from({ length: 21 }, (_, i) => `ip-${i}`);
+    expect(
+      redactBody({
+        ipAllowlist: ['10.0.0.1', '10.0.0.2'],
+        events: ['order.delivered'],
+        rows: [{ a: 1 }],
+        long,
+        wide: ['x'.repeat(121)],
+        tokens: ['t1', 't2'],
+        mixed: ['a', { b: 1 }],
+      }),
+    ).toEqual({
+      ipAllowlist: ['10.0.0.1', '10.0.0.2'],
+      events: ['order.delivered'],
+      rows: '[1 item]',
+      long: '[21 item]',
+      wide: '[1 item]',
+      tokens: '[redacted]',
+      mixed: '[2 item]',
     });
   });
 
@@ -152,6 +176,28 @@ describe('AuditMutationsInterceptor (CA-2-67)', () => {
         metadata: { name: 'partner', secret: '[redacted]' },
       },
     ]);
+  });
+
+  // AAS-09: a handler that knows the value being replaced parks it on the request; the trail
+  // records it (redacted) so a singleton policy change shows what it changed FROM.
+  it('AAS-09: records req.auditBefore as a redacted `before`', async () => {
+    const req: Record<string, unknown> = {
+      method: 'PUT',
+      originalUrl: '/api/v1/security-policy',
+      user: { sub: 'u-1' },
+      body: { ipAllowlist: ['1.1.1.1'] },
+      params: {},
+    };
+    const interceptor = new AuditMutationsInterceptor(sink);
+    const run = firstValueFrom(
+      interceptor.intercept(ctx(req), { handle: () => of('ok').pipe(tap(() => { req.auditBefore = { ipAllowlist: ['9.9.9.9'], apiSecret: 's' }; })) }),
+    );
+    await run;
+    await Promise.resolve();
+    expect(recorded[0].metadata).toMatchObject({
+      ipAllowlist: ['1.1.1.1'],
+      before: { ipAllowlist: ['9.9.9.9'], apiSecret: '[redacted]' },
+    });
   });
 
   /*
