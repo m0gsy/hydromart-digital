@@ -12,7 +12,13 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.
-  CUSTOMER_SERVICE_URL: Joi.string().allow('').default(''),
+  // CRM-08: required in production. Blank passed validation there and then every campaign
+  // audience resolved to FAILED. (Dev may stay blank; compose sets it.)
+  CUSTOMER_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
   // Optional: order-service base URL for the ACTIVITY half of a segment (lapsed/new/
   // frequent/ordered-at-depot). Blank makes an activity segment fail closed, never wider.

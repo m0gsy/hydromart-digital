@@ -20,15 +20,43 @@ export const envValidationSchema = Joi.object({
   ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Product catalog, read to validate and name PRODUK stock lines. Blank = validation
   // off: lines are accepted with the label the operator typed (fail-open).
-  PRODUCT_SERVICE_URL: Joi.string().uri().allow('').default('http://localhost:3003'),
+  // D1-07: in production the default must not be localhost (it pointed the catalog at nothing,
+  // silently). There it defaults to blank = validation off, and an explicit localhost is refused.
+  // Not made REQUIRED: unlike the others it is genuinely optional (fail-open), and the
+  // integration stack (docker-compose.test.yml, NODE_ENV=production) does not set it.
+  PRODUCT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('http://localhost:3003')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri()
+        .allow('')
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .default(''),
+    }),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
   // Closing a cashier's shift reads that depot's takings from payment-service. Blank means
   // shifts can be opened but never closed — deliberate: a shift close that guesses the
   // expected cash would accuse or absolve a real person on made-up numbers.
-  PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // D1-08: required in production for the same reason (compose sets it).
+  PAYMENT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   // Courier COD totals for the daily close. Blank = a day cannot be closed (fail closed).
-  DELIVERY_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  DELIVERY_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  ORDER_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
   // business; the courier never enters the amount — the server computes deposit × qty.
