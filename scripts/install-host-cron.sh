@@ -129,6 +129,11 @@ CRON_TZ=$CRON_TZ_VALUE
 # without anybody having had to diarise it. Read-only: EXPLAIN, never EXPLAIN ANALYZE.
 15 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/explain-hot-queries.sh >> /var/log/hydromart-ops-checks.log 2>&1
 
+# Old tagged images. Each deploy leaves the previous tag behind and nothing removed it:
+# 3315 images / 130 GB on 2026-11-08, root disk at 90%, DiskSpaceLow firing. Sunday, after
+# the Saturday-night deploys are done; keeps the last 7 days as rollback targets.
+0 4 * * 0 cd $REPO && bash scripts/docker-gc.sh --old-images >> /var/log/hydromart-ops-checks.log 2>&1
+
 # Login is an SMS one-time code, and the credit that pays for it was watched by nobody: at zero
 # nobody signs in on any depot, and the first report would be a customer. Asks Zenziva from
 # inside the auth container every six hours; alerts under ZENZIVA_MIN_BALANCE, on a credit that
