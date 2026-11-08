@@ -33,6 +33,33 @@ describe('SalesImportService', () => {
     expect(first.batchId).toBe(second.batchId); // one batch per import run
   });
 
+  // ORD-14. `lineTotal` was stored as typed and merged into a depot's revenue, so a row where
+  // 2 x 20.000 said 400.000 added 360.000 that was never sold. It is derivable, so a row that
+  // disagrees with itself is refused (by name), not guessed at.
+  it('refuses a row whose lineTotal is not unitPrice x quantity, naming both numbers', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 'x' });
+    const service = makeService({ create });
+    const summary = await service.importTransactions(user, DEPOT_A, [
+      row({ externalRef: 'OK', lineTotal: 40000 }),
+      row({ externalRef: 'BAD', lineTotal: 400000 }),
+    ]);
+    expect(summary).toMatchObject({ created: 1, failed: 1 });
+    expect(create).toHaveBeenCalledTimes(1);
+    const bad = summary.results.find((r) => r.status === 'failed');
+    expect(bad?.message).toMatch(/400\.?000/);
+    expect(bad?.message).toMatch(/40\.?000/);
+  });
+
+  it('tolerates a half-rupiah of rounding either way, but not a whole one', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 'x' });
+    const service = makeService({ create });
+    const summary = await service.importTransactions(user, DEPOT_A, [
+      row({ externalRef: 'A', quantity: 3, unitPrice: 3333.33, lineTotal: 10000 }),
+      row({ externalRef: 'B', lineTotal: 40001 }),
+    ]);
+    expect(summary).toMatchObject({ created: 1, failed: 1 });
+  });
+
   it('reports a duplicate externalRef as skipped, not failed', async () => {
     const create = jest
       .fn()
