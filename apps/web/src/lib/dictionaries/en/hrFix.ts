@@ -2152,6 +2152,8 @@ export const hrFix = {
     paidAt: 'Paid',
     pendingWarning:
       '{n} attendance day(s) in this period are still undecided. The payroll can still be approved — decide those days, then record the difference as an adjustment in the next period (deducted if rejected, paid in arrears if approved).',
+    ptkpMissing:
+      'This employee has no PTKP status on file, so PPh 21 on this slip is 0. That is missing data, not an absence of tax. Fill in PTKP on the employee profile, then regenerate the slip with "Use current wage & role".',
     decemberWarning:
       '{n} earlier month(s) this year are still unapproved, so December PPh 21 is computed without them and may be short. Approve those months, then regenerate the December slip.',
     approveConfirmPending:

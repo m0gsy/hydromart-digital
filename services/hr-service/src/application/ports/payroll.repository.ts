@@ -83,6 +83,11 @@ export type PayrollWithEmployee = PayrollWithItems & {
    * PPh 21 is short until they are approved and December is regenerated.
    */
   unapprovedEarlierMonths?: number;
+  /**
+   * HR-11: set on a DRAFT slip priced with no PTKP status. PPh 21 is 0 then, because the data is
+   * missing and not because nothing is owed, and the slip used to say nothing about it.
+   */
+  ptkpMissing?: true;
   /** The per-depot split, for a reader who may see the whole slip (feature on, and split). */
   shares?: PayrollShareRow[];
 };
