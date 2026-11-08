@@ -1388,6 +1388,9 @@ export const hrFix = {
     title: 'Payroll',
     period: 'Periode',
     generate: 'Generate',
+    refreshSnapshot: 'Pakai gaji & jabatan terbaru',
+    refreshSnapshotHint:
+      'Buat ulang draft memakai gaji, jabatan, dan PTKP karyawan sekarang. Tanpa ini, draft memakai data saat pertama dibuat.',
     empty: 'Belum ada payroll periode ini.',
     employeeOpt: 'Karyawan (opsional)',
     allEmployees: 'Semua karyawan',
