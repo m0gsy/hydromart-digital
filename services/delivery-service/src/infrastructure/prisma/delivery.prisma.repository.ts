@@ -59,6 +59,7 @@ interface ProofRow {
   photoUrl: string;
   signatureUrl: string | null;
   sealIntact: boolean | null;
+  distanceMeters: number | null;
   recipientName: string;
   latitude: number;
   longitude: number;
@@ -159,6 +160,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
             photoUrl: row.proof.photoUrl,
             signatureUrl: row.proof.signatureUrl,
             sealIntact: row.proof.sealIntact,
+            distanceMeters: row.proof.distanceMeters,
             recipientName: row.proof.recipientName,
             latitude: row.proof.latitude,
             longitude: row.proof.longitude,
