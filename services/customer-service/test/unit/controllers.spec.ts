@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
@@ -251,15 +251,39 @@ describe('InternalController', () => {
     expect(await c.crmSummary('d1')).toEqual({ counts: {} });
     expect(svc.getCrmDashboard).toHaveBeenCalledWith('d1');
   });
+  const D1 = '11111111-1111-4111-8111-111111111111';
+  const D2 = '22222222-2222-4222-8222-222222222222';
   it('crmSummaries answers every depot in one request, each row carrying its depotId', async () => {
     svc.getCrmDashboard.mockImplementation(async (id: string) => ({
       counts: { total: id.length },
     }));
-    expect(await c.crmSummaries('d1, d2 ,')).toEqual([
-      { depotId: 'd1', counts: { total: 2 } },
-      { depotId: 'd2', counts: { total: 2 } },
+    expect(await c.crmSummaries(`${D1}, ${D2} ,`)).toEqual([
+      { depotId: D1, counts: { total: 36 } },
+      { depotId: D2, counts: { total: 36 } },
     ]);
     expect(svc.getCrmDashboard).toHaveBeenCalledTimes(2);
+  });
+
+  // CUS-06: the list used to be unbounded and unvalidated, so one request could fan out into
+  // as many per-depot reads as the caller cared to type, each fed whatever string was sent.
+  it('crmSummaries refuses a depot id that is not a UUID, before any read', async () => {
+    svc.getCrmDashboard.mockClear();
+    await expect(c.crmSummaries(`${D1},not-a-uuid`)).rejects.toThrow(BadRequestException);
+    expect(svc.getCrmDashboard).not.toHaveBeenCalled();
+  });
+
+  it('crmSummaries refuses more than 200 depots in one request', async () => {
+    svc.getCrmDashboard.mockClear();
+    const many = Array.from({ length: 201 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    await expect(c.crmSummaries(many.join(','))).rejects.toThrow(/200/);
+    expect(svc.getCrmDashboard).not.toHaveBeenCalled();
+  });
+
+  it('crmSummaries reads a repeated depot once', async () => {
+    svc.getCrmDashboard.mockClear();
+    svc.getCrmDashboard.mockResolvedValue({ counts: {} });
+    expect(await c.crmSummaries(`${D1},${D1}`)).toHaveLength(1);
+    expect(svc.getCrmDashboard).toHaveBeenCalledTimes(1);
   });
   it('crmSummaries asks nothing for an empty or missing depot list', async () => {
     expect(await c.crmSummaries('')).toEqual([]);

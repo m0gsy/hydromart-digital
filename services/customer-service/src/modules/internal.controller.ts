@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -36,6 +37,10 @@ import {
  * Service-to-service reads (no end-user token). @Public() bypasses the global JWT guard;
  * InternalAuthGuard (shared INTERNAL_SERVICE_KEY, x-internal-key) is then the sole, fail-closed auth.
  */
+/** CUS-06: the most depots one crm-summaries request may name; an owner has tens, not thousands. */
+const MAX_SUMMARY_DEPOTS = 200;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @ApiTags('Internal')
 @Public()
 @UseGuards(InternalAuthGuard)
@@ -193,10 +198,22 @@ export class InternalController {
   async crmSummaries(
     @Query('depotIds') depotIds: string,
   ): Promise<(CrmDashboard & { depotId: string })[]> {
-    const ids = (depotIds ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
+    // CUS-06: validated and bounded BEFORE any read. This used to take whatever string it was
+    // sent and fan out one per-depot read for every piece of it.
+    const ids = [
+      ...new Set(
+        (depotIds ?? '')
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (ids.length > MAX_SUMMARY_DEPOTS) {
+      throw new BadRequestException(`depotIds memuat paling banyak ${MAX_SUMMARY_DEPOTS} depot`);
+    }
+    if (ids.some((id) => !UUID_RE.test(id))) {
+      throw new BadRequestException('depotIds harus berupa daftar UUID dipisah koma');
+    }
     // ponytail: the per-depot CRM math still runs once per depot — what this removes is the
     // HTTP round-trip per depot, which is the expensive half. Concurrent, because each
     // depot's read is independent; pushing the lifecycle counts into one grouped query is
