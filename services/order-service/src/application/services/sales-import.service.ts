@@ -42,6 +42,16 @@ export class SalesImportService {
     return runImport(
       rows,
       async (row) => {
+        // ORD-14: the total is derivable, so a row that disagrees with itself is refused by
+        // name rather than merged into a depot's revenue. Half a rupiah of slack either way
+        // covers a unit price typed to two decimals.
+        const expected = row.unitPrice * row.quantity;
+        if (Math.abs(row.lineTotal - expected) > 0.5) {
+          throw new Error(
+            `lineTotal ${row.lineTotal.toLocaleString('id-ID')} tidak sama dengan harga satuan x jumlah ` +
+              `(${row.unitPrice.toLocaleString('id-ID')} x ${row.quantity} = ${expected.toLocaleString('id-ID')})`,
+          );
+        }
         await this.repo.create({
           depotId,
           externalRef: row.externalRef,
