@@ -1,5 +1,11 @@
-import { CallHandler, ExecutionContext } from '@nestjs/common';
-import { firstValueFrom, of } from 'rxjs';
+import {
+  BadRequestException,
+  CallHandler,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { firstValueFrom, of, throwError } from 'rxjs';
 
 import { AuditInterceptor } from '../../src/infrastructure/http/audit.interceptor';
 import { AuditService } from '../../src/application/services/audit.service';
@@ -10,10 +16,12 @@ function ctx(
   path: string,
   body: unknown = null,
   reqBody: unknown = undefined,
+  routePath?: string,
 ): { context: ExecutionContext; handler: CallHandler } {
   const request = {
     method,
     path,
+    route: routePath ? { path: routePath } : undefined,
     url: path,
     body: reqBody,
     user: { sub: 'actor-1' },
@@ -156,5 +164,65 @@ describe('AuditInterceptor', () => {
     await firstValueFrom(interceptor.intercept(context, handler));
     expect(recorded[0].actorId).toBeNull();
     expect(recorded[0].after).toBeNull();
+  });
+
+  /*
+   * HR-14 — the action was the bare HTTP verb, so "POST employees" could be a hire, a
+   * termination or a salary change; and a request the guard or the service REFUSED left no
+   * row at all, which is exactly the attempt an investigation asks about.
+   */
+  describe('HR-14', () => {
+    it('names the action after the route, not just the verb', async () => {
+      const { interceptor, recorded } = build();
+      const { context, handler } = ctx(
+        'POST',
+        '/api/v1/payroll/22222222-2222-2222-2222-222222222222/approve',
+        null,
+        undefined,
+        '/api/v1/payroll/:id/approve',
+      );
+      await firstValueFrom(interceptor.intercept(context, handler));
+      expect(recorded[0]!.action).toBe('POST payroll/:id/approve');
+    });
+
+    it('records a refused (403) mutation as DENIED and still rethrows', async () => {
+      const { interceptor, recorded } = build();
+      const { context } = ctx('PATCH', '/api/v1/employees/x', null, { monthlyRate: 1 }, '/api/v1/employees/:id');
+      const handler: CallHandler = { handle: () => throwError(() => new ForbiddenException('nope')) };
+      await expect(firstValueFrom(interceptor.intercept(context, handler))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(recorded).toHaveLength(1);
+      expect(recorded[0]).toMatchObject({
+        action: 'DENIED PATCH employees/:id',
+        actorId: 'actor-1',
+        after: { monthlyRate: '[redacted]' },
+      });
+    });
+
+    it('records 401 as DENIED too', async () => {
+      const { interceptor, recorded } = build();
+      const { context } = ctx('POST', '/api/v1/bonuses');
+      const handler: CallHandler = { handle: () => throwError(() => new UnauthorizedException()) };
+      await expect(firstValueFrom(interceptor.intercept(context, handler))).rejects.toBeDefined();
+      expect(recorded[0]!.action).toBe('DENIED POST');
+    });
+
+    it('does not audit validation or conflict failures: nothing was attempted against anyone', async () => {
+      const { interceptor, recorded } = build();
+      const { context } = ctx('POST', '/api/v1/bonuses');
+      const handler: CallHandler = { handle: () => throwError(() => new BadRequestException('x')) };
+      await expect(firstValueFrom(interceptor.intercept(context, handler))).rejects.toBeDefined();
+      expect(recorded).toHaveLength(0);
+    });
+
+    it('rethrows a non-HTTP error untouched', async () => {
+      const { interceptor, recorded } = build();
+      const { context } = ctx('POST', '/api/v1/bonuses');
+      const boom = new Error('db');
+      const handler: CallHandler = { handle: () => throwError(() => boom) };
+      await expect(firstValueFrom(interceptor.intercept(context, handler))).rejects.toBe(boom);
+      expect(recorded).toHaveLength(0);
+    });
   });
 });
