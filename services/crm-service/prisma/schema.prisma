@@ -25,6 +25,9 @@ enum CampaignStatus {
   DRAFT
   SENDING
   SENT
+  /// Added ahead of the code that writes it (CRM-02 / CRM-04).
+  COMPLETED_WITH_FAILURES
+  CANCELLED
 }
 
 /// Broadcast channel. IN_APP is what campaigns use now — an inbox row plus best-effort
@@ -45,6 +48,8 @@ enum RecipientStatus {
   SENDING
   SENT
   FAILED
+  /// Added ahead of the code that writes it (CRM-02).
+  SKIPPED
 }
 
 /// Delivery outcome of a single transactional notification.
