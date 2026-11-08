@@ -48,6 +48,7 @@ describe('DeliveryPrismaRepository', () => {
     signatureUrl: 's.png',
     // A proof from before the seal column: null, and it must stay null through the mapper.
     sealIntact: null,
+    distanceMeters: 42,
     recipientName: 'Budi',
     latitude: -6.2,
     longitude: 106.8,
@@ -172,6 +173,8 @@ describe('DeliveryPrismaRepository', () => {
     expect(rec.id).toBe('del-1');
     expect(rec.status).toBe(DeliveryStatus.ASSIGNED);
     expect(rec.proof?.recipientName).toBe('Budi');
+    // DLV-14: written at hand-over, now read back.
+    expect(rec.proof?.distanceMeters).toBe(42);
     expect(rec.history[0].status).toBe(DeliveryStatus.ASSIGNED);
   });
 

@@ -133,6 +133,8 @@ export class ProofResponseDto {
   signatureUrl!: string | null;
   @ApiProperty({ type: Boolean, nullable: true })
   sealIntact!: boolean | null;
+  @ApiProperty({ type: Number, nullable: true })
+  distanceMeters!: number | null;
   @ApiProperty({ type: String })
   recipientName!: string;
   @ApiProperty({ type: Number })
