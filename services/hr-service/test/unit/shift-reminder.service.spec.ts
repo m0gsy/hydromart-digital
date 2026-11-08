@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ShiftReminderService } from '../../src/application/services/shift-reminder.service';
 import { ShiftReminderController } from '../../src/modules/shift-reminder.controller';
 
@@ -243,6 +244,17 @@ describe('ShiftReminderService', () => {
       const { service } = build({ shifts: { 's-morning': { startTime: '08:00' } } });
       expect((await service.remindStartingSoon(LATE)).reminded).toBe(0);
     });
+  });
+
+  it('HR-19: warns when the assignment read hits its bound, and stays quiet below it', async () => {
+    const full = Array.from({ length: 5000 }, (_, i) => assignment({ id: `a${i}`, employeeId: `e${i}` }));
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    await build({ assignments: full, shifts: MORNING }).service.remindStartingSoon(NOW);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('5000 assignments'));
+    warn.mockClear();
+    await build({ shifts: MORNING }).service.remindStartingSoon(NOW);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('reads the roster for the local day it is running on', async () => {

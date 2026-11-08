@@ -976,16 +976,20 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
     expect(m(p, 'shiftAssignment').update).not.toHaveBeenCalled();
   });
 
-  it('listAllAssignmentsUpTo reads every employee up to a day, oldest first, bounded', async () => {
+  // HR-19: bounded by NEWEST first, so a cut drops superseded history rather than the
+  // assignment an employee is working under today. The list still comes back oldest first,
+  // which is what the tie-break in `assignmentInForce` (later in the list wins) relies on.
+  it('listAllAssignmentsUpTo keeps the newest rows when bounded and returns them oldest first', async () => {
     const p = makePrisma();
     const onDate = new Date('2026-08-03T00:00:00.000Z');
-    m(p, 'shiftAssignment').findMany.mockResolvedValue([]);
-    await new ShiftPrismaRepository(asService(p)).listAllAssignmentsUpTo(onDate, 5000);
+    m(p, 'shiftAssignment').findMany.mockResolvedValue([{ id: 'new' }, { id: 'old' }]);
+    const out = await new ShiftPrismaRepository(asService(p)).listAllAssignmentsUpTo(onDate, 5000);
     expect(m(p, 'shiftAssignment').findMany).toHaveBeenCalledWith({
       where: { effectiveFrom: { lte: onDate } },
-      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
       take: 5000,
     });
+    expect(out.map((a) => a.id)).toEqual(['old', 'new']);
   });
 
   describe('claimShiftReminder', () => {
