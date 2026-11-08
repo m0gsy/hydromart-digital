@@ -159,10 +159,12 @@ export class FakeForecastRepository implements ForecastRepository {
   async listCustomerActivity(query: {
     depotId?: string | null;
     limit: number;
+    lastOrderSince?: Date;
   }): Promise<CustomerActivityRow[]> {
-    const { depotId, limit } = query;
+    const { depotId, limit, lastOrderSince } = query;
     return [...this.activity.values()]
       .filter((a) => depotId === undefined || a.depotId === depotId)
+      .filter((a) => !lastOrderSince || a.lastOrderAt >= lastOrderSince)
       .sort((x, y) => x.lastOrderAt.getTime() - y.lastOrderAt.getTime()) // oldest first
       .slice(0, limit)
       .map((a) => ({ ...a }));

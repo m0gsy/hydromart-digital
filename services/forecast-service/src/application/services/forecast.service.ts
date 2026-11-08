@@ -81,6 +81,8 @@ const MAX_LIMIT = 100;
 const DEFAULT_CHURN_LIMIT = 50;
 const MIN_CHURN_LIMIT = 1;
 const MAX_CHURN_LIMIT = 200;
+/** FCS-02: a customer this many churn windows past their last order is lost, not at risk. */
+const LOST_AFTER_WINDOWS = 3;
 const MIN_CHURN_WINDOW = 7;
 const MAX_CHURN_WINDOW = 180;
 
@@ -114,8 +116,10 @@ export class ForecastService {
     const maWindow = Math.min(historyDays, MAX_MA_WINDOW);
 
     const today = toBusinessDay(params.now ?? new Date(), this.config.businessTimeZone);
-    const fromDay = today - historyDays + 1;
-    const toDay = today;
+    // FCS-01: the series ends YESTERDAY. Today is still being sold; counted as a full day its
+    // half-finished total reads as a collapse in the trend and drags every average down.
+    const toDay = today - 1;
+    const fromDay = toDay - historyDays + 1;
 
     // depotId: undefined -> all depots (global), null -> null-depot only, id -> that depot.
     const rows = await this.repo.findDemandRows({
@@ -165,8 +169,10 @@ export class ForecastService {
     const maWindow = Math.min(historyDays, MAX_MA_WINDOW);
 
     const today = toBusinessDay(params.now ?? new Date(), this.config.businessTimeZone);
-    const fromDay = today - historyDays + 1;
-    const toDay = today;
+    // FCS-01: the series ends YESTERDAY. Today is still being sold; counted as a full day its
+    // half-finished total reads as a collapse in the trend and drags every average down.
+    const toDay = today - 1;
+    const fromDay = toDay - historyDays + 1;
 
     const groups = await this.repo.listDepotProducts({ depotId: params.depotId, fromDay, toDay });
     const model = await this.modelFor(params.depotId);
@@ -212,8 +218,10 @@ export class ForecastService {
     const maWindow = Math.min(historyDays, MAX_MA_WINDOW);
 
     const today = toBusinessDay(params.now ?? new Date(), this.config.businessTimeZone);
-    const fromDay = today - historyDays + 1;
-    const toDay = today;
+    // FCS-01: the series ends YESTERDAY. Today is still being sold; counted as a full day its
+    // half-finished total reads as a collapse in the trend and drags every average down.
+    const toDay = today - 1;
+    const fromDay = toDay - historyDays + 1;
 
     // depotId: undefined -> all depots (global sum), null -> null-depot only, id -> that depot.
     const rows = await this.repo.findRevenueRows({ depotId: params.depotId, fromDay, toDay });
@@ -284,11 +292,15 @@ export class ForecastService {
     const limit = clamp(params.limit ?? DEFAULT_CHURN_LIMIT, MIN_CHURN_LIMIT, MAX_CHURN_LIMIT);
     const now = params.now ?? new Date();
 
-    // Repo returns the oldest `limit` (index-ordered by lastOrderAt asc) — already the most at-risk.
+    // Repo returns the oldest `limit` (index-ordered by lastOrderAt asc) - already the most at-risk.
+    // FCS-02: but only among customers still worth calling. Past LOST_AFTER_WINDOWS windows
+    // without an order they are lost, not at risk, and being the oldest they would otherwise
+    // take every slot of the call sheet forever.
     const rows = await this.repo.listCustomerActivity({
       depotId: params.depotId,
       depotIds: params.depotIds,
       limit,
+      lastOrderSince: new Date(now.getTime() - windowDays * LOST_AFTER_WINDOWS * 86_400_000),
     });
     const churnModel = await this.churnModelFor(params.depotId ?? null);
 
