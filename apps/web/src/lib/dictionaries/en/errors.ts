@@ -27,6 +27,11 @@ export const errors = {
     timeout: 'No location signal yet. Try again somewhere more open.',
     unsupported: 'This device does not support location.',
   },
+  offline: {
+    staleDepot:
+      'You have been moved to another depot. This record was made for your previous depot and cannot be sent; delete it and record it again.',
+    sendFailed: 'Could not send',
+  },
   address: {
     required: 'Fill in every required field.',
     latitudeRange: 'Invalid map pin: latitude must be between -90 and 90.',

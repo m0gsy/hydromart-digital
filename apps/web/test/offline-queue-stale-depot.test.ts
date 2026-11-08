@@ -102,3 +102,24 @@ describe('a queued job captured at a depot the person no longer belongs to', () 
     expect(pending()).toHaveLength(0);
   });
 });
+
+/**
+ * FTR-012. The two sentences the queue writes onto a stuck job were literals in the module,
+ * outside the dictionary, so a courier on English read Indonesian for the one message that
+ * tells them what to do next.
+ */
+describe('offline queue messages are in both dictionaries', () => {
+  it('has the stale-depot and send-failed sentences in id and en', async () => {
+    const { id } = await import('@/lib/dictionaries/id');
+    const { en } = await import('@/lib/dictionaries/en');
+    for (const dict of [id, en] as unknown as { errors: { offline: Record<string, string> } }[]) {
+      expect((dict.errors.offline.staleDepot ?? '').length).toBeGreaterThan(20);
+      expect((dict.errors.offline.sendFailed ?? '').length).toBeGreaterThan(3);
+    }
+  });
+
+  it('writes the resolved sentence, which keeps the Indonesian default under lang=id', async () => {
+    const { STALE_DEPOT_MESSAGE } = await freshQueue();
+    expect(STALE_DEPOT_MESSAGE).toMatch(/depot lain/);
+  });
+});

@@ -51,6 +51,12 @@ export const errors = {
     timeout: 'Sinyal lokasi belum ketemu. Coba lagi di tempat yang lebih terbuka.',
     unsupported: 'Perangkat ini tidak mendukung lokasi.',
   },
+  // FTR-012: what the offline queue writes onto a job it could not send.
+  offline: {
+    staleDepot:
+      'Anda sudah dipindahkan ke depot lain. Catatan ini dibuat untuk depot sebelumnya dan tidak bisa dikirim; hapus lalu catat ulang.',
+    sendFailed: 'Gagal mengirim',
+  },
   address: {
     required: 'Lengkapi semua kolom yang wajib diisi.',
     latitudeRange: 'Titik peta tidak valid: lintang harus antara -90 dan 90.',
