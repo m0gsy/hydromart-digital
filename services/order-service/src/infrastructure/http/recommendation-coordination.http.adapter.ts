@@ -43,6 +43,7 @@ export class RecommendationCoordinationHttpAdapter implements RecommendationCoor
             productName: i.productName,
             sku: i.sku,
             unit: i.unit,
+            quantity: i.quantity,
           })),
         }),
         signal: controller.signal,
