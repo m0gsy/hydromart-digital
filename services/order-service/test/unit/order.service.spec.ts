@@ -1517,6 +1517,32 @@ describe('OrderService', () => {
       expect(ops[0].customerId).toBeNull();
     });
 
+    // ORD-04. placeScheduled called neither this nor anything for the depot: a subscription
+    // delivery landed on a depot with nobody told, while every other creation path rang it.
+    it('tells the depot about a subscription delivery, once, without a customer id', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const order = await service.placeScheduled(
+        customer,
+        [{ productId: product.id, quantity: 1 }],
+        address,
+        `sub:${randomUUID()}:2026-09-01T00:00:00.000Z`,
+        randomUUID(),
+      );
+      const ops = notification.calls.filter((c) => c.event === 'DEPOT_ORDER_INCOMING');
+      expect(ops).toHaveLength(1);
+      expect(ops[0].depotId).toBe(order.depotId);
+      expect(ops[0].customerId).toBeNull();
+    });
+
+    it('does not tell the depot again when a sweep replays the same delivery', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 1 }];
+      const key = `sub:${randomUUID()}:2026-09-01T00:00:00.000Z`;
+      await service.placeScheduled(customer, lines, address, key);
+      await service.placeScheduled(customer, lines, address, key);
+      expect(notification.calls.filter((c) => c.event === 'DEPOT_ORDER_INCOMING')).toHaveLength(1);
+    });
+
     // The customer's own cancel is silent to them, which left the depot preparing an order
     // that no longer existed.
     it('tells the depot — not the buyer — when the customer cancels', async () => {
