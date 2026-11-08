@@ -2149,6 +2149,8 @@ export const hrFix = {
     paidAt: 'Paid',
     pendingWarning:
       '{n} attendance day(s) in this period are still undecided. The payroll can still be approved — decide those days, then record the difference as an adjustment in the next period (deducted if rejected, paid in arrears if approved).',
+    decemberWarning:
+      '{n} earlier month(s) this year are still unapproved, so December PPh 21 is computed without them and may be short. Approve those months, then regenerate the December slip.',
     approveConfirmPending:
       'Approve a payment of {net}? {n} attendance day(s) are still undecided; the difference must be recorded in the next period.',
     failed: 'Failed',

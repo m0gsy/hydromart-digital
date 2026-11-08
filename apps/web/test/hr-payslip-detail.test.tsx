@@ -184,3 +184,16 @@ describe('CA-1-60 a bonus threshold says what it counts', () => {
     await waitFor(() => expect(screen.getByText(/\b22\b/)).toBeTruthy());
   });
 });
+
+describe('HR-05: December slip with earlier months still unapproved', () => {
+  it('warns on a DRAFT slip, and stays quiet when the count is absent', async () => {
+    get.mockResolvedValueOnce({ ...PAYROLL, status: 'DRAFT', periodMonth: '2026-12', unapprovedEarlierMonths: 2 });
+    const { unmount } = render(<PayrollDetailPage />);
+    expect(await screen.findByText('hrFix.payrollDetail.decemberWarning:2')).toBeTruthy();
+    unmount();
+
+    get.mockResolvedValueOnce({ ...PAYROLL, status: 'DRAFT', periodMonth: '2026-12' });
+    render(<PayrollDetailPage />);
+    await waitFor(() => expect(screen.queryByText(/decemberWarning/)).toBeNull());
+  });
+});
