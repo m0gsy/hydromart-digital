@@ -101,6 +101,76 @@ describe('AttendanceService manual override', () => {
     });
   });
 
+  /*
+   * HR-03 — a correction that moves the times must move the minutes, and must not rewrite a
+   * month whose slip is already approved or paid. Payroll reads workingMinutes (overtime), and
+   * the import path already refuses a closed month; the correction path did neither.
+   */
+  describe('HR-03', () => {
+    const withTimes = { ...row, status: 'PRESENT', checkInAt: new Date('2026-07-01T01:00:00Z') } as Attendance;
+    const make = (existing: Attendance, slip: { status: string } | null) => {
+      let last: ManualAttendanceInput | undefined;
+      const repo = {
+        findById: async () => existing,
+        upsertManual: async (i: ManualAttendanceInput) => {
+          last = i;
+          return { ...existing } as Attendance;
+        },
+        recordAdjustment: async () => undefined,
+      } as unknown as AttendanceRepository;
+      const employees = { findById: async () => employee } as unknown as EmployeeRepository;
+      const payrolls = { findByEmployeeAndPeriod: jest.fn(async () => slip) };
+      const svc = new AttendanceService(
+        repo, {} as never, {} as never, employees, {} as never,
+        undefined, undefined, undefined, payrolls as never,
+      );
+      return { svc, last: () => last, payrolls };
+    };
+
+    it('recomputes workingMinutes when the check-out time is corrected', async () => {
+      const { svc, last } = make(withTimes, null);
+      await svc.adjust(user, 'a1', { reason: 'lupa pulang', checkOutAt: '2026-07-01T10:30:00.000Z' });
+      expect(last()?.workingMinutes).toBe(570);
+    });
+
+    it('recomputes from both new times when both are given', async () => {
+      const { svc, last } = make(row, null);
+      await svc.adjust(user, 'a1', {
+        reason: 'x',
+        checkInAt: '2026-07-01T01:00:00.000Z',
+        checkOutAt: '2026-07-01T09:00:00.000Z',
+      });
+      expect(last()?.workingMinutes).toBe(480);
+    });
+
+    it('leaves minutes alone when the patch does not touch the times', async () => {
+      const { svc, last } = make(withTimes, null);
+      await svc.adjust(user, 'a1', { reason: 'x', status: 'LATE' });
+      expect(last()?.workingMinutes).toBeUndefined();
+    });
+
+    it('never records a negative span', async () => {
+      const { svc, last } = make(withTimes, null);
+      await svc.adjust(user, 'a1', { reason: 'x', checkOutAt: '2026-07-01T00:00:00.000Z' });
+      expect(last()?.workingMinutes).toBe(0);
+    });
+
+    it('409s when that month slip is APPROVED or PAID, before touching the row', async () => {
+      const { svc, last, payrolls } = make(withTimes, { status: 'APPROVED' });
+      await expect(svc.adjust(user, 'a1', { reason: 'x', status: 'LEAVE' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(payrolls.findByEmployeeAndPeriod).toHaveBeenCalledWith('e1', '2026-07');
+      expect(last()).toBeUndefined();
+    });
+
+    it('allows the correction while the slip is still a DRAFT', async () => {
+      const { svc, last } = make(withTimes, { status: 'DRAFT' });
+      await svc.adjust(user, 'a1', { reason: 'x', status: 'LEAVE' });
+      expect(last()?.status).toBe('LEAVE');
+    });
+  });
+
   it('404s an attendance row whose employee is gone, on both write paths', async () => {
     const repo = {
       findById: async () => row,
