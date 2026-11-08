@@ -115,12 +115,16 @@ export class ShiftPrismaRepository implements ShiftRepository {
     }
   }
 
-  listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]> {
-    return this.prisma.shiftAssignment.findMany({
+  async listAllAssignmentsUpTo(onDate: Date, limit: number): Promise<ShiftAssignment[]> {
+    // HR-19: the table is append-only, so the cut must fall on the OLD rows. Taken oldest-first
+    // the newest assignments were the ones dropped past the limit, and those employees stopped
+    // being reminded. Reversed after, because callers resolve ties by position (later wins).
+    const newestFirst = await this.prisma.shiftAssignment.findMany({
       where: { effectiveFrom: { lte: onDate } },
-      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
+    return newestFirst.reverse();
   }
 
   listAssignments(employeeId: string): Promise<ShiftAssignment[]> {

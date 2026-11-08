@@ -95,6 +95,13 @@ export class ShiftReminderService {
       latest,
       ShiftReminderService.ASSIGNMENT_LIMIT,
     );
+    // HR-19: hitting the bound used to be silent. The newest rows are kept, but the oldest
+    // history of busy employees is gone, so say so rather than let it look complete.
+    if (all.length >= ShiftReminderService.ASSIGNMENT_LIMIT) {
+      this.logger.warn(
+        `Shift reminder read ${all.length} assignments (the limit); older rows were left out`,
+      );
+    }
     const byEmployee = new Map<string, ShiftAssignment[]>();
     for (const a of all) byEmployee.set(a.employeeId, [...(byEmployee.get(a.employeeId) ?? []), a]);
 
