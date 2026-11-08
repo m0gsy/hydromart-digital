@@ -721,16 +721,18 @@ describe('EventPublisherHttpAdapter', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('fails open on a non-2xx and on an unreachable admin-service', async () => {
+  // AAS-11: the adapter is only the TRANSPORT now. It reports a failure so the relay can keep
+  // the event in the outbox; the fail-open promise to the courier lives in EventRelayService.
+  it('throws on a non-2xx and on an unreachable admin-service, so the outbox keeps the event', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
-    await expect(
-      new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at),
-    ).resolves.toBeUndefined();
+    await expect(new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at)).rejects.toThrow(
+      /503/,
+    );
 
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(
-      new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at),
-    ).resolves.toBeUndefined();
+    await expect(new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at)).rejects.toThrow(
+      /ECONNREFUSED/,
+    );
   });
 });
 

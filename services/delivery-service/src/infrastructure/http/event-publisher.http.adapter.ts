@@ -8,8 +8,10 @@ import { EventPublisherPort } from '../../application/ports/event-publisher.port
  * INTERNAL_SERVICE_KEY. admin-service owns the subscriptions, the signing and the retries;
  * this only has to report that the thing happened.
  *
- * Fails OPEN and says so in the log — see EventPublisherPort for why that is the right
- * default here and the wrong one for stock (B-6b).
+ * AAS-11: this is only the TRANSPORT. It throws when admin-service does not take the event,
+ * so EventRelayService can keep it in the outbox and retry; the fail-open promise to the
+ * courier (see EventPublisherPort) is kept there, not here. Not configured is not a failure:
+ * nothing is owed to a fan-out that does not exist.
  */
 @Injectable()
 export class EventPublisherHttpAdapter implements EventPublisherPort {
@@ -29,21 +31,17 @@ export class EventPublisherHttpAdapter implements EventPublisherPort {
       this.logger.debug(`${event} not published (webhook fan-out not configured)`);
       return;
     }
-    try {
-      const res = await fetch(`${adminServiceUrl}/api/v1/webhooks/events`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-        body: JSON.stringify({
-          event,
-          payload,
-          occurredAt: occurredAt.toISOString(),
-          ...(eventId ? { eventId } : {}),
-        }),
-        signal: AbortSignal.timeout(EventPublisherHttpAdapter.TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`admin-service responded ${res.status}`);
-    } catch (error) {
-      this.logger.warn(`${event} not published: ${(error as Error).message}`);
-    }
+    const res = await fetch(`${adminServiceUrl}/api/v1/webhooks/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+      body: JSON.stringify({
+        event,
+        payload,
+        occurredAt: occurredAt.toISOString(),
+        ...(eventId ? { eventId } : {}),
+      }),
+      signal: AbortSignal.timeout(EventPublisherHttpAdapter.TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`admin-service responded ${res.status}`);
   }
 }

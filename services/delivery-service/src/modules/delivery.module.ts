@@ -32,6 +32,9 @@ import { DepotLocationHttpAdapter } from '../infrastructure/http/depot-location.
 import { CustomerNotificationHttpAdapter } from '../infrastructure/http/customer-notification.http.adapter';
 import { OpsNotifierHttpAdapter } from '../infrastructure/http/ops-notifier.http.adapter';
 import { EventPublisherHttpAdapter } from '../infrastructure/http/event-publisher.http.adapter';
+import { EventOutboxPrismaRepository } from '../infrastructure/prisma/event-outbox.prisma.repository';
+import { EventRelayService } from '../application/services/event-relay.service';
+import { EventOutboxController } from './event-outbox.controller';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { StoragePort } from '../application/ports/storage.port';
@@ -82,7 +85,11 @@ const providers: Provider[] = [
   { provide: DELIVERY_TOKENS.OrderLookup, useClass: OrderLookupHttpAdapter },
   { provide: DELIVERY_TOKENS.OpsNotifier, useClass: OpsNotifierHttpAdapter },
   { provide: DELIVERY_TOKENS.CustomerNotification, useClass: CustomerNotificationHttpAdapter },
-  { provide: DELIVERY_TOKENS.EventPublisher, useClass: EventPublisherHttpAdapter },
+  // AAS-11: the delivery service publishes through the outbox; the HTTP adapter is its transport.
+  { provide: DELIVERY_TOKENS.EventTransport, useClass: EventPublisherHttpAdapter },
+  { provide: DELIVERY_TOKENS.EventOutbox, useClass: EventOutboxPrismaRepository },
+  EventRelayService,
+  { provide: DELIVERY_TOKENS.EventPublisher, useExisting: EventRelayService },
   {
     provide: DELIVERY_TOKENS.Storage,
     inject: [DeliveryConfigService],
@@ -113,6 +120,7 @@ const providers: Provider[] = [
     ReportController,
     UploadController,
     RetentionController,
+    EventOutboxController,
     SlaAlertController,
     SettingsController,
   ],

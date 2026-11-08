@@ -336,3 +336,24 @@ model ServiceSetting {
   @@index([scope, depotId])
   @@map("service_settings")
 }
+
+/// AAS-11: partner-webhook events admin-service has not accepted yet. Written before the
+/// send, closed when it lands, re-sent by the sweep. Unique on the idempotency key so
+/// recording an event twice leaves one row.
+model WebhookEventOutbox {
+  id            String   @id @default(uuid()) @db.Uuid
+  event         String
+  eventId       String   @unique
+  payload       Json
+  occurredAt    DateTime
+  /// PENDING | DONE | DEAD (a plain string: no enum migration to add a state later).
+  status        String   @default("PENDING")
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@map("webhook_event_outbox")
+}
