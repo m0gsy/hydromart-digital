@@ -267,14 +267,24 @@ function RedeemCatalog({
   const [choosing, setChoosing] = useState<RewardItem | null>(null);
   const depots = useAsync<Page<Depot>>(() => api.get(endpoints.depots.browse({ limit: 50 })));
 
+  // APP-06: ONE key per (item, depot) attempt. A request whose answer was lost and is tapped
+  // again must carry the same key, or the server's per-customer dedupe never sees a repeat and
+  // the points are spent twice. Dropped only once the server accepted it, so a later redemption
+  // of the same item is a genuinely new purchase.
+  const attemptKeys = useRef(new Map<string, string>());
+
   async function redeem(item: RewardItem, depotId: string) {
     setPending(item.id);
+    const slot = `${item.id}:${depotId}`;
+    const idempotencyKey = attemptKeys.current.get(slot) ?? crypto.randomUUID();
+    attemptKeys.current.set(slot, idempotencyKey);
     try {
       const result = await api.post<RewardRedemption>(
         endpoints.rewards.redeem,
-        { rewardItemId: item.id, idempotencyKey: crypto.randomUUID(), depotId },
+        { rewardItemId: item.id, idempotencyKey, depotId },
         true,
       );
+      attemptKeys.current.delete(slot);
       onRedeemed(result.pointsBalance);
       toast(t('profile.rewards.catalog.redeemed', { name: item.name }), 'success');
     } catch (err) {

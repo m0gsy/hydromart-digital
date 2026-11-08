@@ -431,3 +431,75 @@ describe('/rewards — referral code and the ledger', () => {
     expect(await screen.findByRole('button', { name: /coba lagi|try again/i })).toBeInTheDocument();
   });
 });
+
+/**
+ * APP-06. `redeem()` minted `crypto.randomUUID()` inside the function, so the server's
+ * per-(customer, key) dedupe never had a repeat to catch: a request whose answer was lost, then
+ * tapped again, spent the points twice.
+ */
+describe('/rewards — redeeming is idempotent per attempt', () => {
+  const renderPage = () =>
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          <RewardsPage />
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+
+  beforeEach(() => {
+    get.mockReset().mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.includes('/rewards/catalog'))
+        return Promise.resolve([{ id: 'ri-1', name: 'Galon gratis', pointsCost: 500 }]);
+      if (p.includes('/depots')) return Promise.resolve(DEPOTS);
+      if (p.includes('/loyalty/me/transactions')) return Promise.resolve({ items: [], total: 0 });
+      if (p.includes('/loyalty/me'))
+        return Promise.resolve({ pointsBalance: 900, lifetimePoints: 900, tier: 'SILVER', discountRate: 0 });
+      if (p.includes('/loyalty/tiers')) return Promise.resolve([]);
+      if (p.includes('/referrals/me'))
+        return Promise.resolve({ code: { code: 'A' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 });
+      return Promise.resolve([]);
+    });
+    getCached.mockReset().mockImplementation((path: string) =>
+      String(path).includes('/depots') ? Promise.resolve(DEPOTS) : Promise.resolve([]),
+    );
+    post.mockReset();
+  });
+
+  async function redeemAt(depotName: RegExp) {
+    await userEvent.click(await screen.findByRole('button', { name: /^tukar$/i }));
+    await userEvent.click(await screen.findByRole('button', { name: depotName }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+  }
+  const keys = () =>
+    post.mock.calls.map((c) => (c[1] as { idempotencyKey: string }).idempotencyKey);
+
+  it('re-sends the SAME key after a failed attempt, and mints a new one after a success', async () => {
+    post.mockRejectedValueOnce(new FakeApiError('timeout', 504, 'TIMEOUT'));
+    renderPage();
+    await redeemAt(/Depot Kemang/);
+    await redeemAt(/Depot Kemang/);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(typeof keys()[0]).toBe('string');
+    expect(keys()[1]).toBe(keys()[0]);
+
+    post.mockResolvedValue({ pointsBalance: 900 });
+    await redeemAt(/Depot Kemang/);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(3));
+    // The second attempt succeeded (mockResolvedValue is the default after the one rejection),
+    // so the next redemption of the same item is a NEW purchase and must not reuse the key.
+    await redeemAt(/Depot Kemang/);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(4));
+    expect(keys()[3]).not.toBe(keys()[2]);
+  });
+
+  it('uses a different key for a different depot', async () => {
+    post.mockRejectedValue(new FakeApiError('timeout', 504, 'TIMEOUT'));
+    renderPage();
+    await redeemAt(/Depot Kemang/);
+    await redeemAt(/Depot Ciputat/);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(keys()[1]).not.toBe(keys()[0]);
+  });
+});
