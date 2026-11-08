@@ -4,6 +4,7 @@ import { api, ApiError, uploadFile } from './api';
 import { onResume } from './app-lifecycle';
 import { queuedDepotIsStale } from './depot-follow';
 import { endpoints } from './endpoints';
+import { translate } from './locale-context';
 import { getSession } from './session-store';
 
 /**
@@ -182,8 +183,9 @@ export const MAX_ATTEMPTS = 6;
  * become useful; the image staying on that phone forever is the part that can still do
  * harm. So the retention rule is about the payload, not about the punch.
  */
-export const STALE_DEPOT_MESSAGE =
-  'Anda sudah dipindahkan ke depot lain. Catatan ini dibuat untuk depot sebelumnya dan tidak bisa dikirim; hapus lalu catat ulang.';
+// FTR-012: resolved from the dictionary when a job is marked, so it reads in the reader's
+// language. The constant stays for callers and tests, as the Indonesian default.
+export const STALE_DEPOT_MESSAGE = translate('errors.offline.staleDepot');
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -484,7 +486,7 @@ export async function flush(ignoreBackoff = false): Promise<void> {
         (job.kind === 'shiftCheckIn' || job.kind === 'gallonReturn') &&
         queuedDepotIsStale(job.payload.depotId)
       ) {
-        await put({ ...job, error: STALE_DEPOT_MESSAGE });
+        await put({ ...job, error: translate('errors.offline.staleDepot') });
         continue;
       }
       // Waiting out its backoff. Skipped rather than returned: a later job may be due.
@@ -495,7 +497,7 @@ export async function flush(ignoreBackoff = false): Promise<void> {
       } catch (e) {
         // No network, or the session lapsed — keep the rest for the next attempt either way.
         if (isOffline(e) || isUnauthenticated(e)) return;
-        const message = e instanceof Error ? e.message : 'Gagal mengirim';
+        const message = e instanceof Error ? e.message : translate('errors.offline.sendFailed');
         if (!isRetryable(e)) {
           await put({ ...job, error: message });
           continue;
