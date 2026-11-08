@@ -33,12 +33,14 @@ export class AttendancePrismaRepository implements AttendanceRepository {
   }
 
   upsertManual(input: ManualAttendanceInput): Promise<Attendance> {
-    const { employeeId, depotId, workDate, status, lateMinutes, checkInAt, checkOutAt } = input;
+    const { employeeId, depotId, workDate, status, lateMinutes, checkInAt, checkOutAt, workingMinutes } =
+      input;
     const patch = {
       status,
       ...(lateMinutes !== undefined ? { lateMinutes } : {}),
       ...(checkInAt !== undefined ? { checkInAt } : {}),
       ...(checkOutAt !== undefined ? { checkOutAt } : {}),
+      ...(workingMinutes !== undefined ? { workingMinutes } : {}),
     };
     return this.prisma.attendance.upsert({
       where: { employeeId_workDate: { employeeId, workDate } },

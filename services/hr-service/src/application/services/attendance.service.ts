@@ -591,15 +591,37 @@ export class AttendanceService {
     if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
     this.assertRowAccess(user, employee, row);
 
+    // HR-03: a month whose slip is approved or paid is not rewritten by a correction (the
+    // history import already refuses it). Reopen the slip first if the change is real.
+    if (this.payrolls) {
+      const period = row.workDate.toISOString().slice(0, 7);
+      const slip = await this.payrolls.findByEmployeeAndPeriod(row.employeeId, period);
+      if (slip && slip.status !== 'DRAFT') {
+        throw new ConflictException(
+          `Slip ${period} sudah ${slip.status === 'PAID' ? 'dibayar' : 'disetujui'} - batalkan persetujuannya dulu sebelum mengoreksi absensi`,
+        );
+      }
+    }
+
     const before = snapshot(row);
+    const checkInAt = patch.checkInAt ? new Date(patch.checkInAt) : undefined;
+    const checkOutAt = patch.checkOutAt ? new Date(patch.checkOutAt) : undefined;
+    // HR-03: payroll reads workingMinutes (overtime). Moving either time moves the minutes.
+    const inAt = checkInAt ?? row.checkInAt;
+    const outAt = checkOutAt ?? row.checkOutAt;
+    const workingMinutes =
+      (checkInAt || checkOutAt) && inAt && outAt
+        ? Math.max(0, Math.round((outAt.getTime() - inAt.getTime()) / 60000))
+        : undefined;
     const updated = await this.repo.upsertManual({
       employeeId: row.employeeId,
       depotId: row.depotId,
       workDate: row.workDate,
       status: patch.status ?? row.status,
       lateMinutes: patch.lateMinutes,
-      checkInAt: patch.checkInAt ? new Date(patch.checkInAt) : undefined,
-      checkOutAt: patch.checkOutAt ? new Date(patch.checkOutAt) : undefined,
+      checkInAt,
+      checkOutAt,
+      workingMinutes,
     });
     await this.repo.recordAdjustment({
       attendanceId: row.id,

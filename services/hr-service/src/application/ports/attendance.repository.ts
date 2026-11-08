@@ -102,6 +102,8 @@ export interface ManualAttendanceInput {
   lateMinutes?: number;
   checkInAt?: Date | null;
   checkOutAt?: Date | null;
+  /** HR-03: minutes between the two times, set when a correction moves either. */
+  workingMinutes?: number;
 }
 
 /**
