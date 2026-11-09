@@ -1228,6 +1228,18 @@ describe('InventoryService', () => {
     expect((await inventory.get(line.id)).quantity).toBe(4);
   });
 
+  it('a rejected variance of zero, or one whose variance is not a number, reverses nothing (DEP-05)', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    for (const payload of [{ itemId: line.id, variance: 0 }, { itemId: line.id, variance: 'banyak' }]) {
+      const queued = await approvals.create(
+        { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih', amountIdr: 5_000_000, payload },
+        ACTOR,
+      );
+      await approvals.decide(queued.id, 'REJECT', null, 'hq-1');
+    }
+    expect((await inventory.get(line.id)).quantity).toBe(10);
+  });
+
   it('omits products without an override from the price lookup', async () => {
     await produkLine(PRODUCT_ID, 5); // no sellPrice → catalog base at checkout
     const prices = await inventory.pricesForProducts(depotId, [PRODUCT_ID]);
