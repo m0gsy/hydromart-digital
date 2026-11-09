@@ -903,6 +903,17 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
   private rows: GallonIssueRecord[] = [];
   private seq = 0;
 
+  /** DEP-07: unique(depotId, idempotencyKey); a missing key never matches. */
+  async createKeyed(
+    data: CreateGallonIssueData,
+  ): Promise<{ record: GallonIssueRecord; created: boolean }> {
+    const hit = data.idempotencyKey
+      ? this.rows.find((r) => r.depotId === data.depotId && r.idempotencyKey === data.idempotencyKey)
+      : undefined;
+    if (hit) return { record: hit, created: false };
+    return { record: await this.create(data), created: true };
+  }
+
   async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {
     const row: GallonIssueRecord = {
       id: `i${++this.seq}`,

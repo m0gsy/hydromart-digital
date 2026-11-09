@@ -201,8 +201,12 @@ model GallonIssue {
   note        String?
   /// Staff member who recorded the issue.
   actorId     String
+  /// DEP-07: the client's key for ONE manual submission. NULL on fulfilment rows and old rows.
+  idempotencyKey String?
   createdAt   DateTime @default(now())
 
+  /// One manual issue per (depot, key). NULL keys are distinct, so keyless rows never collide.
+  @@unique([depotId, idempotencyKey], map: "gallon_issues_depotId_idempotencyKey_key")
   /// Total unique, and Prisma can see it — unlike the partial indexes on ServiceSetting.
   /// Postgres treats every NULL as distinct, so this refuses a second booking of the same
   /// order while leaving staff-entered rows (orderId null) unconstrained.

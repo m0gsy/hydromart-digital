@@ -23,6 +23,8 @@ export interface RecordIssueInput {
   quantity: number;
   depositHeld?: number;
   note?: string | null;
+  /** DEP-07: one random value per form submission; the same one again returns the same row. */
+  idempotencyKey?: string | null;
 }
 
 /**
@@ -193,14 +195,17 @@ export class GallonIssueService {
     actorId: string,
   ): Promise<GallonIssueRecord> {
     await this.requireDepot(depotId);
-    const record = await this.issues.create({
+    const { record, created } = await this.issues.createKeyed({
       depotId,
       customerId: input.customerId ?? null,
       quantity: input.quantity,
       depositHeld: input.depositHeld ?? 0,
       note: input.note ?? null,
       actorId,
+      idempotencyKey: input.idempotencyKey ?? null,
     });
+    // A replay did everything the first call did; the stock does not move twice.
+    if (!created) return record;
     await this.moveStockOut(depotId, record, actorId);
     return record;
   }

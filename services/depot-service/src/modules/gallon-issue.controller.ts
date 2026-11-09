@@ -80,6 +80,7 @@ export class GallonIssueController {
         quantity: dto.quantity,
         depositHeld: dto.depositHeld,
         note: dto.note ?? null,
+        idempotencyKey: dto.idempotencyKey ?? null,
       },
       user.sub,
     );
