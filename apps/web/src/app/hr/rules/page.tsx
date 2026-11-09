@@ -68,6 +68,7 @@ const EMPTY = {
   threshold: '',
   rewardKind: 'FIXED' as RewardKind,
   rewardValue: '',
+  maxIdr: '',
 };
 
 function RulesBody() {
@@ -109,6 +110,9 @@ function RulesBody() {
     const rewardValue = Number(form.rewardValue);
     if (!(threshold >= 0)) return setErr(t('hrFix.rules.thresholdInvalid'));
     if (!(rewardValue >= 0)) return setErr(t('hrFix.rules.rewardInvalid'));
+    // HR-08: blank = no ceiling (null clears one on edit; a create just leaves it unset).
+    const maxIdr = form.maxIdr.trim() === '' ? null : Number(form.maxIdr);
+    if (maxIdr !== null && !(maxIdr >= 0)) return setErr(t('hrFix.rules.maxInvalid'));
     setSaving(true);
     const body = {
       bonusType: form.bonusType,
@@ -118,6 +122,7 @@ function RulesBody() {
       threshold,
       rewardKind: form.rewardKind,
       rewardValue,
+      ...(maxIdr !== null || editing ? { maxIdr } : {}),
     };
     try {
       if (editing) {
@@ -172,6 +177,7 @@ function RulesBody() {
       threshold: String(r.threshold),
       rewardKind: r.rewardKind,
       rewardValue: String(r.rewardValue),
+      maxIdr: r.maxIdr == null ? '' : String(r.maxIdr),
     });
     // The form sits below the list; on a phone the row and the form are never both visible.
     /*
@@ -222,6 +228,11 @@ function RulesBody() {
                   ) : (
                     t('hrFix.rules.pctOfBase', { pct: r.rewardValue })
                   )}{' '}
+                  {r.maxIdr != null && (
+                    <>
+                      ({t('hrFix.rules.maxShort')} <Money amount={Number(r.maxIdr)} />){' '}
+                    </>
+                  )}
                   · {depotName(r.depotId)}
                 </p>
               </div>
@@ -325,6 +336,13 @@ function RulesBody() {
                 type="number"
                 value={form.rewardValue}
                 onChange={(e) => set('rewardValue', e.target.value)}
+              />
+            </Field>
+            <Field label={t('hrFix.rules.maxLabel')}>
+              <Input
+                type="number"
+                value={form.maxIdr}
+                onChange={(e) => set('maxIdr', e.target.value)}
               />
             </Field>
             <Field label={t('hrFix.rules.appliesTo')}>

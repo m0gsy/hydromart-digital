@@ -456,6 +456,8 @@ export interface BonusRule {
   threshold: string;
   rewardKind: RewardKind;
   rewardValue: string;
+  /** HR-08: ceiling on one payout of this rule, in Rupiah; null = none. */
+  maxIdr?: string | null;
   active: boolean;
   createdAt: string;
   /** CA-2-53: the version a form edits against. */

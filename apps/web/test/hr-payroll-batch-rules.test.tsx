@@ -200,3 +200,41 @@ describe('CA-1-22 editing a bonus rule', () => {
     expect(screen.getAllByText('hrFix.rules.addRule').length).toBeGreaterThan(0);
   });
 });
+
+describe('HR-08 the per-rule payout ceiling', () => {
+  const load = async (rule: Record<string, unknown>) => {
+    get.mockImplementation((url: string) =>
+      String(url).includes('bonus-rules') ? Promise.resolve([rule]) : Promise.resolve({ items: [] }),
+    );
+    render(<RulesPage />);
+    await waitFor(() => expect(screen.getByText('Rajin masuk')).toBeTruthy());
+    await userEvent.click(screen.getByText('hrFix.rules.edit'));
+  };
+
+  it('shows a rule that has a ceiling, and sends it back unchanged', async () => {
+    await load({ ...RULE, maxIdr: '500000' });
+    expect((screen.getByDisplayValue('500000') as HTMLInputElement).value).toBe('500000');
+    await userEvent.click(screen.getByText('hrFix.rules.saveChanges'));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect((patch.mock.calls.at(-1) as [string, Record<string, unknown>])[1].maxIdr).toBe(500000);
+  });
+
+  it('sends null when the field is emptied, which clears the ceiling', async () => {
+    await load({ ...RULE, maxIdr: '500000' });
+    await userEvent.clear(screen.getByDisplayValue('500000'));
+    await userEvent.click(screen.getByText('hrFix.rules.saveChanges'));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect((patch.mock.calls.at(-1) as [string, Record<string, unknown>])[1].maxIdr).toBeNull();
+  });
+
+  it('refuses a negative ceiling', async () => {
+    await load({ ...RULE, maxIdr: '500000' });
+    patch.mockClear();
+    const field = screen.getByDisplayValue('500000');
+    await userEvent.clear(field);
+    await userEvent.type(field, '-5');
+    await userEvent.click(screen.getByText('hrFix.rules.saveChanges'));
+    expect(screen.getByText('hrFix.rules.maxInvalid')).toBeTruthy();
+    expect(patch).not.toHaveBeenCalled();
+  });
+});
