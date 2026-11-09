@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 import { IsIanaTimezone } from '@hydromart/platform';
 
@@ -37,6 +37,14 @@ export class SaveSystemSettingsDto {
   @Min(1)
   @Max(100)
   serviceRadiusKm!: number;
+
+  @ApiPropertyOptional({
+    description: 'The `updatedAt` this edit started from. The write is refused (409) if the stored row has moved since.',
+    format: 'date-time',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
 }
 
 /* ---------- Responses ---------- */
