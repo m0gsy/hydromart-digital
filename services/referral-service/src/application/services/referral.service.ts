@@ -1,5 +1,7 @@
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
+import { BUSINESS_TIME_ZONE, dayStartUtc, localMonthKey } from '@hydromart/platform';
+
 import { ReferralConfigService } from '../../config/referral-config.service';
 import { generateReferralCode, normalizeCode } from '../../domain/referral-code';
 import { ReferralStatus } from '../../domain/referral-status';
@@ -36,6 +38,8 @@ export interface ReferralSummary {
 export interface QualifyResult {
   qualified: boolean;
   referral?: ReferralRecord;
+  /** REF-04: not paid because the referrer is at the monthly cap; stays PENDING. */
+  held?: boolean;
 }
 
 export interface DepotReferralSummary {
@@ -195,6 +199,9 @@ export class ReferralService {
     });
   }
 
+  /** REF-04 (owner decision 2026-11-09): qualified referrals one referrer is paid for per month. */
+  static readonly MAX_QUALIFIED_PER_MONTH = 20;
+
   /**
    * Reward both parties before the PENDING->QUALIFIED transition. A failed reward leaves
    * the referral pending for the order outbox to retry; stable keys prevent double grants.
@@ -217,6 +224,19 @@ export class ReferralService {
         }
       }
       return { qualified: false };
+    }
+
+    // REF-04: cap the payout per referrer per calendar month (business zone). Over the cap the
+    // referral stays PENDING and nobody is paid; it is picked up again after the month turns.
+    // ponytail: read-then-pay, so two simultaneous completions can overshoot by one; a lock per
+    // referrer is the upgrade if that ever matters.
+    const monthStart = dayStartUtc(`${localMonthKey(new Date(), BUSINESS_TIME_ZONE)}-01`, BUSINESS_TIME_ZONE);
+    const doneThisMonth = await this.repo.countQualifiedSince(referral.referrerCustomerId, monthStart);
+    if (doneThisMonth >= ReferralService.MAX_QUALIFIED_PER_MONTH) {
+      this.logger.warn(
+        `Referral ${referral.id} HELD: referrer ${referral.referrerCustomerId} already has ${doneThisMonth} qualified this month`,
+      );
+      return { qualified: false, held: true };
     }
 
     const prepared = await this.repo.prepareQualification(

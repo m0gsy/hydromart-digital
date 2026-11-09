@@ -36,6 +36,8 @@ export interface TopReferrer {
 }
 
 export interface ReferralRepository {
+  /** REF-04: how many of this referrer's referrals reached QUALIFIED at or after `since`. */
+  countQualifiedSince(referrerCustomerId: string, since: Date): Promise<number>;
   findCodeByCustomer(customerId: string): Promise<ReferralCodeRecord | null>;
   createCode(customerId: string, code: string): Promise<ReferralCodeRecord>;
   findCodeByCode(code: string): Promise<ReferralCodeRecord | null>;
