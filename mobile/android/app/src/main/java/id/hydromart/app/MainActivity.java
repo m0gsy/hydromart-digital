@@ -9,6 +9,7 @@ import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.util.PermissionHelper;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,8 +54,14 @@ public class MainActivity extends BridgeActivity {
 
         private final Bridge bridge;
         private final ActivityResultLauncher<String[]> request;
-        private GeolocationPermissions.Callback pending;
-        private String pendingOrigin;
+        /**
+         * FLW-015 - every prompt waiting on the system dialog, in arrival order. This used to be
+         * ONE slot (`pending` + `pendingOrigin`): a second prompt arriving before the person
+         * answered overwrote the first, whose callback was then never invoked - the WebView's
+         * first `getCurrentPosition` hung forever. All waiting prompts ask for the same
+         * permissions, so one answer settles all of them.
+         */
+        private final ArrayDeque<Object[]> waiting = new ArrayDeque<>();
 
         GeolocationWebChromeClient(Bridge bridge) {
             super(bridge);
@@ -94,20 +101,22 @@ public class MainActivity extends BridgeActivity {
                     return;
                 }
             }
-            pendingOrigin = origin;
-            pending = callback;
-            request.launch(declared);
+            boolean dialogOpen = !waiting.isEmpty();
+            waiting.add(new Object[] { origin, callback });
+            // One system dialog serves every prompt queued behind it.
+            if (!dialogOpen) {
+                request.launch(declared);
+            }
         }
 
         private void answer(boolean granted) {
-            if (pending == null) {
-                return;
+            // Take the whole queue first: invoking a callback can synchronously raise a new prompt,
+            // which must start its own round rather than join (and be answered by) this one.
+            List<Object[]> settled = new ArrayList<>(waiting);
+            waiting.clear();
+            for (Object[] entry : settled) {
+                ((GeolocationPermissions.Callback) entry[1]).invoke((String) entry[0], granted, false);
             }
-            GeolocationPermissions.Callback callback = pending;
-            String origin = pendingOrigin;
-            pending = null;
-            pendingOrigin = null;
-            callback.invoke(origin, granted, false);
         }
     }
 
