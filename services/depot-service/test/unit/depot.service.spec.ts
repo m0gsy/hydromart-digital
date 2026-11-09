@@ -31,8 +31,8 @@ const base = (over: Partial<CreateDepotData> = {}): CreateDepotData => ({
   paymentBankAccountNumber: over.paymentBankAccountNumber,
   paymentBankAccountHolder: over.paymentBankAccountHolder,
   paymentQrisImageUrl: over.paymentQrisImageUrl,
-  operatingHours: {},
-  holidays: [],
+  operatingHours: over.operatingHours ?? {},
+  holidays: over.holidays ?? [],
 });
 
 describe('DepotService', () => {
@@ -49,6 +49,38 @@ describe('DepotService', () => {
     expect(d.id).toBeDefined();
     expect(d.active).toBe(true);
     expect(d.deliveryFee).toBe(5000);
+  });
+
+  // F3. operatingHours and holidays were validated only by the bulk import; the console's create
+  // and update stored whatever object arrived, and the ordering engine then read garbage hours.
+  describe('operating hours and holidays are validated on create and update (F3)', () => {
+    it('refuses malformed hours and holidays on create, naming what is wrong', async () => {
+      await expect(
+        service.create(base({ operatingHours: { mon: { open: '8am', close: '21:00' } } as never })),
+      ).rejects.toThrow(/Jam operasional.*bukan jam/);
+      await expect(
+        service.create(base({ operatingHours: { funday: { open: '08:00', close: '21:00' } } as never })),
+      ).rejects.toThrow(/Jam operasional/);
+      await expect(service.create(base({ holidays: [{ date: '2026-02-30' }] }))).rejects.toThrow(/Hari libur/);
+    });
+
+    it('stores the normalised value on create, and leaves the fields alone when not sent', async () => {
+      const d = await service.create(
+        base({ code: 'OK-1', operatingHours: { mon: { open: '08:00', close: '21:00' } }, holidays: [{ date: '2026-08-17' }] }),
+      );
+      expect(d.operatingHours).toEqual({ mon: { open: '08:00', close: '21:00' } });
+      expect(d.holidays).toEqual([{ date: '2026-08-17' }]);
+      const bare = await service.create(base({ code: 'OK-2' }));
+      expect(bare.holidays).toEqual([]);
+    });
+
+    it('refuses malformed values on update, and accepts a good patch', async () => {
+      const d = await service.create(base({ code: 'UP-1' }));
+      await expect(service.update(d.id, { operatingHours: { mon: { open: '25:00', close: '21:00' } } as never }, d.updatedAt.toISOString())).rejects.toThrow(/Jam operasional/);
+      await expect(service.update(d.id, { holidays: [{ date: 'kemarin' }] as never }, d.updatedAt.toISOString())).rejects.toThrow(/Hari libur/);
+      const ok = await service.update(d.id, { holidays: [{ date: '2026-12-25', label: 'Natal' }] }, d.updatedAt.toISOString());
+      expect(ok.holidays).toEqual([{ date: '2026-12-25', label: 'Natal' }]);
+    });
   });
 
   it('rejects a duplicate depot code', async () => {

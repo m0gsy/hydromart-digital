@@ -203,6 +203,37 @@ describe('CA-2-54 stock transfer between depots', () => {
     expect(ctx.inventory.moves.map((m) => m.type)).toEqual([StockMovementType.TRANSFER_OUT]);
   });
 
+  // D1-05. The reference is the day plus (count so far + 1), and it is unique. Two transfers sent
+  // at once both counted the same number, and the loser got a 500 from the unique index. It now
+  // takes the next number and tries again.
+  it('takes the next reference when two transfers collide on the same number (D1-05)', async () => {
+    const ctx = build(20);
+    const realSend = ctx.transfers.send.bind(ctx.transfers);
+    let first = true;
+    jest.spyOn(ctx.transfers, 'send').mockImplementation(async (data) => {
+      if (first) {
+        first = false;
+        throw Object.assign(new Error('unique'), { code: 'P2002', meta: { target: ['reference'] } });
+      }
+      return realSend(data);
+    });
+    const sent = await ctx.svc.send(atA, atA.sub, SEND);
+    expect(sent.status).toBe(StockTransferStatus.SENT);
+    expect(ctx.source().quantity).toBe(15);
+  });
+
+  it('gives up after a few collisions, and does not retry other errors (D1-05)', async () => {
+    const ctx = build(20);
+    const spy = jest.spyOn(ctx.transfers, 'send').mockRejectedValue(
+      Object.assign(new Error('unique'), { code: 'P2002', meta: { target: ['reference'] } }),
+    );
+    await expect(ctx.svc.send(atA, atA.sub, SEND)).rejects.toThrow('unique');
+    expect(spy).toHaveBeenCalledTimes(4);
+    spy.mockReset().mockRejectedValue(new Error('db down'));
+    await expect(ctx.svc.send(atA, atA.sub, SEND)).rejects.toThrow('db down');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('credits the receiver only when somebody there counts it', async () => {
     const ctx = build(20);
     const sent = await ctx.svc.send(atA, atA.sub, SEND);

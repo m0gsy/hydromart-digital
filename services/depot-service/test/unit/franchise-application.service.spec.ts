@@ -192,6 +192,13 @@ describe('FranchiseApplicationService', () => {
       });
     });
 
+    it('records an empty actor as no actor rather than an empty string', async () => {
+      const svc = audited();
+      const created = await svc.create(APP());
+      await svc.reject(created.id, '', 'tanpa pelaku');
+      expect(sent()[0].actorId ?? null).toBeNull();
+    });
+
     it('records an approval, and nothing when no trail is configured', async () => {
       const svc = audited();
       const created = await svc.create(APP());

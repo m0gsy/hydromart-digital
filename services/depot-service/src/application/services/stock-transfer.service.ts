@@ -81,20 +81,32 @@ export class StockTransferService {
     }
 
     const day = localDayKey(new Date(), this.config.businessTimeZone);
-    const reference = transferReference(day, (await this.transfers.countSentOn(day)) + 1);
-
-    return this.transfers.send({
-      reference,
-      fromItemId: line.id,
-      fromDepotId: input.fromDepotId,
-      toDepotId: input.toDepotId,
-      productId: input.productId,
-      label: line.label,
-      unit: line.unit,
-      quantity: input.quantity,
-      note: input.note ?? null,
-      sentBy: actorId,
-    });
+    // D1-05: the reference is the day plus (count so far + 1) and it is unique, so two transfers
+    // sent together both counted the same number and the loser failed on the unique index with
+    // a 500. The send is one transaction (it rolls back whole), so on a collision nothing has
+    // moved: count again and take the next number, a few times at most.
+    let collisions = 0;
+    for (;;) {
+      const reference = transferReference(day, (await this.transfers.countSentOn(day)) + 1 + collisions);
+      try {
+        return await this.transfers.send({
+          reference,
+          fromItemId: line.id,
+          fromDepotId: input.fromDepotId,
+          toDepotId: input.toDepotId,
+          productId: input.productId,
+          label: line.label,
+          unit: line.unit,
+          quantity: input.quantity,
+          note: input.note ?? null,
+          sentBy: actorId,
+        });
+      } catch (error) {
+        const e = error as { code?: string; meta?: { target?: unknown } };
+        const isReferenceClash = e.code === 'P2002' && String(e.meta?.target ?? '').includes('reference');
+        if (!isReferenceClash || (collisions += 1) > 3) throw error;
+      }
+    }
   }
 
   /**
