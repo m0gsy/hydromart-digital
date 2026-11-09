@@ -44,7 +44,7 @@ import { LowStockAlertPort } from '../ports/low-stock-alert.port';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { UntrackedSaleAlertPort } from '../ports/untracked-sale-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
-import { ApprovalType, needsApproval } from '../../domain/approval';
+import { Approval, ApprovalType, needsApproval } from '../../domain/approval';
 import { ApprovalService } from './approval.service';
 import { DepotConfigService } from '../../config/depot-config.service';
 
@@ -107,9 +107,32 @@ export class InventoryService {
     @Inject(DEPOT_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
     private readonly approvals: ApprovalService,
     private readonly config: DepotConfigService,
-  ) {}
+  ) {
+    // DEP-05: a rejected opname variance puts the shelf count back (see reverseOpnameVariance).
+    this.approvals.registerReversal(ApprovalType.OPNAME_VARIANCE, (approval, decidedBy) =>
+      this.reverseOpnameVariance(approval, decidedBy),
+    );
+  }
 
   private readonly logger = new Logger(InventoryService.name);
+
+  /**
+   * DEP-05: HQ rejected a variance the opname had ALREADY applied. Undo it as a movement of the
+   * opposite sign (so the ledger shows both), not by overwriting the count: sales since the
+   * opname must survive. Only a variance that carries the line it belongs to can be reversed;
+   * those raised before this change do not, and are left alone rather than guessed at.
+   */
+  private async reverseOpnameVariance(approval: Approval, decidedBy: string): Promise<void> {
+    const payload = (approval.payload ?? {}) as { itemId?: unknown; variance?: unknown };
+    if (typeof payload.itemId !== 'string' || typeof payload.variance !== 'number') return;
+    if (payload.variance === 0) return;
+    await this.adjust(
+      payload.itemId,
+      -payload.variance,
+      `Opname ditolak HQ: selisih ${payload.variance} dibalik`,
+      decidedBy,
+    );
+  }
 
   private toView(item: InventoryItemRecord): ItemView {
     const sellable = available(item.quantity, item.reserved);
@@ -495,6 +518,8 @@ export class InventoryService {
           subjectRef: item.label,
           amountIdr,
           payload: {
+            // DEP-05: which line, so a rejection can put the count back.
+            itemId: item.id,
             system: item.quantity,
             physical: item.quantity + variance,
             variance,
