@@ -19,6 +19,15 @@ import {
 
 import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
+/** PLP-13: order ids to filter down to those that still count as sales. */
+export class CountingOrdersDto {
+  @ApiProperty({ type: [String], description: 'Up to 5000 order ids.' })
+  @IsArray()
+  @ArrayMaxSize(5000)
+  @IsUUID('all', { each: true })
+  orderIds!: string[];
+}
+
 export class SalesReportQueryDto {
   @ApiPropertyOptional({ enum: ['daily', 'monthly'], default: 'daily' })
   @IsOptional()

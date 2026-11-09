@@ -543,6 +543,11 @@ export interface SegmentConditions {
 
 export interface OrderRepository {
   /**
+   * PLP-13: of these order ids, the ones that still count as a sale - that is, every status
+   * except CANCELLED and VOIDED. Unknown ids are simply absent.
+   */
+  findCountingIds(ids: readonly string[]): Promise<string[]>;
+  /**
    * The next value of the order-number counter, strictly increasing and never repeated.
    *
    * The number used to be six random digits, and `orderNumber` is `@unique` — so a

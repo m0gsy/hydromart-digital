@@ -435,6 +435,17 @@ const countsAsSale = (s: OrderStatus): boolean =>
 /** Sales/customer/depot aggregates over the order book (PRD Module 13, FR-095..098). */
 @Injectable()
 export class ReportService {
+  /**
+   * PLP-13: which of these orders still count as sales. The network P&L subtracts refunds
+   * from revenue, and revenue already leaves out CANCELLED and VOIDED orders; the dashboard
+   * asks here so it subtracts only the refunds of orders that are in the revenue figure.
+   */
+  async countingOrderIds(ids: readonly string[]): Promise<string[]> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return [];
+    return this.orders.findCountingIds(unique);
+  }
+
   private static readonly MAX_LIMIT = 100;
   /**
    * Ceiling on one segment resolution. A broadcast audience is a list of people, not a

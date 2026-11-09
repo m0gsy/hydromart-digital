@@ -616,6 +616,15 @@ export class OrderPrismaRepository implements OrderRepository {
     };
   }
 
+  async findCountingIds(ids: readonly string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.order.findMany({
+      where: { id: { in: [...ids] }, status: { notIn: [OrderStatus.CANCELLED, OrderStatus.VOIDED] } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
+
   async findStaleIn(
     statuses: OrderStatus[],
     before: Date,
