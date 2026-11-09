@@ -240,7 +240,7 @@ describe('ReferralPrismaRepository', () => {
     });
   });
 
-  it('counts a referrer's QUALIFIED referrals since a date (REF-04)', async () => {
+  it("counts a referrer's QUALIFIED referrals since a date (REF-04)", async () => {
     referral.count.mockResolvedValue(7);
     const since = new Date('2026-11-01T00:00:00.000Z');
     expect(await repo.countQualifiedSince('cust-1', since)).toBe(7);
