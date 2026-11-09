@@ -9,6 +9,7 @@ import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui'
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
+import { todayWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
 import type { CashSettlement, Customer, Delivery, InventoryItem, Order, Page } from '@/lib/types';
 
@@ -71,6 +72,15 @@ function Stat({
   );
 }
 
+/**
+ * F9: "today" is today in Jakarta. The list the screen loads is the last 100 orders, whatever
+ * their day, so counting its length reported last week's orders as today's on a quiet day.
+ */
+export function placedToday<T extends { createdAt: string }>(orders: T[], at: Date = new Date()): T[] {
+  const today = todayWib(at);
+  return orders.filter((o) => todayWib(new Date(o.createdAt)) === today);
+}
+
 function RingkasanBody({ depotId }: { depotId: string }) {
   const { t } = useT();
   const { data, error, loading, reload } = useAsync<Summary>(async () => {
@@ -85,7 +95,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
       deliveries.items.filter((d) => ACTIVE_DELIVERY.includes(d.status)).map((d) => d.driverId),
     );
     return {
-      orders: orders.items,
+      orders: placedToday(orders.items),
       needAssign: orders.items.filter(NEEDS_ASSIGN),
       lowStock,
       pending,

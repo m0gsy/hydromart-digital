@@ -174,3 +174,36 @@ describe('promo-rule editor copy exists in both languages and both consoles', ()
     }
   }
 });
+
+describe('W3B-15 - the validity dates are days in the business zone', () => {
+  it('starts at 00:00 WIB and ends at the last millisecond of the last day', () => {
+    const p = ruleFormToPayload(form({ validFrom: '2026-12-01', validUntil: '2026-12-31' }), null);
+    expect(p.validFrom).toBe('2026-11-30T17:00:00.000Z');
+    expect(p.validUntil).toBe('2026-12-31T16:59:59.999Z');
+  });
+
+  it('rolls over a month and a year end', () => {
+    expect(ruleFormToPayload(form({ validUntil: '2026-02-28' }), null).validUntil).toBe('2026-02-28T16:59:59.999Z');
+    expect(ruleFormToPayload(form({ validUntil: '2026-12-31' }), null).validUntil).toBe('2026-12-31T16:59:59.999Z');
+  });
+
+  it('no date stays null', () => {
+    const p = ruleFormToPayload(form({}), null);
+    expect(p.validFrom).toBeNull();
+    expect(p.validUntil).toBeNull();
+  });
+
+  it('reopens a stored window on the same days, old UTC-midnight rows included', () => {
+    const back = (validFrom: string | null, validUntil: string | null) =>
+      ruleFormFrom({ name: 'Promo', kind: 'PERCENTAGE_OFF', daysOfWeek: [], channels: [], active: true, validFrom, validUntil } as never);
+    expect(back('2026-11-30T17:00:00.000Z', '2026-12-31T16:59:59.999Z')).toMatchObject({
+      validFrom: '2026-12-01',
+      validUntil: '2026-12-31',
+    });
+    expect(back('2026-03-01T00:00:00.000Z', '2026-03-31T00:00:00.000Z')).toMatchObject({
+      validFrom: '2026-03-01',
+      validUntil: '2026-03-31',
+    });
+    expect(back(null, null)).toMatchObject({ validFrom: '', validUntil: '' });
+  });
+});
