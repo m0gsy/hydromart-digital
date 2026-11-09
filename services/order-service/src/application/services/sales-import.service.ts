@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, localDayKey, runImport } from '@hydromart/platform';
 
 import {
   HistoricalDepotSum,
@@ -78,7 +78,7 @@ export class SalesImportService {
         return afterGoLive
           ? {
               status: 'created',
-              message: `Tanggal nota sama dengan atau setelah pesanan pertama depot ini di Hydromart (${goLive.toISOString().slice(0, 10)}); periksa agar tidak dobel dengan pesanan hidup`,
+              message: `Tanggal nota sama dengan atau setelah pesanan pertama depot ini di Hydromart (${localDayKey(goLive)}); periksa agar tidak dobel dengan pesanan hidup`,
             }
           : { status: 'created' };
       },
