@@ -128,6 +128,7 @@ export function ruleFormToPayload(
   const endOfDay = (s: string) => {
     if (!s) return null;
     const [y, m, d] = s.split('-').map(Number);
+    // tz-ok: adds one calendar day to a plain YYYY-MM-DD; it is a date, not an instant
     const next = new Date(Date.UTC(y!, m! - 1, d! + 1)).toISOString().slice(0, 10);
     return new Date(new Date(dayStartWib(next)).getTime() - 1).toISOString();
   };
