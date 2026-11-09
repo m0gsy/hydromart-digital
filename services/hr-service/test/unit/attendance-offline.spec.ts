@@ -159,6 +159,33 @@ describe('AttendanceService offline punch', () => {
     expect(att.created).toMatchObject({ status: 'PRESENT', checkInAt: AT_0810 });
   });
 
+  // HR-18: a punch accepted on the device's clock (up to the auto-accept window early) carried no
+  // trace that the clock was the device's. The face and geofence were checked live at server time, but
+  // the recorded minute is the device's claim: leave the gap on the row's adjustment trail for HR.
+  it('HR-18 · leaves the device-vs-server gap on the adjustment trail of an auto-accepted offline punch', async () => {
+    const { att, svc } = make();
+    await svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 5 * 60_000));
+    expect(att.adjustments).toHaveLength(1);
+    expect(att.adjustments[0]!.reason).toMatch(/waktu perangkat.*5 menit/i);
+    expect(att.adjustments[0]!.approvedBy).toBeNull();
+  });
+
+  it('HR-18 · a live punch, or an offline one inside the clock-skew tolerance, adds no trail entry', async () => {
+    const { att, svc } = make();
+    await svc.checkIn(user, punchAt(), AT_0810);
+    expect(att.adjustments).toHaveLength(0);
+    const b = make();
+    await b.svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000));
+    expect(b.att.adjustments).toHaveLength(0);
+  });
+
+  it('HR-18 · a failing trail write never loses the punch', async () => {
+    const { att, svc } = make();
+    jest.spyOn(att, 'recordAdjustment').mockRejectedValueOnce(new Error('db blip'));
+    await svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 5 * 60_000));
+    expect(att.created).toMatchObject({ status: 'PRESENT', checkInAt: AT_0810 });
+  });
+
   it('marks a late-synced punch PENDING but keeps the device-time lateness', async () => {
     const { att, svc } = make();
     // Captured 08:30 (30 min late), flushed two hours later.
