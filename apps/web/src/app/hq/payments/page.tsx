@@ -7,7 +7,8 @@ import { useConfirm } from '@/components/confirm';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, getBlob } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -130,6 +131,17 @@ export default function HqPaymentsPage() {
   const [settling, setSettling] = useState<string | null>(null);
   // The queue `release` above has been filling with rows nothing could ever move on.
   const processingQ = useAsync<Withdrawal[]>(() => api.get(endpoints.payout.hqProcessing, true));
+
+  async function exportWorklist() {
+    try {
+      downloadBlob(
+        `daftar-transfer-${new Date().toISOString().slice(0, 10)}.csv`, // tz-ok: a file name, not a period
+        await getBlob(endpoints.payout.hqProcessingExport),
+      );
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.payments.settle.exportError'), 'error');
+    }
+  }
   const courierProcessingQ = useAsync<CourierWithdrawal[]>(() =>
     api.get(endpoints.payout.hqCourierProcessing, true),
   );
@@ -476,6 +488,14 @@ export default function HqPaymentsPage() {
         <Card className="flex min-w-0 flex-col gap-4 p-5 lg:col-span-2">
           <h2 className="font-semibold">{t('hq.payments.settle.title')}</h2>
           <p className="-mt-3 text-xs text-muted">{t('hq.payments.settle.hint')}</p>
+          {/* PPA-15: the worklist finance transfers from, with the verified account numbers. */}
+          {mayPay && (
+            <div>
+              <Button variant="secondary" onClick={() => void exportWorklist()}>
+                {t('hq.payments.settle.exportCsv')}
+              </Button>
+            </div>
+          )}
           <WithdrawalQueue
             heading={t('hq.payments.settle.franchise')}
             query={processingQ}
