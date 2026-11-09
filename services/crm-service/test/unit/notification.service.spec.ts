@@ -175,6 +175,33 @@ describe('NotificationService ops read state (per staff member)', () => {
     expect(await service.markAllOpsRead('staff-1')).toBe(1);
   });
 
+  // CRM-09: the push half of an URGENT depot broadcast.
+  it('announceToDepotStaff pushes the title and body to every staff device of the depot, fail-soft', async () => {
+    const sent: { id: string; body: string }[] = [];
+    const push = {
+      sendToCustomer: async (id: string, p: { title: string; body: string }) => {
+        sent.push({ id, body: `${p.title}: ${p.body}` });
+        return { devices: 1, delivered: 1 };
+      },
+    };
+    const staff = { staffIdsForDepot: jest.fn(async () => ['s-1', 's-2']) };
+    const svc = new NotificationService(repo, push as unknown as PushService, undefined, staff as never);
+    svc.announceToDepotStaff('depot-1', 'Jalan ditutup', 'Putar balik');
+    await new Promise((r) => setImmediate(r));
+    expect(sent.map((s) => s.id)).toEqual(['s-1', 's-2']);
+    expect(sent[0]!.body).toBe('Jalan ditutup: Putar balik');
+
+    // No roster wired / roster unreadable: silent, never a throw.
+    new NotificationService(repo, push as unknown as PushService).announceToDepotStaff('depot-1', 'a', 'b');
+    const broken = new NotificationService(repo, push as unknown as PushService, undefined, {
+      staffIdsForDepot: async () => {
+        throw new Error('hr down');
+      },
+    } as never);
+    expect(() => broken.announceToDepotStaff('depot-1', 'a', 'b')).not.toThrow();
+    await new Promise((r) => setImmediate(r));
+  });
+
   it('mark-all counts only the rows newly marked after a single read', async () => {
     const first = await stockLow();
     await stockLow();

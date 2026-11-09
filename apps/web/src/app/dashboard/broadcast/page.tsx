@@ -24,6 +24,7 @@ import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { canBroadcastToCouriers } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import type { Campaign } from '@/lib/types';
 
 // Depot -> courier broadcast (design: Depot Operator cell 6c "Broadcast ke kurir").
 // Compose an in-app announcement (level Info / Mendesak / Terjadwal, title, message)
@@ -261,6 +262,36 @@ function SentList({ items }: { items: Broadcast[] }) {
   );
 }
 
+/** CRM-05: how the customer campaigns this person created went. */
+function MyCampaigns() {
+  const { t } = useT();
+  const list = useAsync<{ items: Campaign[] }>(() => api.get(endpoints.crm.myCampaigns, true), []);
+  const items = list.data?.items ?? [];
+  if (list.loading || list.error) return null;
+  return (
+    <div className="flex flex-col gap-2.5" data-testid="my-campaigns">
+      <p className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">
+        {t('dashA.broadcast.myCampaignsLabel')}
+      </p>
+      {items.length === 0 ? (
+        <p className="py-2 text-sm text-[color:var(--text-muted)]">{t('dashA.broadcast.myCampaignsEmpty')}</p>
+      ) : (
+        items.map((c) => (
+          <Card key={c.id} className="p-3.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[12.5px] font-extrabold">{c.name}</span>
+              <Chip tone="tint">{c.status}</Chip>
+            </div>
+            <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
+              {t('dashA.broadcast.myCampaignCounts', { total: c.totalRecipients, sent: c.sentCount, failed: c.failedCount })}
+            </p>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
 function BroadcastBody() {
   const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
@@ -298,6 +329,7 @@ function BroadcastBody() {
           ) : (
             <SentList items={feed.data ?? []} />
           )}
+          <MyCampaigns />
         </div>
       </div>
     </div>

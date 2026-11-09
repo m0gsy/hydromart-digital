@@ -217,6 +217,21 @@ export class CampaignService {
     return buildPage(items, total, p, l);
   }
 
+  /** CRM-05: the campaigns this caller created - what a depot manager may read of their own blasts. */
+  async listMine(actorId: string, page = 1, limit = 20): Promise<Page<CampaignRecord>> {
+    const { p, l } = this.clampPage(page, limit);
+    const { items, total } = await this.repo.list(p, l, actorId);
+    return buildPage(items, total, p, l);
+  }
+
+  async getOwn(id: string, actorId: string): Promise<CampaignRecord> {
+    const campaign = await this.get(id);
+    if (campaign.createdBy !== actorId) {
+      throw new ForbiddenException('Kampanye ini bukan milik akun Anda.');
+    }
+    return campaign;
+  }
+
   async get(id: string): Promise<CampaignRecord> {
     const campaign = await this.repo.findById(id);
     if (!campaign) throw new CampaignNotFoundError();

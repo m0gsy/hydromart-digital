@@ -304,6 +304,28 @@ describe('CampaignController', () => {
     expect(out.status).toBe(CampaignStatus.SENDING);
   });
 
+  // CRM-05: the depot half of reading a campaign - own campaigns only, numbers masked.
+  it('lists and opens the caller own campaigns, masking recipient numbers for a role without the directory', async () => {
+    const withRecipients = record({
+      recipients: [{ id: 'r1', campaignId: 'camp-1', customerId: 'c1', phone: '+628123456789', name: 'Budi', status: 'SENT', error: null, sentAt: null, createdAt: new Date() }] as never,
+    });
+    const campaigns = {
+      listMine: jest.fn().mockResolvedValue({ items: [record()], total: 1, page: 1, limit: 20 }),
+      getOwn: jest.fn().mockResolvedValue(withRecipients),
+    };
+    const controller = new CampaignController(campaigns as never);
+    const mgr = { sub: 'user-1', role: 'KEPALA_DEPOT' } as never;
+    await controller.listMine({ page: 1, limit: 20 } as never, mgr);
+    expect(campaigns.listMine).toHaveBeenCalledWith('user-1', 1, 20);
+    const masked = await controller.getMine('camp-1', mgr);
+    expect(campaigns.getOwn).toHaveBeenCalledWith('camp-1', 'user-1');
+    expect(masked.recipients[0]!.phone).toBe('•••789');
+    expect(masked.recipients[0]!.name).toBeNull();
+    // A role that may read the directory sees the real number.
+    const full = await controller.getMine('camp-1', { sub: 'user-1', role: 'SUPER_ADMIN' } as never);
+    expect(full.recipients[0]!.phone).toBe('+628123456789');
+  });
+
   it('cancels a campaign (CRM-04)', async () => {
     const campaigns = {
       cancel: jest.fn().mockResolvedValue(record({ status: CampaignStatus.CANCELLED })),

@@ -110,14 +110,20 @@ export class CampaignPrismaRepository implements CampaignRepository {
     return rows.map((r) => this.toRecipient(r));
   }
 
-  async list(page: number, limit: number): Promise<{ items: CampaignRecord[]; total: number }> {
+  async list(
+    page: number,
+    limit: number,
+    createdBy?: string,
+  ): Promise<{ items: CampaignRecord[]; total: number }> {
+    const where = createdBy ? { createdBy } : {};
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.campaign.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.campaign.count(),
+      this.prisma.campaign.count({ where }),
     ]);
     // List items omit recipients (not needed for summaries).
     return { items: rows.map((r) => this.toCampaign(r, [])), total };

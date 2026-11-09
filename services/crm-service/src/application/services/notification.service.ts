@@ -150,6 +150,22 @@ export class NotificationService {
     }
   }
 
+  /**
+   * CRM-09: an URGENT depot broadcast also wakes the depot's staff. Fire-and-forget and fail-soft,
+   * the same as every other push: the broadcast row is already stored, so an unreachable roster
+   * costs a push, never the broadcast. Not subject to the per-event staff mute: an urgent notice
+   * from the depot's own manager is not a marketing preference.
+   */
+  announceToDepotStaff(depotId: string, title: string, body: string): void {
+    if (!this.depotStaff) return;
+    void this.depotStaff
+      .staffIdsForDepot(depotId)
+      .then((ids) =>
+        Promise.allSettled(ids.map((id) => this.push.sendToCustomer(id, { title, body, url: '/driver' }))),
+      )
+      .catch((e) => this.logger.warn(`Broadcast push for depot ${depotId} failed: ${(e as Error).message}`));
+  }
+
   private pushToDepotStaff(event: NotificationEvent, message: string, depotId: string, vars: Record<string, string>): void {
     if (!this.depotStaff) return;
     void this.recipientsForDepot(event, depotId)

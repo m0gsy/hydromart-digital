@@ -127,13 +127,22 @@ describe('CampaignPrismaRepository', () => {
     const result = await repo.list(2, 10);
     expect(prisma.$transaction).toHaveBeenCalled();
     expect(campaign.findMany).toHaveBeenCalledWith({
+      where: {},
       orderBy: { createdAt: 'desc' },
       skip: 10,
       take: 10,
     });
-    expect(campaign.count).toHaveBeenCalled();
+    expect(campaign.count).toHaveBeenCalledWith({ where: {} });
     expect(result.total).toBe(5);
     expect(result.items[0].recipients).toEqual([]);
+  });
+
+  // CRM-05: a depot manager's list is filtered to their own campaigns, and so is the count.
+  it('list narrows to the creator when asked', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[campaignRow()], 1]);
+    await repo.list(1, 20, 'mgr-1');
+    expect(campaign.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { createdBy: 'mgr-1' } }));
+    expect(campaign.count).toHaveBeenCalledWith({ where: { createdBy: 'mgr-1' } });
   });
 
   // B-17: the DRAFT predicate must be in the WHERE. `update({ where: { id } })` let two

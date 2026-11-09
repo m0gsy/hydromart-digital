@@ -92,8 +92,10 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     return c ? c.recipients.map((r) => ({ ...r })) : [];
   }
 
-  async list(page: number, limit: number): Promise<{ items: CampaignRecord[]; total: number }> {
-    const all = [...this.campaigns].sort(
+  async list(page: number, limit: number, createdBy?: string): Promise<{ items: CampaignRecord[]; total: number }> {
+    const all = this.campaigns
+      .filter((c) => !createdBy || c.createdBy === createdBy)
+      .sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
     );
     const start = (page - 1) * limit;
