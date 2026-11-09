@@ -92,6 +92,7 @@ import {
   PagedRefundQueueResponseDto,
   PaymentResponseDto,
   PurgeProofsResponseDto,
+  DepotRefundsByOrderResponseDto,
   DepotRefundsResponseDto,
   RefundCountsResponseDto,
   UnsettledAgingResponseDto,
@@ -370,6 +371,23 @@ export class PaymentController {
       .map((id) => id.trim())
       .filter(Boolean);
     return this.payments.refundedTotalByDepot(ids, new Date(query.from), new Date(query.to));
+  }
+
+  /** PLP-13: the same refunds per order, so the P&L can drop those of orders no longer counted. */
+  @ApiOkResponse({ type: DepotRefundsByOrderResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-refunds-by-order')
+  @ApiOperation({ summary: 'Refunded money per order over a window (internal service auth)' })
+  async depotRefundsByOrder(
+    @Query() query: DepotRefundsQueryDto,
+  ): Promise<{ depotId: string; orderId: string; refundedIdr: number }[]> {
+    const ids = query.depotIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return this.payments.refundedByOrder(ids, new Date(query.from), new Date(query.to));
   }
 
   @ApiOkResponse({ type: RefundCountsResponseDto })

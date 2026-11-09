@@ -89,6 +89,18 @@ describe('PaymentService', () => {
     expect(spy).toHaveBeenCalledWith(['dep-1', 'dep-2'], from, to);
   });
 
+  it('lists refunds per order, bounded, straight from the repository (PLP-13)', async () => {
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    const spy = jest
+      .spyOn(repo, 'refundedByOrder')
+      .mockResolvedValue([{ depotId: 'dep-1', orderId: 'o-1', refundedIdr: 9 }]);
+    expect(await service.refundedByOrder(['dep-1'], from, to)).toEqual([
+      { depotId: 'dep-1', orderId: 'o-1', refundedIdr: 9 },
+    ]);
+    expect(spy).toHaveBeenCalledWith(['dep-1'], from, to, 5000);
+  });
+
   it('never reports below two refunds, however low the caller asks', async () => {
     const spy = jest.spyOn(repo, 'refundCountsByCustomer').mockResolvedValue([]);
     const from = new Date('2026-07-01');

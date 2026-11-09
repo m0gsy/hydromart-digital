@@ -493,6 +493,17 @@ export class PaymentService {
     return depotIds.map((depotId) => ({ depotId, refundedIdr: map.get(depotId) ?? 0 }));
   }
 
+  /** PLP-13: refunds per order for the P&L. A month holds far fewer than this per network. */
+  private static readonly REFUNDS_BY_ORDER_CAP = 5000;
+
+  refundedByOrder(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ depotId: string; orderId: string; refundedIdr: number }[]> {
+    return this.payments.refundedByOrder(depotIds, from, to, PaymentService.REFUNDS_BY_ORDER_CAP);
+  }
+
   /**
    * Customers with `minRefunds` or more settled refunds in a window (fraud scan, 15b).
    *
