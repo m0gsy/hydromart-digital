@@ -25,6 +25,17 @@ export class InMemoryReferralRepository implements ReferralRepository {
   codes: ReferralCodeRecord[] = [];
   referrals: ReferralRecord[] = [];
 
+  /** REF-04: this referrer's QUALIFIED referrals since `since`. */
+  async countQualifiedSince(referrerCustomerId: string, since: Date): Promise<number> {
+    return this.referrals.filter(
+      (r) =>
+        r.referrerCustomerId === referrerCustomerId &&
+        r.status === 'QUALIFIED' &&
+        r.qualifiedAt !== null &&
+        r.qualifiedAt >= since,
+    ).length;
+  }
+
   async findCodeByCustomer(customerId: string): Promise<ReferralCodeRecord | null> {
     const c = this.codes.find((x) => x.customerId === customerId);
     return c ? { ...c } : null;
