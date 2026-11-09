@@ -157,8 +157,15 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     await request(server())
       .patch(`/api/v1/depots/${depotId}/pricing/rules/${ruleId}`)
       .set(auth(mgrAt))
-      .send({ value: -90, seenUpdatedAt: created.body.updatedAt })
+      .send({ value: -15, seenUpdatedAt: created.body.updatedAt })
       .expect(409);
+
+    // DEP-25: past the manager's ceiling, or an absolute price, goes through an HQ proposal.
+    await request(server())
+      .post(`/api/v1/depots/${depotId}/pricing/rules`)
+      .set(auth(mgrAt))
+      .send({ adjustType: 'ABSOLUTE', value: 15000 })
+      .expect(403);
 
     // Switching the same rule off is one tap and carries no version at all.
     await request(server())

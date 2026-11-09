@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -10,6 +20,9 @@ import {
   dayStartUtc,
 } from '@hydromart/platform';
 
+import { can } from '@hydromart/access';
+
+import { PricingAdjustType } from '../domain/pricing-rule';
 import { PricingService } from '../application/services/pricing.service';
 import { DepotConfigService } from '../config/depot-config.service';
 import { PricingRuleRecord } from '../domain/pricing-rule';
@@ -44,6 +57,28 @@ function toDate(v: string | undefined, edge: 'start' | 'end', timeZone: string):
   return edge === 'start' ? start : new Date(addLocalDays(start, 1, timeZone).getTime() - 1);
 }
 
+/**
+ * DEP-25 (owner decision B, 2026-11-09). A manager may change prices directly only with a
+ * PERCENT rule inside this ceiling; an ABSOLUTE price or a FIXED rupiah delta - or a bigger
+ * percent - goes through the HQ proposal queue (price-override), which exists to approve
+ * exactly that. HQ roles (priceOverrideDecide) are not limited here.
+ *
+ * The ceiling is a default awaiting the owner's number; raise or lower it here.
+ */
+export const DIRECT_PERCENT_CEILING = 20;
+
+function assertDirectPricing(
+  user: AuthenticatedUser | undefined,
+  adjustType: string | undefined,
+  value: number | undefined,
+): void {
+  if (user && can('priceOverrideDecide', user.role)) return;
+  if (adjustType === PricingAdjustType.PERCENT && Math.abs(value ?? 0) <= DIRECT_PERCENT_CEILING) return;
+  throw new ForbiddenException(
+    `Perubahan harga ini harus diajukan sebagai usulan harga ke HQ. Aturan langsung hanya untuk persentase sampai ${DIRECT_PERCENT_CEILING}%.`,
+  );
+}
+
 @ApiTags('Pricing')
 @ApiBearerAuth()
 @Controller({ path: 'depots/:depotId/pricing', version: '1' })
@@ -57,10 +92,12 @@ export class PricingController {
   @Can('depotAdmin')
   @Post('rules')
   @ApiOperation({ summary: 'Create a dynamic pricing rule for a depot (staff)' })
-  create(
+  async create(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: CreatePricingRuleDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<PricingRuleRecord> {
+    assertDirectPricing(user, dto.adjustType, dto.value);
     return this.pricing.create(depotId, {
       productId: dto.productId ?? null,
       adjustType: dto.adjustType,
@@ -92,7 +129,13 @@ export class PricingController {
     @Body() dto: UpdatePricingRuleDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PricingRuleRecord> {
-    assertDepotAccess(user, (await this.pricing.get(ruleId)).depotId);
+    const existing = await this.pricing.get(ruleId);
+    assertDepotAccess(user, existing.depotId);
+    // Check the rule as it will BE. Edits that touch neither the price nor whether the rule is
+    // live (a window, a priority) stay open, and so does switching a rule off.
+    if (dto.adjustType !== undefined || dto.value !== undefined || dto.active === true) {
+      assertDirectPricing(user, dto.adjustType ?? existing.adjustType, dto.value ?? existing.value);
+    }
     const patch: UpdatePricingRuleData = {};
     if (dto.productId !== undefined) patch.productId = dto.productId ?? null;
     if (dto.adjustType !== undefined) patch.adjustType = dto.adjustType;
