@@ -101,5 +101,11 @@ export interface NotificationRepository {
   markOpsRead(notificationId: string, events: string[], staffId: string): Promise<Date | null>;
 
   /** Idempotent mark-all over the same feed window. Returns how many rows were newly marked. */
-  markAllOpsRead(events: string[], staffId: string, limit: number): Promise<number>;
+  /** Marks the same window `listOpsFeedFor` shows this staff member (depot scope and personal rows included). */
+  markAllOpsRead(
+    events: string[],
+    staffId: string,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<number>;
 }

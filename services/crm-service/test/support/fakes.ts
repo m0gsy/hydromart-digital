@@ -312,9 +312,17 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     return readAt;
   }
 
-  async markAllOpsRead(events: string[], staffId: string, limit: number): Promise<number> {
+  async markAllOpsRead(
+    events: string[],
+    staffId: string,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<number> {
     let marked = 0;
-    for (const r of this.window(events, limit)) {
+    const visible = this.window(events, limit)
+      .filter((r) => !depotIds || r.depotId === null || depotIds.includes(r.depotId))
+      .filter((r) => !PERSONAL_OPS_EVENTS.includes(r.event as never) || r.customerId === staffId);
+    for (const r of visible) {
       const key = `${r.id}:${staffId}`;
       if (this.reads.has(key)) continue;
       this.reads.set(key, nextDate());

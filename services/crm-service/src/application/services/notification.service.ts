@@ -309,8 +309,8 @@ export class NotificationService {
   }
 
   /** Mark the whole current feed window read for this staff member. Idempotent. */
-  async markAllOpsRead(staffId: string, limit = 50): Promise<number> {
-    return this.repo.markAllOpsRead(OPS_EVENTS, staffId, clampLimit(limit));
+  async markAllOpsRead(staffId: string, depotIds?: readonly string[], limit = 50): Promise<number> {
+    return this.repo.markAllOpsRead(OPS_EVENTS, staffId, clampLimit(limit), depotIds);
   }
 }
 

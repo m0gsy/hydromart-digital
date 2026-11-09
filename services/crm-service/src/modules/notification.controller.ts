@@ -89,7 +89,7 @@ export class NotificationController {
   @ApiOperation({ summary: 'Mark the whole operational feed read (idempotent)' })
   @ApiOkResponse({ type: OpsReadAllResultDto })
   async markAllOpsRead(@CurrentUser() user: AuthenticatedUser): Promise<OpsReadAllResultDto> {
-    return { marked: await this.notifications.markAllOpsRead(user.sub) };
+    return { marked: await this.notifications.markAllOpsRead(user.sub, depotScopeIds(user)) };
   }
 
   /*

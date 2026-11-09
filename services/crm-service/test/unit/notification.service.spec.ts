@@ -156,6 +156,25 @@ describe('NotificationService ops read state (per staff member)', () => {
     expect((await service.listOpsFeed('staff-2')).every((n) => n.readAt === null)).toBe(true);
   });
 
+  /*
+   * CRM-06. read-all took the newest rows of EVERY ops event, whatever depot or recipient they
+   * belonged to: a small depot alert could stay unread behind the network 50 newest rows,
+   * and another depot rows (or another person leave) got marked on this person name.
+   * It must use the same window as the feed they are looking at.
+   */
+  it('CRM-06 · mark-all touches only the rows this staff member can see', async () => {
+    await stockLow(); // no depot: visible to everyone
+    await service.notify(NotificationEvent.STOCK_LOW, '+62801', { depot: 'A', item: 'G', quantity: '1', minimum: '5' }, null, 'depot-a');
+    await service.notify(NotificationEvent.STOCK_LOW, '+62801', { depot: 'B', item: 'G', quantity: '1', minimum: '5' }, null, 'depot-b');
+
+    expect(await service.markAllOpsRead('staff-1', ['depot-a'])).toBe(2); // the depotless one + depot-a
+    const feedAll = await service.listOpsFeed('staff-1');
+    // The depot-b row is still unread for them: it was never theirs to mark.
+    expect(feedAll.filter((n) => n.readAt === null)).toHaveLength(1);
+    // Head office (no scope) marks everything left.
+    expect(await service.markAllOpsRead('staff-1')).toBe(1);
+  });
+
   it('mark-all counts only the rows newly marked after a single read', async () => {
     const first = await stockLow();
     await stockLow();
