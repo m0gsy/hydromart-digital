@@ -73,6 +73,12 @@ export class FraudFlagPrismaRepository implements FraudFlagRepository {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fraud:${found.entityRef}`}, 0))`;
       const existing = await tx.fraudFlag.findUnique({ where: { id } });
       if (!existing) return null;
+      // AAS-03: already cleared - a second clear is a no-op. blockedAt stays set forever, so
+      // without this it would run the reinstate again and could reopen an account that has
+      // been suspended through another path since.
+      if (existing.status === FraudStatus.CLEARED) {
+        return { flag: this.toRecord(existing), previous: FraudStatus.CLEARED, reinstate: false };
+      }
       const row = await tx.fraudFlag.update({
         where: { id },
         data: { status: FraudStatus.CLEARED, decisionReason: reason },

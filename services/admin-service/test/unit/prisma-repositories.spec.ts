@@ -1393,6 +1393,15 @@ describe('FraudFlagPrismaRepository.create / clear (one open flag, locked clear)
     expect(await repo.clear('fr-1', null)).toMatchObject({ reinstate: false });
   });
 
+  // AAS-03: blockedAt never clears, so a second clear used to run the reinstate again.
+  it('clear on an already-CLEARED flag writes nothing and reinstates nothing', async () => {
+    fraudFlag.findUnique.mockResolvedValue(stored({ status: 'CLEARED' }));
+    const again = await repo.clear('fr-1', 'second');
+    expect(again).toMatchObject({ reinstate: false, previous: 'CLEARED' });
+    expect(fraudFlag.update).not.toHaveBeenCalled();
+    expect(fraudFlag.count).not.toHaveBeenCalled();
+  });
+
   // AAS-01: block shares clear's per-entity lock, and the suspension runs inside it.
   it('blockHolding locks the entity, suspends inside the lock, stamps blockedAt once', async () => {
     const order: string[] = [];

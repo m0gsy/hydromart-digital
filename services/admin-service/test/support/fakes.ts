@@ -661,6 +661,8 @@ export class InMemoryFraudFlagRepository implements FraudFlagRepository {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
     const previous = r.status;
+    // AAS-03: already cleared - nothing to decide again, nothing to reinstate.
+    if (previous === FraudStatus.CLEARED) return { flag: { ...r }, previous, reinstate: false };
     r.status = FraudStatus.CLEARED;
     r.decisionReason = reason;
     const reinstate =
