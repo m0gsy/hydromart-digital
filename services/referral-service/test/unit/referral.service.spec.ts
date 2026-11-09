@@ -224,6 +224,43 @@ describe('ReferralService', () => {
       ]);
     });
 
+    /*
+     * REF-04 (owner decision 2026-11-09). A referrer could farm points with any number of
+     * accounts: nothing capped how many referrals one code could pay out. Twenty a calendar
+     * month; the 21st is HELD (stays PENDING, nobody is paid, a warning is logged) and is
+     * picked up again once the month turns over - it is never silently dropped or paid.
+     */
+    it('holds the referral that would exceed the monthly cap, and pays nobody (REF-04)', async () => {
+      const referrer = randomUUID();
+      const { code } = await service.getOrCreateMyCode(referrer);
+      for (let i = 0; i < ReferralService.MAX_QUALIFIED_PER_MONTH; i += 1) {
+        const referee = randomUUID();
+        await service.redeem(referee, code);
+        expect((await service.qualify(referee, randomUUID(), '')).qualified).toBe(true);
+      }
+      const extra = randomUUID();
+      await service.redeem(extra, code);
+      loyalty.calls = [];
+
+      const result = await service.qualify(extra, randomUUID(), '');
+
+      expect(result).toEqual({ qualified: false, held: true });
+      expect(loyalty.calls).toHaveLength(0);
+      expect((await repo.findReferralByReferee(extra))?.status).toBe(ReferralStatus.PENDING);
+    });
+
+    it('does not hold another referrer for the first referrer\'s volume (REF-04)', async () => {
+      const busy = randomUUID();
+      const { code } = await service.getOrCreateMyCode(busy);
+      for (let i = 0; i < ReferralService.MAX_QUALIFIED_PER_MONTH; i += 1) {
+        const referee = randomUUID();
+        await service.redeem(referee, code);
+        await service.qualify(referee, randomUUID(), '');
+      }
+      const { referee } = await seedPending();
+      expect((await service.qualify(referee, randomUUID(), '')).qualified).toBe(true);
+    });
+
     it('is an idempotent no-op when already qualified', async () => {
       const { referee } = await seedPending();
       await service.qualify(referee, randomUUID(), 'Bearer tkn');

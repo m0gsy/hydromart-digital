@@ -252,6 +252,15 @@ describe('ReferralPrismaRepository', () => {
     });
   });
 
+  it("counts a referrer's QUALIFIED referrals since a date (REF-04)", async () => {
+    referral.count.mockResolvedValue(7);
+    const since = new Date('2026-11-01T00:00:00.000Z');
+    expect(await repo.countQualifiedSince('cust-1', since)).toBe(7);
+    expect(referral.count).toHaveBeenCalledWith({
+      where: { referrerCustomerId: 'cust-1', status: ReferralStatus.QUALIFIED, qualifiedAt: { gte: since } },
+    });
+  });
+
   it('does not qualify an order already marked voided', async () => {
     voidedReferralOrder.findUnique.mockResolvedValueOnce({ referralId: 'ref-1', orderId: 'ord-9' });
     await expect(repo.qualifyReferral('ref-1', 'ord-9')).resolves.toBeNull();

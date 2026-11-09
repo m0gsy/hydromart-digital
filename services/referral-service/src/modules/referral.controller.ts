@@ -36,7 +36,7 @@ import {
   VoidQualificationResponseDto,
 } from './dto/referral.dto';
 import { QualifyResult } from '../application/services/referral.service';
-import { QualifyResponseDto } from './dto/responses.generated.dto';
+import { QualifyResponseDto, ReconcileResponseDto } from './dto/responses.generated.dto';
 
 // Qualification is triggered when the referee's first order completes. It is a
 // system-to-system call from order-service, authenticated by the shared

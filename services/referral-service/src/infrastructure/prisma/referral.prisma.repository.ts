@@ -181,6 +181,16 @@ export class ReferralPrismaRepository implements ReferralRepository {
     return rows.map((r) => this.toReferral(r));
   }
 
+  async countQualifiedSince(referrerCustomerId: string, since: Date): Promise<number> {
+    return this.prisma.referral.count({
+      where: {
+        referrerCustomerId,
+        status: PrismaReferralStatus.QUALIFIED,
+        qualifiedAt: { gte: since },
+      },
+    });
+  }
+
   async qualifyReferral(referralId: string, orderId: string): Promise<ReferralRecord | null> {
     return this.prisma.$transaction(async (tx) => {
       const voided = await tx.voidedReferralOrder.findUnique({
