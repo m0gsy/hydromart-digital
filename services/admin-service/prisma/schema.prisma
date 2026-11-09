@@ -209,6 +209,8 @@ model ExportLog {
   /// The retention purge that already trims this table is what bounds the growth.
   content          Bytes?
   fileName         String?
+  /// AAS-16: logged by the browser (dataset and row count are the client's word, not evidence).
+  clientReported   Boolean      @default(false)
   createdAt        DateTime     @default(now())
 
   @@index([dataset])

@@ -11,6 +11,8 @@ export interface ExportLogRecord {
   fileName: string | null;
   /** True when the row holds a downloadable file. The bytes are never listed, only fetched. */
   hasFile: boolean;
+  /** AAS-16: recorded from the browser - the dataset and row count are the client's word. */
+  clientReported: boolean;
   createdAt: Date;
 }
 
@@ -23,6 +25,7 @@ export interface CreateExportLogData {
   status?: ExportStatus;
   content?: Buffer | null;
   fileName?: string | null;
+  clientReported?: boolean;
 }
 
 export interface ListExportLogsFilter {

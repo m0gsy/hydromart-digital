@@ -125,6 +125,8 @@ describe('ExportLogsController', () => {
         requestedByEmail: '+62811',
         rowCount: 12,
         status: 'DONE',
+        // AAS-16: the dataset and row count came from the browser, and the row says so.
+        clientReported: true,
       }),
     );
     await controller.record(

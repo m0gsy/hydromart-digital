@@ -19,6 +19,7 @@ interface ExportLogRow {
   rowCount: number | null;
   status: string;
   fileName: string | null;
+  clientReported: boolean;
   createdAt: Date;
 }
 
@@ -60,6 +61,7 @@ export class ExportLogPrismaRepository implements ExportLogRepository {
           rowCount: true,
           status: true,
           fileName: true,
+          clientReported: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
