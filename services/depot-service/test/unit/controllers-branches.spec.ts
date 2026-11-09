@@ -144,7 +144,14 @@ describe('ApprovalController', () => {
 });
 
 describe('CashierShiftController', () => {
-  const svc = { open: jest.fn(), current: jest.fn(), list: jest.fn(), close: jest.fn() };
+  const svc = {
+    open: jest.fn(),
+    current: jest.fn(),
+    list: jest.fn(),
+    close: jest.fn(),
+    outstandingLiabilities: jest.fn(),
+    settleLiability: jest.fn(),
+  };
   const c = new CashierShiftController(svc as never);
   beforeEach(() => jest.clearAllMocks());
 
@@ -175,6 +182,19 @@ describe('CashierShiftController', () => {
   it('asks for the caller own shift, never the depot at large', async () => {
     await c.current({ depotId: DEPOT } as never, { sub: 'user-1' } as never);
     expect(svc.current).toHaveBeenCalledWith(DEPOT, 'user-1');
+  });
+
+  // DEP-05 follow-up: settling a cashier shortfall is a finance act, not the cashier's own.
+  it('lets a manager list and settle liabilities, and refuses a cashier', async () => {
+    const manager = { sub: 'mgr-1', role: 'MANAGER' } as never;
+    const cashier = { sub: 'c-1', role: 'STAFF_DEPOT' } as never;
+    await c.liabilities({ depotId: DEPOT } as never, manager);
+    expect(svc.outstandingLiabilities).toHaveBeenCalledWith(DEPOT, manager);
+    await c.settleLiability(ID, { note: 'lunas' } as never, manager);
+    expect(svc.settleLiability).toHaveBeenCalledWith(ID, 'lunas', { id: 'mgr-1' }, manager);
+
+    expect(() => c.liabilities({ depotId: DEPOT } as never, cashier)).toThrow();
+    expect(() => c.settleLiability(ID, { note: 'x' } as never, cashier)).toThrow();
   });
 
   it('lists the depot shifts', async () => {

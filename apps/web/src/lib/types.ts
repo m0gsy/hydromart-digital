@@ -3256,6 +3256,8 @@ export interface CashierShift {
   liabilityIdr?: number | null;
   /** What this cashier still owes from earlier shifts (DEP-05). */
   carriedLiabilityIdr?: number;
+  liabilitySettledAt?: string | null;
+  liabilityNote?: string | null;
 }
 
 export interface CashierShiftBoard {

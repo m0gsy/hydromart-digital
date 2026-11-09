@@ -110,6 +110,12 @@ export class CashierShiftResponseDto {
   note!: string | null;
   @ApiProperty({ type: Number, nullable: true })
   liabilityIdr!: number | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  liabilitySettledAt!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  liabilitySettledBy!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  liabilityNote!: string | null;
   @ApiProperty({ type: Number, required: false })
   carriedLiabilityIdr?: number;
 }

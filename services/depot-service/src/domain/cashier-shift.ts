@@ -21,6 +21,9 @@ export interface CashierShift {
   note: string | null;
   /** DEP-05: shortfall HQ rejected, owed by the cashier of THIS shift. NULL = none. */
   liabilityIdr: number | null;
+  liabilitySettledAt: Date | null;
+  liabilitySettledBy: string | null;
+  liabilityNote: string | null;
   /**
    * Read-side only: what this cashier still owes from EARLIER shifts at this depot. Shown when
    * they open, look at, or close a shift.

@@ -23,6 +23,9 @@ interface ShiftRow {
   variance: number | null;
   note: string | null;
   liabilityIdr: number | null;
+  liabilitySettledAt: Date | null;
+  liabilitySettledBy: string | null;
+  liabilityNote: string | null;
 }
 
 @Injectable()
@@ -97,6 +100,28 @@ export class CashierShiftPrismaRepository implements CashierShiftRepository {
     return count === 1;
   }
 
+  async settleLiability(id: string, by: string, note: string): Promise<boolean> {
+    const { count } = await this.prisma.cashierShift.updateMany({
+      where: { id, liabilityIdr: { not: null }, liabilitySettledAt: null },
+      data: { liabilitySettledAt: new Date(), liabilitySettledBy: by, liabilityNote: note },
+    });
+    return count === 1;
+  }
+
+  async listOutstandingLiabilities(depotId: string): Promise<CashierShift[]> {
+    const rows = await this.prisma.cashierShift.findMany({
+      where: {
+        depotId,
+        status: CashierShiftStatus.CLOSED,
+        liabilityIdr: { not: null },
+        liabilitySettledAt: null,
+      },
+      orderBy: { closedAt: 'asc' },
+      take: 200,
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async outstandingLiability(
     depotId: string,
     cashierId: string,
@@ -108,6 +133,7 @@ export class CashierShiftPrismaRepository implements CashierShiftRepository {
         cashierId,
         status: CashierShiftStatus.CLOSED,
         liabilityIdr: { not: null },
+        liabilitySettledAt: null,
         ...(exceptShiftId ? { id: { not: exceptShiftId } } : {}),
       },
       _sum: { liabilityIdr: true },

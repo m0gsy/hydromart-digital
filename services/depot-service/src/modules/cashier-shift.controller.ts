@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
@@ -6,7 +6,7 @@ import { can } from '@hydromart/access';
 
 import { CashierShiftService } from '../application/services/cashier-shift.service';
 import { CashierShift } from '../domain/cashier-shift';
-import { CloseShiftDto, OpenShiftDto, ShiftQueryDto } from './dto/cashier-shift.dto';
+import { CloseShiftDto, OpenShiftDto, SettleLiabilityDto, ShiftQueryDto } from './dto/cashier-shift.dto';
 import { CashierShiftResponseDto, ListResponseDto } from './dto/responses.generated.dto';
 
 /**
@@ -44,6 +44,29 @@ export class CashierShiftController {
   @ApiOperation({ summary: 'Open shifts at a depot plus the latest closed ones' })
   list(@Query() query: ShiftQueryDto): Promise<{ open: CashierShift[]; closed: CashierShift[] }> {
     return this.shifts.list(query.depotId);
+  }
+
+  @ApiOkResponse({ type: ListResponseDto })
+  @Get('liabilities')
+  @ApiOperation({ summary: 'Closed shifts at a depot whose rejected shortfall is still owed (managers)' })
+  liabilities(
+    @Query() query: ShiftQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CashierShift[]> {
+    if (!can('depotFinance', user.role)) throw new ForbiddenException();
+    return this.shifts.outstandingLiabilities(query.depotId, user);
+  }
+
+  @ApiOkResponse({ type: CashierShiftResponseDto })
+  @Post(':id/liability/settle')
+  @ApiOperation({ summary: "Settle or waive a cashier's recorded shortfall, with a reason (managers)" })
+  settleLiability(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SettleLiabilityDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CashierShift> {
+    if (!can('depotFinance', user.role)) throw new ForbiddenException();
+    return this.shifts.settleLiability(id, dto.note, { id: user.sub }, user);
   }
 
   @ApiOkResponse({ type: CashierShiftResponseDto })

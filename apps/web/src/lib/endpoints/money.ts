@@ -260,6 +260,10 @@ export const money = {
     // A shift HISTORY has no screen — `/dashboard/settlements` reconciles deliveries, not
     // drawers.)
     close: (id: string) => `/depots/api/v1/cashier-shifts/${id}/close`,
+    // DEP-05: rejected shortfalls still owed by a cashier, and the manager closing one.
+    liabilities: (depotId: string) =>
+      `/depots/api/v1/cashier-shifts/liabilities?depotId=${encodeURIComponent(depotId)}`,
+    settleLiability: (id: string) => `/depots/api/v1/cashier-shifts/${id}/liability/settle`,
   },
 
   wholesale: {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp, BookOpen, Export, Lock, Plus, type Icon } from '@phosphor-icons/react';
 
+import { CashierLiabilities } from '@/components/dashboard/cashier-liabilities';
 import { RequireAuth } from '@/components/require-auth';
 import {
   Button,
@@ -257,6 +258,8 @@ function CashbookBody() {
           {t('opsFix.cashbook.record')}
         </Button>
       </div>
+
+      {scopedId && <CashierLiabilities depotId={scopedId} />}
 
       {showForm && scopedId && (
         <CreateForm

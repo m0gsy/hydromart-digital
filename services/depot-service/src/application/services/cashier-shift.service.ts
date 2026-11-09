@@ -7,6 +7,7 @@ import { Approval, ApprovalType } from '../../domain/approval';
 import { ApprovalService } from './approval.service';
 import {
   DepotNotFoundError,
+  LiabilityNotOutstandingError,
   ShiftAlreadyClosedError,
   ShiftAlreadyOpenError,
   ShiftNotFoundError,
@@ -59,6 +60,32 @@ export class CashierShiftService {
     const shiftId = approval.subjectRef?.startsWith('shift:') ? approval.subjectRef.slice(6) : null;
     if (!shiftId || approval.amountIdr >= 0) return;
     await this.shifts.recordLiability(shiftId, -approval.amountIdr);
+  }
+
+  /** Closed shifts at this depot whose recorded shortfall is still owed. */
+  async outstandingLiabilities(depotId: string, user?: AuthenticatedUser): Promise<CashierShift[]> {
+    assertDepotAccess(user, depotId);
+    return this.shifts.listOutstandingLiabilities(depotId);
+  }
+
+  /**
+   * A manager settles or waives a cashier's recorded shortfall, with a reason. Nothing moves in
+   * cash here: it records that the matter is closed, so it stops showing to the cashier.
+   */
+  async settleLiability(
+    shiftId: string,
+    note: string,
+    settler: { id: string },
+    user?: AuthenticatedUser,
+  ): Promise<CashierShift> {
+    const shift = await this.shifts.findById(shiftId);
+    if (!shift) throw new ShiftNotFoundError();
+    assertDepotAccess(user, shift.depotId);
+    if (!shift.liabilityIdr || shift.liabilitySettledAt) throw new LiabilityNotOutstandingError();
+    if (!(await this.shifts.settleLiability(shiftId, settler.id, note.trim()))) {
+      throw new LiabilityNotOutstandingError();
+    }
+    return (await this.shifts.findById(shiftId)) as CashierShift;
   }
 
   /** The shift plus what its cashier still owes from earlier shifts at this depot. */

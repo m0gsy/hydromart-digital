@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, MaxLength, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, MaxLength, Max, Min, MinLength } from 'class-validator';
 
 // A drawer float and a counted total are whole rupiah. The ceiling is deliberately absurd
 // (Rp 1 miliar) — it only exists to reject a fat-fingered paste, not to cap a real day.
@@ -35,6 +35,14 @@ export class CloseShiftDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+}
+
+export class SettleLiabilityDto {
+  @ApiProperty({ example: 'Dilunasi tunai oleh kasir pada 10 Nov.', description: 'Why it is closed: paid, waived, ...' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  note!: string;
 }
 
 export class ShiftQueryDto {
