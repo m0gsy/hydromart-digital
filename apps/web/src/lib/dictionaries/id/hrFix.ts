@@ -2013,7 +2013,7 @@ export const hrFix = {
       'Nomor yang belum punya akun didaftarkan lebih dulu, lalu terdaftar sebagai agen depot ini. Agen yang sudah terdaftar akan DIPERBARUI dari berkas ini — diskon, target, dan harga rata galonnya. Tanggal bergabung tidak diubah.',
     salesHistory: 'Import Riwayat Transaksi Penjualan',
     salesHistoryBody:
-      'Untuk memindahkan riwayat penjualan dari sistem lama depot ini. Baris disimpan sebagai catatan historis, bukan pesanan hidup — tidak memicu poin loyalitas, notifikasi, atau potongan stok. Nomor nota (externalRef) yang sama diimpor dua kali akan dilewati, bukan digandakan.',
+      'Untuk memindahkan riwayat penjualan dari sistem lama depot ini. Baris disimpan sebagai catatan historis, bukan pesanan hidup — tidak memicu poin loyalitas, notifikasi, atau potongan stok. Nota dengan beberapa produk ditulis sebagai beberapa baris dengan nomor nota yang sama; urutan barisnya yang menentukan, jadi file yang sama diimpor dua kali akan dilewati, bukan digandakan.',
     depots: 'Impor Depot Massal',
     staff: 'Impor Staf Massal',
     deductions: 'Import Potongan',

@@ -39,6 +39,10 @@ export class SalesImportService {
     rows: readonly ImportSalesTransactionRow[],
   ): Promise<ImportSummary> {
     const batchId = randomUUID();
+    // ORD-14: rows of one receipt take line numbers in file order, so a multi-product receipt is
+    // not skipped as a duplicate of its own first line, and the same file again gives the same
+    // numbers (a re-upload stays a no-op).
+    const seen = new Map<string, number>();
     return runImport(
       rows,
       async (row) => {
@@ -52,9 +56,12 @@ export class SalesImportService {
               `(${row.unitPrice.toLocaleString('id-ID')} x ${row.quantity} = ${expected.toLocaleString('id-ID')})`,
           );
         }
+        const lineNo = seen.get(row.externalRef) ?? 0;
+        seen.set(row.externalRef, lineNo + 1);
         await this.repo.create({
           depotId,
           externalRef: row.externalRef,
+          lineNo,
           occurredAt: new Date(row.occurredAt),
           customerLabel: row.customerLabel ?? null,
           productLabel: row.productLabel,

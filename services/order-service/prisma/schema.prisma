@@ -413,6 +413,10 @@ model ImportedSalesTransaction {
   /// old systems almost certainly numbered receipts independently.
   externalRef String
 
+  /// ORD-14: which row of that receipt this is (0-based, file order). A receipt with several
+  /// products is several rows; without this the second one collided with the first.
+  lineNo      Int      @default(0)
+
   /// When the original sale happened, not when it was imported.
   occurredAt  DateTime
 
@@ -433,7 +437,7 @@ model ImportedSalesTransaction {
   importedBy String?
   importedAt DateTime @default(now())
 
-  @@unique([depotId, externalRef])
+  @@unique([depotId, externalRef, lineNo], map: "imported_sales_transactions_depotId_externalRef_lineNo_key")
   @@index([depotId, occurredAt])
   @@index([batchId])
   @@map("imported_sales_transactions")
