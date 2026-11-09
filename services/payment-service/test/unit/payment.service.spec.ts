@@ -9,6 +9,7 @@ import {
   PaymentAmountMismatchError,
   PaymentNotFoundError,
   InvalidRefundAmountError,
+  PartialRefundOnCancelledOrderError,
   PaymentNotRefundableError,
   RefundNotPendingError,
   RefundSelfApprovalError,
@@ -398,6 +399,85 @@ describe('PaymentService', () => {
       expect(settled.refundedAmount).toBe(120000);
       expect(gateway.refunds[0]).toMatchObject({ amount: 120000 });
       expect(orders.refunded.at(-1)).toEqual({ orderId: payment.orderId, amount: 120000 });
+    });
+  });
+
+  /*
+   * Review of #861 (money path). Four ways a partial refund could cost the customer money or
+   * leave a wrong number behind, each pinned here.
+   */
+  describe('partial refund: the risky paths (DEP-26 review)', () => {
+    async function pendingPartial(total = 250000, part = 120000) {
+      const payment = await initiate(PaymentMethod.VA, total);
+      await service.confirm(payment.id, 'staff');
+      const queued = await service.refund(payment.id, 'mgr', 'part', undefined, part);
+      expect(queued.refundApproval).toBe(RefundApproval.PENDING);
+      return payment;
+    }
+
+    it('a later FULL refund (the order was cancelled) replaces a smaller pending request', async () => {
+      const payment = await pendingPartial();
+      const after = await service.cancelForOrder(payment.orderId, 'dibatalkan', 'order-service');
+      expect(after?.refundApproval).toBe(RefundApproval.PENDING);
+      expect(after?.refundedAmount).toBe(250000);
+      const settled = await service.approveRefund(payment.id, 'hq');
+      expect(settled.refundedAmount).toBe(250000);
+      expect(gateway.refunds.at(-1)).toMatchObject({ amount: 250000 });
+    });
+
+    it('a smaller or equal request while one is pending changes nothing (the first stands)', async () => {
+      const payment = await pendingPartial();
+      const again = await service.refund(payment.id, 'mgr', 'lagi', undefined, 60000);
+      expect(again.refundedAmount).toBe(120000);
+      const same = await service.refund(payment.id, 'mgr', 'lagi', undefined, 120000);
+      expect(same.refundedAmount).toBe(120000);
+    });
+
+    it('rejecting a partial request leaves no refunded amount on the PAID payment', async () => {
+      const payment = await pendingPartial();
+      // The rejection guard fails closed: order-service has to be able to say the order is standing.
+      orders.orderStatuses.set(payment.orderId, 'DELIVERED');
+      const rejected = await service.rejectRefund(payment.id, 'hq', 'tidak wajar');
+      expect(rejected.status).toBe(PaymentStatus.PAID);
+      expect(rejected.refundApproval).toBe(RefundApproval.REJECTED);
+      expect(rejected.refundedAmount).toBeNull();
+    });
+
+    it('refuses a part-refund on an order that is already cancelled: it is owed in full', async () => {
+      const payment = await initiate(PaymentMethod.VA);
+      await service.confirm(payment.id, 'staff');
+      orders.orderStatuses.set(payment.orderId, 'CANCELLED');
+      await expect(service.refund(payment.id, 'mgr', 'x', undefined, 20000)).rejects.toBeInstanceOf(
+        PartialRefundOnCancelledOrderError,
+      );
+      expect(gateway.refunds).toHaveLength(0);
+      // The full amount is still fine.
+      expect((await service.refund(payment.id, 'mgr', 'x')).refundedAmount).toBe(45000);
+    });
+
+    it('a cancellation AFTER a part-refund cannot refund the rest, so it is recorded as owed', async () => {
+      const payment = await initiate(PaymentMethod.VA);
+      await service.confirm(payment.id, 'staff');
+      await service.refund(payment.id, 'mgr', 'part', undefined, 20000);
+      const audit = jest.spyOn(service as never, 'audit' as never);
+      const out = await service.cancelForOrder(payment.orderId, 'dibatalkan', 'order-service');
+      expect(out).toBeNull();
+      expect(audit).toHaveBeenCalledWith(
+        'order-service',
+        'payment.refund.remainder_owed',
+        expect.objectContaining({ id: payment.id }),
+        expect.objectContaining({ remainderIdr: 25000 }),
+      );
+    });
+
+    it('a failed gateway call for a partial hands the claim back with the queued amount intact', async () => {
+      const payment = await pendingPartial();
+      gateway.throwOnRefund = true;
+      await expect(service.approveRefund(payment.id, 'hq')).rejects.toBeInstanceOf(GatewayUnavailableError);
+      const row = repo.rows.find((r) => r.id === payment.id)!;
+      expect(row.status).toBe(PaymentStatus.PAID);
+      expect(row.refundApproval).toBe(RefundApproval.PENDING);
+      expect(row.refundedAmount).toBe(120000);
     });
   });
 
