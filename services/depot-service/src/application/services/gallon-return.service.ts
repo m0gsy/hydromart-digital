@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { ApprovalType } from '../../domain/approval';
+import { Approval, ApprovalType } from '../../domain/approval';
 import { GallonCondition } from '../../domain/gallon-return';
 import { InventoryItemType } from '../../domain/inventory';
 import { DepotNotFoundError, GallonOverReturnError } from '../../domain/errors';
@@ -54,9 +54,39 @@ export class GallonReturnService {
     private readonly approvals: ApprovalService,
     // CA-2-57: a return is empties coming BACK, so the physical GALON line goes up.
     private readonly inventory: InventoryService,
-  ) {}
+  ) {
+    // DEP-05: a rejected deposit refund goes back on the customer's books (see below).
+    this.approvals.registerReversal(ApprovalType.DEPOSIT_REFUND, (approval, decidedBy) =>
+      this.reverseDepositRefund(approval, decidedBy),
+    );
+  }
 
   private readonly logger = new Logger(GallonReturnService.name);
+
+  /**
+   * DEP-05: HQ rejected a deposit refund that was already recorded. The refund is not undone in
+   * cash (that money is gone); the deposit is put back on the customer's books as a CORRECTION
+   * ROW in the issue ledger - no gallons, deposit held = what was refunded - so the balance says
+   * the customer is deemed to hold that deposit again and finance can collect or write it off.
+   * An approval raised before this change carries no customer id and is left alone.
+   */
+  private async reverseDepositRefund(approval: Approval, decidedBy: string): Promise<void> {
+    const p = (approval.payload ?? {}) as {
+      returnId?: unknown;
+      customerId?: unknown;
+      depositRefunded?: unknown;
+    };
+    if (typeof p.customerId !== 'string' || typeof p.depositRefunded !== 'number') return;
+    if (p.depositRefunded <= 0) return;
+    await this.issues.create({
+      depotId: approval.depotId,
+      customerId: p.customerId,
+      quantity: 0,
+      depositHeld: p.depositRefunded,
+      note: `Koreksi: refund deposit ditolak HQ (retur ${typeof p.returnId === 'string' ? p.returnId : '-'})`,
+      actorId: decidedBy,
+    });
+  }
 
   /**
    * A queue write that must never roll back a return already recorded and stock already
@@ -235,6 +265,8 @@ export class GallonReturnService {
         amountIdr: proposed,
         payload: {
           returnId: record.id,
+          // DEP-05: who the deposit belongs to, so a rejection can put it back on their books.
+          customerId: record.customerId,
           quantity: record.quantity,
           depositRefunded: record.depositRefunded,
           reason,

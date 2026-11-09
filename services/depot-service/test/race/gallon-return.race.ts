@@ -38,7 +38,8 @@ describeRace('gallon returns on real Postgres', () => {
       new GallonIssuePrismaRepository(prisma as never),
       { exists: async () => true } as never,
       { gallonDepositIdr: () => DEPOSIT } as never,
-      { create: async () => undefined } as never,
+      // DEP-05: the service registers a reversal on its approvals at construction.
+      { create: async () => undefined, registerReversal: () => undefined } as never,
       { moveRawLine: async () => true } as never,
     );
   });
