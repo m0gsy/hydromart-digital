@@ -217,4 +217,20 @@ export class InternalAccountController {
   purgeExpiredTokens(@Body() dto: PurgeBeforeDto): Promise<{ otpTokens: number; refreshTokens: number }> {
     return this.tokens.purgeExpired(new Date(dto.cutoff));
   }
+
+  /**
+   * AUT-08, scheduled: the scheduler (sweep.sh) sends no body, so it cannot supply the cutoff the
+   * route above wants. This one chooses it: tokens that expired MORE THAN 30 DAYS AGO. Long
+   * enough that nothing still useful (a late reuse check on a refresh family, an OTP dispute) is
+   * gone; the service itself never deletes within a day of now either way. `ok` is the verdict
+   * sweep.sh greps.
+   */
+  @ApiOkResponse({ description: '{ otpTokens, refreshTokens, ok }' })
+  @Post('tokens/sweep-expired')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Scheduled purge of tokens expired over 30 days ago (internal service auth)' })
+  async sweepExpiredTokens(): Promise<{ otpTokens: number; refreshTokens: number; ok: boolean }> {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return { ...(await this.tokens.purgeExpired(cutoff)), ok: true };
+  }
 }

@@ -33,6 +33,17 @@ describe('InternalAccountController', () => {
     expect(tokens.purgeExpired).toHaveBeenCalledWith(new Date('2026-10-01T00:00:00.000Z'));
   });
 
+  // AUT-08 (owner asked for it to be scheduled). sweep.sh sends no body, so the scheduler's door
+  // computes the cutoff itself: tokens that expired more than 30 days ago.
+  it('AUT-08: tokens/sweep-expired purges what expired over 30 days ago, and says ok', async () => {
+    const before = Date.now();
+    const out = await controller.sweepExpiredTokens();
+    expect(out).toEqual({ otpTokens: 2, refreshTokens: 1, ok: true });
+    const cutoff = (tokens.purgeExpired.mock.calls.at(-1) as unknown as [Date])[0];
+    expect(before - cutoff.getTime()).toBeGreaterThanOrEqual(30 * 24 * 60 * 60 * 1000 - 1000);
+    expect(before - cutoff.getTime()).toBeLessThan(31 * 24 * 60 * 60 * 1000);
+  });
+
   /*
    * The route hr-service calls to disable a login when somebody leaves. It had no test at
    * all, which for a door that switches off access is the wrong thing to be missing.
