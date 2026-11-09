@@ -15,12 +15,11 @@ import { fmtDate, type DepotAssignment } from '@/lib/hr';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { todayWib } from '@/lib/wib';
 
-/** The local day, `YYYY-MM-DD`, in the browser own zone - what a date input speaks. */
+/** Today in the business zone (WEB-13), as a date input speaks it. */
 function today(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return todayWib();
 }
 
 /**

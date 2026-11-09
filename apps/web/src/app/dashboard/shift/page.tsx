@@ -27,6 +27,7 @@ import { whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import { useT } from '@/lib/locale-context';
 import type { Customer, ShiftAssignment, ShiftKind } from '@/lib/types';
+import { mondayWib } from '@/lib/wib';
 
 // Pagi → Sore → Libur → Pagi. An empty cell is treated as Libur.
 const CYCLE: Record<ShiftKind, ShiftKind> = { OFF: 'MORNING', MORNING: 'EVENING', EVENING: 'OFF' };
@@ -42,11 +43,9 @@ const SHIFT_STYLE: Record<ShiftKind, string> = {
   OFF: 'bg-[color:var(--surface-muted)] text-[color:var(--text-muted)]',
 };
 
+// WEB-13: the business zone's week, not the device's - a WITA/WIT phone started the week early.
 function mondayOf(d: Date): string {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // getDay 0=Sun → shift to Mon
-  return isoDate(x);
+  return mondayWib(d);
 }
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

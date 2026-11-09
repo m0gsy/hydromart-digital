@@ -22,6 +22,7 @@ import { can, canConfirmPayment } from '@/lib/roles';
 import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Order, Page, Payment } from '@/lib/types';
+import { dayStartWib, todayWib } from '@/lib/wib';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -249,12 +250,12 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   // assignment to a courier with no open shift, so offering them here only produced a
   // rejection after the click — the dropdown says so up front instead.
   const { data: shifts } = useAsync<CourierShift[] | null>(() => {
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
+    // WEB-13: the start of the business day (WIB), not of the device's day.
+    const since = dayStartWib(todayWib());
     return (
       api
         .get<CourierShift[]>(
-          endpoints.deliveries.shiftsOnDuty(since.toISOString(), order.depotId ?? undefined),
+          endpoints.deliveries.shiftsOnDuty(since, order.depotId ?? undefined),
           true,
         )
         /*
