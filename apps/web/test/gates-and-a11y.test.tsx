@@ -178,6 +178,32 @@ describe('CA-3-66 the location panel can be dismissed', () => {
     await waitFor(() => expect(screen.queryByText('home.location.useMyLocation')).toBeNull());
   });
 
+  // F13. The picker pushes a history entry so Back closes it. Closing by any OTHER way (outside
+  // click, Escape, picking a place) left that entry behind, so the next Back did nothing visible.
+  it('takes its own history entry back off when it closes some other way (F13)', async () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    render(<LocationSelector />);
+    await userEvent.click(screen.getByText('home.location.placeholder'));
+    await waitFor(() => expect(screen.getByText('home.location.useMyLocation')).toBeTruthy());
+    expect(window.history.state).toMatchObject({ hydromartLocationPicker: true });
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText('home.location.useMyLocation')).toBeNull());
+    expect(back).toHaveBeenCalledTimes(1);
+    back.mockRestore();
+  });
+
+  it('does not pop again when Back itself closed it (F13)', async () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    render(<LocationSelector />);
+    await userEvent.click(screen.getByText('home.location.placeholder'));
+    await waitFor(() => expect(screen.getByText('home.location.useMyLocation')).toBeTruthy());
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await waitFor(() => expect(screen.queryByText('home.location.useMyLocation')).toBeNull());
+    expect(back).not.toHaveBeenCalled();
+    back.mockRestore();
+  });
+
   it('closes on the Android back gesture instead of leaving the page', async () => {
     render(<LocationSelector />);
     await userEvent.click(screen.getByText('home.location.placeholder'));

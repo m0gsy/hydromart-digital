@@ -193,6 +193,16 @@ describe('CA-2-54 StockTransferPrismaRepository', () => {
     const ctx = build();
     ctx.stockTransfer.count.mockResolvedValue(3);
     await expect(ctx.repo.countSentOn('2026-09-09')).resolves.toBe(3);
+    // D1-05: the day is a day in Jakarta - 00:00 WIB (17:00 UTC the evening before) up to, and
+    // not including, the next 00:00 WIB. It used UTC bounds and dropped the last millisecond.
+    expect(ctx.stockTransfer.count).toHaveBeenLastCalledWith({
+      where: {
+        sentAt: {
+          gte: new Date('2026-09-08T17:00:00.000Z'),
+          lt: new Date('2026-09-09T17:00:00.000Z'),
+        },
+      },
+    });
   });
 
   it('fails the receive when the destination line vanished mid-transaction', async () => {

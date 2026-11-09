@@ -150,6 +150,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/retention': Archive,
   '/hq/pdp': ShieldCheck,
   '/hq/security': Lock,
+  '/hq/policy-changes': ShieldCheck,
   '/hq/profile': IdentificationBadge,
   '/hq/wizard': Sparkle,
   '/hq/invoice-template': Article,

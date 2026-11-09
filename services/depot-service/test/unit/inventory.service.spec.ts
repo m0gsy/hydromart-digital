@@ -25,6 +25,7 @@ import {
   InMemoryInventoryRepository,
 } from '../support/fakes';
 import { ApprovalService } from '../../src/application/services/approval.service';
+import { ApprovalType } from '../../src/domain/approval';
 
 const ACTOR = 'staff-1';
 const TOKEN = 'Bearer staff-token';
@@ -39,6 +40,7 @@ describe('InventoryService', () => {
   let inventory: InventoryService;
   let depotId: string;
   let approvalRepo: InMemoryApprovalRepository;
+  let approvals: ApprovalService;
 
   beforeEach(async () => {
     depotRepo = new InMemoryDepotRepository();
@@ -46,7 +48,7 @@ describe('InventoryService', () => {
     alerts = new FakeLowStockAlert();
     const config = buildTestConfig();
     approvalRepo = new InMemoryApprovalRepository();
-    const approvals = new ApprovalService(approvalRepo, depotRepo, config);
+    approvals = new ApprovalService(approvalRepo, depotRepo, config);
     untracked = new FakeUntrackedSaleAlert();
     catalog = new FakeProductCatalog();
     inventory = new InventoryService(
@@ -1194,6 +1196,48 @@ describe('InventoryService', () => {
     expect(line.sellPrice).toBe(22000);
     const prices = await inventory.pricesForProducts(depotId, [PRODUCT_ID]);
     expect(prices).toEqual([{ productId: PRODUCT_ID, sellPrice: 22000 }]);
+  });
+
+  // DEP-05: HQ rejecting an opname variance puts the shelf count back where it was before the
+  // opname moved it - the stock change is reversed, not just the approval relabelled.
+  it('a rejected opname variance restores the stock the opname changed (DEP-05)', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    await inventory.opname(line.id, 4, 'hitung ulang', ACTOR);
+    const queued = await approvals.create(
+      {
+        depotId,
+        type: ApprovalType.OPNAME_VARIANCE,
+        title: 'Selisih opname',
+        amountIdr: 5_000_000,
+        payload: { itemId: line.id, system: 10, physical: 4, variance: -6 },
+      },
+      ACTOR,
+    );
+    await approvals.decide(queued.id, 'REJECT', 'tidak wajar', 'hq-1');
+    expect((await inventory.get(line.id)).quantity).toBe(10);
+  });
+
+  it('a rejected variance without an item id (raised before this change) reverses nothing', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    await inventory.opname(line.id, 4, null, ACTOR);
+    const queued = await approvals.create(
+      { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih lama', amountIdr: 5_000_000, payload: { variance: -6 } },
+      ACTOR,
+    );
+    await approvals.decide(queued.id, 'REJECT', null, 'hq-1');
+    expect((await inventory.get(line.id)).quantity).toBe(4);
+  });
+
+  it('a rejected variance of zero, or one whose variance is not a number, reverses nothing (DEP-05)', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    for (const payload of [{ itemId: line.id, variance: 0 }, { itemId: line.id, variance: 'banyak' }]) {
+      const queued = await approvals.create(
+        { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih', amountIdr: 5_000_000, payload },
+        ACTOR,
+      );
+      await approvals.decide(queued.id, 'REJECT', null, 'hq-1');
+    }
+    expect((await inventory.get(line.id)).quantity).toBe(10);
   });
 
   it('omits products without an override from the price lookup', async () => {

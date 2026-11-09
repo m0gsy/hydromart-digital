@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
@@ -11,10 +13,19 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuditMutationsInterceptor, Can, InternalAuthGuard, Public } from '@hydromart/platform';
+import {
+  AuditMutationsInterceptor,
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { PurgeRunResult, PurgeService } from '../application/services/purge.service';
+import { PolicyChangeService } from '../application/services/policy-change.service';
 import { RetentionService } from '../application/services/retention.service';
+import { PolicyChangeRequestedDto } from './dto/policy-change.dto';
 import {
   BackupStatusDto,
   PurgePlanEntryDto,
@@ -37,6 +48,7 @@ export class RetentionController {
   constructor(
     private readonly retention: RetentionService,
     private readonly purge: PurgeService,
+    private readonly changes: PolicyChangeService,
   ) {}
 
   @ApiOkResponse({ type: RetentionOverviewDto })
@@ -113,19 +125,24 @@ export class RetentionController {
     );
   }
 
-  @ApiOkResponse({ type: RetentionPolicyDto })
+  /**
+   * AAS-14: this no longer applies the window - it REQUESTS it (validated here, including the
+   * legal floor). A second super admin approves it under POST policy-changes/:id/approve.
+   */
+  @ApiOkResponse({ type: PolicyChangeRequestedDto })
   @Put(':id')
-  @ApiOperation({ summary: "Update one dataset's retention window" })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: "Request a change to one dataset's retention window (needs a second super admin)" })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateRetentionDto,
-  ): Promise<RetentionPolicyDto> {
-    return RetentionPolicyDto.from(
-      await this.retention.updatePolicy(id, {
-        windowLabel: dto.windowLabel,
-        windowDays: dto.windowDays,
-        dataClass: dto.dataClass,
-      }, dto.seenUpdatedAt),
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PolicyChangeRequestedDto> {
+    const request = await this.changes.requestRetentionChange(
+      id,
+      { windowLabel: dto.windowLabel, windowDays: dto.windowDays, dataClass: dto.dataClass },
+      user.sub,
     );
+    return { pending: true, requestId: request.id };
   }
 }

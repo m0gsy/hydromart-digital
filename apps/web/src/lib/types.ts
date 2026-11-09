@@ -2300,6 +2300,8 @@ export interface RefundQueueItem {
   method: PaymentMethod;
   status: PaymentStatus;
   amount: number;
+  /** DEP-26: what is being asked back; less than `amount` for a part-refund. Null on older rows. */
+  refundedAmount?: number | null;
   refundReason: string | null;
   /** Who raised it: a user id, `order-service` for a cancellation, or null for older rows. */
   refundRequestedBy?: string | null;

@@ -177,6 +177,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/retention', labelKey: 'retention', cap: 'platformAdmin' },
       { href: '/hq/pdp', labelKey: 'pdp', cap: 'pdpRequests' },
       { href: '/hq/security', labelKey: 'security', cap: 'platformAdmin' },
+      { href: '/hq/policy-changes', labelKey: 'policyChanges', cap: 'platformAdmin' },
     ],
   },
   {

@@ -97,7 +97,13 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    const onPopState = () => setOpen(false);
+    // F13: when Back itself closed the panel its entry is already gone; any other way out must
+    // take the entry off, or the next Back appears to do nothing.
+    let closedByBack = false;
+    const onPopState = () => {
+      closedByBack = true;
+      setOpen(false);
+    };
 
     window.history.pushState({ hydromartLocationPicker: true }, '');
     document.addEventListener('pointerdown', onPointerDown);
@@ -107,6 +113,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('popstate', onPopState);
+      if (!closedByBack && window.history.state?.hydromartLocationPicker) window.history.back();
     };
   }, [open]);
 

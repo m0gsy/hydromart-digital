@@ -40,14 +40,19 @@ export class SecurityPolicyService {
    * this page at once used to produce whichever of them saved last, with the other's
    * change gone and neither of them told.
    */
-  async save(
-    data: SaveSecurityPolicyData,
-    seenUpdatedAt?: string,
-  ): Promise<SecurityPolicyRecord> {
+  /** AAS-14: the value checks alone, so a change request is refused up front, not at approval. */
+  validate(data: SaveSecurityPolicyData): void {
     const idle = data.idleTimeoutMinutes;
     if (idle !== HQ_IDLE_LIMIT.off && (idle < HQ_IDLE_LIMIT.min || idle > HQ_IDLE_LIMIT.max)) {
       throw new IdleLimitOutOfRangeError(HQ_IDLE_LIMIT.min, HQ_IDLE_LIMIT.max);
     }
+  }
+
+  async save(
+    data: SaveSecurityPolicyData,
+    seenUpdatedAt?: string,
+  ): Promise<SecurityPolicyRecord> {
+    this.validate(data);
     assertFresh((await this.repo.get())?.updatedAt ?? null, seenUpdatedAt);
     return this.repo.save(data);
   }

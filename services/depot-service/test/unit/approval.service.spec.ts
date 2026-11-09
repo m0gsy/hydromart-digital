@@ -51,6 +51,44 @@ describe('ApprovalService', () => {
       SUBMITTER,
     );
 
+  /*
+   * DEP-05 (owner decision 2026-11-09). An approval is decided AFTER the fact: the opname has
+   * already moved the stock. Rejecting used to change a status and nothing else. A type may now
+   * register a reversal that runs when (and only when) a pending item is REJECTED.
+   */
+  describe('rejection reverses the effect (DEP-05)', () => {
+    it('runs the registered reversal for that type on REJECT, once, with the approval', async () => {
+      const reverse = jest.fn().mockResolvedValue(undefined);
+      service.registerReversal(ApprovalType.OPNAME_VARIANCE, reverse);
+      const a = await raise(500_000);
+      await service.decide(a.id, 'REJECT', 'tidak wajar', 'hq-1');
+      expect(reverse).toHaveBeenCalledTimes(1);
+      expect(reverse).toHaveBeenCalledWith(expect.objectContaining({ id: a.id, status: ApprovalStatus.REJECTED }), 'hq-1');
+    });
+
+    it('does not run it on APPROVE or HOLD', async () => {
+      const reverse = jest.fn();
+      service.registerReversal(ApprovalType.OPNAME_VARIANCE, reverse);
+      const a = await raise(500_000);
+      await service.decide(a.id, 'HOLD', null, 'hq-1');
+      await service.decide(a.id, 'APPROVE', null, 'hq-1');
+      expect(reverse).not.toHaveBeenCalled();
+    });
+
+    it('rejecting a type with no reversal registered still works', async () => {
+      const a = await raise(500_000);
+      const out = await service.decide(a.id, 'REJECT', null, 'hq-1');
+      expect(out.status).toBe(ApprovalStatus.REJECTED);
+    });
+
+    it('a failing reversal does not undo the rejection - it is logged for somebody to fix', async () => {
+      service.registerReversal(ApprovalType.OPNAME_VARIANCE, jest.fn().mockRejectedValue(new Error('stok berubah')));
+      const a = await raise(500_000);
+      const out = await service.decide(a.id, 'REJECT', null, 'hq-1');
+      expect(out.status).toBe(ApprovalStatus.REJECTED);
+    });
+  });
+
   // The amount column is an INT4. 100,000 gallons at a Rp1,000,000 deposit is Rp99,999,000,000 and
   // used to reach the database as-is: a 500 raised AFTER the return that queued it was written.
   it('caps an amount the column cannot hold instead of failing, and still queues it for a human', async () => {

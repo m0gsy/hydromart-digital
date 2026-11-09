@@ -165,6 +165,11 @@ class SpyApprovalService {
     this.created.push(input);
     return { id: `approval-${this.created.length}` };
   }
+  /** DEP-05: reversals the services registered, so a test can fire one as a rejection would. */
+  reversals = new Map<string, (a: never, decidedBy: string) => Promise<void>>();
+  registerReversal(type: string, fn: (a: never, decidedBy: string) => Promise<void>): void {
+    this.reversals.set(type, fn);
+  }
   ofType(type: ApprovalType): CreateApprovalInput[] {
     return this.created.filter((c) => c.type === type);
   }
@@ -172,6 +177,64 @@ class SpyApprovalService {
     this.created = [];
   }
 }
+
+/*
+ * DEP-05 (owner decision 2026-11-09). A damaged-gallon deposit refund is RECORDED before HQ decides.
+ * When HQ rejects it, the refund was not valid: the deposit goes back on the customer's books as a
+ * correction entry in the issue ledger (quantity 0, deposit held = the amount refunded), so the
+ * balance shows what the customer is deemed to hold again. Nothing moves in cash.
+ */
+describe('a rejected DEPOSIT_REFUND puts the deposit back on the books (DEP-05)', () => {
+  const rejectedApproval = (payload: Record<string, unknown>) =>
+    ({ id: 'ap-1', depotId: 'dep-1', type: 'DEPOSIT_REFUND', status: 'REJECTED', payload }) as never;
+
+  function build() {
+    const issues = new InMemoryGallonIssueRepository();
+    const approvals = new SpyApprovalService();
+    new GallonReturnService(
+      new InMemoryGallonReturnRepository(),
+      issues,
+      new InMemoryDepotRepository(),
+      configStub,
+      approvals as never,
+      {} as never,
+    );
+    return { issues, reverse: approvals.reversals.get('DEPOSIT_REFUND')! };
+  }
+
+  it('records a correction of the refunded amount for that customer', async () => {
+    const { issues, reverse } = build();
+    await reverse(
+      rejectedApproval({ returnId: 'r-1', depositRefunded: 30000, customerId: 'cust-1', quantity: 2 }),
+      'hq-1',
+    );
+    const rows = (await issues.listForDepot('dep-1', 1, 10)).items;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      customerId: 'cust-1',
+      quantity: 0,
+      depositHeld: 30000,
+      actorId: 'hq-1',
+    });
+    expect(rows[0].note).toMatch(/ditolak HQ/);
+  });
+
+  it('still corrects when the return id is missing, and tolerates an approval with no payload', async () => {
+    const { issues, reverse } = build();
+    await reverse(rejectedApproval({ depositRefunded: 5000, customerId: 'cust-2' }), 'hq-1');
+    const rows = (await issues.listForDepot('dep-1', 1, 10)).items;
+    expect(rows[0].note).toMatch(/retur -/);
+    await reverse({ id: 'ap-2', depotId: 'dep-1', type: 'DEPOSIT_REFUND', payload: null } as never, 'hq-1');
+    expect((await issues.listForDepot('dep-1', 1, 10)).total).toBe(1);
+  });
+
+  it('does nothing when no deposit was refunded, or the approval predates the customer id', async () => {
+    const { issues, reverse } = build();
+    await reverse(rejectedApproval({ returnId: 'r-1', depositRefunded: 0, customerId: 'cust-1' }), 'hq-1');
+    await reverse(rejectedApproval({ returnId: 'r-1', depositRefunded: 30000 }), 'hq-1');
+    expect((await issues.listForDepot('dep-1', 1, 10)).total).toBe(0);
+  });
+});
 
 describe('GallonReturnService', () => {
   let depots: InMemoryDepotRepository;
@@ -200,6 +263,7 @@ describe('GallonReturnService', () => {
         new FakeProductCatalog(),
         new (class {
           create = async (): Promise<unknown> => ({});
+          registerReversal = (): void => undefined;
         })() as never,
         configStub,
       );

@@ -258,8 +258,10 @@ describe('dashboard/promo-rules editor', () => {
         discountAmount: null,
         giftProductId: null,
         firstOrderOnly: false,
-        validFrom: '2026-03-01T00:00:00.000Z',
-        validUntil: '2026-03-31T00:00:00.000Z',
+        // W3B-15: a promo's days are days in Jakarta - it starts at 00:00 WIB on the first and
+        // runs to the last millisecond of the last, not from 07:00 to 07:00 UTC-midnight.
+        validFrom: '2026-02-28T17:00:00.000Z',
+        validUntil: '2026-03-31T16:59:59.999Z',
         daysOfWeek: [1, 5],
         startTime: '09:30',
         endTime: '17:00',
@@ -380,7 +382,7 @@ describe('dashboard/promo-rules editor', () => {
         discountAmount: null,
         giftProductId: null,
         firstOrderOnly: false,
-        validFrom: '2026-01-05T00:00:00.000Z',
+        validFrom: '2026-01-04T17:00:00.000Z',
         validUntil: null,
         daysOfWeek: [1],
         startTime: '08:00',
