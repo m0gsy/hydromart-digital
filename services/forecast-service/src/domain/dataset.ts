@@ -65,7 +65,9 @@ function slope(xs: number[]): number {
  * parameter with a default rather than a fact this file invents. Water sells differently
  * on a Sunday; the feature exists so a model can find that out for itself.
  */
-export const WEEKEND_DAYS = [5, 6];
+// Business day 0 is Thursday 1970-01-01, so `day % 7` is 2 on a Saturday and 3 on a Sunday (FCS-03:
+// this used to be [5, 6], which is Tuesday and Wednesday).
+export const WEEKEND_DAYS = [2, 3];
 
 export interface DatasetOptions {
   /** First business day of `series` — every row's `day` is derived from it. */
