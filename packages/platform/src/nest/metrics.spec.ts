@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 
+import { encodeCursor } from '../domain/keyset';
 import { enableMetrics } from './metrics';
 
 type Handler = (req: Request, res: Response) => Promise<void> | void;
@@ -17,6 +18,34 @@ function fakeApp() {
   } as unknown as INestApplication;
   return { app, routes, middleware };
 }
+
+describe('enableMetrics: a cursor we cannot read (FLW-014)', () => {
+  // pageArgs ignores a cursor it cannot decode and serves page 1 (a guard against P2025). That is
+  // kept (owner decision), but it must not be silent: the response says the cursor was ignored,
+  // so a feed that would otherwise repeat page 1 can notice and reset.
+  const run = (query: Record<string, unknown>) => {
+    const { app, middleware } = fakeApp();
+    enableMetrics(app, 'order-service');
+    const setHeader = jest.fn();
+    middleware[0](
+      { path: '/api/v1/orders', method: 'GET', query } as unknown as Request,
+      { on: jest.fn(), setHeader, statusCode: 200 } as unknown as Response,
+      jest.fn() as unknown as NextFunction,
+    );
+    return setHeader;
+  };
+
+  it('flags a cursor that does not decode', () => {
+    expect(run({ cursor: 'whatever-they-typed' })).toHaveBeenCalledWith('X-Cursor-Ignored', '1');
+  });
+
+  it('says nothing for a cursor we wrote, an empty one, or none', () => {
+    expect(run({ cursor: encodeCursor('row-1') })).not.toHaveBeenCalled();
+    expect(run({ cursor: '' })).not.toHaveBeenCalled();
+    expect(run({})).not.toHaveBeenCalled();
+    expect(run({ cursor: ['a', 'b'] })).not.toHaveBeenCalled();
+  });
+});
 
 describe('enableMetrics', () => {
   it('exposes /metrics with the default process metrics and the service label', async () => {
