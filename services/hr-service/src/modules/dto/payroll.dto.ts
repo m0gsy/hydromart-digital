@@ -85,7 +85,8 @@ export class ListPayrollDto {
 export class CreateBonusDto {
   @IsUUID() employeeId!: string;
   @IsEnum(BonusType) type!: BonusType;
-  @IsInt() @IsPositive() amount!: number;
+  // HR-09: the column is Decimal(12,2); above this the database answered 500.
+  @IsInt() @IsPositive() @Max(9_999_999_999) amount!: number;
   @Matches(PERIOD) periodMonth!: string;
   @IsOptional() @IsString() @MaxLength(200) note?: string;
 }
@@ -93,7 +94,7 @@ export class CreateBonusDto {
 export class CreateDeductionDto {
   @IsUUID() employeeId!: string;
   @IsEnum(DeductionType) type!: DeductionType;
-  @IsInt() @IsPositive() amount!: number;
+  @IsInt() @IsPositive() @Max(9_999_999_999) amount!: number;
   @Matches(PERIOD) periodMonth!: string;
   @IsOptional() @IsString() @MaxLength(200) note?: string;
 }
