@@ -165,6 +165,8 @@ class SpyApprovalService {
     this.created.push(input);
     return { id: `approval-${this.created.length}` };
   }
+  /** DEP-05: InventoryService registers its reversal on construction; the spy ignores it. */
+  registerReversal(): void {}
   ofType(type: ApprovalType): CreateApprovalInput[] {
     return this.created.filter((c) => c.type === type);
   }
@@ -200,6 +202,7 @@ describe('GallonReturnService', () => {
         new FakeProductCatalog(),
         new (class {
           create = async (): Promise<unknown> => ({});
+          registerReversal = (): void => undefined;
         })() as never,
         configStub,
       );
