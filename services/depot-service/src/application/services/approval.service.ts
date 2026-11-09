@@ -196,6 +196,23 @@ export class ApprovalService {
    * above a lone manager the superuser — to decide. Paired with `approvalThresholdWrite`,
    * which stops the same person from simply raising the bar until nothing is reviewed.
    */
+  /**
+   * DEP-05: what to undo when an item of this type is REJECTED. Registered by the service that
+   * owns the effect (inventory owns the opname), not imported here, because the dependency runs
+   * the other way: inventory raises approvals through this service.
+   */
+  private readonly reversals = new Map<
+    ApprovalType,
+    (approval: Approval, decidedBy: string) => Promise<void>
+  >();
+
+  registerReversal(
+    type: ApprovalType,
+    reverse: (approval: Approval, decidedBy: string) => Promise<void>,
+  ): void {
+    this.reversals.set(type, reverse);
+  }
+
   async decide(
     id: string,
     decision: ApprovalDecision,
@@ -219,6 +236,20 @@ export class ApprovalService {
     });
     // Lost to another manager's decision that landed between our read and our write.
     if (!decided) throw new ApprovalAlreadyDecidedError();
+    // DEP-05: a rejection says "this should not have happened" - undo it where we know how. The
+    // claim above is atomic, so exactly one rejection reaches here per item. A failed reversal
+    // does not take the rejection back: the decision stands, and the failure is logged loudly
+    // for a person to finish, instead of leaving the item pending forever.
+    const reverse = decided.status === ApprovalStatus.REJECTED ? this.reversals.get(decided.type) : undefined;
+    if (reverse) {
+      try {
+        await reverse(decided, decidedBy);
+      } catch (error) {
+        this.logger.error(
+          `Approval ${decided.id} (${decided.type}) was rejected but its effect could not be reversed: ${(error as Error).message}`,
+        );
+      }
+    }
     return decided;
   }
 
