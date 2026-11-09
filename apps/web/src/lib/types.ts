@@ -2494,6 +2494,8 @@ export interface ExportLogEntry {
   fileName: string | null;
   /** True when this row has a file to download (13c was a list of claims before). */
   hasFile: boolean;
+  /** AAS-16: the browser reported this export (dataset and row count are its word). */
+  clientReported?: boolean;
   createdAt: string;
 }
 

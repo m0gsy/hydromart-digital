@@ -198,6 +198,7 @@ describe('ExportLogPrismaRepository', () => {
     rowCount: 10,
     status: 'DONE',
     fileName: null,
+    clientReported: false,
     createdAt: now,
   });
 

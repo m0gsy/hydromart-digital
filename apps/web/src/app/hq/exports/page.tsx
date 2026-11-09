@@ -109,6 +109,9 @@ export default function HqExportsPage() {
                 <tr key={r.id} className="border-b border-app last:border-0">
                   <td className="px-4 py-2.5">
                     <span className="font-semibold">{r.dataset}</span>
+                    {r.clientReported && (
+                      <span className="ml-2 text-xs text-muted">{t('hq.exportsLog.clientReported')}</span>
+                    )}
                     <span className="ml-2 text-xs text-muted">{agoLabel(minutesAgo(r.createdAt), t)}</span>
                   </td>
                   <td className="px-4 py-2.5 text-muted">{r.requestedByEmail}</td>

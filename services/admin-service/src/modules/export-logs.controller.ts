@@ -114,6 +114,8 @@ export class ExportLogsController {
         format: dto.format,
         rowCount: dto.rowCount ?? null,
         status: ExportStatus.DONE,
+        // AAS-16: the dataset and row count are what the browser said, not what the server produced.
+        clientReported: true,
       }),
     );
   }
