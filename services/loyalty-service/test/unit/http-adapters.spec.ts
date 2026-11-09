@@ -66,6 +66,24 @@ describe('CustomerDirectoryHttpAdapter', () => {
     );
   });
 
+  // CUS-06: by-depot is paged. nextCursor names the last id of a full page; follow it until null,
+  // and stop if the server hands the same cursor back (it is not advancing).
+  it('follows nextCursor until the last page (CUS-06)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res({ body: { customerIds: ['c1', 'c2'], nextCursor: 'c2' } }))
+      .mockResolvedValueOnce(res({ body: { customerIds: ['c3'], nextCursor: null } }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1');
+    expect(out).toEqual(['c1', 'c2', 'c3']);
+    expect(fetchMock.mock.calls[1][0]).toContain('after=c2');
+  });
+
+  it('stops when the cursor does not advance (CUS-06)', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerIds: ['c1'], nextCursor: 'c1' } }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1');
+    expect(out).toEqual(['c1', 'c1']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('returns the customerIds array as-is (no filtering of non-string entries)', async () => {
     fetchMock.mockResolvedValue(res({ body: { customerIds: ['c1', 42, 'c3'] } }));
     const out = await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1');
