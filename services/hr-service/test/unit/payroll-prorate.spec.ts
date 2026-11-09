@@ -255,6 +255,29 @@ describe('CA-1-45 — THR', () => {
     expect(amountOf(created.items, 'BONUS')).toBe(Math.round((RATE * 11) / 12));
   });
 
+  // HR-07 (owner decision 2026-11-09). PP 36/2021 pays "upah satu bulan": base PLUS fixed
+  // allowances. THR was paid off base alone, so a recurring transport or position allowance
+  // never counted toward it.
+  it('includes the fixed allowances in the month of pay (HR-07)', async () => {
+    const { svc, created } = build({
+      joinDate: '2020-01-01T00:00:00.000Z',
+      allowance: 500_000,
+      thrMonth: PERIOD,
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BONUS')).toBe(RATE + 500_000);
+  });
+
+  it('prorates masa kerja over base plus allowances (HR-07)', async () => {
+    const { svc, created } = build({
+      joinDate: '2025-04-15T00:00:00.000Z',
+      allowance: 600_000,
+      thrMonth: PERIOD,
+    });
+    await svc.generate(USER, 'emp_1', PERIOD);
+    expect(amountOf(created.items, 'BONUS')).toBe(Math.round(((RATE + 600_000) * 11) / 12));
+  });
+
   it('pays nothing under one month of service', async () => {
     const { svc, created } = build({
       joinDate: '2026-03-20T00:00:00.000Z',
