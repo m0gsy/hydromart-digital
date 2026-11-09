@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
+import { DeliveryNotFoundError, NotAssignedDriverError } from '../../domain/errors';
+import { DeliveryRepository } from '../ports/delivery.repository';
 import { escalatesToOps, IncidentCategory, IncidentSeverity } from '../../domain/incident';
 import { IncidentRecord, IncidentRepository } from '../ports/incident.repository';
 import { OpsNotifierPort } from '../ports/ops-notifier.port';
@@ -31,16 +33,26 @@ export class IncidentService {
   constructor(
     @Inject(DELIVERY_TOKENS.IncidentRepository) private readonly incidents: IncidentRepository,
     @Inject(DELIVERY_TOKENS.OpsNotifier) private readonly ops: OpsNotifierPort,
+    @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
     @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
   ) {}
 
   /** Records the incident, then (HIGH only) alerts ops. The alert is fire-and-log:
    *  the incident is already stored, so a crm outage never fails the report. */
   async report(driverId: string, data: ReportIncidentData): Promise<IncidentRecord> {
+    // DLV-15: a delivery named here must be the reporter's own, and then its depot is the truth -
+    // not whatever depot the client typed, which would land the report on another depot's list.
+    let depotId = data.depotId ?? null;
+    if (data.deliveryId) {
+      const delivery = await this.deliveries.findById(data.deliveryId);
+      if (!delivery) throw new DeliveryNotFoundError();
+      if (delivery.driverId !== driverId) throw new NotAssignedDriverError();
+      depotId = delivery.depotId ?? depotId;
+    }
     const incident = await this.incidents.create({
       driverId,
       deliveryId: data.deliveryId ?? null,
-      depotId: data.depotId ?? null,
+      depotId,
       category: data.category,
       severity: data.severity,
       description: data.description,
