@@ -90,6 +90,15 @@ export class FranchiseOwnerRequiredError extends DomainError {
   }
 }
 
+/** F3: the depot's operating hours or closure dates are not a schedule the ordering engine can read. */
+export class InvalidDepotScheduleError extends DomainError {
+  readonly code = 'INVALID_DEPOT_SCHEDULE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 /** The owner set of a franchise depot is not one revenue can be split against. */
 export class InvalidOwnerSharesError extends DomainError {
   readonly code = 'INVALID_OWNER_SHARES';

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { BUSINESS_TIME_ZONE, addLocalDays, dayStartUtc } from '@hydromart/platform';
+
 import { Prisma } from '../../../prisma/generated/client';
 import { NegativeStockError } from '../../domain/errors';
 import { StockMovementType } from '../../domain/inventory';
@@ -206,9 +208,12 @@ export class StockTransferPrismaRepository implements StockTransferRepository {
   async countSentOn(day: string): Promise<number> {
     return this.prisma.stockTransfer.count({
       where: {
+        // D1-05: `day` is a day in Jakarta (the service builds it with localDayKey), so the bounds
+        // are 00:00 WIB to the next 00:00 WIB - not UTC midnight, and not 23:59:59.999 (which
+        // dropped the last millisecond of every day).
         sentAt: {
-          gte: new Date(`${day}T00:00:00.000Z`),
-          lt: new Date(`${day}T23:59:59.999Z`),
+          gte: dayStartUtc(day, BUSINESS_TIME_ZONE),
+          lt: addLocalDays(dayStartUtc(day, BUSINESS_TIME_ZONE), 1, BUSINESS_TIME_ZONE),
         },
       },
     });

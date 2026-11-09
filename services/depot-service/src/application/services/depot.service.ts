@@ -12,12 +12,14 @@ import {
   primaryOwnerId,
   soleOwner,
 } from '../../domain/depot-owners';
+import { parseHolidays, parseOperatingHours } from '../../domain/depot-schedule';
 import { OwnershipType } from '../../domain/inventory';
 import {
   DepotDeactivationBlockedError,
   DepotNotFoundError,
   DuplicateDepotCodeError,
   FranchiseOwnerRequiredError,
+  InvalidDepotScheduleError,
 } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
 import {
@@ -113,7 +115,28 @@ export class DepotService {
     return depot;
   }
 
-  async create(data: CreateDepotData): Promise<DepotRecord> {
+  /**
+   * F3: the same parsers the bulk import uses, so a console create/update cannot store hours or
+   * closure dates the ordering engine cannot read. Absent stays absent; a given value is stored
+   * in its normalised form.
+   */
+  private checkedSchedule<T extends { operatingHours?: unknown; holidays?: unknown }>(data: T): T {
+    const out = { ...data } as T & { operatingHours?: unknown; holidays?: unknown };
+    if (data.operatingHours !== undefined) {
+      const hours = parseOperatingHours(data.operatingHours);
+      if (!hours.ok) throw new InvalidDepotScheduleError(`Jam operasional: ${hours.error}`);
+      out.operatingHours = hours.value;
+    }
+    if (data.holidays !== undefined) {
+      const holidays = parseHolidays(data.holidays);
+      if (!holidays.ok) throw new InvalidDepotScheduleError(`Hari libur: ${holidays.error}`);
+      out.holidays = holidays.value;
+    }
+    return out;
+  }
+
+  async create(input: CreateDepotData): Promise<DepotRecord> {
+    const data = this.checkedSchedule(input);
     // `owners` wins; the legacy single `ownerId` means one owner taking 100%.
     const given: DepotOwnerShare[] = data.owners ?? (data.ownerId ? soleOwner(data.ownerId) : []);
     if (data.ownershipType === OwnershipType.WARALABA && given.length === 0) {
@@ -133,10 +156,11 @@ export class DepotService {
    */
   async update(
     id: string,
-    patch: UpdateDepotData,
+    input: UpdateDepotData,
     seenUpdatedAt?: string,
     canChangeOwners = true,
   ): Promise<DepotRecord> {
+    const patch = this.checkedSchedule(input);
     const current = await this.get(id, false);
     if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
