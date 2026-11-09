@@ -25,6 +25,9 @@
 # gallon_returns_depotId_idempotencyKey_key (depot-service, 2026-11-08) is built by its own migration, not here: the
 # idempotencyKey column is created by that very migration and every value is NULL, so the build is instant.
 #
+# gallon_issues_depotId_idempotencyKey_key (depot-service, 2026-11-09) is built by its own migration, not here: the
+# idempotencyKey column is created by that very migration and every value is NULL, so the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an
@@ -159,6 +162,7 @@ forecast|service_settings_scope_depot_id_idx|CREATE INDEX CONCURRENTLY IF NOT EX
 forecast|service_settings_global_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_global_key_key" ON "service_settings"("key") WHERE "scope" = 'GLOBAL'
 forecast|service_settings_depot_key_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "service_settings_depot_key_key" ON "service_settings"("depot_id", "key") WHERE "scope" = 'DEPOT'
 order|imported_sales_transactions_depotId_externalRef_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_externalRef_key" ON "imported_sales_transactions"("depotId", "externalRef")
+order|imported_sales_transactions_depotId_externalRef_lineNo_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_externalRef_lineNo_key" ON "imported_sales_transactions"("depotId", "externalRef", "lineNo")
 order|imported_sales_transactions_depotId_occurredAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_depotId_occurredAt_idx" ON "imported_sales_transactions"("depotId", "occurredAt")
 order|imported_sales_transactions_batchId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "imported_sales_transactions_batchId_idx" ON "imported_sales_transactions"("batchId")
 promo|promo_rules_active_depotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "promo_rules_active_depotId_idx" ON "promo_rules"("active", "depotId")

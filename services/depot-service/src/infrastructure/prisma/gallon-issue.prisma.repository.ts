@@ -54,6 +54,21 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return this.toRecord(await this.prisma.gallonIssue.create({ data }));
   }
 
+  async createKeyed(
+    data: CreateGallonIssueData,
+  ): Promise<{ record: GallonIssueRecord; created: boolean }> {
+    try {
+      return { record: await this.create(data), created: true };
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'P2002' || !data.idempotencyKey) throw error;
+      const row = await this.prisma.gallonIssue.findFirst({
+        where: { depotId: data.depotId, idempotencyKey: data.idempotencyKey },
+      });
+      if (!row) throw error;
+      return { record: this.toRecord(row), created: false };
+    }
+  }
+
   /**
    * I1: `upsert` rather than create-if-absent, because two deliveries of the same
    * completion event can race and a check-then-write would let both through. `update: {}`

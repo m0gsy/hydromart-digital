@@ -17,6 +17,8 @@ export interface ImportedSalesTransactionRecord {
 export interface NewImportedSalesTransaction {
   depotId: string;
   externalRef: string;
+  /** ORD-14: position of this row within its receipt in the file (0-based). */
+  lineNo: number;
   occurredAt: Date;
   customerLabel: string | null;
   productLabel: string;

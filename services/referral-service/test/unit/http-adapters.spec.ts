@@ -110,6 +110,23 @@ describe('CustomerDirectoryHttpAdapter', () => {
     );
   });
 
+  // CUS-06: by-depot is paged; follow nextCursor, and stop if it does not advance.
+  it('follows nextCursor until the last page (CUS-06)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res({ body: { customerIds: ['c1', 'c2'], nextCursor: 'c2' } }))
+      .mockResolvedValueOnce(res({ body: { customerIds: ['c3'], nextCursor: null } }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1');
+    expect(out).toEqual(['c1', 'c2', 'c3']);
+    expect(fetchMock.mock.calls[1][0]).toContain('after=c2');
+  });
+
+  it('stops when the cursor does not advance (CUS-06)', async () => {
+    fetchMock.mockResolvedValue(res({ body: { customerIds: ['c1'], nextCursor: 'c1' } }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1');
+    expect(out).toEqual(['c1', 'c1']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('returns [] when customerIds is absent/not an array', async () => {
     fetchMock.mockResolvedValue(res({ body: {} }));
     expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual([]);

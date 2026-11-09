@@ -11,6 +11,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -41,6 +42,16 @@ export class CreateGallonIssueDto {
   @IsString()
   @MaxLength(300)
   note?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'DEP-07: one random value per form submission. Sending the same one again returns the issue already booked instead of booking a second deposit.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey?: string;
 }
 
 /**

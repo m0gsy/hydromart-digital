@@ -1,3 +1,4 @@
+import { DIRECTORY_PAGE_MAX } from '../ports/profile.repository';
 import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { DEFAULT_MAX_ROWS, haversineKm, pointInServiceArea } from '@hydromart/platform';
 
@@ -358,8 +359,12 @@ export class DepotCrmService {
   }
 
   /** Ids of all customers whose favourite depot is this one (service-to-service). */
-  listCustomerIdsByDepot(depotId: string): Promise<string[]> {
-    return this.crm.findIdsByDepot(depotId);
+  listCustomerIdsByDepot(
+    depotId: string,
+    after?: string,
+    limit: number = DIRECTORY_PAGE_MAX,
+  ): Promise<string[]> {
+    return this.crm.findIdsByDepotPage(depotId, after, Math.min(Math.max(limit, 1), DIRECTORY_PAGE_MAX));
   }
 
   /**

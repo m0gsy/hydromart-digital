@@ -21,6 +21,8 @@ export interface GallonIssueRecord {
   depositHeld: number;
   note: string | null;
   actorId: string;
+  /** DEP-07: the client's key for the submission that booked this row; null otherwise. */
+  idempotencyKey?: string | null;
   createdAt: Date;
 }
 
@@ -34,6 +36,8 @@ export interface CreateGallonIssueData {
   depositHeld: number;
   note: string | null;
   actorId: string;
+  /** DEP-07: one random value per manual submission; the same key again is the same row. */
+  idempotencyKey?: string | null;
 }
 
 /** I1: one delivery's worth of empties, booked from the order that carried them out. */
@@ -86,6 +90,12 @@ export interface GallonIssueDepotRow {
 
 export interface GallonIssueRepository {
   create(data: CreateGallonIssueData): Promise<GallonIssueRecord>;
+  /**
+   * DEP-07: books the row, or returns the one already booked under (depot, idempotencyKey).
+   * `created: false` = a replay; the caller must not repeat the stock move. Race-safe: the
+   * unique index decides, not a read.
+   */
+  createKeyed(data: CreateGallonIssueData): Promise<{ record: GallonIssueRecord; created: boolean }>;
   /**
    * Whether this customer already has an imported opening balance at this depot. Optional so a
    * repository that predates the import need not know about it; the import refuses to run

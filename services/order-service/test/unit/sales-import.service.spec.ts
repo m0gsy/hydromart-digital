@@ -82,6 +82,27 @@ describe('SalesImportService', () => {
     expect(summary.results[0].message).toBeUndefined();
   });
 
+  // ORD-14. unique(depotId, externalRef) meant a receipt with three products imported its first
+  // line and silently "skipped" the other two as duplicates, so revenue was understated with no
+  // error. Rows of one receipt now take line numbers in file order; the same file re-imported
+  // yields the same numbers, so it is still a no-op.
+  it('numbers the rows of one receipt in file order, restarting for the next receipt', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 'x' });
+    const service = makeService({ create });
+    await service.importTransactions(user, DEPOT_A, [
+      row({ externalRef: 'INV-1', productLabel: 'Galon' }),
+      row({ externalRef: 'INV-1', productLabel: 'Tutup' }),
+      row({ externalRef: 'INV-2' }),
+      row({ externalRef: 'INV-1', productLabel: 'Segel' }),
+    ]);
+    expect(create.mock.calls.map((c) => [c[0].externalRef, c[0].lineNo])).toEqual([
+      ['INV-1', 0],
+      ['INV-1', 1],
+      ['INV-2', 0],
+      ['INV-1', 2],
+    ]);
+  });
+
   it('reports a duplicate externalRef as skipped, not failed', async () => {
     const create = jest
       .fn()

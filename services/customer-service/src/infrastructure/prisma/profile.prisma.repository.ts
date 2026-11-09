@@ -5,6 +5,7 @@ import {
   CustomerProfileRecord,
   DirectoryRecipient,
   ProfileRepository,
+  DIRECTORY_PAGE_MAX,
   SegmentFilter,
 } from '../../application/ports/profile.repository';
 import { PrismaService } from './prisma.service';
@@ -145,6 +146,8 @@ export class ProfilePrismaRepository implements ProfileRepository {
     // combination of filters. tier is compared as text to sidestep enum-cast binding.
     const tier = filter.tier ?? null;
     const city = filter.city ?? null;
+    const after = filter.after ?? null;
+    const limit = Math.min(Math.max(filter.limit ?? DIRECTORY_PAGE_MAX, 1), DIRECTORY_PAGE_MAX);
     return this.prisma.$queryRaw<DirectoryRecipient[]>`
       SELECT DISTINCT ON (p."customerId")
         p."customerId" AS "customerId",
@@ -156,6 +159,7 @@ export class ProfilePrismaRepository implements ProfileRepository {
       WHERE p."anonymisedAt" IS NULL
         AND (${tier}::text IS NULL OR p."membershipTier"::text = ${tier})
         AND (${city}::text IS NULL OR LOWER(a."city") = LOWER(${city}))
+        AND (${after}::uuid IS NULL OR p."customerId" > ${after}::uuid)
         -- F1b: the marketing opt-out bites HERE, not at delivery. This is the only place
         -- that can do it without a network hop and without a failure mode — the preference
         -- is two tables away in the same database — and filtering the audience keeps the
@@ -172,6 +176,7 @@ export class ProfilePrismaRepository implements ProfileRepository {
             AND np."categories"->>'marketing' = 'false'
         )
       ORDER BY p."customerId"
+      LIMIT ${limit}
     `;
   }
 }

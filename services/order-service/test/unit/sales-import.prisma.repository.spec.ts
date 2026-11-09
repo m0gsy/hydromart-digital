@@ -47,6 +47,7 @@ describe('SalesImportPrismaRepository', () => {
     const result = await repo.create({
       depotId: DEPOT_A,
       externalRef: 'INV-001',
+      lineNo: 0,
       occurredAt: new Date('2026-01-05T00:00:00.000Z'),
       customerLabel: null,
       productLabel: 'Galon 19L',
