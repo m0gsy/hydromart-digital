@@ -199,7 +199,9 @@ export class CampaignPrismaRepository implements CampaignRepository {
     return claimed.map((r) => this.toRecipient(r));
   }
 
-  async tally(campaignId: string): Promise<{ pending: number; sent: number; failed: number }> {
+  async tally(
+    campaignId: string,
+  ): Promise<{ pending: number; sent: number; failed: number; skipped: number }> {
     const rows = await this.prisma.campaignRecipient.groupBy({
       by: ['status'],
       where: { campaignId },
@@ -214,6 +216,7 @@ export class CampaignPrismaRepository implements CampaignRepository {
       pending: of(PrismaRecipientStatus.PENDING) + of(PrismaRecipientStatus.SENDING),
       sent: of(PrismaRecipientStatus.SENT),
       failed: of(PrismaRecipientStatus.FAILED),
+      skipped: of(PrismaRecipientStatus.SKIPPED),
     };
   }
 
@@ -234,12 +237,35 @@ export class CampaignPrismaRepository implements CampaignRepository {
     sentCount: number,
     failedCount: number,
     sentAt: Date,
+    status: CampaignStatus = CampaignStatus.SENT,
   ): Promise<CampaignRecord> {
-    const row = await this.prisma.campaign.update({
+    // Conditional: a campaign cancelled while its last batch was in flight stays CANCELLED.
+    await this.prisma.campaign.updateMany({
+      where: { id, status: PrismaCampaignStatus.SENDING },
+      data: { status: status as unknown as PrismaCampaignStatus, sentCount, failedCount, sentAt },
+    });
+    const row = await this.prisma.campaign.findUniqueOrThrow({
       where: { id },
-      data: { status: PrismaCampaignStatus.SENT, sentCount, failedCount, sentAt },
       include: { recipients: { orderBy: { createdAt: 'asc' } } },
     });
     return this.toCampaign(row, row.recipients);
+  }
+
+  async cancel(id: string): Promise<boolean> {
+    const { count } = await this.prisma.campaign.updateMany({
+      where: { id, status: { in: [PrismaCampaignStatus.DRAFT, PrismaCampaignStatus.SENDING] } },
+      data: { status: PrismaCampaignStatus.CANCELLED },
+    });
+    if (count !== 1) return false;
+    await this.prisma.campaignRecipient.updateMany({
+      where: { campaignId: id, status: PrismaRecipientStatus.PENDING },
+      data: { status: PrismaRecipientStatus.SKIPPED, error: 'kampanye dibatalkan' },
+    });
+    const t = await this.tally(id);
+    await this.prisma.campaign.update({
+      where: { id },
+      data: { sentCount: t.sent, failedCount: t.failed },
+    });
+    return true;
   }
 }

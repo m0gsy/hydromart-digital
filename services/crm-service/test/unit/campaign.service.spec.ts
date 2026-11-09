@@ -5,11 +5,14 @@ import { randomUUID } from 'node:crypto';
 import { CampaignStatus } from '../../src/domain/campaign-status';
 import { RecipientStatus } from '../../src/domain/recipient-status';
 import {
+  CampaignNotCancellableError,
   CampaignNotDraftError,
   CampaignNotFoundError,
   NoRecipientsError,
+  ScheduledInPastError,
   SegmentUnavailableError,
 } from '../../src/domain/errors';
+import { MarketingPreferenceUnavailableError, RecipientOptedOutError } from '../../src/domain/errors';
 import { CampaignService } from '../../src/application/services/campaign.service';
 import {
   FakeActivitySegment,
@@ -285,18 +288,20 @@ describe('CampaignService', () => {
    * nothing else can claim it — but the sweep is what decides it is due.
    */
   describe('scheduling', () => {
-    const DUE = new Date('2026-08-20T02:00:00.000Z');
+    // Relative to now: create() refuses a send time that is already past (CRM-04).
+    const DUE = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const before = new Date(DUE.getTime() - 60_000);
 
     it('leaves a scheduled campaign alone until its time, then sends it', async () => {
       const c = await service.create('staff-1', 'Besok', 'Hi', recipients, undefined, '', DUE);
       expect(c.scheduledFor).toEqual(DUE);
       await service.send(c.id);
 
-      const early = await service.processSending(new Date('2026-08-19T23:59:00.000Z'));
+      const early = await service.processSending(before);
       expect(early.campaigns).toBe(0);
       expect(delivery.sent).toHaveLength(0);
 
-      const onTime = await service.processSending(new Date('2026-08-20T02:00:00.000Z'));
+      const onTime = await service.processSending(DUE);
       expect(onTime.campaigns).toBe(1);
       expect(delivery.sent).toHaveLength(2);
     });
@@ -350,6 +355,131 @@ describe('CampaignService', () => {
     });
   });
 
+  /*
+   * CRM-02 / CRM-04 step 2. Opt-outs are not failures, an outage is not the recipient fault,
+   * a campaign that reached nobody is not a plain SENT, and a campaign can be called back.
+   */
+  describe('campaign states (CRM-02 / CRM-04)', () => {
+    const queue = async (): Promise<string> => {
+      const created = await service.create('staff-1', 'Blast', 'Hi', recipients);
+      await service.send(created.id);
+      return created.id;
+    };
+    const rowFor = (id: string, phone: string) =>
+      repo.campaigns.find((c) => c.id === id)!.recipients.find((r) => r.phone === phone)!;
+
+    it('an opt-out is SKIPPED, not FAILED, and does not make the campaign a failure', async () => {
+      const id = await queue();
+      delivery.throwOn('+6282', new RecipientOptedOutError());
+      const result = await service.processSending();
+      expect(result).toMatchObject({ sent: 1, failed: 0, skipped: 1, completed: 1 });
+      expect(rowFor(id, '+6282').status).toBe(RecipientStatus.SKIPPED);
+      expect(repo.campaigns[0]!.status).toBe(CampaignStatus.SENT);
+      expect(repo.campaigns[0]!.failedCount).toBe(0);
+    });
+
+    it('a preference outage puts the recipient back in the queue, and they are sent once it recovers', async () => {
+      const id = await queue();
+      delivery.throwOn('+6281', new MarketingPreferenceUnavailableError());
+      delivery.throwOn('+6282', new MarketingPreferenceUnavailableError());
+      const down = await service.processSending();
+      expect(down).toMatchObject({ sent: 0, failed: 0, held: 2, completed: 0, ok: false });
+      expect(rowFor(id, '+6281').status).toBe(RecipientStatus.PENDING);
+      expect(repo.campaigns[0]!.status).toBe(CampaignStatus.SENDING);
+
+      const recovered = new FakeBroadcastDelivery();
+      service = new CampaignService(repo, recovered, directory, activity);
+      expect(await service.processSending()).toMatchObject({ sent: 2, completed: 1 });
+      expect(repo.campaigns[0]!.status).toBe(CampaignStatus.SENT);
+    });
+
+    it('an outage that outlasts the grace window becomes FAILED, so it cannot spin forever', async () => {
+      const id = await queue();
+      delivery.throwOn('+6281', new MarketingPreferenceUnavailableError());
+      delivery.throwOn('+6282', new MarketingPreferenceUnavailableError());
+      const later = new Date(repo.campaigns[0]!.createdAt.getTime() + 25 * 60 * 60 * 1000);
+      const result = await service.processSending(later);
+      expect(result).toMatchObject({ failed: 2, held: 0, completed: 1 });
+      expect(rowFor(id, '+6281').status).toBe(RecipientStatus.FAILED);
+      expect(repo.campaigns[0]!.status).toBe(CampaignStatus.COMPLETED_WITH_FAILURES);
+    });
+
+    it('a campaign that failed somebody finishes as COMPLETED_WITH_FAILURES', async () => {
+      await queue();
+      delivery.failOn('+6281');
+      await service.processSending();
+      expect(repo.campaigns[0]!.status).toBe(CampaignStatus.COMPLETED_WITH_FAILURES);
+      expect(repo.campaigns[0]!.sentCount).toBe(1);
+    });
+
+    it('a campaign that reached nobody is not a plain SENT', async () => {
+      await queue();
+      delivery.throwOn('+6281', new RecipientOptedOutError());
+      delivery.throwOn('+6282', new RecipientOptedOutError());
+      await service.processSending();
+      expect(repo.campaigns[0]!.status).toBe(CampaignStatus.COMPLETED_WITH_FAILURES);
+    });
+
+    it('cancel stops a SENDING campaign: nothing more goes out and the rest are SKIPPED', async () => {
+      const id = await queue();
+      const cancelled = await service.cancel(id);
+      expect(cancelled.status).toBe(CampaignStatus.CANCELLED);
+      expect(cancelled.recipients.every((r) => r.status === RecipientStatus.SKIPPED)).toBe(true);
+      expect((await service.processSending()).campaigns).toBe(0);
+      expect(delivery.sent).toHaveLength(0);
+    });
+
+    it('cancel works on a DRAFT, and keeps the sent count of what already went', async () => {
+      const draft = await service.create('staff-1', 'Draf', 'Hi', recipients);
+      expect((await service.cancel(draft.id)).status).toBe(CampaignStatus.CANCELLED);
+
+      const id = await queue();
+      rowFor(id, '+6281').status = RecipientStatus.SENT;
+      const out = await service.cancel(id);
+      expect(out.sentCount).toBe(1);
+      expect(rowFor(id, '+6282').status).toBe(RecipientStatus.SKIPPED);
+      expect(rowFor(id, '+6281').status).toBe(RecipientStatus.SENT);
+    });
+
+    it('a finished or already-cancelled campaign cannot be cancelled again', async () => {
+      const id = await queue();
+      await service.processSending();
+      await expect(service.cancel(id)).rejects.toBeInstanceOf(CampaignNotCancellableError);
+      const other = await queue();
+      await service.cancel(other);
+      await expect(service.cancel(other)).rejects.toBeInstanceOf(CampaignNotCancellableError);
+      await expect(service.cancel(randomUUID())).rejects.toBeInstanceOf(CampaignNotFoundError);
+    });
+
+    it('a cancel that lands between the read and the write is refused, not applied twice', async () => {
+      const id = await queue();
+      jest.spyOn(repo, 'cancel').mockResolvedValueOnce(false);
+      await expect(service.cancel(id)).rejects.toBeInstanceOf(CampaignNotCancellableError);
+    });
+
+    it('a campaign cancelled while its last batch is in flight stays CANCELLED', async () => {
+      const id = await queue();
+      repo.campaigns.find((c) => c.id === id)!.status = CampaignStatus.CANCELLED;
+      const closed = await repo.finalize(id, 1, 0, new Date());
+      expect(closed.status).toBe(CampaignStatus.CANCELLED);
+    });
+
+    it('refuses a send time that has already passed, for both entry points', async () => {
+      const past = new Date(Date.now() - 10 * 60 * 1000);
+      await expect(
+        service.create('staff-1', 'Telat', 'Hi', recipients, undefined, '', past),
+      ).rejects.toBeInstanceOf(ScheduledInPastError);
+      await expect(
+        service.createForDepot('staff-1', 'dep-1', 'Telat', 'Hi', {}, past),
+      ).rejects.toBeInstanceOf(ScheduledInPastError);
+      // A few seconds of clock skew is not a mistake.
+      const skew = new Date(Date.now() - 10 * 1000);
+      await expect(
+        service.create('staff-1', 'Pas', 'Hi', recipients, undefined, '', skew),
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('processSending (the broadcast sweep)', () => {
     it('delivers to every recipient and finalises with counts from the rows', async () => {
       const created = await service.create('staff-1', 'Blast', 'Hi {{name}}', recipients);
@@ -357,10 +487,10 @@ describe('CampaignService', () => {
       await service.send(created.id);
 
       const result = await service.processSending();
-      expect(result).toEqual({ campaigns: 1, sent: 1, failed: 1, completed: 1, ok: true });
+      expect(result).toEqual({ campaigns: 1, sent: 1, failed: 1, completed: 1, skipped: 0, held: 0, ok: true });
 
       const done = await service.get(created.id);
-      expect(done.status).toBe(CampaignStatus.SENT);
+      expect(done.status).toBe(CampaignStatus.COMPLETED_WITH_FAILURES);
       expect(done.sentCount).toBe(1);
       expect(done.failedCount).toBe(1);
       expect(done.sentAt).not.toBeNull();
@@ -421,6 +551,8 @@ describe('CampaignService', () => {
         sent: 0,
         failed: 0,
         completed: 0,
+        skipped: 0,
+        held: 0,
       });
       expect(delivery.sent).toHaveLength(0);
     });
@@ -441,6 +573,8 @@ describe('CampaignService', () => {
         sent: 0,
         failed: 0,
         completed: 0,
+        skipped: 0,
+        held: 0,
       });
       expect(delivery.sent).toHaveLength(2);
     });

@@ -150,6 +150,19 @@ export class CampaignController {
 
   @ApiOkResponse({ type: CampaignDto })
   @Can('campaignWrite')
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Cancel a draft or still-sending campaign (CRM-04)',
+    description:
+      'Recipients not yet reached are skipped; those already messaged are unaffected. A finished campaign answers 409.',
+  })
+  async cancel(@Param('id', ParseUUIDPipe) id: string): Promise<CampaignDto> {
+    return CampaignDto.from(await this.campaigns.cancel(id));
+  }
+
+  @ApiOkResponse({ type: CampaignDto })
+  @Can('campaignWrite')
   @Post(':id/send')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({

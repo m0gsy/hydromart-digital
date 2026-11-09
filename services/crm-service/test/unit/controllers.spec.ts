@@ -304,6 +304,15 @@ describe('CampaignController', () => {
     expect(out.status).toBe(CampaignStatus.SENDING);
   });
 
+  it('cancels a campaign (CRM-04)', async () => {
+    const campaigns = {
+      cancel: jest.fn().mockResolvedValue(record({ status: CampaignStatus.CANCELLED })),
+    };
+    const controller = new CampaignController(campaigns as never);
+    expect((await controller.cancel('camp-1')).status).toBe(CampaignStatus.CANCELLED);
+    expect(campaigns.cancel).toHaveBeenCalledWith('camp-1');
+  });
+
   it('creates a campaign, forwarding the caller token', async () => {
     const campaigns = { create: jest.fn().mockResolvedValue(record()) };
     const controller = new CampaignController(campaigns as never);
