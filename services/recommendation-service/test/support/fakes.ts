@@ -53,12 +53,16 @@ export class FakeRecommendationRepository implements RecommendationRepository {
   coBuys: CoBuyRecord[] = [];
   ingestedOrderIds = new Set<string>();
 
+  async replaceDailySales(rows: { productId: string; depotId: string | null; day: Date; count: number }[]): Promise<void> {
+    this.dailySales = rows.map((r) => ({ ...r }));
+  }
+
   async hasIngested(orderId: string): Promise<boolean> {
     return this.ingestedOrderIds.has(orderId);
   }
 
   async applyIngest(cmd: IngestCommand): Promise<void> {
-    const day = utcDay(cmd.at);
+    const day = cmd.day ?? utcDay(cmd.at);
 
     for (const item of cmd.items) {
       this.upsertPurchase(cmd.customerId, item.productId, cmd.at);

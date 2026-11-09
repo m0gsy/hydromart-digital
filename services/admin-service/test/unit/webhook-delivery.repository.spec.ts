@@ -190,9 +190,19 @@ describe('WebhookDeliveryPrismaRepository', () => {
     expect(webhookDelivery.update).not.toHaveBeenCalled();
   });
 
+  // AAS-15: a replay RESETS the attempt count, so replaying a delivery that is still queued (PENDING,
+  // mid-backoff) kept it retrying forever, bounded only by the global throttle. A queued delivery will be
+  // retried anyway: refuse the reset, and the cycle ends when it succeeds or dies.
+  it('AAS-15 · refuses to replay a delivery that is still queued, and writes nothing', async () => {
+    const { repo, webhookDelivery } = makeRepo();
+    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'PENDING' });
+    await expect(repo.replay('d-1', NOW)).rejects.toThrow(/sudah antre|still queued|PENDING/i);
+    expect(webhookDelivery.update).not.toHaveBeenCalled();
+  });
+
   it('replays by resetting the attempt count, so a DEAD row gets a real second chance', async () => {
     const { repo, webhookDelivery } = makeRepo();
-    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1' });
+    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'DEAD' });
     webhookDelivery.update.mockResolvedValue({ id: 'd-1', status: 'PENDING' });
 
     await repo.replay('d-1', NOW);

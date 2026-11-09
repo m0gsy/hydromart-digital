@@ -145,7 +145,12 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; j
   /** HR-02: rows that already exist for the employee, keyed by YYYY-MM-DD. */
   const existingAttendance = new Map<string, Record<string, unknown>>();
   const adjustments: { attendanceId: string; reason: string }[] = [];
+  const deletedLeaveDays: string[] = [];
   const attendance = {
+    deleteLeaveDay: async (_employeeId: string, workDate: Date) => {
+      deletedLeaveDays.push(workDate.toISOString().slice(0, 10));
+      return true;
+    },
     findByEmployeeAndDate: async (_employeeId: string, workDate: Date) =>
       (existingAttendance.get(workDate.toISOString().slice(0, 10)) ?? null) as never,
     recordAdjustment: async (data: { attendanceId: string; reason: string }) => {
@@ -175,7 +180,11 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; j
     // The reporting line resolves by ACCOUNT now, through depot-service's supervision
     // table — Employee.supervisorId is no longer written or read.
     findByAuthSubjectId: async (accountId: string) =>
-      accountId === SUPERVISOR.authSubjectId ? SUPERVISOR : null,
+      accountId === SUPERVISOR.authSubjectId
+        ? SUPERVISOR
+        : accountId === EMPLOYEE.authSubjectId
+          ? EMPLOYEE
+          : null,
   } as unknown as EmployeeService;
   const supervision = {
     superiorOf: async (accountId: string) =>
@@ -198,6 +207,7 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number; j
   return {
     repo,
     attendanceWrites,
+    deletedLeaveDays,
     existingAttendance,
     adjustments,
     sent,
@@ -219,6 +229,92 @@ async function approvedRequest(ctx: ReturnType<typeof make>, apply = APPLY) {
   await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
   return ctx.svc.decideHr(hr, req.id, true);
 }
+
+/*
+ * HR-17 (owner choice 2026-11-09). An APPROVED leave was terminal, yet it blocked overlapping
+ * requests and held quota. HR can now revoke it, with a reason: the request becomes CANCELLED, the
+ * quota for the days still ahead comes back, and their LEAVE rows are removed. Days already taken
+ * stay taken - the past is not rewritten.
+ */
+describe('HR-17 LeaveService.revoke', () => {
+  const day = (offset: number): string => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  // Two weeks out, long enough that every day of a 5-day range is still ahead (no weekly-off in the fake config).
+  const FUTURE: SubmitLeaveInput = { type: 'ANNUAL', startDate: day(20), endDate: day(24), reason: 'Rencana' };
+
+  it('cancels an approved leave, returns the quota, deletes the future LEAVE rows, tells the employee', async () => {
+    const ctx = make();
+    const req = await approvedRequest(ctx, FUTURE);
+    const used = ctx.repo.balances[0]!.usedDays;
+    expect(used).toBeGreaterThan(0);
+
+    const out = await ctx.svc.revoke(hr, req.id, '  keperluan operasional  ');
+
+    expect(out.status).toBe('CANCELLED');
+    expect(out.decisionNote).toBe('Dicabut HR: keperluan operasional');
+    expect(ctx.repo.balances[0]!.usedDays).toBe(0);
+    expect(ctx.deletedLeaveDays).toHaveLength(used);
+    expect(ctx.sent.at(-1)).toMatchObject({ event: 'LEAVE_REJECTED' });
+    expect(ctx.sent.at(-1)!.vars.reason).toMatch(/Dicabut HR/);
+  });
+
+  it('frees the dates again: the same range can be applied for afterwards', async () => {
+    const ctx = make();
+    const req = await approvedRequest(ctx, FUTURE);
+    await ctx.svc.revoke(hr, req.id, 'dibatalkan');
+    await expect(ctx.svc.submit(staff, FUTURE)).resolves.toMatchObject({ status: 'PENDING_MANAGER' });
+  });
+
+  it('only returns the days still ahead when the leave is already running', async () => {
+    const ctx = make();
+    const req = await approvedRequest(ctx, { ...FUTURE, startDate: day(-2), endDate: day(2) });
+    const before = ctx.repo.balances[0]!.usedDays;
+    const out = await ctx.svc.revoke(hr, req.id, 'dipanggil kembali');
+    expect(out.status).toBe('CANCELLED');
+    const returned = before - ctx.repo.balances[0]!.usedDays;
+    expect(returned).toBe(ctx.deletedLeaveDays.length);
+    expect(returned).toBeLessThan(before); // the days already taken stay charged
+    expect(ctx.deletedLeaveDays.every((d) => d > day(0))).toBe(true);
+  });
+
+  it('refuses a leave that is entirely in the past, one that is not approved, a blank reason, and the applicant', async () => {
+    const ctx = make();
+    const past = await approvedRequest(ctx); // 2026-07: over
+    await expect(ctx.svc.revoke(hr, past.id, 'x')).rejects.toThrow(BadRequestException);
+    await expect(ctx.svc.revoke(hr, past.id, 'alasan jelas')).rejects.toThrow(ConflictException);
+
+    const pending = await ctx.svc.submit(staff, FUTURE);
+    await expect(ctx.svc.revoke(hr, pending.id, 'alasan jelas')).rejects.toThrow(ConflictException);
+
+    const ok = make();
+    const approved = await approvedRequest(ok, FUTURE);
+    await expect(ok.svc.revoke(hr, approved.id, '   ')).rejects.toThrow(BadRequestException);
+    // The applicant cannot revoke their own approved leave through the approver path.
+    await expect(ok.svc.revoke(staff, approved.id, 'alasan jelas')).rejects.toThrow(ForbiddenException);
+    await expect(ok.svc.revoke(hr, 'nope', 'alasan jelas')).rejects.toThrow(NotFoundException);
+  });
+
+  it('treats a missing reason like a blank one', async () => {
+    const ctx = make();
+    const req = await approvedRequest(ctx, FUTURE);
+    await expect(ctx.svc.revoke(hr, req.id, undefined as never)).rejects.toThrow(BadRequestException);
+  });
+
+  it('a revoke that loses the race to another change answers 409 and returns no quota', async () => {
+    const ctx = make();
+    const req = await approvedRequest(ctx, FUTURE);
+    const used = ctx.repo.balances[0]!.usedDays;
+    jest.spyOn(ctx.repo, 'decide').mockResolvedValueOnce(null);
+    await expect(ctx.svc.revoke(hr, req.id, 'alasan jelas')).rejects.toThrow(ConflictException);
+    expect(ctx.repo.balances[0]!.usedDays).toBe(used);
+  });
+
+  it('does not touch the quota for a type that never consumed it', async () => {
+    const ctx = make();
+    const req = await approvedRequest(ctx, { ...FUTURE, type: 'SICK' });
+    await ctx.svc.revoke(hr, req.id, 'alasan jelas');
+    expect(ctx.repo.balances[0]?.usedDays ?? 0).toBe(0);
+  });
+});
 
 describe('CA-1-44 LeaveService.submitFor — HR files for somebody else', () => {
   /*

@@ -26,6 +26,12 @@ describe('recommendation query DTO number transforms', () => {
     expect(dto).toMatchObject({ days: 14, limit: 20 });
   });
 
+  it('REC-01 · reads the dailySales flag from the query string', async () => {
+    expect(plainToInstance(RebuildQueryDto, { dailySales: 'true' }).dailySales).toBe(true);
+    expect(plainToInstance(RebuildQueryDto, { dailySales: 'false' }).dailySales).toBe(false);
+    expect(await validate(plainToInstance(RebuildQueryDto, { dailySales: 'true', limit: '10' }))).toHaveLength(0);
+  });
+
   it('coerces the rebuild page size and rejects a sub-minimum value', async () => {
     const dto = plainToInstance(RebuildQueryDto, { limit: '250' });
     expect(await validate(dto)).toHaveLength(0);

@@ -53,6 +53,9 @@ class FakeAtt implements AttendanceRepository {
   async findById(): Promise<Attendance | null> {
     return null;
   }
+  async deleteLeaveDay(): Promise<boolean> {
+    return false;
+  }
   async upsertManual(): Promise<Attendance> {
     return {} as Attendance;
   }

@@ -129,6 +129,8 @@ export interface AttendanceRepository {
   findById(id: string): Promise<Attendance | null>;
   /** Create-or-update the (employee, workDate) row from an HR manual entry/correction. */
   upsertManual(input: ManualAttendanceInput): Promise<Attendance>;
+  /** HR-17: remove a LEAVE row that nobody punched into (a revoked leave). False = nothing to remove. */
+  deleteLeaveDay(employeeId: string, workDate: Date): Promise<boolean>;
   /** CA-1-24: the corrections filed against one attendance row, newest first. */
   listAdjustments(attendanceId: string): Promise<AttendanceAdjustmentRecord[]>;
   /** Append an audit row for a manual attendance change (before/after snapshots). */

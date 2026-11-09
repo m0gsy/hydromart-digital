@@ -109,7 +109,14 @@ export class ReportSourceHttpAdapter implements ReportSourcePort {
       // Throws like any other read: a comparison against a period that could not be fetched
       // would show every depot as brand new.
       const before = await this.revenueRows(dataset, previous.from, previous.to);
-      return comparisonTable(current, before.rows);
+      // AAS-06: a base the source cut short must say so, like the current side does.
+      const base = before.truncated
+        ? [
+            ...before.rows,
+            { label: `${truncatedNote(before.rows.length)} (periode lalu)`, orders: 0, revenue: 0 },
+          ]
+        : before.rows;
+      return comparisonTable(current, base);
     }
     const route = TABLE[dataset];
     if (!route) throw new Error(`Dataset ${dataset} belum punya sumber data.`);

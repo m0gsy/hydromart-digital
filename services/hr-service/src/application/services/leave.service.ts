@@ -200,6 +200,52 @@ export class LeaveService {
     });
   }
 
+  /**
+   * HR-17: HR takes back an APPROVED leave, with a reason.
+   *
+   * APPROVED used to be terminal, yet it blocked overlapping requests and held quota, and nothing
+   * could undo it. The request becomes CANCELLED (reason kept as the decision note), the quota for
+   * the days still AHEAD comes back, and their LEAVE rows are removed. Days already taken stay
+   * taken and stay charged: the past is not rewritten. The approver stamps are left as they were.
+   * A leave that is wholly in the past has nothing left to revoke.
+   */
+  async revoke(user: AuthenticatedUser, id: string, reason: string): Promise<LeaveRequest> {
+    const why = reason?.trim() ?? '';
+    if (why.length < 3) throw new BadRequestException('Alasan pencabutan wajib diisi');
+    const request = await this.get(id);
+    assertDepotAccess(user, request.depotId);
+    const self = await this.employees.findByAuthSubjectId(user.sub);
+    if (self && self.id === request.employeeId) {
+      throw new ForbiddenException('Tidak bisa mencabut cuti Anda sendiri');
+    }
+    if (!nextStatus(request.status, 'HR_REVOKE')) {
+      throw new ConflictException(`Pengajuan berstatus ${request.status} tidak bisa dicabut`);
+    }
+    const today = localDayKey(new Date(), this.config.timeZone);
+    const days = await this.workingDaysFor(
+      request.depotId,
+      ISO_DAY(request.startDate),
+      ISO_DAY(request.endDate),
+    );
+    const ahead = days.filter((d) => d > today);
+    if (ahead.length === 0) {
+      throw new ConflictException('Semua hari cuti ini sudah lewat, tidak ada yang bisa dicabut');
+    }
+    const updated = await this.repo.decide(request.id, request.status, {
+      status: 'CANCELLED',
+      decisionNote: `Dicabut HR: ${why}`,
+    });
+    if (!updated) throw new ConflictException('Pengajuan ini sudah diputuskan orang lain');
+    if (deductsQuota(request.type)) {
+      await this.repo.releaseUsedDays(request.employeeId, request.startDate.getUTCFullYear(), ahead.length);
+    }
+    for (const d of ahead) {
+      await this.attendance.deleteLeaveDay(request.employeeId, new Date(`${d}T00:00:00.000Z`));
+    }
+    await this.notifyEmployee(updated, 'REJECTED');
+    return updated;
+  }
+
   async cancel(user: AuthenticatedUser, id: string): Promise<LeaveRequest> {
     const employee = await this.employees.getSelf(user);
     const request = await this.get(id);
@@ -483,13 +529,18 @@ export class LeaveService {
     );
   }
 
-  private async notifyEmployee(request: LeaveRequest): Promise<void> {
+  private async notifyEmployee(
+    request: LeaveRequest,
+    // HR-17: a revoked leave is CANCELLED but reads to the employee as a rejection of what was approved.
+    outcome?: 'APPROVED' | 'REJECTED',
+  ): Promise<void> {
     if (!this.notifications) return;
-    if (request.status !== 'APPROVED' && request.status !== 'REJECTED') return;
+    const result = outcome ?? request.status;
+    if (result !== 'APPROVED' && result !== 'REJECTED') return;
     const employee = await this.employees.findByIdInternal(request.employeeId);
     if (!employee?.authSubjectId) return;
     await this.notifications.notify(
-      request.status === 'APPROVED' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED',
+      result === 'APPROVED' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED',
       employee.phone,
       {
         name: employee.fullName,

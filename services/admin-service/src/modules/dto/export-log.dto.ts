@@ -111,6 +111,8 @@ export class ExportLogDto {
   fileName!: string | null;
   @ApiProperty({ description: 'True when this row has a file to download.' })
   hasFile!: boolean;
+  @ApiProperty({ description: 'True when the browser reported this export: dataset and row count are its word.' })
+  clientReported!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 
@@ -125,6 +127,7 @@ export class ExportLogDto {
       status: record.status,
       fileName: record.fileName,
       hasFile: record.hasFile,
+      clientReported: record.clientReported,
       createdAt: record.createdAt.toISOString(),
     };
   }

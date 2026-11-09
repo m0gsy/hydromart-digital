@@ -6,6 +6,7 @@ import { AuthenticatedUser, Can, CurrentUser, ImportSummary, SelfScoped } from '
 import { LeaveService } from '../application/services/leave.service';
 import {
   DecideLeaveDto,
+  RevokeLeaveDto,
   ImportLeaveBalancesDto,
   LeaveBalanceQueryDto,
   ListLeaveDto,
@@ -107,6 +108,18 @@ export class LeaveController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<LeaveRequest> {
     return this.leave.decideManager(user, id, dto.approve, dto.note);
+  }
+
+  @ApiOkResponse({ type: LeaveRequestResponseDto })
+  @Patch(':id/revoke')
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'HR takes back an approved leave: quota for the days ahead returns, their LEAVE rows go' })
+  revoke(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RevokeLeaveDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeaveRequest> {
+    return this.leave.revoke(user, id, dto.reason);
   }
 
   @ApiOkResponse({ type: LeaveRequestResponseDto })

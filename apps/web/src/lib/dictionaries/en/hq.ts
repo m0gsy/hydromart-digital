@@ -1550,6 +1550,7 @@ export const hq = {
     loadError: 'Could not load system health.',
   },
   exportsLog: {
+    clientReported: '(reported by browser)',
     title: 'Data export log',
     subtitle: 'Audit of every export: dataset, by, format, rows',
     dataset: 'Dataset',

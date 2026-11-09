@@ -27,6 +27,6 @@ export class SystemSettingsController {
   @Put()
   @ApiOperation({ summary: 'Replace platform settings' })
   async save(@Body() dto: SaveSystemSettingsDto): Promise<SystemSettingsDto> {
-    return SystemSettingsDto.from(await this.settings.save(dto));
+    return SystemSettingsDto.from(await this.settings.save(dto, dto.seenUpdatedAt));
   }
 }

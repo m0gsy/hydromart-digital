@@ -48,6 +48,27 @@ describe('RecommendationService', () => {
     expect(related.map((i) => i.productId).sort()).toEqual(['b', 'c']);
   });
 
+  /*
+   * REC-01. The day bucket was the UTC calendar day while the trending window opens at LOCAL
+   * midnight, so an order placed 00:00-07:00 WIB landed in the previous day's bucket and the
+   * N-day window slid 7 hours. The service now hands the repository the business-zone day.
+   */
+  it('REC-01 · buckets an order by its business-zone day, not its UTC day', async () => {
+    const at = new Date('2026-11-09T18:30:00Z'); // 01:30 WIB on the 10th
+    await service.ingest(makeIngest({ orderId: 'o-late', at, items: [makeIngest().items[0]] }));
+    const row = repo.dailySales.find((r) => r.productId === 'a');
+    expect(row?.day.toISOString().slice(0, 10)).toBe('2026-11-10');
+    // 16:00Z is 23:00 WIB the same day: unchanged.
+    await service.ingest(makeIngest({ orderId: 'o-eve', at: new Date('2026-11-09T16:00:00Z'), items: [makeIngest().items[1]] }));
+    expect(repo.dailySales.find((r) => r.productId === 'b')?.day.toISOString().slice(0, 10)).toBe('2026-11-09');
+  });
+
+  it('REC-01 · a 1-day trending window opened at WIB midnight counts that morning order', async () => {
+    await service.ingest(makeIngest({ orderId: 'o-late', at: new Date('2026-11-09T18:30:00Z'), items: [makeIngest().items[0]] }));
+    const now = new Date('2026-11-10T03:00:00Z'); // 10:00 WIB on the 10th
+    expect((await service.trending(null, 1, 10, now)).map((i) => i.productId)).toEqual(['a']);
+  });
+
   it('trending(null, days, ...) includes a, b, c for today', async () => {
     await service.ingest(makeIngest());
     // 21:00 WIB on 11 July — the same LOCAL day as the ingest at 17:00 WIB. Written as
@@ -181,8 +202,10 @@ describe('RecommendationService.trending window (C2)', () => {
       return [];
     };
     const service = new RecommendationService(repo, { businessTimeZone: 'Asia/Jakarta' } as never);
-    // 2 Aug 03:00 WIB. A 1-day window must start at 1 Aug 17:00 UTC = 2 Aug 00:00 WIB.
+    // 2 Aug 03:00 WIB. A 1-day window starts on the 2nd. The column is a calendar date, so the bound
+    // is the business-zone day as a UTC-midnight date (REC-01) - an instant like 1 Aug 17:00Z would be
+    // truncated to the 1st by the database and pull in a day that is not in the window.
     await service.trending(null, 1, 10, new Date('2026-08-01T20:00:00.000Z'));
-    expect(seen[0].toISOString()).toBe('2026-08-01T17:00:00.000Z');
+    expect(seen[0].toISOString()).toBe('2026-08-02T00:00:00.000Z');
   });
 });

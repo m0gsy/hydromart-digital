@@ -1574,6 +1574,19 @@ describe('AttendancePrismaRepository', () => {
     expect(m(p, 'attendance').findUnique).toHaveBeenCalledWith({ where: { id: 'a1' } });
   });
 
+  // HR-17: only an unpunched LEAVE row is removed.
+  it('deleteLeaveDay removes a LEAVE row nobody punched into', async () => {
+    const p = makePrisma();
+    const wd = new Date('2026-12-01');
+    m(p, 'attendance').deleteMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    const repo = new AttendancePrismaRepository(asService(p));
+    expect(await repo.deleteLeaveDay('e1', wd)).toBe(true);
+    expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', workDate: wd, status: 'LEAVE', checkInAt: null },
+    });
+    expect(await repo.deleteLeaveDay('e1', wd)).toBe(false);
+  });
+
   it('upsertManual with full patch builds create+update', async () => {
     const p = makePrisma();
     const wd = new Date('2026-07-01');
@@ -2714,6 +2727,21 @@ describe('LoanRequestPrismaRepository', () => {
     expect(m(p, 'loanRequest').updateMany).toHaveBeenCalledWith({
       where: { id: 'lr1', status: 'APPROVED', loanId: null },
       data: { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null },
+    });
+  });
+
+  // HR-15
+  it('listOrphanedApprovals reads the approved requests with no loan, oldest first', async () => {
+    const p = makePrisma();
+    m(p, 'loanRequest').findMany.mockResolvedValue([{ id: 'lr1' }, { id: 'lr2' }]);
+    const repo = new LoanRequestPrismaRepository(asService(p));
+    const cutoff = new Date('2026-11-10T03:00:00Z');
+    expect(await repo.listOrphanedApprovals(cutoff, 50)).toEqual(['lr1', 'lr2']);
+    expect(m(p, 'loanRequest').findMany).toHaveBeenCalledWith({
+      where: { status: 'APPROVED', loanId: null, decidedAt: { lt: cutoff } },
+      orderBy: { decidedAt: 'asc' },
+      take: 50,
+      select: { id: true },
     });
   });
 

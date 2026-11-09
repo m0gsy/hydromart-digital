@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../../prisma/generated/client';
 
 import {
@@ -168,6 +168,11 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
       ? await this.prisma.webhookDelivery.findFirst({ where: { id, endpoint: { apiKeyId } } })
       : await this.prisma.webhookDelivery.findUnique({ where: { id } });
     if (!existing) return null;
+    // AAS-15: a delivery still queued will be retried anyway; resetting its attempts here would keep it
+    // retrying forever. Only a finished one (delivered, or dead) can be replayed.
+    if (existing.status === 'PENDING') {
+      throw new ConflictException('Pengiriman ini masih antre (PENDING); tunggu hingga berhasil atau gagal permanen sebelum mengulang.');
+    }
     // Attempts reset: a replay is a fresh decision by a human, not a continuation of the
     // backoff that gave up. Otherwise a DEAD row would be dead again on its first try.
     const row = await this.prisma.webhookDelivery.update({

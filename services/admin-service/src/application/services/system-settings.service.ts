@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { assertFresh } from '@hydromart/platform';
 
 import {
   SaveSystemSettingsData,
@@ -29,8 +30,14 @@ export class SystemSettingsService {
     return existing ?? { ...DEFAULTS, updatedAt: new Date(0) };
   }
 
-  /** Replace the singleton settings (PUT). */
-  save(data: SaveSystemSettingsData): Promise<SystemSettingsRecord> {
+  /**
+   * Replace the singleton settings (PUT).
+   *
+   * AAS-13: refused when the caller's copy is older than the stored row (or names none): the same
+   * guard the other policy stores carry. Nothing was guarding this one.
+   */
+  async save(data: SaveSystemSettingsData, seenUpdatedAt?: string): Promise<SystemSettingsRecord> {
+    assertFresh((await this.repo.get())?.updatedAt ?? null, seenUpdatedAt);
     return this.repo.save(data);
   }
 }

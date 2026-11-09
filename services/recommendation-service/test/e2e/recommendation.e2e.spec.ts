@@ -207,4 +207,27 @@ describe('Recommendation HTTP flows (e2e)', () => {
     const trending = await request(server()).get('/api/v1/recommendations/trending').expect(200);
     expect(trending.body.map((i: { productId: string }) => i.productId)).toContain(productId);
   });
+
+  // REC-01: `?dailySales=true` rebuilds only the trending table, bucketed by the business-zone day.
+  it('rebuild?dailySales=true swaps the daily table from the feed and keeps trending working', async () => {
+    const productId = randomUUID();
+    feed.orders = [
+      {
+        orderId: randomUUID(),
+        customerId: randomUUID(),
+        depotId: null,
+        at: new Date(),
+        items: [{ productId, productName: 'Vit 19L', sku: 'VIT19', unit: 'galon', quantity: 3 }],
+      },
+    ];
+    // Product refs come from the ordinary rebuild (ingest); the daily swap only touches daily sales.
+    await request(server()).post('/api/v1/recommendations/rebuild').set(auth(superAdminToken)).expect(200);
+    const res = await request(server())
+      .post('/api/v1/recommendations/rebuild?dailySales=true')
+      .set(auth(superAdminToken))
+      .expect(200);
+    expect(res.body).toEqual({ orders: 1, rows: 1 });
+    const trending = await request(server()).get('/api/v1/recommendations/trending').expect(200);
+    expect(trending.body.map((i: { productId: string }) => i.productId)).toContain(productId);
+  });
 });

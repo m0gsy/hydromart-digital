@@ -314,6 +314,7 @@ export class InMemoryExportLogRepository implements ExportLogRepository {
       status: data.status ?? ExportStatus.PENDING,
       fileName: data.fileName ?? null,
       hasFile: data.content != null && data.fileName != null,
+      clientReported: data.clientReported ?? false,
       createdAt: nextDate(),
     };
     this.rows.push(record);
@@ -339,6 +340,7 @@ export function makeExportLog(over: Partial<ExportLogRecord> = {}): ExportLogRec
     status: ExportStatus.DONE,
     fileName: null,
     hasFile: false,
+    clientReported: false,
     createdAt: nextDate(),
     ...over,
   };

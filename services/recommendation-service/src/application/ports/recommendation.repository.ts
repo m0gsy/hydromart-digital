@@ -16,10 +16,18 @@ export interface IngestCommand {
   depotId: string | null;
   items: IngestItem[];
   at: Date;
+  /** REC-01: the business-zone calendar day (UTC-midnight Date) the order counts toward. */
+  day?: Date;
 }
 
 export interface RecommendationRepository {
   hasIngested(orderId: string): Promise<boolean>;
+
+  /**
+   * REC-01: replace the WHOLE daily-sales table with these rows, in one transaction. A derived
+   * read model: it is rebuilt from the order feed, never edited in place.
+   */
+  replaceDailySales(rows: { productId: string; depotId: string | null; day: Date; count: number }[]): Promise<void>;
 
   /**
    * Applies one order's worth of read-model writes (purchase counts, product refs,

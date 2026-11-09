@@ -125,6 +125,8 @@ describe('ExportLogsController', () => {
         requestedByEmail: '+62811',
         rowCount: 12,
         status: 'DONE',
+        // AAS-16: the dataset and row count came from the browser, and the row says so.
+        clientReported: true,
       }),
     );
     await controller.record(
@@ -139,7 +141,8 @@ describe('ExportLogsController', () => {
   it('download sends the stored file as an attachment', async () => {
     exports.download.mockResolvedValue({ fileName: 'a.csv', content: Buffer.from('hi') });
     const res = { header: jest.fn().mockReturnThis(), send: jest.fn() };
-    await controller.download('11111111-1111-4111-8111-111111111111', res as never);
+    await controller.download('11111111-1111-4111-8111-111111111111', res as never, { sub: 'u-9' } as never);
+    expect(exports.download).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', 'u-9');
     expect(res.header).toHaveBeenCalledWith('content-type', 'application/octet-stream');
     expect(res.header).toHaveBeenCalledWith('content-disposition', 'attachment; filename="a.csv"');
     expect(res.send).toHaveBeenCalledWith(Buffer.from('hi'));
@@ -149,7 +152,7 @@ describe('ExportLogsController', () => {
     exports.download.mockResolvedValue(null);
     const res = { header: jest.fn().mockReturnThis(), send: jest.fn() };
     await expect(
-      controller.download('11111111-1111-4111-8111-111111111111', res as never),
+      controller.download('11111111-1111-4111-8111-111111111111', res as never, { sub: 'u-9' } as never),
     ).rejects.toThrow();
     expect(res.send).not.toHaveBeenCalled();
   });

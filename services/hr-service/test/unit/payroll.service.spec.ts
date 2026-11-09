@@ -113,6 +113,7 @@ function build(opts: {
     findByEmployeeAndDate: async () => null,
     findById: async () => null,
     upsertManual: async () => ({}) as never,
+    deleteLeaveDay: async () => false,
     patchStatus: async () => ({}) as never,
     // CA-1-24: the correction trail is readable now; payroll never asks for it.
     listAdjustments: async () => [],

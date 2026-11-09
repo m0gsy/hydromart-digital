@@ -350,11 +350,11 @@ async function run(job: Job, capturedAt: string): Promise<unknown> {
     return api.patch(endpoints.deliveries.driver.reschedule(deliveryId), rest, true);
   }
   const p = job.payload;
-  const photoUrl = await uploadDataUrl(p.photo, 'photo.jpg', 'image/jpeg');
+  const photoUrl = await uploadOnce(p.photo, 'photo.jpg', 'image/jpeg');
   const signatureUrl = p.signature
-    ? await uploadDataUrl(p.signature, 'signature.png', 'image/png')
+    ? await uploadOnce(p.signature, 'signature.png', 'image/png')
     : undefined;
-  return api.post(
+  const sent = await api.post(
     endpoints.deliveries.driver.complete(p.deliveryId),
     {
       photoUrl,
@@ -368,6 +368,25 @@ async function run(job: Job, capturedAt: string): Promise<unknown> {
     },
     true,
   );
+  // Delivered: the uploads are spent. Until here a retry reuses them (WEB-05).
+  uploaded.delete(p.photo);
+  if (p.signature) uploaded.delete(p.signature);
+  return sent;
+}
+
+/**
+ * WEB-05: the proof photo and signature are uploaded BEFORE the completion is posted, and a
+ * completion that fails and is retried (up to six times) used to upload them again each time,
+ * leaving an orphan file per attempt. Remember what was uploaded for a capture until the
+ * completion lands. In memory on purpose: a reload re-uploads once, which is the old behaviour.
+ */
+const uploaded = new Map<string, string>();
+async function uploadOnce(dataUrl: string, name: string, type: string): Promise<string> {
+  const known = uploaded.get(dataUrl);
+  if (known) return known;
+  const url = await uploadDataUrl(dataUrl, name, type);
+  uploaded.set(dataUrl, url);
+  return url;
 }
 
 async function uploadDataUrl(dataUrl: string, name: string, type: string): Promise<string> {

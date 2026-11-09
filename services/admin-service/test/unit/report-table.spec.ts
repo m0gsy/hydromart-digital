@@ -149,6 +149,31 @@ describe('ReportSourceHttpAdapter.tableFor', () => {
     expect(fetchMock.mock.calls[0][1].headers).toEqual({ 'x-internal-key': 'k' });
   });
 
+  // AAS-06: the previous period's truncation flag was thrown away, so a cut-short base made depots
+  // look new (or their delta wrong) with nothing in the file saying the comparison was partial.
+  it('says so when the PREVIOUS period was cut short, instead of comparing against a partial base', async () => {
+    const rev = (rows: unknown[], truncated?: boolean) => body({ rows, truncated });
+    fetchMock
+      .mockResolvedValueOnce(rev([{ label: 'Depot A', orders: 4, revenue: 400 }]))
+      .mockResolvedValueOnce(rev([{ label: 'Depot A', orders: 2, revenue: 200 }], true));
+    const t = await new ReportSourceHttpAdapter(
+      config({ ORDER_SERVICE_URL: 'http://order:3004' }),
+    ).tableFor(ReportDataset.REVENUE_BY_DEPOT, FROM, TO, { from: FROM, to: TO });
+    expect(t.rows.map((r) => r[0])).toContainEqual(expect.stringMatching(/TERPOTONG.*periode lalu/));
+    // The real row is still compared normally.
+    expect(t.rows[0]).toEqual(['Depot A', 4, 400, 2, 200, 100]);
+  });
+
+  it('leaves a complete previous period alone', async () => {
+    fetchMock
+      .mockResolvedValueOnce(body({ rows: [{ label: 'A', orders: 1, revenue: 10 }] }))
+      .mockResolvedValueOnce(body({ rows: [{ label: 'A', orders: 1, revenue: 10 }] }));
+    const t = await new ReportSourceHttpAdapter(
+      config({ ORDER_SERVICE_URL: 'http://order:3004' }),
+    ).tableFor(ReportDataset.REVENUE_BY_DEPOT, FROM, TO, { from: FROM, to: TO });
+    expect(t.rows).toHaveLength(1);
+  });
+
   it('appends a note row when the source cut the table short', async () => {
     fetchMock.mockResolvedValue(body({ columns: cols, rows: [['x', 1]], truncated: true }));
     const t = await new ReportSourceHttpAdapter(config()).tableFor(

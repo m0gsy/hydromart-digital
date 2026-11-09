@@ -7,9 +7,29 @@ describe('BroadcastService', () => {
   let repo: InMemoryBroadcastRepository;
   let service: BroadcastService;
 
+  let announce: jest.Mock;
+
   beforeEach(() => {
     repo = new InMemoryBroadcastRepository();
-    service = new BroadcastService(repo);
+    announce = jest.fn();
+    service = new BroadcastService(repo, { announceToDepotStaff: announce } as never);
+  });
+
+  // CRM-09: an URGENT broadcast used to be pull-only - the courier learned of it by opening the
+  // inbox. It now also wakes the depot's staff; calmer levels stay quiet.
+  it('pushes an URGENT broadcast to the depot staff, and only that level', async () => {
+    await service.create('ops-1', 'depot-1', 'Jalan ditutup', 'Putar balik', BroadcastLevel.URGENT);
+    expect(announce).toHaveBeenCalledWith('depot-1', 'Jalan ditutup', 'Putar balik');
+    announce.mockClear();
+    await service.create('ops-1', 'depot-1', 'Info', 'x', BroadcastLevel.INFO);
+    await service.create('ops-1', 'depot-1', 'Jadwal', 'x', BroadcastLevel.SCHEDULED);
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('still posts the broadcast when no notifier is wired', async () => {
+    const bare = new BroadcastService(repo);
+    const b = await bare.create('ops-1', 'depot-1', 'Urgent', 'x', BroadcastLevel.URGENT);
+    expect(b.level).toBe('URGENT');
   });
 
   it('posts a broadcast scoped to a depot', async () => {

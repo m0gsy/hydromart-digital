@@ -1561,6 +1561,7 @@ export const hq = {
     loadError: 'Status layanan tidak bisa dimuat.',
   },
   exportsLog: {
+    clientReported: '(dilaporkan browser)',
     title: 'Log ekspor data',
     subtitle: 'Audit setiap ekspor: dataset, oleh, format, baris',
     dataset: 'Dataset',

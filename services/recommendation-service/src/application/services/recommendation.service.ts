@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { addLocalDays, startOfLocalDay } from '@hydromart/platform';
+import { addLocalDays, localDayKey, startOfLocalDay } from '@hydromart/platform';
 
 import { RecommendationConfigService } from '../../config/recommendation-config.service';
 
@@ -34,9 +34,19 @@ export class RecommendationService {
     private readonly config: RecommendationConfigService,
   ) {}
 
+  /** The `@db.Date` bucket (UTC midnight of the business-zone calendar day) an instant belongs to. */
+  dayBucket(at: Date): Date {
+    return this.bucketOf(at);
+  }
+
+  private bucketOf(at: Date): Date {
+    return new Date(`${localDayKey(at, this.config.businessTimeZone)}T00:00:00.000Z`);
+  }
+
   async ingest(cmd: IngestCommand): Promise<void> {
     if (await this.repo.hasIngested(cmd.orderId)) return;
-    await this.repo.applyIngest(cmd);
+    // REC-01: bucket by the BUSINESS day, the same one trending() reads in.
+    await this.repo.applyIngest({ ...cmd, day: this.bucketOf(cmd.at) });
   }
 
   async reorder(customerId: string, limit: number): Promise<RecItem[]> {
@@ -67,7 +77,7 @@ export class RecommendationService {
     // meant that for the first seven hours of every day the board began mid-morning of the
     // day before and quietly dropped the previous local evening's orders.
     const tz = this.config.businessTimeZone;
-    const fromDay = addLocalDays(startOfLocalDay(now, tz), -(clampDays(days) - 1), tz);
+    const fromDay = this.bucketOf(addLocalDays(startOfLocalDay(now, tz), -(clampDays(days) - 1), tz));
     // Summed, ranked and limited by Postgres (audit S-18).
     const ranked = await this.repo.trendingTotals(depotId, fromDay, clampLimit(limit));
     // ponytail: ML re-ranker seam — a future model would re-rank `ranked` before enrichment.
