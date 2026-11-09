@@ -48,13 +48,19 @@ export class DisputeRefundHttpAdapter implements DisputeRefundPort {
     const orderId = await this.findOrderId(orderServiceUrl, orderRef, authorization);
     const payment = await this.findPayment(paymentServiceUrl, orderId, authorization);
     const paymentId = payment.id;
-    // DEP-26: a claim smaller than the payment is a part-refund; anything else is the whole.
-    const part = amountIdr && amountIdr > 0 && amountIdr < payment.amount ? amountIdr : undefined;
+    // DEP-26: a claim smaller than the payment is a part-refund; anything else is the whole. The
+    // comparison needs the payment's own amount: if there is a claim to honour and that amount is
+    // unreadable, refuse - guessing would refund the WHOLE payment for a part claim.
+    const hasClaim = typeof amountIdr === 'number' && amountIdr > 0;
+    if (hasClaim && !(Number.isFinite(payment.amount) && payment.amount > 0)) {
+      throw new DisputeRefundUnavailableError('nominal pembayaran tidak terbaca, refund sebagian tidak diminta');
+    }
+    const part = hasClaim && amountIdr < payment.amount ? amountIdr : undefined;
 
     const res = await this.get(
       `${paymentServiceUrl}/api/v1/payments/${paymentId}/refund`,
       authorization,
-      { method: 'POST', body: JSON.stringify(part === undefined ? { reason } : { reason, amountIdr: part }) },
+      { method: 'POST', body: JSON.stringify({ reason, ...(part !== undefined && { amountIdr: part }) }) },
     );
     if (!res.ok) {
       throw new DisputeRefundUnavailableError(await this.why(res, 'refund ditolak'));
@@ -104,7 +110,7 @@ export class DisputeRefundHttpAdapter implements DisputeRefundPort {
     }
     // Newest first is what the endpoint returns; the last PAID payment is the one the
     // customer's money is sitting in.
-    return { id: paid[0]!.id, amount: Number(paid[0]!.amount ?? 0) };
+    return { id: paid[0]!.id, amount: Number(paid[0]!.amount) };
   }
 
   private get(url: string, auth: string, init: RequestInit = {}): Promise<Response> {

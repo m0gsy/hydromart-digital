@@ -297,6 +297,24 @@ describe('DisputeService REFUND queues the money (CA-2-39)', () => {
     expect(refunds.calls[0]).toMatchObject({ orderRef: 'HM-260902-002', amountIdr: 20000 });
   });
 
+  it('sends no amount for a dispute that claims none, and rolls back a failed part-refund', async () => {
+    const depotRepo = new InMemoryDepotRepository();
+    const refunds = new FakeDisputeRefund();
+    const svc = new DisputeService(new InMemoryDisputeRepository(), depotRepo, refunds);
+    const depot = await seedDepot(depotRepo);
+    const none = await raise(svc, depot);
+    await svc.resolve(none.id, DisputeResolution.REFUND, 'x', MANAGER, 'Bearer t');
+    expect(refunds.calls[0]).not.toHaveProperty('amountIdr');
+
+    const claimed = await svc.raise(
+      { depotId: depot, orderRef: 'HM-260902-003', customerName: 'Siti', category: DisputeCategory.OVERCHARGED, amountIdr: 20000, description: 'lebih' } as never,
+      MANAGER,
+    );
+    refunds.fail = 'refund ditolak';
+    await expect(svc.resolve(claimed.id, DisputeResolution.REFUND, 'x', MANAGER, 'Bearer t')).rejects.toThrow('refund ditolak');
+    expect((await svc.get(claimed.id)).status).toBe(DisputeStatus.OPEN);
+  });
+
   // D1-02 / DEP-26: read-then-write let two managers (or a double click) both see OPEN, both
   // queue a refund, and both write. The status is now CLAIMED atomically before any money
   // moves, so exactly one of two concurrent resolves proceeds.

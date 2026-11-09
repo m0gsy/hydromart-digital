@@ -79,6 +79,30 @@ describe('DisputeRefundHttpAdapter (CA-2-39)', () => {
     expect(JSON.parse(calls[2]!.body!)).toEqual({ reason: 'dipungut lebih', amountIdr: 20000 });
   });
 
+  // Review of #862: the comparison is only meaningful if the payment's own amount is readable. A
+  // missing or unparseable one used to read as 0, "claim < 0" was false, and a 20.000 claim queued
+  // the WHOLE payment - over-refunding silently. With a claim to honour it now fails closed.
+  it.each([[undefined], [null], ['abc'], [0]])('refuses a part claim when the payment amount is %p', async (amount) => {
+    const calls = wire(
+      { items: [{ id: 'o-1', orderNumber: 'HM-1' }] },
+      { items: [{ id: 'p-1', status: 'PAID', amount }] },
+    );
+    await expect(
+      new DisputeRefundHttpAdapter(config()).request('HM-1', 'x', 'Bearer t', 20000),
+    ).rejects.toBeInstanceOf(DisputeRefundUnavailableError);
+    // Nothing was POSTed to the refund route.
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('with no claim, an unreadable payment amount does not matter (whole payment, as before)', async () => {
+    const calls = wire(
+      { items: [{ id: 'o-1', orderNumber: 'HM-1' }] },
+      { items: [{ id: 'p-1', status: 'PAID' }] },
+    );
+    await new DisputeRefundHttpAdapter(config()).request('HM-1', 'x', 'Bearer t');
+    expect(JSON.parse(calls[2]!.body!)).toEqual({ reason: 'x' });
+  });
+
   it.each([[45000], [60000], [0], [undefined]])('asks for the whole payment when the claim is %p', async (claim) => {
     const calls = wire(
       { items: [{ id: 'o-1', orderNumber: 'HM-1' }] },
