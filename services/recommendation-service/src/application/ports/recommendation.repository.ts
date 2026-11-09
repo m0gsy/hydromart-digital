@@ -24,6 +24,12 @@ export interface RecommendationRepository {
   hasIngested(orderId: string): Promise<boolean>;
 
   /**
+   * REC-01: replace the WHOLE daily-sales table with these rows, in one transaction. A derived
+   * read model: it is rebuilt from the order feed, never edited in place.
+   */
+  replaceDailySales(rows: { productId: string; depotId: string | null; day: Date; count: number }[]): Promise<void>;
+
+  /**
    * Applies one order's worth of read-model writes (purchase counts, product refs,
    * daily sales, co-buy pairs, ingested-order marker) atomically. Caller (the ingest
    * service) is responsible for the hasIngested idempotency guard before calling this.

@@ -19,7 +19,7 @@ describe('RecommendationPrismaRepository', () => {
   // Write-path models (accessed via tx.* inside the transaction callback)
   const tx = {
     $executeRaw: jest.fn(),
-    productDailySales: { findMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
+    productDailySales: { findMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn(), deleteMany: jest.fn() },
     ingestedOrder: { create: jest.fn() },
   };
   const $transaction = jest.fn((cb: (t: unknown) => unknown) => cb(tx));
@@ -42,6 +42,23 @@ describe('RecommendationPrismaRepository', () => {
 
     ingestedOrder.findUnique.mockResolvedValue(null);
     expect(await repo.hasIngested('ord-2')).toBe(false);
+  });
+
+  // REC-01: the derived daily table is swapped whole, in chunks, inside one transaction.
+  it('replaceDailySales deletes everything and inserts the new rows in chunks of 5000', async () => {
+    tx.productDailySales.deleteMany.mockClear();
+    tx.productDailySales.createMany.mockClear();
+    const rows = Array.from({ length: 5001 }, (_, i) => ({
+      productId: `p-${i}`,
+      depotId: null,
+      day: new Date('2026-11-10T00:00:00Z'),
+      count: 1,
+    }));
+    await repo.replaceDailySales(rows);
+    expect(tx.productDailySales.deleteMany).toHaveBeenCalledTimes(1);
+    expect(tx.productDailySales.createMany).toHaveBeenCalledTimes(2);
+    expect(tx.productDailySales.createMany.mock.calls[0][0].data).toHaveLength(5000);
+    expect(tx.productDailySales.createMany.mock.calls[1][0].data).toHaveLength(1);
   });
 
   // Audit S-5 and its Q-17 baseline row: one order used to cost three statements per line
