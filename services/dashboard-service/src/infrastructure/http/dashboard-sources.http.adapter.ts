@@ -37,11 +37,16 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     if (range.to) params.set('to', range.to);
   }
 
-  private async fetchJson<T>(url: string, headers: Record<string, string>): Promise<T | null> {
+  private async fetchJson<T>(
+    url: string,
+    headers: Record<string, string>,
+    init: { method?: string; body?: string } = {},
+  ): Promise<T | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DashboardSourcesHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
+        ...init,
         headers: { ...headers, accept: 'application/json' },
         signal: controller.signal,
       });
@@ -287,11 +292,46 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
       from: range.from,
       to: range.to,
     });
+    // PLP-13: subtract only refunds of orders that still count as sales. Revenue already leaves
+    // out CANCELLED and VOIDED orders, so their refund was being counted twice.
+    const perOrder = await this.getInternal<{ depotId: string; orderId: string; refundedIdr: number }[]>(
+      `${this.config.paymentServiceUrl}/api/v1/payments/internal/depot-refunds-by-order?${params.toString()}`,
+    );
+    if (perOrder !== null) {
+      const counting = await this.countingOrders([...new Set(perOrder.map((r) => r.orderId))]);
+      if (counting) {
+        const out = new Map<string, number>();
+        for (const r of perOrder) {
+          if (counting.has(r.orderId)) out.set(r.depotId, (out.get(r.depotId) ?? 0) + r.refundedIdr);
+        }
+        return out;
+      }
+    }
+    // Either side lacks the new route or is down: keep the old per-depot total rather than blank
+    // the P&L. It may over-state refunds (the PLP-13 double count) but it is never invented.
     const rows = await this.getInternal<{ depotId: string; refundedIdr: number }[]>(
       `${this.config.paymentServiceUrl}/api/v1/payments/internal/depot-refunds?${params.toString()}`,
     );
     if (rows === null) return null;
     return new Map(rows.map((r) => [r.depotId, r.refundedIdr]));
+  }
+
+  /** PLP-13: of these order ids, those order-service still counts as sales; null = cannot say. */
+  private async countingOrders(orderIds: string[]): Promise<Set<string> | null> {
+    if (orderIds.length === 0) return new Set();
+    const base = this.config.orderServiceUrl;
+    if (!base) return null;
+    const counting = new Set<string>();
+    for (let i = 0; i < orderIds.length; i += 5000) {
+      const body = await this.fetchJson<{ orderIds: string[] }>(
+        `${base}/api/v1/reports/internal/counting-orders`,
+        { 'x-internal-key': this.config.internalServiceKey, 'content-type': 'application/json' },
+        { method: 'POST', body: JSON.stringify({ orderIds: orderIds.slice(i, i + 5000) }) },
+      );
+      if (body === null) return null;
+      for (const id of body.orderIds) counting.add(id);
+    }
+    return counting;
   }
 
   async crmSummaryMany(depotIds: string[]): Promise<(CrmDepotSummary | null)[]> {

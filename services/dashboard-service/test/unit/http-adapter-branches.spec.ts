@@ -310,18 +310,85 @@ describe('DashboardSourcesHttpAdapter', () => {
     expect(await wired.payoutCosts(['d1'], range)).toBeNull();
   });
 
-  it('depotRefunds asks once and keys the answer by depot', async () => {
-    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment' });
-    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd1', refundedIdr: 100_000 }]));
-    const out = await adapter.depotRefunds(['d1'], {
-      from: '2026-07-01T00:00:00.000Z',
-      to: '2026-08-01T00:00:00.000Z',
-    });
+  const refundRange = { from: '2026-07-01T00:00:00.000Z', to: '2026-08-01T00:00:00.000Z' };
+
+  // PLP-13. Revenue already leaves out CANCELLED and VOIDED orders, so subtracting THEIR refund
+  // as well counted it twice. Payment lists refunds per order; order-service says which orders
+  // still count; only those are subtracted.
+  it('depotRefunds subtracts only the refunds of orders that still count as sales (PLP-13)', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment', orderServiceUrl: 'http://order' });
+    fetchMock
+      .mockResolvedValueOnce(
+        okResponse([
+          { depotId: 'd1', orderId: 'o-kept', refundedIdr: 30_000 },
+          { depotId: 'd1', orderId: 'o-cancelled', refundedIdr: 70_000 },
+          { depotId: 'd2', orderId: 'o-cancelled-2', refundedIdr: 5_000 },
+        ]),
+      )
+      .mockResolvedValueOnce(okResponse({ orderIds: ['o-kept'] }));
+    const out = await adapter.depotRefunds(['d1', 'd2'], refundRange);
 
     expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'http://payment/api/v1/payments/internal/depot-refunds-by-order?depotIds=d1%2Cd2',
+    );
+    const [url, init] = fetchMock.mock.calls[1] as [string, { method: string; body: string }];
+    expect(url).toBe('http://order/api/v1/reports/internal/counting-orders');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).orderIds.sort()).toEqual(['o-cancelled', 'o-cancelled-2', 'o-kept']);
+    expect(out?.get('d1')).toBe(30_000);
+    expect(out?.get('d2') ?? 0).toBe(0);
+  });
+
+  it('depotRefunds asks order-service nothing when nothing was refunded', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment', orderServiceUrl: 'http://order' });
+    fetchMock.mockResolvedValueOnce(okResponse([]));
+    const out = await adapter.depotRefunds(['d1'], refundRange);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(out?.get('d1') ?? 0).toBe(0);
+  });
+
+  // Rolling out: either side may not have the new endpoint yet, or be down. The P&L then keeps
+  // its old (per-depot total) answer rather than going blank.
+  it('depotRefunds falls back to the per-depot total when the per-order route is missing', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment', orderServiceUrl: 'http://order' });
+    fetchMock
+      .mockResolvedValueOnce(errResponse(404))
+      .mockResolvedValueOnce(okResponse([{ depotId: 'd1', refundedIdr: 100_000 }]));
+    const out = await adapter.depotRefunds(['d1'], refundRange);
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
       'http://payment/api/v1/payments/internal/depot-refunds?depotIds=d1',
     );
     expect(out?.get('d1')).toBe(100_000);
+  });
+
+  it('depotRefunds falls back to the per-depot total when order-service cannot say', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment', orderServiceUrl: 'http://order' });
+    fetchMock
+      .mockResolvedValueOnce(okResponse([{ depotId: 'd1', orderId: 'o1', refundedIdr: 1 }]))
+      .mockResolvedValueOnce(errResponse(500))
+      .mockResolvedValueOnce(okResponse([{ depotId: 'd1', refundedIdr: 100_000 }]));
+    const out = await adapter.depotRefunds(['d1'], refundRange);
+    expect(out?.get('d1')).toBe(100_000);
+  });
+
+  it('depotRefunds falls back to the per-depot total when order-service is not wired', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment', orderServiceUrl: '' });
+    fetchMock
+      .mockResolvedValueOnce(okResponse([{ depotId: 'd1', orderId: 'o1', refundedIdr: 1 }]))
+      .mockResolvedValueOnce(okResponse([{ depotId: 'd1', refundedIdr: 100_000 }]));
+    expect((await adapter.depotRefunds(['d1'], refundRange))?.get('d1')).toBe(100_000);
+  });
+
+  it('depotRefunds asks for a long order list in chunks of 5000', async () => {
+    const adapter = makeAdapter({ paymentServiceUrl: 'http://payment', orderServiceUrl: 'http://order' });
+    const rows = Array.from({ length: 5001 }, (_, i) => ({ depotId: 'd1', orderId: `o${i}`, refundedIdr: 1 }));
+    fetchMock
+      .mockResolvedValueOnce(okResponse(rows))
+      .mockResolvedValueOnce(okResponse({ orderIds: ['o0'] }))
+      .mockResolvedValueOnce(okResponse({ orderIds: ['o5000'] }));
+    const out = await adapter.depotRefunds(['d1'], refundRange);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(out?.get('d1')).toBe(2);
   });
 
   it('depotRefunds is null when payment-service is unwired, asked nothing, or down', async () => {
@@ -329,7 +396,8 @@ describe('DashboardSourcesHttpAdapter', () => {
     expect(await makeAdapter().depotRefunds(['d1'], range)).toBeNull();
     const wired = makeAdapter({ paymentServiceUrl: 'http://payment' });
     expect(await wired.depotRefunds([], range)).toBeNull();
-    fetchMock.mockResolvedValueOnce(errResponse(500));
+    // Both the per-order route and the old total are down: the figure is unknown, not zero.
+    fetchMock.mockResolvedValueOnce(errResponse(500)).mockResolvedValueOnce(errResponse(500));
     expect(await wired.depotRefunds(['d1'], range)).toBeNull();
   });
 
