@@ -910,8 +910,54 @@ describe('PricingController', () => {
     svc.get.mockResolvedValue({ depotId: DEPOT });
   });
 
+  // DEP-25 (owner decision B). A depot manager could write an ABSOLUTE price rule at any
+  // priority, bypassing the HQ proposal queue that exists to approve exactly that. Percent rules
+  // within a ceiling stay direct; everything else goes through a proposal unless HQ is acting.
+  describe('direct pricing limits (DEP-25)', () => {
+    const manager = { sub: 'm1', role: Role.MANAGER, depotId: DEPOT } as AuthenticatedUser;
+
+    it('lets a manager write a percent rule inside the ceiling', async () => {
+      await c.create(DEPOT, { adjustType: 'PERCENT', value: -10 } as never, manager);
+      expect(svc.create).toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an ABSOLUTE price', { adjustType: 'ABSOLUTE', value: 15000 }],
+      ['a FIXED rupiah delta', { adjustType: 'FIXED', value: -3000 }],
+      ['a percent beyond the ceiling', { adjustType: 'PERCENT', value: -40 }],
+      ['a percent beyond the ceiling upward', { adjustType: 'PERCENT', value: 25 }],
+    ])('refuses a manager writing %s and points at the proposal queue', async (_n, body) => {
+      await expect(c.create(DEPOT, body as never, manager)).rejects.toThrow(/usulan/i);
+      expect(svc.create).not.toHaveBeenCalled();
+    });
+
+    it('treats a missing caller as not-HQ', async () => {
+      await expect(
+        c.create(DEPOT, { adjustType: 'ABSOLUTE', value: 1 } as never, undefined as never),
+      ).rejects.toThrow(/usulan/i);
+    });
+
+    it('lets HQ write any rule', async () => {
+      await c.create(DEPOT, { adjustType: 'ABSOLUTE', value: 15000 } as never, user);
+      expect(svc.create).toHaveBeenCalled();
+    });
+
+    it('checks the RESULTING rule on update, and leaves an unrelated edit alone', async () => {
+      svc.get.mockResolvedValue({ depotId: DEPOT, adjustType: 'PERCENT', value: -5 });
+      await expect(c.update(ID, { value: -50 } as never, manager)).rejects.toThrow(/usulan/i);
+      await expect(c.update(ID, { adjustType: 'ABSOLUTE' } as never, manager)).rejects.toThrow(/usulan/i);
+      await c.update(ID, { value: -8 } as never, manager);
+      await c.update(ID, { priority: 3 } as never, manager);
+      expect(svc.update).toHaveBeenCalledTimes(2);
+      // Switching an existing absolute rule OFF is never blocked; switching it back ON is.
+      svc.get.mockResolvedValue({ depotId: DEPOT, adjustType: 'ABSOLUTE', value: 12000 });
+      await c.update(ID, { active: false } as never, manager);
+      await expect(c.update(ID, { active: true } as never, manager)).rejects.toThrow(/usulan/i);
+    });
+  });
+
   it('creates with defaults and with all optional fields', async () => {
-    await c.create(DEPOT, { adjustType: 'ABS', value: 1 } as never);
+    await c.create(DEPOT, { adjustType: 'ABS', value: 1 } as never, user);
     expect(svc.create).toHaveBeenCalledWith(
       DEPOT,
       expect.objectContaining({
@@ -936,7 +982,7 @@ describe('PricingController', () => {
       validUntil: ISO,
       priority: 5,
       active: false,
-    } as never);
+    } as never, user);
     expect(svc.create).toHaveBeenLastCalledWith(
       DEPOT,
       expect.objectContaining({
@@ -965,7 +1011,7 @@ describe('PricingController', () => {
       value: 1,
       validFrom: '2026-12-01',
       validUntil: '2026-12-31',
-    } as never);
+    } as never, user);
 
     const arg = svc.create.mock.calls.at(-1)![1] as { validFrom: Date; validUntil: Date };
     // 1 Dec 00:00 WIB is 30 Nov 17:00 UTC — the promo is live from the first minute of
