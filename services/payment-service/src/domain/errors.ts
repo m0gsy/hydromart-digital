@@ -49,6 +49,15 @@ export class PaymentNotRefundableError extends DomainError {
   }
 }
 
+/** DEP-26: a partial refund must be a whole, positive amount no larger than the payment. */
+export class InvalidRefundAmountError extends DomainError {
+  readonly code = 'PAYMENT_INVALID_REFUND_AMOUNT';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(max: number) {
+    super(`The refund amount must be a whole number between 1 and ${max}.`);
+  }
+}
+
 /** The gateway is unreachable or not configured for an online method. */
 export class GatewayUnavailableError extends DomainError {
   readonly code = 'PAYMENT_GATEWAY_UNAVAILABLE';

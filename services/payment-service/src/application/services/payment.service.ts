@@ -22,6 +22,7 @@ import {
   PaymentAmountMismatchError,
   PaymentOrderNotYoursError,
   PaymentNotFoundError,
+  InvalidRefundAmountError,
   PaymentNotRefundableError,
   RefundNotPendingError,
   RefundSelfApprovalError,
@@ -943,21 +944,32 @@ export class PaymentService {
     changedBy: string,
     reason?: string,
     user?: AuthenticatedUser,
+    /** DEP-26: part of the payment to return; omitted = all of it (the original behaviour). */
+    amountIdr?: number,
   ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     await this.assertSettleableBy(user, payment);
     if (!isRefundable(payment.status)) {
       throw new PaymentNotRefundableError(payment.status);
     }
+    if (
+      amountIdr !== undefined &&
+      (!Number.isInteger(amountIdr) || amountIdr < 1 || amountIdr > payment.amount)
+    ) {
+      throw new InvalidRefundAmountError(payment.amount);
+    }
+    // What is actually going back. The HQ threshold, the queue row, the gateway and the order
+    // all use THIS, never the payment total, so a part-refund is judged by its own size.
+    const refundAmount = amountIdr ?? payment.amount;
     // Already waiting on HQ: the first request stands. Asking again must not slide the due date
     // the customer was promised, nor add another "requested" row to the audit trail.
     if (payment.refundApproval === RefundApproval.PENDING) return payment;
-    if (payment.amount > this.config.refundApprovalThreshold) {
+    if (refundAmount > this.config.refundApprovalThreshold) {
       this.logger.log(
-        `Refund for ${id} (${payment.amount}) queued for HQ approval by ${changedBy}`,
+        `Refund for ${id} (${refundAmount}) queued for HQ approval by ${changedBy}`,
       );
       await this.audit(changedBy, 'payment.refund.requested', payment, {
-        amountIdr: payment.amount,
+        amountIdr: refundAmount,
         thresholdIdr: this.config.refundApprovalThreshold,
         reason: reason ?? null,
       });
@@ -981,7 +993,7 @@ export class PaymentService {
             REFUND_PROMISE_WORKING_DAYS,
             this.config.publicHolidays,
           ),
-          refundedAmount: payment.amount,
+          refundedAmount: refundAmount,
         },
         { refundApproval: payment.refundApproval },
       );
@@ -993,7 +1005,7 @@ export class PaymentService {
       }
       throw new PaymentNotRefundableError(current.status);
     }
-    return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE);
+    return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE, refundAmount);
   }
 
   /**
@@ -1293,7 +1305,8 @@ export class PaymentService {
       changedBy,
       'payment.refund.rejected',
       payment,
-      { amountIdr: payment.amount, reason },
+      // DEP-26: the amount that was asked for, which for a part-refund is not the payment total.
+      { amountIdr: payment.refundedAmount ?? payment.amount, reason },
       false,
     );
     return rejected;
@@ -1329,12 +1342,19 @@ export class PaymentService {
     changedBy: string,
     reason: string | null,
     approval: RefundApproval,
+    /**
+     * DEP-26: the amount going back. An approval settles what the queue row recorded
+     * (`refundedAmount`), a direct refund what the caller asked for; absent, the whole payment.
+     */
+    amount: number = approval === RefundApproval.APPROVED
+      ? (payment.refundedAmount ?? payment.amount)
+      : payment.amount,
   ): Promise<PaymentRecord> {
     const patch: PaymentStatusPatch = {
       status: PaymentStatus.REFUNDED,
       refundedAt: new Date(),
       refundReason: reason,
-      refundedAmount: payment.amount,
+      refundedAmount: amount,
       refundApproval: approval,
     };
 
@@ -1354,7 +1374,7 @@ export class PaymentService {
 
     if (isOnlineMethod(payment.method) && payment.reference) {
       try {
-        const result = await this.gateway.refund(payment.reference, payment.amount);
+        const result = await this.gateway.refund(payment.reference, amount);
         patch.gatewayData = result.raw;
       } catch (error) {
         // Hand the claim back so a retry is possible. A crash between the claim and this
@@ -1393,14 +1413,14 @@ export class PaymentService {
     // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
     // the threshold that needed nobody — that difference is the whole point of the queue.
     await this.audit(changedBy, 'payment.refund.settled', payment, {
-      amountIdr: payment.amount,
+      amountIdr: amount,
       method: payment.method,
       approval,
       reason,
     });
     // Record the refund on the order for per-depot reconciliation. Fail-open: the refund
     // is already settled, so a coordination hiccup must never surface as a payment error.
-    await this.orderCoordination.notifyRefunded(payment.orderId, payment.amount);
+    await this.orderCoordination.notifyRefunded(payment.orderId, amount);
     return updated;
   }
 

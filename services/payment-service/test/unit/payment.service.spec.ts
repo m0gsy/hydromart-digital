@@ -8,6 +8,7 @@ import {
   PaymentAlreadyExistsError,
   PaymentAmountMismatchError,
   PaymentNotFoundError,
+  InvalidRefundAmountError,
   PaymentNotRefundableError,
   RefundNotPendingError,
   RefundSelfApprovalError,
@@ -334,6 +335,70 @@ describe('PaymentService', () => {
     expect(refunded.refundReason).toBe('order cancelled');
     // Notifies order-service so the refund lands on the order's depot (reconciliation 22a).
     expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 45000 }]);
+  });
+
+  /*
+   * DEP-26 (owner decision 2026-11-09). A refund was always the whole payment, so a dispute
+   * that was only partly justified (OVERCHARGED by 20.000 on a 45.000 order) refunded all of it.
+   * An optional amount refunds part: the payment still ends REFUNDED (one refund per payment -
+   * there is no second partial), with `refundedAmount` the part actually returned. That amount,
+   * not the payment total, is what the gateway is asked for, what the HQ threshold is measured
+   * against, and what the order is told.
+   */
+  describe('partial refund (DEP-26)', () => {
+    it('refunds only the amount asked for, to the gateway and to the order', async () => {
+      const payment = await initiate(PaymentMethod.VA);
+      await service.confirm(payment.id, 'staff');
+      const refunded = await service.refund(payment.id, 'finance', 'overcharged', undefined, 20000);
+      expect(refunded.status).toBe(PaymentStatus.REFUNDED);
+      expect(refunded.refundedAmount).toBe(20000);
+      expect(gateway.refunds).toHaveLength(1);
+      expect(gateway.refunds[0]).toMatchObject({ amount: 20000 });
+      expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 20000 }]);
+    });
+
+    it('no amount still refunds the whole payment (unchanged)', async () => {
+      const payment = await initiate(PaymentMethod.VA);
+      await service.confirm(payment.id, 'staff');
+      expect((await service.refund(payment.id, 'finance')).refundedAmount).toBe(45000);
+    });
+
+    it('refuses an amount that is not positive, not whole, or more than was paid', async () => {
+      const payment = await initiate(PaymentMethod.VA);
+      await service.confirm(payment.id, 'staff');
+      for (const bad of [0, -5, 12.5, 45001]) {
+        await expect(service.refund(payment.id, 'finance', 'x', undefined, bad)).rejects.toBeInstanceOf(
+          InvalidRefundAmountError,
+        );
+      }
+      expect(gateway.refunds).toHaveLength(0);
+      expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+    });
+
+    it('measures the HQ threshold against the refund, not the payment', async () => {
+      const payment = await initiate(PaymentMethod.VA, 150000);
+      await service.confirm(payment.id, 'staff');
+      // 60.000 of a 150.000 payment is under the 100.000 threshold: it settles at once.
+      const small = await service.refund(payment.id, 'finance', 'part', undefined, 60000);
+      expect(small.status).toBe(PaymentStatus.REFUNDED);
+      expect(small.refundedAmount).toBe(60000);
+    });
+
+    it('queues a partial refund above the threshold and settles exactly that amount on approval', async () => {
+      const payment = await initiate(PaymentMethod.VA, 250000);
+      await service.confirm(payment.id, 'staff');
+      const queued = await service.refund(payment.id, 'mgr', 'part', undefined, 120000);
+      expect(queued.refundApproval).toBe(RefundApproval.PENDING);
+      expect(queued.status).toBe(PaymentStatus.PAID);
+      expect(queued.refundedAmount).toBe(120000);
+      expect(gateway.refunds).toHaveLength(0);
+
+      const settled = await service.approveRefund(payment.id, 'hq');
+      expect(settled.status).toBe(PaymentStatus.REFUNDED);
+      expect(settled.refundedAmount).toBe(120000);
+      expect(gateway.refunds[0]).toMatchObject({ amount: 120000 });
+      expect(orders.refunded.at(-1)).toEqual({ orderId: payment.orderId, amount: 120000 });
+    });
   });
 
   // B-9: refund read the payment, checked isRefundable, called the GATEWAY, and only then

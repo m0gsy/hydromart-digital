@@ -700,7 +700,7 @@ export class PaymentController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RefundPaymentDto,
   ): Promise<PaymentRecord> {
-    return this.payments.refund(id, user.sub, dto.reason, user);
+    return this.payments.refund(id, user.sub, dto.reason, user, dto.amountIdr);
   }
 
   @ApiOkResponse({ type: PaymentResponseDto })
