@@ -200,10 +200,33 @@ export class AttendanceService {
       lateMinutes,
       status,
     });
+    // HR-18: an offline punch is recorded at the DEVICE's minute. Face and geofence were checked
+    // live, so the person was there - but the minute is the device's claim, and inside the
+    // auto-accept window nothing said so. Leave the gap on the row's trail where HR already looks.
+    if (offlineAt !== null) await this.noteDeviceClock(created.id, offlineAt, now);
     // Only a punch that stands as LATE: one held for review (PENDING) has no verdict yet,
     // and a replayed punch returned above before reaching here.
     if (status === 'LATE') await this.notifyLate(employee, lateMinutes, workDate);
     return created;
+  }
+
+  /** Clock skew below this is not worth a trail entry. */
+  private static readonly SKEW_MS = 2 * 60_000;
+
+  private async noteDeviceClock(attendanceId: string, deviceAt: Date, now: Date): Promise<void> {
+    const gap = now.getTime() - deviceAt.getTime();
+    if (gap < AttendanceService.SKEW_MS) return;
+    try {
+      await this.repo.recordAdjustment({
+        attendanceId,
+        reason: `Waktu perangkat dipakai: check-in dicatat ${Math.round(gap / 60_000)} menit sebelum diterima server`,
+        before: { receivedAt: now.toISOString() },
+        after: { checkInAt: deviceAt.toISOString() },
+        approvedBy: null,
+      });
+    } catch (e) {
+      this.logger.warn(`device-clock note for ${attendanceId} failed: ${(e as Error).message}`);
+    }
   }
 
   /** Tell the employee their own check-in counted as late. Fail-soft: the punch is saved. */
