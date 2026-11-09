@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import { collectDefaultMetrics, Counter, Registry, Histogram } from 'prom-client';
 
+import { decodeCursor } from '../domain/keyset';
 import { guardProcess } from './process-guard';
 
 /*
@@ -154,6 +155,12 @@ export function enableMetrics(app: INestApplication, serviceName: string): void 
           ? (knownVersions.add(appVersion), appVersion)
           : 'other';
       clientApp.inc({ app: appId, version: bounded });
+    }
+    // FLW-014: an unreadable cursor is served as page 1 (see pageArgs) - kept for old clients, but
+    // announced, so a feed that would loop on page 1 can tell and reset instead of repeating.
+    const cursor = req.query?.cursor;
+    if (typeof cursor === 'string' && cursor !== '' && decodeCursor(cursor) === null) {
+      res.setHeader('X-Cursor-Ignored', '1');
     }
     const end = httpDuration.startTimer({ method: req.method });
     res.on('finish', () => {
