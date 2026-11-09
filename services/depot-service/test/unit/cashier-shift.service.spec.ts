@@ -227,6 +227,16 @@ describe('CashierShiftService', () => {
       expect(cashbook.entries.filter((e) => e.sourceRef === `shift:${opened.id}`)).toHaveLength(1);
     });
 
+    it('names the shift even when the failure is not an Error object', async () => {
+      const opened = await openShift();
+      depotCash.total = 900_000;
+      jest.spyOn(cashbook, 'create').mockRejectedValue('kolom penuh');
+
+      await expect(
+        service.close(opened.id, { countedCash: 1_100_000 }, CASHIER),
+      ).rejects.toThrow(/kolom penuh/);
+    });
+
     it('names the shift when the takings still cannot be posted', async () => {
       const opened = await openShift();
       depotCash.total = 900_000;
