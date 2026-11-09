@@ -4,18 +4,71 @@ import { AuthenticatedUser } from '@hydromart/platform';
 
 import { IncidentService } from '../../src/application/services/incident.service';
 import { IncidentCategory, IncidentSeverity } from '../../src/domain/incident';
-import { FakeOpsNotifier, InMemoryIncidentRepository } from '../support/fakes';
+import { DeliveryNotFoundError, NotAssignedDriverError } from '../../src/domain/errors';
+import { FakeOpsNotifier, InMemoryDeliveryRepository, InMemoryIncidentRepository } from '../support/fakes';
 
 describe('IncidentService', () => {
   let repo: InMemoryIncidentRepository;
   let ops: FakeOpsNotifier;
   let service: IncidentService;
+  let deliveries: InMemoryDeliveryRepository;
   const driver = randomUUID();
 
   beforeEach(() => {
     repo = new InMemoryIncidentRepository();
     ops = new FakeOpsNotifier();
-    service = new IncidentService(repo, ops);
+    deliveries = new InMemoryDeliveryRepository();
+    service = new IncidentService(repo, ops, deliveries);
+  });
+
+  // DLV-15: a courier could attach an incident to ANY delivery id, and name any depot, putting
+  // the report on another depot's review list. A delivery must be the reporter's own, and its
+  // depot is the delivery's, not the client's.
+  describe('naming a delivery (DLV-15)', () => {
+    const seed = (driverId: string, depotId: string | null) =>
+      deliveries.create({
+        orderId: randomUUID(),
+        orderNumber: 'HM-1',
+        driverId,
+        depotId,
+        destinationAddress: 'Jl. A',
+        destinationLat: null,
+        destinationLng: null,
+        recipientPhone: null,
+      } as never);
+
+    it('takes the depot from the courier own delivery, ignoring the one the client sent', async () => {
+      const mine = await seed(driver, 'depot-real');
+      const out = await service.report(driver, {
+        deliveryId: mine.id,
+        depotId: 'depot-claimed',
+        category: IncidentCategory.ACCIDENT,
+        severity: IncidentSeverity.LOW,
+        description: 'Ban bocor',
+      });
+      expect(out.deliveryId).toBe(mine.id);
+      expect(out.depotId).toBe('depot-real');
+    });
+
+    it('refuses another courier delivery, and an unknown one, and stores nothing', async () => {
+      const theirs = await seed(randomUUID(), 'depot-x');
+      const base = { category: IncidentCategory.ACCIDENT, severity: IncidentSeverity.LOW, description: 'Ban bocor' };
+      await expect(service.report(driver, { ...base, deliveryId: theirs.id })).rejects.toBeInstanceOf(NotAssignedDriverError);
+      await expect(service.report(driver, { ...base, deliveryId: randomUUID() })).rejects.toBeInstanceOf(DeliveryNotFoundError);
+      expect(repo.rows).toHaveLength(0);
+    });
+
+    it('keeps the delivery depotless when the delivery has none, falling back to the one given', async () => {
+      const mine = await seed(driver, null);
+      const out = await service.report(driver, {
+        deliveryId: mine.id,
+        depotId: 'depot-given',
+        category: IncidentCategory.ACCIDENT,
+        severity: IncidentSeverity.LOW,
+        description: 'Ban bocor',
+      });
+      expect(out.depotId).toBe('depot-given');
+    });
   });
 
   const report = (severity: IncidentSeverity) =>
@@ -138,7 +191,7 @@ describe('IncidentService', () => {
 
     beforeEach(() => {
       storage.signedUrl.mockClear();
-      service = new IncidentService(repo, ops, storage as never);
+      service = new IncidentService(repo, ops, deliveries, storage as never);
     });
 
     it('signs the key derived from the stored URL, for fifteen minutes', async () => {
@@ -155,7 +208,7 @@ describe('IncidentService', () => {
     });
 
     it('answers null when no storage is bound at all', async () => {
-      const noStorage = new IncidentService(repo, ops);
+      const noStorage = new IncidentService(repo, ops, deliveries);
       expect(await noStorage.signedPhotoUrl('https://cdn.example.com/pod/abc.jpg')).toBeNull();
     });
   });
