@@ -67,4 +67,6 @@ export interface LoanRequestRepository {
    * filed another request (one PENDING at a time), this one is cancelled instead.
    */
   reopen(id: string): Promise<void>;
+  /** HR-15: ids of APPROVED requests with no loan, decided before the cutoff (oldest first, bounded). */
+  listOrphanedApprovals(decidedBefore: Date, limit: number): Promise<string[]>;
 }

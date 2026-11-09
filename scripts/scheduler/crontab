@@ -167,3 +167,6 @@
 # on hr (the response then says `disabled: true`). Catch-up after downtime keeps the original
 # dates, so a late round writes the same ledger a punctual one would have.
 */15 * * * * sh /scripts/sweep.sh employees/internal/depot-moves/apply-due hr:3018
+# HR-15: an approved kasbon whose loan was never created (the process died between the two writes)
+# is handed back to PENDING after ten minutes, so it can be decided again instead of sitting APPROVED.
+*/15 * * * * sh /scripts/sweep.sh loan-requests/internal/reopen-orphaned hr:3018

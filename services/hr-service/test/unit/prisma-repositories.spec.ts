@@ -2717,6 +2717,21 @@ describe('LoanRequestPrismaRepository', () => {
     });
   });
 
+  // HR-15
+  it('listOrphanedApprovals reads the approved requests with no loan, oldest first', async () => {
+    const p = makePrisma();
+    m(p, 'loanRequest').findMany.mockResolvedValue([{ id: 'lr1' }, { id: 'lr2' }]);
+    const repo = new LoanRequestPrismaRepository(asService(p));
+    const cutoff = new Date('2026-11-10T03:00:00Z');
+    expect(await repo.listOrphanedApprovals(cutoff, 50)).toEqual(['lr1', 'lr2']);
+    expect(m(p, 'loanRequest').findMany).toHaveBeenCalledWith({
+      where: { status: 'APPROVED', loanId: null, decidedAt: { lt: cutoff } },
+      orderBy: { decidedAt: 'asc' },
+      take: 50,
+      select: { id: true },
+    });
+  });
+
   it('reopen cancels instead when the employee has filed another request meanwhile', async () => {
     const p = makePrisma();
     // The partial unique index (one PENDING per employee) refuses the reopen.

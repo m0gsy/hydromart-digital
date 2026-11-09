@@ -55,6 +55,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   },
   { job: 'retention/internal/purge', everyMinutes: 1440, label: 'Penghapusan data UU PDP' },
   { job: 'announcements/publish-due', everyMinutes: 15, label: 'Pengumuman terbit' },
+  { job: 'loan-requests/internal/reopen-orphaned', everyMinutes: 15, label: 'Kasbon disetujui tanpa pinjaman' },
   { job: 'shifts/internal/remind-starting', everyMinutes: 15, label: 'Pengingat shift' },
   {
     job: 'employees/internal/depot-moves/apply-due',
