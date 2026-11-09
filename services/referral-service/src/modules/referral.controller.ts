@@ -36,7 +36,7 @@ import {
   VoidQualificationResponseDto,
 } from './dto/referral.dto';
 import { QualifyResult } from '../application/services/referral.service';
-import { QualifyResponseDto } from './dto/responses.generated.dto';
+import { QualifyResponseDto, ReconcileResponseDto } from './dto/responses.generated.dto';
 
 // Qualification is triggered when the referee's first order completes. It is a
 // system-to-system call from order-service, authenticated by the shared
@@ -114,6 +114,18 @@ export class ReferralController {
   qualify(@Body() dto: QualifyReferralDto): Promise<QualifyResult> {
     // Reward is awarded via referral's own internal-key call to loyalty (no forwarded token).
     return this.referrals.qualify(dto.customerId, dto.orderId, '');
+  }
+
+  /** REF-03: the scheduler's door - qualify PENDING referrals whose order trigger was lost. */
+  @ApiOkResponse({ type: ReconcileResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/reconcile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Qualify referrals whose order trigger was lost (scheduler, internal service auth)' })
+  async reconcile(): Promise<ReconcileResponseDto> {
+    return { ...(await this.referrals.reconcilePending()), ok: true };
   }
 
   @Public()

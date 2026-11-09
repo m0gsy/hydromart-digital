@@ -172,6 +172,15 @@ export class ReferralPrismaRepository implements ReferralRepository {
     });
   }
 
+  async listStalePending(before: Date, take: number): Promise<ReferralRecord[]> {
+    const rows = await this.prisma.referral.findMany({
+      where: { status: PrismaReferralStatus.PENDING, createdAt: { lt: before } },
+      orderBy: { createdAt: 'asc' },
+      take,
+    });
+    return rows.map((r) => this.toReferral(r));
+  }
+
   async countQualifiedSince(referrerCustomerId: string, since: Date): Promise<number> {
     return this.prisma.referral.count({
       where: {

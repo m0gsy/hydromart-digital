@@ -57,6 +57,14 @@ function makeController() {
   return { controller: new ReferralController(service, config), service };
 }
 
+describe('ReferralController - reconcile (REF-03)', () => {
+  it('runs the sweep and reports ok', async () => {
+    const reconcilePending = jest.fn().mockResolvedValue({ checked: 3, qualified: 2, held: 0, failed: 1 });
+    const controller = new ReferralController({ reconcilePending } as never, {} as never);
+    expect(await controller.reconcile()).toEqual({ checked: 3, qualified: 2, held: 0, failed: 1, ok: true });
+  });
+});
+
 describe('ReferralController', () => {
   /*
    * `myCode` is gone. Its whole answer was one field of `mySummary` — the route the app

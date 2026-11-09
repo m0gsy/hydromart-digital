@@ -25,6 +25,15 @@ export class InMemoryReferralRepository implements ReferralRepository {
   codes: ReferralCodeRecord[] = [];
   referrals: ReferralRecord[] = [];
 
+  /** REF-03: PENDING referrals created before `before`, oldest first, at most `take`. */
+  async listStalePending(before: Date, take: number): Promise<ReferralRecord[]> {
+    return this.referrals
+      .filter((r) => r.status === 'PENDING' && r.createdAt < before)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, take)
+      .map((r) => ({ ...r }));
+  }
+
   /** REF-04: this referrer's QUALIFIED referrals since `since`. */
   async countQualifiedSince(referrerCustomerId: string, since: Date): Promise<number> {
     return this.referrals.filter(
@@ -228,7 +237,13 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
  */
 export class FakeOrderHistory implements OrderHistoryPort {
   statuses = new Map<string, string>();
+  /** REF-03: referee -> a completed order id (null = cannot say). Absent = none. */
+  completed = new Map<string, string | null>();
   constructor(private readonly answer: boolean | null = false) {}
+
+  async completedOrderId(customerId: string): Promise<string | null> {
+    return this.completed.get(customerId) ?? null;
+  }
 
   async hasCompletedOrder(): Promise<boolean | null> {
     return this.answer;

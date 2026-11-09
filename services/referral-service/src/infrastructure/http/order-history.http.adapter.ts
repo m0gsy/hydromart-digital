@@ -44,6 +44,25 @@ export class OrderHistoryHttpAdapter implements OrderHistoryPort {
     }
   }
 
+  async completedOrderId(customerId: string): Promise<string | null> {
+    const { internalServiceKey, orderServiceUrl } = this.config;
+    if (!internalServiceKey || !orderServiceUrl) return null;
+    try {
+      const res = await fetch(
+        `${orderServiceUrl}/api/v1/orders/internal/customer-completed?customerId=${encodeURIComponent(customerId)}`,
+        {
+          headers: { 'x-internal-key': internalServiceKey },
+          signal: AbortSignal.timeout(OrderHistoryHttpAdapter.TIMEOUT_MS),
+        },
+      );
+      if (!res.ok) return null;
+      const body = (await res.json()) as { orderId?: unknown };
+      return typeof body.orderId === 'string' ? body.orderId : null;
+    } catch {
+      return null;
+    }
+  }
+
   async statusOfOrder(orderId: string): Promise<string | null> {
     const { internalServiceKey, orderServiceUrl } = this.config;
     if (!internalServiceKey || !orderServiceUrl) return null;

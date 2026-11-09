@@ -30,6 +30,19 @@ export class ReferralResponseDto {
 }
 
 /** Mirrors `QualifyResult` exactly — generated for audit D-6, no field added or removed. */
+export class ReconcileResponseDto {
+  @ApiProperty({ type: Number })
+  checked!: number;
+  @ApiProperty({ type: Number })
+  qualified!: number;
+  @ApiProperty({ type: Number })
+  held!: number;
+  @ApiProperty({ type: Number })
+  failed!: number;
+  @ApiProperty({ type: Boolean })
+  ok!: boolean;
+}
+
 export class QualifyResponseDto {
   @ApiProperty({ type: Boolean })
   qualified!: boolean;
