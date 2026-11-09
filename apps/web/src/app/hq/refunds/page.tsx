@@ -158,7 +158,16 @@ export default function HqRefundsPage() {
                 )}
               </div>
               <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
-                <Money amount={r.amount} className="text-lg font-bold text-brand-700" />
+                {/* DEP-26: what is being asked back, not the payment total - a part-refund is smaller. */}
+                <Money
+                  amount={r.refundedAmount != null && r.refundedAmount > 0 ? r.refundedAmount : r.amount}
+                  className="text-lg font-bold text-brand-700"
+                />
+                {r.refundedAmount != null && r.refundedAmount > 0 && r.refundedAmount < r.amount && (
+                  <span className="text-xs text-muted">
+                    {t('hq.refunds.ofTotal', { amount: formatIDR(r.amount) })}
+                  </span>
+                )}
                 {/* `refundQueueRead` lets head office and the director WATCH this queue; deciding
                     is `refundQueue` (FINANCE, superuser). Offering the buttons to the readers
                     meant every press ended in a 403 after the reason had been typed. */}

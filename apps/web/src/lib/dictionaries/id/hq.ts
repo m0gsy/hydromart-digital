@@ -676,6 +676,7 @@ export const hq = {
     by: 'Diminta {who}',
     bySystem: 'Sistem (pembatalan pesanan)',
     overdue: 'TERLAMBAT - lewat janji 3 hari kerja',
+    ofTotal: 'dari {amount}',
     due: 'Janji ke pelanggan: {date}',
     age: '{n} jam lalu',
     approve: 'Setujui',
