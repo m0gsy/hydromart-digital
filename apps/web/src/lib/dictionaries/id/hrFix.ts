@@ -1024,6 +1024,8 @@ export const hrFix = {
     failedDeliveries: 'Gagal antar',
   },
   cashierShift: {
+    carriedLiability:
+      'Selisih kas shift sebelumnya yang ditolak HQ dan menjadi tanggungan Anda: {amount}. Hubungi manajer untuk penyelesaiannya.',
     openFirst:
       'Buka shift dulu — penjualan konter ditolak selama laci belum ada penanggung jawabnya.',
     closeShift2: 'Tutup shift',

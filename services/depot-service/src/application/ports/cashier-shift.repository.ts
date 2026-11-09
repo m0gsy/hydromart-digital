@@ -29,4 +29,11 @@ export interface CashierShiftRepository {
    * no longer OPEN, so of two concurrent closes exactly one proceeds to post the cashbook.
    */
   close(id: string, data: CloseShiftData): Promise<CashierShift>;
+  /**
+   * DEP-05: record a rejected shortfall as the cashier's liability. Writes only while the
+   * shift has none, so a repeated rejection callback cannot double it. False = already set.
+   */
+  recordLiability(id: string, amountIdr: number): Promise<boolean>;
+  /** Sum of liabilities on this cashier's CLOSED shifts at the depot, other than `exceptShiftId`. */
+  outstandingLiability(depotId: string, cashierId: string, exceptShiftId?: string): Promise<number>;
 }

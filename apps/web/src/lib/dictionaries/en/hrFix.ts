@@ -1009,6 +1009,8 @@ export const hrFix = {
     failedDeliveries: 'Failed deliveries',
   },
   cashierShift: {
+    carriedLiability:
+      'A cash shortfall from an earlier shift was rejected by HQ and is owed by you: {amount}. Ask your manager how it is settled.',
     openFirst: 'Open a shift first — counter sales are refused while nobody owns the drawer.',
     closeShift2: 'Close shift',
     cancel2: 'Cancel',

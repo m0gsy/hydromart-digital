@@ -42,6 +42,7 @@ class InMemoryShifts implements CashierShiftRepository {
       expectedCash: null,
       variance: null,
       note: null,
+      liabilityIdr: null,
     };
     this.rows.push(row);
     return { ...row };
@@ -71,6 +72,23 @@ class InMemoryShifts implements CashierShiftRepository {
     if (row.status !== CashierShiftStatus.OPEN) throw new ShiftAlreadyClosedError();
     Object.assign(row, data, { status: CashierShiftStatus.CLOSED });
     return { ...row };
+  }
+  async recordLiability(id: string, amountIdr: number): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.liabilityIdr !== null) return false;
+    row.liabilityIdr = amountIdr;
+    return true;
+  }
+  async outstandingLiability(depotId: string, cashierId: string, exceptShiftId?: string): Promise<number> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.depotId === depotId &&
+          r.cashierId === cashierId &&
+          r.status === CashierShiftStatus.CLOSED &&
+          r.id !== exceptShiftId,
+      )
+      .reduce((sum, r) => sum + (r.liabilityIdr ?? 0), 0);
   }
 }
 
@@ -112,6 +130,7 @@ describe('CashierShiftService', () => {
   let depots: { findById: jest.Mock };
   let service: CashierShiftService;
   let approvalsCreate: jest.Mock;
+  let reversals: Map<string, (approval: never, decidedBy: string) => Promise<void>>;
 
   beforeEach(() => {
     shifts = new InMemoryShifts();
@@ -119,13 +138,70 @@ describe('CashierShiftService', () => {
     depotCash = new FakeDepotCash();
     depots = { findById: jest.fn(async () => ({ id: DEPOT })) };
     approvalsCreate = jest.fn(async () => ({}));
+    reversals = new Map();
     service = new CashierShiftService(shifts, cashbook as never, depotCash, depots as never, {
       create: approvalsCreate,
+      registerReversal: (type: string, fn: never) => reversals.set(type, fn),
     } as never);
   });
 
   const openShift = () =>
     service.open({ depotId: DEPOT, openingFloat: 200_000 }, { id: CASHIER.id, name: '0812' });
+
+  /*
+   * DEP-05 (owner decision 2026-11-09): HQ rejecting a COD_VARIANCE records the shortfall as the
+   * cashier's liability, shown at their next shift. No automatic cash movement.
+   */
+  describe('a rejected COD_VARIANCE (DEP-05)', () => {
+    const rejected = (subjectRef: string | null, amountIdr: number) =>
+      ({ id: 'ap-1', depotId: DEPOT, type: 'COD_VARIANCE', status: 'REJECTED', subjectRef, amountIdr }) as never;
+
+    const closeShort = async (short = 50_000) => {
+      const opened = await openShift();
+      depotCash.total = 900_000;
+      await service.close(opened.id, { countedCash: 1_100_000 - short }, CASHIER);
+      return opened;
+    };
+
+    it('records the shortfall on the shift and shows it when the cashier next looks at the counter', async () => {
+      const first = await closeShort(50_000);
+      await reversals.get('COD_VARIANCE')!(rejected(`shift:${first.id}`, -50_000), 'hq-1');
+      expect(shifts.rows.find((r) => r.id === first.id)!.liabilityIdr).toBe(50_000);
+
+      const next = await openShift();
+      expect(next.carriedLiabilityIdr).toBe(50_000);
+      expect((await service.current(DEPOT, CASHIER.id))!.carriedLiabilityIdr).toBe(50_000);
+
+      depotCash.total = 100_000;
+      const closed = await service.close(next.id, { countedCash: 300_000 }, CASHIER);
+      expect(closed.carriedLiabilityIdr).toBe(50_000);
+    });
+
+    it('a repeated callback does not double the liability', async () => {
+      const first = await closeShort(50_000);
+      const reverse = reversals.get('COD_VARIANCE')!;
+      await reverse(rejected(`shift:${first.id}`, -50_000), 'hq-1');
+      await reverse(rejected(`shift:${first.id}`, -50_000), 'hq-1');
+      expect(shifts.rows.find((r) => r.id === first.id)!.liabilityIdr).toBe(50_000);
+    });
+
+    it('owes nothing for an overage, or for an approval that names no shift', async () => {
+      const first = await closeShort(-20_000);
+      const reverse = reversals.get('COD_VARIANCE')!;
+      await reverse(rejected(`shift:${first.id}`, 20_000), 'hq-1');
+      await reverse(rejected(null, -50_000), 'hq-1');
+      await reverse(rejected('bukan-shift', -50_000), 'hq-1');
+      expect(shifts.rows.every((r) => r.liabilityIdr === null)).toBe(true);
+    });
+
+    it('shows no carried liability to a cashier who owes nothing, or to a different cashier', async () => {
+      const first = await closeShort(50_000);
+      await reversals.get('COD_VARIANCE')!(rejected(`shift:${first.id}`, -50_000), 'hq-1');
+      const other = await service.open({ depotId: DEPOT, openingFloat: 0 }, { id: 'cashier-2', name: '0813' });
+      expect(other.carriedLiabilityIdr).toBe(0);
+      expect(await service.current(DEPOT, 'nobody')).toBeNull();
+    });
+  });
 
   it('opens a shift with the drawer float and the cashier on it', async () => {
     const shift = await openShift();

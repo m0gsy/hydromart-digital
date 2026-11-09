@@ -3247,6 +3247,10 @@ export interface CashierShift {
   /** Counted − expected. Negative = short. */
   variance: number | null;
   note: string | null;
+  /** A shortfall HQ rejected on THIS shift: the cashier owes it. */
+  liabilityIdr?: number | null;
+  /** What this cashier still owes from earlier shifts (DEP-05). */
+  carriedLiabilityIdr?: number;
 }
 
 export interface CashierShiftBoard {

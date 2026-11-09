@@ -779,6 +779,8 @@ model CashierShift {
   /// countedCash − expectedCash. Negative = short.
   variance     Int?
   note         String?
+  /// DEP-05: a shortfall HQ rejected becomes the cashier's liability (rupiah owed). NULL = none.
+  liabilityIdr Int?
 
   // One OPEN shift per cashier per depot — enforced by a partial unique index in the
   // migration (Prisma cannot express `WHERE status = 'OPEN'` here).

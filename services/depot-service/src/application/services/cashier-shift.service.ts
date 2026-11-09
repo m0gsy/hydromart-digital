@@ -3,7 +3,7 @@ import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { CashierShift, expectedCash, variance } from '../../domain/cashier-shift';
 import { CashDirection } from '../../domain/cashbook';
-import { ApprovalType } from '../../domain/approval';
+import { Approval, ApprovalType } from '../../domain/approval';
 import { ApprovalService } from './approval.service';
 import {
   DepotNotFoundError,
@@ -42,7 +42,30 @@ export class CashierShiftService {
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     // DEP-22: optional so a build that wires no approvals still closes shifts.
     @Optional() private readonly approvals?: ApprovalService,
-  ) {}
+  ) {
+    // DEP-05: a rejected cash variance becomes the cashier's liability (see below).
+    this.approvals?.registerReversal(ApprovalType.COD_VARIANCE, (approval) =>
+      this.recordRejectedShortfall(approval),
+    );
+  }
+
+  /**
+   * DEP-05: HQ rejected a drawer variance. Nothing moves in cash; a SHORTFALL is written onto
+   * the shift as what the cashier owes, and shown to them at their next shift. An overage
+   * (positive variance) owes nothing. The write is conditional on the shift having no
+   * liability yet, so a repeated callback cannot double it.
+   */
+  private async recordRejectedShortfall(approval: Approval): Promise<void> {
+    const shiftId = approval.subjectRef?.startsWith('shift:') ? approval.subjectRef.slice(6) : null;
+    if (!shiftId || approval.amountIdr >= 0) return;
+    await this.shifts.recordLiability(shiftId, -approval.amountIdr);
+  }
+
+  /** The shift plus what its cashier still owes from earlier shifts at this depot. */
+  private async withCarried(shift: CashierShift): Promise<CashierShift> {
+    const carried = await this.shifts.outstandingLiability(shift.depotId, shift.cashierId, shift.id);
+    return { ...shift, carriedLiabilityIdr: carried };
+  }
 
   private readonly logger = new Logger(CashierShiftService.name);
 
@@ -53,17 +76,20 @@ export class CashierShiftService {
     if (await this.shifts.findOpen(input.depotId, cashier.id)) {
       throw new ShiftAlreadyOpenError();
     }
-    return this.shifts.open({
-      depotId: input.depotId,
-      cashierId: cashier.id,
-      cashierName: cashier.name,
-      openingFloat: input.openingFloat,
-    });
+    return this.withCarried(
+      await this.shifts.open({
+        depotId: input.depotId,
+        cashierId: cashier.id,
+        cashierName: cashier.name,
+        openingFloat: input.openingFloat,
+      }),
+    );
   }
 
   /** The caller's own open shift at this depot, or null when they are not on the counter. */
   async current(depotId: string, cashierId: string): Promise<CashierShift | null> {
-    return this.shifts.findOpen(depotId, cashierId);
+    const open = await this.shifts.findOpen(depotId, cashierId);
+    return open ? this.withCarried(open) : null;
   }
 
   /** Who is on the counter now, plus the last closed shifts for the day's reconciliation. */
@@ -171,7 +197,7 @@ export class CashierShiftService {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
           await this.cashbook.create(entry);
-          return closed;
+          return this.withCarried(closed);
         } catch (error) {
           lastError = error;
         }
@@ -182,6 +208,6 @@ export class CashierShiftService {
         }. Catat manual dengan sourceRef itu.`,
       );
     }
-    return closed;
+    return this.withCarried(closed);
   }
 }

@@ -18,12 +18,43 @@ const row = (over: Record<string, unknown> = {}) => ({
   expectedCash: null,
   variance: null,
   note: null,
+  liabilityIdr: null,
   ...over,
 });
 
 function repoWith(cashierShift: Record<string, jest.Mock>): CashierShiftPrismaRepository {
   return new CashierShiftPrismaRepository({ cashierShift } as unknown as PrismaService);
 }
+
+describe('CashierShiftPrismaRepository · liability (DEP-05)', () => {
+  it('records a liability only while the shift has none', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    expect(await repoWith({ updateMany }).recordLiability('shift-1', 50_000)).toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'shift-1', liabilityIdr: null },
+      data: { liabilityIdr: 50_000 },
+    });
+    expect(await repoWith({ updateMany: jest.fn().mockResolvedValue({ count: 0 }) }).recordLiability('shift-1', 1)).toBe(false);
+  });
+
+  it('sums the closed shifts of one cashier at one depot, optionally without one shift', async () => {
+    const aggregate = jest.fn().mockResolvedValue({ _sum: { liabilityIdr: 75_000 } });
+    expect(await repoWith({ aggregate }).outstandingLiability('depot-1', 'cashier-1', 'shift-9')).toBe(75_000);
+    expect(aggregate).toHaveBeenCalledWith({
+      where: {
+        depotId: 'depot-1',
+        cashierId: 'cashier-1',
+        status: 'CLOSED',
+        liabilityIdr: { not: null },
+        id: { not: 'shift-9' },
+      },
+      _sum: { liabilityIdr: true },
+    });
+    const none = jest.fn().mockResolvedValue({ _sum: { liabilityIdr: null } });
+    expect(await repoWith({ aggregate: none }).outstandingLiability('depot-1', 'cashier-1')).toBe(0);
+    expect(none.mock.calls[0][0].where).not.toHaveProperty('id');
+  });
+});
 
 describe('CashierShiftPrismaRepository', () => {
   it('opens a shift and maps the row', async () => {
