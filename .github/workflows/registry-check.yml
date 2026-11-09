@@ -42,6 +42,10 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    # F5 (owner decision 2026-11-09): this job SSHes into the production box with the production
+    # key, and any branch author could dispatch it. The environment requires a named reviewer to
+    # approve each run before the secrets are released to it.
+    environment: production-registry
     # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
     # stalled two of them on a two-minute download and nothing said so.
     timeout-minutes: 15
