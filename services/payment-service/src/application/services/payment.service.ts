@@ -22,6 +22,8 @@ import {
   PaymentAmountMismatchError,
   PaymentOrderNotYoursError,
   PaymentNotFoundError,
+  InvalidRefundAmountError,
+  PartialRefundOnCancelledOrderError,
   PaymentNotRefundableError,
   RefundNotPendingError,
   RefundSelfApprovalError,
@@ -943,21 +945,57 @@ export class PaymentService {
     changedBy: string,
     reason?: string,
     user?: AuthenticatedUser,
+    /** DEP-26: part of the payment to return; omitted = all of it (the original behaviour). */
+    amountIdr?: number,
   ): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     await this.assertSettleableBy(user, payment);
     if (!isRefundable(payment.status)) {
       throw new PaymentNotRefundableError(payment.status);
     }
+    if (
+      amountIdr !== undefined &&
+      (!Number.isInteger(amountIdr) || amountIdr < 1 || amountIdr > payment.amount)
+    ) {
+      throw new InvalidRefundAmountError(payment.amount);
+    }
+    // What is actually going back. The HQ threshold, the queue row, the gateway and the order
+    // all use THIS, never the payment total, so a part-refund is judged by its own size.
+    const refundAmount = amountIdr ?? payment.amount;
+    // Part-refund on a cancelled order: it is owed in full, and a payment can be refunded only
+    // once, so a part would strand the rest with nothing able to return it.
+    if (refundAmount < payment.amount) {
+      const statuses = await this.orderCoordination.getOrderStatuses([payment.orderId]);
+      if (statuses.get(payment.orderId) === 'CANCELLED') throw new PartialRefundOnCancelledOrderError();
+    }
     // Already waiting on HQ: the first request stands. Asking again must not slide the due date
     // the customer was promised, nor add another "requested" row to the audit trail.
-    if (payment.refundApproval === RefundApproval.PENDING) return payment;
-    if (payment.amount > this.config.refundApprovalThreshold) {
+    //
+    // ...unless the new ask is for MORE (a cancellation after a part-refund was queued): then the
+    // request grows to it, compare-and-set on what was read, so the customer is not left with the
+    // smaller sum. The due date and requester stay as they were.
+    if (payment.refundApproval === RefundApproval.PENDING) {
+      const queued = payment.refundedAmount ?? payment.amount;
+      if (refundAmount <= queued) return payment;
+      const grown = await this.payments.updateIfStatus(
+        id,
+        [payment.status],
+        { status: payment.status, refundedAmount: refundAmount },
+        { refundApproval: RefundApproval.PENDING },
+      );
+      await this.audit(changedBy, 'payment.refund.escalated', payment, {
+        fromIdr: queued,
+        toIdr: refundAmount,
+        reason: reason ?? null,
+      });
+      return grown ?? (await this.getAny(id));
+    }
+    if (refundAmount > this.config.refundApprovalThreshold) {
       this.logger.log(
-        `Refund for ${id} (${payment.amount}) queued for HQ approval by ${changedBy}`,
+        `Refund for ${id} (${refundAmount}) queued for HQ approval by ${changedBy}`,
       );
       await this.audit(changedBy, 'payment.refund.requested', payment, {
-        amountIdr: payment.amount,
+        amountIdr: refundAmount,
         thresholdIdr: this.config.refundApprovalThreshold,
         reason: reason ?? null,
       });
@@ -981,7 +1019,7 @@ export class PaymentService {
             REFUND_PROMISE_WORKING_DAYS,
             this.config.publicHolidays,
           ),
-          refundedAmount: payment.amount,
+          refundedAmount: refundAmount,
         },
         { refundApproval: payment.refundApproval },
       );
@@ -993,7 +1031,7 @@ export class PaymentService {
       }
       throw new PaymentNotRefundableError(current.status);
     }
-    return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE);
+    return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE, refundAmount);
   }
 
   /**
@@ -1123,7 +1161,7 @@ export class PaymentService {
     // Straight to REFUNDED, never the HQ approval queue: a counter void hands cash back
     // across the counter there and then, and parking it for approval would mean the buyer
     // has walked out with money the system still thinks it holds.
-    return this.executeRefund(target, changedBy, reason, RefundApproval.NONE);
+    return this.executeRefund(target, changedBy, reason, RefundApproval.NONE, target.amount);
   }
 
   /**
@@ -1147,8 +1185,25 @@ export class PaymentService {
     changedBy: string,
   ): Promise<PaymentRecord | null> {
     const active = await this.payments.findActiveByOrder(orderId);
-    // No active payment: the order was placed and the money leg never landed. Nothing owed.
-    if (!active) return null;
+    // No active payment: the order was placed and the money leg never landed. Nothing owed...
+    // unless a PART of it was already refunded: REFUNDED is terminal and the rest cannot go back
+    // automatically. Say so on the audit trail, where finance looks, instead of reading as "nothing owed".
+    if (!active) {
+      const [latest] = await this.payments.findByOrderIds([orderId]);
+      if (
+        latest &&
+        latest.status === PaymentStatus.REFUNDED &&
+        latest.refundedAmount != null &&
+        latest.refundedAmount < latest.amount
+      ) {
+        const remainderIdr = latest.amount - latest.refundedAmount;
+        this.logger.error(
+          `Order ${orderId} was cancelled after a part-refund: ${remainderIdr} of payment ${latest.id} is still owed to the customer`,
+        );
+        await this.audit(changedBy, 'payment.refund.remainder_owed', latest, { remainderIdr, reason });
+      }
+      return null;
+    }
     // Nothing was ever collected, so there is nothing to hand back — but the row must stop
     // being active, or it goes on blocking the order it belongs to.
     if (active.status === PaymentStatus.PENDING) {
@@ -1230,6 +1285,8 @@ export class PaymentService {
         changedBy,
         payment.refundReason,
         RefundApproval.APPROVED,
+        // What the queue row recorded: the part that was asked for, or the whole payment.
+        payment.refundedAmount ?? payment.amount,
       );
     } catch (error) {
       // The claim failed because a reject (or another approve) settled the request first:
@@ -1275,6 +1332,9 @@ export class PaymentService {
         status: payment.status, // stays PAID
         refundApproval: RefundApproval.REJECTED,
         refundReason: reason,
+        // The amount on a pending row was a REQUEST. Left behind it reads as money returned on a
+        // payment that is still PAID.
+        refundedAmount: null,
       },
       { refundApproval: RefundApproval.PENDING },
     );
@@ -1293,7 +1353,8 @@ export class PaymentService {
       changedBy,
       'payment.refund.rejected',
       payment,
-      { amountIdr: payment.amount, reason },
+      // DEP-26: the amount that was asked for, which for a part-refund is not the payment total.
+      { amountIdr: payment.refundedAmount ?? payment.amount, reason },
       false,
     );
     return rejected;
@@ -1329,12 +1390,14 @@ export class PaymentService {
     changedBy: string,
     reason: string | null,
     approval: RefundApproval,
+    /** DEP-26: the amount going back, stated by every caller (no default to misread). */
+    amount: number,
   ): Promise<PaymentRecord> {
     const patch: PaymentStatusPatch = {
       status: PaymentStatus.REFUNDED,
       refundedAt: new Date(),
       refundReason: reason,
-      refundedAmount: payment.amount,
+      refundedAmount: amount,
       refundApproval: approval,
     };
 
@@ -1354,7 +1417,7 @@ export class PaymentService {
 
     if (isOnlineMethod(payment.method) && payment.reference) {
       try {
-        const result = await this.gateway.refund(payment.reference, payment.amount);
+        const result = await this.gateway.refund(payment.reference, amount);
         patch.gatewayData = result.raw;
       } catch (error) {
         // Hand the claim back so a retry is possible. A crash between the claim and this
@@ -1393,14 +1456,14 @@ export class PaymentService {
     // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
     // the threshold that needed nobody — that difference is the whole point of the queue.
     await this.audit(changedBy, 'payment.refund.settled', payment, {
-      amountIdr: payment.amount,
+      amountIdr: amount,
       method: payment.method,
       approval,
       reason,
     });
     // Record the refund on the order for per-depot reconciliation. Fail-open: the refund
     // is already settled, so a coordination hiccup must never surface as a payment error.
-    await this.orderCoordination.notifyRefunded(payment.orderId, payment.amount);
+    await this.orderCoordination.notifyRefunded(payment.orderId, amount);
     return updated;
   }
 

@@ -49,6 +49,24 @@ export class PaymentNotRefundableError extends DomainError {
   }
 }
 
+/** DEP-26: a partial refund must be a whole, positive amount no larger than the payment. */
+export class InvalidRefundAmountError extends DomainError {
+  readonly code = 'PAYMENT_INVALID_REFUND_AMOUNT';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(max: number) {
+    super(`The refund amount must be a whole number between 1 and ${max}.`);
+  }
+}
+
+/** DEP-26 review: a cancelled order is owed its money in full; a part-refund would strand the rest. */
+export class PartialRefundOnCancelledOrderError extends DomainError {
+  readonly code = 'PAYMENT_PARTIAL_REFUND_CANCELLED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Pesanan ini sudah dibatalkan, jadi refundnya harus penuh - sisanya tidak bisa dikembalikan terpisah.');
+  }
+}
+
 /** The gateway is unreachable or not configured for an online method. */
 export class GatewayUnavailableError extends DomainError {
   readonly code = 'PAYMENT_GATEWAY_UNAVAILABLE';

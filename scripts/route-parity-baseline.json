@@ -1,6 +1,5 @@
 {
   "orphans": [
-    "GET customer: /profile/directory",
-    "GET payout: /payout/hq/withdrawals/processing/export.csv"
+    "GET customer: /profile/directory"
   ]
 }

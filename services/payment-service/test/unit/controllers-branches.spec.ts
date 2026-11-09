@@ -377,7 +377,12 @@ describe('PaymentController', () => {
 
   it('refund forwards id, actor and reason', async () => {
     await controller.refund(user, 'pay-1', { reason: 'cancelled' } as never);
-    expect(svc.refund).toHaveBeenCalledWith('pay-1', 'user-1', 'cancelled', user);
+    expect(svc.refund).toHaveBeenCalledWith('pay-1', 'user-1', 'cancelled', user, undefined);
+  });
+
+  it('refund forwards a part-refund amount (DEP-26)', async () => {
+    await controller.refund(user, 'pay-1', { reason: 'overcharged', amountIdr: 20000 } as never);
+    expect(svc.refund).toHaveBeenCalledWith('pay-1', 'user-1', 'overcharged', user, 20000);
   });
 
   it('approveRefund forwards id and actor', async () => {
