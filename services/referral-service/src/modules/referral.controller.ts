@@ -116,6 +116,18 @@ export class ReferralController {
     return this.referrals.qualify(dto.customerId, dto.orderId, '');
   }
 
+  /** REF-03: the scheduler's door - qualify PENDING referrals whose order trigger was lost. */
+  @ApiOkResponse({ type: ReconcileResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/reconcile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Qualify referrals whose order trigger was lost (scheduler, internal service auth)' })
+  async reconcile(): Promise<ReconcileResponseDto> {
+    return { ...(await this.referrals.reconcilePending()), ok: true };
+  }
+
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

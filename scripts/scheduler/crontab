@@ -90,6 +90,10 @@
 # in delivery-service's outbox; this re-sends it. Every 10 minutes: retries back off 1m..32m and
 # admin dedupes on the event key, so an overlap costs one wasted call, never a duplicate.
 */10 * * * * sh /scripts/sweep.sh webhook-outbox/internal/process delivery:3006
+# REF-03: a referral whose "qualify" trigger from the order outbox was lost stays PENDING for ever
+# although the referee completed an order. Daily at 04:15 WIB: ask order-service, qualify through
+# the same path as the trigger (idempotent reward keys, monthly cap), at most 200 per round.
+15 4 * * * sh /scripts/sweep.sh referrals/internal/reconcile referral:3011
 # Depot SOP: the twice-daily "laporan penjualan" — how many gallons each depot has sold so
 # far today, sent to the depot's own number. 13:00 (siang) and 21:00 (sore) WIB. The slot
 # is a path segment rather than a body because sweep.sh posts an empty one; it also gives

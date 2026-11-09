@@ -132,6 +132,59 @@ describe('ReferralService', () => {
     });
   });
 
+  /*
+   * REF-03. The qualify trigger rides order-service's outbox; when it is lost (or exhausts its
+   * retries) the referral stays PENDING for ever although the referee did complete an order.
+   * This sweep asks order-service instead, and qualifies through the same path as the trigger -
+   * so the same idempotent reward keys, the same monthly cap, the same void guards apply.
+   */
+  describe('reconcilePending (REF-03)', () => {
+    async function pending(n = 1) {
+      const referrer = randomUUID();
+      const { code } = await service.getOrCreateMyCode(referrer);
+      const referees: string[] = [];
+      for (let i = 0; i < n; i += 1) {
+        const referee = randomUUID();
+        await service.redeem(referee, code);
+        referees.push(referee);
+      }
+      return { referrer, referees };
+    }
+    const hourLater = () => new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+    it('qualifies a PENDING referral whose referee has a completed order', async () => {
+      const { referees } = await pending();
+      history.completed.set(referees[0], 'order-1');
+      const out = await service.reconcilePending(hourLater());
+      expect(out).toEqual({ checked: 1, qualified: 1, held: 0, failed: 0 });
+      expect((await repo.findReferralByReferee(referees[0]))?.status).toBe(ReferralStatus.QUALIFIED);
+    });
+
+    it('leaves a referral alone when the referee has no completed order, or order-service cannot say', async () => {
+      const { referees } = await pending(2);
+      history.completed.set(referees[1], null);
+      const out = await service.reconcilePending(hourLater());
+      expect(out).toEqual({ checked: 2, qualified: 0, held: 0, failed: 0 });
+    });
+
+    it('does not touch a referral younger than an hour (the outbox is probably still on it)', async () => {
+      const { referees } = await pending();
+      history.completed.set(referees[0], 'order-1');
+      expect(await service.reconcilePending(new Date())).toEqual({ checked: 0, qualified: 0, held: 0, failed: 0 });
+    });
+
+    it('counts a held (over the monthly cap) and a failed qualification, and carries on', async () => {
+      const { referees } = await pending(2);
+      history.completed.set(referees[0], 'order-1');
+      history.completed.set(referees[1], 'order-2');
+      const spy = jest.spyOn(service, 'qualify');
+      spy.mockResolvedValueOnce({ qualified: false, held: true });
+      spy.mockRejectedValueOnce(new Error('loyalty down'));
+      const out = await service.reconcilePending(hourLater());
+      expect(out).toEqual({ checked: 2, qualified: 0, held: 1, failed: 1 });
+    });
+  });
+
   describe('qualify', () => {
     async function seedPending(): Promise<{ referrer: string; referee: string }> {
       const referrer = randomUUID();

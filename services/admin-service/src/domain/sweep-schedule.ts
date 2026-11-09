@@ -45,6 +45,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
   { job: 'orders/internal/expire-abandoned', everyMinutes: 60, label: 'Pesanan terbengkalai' },
   { job: 'deliveries/internal/sla-sweep', everyMinutes: 10, label: 'Pengantaran lewat SLA' },
   { job: 'webhook-outbox/internal/process', everyMinutes: 10, label: 'Event webhook tertunda' },
+  { job: 'referrals/internal/reconcile', everyMinutes: 1440, label: 'Rekonsiliasi referral tertunda' },
   {
     job: 'customers/internal/resellers/apply-scheduled',
     everyMinutes: 60,

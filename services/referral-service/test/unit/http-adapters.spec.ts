@@ -155,6 +155,26 @@ describe('OrderHistoryHttpAdapter', () => {
     expect(await adapter.statusOfOrder('o1')).toBe('VOIDED');
     expect(await adapter.statusOfOrder('o1')).toBeNull();
   });
+  // REF-03: the completed order's id, from the same route that answers "has completed".
+  it('completedOrderId reads orderId, and is null for none, junk, unconfigured or down', async () => {
+    const adapter = new OrderHistoryHttpAdapter(makeConfig());
+    fetchMock
+      .mockResolvedValueOnce(res({ body: { hasCompleted: true, orderId: 'o-1' } }))
+      .mockResolvedValueOnce(res({ body: { hasCompleted: false, orderId: null } }))
+      .mockResolvedValueOnce(res({ body: { hasCompleted: true, orderId: 5 } }))
+      .mockResolvedValueOnce(res({ ok: false, status: 503 }))
+      .mockRejectedValueOnce(new Error('offline'));
+    expect(await adapter.completedOrderId('c1')).toBe('o-1');
+    expect(await adapter.completedOrderId('c1')).toBeNull();
+    expect(await adapter.completedOrderId('c1')).toBeNull();
+    expect(await adapter.completedOrderId('c1')).toBeNull();
+    expect(await adapter.completedOrderId('c1')).toBeNull();
+    fetchMock.mockClear();
+    expect(await new OrderHistoryHttpAdapter(makeConfig({ internalServiceKey: '' })).completedOrderId('c1')).toBeNull();
+    expect(await new OrderHistoryHttpAdapter(makeConfig({ orderServiceUrl: '' })).completedOrderId('c1')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('fails closed when status lookup is unconfigured, rejected or unreachable', async () => {
     expect(await new OrderHistoryHttpAdapter(makeConfig({ internalServiceKey: '' })).statusOfOrder('o1')).toBeNull();
     expect(await new OrderHistoryHttpAdapter(makeConfig({ orderServiceUrl: '' })).statusOfOrder('o1')).toBeNull();

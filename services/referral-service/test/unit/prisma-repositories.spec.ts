@@ -240,6 +240,18 @@ describe('ReferralPrismaRepository', () => {
     });
   });
 
+  it('lists stale PENDING referrals oldest-first with a bound (REF-03)', async () => {
+    referral.findMany.mockResolvedValue([referralRow()]);
+    const before = new Date('2026-11-01T00:00:00.000Z');
+    const out = await repo.listStalePending(before, 200);
+    expect(out).toHaveLength(1);
+    expect(referral.findMany).toHaveBeenCalledWith({
+      where: { status: ReferralStatus.PENDING, createdAt: { lt: before } },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+  });
+
   it('does not qualify an order already marked voided', async () => {
     voidedReferralOrder.findUnique.mockResolvedValueOnce({ referralId: 'ref-1', orderId: 'ord-9' });
     await expect(repo.qualifyReferral('ref-1', 'ord-9')).resolves.toBeNull();

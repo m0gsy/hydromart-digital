@@ -9,4 +9,9 @@
 export interface OrderHistoryPort {
   hasCompletedOrder(customerId: string): Promise<boolean | null>;
   statusOfOrder(orderId: string): Promise<string | null>;
+  /**
+   * REF-03: a completed order of this customer, or null for none OR "could not ask". The
+   * reconciliation sweep qualifies only on a real id, so an unanswerable question pays nobody.
+   */
+  completedOrderId(customerId: string): Promise<string | null>;
 }

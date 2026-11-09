@@ -253,6 +253,37 @@ export class ReferralService {
     return { qualified: true, referral: updated };
   }
 
+  /**
+   * REF-03: qualify the PENDING referrals whose trigger never arrived.
+   *
+   * The order outbox is the normal path; when its row is lost or gives up, the referral stays
+   * PENDING for ever although the referee completed an order. Anything older than an hour
+   * (the outbox is probably still working on younger ones) is checked against order-service and
+   * qualified through `qualify` itself, so the reward keys, the monthly cap and the void guards
+   * all apply unchanged. A referral that is held by the cap simply stays PENDING and is tried
+   * again on the next run (after the month turns it passes). Bounded at 200 per run.
+   */
+  async reconcilePending(
+    now: Date = new Date(),
+  ): Promise<{ checked: number; qualified: number; held: number; failed: number }> {
+    const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
+    const stale = await this.repo.listStalePending(cutoff, 200);
+    const out = { checked: stale.length, qualified: 0, held: 0, failed: 0 };
+    for (const referral of stale) {
+      try {
+        const orderId = await this.orderHistory.completedOrderId(referral.refereeCustomerId);
+        if (!orderId) continue;
+        const result = await this.qualify(referral.refereeCustomerId, orderId, '');
+        if (result.qualified) out.qualified += 1;
+        else if (result.held) out.held += 1;
+      } catch (error) {
+        out.failed += 1;
+        this.logger.warn(`Reconcile of referral ${referral.id} failed: ${(error as Error).message}`);
+      }
+    }
+    return out;
+  }
+
   /** A void can land while qualification is in flight; loyalty tombstones block late grants. */
   async reverseForVoidedOrder(refereeCustomerId: string, orderId: string): Promise<void> {
     const referral = await this.repo.findReferralByReferee(refereeCustomerId);
