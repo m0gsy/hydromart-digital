@@ -16,6 +16,8 @@ export interface IngestCommand {
   depotId: string | null;
   items: IngestItem[];
   at: Date;
+  /** REC-01: the business-zone calendar day (UTC-midnight Date) the order counts toward. */
+  day?: Date;
 }
 
 export interface RecommendationRepository {

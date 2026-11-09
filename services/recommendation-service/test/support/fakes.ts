@@ -58,7 +58,7 @@ export class FakeRecommendationRepository implements RecommendationRepository {
   }
 
   async applyIngest(cmd: IngestCommand): Promise<void> {
-    const day = utcDay(cmd.at);
+    const day = cmd.day ?? utcDay(cmd.at);
 
     for (const item of cmd.items) {
       this.upsertPurchase(cmd.customerId, item.productId, cmd.at);
