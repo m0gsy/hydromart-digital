@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -25,6 +26,8 @@ export class SubmitSettlementDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  // DLV-17: the column is a 32-bit Int; beyond it the database answers 500 instead of 422.
+  @Max(2_147_483_647)
   depositedAmount!: number;
 }
 
