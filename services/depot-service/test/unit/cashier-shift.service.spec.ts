@@ -8,6 +8,7 @@ import { CashDirection } from '../../src/domain/cashbook';
 import {
   CashTotalUnavailableError,
   DepotNotFoundError,
+  LiabilityNotOutstandingError,
   ShiftAlreadyClosedError,
   ShiftAlreadyOpenError,
   ShiftNotFoundError,
@@ -43,6 +44,9 @@ class InMemoryShifts implements CashierShiftRepository {
       variance: null,
       note: null,
       liabilityIdr: null,
+      liabilitySettledAt: null,
+      liabilitySettledBy: null,
+      liabilityNote: null,
     };
     this.rows.push(row);
     return { ...row };
@@ -79,6 +83,23 @@ class InMemoryShifts implements CashierShiftRepository {
     row.liabilityIdr = amountIdr;
     return true;
   }
+  async settleLiability(id: string, by: string, note: string): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || !row.liabilityIdr || row.liabilitySettledAt) return false;
+    row.liabilitySettledAt = new Date('2026-11-10T01:00:00Z');
+    row.liabilitySettledBy = by;
+    row.liabilityNote = note;
+    return true;
+  }
+  async listOutstandingLiabilities(depotId: string): Promise<CashierShift[]> {
+    return this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.status === CashierShiftStatus.CLOSED &&
+        r.liabilityIdr !== null &&
+        r.liabilitySettledAt === null,
+    );
+  }
   async outstandingLiability(depotId: string, cashierId: string, exceptShiftId?: string): Promise<number> {
     return this.rows
       .filter(
@@ -86,6 +107,7 @@ class InMemoryShifts implements CashierShiftRepository {
           r.depotId === depotId &&
           r.cashierId === cashierId &&
           r.status === CashierShiftStatus.CLOSED &&
+          r.liabilitySettledAt === null &&
           r.id !== exceptShiftId,
       )
       .reduce((sum, r) => sum + (r.liabilityIdr ?? 0), 0);
@@ -192,6 +214,43 @@ describe('CashierShiftService', () => {
       await reverse(rejected(null, -50_000), 'hq-1');
       await reverse(rejected('bukan-shift', -50_000), 'hq-1');
       expect(shifts.rows.every((r) => r.liabilityIdr === null)).toBe(true);
+    });
+
+    // DEP-05 follow-up: a manager settles or waives a recorded liability, with a reason.
+    describe('settling a liability', () => {
+      const MANAGER = { id: 'mgr-1' };
+      const owing = async () => {
+        const first = await closeShort(50_000);
+        await reversals.get('COD_VARIANCE')!(rejected(`shift:${first.id}`, -50_000), 'hq-1');
+        return first;
+      };
+
+      it('lists what is outstanding at the depot, and the settled one drops off the list and off the cashier', async () => {
+        const first = await owing();
+        expect((await service.outstandingLiabilities(DEPOT)).map((s) => s.id)).toEqual([first.id]);
+        expect((await service.current(DEPOT, CASHIER.id)) ?? null).toBeNull(); // no open shift yet
+        const settled = await service.settleLiability(first.id, '  dilunasi tunai  ', MANAGER);
+        expect(settled.liabilityNote).toBe('dilunasi tunai');
+        expect(settled.liabilitySettledBy).toBe('mgr-1');
+        expect(await service.outstandingLiabilities(DEPOT)).toEqual([]);
+        const next = await openShift();
+        expect(next.carriedLiabilityIdr).toBe(0);
+      });
+
+      it('refuses a shift with nothing owed, one already settled, and an unknown one', async () => {
+        const clean = await closeShort(0);
+        await expect(service.settleLiability(clean.id, 'x', MANAGER)).rejects.toBeInstanceOf(LiabilityNotOutstandingError);
+        const first = await owing();
+        await service.settleLiability(first.id, 'lunas', MANAGER);
+        await expect(service.settleLiability(first.id, 'lagi', MANAGER)).rejects.toBeInstanceOf(LiabilityNotOutstandingError);
+        await expect(service.settleLiability('nope', 'x', MANAGER)).rejects.toBeInstanceOf(ShiftNotFoundError);
+      });
+
+      it('a settle that loses the race to another is refused, not applied twice', async () => {
+        const first = await owing();
+        jest.spyOn(shifts, 'settleLiability').mockResolvedValueOnce(false);
+        await expect(service.settleLiability(first.id, 'x', MANAGER)).rejects.toBeInstanceOf(LiabilityNotOutstandingError);
+      });
     });
 
     it('shows no carried liability to a cashier who owes nothing, or to a different cashier', async () => {

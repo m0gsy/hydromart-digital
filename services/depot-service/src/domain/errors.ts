@@ -60,6 +60,14 @@ export class ShiftAlreadyClosedError extends DomainError {
 }
 
 /** A shift belongs to the cashier who opened it — nobody else counts their drawer. */
+export class LiabilityNotOutstandingError extends DomainError {
+  readonly code = 'LIABILITY_NOT_OUTSTANDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Shift ini tidak punya tanggungan yang belum diselesaikan.');
+  }
+}
+
 export class ShiftNotYoursError extends DomainError {
   readonly code = 'SHIFT_NOT_YOURS';
   readonly status = HTTP_STATUS.FORBIDDEN;

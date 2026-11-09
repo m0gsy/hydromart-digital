@@ -34,6 +34,13 @@ export interface CashierShiftRepository {
    * shift has none, so a repeated rejection callback cannot double it. False = already set.
    */
   recordLiability(id: string, amountIdr: number): Promise<boolean>;
+  /**
+   * Settle or waive a recorded liability. Conditional on one being owed and not yet settled, so
+   * two managers cannot both settle it. False = nothing to settle.
+   */
+  settleLiability(id: string, by: string, note: string): Promise<boolean>;
+  /** Closed shifts at the depot whose liability is still owed, oldest first (bounded). */
+  listOutstandingLiabilities(depotId: string): Promise<CashierShift[]>;
   /** Sum of liabilities on this cashier's CLOSED shifts at the depot, other than `exceptShiftId`. */
   outstandingLiability(depotId: string, cashierId: string, exceptShiftId?: string): Promise<number>;
 }

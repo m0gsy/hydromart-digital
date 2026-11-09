@@ -781,6 +781,10 @@ model CashierShift {
   note         String?
   /// DEP-05: a shortfall HQ rejected becomes the cashier's liability (rupiah owed). NULL = none.
   liabilityIdr Int?
+  /// When a manager settled or waived that liability (with who and why). NULL = still owed.
+  liabilitySettledAt DateTime?
+  liabilitySettledBy String?
+  liabilityNote      String?
 
   // One OPEN shift per cashier per depot — enforced by a partial unique index in the
   // migration (Prisma cannot express `WHERE status = 'OPEN'` here).

@@ -1009,6 +1009,12 @@ export const hrFix = {
     failedDeliveries: 'Failed deliveries',
   },
   cashierShift: {
+    liabilitiesTitle: 'Cashier liabilities (cash shortfalls HQ rejected)',
+    settle: 'Settle',
+    settleTitle: 'Settle cashier liability',
+    settleBody: 'Close the liability of {name}: paid back or waived. No cash moves from here.',
+    settleReason: 'Reason (e.g. paid in cash, waived)',
+    settleError: 'Could not settle the liability.',
     carriedLiability:
       'A cash shortfall from an earlier shift was rejected by HQ and is owed by you: {amount}. Ask your manager how it is settled.',
     openFirst: 'Open a shift first — counter sales are refused while nobody owns the drawer.',

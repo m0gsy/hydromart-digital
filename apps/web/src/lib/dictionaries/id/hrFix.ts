@@ -1024,6 +1024,12 @@ export const hrFix = {
     failedDeliveries: 'Gagal antar',
   },
   cashierShift: {
+    liabilitiesTitle: 'Tanggungan kasir (selisih kas yang ditolak HQ)',
+    settle: 'Selesaikan',
+    settleTitle: 'Selesaikan tanggungan kasir',
+    settleBody: 'Tutup tanggungan {name}: sudah dilunasi atau dihapuskan. Tidak ada kas yang bergerak dari sini.',
+    settleReason: 'Alasan (mis. dilunasi tunai, dihapuskan)',
+    settleError: 'Gagal menyelesaikan tanggungan.',
     carriedLiability:
       'Selisih kas shift sebelumnya yang ditolak HQ dan menjadi tanggungan Anda: {amount}. Hubungi manajer untuk penyelesaiannya.',
     openFirst:

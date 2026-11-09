@@ -19,6 +19,9 @@ const row = (over: Record<string, unknown> = {}) => ({
   variance: null,
   note: null,
   liabilityIdr: null,
+  liabilitySettledAt: null,
+  liabilitySettledBy: null,
+  liabilityNote: null,
   ...over,
 });
 
@@ -46,6 +49,7 @@ describe('CashierShiftPrismaRepository · liability (DEP-05)', () => {
         cashierId: 'cashier-1',
         status: 'CLOSED',
         liabilityIdr: { not: null },
+        liabilitySettledAt: null,
         id: { not: 'shift-9' },
       },
       _sum: { liabilityIdr: true },
@@ -53,6 +57,29 @@ describe('CashierShiftPrismaRepository · liability (DEP-05)', () => {
     const none = jest.fn().mockResolvedValue({ _sum: { liabilityIdr: null } });
     expect(await repoWith({ aggregate: none }).outstandingLiability('depot-1', 'cashier-1')).toBe(0);
     expect(none.mock.calls[0][0].where).not.toHaveProperty('id');
+  });
+});
+
+describe('CashierShiftPrismaRepository · settling a liability', () => {
+  it('settles only an outstanding liability, once', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    expect(await repoWith({ updateMany }).settleLiability('shift-1', 'mgr-1', 'lunas')).toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'shift-1', liabilityIdr: { not: null }, liabilitySettledAt: null },
+      data: { liabilitySettledAt: expect.any(Date), liabilitySettledBy: 'mgr-1', liabilityNote: 'lunas' },
+    });
+    expect(await repoWith({ updateMany: jest.fn().mockResolvedValue({ count: 0 }) }).settleLiability('s', 'm', 'n')).toBe(false);
+  });
+
+  it('lists the unsettled liabilities of a depot, oldest first', async () => {
+    const findMany = jest.fn().mockResolvedValue([row({ status: 'CLOSED', liabilityIdr: 5 })]);
+    const out = await repoWith({ findMany }).listOutstandingLiabilities('depot-1');
+    expect(out).toHaveLength(1);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', status: 'CLOSED', liabilityIdr: { not: null }, liabilitySettledAt: null },
+      orderBy: { closedAt: 'asc' },
+      take: 200,
+    });
   });
 });
 
