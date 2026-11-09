@@ -242,7 +242,7 @@ export default function HqRetentionPage() {
         onClose={() => setEditing(null)}
         onSaved={() => {
           setEditing(null);
-          toast(t('hq.retention.savedOk'), 'success');
+          toast(t('hq.retention.requestedOk'), 'success');
           query.reload();
         }}
       />

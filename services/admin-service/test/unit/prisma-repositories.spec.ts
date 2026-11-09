@@ -10,6 +10,7 @@ import { IncidentPrismaRepository } from '../../src/infrastructure/prisma/incide
 import { OnboardingStatePrismaRepository } from '../../src/infrastructure/prisma/onboarding-state.prisma.repository';
 import { RetentionPrismaRepository } from '../../src/infrastructure/prisma/retention.prisma.repository';
 import { ScheduledReportPrismaRepository } from '../../src/infrastructure/prisma/scheduled-report.prisma.repository';
+import { PolicyChangePrismaRepository } from '../../src/infrastructure/prisma/policy-change.prisma.repository';
 import { SecurityPolicyPrismaRepository } from '../../src/infrastructure/prisma/security-policy.prisma.repository';
 import { SlaPolicyPrismaRepository } from '../../src/infrastructure/prisma/sla-policy.prisma.repository';
 import { SupportTicketPrismaRepository } from '../../src/infrastructure/prisma/support-ticket.prisma.repository';
@@ -781,6 +782,64 @@ describe('ScheduledReportPrismaRepository', () => {
     model.findUnique.mockResolvedValue(null);
     expect(await repo.remove('nope')).toBe(false);
     expect(model.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('PolicyChangePrismaRepository (AAS-14)', () => {
+  const model = { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() };
+  const prisma = { policyChangeRequest: model } as unknown as PrismaService;
+  const repo = new PolicyChangePrismaRepository(prisma);
+  const row = (over = {}) => ({
+    id: 'pc-1',
+    kind: 'SECURITY_POLICY',
+    targetId: null,
+    payload: { idleTimeoutMinutes: 60 },
+    status: 'PENDING',
+    requestedBy: 'su-1',
+    requestedAt: now,
+    decidedBy: null,
+    decidedAt: null,
+    decisionNote: null,
+    ...over,
+  });
+  beforeEach(() => jest.clearAllMocks());
+
+  it('creates, reads by id, and reads null for an unknown id', async () => {
+    model.create.mockResolvedValue(row());
+    expect((await repo.create({ kind: 'SECURITY_POLICY', targetId: null, payload: {}, requestedBy: 'su-1' })).id).toBe('pc-1');
+    model.findUnique.mockResolvedValue(row({ payload: null }));
+    expect((await repo.findById('pc-1'))?.payload).toEqual({});
+    model.findUnique.mockResolvedValue(null);
+    expect(await repo.findById('nope')).toBeNull();
+  });
+
+  it('lists newest first, bounded, optionally by status', async () => {
+    model.findMany.mockResolvedValue([row()]);
+    await repo.list('PENDING', 50);
+    expect(model.findMany).toHaveBeenCalledWith({ where: { status: 'PENDING' }, orderBy: { requestedAt: 'desc' }, take: 50 });
+    await repo.list(undefined, 50);
+    expect(model.findMany).toHaveBeenLastCalledWith({ where: {}, orderBy: { requestedAt: 'desc' }, take: 50 });
+  });
+
+  it('decides only a still-PENDING row: the WHERE is the guard', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(row({ status: 'APPLIED' }));
+    const out = await repo.decideIfPending('pc-1', { status: 'APPLIED', decidedBy: 'su-2', decisionNote: null });
+    expect(out?.status).toBe('APPLIED');
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pc-1', status: 'PENDING' },
+      data: expect.objectContaining({ status: 'APPLIED', decidedBy: 'su-2', decidedAt: expect.any(Date) }),
+    });
+    model.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.decideIfPending('pc-1', { status: 'REJECTED', decidedBy: 'su-3', decisionNote: null })).toBeNull();
+  });
+
+  it('reopens a claimed row', async () => {
+    await repo.reopen('pc-1');
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pc-1' },
+      data: { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null },
+    });
   });
 });
 

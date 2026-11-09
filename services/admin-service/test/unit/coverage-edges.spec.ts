@@ -265,7 +265,7 @@ describe('RetentionController read paths', () => {
     const purge = {
       run: jest.fn().mockResolvedValue({ dryRun: false }),
     } as unknown as PurgeService;
-    const controller = new RetentionController(retention, purge);
+    const controller = new RetentionController(retention, purge, {} as never);
 
     await expect(controller.purgePlan()).resolves.toEqual([
       { dataset: 'payments', dataClass: DataClass.FINANCIAL, purgeExempt: true, cutoff: null },

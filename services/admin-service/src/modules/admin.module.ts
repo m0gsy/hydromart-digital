@@ -32,6 +32,7 @@ import { FraudScanService } from '../application/services/fraud-scan.service';
 import { IncidentService } from '../application/services/incident.service';
 import { SlaPolicyService } from '../application/services/sla-policy.service';
 import { RetentionService } from '../application/services/retention.service';
+import { PolicyChangeService } from '../application/services/policy-change.service';
 import { SecurityPolicyService } from '../application/services/security-policy.service';
 import { AdminNotificationPrefService } from '../application/services/admin-notification-pref.service';
 import { OnboardingStateService } from '../application/services/onboarding-state.service';
@@ -50,6 +51,7 @@ import { FraudSignalsHttpAdapter } from '../infrastructure/http/fraud-signals.ht
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { SlaPolicyPrismaRepository } from '../infrastructure/prisma/sla-policy.prisma.repository';
 import { RetentionPrismaRepository } from '../infrastructure/prisma/retention.prisma.repository';
+import { PolicyChangePrismaRepository } from '../infrastructure/prisma/policy-change.prisma.repository';
 import { SecurityPolicyPrismaRepository } from '../infrastructure/prisma/security-policy.prisma.repository';
 import { AdminNotificationPrefPrismaRepository } from '../infrastructure/prisma/admin-notification-pref.prisma.repository';
 import { OnboardingStatePrismaRepository } from '../infrastructure/prisma/onboarding-state.prisma.repository';
@@ -76,6 +78,7 @@ import { RetentionController } from './retention.controller';
 import { SweepController } from './sweep.controller';
 import { SweepService } from '../application/services/sweep.service';
 import { SweepRunPrismaRepository } from '../infrastructure/prisma/sweep-run.prisma.repository';
+import { PolicyChangeController } from './policy-change.controller';
 import { SecurityPolicyController } from './security-policy.controller';
 import { NotificationPrefsController } from './notification-prefs.controller';
 import { NotificationPrefsInternalController } from './notification-prefs-internal.controller';
@@ -100,6 +103,7 @@ const providers: Provider[] = [
   SlaPolicyService,
   RetentionService,
   SecurityPolicyService,
+  PolicyChangeService,
   AdminNotificationPrefService,
   OnboardingStateService,
   { provide: ADMIN_TOKENS.FeatureFlagRepository, useClass: FeatureFlagPrismaRepository },
@@ -124,6 +128,7 @@ const providers: Provider[] = [
   purgeExecutorProvider,
   PurgeService,
   { provide: ADMIN_TOKENS.SecurityPolicyRepository, useClass: SecurityPolicyPrismaRepository },
+  { provide: ADMIN_TOKENS.PolicyChangeRepository, useClass: PolicyChangePrismaRepository },
   {
     provide: ADMIN_TOKENS.AdminNotificationPrefRepository,
     useClass: AdminNotificationPrefPrismaRepository,
@@ -168,6 +173,7 @@ const providers: Provider[] = [
     RetentionController,
     SweepController,
     SecurityPolicyController,
+    PolicyChangeController,
     NotificationPrefsController,
     NotificationPrefsInternalController,
     OnboardingController,
