@@ -77,7 +77,8 @@ describe('LoyaltyController (delegation)', () => {
     getAccountInScope: jest.fn(async () => account()),
     depotSummary: jest.fn(async () => ({ depotId: 'd1' })),
   };
-  const ctrl = new LoyaltyController(loyalty as never);
+  const rewards = { expireStale: jest.fn(async () => 3) };
+  const ctrl = new LoyaltyController(loyalty as never, rewards as never);
   beforeEach(() => jest.clearAllMocks());
 
   it('tiers() returns the tier table, global when no depot is asked for', () => {
@@ -182,6 +183,11 @@ describe('LoyaltyController (delegation)', () => {
     expect(loyalty.reward).toHaveBeenCalledWith('c', 500, 'referral', undefined);
     await ctrl.reward({ customerId: 'c', points: 500, reason: 'b', idempotencyKey: 'birthday:2026' } as never);
     expect(loyalty.reward).toHaveBeenLastCalledWith('c', 500, 'b', 'birthday:2026');
+  });
+
+  it('expireInternal() lapses uncollected rewards (PLP-09) alongside the point sweep', async () => {
+    expect(await ctrl.expireInternal()).toMatchObject({ redemptionsExpired: 3, ok: true });
+    expect(rewards.expireStale).toHaveBeenCalled();
   });
 
   it('expire() sweeps lots', () => {

@@ -430,6 +430,15 @@ export class InMemoryRewardRepository implements RewardRepository {
     return { ...r };
   }
 
+  /** PLP-09: ACTIVE rows older than the cutoff, oldest first, at most `take`. */
+  async listStaleActive(before: Date, take: number): Promise<RewardRedemptionRecord[]> {
+    return this.redemptions
+      .filter((r) => r.status === 'ACTIVE' && r.createdAt < before)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, take)
+      .map((r) => ({ ...r }));
+  }
+
   /** Mirrors the Prisma transaction: status flip + points credit + stock restore. */
   async cancel(m: CancelRedemptionMutation): Promise<RewardRedemptionRecord> {
     const r = this.redemptions.find((x) => x.id === m.redemptionId)!;

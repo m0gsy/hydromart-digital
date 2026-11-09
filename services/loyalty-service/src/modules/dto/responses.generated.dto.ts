@@ -43,6 +43,8 @@ export class ExpiryResponseDto {
  * is a statement about the transport, not about the round.
  */
 export class ExpirySweepResponseDto extends ExpiryResponseDto {
+  @ApiProperty({ type: Number, description: 'PLP-09: uncollected rewards that lapsed this run.' })
+  redemptionsExpired!: number;
   @ApiProperty({ type: Boolean })
   ok!: boolean;
 }

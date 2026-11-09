@@ -158,6 +158,42 @@ export class RewardService {
     };
   }
 
+  /** PLP-09 (owner decision 2026-11-09): an uncollected redemption lapses after this long. */
+  static readonly REDEMPTION_TTL_DAYS = 60;
+  private static readonly EXPIRY_BATCH = 200;
+
+  /**
+   * PLP-09: lapse redemptions nobody collected - ACTIVE for more than 60 days. They held stock
+   * and the customer's points indefinitely. The points come back exactly as in `cancel`
+   * (one transaction: status flip + refund + stock), and the WHERE guard in the repository
+   * means a hand-over that wins the race is not undone: that row is skipped, not an error.
+   * Returns how many lapsed; a run that finds nothing is a normal night.
+   */
+  async expireStale(now: Date = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - RewardService.REDEMPTION_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const stale = await this.rewards.listStaleActive(cutoff, RewardService.EXPIRY_BATCH);
+    let lapsed = 0;
+    for (const redemption of stale) {
+      try {
+        const account = await this.loyalty.getAccount(redemption.customerId);
+        const item = await this.rewards.findItem(redemption.rewardItemId);
+        await this.rewards.cancel({
+          redemptionId: redemption.id,
+          accountId: account.id,
+          customerId: redemption.customerId,
+          rewardItemId: redemption.rewardItemId,
+          pointsRefunded: redemption.pointsSpent,
+          reason: `Expired ${item?.name ?? 'reward'}`,
+          restoreStock: item != null && item.stock !== null,
+        });
+        lapsed += 1;
+      } catch {
+        // Handed over (or cancelled) between the read and the write: the guard did its job.
+      }
+    }
+    return lapsed;
+  }
+
   /**
    * Staff confirms the reward was handed over. Closes the cancellation window.
    *
