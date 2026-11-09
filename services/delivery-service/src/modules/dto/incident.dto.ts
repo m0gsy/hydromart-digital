@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -51,6 +52,10 @@ export class ReportIncidentDto {
   @IsOptional()
   @IsString()
   @MaxLength(2048)
+  // DLV-15: only what the PoD upload hands back; the signed link is derived from this string.
+  @Matches(/(^|\/)pod\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$/i, {
+    message: 'photoUrl harus URL hasil unggahan foto',
+  })
   photoUrl?: string;
 
   @ApiPropertyOptional({ example: -6.9147 })
