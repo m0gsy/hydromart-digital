@@ -148,10 +148,9 @@ export const canConfirmPayment = (role: string | null | undefined) => can('payme
 export const canVerifySettlement = (role: string | null | undefined) => can('courierSettle', role);
 export const canApproveExpense = (role: string | null | undefined) => can('expenseApprove', role);
 export const canBroadcastToCouriers = (role: string | null | undefined) => can('depotBroadcast', role);
-// Courier earning-rule editor (design 6b). Finance config, role-gated directly (like
-// commission schemes) — not part of the per-depot capability matrix.
-export const canManageEarningRules = (role: string | null | undefined) =>
-  role === 'FINANCE' || role === 'SUPER_ADMIN';
+// Courier earning-rule editor (design 6b). Follows the server's `earningRules` capability (WEB-02),
+// so a custom role granted it sees the screen and one stripped of it does not.
+export const canManageEarningRules = (role: string | null | undefined) => can('earningRules', role);
 // Depot console additions (operator/manager surfaces).
 export const canViewDepotCrm = (role: string | null | undefined) => can('depotCrm', role);
 // Bulk-import into the depot's customer directory. Narrower than the read: HR sees the
