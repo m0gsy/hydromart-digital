@@ -148,19 +148,6 @@ export class CampaignController {
     return CampaignDto.from(await this.campaigns.sendOwn(id, user.sub));
   }
 
-  /** CRM-04: the depot half of cancelling - only the campaign the caller created. */
-  @ApiOkResponse({ type: CampaignDto })
-  @Can('depotCampaign')
-  @Post('depot/:id/cancel')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Cancel the depot's own unfinished campaign" })
-  async cancelOwn(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<CampaignDto> {
-    return CampaignDto.from(await this.campaigns.cancelOwn(id, user.sub));
-  }
-
   @ApiOkResponse({ type: CampaignDto })
   @Can('campaignWrite')
   @Post(':id/cancel')

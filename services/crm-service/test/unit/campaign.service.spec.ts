@@ -464,13 +464,6 @@ describe('CampaignService', () => {
       expect(closed.status).toBe(CampaignStatus.CANCELLED);
     });
 
-    it('cancelOwn is for the creator of the campaign only', async () => {
-      const id = await queue();
-      await expect(service.cancelOwn(id, 'someone-else')).rejects.toBeInstanceOf(ForbiddenException);
-      expect((await service.cancelOwn(id, 'staff-1')).status).toBe(CampaignStatus.CANCELLED);
-      await expect(service.cancelOwn(randomUUID(), 'staff-1')).rejects.toBeInstanceOf(CampaignNotFoundError);
-    });
-
     it('refuses a send time that has already passed, for both entry points', async () => {
       const past = new Date(Date.now() - 10 * 60 * 1000);
       await expect(

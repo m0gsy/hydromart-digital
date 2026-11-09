@@ -269,15 +269,6 @@ export class CampaignService {
     return this.get(id);
   }
 
-  async cancelOwn(id: string, actorId: string): Promise<CampaignRecord> {
-    const campaign = await this.repo.findById(id);
-    if (!campaign) throw new CampaignNotFoundError();
-    if (campaign.createdBy !== actorId) {
-      throw new ForbiddenException('Kampanye ini bukan milik akun Anda.');
-    }
-    return this.cancel(id);
-  }
-
   async send(id: string): Promise<CampaignRecord> {
     const campaign = await this.repo.findById(id);
     if (!campaign) throw new CampaignNotFoundError();
