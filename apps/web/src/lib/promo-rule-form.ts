@@ -1,4 +1,5 @@
 import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRulePayload } from './types';
+import { dayStartWib, todayWib } from './wib';
 
 /*
  * The promo-rule editor's form model, shared by /hq/promo-rules and /dashboard/promo-rules.
@@ -77,7 +78,8 @@ export const isOrderLevelKind = (kind: PromoRuleKind): boolean =>
 const str = (n: number | null | undefined): string => (n != null ? String(n) : '');
 
 export function ruleFormFrom(r: PromoRule): RuleForm {
-  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
+  // The day an instant falls on in Jakarta - so the window reopens on the days it was entered.
+  const day = (iso: string | null) => (iso ? todayWib(new Date(iso)) : '');
   return {
     name: r.name,
     kind: r.kind,
@@ -118,7 +120,17 @@ export function ruleFormToPayload(
 ): PromoRulePayload {
   const orNull = (s: string) => (s.trim() ? s.trim() : null);
   const numOrNull = (s: string) => (s.trim() ? Number(s) : null);
-  const dateOrNull = (s: string) => (s ? new Date(s).toISOString() : null);
+  // W3B-15: the dates are DAYS IN JAKARTA. `new Date('2026-12-31')` is UTC midnight, which is
+  // 07:00 WIB, so a promo "until 31 December" ended seventeen hours early and one starting on
+  // the 1st began at seven. A window is the whole of its first day to the last millisecond of
+  // its last, in the business zone.
+  const startOfDay = (s: string) => (s ? dayStartWib(s) : null);
+  const endOfDay = (s: string) => {
+    if (!s) return null;
+    const [y, m, d] = s.split('-').map(Number);
+    const next = new Date(Date.UTC(y!, m! - 1, d! + 1)).toISOString().slice(0, 10);
+    return new Date(new Date(dayStartWib(next)).getTime() - 1).toISOString();
+  };
   const orderLevel = isOrderLevelKind(f.kind);
   const orderPercent = f.kind === 'ORDER_DISCOUNT' && f.orderMode === 'PERCENT';
   const orderAmount = f.kind === 'ORDER_DISCOUNT' && f.orderMode === 'AMOUNT';
@@ -137,8 +149,8 @@ export function ruleFormToPayload(
     discountAmount: orderAmount ? numOrNull(f.discountAmount) : null,
     giftProductId: f.kind === 'BUNDLE_GIFT' ? orNull(f.giftProductId) : null,
     firstOrderOnly: f.firstOrderOnly,
-    validFrom: dateOrNull(f.validFrom),
-    validUntil: dateOrNull(f.validUntil),
+    validFrom: startOfDay(f.validFrom),
+    validUntil: endOfDay(f.validUntil),
     daysOfWeek: f.daysOfWeek,
     startTime: orNull(f.startTime),
     endTime: orNull(f.endTime),
