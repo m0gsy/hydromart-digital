@@ -342,7 +342,13 @@ export class PayrollService {
     if (periodMonth === this.config.thrPeriodMonth(employee.depotId)) {
       // One call covers both: `basePay` reads `presentDays` for DAILY and ignores it for
       // MONTHLY, and the default fraction of 1 is what "undiminished by the window" means.
-      const monthWage = this.basePay(employee, window.periodDays);
+      // HR-07 (owner decision 2026-11-09): PP 36/2021's "upah satu bulan" is base PLUS the fixed
+      // allowances, so the recurring ones count - at their full monthly amount, not prorated by
+      // this month's window, for the same reason base is not.
+      const fixedAllowances = this.allowances
+        ? allowanceRows.reduce((sum, a) => sum + rupiah(a.amount), 0)
+        : 0;
+      const monthWage = this.basePay(employee, window.periodDays) + fixedAllowances;
       const months = tenureMonths(employee.joinDate, to);
       const thr = thrAmount(monthWage, months);
       if (thr > 0) {

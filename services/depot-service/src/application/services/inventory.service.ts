@@ -1,4 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
+
+import { can } from '@hydromart/access';
 
 import {
   AuthenticatedUser,
@@ -9,6 +11,7 @@ import {
 
 import {
   InventoryItemType,
+  OwnershipType,
   StockMovementType,
   available,
   isLowStock,
@@ -317,7 +320,18 @@ export class InventoryService {
     patch: { label?: string; unit?: string; minimumStock?: number; sellPrice?: number | null },
     user?: AuthenticatedUser,
   ): Promise<ItemView> {
-    await this.require(itemId, user);
+    const item = await this.require(itemId, user);
+    // DEP-25 (owner decision 2026-11-09): an HQ-owned (HKP) depot's price changes go through the
+    // HQ proposal queue, exactly like its pricing rules. Waralaba depots price independently by
+    // design. A call with no user is an internal one and is not asked.
+    if (patch.sellPrice !== undefined && user && !can('priceOverrideDecide', user.role)) {
+      const depot = await this.depots.findById(item.depotId, false);
+      if (depot?.ownershipType === OwnershipType.HKP) {
+        throw new ForbiddenException(
+          'Harga jual depot milik HQ diubah lewat usulan harga ke HQ, bukan langsung.',
+        );
+      }
+    }
     const updated = await this.inventory.update(itemId, patch);
     return this.toView(updated);
   }

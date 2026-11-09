@@ -261,6 +261,10 @@ export class DepotMonthlyReportResponseDto {
   orders!: number;
   @ApiProperty({ type: Number })
   revenueIdr!: number;
+  @ApiProperty({ type: Number, description: 'ORD-08: refunded on the same orders.' })
+  refundedIdr!: number;
+  @ApiProperty({ type: Number, description: 'ORD-08: revenueIdr minus refundedIdr.' })
+  netRevenueIdr!: number;
   @ApiProperty({ type: Number })
   activeCustomers!: number;
   @ApiProperty({ type: Number, nullable: true })
@@ -1393,6 +1397,8 @@ export class InternalCustomerOrdersResponseDto {
 export class InternalCustomerCompletedResponseDto {
   @ApiProperty({ type: Boolean })
   hasCompleted!: boolean;
+  @ApiProperty({ type: String, nullable: true, description: 'REF-03: a completed order of this customer, if any.' })
+  orderId!: string | null;
 }
 
 /**

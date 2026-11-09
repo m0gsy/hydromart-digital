@@ -1209,6 +1209,49 @@ describe('InventoryService', () => {
     expect(prices).toEqual([{ productId: PRODUCT_ID, sellPrice: 18000 }]);
   });
 
+  /*
+   * DEP-25 (owner decision 2026-11-09). A depot owned by HQ (HKP) prices through the HQ proposal
+   * queue; the pricing-rules route already enforces that, and this PATCH was the way around it.
+   * Waralaba depots price independently by design and stay free to.
+   */
+  describe('a direct sellPrice change (DEP-25)', () => {
+    const manager = () => ({ sub: 'm1', role: Role.MANAGER, depotId }) as AuthenticatedUser;
+    const hq = { sub: 'hq1', role: Role.SUPER_ADMIN, depotId: null } as AuthenticatedUser;
+
+    it('is refused for a manager of an HQ-owned depot, pointing at the proposal queue', async () => {
+      const line = await produkLine(PRODUCT_ID, 5);
+      await expect(inventory.updateMeta(line.id, { sellPrice: 18000 }, manager())).rejects.toThrow(/usulan/i);
+      expect(await inventory.pricesForProducts(depotId, [PRODUCT_ID])).toEqual([]);
+    });
+
+    it('leaves other edits to the line alone, and lets HQ set the price', async () => {
+      const line = await produkLine(PRODUCT_ID, 5);
+      await inventory.updateMeta(line.id, { label: 'Galon baru' }, manager());
+      await inventory.updateMeta(line.id, { sellPrice: 18000 }, hq);
+      expect(await inventory.pricesForProducts(depotId, [PRODUCT_ID])).toEqual([
+        { productId: PRODUCT_ID, sellPrice: 18000 },
+      ]);
+    });
+
+    it('stays free for a waralaba depot', async () => {
+      const waralaba = await new DepotService(depotRepo).create({
+        code: 'WRL-01', name: 'Waralaba', ownershipType: OwnershipType.WARALABA, address: 'c',
+        city: 'Bogor', province: 'Jabar', lat: -6.5, lng: 106.8, serviceRadiusKm: 5,
+        deliveryFee: 5000, minOrderAmount: null, ownerId: '77777777-7777-4777-8777-777777777777', operatingHours: {}, holidays: [],
+      });
+      const line = await inventory.createLine(
+        waralaba.id,
+        { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Galon', unit: 'botol', quantity: 5, minimumStock: 1 } as never,
+        ACTOR,
+      );
+      const owner = { sub: 'w1', role: Role.MANAGER, depotId: waralaba.id } as AuthenticatedUser;
+      await inventory.updateMeta(line.id, { sellPrice: 21000 }, owner);
+      expect(await inventory.pricesForProducts(waralaba.id, [PRODUCT_ID])).toEqual([
+        { productId: PRODUCT_ID, sellPrice: 21000 },
+      ]);
+    });
+  });
+
   it('summarizes wastage from negative ADJUSTMENT movements, valuing only priced lines', async () => {
     const produk = await inventory.createLine(
       depotId,

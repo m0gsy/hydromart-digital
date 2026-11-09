@@ -762,6 +762,11 @@ export interface OrderRepository {
   shippingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotShipping[]>;
   /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
   refundsByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRefund[]>;
+  /**
+   * ORD-08: money refunded on the orders of one depot that still COUNT as sales (not CANCELLED
+   * or VOIDED - those are already absent from revenue), by order date, half-open `[from, to)`.
+   */
+  refundedOnSales(depotId: string, range: { from: Date; to: Date }): Promise<number>;
   /** Record the refunded amount on an order (payment-service coordination). Idempotent set. */
   recordRefund(orderId: string, amount: number): Promise<void>;
   /**

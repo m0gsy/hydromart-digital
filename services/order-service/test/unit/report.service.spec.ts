@@ -553,6 +553,38 @@ describe('ReportService', () => {
    * derive it — an order's status says it was delivered, never whether it was late — so
    * the fix is to ask delivery-service, not to infer.
    */
+  /*
+   * ORD-08 (owner decision 2026-11-09): revenue is reported NET of the refunds on the orders
+   * that count as sales. `revenueIdr` stays the booked figure (what customers were charged),
+   * `refundedIdr` is what went back on those same orders, `netRevenueIdr` the difference, and
+   * the profit is computed from the net - so a refunded sale no longer reads as full profit.
+   */
+  describe('monthly review - net of refunds (ORD-08)', () => {
+    it('reports booked, refunded and net revenue, and profits from the net', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      jest.spyOn(r, 'refundedOnSales').mockResolvedValue(30_000);
+      const costs = {
+        costs: async () => ({ cogsIdr: 10_000, opexIdr: 5_000 }),
+        payroll: async () => 20_000,
+        governance: async () => null,
+      };
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, undefined, undefined, costs as never);
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      expect(rep.refundedIdr).toBe(30_000);
+      expect(rep.netRevenueIdr).toBe(rep.revenueIdr - 30_000);
+      expect(rep.netProfitIdr).toBe(rep.revenueIdr - 30_000 - 10_000 - 5_000 - 20_000);
+      expect(r.refundedOnSales).toHaveBeenCalledWith(depot, expect.objectContaining({ from: expect.any(Date), to: expect.any(Date) }));
+    });
+
+    it('a depot with no refunds is unchanged', async () => {
+      const r = new InMemoryOrderRepository();
+      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(randomUUID(), '2026-07');
+      expect(rep.refundedIdr).toBe(0);
+      expect(rep.netRevenueIdr).toBe(rep.revenueIdr);
+    });
+  });
+
   describe('monthly review — on-time rate', () => {
     it('reads the depot on-time rate for the month window and reports it as a percentage', async () => {
       const r = new InMemoryOrderRepository();
@@ -1452,7 +1484,8 @@ describe('ReportService', () => {
 // so the exact aggregate rows can be dictated.
 describe('ReportService empty and absent shapes', () => {
   const stub = (over: Record<string, unknown>): ReportService =>
-    new ReportService(over as never, reportTestConfig());
+    // ORD-08: no refunds unless a test says so.
+    new ReportService({ refundedOnSales: async () => 0, ...over } as never, reportTestConfig());
 
   it('gives every product a zero share when nothing sold', async () => {
     const svc = stub({

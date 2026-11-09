@@ -1076,6 +1076,19 @@ export class OrderPrismaRepository implements OrderRepository {
     }));
   }
 
+  async refundedOnSales(depotId: string, range: { from: Date; to: Date }): Promise<number> {
+    const agg = await this.prisma.order.aggregate({
+      where: {
+        depotId,
+        status: { notIn: VOID_LIKE },
+        createdAt: { gte: range.from, lt: range.to },
+        refundedAmount: { gt: 0 },
+      },
+      _sum: { refundedAmount: true },
+    });
+    return agg._sum.refundedAmount ? Math.round(agg._sum.refundedAmount.toNumber()) : 0;
+  }
+
   async voidWalkIn(
     id: string,
     reason: string,

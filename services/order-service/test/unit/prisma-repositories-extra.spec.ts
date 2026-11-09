@@ -13,6 +13,19 @@ describe('OrderPrismaRepository.sumDepotSales', () => {
   const repo = new OrderPrismaRepository({ order } as unknown as PrismaService);
   beforeEach(() => jest.clearAllMocks());
 
+  // ORD-08: refunds on the orders that still count as sales (cancelled/voided are already out of revenue).
+  it('sums the refunds on counted orders of one depot, rounded, 0 when none (ORD-08)', async () => {
+    order.aggregate.mockResolvedValueOnce({ _sum: { refundedAmount: dec(30000.4) } });
+    const range = { from: new Date('2026-07-01'), to: new Date('2026-08-01') };
+    expect(await repo.refundedOnSales('d1', range)).toBe(30000);
+    const where = order.aggregate.mock.calls.at(-1)![0].where;
+    expect(where.depotId).toBe('d1');
+    expect(where.status.notIn).toEqual(['CANCELLED', 'VOIDED']);
+    expect(where.createdAt).toEqual({ gte: range.from, lt: range.to });
+    order.aggregate.mockResolvedValueOnce({ _sum: { refundedAmount: null } });
+    expect(await repo.refundedOnSales('d1', range)).toBe(0);
+  });
+
   it('rounds the aggregate sum over DELIVERED/COMPLETED orders in range', async () => {
     order.aggregate.mockResolvedValue({ _sum: { total: dec(150000.6) } });
     expect(await repo.sumDepotSales('d1', new Date('2026-01-01'), new Date('2026-02-01'))).toBe(

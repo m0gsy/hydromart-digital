@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 
 import {
   AccountHasOpenOrdersError,
@@ -12,6 +19,7 @@ import {
 import { Role } from '../../domain/customer/role.enum';
 import { HR_DIRECTORY_PORT, HrDirectoryPort } from '../ports/hr-directory.port';
 import { OPEN_ORDERS_PORT, OpenOrdersPort } from '../ports/open-orders.port';
+import { OWNED_DEPOTS_PORT, OwnedDepotsPort } from '../ports/owned-depots.port';
 import {
   DataSubjectRequestRecord,
   DataSubjectRequestStatus,
@@ -100,6 +108,8 @@ export class DataSubjectService {
     // Optional like the others so existing construction sites compile; the module always
     // provides it, and an absent port means "no check" only in unit tests that do not care.
     @Optional() @Inject(OPEN_ORDERS_PORT) private readonly openOrders?: OpenOrdersPort,
+    // AUT-07: only the franchise-owner deletion path asks it; absent = no check (unit specs).
+    @Optional() @Inject(OWNED_DEPOTS_PORT) private readonly ownedDepots?: OwnedDepotsPort,
   ) {}
 
   /** Raise a request. A second one of the same type while the first is open is refused. */
@@ -329,6 +339,18 @@ export class DataSubjectService {
       throw new BadRequestException(
         'Ini akun pelanggan, bukan staf. Penghapusan pelanggan lewat antrean permintaan PDP.',
       );
+    }
+
+    // AUT-07: same refusal as deactivating an owner (AccountService.applyActive), and for the
+    // same reason - their depots keep paying a share to an account that would no longer exist.
+    // Fails closed: an unreachable depot-service refuses, it does not read as "zero depots".
+    if (target.role === Role.FRANCHISE_OWNER && this.ownedDepots) {
+      const held = await this.ownedDepots.countOwned(targetId);
+      if (held > 0) {
+        throw new ConflictException(
+          `Owner ini masih memegang share di ${held} depot. Pindahkan atau hapus share-nya di data depot sebelum menghapus akun.`,
+        );
+      }
     }
 
     // B-4: the last-super-admin guard and the write are one transaction, in the repository.
