@@ -105,6 +105,22 @@ describe('GallonIssueService', () => {
     ).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 
+  // DEP-07: a manual issue carried no key; a double-tapped "Simpan" booked the deposit twice.
+  it('the same idempotency key books one issue and moves the stock once (DEP-07)', async () => {
+    const first = await service.record(depotId, { quantity: 2, depositHeld: 40000, idempotencyKey: 'key-0001' }, 'staff-1');
+    const again = await service.record(depotId, { quantity: 2, depositHeld: 40000, idempotencyKey: 'key-0001' }, 'staff-1');
+    expect(again.id).toBe(first.id);
+    expect((await issues.listForDepot(depotId, 1, 10)).total).toBe(1);
+  });
+
+  it('a different key, or none, books a new issue (DEP-07)', async () => {
+    await service.record(depotId, { quantity: 1, idempotencyKey: 'key-0001' }, 'staff-1');
+    await service.record(depotId, { quantity: 1, idempotencyKey: 'key-0002' }, 'staff-1');
+    await service.record(depotId, { quantity: 1 }, 'staff-1');
+    await service.record(depotId, { quantity: 1 }, 'staff-1');
+    expect((await issues.listForDepot(depotId, 1, 10)).total).toBe(4);
+  });
+
   it('rejects recording an issue against an unknown depot', async () => {
     await expect(
       service.record('00000000-0000-4000-8000-000000000000', { quantity: 2 }, 'staff-1'),
