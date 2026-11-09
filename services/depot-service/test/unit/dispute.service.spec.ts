@@ -275,6 +275,28 @@ describe('DisputeService REFUND queues the money (CA-2-39)', () => {
     ]);
   });
 
+  // DEP-26: the claim amount travels with the refund request, so a part-justified dispute
+  // returns only the part. A dispute with no amount (0) asks for the whole payment, as before.
+  it('forwards the dispute amount as a part-refund, and nothing when there is none', async () => {
+    const depotRepo = new InMemoryDepotRepository();
+    const refunds = new FakeDisputeRefund();
+    const svc = new DisputeService(new InMemoryDisputeRepository(), depotRepo, refunds);
+    const depot = await seedDepot(depotRepo);
+    const withAmount = await svc.raise(
+      {
+        depotId: depot,
+        orderRef: 'HM-260902-002',
+        customerName: 'Siti',
+        category: DisputeCategory.OVERCHARGED,
+        amountIdr: 20000,
+        description: 'dipungut lebih',
+      } as never,
+      MANAGER,
+    );
+    await svc.resolve(withAmount.id, DisputeResolution.REFUND, 'lebih', MANAGER, 'Bearer t');
+    expect(refunds.calls[0]).toMatchObject({ orderRef: 'HM-260902-002', amountIdr: 20000 });
+  });
+
   // D1-02 / DEP-26: read-then-write let two managers (or a double click) both see OPEN, both
   // queue a refund, and both write. The status is now CLAIMED atomically before any money
   // moves, so exactly one of two concurrent resolves proceeds.

@@ -24,5 +24,14 @@ export interface DisputeRefundPort {
    * @throws when the order cannot be found, has no payment, or the refund is refused —
    *   the caller must not record a resolution it could not carry out.
    */
-  request(orderRef: string, reason: string, authorization: string): Promise<void>;
+  request(
+    orderRef: string,
+    reason: string,
+    authorization: string,
+    /**
+     * DEP-26: what the dispute actually claims. Less than the payment = a part-refund of that
+     * amount; absent, zero, or at least the payment = the whole payment, as before.
+     */
+    amountIdr?: number,
+  ): Promise<void>;
 }

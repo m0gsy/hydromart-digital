@@ -1021,11 +1021,16 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
  * refund could not be queued.
  */
 export class FakeDisputeRefund {
-  calls: { orderRef: string; reason: string; authorization: string }[] = [];
+  calls: { orderRef: string; reason: string; authorization: string; amountIdr?: number }[] = [];
   fail: string | null = null;
 
-  async request(orderRef: string, reason: string, authorization: string): Promise<void> {
+  async request(
+    orderRef: string,
+    reason: string,
+    authorization: string,
+    amountIdr?: number,
+  ): Promise<void> {
     if (this.fail) throw new Error(this.fail);
-    this.calls.push({ orderRef, reason, authorization });
+    this.calls.push({ orderRef, reason, authorization, ...(amountIdr !== undefined ? { amountIdr } : {}) });
   }
 }

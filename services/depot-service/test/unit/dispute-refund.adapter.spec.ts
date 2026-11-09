@@ -65,6 +65,30 @@ describe('DisputeRefundHttpAdapter (CA-2-39)', () => {
   });
 
   /*
+   * DEP-26. A dispute that was only partly justified (OVERCHARGED by 20.000 on a 45.000 order)
+   * asked for the WHOLE payment back. The claim amount now rides along as a part-refund - but
+   * only when it is genuinely less than what was paid; a claim equal to or above the payment is
+   * simply a full refund, so it must not be sent as an amount payment-service would refuse.
+   */
+  it('asks for only the claimed amount when it is less than the payment', async () => {
+    const calls = wire(
+      { items: [{ id: 'o-1', orderNumber: 'HM-1' }] },
+      { items: [{ id: 'p-1', status: 'PAID', amount: 45000 }] },
+    );
+    await new DisputeRefundHttpAdapter(config()).request('HM-1', 'dipungut lebih', 'Bearer t', 20000);
+    expect(JSON.parse(calls[2]!.body!)).toEqual({ reason: 'dipungut lebih', amountIdr: 20000 });
+  });
+
+  it.each([[45000], [60000], [0], [undefined]])('asks for the whole payment when the claim is %p', async (claim) => {
+    const calls = wire(
+      { items: [{ id: 'o-1', orderNumber: 'HM-1' }] },
+      { items: [{ id: 'p-1', status: 'PAID', amount: 45000 }] },
+    );
+    await new DisputeRefundHttpAdapter(config()).request('HM-1', 'x', 'Bearer t', claim as never);
+    expect(JSON.parse(calls[2]!.body!)).toEqual({ reason: 'x' });
+  });
+
+  /*
    * `orderNumber` is a SUBSTRING search on that endpoint (audit F-12), so a typed reference
    * can match several orders. Refunding the first of them would be picking one at random
    * with somebody's money.
