@@ -65,6 +65,28 @@ describe('CustomerDirectoryHttpAdapter', () => {
     );
   });
 
+  // CUS-06: the directory is paged (5000 a page). A full page means "maybe more", so the next
+  // request resumes after the last customerId; a short page ends it. A server that ignores the
+  // cursor (the old one) hands back the same full page - that must stop the loop, not spin it.
+  it('follows the cursor until a short page (CUS-06)', async () => {
+    const page1 = Array.from({ length: 5000 }, (_, i) => ({ customerId: `c${String(i).padStart(5, '0')}`, name: 'A', phone: '1' }));
+    const page2 = [{ customerId: 'c99999', name: 'B', phone: '2' }];
+    fetchMock.mockResolvedValueOnce(res({ body: page1 })).mockResolvedValueOnce(res({ body: page2 }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment({ tier: 'GOLD' }, AUTH);
+    expect(out).toHaveLength(5001);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain('after=c04999');
+    expect(fetchMock.mock.calls[1][0]).toContain('tier=GOLD');
+  });
+
+  it('stops when the server ignores the cursor and repeats the page (CUS-06)', async () => {
+    const page = Array.from({ length: 5000 }, (_, i) => ({ customerId: `c${String(i).padStart(5, '0')}`, name: 'A', phone: '1' }));
+    fetchMock.mockResolvedValue(res({ body: page }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment({}, AUTH);
+    expect(out).toHaveLength(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('builds the tier + city segment query string', async () => {
     fetchMock.mockResolvedValue(res({ body: [] }));
     await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment(
