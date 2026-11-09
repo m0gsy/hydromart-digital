@@ -309,6 +309,8 @@ export const insight = {
      * and never sent it — no error, no message, nothing.
      */
     sendDepotCampaign: (id: string) => `/crm/api/v1/campaigns/depot/${id}/send`,
+    /** CRM-05: the campaigns the caller created, so a depot manager can read how their blast went. */
+    myCampaigns: '/crm/api/v1/campaigns/mine?limit=20',
   },
 
   // Depot CRM — depot-scoped customer directory + detail (customer-service, depotCrm cap).

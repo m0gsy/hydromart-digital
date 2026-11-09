@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { BroadcastLevel } from '../../domain/broadcast-level';
 import { BroadcastNotFoundError } from '../../domain/errors';
@@ -8,6 +8,7 @@ import {
   BroadcastRepository,
 } from '../ports/broadcast.repository';
 import { CRM_TOKENS } from '../tokens';
+import { NotificationService } from './notification.service';
 
 /**
  * Depot broadcast use cases (design 8a): depot ops post an announcement scoped to a depot;
@@ -21,6 +22,8 @@ export class BroadcastService {
 
   constructor(
     @Inject(CRM_TOKENS.BroadcastRepository) private readonly repo: BroadcastRepository,
+    // CRM-09. Optional: without it an URGENT broadcast stays pull-only, as it was.
+    @Optional() private readonly notifications?: NotificationService,
   ) {}
 
   async create(
@@ -32,6 +35,7 @@ export class BroadcastService {
   ): Promise<BroadcastRecord> {
     const record = await this.repo.create({ depotId, title, body, level, createdBy });
     this.logger.log(`Broadcast ${record.id} posted to depot ${depotId} (${level})`);
+    if (level === BroadcastLevel.URGENT) this.notifications?.announceToDepotStaff(depotId, title, body);
     return record;
   }
 

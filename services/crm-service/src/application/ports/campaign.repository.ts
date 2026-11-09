@@ -56,7 +56,11 @@ export interface CampaignRepository {
   /** Load just the recipients for a campaign. */
   findByIdRecipients(id: string): Promise<CampaignRecipientRecord[]>;
   /** Paginated campaign list (recipients omitted from list items). */
-  list(page: number, limit: number): Promise<{ items: CampaignRecord[]; total: number }>;
+  list(
+    page: number,
+    limit: number,
+    createdBy?: string,
+  ): Promise<{ items: CampaignRecord[]; total: number }>;
   /**
    * Claim a DRAFT campaign for dispatch. Conditional on `status: DRAFT` in the WHERE, so
    * two simultaneous sends cannot both pass a read-then-write check and double-broadcast

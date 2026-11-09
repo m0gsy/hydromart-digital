@@ -359,6 +359,25 @@ describe('CampaignService', () => {
    * CRM-02 / CRM-04 step 2. Opt-outs are not failures, an outage is not the recipient fault,
    * a campaign that reached nobody is not a plain SENT, and a campaign can be called back.
    */
+  // CRM-05: a depot manager can create and send a campaign, so they must be able to read its result.
+  describe('reading your own campaigns (CRM-05)', () => {
+    it('lists only the campaigns the caller created', async () => {
+      await service.create('mgr-1', 'Mine A', 'Hi', recipients);
+      await service.create('mgr-2', 'Theirs', 'Hi', recipients);
+      await service.create('mgr-1', 'Mine B', 'Hi', recipients);
+      const page = await service.listMine('mgr-1');
+      expect(page.items.map((c) => c.name).sort()).toEqual(['Mine A', 'Mine B']);
+      expect(page.total).toBe(2);
+    });
+
+    it('opens one of your own, and refuses (or 404s) anybody else', async () => {
+      const mine = await service.create('mgr-1', 'Mine', 'Hi', recipients);
+      expect((await service.getOwn(mine.id, 'mgr-1')).id).toBe(mine.id);
+      await expect(service.getOwn(mine.id, 'mgr-2')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.getOwn(randomUUID(), 'mgr-1')).rejects.toBeInstanceOf(CampaignNotFoundError);
+    });
+  });
+
   describe('campaign states (CRM-02 / CRM-04)', () => {
     const queue = async (): Promise<string> => {
       const created = await service.create('staff-1', 'Blast', 'Hi', recipients);

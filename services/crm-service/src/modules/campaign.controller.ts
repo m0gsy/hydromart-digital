@@ -93,6 +93,34 @@ export class CampaignController {
     return CampaignDto.from(campaign);
   }
 
+  /** CRM-05: a depot manager reads the result of the campaigns they created. Declared before `:id`. */
+  @ApiOkResponse({ type: CampaignListDto })
+  @Can('depotCampaign')
+  @Get('mine')
+  @ApiOperation({ summary: 'List the campaigns the caller created (paginated)' })
+  async listMine(
+    @Query() query: CampaignPageQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CampaignListDto> {
+    return CampaignListDto.from(await this.campaigns.listMine(user.sub, query.page, query.limit));
+  }
+
+  @ApiOkResponse({ type: CampaignDto })
+  @Can('depotCampaign')
+  @Get('mine/:id')
+  @ApiOperation({ summary: 'One campaign the caller created, with its recipients (numbers masked)' })
+  async getMine(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CampaignDto> {
+    const dto = CampaignDto.from(await this.campaigns.getOwn(id, user.sub));
+    // Same rule as the head-office detail: names and numbers only for who may read the directory.
+    if (!can('customerDirectory', user?.role)) {
+      dto.recipients = dto.recipients.map((r) => ({ ...r, name: null, phone: `•••${r.phone.slice(-3)}` }));
+    }
+    return dto;
+  }
+
   @ApiOkResponse({ type: CampaignListDto })
   @Can('campaignRead')
   @Get()
