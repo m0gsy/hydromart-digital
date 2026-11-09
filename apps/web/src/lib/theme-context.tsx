@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { callPlugin } from './capacitor';
+import { safeStorage } from './safe-storage';
 
 // App-wide theme (design 24b). `system` follows the OS media query; `light`/`dark`
 // stamp an explicit data-theme on <html> which globals.css lets win over the query.
@@ -34,7 +35,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [systemDark, setSystemDark] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = safeStorage.get(STORAGE_KEY);
     if (saved === 'light' || saved === 'dark' || saved === 'system') {
       setThemeState(saved);
       applyAttr(saved);
@@ -48,7 +49,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
-    localStorage.setItem(STORAGE_KEY, t);
+    safeStorage.set(STORAGE_KEY, t);
     applyAttr(t);
   }, []);
 

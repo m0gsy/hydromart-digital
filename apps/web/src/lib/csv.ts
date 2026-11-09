@@ -120,7 +120,8 @@ export function parseCsvRecords(text: string): CsvRecord[] {
 function escapeCell(value: CsvCell): string {
   if (value == null) return '';
   const s = String(value);
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  // A number cannot be a formula; only text can. A negative one must stay numeric.
+  const safe = typeof value !== 'number' && /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

@@ -111,7 +111,7 @@ afterEach(() => vi.clearAllMocks());
 const clickRepeat = async () => {
   const user = userEvent.setup();
   await screen.findAllByText(/HM-0001/);
-  await user.click(screen.getByRole('button', { name: /pesan lagi/i }));
+  await user.click(screen.getAllByRole('button', { name: /pesan lagi/i })[0]!);
 };
 
 describe('"Pesan lagi" reports what actually happened (CA-3-28)', () => {

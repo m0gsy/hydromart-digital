@@ -2,6 +2,7 @@
 
 import { loadSessionCapabilities } from './roles';
 import type { Session } from './types';
+import { safeStorage } from './safe-storage';
 
 // Cached view of the signed-in session, shared by the API client and the React auth
 // context (which re-renders on change). Persisted to localStorage.
@@ -75,8 +76,8 @@ export function setSession(session: Session | null): void {
   current = session;
   syncCapabilities(session);
   if (typeof window !== 'undefined') {
-    if (session) window.localStorage.setItem(KEY, JSON.stringify(session));
-    else window.localStorage.removeItem(KEY);
+    if (session) safeStorage.set(KEY, JSON.stringify(session));
+    else safeStorage.remove(KEY);
   }
   listeners.forEach((fn) => fn(session));
 }

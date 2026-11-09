@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { id, type Dictionary } from './dictionaries/id';
+import { safeStorage } from './safe-storage';
 
 export type Locale = 'id' | 'en';
 
@@ -88,7 +89,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = safeStorage.get(STORAGE_KEY);
     if (saved === 'id' || saved === 'en') setLocaleState(saved);
   }, []);
 
@@ -114,7 +115,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
-    localStorage.setItem(STORAGE_KEY, l);
+    safeStorage.set(STORAGE_KEY, l);
   }, []);
 
   // Fetch whatever the current locale needs. Until it lands, `t` falls back to

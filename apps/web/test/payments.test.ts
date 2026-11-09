@@ -20,6 +20,16 @@ describe('needsPayment', () => {
     expect(needsPayment({ status: 'CONFIRMED' }, pay('PAID'))).toBe(false);
   });
 
+  // WEB-08: an order that is over - voided at the till, or completed - must not bring the pay panel
+  // back just because its payment was refunded.
+  it('is false for a voided or completed order, even when its payment was refunded', () => {
+    expect(needsPayment({ status: 'VOIDED' }, pay('REFUNDED'))).toBe(false);
+    expect(needsPayment({ status: 'COMPLETED' }, pay('REFUNDED'))).toBe(false);
+    expect(needsPayment({ status: 'COMPLETED' }, undefined)).toBe(false);
+    // Still needs paying while it is in flight.
+    expect(needsPayment({ status: 'ON_DELIVERY' }, undefined)).toBe(true);
+  });
+
   it('is false for a cancelled order regardless of payment', () => {
     expect(needsPayment({ status: 'CANCELLED' }, undefined)).toBe(false);
     expect(needsPayment({ status: 'CANCELLED' }, pay('FAILED'))).toBe(false);
