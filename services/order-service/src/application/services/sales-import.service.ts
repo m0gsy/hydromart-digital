@@ -39,6 +39,8 @@ export class SalesImportService {
     rows: readonly ImportSalesTransactionRow[],
   ): Promise<ImportSummary> {
     const batchId = randomUUID();
+    // ORD-14: owner decision is a warning, not a refusal, for a receipt dated after go-live.
+    const goLive = await this.repo.firstOrderAt(depotId);
     return runImport(
       rows,
       async (row) => {
@@ -65,7 +67,13 @@ export class SalesImportService {
           batchId,
           importedBy: user.sub,
         });
-        return { status: 'created' };
+        const afterGoLive = goLive !== null && new Date(row.occurredAt) >= goLive;
+        return afterGoLive
+          ? {
+              status: 'created',
+              message: `Tanggal nota sama dengan atau setelah pesanan pertama depot ini di Hydromart (${goLive.toISOString().slice(0, 10)}); periksa agar tidak dobel dengan pesanan hidup`,
+            }
+          : { status: 'created' };
       },
       isDuplicateExternalRef,
     );

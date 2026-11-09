@@ -58,6 +58,11 @@ export function isDuplicateExternalRef(error: unknown): boolean {
 export class SalesImportPrismaRepository implements SalesImportRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async firstOrderAt(depotId: string): Promise<Date | null> {
+    const agg = await this.prisma.order.aggregate({ where: { depotId }, _min: { createdAt: true } });
+    return agg._min.createdAt ?? null;
+  }
+
   async create(row: NewImportedSalesTransaction): Promise<ImportedSalesTransactionRecord> {
     const created = await this.prisma.importedSalesTransaction.create({ data: row });
     return toRecord(created);

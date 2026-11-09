@@ -28,10 +28,19 @@ function row(over: Record<string, unknown> = {}) {
 
 describe('SalesImportPrismaRepository', () => {
   const model = { create: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() };
-  const prisma = { importedSalesTransaction: model } as unknown as PrismaService;
+  const order = { aggregate: jest.fn() };
+  const prisma = { importedSalesTransaction: model, order } as unknown as PrismaService;
   const repo = new SalesImportPrismaRepository(prisma);
 
   afterEach(() => jest.clearAllMocks());
+
+  it("firstOrderAt is the depot's earliest live order, or null", async () => {
+    order.aggregate.mockResolvedValue({ _min: { createdAt: new Date('2026-03-01T00:00:00.000Z') } });
+    expect(await repo.firstOrderAt(DEPOT_A)).toEqual(new Date('2026-03-01T00:00:00.000Z'));
+    expect(order.aggregate).toHaveBeenCalledWith({ where: { depotId: DEPOT_A }, _min: { createdAt: true } });
+    order.aggregate.mockResolvedValue({ _min: { createdAt: null } });
+    expect(await repo.firstOrderAt(DEPOT_A)).toBeNull();
+  });
 
   it('create converts Decimal fields to numbers on the way out', async () => {
     model.create.mockResolvedValue(row());
