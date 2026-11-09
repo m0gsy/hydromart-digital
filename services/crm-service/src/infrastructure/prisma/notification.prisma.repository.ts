@@ -146,6 +146,23 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
+  /**
+   * The rows one staff member's ops feed is made of. One definition for the feed AND for
+   * read-all (CRM-06), so "mark all read" can never touch a row the feed would not show.
+   */
+  private opsFeedWhere(events: string[], staffId: string, depotIds?: readonly string[]) {
+    return {
+      event: { in: events },
+      AND: [
+        // O6: this depot's rows, plus the ones that belong to no depot (every row written
+        // before the column existed, and the platform-wide ones).
+        ...(depotIds ? [{ OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] }] : []),
+        // CRM-3: somebody's leave or kasbon is theirs alone, whatever depot scope says.
+        { OR: [{ event: { notIn: PERSONAL_OPS_EVENTS } }, { customerId: staffId }] },
+      ],
+    };
+  }
+
   async listOpsFeedFor(
     events: string[],
     staffId: string,
@@ -155,16 +172,7 @@ export class NotificationPrismaRepository implements NotificationRepository {
     // One query: the feed window plus *this* staff member's receipts (the relation filter
     // keeps other staff's reads out, so `opsReads` holds at most one row per notification).
     const rows = await this.prisma.notification.findMany({
-      where: {
-        event: { in: events },
-        AND: [
-          // O6: this depot's rows, plus the ones that belong to no depot (every row written
-          // before the column existed, and the platform-wide ones).
-          ...(depotIds ? [{ OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] }] : []),
-          // CRM-3: somebody's leave or kasbon is theirs alone, whatever depot scope says.
-          { OR: [{ event: { notIn: PERSONAL_OPS_EVENTS } }, { customerId: staffId }] },
-        ],
-      },
+      where: this.opsFeedWhere(events, staffId, depotIds),
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { opsReads: { where: { staffId }, select: { readAt: true } } },
@@ -190,9 +198,14 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return read.readAt;
   }
 
-  async markAllOpsRead(events: string[], staffId: string, limit: number): Promise<number> {
+  async markAllOpsRead(
+    events: string[],
+    staffId: string,
+    limit: number,
+    depotIds?: readonly string[],
+  ): Promise<number> {
     const rows = await this.prisma.notification.findMany({
-      where: { event: { in: events } },
+      where: this.opsFeedWhere(events, staffId, depotIds),
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: { id: true },

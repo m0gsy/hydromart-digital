@@ -414,7 +414,15 @@ describe('NotificationPrismaRepository', () => {
   it('markAllOpsRead inserts the feed window, skipping rows already read', async () => {
     notification.findMany.mockResolvedValue([{ id: 'notif-1' }, { id: 'notif-2' }]);
     opsNotificationRead.createMany.mockResolvedValue({ count: 1 });
-    expect(await repo.markAllOpsRead(['stock.low'], 'staff-1', 50)).toBe(1);
+    expect(await repo.markAllOpsRead(['stock.low'], 'staff-1', 50, ['depot-a'])).toBe(1);
+    // CRM-06: the window is the feed's: this depot (or none) and not somebody else's personal rows.
+    expect(notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([{ OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] }]),
+        }),
+      }),
+    );
     expect(opsNotificationRead.createMany).toHaveBeenCalledWith({
       data: [
         { notificationId: 'notif-1', staffId: 'staff-1' },
