@@ -625,6 +625,8 @@ export const hq = {
       courier: 'Courier',
     },
     settle: {
+      exportCsv: 'Download transfer list (CSV)',
+      exportError: 'Could not download the transfer list',
       title: 'Withdrawals awaiting a bank result',
       hint: 'PROCESSING means the balance is already debited. Mark PAID once the transfer clears, or FAILED to give the balance back.',
       franchise: 'Franchise owners',

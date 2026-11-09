@@ -629,6 +629,8 @@ export const hq = {
       courier: 'Kurir',
     },
     settle: {
+      exportCsv: 'Unduh daftar transfer (CSV)',
+      exportError: 'Gagal mengunduh daftar transfer',
       title: 'Penarikan menunggu jawaban bank',
       hint: 'PROCESSING berarti saldonya sudah dipotong. Tandai LUNAS kalau transfernya masuk, atau GAGAL untuk mengembalikan saldonya.',
       franchise: 'Pemilik waralaba',

@@ -122,6 +122,8 @@ export const money = {
      * `hqPayoutRead`; answering it is `hqPayout` (FINANCE/SUPER_ADMIN).
      */
     hqProcessing: '/payout/api/v1/payout/hq/withdrawals/processing',
+    // PPA-15: the transfer worklist as a file (verified accounts included; audited per download).
+    hqProcessingExport: '/payout/api/v1/payout/hq/withdrawals/processing/export.csv',
     hqCourierProcessing: '/payout/api/v1/payout/hq/courier-withdrawals/processing',
     hqMarkPaid: (id: string) => `/payout/api/v1/payout/hq/withdrawals/${id}/paid`,
     hqMarkFailed: (id: string) => `/payout/api/v1/payout/hq/withdrawals/${id}/failed`,
