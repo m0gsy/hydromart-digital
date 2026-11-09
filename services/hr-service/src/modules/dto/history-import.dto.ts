@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -36,10 +37,11 @@ export class ImportAttendanceDto {
 export class ImportPayrollRowDto {
   @IsString() @MaxLength(40) employeeCode!: string;
   @Matches(PERIOD, { message: 'periodMonth harus format YYYY-MM' }) periodMonth!: string;
-  @Type(() => Number) @IsInt() @Min(0) gross!: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalBonus?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) totalDeduction?: number;
-  @IsOptional() @Type(() => Number) @IsInt() net?: number;
+  // HR-09: Decimal(12,2) columns - above this the database answered 500.
+  @Type(() => Number) @IsInt() @Min(0) @Max(9_999_999_999) gross!: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(9_999_999_999) totalBonus?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(9_999_999_999) totalDeduction?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(-9_999_999_999) @Max(9_999_999_999) net?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) presentDays?: number;
 }
 
