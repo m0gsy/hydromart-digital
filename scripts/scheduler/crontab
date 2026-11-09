@@ -90,6 +90,13 @@
 # in delivery-service's outbox; this re-sends it. Every 10 minutes: retries back off 1m..32m and
 # admin dedupes on the event key, so an overlap costs one wasted call, never a duplicate.
 */10 * * * * sh /scripts/sweep.sh webhook-outbox/internal/process delivery:3006
+# PPA-09: an approved courier expense claim whose ledger credit never landed (the process died between
+# the decision and the money). Every 15 minutes; idempotent - a claim already credited is skipped, so
+# a double run credits nothing twice.
+*/15 * * * * sh /scripts/sweep.sh expenses/internal/sweep-unposted payout:3016
+# AUT-08: delete OTP challenges and refresh tokens that expired more than 30 days ago. Nightly at
+# 03:50 WIB, after the retention purge, so the two nightly writers never overlap.
+50 3 * * * sh /scripts/sweep.sh auth/internal/tokens/sweep-expired auth:3001
 # REF-03: a referral whose "qualify" trigger from the order outbox was lost stays PENDING for ever
 # although the referee completed an order. Daily at 04:15 WIB: ask order-service, qualify through
 # the same path as the trigger (idempotent reward keys, monthly cap), at most 200 per round.

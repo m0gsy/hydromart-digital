@@ -60,7 +60,17 @@ function postRoutes(serviceDir) {
   const modules = join(serviceDir, 'src/modules');
   if (!existsSync(modules)) return [];
   const routes = [];
-  for (const file of readdirSync(modules).filter((f) => f.endsWith('.controller.ts'))) {
+  // Recursive: auth-service keeps its controllers in src/modules/auth/, and a scan that stopped at
+  // the top level saw none of them - so a sweep aimed at auth could never be checked (AUT-08).
+  const controllerFiles = (dir, rel = '') =>
+    readdirSync(join(dir, rel), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? controllerFiles(dir, join(rel, e.name))
+        : e.name.endsWith('.controller.ts')
+          ? [join(rel, e.name)]
+          : [],
+    );
+  for (const file of controllerFiles(modules)) {
     const src = readFileSync(join(modules, file), 'utf8');
     const prefix = src.match(/@Controller\(\{[^}]*?path:\s*'([^']*)'/)?.[1] ?? '';
     // Class-level guards apply to every route in the file.
