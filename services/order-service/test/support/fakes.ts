@@ -156,6 +156,12 @@ export class InMemoryCartRepository implements CartRepository {
 }
 
 export class InMemoryOrderRepository implements OrderRepository {
+  async findCountingIds(ids: readonly string[]): Promise<string[]> {
+    return this.rows
+      .filter((o) => ids.includes(o.id) && o.status !== 'CANCELLED' && o.status !== 'VOIDED')
+      .map((o) => o.id);
+  }
+
   rows: OrderRecord[] = [];
   /** Cashier notes by order id: kept apart from `rows` because they are not on the record. */
   counterNotes = new Map<string, string>();

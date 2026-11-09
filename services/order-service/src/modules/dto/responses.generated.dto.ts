@@ -1330,6 +1330,11 @@ export class InternalDepotDailyGallonsDaysResponseDto {
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalCountingOrdersResponseDto {
+  @ApiProperty({ type: [String] })
+  orderIds!: string[];
+}
+
 export class InternalDepotDailyGallonsResponseDto {
   @ApiProperty({ type: String })
   depotId!: string;

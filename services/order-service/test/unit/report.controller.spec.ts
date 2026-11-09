@@ -17,6 +17,7 @@ type Mocked = { [K in keyof ReportService]: jest.Mock };
 function makeService(): Mocked {
   return {
     sales: jest.fn().mockResolvedValue('sales'),
+countingOrderIds: jest.fn().mockResolvedValue(['o1']),
     topCustomers: jest.fn().mockResolvedValue('topCustomers'),
     topDepots: jest.fn().mockResolvedValue('topDepots'),
     shippingByDepot: jest.fn().mockResolvedValue('shipping'),
@@ -505,4 +506,11 @@ describe('ReportController', () => {
     await expect(controller.customer('c9')).resolves.toBe('customer');
     expect(service.customerSummary).toHaveBeenCalledWith('c9');
   });
+
+  it('internalCountingOrders answers with the ids that still count (PLP-13)', async () => {
+    const out = await controller.internalCountingOrders({ orderIds: ['o1', 'o2'] } as never);
+    expect(out).toEqual({ orderIds: ['o1'] });
+    expect(service.countingOrderIds).toHaveBeenCalledWith(['o1', 'o2']);
+  });
+
 });
