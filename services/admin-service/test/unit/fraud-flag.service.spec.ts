@@ -126,6 +126,24 @@ describe('FraudFlagService blocking the account (CA-2-05)', () => {
     expect((await repo.findById(flag.id))!.status).toBe(FraudStatus.OPEN);
   });
 
+  // AAS-03: a second clear re-ran the reinstate (blockedAt stays set), which could reopen an account
+  // that had been suspended again through another path since. Clearing a CLEARED flag is a no-op.
+  it('a second clear changes nothing and does not touch the account again', async () => {
+    const repo = new InMemoryFraudFlagRepository();
+    const accounts = new FakeAccountSuspension();
+    const service = new FraudFlagService(repo, accounts);
+    const flag = await service.ingest(accountFlag);
+    await service.block(flag.id);
+    await service.clear(flag.id, 'false alarm');
+    accounts.calls.length = 0;
+
+    const again = await service.clear(flag.id, 'changed my mind');
+
+    expect(accounts.calls).toEqual([]);
+    expect(again.status).toBe(FraudStatus.CLEARED);
+    expect(again.decisionReason).toBe('false alarm');
+  });
+
   it('lifts the suspension when the flag is cleared', async () => {
     const repo = new InMemoryFraudFlagRepository();
     const accounts = new FakeAccountSuspension();
