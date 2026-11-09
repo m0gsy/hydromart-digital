@@ -241,10 +241,24 @@ describe('InternalController', () => {
   });
   beforeEach(() => jest.clearAllMocks());
 
-  it('customerIdsByDepot wraps the id array as { customerIds }', async () => {
+  // CUS-06: the id list is a page now. A full page hands back the last id as the cursor; a short
+  // one says there is nothing more, so a client loops until nextCursor is null.
+  it('customerIdsByDepot wraps the ids and says there is no more when the page is short', async () => {
     svc.listCustomerIdsByDepot.mockResolvedValue(['c1', 'c2']);
-    expect(await c.customerIdsByDepot('d1')).toEqual({ customerIds: ['c1', 'c2'] });
-    expect(svc.listCustomerIdsByDepot).toHaveBeenCalledWith('d1');
+    expect(await c.customerIdsByDepot('d1', { limit: 5 } as never)).toEqual({
+      customerIds: ['c1', 'c2'],
+      nextCursor: null,
+    });
+    expect(svc.listCustomerIdsByDepot).toHaveBeenCalledWith('d1', undefined, 5);
+  });
+
+  it('customerIdsByDepot returns the last id as the cursor on a full page', async () => {
+    svc.listCustomerIdsByDepot.mockResolvedValue(['c1', 'c2']);
+    expect(await c.customerIdsByDepot('d1', { limit: 2, after: 'c0' } as never)).toEqual({
+      customerIds: ['c1', 'c2'],
+      nextCursor: 'c2',
+    });
+    expect(svc.listCustomerIdsByDepot).toHaveBeenCalledWith('d1', 'c0', 2);
   });
   it('crmSummary delegates to getCrmDashboard', async () => {
     svc.getCrmDashboard.mockResolvedValue({ counts: {} });

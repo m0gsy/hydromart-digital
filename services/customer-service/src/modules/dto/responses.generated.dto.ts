@@ -222,6 +222,8 @@ export class InternalResellerPricingResponseDto {
 export class CustomerIdsByDepot2ResponseDto {
   @ApiProperty({ type: [String] })
   customerIds!: string[];
+  @ApiProperty({ type: String, nullable: true, description: 'CUS-06: pass as `after` for the next page; null = last page.' })
+  nextCursor!: string | null;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

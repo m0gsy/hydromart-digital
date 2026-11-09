@@ -59,4 +59,7 @@ export interface DepotCrmRepository {
 
   /** Ids of every customer whose profile favouriteDepotId is this depot (service-to-service lookup). */
   findIdsByDepot(depotId: string): Promise<string[]>;
+
+  /** CUS-06: one page of the same ids, ordered, strictly after `after`. */
+  findIdsByDepotPage(depotId: string, after: string | undefined, limit: number): Promise<string[]>;
 }

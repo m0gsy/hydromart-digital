@@ -458,6 +458,18 @@ describe('ProfilePrismaRepository', () => {
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 
+  // CUS-06: the audience read was a raw query with no LIMIT, so the bounds middleware never saw
+  // it. It is a page now: ordered by customerId, after a cursor, with a ceiling.
+  it('bounds the audience and resumes after a cursor (CUS-06)', async () => {
+    $queryRaw.mockResolvedValue([]);
+    await repo.findSegment({ after: '00000000-0000-4000-8000-000000000001', limit: 10 });
+    const sql = sqlOf($queryRaw.mock.calls.at(-1)!);
+    expect(sql).toContain('LIMIT');
+    expect(sql).toContain('"customerId" >');
+    await repo.findSegment({});
+    expect(sqlOf($queryRaw.mock.calls.at(-1)!)).toContain('LIMIT');
+  });
+
   it('finds a segment with null filters (short-circuit path)', async () => {
     $queryRaw.mockResolvedValue([]);
     expect(await repo.findSegment({})).toEqual([]);
@@ -513,6 +525,21 @@ describe('DepotCrmPrismaRepository', () => {
   it('finds customer ids by depot, mapping rows to ids', async () => {
     $queryRaw.mockResolvedValue([{ customerId: 'cust-1' }, { customerId: 'cust-2' }]);
     expect(await repo.findIdsByDepot('depot-1')).toEqual(['cust-1', 'cust-2']);
+  });
+
+  // CUS-06: one page of a depot's customer ids, ordered by id so the cursor is the last one.
+  it('pages customer ids by depot: ordered, after the cursor, limited', async () => {
+    $queryRaw.mockResolvedValue([{ customerId: 'cust-3' }]);
+    expect(await repo.findIdsByDepotPage('depot-1', 'cust-2', 50)).toEqual(['cust-3']);
+    const sql = ($queryRaw.mock.calls.at(-1)![0] as string[]).join('?');
+    expect(sql).toContain('ORDER BY');
+    expect(sql).toContain('LIMIT');
+    expect(sql).toContain('>');
+  });
+
+  it('pages customer ids by depot without a cursor', async () => {
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.findIdsByDepotPage('depot-1', undefined, 50)).toEqual([]);
   });
 });
 

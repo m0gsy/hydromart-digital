@@ -20,6 +20,8 @@ import { ResellerRepository } from '../application/ports/reseller.repository';
 import { StoragePort, resellerPhotoKey } from '../application/ports/storage.port';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
+import { DIRECTORY_PAGE_MAX } from '../application/ports/profile.repository';
+import { ByDepotQueryDto } from './dto/profile.dto';
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { ResellerService, ScheduledSweepResult } from '../application/services/reseller.service';
 import { CrmDashboardDto, CrmDepotDashboardDto } from './dto/depot-crm.dto';
@@ -175,8 +177,16 @@ export class InternalController {
   @ApiOperation({ summary: 'List customerIds whose favourite depot is the given depot (internal)' })
   async customerIdsByDepot(
     @Query('depotId', ParseUUIDPipe) depotId: string,
-  ): Promise<{ customerIds: string[] }> {
-    return { customerIds: await this.crm.listCustomerIdsByDepot(depotId) };
+    @Query() page: ByDepotQueryDto = {},
+  ): Promise<{ customerIds: string[]; nextCursor: string | null }> {
+    // CUS-06: a page, not the whole depot. A full page names its last id as the cursor; a short
+    // one means the end, and a client loops until nextCursor is null.
+    const limit = page.limit ?? DIRECTORY_PAGE_MAX;
+    const customerIds = await this.crm.listCustomerIdsByDepot(depotId, page.after, page.limit);
+    return {
+      customerIds,
+      nextCursor: customerIds.length >= limit ? (customerIds[customerIds.length - 1] ?? null) : null,
+    };
   }
 
   // dashboard-service pulls per-depot CRM segments + follow-up count for the owner

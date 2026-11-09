@@ -63,6 +63,9 @@ function fakeCrm(
     async findIdsByDepot() {
       return profiles.map((p) => p.customerId);
     },
+    async findIdsByDepotPage() {
+      return profiles.map((p) => p.customerId);
+    },
   };
 }
 
