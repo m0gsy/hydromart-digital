@@ -22,6 +22,7 @@ interface ShiftRow {
   expectedCash: number | null;
   variance: number | null;
   note: string | null;
+  liabilityIdr: number | null;
 }
 
 @Injectable()
@@ -86,5 +87,31 @@ export class CashierShiftPrismaRepository implements CashierShiftRepository {
     if (count === 0) throw new ShiftAlreadyClosedError();
     const row = await this.prisma.cashierShift.findUniqueOrThrow({ where: { id } });
     return this.toRecord(row);
+  }
+
+  async recordLiability(id: string, amountIdr: number): Promise<boolean> {
+    const { count } = await this.prisma.cashierShift.updateMany({
+      where: { id, liabilityIdr: null },
+      data: { liabilityIdr: amountIdr },
+    });
+    return count === 1;
+  }
+
+  async outstandingLiability(
+    depotId: string,
+    cashierId: string,
+    exceptShiftId?: string,
+  ): Promise<number> {
+    const sum = await this.prisma.cashierShift.aggregate({
+      where: {
+        depotId,
+        cashierId,
+        status: CashierShiftStatus.CLOSED,
+        liabilityIdr: { not: null },
+        ...(exceptShiftId ? { id: { not: exceptShiftId } } : {}),
+      },
+      _sum: { liabilityIdr: true },
+    });
+    return sum._sum.liabilityIdr ?? 0;
   }
 }

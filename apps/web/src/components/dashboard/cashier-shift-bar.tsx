@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast';
 import { Button, Card, Field, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { parseIdr } from '@/lib/format';
+import { formatIDR, parseIdr } from '@/lib/format';
 import { useAsync } from '@/lib/use-async';
 import type { CashierShift } from '@/lib/types';
 
@@ -108,6 +108,14 @@ export function CashierShiftBar({
 
   return (
     <Card className="space-y-3 p-4" testId="cashier-shift-bar">
+      {(() => {
+        const owed = (current ?? settled)?.carriedLiabilityIdr ?? 0;
+        return owed > 0 ? (
+          <p className="rounded-xl border border-app p-3 text-sm font-medium text-[color:var(--danger)]" role="alert">
+            {t('hrFix.cashierShift.carriedLiability', { amount: formatIDR(owed) })}
+          </p>
+        ) : null;
+      })()}
       {settled && !current && (
         <div className="rounded-xl border border-app p-3 text-sm">
           <p className="font-semibold">{t('hrFix.cashierShift.closed')}</p>

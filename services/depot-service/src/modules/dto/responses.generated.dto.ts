@@ -108,6 +108,10 @@ export class CashierShiftResponseDto {
   variance!: number | null;
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
+  @ApiProperty({ type: Number, nullable: true })
+  liabilityIdr!: number | null;
+  @ApiProperty({ type: Number, required: false })
+  carriedLiabilityIdr?: number;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
