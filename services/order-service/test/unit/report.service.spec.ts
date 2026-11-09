@@ -41,6 +41,25 @@ function orderData(over: Partial<CreateOrderData>): CreateOrderData {
   };
 }
 
+describe('ReportService.countingOrderIds (PLP-13)', () => {
+  // network-pnl subtracts refunds from revenue, but revenue already leaves out CANCELLED and
+  // VOIDED orders, so subtracting their refund as well counted it twice. This is how the
+  // dashboard learns which refunded orders are still part of revenue.
+  it('keeps only the ids that still count as sales, de-duplicated', async () => {
+    const orders = { findCountingIds: jest.fn().mockResolvedValue(['o1', 'o3']) };
+    const svc = new ReportService(orders as never, {} as never);
+    expect(await svc.countingOrderIds(['o1', 'o2', 'o3', 'o1'])).toEqual(['o1', 'o3']);
+    expect(orders.findCountingIds).toHaveBeenCalledWith(['o1', 'o2', 'o3']);
+  });
+
+  it('asks nothing for no ids', async () => {
+    const orders = { findCountingIds: jest.fn() };
+    const svc = new ReportService(orders as never, {} as never);
+    expect(await svc.countingOrderIds([])).toEqual([]);
+    expect(orders.findCountingIds).not.toHaveBeenCalled();
+  });
+});
+
 describe('ReportService', () => {
   let repo: InMemoryOrderRepository;
   let reports: ReportService;

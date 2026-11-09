@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -30,6 +31,7 @@ import {
   AudienceReachQueryDto,
   DepotCompareQueryDto,
   DepotDailyGallonsQueryDto,
+  CountingOrdersDto,
   DepotDailyPdfQueryDto,
   DepotDailyQueryDto,
   DepotMonthlyQueryDto,
@@ -73,6 +75,7 @@ import {
 } from '../application/ports/order.repository';
 import {
   InternalDailySalesBroadcastResponseDto,
+  InternalCountingOrdersResponseDto,
   InternalDepotDailyGallonsResponseDto,
   InternalExportRowsResponseDto,
   InternalReportTableResponseDto,
@@ -431,6 +434,24 @@ export class ReportController {
       depotId: q.depotId,
       days: await this.reports.depotDailyGallons(q.depotId, q.from, q.to),
     };
+  }
+
+  /**
+   * PLP-13: of the given order ids, those that still count as sales. Internal-key only: the
+   * caller is dashboard-service reconciling refunds against revenue for the network P&L.
+   * POST because the list is long; it reads and changes nothing.
+   */
+  @ApiOkResponse({ type: InternalCountingOrdersResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/counting-orders')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Which of these orders still count as sales (internal service auth)' })
+  async internalCountingOrders(
+    @Body() body: CountingOrdersDto,
+  ): Promise<{ orderIds: string[] }> {
+    return { orderIds: await this.reports.countingOrderIds(body.orderIds) };
   }
 
   /**
