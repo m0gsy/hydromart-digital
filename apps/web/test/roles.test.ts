@@ -10,6 +10,7 @@ import {
   canUseManagerConsole,
   canUseOperatorConsole,
   consoleHome,
+  loadSessionCapabilities,
   dashboardLandingView,
   isConsolePath,
   isDepotManager,
@@ -47,6 +48,17 @@ describe('canManageEarningRules (finance config, role-gated directly)', () => {
     expect(canManageEarningRules('FINANCE')).toBe(true);
     expect(canManageEarningRules('SUPER_ADMIN')).toBe(true);
     expect(canManageEarningRules('MANAGER')).toBe(false);
+  });
+
+  // WEB-02: the server guards the routes with the `earningRules` capability, which a custom role
+  // can hold. A role name compared here made the screen and the server disagree.
+  it('follows the session capabilities, so a custom role that holds earningRules sees the screen', () => {
+    loadSessionCapabilities('CUSTOM_PAYOUT', ['earningRules']);
+    expect(canManageEarningRules('CUSTOM_PAYOUT')).toBe(true);
+    loadSessionCapabilities('FINANCE', []); // the server took it away from FINANCE
+    expect(canManageEarningRules('FINANCE')).toBe(false);
+    loadSessionCapabilities(null, null);
+    expect(canManageEarningRules('FINANCE')).toBe(true); // compiled default again
   });
 });
 
