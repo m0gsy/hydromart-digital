@@ -24,6 +24,7 @@ import {
   SelfScoped,
 } from '@hydromart/platform';
 
+import { RewardService } from '../application/services/reward.service';
 import { LoyaltyService } from '../application/services/loyalty.service';
 import { Page } from '../application/pagination';
 import {
@@ -60,7 +61,10 @@ import {
 @ApiTags('Loyalty')
 @Controller({ path: 'loyalty', version: '1' })
 export class LoyaltyController {
-  constructor(private readonly loyalty: LoyaltyService) {}
+  constructor(
+    private readonly loyalty: LoyaltyService,
+    private readonly rewards: RewardService,
+  ) {}
 
   @ApiOkResponse({ type: TierBenefitResponseDto, isArray: true })
   @Public()
@@ -271,8 +275,11 @@ export class LoyaltyController {
   @Post('internal/expire')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sweep expired point lots (scheduler, internal service auth, BR-014)' })
-  async expireInternal(): Promise<ExpiryResult & { ok: boolean }> {
-    return { ...(await this.loyalty.runExpiry()), ok: true };
+  async expireInternal(): Promise<ExpiryResult & { redemptionsExpired: number; ok: boolean }> {
+    // PLP-09 rides the same nightly door: uncollected rewards lapse after 60 days, independent of
+    // the point-expiry switch (that is a policy about points, this one about shelf stock).
+    const redemptionsExpired = await this.rewards.expireStale();
+    return { ...(await this.loyalty.runExpiry()), redemptionsExpired, ok: true };
   }
 
   @ApiOkResponse({ type: MemberCountResponseDto })

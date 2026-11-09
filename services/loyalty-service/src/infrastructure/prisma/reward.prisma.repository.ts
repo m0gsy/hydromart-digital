@@ -158,6 +158,15 @@ export class RewardPrismaRepository implements RewardRepository {
     return this.toRecord(redemption);
   }
 
+  async listStaleActive(before: Date, take: number): Promise<RewardRedemptionRecord[]> {
+    const rows = await this.prisma.rewardRedemption.findMany({
+      where: { status: 'ACTIVE', createdAt: { lt: before } },
+      orderBy: { createdAt: 'asc' },
+      take,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async findRedemption(id: string): Promise<RewardRedemptionRecord | null> {
     const row = await this.prisma.rewardRedemption.findUnique({ where: { id } });
     return row ? this.toRecord(row) : null;

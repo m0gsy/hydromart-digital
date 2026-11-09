@@ -318,6 +318,66 @@ describe('RewardService', () => {
     });
   });
 
+  /*
+   * PLP-09. An ACTIVE redemption held its stock and its customer's points forever unless the
+   * customer cancelled. Owner decision: after 60 days it lapses, and the points come back.
+   */
+  describe('expireStale (PLP-09)', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    async function redeemAt(daysAgo: number, key: string, stock: number | null = 3) {
+      await seedBalance(1000);
+      if (!(await rewardRepo.findItem('gal'))) {
+        rewardRepo.seedItem({ id: 'gal', pointsCost: 400, name: 'Galon', stock });
+      }
+      const { redemption } = await service.redeem(CUSTOMER, 'gal', key, DEPOT);
+      const row = rewardRepo.redemptions.find((r) => r.id === redemption.id)!;
+      row.createdAt = new Date(Date.now() - daysAgo * DAY);
+      return row;
+    }
+
+    it('lapses a redemption older than 60 days: points back, stock back', async () => {
+      const old = await redeemAt(61, 'k1');
+      expect((await rewardRepo.findItem('gal'))!.stock).toBe(2);
+      expect(await service.expireStale()).toBe(1);
+      expect(old.status).toBe('CANCELLED');
+      expect((await rewardRepo.findItem('gal'))!.stock).toBe(3);
+      const credits = loyaltyRepo.txns.filter((t) => t.type === PointsTxnType.REDEEM && t.points > 0);
+      expect(credits).toHaveLength(1);
+      expect(credits[0].reason).toMatch(/Expired/);
+    });
+
+    it('leaves a recent redemption, and a handed-over one, alone', async () => {
+      const recent = await redeemAt(59, 'k1');
+      const used = await redeemAt(90, 'k2');
+      await service.markUsed(used.id);
+      expect(await service.expireStale()).toBe(0);
+      expect(recent.status).toBe('ACTIVE');
+      expect(used.status).toBe('USED');
+    });
+
+    it('a second run finds nothing more (no double refund)', async () => {
+      await redeemAt(61, 'k1');
+      await service.expireStale();
+      expect(await service.expireStale()).toBe(0);
+      expect(loyaltyRepo.txns.filter((t) => t.type === PointsTxnType.REDEEM && t.points > 0)).toHaveLength(1);
+    });
+
+    it('skips a row it lost to a hand-over mid-sweep and carries on with the rest', async () => {
+      await redeemAt(61, 'k1');
+      await redeemAt(62, 'k2');
+      const realCancel = rewardRepo.cancel.bind(rewardRepo);
+      let first = true;
+      jest.spyOn(rewardRepo, 'cancel').mockImplementation(async (m) => {
+        if (first) {
+          first = false;
+          throw new Error('lost the race to a hand-over');
+        }
+        return realCancel(m);
+      });
+      expect(await service.expireStale()).toBe(1);
+    });
+  });
+
   describe('markUsed (M14-03)', () => {
     async function redeemOne() {
       await seedBalance(1000);

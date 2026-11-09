@@ -112,4 +112,6 @@ export interface RewardRepository {
    */
   markUsed(id: string): Promise<RewardRedemptionRecord | null>;
   cancel(mutation: CancelRedemptionMutation): Promise<RewardRedemptionRecord>;
+  /** PLP-09: ACTIVE redemptions created before `before`, oldest first, at most `take`. */
+  listStaleActive(before: Date, take: number): Promise<RewardRedemptionRecord[]>;
 }

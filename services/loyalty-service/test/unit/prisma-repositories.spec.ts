@@ -627,6 +627,19 @@ describe('RewardPrismaRepository', () => {
     });
   });
 
+  // PLP-09: the lapse sweep reads ACTIVE rows older than the cutoff, oldest first, bounded.
+  it('lists stale ACTIVE redemptions oldest-first with a bound (PLP-09)', async () => {
+    rewardRedemption.findMany.mockResolvedValue([redemptionRow]);
+    const before = new Date('2026-09-01T00:00:00.000Z');
+    const out = await repo.listStaleActive(before, 200);
+    expect(out[0]).toMatchObject({ id: 'rd-1' });
+    expect(rewardRedemption.findMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', createdAt: { lt: before } },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+  });
+
   it('finds a prior redemption by idempotency key', async () => {
     rewardRedemption.findUnique.mockResolvedValue(redemptionRow);
     const out = await repo.findRedemptionByKey('cust-1', 'idem-1');
