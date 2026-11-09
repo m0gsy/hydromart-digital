@@ -78,8 +78,12 @@ export class ExportLogsController {
   @Can('hqBackOffice')
   @Get(':id/download')
   @ApiOperation({ summary: 'Download the file a scheduled report produced (15c)' })
-  async download(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): Promise<void> {
-    const file = await this.exports.download(id);
+  async download(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    const file = await this.exports.download(id, user.sub);
     // 404 for "no file", not an empty 200: a zero-byte spreadsheet is the kind of answer
     // somebody forwards to finance before noticing it says nothing.
     if (!file) throw new NotFoundException('Berkas ekspor tidak tersedia.');

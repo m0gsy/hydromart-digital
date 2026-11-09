@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { AUDIT_MUTATION_SINK, AuditMutationSink } from '@hydromart/platform';
 
 import {
   CreateExportLogData,
@@ -13,6 +14,8 @@ import { ADMIN_TOKENS } from '../tokens';
 export class ExportLogService {
   constructor(
     @Inject(ADMIN_TOKENS.ExportLogRepository) private readonly repo: ExportLogRepository,
+    // AAS-16. Optional: without a sink a download is served exactly as before.
+    @Optional() @Inject(AUDIT_MUTATION_SINK) private readonly audit?: AuditMutationSink,
   ) {}
 
   /** Paginated export log (Design 13c), newest first, optionally filtered. */
@@ -32,7 +35,17 @@ export class ExportLogService {
    * bytes at once, and the point of holding them in the row is that they are fetched one
    * at a time by somebody who asked for that one.
    */
-  download(id: string): Promise<{ fileName: string; content: Buffer } | null> {
-    return this.repo.findContent(id);
+  async download(id: string, actorId: string): Promise<{ fileName: string; content: Buffer } | null> {
+    const file = await this.repo.findContent(id);
+    // AAS-16: a GET never reaches the mutation interceptor, so the download names itself.
+    if (file) {
+      await this.audit?.record({
+        action: 'export.download',
+        actorId,
+        target: id,
+        metadata: { fileName: file.fileName },
+      });
+    }
+    return file;
   }
 }

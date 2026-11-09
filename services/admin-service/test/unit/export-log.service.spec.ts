@@ -5,10 +5,34 @@ import { InMemoryExportLogRepository, makeExportLog } from '../support/fakes';
 describe('ExportLogService', () => {
   let repo: InMemoryExportLogRepository;
   let service: ExportLogService;
+  let audit: { record: jest.Mock };
 
   beforeEach(() => {
     repo = new InMemoryExportLogRepository();
-    service = new ExportLogService(repo);
+    audit = { record: jest.fn(async () => undefined) };
+    service = new ExportLogService(repo, audit as never);
+  });
+
+  // AAS-16: a GET is not audited by the mutation interceptor, so a downloaded export - the data that
+  // left the building - left no trace. Each download now names who took which file.
+  it('records who downloaded which export', async () => {
+    const row = makeExportLog({ dataset: 'Pendapatan' });
+    repo.rows = [row];
+    jest.spyOn(repo, 'findContent').mockResolvedValue({ fileName: 'a.csv', content: Buffer.from('x') });
+    const out = await service.download(row.id, 'u-9');
+    expect(out?.fileName).toBe('a.csv');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'export.download', actorId: 'u-9', target: row.id }),
+    );
+  });
+
+  it('records nothing when there is no file, and still serves when no audit sink is wired', async () => {
+    jest.spyOn(repo, 'findContent').mockResolvedValueOnce(null);
+    expect(await service.download('nope', 'u-9')).toBeNull();
+    expect(audit.record).not.toHaveBeenCalled();
+    jest.spyOn(repo, 'findContent').mockResolvedValueOnce({ fileName: 'a.csv', content: Buffer.from('x') });
+    const bare = new ExportLogService(repo);
+    expect((await bare.download('x', 'u-9'))?.fileName).toBe('a.csv');
   });
 
   it('ingests an export run', async () => {
@@ -66,10 +90,10 @@ describe('ExportLogService', () => {
       format: ExportFormat.CSV,
     });
 
-    await expect(service.download(withFile.id)).resolves.toEqual({
+    await expect(service.download(withFile.id, 'u-1')).resolves.toEqual({
       fileName: 'a.csv',
       content: Buffer.from('hi'),
     });
-    expect(await service.download(withoutFile.id)).toBeNull();
+    expect(await service.download(withoutFile.id, 'u-1')).toBeNull();
   });
 });
