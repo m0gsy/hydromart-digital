@@ -247,6 +247,16 @@ export class RefundPaymentDto {
   @IsString()
   @MaxLength(255)
   reason?: string;
+
+  @ApiPropertyOptional({
+    example: 20000,
+    description:
+      'DEP-26: whole rupiah to return, 1..payment amount. Omitted = the whole payment. One refund per payment: a part-refund still ends REFUNDED.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  amountIdr?: number;
 }
 
 /**
