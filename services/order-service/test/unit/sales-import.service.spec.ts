@@ -5,7 +5,8 @@ const DEPOT_A = '11111111-1111-4111-8111-111111111111';
 const user = { sub: 'staff-1', role: 'MANAGER', phone: '0811' } as never;
 
 function makeService(repo: Partial<SalesImportRepository>) {
-  return new SalesImportService(repo as SalesImportRepository);
+  // No live orders unless a test says otherwise (ORD-14 go-live warning).
+  return new SalesImportService({ firstOrderAt: jest.fn().mockResolvedValue(null), ...repo } as SalesImportRepository);
 }
 
 const row = (over: Partial<Parameters<SalesImportService['importTransactions']>[2][number]> = {}) => ({
@@ -58,6 +59,27 @@ describe('SalesImportService', () => {
       row({ externalRef: 'B', lineTotal: 40001 }),
     ]);
     expect(summary).toMatchObject({ created: 1, failed: 1 });
+  });
+
+  // ORD-14 (go-live). A receipt dated after the depot's first live order can duplicate an order
+  // Hydromart already holds. Owner decision: a WARNING on the row, never a refusal.
+  it("warns, without refusing, on a row dated at or after the depot's first live order", async () => {
+    const create = jest.fn().mockResolvedValue({ id: 'x' });
+    const service = makeService({ create, firstOrderAt: jest.fn().mockResolvedValue(new Date('2026-03-01T00:00:00.000Z')) });
+    const summary = await service.importTransactions(user, DEPOT_A, [
+      row({ externalRef: 'OLD', occurredAt: '2026-02-28T00:00:00.000Z' }),
+      row({ externalRef: 'NEW', occurredAt: '2026-03-02T00:00:00.000Z' }),
+    ]);
+    expect(summary).toMatchObject({ created: 2, failed: 0 });
+    expect(summary.results[0].message).toBeUndefined();
+    expect(summary.results[1].message).toMatch(/pesanan hidup/);
+  });
+
+  it('says nothing when the depot has no live orders yet', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 'x' });
+    const service = makeService({ create, firstOrderAt: jest.fn().mockResolvedValue(null) });
+    const summary = await service.importTransactions(user, DEPOT_A, [row()]);
+    expect(summary.results[0].message).toBeUndefined();
   });
 
   // ORD-14. unique(depotId, externalRef) meant a receipt with three products imported its first

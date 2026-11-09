@@ -50,6 +50,8 @@ export interface HistoricalMethodSum {
 }
 
 export interface SalesImportRepository {
+  /** ORD-14: when this depot's first live order was placed (go-live proxy); null if none. */
+  firstOrderAt(depotId: string): Promise<Date | null>;
   /** Throws on a (depotId, externalRef) collision — the caller classifies that as a duplicate. */
   create(row: NewImportedSalesTransaction): Promise<ImportedSalesTransactionRecord>;
   listByDepot(

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, localDayKey, runImport } from '@hydromart/platform';
 
 import {
   HistoricalDepotSum,
@@ -39,6 +39,8 @@ export class SalesImportService {
     rows: readonly ImportSalesTransactionRow[],
   ): Promise<ImportSummary> {
     const batchId = randomUUID();
+    // ORD-14: owner decision is a warning, not a refusal, for a receipt dated after go-live.
+    const goLive = await this.repo.firstOrderAt(depotId);
     // ORD-14: rows of one receipt take line numbers in file order, so a multi-product receipt is
     // not skipped as a duplicate of its own first line, and the same file again gives the same
     // numbers (a re-upload stays a no-op).
@@ -72,7 +74,13 @@ export class SalesImportService {
           batchId,
           importedBy: user.sub,
         });
-        return { status: 'created' };
+        const afterGoLive = goLive !== null && new Date(row.occurredAt) >= goLive;
+        return afterGoLive
+          ? {
+              status: 'created',
+              message: `Tanggal nota sama dengan atau setelah pesanan pertama depot ini di Hydromart (${localDayKey(goLive)}); periksa agar tidak dobel dengan pesanan hidup`,
+            }
+          : { status: 'created' };
       },
       isDuplicateExternalRef,
     );
