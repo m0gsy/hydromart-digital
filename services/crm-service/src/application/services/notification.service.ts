@@ -274,6 +274,14 @@ export class NotificationService {
               })
             : undefined,
         )
+        // CRM-07: the senders swallow errors and report counts, so "every device refused it" is
+        // a return value, not a throw. No device at all is not a failure: the inbox row is the
+        // delivery.
+        .then((sent) => {
+          if (sent && sent.devices > 0 && sent.delivered === 0) {
+            failed(new Error(`push tidak sampai ke ${sent.devices} perangkat`));
+          }
+        })
         // A customer who muted push has not suffered a failed delivery — `pushAllowedFor`
         // resolves, nothing is sent, and the row stays SENT. Only a throw lands here.
         .catch(failed);

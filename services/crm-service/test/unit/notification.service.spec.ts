@@ -639,6 +639,35 @@ describe('a failed push is recorded, not just logged', () => {
     expect(stored?.message).toContain('Budi');
   });
 
+  // CRM-07: the FCM / web-push adapters swallow errors and answer {ok:false}, so sendToCustomer
+  // RETURNS counts instead of throwing. A row whose every registered device refused it stayed SENT.
+  describe('a push that reached no device', () => {
+    const withCounts = (counts: { devices: number; delivered: number }) => ({
+      async sendToCustomer() {
+        return counts;
+      },
+    });
+    const run = async (counts: { devices: number; delivered: number }) => {
+      const repo = new InMemoryNotificationRepository();
+      const service = new NotificationService(repo, withCounts(counts) as unknown as PushService);
+      const rec = await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'Budi', orderNumber: 'HM-1' }, 'cust-1');
+      await new Promise((r) => setImmediate(r));
+      return repo.records.find((r) => r.id === rec.id);
+    };
+
+    it('marks the row FAILED when devices were registered and none took it', async () => {
+      const stored = await run({ devices: 2, delivered: 0 });
+      expect(stored?.status).toBe(NotificationStatus.FAILED);
+      expect(stored?.error).toMatch(/2 perangkat/);
+    });
+
+    it('leaves it SENT when at least one device took it, or the customer has no device', async () => {
+      expect((await run({ devices: 2, delivered: 1 }))?.status).toBe(NotificationStatus.SENT);
+      // No device registered: the inbox row IS the delivery, nothing failed.
+      expect((await run({ devices: 0, delivered: 0 }))?.status).toBe(NotificationStatus.SENT);
+    });
+  });
+
   it('leaves a delivered one SENT with no error', async () => {
     const repo = new InMemoryNotificationRepository();
     const service = new NotificationService(repo, new FakePush() as unknown as PushService);
