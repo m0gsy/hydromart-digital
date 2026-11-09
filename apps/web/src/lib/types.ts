@@ -1015,7 +1015,12 @@ export interface ReferralSummary {
 
 /* ---------- CRM broadcast campaigns (staff-facing) ---------- */
 
-export type CampaignStatus = 'DRAFT' | 'SENDING' | 'SENT';
+export type CampaignStatus =
+  | 'DRAFT'
+  | 'SENDING'
+  | 'SENT'
+  | 'COMPLETED_WITH_FAILURES'
+  | 'CANCELLED';
 
 // Recipient as sent to POST /campaigns; name feeds the {{name}} template token.
 export interface RecipientInput {

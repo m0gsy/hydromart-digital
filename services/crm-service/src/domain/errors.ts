@@ -16,6 +16,22 @@ export class CampaignNotDraftError extends DomainError {
   }
 }
 
+export class CampaignNotCancellableError extends DomainError {
+  readonly code = 'CAMPAIGN_NOT_CANCELLABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Kampanye ini sudah selesai atau sudah dibatalkan.');
+  }
+}
+
+export class ScheduledInPastError extends DomainError {
+  readonly code = 'CAMPAIGN_SCHEDULED_IN_PAST';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Waktu kirim terjadwal sudah lewat.');
+  }
+}
+
 export class NoRecipientsError extends DomainError {
   readonly code = 'CAMPAIGN_NO_RECIPIENTS';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

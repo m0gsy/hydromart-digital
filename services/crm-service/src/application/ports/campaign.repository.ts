@@ -72,7 +72,9 @@ export interface CampaignRepository {
    */
   claimRecipients(campaignId: string, limit: number): Promise<CampaignRecipientRecord[]>;
   /** How many of a campaign's recipients are in each terminal/queue state. */
-  tally(campaignId: string): Promise<{ pending: number; sent: number; failed: number }>;
+  tally(
+    campaignId: string,
+  ): Promise<{ pending: number; sent: number; failed: number; skipped: number }>;
   /** Record a single recipient's delivery outcome. */
   recordRecipientResult(
     recipientId: string,
@@ -80,11 +82,21 @@ export interface CampaignRepository {
     error: string | null,
     sentAt: Date | null,
   ): Promise<void>;
-  /** Flip a campaign to SENT and store the final sent/failed counts + sentAt. */
+  /**
+   * Close a campaign (default SENT; COMPLETED_WITH_FAILURES when somebody failed) and store the
+   * final counts + sentAt. Only a campaign still SENDING is closed: one cancelled meanwhile
+   * stays cancelled.
+   */
   finalize(
     id: string,
     sentCount: number,
     failedCount: number,
     sentAt: Date,
+    status?: CampaignStatus,
   ): Promise<CampaignRecord>;
+  /**
+   * CRM-04: stop a DRAFT or SENDING campaign (conditional on that status, so a finished one is
+   * never reopened) and mark its still-PENDING recipients SKIPPED. False = nothing to cancel.
+   */
+  cancel(id: string): Promise<boolean>;
 }

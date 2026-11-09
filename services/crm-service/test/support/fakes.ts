@@ -136,7 +136,9 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     return claimed.map((r) => ({ ...r }));
   }
 
-  async tally(campaignId: string): Promise<{ pending: number; sent: number; failed: number }> {
+  async tally(
+    campaignId: string,
+  ): Promise<{ pending: number; sent: number; failed: number; skipped: number }> {
     const c = this.campaigns.find((x) => x.id === campaignId);
     const rows = c?.recipients ?? [];
     const count = (s: RecipientStatus): number => rows.filter((r) => r.status === s).length;
@@ -145,6 +147,7 @@ export class InMemoryCampaignRepository implements CampaignRepository {
       pending: count(RecipientStatus.PENDING) + count(RecipientStatus.SENDING),
       sent: count(RecipientStatus.SENT),
       failed: count(RecipientStatus.FAILED),
+      skipped: count(RecipientStatus.SKIPPED),
     };
   }
 
@@ -170,15 +173,33 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     sentCount: number,
     failedCount: number,
     sentAt: Date,
+    status: CampaignStatus = CampaignStatus.SENT,
   ): Promise<CampaignRecord> {
     const c = this.campaigns.find((x) => x.id === id);
     if (!c) throw new Error('campaign not found');
-    c.status = CampaignStatus.SENT;
+    if (c.status !== CampaignStatus.SENDING) return this.clone(c);
+    c.status = status;
     c.sentCount = sentCount;
     c.failedCount = failedCount;
     c.sentAt = sentAt;
     c.updatedAt = nextDate();
     return this.clone(c);
+  }
+
+  async cancel(id: string): Promise<boolean> {
+    const c = this.campaigns.find((x) => x.id === id);
+    if (!c || (c.status !== CampaignStatus.DRAFT && c.status !== CampaignStatus.SENDING)) return false;
+    c.status = CampaignStatus.CANCELLED;
+    for (const r of c.recipients) {
+      if (r.status === RecipientStatus.PENDING) {
+        r.status = RecipientStatus.SKIPPED;
+        r.error = 'kampanye dibatalkan';
+      }
+    }
+    c.sentCount = c.recipients.filter((r) => r.status === RecipientStatus.SENT).length;
+    c.failedCount = c.recipients.filter((r) => r.status === RecipientStatus.FAILED).length;
+    c.updatedAt = nextDate();
+    return true;
   }
 }
 
@@ -372,6 +393,12 @@ export class FakeActivitySegment implements ActivitySegmentPort {
 export class FakeBroadcastDelivery implements BroadcastDeliveryPort {
   sent: { phone: string; message: string; customerId: string }[] = [];
   private readonly failPhones = new Set<string>();
+  private readonly errors = new Map<string, Error>();
+
+  /** Fail one phone with a specific error (an opt-out, an outage). */
+  throwOn(phone: string, error: Error): void {
+    this.errors.set(phone, error);
+  }
 
   failOn(...phones: string[]): void {
     for (const p of phones) this.failPhones.add(p);
@@ -381,6 +408,8 @@ export class FakeBroadcastDelivery implements BroadcastDeliveryPort {
     // Recorded before the throw: this list is what the sweep ATTEMPTED, which is what the
     // per-recipient rendering tests assert. Whether it succeeded is on the recipient row.
     this.sent.push({ phone, message, customerId });
+    const specific = this.errors.get(phone);
+    if (specific) throw specific;
     if (this.failPhones.has(phone)) throw new Error('simulated failure');
   }
 }

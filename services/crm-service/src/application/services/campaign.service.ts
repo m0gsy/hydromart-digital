@@ -1,12 +1,16 @@
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
-import { canSend } from '../../domain/campaign-status';
+import { CampaignStatus, canCancel, canSend } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
 import { renderTemplate } from '../../domain/template';
 import {
+  CampaignNotCancellableError,
   CampaignNotDraftError,
   CampaignNotFoundError,
+  MarketingPreferenceUnavailableError,
   NoRecipientsError,
+  RecipientOptedOutError,
+  ScheduledInPastError,
 } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
 import {
@@ -38,6 +42,10 @@ export interface CampaignSweepResult {
   sent: number;
   failed: number;
   completed: number;
+  /** CRM-02: recipients passed over by their own choice (opted out) - not failures. */
+  skipped: number;
+  /** CRM-02: recipients put back in the queue because a dependency was down. */
+  held: number;
   /**
    * J7: false when the round tried to deliver and delivered nothing.
    *
@@ -66,7 +74,20 @@ export class CampaignService {
   private static readonly BATCH = 200;
   private static readonly CONCURRENCY = 8;
   private static readonly MAX_CAMPAIGNS_PER_SWEEP = 5;
+  /**
+   * CRM-02: how long a recipient may wait out a preference-service outage before it counts as
+   * FAILED. Counted from when the campaign was due, so a long outage cannot spin forever.
+   */
+  private static readonly OUTAGE_GRACE_MS = 24 * 60 * 60 * 1000;
+  /** CRM-04: a send time a minute in the past is clock skew; further back is a mistake. */
+  private static readonly SCHEDULE_SKEW_MS = 60 * 1000;
   private readonly logger = new Logger(CampaignService.name);
+
+  private assertNotPast(scheduledFor?: Date | null): void {
+    if (scheduledFor && scheduledFor.getTime() < Date.now() - CampaignService.SCHEDULE_SKEW_MS) {
+      throw new ScheduledInPastError();
+    }
+  }
 
   constructor(
     @Inject(CRM_TOKENS.CampaignRepository) private readonly repo: CampaignRepository,
@@ -84,6 +105,7 @@ export class CampaignService {
     authorization = '',
     scheduledFor?: Date | null,
   ): Promise<CampaignRecord> {
+    this.assertNotPast(scheduledFor);
     // A segment (FR-087) resolves its own audience from the customer directory; otherwise
     // use the explicit list. A PRESENT segment is always resolved — an EMPTY filter means
     // "all reachable customers" (SegmentFilter contract; design 10d "Semua pelanggan"),
@@ -170,6 +192,7 @@ export class CampaignService {
     segment: SegmentFilter = {},
     scheduledFor?: Date | null,
   ): Promise<CampaignRecord> {
+    this.assertNotPast(scheduledFor);
     const { tier, city, ...activityConditions } = { ...segment, depotId };
     const inSegment = new Set(await this.activity.customersIn(activityConditions));
     const resolved = await this.directory.resolveSegmentAsService({ tier, city });
@@ -234,6 +257,27 @@ export class CampaignService {
     return this.send(id);
   }
 
+  /**
+   * CRM-04: stop a campaign that has not finished. A scheduled send used to be unrecallable.
+   * Recipients not yet reached become SKIPPED; those already messaged stay as they are.
+   */
+  async cancel(id: string): Promise<CampaignRecord> {
+    const campaign = await this.repo.findById(id);
+    if (!campaign) throw new CampaignNotFoundError();
+    if (!canCancel(campaign.status)) throw new CampaignNotCancellableError();
+    if (!(await this.repo.cancel(id))) throw new CampaignNotCancellableError();
+    return this.get(id);
+  }
+
+  async cancelOwn(id: string, actorId: string): Promise<CampaignRecord> {
+    const campaign = await this.repo.findById(id);
+    if (!campaign) throw new CampaignNotFoundError();
+    if (campaign.createdBy !== actorId) {
+      throw new ForbiddenException('Kampanye ini bukan milik akun Anda.');
+    }
+    return this.cancel(id);
+  }
+
   async send(id: string): Promise<CampaignRecord> {
     const campaign = await this.repo.findById(id);
     if (!campaign) throw new CampaignNotFoundError();
@@ -276,6 +320,8 @@ export class CampaignService {
       sent: 0,
       failed: 0,
       completed: 0,
+      skipped: 0,
+      held: 0,
       ok: true,
     };
 
@@ -316,13 +362,25 @@ export class CampaignService {
             new Date(),
           );
         } catch (e) {
+          const reason = (e as Error).message || 'unknown error';
+          if (e instanceof RecipientOptedOutError) {
+            // The customer's own choice: a skip, not a delivery failure.
+            result.skipped += 1;
+            await this.repo.recordRecipientResult(recipient.id, RecipientStatus.SKIPPED, reason, null);
+            return;
+          }
+          const dueAt = (campaign.scheduledFor ?? campaign.createdAt).getTime();
+          if (
+            e instanceof MarketingPreferenceUnavailableError &&
+            now.getTime() - dueAt < CampaignService.OUTAGE_GRACE_MS
+          ) {
+            // An outage is not the recipient's fault: back in the queue for the next tick.
+            result.held += 1;
+            await this.repo.recordRecipientResult(recipient.id, RecipientStatus.PENDING, reason, null);
+            return;
+          }
           result.failed += 1;
-          await this.repo.recordRecipientResult(
-            recipient.id,
-            RecipientStatus.FAILED,
-            (e as Error).message || 'unknown error',
-            null,
-          );
+          await this.repo.recordRecipientResult(recipient.id, RecipientStatus.FAILED, reason, null);
         }
       });
 
@@ -330,14 +388,20 @@ export class CampaignService {
       // been carried by several ticks, and only the rows know the whole total.
       const tally = await this.repo.tally(campaign.id);
       if (tally.pending === 0) {
-        await this.repo.finalize(campaign.id, tally.sent, tally.failed, new Date());
+        // CRM-02: nobody reached, or somebody failed, is not a plain "sent".
+        const status =
+          tally.failed > 0 || tally.sent === 0
+            ? CampaignStatus.COMPLETED_WITH_FAILURES
+            : CampaignStatus.SENT;
+        await this.repo.finalize(campaign.id, tally.sent, tally.failed, new Date(), status);
         result.completed += 1;
         this.logger.log(
           `Campaign ${campaign.id} complete: ${tally.sent} delivered, ${tally.failed} failed`,
         );
       }
     }
-    result.ok = result.failed === 0 || result.sent > 0;
+    // An outage that held everyone back is as silent as one that failed everyone.
+    result.ok = (result.failed === 0 && result.held === 0) || result.sent > 0;
     return result;
   }
 }

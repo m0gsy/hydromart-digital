@@ -16,10 +16,12 @@ import { canManageCampaigns, canViewCampaigns } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Campaign, CampaignStatus, Page } from '@/lib/types';
 
-const STATUS_TONE: Record<CampaignStatus, 'neutral' | 'brand' | 'success'> = {
+const STATUS_TONE: Record<CampaignStatus, 'neutral' | 'brand' | 'success' | 'warning'> = {
   DRAFT: 'neutral',
   SENDING: 'brand',
   SENT: 'success',
+  COMPLETED_WITH_FAILURES: 'warning',
+  CANCELLED: 'neutral',
 };
 
 // Segment tiers accepted by customer-service (MembershipTier). Blank = no filter.
@@ -213,6 +215,25 @@ function CampaignCard({
     }
   }
 
+  async function cancel() {
+    const ok = await confirm({
+      title: t('dashboard.campaigns.cancelCampaign'),
+      message: t('dashboard.campaigns.cancelConfirm', { name: campaign.name }),
+      confirmLabel: t('dashboard.campaigns.cancelCampaign'),
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(endpoints.crm.cancelCampaign(campaign.id), undefined, true);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('dashboard.campaigns.cancelError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -249,6 +270,11 @@ function CampaignCard({
         <Button variant="ghost" onClick={onReport} disabled={busy}>
           {t('dashboard.campaigns.viewReport')}
         </Button>
+        {canManage && (campaign.status === 'DRAFT' || campaign.status === 'SENDING') && (
+          <Button variant="ghost" onClick={cancel} disabled={busy}>
+            {t('dashboard.campaigns.cancelCampaign')}
+          </Button>
+        )}
         {canManage && campaign.status === 'DRAFT' && (
           <Button onClick={send} loading={busy}>
             <PaperPlaneTilt size={16} weight="fill" />

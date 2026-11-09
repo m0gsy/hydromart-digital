@@ -301,6 +301,9 @@ export const insight = {
     // Campaign with its per-recipient delivery report (status/error/sentAt).
     campaign: (id: string) => `/crm/api/v1/campaigns/${id}`,
     sendCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/send`,
+    /** CRM-04: stop a draft or still-sending campaign. */
+    cancelCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/cancel`,
+    cancelDepotCampaign: (id: string) => `/crm/api/v1/campaigns/depot/${id}/cancel`,
     /**
      * OPS-04: the depot's own send. `sendCampaign` above needs `campaignWrite` (head
      * office); a depot manager holds `depotCampaign`, so the depot screen posted the draft

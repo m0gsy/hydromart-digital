@@ -1,9 +1,10 @@
 {
-  "count": 65,
+  "count": 66,
   "routes": [
     "services/admin-service/src/modules/customer-support.controller.ts Post :id/messages @Can(-)",
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
     "services/crm-service/src/modules/broadcast.controller.ts Post :id/read @Can(-)",
+    "services/crm-service/src/modules/campaign.controller.ts Post depot/:id/cancel @Can(depotCampaign)",
     "services/crm-service/src/modules/campaign.controller.ts Post depot/:id/send @Can(depotCampaign)",
     "services/crm-service/src/modules/notification.controller.ts Post ops/:id/read @Can(opsNotif)",
     "services/customer-service/src/modules/address.controller.ts Delete :id @Can(-)",

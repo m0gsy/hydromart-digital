@@ -12,4 +12,6 @@ export enum RecipientStatus {
   SENDING = 'SENDING',
   SENT = 'SENT',
   FAILED = 'FAILED',
+  /** CRM-02: not delivered by choice (opted out, campaign cancelled) - not a failure. */
+  SKIPPED = 'SKIPPED',
 }

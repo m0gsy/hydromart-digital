@@ -42,6 +42,7 @@ describe('CampaignPrismaRepository', () => {
   const campaign = {
     create: jest.fn(),
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     update: jest.fn(),
@@ -215,7 +216,7 @@ describe('CampaignPrismaRepository', () => {
       { status: 'SENDING', _count: { _all: 2 } },
       { status: 'SENT', _count: { _all: 7 } },
     ]);
-    expect(await repo.tally('camp-1')).toEqual({ pending: 5, sent: 7, failed: 0 });
+    expect(await repo.tally('camp-1')).toEqual({ pending: 5, sent: 7, failed: 0, skipped: 0 });
   });
 
   it('recordRecipientResult persists a recipient outcome', async () => {
@@ -228,16 +229,55 @@ describe('CampaignPrismaRepository', () => {
     });
   });
 
-  it('finalize flips to SENT with final counts', async () => {
+  it('finalize closes only a campaign still SENDING, with the final counts', async () => {
     const sentAt = new Date('2026-02-03');
-    campaign.update.mockResolvedValue({ ...campaignRow(), status: 'SENT', recipients: [] });
-    const record = await repo.finalize('camp-1', 3, 1, sentAt);
-    expect(campaign.update).toHaveBeenCalledWith({
-      where: { id: 'camp-1' },
-      data: { status: 'SENT', sentCount: 3, failedCount: 1, sentAt },
-      include: { recipients: { orderBy: { createdAt: 'asc' } } },
+    campaign.updateMany.mockResolvedValue({ count: 1 });
+    campaign.findUniqueOrThrow.mockResolvedValue({ ...campaignRow(), status: 'SENT', recipients: [] });
+    const record = await repo.finalize('camp-1', 3, 0, sentAt);
+    expect(campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: 'camp-1', status: 'SENDING' },
+      data: { status: 'SENT', sentCount: 3, failedCount: 0, sentAt },
     });
     expect(record.status).toBe(CampaignStatus.SENT);
+  });
+
+  it('finalize can close as COMPLETED_WITH_FAILURES', async () => {
+    campaign.updateMany.mockResolvedValue({ count: 1 });
+    campaign.findUniqueOrThrow.mockResolvedValue({ ...campaignRow(), recipients: [] });
+    await repo.finalize('camp-1', 3, 1, new Date(), CampaignStatus.COMPLETED_WITH_FAILURES);
+    expect(campaign.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'COMPLETED_WITH_FAILURES' }) }),
+    );
+  });
+
+  it('cancel stops a DRAFT or SENDING campaign, skips its pending recipients and stores the counts', async () => {
+    campaign.updateMany.mockResolvedValue({ count: 1 });
+    campaignRecipient.updateMany.mockResolvedValue({ count: 4 });
+    campaignRecipient.groupBy.mockResolvedValue([
+      { status: 'SENT', _count: { _all: 6 } },
+      { status: 'FAILED', _count: { _all: 1 } },
+    ]);
+    campaign.update.mockResolvedValue(campaignRow());
+    expect(await repo.cancel('camp-1')).toBe(true);
+    expect(campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: 'camp-1', status: { in: ['DRAFT', 'SENDING'] } },
+      data: { status: 'CANCELLED' },
+    });
+    expect(campaignRecipient.updateMany).toHaveBeenCalledWith({
+      where: { campaignId: 'camp-1', status: 'PENDING' },
+      data: { status: 'SKIPPED', error: 'kampanye dibatalkan' },
+    });
+    expect(campaign.update).toHaveBeenCalledWith({
+      where: { id: 'camp-1' },
+      data: { sentCount: 6, failedCount: 1 },
+    });
+  });
+
+  it('cancel on a finished campaign changes nothing', async () => {
+    campaign.updateMany.mockResolvedValue({ count: 0 });
+    campaignRecipient.updateMany.mockClear();
+    expect(await repo.cancel('camp-1')).toBe(false);
+    expect(campaignRecipient.updateMany).not.toHaveBeenCalled();
   });
 });
 
