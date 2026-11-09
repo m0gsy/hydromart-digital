@@ -76,6 +76,16 @@ export class LoanRequestPrismaRepository implements LoanRequestRepository {
     return this.prisma.loanRequest.update({ where: { id }, data: { loanId } });
   }
 
+  async listOrphanedApprovals(decidedBefore: Date, limit: number): Promise<string[]> {
+    const rows = await this.prisma.loanRequest.findMany({
+      where: { status: 'APPROVED', loanId: null, decidedAt: { lt: decidedBefore } },
+      orderBy: { decidedAt: 'asc' },
+      take: limit,
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
+
   async reopen(id: string): Promise<void> {
     const decided = { status: 'APPROVED' as const, loanId: null };
     try {

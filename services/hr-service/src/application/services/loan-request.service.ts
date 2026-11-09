@@ -392,6 +392,29 @@ export class LoanRequestService {
     return decided;
   }
 
+  /**
+   * HR-15: hand back to PENDING every approval whose loan never got created.
+   *
+   * The ten-minute margin keeps this clear of an approval that is mid-flight (decide, then
+   * create, takes well under a second). A request that cannot be reopened is logged and skipped:
+   * the next round tries it again.
+   */
+  async reopenOrphaned(now: Date = new Date()): Promise<{ reopened: number }> {
+    const cutoff = new Date(now.getTime() - 10 * 60_000);
+    const ids = await this.repo.listOrphanedApprovals(cutoff, 100);
+    let reopened = 0;
+    for (const id of ids) {
+      try {
+        await this.repo.reopen(id);
+        reopened += 1;
+        this.logger.warn(`Kasbon request ${id} was APPROVED with no loan; reopened for a new decision`);
+      } catch (e) {
+        this.logger.error(`Kasbon request ${id} could not be reopened: ${(e as Error).message}`);
+      }
+    }
+    return { reopened };
+  }
+
   /*
    * Fail-OPEN, and only here. The notification port never throws (its own doc says so), so
    * a kasbon is never refused because crm-service blinked — the opposite rule to the money

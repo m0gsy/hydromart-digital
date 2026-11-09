@@ -126,12 +126,66 @@ class FakeRepo implements LoanRequestRepository {
     row.updatedAt = new Date(++this.seq * 1000);
     return { ...row };
   }
+  async listOrphanedApprovals(decidedBefore: Date, limit: number): Promise<string[]> {
+    return this.rows
+      .filter((r) => r.status === 'APPROVED' && r.loanId === null && r.decidedAt && r.decidedAt < decidedBefore)
+      .slice(0, limit)
+      .map((r) => r.id);
+  }
   async reopen(id: string): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
     if (row.status !== 'APPROVED' || row.loanId !== null) return;
     Object.assign(row, { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null });
   }
 }
+
+/*
+ * HR-15. The request is marked APPROVED first and the loan created second (so two approvers cannot
+ * both create one). A crash between the two left an APPROVED request with no loan behind it: the
+ * employee was told yes, payroll never deducted, and nothing reconciled it. The sweep hands such a
+ * request back to PENDING (what the in-process failure path already does) so it can be decided again.
+ */
+describe('LoanRequestService.reopenOrphaned (HR-15)', () => {
+  const NOW = new Date('2026-11-10T03:00:00.000Z');
+  const seed = (repo: FakeRepo, over: Record<string, unknown>) => {
+    repo.rows.push({
+      id: `lr-${repo.rows.length + 1}`,
+      employeeId: 'emp-1',
+      depotId: DEPOT_A,
+      amount: 500000,
+      status: 'APPROVED',
+      loanId: null,
+      decidedBy: 'mgr',
+      decidedAt: new Date(NOW.getTime() - 60 * 60_000),
+      decisionNote: null,
+      ...over,
+    } as never);
+  };
+
+  it('puts an approval with no loan, older than ten minutes, back to PENDING', async () => {
+    const { svc, repo } = make();
+    seed(repo, {});
+    expect(await svc.reopenOrphaned(NOW)).toEqual({ reopened: 1 });
+    expect(repo.rows[0]).toMatchObject({ status: 'PENDING', decidedBy: null, decidedAt: null });
+  });
+
+  it('leaves alone one that is fresh (an approval in flight), one with a loan, and one not approved', async () => {
+    const { svc, repo } = make();
+    seed(repo, { decidedAt: new Date(NOW.getTime() - 2 * 60_000) });
+    seed(repo, { loanId: 'loan-1' });
+    seed(repo, { status: 'REJECTED' });
+    expect(await svc.reopenOrphaned(NOW)).toEqual({ reopened: 0 });
+    expect(repo.rows.map((r) => r.status)).toEqual(['APPROVED', 'APPROVED', 'REJECTED']);
+  });
+
+  it('one request that cannot be reopened does not stop the rest', async () => {
+    const { svc, repo } = make();
+    seed(repo, {});
+    seed(repo, {});
+    jest.spyOn(repo, 'reopen').mockRejectedValueOnce(new Error('db blip'));
+    expect(await svc.reopenOrphaned(NOW)).toEqual({ reopened: 1 });
+  });
+});
 
 const EMPLOYEE = {
   id: 'emp-1',
@@ -616,5 +670,15 @@ describe('LoanRequestService.listAll / listSelf', () => {
     const { svc } = make();
     await svc.submit(staff, APPLY);
     await expect(svc.listSelf(staff)).resolves.toHaveLength(1);
+  });
+});
+
+import { LoanRequestInternalController } from '../../src/modules/loan-request-internal.controller';
+
+describe('LoanRequestInternalController (HR-15)', () => {
+  it('runs the reconciliation and returns its count', async () => {
+    const requests = { reopenOrphaned: jest.fn().mockResolvedValue({ reopened: 2 }) };
+    const controller = new LoanRequestInternalController(requests as never);
+    expect(await controller.reopenOrphaned()).toEqual({ reopened: 2 });
   });
 });

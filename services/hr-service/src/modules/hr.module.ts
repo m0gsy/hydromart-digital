@@ -114,6 +114,7 @@ import { DepotMovesInternalController } from './depot-moves-internal.controller'
 import { ShiftReminderController } from './shift-reminder.controller';
 import { ShiftReminderService } from '../application/services/shift-reminder.service';
 import { LoanRequestController, SelfLoanRequestController } from './loan-request.controller';
+import { LoanRequestInternalController } from './loan-request-internal.controller';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
 import { ReportsController } from './reports.controller';
@@ -227,6 +228,7 @@ const providers: Provider[] = [
     LoanController,
     SelfLoanRequestController,
     LoanRequestController,
+    LoanRequestInternalController,
     DepotAssignmentController,
     DepotMovesInternalController,
     ShiftReminderController,
