@@ -94,6 +94,14 @@ describe('toCsv - spreadsheet formulas (WEBB-2)', () => {
     );
   });
 
+  // WEB-07: a number is never a formula. A negative one (a refund, a variance, a shortfall) was
+  // written as the text '-5000, which Excel shows with a leading apostrophe and cannot sum.
+  it('keeps a negative number a number, while the same text typed as a string is still neutralised', () => {
+    expect(toCsv(['a'], [[-5000]])).toBe('a\r\n-5000');
+    expect(toCsv(['a'], [[-12.5]])).toBe('a\r\n-12.5');
+    expect(toCsv(['a'], [['-5000']])).toBe("a\r\n'-5000");
+  });
+
   it('leaves ordinary text, numbers and blanks alone', () => {
     expect(toCsv(['a', 'b', 'c'], [['Depot Cikini', 20000, null]])).toBe(
       'a,b,c\r\nDepot Cikini,20000,',

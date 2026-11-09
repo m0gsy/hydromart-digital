@@ -8,6 +8,7 @@ import { useT } from '@/lib/locale-context';
 import { onboarding as tourID } from '@/lib/dictionaries/id/onboarding';
 import { onboarding as tourEN } from '@/lib/dictionaries/en/onboarding';
 import { BrandMark } from '@/components/ui';
+import { safeStorage } from '@/lib/safe-storage';
 
 const SEEN_KEY = 'hydromart.onboarded';
 const ICONS: Record<string, Icon> = { MapPin, Drop, Truck };
@@ -21,7 +22,7 @@ export function OnboardingTour() {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    if (!localStorage.getItem(SEEN_KEY)) setShow(true);
+    if (!safeStorage.get(SEEN_KEY)) setShow(true);
   }, []);
 
   /**
@@ -40,7 +41,7 @@ export function OnboardingTour() {
     if (!show) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      localStorage.setItem(SEEN_KEY, '1');
+      safeStorage.set(SEEN_KEY, '1');
       setShow(false);
     };
     document.addEventListener('keydown', onKey);
@@ -56,7 +57,7 @@ export function OnboardingTour() {
   const Ic = ICONS[slide.icon] ?? Drop;
 
   function dismiss() {
-    localStorage.setItem(SEEN_KEY, '1');
+    safeStorage.set(SEEN_KEY, '1');
     setShow(false);
   }
 

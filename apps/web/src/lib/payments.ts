@@ -81,7 +81,9 @@ export function offeredMethods(
  * one-active-payment-per-order rule server-side.
  */
 export function needsPayment(order: Pick<Order, 'status'>, payment: Payment | undefined): boolean {
-  if (order.status === 'CANCELLED') return false;
+  // An order that is over - cancelled, voided at the till, completed - owes nothing more, whatever
+  // happened to its payment (a refunded payment must not bring the pay panel back).
+  if (order.status === 'CANCELLED' || order.status === 'VOIDED' || order.status === 'COMPLETED') return false;
   if (payment && (payment.status === 'PENDING' || payment.status === 'PAID')) return false;
   return true;
 }
