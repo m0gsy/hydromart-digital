@@ -1574,6 +1574,19 @@ describe('AttendancePrismaRepository', () => {
     expect(m(p, 'attendance').findUnique).toHaveBeenCalledWith({ where: { id: 'a1' } });
   });
 
+  // HR-17: only an unpunched LEAVE row is removed.
+  it('deleteLeaveDay removes a LEAVE row nobody punched into', async () => {
+    const p = makePrisma();
+    const wd = new Date('2026-12-01');
+    m(p, 'attendance').deleteMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    const repo = new AttendancePrismaRepository(asService(p));
+    expect(await repo.deleteLeaveDay('e1', wd)).toBe(true);
+    expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', workDate: wd, status: 'LEAVE', checkInAt: null },
+    });
+    expect(await repo.deleteLeaveDay('e1', wd)).toBe(false);
+  });
+
   it('upsertManual with full patch builds create+update', async () => {
     const p = makePrisma();
     const wd = new Date('2026-07-01');

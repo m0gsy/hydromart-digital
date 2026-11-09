@@ -43,11 +43,11 @@ export const BLOCKING_STATUSES: readonly LeaveStatus[] = [
 
 /**
  * The legal transitions. Manager decides first, HR second; the employee may withdraw while
- * it is pending. APPROVED / REJECTED / CANCELLED are terminal — a decision on someone's time
- * off is not quietly re-opened, it is re-applied for.
+ * it is pending. REJECTED / CANCELLED are terminal. APPROVED is final for everyone but HR, who can
+ * revoke it with a reason (HR-17): a decision on someone's time off is not quietly re-opened.
  */
 export type LeaveAction =
-  'MANAGER_APPROVE' | 'MANAGER_REJECT' | 'HR_APPROVE' | 'HR_REJECT' | 'CANCEL';
+  'MANAGER_APPROVE' | 'MANAGER_REJECT' | 'HR_APPROVE' | 'HR_REJECT' | 'CANCEL' | 'HR_REVOKE';
 
 const TRANSITIONS: Record<LeaveAction, { from: LeaveStatus; to: LeaveStatus }[]> = {
   MANAGER_APPROVE: [{ from: 'PENDING_MANAGER', to: 'PENDING_HR' }],
@@ -58,6 +58,8 @@ const TRANSITIONS: Record<LeaveAction, { from: LeaveStatus; to: LeaveStatus }[]>
     { from: 'PENDING_MANAGER', to: 'CANCELLED' },
     { from: 'PENDING_HR', to: 'CANCELLED' },
   ],
+  // HR-17: HR can take back an approval, with a reason (see LeaveService.revoke).
+  HR_REVOKE: [{ from: 'APPROVED', to: 'CANCELLED' }],
 };
 
 /** The resulting status, or null when the action is not legal from `current`. */

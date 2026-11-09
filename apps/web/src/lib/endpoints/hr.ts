@@ -339,6 +339,8 @@ export const hr = {
     leaveOnBehalf: '/leave/api/v1/leave/on-behalf',
     leaveManagerDecision: (id: string) => `/leave/api/v1/leave/${id}/manager-decision`,
     leaveHrDecision: (id: string) => `/leave/api/v1/leave/${id}/hr-decision`,
+    /** HR-17: HR takes back an approved leave, with a reason. */
+    leaveRevoke: (id: string) => `/leave/api/v1/leave/${id}/revoke`,
     employeeDocuments: (employeeId: string) =>
       `/employee-documents/api/v1/employee-documents?employeeId=${encodeURIComponent(employeeId)}`,
     uploadEmployeeDocument: '/employee-documents/api/v1/employee-documents',
