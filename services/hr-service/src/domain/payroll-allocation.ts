@@ -220,7 +220,8 @@ export function reallocationProblems(
   const expect: [string, number, number][] = [
     ['gross', sum('gross'), slip.gross],
     ['bonus', sum('bonus'), slip.totalBonus],
-    ['potongan', sum('deduction'), slip.totalDeduction],
+    // HR-10: what was taken plus what could not be taken is the slip's whole deduction.
+    ['potongan', sum('deduction') + sum('shortfall'), slip.totalDeduction],
   ];
   for (const [label, got, want] of expect) {
     if (got !== want) out.push(`Jumlah ${label} ${got} tidak sama dengan slip (${want}).`);

@@ -4,7 +4,7 @@ import { plainToInstance } from 'class-transformer';
 
 import { PayrollController } from '../../src/modules/payroll.controller';
 import { ReallocatePayrollDto, ShareCorrectionDto } from '../../src/modules/dto/payroll.dto';
-import { reallocationProblems } from '../../src/domain/payroll-allocation';
+import { allocatePayroll, reallocationProblems } from '../../src/domain/payroll-allocation';
 import { PayrollPrismaRepository } from '../../src/infrastructure/prisma/payroll.prisma.repository';
 import { PayrollService } from '../../src/application/services/payroll.service';
 
@@ -25,6 +25,32 @@ describe('reallocationProblems', () => {
   it('accepts a split whose columns add up to the slip', () => {
     expect(reallocationProblems(slip, [part(A), part(B)])).toEqual([]);
   });
+  // HR-10: a slip whose net was floored at zero stores `deduction` = the part actually taken and
+  // `shortfall` = the rest, so deduction + shortfall is the slip's total deduction. The check
+  // demanded `deduction` alone equal the total, so the very split the system produced was refused.
+  it('HR-10 · accepts the split allocatePayroll itself produced for a slip with a shortfall', () => {
+    const input = {
+      homeDepotId: A,
+      gross: 1000,
+      totalBonus: 0,
+      totalDeduction: 1300, // more than gross + bonus: 300 cannot be taken
+      net: 0,
+      grossWeights: [{ depotId: A, weight: 10 }, { depotId: B, weight: 10 }],
+    };
+    const shares = allocatePayroll(input as never).map((s) => ({ ...s, days: s.days }));
+    expect(shares.reduce((t, s) => t + s.shortfall, 0)).toBe(300);
+    expect(
+      reallocationProblems({ gross: 1000, totalBonus: 0, totalDeduction: 1300 }, shares),
+    ).toEqual([]);
+    // ...and still refuses a split that loses the shortfall.
+    expect(
+      reallocationProblems(
+        { gross: 1000, totalBonus: 0, totalDeduction: 1300 },
+        shares.map((s) => ({ ...s, shortfall: 0 })),
+      ),
+    ).toContainEqual(expect.stringMatching(/potongan/));
+  });
+
   it('names every column that does not add up', () => {
     const r = reallocationProblems(slip, [part(A), part(B, { gross: 400, bonus: 0, deduction: 0 })]);
     expect(r).toEqual([
