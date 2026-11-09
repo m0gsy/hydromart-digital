@@ -1031,6 +1031,11 @@ export class OrderService {
    * (spec 7b). No voucher; no membership discount (a scheduled run carries no customer
    * token → fail-open 0 rate). The subscription discount is read here rather than passed
    * in: it is a per-depot rate now, and the depot is only known after routing.
+   *
+   * ORD-04 (owner decision 2026-11-09, option B): a scheduled run applies NEITHER PPN NOR
+   * promo rules. The price a subscriber agreed to is the price list less the subscription
+   * discount, and it must not drift with a promo that happens to be live on the run date.
+   * Revisit only with a business decision; the depot is still notified of every run.
    */
   async placeScheduled(
     customerId: string,
