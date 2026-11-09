@@ -144,6 +144,7 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       role?: string;
       superAdminTotal?: number;
       hr?: { anonymiseEmployee: jest.Mock };
+      ownedDepots?: { countOwned: jest.Mock };
     }) {
       const saved: { id: string; status: string }[] = [];
       const makeRow = (id: string) => {
@@ -184,9 +185,37 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
           audit as never,
           new ConsentService(new InMemoryConsentRepository()),
           overrides.hr as never,
+          undefined,
+          undefined,
+          undefined,
+          overrides.ownedDepots as never,
         ),
       };
     }
+
+    /*
+     * AUT-07. Deactivating a franchise owner already refuses while they hold a revenue share
+     * (applyActive); deleting one did not, and delete is the harder-to-undo of the two. An
+     * owner's depots keep earning for an account that no longer exists.
+     */
+    it('refuses to delete a franchise owner who still holds a depot share (AUT-07)', async () => {
+      const ownedDepots = { countOwned: jest.fn(async () => 2) };
+      const { svc, repo } = makeService({ role: 'FRANCHISE_OWNER', ownedDepots });
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toThrow(/2 depot/);
+      expect(ownedDepots.countOwned).toHaveBeenCalledWith(TARGET);
+      // Nothing was closed or scrubbed.
+      expect(repo.markDeletedGuardingLastSuperAdmin).not.toHaveBeenCalled();
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+    });
+
+    it('deletes a franchise owner with no depot share, and asks nothing for other roles (AUT-07)', async () => {
+      const ownedDepots = { countOwned: jest.fn(async () => 0) };
+      const owner = makeService({ role: 'FRANCHISE_OWNER', ownedDepots });
+      await expect(owner.svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toMatchObject({ deleted: true });
+      const other = makeService({ role: 'KEPALA_DEPOT', ownedDepots });
+      await other.svc.deleteStaffAccount(TARGET, ACTOR);
+      expect(ownedDepots.countOwned).toHaveBeenCalledTimes(1);
+    });
 
     it('anonymises across services, closes the login, and audits it as an admin action', async () => {
       const hr = { anonymiseEmployee: jest.fn() };
