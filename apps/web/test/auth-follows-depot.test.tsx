@@ -93,6 +93,28 @@ describe('AuthProvider keeps the account and the depot selection honest', () => 
     expect(h.refreshNow).toHaveBeenCalledTimes(1); // the token follows, not only the screens
   });
 
+  // WEB-06: the re-check replaced the stored session with a brand-new object every time - dropping
+  // fields like familyId, and giving every consumer of `customer` a new identity (the cart re-fetched
+  // on each foreground). An unchanged account keeps its object; the rest of the session is kept.
+  it('WEB-06 · an unchanged account keeps its customer object and the session fields next to it', async () => {
+    const mine = { id: 'u1', role: 'STAFF_DEPOT', assignedDepotId: 'depot-A' };
+    h.session = { customer: mine, familyId: 'fam-1' } as never;
+    h.get.mockResolvedValue({ id: 'u1', role: 'STAFF_DEPOT', assignedDepotId: 'depot-A' });
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(h.get).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(h.setSession).toHaveBeenCalled());
+    const stored = h.session as unknown as { customer: unknown; familyId?: string };
+    expect(stored.customer).toBe(mine);
+    expect(stored.familyId).toBe('fam-1');
+
+    // A real change still replaces it.
+    vi.setSystemTime(new Date('2026-10-26T01:02:00.000Z'));
+    h.get.mockResolvedValue({ id: 'u1', role: 'STAFF_DEPOT', assignedDepotId: 'depot-A', fullName: 'Baru' });
+    await act(async () => show('visible'));
+    await waitFor(() => expect((h.session as unknown as { customer: { fullName?: string } }).customer.fullName).toBe('Baru'));
+    expect((h.session as unknown as { familyId?: string }).familyId).toBe('fam-1');
+  });
+
   it('does not hammer the server: a second focus within a minute is ignored', async () => {
     h.get.mockResolvedValue({ id: 'u1', assignedDepotId: 'depot-A' });
     render(<AuthProvider><Probe /></AuthProvider>);

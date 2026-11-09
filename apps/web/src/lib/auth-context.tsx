@@ -31,6 +31,16 @@ const AuthContext = createContext<AuthValue | null>(null);
 /** At most one background re-check of the account per minute. */
 const REVALIDATE_MIN_MS = 60_000;
 
+/**
+ * WEB-06: the session after a re-check of `/auth/me`. The rest of the stored session (familyId)
+ * is kept, and an unchanged account keeps its OBJECT, so everything that depends on `customer`
+ * (the cart, for one) does not re-run on every foreground.
+ */
+function withCustomer(prior: Session | null, customer: Customer): Session {
+  const same = prior && JSON.stringify(prior.customer) === JSON.stringify(customer);
+  return { ...(prior ?? {}), customer: same ? prior.customer : customer };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setLocal] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
@@ -87,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // The token carries the depot too: take a fresh one so requests stop being scoped to
         // the old depot, not only the screens.
         if (before !== null && after !== before) await refreshNow();
-        if (!cancelled) setSession({ customer });
+        if (!cancelled) setSession(withCustomer(getSession(), customer));
         reconcileDepot(customer);
       } catch {
         /* a transient failure changes nothing; the next focus tries again */
@@ -105,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (getSession() || hasTokens()) {
         api
           .get<Customer>(endpoints.auth.me, true)
-          .then((customer) => setSession({ customer }))
+          .then((customer) => setSession(withCustomer(getSession(), customer)))
           .catch(() => {
             /* refresh-and-retry lives in the client; a hard 401 clears the session */
           })

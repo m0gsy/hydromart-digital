@@ -210,6 +210,29 @@ describe('offline queue', () => {
     });
   });
 
+  // WEB-05: a completion that fails and is retried must not upload the same photo again each time.
+  it('WEB-05 · reuses the uploaded photo when the completion is retried', async () => {
+    const { runOrQueue, flush } = await freshQueue();
+    upload.mockReset().mockResolvedValue({ url: 'https://cdn/p.jpg' });
+    post.mockReset().mockRejectedValueOnce(new ApiError(0, 'offline')).mockResolvedValue({ id: 'del-1' });
+    await runOrQueue({
+      kind: 'pod',
+      payload: {
+        deliveryId: 'del-9',
+        orderNumber: 'HM-9',
+        photo: 'data:image/jpeg;base64,/9j/4AAQ',
+        sealIntact: true,
+        recipientName: 'Budi',
+        latitude: -6.2,
+        longitude: 106.8,
+      },
+    });
+    expect(upload).toHaveBeenCalledTimes(1);
+    await flush();
+    expect(upload).toHaveBeenCalledTimes(1); // the retry reused it
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
   /**
    * The only automatic trigger used to be the `online` event, which an Android WebView
    * reports through `navigator.onLine` and cannot be relied on, plus the queue banner
