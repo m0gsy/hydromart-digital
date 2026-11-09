@@ -39,8 +39,22 @@ describe('PR-J: the machinery, before any fit', () => {
     it('flags the weekend by business-day number, defaults included', () => {
       const weekendRow = buildDataset([1, 1, 1, 1], { startDay: WEEKEND_DAYS[0] - 3, lookback: 3 })[0];
       expect(weekendRow.features.at(-1)).toBe(1);
-      const weekdayRow = buildDataset([1, 1, 1, 1], { startDay: 0, lookback: 3 })[0];
+      const weekdayRow = buildDataset([1, 1, 1, 1], { startDay: 1, lookback: 3 })[0];
       expect(weekdayRow.features.at(-1)).toBe(0);
+    });
+
+    // FCS-03: pinned to the real calendar, not to WEEKEND_DAYS itself (which made the test above a
+    // tautology). Business day 0 is Thursday 1970-01-01, so Saturday is 2 and Sunday 3 (mod 7).
+    it('flags a real Saturday and Sunday as the weekend, and a real Tuesday as not', () => {
+      const dayNumber = (iso: string): number => Math.floor(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
+      const flagOf = (iso: string): number => {
+        const day = dayNumber(iso);
+        return buildDataset([1, 1, 1, 1], { startDay: day - 3, lookback: 3 })[0].features.at(-1) as number;
+      };
+      expect(flagOf('2026-10-31')).toBe(1); // Saturday
+      expect(flagOf('2026-11-01')).toBe(1); // Sunday
+      expect(flagOf('2026-11-03')).toBe(0); // Tuesday
+      expect(flagOf('2026-11-04')).toBe(0); // Wednesday
     });
 
     it('normalises a negative day number instead of producing a negative weekday index', () => {
