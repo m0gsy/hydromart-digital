@@ -225,6 +225,17 @@ export interface PaymentRepository {
     from: Date,
     to: Date,
   ): Promise<Map<string, number>>;
+  /**
+   * PLP-13: the same refunds, one row per refunded payment with its order, so the P&L can
+   * leave out refunds of orders that no longer count as sales (cancelled/voided orders are
+   * already absent from revenue; subtracting their refund again counts it twice).
+   */
+  refundedByOrder(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+    take: number,
+  ): Promise<{ depotId: string; orderId: string; refundedIdr: number }[]>;
   refundCountsByCustomer(
     from: Date,
     to: Date,

@@ -241,6 +241,15 @@ export class ExpirePendingPaymentsResponseDto {
 }
 
 /** CA-2-59: money refunded at one depot in the window asked for. */
+export class DepotRefundsByOrderResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ type: String, format: 'uuid' })
+  orderId!: string;
+  @ApiProperty({ type: Number })
+  refundedIdr!: number;
+}
+
 export class DepotRefundsResponseDto {
   @ApiProperty({ type: String, format: 'uuid' })
   depotId!: string;

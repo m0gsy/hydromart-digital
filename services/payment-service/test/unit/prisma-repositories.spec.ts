@@ -324,6 +324,40 @@ describe('PaymentPrismaRepository', () => {
     expect(out.size).toBe(2);
   });
 
+  // PLP-13: the P&L must subtract only refunds of orders that still count as sales, so it needs
+  // the refund PER ORDER, not just per depot. Same half-open window; bounded.
+  it('lists refunded money per order over a half-open window, bounded (PLP-13)', async () => {
+    const from = new Date('2026-06-30T17:00:00.000Z');
+    const to = new Date('2026-07-31T17:00:00.000Z');
+    model.findMany.mockResolvedValue([
+      { depotId: 'dep-1', orderId: 'o-1', refundedAmount: '40000' },
+      { depotId: null, orderId: 'o-2', refundedAmount: '1' },
+      { depotId: 'dep-1', orderId: 'o-3', refundedAmount: null },
+    ]);
+    const out = await repo.refundedByOrder(['dep-1'], from, to, 100);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {
+        depotId: { in: ['dep-1'] },
+        status: PaymentStatus.REFUNDED,
+        refundedAt: { gte: from, lt: to },
+      },
+      select: { depotId: true, orderId: true, refundedAmount: true },
+      orderBy: { refundedAt: 'asc' },
+      take: 100,
+    });
+    // A payment with no depot cannot be attributed; a null amount is a zero.
+    expect(out).toEqual([
+      { depotId: 'dep-1', orderId: 'o-1', refundedIdr: 40000 },
+      { depotId: 'dep-1', orderId: 'o-3', refundedIdr: 0 },
+    ]);
+  });
+
+  it('asks nothing for no depots (PLP-13)', async () => {
+    model.findMany.mockClear();
+    expect(await repo.refundedByOrder([], new Date(), new Date(), 10)).toEqual([]);
+    expect(model.findMany).not.toHaveBeenCalled();
+  });
+
   it('asks nothing for no depots (CA-2-59)', async () => {
     model.groupBy.mockClear();
     expect((await repo.refundedTotalByDepot([], new Date(), new Date())).size).toBe(0);

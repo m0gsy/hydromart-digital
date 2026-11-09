@@ -27,6 +27,7 @@ describe('PaymentController', () => {
     listForOrders: jest.fn(),
     refundCountsByCustomer: jest.fn(),
     refundedTotalByDepot: jest.fn().mockResolvedValue([]),
+    refundedByOrder: jest.fn().mockResolvedValue([]),
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
@@ -153,6 +154,21 @@ describe('PaymentController', () => {
       ['d1', 'd2'],
       new Date(from),
       new Date(to),
+    );
+  });
+
+  it('depotRefundsByOrder splits the ids and passes the window (PLP-13)', async () => {
+    svc.refundedByOrder.mockResolvedValueOnce([{ depotId: 'd1', orderId: 'o1', refundedIdr: 5 }]);
+    const out = await controller.depotRefundsByOrder({
+      depotIds: ' d1 ,d2',
+      from: '2026-06-30T17:00:00.000Z',
+      to: '2026-07-31T17:00:00.000Z',
+    } as never);
+    expect(out).toEqual([{ depotId: 'd1', orderId: 'o1', refundedIdr: 5 }]);
+    expect(svc.refundedByOrder).toHaveBeenCalledWith(
+      ['d1', 'd2'],
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
     );
   });
 

@@ -271,6 +271,32 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return out;
   }
 
+  async refundedByOrder(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+    take: number,
+  ): Promise<{ depotId: string; orderId: string; refundedIdr: number }[]> {
+    if (depotIds.length === 0) return [];
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        depotId: { in: [...depotIds] },
+        status: PaymentStatus.REFUNDED,
+        refundedAt: { gte: from, lt: to },
+      },
+      select: { depotId: true, orderId: true, refundedAmount: true },
+      orderBy: { refundedAt: 'asc' },
+      take,
+    });
+    return rows
+      .filter((r) => r.depotId)
+      .map((r) => ({
+        depotId: r.depotId as string,
+        orderId: r.orderId,
+        refundedIdr: r.refundedAmount ? Math.round(Number(r.refundedAmount)) : 0,
+      }));
+  }
+
   async refundCountsByCustomer(
     from: Date,
     to: Date,

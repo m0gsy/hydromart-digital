@@ -195,6 +195,10 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
+  // PLP-13: the fake never needs per-order rows; the service test spies the repository.
+  async refundedByOrder(): Promise<{ depotId: string; orderId: string; refundedIdr: number }[]> {
+    return [];
+  }
   // CA-2-59: sums this fake's own refunded rows, so the network P&L's arithmetic is
   // exercised against real numbers rather than a stub that always answers zero.
   async refundedTotalByDepot(
