@@ -308,7 +308,12 @@ export interface DepotMonthlyReport {
   /** Reported month, 'YYYY-MM'. */
   month: string;
   orders: number;
+  /** Booked: what customers were charged on orders that count as sales (before refunds). */
   revenueIdr: number;
+  /** ORD-08: money refunded on those same orders. */
+  refundedIdr: number;
+  /** ORD-08: `revenueIdr - refundedIdr` - the figure the profit below is computed from. */
+  netRevenueIdr: number;
   /** Distinct customers with a non-cancelled order in the month. */
   activeCustomers: number;
   /**
@@ -1321,7 +1326,7 @@ export class ReportService {
     const prevFrom = addLocalMonths(from, -1, tz);
     // Last month is one more read of the same shape — the SOP reads the two side by side,
     // and a month of one depot's orders is far under the 20.000-row range bound.
-    const [rows, prevRows, onTime, costs, payrollIdr, governance] = await Promise.all([
+    const [rows, prevRows, onTime, costs, payrollIdr, governance, refundedIdr] = await Promise.all([
       this.orders.ordersForDepot(depotId, { from, to }),
       this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
       // Measured in delivery-service, which is the only place that knows when a delivery
@@ -1331,6 +1336,7 @@ export class ReportService {
       this.depotCosts ? this.depotCosts.payroll(depotId, month) : Promise.resolve(null),
       // Approvals, stock counts and the daily close all live in depot-service; one read.
       this.depotCosts ? this.depotCosts.governance(depotId, from, to) : Promise.resolve(null),
+      this.orders.refundedOnSales(depotId, { from, to }),
     ]);
     const live = rows.filter((r) => countsAsSale(r.status));
     const byCourier = new Map<string, number>();
@@ -1358,8 +1364,11 @@ export class ReportService {
       month,
       orders: live.length,
       revenueIdr,
+      refundedIdr,
+      netRevenueIdr: revenueIdr - refundedIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
-      netProfitIdr: ReportService.netProfit(revenueIdr, breakdown),
+      // ORD-08: profit from the NET revenue, so a refunded sale does not read as full profit.
+      netProfitIdr: ReportService.netProfit(revenueIdr - refundedIdr, breakdown),
       profitBreakdown: { revenueIdr, ...breakdown },
       // Percent, to one decimal — the screen prints a percentage, and rounding to whole
       // points turns 87,6% into 88% right at the band the HQ dashboard reacts to.

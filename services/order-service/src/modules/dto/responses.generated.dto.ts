@@ -261,6 +261,10 @@ export class DepotMonthlyReportResponseDto {
   orders!: number;
   @ApiProperty({ type: Number })
   revenueIdr!: number;
+  @ApiProperty({ type: Number, description: 'ORD-08: refunded on the same orders.' })
+  refundedIdr!: number;
+  @ApiProperty({ type: Number, description: 'ORD-08: revenueIdr minus refundedIdr.' })
+  netRevenueIdr!: number;
   @ApiProperty({ type: Number })
   activeCustomers!: number;
   @ApiProperty({ type: Number, nullable: true })

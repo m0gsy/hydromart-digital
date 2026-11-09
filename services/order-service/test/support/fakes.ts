@@ -156,6 +156,10 @@ export class InMemoryCartRepository implements CartRepository {
 }
 
 export class InMemoryOrderRepository implements OrderRepository {
+  /** ORD-08: the fake sums nothing unless a test stubs it; real refunds are a Prisma concern. */
+  async refundedOnSales(): Promise<number> {
+    return 0;
+  }
   async findCountingIds(ids: readonly string[]): Promise<string[]> {
     return this.rows
       .filter((o) => ids.includes(o.id) && o.status !== 'CANCELLED' && o.status !== 'VOIDED')
