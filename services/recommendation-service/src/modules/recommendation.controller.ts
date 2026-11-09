@@ -51,7 +51,11 @@ export class RecommendationController {
   @Post('rebuild')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rebuild the read model from order-service completed orders (backfill)' })
-  async rebuildNow(@Query() query: RebuildQueryDto): Promise<{ ingested: number }> {
+  async rebuildNow(
+    @Query() query: RebuildQueryDto,
+  ): Promise<{ ingested: number } | { orders: number; rows: number }> {
+    // REC-01: `?dailySales=true` re-buckets the trending table from the order feed (see RebuildService).
+    if (query.dailySales) return this.rebuild.rebucketDailySales(query.limit ?? DEFAULT_REBUILD_LIMIT);
     return this.rebuild.run(query.limit ?? DEFAULT_REBUILD_LIMIT);
   }
 

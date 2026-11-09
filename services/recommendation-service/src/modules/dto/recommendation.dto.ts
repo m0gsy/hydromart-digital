@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   ArrayMinSize,
   IsArray,
   IsInt,
@@ -55,6 +56,14 @@ export class RebuildQueryDto {
   @Max(500)
   @Type(() => Number)
   limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'REC-01: rebuild ONLY the daily-sales table (trending), bucketed by the business-zone day, instead of ingesting orders.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  dailySales?: boolean;
 }
 
 /* ---------- Ingest body ---------- */

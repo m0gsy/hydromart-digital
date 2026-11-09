@@ -35,6 +35,10 @@ export class RecommendationService {
   ) {}
 
   /** The `@db.Date` bucket (UTC midnight of the business-zone calendar day) an instant belongs to. */
+  dayBucket(at: Date): Date {
+    return this.bucketOf(at);
+  }
+
   private bucketOf(at: Date): Date {
     return new Date(`${localDayKey(at, this.config.businessTimeZone)}T00:00:00.000Z`);
   }
