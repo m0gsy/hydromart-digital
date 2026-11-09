@@ -996,6 +996,7 @@ describe('GallonIssuePrismaRepository', () => {
     create: jest.fn(),
     upsert: jest.fn(),
     findMany: jest.fn(),
+    findFirst: jest.fn(),
     count: jest.fn(),
     aggregate: jest.fn(),
     groupBy: jest.fn(),
@@ -1029,6 +1030,31 @@ describe('GallonIssuePrismaRepository', () => {
     expect(rec.depositHeld).toBe(20000.5);
     expect(typeof rec.depositHeld).toBe('number');
     expect(rec.depositHeld + 1).toBe(20001.5);
+  });
+
+  // DEP-07: a second tap with the same key hits the unique index (P2002) and gets the stored row.
+  it('createKeyed books a new row (created: true)', async () => {
+    model.create.mockResolvedValue(row);
+    const out = await repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'key-0001' } as never);
+    expect(out).toEqual({ record: { ...row, depositHeld: 100000 }, created: true });
+  });
+
+  it('createKeyed returns the stored row on a key collision (created: false)', async () => {
+    model.create.mockRejectedValue({ code: 'P2002' });
+    model.findFirst.mockResolvedValue(row);
+    const out = await repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'key-0001' } as never);
+    expect(out.created).toBe(false);
+    expect(out.record.id).toBe('gi-1');
+    expect(model.findFirst).toHaveBeenCalledWith({ where: { depotId: 'depot-1', idempotencyKey: 'key-0001' } });
+  });
+
+  it('createKeyed rethrows other errors, a collision without a key, and a vanished row', async () => {
+    model.create.mockRejectedValue(new Error('db down'));
+    await expect(repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'k' } as never)).rejects.toThrow('db down');
+    model.create.mockRejectedValue({ code: 'P2002' });
+    await expect(repo.createKeyed({ depotId: 'depot-1' } as never)).rejects.toEqual({ code: 'P2002' });
+    model.findFirst.mockResolvedValue(null);
+    await expect(repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'k' } as never)).rejects.toEqual({ code: 'P2002' });
   });
 
   // I1: a completion fan-out is at-least-once, so this is called twice for the same order.
