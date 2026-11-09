@@ -37,16 +37,11 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     if (range.to) params.set('to', range.to);
   }
 
-  private async fetchJson<T>(
-    url: string,
-    headers: Record<string, string>,
-    init: { method?: string; body?: string } = {},
-  ): Promise<T | null> {
+  private async fetchJson<T>(url: string, headers: Record<string, string>): Promise<T | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DashboardSourcesHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
-        ...init,
         headers: { ...headers, accept: 'application/json' },
         signal: controller.signal,
       });
@@ -323,13 +318,31 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     if (!base) return null;
     const counting = new Set<string>();
     for (let i = 0; i < orderIds.length; i += 5000) {
-      const body = await this.fetchJson<{ orderIds: string[] }>(
-        `${base}/api/v1/reports/internal/counting-orders`,
-        { 'x-internal-key': this.config.internalServiceKey, 'content-type': 'application/json' },
-        { method: 'POST', body: JSON.stringify({ orderIds: orderIds.slice(i, i + 5000) }) },
-      );
-      if (body === null) return null;
-      for (const id of body.orderIds) counting.add(id);
+      const url = `${base}/api/v1/reports/internal/counting-orders`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DashboardSourcesHttpAdapter.TIMEOUT_MS);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'x-internal-key': this.config.internalServiceKey,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify({ orderIds: orderIds.slice(i, i + 5000) }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          this.logger.warn(`Upstream ${url} responded ${res.status}`);
+          return null;
+        }
+        for (const id of ((await res.json()) as { orderIds: string[] }).orderIds) counting.add(id);
+      } catch (error) {
+        this.logger.warn(`Upstream ${url} failed: ${(error as Error).message}`);
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
     }
     return counting;
   }
