@@ -706,12 +706,15 @@ export class OrderController {
   @ApiOperation({ summary: 'Has this customer ever completed an order (internal service auth)' })
   async internalCustomerCompleted(
     @Query('customerId', ParseUUIDPipe) customerId: string,
-  ): Promise<{ hasCompleted: boolean }> {
+  ): Promise<{ hasCompleted: boolean; orderId: string | null }> {
     const page = await this.orders.listForCustomer(customerId, {
       status: OrderStatus.COMPLETED,
       limit: 1,
     });
-    return { hasCompleted: page.total > 0 };
+    // REF-03: the completed order's id too (the one row asked for), so a referral whose trigger
+    // was lost can be qualified from it. Any completed order of a new referee will do: the
+    // reward key is per referral and order, and the first completion froze the rest.
+    return { hasCompleted: page.total > 0, orderId: page.items[0]?.id ?? null };
   }
 
   /**

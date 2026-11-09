@@ -1393,6 +1393,8 @@ export class InternalCustomerOrdersResponseDto {
 export class InternalCustomerCompletedResponseDto {
   @ApiProperty({ type: Boolean })
   hasCompleted!: boolean;
+  @ApiProperty({ type: String, nullable: true, description: 'REF-03: a completed order of this customer, if any.' })
+  orderId!: string | null;
 }
 
 /**

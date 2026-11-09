@@ -562,15 +562,16 @@ describe('OrderController', () => {
   // not from the rows: it asks for one row precisely so it does not hydrate a history it
   // will not read.
   it('internalCustomerCompleted: reports true from the COMPLETED count, false at zero', async () => {
-    service.listForCustomer.mockResolvedValue({ items: [], total: 3 });
-    expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: true });
+    service.listForCustomer.mockResolvedValue({ items: [{ id: 'o-9' }], total: 3 });
+    // REF-03: the order that completed rides along, so referral-service can qualify from it.
+    expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: true, orderId: 'o-9' });
     expect(service.listForCustomer).toHaveBeenCalledWith('c1', {
       status: 'COMPLETED',
       limit: 1,
     });
 
     service.listForCustomer.mockResolvedValue({ items: [], total: 0 });
-    expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: false });
+    expect(await controller.internalCustomerCompleted('c1')).toEqual({ hasCompleted: false, orderId: null });
   });
 
   it('internalCustomerOpenCount: wraps the service count', async () => {
