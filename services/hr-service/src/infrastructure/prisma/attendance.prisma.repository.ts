@@ -49,6 +49,13 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     });
   }
 
+  async deleteLeaveDay(employeeId: string, workDate: Date): Promise<boolean> {
+    const { count } = await this.prisma.attendance.deleteMany({
+      where: { employeeId, workDate, status: 'LEAVE', checkInAt: null },
+    });
+    return count === 1;
+  }
+
   async listAdjustments(attendanceId: string) {
     // Newest first: the question this answers is "what was changed, and why", and the last
     // change is the one that explains the row as it stands now.

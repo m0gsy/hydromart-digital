@@ -11,6 +11,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  MinLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -39,6 +40,11 @@ export class DecideLeaveDto {
   @IsBoolean() approve!: boolean;
   /** Required when rejecting — the employee reads it. */
   @IsOptional() @IsString() @MaxLength(300) note?: string;
+}
+
+export class RevokeLeaveDto {
+  /** Why the approval is taken back - the employee reads it. */
+  @IsString() @MinLength(3) @MaxLength(300) reason!: string;
 }
 
 export class ListLeaveDto {

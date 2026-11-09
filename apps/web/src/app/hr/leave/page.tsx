@@ -207,6 +207,19 @@ export default function LeaveQueuePage() {
     }
   }
 
+  // HR-17: HR takes back an approved leave. The reason is required and the employee reads it.
+  async function revoke(row: LeaveRequest) {
+    const reason = note[row.id]?.trim() ?? '';
+    if (reason.length < 3) return toast(t('hrFix.leave.revokeNeedsReason'), 'error');
+    try {
+      await api.patch(endpoints.hr.leaveRevoke(row.id), { reason }, true);
+      toast(t('hrFix.leave.revoked'));
+      queue.reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hrFix.leave.failed'), 'error');
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader
@@ -289,6 +302,20 @@ export default function LeaveQueuePage() {
                     <Button onClick={() => decide(r, true)}>{t('hrFix.leave.approve')}</Button>
                     <Button variant="secondary" onClick={() => decide(r, false)}>
                       {t('hrFix.leave.reject2')}
+                    </Button>
+                  </div>
+                )}
+                {isHr && r.status === 'APPROVED' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      aria-label={t('hrFix.leave.noteFor', { name: r.employeeName ?? r.employeeId })}
+                      value={note[r.id] ?? ''}
+                      onChange={(e) => setNote((n) => ({ ...n, [r.id]: e.target.value }))}
+                      placeholder={t('hrFix.leave.revokeHint')}
+                      className="max-w-xs"
+                    />
+                    <Button variant="secondary" onClick={() => revoke(r)}>
+                      {t('hrFix.leave.revoke')}
                     </Button>
                   </div>
                 )}
