@@ -23,6 +23,19 @@ function hydrate(): void {
   } catch {
     current = null;
   }
+  // FLW-024: a depot picked in another tab reaches this one. Adopt without writing back.
+  window.addEventListener('storage', (e) => {
+    if (e.key !== null && e.key !== KEY) return;
+    let next: string | null = null;
+    try {
+      next = window.localStorage.getItem(KEY);
+    } catch {
+      next = null;
+    }
+    if (next === current) return;
+    current = next;
+    listeners.forEach((fn) => fn(next));
+  });
 }
 
 export function getDepot(): string | null {

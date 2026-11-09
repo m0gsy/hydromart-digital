@@ -31,6 +31,24 @@ function hydrate(): void {
   // primed here too — otherwise the first render after a reload falls back to the
   // compiled defaults and can flash a tab the server would refuse.
   syncCapabilities(current);
+  // FLW-024: localStorage is shared by every tab but `current` is not. The browser fires
+  // `storage` in the OTHER tabs when one writes, so a sign-out (or a different sign-in) in one
+  // tab reaches the rest instead of leaving them acting as the person who left.
+  window.addEventListener('storage', (e) => {
+    if (e.key !== null && e.key !== KEY) return;
+    let next: Session | null = null;
+    try {
+      const raw = window.localStorage.getItem(KEY);
+      next = raw ? (JSON.parse(raw) as Session) : null;
+    } catch {
+      next = null;
+    }
+    if (JSON.stringify(next) === JSON.stringify(current)) return;
+    // Adopt it without writing back (the other tab already did) - writing would echo forever.
+    current = next;
+    syncCapabilities(next);
+    listeners.forEach((fn) => fn(next));
+  });
 }
 
 export function getSession(): Session | null {
