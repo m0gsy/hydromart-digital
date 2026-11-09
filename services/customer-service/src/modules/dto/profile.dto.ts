@@ -1,14 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
 
@@ -108,6 +112,38 @@ export class DirectoryQueryDto {
   @IsString()
   @MaxLength(120)
   city?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'CUS-06: resume after this customerId (the last one of the previous page).',
+  })
+  @IsOptional()
+  @IsUUID()
+  after?: string;
+
+  @ApiPropertyOptional({ example: 1000, description: 'CUS-06: page size, 1-5000 (default 5000).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  limit?: number;
+}
+
+/** CUS-06: the paging half of the by-depot id list. */
+export class ByDepotQueryDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  after?: string;
+
+  @ApiPropertyOptional({ example: 1000, description: '1-5000 (default 5000).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  limit?: number;
 }
 
 export class DirectoryRecipientDto {

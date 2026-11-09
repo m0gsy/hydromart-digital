@@ -22,7 +22,17 @@ export interface DirectoryRecipient {
 export interface SegmentFilter {
   tier?: MembershipTier;
   city?: string;
+  /** CUS-06: resume after this customerId (the last one of the previous page). */
+  after?: string;
+  /** CUS-06: page size; capped at DIRECTORY_PAGE_MAX, which is also the default. */
+  limit?: number;
 }
+
+/**
+ * CUS-06: the audience read is a raw query, so the bounds middleware never saw it and it returned
+ * the whole network. A page is at most this many rows; a caller that needs more follows `after`.
+ */
+export const DIRECTORY_PAGE_MAX = 5000;
 
 export interface ProfileRepository {
   findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null>;

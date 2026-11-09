@@ -117,7 +117,12 @@ export class ProfileController {
   })
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async directory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
-    return this.profiles.findSegment({ tier: query.tier, city: query.city });
+    return this.profiles.findSegment({
+      tier: query.tier,
+      city: query.city,
+      after: query.after,
+      limit: query.limit,
+    });
   }
 
   /**
@@ -136,7 +141,12 @@ export class ProfileController {
   @ApiOperation({ summary: 'Broadcast recipients by segment for crm (internal service auth)' })
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async internalDirectory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
-    return this.profiles.findSegment({ tier: query.tier, city: query.city });
+    return this.profiles.findSegment({
+      tier: query.tier,
+      city: query.city,
+      after: query.after,
+      limit: query.limit,
+    });
   }
 
   /**

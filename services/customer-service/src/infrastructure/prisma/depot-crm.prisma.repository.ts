@@ -83,6 +83,24 @@ export class DepotCrmPrismaRepository implements DepotCrmRepository {
     return rows.map((r) => ({ ...r, membershipTier: r.membershipTier as MembershipTier }));
   }
 
+  async findIdsByDepotPage(
+    depotId: string,
+    after: string | undefined,
+    limit: number,
+  ): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ customerId: string }[]>`
+      SELECT m."customerId" FROM (
+        SELECT "customerId" FROM "customer_profiles" WHERE "favoriteDepotId" = ${depotId}::uuid
+        UNION
+        SELECT "customerId" FROM "reseller_profiles" WHERE "homeDepotId" = ${depotId}::uuid
+      ) m
+      WHERE (${after ?? null}::uuid IS NULL OR m."customerId" > ${after ?? null}::uuid)
+      ORDER BY m."customerId"
+      LIMIT ${limit}
+    `;
+    return rows.map((r) => r.customerId);
+  }
+
   async findIdsByDepot(depotId: string): Promise<string[]> {
     const rows = await this.prisma.$queryRaw<{ customerId: string }[]>`
       SELECT "customerId" FROM "customer_profiles" WHERE "favoriteDepotId" = ${depotId}::uuid

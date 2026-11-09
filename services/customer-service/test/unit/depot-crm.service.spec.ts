@@ -47,6 +47,10 @@ class FakeDepotCrmRepository implements DepotCrmRepository {
   async findIdsByDepot(depotId: string): Promise<string[]> {
     return this.byDepot.get(depotId) ?? [];
   }
+  async findIdsByDepotPage(depotId: string, after: string | undefined, limit: number): Promise<string[]> {
+    const all = [...(this.byDepot.get(depotId) ?? [])].sort();
+    return all.filter((id) => !after || id > after).slice(0, limit);
+  }
 }
 
 /** auth-service stand-in. Empty by default = the fail-soft path (no account names). */
