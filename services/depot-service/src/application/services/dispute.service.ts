@@ -138,6 +138,8 @@ export class DisputeService {
           current.orderRef,
           resolutionNote?.trim() || `Sengketa ${current.category}`,
           authorization,
+          // DEP-26: the claimed amount, so a part-justified dispute returns only the part.
+          current.amountIdr > 0 ? current.amountIdr : undefined,
         );
       } catch (error) {
         await this.disputes.update(id, {
