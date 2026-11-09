@@ -14,16 +14,11 @@ import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { HuddleActionItem, HuddleAgendaItem, HuddleNote } from '@/lib/types';
+import { mondayWib } from '@/lib/wib';
 
-/** ISO date (YYYY-MM-DD, local) of the Monday in the same week as `d`. */
+/** ISO date (YYYY-MM-DD) of the Monday in the same week as `d`, in the business zone (WEB-13). */
 function mondayOf(d: Date): string {
-  const date = new Date(d);
-  const day = date.getDay(); // 0=Sun … 6=Sat
-  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
+  return mondayWib(d);
 }
 
 function HuddleBody() {
