@@ -163,6 +163,13 @@ export const admin = {
     },
     // Security policy (19b) — SUPER_ADMIN. GET current, PUT to replace. (Sessions live in auth-service.)
     security: '/admin/api/v1/security-policy',
+    // AAS-14 - policy changes wait here for a SECOND super admin. GET list, POST approve/reject.
+    policyChanges: {
+      list: (status?: string) =>
+        `/admin/api/v1/policy-changes${status ? `?status=${encodeURIComponent(status)}` : ''}`,
+      approve: (id: string) => `/admin/api/v1/policy-changes/${encodeURIComponent(id)}/approve`,
+      reject: (id: string) => `/admin/api/v1/policy-changes/${encodeURIComponent(id)}/reject`,
+    },
     // Per-admin notification prefs (23a) — HEAD_OFFICE + SUPER_ADMIN, own prefs. GET/PUT.
     notifPrefs: '/admin/api/v1/notification-prefs',
     // First-run onboarding wizard state (23b) — SUPER_ADMIN. GET, PATCH one step.

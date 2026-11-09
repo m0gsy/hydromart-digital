@@ -49,11 +49,8 @@ export class RetentionService {
    * retention below 10 years is refused outright — a form that forgets to disable the
    * field must not be able to make the company non-compliant.
    */
-  async updatePolicy(
-    id: string,
-    data: UpdateRetentionData,
-    seenUpdatedAt?: string,
-  ): Promise<RetentionPolicyRecord> {
+  /** AAS-14: the existence and legality checks alone, so a change request is refused up front. */
+  async validate(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord> {
     const current = await this.repo.findPolicy(id);
     if (!current) throw new RetentionPolicyNotFoundError(id);
 
@@ -62,6 +59,16 @@ export class RetentionService {
     // says it is — otherwise the reclassification and the shortening travel together.
     const reason = rejectionReasonFor(dataClass, data.windowDays, current.dataClass, current.dataset);
     if (reason) throw new RetentionPolicyInvalidError(reason);
+    return current;
+  }
+
+  async updatePolicy(
+    id: string,
+    data: UpdateRetentionData,
+    seenUpdatedAt?: string,
+  ): Promise<RetentionPolicyRecord> {
+    const current = await this.validate(id, data);
+    const dataClass = data.dataClass ?? current.dataClass;
     // CA-2-53: refused when the caller's copy is older. Validation runs first — "your
     // window is illegal" is a more useful answer than "reload".
     assertFresh(current.updatedAt, seenUpdatedAt);

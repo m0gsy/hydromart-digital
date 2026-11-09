@@ -394,9 +394,11 @@ describe('RetentionController', () => {
     updatePolicy: jest.fn(),
   };
   const purge = { run: jest.fn() };
+  const changes = { requestRetentionChange: jest.fn() };
   const controller = new RetentionController(
     retention as unknown as RetentionService,
     purge as never,
+    changes as never,
   );
   beforeEach(() => jest.clearAllMocks());
 
@@ -486,15 +488,17 @@ describe('RetentionController', () => {
     );
   });
 
-  it('update delegates the window change', async () => {
-    retention.updatePolicy.mockResolvedValue(makeRetentionPolicy({ windowDays: 30 }));
-    await controller.update('r-1', { windowLabel: '30 days', windowDays: 30 });
-    // CA-2-53: the version travels beside the body; this call names none.
-    expect(retention.updatePolicy).toHaveBeenCalledWith(
+  // AAS-14: the PUT REQUESTS the window; a second super admin approves it.
+  it('update requests the window change instead of applying it', async () => {
+    changes.requestRetentionChange.mockResolvedValue({ id: 'pc-1' });
+    const out = await controller.update('r-1', { windowLabel: '30 days', windowDays: 30 }, { sub: 'su-1' } as never);
+    expect(out).toEqual({ pending: true, requestId: 'pc-1' });
+    expect(changes.requestRetentionChange).toHaveBeenCalledWith(
       'r-1',
       { windowLabel: '30 days', windowDays: 30, dataClass: undefined },
-      undefined,
+      'su-1',
     );
+    expect(retention.updatePolicy).not.toHaveBeenCalled();
   });
 });
 
@@ -540,7 +544,8 @@ describe('ScheduledReportsController', () => {
 
 describe('SecurityPolicyController', () => {
   const policy = { get: jest.fn(), save: jest.fn() };
-  const controller = new SecurityPolicyController(policy as unknown as SecurityPolicyService);
+  const changes = { requestSecurityChange: jest.fn() };
+  const controller = new SecurityPolicyController(policy as unknown as SecurityPolicyService, changes as never);
   const record: SecurityPolicyRecord = {
     idleTimeoutMinutes: 30,
     require2fa: true,
@@ -549,11 +554,10 @@ describe('SecurityPolicyController', () => {
   };
   beforeEach(() => jest.clearAllMocks());
 
-  it('get and save delegate', async () => {
+  it('get reads, and save REQUESTS the change instead of applying it (AAS-14)', async () => {
     policy.get.mockResolvedValue(record);
-    policy.save.mockResolvedValue(record);
+    changes.requestSecurityChange.mockResolvedValue({ id: 'pc-9' });
     expect((await controller.get()).idleTimeoutMinutes).toBe(30);
-    // CA-2-53: the version the edit started from travels beside the body.
     const dto = {
       idleTimeoutMinutes: 15,
       require2fa: false,
@@ -561,8 +565,13 @@ describe('SecurityPolicyController', () => {
       seenUpdatedAt: now.toISOString(),
     };
     const req: { auditBefore?: unknown } = {};
-    await controller.save(dto, req);
-    expect(policy.save).toHaveBeenCalledWith(dto, now.toISOString());
+    const out = await controller.save(dto, req, { sub: 'su-1' } as never);
+    expect(out).toEqual({ pending: true, requestId: 'pc-9' });
+    expect(changes.requestSecurityChange).toHaveBeenCalledWith(
+      { idleTimeoutMinutes: 15, require2fa: false, ipAllowlist: [] },
+      'su-1',
+    );
+    expect(policy.save).not.toHaveBeenCalled();
     // AAS-09: the value being replaced rides on the request so the audit entry can show it.
     expect(req.auditBefore).toEqual({
       idleTimeoutMinutes: 30,

@@ -493,6 +493,28 @@ model BackupStatus {
   @@map("backup_status")
 }
 
+/// AAS-14 (owner decision 2026-11-09): a change to the security policy or a retention window is a
+/// REQUEST until a SECOND super admin approves it. The payload is exactly what the PUT carried, so
+/// approving applies it through the same validated service call.
+model PolicyChangeRequest {
+  id           String    @id @default(uuid())
+  /// SECURITY_POLICY or RETENTION_POLICY.
+  kind         String
+  /// The retention policy id for RETENTION_POLICY; null for the singleton security policy.
+  targetId     String?
+  payload      Json
+  /// PENDING, APPLIED or REJECTED. TEXT so a future state needs no irreversible migration.
+  status       String    @default("PENDING")
+  requestedBy  String
+  requestedAt  DateTime  @default(now())
+  decidedBy    String?
+  decidedAt    DateTime?
+  decisionNote String?
+
+  @@index([status, requestedAt])
+  @@map("policy_change_requests")
+}
+
 /// Platform security policy (Design 19b). SINGLETON: id = "singleton". NOTE: active-session
 /// enforcement/listing lives in auth-service, not here — this row only stores the policy.
 model SecurityPolicy {

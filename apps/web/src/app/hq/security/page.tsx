@@ -73,7 +73,9 @@ export default function HqSecurityPage() {
       .map((s) => s.trim())
       .filter(Boolean);
     try {
-      const saved = await api.put<SecurityPolicy>(
+      // AAS-14: this REQUESTS the change - a second super admin approves it under Persetujuan
+      // perubahan. The form keeps showing the policy that is actually in force until then.
+      await api.put<{ pending: true; requestId: string }>(
         endpoints.admin.security,
         // `require2fa` is passed through untouched: the control is gone, the required
         // DTO field is not, and a UI default here would silently rewrite stored state.
@@ -86,9 +88,10 @@ export default function HqSecurityPage() {
         },
         true,
       );
-      setDraft(saved);
-      setAllowlistText(saved.ipAllowlist.join('\n'));
-      toast(t('hq.security.saved'), 'success');
+      setDraft(null);
+      setAllowlistText(null);
+      query.reload();
+      toast(t('hq.security.requested'), 'success');
     } catch (err) {
       if (err instanceof ApiError && err.code === 'STALE_WRITE') {
         setDraft(null);

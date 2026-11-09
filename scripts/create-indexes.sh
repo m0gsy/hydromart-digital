@@ -28,6 +28,9 @@
 # gallon_issues_depotId_idempotencyKey_key (depot-service, 2026-11-09) is built by its own migration, not here: the
 # idempotencyKey column is created by that very migration and every value is NULL, so the build is instant.
 #
+# policy_change_requests_status_requestedAt_idx (admin-service, 2026-11-09) is built by its own migration, not here:
+# the table is created by that very migration and is empty, so the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

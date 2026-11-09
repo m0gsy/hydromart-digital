@@ -18,6 +18,7 @@ export const ADMIN_TOKENS = {
   SlaPolicyRepository: Symbol('SlaPolicyRepository'),
   RetentionRepository: Symbol('RetentionRepository'),
   SecurityPolicyRepository: Symbol('SecurityPolicyRepository'),
+  PolicyChangeRepository: Symbol('PolicyChangeRepository'),
   AdminNotificationPrefRepository: Symbol('AdminNotificationPrefRepository'),
   OnboardingStateRepository: Symbol('OnboardingStateRepository'),
   SweepRunRepository: Symbol('SweepRunRepository'),

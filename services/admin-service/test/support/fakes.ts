@@ -86,6 +86,51 @@ export function makeFlag(over: Partial<FeatureFlagRecord> = {}): FeatureFlagReco
   };
 }
 
+/** AAS-14: the four-eyes queue. decideIfPending mirrors the Prisma WHERE status = PENDING guard. */
+export class InMemoryPolicyChangeRepository {
+  rows: import('../../src/application/ports/policy-change.repository').PolicyChangeRecord[] = [];
+  private seq = 0;
+
+  async create(data: {
+    kind: 'SECURITY_POLICY' | 'RETENTION_POLICY';
+    targetId: string | null;
+    payload: Record<string, unknown>;
+    requestedBy: string;
+  }) {
+    const row = {
+      id: `pc-${++this.seq}`,
+      ...data,
+      status: 'PENDING' as const,
+      requestedAt: new Date(),
+      decidedBy: null,
+      decidedAt: null,
+      decisionNote: null,
+    };
+    this.rows.push(row);
+    return { ...row };
+  }
+  async findById(id: string) {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+  async list(status: string | undefined, take: number) {
+    return this.rows.filter((r) => !status || r.status === status).slice(0, take).map((r) => ({ ...r }));
+  }
+  async decideIfPending(
+    id: string,
+    d: { status: 'APPLIED' | 'REJECTED'; decidedBy: string; decisionNote: string | null },
+  ) {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r || r.status !== 'PENDING') return null;
+    Object.assign(r, d, { decidedAt: new Date() });
+    return { ...r };
+  }
+  async reopen(id: string) {
+    const r = this.rows.find((x) => x.id === id);
+    if (r) Object.assign(r, { status: 'PENDING', decidedBy: null, decidedAt: null, decisionNote: null });
+  }
+}
+
 export class InMemoryFeatureFlagRepository implements FeatureFlagRepository {
   flags: FeatureFlagRecord[] = [];
 

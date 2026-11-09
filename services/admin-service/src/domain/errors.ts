@@ -15,6 +15,32 @@ export class IdleLimitOutOfRangeError extends DomainError {
   }
 }
 
+/** AAS-14: the change was already decided (applied or rejected), or lost the race to someone who did. */
+export class PolicyChangeNotPendingError extends DomainError {
+  readonly code = 'POLICY_CHANGE_NOT_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Permintaan perubahan ini sudah diputuskan.');
+  }
+}
+
+/** AAS-14: whoever asked for a change may not be the one who approves or rejects it. */
+export class PolicyChangeSelfDecideError extends DomainError {
+  readonly code = 'POLICY_CHANGE_SELF_DECIDE';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Perubahan kebijakan harus diputuskan oleh super admin lain, bukan oleh pengaju.');
+  }
+}
+
+export class PolicyChangeNotFoundError extends DomainError {
+  readonly code = 'POLICY_CHANGE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor(id: string) {
+    super(`Permintaan perubahan "${id}" tidak ditemukan.`);
+  }
+}
+
 export class FeatureFlagNotFoundError extends DomainError {
   readonly code = 'FEATURE_FLAG_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
