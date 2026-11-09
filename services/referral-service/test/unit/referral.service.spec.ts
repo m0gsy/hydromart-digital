@@ -150,7 +150,8 @@ describe('ReferralService', () => {
       }
       return { referrer, referees };
     }
-    const hourLater = () => new Date(Date.now() + 2 * 60 * 60 * 1000);
+    // The fake repository stamps rows from its own clock, so "later" is far past all of it.
+    const hourLater = () => new Date('2099-01-01T00:00:00.000Z');
 
     it('qualifies a PENDING referral whose referee has a completed order', async () => {
       const { referees } = await pending();
@@ -170,7 +171,9 @@ describe('ReferralService', () => {
     it('does not touch a referral younger than an hour (the outbox is probably still on it)', async () => {
       const { referees } = await pending();
       history.completed.set(referees[0], 'order-1');
-      expect(await service.reconcilePending(new Date())).toEqual({ checked: 0, qualified: 0, held: 0, failed: 0 });
+      const created = (await repo.findReferralByReferee(referees[0]))!.createdAt;
+      const halfHourOn = new Date(created.getTime() + 30 * 60 * 1000);
+      expect(await service.reconcilePending(halfHourOn)).toEqual({ checked: 0, qualified: 0, held: 0, failed: 0 });
     });
 
     it('counts a held (over the monthly cap) and a failed qualification, and carries on', async () => {
