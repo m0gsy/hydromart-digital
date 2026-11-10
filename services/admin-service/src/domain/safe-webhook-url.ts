@@ -59,6 +59,18 @@ export const defaultAddressLookup: AddressLookup = (hostname) => dnsLookup(hostn
  * watching) and again at send time (so a name that changes its mind later is refused too).
  */
 export async function assertSendableWebhookUrl(url: string, lookup: AddressLookup): Promise<void> {
+  await resolveSendableWebhookUrl(url, lookup);
+}
+
+/**
+ * The same check, returning the address the send must be PINNED to (AAS-15): the first validated
+ * address of a name, so the connection cannot resolve to something different afterwards. `null` for a
+ * literal address, which has nothing to resolve.
+ */
+export async function resolveSendableWebhookUrl(
+  url: string,
+  lookup: AddressLookup,
+): Promise<{ address: string; family: 4 | 6 } | null> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -72,7 +84,7 @@ export async function assertSendableWebhookUrl(url: string, lookup: AddressLooku
   // A literal address needs no DNS, and `lookup` on some platforms happily resolves one.
   if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) {
     if (isBlockedAddress(hostname)) throw new WebhookDestinationBlockedError(hostname);
-    return;
+    return null;
   }
   // A bare name (`order`, `localhost`) only resolves inside our own network.
   if (!hostname.includes('.')) throw new WebhookDestinationBlockedError(hostname);
@@ -90,4 +102,6 @@ export async function assertSendableWebhookUrl(url: string, lookup: AddressLooku
   const blocked = addresses.find((a) => isBlockedAddress(a.address));
   if (blocked)
     throw new WebhookDestinationBlockedError(`${hostname} resolves to ${blocked.address}`);
+  const first = addresses[0] as { address: string; family?: number };
+  return { address: first.address, family: first.family === 6 || first.address.includes(':') ? 6 : 4 };
 }

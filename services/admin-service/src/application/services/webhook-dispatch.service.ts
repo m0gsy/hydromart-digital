@@ -2,9 +2,10 @@ import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs
 
 import {
   AddressLookup,
-  assertSendableWebhookUrl,
   defaultAddressLookup,
+  resolveSendableWebhookUrl,
 } from '../../domain/safe-webhook-url';
+import { WebhookSender, pinnedFetch } from '../../infrastructure/http/pinned-fetch';
 
 import {
   MAX_ATTEMPTS,
@@ -59,6 +60,9 @@ export class WebhookDispatchService {
     /** ADM-1: overridable so a test can decide what a hostname resolves to. */
     @Optional()
     private readonly lookup: AddressLookup = defaultAddressLookup,
+    /** AAS-15: how the bytes leave. Overridable so a test can observe the send. */
+    @Optional()
+    private readonly send: WebhookSender = pinnedFetch,
   ) {}
 
   /** Fan one event out to every active subscriber. Returns how many were queued. */
@@ -162,16 +166,20 @@ export class WebhookDispatchService {
        * 10.x tomorrow is the whole point of DNS rebinding — and a delivery that was queued
        * yesterday is sent today.
        */
-      await assertSendableWebhookUrl(delivery.url, this.lookup);
-      const response = await fetch(delivery.url, {
-        method: 'POST',
-        headers,
-        body,
-        // A 302 to the metadata service is the same attack wearing a public hostname, so
-        // no hop is followed: the partner's own endpoint has to answer.
-        redirect: 'manual',
-        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-      });
+      const pin = await resolveSendableWebhookUrl(delivery.url, this.lookup);
+      const response = await this.send(
+        delivery.url,
+        {
+          method: 'POST',
+          headers,
+          body,
+          // (a 302 to the metadata service is the same attack wearing a public hostname; the pinned
+          // sender never follows a hop: the partner's own endpoint has to answer.)
+          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        },
+        // AAS-15: connect to the address that was just validated, not to a second lookup.
+        pin,
+      );
       status = response.status;
       if (status >= 300 && status < 400) {
         error = `endpoint redirected (${status}); webhooks do not follow redirects`;
