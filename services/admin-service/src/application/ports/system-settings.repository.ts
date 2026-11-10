@@ -16,5 +16,6 @@ export interface SystemSettingsRepository {
   /** Read the singleton settings, or null when it has never been written. */
   get(): Promise<SystemSettingsRecord | null>;
   /** Create-or-replace the singleton settings. */
-  save(data: SaveSystemSettingsData): Promise<SystemSettingsRecord>;
+  /** AAS-13: see the security-policy port. */
+  save(data: SaveSystemSettingsData, expectedUpdatedAt?: Date): Promise<SystemSettingsRecord>;
 }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 
 import {
   SaveSlaPolicyData,
@@ -21,7 +22,17 @@ export class SlaPolicyPrismaRepository implements SlaPolicyRepository {
     return { onTimeThresholdMinutes, healthyBandPct, criticalBandPct, updatedAt };
   }
 
-  async save(data: SaveSlaPolicyData): Promise<SlaPolicyRecord> {
+  async save(data: SaveSlaPolicyData, expectedUpdatedAt?: Date): Promise<SlaPolicyRecord> {
+    if (expectedUpdatedAt) {
+      // AAS-13: the check and the write are ONE statement. assertFresh then upsert let two admins both
+      // pass the check and the slower one overwrite the faster.
+      const { count } = await this.prisma.slaPolicy.updateMany({
+        where: { id: SINGLETON_ID, updatedAt: expectedUpdatedAt },
+        data,
+      });
+      if (count === 0) throw new StaleWriteError();
+      return (await this.get()) as SlaPolicyRecord;
+    }
     const row = await this.prisma.slaPolicy.upsert({
       where: { id: SINGLETON_ID },
       update: data,

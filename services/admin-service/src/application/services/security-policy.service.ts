@@ -53,7 +53,9 @@ export class SecurityPolicyService {
     seenUpdatedAt?: string,
   ): Promise<SecurityPolicyRecord> {
     this.validate(data);
-    assertFresh((await this.repo.get())?.updatedAt ?? null, seenUpdatedAt);
-    return this.repo.save(data);
+    const current = await this.repo.get();
+    assertFresh(current?.updatedAt ?? null, seenUpdatedAt);
+    // AAS-13: the write itself re-checks the stamp that was just verified.
+    return this.repo.save(data, current?.updatedAt);
   }
 }

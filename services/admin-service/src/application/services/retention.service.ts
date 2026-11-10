@@ -73,7 +73,8 @@ export class RetentionService {
     // window is illegal" is a more useful answer than "reload".
     assertFresh(current.updatedAt, seenUpdatedAt);
 
-    const updated = await this.repo.updatePolicy(id, { ...data, dataClass });
+    // AAS-13: the write re-checks the stamp just verified, in the same statement.
+    const updated = await this.repo.updatePolicy(id, { ...data, dataClass }, current.updatedAt);
     if (!updated) throw new RetentionPolicyNotFoundError(id);
     return updated;
   }
