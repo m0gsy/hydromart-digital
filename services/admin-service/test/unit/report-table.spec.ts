@@ -39,6 +39,37 @@ describe('revenueTable / comparisonTable', () => {
     expect(t.totals).toEqual(['Total', 3, 200, 5, 300, -33.3]);
   });
 
+  // AAS-06: two depots with the same NAME merged into one row, and each was compared with the other's base.
+  it('pairs rows by key when the source sends one, so same-named rows stay separate', () => {
+    const t = comparisonTable(
+      [
+        { key: 'dep-1', label: 'Depot Baru', orders: 2, revenue: 200 },
+        { key: 'dep-2', label: 'Depot Baru', orders: 1, revenue: 50 },
+      ],
+      [
+        { key: 'dep-1', label: 'Depot Baru', orders: 1, revenue: 100 },
+        { key: 'dep-2', label: 'Depot Baru', orders: 1, revenue: 25 },
+      ],
+    );
+    expect(t.rows).toEqual([
+      ['Depot Baru', 2, 200, 1, 100, 100],
+      ['Depot Baru', 1, 50, 1, 25, 100],
+    ]);
+  });
+
+  it('a renamed depot is still the same row; a row with no key still matches by label', () => {
+    const renamed = comparisonTable(
+      [{ key: 'dep-1', label: 'Nama Baru', orders: 1, revenue: 200 }],
+      [{ key: 'dep-1', label: 'Nama Lama', orders: 1, revenue: 100 }],
+    );
+    expect(renamed.rows).toEqual([['Nama Baru', 1, 200, 1, 100, 100]]);
+    const oldSource = comparisonTable(
+      [{ label: 'A', orders: 1, revenue: 200 }],
+      [{ label: 'A', orders: 1, revenue: 100 }],
+    );
+    expect(oldSource.rows).toEqual([['A', 1, 200, 1, 100, 100]]);
+  });
+
   it('has no totals and no delta on an empty comparison', () => {
     expect(comparisonTable([], []).totals).toBeNull();
     expect(comparisonTable([{ label: 'A', orders: 1, revenue: 5 }], []).totals?.[5]).toBeNull();

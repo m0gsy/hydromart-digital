@@ -1508,6 +1508,8 @@ export class InternalSegmentCustomersResponseDto {
 
 /** One row of a scheduled revenue report — label, order count, revenue (design 15c). */
 export class ExportRowResponseDto {
+  @ApiProperty({ description: 'The id the row was grouped by (depot or product id): what a period comparison matches on.' })
+  key!: string;
   @ApiProperty({ example: 'Depot Cibubur' })
   label!: string;
   @ApiProperty({ type: Number })
