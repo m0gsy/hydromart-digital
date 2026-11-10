@@ -212,6 +212,17 @@ export class DuplicateDataSubjectRequestError extends DomainError {
   }
 }
 
+/** Promoting a customer who has asked to be deleted: the request has to be decided first. */
+export class ErasureRequestOpenError extends DomainError {
+  readonly code = 'PDP_ERASURE_OPEN';
+  readonly status = HTTP.CONFLICT;
+  constructor() {
+    super(
+      'Orang ini punya permintaan hapus data (PDP) yang belum diputuskan. Setujui atau tolak dulu di antrean PDP sebelum dijadikan staf.',
+    );
+  }
+}
+
 export class DataSubjectRequestNotFoundError extends DomainError {
   readonly code = 'PDP_REQUEST_NOT_FOUND';
   readonly status = HTTP.NOT_FOUND;

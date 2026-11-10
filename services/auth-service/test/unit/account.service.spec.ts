@@ -4,6 +4,7 @@ import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
+  ErasureRequestOpenError,
   InvalidStaffRoleError,
   PhoneAlreadyRegisteredError,
   StaffDepotRequiredError,
@@ -41,6 +42,7 @@ describe('AccountService', () => {
   let sessions: SessionService;
   let audit: InMemoryAuditLogRepository;
   let service: AccountService;
+  let openErasure: Set<string>;
   let hr: {
     calls: ProvisionEmployeeInput[];
     activeCalls: { authSubjectId: string; active: boolean }[];
@@ -92,7 +94,61 @@ describe('AccountService', () => {
       anonymiseEmployee: async (authSubjectId) => void hr.anonymised.push(authSubjectId),
       anonymised: [],
     };
-    service = new AccountService(customers, sessions, new AuditService(audit), hr);
+    openErasure = new Set();
+    service = new AccountService(
+      customers,
+      sessions,
+      new AuditService(audit),
+      hr,
+      undefined,
+      {
+        findOpen: async (customerId: string, type: string) =>
+          type === 'DELETE' && openErasure.has(customerId) ? ({ id: 'req-1' } as never) : null,
+      } as never,
+    );
+  });
+
+  /*
+   * HR-0063 / HR-0042. A customer asks to be deleted, waits in the PDP queue, is hired, and
+   * the approval then lands on a working staff login. Promotion waits for the decision.
+   */
+  describe('promoting a customer who has an open deletion request', () => {
+    it('refuses the invite, leaves the account a customer, and keeps their session', async () => {
+      const customer = makeCustomer({ phone: '+628990009001' });
+      customers.seed(customer);
+      openErasure.add(customer.id);
+
+      await expect(
+        service.inviteStaff('+628990009001', Role.STAFF_DEPOT, 'Riski', 'depot-1'),
+      ).rejects.toBeInstanceOf(ErasureRequestOpenError);
+
+      expect((await customers.findById(customer.id))?.role).toBe(Role.CUSTOMER);
+    });
+
+    it('refuses an HR jabatan change the same way', async () => {
+      const customer = makeCustomer({ phone: '+628990009002' });
+      customers.seed(customer);
+      openErasure.add(customer.id);
+
+      await expect(
+        service.setStaffRole(customer.id, Role.STAFF_DEPOT, 'depot-1'),
+      ).rejects.toBeInstanceOf(ErasureRequestOpenError);
+      expect((await customers.findById(customer.id))?.role).toBe(Role.CUSTOMER);
+    });
+
+    it('promotes a customer with no such request, and never asks about staff-to-staff changes', async () => {
+      const customer = makeCustomer({ phone: '+628990009003' });
+      customers.seed(customer);
+      await expect(
+        service.inviteStaff('+628990009003', Role.STAFF_DEPOT, 'Andi', 'depot-1'),
+      ).resolves.toMatchObject({ role: Role.STAFF_DEPOT });
+
+      // Already staff: even a stale open request must not block a depot transfer.
+      openErasure.add(customer.id);
+      await expect(
+        service.setStaffRole(customer.id, Role.STAFF_DEPOT, 'depot-2'),
+      ).resolves.toMatchObject({ assignedDepotId: 'depot-2' });
+    });
   });
 
   it('returns the public profile of an existing account', async () => {

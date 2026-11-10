@@ -685,6 +685,8 @@ export interface DataSubjectRequest {
   customerId: string;
   /** Account name behind `customerId` (§G-3). Only the staff queue fills it. */
   customerName: string | null;
+  /** The requester holds a staff role now; approving erases a working login (queue only). */
+  customerIsStaff?: boolean;
   type: DataSubjectRequestType;
   status: DataSubjectRequestStatus;
   reason: string | null;

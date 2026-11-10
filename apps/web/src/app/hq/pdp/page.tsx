@@ -156,6 +156,12 @@ export default function HqPdpPage() {
                           })}
                     </div>
                   )}
+                  {row.status === 'PENDING' && row.type === 'DELETE' && row.customerIsStaff && (
+                    <p className="mt-1 flex items-start gap-1.5 text-xs font-semibold text-[color:var(--danger)]">
+                      <Warning size={14} weight="fill" className="mt-0.5 flex-shrink-0" />
+                      {t('hq.pdp.staffWarning')}
+                    </p>
+                  )}
                   {row.reason && (
                     <div className="mt-1 text-xs text-[color:var(--text-muted)]">
                       {t('hq.pdp.reason')}: {row.reason}

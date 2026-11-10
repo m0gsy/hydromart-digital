@@ -1702,6 +1702,8 @@ export const hq = {
     download: 'Download JSON',
     deleteWarning:
       'Approving a deletion is permanent: the identity is destroyed, financial records stay without an owner (10-year retention).',
+    staffWarning:
+      'This requester is now ACTIVE STAFF. Approving erases their login and their HR employee record. Make sure they really want to leave; if not, reject.',
   },
   consentLag: {
     title: 'Consent lag',

@@ -12,6 +12,7 @@ import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
+  ErasureRequestOpenError,
   InvalidStaffRoleError,
   RoleEscalationError,
   PhoneAlreadyRegisteredError,
@@ -34,6 +35,7 @@ import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
+import { DataSubjectRequestRepository } from '../ports/data-subject-request.repository';
 import {
   HR_DIRECTORY_PORT,
   HrDirectoryPort,
@@ -95,7 +97,24 @@ export class AccountService {
     @Optional() @Inject(HR_DIRECTORY_PORT) private readonly hr?: HrDirectoryPort,
     // Optional for the same reason; only the franchise-owner deactivation path asks it.
     @Optional() @Inject(OWNED_DEPOTS_PORT) private readonly ownedDepots?: OwnedDepotsPort,
+    // Optional for the same reason; only the customer-to-staff promotion paths ask it.
+    @Optional()
+    @Inject(AUTH_TOKENS.DataSubjectRequestRepository)
+    private readonly dataRequests?: DataSubjectRequestRepository,
   ) {}
+
+  /**
+   * A customer with a deletion request still open is not promoted to staff.
+   *
+   * The request outlives the role: it waits in the PDP queue, the person is hired, and the
+   * approval then lands on a working staff login (HR-0063, HR-0042). Making the promoter
+   * wait for the decision keeps one person from holding both "forget me" and an employee
+   * record. A person with no such request is untouched, and so is a staff-to-staff change.
+   */
+  private async assertNoOpenErasure(customer: Customer): Promise<void> {
+    if (customer.role !== Role.CUSTOMER || !this.dataRequests) return;
+    if (await this.dataRequests.findOpen(customer.id, 'DELETE')) throw new ErasureRequestOpenError();
+  }
 
   async getProfile(customerId: string): Promise<PublicCustomer> {
     const customer = await this.customers.findById(customerId);
@@ -372,6 +391,7 @@ export class AccountService {
     const existing = await this.customers.findByPhone(phone);
     if (existing) {
       const wasCustomer = existing.role === Role.CUSTOMER;
+      await this.assertNoOpenErasure(existing);
       existing.promoteToStaff(role, depotId);
       if (fullName !== undefined && fullName !== null && fullName !== '') {
         existing.updateProfile(fullName, undefined);
@@ -601,6 +621,7 @@ export class AccountService {
     // employee's depot handed their login back, with HR still reading RESIGNED and nothing
     // anywhere recording that the account had been reopened.
     const wasCustomer = customer.role === Role.CUSTOMER;
+    await this.assertNoOpenErasure(customer);
     customer.assignRole(role, depot);
     const saved = await this.customers.save(customer);
     // Same reason as in `inviteStaffDetailed`: a customer session outlives the promotion.

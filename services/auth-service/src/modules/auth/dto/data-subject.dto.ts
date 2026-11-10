@@ -53,12 +53,19 @@ export class DataSubjectRequestDto {
    * reading their own requests already knows who they are.
    */
   @ApiProperty({ type: String, nullable: true }) customerName!: string | null;
+  /**
+   * The requester holds a staff role now. A request outlives the role of whoever raised it
+   * (a customer asks, then is hired), and approving it erases a working login and its
+   * employee record — the queue says so instead of letting HQ approve a name unseen.
+   */
+  @ApiProperty() customerIsStaff!: boolean;
 
   static from(
-    record: DataSubjectRequestRecord & { customerName?: string | null },
+    record: DataSubjectRequestRecord & { customerName?: string | null; customerIsStaff?: boolean },
   ): DataSubjectRequestDto {
     return {
       customerName: record.customerName ?? null,
+      customerIsStaff: record.customerIsStaff ?? false,
       id: record.id,
       customerId: record.customerId,
       type: record.type,
