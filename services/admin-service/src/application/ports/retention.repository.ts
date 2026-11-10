@@ -49,7 +49,12 @@ export interface RetentionRepository {
   /** One row by id, so an edit can be validated against its CURRENT class. */
   findPolicy(id: string): Promise<RetentionPolicyRecord | null>;
   /** Update a row's window. Null when the id is unknown. */
-  updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord | null>;
+  /** AAS-13: with `expectedUpdatedAt` the write only lands if the row still carries that stamp (else StaleWriteError). */
+  updatePolicy(
+    id: string,
+    data: UpdateRetentionData,
+    expectedUpdatedAt?: Date,
+  ): Promise<RetentionPolicyRecord | null>;
   /** Read the singleton backup status (honest default when never recorded). */
   getBackupStatus(): Promise<BackupStatusRecord | null>;
   /** Upsert the singleton with one job's outcome, leaving the other job's fields alone. */

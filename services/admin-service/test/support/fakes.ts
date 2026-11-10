@@ -1,3 +1,4 @@
+import { StaleWriteError } from '@hydromart/platform';
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
@@ -160,7 +161,8 @@ export class InMemorySystemSettingsRepository implements SystemSettingsRepositor
     return this.row ? { ...this.row } : null;
   }
 
-  async save(data: SaveSystemSettingsData): Promise<SystemSettingsRecord> {
+  async save(data: SaveSystemSettingsData, expectedUpdatedAt?: Date): Promise<SystemSettingsRecord> {
+    if (expectedUpdatedAt && this.row && this.row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
     this.row = { ...data, updatedAt: nextDate() };
     return { ...this.row };
   }
@@ -790,7 +792,8 @@ export class InMemorySlaPolicyRepository implements SlaPolicyRepository {
     return this.row ? { ...this.row } : null;
   }
 
-  async save(data: SaveSlaPolicyData): Promise<SlaPolicyRecord> {
+  async save(data: SaveSlaPolicyData, expectedUpdatedAt?: Date): Promise<SlaPolicyRecord> {
+    if (expectedUpdatedAt && this.row && this.row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
     this.row = { ...data, updatedAt: nextDate() };
     return { ...this.row };
   }
@@ -826,9 +829,14 @@ export class InMemoryRetentionRepository implements RetentionRepository {
     return r ? { ...r } : null;
   }
 
-  async updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord | null> {
+  async updatePolicy(
+    id: string,
+    data: UpdateRetentionData,
+    expectedUpdatedAt?: Date,
+  ): Promise<RetentionPolicyRecord | null> {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
+    if (expectedUpdatedAt && r.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
     r.windowLabel = data.windowLabel;
     r.windowDays = data.windowDays;
     if (data.dataClass) {
@@ -872,7 +880,8 @@ export class InMemorySecurityPolicyRepository implements SecurityPolicyRepositor
     return this.row ? { ...this.row } : null;
   }
 
-  async save(data: SaveSecurityPolicyData): Promise<SecurityPolicyRecord> {
+  async save(data: SaveSecurityPolicyData, expectedUpdatedAt?: Date): Promise<SecurityPolicyRecord> {
+    if (expectedUpdatedAt && this.row && this.row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
     this.row = { ...data, ipAllowlist: [...data.ipAllowlist], updatedAt: nextDate() };
     return { ...this.row, ipAllowlist: [...this.row.ipAllowlist] };
   }

@@ -16,5 +16,6 @@ export interface SecurityPolicyRepository {
   /** Read the singleton policy, or null when it has never been written. */
   get(): Promise<SecurityPolicyRecord | null>;
   /** Create-or-replace the singleton policy. */
-  save(data: SaveSecurityPolicyData): Promise<SecurityPolicyRecord>;
+  /** AAS-13: with `expectedUpdatedAt` the write only lands if the row still carries that stamp (else StaleWriteError). */
+  save(data: SaveSecurityPolicyData, expectedUpdatedAt?: Date): Promise<SecurityPolicyRecord>;
 }

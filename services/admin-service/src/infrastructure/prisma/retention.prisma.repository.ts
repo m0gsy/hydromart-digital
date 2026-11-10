@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 
 import {
   BackupStatusRecord,
@@ -26,9 +27,22 @@ export class RetentionPrismaRepository implements RetentionRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord | null> {
+  async updatePolicy(
+    id: string,
+    data: UpdateRetentionData,
+    expectedUpdatedAt?: Date,
+  ): Promise<RetentionPolicyRecord | null> {
     const existing = await this.prisma.retentionPolicy.findUnique({ where: { id } });
     if (!existing) return null;
+    if (expectedUpdatedAt) {
+      // AAS-13: check and write in ONE statement (see the singleton policy stores).
+      const { count } = await this.prisma.retentionPolicy.updateMany({
+        where: { id, updatedAt: expectedUpdatedAt },
+        data,
+      });
+      if (count === 0) throw new StaleWriteError();
+      return this.toRecord(await this.prisma.retentionPolicy.findUniqueOrThrow({ where: { id } }));
+    }
     return this.toRecord(await this.prisma.retentionPolicy.update({ where: { id }, data }));
   }
 
