@@ -262,6 +262,15 @@ describe('ReportService', () => {
       expect(rows.find((r) => r.label === 'Depot Cibubur')).toBeDefined();
     });
 
+    // AAS-06: rows are matched across periods by what they ARE, not by what they are called.
+    it('carries the depot id as the row key, whatever the label says', async () => {
+      const withNames = new ReportService(repo, reportTestConfig(), {
+        listContacts: async () => [{ id: DEPOT_A, name: 'Depot Cibubur', contactPhone: null }],
+      } as never);
+      const { rows } = await withNames.exportRows('REVENUE_BY_DEPOT', {});
+      expect(rows.find((r) => r.label === 'Depot Cibubur')?.key).toBe(DEPOT_A);
+    });
+
     it('falls back to the depot id rather than dropping the report', async () => {
       const { rows, truncated } = await reports.exportRows('REVENUE_BY_DEPOT', {});
       expect(rows.every((r) => r.orders > 0)).toBe(true);
@@ -290,7 +299,7 @@ describe('ReportService', () => {
         ],
       });
       const out = await svc.exportRows('REVENUE_BY_PRODUCT', {});
-      expect(out.rows).toEqual([{ label: 'Galon 19L', orders: 1, revenue: 40000 }]);
+      expect(out.rows).toEqual([{ key: expect.any(String), label: 'Galon 19L', orders: 1, revenue: 40000 }]);
       expect(out.truncated).toBe(false);
     });
 

@@ -872,7 +872,10 @@ export class ReportService {
   async exportRows(
     dataset: 'REVENUE_BY_DEPOT' | 'REVENUE_BY_PRODUCT',
     range: ReportRange,
-  ): Promise<{ rows: { label: string; orders: number; revenue: number }[]; truncated: boolean }> {
+  ): Promise<{
+    rows: { key: string; label: string; orders: number; revenue: number }[];
+    truncated: boolean;
+  }> {
     /*
      * E-4: `truncated`, like `segmentCustomers` above already reports. EXPORT_ROWS is 100
      * and nothing said so: a network past its 100th depot handed finance a spreadsheet that
@@ -883,6 +886,8 @@ export class ReportService {
       const report = await this.revenueByProduct(range, ReportService.EXPORT_ROWS);
       return {
         rows: report.items.map((i) => ({
+          // AAS-06: two products with the same name are two rows; the key is what a period comparison matches on.
+          key: i.productId,
           label: i.productName,
           orders: i.orderCount,
           revenue: i.revenue,
@@ -895,6 +900,7 @@ export class ReportService {
     const names = new Map((contacts ?? []).map((d) => [d.id, d.name]));
     return {
       rows: items.map((i) => ({
+        key: i.depotId,
         label: names.get(i.depotId) ?? i.depotId,
         orders: i.orderCount,
         revenue: i.revenue,

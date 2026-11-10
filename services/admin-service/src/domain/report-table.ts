@@ -24,6 +24,8 @@ export interface ReportTable {
 
 /** The legacy three-column revenue shape, as a table. */
 export interface RevenueRow {
+  /** AAS-06: the id the row was grouped by. Absent from an older source: matching then falls back to the label. */
+  key?: string;
   label: string;
   orders: number;
   revenue: number;
@@ -47,7 +49,9 @@ export function revenueTable(rows: RevenueRow[]): ReportTable {
 
 /** Pairs each row's revenue with the previous period's, by label; null delta when there was no base. */
 export function comparisonTable(current: RevenueRow[], previous: RevenueRow[]): ReportTable {
-  const prev = new Map(previous.map((r) => [r.label, r]));
+  // Matched by what a row IS (its key), not what it is called: two depots with one name used to merge.
+  const idOf = (r: RevenueRow): string => r.key ?? r.label;
+  const prev = new Map(previous.map((r) => [idOf(r), r]));
   const seen = new Set<string>();
   const line = (label: string, cur?: RevenueRow, old?: RevenueRow): ReportCell[] => {
     const rev = cur?.revenue ?? 0;
@@ -63,10 +67,10 @@ export function comparisonTable(current: RevenueRow[], previous: RevenueRow[]): 
   };
   const rows: ReportCell[][] = [];
   for (const r of current) {
-    seen.add(r.label);
-    rows.push(line(r.label, r, prev.get(r.label)));
+    seen.add(idOf(r));
+    rows.push(line(r.label, r, prev.get(idOf(r))));
   }
-  for (const r of previous) if (!seen.has(r.label)) rows.push(line(r.label, undefined, r));
+  for (const r of previous) if (!seen.has(idOf(r))) rows.push(line(r.label, undefined, r));
   const sum = (i: number): number => rows.reduce((s, r) => s + (r[i] as number), 0);
   const revenue = sum(2);
   const oldRevenue = sum(4);
