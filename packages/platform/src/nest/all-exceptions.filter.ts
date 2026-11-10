@@ -71,6 +71,25 @@ export class AllExceptionsFilter implements ExceptionFilter {
           : ((res as { message?: string | string[] }).message ?? exception.message);
       return { statusCode: status, code: this.httpErrorCode(status), message, timestamp, path };
     }
+    // Errors the body parser raises (raw-body / body-parser, via http-errors) are not Nest HttpExceptions
+    // but ARE client errors, and say so: `expose: true` with a 4xx status. A phone that drops the
+    // connection mid-upload used to surface as a masked 500 and a page to the team. Trust only that
+    // explicit marker: a stray `status` on some internal error must not turn into a 4xx.
+    const client = exception as { status?: unknown; expose?: unknown; type?: unknown; message?: unknown };
+    if (
+      client?.expose === true &&
+      typeof client.status === 'number' &&
+      client.status >= 400 &&
+      client.status < 500
+    ) {
+      return {
+        statusCode: client.status,
+        code: client.type === 'request.aborted' ? 'REQUEST_ABORTED' : 'REQUEST_REJECTED',
+        message: String(client.message ?? 'Request could not be read.'),
+        timestamp,
+        path,
+      };
+    }
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       code: 'INTERNAL_ERROR',
