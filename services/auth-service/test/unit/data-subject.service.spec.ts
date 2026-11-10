@@ -20,6 +20,8 @@ import { InMemoryConsentRepository } from '../support/fakes';
 
 const CUSTOMER = '11111111-1111-1111-1111-111111111111';
 const STAFF = '22222222-2222-2222-2222-222222222222';
+/** A customer who asked to be deleted, then was hired: the queue holds a staff login now. */
+const STAFF_REQUESTER = '44444444-4444-4444-8444-444444444444';
 
 /** In-memory queue mirroring the Prisma repo, including its PENDING-only decide guard. */
 class FakeRequestRepo {
@@ -113,7 +115,12 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     customers = {
       // §G-3: the staff queue names whoever raised each request.
       findByIds: jest.fn(async (ids: string[]) =>
-        ids.map((id) => ({ id, fullName: id === CUSTOMER ? 'Budi' : null })),
+        ids.map((id) => ({
+          id,
+          fullName: id === CUSTOMER ? 'Budi' : null,
+          role: id === STAFF_REQUESTER ? 'STAFF_DEPOT' : 'CUSTOMER',
+          status: 'ACTIVE',
+        })),
       ),
       findById: jest.fn(async () => ({
         id: CUSTOMER,
@@ -304,6 +311,73 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       );
       expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
     });
+
+    /*
+     * HR-0063 / HR-0042. A customer asks to be deleted, waits in the queue, is hired, and the
+     * approval lands on a staff login. The customer path erased the auth account only: the
+     * employee row stayed ACTIVE behind a dead login, and the number re-registered as a
+     * plain CUSTOMER on its next sign-in.
+     */
+    describe('approving a DELETE whose requester has since become staff', () => {
+      const asStaffRequest = async () => {
+        const hr = { anonymiseEmployee: jest.fn(async () => undefined) };
+        const made = makeService({ hr });
+        const raised = await requests.create({ customerId: TARGET, type: 'DELETE', reason: null });
+        return { ...made, hr, raised };
+      };
+
+      it('takes the staff path: the employee record is closed and the request completes', async () => {
+        const { svc, hr, raised, saved } = await asStaffRequest();
+
+        const result = await svc.approve(raised.id, ACTOR);
+
+        expect(hr.anonymiseEmployee).toHaveBeenCalledWith(TARGET);
+        expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
+        expect(result.request.status).toBe('COMPLETED');
+        expect(result.request.processedBy).toBe(ACTOR);
+        expect(requests.anonymised).toEqual([TARGET]);
+      });
+
+      it('keeps the staff guards: nobody approves their own deletion, and the request stays open', async () => {
+        const { svc, hr, raised } = await asStaffRequest();
+
+        await expect(svc.approve(raised.id, TARGET)).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(hr.anonymiseEmployee).not.toHaveBeenCalled();
+        expect(requests.rows.find((r) => r.id === raised.id)?.status).toBe('PENDING');
+      });
+    });
+  });
+
+  it('refuses to raise a DELETE for a staff login, but not an EXPORT', async () => {
+    customers.findById.mockResolvedValue({ id: STAFF_REQUESTER, role: 'STAFF_DEPOT' });
+
+    await expect(service.request(STAFF_REQUESTER, 'DELETE', null)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(requests.rows).toHaveLength(0);
+    await expect(service.request(STAFF_REQUESTER, 'EXPORT', null)).resolves.toMatchObject({
+      type: 'EXPORT',
+    });
+  });
+
+  it('flags a queue row whose requester is staff now, and not a customer or a deleted account', async () => {
+    customers.findByIds.mockResolvedValueOnce([
+      { id: STAFF_REQUESTER, fullName: 'Rouf', role: 'STAFF_DEPOT', status: 'ACTIVE' },
+      { id: CUSTOMER, fullName: 'Budi', role: 'CUSTOMER', status: 'ACTIVE' },
+      { id: 'gone', fullName: null, role: 'STAFF_DEPOT', status: 'DELETED' },
+    ]);
+    await requests.create({ customerId: STAFF_REQUESTER, type: 'DELETE', reason: null });
+    await requests.create({ customerId: CUSTOMER, type: 'DELETE', reason: null });
+    await requests.create({ customerId: 'gone', type: 'DELETE', reason: null });
+
+    const queue = await service.listForStaff('PENDING');
+
+    expect(queue.map((r) => [r.customerId, r.customerIsStaff])).toEqual([
+      [STAFF_REQUESTER, true],
+      [CUSTOMER, false],
+      ['gone', false],
+    ]);
   });
 
   it('refuses a second open request of the same type', async () => {
@@ -732,7 +806,8 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       const crm = executor('crm.messages');
       const svc = withRegistry([crm]);
       const created = await svc.request(CUSTOMER, 'DELETE', null);
-      customers.findById.mockResolvedValueOnce(null);
+      // Twice: approve() reads the account for its role first, then again for the phone.
+      customers.findById.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
       await svc.approve(created.id, STAFF);
 

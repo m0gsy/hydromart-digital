@@ -1714,6 +1714,8 @@ export const hq = {
     download: 'Unduh JSON',
     deleteWarning:
       'Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun).',
+    staffWarning:
+      'Pemohon ini sekarang STAF aktif. Menyetujui akan menghapus akun login dan data karyawannya di HR. Pastikan dia memang ingin keluar; kalau tidak, tolak.',
   },
   consentLag: {
     title: 'Ketertinggalan persetujuan',

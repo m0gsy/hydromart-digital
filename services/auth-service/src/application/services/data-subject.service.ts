@@ -16,6 +16,7 @@ import {
   DataSubjectRequestNotFoundError,
   DuplicateDataSubjectRequestError,
 } from '../../domain/errors/auth.errors';
+import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { Role } from '../../domain/customer/role.enum';
 import { HR_DIRECTORY_PORT, HrDirectoryPort } from '../ports/hr-directory.port';
 import { OPEN_ORDERS_PORT, OpenOrdersPort } from '../ports/open-orders.port';
@@ -121,6 +122,21 @@ export class DataSubjectService {
     const open = await this.requests.findOpen(customerId, type);
     if (open) throw new DuplicateDataSubjectRequestError();
 
+    /*
+     * The controller already limits this route to CUSTOMER, but a service that trusts its
+     * only caller stays correct until the second caller. A staff login is erased through the
+     * staff console (`deleteStaffAccount`), which also closes the employee record and keeps
+     * the last-super-admin guard; a request raised here would skip all of that.
+     */
+    if (type === 'DELETE') {
+      const account = await this.customers.findById(customerId);
+      if (account && account.role !== Role.CUSTOMER) {
+        throw new BadRequestException(
+          'Akun staf dihapus oleh HQ lewat konsol staf, bukan lewat permintaan PDP.',
+        );
+      }
+    }
+
     const created = await this.requests.create({ customerId, type, reason });
     await this.audit.record({
       customerId,
@@ -147,11 +163,26 @@ export class DataSubjectService {
    */
   async listForStaff(
     status?: DataSubjectRequestStatus,
-  ): Promise<(DataSubjectRequestRecord & { customerName: string | null })[]> {
+  ): Promise<
+    (DataSubjectRequestRecord & {
+      customerName: string | null;
+      /** True when the requester holds a staff role NOW — approving erases a working login. */
+      customerIsStaff: boolean;
+    })[]
+  > {
     const rows = await this.requests.listForStaff(status);
     const accounts = await this.customers.findByIds([...new Set(rows.map((r) => r.customerId))]);
     const names = new Map(accounts.map((a) => [a.id, a.fullName ?? null]));
-    return rows.map((r) => ({ ...r, customerName: names.get(r.customerId) ?? null }));
+    // Live accounts only: a completed DELETE is anonymised and keeps the role it had, but
+    // there is nothing left to warn about on a request that is already decided.
+    const staff = new Set(
+      accounts.filter((a) => a.role !== Role.CUSTOMER && a.status !== CustomerStatus.DELETED).map((a) => a.id),
+    );
+    return rows.map((r) => ({
+      ...r,
+      customerName: names.get(r.customerId) ?? null,
+      customerIsStaff: staff.has(r.customerId),
+    }));
   }
 
   /**
@@ -213,6 +244,33 @@ export class DataSubjectService {
     // here on a second approval cannot start (it would erase twice); a crash leaves IN_PROGRESS,
     // which resumes once the claim is stale.
     await this.claimOrThrow(id, staffId);
+
+    /*
+     * A request outlives the role of whoever raised it: a customer asks, waits in the queue,
+     * is hired, and the approval lands on a staff login. The customer path below erased the
+     * auth account and nothing else, so the employee row stayed ACTIVE behind a dead login
+     * and the number re-registered as a plain CUSTOMER on the next sign-in (HR-0063, HR-0042).
+     * Such an account is erased by the staff path, which owns the employee half and the
+     * guards (own account, last super admin, franchise owner holding depots).
+     */
+    try {
+      const account = await this.customers.findById(found.customerId);
+      if (account && account.role !== Role.CUSTOMER) {
+        await this.deleteStaffAccount(found.customerId, staffId);
+        const staffRequest = await this.requests.decide({
+          id,
+          status: 'COMPLETED',
+          processedBy: staffId,
+          reason: null,
+          from: 'IN_PROGRESS',
+        });
+        return { request: staffRequest };
+      }
+    } catch (error) {
+      await this.requests.release(id, staffId);
+      throw error;
+    }
+
     let coverage: Awaited<ReturnType<DataSubjectService['eraseEverywhere']>>;
     let request: DataSubjectRequestRecord;
     try {
