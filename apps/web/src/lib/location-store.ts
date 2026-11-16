@@ -1,5 +1,7 @@
 'use client';
 
+import { safeStorage } from './safe-storage';
+
 // The customer's chosen delivery location, shared by the Home hero, the
 // "depots near me" section, and depot-scoped trending. Persisted to localStorage
 // so it survives reloads. Separate from the address book: this is a lightweight
@@ -44,8 +46,8 @@ export function setLocation(location: UserLocation | null): void {
   hydrate();
   current = location;
   if (typeof window !== 'undefined') {
-    if (location) window.localStorage.setItem(KEY, JSON.stringify(location));
-    else window.localStorage.removeItem(KEY);
+    if (location) safeStorage.set(KEY, JSON.stringify(location));
+    else safeStorage.remove(KEY);
   }
   listeners.forEach((fn) => fn(location));
 }

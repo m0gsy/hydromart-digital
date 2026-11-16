@@ -30,6 +30,8 @@ const OPS_PATHS = [
   '/driver/',
   '/dashboard/',
   '/hr/me/check-in/',
+  '/hr/attendance/',
+  '/hr/attendance/import/',
   // Both kasbon screens: each is the landing spot of a push notification, and a pruned
   // route redirects to '/' with no error — the notification would arrive and the person
   // would never find the screen it was about.
@@ -62,6 +64,33 @@ for (const path of SERVED[SURFACE]) {
     const res = await page.goto(path);
     expect(res?.status(), `${path} must resolve to an exported file`).toBe(200);
     await expect(page.locator('body')).toBeVisible();
+  });
+}
+
+if (SURFACE === 'ops') {
+  test('HR can open Absensi from the Ops app', async ({ page }) => {
+    const customer = {
+      id: 'hr-test',
+      phone: '0800000000',
+      email: null,
+      fullName: 'HR Test',
+      role: 'HR',
+      status: 'ACTIVE',
+      avatarUrl: null,
+      createdAt: '2026-01-01T00:00:00Z',
+    };
+    await page.addInitScript((profile) => {
+      localStorage.setItem('hm.session', JSON.stringify({ customer: profile }));
+    }, customer);
+    await page.route('**/auth/api/v1/auth/me', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(customer) }),
+    );
+
+    await page.goto('/hr/me/');
+    await page.getByRole('link', { name: /kembali ke konsol/i }).click();
+    await expect(page).toHaveURL(/\/hr\/attendance\/$/);
+    await expect(page.getByRole('heading', { name: /absensi/i })).toBeVisible();
+    await expect(page.getByText('useLocation must be used within')).toHaveCount(0);
   });
 }
 

@@ -69,6 +69,22 @@ afterEach(() => vi.clearAllMocks());
 const hrefs = (role: string) => hrNavItems(role).map((i) => i.href);
 
 describe('CA-1-32 the HR rail only offers what the reader can open', () => {
+  it('offers Absensi in Ops without links to pruned HR pages', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '/hq/*,/hr,/hr/employees/*,/hr/payroll/*');
+    vi.resetModules();
+    try {
+      const { hrNavItems: opsItems } = await import('@/components/hr/hr-rail');
+      const links = opsItems('HR').map((i) => i.href);
+      expect(links).toContain('/hr/attendance');
+      expect(links).not.toContain('/hr/employees');
+      expect(links).not.toContain('/hr/payroll');
+      expect(links).not.toContain('/hr');
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   it('keeps Pelanggan and Reseller from FINANCE, who holds neither capability', () => {
     // FINANCE has `hrView` — that is why it reaches this console at all — and is on
     // neither `depotCrm` nor `resellerView`.
@@ -213,7 +229,6 @@ describe('CA-3-66 the location panel can be dismissed', () => {
     await waitFor(() => expect(screen.queryByText('home.location.useMyLocation')).toBeNull());
   });
 });
-
 
 describe('CA-3-61 the amber promo card is readable in dark mode', () => {
   /*

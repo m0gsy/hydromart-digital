@@ -11,6 +11,7 @@ import { ConfirmProvider } from '@/components/confirm';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
+import { LocationProvider } from '@/lib/location-context';
 import { SPLASH_NET_SCRIPT } from '@/lib/splash-net';
 import { WEBVIEW_GATE_SCRIPT } from '@/lib/webview-gate';
 import { ThemeProvider } from '@/lib/theme-context';
@@ -134,9 +135,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   {/* Error reporting, and nothing at all when NEXT_PUBLIC_SENTRY_DSN is blank
                       — the SDK is not even downloaded in that case. */}
                   <SentryInit />
-                  {/* Shop chrome vs. bare console — the cart/location providers ride the
-                      shop branch, so consoles never fetch a cart. */}
-                  <AppShell>{children}</AppShell>
+                  {/* Location is shared across route transitions; the cart stays in the shop branch. */}
+                  <LocationProvider>
+                    <AppShell>{children}</AppShell>
+                  </LocationProvider>
                 </ConfirmProvider>
               </ToastProvider>
             </AuthProvider>

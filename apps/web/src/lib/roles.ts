@@ -302,7 +302,7 @@ export function consoleHome(
   native: boolean = isNativeShell(),
 ): string {
   // Every candidate is checked against what THIS binary serves. The Ops app prunes `/hq` and
-  // the HR console (keeping `/hr/me`), so an HQ or HR role was sent to a route that is not in
+  // most HR console pages (keeping attendance and `/hr/me`), so an HQ or HR role could land on a route not in
   // the bundle — "Kembali ke konsol" landed on nothing. Falling through to the next surface the
   // role can actually reach is the honest answer; on the web nothing is pruned and the order
   // below is unchanged.
@@ -350,7 +350,7 @@ export function consoleHome(
     if (home) return home;
   }
   if (canViewHr(role)) {
-    const home = first('/hr', '/hr/me');
+    const home = first('/hr', '/hr/attendance', '/hr/me');
     if (home) return home;
   }
   // MARKETING holds no dashboard capability, so the /dashboard landing would deny it —

@@ -312,7 +312,7 @@ export const GROUPS: RailGroup[] = [
       // The depot manager's HR doors. They live in the /hr console, which the HQ rail reaches
       // and this rail never did, so leave, kasbon and borrow requests were typed-URL only.
       // Each carries the capability its own screen's server calls check.
-      // The Ops binary keeps only /hr/me of the HR console, so each door below is guarded
+      // The Ops binary keeps only selected HR routes, so each door below is guarded
       // by the exact route it opens (build-mobile reads the literal).
       {
         href: '/hr/leave',
