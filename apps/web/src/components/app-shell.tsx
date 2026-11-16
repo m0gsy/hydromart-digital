@@ -9,7 +9,6 @@ import { Footer } from '@/components/footer';
 import { Nav } from '@/components/nav';
 import { PageTransition } from '@/components/page-transition';
 import { CartProvider } from '@/lib/cart-context';
-import { LocationProvider } from '@/lib/location-context';
 import { isConsolePath } from '@/lib/roles';
 import { screenChrome } from '@/lib/screen-chrome';
 
@@ -38,37 +37,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CartProvider>
-      <LocationProvider>
-        <AppBar />
-        <Nav />
-        <main
-          className={
-            'mx-auto w-full max-w-[1216px] px-4 sm:px-8 sm:pb-10 ' +
-            // A bare screen has no app bar to carry the inset, and `targetSdkVersion = 36`
-            // means Android draws the app under the status bar whatever the plugin says.
-            // Without this, "Masuk" sits under the clock on any current phone.
-            // E0: `var(--safe-area-inset-top, env(...))` rather than bare `env()`. The
-            // Capacitor plugin always injects the custom property; `env()` alone reports 0
-            // on a WebView older than 140, which is the fleet this ships to — so the fix
-            // that exists here was silently doing nothing on the phones that need it.
-            (kind === 'bare'
-              ? 'pt-[calc(var(--safe-area-inset-top,env(safe-area-inset-top))+1.5rem)] '
-              : 'pt-6 ') +
-            // A6+E0. Only the tab bar needs clearing, and only root screens show it — but a
-            // NON-root screen still ends above the gesture bar, and `pb-10` alone put the
-            // last row of every detail screen underneath it. `max()` keeps 2.5rem when the
-            // inset is 0 and grows when it is not.
-            (kind === 'root'
-              ? 'pb-24'
-              : 'pb-[max(2.5rem,calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom))+1rem))]')
-          }
-        >
-          <PageTransition>{children}</PageTransition>
-        </main>
-        <Footer />
-        {kind === 'root' && <BottomNav />}
-        <OnboardingTour />
-      </LocationProvider>
+      <AppBar />
+      <Nav />
+      <main
+        className={
+          'mx-auto w-full max-w-[1216px] px-4 sm:px-8 sm:pb-10 ' +
+          // A bare screen has no app bar to carry the inset, and `targetSdkVersion = 36`
+          // means Android draws the app under the status bar whatever the plugin says.
+          // Without this, "Masuk" sits under the clock on any current phone.
+          // E0: `var(--safe-area-inset-top, env(...))` rather than bare `env()`. The
+          // Capacitor plugin always injects the custom property; `env()` alone reports 0
+          // on a WebView older than 140, which is the fleet this ships to — so the fix
+          // that exists here was silently doing nothing on the phones that need it.
+          (kind === 'bare'
+            ? 'pt-[calc(var(--safe-area-inset-top,env(safe-area-inset-top))+1.5rem)] '
+            : 'pt-6 ') +
+          // A6+E0. Only the tab bar needs clearing, and only root screens show it — but a
+          // NON-root screen still ends above the gesture bar, and `pb-10` alone put the
+          // last row of every detail screen underneath it. `max()` keeps 2.5rem when the
+          // inset is 0 and grows when it is not.
+          (kind === 'root'
+            ? 'pb-24'
+            : 'pb-[max(2.5rem,calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom))+1rem))]')
+        }
+      >
+        <PageTransition>{children}</PageTransition>
+      </main>
+      <Footer />
+      {kind === 'root' && <BottomNav />}
+      <OnboardingTour />
     </CartProvider>
   );
 }

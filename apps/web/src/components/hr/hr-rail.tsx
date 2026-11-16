@@ -107,7 +107,7 @@ export function hrNavItems(role: string | null | undefined): NavItem[] {
       ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
       : []),
     ...HR_ITEMS.filter(
-      (i) => (!i.adminOnly || canManageHr(role)) && (!i.can || can(i.can, role)),
+      (i) => isServedHere(i.href) && (!i.adminOnly || canManageHr(role)) && (!i.can || can(i.can, role)),
     ),
   ];
 }

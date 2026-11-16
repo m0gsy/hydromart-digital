@@ -51,11 +51,8 @@ const BUILT = join(WEB, 'mobile-out');
 /**
  * Paths under `src/app` each binary does NOT serve, relative to `src/app`.
  *
- * Per-path, not per-top-level-folder: the Ops app keeps `/hr/me` (face check-in, payslip,
- * leave — the first thing every one of its four roles does each morning) while dropping
- * the rest of the HR console, and `hr/layout.tsx` has to stay behind or `/hr/me` loses
- * its shell. It returns early for that path and never renders the HR rail, so keeping it
- * costs a shell and gives away no console.
+ * Per-path, not per-top-level-folder: Ops keeps `/hr/me`, `/hr/attendance` and `/hr/loans`
+ * while dropping other HR screens. `hr/layout.tsx` stays so those routes keep their shell.
  */
 /*
  * `loans` is the second exception, and it is here for a notification rather than a screen.
@@ -70,7 +67,7 @@ const BUILT = join(WEB, 'mobile-out');
 const HR_CONSOLE_ONLY = () =>
   readdirSync(join(APP, 'hr'), { withFileTypes: true })
     .filter((e) =>
-      e.isDirectory() ? e.name !== 'me' && e.name !== 'loans' : e.name === 'page.tsx',
+      e.isDirectory() ? !['me', 'loans', 'attendance'].includes(e.name) : e.name === 'page.tsx',
     )
     .map((e) => `hr/${e.name}`);
 
@@ -107,6 +104,8 @@ const SURFACES = {
       'dashboard/walk-in',
       'hr/me/check-in',
       'hr/me/kasbon',
+      'hr/attendance',
+      'hr/attendance/import',
       'hr/loans/requests',
       'm/manager',
     ],
@@ -140,7 +139,7 @@ if (target && !TARGETS[target]) {
  * would be the same list twice, drifting the first time a folder moves.
  *
  * A stashed directory becomes `/hq/*` — that route and everything under it. A stashed
- * `page.tsx` becomes the exact route only: Ops drops `/hr` itself while keeping `/hr/me`.
+ * `page.tsx` becomes the exact route only: Ops drops `/hr` itself while keeping selected HR pages.
  */
 function prunedRoutes(paths) {
   return paths.map((p) => (p.endsWith('.tsx') ? `/${dirname(p)}` : `/${p}/*`));

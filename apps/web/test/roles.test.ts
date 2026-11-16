@@ -262,8 +262,8 @@ describe('staffDoor / consoleHome respect what this binary actually serves', () 
     const { consoleHome } = await load('/hq/*,/hr');
     // /hq is gone; a head-office account still has the depot console in the Ops app.
     expect(consoleHome('HEAD_OFFICE')).toBe('/dashboard');
-    // The HR console index is pruned but /hr/me survives — that is where HR belongs here.
-    expect(consoleHome('HR')).toBe('/hr/me');
+    // The HR console index is pruned, but its attendance screen is available in Ops.
+    expect(consoleHome('HR')).toBe('/hr/attendance');
   });
 
   it('keeps the web answers unchanged', async () => {

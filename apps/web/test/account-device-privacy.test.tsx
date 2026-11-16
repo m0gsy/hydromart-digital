@@ -56,7 +56,7 @@ import {
   forgetSessionFamily,
   rememberSessionFamily,
 } from '@/lib/session-device';
-import { getLocation, setLocation } from '@/lib/location-store';
+import { getLocation, setLocation, subscribe as subscribeLocation } from '@/lib/location-store';
 import { id } from '@/lib/dictionaries/id';
 import { en } from '@/lib/dictionaries/en';
 import { deleteAccount as deleteAccountId } from '@/lib/dictionaries/id/deleteAccount';
@@ -87,6 +87,27 @@ describe('CA-3-56 the read marker belongs to a person, not a handset', () => {
 });
 
 describe('CA-3-59 the delivery location does not stay behind', () => {
+  it('keeps location changes working when storage refuses writes', () => {
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const seen: Array<string | null> = [];
+    const unsubscribe = subscribeLocation((location) => seen.push(location?.label ?? null));
+    try {
+      expect(() => setLocation({ label: 'Jakarta', lat: -6.2, lng: 106.8 })).not.toThrow();
+      expect(getLocation()?.label).toBe('Jakarta');
+      expect(() => setLocation(null)).not.toThrow();
+      expect(seen).toEqual(['Jakarta', null]);
+    } finally {
+      unsubscribe();
+      set.mockRestore();
+      remove.mockRestore();
+    }
+  });
+
   it('clears to null, and clears the stored copy with it', () => {
     setLocation({ label: 'Jl. Melati', lat: -6.2, lng: 106.8 });
     expect(getLocation()?.label).toBe('Jl. Melati');

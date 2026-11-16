@@ -89,7 +89,7 @@ describe('resolveDeepLink', () => {
  */
 describe('routes this binary does not carry', () => {
   const CUSTOMER = ['/hq/*', '/hr/*', '/dashboard/*', '/driver/*', '/m/*', '/resellers/*'];
-  // Ops keeps `/hr/me` and drops the console: a subtree per pruned folder, plus `/hr`
+  // Ops keeps `/hr/me` and `/hr/attendance`: a subtree per pruned folder, plus `/hr`
   // itself as an exact route because its `page.tsx` went and its `layout.tsx` stayed.
   const OPS = ['/hq/*', '/hr/employees/*', '/hr/payroll/*', '/hr'];
 
@@ -107,6 +107,7 @@ describe('routes this binary does not carry', () => {
     expect(resolveDeepLink('/hr', OPS)).toBe('/');
     expect(resolveDeepLink('/hr/payroll/p-1', OPS)).toBe('/');
     expect(resolveDeepLink('/hr/me/check-in', OPS)).toBe('/hr/me/check-in');
+    expect(resolveDeepLink('/hr/attendance', OPS)).toBe('/hr/attendance');
   });
 
   // A prefix is a path segment, never a string. `/mm` is not under `/m`.

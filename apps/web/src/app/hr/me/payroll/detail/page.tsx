@@ -20,7 +20,7 @@ const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
  * An employee's own payslip.
  *
  * "Slip Gaji Saya" used to link to `/hr/payroll/detail`, which is broken twice over for
- * the person it was for: the Ops binary prunes the whole HR console except `hr/me`, so on
+ * the person it was for: the Ops binary prunes `/hr/payroll`, so on
  * a phone the tap landed on a route that does not exist — and even on the web the detail
  * API is `hrView`-gated, which no ordinary employee has, so it would have 403'd anyway.
  *
