@@ -10,6 +10,7 @@ import {
   DuplicateInventoryLineError,
   InsufficientStockError,
   InventoryItemNotFoundError,
+  InventoryQuantityOutOfRangeError,
   InventoryLineHasSalesError,
   InventoryLineNotEmptyError,
   NegativeStockError,
@@ -313,6 +314,13 @@ describe('InventoryService', () => {
     await expect(inventory.adjust(item.id, -200, null, ACTOR)).rejects.toBeInstanceOf(
       NegativeStockError,
     );
+  });
+
+  it('rejects an out-of-range opening count before creating a stock line', async () => {
+    await expect(
+      inventory.createLine(depotId, { ...raw(), quantity: 2_147_483_648 }, ACTOR),
+    ).rejects.toBeInstanceOf(InventoryQuantityOutOfRangeError);
+    expect(invRepo.items).toHaveLength(0);
   });
 
   it('reconciles to a physical count via opname, recording variance', async () => {
@@ -1221,7 +1229,13 @@ describe('InventoryService', () => {
     const line = await produkLine(PRODUCT_ID, 10);
     await inventory.opname(line.id, 4, null, ACTOR);
     const queued = await approvals.create(
-      { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih lama', amountIdr: 5_000_000, payload: { variance: -6 } },
+      {
+        depotId,
+        type: ApprovalType.OPNAME_VARIANCE,
+        title: 'Selisih lama',
+        amountIdr: 5_000_000,
+        payload: { variance: -6 },
+      },
       ACTOR,
     );
     await approvals.decide(queued.id, 'REJECT', null, 'hq-1');
@@ -1230,9 +1244,18 @@ describe('InventoryService', () => {
 
   it('a rejected variance of zero, or one whose variance is not a number, reverses nothing (DEP-05)', async () => {
     const line = await produkLine(PRODUCT_ID, 10);
-    for (const payload of [{ itemId: line.id, variance: 0 }, { itemId: line.id, variance: 'banyak' }]) {
+    for (const payload of [
+      { itemId: line.id, variance: 0 },
+      { itemId: line.id, variance: 'banyak' },
+    ]) {
       const queued = await approvals.create(
-        { depotId, type: ApprovalType.OPNAME_VARIANCE, title: 'Selisih', amountIdr: 5_000_000, payload },
+        {
+          depotId,
+          type: ApprovalType.OPNAME_VARIANCE,
+          title: 'Selisih',
+          amountIdr: 5_000_000,
+          payload,
+        },
         ACTOR,
       );
       await approvals.decide(queued.id, 'REJECT', null, 'hq-1');
@@ -1264,7 +1287,9 @@ describe('InventoryService', () => {
 
     it('is refused for a manager of an HQ-owned depot, pointing at the proposal queue', async () => {
       const line = await produkLine(PRODUCT_ID, 5);
-      await expect(inventory.updateMeta(line.id, { sellPrice: 18000 }, manager())).rejects.toThrow(/usulan/i);
+      await expect(inventory.updateMeta(line.id, { sellPrice: 18000 }, manager())).rejects.toThrow(
+        /usulan/i,
+      );
       expect(await inventory.pricesForProducts(depotId, [PRODUCT_ID])).toEqual([]);
     });
 
@@ -1279,13 +1304,31 @@ describe('InventoryService', () => {
 
     it('stays free for a waralaba depot', async () => {
       const waralaba = await new DepotService(depotRepo).create({
-        code: 'WRL-01', name: 'Waralaba', ownershipType: OwnershipType.WARALABA, address: 'c',
-        city: 'Bogor', province: 'Jabar', lat: -6.5, lng: 106.8, serviceRadiusKm: 5,
-        deliveryFee: 5000, minOrderAmount: null, ownerId: '77777777-7777-4777-8777-777777777777', operatingHours: {}, holidays: [],
+        code: 'WRL-01',
+        name: 'Waralaba',
+        ownershipType: OwnershipType.WARALABA,
+        address: 'c',
+        city: 'Bogor',
+        province: 'Jabar',
+        lat: -6.5,
+        lng: 106.8,
+        serviceRadiusKm: 5,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+        ownerId: '77777777-7777-4777-8777-777777777777',
+        operatingHours: {},
+        holidays: [],
       });
       const line = await inventory.createLine(
         waralaba.id,
-        { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Galon', unit: 'botol', quantity: 5, minimumStock: 1 } as never,
+        {
+          itemType: InventoryItemType.PRODUK,
+          productId: PRODUCT_ID,
+          label: 'Galon',
+          unit: 'botol',
+          quantity: 5,
+          minimumStock: 1,
+        } as never,
         ACTOR,
       );
       const owner = { sub: 'w1', role: Role.MANAGER, depotId: waralaba.id } as AuthenticatedUser;

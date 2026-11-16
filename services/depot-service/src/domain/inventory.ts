@@ -32,6 +32,9 @@ export enum ReservationStatus {
   CONSUMED = 'CONSUMED',
 }
 
+export const MAX_STOCK_UNITS = 2_147_483_647;
+export const MIN_STOCK_UNITS = -2_147_483_648;
+
 /** Sellable stock = physical quantity minus units held by active reservations. */
 export function available(quantity: number, reserved: number): number {
   return quantity - reserved;

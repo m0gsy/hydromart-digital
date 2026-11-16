@@ -29,7 +29,7 @@ import {
   StockMovementType,
 } from '../../src/domain/inventory';
 import { GallonCondition } from '../../src/domain/gallon-return';
-import { NegativeStockError } from '../../src/domain/errors';
+import { InventoryQuantityOutOfRangeError, NegativeStockError } from '../../src/domain/errors';
 
 // Unit-tests every depot-service Prisma repository against a per-model jest.fn() mock of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma call
@@ -147,14 +147,18 @@ describe('ApprovalPrismaRepository', () => {
   it('answers null when somebody decided the item first, without re-reading it', async () => {
     model.updateMany.mockResolvedValue({ count: 0 });
     model.findUnique.mockClear();
-    expect(await repo.decideIfOpen('ap-1', { status: ApprovalStatus.REJECTED } as never)).toBeNull();
+    expect(
+      await repo.decideIfOpen('ap-1', { status: ApprovalStatus.REJECTED } as never),
+    ).toBeNull();
     expect(model.findUnique).not.toHaveBeenCalled();
   });
 
   it('answers null if the row vanished between the write and the read', async () => {
     model.updateMany.mockResolvedValue({ count: 1 });
     model.findUnique.mockResolvedValue(null);
-    expect(await repo.decideIfOpen('ap-1', { status: ApprovalStatus.APPROVED } as never)).toBeNull();
+    expect(
+      await repo.decideIfOpen('ap-1', { status: ApprovalStatus.APPROVED } as never),
+    ).toBeNull();
   });
 
   it('builds pending counts per type, defaulting missing types to zero', async () => {
@@ -1045,16 +1049,24 @@ describe('GallonIssuePrismaRepository', () => {
     const out = await repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'key-0001' } as never);
     expect(out.created).toBe(false);
     expect(out.record.id).toBe('gi-1');
-    expect(model.findFirst).toHaveBeenCalledWith({ where: { depotId: 'depot-1', idempotencyKey: 'key-0001' } });
+    expect(model.findFirst).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', idempotencyKey: 'key-0001' },
+    });
   });
 
   it('createKeyed rethrows other errors, a collision without a key, and a vanished row', async () => {
     model.create.mockRejectedValue(new Error('db down'));
-    await expect(repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'k' } as never)).rejects.toThrow('db down');
+    await expect(
+      repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'k' } as never),
+    ).rejects.toThrow('db down');
     model.create.mockRejectedValue({ code: 'P2002' });
-    await expect(repo.createKeyed({ depotId: 'depot-1' } as never)).rejects.toEqual({ code: 'P2002' });
+    await expect(repo.createKeyed({ depotId: 'depot-1' } as never)).rejects.toEqual({
+      code: 'P2002',
+    });
     model.findFirst.mockResolvedValue(null);
-    await expect(repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'k' } as never)).rejects.toEqual({ code: 'P2002' });
+    await expect(
+      repo.createKeyed({ depotId: 'depot-1', idempotencyKey: 'k' } as never),
+    ).rejects.toEqual({ code: 'P2002' });
   });
 
   // I1: a completion fan-out is at-least-once, so this is called twice for the same order.
@@ -1231,7 +1243,9 @@ describe('GallonReturnPrismaRepository', () => {
     const work = jest.fn().mockResolvedValue('done');
     await expect(locked.serialized('d1:c1', work)).resolves.toBe('done');
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(work.mock.invocationCallOrder[0]);
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      work.mock.invocationCallOrder[0],
+    );
   });
 
   // DEP-07: the lookup the manual-return service runs under the balance lock.
@@ -1900,6 +1914,9 @@ describe('InventoryPrismaRepository', () => {
     // old shape read every line with a minimum set and filtered them here (audit S-13).
     expect($queryRaw).toHaveBeenCalledTimes(1);
     expect(inventoryItem.findMany).not.toHaveBeenCalled();
+    expect(($queryRaw.mock.calls[0][0] as { strings: string[] }).strings.join('?')).toContain(
+      '"quantity"::bigint - "reserved"::bigint',
+    );
     expect(out.map((i) => i.id)).toEqual(['it-2']);
   });
 
@@ -1949,7 +1966,8 @@ describe('InventoryPrismaRepository', () => {
     // The SET clause itself must be relative. Asserting on the whole statement is not
     // enough: the floor in the WHERE also reads `"quantity" + `, so an absolute
     // `SET "quantity" = ?` passed that check while reintroducing the whole race.
-    expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"\s*\+/);
+    expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"::bigint\s*\+/);
+    expect(text).toContain('BETWEEN');
     expect(text).toContain('>= 0');
     // Not 10 -> 15. The movement records the write that really happened: 13 -> 18.
     expect(stockMovement.create).toHaveBeenCalledWith({
@@ -1982,7 +2000,7 @@ describe('InventoryPrismaRepository', () => {
     const text = (
       ($queryRaw.mock.calls.at(-1) as unknown[])[0] as { strings: string[] }
     ).strings.join('?');
-    expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"\s*\+/);
+    expect(text).toMatch(/SET\s+"quantity"\s*=\s*"quantity"::bigint\s*\+/);
     expect(text).not.toContain('>= 0');
   });
 
@@ -2014,6 +2032,31 @@ describe('InventoryPrismaRepository', () => {
       } as never),
     ).rejects.toBeInstanceOf(NegativeStockError);
     expect(stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an overflowing stock result before writing a movement', async () => {
+    $queryRaw.mockResolvedValue([]);
+    inventoryItem.findUnique.mockResolvedValue({ quantity: 2_147_483_647 });
+    await expect(
+      repo.applyMovement('it-1', {
+        itemId: 'it-1',
+        type: StockMovementType.RECEIPT,
+        delta: 1,
+      } as never),
+    ).rejects.toBeInstanceOf(InventoryQuantityOutOfRangeError);
+    expect(stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a variance too large for the movement ledger before querying', async () => {
+    $queryRaw.mockClear();
+    await expect(
+      repo.applyMovement('it-1', {
+        itemId: 'it-1',
+        type: StockMovementType.OPNAME,
+        delta: 2_147_483_648,
+      } as never),
+    ).rejects.toBeInstanceOf(InventoryQuantityOutOfRangeError);
+    expect($queryRaw).not.toHaveBeenCalled();
   });
 
   it('detects an existing movement for an order', async () => {

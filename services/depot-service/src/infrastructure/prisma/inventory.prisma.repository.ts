@@ -6,6 +6,8 @@ import { Prisma } from '../../../prisma/generated/client';
 import {
   available,
   InventoryItemType,
+  MAX_STOCK_UNITS,
+  MIN_STOCK_UNITS,
   ReservationStatus,
   StockMovementType,
 } from '../../domain/inventory';
@@ -23,7 +25,7 @@ import {
   StockSnapshotRow,
   UpdateInventoryItemData,
 } from '../../application/ports/inventory.repository';
-import { NegativeStockError } from '../../domain/errors';
+import { InventoryQuantityOutOfRangeError, NegativeStockError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
 
 interface ItemRow {
@@ -188,7 +190,7 @@ export class InventoryPrismaRepository implements InventoryRepository {
     const rows = await this.prisma.$queryRaw<ItemRow[]>(Prisma.sql`
       SELECT * FROM "inventory_items"
       WHERE "minimumStock" > 0
-        AND ("quantity" - "reserved") <= "minimumStock"
+        AND ("quantity"::bigint - "reserved"::bigint) <= "minimumStock"
         ${scope}
       ORDER BY "depotId" ASC, "itemType" ASC
     `);
@@ -216,6 +218,13 @@ export class InventoryPrismaRepository implements InventoryRepository {
    * read, so the ledger records what actually happened rather than what was expected to.
    */
   async applyMovement(itemId: string, movement: RecordMovementData): Promise<InventoryItemRecord> {
+    if (
+      !Number.isInteger(movement.delta) ||
+      movement.delta < MIN_STOCK_UNITS ||
+      movement.delta > MAX_STOCK_UNITS
+    ) {
+      throw new InventoryQuantityOutOfRangeError();
+    }
     /*
      * The floor is NOT universal, and that distinction is the whole of it.
      *
@@ -231,13 +240,25 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<ItemRow[]>(Prisma.sql`
         UPDATE "inventory_items"
-           SET "quantity" = "quantity" + ${movement.delta}, "updatedAt" = NOW()
+           SET "quantity" = "quantity"::bigint + ${movement.delta}::bigint, "updatedAt" = NOW()
          WHERE "id" = ${itemId}::uuid
-           ${floored ? Prisma.sql`AND "quantity" + ${movement.delta} >= 0` : Prisma.empty}
+           AND "quantity"::bigint + ${movement.delta}::bigint BETWEEN ${MIN_STOCK_UNITS} AND ${MAX_STOCK_UNITS}
+           ${floored ? Prisma.sql`AND "quantity"::bigint + ${movement.delta}::bigint >= 0` : Prisma.empty}
         RETURNING *
       `);
       const row = rows[0];
       if (!row) {
+        const current = await tx.inventoryItem.findUnique({
+          where: { id: itemId },
+          select: { quantity: true },
+        });
+        if (
+          current &&
+          (current.quantity + movement.delta < MIN_STOCK_UNITS ||
+            current.quantity + movement.delta > MAX_STOCK_UNITS)
+        ) {
+          throw new InventoryQuantityOutOfRangeError();
+        }
         // No row matched: either the line is gone, or the delta would take it below zero.
         // The service's own pre-check catches the ordinary case; this is the one only a
         // concurrent write can open, and it fails the movement instead of writing a
