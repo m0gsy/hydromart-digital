@@ -9,8 +9,11 @@ import {
 } from '../../src/modules/dto/gallon-return.dto';
 import {
   CreateInventoryItemDto,
+  AdjustStockDto,
+  ConsumeLineDto,
   ListInventoryQueryDto,
   ListStockMovementsQueryDto,
+  OpnameStockDto,
   UpdateInventoryItemDto,
 } from '../../src/modules/dto/inventory.dto';
 
@@ -60,7 +63,9 @@ describe('inventory write/query DTO transforms', () => {
     expect(absent.lowStockOnly).toBeUndefined();
     // Real booleans (a JSON body or an already-parsed query) pass through unchanged...
     expect(plainToInstance(ListInventoryQueryDto, { lowStockOnly: true }).lowStockOnly).toBe(true);
-    expect(plainToInstance(ListInventoryQueryDto, { lowStockOnly: false }).lowStockOnly).toBe(false);
+    expect(plainToInstance(ListInventoryQueryDto, { lowStockOnly: false }).lowStockOnly).toBe(
+      false,
+    );
     // ...and anything else is left alone so @IsBoolean rejects it instead of guessing.
     const junk = plainToInstance(ListInventoryQueryDto, { lowStockOnly: 'maybe' });
     expect((await validate(junk)).map((e) => e.property)).toContain('lowStockOnly');
@@ -89,10 +94,48 @@ describe('inventory write/query DTO transforms', () => {
     expect(await validate(dto)).toHaveLength(0);
     expect(dto).toMatchObject({ minimumStock: 5, sellPrice: 18000 });
   });
+
+  it('rejects stock values that cannot fit the database integer columns', async () => {
+    const tooLarge = 2_147_483_648;
+    const create = plainToInstance(CreateInventoryItemDto, {
+      itemType: InventoryItemType.AIR,
+      label: 'Air',
+      unit: 'L',
+      quantity: tooLarge,
+      minimumStock: tooLarge,
+    });
+    expect((await validate(create)).map((error) => error.property).sort()).toEqual([
+      'minimumStock',
+      'quantity',
+    ]);
+    expect(
+      (await validate(plainToInstance(OpnameStockDto, { countedQuantity: tooLarge }))).map(
+        (error) => error.property,
+      ),
+    ).toEqual(['countedQuantity']);
+    expect(
+      (await validate(plainToInstance(AdjustStockDto, { delta: tooLarge }))).map(
+        (error) => error.property,
+      ),
+    ).toEqual(['delta']);
+    expect(
+      (
+        await validate(
+          plainToInstance(ConsumeLineDto, {
+            productId: '11111111-1111-4111-8111-111111111111',
+            quantity: tooLarge,
+          }),
+        )
+      ).map((error) => error.property),
+    ).toEqual(['quantity']);
+  });
 });
 
 describe('gallon return DTOs', () => {
-  const base = { depotId: '11111111-1111-4111-8111-111111111111', orderId: '22222222-2222-4222-8222-222222222222' };
+  const base = {
+    depotId: '11111111-1111-4111-8111-111111111111',
+    orderId: '22222222-2222-4222-8222-222222222222',
+  };
 
   it('accepts a normal handover and refuses an absurd one before anything is written', async () => {
     const ok = plainToInstance(CreateGallonReturnDto, { quantity: 3 });
@@ -106,7 +149,9 @@ describe('gallon return DTOs', () => {
   });
 
   it('bounds the courier handover the same way', async () => {
-    expect(await validate(plainToInstance(CreateCourierReturnDto, { ...base, quantity: 2 }))).toHaveLength(0);
+    expect(
+      await validate(plainToInstance(CreateCourierReturnDto, { ...base, quantity: 2 })),
+    ).toHaveLength(0);
     const huge = plainToInstance(CreateCourierReturnDto, { ...base, quantity: 100000 });
     expect((await validate(huge)).map((e) => e.property)).toEqual(['quantity']);
   });

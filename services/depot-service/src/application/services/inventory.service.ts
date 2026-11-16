@@ -11,6 +11,7 @@ import {
 
 import {
   InventoryItemType,
+  MAX_STOCK_UNITS,
   OwnershipType,
   StockMovementType,
   available,
@@ -23,6 +24,7 @@ import {
   DuplicateInventoryLineError,
   InsufficientStockError,
   InventoryItemNotFoundError,
+  InventoryQuantityOutOfRangeError,
   InventoryLineHasSalesError,
   InventoryLineNotEmptyError,
   NegativeStockError,
@@ -196,6 +198,16 @@ export class InventoryService {
   }
 
   async createLine(depotId: string, input: CreateLineInput, actorId: string): Promise<ItemView> {
+    if (
+      !Number.isInteger(input.quantity) ||
+      input.quantity < 0 ||
+      input.quantity > MAX_STOCK_UNITS ||
+      !Number.isInteger(input.minimumStock) ||
+      input.minimumStock < 0 ||
+      input.minimumStock > MAX_STOCK_UNITS
+    ) {
+      throw new InventoryQuantityOutOfRangeError();
+    }
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }

@@ -20,7 +20,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { InventoryItemType, StockMovementType } from '../../domain/inventory';
+import {
+  InventoryItemType,
+  MAX_STOCK_UNITS,
+  MIN_STOCK_UNITS,
+  StockMovementType,
+} from '../../domain/inventory';
 
 import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
@@ -148,6 +153,7 @@ export class CreateInventoryItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK_UNITS)
   quantity?: number;
 
   @ApiPropertyOptional({ example: 20, default: 0, description: 'Low-stock threshold (0 = off).' })
@@ -155,6 +161,7 @@ export class CreateInventoryItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK_UNITS)
   minimumStock?: number;
 
   @ApiPropertyOptional({
@@ -188,6 +195,7 @@ export class UpdateInventoryItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK_UNITS)
   minimumStock?: number;
 
   @ApiPropertyOptional({
@@ -205,6 +213,8 @@ export class AdjustStockDto {
   @ApiProperty({ example: -5, description: 'Signed change; negative consumes stock.' })
   @Type(() => Number)
   @IsInt()
+  @Min(MIN_STOCK_UNITS)
+  @Max(MAX_STOCK_UNITS)
   delta!: number;
 
   @ApiPropertyOptional({ example: 'Damaged gallons removed' })
@@ -223,6 +233,7 @@ export class ConsumeLineDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(MAX_STOCK_UNITS)
   quantity!: number;
 }
 
@@ -244,6 +255,7 @@ export class OpnameStockDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_STOCK_UNITS)
   countedQuantity!: number;
 
   @ApiPropertyOptional({ example: 'Monthly stock opname' })

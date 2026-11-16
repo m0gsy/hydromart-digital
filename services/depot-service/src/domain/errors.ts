@@ -238,6 +238,14 @@ export class NegativeStockError extends DomainError {
   }
 }
 
+export class InventoryQuantityOutOfRangeError extends DomainError {
+  readonly code = 'INVENTORY_QUANTITY_OUT_OF_RANGE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Stock quantity exceeds the supported range. Check the entered quantity.');
+  }
+}
+
 /** A reservation was requested for more units than a stocked line has available. */
 export class InsufficientStockError extends DomainError {
   readonly code = 'INVENTORY_INSUFFICIENT_STOCK';
